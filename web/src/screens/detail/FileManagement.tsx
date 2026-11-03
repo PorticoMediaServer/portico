@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject} from 'react';
+import {useViewerQueries} from '../../platform/freshness';
 import {deletionAllowed, type VersionDeletePreview} from '@core/administration.ts';
 import type {DetailProjection} from '@core/detail.ts';
 import type {ContentEntry} from '@core/library-content.ts';
@@ -90,7 +91,8 @@ function SplitVersion({binding, data, manage, onClose, returnFocusRef}: Props) {
 }
 
 function MergeTitle({binding, data, manage, onClose, returnFocusRef}: Props) {
-  const search = useMemo(() => createSearchBindings(binding.context), [binding]);
+  const queries = useViewerQueries();
+  const search = useMemo(() => createSearchBindings(binding.context, queries), [binding, queries]);
   useEffect(() => () => search.dispose(), [search]);
   const snapshot = useSyncExternalStore(search.service.subscribe, search.service.getSnapshot, search.service.getSnapshot);
   const [query, setQuery] = useState(''), [candidate, setCandidate] = useState<ContentEntry>(), [keepId, setKeepId] = useState(data.item.id), [busy, setBusy] = useState(false), [failed, setFailed] = useState(false);

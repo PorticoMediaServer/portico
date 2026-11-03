@@ -6,7 +6,7 @@ import {runScreenCommand} from '../src/screens/detail/context.ts';
 import {componentModule} from './helpers/component-harness.mjs';
 import {all, createRenderer, one, tree, textOf} from './helpers/interaction-harness.mjs';
 const t = (key: any, values?: any) => defaultI18n.t(key, values);
-async function mount(context: any, options: {text?: string; remember?: boolean; failClear?: () => boolean; snapshot?: any; summary?: any[]; group?: string; linkedQuery?: string; liveAvailable?: boolean; onNow?: any; openLive?: boolean; genres?: any; missingArt?: boolean} = {}) {
+async function mount(context: any, options: {text?: string; remember?: boolean; failClear?: () => boolean; snapshot?: any; summary?: any[]; group?: string; liveAvailable?: boolean; onNow?: any; openLive?: boolean; genres?: any; missingArt?: boolean} = {}) {
   context.mock.timers.enable({apis: ['setTimeout', 'setInterval']});
   const h = createRenderer(), calls: {name: string; args: any[]}[] = [];
   let current = true;
@@ -15,9 +15,16 @@ async function mount(context: any, options: {text?: string; remember?: boolean; 
   const store = (value: any) => ({subscribe: () => () => {}, getSnapshot: () => value});
   const service = {...store(options.snapshot ?? {phase: 'ready', query: {q: initial}, groups: [], pagination: {cursor: ''}}),
     cancel: record('cancel'), retry: record('retry'), refresh: record('refresh'), next: record('next')};
-  const binding = {service, results: {...service, page: () => ({loading: false, error: null})}, session: () => ({text: initial, group: options.group}), summary: () => options.summary ?? [], select: record('select'),
-    recent: async () => { calls.push({name: 'recent', args: []}); return {entries: [{q: 'Stored Query'}]}; },
-    clearRecent: async () => { calls.push({name: 'clearRecent', args: []}); if (options.failClear?.()) throw new Error('unavailable'); },
+  // Recent searches as the viewer's cache holds them: read once while history is on, replaced by an erase.
+  let history: any = {entries: [{q: 'Stored Query'}]}, historyRead = false;
+  const useQuery = (query: any) => {
+    if (!query.enabled) return {data: undefined};
+    if (!historyRead) { historyRead = true; calls.push({name: 'recent', args: []}); }
+    return {data: history};
+  };
+  const binding = {service, results: {...service, page: () => ({loading: false, error: null})}, summary: () => options.summary ?? [], select: record('select'),
+    history: {queryKey: ['search', 'history']},
+    clearRecent: async () => { calls.push({name: 'clearRecent', args: []}); if (options.failClear?.()) throw new Error('unavailable'); history = {entries: []}; },
     genres: {...store(options.genres ?? {phase: 'ready', genres: []}), load: record('genres'), browseTarget: (genre: any) => ({view: 'genre', id: genre.value})},
     onNow: {...store(options.onNow ?? {phase: 'ready', cards: [], sourceNames: []}), load: record('onNow')},
     context: {isCurrent: () => current, identity: {liveAvailable: options.liveAvailable === true}, effects: {reportError: record('error'), openBrowse: record('openBrowse')}, artwork: {foreground: (path: string) => options.missingArt ? undefined : path},
@@ -30,18 +37,19 @@ async function mount(context: any, options: {text?: string; remember?: boolean; 
     '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/layout': {WindowedGrid: 'WindowedGrid'},
     '../../kit/states': {Skeleton: 'Skeleton'}, '../../kit/overlays': {Banner: 'Banner'},
     '../../kit/states/SearchEmpty': {SearchEmpty: 'SearchEmpty'}, '../../kit/Icon': {Icon: 'Icon'},
-    '../../platform/freshness': {useFreshDocument() {}}, '../../shell/viewport': {useShellWidth: () => 1440},
+    '../../platform/freshness': {useFreshDocument() {}, useQuery}, '../../shell/viewport': {useShellWidth: () => 1440},
     '../../shell/title-menu': {useTitleMenu: () => ({open() {}, menu: null, play: () => undefined})},
     '../detail/Loading': {useLoadingClock: () => 0}, '../detail/ScreenProblem': {ScreenProblem: 'ScreenProblem'},
     './RecentSearches': {RecentSearches: 'RecentSearches'}, './TopResult': {TopResult: 'TopResult'}, './AllResultsRow': {AllResultsRow: 'AllResultsRow'},
     './window': {appendedWindow: () => ({collection: {}, set(items: any[]) { calls.push({name: 'window', args: [items]}); }, dispose() {}})},
     './search.module.css': {default: {}},
   });
-  const consume = record('consumeLinkedQuery'), openLive = record('openLive');
-  const flat = () => tree(h.render(() => app.SearchScreen({binding, linkedQuery: options.linkedQuery, onConsumeLinkedQuery: consume, onOpenLive: options.openLive ? openLive : undefined})));
+  let address: any = {q: initial, ...(options.group ? {group: options.group} : {})};
+  const settleAddress = (next: any) => { calls.push({name: 'settle', args: [next]}); address = next; }, openLive = record('openLive');
+  const flat = () => tree(h.render(() => app.SearchScreen({binding, address, onSettle: settleAddress, onOpenLive: options.openLive ? openLive : undefined})));
   const settle = async () => { for (let i = 0; i < 6; i++) { await Promise.resolve(); flat(); } };
   flat(); await settle();
-  return {flat, settle, calls, focused: h.focused, retire: () => { current = false; }};
+  return {flat, settle, calls, focused: h.focused, retire: () => { current = false; }, navigate: (next: any) => { address = next; }};
 }
 const selects = (f: any) => f.calls.filter((call: any) => call.name === 'select');
 
@@ -213,12 +221,28 @@ test('an empty first-page cursor replaces the existing window even at the same r
 });
 
 
-test('linked query overrides session text and is consumed once by the mounted screen', async context => {
-  const f = await mount(context, {text: 'old query', linkedQuery: 'linked title'});
+test('the search the address holds fills the field and is shown at once, without the typing delay', async context => {
+  const f = await mount(context, {text: 'linked title', snapshot: {phase: 'idle', query: null, groups: [], pagination: {cursor: ''}}});
   assert.equal(one(f.flat(), 'TextField').props.value, 'linked title');
-  assert.equal(f.calls.filter(call => call.name === 'consumeLinkedQuery').length, 1);
+  assert.deepEqual(selects(f).map((call: any) => call.args), [['linked title', {}]]);
+});
+
+test('a settled query and chip are written to the address, so Back returns to them', async context => {
+  const f = await mount(context);
+  one(f.flat(), 'TextField').props.onChange({currentTarget: {value: 'dune '}}); f.flat();
   context.mock.timers.tick(260); await f.settle();
-  assert.deepEqual(selects(f).at(-1)?.args, ['linked title', {}]);
+  assert.deepEqual(f.calls.filter(call => call.name === 'settle').map(call => call.args[0]), [{q: 'dune'}]);
+  all(f.flat(), 'Chip').find(node => textOf(node) === t('search.chip.movies'))!.props.onClick(); f.flat();
+  context.mock.timers.tick(260); await f.settle();
+  assert.deepEqual(f.calls.filter(call => call.name === 'settle').at(-1)?.args[0], {q: 'dune', group: 'movies'});
+});
+
+test('another address (Back, a link) replaces what is typed and its chip', async context => {
+  const f = await mount(context);
+  f.navigate({q: 'lantern', group: 'shows'}); await f.settle();
+  assert.equal(one(f.flat(), 'TextField').props.value, 'lantern');
+  assert.equal(all(f.flat(), 'Chip').find(node => textOf(node) === t('search.chip.shows'))?.props.selected, true);
+  assert.deepEqual(selects(f).at(-1)?.args, ['lantern', {group: 'shows'}]);
 });
 
 const initialLive = {phase: 'ready', sourceNames: ['Real source'], cards: [

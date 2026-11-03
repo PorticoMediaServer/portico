@@ -1,11 +1,16 @@
 import {parseBrowseNode, type BrowseNode, type BrowseSortSelection} from '@core/browse.ts';
 import type {ContentEntry, ContentView} from '@core/library-content.ts';
 import type {HomeSeeAll} from '@core/home.ts';
+import type {SearchGroup} from '@core/search.ts';
+import {SEARCH_CHIPS} from '@core/presentation/search-model.ts';
 
 const views: readonly ContentView[] = ['discover', 'browse', 'collections', 'categories', 'show', 'season', 'artist', 'album', 'book', 'collection', 'releases', 'songs', 'authors', 'series', 'author', 'book_series', 'disc'];
 const bounded = (value: unknown, max = 256): string | undefined => typeof value === 'string' && value.length > 0 && value.length <= max && !/[\x00-\x1f\x7f]/.test(value) ? value : undefined;
-export function searchQuery(raw: Record<string, unknown>): {q: string} {
-  return {q: typeof raw.q === 'string' && raw.q.length <= 2048 ? raw.q : ''};
+const searchGroups: readonly SearchGroup[] = SEARCH_CHIPS.flatMap(chip => chip.id === 'all' ? [] : [chip.id]);
+/** `/search?q=…&group=…`: the settled search and its type chip (none is All). */
+export function searchQuery(raw: Record<string, unknown>): {q: string; group?: SearchGroup} {
+  const group = searchGroups.find(value => value === raw.group);
+  return {q: typeof raw.q === 'string' && raw.q.length <= 2048 ? raw.q : '', ...(group ? {group} : {})};
 }
 export type LibrarySearch = Readonly<{view?: ContentView; entityId?: string; pivot?: string; section?: 'mixes'; query?: BrowseNode; sort?: readonly BrowseSortSelection[]; q?: string}>;
 export function librarySearch(raw: Record<string, unknown>): LibrarySearch {

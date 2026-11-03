@@ -7,7 +7,7 @@ import {SelectionCircle} from '../../kit/selection';
 import {t, locale} from '../detail/text';
 import {createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent} from 'react';
 import {preferenceValue} from '@core/preferences.ts';
-import {searchQueryProblem, type SearchEntry, type SearchGroup, type SearchGroupResult, type SearchHistoryPage} from '@core/search.ts';
+import {searchQueryProblem, type SearchEntry, type SearchGroup, type SearchGroupResult} from '@core/search.ts';
 import {SEARCH_CHIPS, searchChipOffered, searchGroupLabel, topSearchResult} from '@core/presentation/search-model.ts';
 import {Button, Chip, TextField} from '../../kit/controls';
 import {useSelectionRangePreview, type CardSelection, PosterCard, SquareCard, CircleCard, EpisodeTile, GenreTile, LiveCard, CoverCard} from '../../kit/cards';
@@ -20,7 +20,7 @@ import {searchResultCount} from './result-status';
 import {SearchEmpty} from '../../kit/states/SearchEmpty';
 import {entryCard} from '../detail/model';
 import {dependsOn, titlesWithPersonalState} from '@core/freshness-hub.ts';
-import {useFreshDocument} from '../../platform/freshness';
+import {useFreshDocument, useQuery} from '../../platform/freshness';
 import {Icon} from '../../kit/Icon';
 import type {SearchBindings} from './bindings';
 import type {SearchOnNowCard} from './on-now';
@@ -28,7 +28,6 @@ import {appendedWindow} from './window';
 import styles from './search.module.css';
 import {TopResult} from './TopResult';
 import {artistAlbumArt} from './artist-art';
-import {newlyRecorded} from './recorded';
 import {runScreenCommand} from '../detail/context';
 import {useLoadingClock} from '../detail/Loading';
 import {ScreenProblem} from '../detail/ScreenProblem';
@@ -43,8 +42,6 @@ import {formatSignalText, musicFormatBadges} from '@core/music-signal.ts';
 import {AllResultsRow} from './AllResultsRow';
 
 type ChipId = SearchGroup | 'all';
-type HistoryLease = {retired: boolean; pending: boolean};
-type HistoryView = {lease: HistoryLease; page?: SearchHistoryPage};
 const keyOf = (entry: SearchEntry) => JSON.stringify(['libraryId' in entry ? entry.libraryId : '', entry.kind, entry.id]);
 const groupOrder = new Map<string, number>(SEARCH_CHIPS.map((chip, index) => [chip.id, index]));
 const searchTimezone = () => defaultI18n.region.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -57,81 +54,56 @@ function onNowProgramme(card: SearchOnNowCard, now: number) {
   facts.push({id: 'ends', role: 'context', text: t('guide.ends', {time: onNowTime(programme.end)})});
   return {title: programme.title, facts, progress: current.progress, live: programme.flags?.live === true};
 }
-export type SearchScreenProps = {binding: SearchBindings; selection?: SearchSelection; linkedQuery?: string; onConsumeLinkedQuery?: () => void; onOpenLive?: (sourceId?: string) => void};
+/** The settled search the address holds: what Back and a link return to. */
+export type SearchAddress = Readonly<{q: string; group?: SearchGroup}>;
+export type SearchScreenProps = {binding: SearchBindings; selection?: SearchSelection; address?: SearchAddress; onSettle?: (address: SearchAddress) => void; onOpenLive?: (sourceId?: string) => void};
+const NO_ADDRESS: SearchAddress = {q: ''};
 
-export function SearchScreen({binding, selection, linkedQuery, onConsumeLinkedQuery, onOpenLive}: SearchScreenProps) {
+export function SearchScreen({binding, selection, address = NO_ADDRESS, onSettle, onOpenLive}: SearchScreenProps) {
   useSyncExternalStore(selection?.subscribe ?? noSelectionSubscription, selection?.getSnapshot ?? noSelectionSnapshot, selection?.getSnapshot ?? noSelectionSnapshot);
   const selectionEpoch = selection?.epoch();
   const compact = useShellWidth() < 600;
-  const {service, context} = binding, initial = binding.session();
+  const {service, context} = binding;
   useScreenIdentity(context);
   const titleMenu = useTitleMenu(context);
   const snapshot = useSyncExternalStore(binding.results.subscribe, binding.results.getSnapshot, binding.results.getSnapshot);
   useFreshDocument([dependsOn.libraries, ...titlesWithPersonalState(), dependsOn.settings('preferences'), dependsOn.event('stream.resync')], refresh => service.revalidate(refresh), () => service.getSnapshot().phase === 'ready');
   const preferences = useSyncExternalStore(context.preferences.subscribe, context.preferences.getSnapshot, context.preferences.getSnapshot);
-  const [text, setText] = useState(linkedQuery ?? initial.text), [chip, setChip] = useState<ChipId>(initial.group ?? 'all');
-  const [historyView, setHistoryView] = useState<HistoryView>(), [clearFailed, setClearFailed] = useState(false);
-  // SR-8: a search the server recorded on this visit reads Recent searches again.
-  const [recordedReads, setRecordedReads] = useState(0), lastRecorded = useRef<number | undefined>(undefined);
-  // The history row the viewer is looking at belongs to this exact mount (or replay) and
-  // to the page it was rendered from; the rendered callbacks close over that state, and a
-  // retained one cannot write into a successor.
-  const activeLease = useRef<HistoryLease | undefined>(undefined), historyPage = useRef<SearchHistoryPage | undefined>(undefined);
-  const recent = historyView?.page ? historyView.page.entries.slice(0, 8).map(item => item.q) : [];
+  const [text, setText] = useState(address.q), [chip, setChip] = useState<ChipId>(address.group ?? 'all');
+  const [clearFailed, setClearFailed] = useState(false), historyPending = useRef(false);
   const [now, setNow] = useState(() => serverNow());
   const genres = useSyncExternalStore(binding.genres.subscribe, binding.genres.getSnapshot, binding.genres.getSnapshot);
   const onNow = useSyncExternalStore(binding.onNow.subscribe, binding.onNow.getSnapshot, binding.onNow.getSnapshot);
   const input = useRef<HTMLInputElement>(null), results = useRef<HTMLDivElement>(null), committed = useRef('');
   const group = chip === 'all' ? undefined : chip, problem = searchQueryProblem(text);
   const remember = preferences.effective['search.rememberHistory'] === true;
+  // Recent searches from the viewer's cache; a search the server records reads them again.
+  const history = useQuery({...binding.history, enabled: remember});
+  const recent = remember && history.data ? history.data.entries.slice(0, 8).map(item => item.q) : [];
+  // The address this screen last settled on. Another address (Back, a link) replaces what is typed.
+  const settled = useRef<SearchAddress>(address), asked = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (address.q === settled.current.q && address.group === settled.current.group) return;
+    settled.current = {q: address.q, ...(address.group ? {group: address.group} : {})}; setText(address.q); setChip(address.group ?? 'all');
+  }, [address.q, address.group]);
   const submit = (record = false) => {
     if (!context.isCurrent()) return;
     void binding.select(problem ? '' : text.trim(), {...(group ? {group} : {}), ...(record && remember ? {record: true} : {})}).catch(context.effects.reportError);
   };
-  useEffect(() => { if (linkedQuery !== undefined) onConsumeLinkedQuery?.(); }, [linkedQuery, onConsumeLinkedQuery]);
   useEffect(() => {
     if (snapshot.query?.q === text.trim() && snapshot.query?.group === group) return;
+    const next: SearchAddress = {q: problem ? '' : text.trim(), ...(group ? {group} : {})}, key = JSON.stringify([next.q, next.group]);
+    // Asked already (a query too short to search stays unasked by the service): nothing to do.
+    if (asked.current === key) return;
+    const run = () => { asked.current = key; settled.current = next; onSettle?.(next); void binding.select(next.q, group ? {group} : {}).catch(context.effects.reportError); };
+    // The search the address already holds (opened by a link, or Back) is shown at once.
+    if (next.q === address.q && next.group === address.group) { run(); return; }
     // Withdraw the old query immediately, including during the debounce.
-    service.cancel();
-    const timer = setTimeout(() => { void binding.select(problem ? '' : text.trim(), group ? {group} : {}).catch(context.effects.reportError); }, 260);
+    asked.current = undefined; service.cancel();
+    const timer = setTimeout(run, 260);
     return () => clearTimeout(timer);
-  }, [binding, service, text, group, problem, context.effects.reportError, snapshot.query?.q, snapshot.query?.group]);
+  }, [binding, service, text, group, problem, context.effects.reportError, snapshot.query?.q, snapshot.query?.group, address.q, address.group, onSettle]);
   useEffect(() => { input.current?.focus(); }, [binding]);
-  useEffect(() => {
-    const recorded = newlyRecorded(lastRecorded.current, snapshot);
-    if (recorded === undefined) return;
-    lastRecorded.current = recorded; setRecordedReads(value => value + 1);
-  }, [snapshot]);
-  useLayoutEffect(() => {
-    const lease: HistoryLease = {retired: false, pending: false};
-    activeLease.current = lease;
-    historyPage.current = undefined;
-    setHistoryView({lease});
-    return () => {
-      lease.retired = true;
-      if (activeLease.current === lease) activeLease.current = undefined;
-    };
-  }, [binding]);
-  useEffect(() => {
-    const lease = historyView?.lease;
-    if (!lease) return;
-    if (!remember) {
-      historyPage.current = undefined;
-      setHistoryView(current => current && current.lease === lease && current.page ? {lease} : current);
-      return;
-    }
-    const controller = new AbortController();
-    let active = true;
-    void binding.recent(controller.signal).then(page => {
-      if (!active || !context.isCurrent() || lease.retired || lease.pending || activeLease.current !== lease) return;
-      historyPage.current = page;
-      setHistoryView(current => current && current.lease === lease ? {lease, page} : current);
-    }, () => {});
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [binding, context, remember, historyView?.lease, recordedReads]);
   useEffect(() => {
     if (text.trim() || context.identity?.liveAvailable !== true) return;
     if (binding.onNow.getSnapshot().phase === 'idle') void binding.onNow.load().catch(() => {});
@@ -142,47 +114,15 @@ export function SearchScreen({binding, selection, linkedQuery, onConsumeLinkedQu
     return () => clearInterval(timer);
   }, [text]);
   const commit = () => { if (remember && text.trim() && !problem && committed.current !== text.trim()) { committed.current = text.trim(); submit(true); } };
-  // The rendered callbacks carry their own lease and page from state. Before any write they
-  // compare the live lease and page refs with those exact objects, so a retained callback
-  // never adopts a successor. One synchronous pending flag on that lease serialises remove
-  // and clear; only the server's answer for the same lease and page replaces the list.
-  const historyNow = historyView?.page ? {lease: historyView.lease, page: historyView.page} : undefined;
-  const removeRecent = historyNow ? (query: string) => {
-    const {lease, page} = historyNow;
-    if (!context.isCurrent() || lease.retired || lease.pending || activeLease.current !== lease || historyPage.current !== page || !recent.includes(query)) return;
-    lease.pending = true;
-    try {
-      void binding.removeRecent(query).then(next => {
-        lease.pending = false;
-        if (!context.isCurrent() || lease.retired || activeLease.current !== lease || historyPage.current !== page) return;
-        historyPage.current = next;
-        setHistoryView(current => current && current.lease === lease ? {lease, page: next} : current);
-        setClearFailed(false);
-      }, () => {
-        lease.pending = false;
-        if (!context.isCurrent() || lease.retired || activeLease.current !== lease || historyPage.current !== page) return;
-        setClearFailed(true);
-      });
-    } catch (error) { lease.pending = false; context.effects.reportError(error); }
-  } : undefined;
-  const clearRecentHistory = historyNow ? () => {
-    const {lease, page} = historyNow;
-    if (!context.isCurrent() || lease.retired || lease.pending || activeLease.current !== lease || historyPage.current !== page) return;
-    lease.pending = true;
-    try {
-      void binding.clearRecent().then(() => {
-        lease.pending = false;
-        if (!context.isCurrent() || lease.retired || activeLease.current !== lease || historyPage.current !== page) return;
-        historyPage.current = undefined;
-        setHistoryView(current => current && current.lease === lease ? {lease} : current);
-        setClearFailed(false);
-      }, () => {
-        lease.pending = false;
-        if (!context.isCurrent() || lease.retired || activeLease.current !== lease || historyPage.current !== page) return;
-        setClearFailed(true);
-      });
-    } catch (error) { lease.pending = false; context.effects.reportError(error); }
-  } : undefined;
+  // One erase at a time; the cache holds the server's answer.
+  const eraseRecent = (erase: () => Promise<void>) => {
+    if (!context.isCurrent() || historyPending.current) return;
+    historyPending.current = true;
+    void erase().then(() => setClearFailed(false), () => { if (context.isCurrent()) setClearFailed(true); })
+      .finally(() => { historyPending.current = false; });
+  };
+  const removeRecent = recent.length ? (query: string) => { if (recent.includes(query)) eraseRecent(() => binding.removeRecent(query)); } : undefined;
+  const clearRecentHistory = recent.length ? () => eraseRecent(() => binding.clearRecent()) : undefined;
   const showing = snapshot.data?.query.q === text.trim() && snapshot.data.query.group === (group ?? '') ? snapshot.data : null;
   const groups = showing ? snapshot.groups : [], top = showing && !group && !selection?.isActive() ? topSearchResult(text, service.getSnapshot().groups) : undefined;
   // Frame 4: a photo-less artist's circle is cut from one of their own albums in this answer.

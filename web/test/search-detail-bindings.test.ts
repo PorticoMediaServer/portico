@@ -4,7 +4,9 @@ import type {ScreenContext} from '../src/screens/detail/context.ts';
 import {createDetailBindings} from '../src/screens/detail/bindings.ts';
 import {createShowBindings} from '../src/screens/detail/show-bindings.ts';
 import {createPersonBindings} from '../src/screens/detail/person-bindings.ts';
-import {createSearchBindings} from '../src/screens/search/bindings.ts';
+import {createSearchBindings as bindSearch} from '../src/screens/search/bindings.ts';
+import {testViewerQueries} from './helpers/viewer-queries.ts';
+const createSearchBindings = (context: Parameters<typeof bindSearch>[0]) => bindSearch(context, testViewerQueries(context));
 import {createEntryDetailsBindings} from '../src/screens/detail/entry-details.ts';
 import {createWatchBodyBindings} from '../src/screens/detail/watch-body.ts';
 import {createScreenPlayEffect} from '../src/screens/browse/playback-effect.ts';
@@ -242,7 +244,6 @@ test('domain factory creation is inert and disposal erases all private snapshots
   assert.equal(search.service.getSnapshot().data, null);
   assert.equal(search.genres.getSnapshot().phase, 'idle');
   assert.deepEqual(search.genres.getSnapshot().genres, []);
-  assert.deepEqual(search.session(), {text: '', group: undefined});
 });
 
 test('a bare item-library resolution aborts at disposal and never starts detail with a late reply', async () => {
@@ -261,7 +262,7 @@ test('a family or profile handover refuses even a newly invoked old service requ
   const owner = setup(async () => ({})), binding = createSearchBindings(owner.context);
   owner.retire();
   await assert.rejects(binding.select('one'), {name: 'AbortError'});
-  await assert.rejects(binding.recent(), {name: 'AbortError'});
+  await assert.rejects(binding.clearRecent(), {name: 'AbortError'});
   assert.equal(owner.requests(), 0);
   binding.dispose();
 });
