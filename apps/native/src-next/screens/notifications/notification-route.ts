@@ -4,7 +4,9 @@ export {startNotificationScan} from '../../../../../packages/client-core/src/not
 import type {NativeShellRoute} from '../../shell/routes';
 
 /** A command the Notifications screen carries out in place: Dismiss archives the notice; Scan again starts the scan. */
-export type NotificationCommandTarget = Readonly<{kind: 'archive'}> | Readonly<{kind: 'scan'; libraryId: string}>;
+export type NotificationCommandTarget = Readonly<{kind: 'archive'}> | Readonly<{kind: 'scan'; libraryId: string}>
+  /** "Your report has an update" → Open report: the reporter's own report, read only, over the list. */
+  | Readonly<{kind: 'report'; reportId: string}>;
 
 /** The real surface a notice action opens on this device, or nothing when this build has none
  * (the action is then left out rather than drawn disabled). The meaning is shared with web (OW-1). */
@@ -37,5 +39,6 @@ export function notificationCommand(action: NotificationAction, note?: Notificat
   const intent = notificationIntent(action, note);
   if (intent?.kind === 'archive-notice') return {kind: 'archive'};
   if (intent?.kind === 'scan-library') return {kind: 'scan', libraryId: intent.libraryId};
+  if (intent?.kind === 'own-feedback') return {kind: 'report', reportId: intent.reportId};
   return undefined;
 }

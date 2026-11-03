@@ -36,3 +36,9 @@ test('the page runs Dismiss and Scan again in place, through the notice\'s own s
   assert.match(source, /if \(target\.view === 'archive'\) \{apply\('archive', note\); return;\}/);
   assert.match(source, /startNotificationScan\(context\.api, target\.libraryId\)\.then\(\(\) => service\.apply\('read', \[note\.id\]\)\)/);
 });
+
+test('Open report on "Your report has an update" opens the reporter\'s own report, read only, over the notice', () => {
+  assert.deepEqual(notificationDestination(cmd('open-feedback', {reportId: 'rep-1'}), libraries, false), {view: 'own-report', reportId: 'rep-1'});
+  const source = readFileSync(new URL('../src/screens/account/Notifications.route.tsx', import.meta.url), 'utf8');
+  assert.match(source, /if \(target\.view === 'own-report'\) \{opening\.run\(state, \(\) => \{setReport\(target\.reportId\); void service\.apply\('read', \[note\.id\]\);\}\); return;\}/);
+});

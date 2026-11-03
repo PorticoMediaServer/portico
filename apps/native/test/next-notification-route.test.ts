@@ -34,4 +34,5 @@ test('the published commands and views open a real surface or run in place', asy
   assert.deepEqual(notificationCommand(cmd('run-scan', {libraryId: 'lib-1'})), {kind: 'scan', libraryId: 'lib-1'});
   assert.equal(notificationCommand(cmd('run-scan', {})), undefined, 'no library, no scan');
   assert.equal(notificationRoute(cmd('dismiss-conflict', {recordingId: 'rec-1'}), false), undefined, 'a command is not a route');
+  assert.deepEqual(notificationCommand(cmd('open-feedback', {reportId: 'rep-1'})), {kind: 'report', reportId: 'rep-1'}, 'Open report: the read-only report sheet');
 });

@@ -100,7 +100,7 @@ test('phone See all composes the drawn header, separate controls and three-colum
 
 test('phone Notifications uses the shared transparent sheet while tablet retains its route surface', async () => {
   const h = host(); let phone = true;
-  const {NativeNotificationsScreen} = await screenModule(new URL('../src-next/screens/notifications/NotificationsScreen.tsx', import.meta.url), {'./notification-route': await import('../src-next/screens/notifications/notification-route.ts'), 
+  const {NativeNotificationsScreen} = await screenModule(new URL('../src-next/screens/notifications/NotificationsScreen.tsx', import.meta.url), {'./OwnFeedbackReport': {OwnFeedbackReport: 'OwnFeedbackReport'}, './notification-route': await import('../src-next/screens/notifications/notification-route.ts'), 
     react: h.react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47, bottom: 34})}, '../../../../../packages/i18n/src': {defaultI18n: {}},
     '../../../../../packages/client-core/src/notifications': {}, '../../kit/controls': {Button: 'Button', Tabs: 'Tabs'}, '../../kit/Icon': {Icon: 'Icon'},

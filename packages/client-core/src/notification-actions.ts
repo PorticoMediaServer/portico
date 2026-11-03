@@ -1,5 +1,7 @@
 import {encodedRoutePath} from '../../contracts/src/route-paths.ts';
-import {notificationPreparationTarget, type Notification, type NotificationAction} from './notifications.ts';
+import {notificationPreparationTarget, parseFeedbackReport, type FeedbackItem, type Notification, type NotificationAction} from './notifications.ts';
+import {feedbackTriageCategory} from './server-admin/feedback-source.ts';
+import {defaultI18n, type I18n, type MessageId} from '../../i18n/src/index.ts';
 
 /**
  * OW-1: what a notice's action does, decided once for every client. The server's vocabulary
@@ -81,4 +83,27 @@ export function notificationIntent(action: NotificationAction, note?: Notificati
 /** Scan again: starts a scan of the library named by the notice (`POST /v1/libraries/{id}/scans`). */
 export async function startNotificationScan(api: Readonly<{request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>}>, libraryId: string, signal?: AbortSignal): Promise<void> {
   await api.request(encodedRoutePath('post_libraries_id_scans', {id: encodeURIComponent(libraryId)}), 'POST', undefined, signal);
+}
+
+/** "Your report has an update" → Open report: the reporter's own report (`GET /v1/feedback/reports/{id}`). */
+export async function readOwnFeedbackReport(api: Readonly<{request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>}>, reportId: string, signal?: AbortSignal): Promise<FeedbackItem> {
+  const raw = await api.request<{data?: unknown}>(encodedRoutePath('get_feedback_reports_id', {id: encodeURIComponent(reportId)}), 'GET', undefined, signal);
+  return parseFeedbackReport(raw?.data);
+}
+
+const REPORT_CATEGORY: Readonly<Record<ReturnType<typeof feedbackTriageCategory>, MessageId>> = Object.freeze({
+  playback: 'server.feedback.category.playback', metadata: 'server.feedback.category.metadata', subtitles: 'server.feedback.category.subtitles', other: 'server.feedback.category.other'});
+const REPORT_STATUS: Readonly<Record<FeedbackItem['status'], MessageId>> = Object.freeze({
+  open: 'server.feedback.status.open', 'in-progress': 'server.feedback.status.in-progress', resolved: 'server.feedback.status.resolved', closed: 'server.feedback.status.closed'});
+
+/** What the reporter's read-only report sheet shows, on every client: the owner's words as the owner sees them, the
+ * person's own message, and each reply the owner sent, oldest first. No frame draws an editor for it, so there is none. */
+export function ownFeedbackReportView(report: FeedbackItem, i18n: I18n = defaultI18n): Readonly<{title: string; meta: string; message: string; replies: readonly Readonly<{at: string; text: string}>[]}> {
+  return Object.freeze({
+    title: i18n.t(REPORT_CATEGORY[feedbackTriageCategory(report)] ?? 'server.feedback.category.other'),
+    meta: i18n.t('web.feedback.reportedMeta', {when: i18n.dateTime(report.createdAt), status: i18n.t(REPORT_STATUS[report.status])}),
+    message: report.message,
+    replies: Object.freeze([...report.thread].filter(event => event.reply.trim()).sort((a, b) => a.sequence - b.sequence)
+      .map(event => Object.freeze({at: i18n.dateTime(event.at), text: event.reply}))),
+  });
 }

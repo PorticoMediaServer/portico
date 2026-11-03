@@ -5,7 +5,9 @@ export type NoticeDestination = Readonly<{view: 'home'}> | Readonly<{view: 'sett
   | Readonly<{view: 'library'; id: string}> | Readonly<{view: 'item'; id: string}> | Readonly<{view: 'downloads'}>
   | Readonly<{view: 'live'; tab?: 'recordings'}> | Readonly<{view: 'search'}> | Readonly<{view: 'person'; id: string}>
   /** Commands carried out in place: Scan again starts the library's scan; Dismiss archives the notice. */
-  | Readonly<{view: 'scan'; libraryId: string}> | Readonly<{view: 'archive'}>;
+  | Readonly<{view: 'scan'; libraryId: string}> | Readonly<{view: 'archive'}>
+  /** The reporter's own report, read only, over the notice. */
+  | Readonly<{view: 'own-report'; reportId: string}>;
 
 /**
  * Where a notice action goes on web (OW-1): the shared intent (`@core/notification-actions`) mapped to a real web surface.
@@ -36,7 +38,7 @@ export function notificationDestination(action: NotificationAction, libraries: r
     case 'person': return {view: 'person', id: intent.personId};
     case 'scan-library': return canManageServer && libraries.some(library => library.id === intent.libraryId) ? {view: 'scan', libraryId: intent.libraryId} : undefined;
     case 'archive-notice': return {view: 'archive'};
-    // No page draws a reporter's own report yet.
-    case 'own-feedback': return undefined;
+    // No frame draws a reporter's report page or editor: a read-only sheet over the notice (OwnFeedbackReport).
+    case 'own-feedback': return {view: 'own-report', reportId: intent.reportId};
   }
 }
