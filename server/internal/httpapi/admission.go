@@ -556,6 +556,9 @@ func (a *admission) wrap(mux *http.ServeMux, next http.Handler) http.Handler {
 		// The writer gate rotates between the same owners the lanes share load
 		// by, and a full gate refuses an over-share owner's write first.
 		ctx = dbwork.WithOwner(ctx, key)
+		// One request proves its authority once per moment, not once per
+		// transaction it opens (dbwork.RememberForRequest).
+		ctx = dbwork.WithRequestMemo(ctx)
 		if l.spec.budget > 0 && !budgetIncludesQueue {
 			var cancel context.CancelFunc
 			ctx, cancel = context.WithTimeout(ctx, l.spec.budget)
