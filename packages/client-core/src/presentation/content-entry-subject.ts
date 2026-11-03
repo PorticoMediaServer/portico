@@ -15,5 +15,7 @@ export function contentEntrySubject(entry: ContentEntry): CardSubject {
     seasonNumber: entry.seasonNumber, year: entry.year, contentRating: entry.contentRating, durationSeconds: entry.duration,
     positionSeconds: entry.progressSeconds, genres: entry.genres, seasonCount: entry.seasonCount,
     artist: entry.artist?.name, album: entry.album?.name, author: entry.author,
-    show: entry.show ? {id: entry.show.id, title: entry.show.name} : undefined, episode};
+    show: entry.show ? {id: entry.show.id, title: entry.show.name} : undefined, episode,
+    // W2-A6: a book's current chapter counts across the whole book, never within one part.
+    ...(entry.bookProgress?.chapter ? {chapterNumber: entry.bookProgress.chapter.number} : {})};
 }
