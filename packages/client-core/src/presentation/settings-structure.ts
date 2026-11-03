@@ -467,6 +467,14 @@ const accountPages: readonly AuthoredPage[] = [
         // No time zone: every client shows times in the device's own zone (Justin, 5 Oct 2026).
         pref('region.hourCycle', 'pref.label.region.hourCycle', {type: 'choice', choices: (['auto', 'h12', 'h23'] as const).map(value => ({value, label: `pref.value.region.hourCycle.${value}` as MessageId}))}),
       ]},
+      // ST-4: the spec's four format rows; the native runtime already builds dates, numbers, the
+      // week and file sizes from them (screens/settings/runtime-region.ts). Labels and choices are the spec's.
+      {id: 'formats', title: 'next.settingsSpec.account.language.advanced.groups.0.title', advanced: true, rows: [
+        pref('region.formats', 'next.settingsSpec.account.language.advanced.groups.0.rows.0.label', {type: 'choice', choices: (['auto', 'en-US', 'en-CA', 'en-GB', 'en-AU', 'fr-FR', 'de-DE', 'es-ES', 'ru-RU'] as const).map((value, index) => ({value, label: `next.settingsSpec.account.language.advanced.groups.0.rows.0.control.options.${index}.label` as MessageId}))}),
+        pref('region.dateOrder', 'next.settingsSpec.account.language.advanced.groups.0.rows.1.label', {type: 'choice', choices: (['auto', 'dmy', 'mdy', 'ymd'] as const).map((value, index) => ({value, label: `next.settingsSpec.account.language.advanced.groups.0.rows.1.control.options.${index}.label` as MessageId}))}),
+        pref('region.firstDay', 'next.settingsSpec.account.language.advanced.groups.0.rows.2.label', {type: 'choice', choices: (['auto', 'mon', 'sun', 'sat'] as const).map((value, index) => ({value, label: `next.settingsSpec.account.language.advanced.groups.0.rows.2.control.options.${index}.label` as MessageId}))}),
+        pref('region.sizeUnits', 'next.settingsSpec.account.language.advanced.groups.0.rows.3.label', {type: 'choice', choices: (['binary', 'decimal'] as const).map((value, index) => ({value, label: `next.settingsSpec.account.language.advanced.groups.0.rows.3.control.options.${index}.label` as MessageId}))}),
+      ]},
     ],
   },
   {
