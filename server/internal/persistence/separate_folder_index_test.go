@@ -434,6 +434,14 @@ var separateFolderRareMutations = []struct {
 		contains: "UPDATE inventory_objects SET root_incarnation=?,directory_path=?,relative_path=?",
 		columns:  []string{"root_incarnation", "directory_path", "relative_path"},
 	},
+	{
+		// A library that returns at its configured path re-binds each proven
+		// object to the root's new incarnation, once per recovery (#284).
+		what:     "same-path presence recovery",
+		where:    "internal/ingestion/path_presence.go:",
+		contains: "UPDATE inventory_objects SET root_incarnation=?,object_identity=?,revision=?",
+		columns:  []string{"root_incarnation"},
+	},
 }
 
 func separateFolderPinnedWrite(t *testing.T, writes []separateFolderObjectWrite, where, contains string) (separateFolderObjectWrite, bool) {
