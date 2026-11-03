@@ -110,7 +110,7 @@ test('TV Search song results use full-width track rows and channels use factual 
     '../../kit/browse': {SongRow: 'SongRow'}, '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/browse/presentation': type, '../../kit/theme': {useTheme: () => theme},
     '../../../../../packages/client-core/src/presentation/kit-model': {cardText: (entry: any) => ({title: entry.title, caption: [], detail: []})},
-    '../home/model': {homeCardText: () => ({caption: []})}, './model': {nativeSearchEntryKey: key},
+    '../home/model': {homeCardText: () => ({caption: []}), nativeSearchCardText: () => ({caption: []})}, './model': {nativeSearchEntryKey: key},
   });
   const song = {id: 'track', kind: 'song', title: 'Real track', libraryId: 'music'}, runtime = {artwork: () => undefined, text: {}};
   const actions = {open() {}, play: (entry: any, group: string) => calls.push(['play', entry, group]), menu: (entry: any, group: string) => calls.push(['more', entry, group])};

@@ -166,9 +166,12 @@ export function cardText(subject: CardSubject, context: CardContext, env: TextEn
   } else if (subject.kind === 'artist' || subject.kind === 'author' || subject.kind === 'book_series' || subject.kind === 'collection' || subject.kind === 'category') {
     caption = counts(subject, env);
   } else {
-    caption = subject.kind === 'show' && integer(subject.seasonCount)
-      ? [part('season-count', t('next.kit.seasons', {count: subject.seasonCount}), 'supplement')]
-      : compact([integer(subject.year) ? part('year', String(subject.year), 'supplement') : undefined]);
+    const year = integer(subject.year) ? part('year', String(subject.year), 'supplement') : undefined;
+    const seasons = subject.kind === 'show' && integer(subject.seasonCount) ? part('season-count', t('next.kit.seasons', {count: subject.seasonCount}), 'supplement') : undefined;
+    // W2-A4: each frame's own line. Search's Shows draw the year and the season count
+    // ("2024 · 1 season", desktop-search); elsewhere a show with a published count (Recently
+    // Added's whole-show addition) reads "6 seasons", and any other title its year (Home).
+    caption = context === 'search' ? compact([year, seasons]) : seasons ? [seasons] : compact([year]);
     if (context === 'continuation') detail = compact([remaining]);
   }
   return Object.freeze({id: subject.id, title, caption: Object.freeze(caption), detail: Object.freeze(detail),

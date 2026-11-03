@@ -80,7 +80,7 @@ test('Search actions preserve exact current media/Person/channel identities with
       react: host.react, 'react-native': {View: 'View'},
       '../../kit/cards': {PosterCard: 'PosterCard', SquareCard: 'SquareCard', CircleCard: 'CircleCard', EpisodeTile: 'EpisodeTile'},
       '../../kit/focus': await focusNamespace(host.react),
-      '../home/model': {homeCardText}, './model': {nativeSearchEntryKey},
+      '../home/model': {homeCardText, nativeSearchCardText: (entry: any, env: any) => homeCardText(entry.kind === 'show' ? {...entry, seasonCount: undefined} : entry, false, env)}, './model': {nativeSearchEntryKey},
     });
     const personCard = host.render(() => SearchGridCard({entry: person, group: 'people', runtime: f.runtime, actions: f.actions, width: 120}));
     const movieCard = host.render(() => SearchGridCard({entry: movie, group: 'movies', runtime: f.runtime, actions: f.actions, width: 120}));

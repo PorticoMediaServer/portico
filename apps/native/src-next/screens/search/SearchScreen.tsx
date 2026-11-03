@@ -16,7 +16,7 @@ import {Banner} from '../../kit/overlays';
 import {browseType} from '../../kit/browse/presentation';
 import {useTheme} from '../../kit/theme';
 import type {NativeShellRuntime} from '../../shell/runtime';
-import {homeCardText} from '../home/model';
+import {nativeSearchCardText} from '../home/model';
 import {NativeSearchDestination, nativeSearchEntryKey} from './model';
 import {SearchGridCard} from './SearchGridCard';
 import {TVSearchScreen} from './TVSearchScreen';
@@ -194,7 +194,7 @@ function SearchGenre({genre, empty, runtime, width, onPress}: {genre: NativeSear
 
 function SearchResultRow({entry, group, runtime, actions, selection}: {entry: SearchEntry; group: SearchGroup; runtime: NativeShellRuntime; actions: NativeSearchActions; selection?: CardSelection}) {
   const t = runtime.text.t;
-  const theme = useTheme(), menuAnchorRef = useRef<View>(null), content = media(entry) ? entry : undefined, text = content ? homeCardText(content, false, runtime.text) : undefined;
+  const theme = useTheme(), menuAnchorRef = useRef<View>(null), content = media(entry) ? entry : undefined, text = content ? nativeSearchCardText(content, runtime.text) : undefined;
   const shape = group === 'movies' || group === 'shows' ? 'poster' : group === 'episodes' || group === 'live-tv' ? 'wide' : 'square';
   const width = shape === 'poster' ? 46 : shape === 'wide' ? 100 : 56, height = shape === 'poster' ? 69 : 56;
   const key = nativeSearchEntryKey(group, entry), title = content?.displayTitle || entry.title;
