@@ -94,7 +94,7 @@ export type CompositeId =
   | 'playbackMethod' | 'cardSize' | 'playback.stillWatching'
   // Kept by the device and published in its capability document (`withViewerSettings`).
   | 'playerEngine' | 'forceStereo' | 'disablePassthrough' | 'disableHdr' | 'tvHdr' | 'tvSurround' | 'tvSupports' | 'music.sampleRateMatching'
-  | 'libraryView' | 'reduceMotion' | 'textSize' | 'receiveFromDevices'
+  | 'libraryView' | 'reduceMotion' | 'textSize' | 'receiveFromDevices' | 'autoPictureInPicture'
   // Kept by the device and read before the app draws anything (B-19.10).
   | 'layout';
 export type SettingsActionId = 'signOut' | 'resetRecommendations' | 'linkTV' | 'customizeHome' | 'devicePlayerFixes';
@@ -525,6 +525,8 @@ const accountPages: readonly AuthoredPage[] = [
         {kind: 'action', id: 'linkTV', label: 'settings.linkTV', help: 'settings.linkTVHelp', icon: 'tvDevice', platforms: ['web', 'phone']},
         {kind: 'composite', id: 'receiveFromDevices', storage: 'device', label: 'settings.row.receiveFromDevices', help: 'settings.help.receiveFromDevices', scope: 'device', platforms: ['tv'], control: {type: 'switch'}},
         custom('downloadsStorage', 'settings.row.downloadsStorage', {platforms: ['phone'], needs: c => !!c.downloads}),
+        // On by default: leaving the app while a video plays continues it in Picture in Picture. Off: only the player's button starts it.
+        {kind: 'composite', id: 'autoPictureInPicture', storage: 'device', label: 'settings.row.autoPictureInPicture', scope: 'device', platforms: ['phone'], control: {type: 'switch'}},
       ]},
       // What this profile is playing on its other devices, to pause, resume or stop from here.
       {id: 'remote', rows: [custom('remoteControls', 'remote.title')]},

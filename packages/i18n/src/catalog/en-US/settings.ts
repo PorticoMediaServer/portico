@@ -147,6 +147,7 @@ export const settingsMessages = {
   'settings.row.deviceName': 'Device name',
   'settings.row.receiveFromDevices': 'Play from other devices',
   'settings.help.receiveFromDevices': 'Lets your phone or computer start playback on this TV.',
+  'settings.row.autoPictureInPicture': 'Start Picture in Picture automatically',
   'settings.row.downloadsStorage': 'Downloads storage',
   'settings.device.rename': 'Rename',
   'settings.downloadsStorage.free': '{free} free on this device',

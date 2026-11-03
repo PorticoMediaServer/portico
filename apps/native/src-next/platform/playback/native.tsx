@@ -29,7 +29,7 @@ type EngineModule = NativeListeningBridge & {
   features?: unknown;
   purgeAudioCache?: () => Promise<unknown>;
 };
-type NativeSurfaceProps = ViewProps & {lease: string; surfaceActive?: boolean; pictureInPictureRequest?: number; pictureInPictureBinding?: unknown};
+type NativeSurfaceProps = ViewProps & {lease: string; surfaceActive?: boolean; pictureInPictureRequest?: number; pictureInPictureBinding?: unknown; autoPictureInPicture?: boolean};
 const views: Partial<Record<EngineKind, HostComponent<NativeSurfaceProps>>> = {};
 function viewAvailable(name: string): boolean { try { return !!UIManager.hasViewManagerConfig(name); } catch { return false; } }
 function moduleConstants(module: EngineModule) { try { return module.getConstants?.() ?? module; } catch { return module; } }
@@ -130,7 +130,7 @@ export function createNativeShellPlaybackAdapter(options: NativePlaybackFactoryO
     // as well, including close before the asynchronous lease release completes.
     // Keep this host/ref/owner stable; expanded -> docked does not revoke it.
     return <SurfaceView ref={surfaceRef} lease={state.lease} pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants"
-      {...(Platform.OS === 'android' ? {surfaceActive: producerActive, pictureInPictureRequest: state.pictureInPicture?.request ?? 0, pictureInPictureBinding: state.pictureInPicture?.binding ?? null} : {})}
+      {...(Platform.OS === 'android' ? {surfaceActive: producerActive, pictureInPictureRequest: state.pictureInPicture?.request ?? 0, pictureInPictureBinding: state.pictureInPicture?.binding ?? null, autoPictureInPicture: state.pictureInPicture?.automatic ?? true} : {})}
       style={{position: 'absolute', left: bounds?.x ?? 0, top: bounds?.y ?? 0, width: bounds?.width ?? 0, height: bounds?.height ?? 0, display: visible ? 'flex' : 'none', opacity: visible ? 1 : 0}} />;
   }
   return {

@@ -5,14 +5,14 @@ import type {NativeQueueStore} from './queue-storage';
 import {insecureChoicesFor, parseInsecureConnections} from '../../../../packages/client-core/src/connection-policy';
 import {acceptConnectionPreference, nativeConnectionPolicy} from './connection-preference';
 
-export type NativePlaybackDeviceSetting = 'playerEngine' | 'forceStereo' | 'disablePassthrough' | 'disableHdr' | 'tvHdr' | 'tvSurround' | 'music.sampleRateMatching' | 'lossNotices' | 'receiveFromDevices' | 'matchFrameRate' | 'matchDynamicRange' | 'allowInsecure';
+export type NativePlaybackDeviceSetting = 'playerEngine' | 'forceStereo' | 'disablePassthrough' | 'disableHdr' | 'tvHdr' | 'tvSurround' | 'music.sampleRateMatching' | 'lossNotices' | 'autoPictureInPicture' | 'receiveFromDevices' | 'matchFrameRate' | 'matchDynamicRange' | 'allowInsecure';
 type Owner = Readonly<{current: () => boolean; subscribePreferences: (listener: () => void) => () => void}>;
 type Ports = Readonly<{storage: Pick<NativeQueueStore, 'change'>; readRecord: () => unknown; acceptRecord: (raw: unknown) => void}>;
 const sources = new WeakMap<Owner, NativeDeviceSettings>();
 const object = (raw: unknown): raw is Record<string, unknown> => !!raw && typeof raw === 'object' && !Array.isArray(raw);
 const ended = () => Object.assign(new Error('native_device_settings_retired'), {name: 'AbortError'});
 export function nativeDeviceSettingSupported(id: string): id is NativePlaybackDeviceSetting {
-  return id === 'playerEngine' || id === 'forceStereo' || id === 'disablePassthrough' || id === 'disableHdr' || id === 'tvHdr' || id === 'tvSurround' || id === 'music.sampleRateMatching' || id === 'lossNotices' || id === 'receiveFromDevices' || id === 'matchFrameRate' || id === 'matchDynamicRange' || id === 'allowInsecure';
+  return id === 'playerEngine' || id === 'forceStereo' || id === 'disablePassthrough' || id === 'disableHdr' || id === 'tvHdr' || id === 'tvSurround' || id === 'music.sampleRateMatching' || id === 'lossNotices' || id === 'autoPictureInPicture' || id === 'receiveFromDevices' || id === 'matchFrameRate' || id === 'matchDynamicRange' || id === 'allowInsecure';
 }
 
 /** The installation fields consumed by the actual playback runtime. The
@@ -33,7 +33,8 @@ export class NativeDeviceSettings {
     // The TV output choices are tri-state: an absent key means the viewer has
     // never overridden what the TV reports, which is not the same as Off.
     if (id === 'tvHdr' || id === 'tvSurround') return typeof record[id] === 'boolean' ? record[id] as boolean : undefined;
-    return (id === 'lossNotices' || id === 'receiveFromDevices') ? record[id] !== false : record[id] === true;
+    // On unless this device turned it off.
+    return (id === 'lossNotices' || id === 'receiveFromDevices' || id === 'autoPictureInPicture') ? record[id] !== false : record[id] === true;
   };
   readPassthroughFormat = (format: PassthroughFormat): 'auto' | 'off' => {
     this.assert(); const raw = this.ports.readRecord();

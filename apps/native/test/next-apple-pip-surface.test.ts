@@ -47,8 +47,13 @@ test('Apple retained view receives only the runtime request counter and exact bi
   const render = () => h.render(() => adapter.Surface(props));
   const idle = render();
   assert.equal(idle.props.pictureInPictureRequest, 0);assert.equal(idle.props.pictureInPictureBinding, null);
+  assert.equal(idle.props.autoPictureInPicture, true, 'Start Picture in Picture automatically is on unless turned off');
   state = {lease: 'lease', fence: {}, pictureInPicture: {request: 1, binding}};
   const requested = render();
+  assert.equal(requested.props.autoPictureInPicture, true);
+  state = {lease: 'lease', fence: {}, pictureInPicture: {request: 1, binding, automatic: false}};
+  assert.equal(render().props.autoPictureInPicture, false, 'off: iOS never starts it from the inline player by itself');
+  state = {lease: 'lease', fence: {}, pictureInPicture: {request: 1, binding}};
   assert.equal(requested.type, idle.type);assert.equal(requested.props.pictureInPictureRequest, 1);
   assert.strictEqual(requested.props.pictureInPictureBinding, binding);
   state = {lease: '', fence: undefined, pictureInPicture: {request: 1}};

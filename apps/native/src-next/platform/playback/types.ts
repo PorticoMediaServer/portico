@@ -123,6 +123,8 @@ export type NativePlaybackSettings = Readonly<{
   videoRate: number; audiobookRate: number;
   skips: Readonly<Record<'intro' | 'recap' | 'credits', SkipMode>>;
   subtitles: SubtitlePreferences;
+  /** Settings › Device › Start Picture in Picture automatically (this device; on unless turned off). */
+  autoPictureInPicture?: boolean;
 }>;
 export type NativePlaybackCapabilities = Readonly<{play: boolean; pause: boolean; stop: boolean; retry?: boolean; queuePolicy?: boolean; queueEdit?: boolean; queueSelection?: boolean; seek: boolean; previous: boolean; next: boolean; cast: boolean; airPlayVideo?: boolean; quality: boolean; version: boolean; audioTrack: boolean; subtitleTrack: boolean; subtitlesCanHide: boolean}>;
 export type NativePictureInPictureState = 'idle' | 'started' | 'restore' | 'stopped' | 'unavailable';
@@ -150,7 +152,9 @@ export type NativePlaybackRuntimeSnapshot = Readonly<{
   externalPresentationBinding?: NativeBinding | null;
   /** Installed retained-view request port, and the admitted native state of that
    * same view: only the view's own fenced report sets `active` or `state`. */
-  pictureInPicture?: Readonly<{request: number; binding?: NativeBinding; active: boolean; state: NativePictureInPictureState}>;
+  pictureInPicture?: Readonly<{request: number; binding?: NativeBinding; active: boolean; state: NativePictureInPictureState;
+    /** The OS may start it by itself when the viewer leaves the app; off, only the player's button starts it. */
+    automatic: boolean}>;
   retired: boolean;
   startFailure?: NativePlaybackStartFailure;
   capacityWait?: NativePlaybackCapacityWait;

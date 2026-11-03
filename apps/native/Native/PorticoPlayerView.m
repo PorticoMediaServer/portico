@@ -20,7 +20,7 @@ static NSMapTable<NSNumber *,UIView *> *PorticoSnapshotViews;
 - (PorticoPlaybackController *)snapshotControllerForLease:(NSString *)lease {
  return self.window&&[lease isEqual:_lease]&&[lease isEqual:_controller.lease]&&_layer.player==_controller.player?_controller:nil;
 }
-- (instancetype)initWithFrame:(CGRect)frame {if((self=[super initWithFrame:frame])){self.backgroundColor=UIColor.blackColor;_layer=[AVPlayerLayer playerLayerWithPlayer:nil];_layer.videoGravity=AVLayerVideoGravityResizeAspect;[self.layer addSublayer:_layer];self.clipsToBounds=YES;
+- (instancetype)initWithFrame:(CGRect)frame {if((self=[super initWithFrame:frame])){_autoPictureInPicture=YES;self.backgroundColor=UIColor.blackColor;_layer=[AVPlayerLayer playerLayerWithPlayer:nil];_layer.videoGravity=AVLayerVideoGravityResizeAspect;[self.layer addSublayer:_layer];self.clipsToBounds=YES;
  _richSubtitle=[UIImageView new];_richSubtitle.userInteractionEnabled=NO;_richSubtitle.layer.contentsFormat=kCAContentsFormatRGBA8Uint;
  if(@available(iOS 17.0,tvOS 17.0,*))_richSubtitle.preferredImageDynamicRange=UIImageDynamicRangeStandard;
  [self addSubview:_richSubtitle];_subtitle=[UILabel new];_subtitle.textColor=UIColor.whiteColor;_subtitle.backgroundColor=[UIColor colorWithWhite:0 alpha:0.7];_subtitle.textAlignment=NSTextAlignmentCenter;_subtitle.numberOfLines=0;_subtitle.userInteractionEnabled=NO;_subtitle.hidden=YES;_subtitle.isAccessibilityElement=YES;[self addSubview:_subtitle];[[NSNotificationCenter defaultCenter]addObserver:self selector:@selector(updateSubtitle) name:@"PorticoPlaybackSubtitleChanged" object:nil];[_layer addObserver:self forKeyPath:@"readyForDisplay" options:NSKeyValueObservingOptionNew context:NULL];[[NSNotificationCenter defaultCenter]addObserver:self selector:@selector(attachLayer) name:@"PorticoPlaybackAttachmentChanged" object:nil];
@@ -54,12 +54,13 @@ static NSMapTable<NSNumber *,UIView *> *PorticoSnapshotViews;
 }
 /** OS-04: the controller exists as soon as a video is attached, so leaving the app (Home swipe)
  * can continue the film in Picture in Picture, as the system's own players do. The system's
- * "Start PiP Automatically" setting still decides. This view stays the controller's only owner. */
+ * "Start PiP Automatically" setting still decides, and so does the app's own (Settings › Device, the
+ * `autoPictureInPicture` prop): off, only the player's button starts it. This view stays the controller's only owner. */
 - (void)preparePictureInPicture {
  if(![AVPictureInPictureController isPictureInPictureSupported]||!_lease.length||![_lease isEqual:_controller.lease]||!_layer.player)return;
  if(!self.pictureInPicture){self.pictureInPicture=[[AVPictureInPictureController alloc]initWithPlayerLayer:_layer];self.pictureInPicture.delegate=self;}
 #if !TARGET_OS_TV
- if(@available(iOS 14.2, *))self.pictureInPicture.canStartPictureInPictureAutomaticallyFromInline=!_controller.subtitleOverlayActive;
+ if(@available(iOS 14.2, *))self.pictureInPicture.canStartPictureInPictureAutomaticallyFromInline=_autoPictureInPicture&&!_controller.subtitleOverlayActive;
 #endif
  if(_controller.subtitleOverlayActive&&self.pictureInPicture.isPictureInPictureActive)[self.pictureInPicture stopPictureInPicture];
 }
@@ -67,6 +68,8 @@ static NSMapTable<NSNumber *,UIView *> *PorticoSnapshotViews;
 // events reach JavaScript through RCTEventEmitter, which a New Architecture production bundle
 // never registers, so the first one (PiP "unavailable" on the simulator) crashed the app.
 - (void)pictureInPictureChanged:(NSDictionary *)change {NSMutableDictionary *body=[change mutableCopy];body[@"lease"]=_lease?:@"";body[@"binding"]=_activePictureBinding?:_pictureInPictureBinding?:NSNull.null;body[@"requestId"]=@(_submittedPictureRequest);if(_controller.onPictureInPicture)_controller.onPictureInPicture(body);}
+/** A change applies to the video playing now: the controller is re-told at once. */
+- (void)setAutoPictureInPicture:(BOOL)value {if(value==_autoPictureInPicture)return;_autoPictureInPicture=value;[self preparePictureInPicture];}
 - (void)setPictureInPictureRequest:(NSInteger)value {if(value==_pictureInPictureRequest)return;_pictureInPictureRequest=value;
  // React may assign the request counter before its companion binding prop. Settle both
  // on the same main loop, then check the actual source-ready native binding again.
@@ -188,4 +191,5 @@ RCT_EXPORT_MODULE(PorticoPlayer)
 RCT_EXPORT_VIEW_PROPERTY(lease,NSString)
 RCT_EXPORT_VIEW_PROPERTY(pictureInPictureRequest,NSInteger)
 RCT_EXPORT_VIEW_PROPERTY(pictureInPictureBinding,NSDictionary)
+RCT_EXPORT_VIEW_PROPERTY(autoPictureInPicture,BOOL)
 @end

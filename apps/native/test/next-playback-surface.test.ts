@@ -454,3 +454,17 @@ test('PlayerMorph projects close to its existing wrapper/child and rejects late 
     assert.equal(childNode().tag, childTag);
   } finally {await morph.unmount();}
 });
+
+test('Android: the player view is told whether Picture in Picture may start by itself, for the video playing now', async () => {
+  const d = await surfaceFixture();
+  const props = {expandedBounds: frame, docked: false, subtitlesVisible: true, surfaceActive: true};
+  const surface = await mount(d.adapter.Surface, props);
+  try {
+    await surface.act(() => d.publish({engine: 'native', lease: 'actual-lease', fence}));
+    assert.equal(surface.tree.props.autoPictureInPicture, true, 'no Picture in Picture state yet: the default, on');
+    await surface.act(() => d.publish({engine: 'native', lease: 'actual-lease', fence, pictureInPicture: {request: 0, active: false, state: 'idle', automatic: false}}));
+    assert.equal(surface.tree.props.autoPictureInPicture, false, 'turned off: only the button starts it');
+    await surface.act(() => d.publish({engine: 'native', lease: 'actual-lease', fence, pictureInPicture: {request: 0, active: false, state: 'idle', automatic: true}}));
+    assert.equal(surface.tree.props.autoPictureInPicture, true, 'turned back on without a new playback');
+  } finally {await surface.unmount();}
+});

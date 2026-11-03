@@ -22,6 +22,7 @@ const bindings:Readonly<Record<string,SettingsBinding>>={
  'device.player':{form:'device',key:'playerEngine',codec:'player-engine'},
  'device.receive':{form:'device',key:'receiveFromDevices',codec:'boolean'},
  'device.lossNotices':{form:'device',key:'lossNotices',codec:'boolean'},
+ 'device.autoPictureInPicture':{form:'device',key:'autoPictureInPicture',codec:'boolean'},
  // Plex's "Allow insecure connections" (P2-69): never, on the home network (default) or always.
  'device.allowInsecure':{form:'device',key:'allowInsecure',codec:'insecure-connections'},
  'audioSubtitles.surround':{form:'device',key:'forceStereo',codec:'surround'},
