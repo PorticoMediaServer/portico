@@ -51,7 +51,9 @@ export type LibraryPlaySelectionOptions = Readonly<{
   personal?: Readonly<{myList?: boolean; favorite?: boolean; watched?: boolean}>;
 }>;
 type Grant = {entry: ContentEntry; pending: boolean; controller: AbortController; promise: Promise<SelectionItem>; resolve: (item: SelectionItem) => void; reject: (error: unknown) => void};
-type Window = {first: number; last: number; entries: readonly Readonly<{entry: ContentEntry; position: number}>[]; controller: AbortController; promise?: Promise<readonly LibraryPlayRow[]>; registrations: (() => void)[]};
+/** A mounted window's rows. `granted`: its rows carry each title's real grants, read from Detail; until a
+ *  selection starts they carry none, so showing a page never reads every visible title (CDATA-A1). */
+type Window = {first: number; last: number; granted: boolean; entries: readonly Readonly<{entry: ContentEntry; position: number}>[]; controller: AbortController; promise?: Promise<readonly LibraryPlayRow[]>; registrations: (() => void)[]};
 const cancelled = () => new DOMException('Library selection retired', 'AbortError');
 const unavailable = () => Object.assign(new Error('library-play-selection-unavailable'), {code: 'library-play-selection-unavailable'});
 const terminal = (error: unknown) => typeof error === 'object' && error !== null
@@ -168,6 +170,9 @@ export function createLibraryPlaySelection(input: LibraryPlaySelectionOptions) {
           interactions.resetPreview();rangeTarget = undefined;rangeKeys.clear();
           if (playing && !model!.isOperationCurrent(playing.operation)) playing.controller.abort();
           publish();
+          // A selection has started: the mounted window's titles get their real grants now, after the
+          // change that started it has finished.
+          if (model!.getSnapshot().active && window && !window.granted) queueMicrotask(regrant);
         });publish();
       } catch (failure) {retire(failure);}
     }
@@ -181,6 +186,12 @@ export function createLibraryPlaySelection(input: LibraryPlaySelectionOptions) {
     signal.addEventListener('abort', dispose, {once: true});
     sourceOff = source.subscribe(sync);collectionOff = source.collection.subscribe(prune);sync();
   };
+  /** What a title offers before its grants are read: nothing, so no action is offered on it yet. */
+  const ungranted = (entry: ContentEntry): SelectionItem => Object.freeze({kind: entry.kind, id: entry.id, libraryId: entry.libraryId!, capabilities: selectionCapabilities(entry.kind, {})}) as SelectionItem;
+  const regrant = () => {
+    if (closed || !model?.getSnapshot().active || !window || window.granted) return;
+    const {first, last} = window;clearWindow();void registerWindow(first, last).catch(() => {});
+  };
   const registerWindow = (first: number, last: number): Promise<readonly LibraryPlayRow[]> => {
     start();
     if (!current()) return Promise.reject(cancelled());
@@ -191,20 +202,21 @@ export function createLibraryPlaySelection(input: LibraryPlaySelectionOptions) {
     prune();
     const entries = Array.from({length: last - first + 1}, (_, offset) => ({position: first + offset, entry: source.collection.itemAt(first + offset)?.entry}))
       .flatMap(({entry, position}) => entry?.libraryId && source.contains(entry) && selectableSelectionKind(entry.kind, 'catalogue') ? [Object.freeze({entry, position})] : []);
-    if (window?.first === first && window.last === last && window.entries.length === entries.length && window.entries.every((value, index) => value.entry === entries[index].entry)) return window.promise!;
+    const granted = model.getSnapshot().active === true;
+    if (window?.first === first && window.last === last && window.granted === granted && window.entries.length === entries.length && window.entries.every((value, index) => value.entry === entries[index].entry)) return window.promise!;
     clearWindow();error = undefined;
     const visible = new Set(entries.map(value => value.entry));
     for (const [entry, grant] of grants) if (grant.pending && !visible.has(entry)) {
       grants.delete(entry);grant.controller.abort();grant.reject(cancelled());
     }
-    const captured: Window = {first, last, entries, controller: new AbortController(), registrations: []};window = captured;
+    const captured: Window = {first, last, granted, entries, controller: new AbortController(), registrations: []};window = captured;
     captured.promise = Promise.resolve().then(async () => {
       if (!current() || window !== captured) throw cancelled();
       const stop = AbortSignal.any([signal, life.signal, captured.controller.signal]);
       let onAbort!: () => void;
       const aborted = new Promise<never>((_, reject) => {onAbort = () => reject(cancelled());if (stop.aborted) onAbort();else stop.addEventListener('abort', onAbort, {once: true});});
       try {
-        const items = await Promise.race([Promise.all(entries.map(({entry}) => read(entry))), aborted]);
+        const items = granted ? await Promise.race([Promise.all(entries.map(({entry}) => read(entry))), aborted]) : entries.map(({entry}) => ungranted(entry));
         if (!current() || window !== captured || stop.aborted || entries.some(({entry}) => !source.contains(entry))) throw cancelled();
         const ticket = model!.captureContext(), rows: LibraryPlayRow[] = [];
         for (let begin = 0; begin < entries.length;) {
