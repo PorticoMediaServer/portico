@@ -1,5 +1,6 @@
 import type {PlaybackService, PlaybackSnapshot} from '@core/index';
 import {audioGainLinear, parseSeekIndex, playableAudio, type AudioRenderV2, type PlayableAudioRender, type SeekIndex} from '@core/playback-v1/audio-render.ts';
+import {smoothTransitionSeconds} from '@core/audio-effects.ts';
 import {RangeReader, audioByteCache, type ByteCache} from './audio/bytes';
 import {Deck, linkDecks, edgeFrames, type PcmSource} from './audio/engine';
 import {MixGraph} from './audio/mix-graph';
@@ -475,17 +476,25 @@ export class DecodeAudioRender {
     const contextNow = this.contextFrame();
     // Never link at a past physical time, or change an interval already heard.
     const earliest = graph.clock.at(contextNow + Math.max(1, Math.round(LEAD * this.context.sampleRate)));
+    const crossfadeSeconds = this.fadeSeconds(s, p.plan, c.plan, sameAlbum);
     const planned = edgeFrames({endFrame: p.deck.endFrame, outFrames: p.deck.outFrames}, c.deck,
-      {crossfadeSeconds: Math.min(12, s.audioEffects.settings.crossfadeSeconds), sameAlbum, rate: this.context.sampleRate});
+      {crossfadeSeconds, sameAlbum, rate: this.context.sampleRate});
     const start = Math.max(planned.start, earliest);
     if (start < graph.clock.frontier && c.deck.decoded < Math.min(c.deck.outFrames, graph.clock.frontier - start)) { void c.deck.pump(AHEAD_SECONDS); return; }
     c.deck.attachGraph(graph);
-    const edge = linkDecks(this.context, p.deck, c.deck, {crossfadeSeconds: Math.min(12, s.audioEffects.settings.crossfadeSeconds), sameAlbum, earliest});
+    const edge = linkDecks(this.context, p.deck, c.deck, {crossfadeSeconds, sameAlbum, earliest});
     graph.admit(this.logicalFrame() + Math.round(AHEAD_SECONDS * this.context.sampleRate));
     if (edge.late) listeningDiagnostic('audio_edge_late', undefined, this.recordDiagnostic);
     if (!current()) return;
     this.incoming = {...c, edge: edge.start, fade: edge.fade};
     this.candidate = undefined;
+  }
+
+  /** The overlap at this edge: the configured crossfade, or with "Smooth transitions" one shaped by
+   * the two tracks' measured loudness (never within an album; MU-5). */
+  private fadeSeconds(s: PlaybackSnapshot, current: PlayableAudioRender, next: PlayableAudioRender, sameAlbum: boolean): number {
+    const configured = Math.min(12, Math.max(0, s.audioEffects.settings.crossfadeSeconds));
+    return configured > 0 && s.audioEffects.settings.smoothTransitions !== false ? smoothTransitionSeconds(current, next, configured, sameAlbum) : configured;
   }
 
   /** Seconds into the current track, as heard: the sample clock less the output path's latency. */
@@ -588,7 +597,7 @@ export class DecodeAudioRender {
     if (!current()) return;
     const c = this.candidate;
     if (s.intent === 'playing' && c?.ready && !this.committing && end !== Infinity) {
-      const fade = Math.min(s.audioEffects.settings.crossfadeSeconds, 12);
+      const fade = this.fadeSeconds(s, p.plan, c.plan, !!s.audioEffects.prepared?.itemId && this.sameAlbum(s.itemId, s.audioEffects.prepared.itemId));
       if ((end - frame) / this.context.sampleRate <= fade + COMMIT_BEFORE) { this.committing = c.token; this.service.audioCommit(c.token); }
     }
   }

@@ -10,7 +10,7 @@ import {encodedRoutePath} from '../../../../packages/contracts/src/routes.ts';
 import type {ItemResponse} from '@core/media-item.ts';
 import {parseMediaItem} from '@core/media-item.ts';
 import {localV1Http} from '@core/playback-v1/local-http.ts';
-import {V1QueuePlayer} from '@core/playback-v1/v1-queue-player.ts';
+import {V1QueuePlayer, serverSupportsQueueTransitions} from '@core/playback-v1/v1-queue-player.ts';
 import {SessionsClient} from '@core/playback-v1/sessions.ts';
 import type {CatalogueSelectionQueuePort} from '@core/catalogue-selection.ts';
 import {QueueClient, type SegmentInput} from '@core/playback-v1/queue.ts';
@@ -130,6 +130,8 @@ function problem(code: string): never { throw new Error(code); }
 /** Stop on the starting dock is the viewer's own cancel: never reported as a failure. */
 const startStopped = () => new DOMException('Playback start stopped', 'AbortError');
 const validSeconds = (value: number) => Number.isFinite(value) && value >= 0 && value <= 1e9;
+/** The server's capability document (`GET /v1/capabilities`): one read, ready to become a query. */
+const readServerCapabilities = (api: WebPlaybackSource['api'], signal: AbortSignal): Promise<unknown> => api.request<unknown>(encodedRoutePath('get_capabilities', {}), 'GET', undefined, signal);
 const wireId = (value: unknown) => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,128}$/.test(value);
 /** A pressed row's list: a bounded id list that holds the row, or a server container. */
 const screenListSelector = (from: Selector, itemId: string): boolean =>
@@ -178,6 +180,8 @@ export class WebShellPlaybackRuntime {
   private subtitleTimeline: number | null = 0;
   private snapshot!: WebPlaybackRuntimeSnapshot;
   private disposed = false;
+  /** The server offers §18 queue transitions (gapless and crossfade joins), read once (MU-5). */
+  private queueTransitions = false;
   private replacing = false;
   private syncing = false;
   private again = false;
@@ -222,6 +226,8 @@ export class WebShellPlaybackRuntime {
     this.stack = this.makeStack();
     this.activate(this.stack);
     this.sync();
+    // Read once for this runtime; a queue made before the answer follows it once it arrives.
+    void readServerCapabilities(source.api, this.life.signal).then(capabilities => {if (!this.disposed) this.queueTransitions = serverSupportsQueueTransitions(capabilities);}).catch(() => {});
     const page = environment.page ?? (typeof document === 'undefined' ? undefined : document);
     const browser = environment.browser ?? (typeof window === 'undefined' ? undefined : window);
     if (page) {
@@ -395,7 +401,7 @@ export class WebShellPlaybackRuntime {
         if (published === 'failed') problem('capability_rejected');
       } catch (error) {stackReference.capabilityRejected = true;throw error;}
     }});
-    const queue = new V1QueuePlayer({http, api: web.transport, playback: service, viewer: this.source.authority, events: this.source.events, key: this.env.key, musicDefaults: this.source.settings.musicDefaults, audiobookPreferences: this.source.settings.audiobookPreferences, quality: this.source.settings.defaultQuality, retainQueueIds: () => this.retainedQueueIds(stackReference),
+    const queue = new V1QueuePlayer({http, api: web.transport, playback: service, viewer: this.source.authority, events: this.source.events, transitions: () => this.queueTransitions, key: this.env.key, musicDefaults: this.source.settings.musicDefaults, audiobookPreferences: this.source.settings.audiobookPreferences, quality: this.source.settings.defaultQuality, retainQueueIds: () => this.retainedQueueIds(stackReference),
       retireQueuedSelection: async (session, isUnowned) => {
         // Use this stack's original viewer-bound API, never a latest transport or
         // raw stop fallback. The private registration guard survives every await.
