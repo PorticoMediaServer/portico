@@ -6,7 +6,7 @@ import (
 )
 
 var extraFolders = map[string]string{
-	"extras": "other", "extra": "other", "other": "other", "featurettes": "featurette", "featurette": "featurette", "trailers": "trailer", "trailer": "trailer", "behind the scenes": "behind_the_scenes", "behind the scene": "behind_the_scenes", "deleted scenes": "deleted_scene", "deleted scene": "deleted_scene", "interviews": "interview", "interview": "interview", "scenes": "scene", "shorts": "short", "short": "short", "specials": "other", "bonus": "other", "bonus disc": "other", "deleted": "deleted_scene", "making of": "behind_the_scenes", "video extras": "other", "bonus features": "other", "supplemental": "other", "supplementals": "other", "extras and bonuses": "other",
+	"extras": "other", "extra": "other", "other": "other", "featurettes": "featurette", "featurette": "featurette", "trailers": "trailer", "trailer": "trailer", "behind the scenes": "behind_the_scenes", "behind the scene": "behind_the_scenes", "deleted scenes": "deleted_scene", "deleted scene": "deleted_scene", "interviews": "interview", "interview": "interview", "scenes": "scene", "shorts": "short", "short": "short", "specials": "other", "bonus": "other", "bonus disc": "other", "deleted": "deleted_scene", "making of": "behind_the_scenes", "video extras": "other", "bonus features": "other", "supplemental": "other", "supplementals": "other", "extras and bonuses": "other", "special features": "featurette", "extra features": "featurette", "bonus material": "featurette",
 }
 var extraSuffixes = []struct{ suffix, kind string }{
 	{"-trailer", "trailer"}, {".trailer", "trailer"}, {"-featurette", "featurette"}, {"-deleted", "deleted_scene"}, {"-deletedscenes", "deleted_scene"}, {"-behindthescenes", "behind_the_scenes"}, {"-interview", "interview"}, {"-scene", "scene"}, {"-short", "short"}, {"-other", "other"},
@@ -25,6 +25,12 @@ func extraFolder(s string, episodic bool) (string, bool) {
 // called Extras or a category called Shorts is never swallowed. File suffix
 // evidence wins an extras-folder disagreement, like all other file evidence.
 func ReadExtras(relative, kind string) []Evidence[Extra] {
+	// Extras are a video convention. In a music, audiobook or reading library
+	// "Bonus", "Extras", "Other" or "Shorts" is a disc, part or volume folder,
+	// and its files belong to the album or book that holds it (SC-5).
+	if kind != "movie" && kind != "tv" && kind != "anime" {
+		return nil
+	}
 	p := path.Clean(slash(relative))
 	parts := strings.Split(p, "/")
 	if len(relative) > MaxPathBytes || strings.IndexByte(relative, 0) >= 0 || len(parts) > MaxDepth || p == ".." || strings.HasPrefix(p, "../") {

@@ -531,6 +531,16 @@ func (s *Service) commitAudioTrack(ctx context.Context, tx *sql.Tx, library, kin
 	if kind == "music" {
 		performer := firstTag(f.Tags, "artist")
 		if performer == "" {
+			// No artist tag: the artist folder above the album names it, as
+			// the album folder names an untagged album (SC-6). A tag or an
+			// owner edit still outranks it.
+			if rel, e := filepath.Rel(root, path); e == nil && filepath.IsLocal(rel) {
+				if artists := naming.Read(filepath.ToSlash(rel), "music").Artists; len(artists) > 0 {
+					performer = norm.NFC.String(artists[0].Value)
+				}
+			}
+		}
+		if performer == "" {
 			performer = "Unknown artist"
 		}
 		albumArtist := firstTag(f.Tags, "album_artist", "albumartist")

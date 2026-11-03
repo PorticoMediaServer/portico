@@ -107,6 +107,26 @@ func same(a, b string) bool {
 var idToken = regexp.MustCompile(`(?i)\{(imdb|tmdb|tvdb|anilist)(?:id)?[-=: ](tt[0-9]{5,12}|[1-9][0-9]{0,14})\}|\[(imdb|tmdb|tvdb|anilist)(?:id)?[-=: ](tt[0-9]{5,12}|[1-9][0-9]{0,14})\]`)
 var imdbToken = regexp.MustCompile(`(?i)\btt[0-9]{5,12}\b`)
 var editionToken = regexp.MustCompile(`(?i)\{edition-([^}]{1,128})\}|\b(director'?s[ ._-]+cut|extended(?:[ ._-]+(?:cut|edition))?|theatrical[ ._-]+(?:cut|edition)|unrated|remastered|special[ ._-]+edition|final[ ._-]+cut)\b`)
+
+// releaseTokenIndex is the first release token in s that follows some title
+// text. A name can't open with release junk, so a token at the very start is
+// the title's own word: "8-Bit Christmas (2021)", "Multi-Facial (1995)".
+func releaseTokenIndex(s string) []int {
+	for _, loc := range technicalToken.FindAllStringIndex(s, -1) {
+		if strings.Trim(s[:loc[0]], " ._-[(") != "" {
+			return loc
+		}
+	}
+	return nil
+}
+
+// titleEditionToken is the part of editionToken that is never a title's own
+// words. A bare "Extended" or "Final Cut" is an edition only in the release
+// tail, after the year or the first release token: "The Final Cut (2004)" and
+// "Extended Family (2018)" are titles, "Aliens.1986.Extended.1080p" is an
+// edition. "Directors Cut" stays an edition wherever it is, so "Blade Runner
+// 2049 Directors Cut (2017)" keeps its title.
+var titleEditionToken = regexp.MustCompile(`(?i)\{edition-([^}]{1,128})\}|\b(director'?s[ ._-]+cut|extended[ ._-]+(?:cut|edition)|theatrical[ ._-]+(?:cut|edition)|unrated|remastered|special[ ._-]+edition)\b`)
 var technicalToken = regexp.MustCompile(`(?i)(?:^|[ ._\[(-])(?:[0-9]{3,4}[pi]|[248]k|[0-9]{3,4}x[0-9]{3,4}|blu[ ._-]?ray|bd[ ._-]?rip|br[ ._-]?rip|web[ ._-]?(?:dl|rip)|hdtv|pdtv|dvd[ ._-]?rip|remux|x26[45]|h[ ._-]?26[45]|hevc|avc|av1|xvid|divx|aac|ac3|eac3|dts(?:hd)?|truehd|ddp?|hdr10?\+?|sdr|dolby[ ._-]?vision|dv|atmos|proper|repack|multi|dual[ ._-]?audio|10[ ._-]?bit|8[ ._-]?bit)(?:\b|_)`)
 var hashToken = regexp.MustCompile(`(?i)\[[a-f0-9]{8,64}\]`)
 var bracketYear = regexp.MustCompile(`[\[(]((?:18|19|20)[0-9]{2})(?:-[0-9]{4})?[\])]`)
@@ -256,18 +276,21 @@ func readComponent(r *Reading, input, raw string, src Source, p string, strength
 			r.ProviderIDs = append(r.ProviderIDs, ev(ProviderID{"imdb", strings.ToLower(id)}, src, p, .95))
 		}
 	}
-	for _, m := range editionToken.FindAllStringSubmatch(raw, 8) {
-		edition := m[1]
-		if edition == "" {
-			edition = m[2]
-		}
-		if label := clean(edition); label != "" {
-			r.Editions = append(r.Editions, ev(label, src, p, .95))
+	editions := func(text string, token *regexp.Regexp) {
+		for _, m := range token.FindAllStringSubmatch(text, 8) {
+			edition := m[1]
+			if edition == "" {
+				edition = m[2]
+			}
+			if label := clean(edition); label != "" {
+				r.Editions = append(r.Editions, ev(label, src, p, .95))
+			}
 		}
 	}
+	editions(raw, titleEditionToken)
 	hasPart := false
 	partInput := raw
-	if loc := technicalToken.FindStringIndex(partInput); loc != nil {
+	if loc := releaseTokenIndex(partInput); loc != nil {
 		partInput = strings.TrimRight(partInput[:loc[0]], " ._-")
 	}
 	if m := partToken.FindStringSubmatch(partInput); m != nil && isPartSuffix(partInput) {
@@ -284,7 +307,7 @@ func readComponent(r *Reading, input, raw string, src Source, p string, strength
 	// The explicit year nearest the title wins over later encode dates. A bare
 	// year before that bracket is title text, unless release junk separates it.
 	cut, year, yearStrength := -1, 0, 0.0
-	tech := technicalToken.FindStringIndex(s)
+	tech := releaseTokenIndex(s)
 	if m := bracketYear.FindStringSubmatchIndex(s); m != nil && (tech == nil || m[0] < tech[0]) {
 		cut = m[0]
 		year, _ = strconv.Atoi(s[m[2]:m[3]])
@@ -325,14 +348,38 @@ func readComponent(r *Reading, input, raw string, src Source, p string, strength
 	if year > 0 {
 		r.Years = append(r.Years, ev(year, src, p, yearStrength))
 	}
+	// A bare "Extended" or "Final Cut" is an edition only in the release tail:
+	// after the year, or from the first release token on.
+	tail := -1
+	if cut >= 0 {
+		tail = cut
+	} else if tech != nil {
+		tail = tech[0]
+	}
+	if tail >= 0 {
+		before := len(r.Editions)
+		editions(s[tail:], editionToken)
+		// The strong phrases in the tail were already read from the whole name.
+		kept := r.Editions[:before]
+		for _, e := range r.Editions[before:] {
+			duplicate := false
+			for _, k := range kept {
+				duplicate = duplicate || k.Path == e.Path && strings.EqualFold(k.Value, e.Value)
+			}
+			if !duplicate {
+				kept = append(kept, e)
+			}
+		}
+		r.Editions = kept
+	}
 
 	alternate := ""
 	if cut >= 0 && yearStrength == .85 {
 		alternate = s
-		if loc := technicalToken.FindStringIndex(alternate); loc != nil {
+		if loc := releaseTokenIndex(alternate); loc != nil {
 			alternate = alternate[:loc[0]]
 		}
-		alternate = editionToken.ReplaceAllString(alternate, " ")
+		alternate = titleEditionToken.ReplaceAllString(alternate, " ")
 		if hasPart {
 			alternate = partToken.ReplaceAllString(alternate, "")
 		}
@@ -341,17 +388,17 @@ func readComponent(r *Reading, input, raw string, src Source, p string, strength
 	if cut >= 0 {
 		s = s[:cut]
 	}
-	if loc := technicalToken.FindStringIndex(s); loc != nil {
+	if loc := releaseTokenIndex(s); loc != nil {
 		if src == FileName {
 			r.Versions = append(r.Versions, ev(clean(s[loc[0]:]), src, p, .85))
 		}
 		s = s[:loc[0]]
 	} else if src == FileName && cut >= 0 {
-		if loc := technicalToken.FindStringIndex(input); loc != nil {
+		if loc := releaseTokenIndex(input); loc != nil {
 			r.Versions = append(r.Versions, ev(clean(input[loc[0]:]), src, p, .85))
 		}
 	}
-	s = editionToken.ReplaceAllString(s, " ")
+	s = titleEditionToken.ReplaceAllString(s, " ")
 	if hasPart {
 		s = partToken.ReplaceAllString(s, "")
 	}
