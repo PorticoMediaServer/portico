@@ -1,4 +1,5 @@
 import type {TrickplaySet} from '../../../../../packages/client-core/src/trickplay';
+import type {BookChaptersView} from '../../../../../packages/client-core/src/book-chapters';
 import type {V1QueueEditIntent, V1QueuedEntrySelection, V1QueuePolicyIntent} from '../../../../../packages/client-core/src/playback-v1/v1-queue-player';
 import type {ComponentType, RefObject} from 'react';
 import type {View} from 'react-native';
@@ -134,6 +135,8 @@ export type NativePlaybackRuntimeSnapshot = Readonly<{
   authority: PlaybackAuthority; sequence: number; dock: DockState; playback: PlaybackSnapshot;
   fence?: PlaybackFence; subject?: PlaybackSubject; entry?: ContentEntry;
   queue: QueuePlayerState; session?: Session; options?: PlaybackOptions; subtitles?: SubtitleSnapshot;
+  /** The playing book's chapters across its parts (MU-2); absent when no book part plays. */
+  bookChapters?: BookChaptersView | null;
   /** Effective Settings plus appearance overrides for this playback run only. */
   subtitleStyle?: SubtitlePreferences;
   /** Shared skip, credits and end-card policy for this exact video source. */
@@ -218,6 +221,8 @@ export interface NativePlaybackAdapter {
   /** The playing video's preview pictures (PB-2): the server's current set for this session's
    * source, or null. Read when asked (a TV scrub), never at start. */
   trickplay?: (fence: PlaybackFence, signal: AbortSignal) => Promise<TrickplaySet | null>;
+  /** A row of the book's chapter list (MU-2), by id: a seek within the playing part, else that part from the chapter. */
+  playBookChapter?: (fence: PlaybackFence, chapterId: string) => Promise<void>;
   subscribe: (listener: () => void) => () => void;
   getSnapshot: () => NativePlaybackRuntimeSnapshot;
   start: (input: NativePlaybackStart) => Promise<void>;

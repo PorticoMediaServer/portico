@@ -11,6 +11,7 @@ import {Icon} from '../../../kit/Icon';
 import type {WatchBindings} from '../types';
 import {watchClock, watchSeek, watchSeekBounds, type WatchIntent} from '../model';
 import {ListeningSeek} from './ListeningSeek';
+import {BookChapterList, playingBookChapter} from './BookChapterList';
 import ambientStyles from './listening-ambient.module.css';
 import styles from './audiobook-listening.module.css';
 import {sleepChoiceFrom, sleepChoiceLabel, sleepChoiceValue, type ListeningSleepChoice} from './listening-owner';
@@ -36,7 +37,10 @@ export function AudiobookListening({snapshot, title, subtitle, cover, ambient, c
   if (!p || p.kind !== 'audiobook' || !p.expanded || snapshot.disposed || snapshot.dock.remote?.phase === 'playing') return null;
   const bounds = watchSeekBounds(snapshot), can = (kind: typeof p.controls[number]) => p.controls.includes(kind);
   const rows = chapters?.data?.status === 'available' ? chapters.data.chapters : [];
-  const active = rows.find(chapter => p.positionSeconds >= chapter.startSeconds && p.positionSeconds < chapter.endSeconds);
+  // MU-2: the whole book's chapters when known, else the playing part's own.
+  const book = snapshot.bookChapters?.phase === 'ready' ? snapshot.bookChapters : null;
+  const active = book ? playingBookChapter(book) : rows.find(chapter => p.positionSeconds >= chapter.startSeconds && p.positionSeconds < chapter.endSeconds);
+  const ticks = book ? book.chapters.filter(chapter => chapter.itemId === book.itemId) : rows;
   const seek = (position: number) => {const seconds = watchSeek(snapshot, position);if (seconds !== null) onIntent(snapshot, {kind: 'seek', seconds});};
   return <section className={styles.frame} aria-label={t('player.nowPlayingTitle', {title})} tabIndex={-1} data-watch-audiobook data-phone={phone || undefined}>
     <AmbientArt source={ambient} className={`${ambientStyles.ambient}${phone ? ` ${ambientStyles.phone}` : ''}`}/>
@@ -49,7 +53,7 @@ export function AudiobookListening({snapshot, title, subtitle, cover, ambient, c
       <div className={styles.bookTop}><div className={styles.cover}><Artwork source={cover} alt={title}/></div><div className={styles.identity}><h1>{title}</h1><p>{subtitle}</p></div></div>
       {active && <div className={styles.chapter}><b>{active.title}</b><span>{watchClock(p.positionSeconds - active.startSeconds)} / {watchClock(active.endSeconds - active.startSeconds)}</span></div>}
       <ListeningSeek className={styles.scrub} position={p.positionSeconds} duration={p.durationSeconds} bounds={bounds}
-        chapters={rows} disabled={!can('seek')} phone={phone} onSeek={seek}/>
+        chapters={ticks} disabled={!can('seek')} phone={phone} onSeek={seek}/>
       <div className={styles.transport}>
         <Button variant="ghost" className={styles.control} iconOnly iconSize={phone ? 28 : 24} icon="i-prev" aria-label={t('next.dock.previousChapter')} disabled={!can('previous')} onClick={() => onIntent(snapshot, {kind: 'previous'})}/>
         <button type="button" className={styles.skip} aria-label={t('next.dock.back', {seconds: skips.back})} disabled={!can('seek') || !bounds} onClick={() => seek(p.positionSeconds - skips.back)}><Icon name="i-back" size={phone ? 38 : 34}/><span>{skips.back}</span></button>
@@ -71,13 +75,14 @@ export function AudiobookListening({snapshot, title, subtitle, cover, ambient, c
       {phone && <div className={styles.phoneOptions}>
         <button type="button" disabled={!onShowPanel || !speedChoices.length} onClick={() => onShowPanel?.(snapshot, 'speed')}><b>{new Intl.NumberFormat(defaultI18n.region.formatLocale).format(p.rate)}×</b>{t('player.opt.speed')}</button>
         <button type="button" disabled={!onShowPanel || !sleepChoices.length} onClick={() => onShowPanel?.(snapshot, 'sleep')}><b><Icon name="i-moon" size={15}/>{typeof sleepChoice === 'number' && sleepChoice > 0 ? t('duration.minutes', {minutes: sleepChoice}) : sleepChoiceLabel(sleepChoice)}</b>{t('player.opt.sleepTimer')}</button>
-        <button type="button" disabled={!onShowPanel || !chapters} onClick={() => onShowPanel?.(snapshot, 'chapters')}><b><Icon name="i-chapters" size={16}/>{chapters?.data?.status === 'available' ? chapters.data.totalCount : null}</b>{t('player.opt.chapters')}</button>
+        <button type="button" disabled={!onShowPanel || !chapters && !book} onClick={() => onShowPanel?.(snapshot, 'chapters')}><b><Icon name="i-chapters" size={16}/>{book ? book.chapters.length : chapters?.data?.status === 'available' ? chapters.data.totalCount : null}</b>{t('player.opt.chapters')}</button>
         {onShowPanel && canPlayOn===true && <button type="button" onClick={() => onShowPanel(snapshot, 'play-on')}><b><Icon name="i-cast" size={17}/></b>{t('next.dock.playOn')}</button>}
       </div>}
     </div>
     {!phone && <aside className={styles.side} aria-label={t('player.opt.chapters')}>
       {aside ?? <>
         <h2>{t('player.opt.chapters')}</h2>
+        {book ? <BookChapterList book={book} playing={p.playing} disabled={!can('seek')} onPick={chapter => onIntent(snapshot, {kind: 'book-chapter', chapterId: chapter.id})}/> : <>
         {chapters?.phase === 'loading' || chapters?.phase === 'idle' ? <p role="status">{t('player.opt.loadingChapters')}</p>
           : chapters?.phase === 'error' || chapters?.phase === 'refresh-required' ? <Banner action={{label: t('next.states.tryAgain'), onAction: () => onChapterRetry(chapters)}}>{t('player.opt.chaptersUnavailable')}</Banner>
             : !chapters || chapters.data?.status === 'unavailable' ? <StateView title={t('player.opt.chaptersUnavailable')}/>
@@ -91,6 +96,7 @@ export function AudiobookListening({snapshot, title, subtitle, cover, ambient, c
           {chapters.pagination.canPrevious && <Button variant="glass" disabled={chapters.phase === 'loading'} onClick={() => onChapterPage(chapters, 'previous')}>{t('web.pager.previous')}</Button>}
           {chapters.data?.nextCursor && <Button variant="glass" loading={chapters.phase === 'loading'} onClick={() => onChapterPage(chapters, 'next')}>{t('next.live.more')}</Button>}
         </div>}
+        </>}
       </>}
     </aside>}
   </section>;

@@ -19,6 +19,7 @@ const loader = registerHooks({load(url, context, next) {
 }});
 const {AudiobookListening} = await import('../src/screens/watch/listening/AudiobookListening.tsx');
 const {LyricsPanel} = await import('../src/screens/watch/listening/LyricsPanel.tsx');
+const {BookChapterList} = await import('../src/screens/watch/listening/BookChapterList.tsx');
 const {ListeningQueue} = await import('../src/screens/watch/listening/ListeningQueue.tsx');
 const {ListeningQueueWindow} = await import('../src/screens/watch/listening/ListeningQueueWindow.tsx');
 const {ListeningSeek} = await import('../src/screens/watch/listening/ListeningSeek.tsx');
@@ -113,6 +114,23 @@ test('queue save uses canonical progress and the rendered occurrence/revision wi
 });
 test.after(() => loader.deregister());
 
+
+test('MU-2: with the whole book known, the player lists every part\'s chapters numbered through the book, and a row plays that chapter', () => {
+  const row = (id: string, itemId: string, number: number, title: string, start: number, end: number) => ({id, itemId, index: Number(id.split(':')[1]), number, title, startSeconds: start, endSeconds: end});
+  const view = {bookId: 'book', itemId: 'part-b', phase: 'ready' as const, current: 2,
+    chapters: [row('part-a:1', 'part-a', 1, 'One', 0, 600), row('part-a:2', 'part-a', 2, 'Two', 600, 1200), row('part-b:1', 'part-b', 3, 'Three', 0, 500)]};
+  const intents: unknown[] = [];
+  const tree = elements(AudiobookListening(book({snapshot: {...playback, bookChapters: view}, onIntent: (_shown: unknown, intent: unknown) => intents.push(intent)})));
+  const list = tree.find(e => e.type === BookChapterList);
+  assert.equal(list.props.book, view, 'the side list is the whole book, not the part\'s pages');
+  assert.ok(!tree.some(e => e.type === 'button' && e.props.children === 'Show more'));
+  assert.ok(tree.some(e => e.type === 'b' && e.props.children === 'Three'), 'the playing chapter is named');
+  list.props.onPick(view.chapters[0]);
+  assert.deepEqual(intents, [{kind: 'book-chapter', chapterId: 'part-a:1'}]);
+  const rows = elements(BookChapterList({book: view, playing: true, disabled: false, onPick: noop}));
+  assert.ok(rows.some(e => e.type === 'span' && e.props.children === 2), 'numbers count through the book');
+  assert.equal(rows.filter(e => e.props['aria-current'] === 'true').length, 1);
+});
 
 test('published one-based chapter numbers stay exact on the first and later pages', () => {
   const first = elements(AudiobookListening(book()));

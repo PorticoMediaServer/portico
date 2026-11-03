@@ -6,10 +6,17 @@ import {StateView} from '../../../kit/states';
 import {watchClock} from '../model';
 import type {ListeningHost} from './use-listening-owner';
 import styles from './audiobook-listening.module.css';
+import {BookChapterList} from './BookChapterList';
 const t = defaultI18n.t;
 export function ListeningChapters({host, snapshot, reportError}: {host: ListeningHost; snapshot: WebPlaybackRuntimeSnapshot; reportError(error: unknown): void}) {
   const {owner, state} = host, chapters = state.chapters;
   const run = (task: () => Promise<void>) => {void task().catch(error => {if (owner.canReport(state,true)) reportError(error);});};
+  // MU-2: the whole book's chapters when known; the playing part's own list otherwise.
+  const book = snapshot.bookChapters?.phase === 'ready' ? snapshot.bookChapters : null;
+  if (book) return <section aria-label={t('player.opt.chapters')}>
+    <BookChapterList book={book} playing={!!snapshot.presentation?.playing} disabled={!snapshot.presentation?.controls.includes('seek')}
+      onPick={chapter => run(() => owner.dispatch(state, snapshot, {kind: 'book-chapter', chapterId: chapter.id}))}/>
+  </section>;
   if (!chapters || chapters.data?.status === 'unavailable') return <StateView title={t('player.opt.chaptersUnavailable')}/>;
   if (chapters.phase === 'idle' || chapters.phase === 'loading') return <p role="status">{t('player.opt.loadingChapters')}</p>;
   if (chapters.phase === 'error' || chapters.phase === 'refresh-required') return <Banner action={{label: t('next.states.tryAgain'), onAction: () => run(() => owner.chapterPage(state, chapters, 'retry',true))}}>{t('player.opt.chaptersUnavailable')}</Banner>;

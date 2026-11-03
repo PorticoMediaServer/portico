@@ -1,3 +1,4 @@
+import type {BookChaptersView} from '@core/book-chapters.ts';
 import type {HttpLocalApi, PlaybackOptions as ServiceOptions, PlaybackSnapshot} from '@core/index.ts';
 import type {AudiobookPreferences} from '@core/audiobook-preferences.ts';
 import type {ContentEntry, ContentScope} from '@core/library-content.ts';
@@ -118,6 +119,8 @@ export type WebPlaybackRuntimeSnapshot = Readonly<{
   fence?: PlaybackFence; subject?: PlaybackSubject; presentation?: WebPlaybackPresentation;
   presentations: readonly WebPlaybackPresentation[];
   queueView: QueuePlaybackView | null;
+  /** The playing book's chapters across its parts (MU-2); absent when no book part plays. */
+  bookChapters?: BookChaptersView | null;
   session?: Session; offers: PlayerOffersData | null; options: PlaybackOptions | null;
   problem?: string; disposed: boolean;
 }>;
@@ -127,6 +130,8 @@ export type WebPlaybackAction = Readonly<{
   kind: string; fence: PlaybackFence; remote?: Readonly<{id: string; sequence: string}>;
   seconds?: number; volume?: number; shuffle?: boolean; repeat?: 'off' | 'one' | 'all';
   direction?: -1 | 1;
+  /** `book-chapter`: a row of `bookChapters`, by id. */
+  chapterId?: string;
 }>;
 export type WebPlaybackTransition = DockTransition;
 export type WebPlaybackElement = VideoLike;

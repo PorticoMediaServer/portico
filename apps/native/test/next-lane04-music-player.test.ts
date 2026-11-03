@@ -130,6 +130,22 @@ test('landscape audiobook uses its horizontal cover/identity composition and a C
 });
 
 
+test('MU-2: with the whole book known, the Chapters pane lists every part\'s chapters numbered through the book, and a row plays that chapter', async () => {
+  const f = await fixture(true, 1180), played: string[] = [];
+  const row = (id: string, itemId: string, number: number, title: string, start: number, end: number) => ({id, itemId, index: 1, number, title, startSeconds: start, endSeconds: end});
+  const view = {bookId: 'book', itemId: 'item', phase: 'ready', current: 2,
+    chapters: [row('part-a:1', 'part-a', 1, 'One', 0, 600), row('part-a:2', 'part-a', 2, 'Two', 600, 1200), row('item:1', 'item', 3, 'Three', 60, 120)]};
+  f.props.audiobook = {...f.props.audiobook, bookChapters: () => view, playBookChapter: async (_fence: unknown, id: string) => {played.push(id);}};
+  f.render();
+  const pane = f.nodes().find(node => node.props.testID === 'now-playing-chapters');
+  const rows = nodes(pane).filter(node => node.props.accessibilityRole === 'button' && node.props.accessibilityState);
+  assert.deepEqual(rows.map(node => node.props.accessibilityState.selected), [false, false, true]);
+  assert.ok(nodes(rows[2]).some(node => node.type === 'Text' && text(node) === '3'), 'numbers count through the book');
+  rows[0].props.onPress(); await Promise.resolve();
+  assert.deepEqual(played, ['part-a:1'], 'a chapter in another part is played through the runtime');
+  assert.ok(f.nodes().some(node => node.props.testID === 'now-playing-chapter-line' && text(node).includes('Three')));
+});
+
 test('phone audiobook options use 54pt glass faces with the active ring and whole-book remaining line', async () => {
   const f = await fixture(true);
   const style = (node: any) => Object.assign({}, ...[node.props.style].flat().filter(Boolean));

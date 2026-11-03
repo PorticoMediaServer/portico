@@ -54,6 +54,8 @@ export type NativeShellPlaybackSnapshot = Readonly<{
    * artist, audiobook): the same items, order and durations the engine plays, read
    * here only to draw them. Absent for a local file or while no queue is ready. */
   queue?: QueuePlayerState;
+  /** The playing book's chapters across its parts (MU-2). */
+  bookChapters?: NativePlaybackRuntimeSnapshot['bookChapters'];
   /** The runtime's admitted retained-view fact, passed through without inference. */
   pictureInPicture?: NativePlaybackRuntimeSnapshot['pictureInPicture'];
   seekWindow?: Readonly<{startSeconds: number; endSeconds: number}>;
@@ -105,6 +107,8 @@ export interface NativeShellPlaybackAdapter {
   editQueue?: (fence: PlaybackFence, request: Readonly<{queueId: string; expectedRevision: string; intent: V1QueueEditIntent}>,
     lifetime: Readonly<{signal: AbortSignal; isCurrent: () => boolean}>) => Promise<void>;
   seek: (fence: PlaybackFence, seconds: number) => Promise<void>;
+  /** A row of the book's chapter list (MU-2). */
+  playBookChapter?: NativePlaybackAdapter['playBookChapter'];
   skip: (fence: PlaybackFence, seconds: number) => Promise<void>;
   previous: (fence: PlaybackFence) => Promise<void>;
   next: (fence: PlaybackFence) => Promise<void>;

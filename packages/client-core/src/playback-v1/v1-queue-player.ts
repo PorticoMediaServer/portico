@@ -39,7 +39,7 @@ import type {AudiobookPreferences} from '../audiobook-preferences.ts';
 import {serviceText} from '../presentation/service-text.ts';
 import {playbackUserMessage} from '../playback-messages.ts';
 import {ListeningService, loadListeningSelection, type ListeningTarget} from '../listening.ts';
-import {bookChapterTarget, readBookChapters, type BookChapter} from '../book-chapters.ts';
+import {bookChapterIndex, bookChapterTarget, readBookChapters, type BookChapter, type BookChaptersView} from '../book-chapters.ts';
 import type {QueueAdvanceMode, QueuePostPlay} from '../post-play.ts';
 import type {PreparedChoice} from '../prepared-media.ts';
 import type {CompletionPolicy, HeldCompletion, QueueController, QueuePlaybackView, QueuePlaybackWindow, QueuePlayerState, QueueWorkspaceService} from '../queue-controller.ts';
@@ -504,6 +504,16 @@ export class V1QueuePlayer implements QueueController {
     if (context?.kind !== 'audiobook_file' || !context.bookId || book?.bookId !== context.bookId || book.phase !== 'ready'
       || !p.itemId || p.itemId !== context.itemId || p.channel) return undefined;
     return bookChapterTarget(book.chapters, p.itemId, p.positionSeconds, direction);
+  }
+
+  /** The playing book's chapter list (MU-2): every part's chapters and the playing one, or null
+   * when no book part is playing. A list with nothing for the playing part is `error`, so the
+   * player falls back to the part's own chapters. */
+  bookChaptersView(): BookChaptersView | null {
+    const context = this.listening.getSnapshot().context, book = this.book, p = this.playback.getSnapshot();
+    if (context?.kind !== 'audiobook_file' || !context.bookId || book?.bookId !== context.bookId || !p.itemId || p.itemId !== context.itemId || p.channel) return null;
+    const current = book.phase === 'ready' ? bookChapterIndex(book.chapters, p.itemId, p.positionSeconds) : -1;
+    return Object.freeze({bookId: book.bookId, itemId: p.itemId, phase: current === undefined ? 'error' : book.phase, chapters: book.chapters, current: current ?? -1});
   }
 
   /** Go to a book chapter: `seek` within the playing part, else that part from the chapter's

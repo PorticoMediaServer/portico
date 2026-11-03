@@ -170,6 +170,16 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
           if (lifetime.signal.aborted || !lifetime.isCurrent() || !current.fence || !sameFence(current.fence, fence)) return;
           adapter.setRate(fence, rate);
         },
+        bookChapters: (fence: PlaybackFence) => {
+          const current = adapter.getSnapshot();
+          if (lifetime.signal.aborted || !lifetime.isCurrent() || !current.fence || !sameFence(current.fence, fence)) return null;
+          return current.bookChapters ?? null;
+        },
+        ...(adapter.playBookChapter ? {playBookChapter: async (fence: PlaybackFence, chapterId: string) => {
+          const current = adapter.getSnapshot();
+          if (lifetime.signal.aborted || !lifetime.isCurrent() || !current.fence || !sameFence(current.fence, fence)) return;
+          await adapter.playBookChapter!(fence, chapterId);
+        }} : {}),
         ...(adapter.setSleepTimer ? {setSleepTimer: async (fence: PlaybackFence, choice: NativeSleepChoice) => {
           const current = adapter.getSnapshot();
           if (lifetime.signal.aborted || !lifetime.isCurrent() || !current.fence || !sameFence(current.fence, fence)) return;

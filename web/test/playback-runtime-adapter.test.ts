@@ -3788,6 +3788,21 @@ test('P2-61 local queue: Try again after the watchdog re-acquires a fresh resour
   }
 });
 
+test('MU-2: a row of the whole book\'s chapter list plays that chapter, in this part or another; an unknown row is refused',async t=>{
+ const f=setup(t);await f.runtime.play('song-one',0);await f.arrive();
+ const fence=f.runtime.getSnapshot().fence!;if(fence.kind!=='queue')throw Error('missing queue fence');
+ const runtime=f.runtime as any,queue=runtime.stack.queue,played:unknown[]=[];
+ const chapters=[{id:'a:1',itemId:fence.itemId,index:1,number:1,title:'One',startSeconds:0,endSeconds:60},{id:'b:1',itemId:'part-b',index:1,number:2,title:'Two',startSeconds:5,endSeconds:90}];
+ queue.bookChaptersView=()=>({bookId:'book',itemId:fence.itemId,phase:'ready',chapters,current:0});
+ queue.playChapter=async(chapter:{id:string})=>{played.push(chapter.id);};
+ runtime.sync();
+ assert.equal(f.runtime.getSnapshot().bookChapters?.chapters.length,2,'the snapshot carries the whole book');
+ await f.runtime.onAction({kind:'book-chapter',fence,chapterId:'b:1'});
+ assert.deepEqual(played,['b:1']);
+ await assert.rejects(f.runtime.onAction({kind:'book-chapter',fence,chapterId:'z:9'}),/playback_command_unavailable/);
+ await assert.rejects(f.runtime.onAction({kind:'book-chapter',fence}),/playback_command_unavailable/);
+});
+
 test('MU-3: the sleep timer lasts the run, across the next track, and pauses whatever is playing then',async t=>{
  const f=setup(t),context={signal:new AbortController().signal,isCurrent:()=>true};
  // The fake server's album 'song' holds song-0, song-1, …

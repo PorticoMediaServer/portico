@@ -1515,6 +1515,7 @@ export class NativePlaybackRuntime {
       options: this.options, subtitles: this.subtitleService?.getSnapshot(), ...(fence?.kind === 'queue' ? {subtitleStyle: this.subtitleStyles.read(fence, this.o.settings().subtitles)} : {}), localTracks, audioTrackSelection: this.audioTrackSelection.getSnapshot(), seekWindow, engine: this.coordinator.getEngine() === 'mpv' ? 'mpv' : 'native', lease: this.coordinator.getSnapshot(), effectiveRate: playback.nativeListening?.effectiveRate ?? this.effectiveRate, supportedRates: playback.nativeListening?.supportedRates ?? this.supportedRates, externalPresentationBinding,
       ...(this.o.pictureInPictureControls ? {pictureInPicture: Object.freeze({request: this.pictureRequests, active: this.pictureAttempt?.state === 'active', state: this.pictureState, automatic: this.o.settings().autoPictureInPicture !== false,
         ...(this.pictureBinding && externalPresentationBinding && sameNativePresentation(this.pictureBinding, externalPresentationBinding) ? {binding: this.pictureBinding} : {})})} : {}), retired: this.retired,
+      bookChapters: fence?.kind === 'queue' ? this.queue.bookChaptersView() : null,
       capabilities: Object.freeze({queueSelection: queueSelectionReady, queueEdit: queueEditReady, queuePolicy: ready && fence?.kind === 'queue' && !!view && session?.queue?.queueId === view.queue.id && view.queue.currentEntryId === fence.entryId, retry: playback.phase === 'error' && !this.preparing && fence?.kind === 'queue' && session?.kind === 'vod' && session.presentation.subtitle?.delivery !== 'other' && view?.queue.currentEntryId === fence.entryId && view.queue.entries.some(entry => entry.id === fence.entryId && !entry.hidden && !entry.removed), play: ready && playback.intent === 'paused', pause: ready && playback.intent === 'playing', stop: !!fence, seek: ready && (seekWindow ? seekWindow.endSeconds > seekWindow.startSeconds : playback.duration > 0),
         previous: ready && fence?.kind === 'queue' && (chapterPrevious !== undefined ? !!chapterPrevious : playback.positionSeconds > 3 || currentIndex > 0), next: ready && fence?.kind === 'queue' && (chapterNext !== undefined ? !!chapterNext : !!view && view.next.reason !== 'end'), cast: ready && fence?.kind === 'queue' && !!this.o.openDestinations,
         // The system route picker moves the retained player; Portico adds no second transport.
@@ -1778,6 +1779,11 @@ export class NativePlaybackRuntime {
     if (signal.aborted || !this.matches(fence)) return null;
     // Only this session's source; the server has already marked any set it no longer stands behind.
     return preferredTrickplaySet({...view, sets: view.sets.filter(set => !set.stale)}, fence.sourceId);
+  };
+  playBookChapter = async (fence: PlaybackFence, chapterId: string): Promise<void> => {
+    if (fence.kind !== 'queue' || !this.matches(fence) || !this.snapshot.capabilities.seek) return;
+    const chapter = this.queue.bookChaptersView()?.chapters.find(row => row.id === chapterId);
+    if (chapter) await this.queue.playChapter(chapter, seconds => this.seek(fence, seconds));
   };
   seek = async (fence: PlaybackFence, seconds: number): Promise<void> => {
     if (!this.matches(fence) || !Number.isFinite(seconds) || seconds < 0 || !this.snapshot.capabilities.seek) return;
