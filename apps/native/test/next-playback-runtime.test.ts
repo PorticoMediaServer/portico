@@ -683,6 +683,24 @@ test('PiP replan preserves the actual source/track/file clock then waits for new
   } finally {d.runtime.dispose();}
 });
 
+test('MU-2: the snapshot carries the whole book\'s chapters, and a row plays that chapter through the queue owner; an unknown row does nothing', async () => {
+  const d = fixture();
+  try {
+    d.runtime.connect();
+    await d.runtime.queue.playEntries([queueItemInput('song-1'), queueItemInput('song-2')], {startSeconds: 0}); await settle();
+    const fence = d.runtime.getSnapshot().fence; assert.ok(fence?.kind === 'queue');
+    const runtime = d.runtime as any, queue = runtime.queue, played: string[] = [];
+    const chapters = [{id: 'a:1', itemId: fence.itemId, index: 1, number: 1, title: 'One', startSeconds: 0, endSeconds: 60}, {id: 'b:1', itemId: 'part-b', index: 1, number: 2, title: 'Two', startSeconds: 0, endSeconds: 90}];
+    queue.bookChaptersView = () => ({bookId: 'book', itemId: fence.itemId, phase: 'ready', chapters, current: 0});
+    queue.playChapter = async (chapter: {id: string}) => {played.push(chapter.id);};
+    runtime.changed();
+    assert.equal(d.runtime.getSnapshot().bookChapters?.chapters.length, 2);
+    await d.runtime.playBookChapter!(fence, 'b:1'); await d.runtime.playBookChapter!(fence, 'z:9');
+    await d.runtime.playBookChapter!({...fence, sessionId: 'another'}, 'a:1');
+    assert.deepEqual(played, ['b:1']);
+  } finally { d.runtime.dispose(); }
+});
+
 test('external source readiness cannot survive caller close or an unknown old-binary acknowledgement', async () => {
   const d = fixture(false, undefined, nativeEngineFeatures, true);
   try {

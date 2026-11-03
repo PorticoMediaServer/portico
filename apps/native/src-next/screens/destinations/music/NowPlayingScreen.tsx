@@ -32,6 +32,7 @@ import {BlurView, glassRecipe} from '../../../platform/native-blur';
 import {BottomSheet, Menu} from '../../../kit/overlays';
 import {useAudiobookRead, type AudiobookRead} from './use-audiobook-read';
 import {currentListeningChapter, locateListeningChapter, listeningChapterSeek} from './audiobook-controls';
+import type {BookChaptersView} from '../../../../../../packages/client-core/src/book-chapters';
 import type {NativeListeningSong} from '../../../shell/listening-song-detail';
 import {RetainedOverlay} from '../../../kit/overlays/SurfacePaintHost';
 import {usePublishedPlayerMorph} from '../../../kit/dock/PlayerMorphBridge';
@@ -86,7 +87,9 @@ export type NowPlayingScreenProps = Readonly<{
   /** The current song's issued Detail token and its one favorite ticket; touch only. */
   song?: Readonly<{token?: NativeListeningSong; pending: boolean; favorite: (token: NativeListeningSong, value: boolean) => void}>;
   /** Source-pinned facts and session-only choices; never stored per title. */
-  audiobook?: Readonly<{read: AudiobookRead; setRate: (fence: PlaybackFence, rate: number) => void; setSleepTimer?: (fence: PlaybackFence, choice: NativeSleepChoice) => Promise<void>}>;
+  audiobook?: Readonly<{read: AudiobookRead; setRate: (fence: PlaybackFence, rate: number) => void; setSleepTimer?: (fence: PlaybackFence, choice: NativeSleepChoice) => Promise<void>;
+    /** MU-2: the playing book's chapters across its parts, and a row's jump. */
+    bookChapters?: (fence: PlaybackFence) => BookChaptersView | null; playBookChapter?: (fence: PlaybackFence, chapterId: string) => Promise<void>}>;
   sleepAtMs?: number | null;
   /** The armed end-of timer (MU-6), when that is the timer set instead of minutes. */
   sleepEnd?: NativeSleepEnd;
@@ -183,21 +186,29 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
   }, [panel, closePanel, theme.isTV]);
   const equalizer = useSyncExternalStore(nativeEqualizer.subscribe, nativeEqualizer.getSnapshot);
   const wide = width >= SIDE_BY_SIDE, side = wide && sheet !== null, position = playbackPosition(occupant);
-  const chapter = currentListeningChapter(bookSnapshot, position), bookFacts = bookSnapshot.phase === 'current' ? bookSnapshot : undefined;
+  const bookFacts = bookSnapshot.phase === 'current' ? bookSnapshot : undefined;
   const chapterData = bookFacts?.chapters.data;
+  // MU-2: the whole book's chapters when known (every part, numbered through the book); the
+  // playing part's own chapter pages otherwise.
+  const bookList = book && audiobook?.playBookChapter ? audiobook.bookChapters?.(playback.fence) : null, wholeBook = bookList?.phase === 'ready' ? bookList : null;
+  // The playing chapter belongs to this part (before its first chapter, the last one is the part before's).
+  const playingRow = wholeBook ? wholeBook.chapters[wholeBook.current] : undefined, playingChapter = playingRow && playingRow.itemId === wholeBook?.itemId ? playingRow : undefined;
+  const chapter = wholeBook ? playingChapter && {id: playingChapter.id, index: playingChapter.number, title: playingChapter.title, startSeconds: playingChapter.startSeconds, endSeconds: playingChapter.endSeconds}
+    : currentListeningChapter(bookSnapshot, position);
+  const chapterTotal = wholeBook ? wholeBook.chapters.length : chapterData?.totalCount, inWholeBook = !!wholeBook, hasChapter = !!chapter;
   const fullBounds = seekBounds(occupant);
   const bounds = book && !wide && chapter && fullBounds ? {start: Math.max(fullBounds.start, chapter.startSeconds), end: Math.min(fullBounds.end, chapter.endSeconds)} : fullBounds;
   const span = bounds ? Math.max(0, bounds.end - bounds.start) : 0;
   const inputActive = paintActive && !panel && (wide || !sheet) && !!bounds && p.capabilities.seek && span > 0;
   useEffect(() => {
-    if (!bookReader || browsingChapters || chapter || chapterRead.current || bookFacts?.chapters.phase !== 'ready' || chapterData?.status !== 'available') return;
+    if (inWholeBook || !bookReader || browsingChapters || hasChapter || chapterRead.current || bookFacts?.chapters.phase !== 'ready' || chapterData?.status !== 'available') return;
     const first = chapterData.chapters[0], last = chapterData.chapters.at(-1);
     if (!first || !last || !(position < first.startSeconds && bookFacts.chapters.pagination.canPrevious || position >= last.endSeconds && chapterData.nextCursor)) return;
     const run = {}; chapterRead.current = run; setChapterBusy(true);
     void locateListeningChapter(bookReader, position).catch(reportBookError).finally(() => {
       if (chapterRead.current === run) {chapterRead.current = undefined; setChapterBusy(false);}
     });
-  }, [bookReader, chapter, bookFacts?.chapters.phase, bookFacts?.chapters.pagination.canPrevious, chapterData, position, browsingChapters, reportBookError]);
+  }, [inWholeBook, bookReader, hasChapter, bookFacts?.chapters.phase, bookFacts?.chapters.pagination.canPrevious, chapterData, position, browsingChapters, reportBookError]);
   useEffect(() => {if (sheet !== 'chapters') setBrowsingChapters(false);}, [sheet]);
   const seekBook = (seconds: number) => {
     if (!bookReader?.current() || paintPermit && !paintPermit.current()) return;
@@ -297,6 +308,18 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
   const bookOptionActive = {backgroundColor: alpha(theme.colors.accent, .22), borderWidth: 1, borderColor: alpha(theme.colors.accentStrong, .5)};
   const bookGlass = glassRecipe().nativeBlur ? <BlurView pointerEvents="none" style={StyleSheet.absoluteFill} blurType="dark" blurAmount={16} reducedTransparencyFallbackColor={theme.colors.raisedHigh}/> : null;
   const chapterPane = <View testID={`${testID}-chapters`} style={{flex: 1, minHeight: 0}}>
+    {wholeBook ? <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: 12, paddingBottom: 16}}>
+      {wholeBook.chapters.map((value, index) => <Focusable key={value.id} accessibilityRole="button" accessibilityState={{selected: index === wholeBook.current}}
+        disabled={!p.capabilities.seek} onPress={() => {
+          if (paintPermit && !paintPermit.current()) return;
+          setBrowsingChapters(false); void audiobook?.playBookChapter?.(playback.fence, value.id).catch(reportBookError);
+        }} style={{minHeight: 60, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, flexDirection: 'row', alignItems: 'center', gap: 12,
+          backgroundColor: index === wholeBook.current ? 'rgba(237,245,250,.1)' : 'transparent'}}>
+        <Text style={[browseType(theme, 13, 700), {color: theme.colors.textTertiary, width: 28, fontVariant: ['tabular-nums']}]}>{value.number}</Text>
+        <Text style={[browseType(theme, 15, 700), {flex: 1, color: index === wholeBook.current ? theme.colors.accentStrong : theme.colors.text}]}>{value.title}</Text>
+        <Text style={[browseType(theme, 13, 500), {color: theme.colors.textTertiary, fontVariant: ['tabular-nums']}]}>{clockText(value.endSeconds - value.startSeconds)}</Text>
+      </Focusable>)}
+    </ScrollView> : <>
     {bookFacts?.chapters.phase === 'loading' ? <Text style={[browseType(theme, 14, 500), {color: theme.colors.textSecondary, padding: 20}]}>{t('status.loading')}</Text> : null}
     {bookFacts?.chapters.phase === 'error' || bookFacts?.chapters.phase === 'refresh-required' ? <View style={{padding: 20, gap: 12}}>
       <Text style={[browseType(theme, 14, 500), {color: theme.colors.textSecondary}]}>{t('player.opt.unavailable')}</Text>
@@ -321,6 +344,7 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
       <Button variant="glass" size="small" icon="i-right" disabled={!chapterData?.nextCursor || chapterBusy}
         onPress={() => {if (bookReader?.current()) {setBrowsingChapters(true); void bookReader.readNextChapterPage().catch(reportBookError);}}}>{t('player.next')}</Button>
     </View> : null}
+    </>}
   </View>;
   const header = !wide ? <View style={{width: '100%', minHeight: 48, marginHorizontal: -10, flexDirection: 'row', alignItems: 'center', marginBottom: 22}}>
     <Button variant="text" iconOnly icon="i-down" iconColor={theme.colors.text} iconSize={26} style={{width: 48, height: 48}} accessibilityLabel={t('player.minimize')} onPress={onClose}/>
@@ -357,7 +381,7 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
     {book && chapter ? <View testID={`${testID}-chapter-line`} style={{width: '100%', maxWidth: 600, marginTop: wide ? 26 : 18, flexDirection: 'row', alignItems: 'center', gap: wide ? 8 : 6}}>
       <Icon name="i-list" size={18} color={theme.colors.textSecondary}/>
       <Text style={[browseType(theme, wide ? 14 : 13.5, 700), {flexShrink: 1, color: wide ? theme.colors.text : theme.colors.textSecondary}]}>{chapter.title}</Text>
-      <Text style={[browseType(theme, wide ? 13 : 13.5, wide ? 500 : 600), {marginLeft: wide ? undefined : 'auto', color: wide ? theme.colors.textSecondary : theme.colors.textTertiary}]}>{wide ? `${clockText(Math.max(0, position - chapter.startSeconds))} / ${clockText(chapter.endSeconds - chapter.startSeconds)}` : `${chapter.index}/${chapterData?.totalCount}`}</Text>
+      <Text style={[browseType(theme, wide ? 13 : 13.5, wide ? 500 : 600), {marginLeft: wide ? undefined : 'auto', color: wide ? theme.colors.textSecondary : theme.colors.textTertiary}]}>{wide ? `${clockText(Math.max(0, position - chapter.startSeconds))} / ${clockText(chapter.endSeconds - chapter.startSeconds)}` : `${chapter.index}/${chapterTotal}`}</Text>
     </View> : null}
     </ListeningGroup></ListeningSwipeArea>
     <ListeningGroup fence={playback.fence} index={1} height={height}>
@@ -366,7 +390,7 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
       <ListeningSeekPaint fence={playback.fence} fraction={fraction} span={span} seconds={position - (bounds?.start ?? 0)}
         label={t('player.position')} testID={`${testID}-scrubber`} fallbackGesture={hostedScrubber ? undefined : scrub} fallbackAdjust={hostedScrubber || !inputActive ? undefined : adjustSeek}/>
       {book && wide && bounds && span > 0 ? <View testID={`${testID}-chapter-ticks`} pointerEvents="none" style={{position: 'absolute', left: 0, right: 0, top: 12, height: 4}}>
-        {chapterData?.chapters.filter(value => value.startSeconds > bounds.start && value.startSeconds < bounds.end).map(value => <View key={value.id}
+        {(wholeBook ? wholeBook.chapters.filter(value => value.itemId === wholeBook.itemId) : chapterData?.chapters ?? []).filter(value => value.startSeconds > bounds.start && value.startSeconds < bounds.end).map(value => <View key={value.id}
           style={{position: 'absolute', top: 0, bottom: 0, width: 2, marginLeft: -1, left: `${(value.startSeconds - bounds.start) / span * 100}%`, backgroundColor: alpha(theme.colors.ink, .75)}}/>)}
       </View> : null}
       </View>

@@ -1,7 +1,7 @@
 import {sameFence} from '../../../../packages/player-core/src/index.ts';
 import type {WebPlaybackAction, WebPlaybackRuntimeSnapshot, WebShellPlaybackRuntime} from '../../platform/playback';
 
-export type WatchIntent = Pick<WebPlaybackAction, 'kind' | 'seconds' | 'volume' | 'direction'>;
+export type WatchIntent = Pick<WebPlaybackAction, 'kind' | 'seconds' | 'volume' | 'direction' | 'chapterId'>;
 export type WatchCommands = Pick<WebShellPlaybackRuntime, 'getSnapshot' | 'onAction'>;
 
 /** Only the current engine can offer frame stepping; a browser seek is never a substitute. */

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {bookChapterIndex, bookChapterTarget, readBookChapters, type BookChapter} from '../src/book-chapters.ts';
+import {bookChapterIndex, bookChapterTarget, playingBookChapter, readBookChapters, type BookChapter} from '../src/book-chapters.ts';
 import {PlaybackService} from '../src/index.ts';
 import {FakePlaybackServer, fakeHttp} from '../src/playback-v1/testing/fake-server.ts';
 import {V1PlaybackApi} from '../src/playback-v1/legacy-bridge.ts';
@@ -77,6 +77,9 @@ test('a playing book reads its chapters once, and a chapter in another part star
     await player.playEntries(['part-a', 'part-b'].map(queueItemInput));
     for (let i = 0; i < 20 && player.chapterTarget('next') === undefined; i++) await new Promise(r => setTimeout(r, 10));
     assert.ok(player.chapterTarget('next'), 'the book\'s chapters are known while its part plays');
+    const view = player.bookChaptersView();
+    assert.equal(view?.phase, 'ready'); assert.equal(view?.chapters.length, 4, 'MU-2: the list spans every part');
+    assert.equal(view?.itemId, 'part-a'); assert.equal(view?.chapters[view.current]?.itemId, 'part-a');
     const run = playback.getSnapshot().playbackRun;
     await player.selectQueuedItem('part-b', 900);
     const advance = log.findLast(entry => entry.method === 'POST' && entry.path.endsWith(':advance'));
@@ -87,4 +90,12 @@ test('a playing book reads its chapters once, and a chapter in another part star
     await new Promise(r => setTimeout(r, 30));
     assert.equal(log.filter(entry => entry.path.startsWith('/v1/books/')).length, 1, 'one read per book, not per part');
   } finally {stop(); player.dispose();}
+});
+
+test('MU-2: the playing chapter is drawn only when it is in the playing part', () => {
+  const chapters = rows();
+  assert.equal(playingBookChapter({bookId: 'book', itemId: 'part-b', phase: 'ready', chapters, current: 3})?.id, 'part-b:2');
+  assert.equal(playingBookChapter({bookId: 'book', itemId: 'part-b', phase: 'ready', chapters, current: 1}), undefined, 'before part B\'s first chapter, part A\'s last doesn\'t apply');
+  assert.equal(playingBookChapter({bookId: 'book', itemId: 'part-a', phase: 'loading', chapters, current: 0}), undefined);
+  assert.equal(playingBookChapter(null), undefined);
 });

@@ -8,6 +8,10 @@ import {wireDurations} from './wire-units.ts';
 export type BookChapter = Readonly<{id: string; itemId: string; index: number; number: number; title: string; startSeconds: number; endSeconds: number}>;
 export type BookChapters = Readonly<{bookId: string; chapters: readonly BookChapter[]}>;
 
+/** The playing book's chapters for a player's list: every part's chapters in book order, and
+ * where the playing position is (`current`: an index into `chapters`, -1 before the first). */
+export type BookChaptersView = Readonly<{bookId: string; itemId: string; phase: 'loading' | 'ready' | 'error'; chapters: readonly BookChapter[]; current: number}>;
+
 const PAGE = 100;
 /** No real book comes near this; a longer list stops here rather than reading on. */
 const MAX_CHAPTERS = 4096;
@@ -46,6 +50,13 @@ export async function readBookChapters(request: ListeningRequest, bookId: string
     cursor = raw.nextCursor;
   } while (cursor && chapters.length < MAX_CHAPTERS);
   return Object.freeze({bookId, chapters: Object.freeze(chapters)});
+}
+
+/** The playing book chapter, when it is in the playing part. Before a part's first chapter the
+ * chapter playing is the previous part's last, whose times don't apply to this part. */
+export function playingBookChapter(book: BookChaptersView | null | undefined): BookChapter | undefined {
+  const chapter = book?.phase === 'ready' ? book.chapters[book.current] : undefined;
+  return chapter && chapter.itemId === book?.itemId ? chapter : undefined;
 }
 
 /** A chapter that has just started counts as current this long before its recorded start, so a

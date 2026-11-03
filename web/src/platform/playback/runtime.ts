@@ -1367,7 +1367,7 @@ export class WebShellPlaybackRuntime {
         presentation = {fence, subject: stack.subject, kind: stack.subject.kind === 'channel' ? 'video' : stack.subject.kind, posterUrl: stack.posterUrl, backdropUrl: stack.backdropUrl, durationSeconds: playback.duration, positionSeconds: local.positionSeconds, playing: local.playing, expanded: stack.expanded, finished, controls, volume: this.video?.volume ?? 1, muted: this.video?.muted ?? false, rate: speed, policy: this.policyView, ...(playback.channel && playback.linear ? {seekWindow: {startSeconds: Number(playback.linear.media.windowStartUs) / 1e6, endSeconds: Number(playback.linear.media.windowEndUs) / 1e6}} : {})};
         this.renderSubtitles(stack);
       }
-      this.snapshot = Object.freeze({nativeVideoSurfaceActive: !!fence && stack.subject?.kind === 'video' && stack.web.slot.nativeSurfaceActive, authority: this.authority, sequence: ++this.sequence, playback, dock: this.dock.getSnapshot(), fence, subject: stack.subject, presentation, presentations: this.presentations(presentation), queueView: stack.queue.getSnapshot().view, session, offers, options: stack.options, problem: this.runtimeProblem, disposed: false,
+      this.snapshot = Object.freeze({nativeVideoSurfaceActive: !!fence && stack.subject?.kind === 'video' && stack.web.slot.nativeSurfaceActive, authority: this.authority, sequence: ++this.sequence, playback, dock: this.dock.getSnapshot(), fence, subject: stack.subject, presentation, presentations: this.presentations(presentation), queueView: stack.queue.getSnapshot().view, bookChapters: fence?.kind === 'queue' ? stack.queue.bookChaptersView() : null, session, offers, options: stack.options, problem: this.runtimeProblem, disposed: false,
         ...(stack.capacityWait?.isCurrent() ? {capacityWait: stack.capacityWait} : {}),
         ...(stack.startFailure?.isCurrent() ? {startFailure: stack.startFailure} : {}),
         ...this.startingFields(stack, !!presentation)});
@@ -2225,6 +2225,18 @@ export class WebShellPlaybackRuntime {
     await stack.queue.playChapter(target, seconds => this.seek(fence, seconds));
     return true;
   }
+  /** A row of the book's chapter list (MU-2): a seek within the playing part, else that
+   * chapter's part from the chapter's start, in this run's queue. */
+  async playBookChapter(fence: PlaybackFence, chapterId: string): Promise<void> {
+    if (fence.kind !== 'queue' || this.group?.matches(fence)) problem('playback_command_unavailable');
+    const stack = this.offered(fence, 'seek'), chapter = stack.queue.bookChaptersView()?.chapters.find(row => row.id === chapterId);
+    if (!chapter) problem('playback_command_unavailable');
+    const finishRetention = this.retainMediaStart(stack.life.signal, () => this.current(stack));
+    try {
+      await stack.queue.playChapter(chapter, seconds => this.seek(fence, seconds));
+      if (this.current(stack)) this.sync();
+    } finally {finishRetention();}
+  }
   async previous(fence: PlaybackFence): Promise<void> {
     if (fence.kind === 'channel') problem('playback_command_unavailable');const stack = this.offered(fence, 'previous');
     const finishRetention = this.retainMediaStart(stack.life.signal, () => this.current(stack));
@@ -2606,6 +2618,7 @@ export class WebShellPlaybackRuntime {
       case 'replay': await this.replay(action.fence); return;
       case 'previous': await this.previous(action.fence); return;
       case 'next': await this.next(action.fence); return;
+      case 'book-chapter': if (!action.chapterId) problem('playback_command_unavailable'); await this.playBookChapter(action.fence, action.chapterId); return;
       case 'seek': if (action.seconds === undefined) problem('invalid_playback_position'); await this.seek(action.fence, action.seconds); return;
       case 'step-speed': if (action.direction === undefined) problem('playback_speed_unavailable'); this.stepSpeed(action.fence, action.direction); return;
       case 'step-frame': if (action.direction === undefined) problem('playback_frame_step_unavailable'); await this.stepFrame(action.fence, action.direction); return;
