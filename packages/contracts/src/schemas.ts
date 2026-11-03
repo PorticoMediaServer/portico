@@ -21934,6 +21934,9 @@ export const schemas = {
               "minimum": -9007199254740991,
               "type": "integer"
             },
+            "required": {
+              "type": "boolean"
+            },
             "type": {
               "type": "string"
             }
@@ -148763,6 +148766,9 @@ export const schemas = {
                   "minimum": -9007199254740991,
                   "type": "integer"
                 },
+                "required": {
+                  "type": "boolean"
+                },
                 "type": {
                   "type": "string"
                 }
@@ -149057,6 +149063,9 @@ export const schemas = {
                   "minimum": -9007199254740991,
                   "type": "integer"
                 },
+                "required": {
+                  "type": "boolean"
+                },
                 "type": {
                   "type": "string"
                 }
@@ -149113,6 +149122,9 @@ export const schemas = {
                   "maximum": 9007199254740991,
                   "minimum": -9007199254740991,
                   "type": "integer"
+                },
+                "required": {
+                  "type": "boolean"
                 },
                 "type": {
                   "type": "string"
@@ -149633,6 +149645,9 @@ export const schemas = {
               "maximum": 9007199254740991,
               "minimum": -9007199254740991,
               "type": "integer"
+            },
+            "required": {
+              "type": "boolean"
             },
             "type": {
               "type": "string"
@@ -241977,6 +241992,9 @@ export const schemas = {
                   "minimum": -9007199254740991,
                   "type": "integer"
                 },
+                "required": {
+                  "type": "boolean"
+                },
                 "type": {
                   "type": "string"
                 }
@@ -242271,6 +242289,9 @@ export const schemas = {
                   "minimum": -9007199254740991,
                   "type": "integer"
                 },
+                "required": {
+                  "type": "boolean"
+                },
                 "type": {
                   "type": "string"
                 }
@@ -242327,6 +242348,9 @@ export const schemas = {
                   "maximum": 9007199254740991,
                   "minimum": -9007199254740991,
                   "type": "integer"
+                },
+                "required": {
+                  "type": "boolean"
                 },
                 "type": {
                   "type": "string"
@@ -242927,6 +242951,9 @@ export const schemas = {
               "maximum": 9007199254740991,
               "minimum": -9007199254740991,
               "type": "integer"
+            },
+            "required": {
+              "type": "boolean"
             },
             "type": {
               "type": "string"
@@ -243640,6 +243667,9 @@ export const schemas = {
               "maximum": 9007199254740991,
               "minimum": -9007199254740991,
               "type": "integer"
+            },
+            "required": {
+              "type": "boolean"
             },
             "type": {
               "type": "string"

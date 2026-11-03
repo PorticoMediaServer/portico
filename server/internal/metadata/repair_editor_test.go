@@ -494,3 +494,50 @@ func TestMetadataLanguageValidatesAndUpdatesSortKey(t *testing.T) {
 		t.Fatal("invalid language accepted")
 	}
 }
+
+// OW-3: an episode's Season number and Episode number are its position, so the schema says they can't be cleared and
+// publishes the server's own bounds; an absolutely numbered episode has no season to move to and offers none.
+func TestEpisodePositionFieldsAreRequiredAndAbsoluteEpisodesHaveNoSeason(t *testing.T) {
+	s, db := editorFixture(t)
+	names := editorNames(t, db)
+	target := editorTarget(names, "item", "episode")
+	state, err := s.RepairState(context.Background(), target, allowAll)
+	if err != nil {
+		t.Fatal(err)
+	}
+	specs := map[string]RepairFieldSpec{}
+	for _, spec := range state.Schema {
+		specs[spec.Field] = spec
+	}
+	if season := specs["seasonNumber"]; !season.Required || season.Min == nil || *season.Min != 0 || season.Max == nil || *season.Max != maxSeasonNumber {
+		t.Fatalf("seasonNumber spec %+v", season)
+	}
+	if episode := specs["episodeNumber"]; !episode.Required || episode.Min == nil || *episode.Min != 1 {
+		t.Fatalf("episodeNumber spec %+v", episode)
+	}
+	for field, spec := range specs {
+		if spec.Required && field != "seasonNumber" && field != "episodeNumber" {
+			t.Fatalf("%s is marked required", field)
+		}
+	}
+	// The same clear the server refuses at write time (applySeasonNumber, episodeNumber).
+	for _, field := range []string{"seasonNumber", "episodeNumber"} {
+		empty := ""
+		_, err = s.Repair(context.Background(), target, RepairCommand{ExpectedRevision: state.Revision, Action: "edit", Fields: map[string]RepairFieldEdit{field: {Value: &empty}}}, editorActor(), allowAll)
+		if !errors.Is(err, ErrRepairInput) {
+			t.Fatalf("clearing %s: %v", field, err)
+		}
+	}
+	if _, err = db.Exec(`UPDATE catalog_episodes SET numbering='absolute' WHERE entity_id=?`, names["episode"].ID); err != nil {
+		t.Fatal(err)
+	}
+	state, err = s.RepairState(context.Background(), target, allowAll)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, spec := range state.Schema {
+		if spec.Field == "seasonNumber" {
+			t.Fatal("an absolutely numbered episode offers a season the server refuses to change")
+		}
+	}
+}

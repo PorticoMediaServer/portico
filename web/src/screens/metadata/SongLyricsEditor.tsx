@@ -3,7 +3,7 @@ import {defaultI18n} from '@i18n';
 import {MetadataLyricsService} from '@core/metadata-lyrics.ts';
 import type {RepairData, RepairScope, RepairTarget} from '@core/metadata-repair.ts';
 import {Button, TextField} from '../../kit/controls';
-import {HostedError} from '../../kit/accounts/ServicesAuth';
+import {MetadataError} from './MetadataError';
 import styles from './metadata.module.css';
 
 const t = defaultI18n.t;
@@ -20,7 +20,7 @@ export function SongLyricsEditor({api, scope, target, repairData, isCurrent}: {
   const choice = data?.librarySelection;
   return <div className={styles.fields}>
     <p className={styles.lockHelp}>{t('web.metadata.lyricsHelp')}</p>
-    {state.error ? <HostedError error={state.error}/> : null}
+    {state.error ? <MetadataError error={state.error}/> : null}
     {state.phase === 'loading' || state.phase === 'saving' ? <p role="status">{t(state.phase === 'loading' ? 'web.metadata.loading' : 'web.metadata.applying')}</p> : null}
     {state.phase === 'error' || state.phase === 'uncertain' ? <Button size="small" onClick={() => void service.load()}>{t('next.states.tryAgain')}</Button> : null}
     {data && !data.source ? <p>{t('web.metadata.lyricsNoSource')}</p> : null}

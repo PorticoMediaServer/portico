@@ -23894,6 +23894,9 @@
                   "minimum": -9007199254740991,
                   "type": "integer"
                 },
+                "required": {
+                  "type": "boolean"
+                },
                 "type": {
                   "type": "string"
                 }
@@ -153046,6 +153049,9 @@
                       "minimum": -9007199254740991,
                       "type": "integer"
                     },
+                    "required": {
+                      "type": "boolean"
+                    },
                     "type": {
                       "type": "string"
                     }
@@ -153340,6 +153346,9 @@
                       "minimum": -9007199254740991,
                       "type": "integer"
                     },
+                    "required": {
+                      "type": "boolean"
+                    },
                     "type": {
                       "type": "string"
                     }
@@ -153396,6 +153405,9 @@
                       "maximum": 9007199254740991,
                       "minimum": -9007199254740991,
                       "type": "integer"
+                    },
+                    "required": {
+                      "type": "boolean"
                     },
                     "type": {
                       "type": "string"
@@ -153919,6 +153931,9 @@
                   "maximum": 9007199254740991,
                   "minimum": -9007199254740991,
                   "type": "integer"
+                },
+                "required": {
+                  "type": "boolean"
                 },
                 "type": {
                   "type": "string"
@@ -264325,6 +264340,9 @@
                       "minimum": -9007199254740991,
                       "type": "integer"
                     },
+                    "required": {
+                      "type": "boolean"
+                    },
                     "type": {
                       "type": "string"
                     }
@@ -264619,6 +264637,9 @@
                       "minimum": -9007199254740991,
                       "type": "integer"
                     },
+                    "required": {
+                      "type": "boolean"
+                    },
                     "type": {
                       "type": "string"
                     }
@@ -264675,6 +264696,9 @@
                       "maximum": 9007199254740991,
                       "minimum": -9007199254740991,
                       "type": "integer"
+                    },
+                    "required": {
+                      "type": "boolean"
                     },
                     "type": {
                       "type": "string"
@@ -265278,6 +265302,9 @@
                   "maximum": 9007199254740991,
                   "minimum": -9007199254740991,
                   "type": "integer"
+                },
+                "required": {
+                  "type": "boolean"
                 },
                 "type": {
                   "type": "string"
@@ -265996,6 +266023,9 @@
                   "maximum": 9007199254740991,
                   "minimum": -9007199254740991,
                   "type": "integer"
+                },
+                "required": {
+                  "type": "boolean"
                 },
                 "type": {
                   "type": "string"
@@ -660385,6 +660415,9 @@
                             "minimum": -9007199254740991,
                             "type": "integer"
                           },
+                          "required": {
+                            "type": "boolean"
+                          },
                           "type": {
                             "type": "string"
                           }
@@ -660678,6 +660711,9 @@
                             "minimum": -9007199254740991,
                             "type": "integer"
                           },
+                          "required": {
+                            "type": "boolean"
+                          },
                           "type": {
                             "type": "string"
                           }
@@ -660734,6 +660770,9 @@
                             "maximum": 9007199254740991,
                             "minimum": -9007199254740991,
                             "type": "integer"
+                          },
+                          "required": {
+                            "type": "boolean"
                           },
                           "type": {
                             "type": "string"
@@ -661084,6 +661123,9 @@
                             "minimum": -9007199254740991,
                             "type": "integer"
                           },
+                          "required": {
+                            "type": "boolean"
+                          },
                           "type": {
                             "type": "string"
                           }
@@ -661377,6 +661419,9 @@
                             "minimum": -9007199254740991,
                             "type": "integer"
                           },
+                          "required": {
+                            "type": "boolean"
+                          },
                           "type": {
                             "type": "string"
                           }
@@ -661433,6 +661478,9 @@
                             "maximum": 9007199254740991,
                             "minimum": -9007199254740991,
                             "type": "integer"
+                          },
+                          "required": {
+                            "type": "boolean"
                           },
                           "type": {
                             "type": "string"
@@ -661986,6 +662034,9 @@
                             "maximum": 9007199254740991,
                             "minimum": -9007199254740991,
                             "type": "integer"
+                          },
+                          "required": {
+                            "type": "boolean"
                           },
                           "type": {
                             "type": "string"
@@ -662789,6 +662840,9 @@
                             "maximum": 9007199254740991,
                             "minimum": -9007199254740991,
                             "type": "integer"
+                          },
+                          "required": {
+                            "type": "boolean"
                           },
                           "type": {
                             "type": "string"
@@ -663636,6 +663690,9 @@
                             "minimum": -9007199254740991,
                             "type": "integer"
                           },
+                          "required": {
+                            "type": "boolean"
+                          },
                           "type": {
                             "type": "string"
                           }
@@ -664314,6 +664371,9 @@
                             "maximum": 9007199254740991,
                             "minimum": -9007199254740991,
                             "type": "integer"
+                          },
+                          "required": {
+                            "type": "boolean"
                           },
                           "type": {
                             "type": "string"

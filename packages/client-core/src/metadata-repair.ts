@@ -9,7 +9,7 @@ export type RepairCaller = Readonly<{signal:AbortSignal;current:()=>boolean}>;
 export type RepairScope = Readonly<{serverId:string;viewerId:string}>;
 export type RepairField = Readonly<{value:string;automaticValue:string;locked:boolean;source:string;observedAt?:string;values?:readonly string[]}>;
 /** The server publishes the editable field registry; a client never hard-codes one. */
-export type RepairFieldSpec = Readonly<{field:string;label:string;group:'general'|'numbers'|'text'|'identity';type:'text'|'multiline'|'integer'|'number'|'date'|'enum'|'list';maxLength?:number;min?:number;max?:number;allowed?:readonly string[];bulk:boolean}>;
+export type RepairFieldSpec = Readonly<{field:string;label:string;group:'general'|'numbers'|'text'|'identity';type:'text'|'multiline'|'integer'|'number'|'date'|'enum'|'list';maxLength?:number;min?:number;max?:number;allowed?:readonly string[];bulk:boolean;/** OW-3: can't be cleared (an episode's season and number). */required?:boolean}>;
 export type RepairRelationship = Readonly<{sourceRowId?:string;ownerEntryId?:string;sourceStatus?:'current'|'missing'|'replaced';recordId?:string;provider?:string;department?:string;kind:string;targetKind:string;targetId:string;label:string;role?:string;ordinal:number;source:string;locked:boolean;observedAt?:string}>;
 export type RepairChoice = Readonly<{role:string;subject:string;candidateId:string;digest:string;locked:boolean;revision:number;attribution:string;url:string}>;
 export type RepairData = Readonly<{
@@ -33,7 +33,10 @@ export type RepairCommand = Readonly<{
  relationships?:readonly RepairRelationship[];
 }>;
 export type RepairPreview = Readonly<{revision:string;descendants:number;lockedFields:number;selectedImages:number;message:string;merge?:{target:{kind:string;id:string};allowed:boolean;blockers:readonly string[];references:Readonly<Record<string,number>>}}>; 
-export type RepairView = Readonly<{phase:'idle'|'loading'|'ready'|'saving'|'conflict'|'uncertain'|'denied'|'error';data:RepairData|null;error:string|null;preview:RepairPreview|null}>;
+/** OW-4: what went wrong, as a code and status the shared presenter maps to its own sentence. Never a sentence: the
+ * editor used to hand English text to the presenter as a code and showed "Something went wrong" instead. */
+export type RepairError = Readonly<{code:string;status?:number}>;
+export type RepairView = Readonly<{phase:'idle'|'loading'|'ready'|'saving'|'conflict'|'uncertain'|'denied'|'error';data:RepairData|null;error:RepairError|null;preview:RepairPreview|null}>;
 type Api = {request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>; requestMetadataUpload?<T>(path:string,body:FormData,signal?:AbortSignal):Promise<T>};
 const obj=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const str=(v:unknown,max=2048):v is string=>typeof v==='string'&&v.length<=max&&!/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(v);
@@ -63,7 +66,7 @@ export function validateRepair(raw:unknown,scope:RepairScope,target:RepairTarget
  // The registry decides which fields exist. A field the registry does not name
  // is not rendered, and a registry entry with no value is a broken projection.
  const groups=['general','numbers','text','identity'],types=['text','multiline','integer','number','date','enum','list'];
- if(!arr(raw.schema,32,f=>id(f.field)&&str(f.field,64)&&str(f.label,200)&&groups.includes(String(f.group))&&types.includes(String(f.type))&&typeof f.bulk==='boolean'&&(f.maxLength===undefined||num(f.maxLength))&&(f.min===undefined||num(f.min))&&(f.max===undefined||num(f.max))&&(f.allowed===undefined||Array.isArray(f.allowed)&&f.allowed.length<=200&&f.allowed.every(v=>str(v,200)))))bad();
+ if(!arr(raw.schema,32,f=>id(f.field)&&str(f.field,64)&&str(f.label,200)&&groups.includes(String(f.group))&&types.includes(String(f.type))&&typeof f.bulk==='boolean'&&(f.required===undefined||typeof f.required==='boolean')&&(f.maxLength===undefined||num(f.maxLength))&&(f.min===undefined||num(f.min))&&(f.max===undefined||num(f.max))&&(f.allowed===undefined||Array.isArray(f.allowed)&&f.allowed.length<=200&&f.allowed.every(v=>str(v,200)))))bad();
  const specs=new Map((raw.schema as Record<string,unknown>[]).map(f=>[String(f.field),f]));
  if(specs.size!==(raw.schema as unknown[]).length)bad();
  // A place for a picture that this app has no shape for is not offered.
@@ -89,7 +92,7 @@ export function validateRepair(raw:unknown,scope:RepairScope,target:RepairTarget
  const pick=(value:unknown,keys:readonly string[])=>Object.freeze(Object.fromEntries(keys.filter(k=>(value as Record<string,unknown>)[k]!==undefined).map(k=>[k,(value as Record<string,unknown>)[k]])));
  const rows=(value:unknown,keys:readonly string[])=>Object.freeze((value as unknown[]).map(v=>pick(v,keys)));
  return Object.freeze({target:Object.freeze({kind:target.kind,id:target.id}),libraryId:target.libraryId,serverId:scope.serverId,viewerFence:raw.viewerFence,revision:raw.revision,
- ...(Array.isArray(raw.tabs)?{tabs:Object.freeze(raw.tabs.filter((tab):tab is string=>typeof tab==='string'&&['general','numbers','text','identity'].includes(tab)))}:{}),schema:rows(raw.schema,['field','label','group','type','maxLength','min','max','allowed','bulk']),artworkRoles:Object.freeze(artworkRoles),
+ ...(Array.isArray(raw.tabs)?{tabs:Object.freeze(raw.tabs.filter((tab):tab is string=>typeof tab==='string'&&['general','numbers','text','identity'].includes(tab)))}:{}),schema:rows(raw.schema,['field','label','group','type','maxLength','min','max','allowed','bulk','required']),artworkRoles:Object.freeze(artworkRoles),
  ...(typeof raw.onlineLookups==='boolean'?{onlineLookups:raw.onlineLookups}:{}),
  ...(raw.canMakeEpisodeThumbnail===true?{canMakeEpisodeThumbnail:true}:{}),
  ...(target.kind==='item'&&validFallbackUrl(raw.artworkFallbackUrl)?{artworkFallbackUrl:raw.artworkFallbackUrl}:{}),
@@ -181,10 +184,13 @@ export class MetadataRepairService {
   }catch(error){if(epoch===this.epoch&&!this.disposed)this.failure(error,false);}
  }
  private failure(error:unknown,write:boolean){const e=obj(error)?error:{};
-  // A refused upload changed nothing: the editor stays ready with the reason.
-  const refused=write&&e.status===422&&e.code==='artwork_cap_unreachable'?'This image is too detailed to store at full quality within the size limit. Try a simpler or smaller image.':write&&e.status===415&&e.code==='unsupported_artwork'?'Upload a JPEG, PNG or WebP image no larger than 10 MiB.':null;
-  if(refused&&this.state.data){this.publish({...this.state,phase:'ready',preview:null,error:refused});return;}
-  const denied=e.status===401||e.status===403;const conflict=e.status===409||e.code==='metadata_conflict';
-  this.publish({phase:denied?'denied':conflict?'conflict':write?'uncertain':'error',data:denied?null:this.state.data,preview:null,error:denied?'Owner access is no longer available. Close this view and sign in again.':conflict?'Metadata changed. Nothing was replayed. Reload the current values and review your decision.':write?'The result is uncertain. Reload saved values before making another change.':'Could not read metadata repair state. Reload to try again.'});
+  const status=typeof e.status==='number'?e.status:undefined,code=typeof e.code==='string'?e.code:'';
+  // Refused before anything was stored: the editor stays ready with the reason and its values. An image the server
+  // can't keep, or a field it won't accept (an episode's number cleared, OW-3), is a definite answer, not an uncertain write.
+  const refused=write&&(status===422&&code==='artwork_cap_unreachable'||status===415&&code==='unsupported_artwork'||status===400&&(code==='invalid_metadata_repair'||code==='invalid_metadata_edit'));
+  if(refused&&this.state.data){this.publish({...this.state,phase:'ready',preview:null,error:Object.freeze({code,status})});return;}
+  const denied=status===401||status===403;const conflict=status===409||code==='metadata_conflict';
+  const reason:RepairError=denied?{code:'permission_changed',status:403}:conflict?{code:'metadata_conflict',status:409}:write?{code:'unconfirmed_change'}:{code:code||'unreadable',...(status!==undefined?{status}:{})};
+  this.publish({phase:denied?'denied':conflict?'conflict':write?'uncertain':'error',data:denied?null:this.state.data,preview:null,error:Object.freeze(reason)});
  }
 }

@@ -123,3 +123,27 @@ test('candidate command keys and typed provider identities remain distinct', () 
  const malformed=validateRepair({...raw,candidates:[{...candidate,identityType:['movie']}]},scope,target);
  assert.equal(malformed.candidates.length,0);
 });
+
+// OW-3/OW-4: the service publishes a code and status, never an English sentence, and a field the server refused is a
+// definite answer that keeps the editor's values (it used to read as an uncertain write, then as "Something went wrong").
+test('a refused field keeps the editor ready with its values; conflict, denial and lost writes are typed', async () => {
+  const {presentError} = await import('../src/presentation/errors.ts');
+  const {defaultI18n} = await import('../../i18n/src/index.ts');
+  let error: any = {status: 400, code: 'invalid_metadata_repair', message: 'Check the repair fields and confirmation.'};
+  const service = new MetadataRepairService({scope, api: {async request(_p, method) {if (method === 'POST') throw error; return response() as any;}}});
+  await service.load(target);
+  assert.equal(await service.command({action: 'edit', fields: {title: {value: ''}}}), false);
+  assert.equal(service.getSnapshot().phase, 'ready', 'nothing was stored: not uncertain');
+  assert.ok(service.getSnapshot().data, 'the values stay');
+  assert.deepEqual(service.getSnapshot().error, {code: 'invalid_metadata_repair', status: 400});
+  assert.equal(presentError(service.getSnapshot().error, 'detail', {operation: 'save'}).body, defaultI18n.t('error.invalidInput'));
+  error = {status: 409, code: 'metadata_conflict'}; await service.command({action: 'lock_all', confirm: true});
+  assert.equal(presentError(service.getSnapshot().error, 'detail', {operation: 'save'}).body, defaultI18n.t('error.changed'));
+  await service.load(target); error = new TypeError('Failed to fetch'); await service.command({action: 'lock_all', confirm: true});
+  assert.equal(service.getSnapshot().phase, 'uncertain');
+  assert.equal(presentError(service.getSnapshot().error, 'detail', {operation: 'save'}).body, defaultI18n.t('error.unconfirmedChange'));
+  await service.load(target); error = {status: 403}; await service.command({action: 'lock_all', confirm: true});
+  assert.equal(presentError(service.getSnapshot().error, 'detail', {operation: 'save'}).body, defaultI18n.t('error.permission'));
+  for (const view of [service.getSnapshot()]) assert.equal(typeof view.error, 'object', 'a code, never a sentence');
+  service.dispose();
+});
