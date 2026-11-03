@@ -189,7 +189,7 @@ export class ServicesAuthFlow {
         if (error instanceof ApiError && error.status === 409 && error.code === 'username_unavailable' && current()) {
           const fresh = await this.account.client.registration(original.registrationId, signal);
           if (!current()) return;
-          if (!fresh || fresh.registrationId !== original.registrationId || fresh.revision !== original.revision || fresh.expiresAt !== original.expiresAt || fresh.maskedAddress !== original.maskedAddress || fresh.status === 'completed' || !fresh.contactVerified || !(Date.parse(fresh.expiresAt) > Date.now()))
+          if (!fresh || fresh.registrationId !== original.registrationId || fresh.revision !== original.revision || fresh.expiresAt !== original.expiresAt || fresh.maskedAddress !== original.maskedAddress || fresh.status === 'completed' || !fresh.contactVerified || !(Date.parse(fresh.expiresAt) > serverNow()))
             throw new CodedError('account_changed', 'The registration changed.');
           this.publish({registration: Object.freeze({...fresh})});
         }

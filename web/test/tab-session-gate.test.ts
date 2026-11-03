@@ -78,3 +78,18 @@ test('Forget remembered profile clears the choice on this device and keeps the p
   gate.resetTabSessionGate();
   assert.equal(gate.tabAdmits(held), false, 'the next visit shows the picker');
 });
+
+// PR-4: Forget remembered profile is offered on the server's clock, as the launch gate decides, never the device's.
+test('a device clock that runs fast still offers Forget for a profile the server remembers', async () => {
+  const {observeServerTime} = await import('@core/server-clock.ts');
+  const skew = 20 * 60_000, device = Date.now();
+  gate.resetTabSessionGate(); tab.values.clear();
+  observeServerTime('http://server.test', device - skew, device, device); // the server is 20 minutes behind this device
+  try {
+    const marker = {...held, expiresAt: new Date(device - skew + 10 * 60_000).toISOString()}; // 10 minutes left on the server's clock
+    gate.recordTabPick('s1', 'alex', marker);
+    gate.resetTabSessionGate();
+    assert.equal(gate.tabAdmits(held), true, 'the launch gate still opens it');
+    assert.equal(gate.deviceRemembers('s1', 'alex'), true, 'and the avatar menu agrees');
+  } finally {observeServerTime('http://server.test', Date.now(), Date.now(), Date.now());}
+});
