@@ -36,10 +36,13 @@ export function nativeType(style: TypeStyle, textScale = 1): TextStyle {
   };
 }
 
-export type ThemeOptions = {isTV: boolean; width: number; reduceMotion?: boolean; textScale?: number; fontScale?: number};
-export function createTheme({isTV, width, reduceMotion = false, textScale = 1, fontScale = 1}: ThemeOptions) {
+/** `height`: the window's, when known. A phone held sideways is wider than 600 but short; it stays
+ * a phone, as the shell keeps it (shell/model.ts `shellLayout`), so its pages keep the phone's compositions (N2-4). */
+export type ThemeOptions = {isTV: boolean; width: number; height?: number; reduceMotion?: boolean; textScale?: number; fontScale?: number};
+export function createTheme({isTV, width, height, reduceMotion = false, textScale = 1, fontScale = 1}: ThemeOptions) {
   // componentSpec names its desktop column web; layoutMode names the actual shell layout.
-  const platform: 'phone' | 'tablet' | 'web' | 'tv' = isTV ? 'tv' : width >= layout.breakpoint.desktop ? 'web' : width < layout.breakpoint.phone ? 'phone' : 'tablet';
+  const shortWindow = height !== undefined && width < layout.breakpoint.desktop && height < layout.breakpoint.phone;
+  const platform: 'phone' | 'tablet' | 'web' | 'tv' = isTV ? 'tv' : width < layout.breakpoint.phone || shortWindow ? 'phone' : width >= layout.breakpoint.desktop ? 'web' : 'tablet';
   const layoutMode: 'phone' | 'desktop' | 'tv' = isTV ? 'tv' : platform === 'web' ? 'desktop' : 'phone';
   const scale = typeScale[isTV ? 'tenFoot' : layoutMode === 'desktop' ? 'desktop' : 'handheld'];
   const type = Object.fromEntries(Object.entries(scale).map(([role, value]) => [role, nativeType(value, textScale)])) as Record<TypeRole, TextStyle>;
@@ -60,12 +63,12 @@ const ThemeContext = createContext<Theme | undefined>(undefined);
 
 export function ThemeProvider({children, width: surfaceWidth, reduceMotion = false, textScale, textSize}: {children: React.ReactNode; width?: number; reduceMotion?: boolean; /** Numeric scale used by specimens and the confirmed preference itself. */ textScale?: number; /** Confirmed `appearance.textSize`; ignored outside TV per ruling R46. */ textSize?: TextSizePreference}) {
   const dimensions = useWindowDimensions();
-  const width = surfaceWidth ?? dimensions.width;
+  const width = surfaceWidth ?? dimensions.width, height = surfaceWidth === undefined ? dimensions.height : undefined;
   const isTV = Platform.isTV === true;
   const scale = textScale ?? textScaleFor(textSize, isTV);
   publishedTextScale = scale;
   const fontScale = dimensions.fontScale;
-  const theme = useMemo(() => createTheme({isTV, width, reduceMotion, textScale: scale, fontScale}), [isTV, width, reduceMotion, scale, fontScale]);
+  const theme = useMemo(() => createTheme({isTV, width, height, reduceMotion, textScale: scale, fontScale}), [isTV, width, height, reduceMotion, scale, fontScale]);
   return React.createElement(ThemeContext.Provider, {value: theme}, children);
 }
 

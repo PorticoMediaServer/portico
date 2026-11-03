@@ -30,7 +30,7 @@ import type {NativeTogetherPage} from './together-page';
 export function NativeTogetherScreen({controller, media, ports, runtime, page, onBack, joinCode}: {page: NativeTogetherPage; controller: NativeTogetherController; media: NativeTogetherMedia; ports: Pick<NativeSettingsLivePorts, 'context'>; runtime: NativeShellRuntime; onBack?: () => void;
   /** N2-1: a Watch Together link's code: Join with a code opens with it filled in, once for this page. */
   joinCode?: string}) {
-  const theme = useTheme(), t = runtime.text.t, phone = !theme.isTV && theme.width < 600;
+  const theme = useTheme(), t = runtime.text.t, phone = theme.platform === 'phone';
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const ids = useMemo(() => tvFocusIds(controller.lifetime.authority), [controller]);
   const region = ids.surface('together');
@@ -166,7 +166,7 @@ function TogetherLobbyRegion({controller, region, rail, children}: {controller: 
 }
 
 function TogetherPage({children, onBack, title, settingsBack = false}: {children: React.ReactNode; onBack?: () => void; title?: string; settingsBack?: boolean}) {
-  const theme = useTheme(), insets = useSafeAreaInsets(), phone = !theme.isTV && theme.width < 600;
+  const theme = useTheme(), insets = useSafeAreaInsets(), phone = theme.platform === 'phone';
   return <View style={{flex: 1}}><StandardBackdrop/>
     {phone && <View style={{paddingTop: insets.top, minHeight: insets.top + 46, paddingHorizontal: 10, justifyContent: 'center'}}>
       <Text accessibilityRole="header" pointerEvents="none" style={[shellType(17, 700), {position: 'absolute', left: 0, right: 0, bottom: 13, textAlign: 'center', color: theme.colors.text}]}>{title}</Text>
@@ -224,7 +224,7 @@ function TogetherLobbyArt({itemId, controller, ports, runtime}: {itemId?: string
 }
 
 function TogetherRoom({controller, ports, runtime}: {controller: NativeTogetherController; ports: Pick<NativeSettingsLivePorts, 'context'>; runtime: NativeShellRuntime}) {
-  const theme = useTheme(), t = runtime.text.t, phone = !theme.isTV && theme.width < 600, gradientId = useId().replace(/:/g, '');
+  const theme = useTheme(), t = runtime.text.t, phone = theme.platform === 'phone', gradientId = useId().replace(/:/g, '');
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot), group = state.group!;
   const playback = useSyncExternalStore(ports.context.playback.subscribe, ports.context.playback.getSnapshot);
   const [items, setItems] = useState<Readonly<Record<string, MediaItem | null>>>({}), [confirm, setConfirm] = useState<'end' | 'leave'>();
@@ -285,7 +285,7 @@ function TogetherRoom({controller, ports, runtime}: {controller: NativeTogetherC
               </View>
             </View></>}
   </>;
-  return <Screen title={!theme.isTV && theme.width < 600 ? undefined : group.name}>
+  return <Screen title={theme.platform === 'phone' ? undefined : group.name}>
     <ScrollView contentContainerStyle={{paddingHorizontal: theme.isTV ? 0 : phone ? 16 : 20, paddingTop: phone ? 6 : 0, paddingBottom: 64}}>
       {state.error && <Banner message={state.error} tone="warning"/>}
       {state.phase === 'reconnecting' && <Banner message={t('web.together.reconnecting')} tone="warning"/>}

@@ -63,7 +63,7 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   // native subtree mounted so its scroll position and painted content survive.
   const previousPage = useRef<ShellDestination>({kind: 'home'});
   const settingsPage = !theme.isTV && destination.kind === 'settings';
-  const settingsSheet = settingsPage && theme.width < 600;
+  const settingsSheet = settingsPage && theme.platform === 'phone';
   const paintedDestination = settingsPage ? previousPage.current : destination;
   useLayoutEffect(() => {if (destination.kind !== 'settings') previousPage.current = destination;}, [destination]);
   const [tvListeningPresent, setTVListeningPresent] = useState(false);
