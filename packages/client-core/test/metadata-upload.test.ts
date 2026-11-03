@@ -101,13 +101,15 @@ test('removal carries revision and cannot send after saving-subscriber cancellat
   off(); service.dispose();
 });
 test('a definite upload refusal keeps the editor ready and names the reason', async () => {
-  for (const [status, code, reason] of [[422, 'artwork_cap_unreachable', /too detailed/], [415, 'unsupported_artwork', /JPEG, PNG or WebP/]] as const) {
+  for (const [status, code, reason] of [[422, 'artwork_cap_unreachable', /too detailed/], [415, 'unsupported_artwork', /JPG or PNG up to 10 MiB/]] as const) {
     const service = new MetadataRepairService({scope, api: {async request<T>() {return state() as T;}, async requestMetadataUpload() {throw Object.assign(new Error('refused'), {status, code});}}});
     await service.load(target);
     assert.equal(await service.uploadArtwork('poster', new Blob(['image'], {type: 'image/png'})), false);
     const snapshot = service.getSnapshot();
     assert.equal(snapshot.phase, 'ready');
-    assert.match(snapshot.error ?? '', reason);
+    // OW-4: a code the shared presenter turns into its own sentence, never a sentence passed as a code.
+    assert.deepEqual(snapshot.error, {code, status});
+    assert.match((await import('../src/presentation/errors.ts')).presentError(snapshot.error, 'detail', {operation: 'save'}).body, reason);
     assert.equal(snapshot.data?.revision, 'b'.repeat(64));
     service.dispose();
   }

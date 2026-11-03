@@ -291,6 +291,7 @@ export const enUS = {
   'error.unknown': 'Something went wrong. Try again.',
   'error.readingProgressPending': 'Connect as this profile and sync reading progress before removing this download.',
   'error.factorSetupRequired': 'Turn on two-step verification for this account, then try again.',
+  'error.artworkTooDetailed': 'This image is too detailed to store at full quality within the size limit. Try a simpler or smaller image.',
   'error.profilePinManage': 'Enter this profile’s PIN to manage this account.',
   'content.openFailed': 'This content could not be opened.',
   'error.screenCrashed': 'Something went wrong on this screen.',

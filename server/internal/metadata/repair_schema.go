@@ -24,6 +24,9 @@ type RepairFieldSpec struct {
 	Max       *int     `json:"max,omitempty"`
 	Allowed   []string `json:"allowed,omitempty"`
 	Bulk      bool     `json:"bulk"`
+	// Required: the field can't be cleared (OW-3). An episode's season and number are its
+	// position in the show, not optional facts, so an empty value is refused.
+	Required bool `json:"required,omitempty"`
 }
 
 const (
@@ -43,6 +46,10 @@ func multilineSpec(field, label string) RepairFieldSpec {
 }
 func integerSpec(field, label string, low, high int, bulk bool) RepairFieldSpec {
 	return RepairFieldSpec{Field: field, Label: label, Group: "numbers", Type: "integer", Min: intPtr(low), Max: intPtr(high), Bulk: bulk}
+}
+func requiredSpec(spec RepairFieldSpec) RepairFieldSpec {
+	spec.Required = true
+	return spec
 }
 func listSpec(field, label string) RepairFieldSpec {
 	return RepairFieldSpec{Field: field, Label: label, Group: "general", Type: "list", MaxLength: listEntryRune, Max: intPtr(listEntries), Bulk: true}
@@ -88,8 +95,8 @@ func repairSchema(kind, itemKind string) []RepairFieldSpec {
 				dateSpec("releaseDate", "Air date", false),
 				textSpec("contentRating", "Content rating", "general", true),
 				textSpec("network", "Network", "general", true),
-				integerSpec("seasonNumber", "Season number", 0, 9999, false),
-				integerSpec("episodeNumber", "Episode number", 1, 9999, false),
+				requiredSpec(integerSpec("seasonNumber", "Season number", 0, maxSeasonNumber, false)),
+				requiredSpec(integerSpec("episodeNumber", "Episode number", 1, 9999, false)),
 				listSpec("tags", "Tags"),
 				listSpec("labels", "Labels"),
 			}

@@ -5,7 +5,7 @@ import {attentionOffers, attentionReason, attentionInProgress, candidateFacts, c
 import {Button, TextField} from '../../kit/controls';
 import {Dialog} from '../../kit/overlays';
 import {Icon, type IconName} from '../../kit/Icon';
-import {HostedError} from '../../kit/accounts/ServicesAuth';
+import {MetadataError} from './MetadataError';
 import styles from './metadata.module.css';
 import {Artwork, GeneratedCover} from '../../kit/artwork';
 import {generatedCoverTint} from '@design';
@@ -119,9 +119,9 @@ export function NeedsAttention({libraryId, libraryName, api, onOpen, onEdit, art
   };
   const id = typedProviderId(typed), bare = !!id && /^\d+$/.test(id);
   return <section className={styles.attention}>
-    {error ? <HostedError error={error} /> : null}
+    {error ? <MetadataError error={error} /> : null}
     {readError ? <div role="group">
-      <HostedError error={readError} />
+      <MetadataError error={readError} />
       <Button size="small" icon="i-retry" disabled={loading} loading={loading} onClick={retryRead}>{t('next.browse.retry')}</Button>
     </div> : null}
     {notice ? <p className={styles.notice} role="status">{notice}</p> : null}
