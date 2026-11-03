@@ -220,7 +220,7 @@ func (m *bulkPreviewMemory) page(ctx context.Context, tx *sql.Tx, selection cata
 		}
 		bytes := int64(2048 + 256*len(observations))
 		for _, o := range observations {
-			bytes += 32 * int64(len(o.value))
+			bytes += 32 * int64(len(o.value)+len(o.title))
 			for _, entry := range o.entries {
 				bytes += 256 + 32*int64(len(entry))
 			}

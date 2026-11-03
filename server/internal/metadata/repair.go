@@ -129,9 +129,12 @@ type RepairCommand struct {
 type repairEntity struct {
 	library  string
 	itemKind string
-	fields   map[string]string
-	schema   []RepairFieldSpec
-	stamp    string
+	// title is the catalogue's display title, which names the target in a
+	// bulk preview; the editable title field is in fields.
+	title  string
+	fields map[string]string
+	schema []RepairFieldSpec
+	stamp  string
 	// readingAutomatic is the genuine same-transaction automatic attribution
 	// for an ebook/comic; it is what "use automatic" restores and what a clear
 	// falls back to.

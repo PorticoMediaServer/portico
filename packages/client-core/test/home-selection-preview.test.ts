@@ -61,3 +61,13 @@ test('query previews preserve the original revision and cannot return a target c
     assert.throws(() => parseBulkMetadataPreview({...raw, ...change}, request, 'server'));
   }
 });
+test('a value keeps the titles the server named for it (OW-6); a list entry may name none', () => {
+  const named = parse({...field, values: [{value: '', count: 30, titles: ['Please Hold to My Hand']}, {value: '2020', count: 40}]});
+  assert.deepEqual(named.values[0]!.titles, ['Please Hold to My Hand']);
+  assert.equal(Object.hasOwn(named.values[1]!, 'titles'), false);
+  assert.ok(Object.isFrozen(named.values[0]!.titles));
+  const one = (titles: unknown, count = 30) => ({...field, values: [{value: '', count, titles}, {value: '2020', count: 70 - count}]});
+  for (const bad of [['a', 'b', 'c', 'd', 'e', 'f'], 'a', [1], ['x'.repeat(1025)], ['bad\u0000']]) assert.throws(() => parse(one(bad)), JSON.stringify(bad));
+  assert.throws(() => parse(one(['a', 'b'], 1)), 'more titles than its count');
+  assert.throws(() => parse({...field, entries: [{value: 'Entry', count: 2, titles: ['a']}]}), 'an entry names no titles');
+});

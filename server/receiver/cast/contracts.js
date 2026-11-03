@@ -107432,6 +107432,11 @@ var PorticoCastContracts = (function(exports) {
 														"minimum": 1,
 														"type": "integer"
 													},
+													"titles": {
+														"items": { "type": "string" },
+														"maxItems": 5,
+														"type": "array"
+													},
 													"value": { "type": "string" }
 												},
 												"required": ["value", "count"],
@@ -107493,6 +107498,11 @@ var PorticoCastContracts = (function(exports) {
 													"count": {
 														"minimum": 1,
 														"type": "integer"
+													},
+													"titles": {
+														"items": { "type": "string" },
+														"maxItems": 5,
+														"type": "array"
 													},
 													"value": { "type": "string" }
 												},
@@ -107556,6 +107566,11 @@ var PorticoCastContracts = (function(exports) {
 													"count": {
 														"minimum": 1,
 														"type": "integer"
+													},
+													"titles": {
+														"items": { "type": "string" },
+														"maxItems": 5,
+														"type": "array"
 													},
 													"value": { "type": "string" }
 												},
@@ -174249,6 +174264,11 @@ var PorticoCastContracts = (function(exports) {
 														"minimum": 1,
 														"type": "integer"
 													},
+													"titles": {
+														"items": { "type": "string" },
+														"maxItems": 5,
+														"type": "array"
+													},
 													"value": { "type": "string" }
 												},
 												"required": ["value", "count"],
@@ -174310,6 +174330,11 @@ var PorticoCastContracts = (function(exports) {
 													"count": {
 														"minimum": 1,
 														"type": "integer"
+													},
+													"titles": {
+														"items": { "type": "string" },
+														"maxItems": 5,
+														"type": "array"
 													},
 													"value": { "type": "string" }
 												},
@@ -174373,6 +174398,11 @@ var PorticoCastContracts = (function(exports) {
 													"count": {
 														"minimum": 1,
 														"type": "integer"
+													},
+													"titles": {
+														"items": { "type": "string" },
+														"maxItems": 5,
+														"type": "array"
 													},
 													"value": { "type": "string" }
 												},

@@ -7,7 +7,9 @@ import {readMetadataPreview, type MetadataPreviewLifetime} from './metadata-prev
 
 export type BulkMetadataPreviewTarget = Readonly<{kind: 'item' | 'show' | 'season' | 'album' | 'artist' | 'book'; contentKind: string; id: string; libraryId: string}>;
 export type BulkMetadataPreviewRequest = Readonly<{targets: readonly BulkMetadataPreviewTarget[]; selector?: never; expected?: never} | {targets?: never; selector: JobSelector; expected: {catalogRevision: string}}>;
-export type BulkMetadataValueCount = Readonly<{value: string; count: number}>;
+/** `titles` names up to five of the titles holding a scalar value (OW-6): display only, never a
+ * target. The list is complete only when its length equals `count`. List entries carry none. */
+export type BulkMetadataValueCount = Readonly<{value: string; count: number; titles?: readonly string[]}>;
 /** Exact small cardinalities and a lower bound are deliberately different states. */
 export type BulkMetadataField = Readonly<{
   values: readonly BulkMetadataValueCount[]; entries: readonly BulkMetadataValueCount[]; locked: number; truncated: boolean;
@@ -50,16 +52,22 @@ export function parseBulkMetadataPreview(raw: unknown, request: BulkMetadataPrev
   if (singleItemFields.filter(field => field.bulk).some(field => !schema.some(candidate => JSON.stringify(candidate) === JSON.stringify(field)))) bad();
   if (new Set(schema.map(field => field.field)).size !== schema.length || Object.keys(raw.fields).length !== schema.length) bad();
   const fields: Record<string, BulkMetadataField> = Object.create(null);
-  const values = (value: unknown): readonly BulkMetadataValueCount[] => {
+  const values = (value: unknown, named: boolean): readonly BulkMetadataValueCount[] => {
     if (!Array.isArray(value) || value.length > 64) bad();
-    const rows = value.map(row => {if (!record(row) || !text(row.value) || !count(row.count) || row.count < 1 || row.count > (raw.total as number)) bad(); return Object.freeze({value: row.value, count: row.count});});
+    const rows = value.map(row => {
+      if (!record(row) || !text(row.value) || !count(row.count) || row.count < 1 || row.count > (raw.total as number)) bad();
+      if (row.titles === undefined) return Object.freeze({value: row.value, count: row.count});
+      const titles = row.titles;
+      if (!named || !Array.isArray(titles) || titles.length > 5 || titles.length > row.count || !titles.every(title => text(title) && title.length <= 1024)) bad();
+      return Object.freeze({value: row.value, count: row.count, ...(titles.length ? {titles: Object.freeze([...titles as string[]])} : {})});
+    });
     if (new Set(rows.map(row => row.value)).size !== rows.length) bad(); return Object.freeze(rows);
   };
   for (const spec of schema) {
     const field = raw.fields[spec.field];
     if (!record(field) || !['shared', 'mixed', 'many'].includes(String(field.state)) || !count(field.locked) || field.locked > raw.total || typeof field.truncated !== 'boolean') bad();
     if (field.state === 'shared' ? !text(field.value) : field.value !== undefined) bad();
-    const variants = values(field.values), entries = values(field.entries);
+    const variants = values(field.values, true), entries = values(field.entries, false);
     if (field.state === 'many') {
       // The bounded reducer observes exactly K+1 keys; this is never an exact count.
       if (field.distinctCount !== undefined || field.atLeast !== 65 || field.atLeast > raw.total || variants.length || !field.truncated) bad();
