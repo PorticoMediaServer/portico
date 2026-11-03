@@ -598,6 +598,20 @@ func TestStatementCacheSQLBoundariesRespectSQLiteQuotesAndComments(t *testing.T)
 		{`SELECT * FROM "temp".scratch`, false, true},
 		{`SELECT * FROM temp.scratch`, false, true},
 		{`PRAGMA query_only=ON`, false, true},
+		{`PRAGMA schema_version`, false, false},
+		{`PRAGMA main.data_version;`, false, false},
+		{`PRAGMA freelist_count`, false, false},
+		{`PRAGMA synchronous=FULL`, false, false},
+		{`PRAGMA synchronous = NORMAL`, false, false},
+		{`PRAGMA busy_timeout`, false, false},
+		{`PRAGMA busy_timeout=25`, false, false},
+		{`PRAGMA schema_version=7`, false, true},
+		{`PRAGMA user_version=1`, false, true},
+		{`PRAGMA foreign_keys=OFF`, false, true},
+		{`PRAGMA writable_schema=ON`, false, true},
+		{`PRAGMA synchronous=FULL; PRAGMA writable_schema=ON`, false, true},
+		{`PRAGMA table_info(accounts)`, false, true},
+		{`PRAGMA temp.schema_version`, false, true},
 		{`ALTER TABLE items ADD COLUMN label TEXT`, false, true},
 		{`SAVEPOINT inventory_page`, false, false},
 		{`RELEASE inventory_page`, false, false},
@@ -922,5 +936,35 @@ func TestWriterConnectionCachesMoreThanAReader(t *testing.T) {
 	}
 	if n := fill(db); n > statementCacheEntries {
 		t.Fatalf("reader cache kept %d statements, over the reader bound %d", n, statementCacheEntries)
+	}
+}
+
+// A read-only PRAGMA on a request path used to empty the connection's cache,
+// so every browse re-prepared everything that ran after it (L6b).
+func TestStatementCacheKeepsStatementsAcrossReadOnlyPragmas(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	run := func(query string) {
+		t.Helper()
+		rows, err := conn.QueryContext(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for rows.Next() {
+		}
+		rows.Close()
+	}
+	run(`SELECT count(*) FROM rows WHERE id > 0`)
+	before := statementCacheStats()
+	run(`PRAGMA schema_version`)
+	run(`SELECT count(*) FROM rows WHERE id > 0`)
+	after := statementCacheStats()
+	if after.Evictions != before.Evictions || after.Hits != before.Hits+1 {
+		t.Fatalf("a read-only PRAGMA emptied the cache: %+v then %+v", before, after)
 	}
 }
