@@ -8,6 +8,7 @@ import (
 	"math/rand/v2"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
@@ -32,6 +33,19 @@ import (
 // plannerReadStep runs before each table-sized read. Tests use it to prove the
 // write gate is free while those reads run.
 var plannerReadStep = func() {}
+
+var plannerRefreshRequested atomic.Bool
+
+// RequestPlannerRefresh asks for RefreshPlannerStatistics at the housekeeping
+// loop's next poll instead of at its next interval. A scan that has just grown
+// the catalogue calls it when it finishes, so the planner's estimates catch up
+// with the new rows straight away. Requests made before the refresh runs are
+// one refresh; the call never blocks.
+func RequestPlannerRefresh() { plannerRefreshRequested.Store(true) }
+
+// TakePlannerRefreshRequest reports whether a refresh was requested since the
+// last call, and clears the request.
+func TakePlannerRefreshRequest() bool { return plannerRefreshRequested.Swap(false) }
 
 // PlannerStatsSample bounds the rows read from each index's key columns.
 const PlannerStatsSample = 20000
