@@ -717,6 +717,29 @@ test('an old binary without an external acknowledgement times out without a PiP 
   } finally {d.runtime.dispose();}
 });
 
+test('PB-2: the TV scrub strip reads this session\'s fresh preview set for its own source, and nothing for another session', async () => {
+  const d = fixture();
+  try {
+    d.runtime.connect();
+    await d.runtime.queue.playEntries([queueItemInput('movie-1')], {startSeconds: 0}); await settle();
+    const fence = d.runtime.getSnapshot().fence; assert.ok(fence?.kind === 'queue');
+    const runtime = d.runtime as any, asked: string[] = [], hash = (c: string) => c.repeat(64);
+    const wireSet = (id: string, sourceId: string, stale: boolean, intervalMs: number) => ({id: hash(id), sourceId, sourceRevision: 'r1', revision: hash(id), width: 1600, height: 720,
+      tileWidth: 320, tileHeight: 180, columns: 5, rows: 4, intervalMs, durationMs: 1_000_000, sourceOffsetMs: 0, tileCount: 5, frameCount: 100, stale,
+      tilesUrl: `/v1/items/${fence.itemId}/trickplay/${hash(id)}/tiles`, thumbnailsUrl: `/v1/items/${fence.itemId}/trickplay/${hash(id)}/thumbnails.vtt`});
+    const queue = runtime.queue, view = queue.getSnapshot().view;
+    const real = queue.getSnapshot();
+    queue.getSnapshot = () => ({...real, view: {...view, items: view.items.map((item: any) => item.entryId === fence.entryId ? {...item, libraryId: 'library'} : item)}});
+    runtime.request = async (path: string) => {asked.push(path); return {scope: {serverId: d.runtime.getSnapshot().authority?.serverId ?? 'server', libraryId: 'library', itemId: fence.itemId, viewerFence: 'v', sessionId: '', sessionGeneration: 0},
+      sets: [wireSet('a', fence.sourceId, true, 2000), wireSet('b', 'other-source', false, 2000), wireSet('c', fence.sourceId, false, 10_000)]};};
+    const set = await d.runtime.trickplay!(fence, new AbortController().signal);
+    assert.deepEqual(asked, [`/v1/items/${fence.itemId}/trickplay`]);
+    assert.equal(set?.id, hash('c'), 'the stale set and another source\'s set are never used');
+    assert.equal(await d.runtime.trickplay!({...fence, sessionId: 'another'}, new AbortController().signal), null);
+    assert.equal(asked.length, 1, 'a retired session reads nothing');
+  } finally { d.runtime.dispose(); }
+});
+
 test('subtitle controls use the real source service and retire with its session and authority', async () => {
   const d = fixture();
   d.respond(request => subtitleResponse(d, request));

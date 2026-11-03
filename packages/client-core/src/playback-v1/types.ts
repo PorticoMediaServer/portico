@@ -66,7 +66,6 @@ export type MediaVersion = Readonly<{id: string; label: string; edition?: string
  * preference applies only when `automaticSafe`. */
 export type Marker = Readonly<{id: string; type: 'intro' | 'recap' | 'credits' | 'preview' | 'commercial' | 'other'; startMs: number; endMs: number; confidence: 'detected' | 'manual' | 'embedded' | 'other'; automaticSafe: boolean}>;
 export type Chapter = Readonly<{startMs: number; title: string; thumbnail?: string}>;
-export type Trickplay = Readonly<{url: string; intervalMs: number; tileWidth: number; tileHeight: number; columns: number; rows: number}>;
 /** What happens to one stream: played as it is, copied into a stream, converted, burned into the
  * picture; for a subtitle also `sidecar` (a text file beside the stream, drawn by the app) and
  * `device` (a styled or image track the engine draws itself). */
@@ -85,7 +84,7 @@ export type PlaybackOptions = Readonly<{
    * book): the queue anchors on the item inside it, so Next, autoplay and the next part reach the
    * rest. Absent for a title that stands alone. */
   container?: PlaybackContainer;
-  versions: readonly MediaVersion[]; chapters: readonly Chapter[]; markers: readonly Marker[]; trickplay?: Trickplay;
+  versions: readonly MediaVersion[]; chapters: readonly Chapter[]; markers: readonly Marker[];
   /** The quality menu for the preferred (or previewed) version: the original, automatic, then the ladder steps no taller than its picture. */
   qualities: readonly QualityOption[];
   /** What a start that names nothing would play: the version this device plays best, the audio
@@ -150,7 +149,6 @@ export function parseOptions(v: unknown): PlaybackOptions {
     streams: Object.freeze(arr(v.plan.streams).filter(obj).map(s => Object.freeze({id: str(s.id), action: oneOf(s.action, streamActions, 'other' as never), to: typeof s.to === 'string' && s.to ? s.to : undefined, reasons: Object.freeze(arr(s.reasons).filter((r): r is string => typeof r === 'string'))}))),
     estimatedBitrateKbps: optNum(v.plan.estimatedBitrateKbps), quality: parseQuality(v.plan.quality),
   }) : undefined;
-  const t = obj(v.trickplay) ? v.trickplay : undefined;
   return Object.freeze({
     itemId: id(v.itemId, 'item id'), kind: str(v.kind, 'other'),
     resume: obj(v.resume) ? Object.freeze({positionMs: num(v.resume.positionMs), partIndex: num(v.resume.partIndex)}) : undefined,
@@ -160,7 +158,6 @@ export function parseOptions(v: unknown): PlaybackOptions {
     alternatives: Object.freeze(arr(v.alternatives).filter(obj).map(a => Object.freeze({versionId: id(a.versionId, 'alternative version'), label: str(a.label)}))),
     chapters: Object.freeze(arr(v.chapters).filter(obj).map(c => Object.freeze({startMs: num(c.startMs), title: str(c.title), thumbnail: typeof c.thumbnail === 'string' ? c.thumbnail : undefined}))),
     markers: Object.freeze(arr(v.markers).filter(obj).map(m => Object.freeze({id: str(m.id), type: oneOf(m.type, ['intro', 'recap', 'credits', 'preview', 'commercial'] as const, 'other' as never), startMs: num(m.startMs), endMs: num(m.endMs), confidence: oneOf(m.confidence, ['detected', 'manual', 'embedded'] as const, 'other' as never), automaticSafe: bool(m.automaticSafe)}))),
-    trickplay: t ? Object.freeze({url: url(t.url, 'trickplay url'), intervalMs: num(t.intervalMs), tileWidth: num(t.tileWidth), tileHeight: num(t.tileHeight), columns: num(t.columns), rows: num(t.rows)}) : undefined,
     qualities: Object.freeze(arr(v.qualities).filter(obj).filter(q => q.mode === 'original' || q.mode === 'cd-quality' || q.mode === 'automatic' || q.mode === 'limit' && typeof q.maxAudioBitrateKbps === 'number' && Number.isFinite(q.maxAudioBitrateKbps) && q.maxAudioBitrateKbps > 0 || q.mode === 'fixed' && typeof q.id === 'string').map(q => Object.freeze({mode: q.mode as 'original' | 'cd-quality' | 'automatic' | 'fixed' | 'limit', ...(typeof q.id === 'string' && q.id ? {id: q.id as QualityOption['id']} : {}), sameAsOriginal: q.sameAsOriginal === true, applicable: q.applicable !== false, dataGBPerHour: optNum(q.dataGBPerHour), maxHeight: optNum(q.maxHeight), maxVideoBitrateKbps: optNum(q.maxVideoBitrateKbps), maxAudioBitrateKbps: optNum(q.maxAudioBitrateKbps)}))),
     preferred: obj(v.preferred) ? Object.freeze({versionId: id(v.preferred.versionId, 'preferred version'), audioId: optId(v.preferred.audioId, 'preferred audio'), reason: str(v.preferred.reason), quality: parseQuality(v.preferred.quality)}) : undefined,
     plan,

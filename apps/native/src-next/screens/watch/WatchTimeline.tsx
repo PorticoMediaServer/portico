@@ -15,11 +15,16 @@ import {Focusable} from '../../kit/controls';
 import {useTheme} from '../../kit/theme';
 import type {NativeWatchControls} from './controls';
 import {NativeTrickplayStrip} from './TrickplayStrip';
+import type {NativePlaybackAdapter} from '../../platform/playback/types';
+import type {ArtworkSource} from '../../kit/artwork';
+import type {TrickplaySet} from '../../../../../packages/client-core/src/trickplay';
 
 type Props = Readonly<{
   source: NativePlaybackRuntimeSnapshot;
   controls: NativeWatchControls;
-  playback: Pick<NativeShellPlaybackAdapter, 'getSnapshot' | 'seek' | 'toggle'>;
+  playback: Pick<NativeShellPlaybackAdapter, 'getSnapshot' | 'seek' | 'toggle'> & Partial<Pick<NativePlaybackAdapter, 'trickplay'>>;
+  /** The authority's image resolver for the TV strip's preview sheets. */
+  artwork?: (path?: string) => ArtworkSource | undefined;
   compact: boolean;
   enabled: boolean;
   reportError: (error: unknown) => void;
@@ -40,7 +45,7 @@ type Props = Readonly<{
 }>;
 
 /** Actual time/window only. Scrub commits on lift; absent trickplay never becomes invented imagery. */
-export function NativeWatchTimeline({source, playback, controls, compact, enabled, reportError, skipBackSeconds, skipForwardSeconds, tv = false, focused = false, onPreview, liveEdge}: Props) {
+export function NativeWatchTimeline({source, playback, controls, compact, enabled, reportError, skipBackSeconds, skipForwardSeconds, tv = false, focused = false, onPreview, liveEdge, artwork}: Props) {
   const theme = useTheme(), fence = source.fence, width = useRef(0), dragging = useRef(false);
   const [preview, setPreview] = useState<number>();
   const previewRef = useRef<number | undefined>(undefined), seekRef = useRef<View>(null), mounted = useRef(false);
@@ -57,6 +62,21 @@ export function NativeWatchTimeline({source, playback, controls, compact, enable
   }, [controls, fence, playback, tv]);
   useEffect(() => {repeat.stop(); dragging.current = false; previewRef.current = undefined; setPreview(undefined); onPreview?.(undefined);}, [fence, onPreview, repeat]);
   useEffect(() => () => repeat.stop(), [repeat]);
+  // PB-2: the TV strip's pictures are this session's own preview set, read once when a scrub
+  // first starts (never at start), kept for the session, and dark when there is none.
+  const sessionKey = fence?.kind === 'queue' ? JSON.stringify([fence.sessionId, fence.generation, fence.sourceId]) : '';
+  const [previews, setPreviews] = useState<Readonly<{key: string; set: TrickplaySet | null}>>();
+  const scrubbing = tv && preview !== undefined, readPreviews = useRef(playback.trickplay), drawnFence = useRef(fence);
+  readPreviews.current = playback.trickplay; drawnFence.current = fence;
+  useEffect(() => {
+    const read = readPreviews.current, at = drawnFence.current;
+    if (!scrubbing || !sessionKey || !read || !at || previews?.key === sessionKey) return;
+    const controller = new AbortController();
+    const settle = (set: TrickplaySet | null) => {if (!controller.signal.aborted) setPreviews({key: sessionKey, set});};
+    read(at, controller.signal).then(settle, () => settle(null));
+    return () => controller.abort();
+  }, [scrubbing, sessionKey, previews?.key]);
+  const previewSet = previews?.key === sessionKey ? previews.set : null;
   const clearRemotePreview = useCallback(() => {
     repeat.stop();
     previewRef.current = undefined; setPreview(undefined); onPreview?.(undefined);
@@ -207,7 +227,7 @@ export function NativeWatchTimeline({source, playback, controls, compact, enable
     </Animated.View>}
   </Focusable>;
   return <GestureDetector gesture={gesture}><View onLayout={event => {width.current = event.nativeEvent.layout.width; travel.value = event.nativeEvent.layout.width;}} style={{height: tv ? 40 : 44, justifyContent: 'flex-start'}}>
-    {tv && preview !== undefined && <NativeTrickplayStrip trickplay={source.options?.trickplay} seconds={preview} start={start} end={end}/>}
+    {tv && preview !== undefined && <NativeTrickplayStrip set={previewSet} artwork={artwork} seconds={preview} start={start} end={end}/>}
     {!tv && preview !== undefined && <View pointerEvents="none" style={{position: 'absolute', bottom: 44, left: `${Math.min(.9, Math.max(.1, progress)) * 100}%`, padding: 8, borderRadius: 6, backgroundColor: theme.colors.ink}}><Text style={[theme.type.caption, {color: theme.colors.text, fontVariant: ['tabular-nums']}]}>{clockText(preview)}</Text></View>}
     {tv && <View style={{height: 40, justifyContent: 'center'}}>{seek(40)}</View>}
     {!tv && seek(44)}

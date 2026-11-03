@@ -1,3 +1,4 @@
+import type {TrickplaySet} from '../../../../../packages/client-core/src/trickplay';
 import type {V1QueueEditIntent, V1QueuedEntrySelection, V1QueuePolicyIntent} from '../../../../../packages/client-core/src/playback-v1/v1-queue-player';
 import type {ComponentType, RefObject} from 'react';
 import type {View} from 'react-native';
@@ -210,6 +211,9 @@ export type NativePlaybackRuntimeOptions = Readonly<{
 
 export interface NativePlaybackAdapter {
   dock: PlaybackDock;
+  /** The playing video's preview pictures (PB-2): the server's current set for this session's
+   * source, or null. Read when asked (a TV scrub), never at start. */
+  trickplay?: (fence: PlaybackFence, signal: AbortSignal) => Promise<TrickplaySet | null>;
   subscribe: (listener: () => void) => () => void;
   getSnapshot: () => NativePlaybackRuntimeSnapshot;
   start: (input: NativePlaybackStart) => Promise<void>;

@@ -39,7 +39,7 @@ import {emptyLiveActions, noLiveActionsSubscription, type NativeTVLiveActions} f
 export type NativeWatchChromeProps = Readonly<{
   source: NativePlaybackRuntimeSnapshot;
   controls: NativeWatchControls;
-  playback: Pick<NativePlaybackAdapter, 'getSnapshot' | 'toggle' | 'skip' | 'seek' | 'previous' | 'next' | 'goLive' | 'replay' | 'stop' | 'policyDismiss' | 'policySkip' | 'policyUndo' | 'policyAdvance' | 'policyCancelAutoplay'>;
+  playback: Pick<NativePlaybackAdapter, 'getSnapshot' | 'toggle' | 'skip' | 'seek' | 'trickplay' | 'previous' | 'next' | 'goLive' | 'replay' | 'stop' | 'policyDismiss' | 'policySkip' | 'policyUndo' | 'policyAdvance' | 'policyCancelAutoplay'>;
   text: TextEnvironment;
   /** Delivered by the current-fence producers, never the first/default offer or a policy ceiling. */
   quality: string;
@@ -769,7 +769,7 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
         {!theme.isTV && <View style={{position: 'absolute', left: 0, right: 0, top: height / 2 - big / 2, alignItems: 'center'}}>{transport}</View>}
         {theme.isTV && <View style={{position: 'absolute', left: 96 + (props.edgeInsets?.left ?? 0), right: 96 + (props.edgeInsets?.right ?? 0), bottom: 80}}>
           <FocusRegion id="watch-seek-region" entry="watch-seek" stops={{left: true, right: true, up: !groupPillPresent && !(linear && liveOffer && props.liveActions)}} edges={{up: groupPillPresent ? 'watch-group' : linear && liveOffer && props.liveActions ? 'watch-live-actions' : undefined, down: liveEdgeAction ? 'watch-live-edge' : 'watch-transport'}}>
-            <NativeWatchTimeline source={source} controls={controls} playback={playback} compact={compact} enabled={controlsEnabled} tv focused={seekFocused} onPreview={setLanding} liveEdge={liveEdge} reportError={props.reportError} skipBackSeconds={props.skipBackSeconds} skipForwardSeconds={props.skipForwardSeconds}/>
+            <NativeWatchTimeline source={source} controls={controls} playback={playback} artwork={props.artwork} compact={compact} enabled={controlsEnabled} tv focused={seekFocused} onPreview={setLanding} liveEdge={liveEdge} reportError={props.reportError} skipBackSeconds={props.skipBackSeconds} skipForwardSeconds={props.skipForwardSeconds}/>
           </FocusRegion>
           {scrubbing && <View style={{height: 30, marginTop: 10}}>
             {[...new Map<string, SegmentMarker>(segments.filter(segment => segment.kind === 'intro' || segment.kind === 'recap' || segment.kind === 'credits')

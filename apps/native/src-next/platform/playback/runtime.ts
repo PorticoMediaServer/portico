@@ -1,3 +1,4 @@
+import {preferredTrickplaySet, readItemTrickplay, type TrickplaySet} from '../../../../../packages/client-core/src/trickplay';
 import {AppState, NativeModules, type View} from 'react-native';
 import type {RefObject} from 'react';
 import {startFailureHttp, type NativePlaybackStartFailure} from './start-failure';
@@ -1765,6 +1766,16 @@ export class NativePlaybackRuntime {
       && this.playback.hasNativeOwner() && this.o.nativeListening) await this.o.nativeListening.action('retry', 0);
     else await this.queue.playItem(fence.itemId, 0, undefined, undefined, undefined,
       session?.discTitle ? {versionId: session.versionId, discTitle: session.discTitle} : undefined);
+  };
+  trickplay = async (fence: PlaybackFence, signal: AbortSignal): Promise<TrickplaySet | null> => {
+    // `matches` proves this is the playing occurrence; its loaded queue entry names the library.
+    if (fence.kind !== 'queue' || !this.matches(fence)) return null;
+    const queue = this.queue.getSnapshot().view, entry = queue?.items.find(item => item.entryId === queue.queue.currentEntryId);
+    if (!entry?.libraryId) return null;
+    const view = await readItemTrickplay(this.request, this.bound.serverId, {libraryId: entry.libraryId, itemId: entry.itemId}, signal);
+    if (signal.aborted || !this.matches(fence)) return null;
+    // Only this session's source; the server has already marked any set it no longer stands behind.
+    return preferredTrickplaySet({...view, sets: view.sets.filter(set => !set.stale)}, fence.sourceId);
   };
   seek = async (fence: PlaybackFence, seconds: number): Promise<void> => {
     if (!this.matches(fence) || !Number.isFinite(seconds) || seconds < 0 || !this.snapshot.capabilities.seek) return;
