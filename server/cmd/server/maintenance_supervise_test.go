@@ -190,3 +190,50 @@ func waitFor(t *testing.T, signal <-chan struct{}, what string) {
 		t.Fatalf("timed out waiting for %s", what)
 	}
 }
+
+// A scan that has just grown the catalogue asks for fresh planner statistics
+// (persistence.RequestPlannerRefresh). The loop refreshes at its next poll,
+// long before the interval, and only once per request.
+func TestARequestedPlannerRefreshRunsAtTheNextPoll(t *testing.T) {
+	db := openMaintenanceDB(t)
+	restoreMaintenanceSeams(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	retentionRun = func(ctx context.Context, db *sql.DB) { <-ctx.Done() }
+	plannerRefreshInterval = time.Hour
+	housekeepingPollInterval = 5 * time.Millisecond
+	housekeepingAncillaryInterval = time.Hour
+	refreshed := make(chan struct{}, 4)
+	plannerRefresh = func(ctx context.Context, db *sql.DB) error {
+		refreshed <- struct{}{}
+		return nil
+	}
+	ticked := make(chan struct{}, 1)
+	housekeepingTickHook = func() {
+		select {
+		case ticked <- struct{}{}:
+		default:
+		}
+	}
+	done := make(chan struct{})
+	go func() { defer close(done); runDatabaseHousekeeping(ctx, db) }()
+	defer func() { cancel(); <-done }()
+	// The startup pass may refresh once; drain it before asking.
+	<-ticked
+	<-ticked
+	for len(refreshed) > 0 {
+		<-refreshed
+	}
+	persistence.RequestPlannerRefresh()
+	persistence.RequestPlannerRefresh()
+	select {
+	case <-refreshed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("a requested planner refresh did not run at the next poll")
+	}
+	<-ticked
+	<-ticked
+	if len(refreshed) != 0 {
+		t.Fatal("two requests before one refresh refreshed twice")
+	}
+}

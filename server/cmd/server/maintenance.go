@@ -133,12 +133,7 @@ func runDatabaseHousekeeping(ctx context.Context, db *sql.DB) {
 			}
 		}
 		housekeepingTickHook()
-		// Only WAL size probes become more frequent. Preserve the previous
-		// cadence for backlog draining, receipt pruning and structural checks.
-		if !ancillary.due(time.Now()) {
-			continue
-		}
-		if time.Since(lastPlannerRefresh) >= plannerRefreshInterval {
+		refreshPlanner := func() {
 			// A startup-only refresh freezes one-row bootstrap estimates while
 			// sessions and catalogues grow. Reuse the yielding, short-writer
 			// refresh; it counts only stale tables and samples index keys.
@@ -150,6 +145,19 @@ func runDatabaseHousekeeping(ctx context.Context, db *sql.DB) {
 			} else {
 				log.Printf("Database planner statistics refresh completed")
 			}
+		}
+		// A scan that just finished asks for fresh statistics at once
+		// (persistence.RequestPlannerRefresh), not at the next interval.
+		if persistence.TakePlannerRefreshRequest() {
+			refreshPlanner()
+		}
+		// Only WAL size probes become more frequent. Preserve the previous
+		// cadence for backlog draining, receipt pruning and structural checks.
+		if !ancillary.due(time.Now()) {
+			continue
+		}
+		if time.Since(lastPlannerRefresh) >= plannerRefreshInterval {
+			refreshPlanner()
 		}
 		if err := persistence.ReclaimSpace(ctx, db); err != nil {
 			log.Printf("warn: Database space reclamation: %v", err)
