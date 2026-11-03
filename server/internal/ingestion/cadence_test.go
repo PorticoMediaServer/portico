@@ -99,9 +99,16 @@ func TestScanLoopDoesNotRespinAQuantumThatDidNotAdvance(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The loop admits the job; the quantum itself is then refused, so it ends
-	// without moving the run.
+	// without moving the run. Only the scan's own admissions are counted:
+	// source verification asks the same hook for "analysis" on its own
+	// schedule, and is kept out.
 	var calls atomic.Int64
-	s.Admission = func(context.Context, *sql.Tx, string) (bool, error) { return calls.Add(1)%2 == 1, nil }
+	s.Admission = func(_ context.Context, _ *sql.Tx, task string) (bool, error) {
+		if task != "library-scan" {
+			return false, nil
+		}
+		return calls.Add(1)%2 == 1, nil
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { s.Run(ctx); close(done) }()
