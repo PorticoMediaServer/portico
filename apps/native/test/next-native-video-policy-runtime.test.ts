@@ -16,6 +16,7 @@ const runtimeModule = screenModule(new URL('../src-next/platform/playback/runtim
   '../../../../../packages/client-core/src/playback-v1/sessions': {}, '../../../../../packages/client-core/src/playback-v1/local-http': {},
   '../../../../../packages/client-core/src/playback-v1/http': {}, '../../../../../packages/client-core/src/playback-v1/options': {},
   '../../../../../packages/client-core/src/playback-v1/v1-queue-player': {}, '../../../../../packages/client-core/src/playback-v1/queue': {},
+  '../../../../../packages/client-core/src/trickplay': {},
   '../../../../../packages/client-core/src/playback-v1/channel-control': {}, '../../../../../packages/client-core/src/playback/linear-protocol': {},
   '../../../../../packages/client-core/src/guide/directory': {}, '../../../../../packages/client-core/src/guide/legacy-source': {},
   '../../../../../packages/client-core/src/playback-v1/types': {}, '../../../../../packages/client-core/src/playback-v1/quality': {},

@@ -1,6 +1,6 @@
 import {encodedRoutePath} from '../../../../packages/contracts/src/routes.ts';
 import {parseAnalysis} from '@core/media-analysis.ts';
-import {parseTrickplay, preferredTrickplaySet, type TrickplaySet, type TrickplayTarget} from '@core/trickplay.ts';
+import {preferredTrickplaySet, readItemTrickplay, type TrickplaySet, type TrickplayTarget} from '@core/trickplay.ts';
 import {playbackFence, sameFence, type PlaybackFence, type QueuePlaybackFence} from '../../../../packages/player-core/src/index.ts';
 import type {WebPlaybackRuntimeSnapshot, WebPlaybackSource} from './types';
 
@@ -42,9 +42,8 @@ export async function readPlaybackTrickplay(source: PlaybackTrickplaySource, exp
   // This is independent of both the set's captured revision and PlayerSourceOffer.factsRevision.
   const analysis = parseAnalysis(analysisRaw, scope, {...captured, sourceId: fence.sourceId, sessionId: fence.sessionId, generation: fence.generation});
   if (analysis.scope.viewerFence !== viewerFence || analysis.source.needsProbe) return null;
-  const raw = await source.api.request<unknown>(encodedRoutePath('get_items_id_trickplay', {id: captured.itemId}), 'GET', undefined, signal);
+  const view = await readItemTrickplay((path, method, body, requestSignal) => source.api.request(path, method, body, requestSignal), scope.serverId, captured, signal);
   if (!isCurrent()) return null;
-  const view = parseTrickplay(raw, scope.serverId, captured);
   if (view.scope.viewerFence !== viewerFence) return null;
   // The wire explicitly rounds seconds to milliseconds (apiwire.MarshalDurations). The analysis
   // source keeps microseconds; compare at that same wire boundary, never with an arbitrary margin.
