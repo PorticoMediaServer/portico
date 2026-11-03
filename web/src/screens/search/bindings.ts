@@ -1,7 +1,9 @@
 import {serverNow} from '@core/server-clock.ts';
 import {forwardIdentity} from '../detail/context';
 import {entryStartDisplay} from '../../platform/playback/subject';
-import {SearchService, readSearchHistory, clearSearchHistory, deleteSearchHistoryEntry, type SearchEntry, type SearchGroup, type SearchQuery} from '@core/search.ts';
+import {SearchService, clearSearchHistory, deleteSearchHistoryEntry, searchFirstPages, searchHistoryQuery, type SearchEntry, type SearchQuery} from '@core/search.ts';
+import {queryKeys} from '@core/query/keys.ts';
+import type {ViewerQueries} from '@core/query/viewer-queries.ts';
 import {serviceI18n} from '@core/presentation/service-text.ts';
 import {guideWindow, parseChannelGuide, type GuideChannel} from '@core/channel-guide.ts';
 import {nowNext, type GuideProgram} from '@core/guide/index.ts';
@@ -11,8 +13,8 @@ import {routePath} from '../../../../packages/contracts/src/routes.ts';
 import {screenLifetime, type ScreenContext} from '../detail/context';
 import {createDetailBindings} from '../detail/bindings';
 import {createShowBindings} from '../detail/show-bindings';
-import {searchReadingOffered, searchRequestGroups} from '@core/presentation/search-model.ts';
-import type {SearchData, SearchGroupResult} from '@core/search.ts';
+import {searchRequestGroups} from '@core/presentation/search-model.ts';
+import type {SearchData, SearchGroupResult, SearchHistoryPage} from '@core/search.ts';
 import {SearchGenresController} from './genres';
 import {SearchOnNowController} from './on-now';
 import {createSearchRows} from './rows';
@@ -64,16 +66,15 @@ function liveCard(channel: GuideChannel, now: number, timezone: string): SearchL
 
 const NO_LIVE_CARDS: ReadonlyMap<string, SearchLiveCard> = new Map();
 
-/** One session is retained by the parent while Search is off screen; never browser storage. */
-export function createSearchBindings(context: ScreenContext) {
+/** A search screen's commands and reads. First pages and recent searches come from the viewer's cache. */
+export function createSearchBindings(context: ScreenContext, queries: ViewerQueries) {
   const life = screenLifetime(context);
-  const service = new SearchService({api: life.api, scope: context.scope});
+  const service = new SearchService({api: life.api, scope: context.scope, firstPages: searchFirstPages(queries)});
   const results = createSearchRows(service, life.current);
   const genres = new SearchGenresController({api: life.api, signal: life.signal(), isCurrent: life.current, slot: 'backdrop', limit: 8});
   const onNow = new SearchOnNowController({api: life.api, serverId: context.scope.serverId,
     timezone: serviceI18n().region.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
     isCurrent: life.current, signal: life.signal(), limit: 4});
-  let text = '', group: SearchGroup | undefined;
   let resultKey = '';
   let summary: Readonly<{key: string; groups: readonly Pick<SearchGroupResult, 'id' | 'status' | 'totalCount' | 'totalCountExact'>[]}> | undefined;
   const visible = new Set<SearchEntry>();
@@ -146,20 +147,11 @@ export function createSearchBindings(context: ScreenContext) {
       for (const result of state.groups) for (const entry of result.items) visible.add(entry);
     } finally { syncLive(); }
   });
-  let selectionAttempt = 0, readingOffered = false;
+  // Every group in one read: a server that cannot search one answers it as unavailable.
   const select = async (q: string, options: Omit<SearchQuery, 'q'> = {}) => {
-    life.assert(); const attempt = ++selectionAttempt; text = q; group = options.group;
+    life.assert();
     if (q.trim()) { genres.cancel(); onNow.cancel(); }
-    const defaults = !options.group && !options.groups, includedReading = readingOffered;
-    const groups = searchRequestGroups(readingOffered);
-    const work = service.select(q, defaults ? {...options, groups} : options), generation = service.getSnapshot().generation;
-    await work;
-    const state = service.getSnapshot();
-    if (!life.current() || attempt !== selectionAttempt || state.generation !== generation || state.phase !== 'ready' || state.data?.query.q !== q.trim()) return;
-    readingOffered = searchReadingOffered(state.data.capabilities);
-    // Older servers never receive an unknown default group. Once actually offered,
-    // add Reading by a read-only repeat; an explicit history gesture is recorded once.
-    if (defaults && readingOffered && !includedReading) await service.select(q, {...options, groups: searchRequestGroups(true), record: false});
+    await service.select(q, !options.group && !options.groups ? {...options, groups: searchRequestGroups(true)} : options);
   };
   const live = {
     getSnapshot: () => cards,
@@ -167,14 +159,20 @@ export function createSearchBindings(context: ScreenContext) {
   };
   return {
     context: commandContext, service, results, genres, onNow, select, topTitle, topShow, live,
-    session: () => ({text, group}),
     summary: () => {
       const state = results.getSnapshot(), data = state.data;
       return life.current() && state.phase === 'ready' && data && summary?.key === summaryKey(data) ? summary.groups : [];
     },
-    recent: (signal?: AbortSignal) => readSearchHistory(life.api, context.scope, life.signal(signal)),
-    clearRecent: () => { life.assert(); return clearSearchHistory(life.api, life.signal()); },
-    removeRecent: (query: string) => { life.assert(); return deleteSearchHistoryEntry(life.api, context.scope, query, life.signal()); },
+    /** The viewer's recent searches, from its cache. */
+    history: searchHistoryQuery(queries, context.scope),
+    async clearRecent() {
+      life.assert(); await clearSearchHistory(life.api, life.signal());
+      queries.client.setQueryData<SearchHistoryPage>(queryKeys.searchHistory(), held => held && {...held, entries: []});
+    },
+    async removeRecent(query: string) {
+      life.assert(); const next = await deleteSearchHistoryEntry(life.api, context.scope, query, life.signal());
+      queries.client.setQueryData(queryKeys.searchHistory(), next);
+    },
     /** This exact result is still on the answer the screen draws: a menu opened for it outlives nothing else. */
     showing(entry: SearchEntry) { return life.current() && results.getSnapshot().phase === 'ready' && visible.has(entry); },
     open(entry: SearchEntry) {
@@ -204,7 +202,7 @@ export function createSearchBindings(context: ScreenContext) {
       await effect(entry.id, life.signal(), current);
       if (!current()) throw new DOMException('Search artist changed', 'AbortError');
     },
-    dispose() { text = ''; group = undefined; summary = undefined; resultKey = ''; visible.clear(); off(); results.dispose(); retireLive(); cards = NO_LIVE_CARDS; liveListeners.clear(); genres.dispose(); onNow.dispose(); life.dispose(); topTitle.dispose(); topShow.dispose(); service.cancel(); service.dispose(); },
+    dispose() { summary = undefined; resultKey = ''; visible.clear(); off(); results.dispose(); retireLive(); cards = NO_LIVE_CARDS; liveListeners.clear(); genres.dispose(); onNow.dispose(); life.dispose(); topTitle.dispose(); topShow.dispose(); service.cancel(); service.dispose(); },
   };
 }
 export type SearchBindings = ReturnType<typeof createSearchBindings>;

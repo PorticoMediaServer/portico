@@ -7,6 +7,10 @@ import {unreadableServerResponse} from './server-messages.ts';
 import type {ContentScope,ContentHeading,LibraryContentApi} from './library-content.ts';
 import {validateHomeEntry,type HomeEntry} from './home.ts';
 import {firstOfEach,keepReadable,noteSkipped,oneOf,oneOfOr} from './tolerant.ts';
+import {dependsOn,titlesWithPersonalState} from './freshness-hub.ts';
+import {queryKeys} from './query/keys.ts';
+import type {ViewerQueries} from './query/viewer-queries.ts';
+import type {ViewerQueryOptions} from './query/react.ts';
 /** How many results each group shows when every group is searched at once (the server's `SearchPreviewLimit`). */
 export const SEARCH_PREVIEW_LIMIT=12;
 export type SearchGroup='movies'|'shows'|'episodes'|'artists'|'albums'|'songs'|'books'|'reading'|'collections'|'authors'|'people'|'live-tv';
@@ -208,13 +212,62 @@ export function searchPath(q:SearchQuery,limit:number,cursor?:string|null):strin
  if(cursor)params.set('cursor',cursor);
  return routePath("search") + "?" + (params);
 }
+/** What a search's results move with: titles, the libraries, this profile's state and preferences. */
+const searchDependencies=()=>[dependsOn.libraries,...titlesWithPersonalState(),dependsOn.settings('preferences'),dependsOn.event('stream.resync')];
+/** A search's first page in this viewer's cache. The answer is the server's document as it came;
+ * the service that shows it validates it for the query it asked. */
+export function searchResultsQuery(queries:ViewerQueries,q:SearchQuery,limit=40):ViewerQueryOptions<unknown>{
+ const read={...q,record:undefined};
+ return {
+  queryKey:queryKeys.searchResults(read.q,read.group??'',read.groups??[],read.sort??'',read.direction??'',read.libraryIds??[],limit),
+  queryFn:({signal})=>queries.api.request<unknown>(searchPath(read,limit),'GET',undefined,signal),
+  meta:{dependencies:searchDependencies()},
+ };
+}
+/** The viewer's recent searches in its cache. A recorded search or an erase replaces it. */
+export function searchHistoryQuery(queries:ViewerQueries,scope:ContentScope):ViewerQueryOptions<SearchHistoryPage>{
+ return {queryKey:queryKeys.searchHistory(),queryFn:({signal})=>readSearchHistory(queries.api,scope,signal),meta:{dependencies:[dependsOn.settings('preferences')]}};
+}
+/** Where a SearchService reads first pages from, instead of asking the server itself every time. */
+export type SearchFirstPages=Readonly<{
+ /** The first page's answer when the cache holds it and nothing it was built from has moved since. */
+ peek(query:SearchQuery):unknown;
+ /** Read the first page: once however many ask, and again only when `fresh`. */
+ read(query:SearchQuery,fresh:boolean):Promise<unknown>;
+ /** A recording read's answer is the first page too, and the recents changed. */
+ recorded(query:SearchQuery,raw:unknown):void;
+}>;
+/** First pages from this viewer's cache. */
+export function searchFirstPages(queries:ViewerQueries,limit=40):SearchFirstPages{
+ return Object.freeze({
+  peek(q:SearchQuery){
+   const key=searchResultsQuery(queries,q,limit).queryKey,state=queries.client.getQueryState(key);
+   return state&&state.data!==undefined&&!state.isInvalidated&&queries.documentFor(key)?.getState().stale!==true?state.data:undefined;
+  },
+  read(q:SearchQuery,fresh:boolean){const options=searchResultsQuery(queries,q,limit);return queries.client.fetchQuery(fresh?{...options,staleTime:0}:options);},
+  recorded(q:SearchQuery,raw:unknown){
+   // The same answer is the plain read's: a recording answer says so, a plain one never may.
+   const key=searchResultsQuery(queries,q,limit).queryKey;
+   if(object(raw)&&object(raw.query)){queries.client.setQueryData(key,{...raw,query:{...raw.query,recorded:false}});queries.documentFor(key)?.markCurrent();}
+   // SR-8: only an answer the server says it recorded reads the recents again (another device may have turned history off).
+   if(object(raw)&&object(raw.query)&&raw.query.recorded===true)void queries.client.invalidateQueries({queryKey:queryKeys.searchHistory()});
+  },
+ });
+}
 type Page=Readonly<{query:SearchQuery;cursor:string|null}>;
 type Operation=Page&{history:readonly Page[];fence?:SearchData};
 const sameReadQuery=(left:SearchQuery|null,right:SearchQuery)=>!!left&&JSON.stringify({...left,record:undefined})===JSON.stringify({...right,record:undefined});
 export class SearchService{
- private api:LibraryContentApi;private scope:ContentScope;private readonly pageSize:number;private readonly timeoutMs:number;private generation=0;private disposed=false;private controller?:AbortController;private pending?:Promise<void>;private key='';private operation?:Operation;private displayedOperation?:Operation;private revalidations=new Set<AbortController>();private listeners=new Set<()=>void>();private state:SearchSnapshot;
- constructor(options:{api:LibraryContentApi;scope:ContentScope;pageSize?:number;timeoutMs?:number}){this.api=options.api;this.scope=bound(options.scope);this.pageSize=options.pageSize??40;this.timeoutMs=options.timeoutMs??15000;if(!Number.isInteger(this.pageSize)||this.pageSize<1||this.pageSize>40||!Number.isFinite(this.timeoutMs)||this.timeoutMs<1||this.timeoutMs>60000)throw new Error('Invalid search bounds.');this.state=this.empty();}
+ private api:LibraryContentApi;private scope:ContentScope;private readonly pageSize:number;private readonly timeoutMs:number;private generation=0;private disposed=false;private controller?:AbortController;private pending?:Promise<void>;private key='';private operation?:Operation;private displayedOperation?:Operation;private revalidations=new Set<AbortController>();private listeners=new Set<()=>void>();private state:SearchSnapshot;private readonly firstPages?:SearchFirstPages;
+ constructor(options:{api:LibraryContentApi;scope:ContentScope;pageSize?:number;timeoutMs?:number;firstPages?:SearchFirstPages}){this.api=options.api;this.firstPages=options.firstPages;this.scope=bound(options.scope);this.pageSize=options.pageSize??40;this.timeoutMs=options.timeoutMs??15000;if(!Number.isInteger(this.pageSize)||this.pageSize<1||this.pageSize>40||!Number.isFinite(this.timeoutMs)||this.timeoutMs<1||this.timeoutMs>60000)throw new Error('Invalid search bounds.');this.state=this.empty();}
  getSnapshot=():SearchSnapshot=>this.state;
+ /** A first page comes from the first-page reader when there is one; a recording read, and every later page, is the server's. */
+ private async request(op:Page,signal:AbortSignal,fresh:boolean):Promise<unknown>{
+  if(this.firstPages&&!op.cursor&&!op.query.record)return this.firstPages.read(op.query,fresh);
+  const raw=await this.api.request<unknown>(searchPath(op.query,this.pageSize,op.cursor),'GET',undefined,signal);
+  if(this.firstPages&&!op.cursor&&op.query.record)this.firstPages.recorded(op.query,raw);
+  return raw;
+ }
  subscribe=(listener:()=>void):(()=>void)=>{this.listeners.add(listener);return()=>this.listeners.delete(listener);};
  private empty():SearchSnapshot{return Object.freeze({generation:this.generation,scope:this.scope,query:null,phase:'idle',data:null,groups:Object.freeze([]),pagination:Object.freeze({cursor:null,canPrevious:false}),error:null});}
  private active(){if(this.disposed)throw new Error('Search service is disposed.');}
@@ -248,7 +301,7 @@ export class SearchService{
   this.revalidations.add(controller);
   context?.signal?.addEventListener('abort',stop,{once:true});
   try{
-   const raw=await Promise.race([this.api.request<unknown>(searchPath(op.query,this.pageSize,op.cursor),'GET',undefined,controller.signal),new Promise<never>((_,reject)=>{timer=setTimeout(()=>{reject(new Failure('timeout','Search took too long. Try again.',true));controller.abort();},this.timeoutMs);})]);
+   const raw=await Promise.race([this.request({query:{...op.query,record:undefined},cursor:op.cursor},controller.signal,true),new Promise<never>((_,reject)=>{timer=setTimeout(()=>{reject(new Failure('timeout','Search took too long. Try again.',true));controller.abort();},this.timeoutMs);})]);
    if(this.disposed||generation!==this.generation)return;
    const data=parse(raw,op,scope,this.pageSize);
    await context?.settle?.();
@@ -274,9 +327,12 @@ export class SearchService{
  setScope(scope:ContentScope,api:LibraryContentApi){this.active();const checked=bound(scope);this.stop();this.scope=checked;this.api=api;this.operation=undefined;this.displayedOperation=undefined;this.publish(this.empty());}
  dispose(){if(this.disposed)return;this.stop();this.disposed=true;this.operation=undefined;this.displayedOperation=undefined;try{this.publish(this.empty());}finally{this.listeners.clear();}}
  private stop(){this.generation++;this.controller?.abort();this.controller=undefined;for(const controller of this.revalidations)controller.abort();this.revalidations.clear();this.pending=undefined;this.key='';}
- private load(op:Operation):Promise<void>{const key=JSON.stringify([op.query,op.cursor]);if(this.pending&&key===this.key)return this.pending;this.stop();this.key=key;this.operation=op;const generation=this.generation,controller=new AbortController();this.controller=controller;const retain=this.state.query?.q===op.query.q&&this.state.query?.group===op.query.group;if(!retain)this.displayedOperation=undefined;this.publish({generation,query:op.query,phase:'loading',...(retain?{}:{data:null,groups:Object.freeze([])}),error:null,pagination:Object.freeze({cursor:op.cursor,canPrevious:op.history.length>0})});if(this.disposed||generation!==this.generation||controller.signal.aborted)return Promise.resolve();const task=this.fetch(op,this.api,this.scope,controller,generation);if(generation===this.generation)this.pending=task;return task;}
+ private load(op:Operation):Promise<void>{const key=JSON.stringify([op.query,op.cursor]);if(this.pending&&key===this.key)return this.pending;
+  // A first page the cache already holds current is shown at once, with no request.
+  if(this.firstPages&&!op.cursor&&!op.query.record){const held=this.firstPages.peek(op.query);if(held!==undefined){try{const data=parse(held,op,this.scope,this.pageSize);this.stop();this.operation=op;this.displayedOperation=op;this.publish({generation:this.generation,query:op.query,phase:'ready',data,groups:data.groups,error:null,pagination:Object.freeze({cursor:null,canPrevious:false})});return Promise.resolve();}catch{/* read it again below */}}}
+  this.stop();this.key=key;this.operation=op;const generation=this.generation,controller=new AbortController();this.controller=controller;const retain=this.state.query?.q===op.query.q&&this.state.query?.group===op.query.group;if(!retain)this.displayedOperation=undefined;this.publish({generation,query:op.query,phase:'loading',...(retain?{}:{data:null,groups:Object.freeze([])}),error:null,pagination:Object.freeze({cursor:op.cursor,canPrevious:op.history.length>0})});if(this.disposed||generation!==this.generation||controller.signal.aborted)return Promise.resolve();const task=this.fetch(op,this.api,this.scope,controller,generation);if(generation===this.generation)this.pending=task;return task;}
  private async fetch(op:Operation,api:LibraryContentApi,scope:ContentScope,controller:AbortController,generation:number){let timer:ReturnType<typeof setTimeout>|undefined;let abort:()=>void=()=>{};
-  try{const raw=await Promise.race([api.request<unknown>(searchPath(op.query,this.pageSize,op.cursor),'GET',undefined,controller.signal),new Promise<never>((_,reject)=>{abort=()=>reject(new Failure('cancelled','Search cancelled.'));controller.signal.addEventListener('abort',abort,{once:true});timer=setTimeout(()=>{reject(new Failure('timeout','Search took too long. Try again.',true));controller.abort();},this.timeoutMs);})]);if(this.disposed||generation!==this.generation)return;const data=parse(raw,op,scope,this.pageSize);
+  try{const raw=await Promise.race([api===this.api?this.request(op,controller.signal,false):api.request<unknown>(searchPath(op.query,this.pageSize,op.cursor),'GET',undefined,controller.signal),new Promise<never>((_,reject)=>{abort=()=>reject(new Failure('cancelled','Search cancelled.'));controller.signal.addEventListener('abort',abort,{once:true});timer=setTimeout(()=>{reject(new Failure('timeout','Search took too long. Try again.',true));controller.abort();},this.timeoutMs);})]);if(this.disposed||generation!==this.generation)return;const data=parse(raw,op,scope,this.pageSize);
    // A later page read after the library moved is still a valid page; only another viewer's answer is refused.
    if(op.fence&&data.scope.viewerFence!==op.fence.scope.viewerFence)throw new Failure('stale_continuation','Search results changed. Refresh to continue.',true);
    // A cursor that comes back again would page for ever: that group has reached its end.

@@ -1,6 +1,6 @@
 import {createRoot} from 'react-dom/client';
 import type {HttpLocalApi} from '@core/index.ts';
-import {FreshnessProvider} from '../../platform/freshness';
+import {FreshnessProvider, freshnessFor} from '../../platform/freshness';
 import {createI18n, deviceRegion, resolveRegion} from '@i18n';
 import {setServiceI18n} from '@core/presentation/service-text.ts';
 import {SearchScreen} from '../../screens/search/Search';
@@ -168,11 +168,12 @@ const context = {
   artwork: {foreground: () => undefined, ambient: () => undefined} as never,
   effects: {openEntry: () => {}, openSettings: () => {}, openBrowse: () => {}, play: async () => {}, reportError: () => {}},
 } as unknown as ScreenContext;
-const binding = createSearchBindings(context);
+// The provider below serves this same viewer's runtime.
+const binding = createSearchBindings(context, freshnessFor(api as unknown as HttpLocalApi, {serverId, viewerId: 'profile'}).queries);
 
 function Specimen() {
   return <><IconSprite /><FreshnessProvider api={api as unknown as HttpLocalApi} viewerId="profile" serverId={serverId} events={null}>
-    <SearchScreen binding={binding} linkedQuery="ma" onConsumeLinkedQuery={() => {}} />
+    <SearchScreen binding={binding} address={{q: 'ma'}} />
   </FreshnessProvider></>;
 }
 createRoot(document.getElementById('root')!).render(<Specimen />);

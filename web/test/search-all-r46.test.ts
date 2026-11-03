@@ -5,7 +5,9 @@ import type {ScreenContext} from '../src/screens/detail/context.ts';
 import type {SearchGroup} from '@core/search.ts';
 import {createI18n, resolveRegion} from '@i18n';
 import {setServiceI18n} from '@core/presentation/service-text.ts';
-import {createSearchBindings} from '../src/screens/search/bindings.ts';
+import {createSearchBindings as bindSearch} from '../src/screens/search/bindings.ts';
+import {testViewerQueries} from './helpers/viewer-queries.ts';
+const createSearchBindings = (context: Parameters<typeof bindSearch>[0]) => bindSearch(context, testViewerQueries(context));
 
 /** The shell confirms the viewer's catalogue and device zone before any screen reads. */
 setServiceI18n(createI18n(resolveRegion(undefined, {locales: ['en-CA'], timeZone: 'America/Halifax'})));

@@ -1,7 +1,6 @@
 import {forwardIdentity} from '../detail/context';
 import {useCallback, useLayoutEffect, useState, useSyncExternalStore} from 'react';
-import {useLocation, useSearch} from '@tanstack/react-router';
-import {randomId} from '@core/random-id.ts';
+import {useSearch} from '@tanstack/react-router';
 import {defineWebScreen} from '../../route-registry';
 import {useProtectedWebScreenContext} from '../../route-registry-view';
 import {router} from '../../router';
@@ -10,38 +9,13 @@ import type {ScreenContext} from '../detail/context';
 import {DetailLoading} from '../detail/Loading';
 import {createSearchBindings, type SearchBindings} from './bindings';
 import {createSearchSelection, type SearchSelection} from './selection';
-import {SearchScreen} from './Search';
+import {SearchScreen, type SearchAddress} from './Search';
+import {searchQuery} from '../../shell/navigation';
 
-type SearchLocation = typeof router.state.location;
-type SearchOpening = Readonly<{
-  id: string; assembly: ProtectedLibraryScreen['context']; scopeKey: string;
-  location: SearchLocation; linkedQuery?: string; accepts: (location: SearchLocation) => boolean;
-}> & {consumed: boolean};
 type SearchLease = Readonly<{
   context: ScreenContext; assembly: ProtectedLibraryScreen['context']; runtime: NonNullable<ProtectedLibraryScreen['binding']['playback']>['runtime'] | undefined;
   binding: SearchBindings; selection: SearchSelection; current: () => boolean;
 }>;
-const echoField = 'porticoSearchOpening';
-
-/** A linked navigation is an intent, even when its text matches a previous
- * visit. Only its exact own replace echo can keep the opening after consumption.
- * History stores an opaque marker, never the consumed query or a result model. */
-function useSearchOpening(captured: ProtectedLibraryScreen, location: SearchLocation, linkedQuery: string | undefined) {
-  const assembly = captured.context, scopeKey = captured.binding.scopeKey;
-  const [published, publish] = useState<SearchOpening>();
-  const held = published?.assembly === assembly && published.scopeKey === scopeKey && published.accepts(location) ? published : undefined;
-  useLayoutEffect(() => {
-    if (held) return;
-    const id = randomId();
-    const opening: SearchOpening = {id, assembly, scopeKey, location, linkedQuery, consumed: false,
-      accepts: value => value.pathname === '/search' && (value === location || opening.consumed && value.search.q === ''
-        && value.state.__TSR_index === location.state.__TSR_index
-        && (value.state as typeof value.state & Readonly<{porticoSearchOpening?: unknown}>)[echoField] === id),
-    };
-    publish(opening);
-  }, [held, assembly, scopeKey, location, linkedQuery]);
-  return held;
-}
 
 /** Constructors, subscriptions and terminal resources belong to a committed
  * original context/runtime. Query/group updates never recreate this session. */
@@ -54,7 +28,7 @@ function useSearchLease(context: ScreenContext | undefined, captured: ProtectedL
     if (viewer.authority !== 'local' && viewer.authority !== 'hosted') return;
     let live = true;
     const current = () => live && context.isCurrent(), original: ScreenContext = forwardIdentity(context, {isCurrent: current});
-    const binding = createSearchBindings(original);
+    const binding = createSearchBindings(original, assembly.freshness.queries);
     const selection = createSearchSelection(original, binding.results,
       {serverId: viewer.serverId, authority: viewer.authority, accountId: viewer.accountId, profileId: viewer.profileId},
       runtime);
@@ -78,38 +52,31 @@ function useSearchLease(context: ScreenContext | undefined, captured: ProtectedL
     && published.current() ? published : undefined;
 }
 
-function OpenSearch({captured, opening}: {captured: ProtectedLibraryScreen; opening: SearchOpening}) {
-  const context = useCommittedLibraryScreenContext(captured, opening.id, () => opening.accepts(router.state.location));
-  const owned = useSearchLease(context, captured);
-  return owned ? <SearchSession owned={owned} opening={opening}/> : <DetailLoading/>;
-}
-function SearchSession({owned, opening}: {owned: SearchLease; opening: SearchOpening}) {
-  const {binding, selection} = owned, location = useLocation({select: value => value});
+function SearchSession({owned, search}: {owned: SearchLease; search: SearchAddress}) {
+  const {binding, selection} = owned;
   const query = useSyncExternalStore(binding.service.subscribe, binding.service.getSnapshot, binding.service.getSnapshot);
   const onNow = useSyncExternalStore(binding.onNow.subscribe, binding.onNow.getSnapshot, binding.onNow.getSnapshot);
-  const consume = useCallback(() => {
-    if (!owned.current() || opening.consumed || !opening.linkedQuery || location !== opening.location
-      || router.state.location !== location || location.search.q !== opening.linkedQuery || !opening.accepts(location)) return;
-    // Before navigation or another effect replay can run, this exact rendered
-    // admission is consumed. A retained callback cannot clear a successor link.
-    opening.consumed = true;
-    void router.navigate({to: '/search', search: {q: ''}, replace: true, resetScroll: false,
-      state: previous => ({...previous, [echoField]: opening.id})}).catch(error => {if (owned.current()) binding.context.effects.reportError(error);});
-  }, [owned, opening, location, binding]);
+  // The address holds the settled search: typing replaces it, so Back returns to these results.
+  const settle = useCallback((next: SearchAddress) => {
+    if (!owned.current() || router.state.location.pathname !== '/search') return;
+    const held = router.state.location.search as SearchAddress;
+    if ((held.q ?? '') === next.q && held.group === next.group) return;
+    void router.navigate({to: '/search', search: {q: next.q, ...(next.group ? {group: next.group} : {})}, replace: true, resetScroll: false})
+      .catch(error => {if (owned.current()) binding.context.effects.reportError(error);});
+  }, [owned, binding]);
   const openLive = useCallback((sourceId?: string) => {
     if (!owned.current() || binding.service.getSnapshot() !== query || binding.onNow.getSnapshot() !== onNow
       || query.query?.q.trim() || onNow.phase !== 'ready' || !onNow.cards.length
       || sourceId !== undefined && !onNow.cards.some(card => card.channel.sourceId === sourceId)) return;
     void router.navigate({to: '/live', search: sourceId ? {sourceId} : {}}).catch(error => {if (owned.current()) binding.context.effects.reportError(error);});
   }, [owned, binding, query, onNow]);
-  return <SearchScreen binding={binding} selection={selection} linkedQuery={opening.consumed ? undefined : opening.linkedQuery}
-    onOpenLive={openLive} onConsumeLinkedQuery={consume}/>;
+  return <SearchScreen binding={binding} selection={selection} address={search} onSettle={settle} onOpenLive={openLive}/>;
 }
 function BoundSearch({captured}: {captured: ProtectedLibraryScreen}) {
-  const location = useLocation({select: value => value}), search = useSearch({from: '/search'});
-  const linkedQuery = typeof search.q === 'string' && search.q.length ? search.q : undefined;
-  const opening = useSearchOpening(captured, location, linkedQuery);
-  return opening ? <OpenSearch captured={captured} opening={opening}/> : <DetailLoading/>;
+  const search = searchQuery(useSearch({from: '/search'}));
+  const context = useCommittedLibraryScreenContext(captured, 'search', () => router.state.location.pathname === '/search');
+  const owned = useSearchLease(context, captured);
+  return owned ? <SearchSession owned={owned} search={{q: search.q, ...(search.group ? {group: search.group} : {})}}/> : <DetailLoading/>;
 }
 function SearchRouteScreen() {
   const captured = useProtectedWebScreenContext();
