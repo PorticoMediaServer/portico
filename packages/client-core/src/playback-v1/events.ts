@@ -112,6 +112,23 @@ export class EventsClient {
     return this.resyncReads.register(read, options);
   }
 
+  /**
+   * Take the feed's current position before reading what a screen shows, so the stream opens from
+   * it: anything that changes while those reads are on their way arrives as ordinary hints, and
+   * nothing needs reading twice to cover the gap. One immediate page read (no wait); resolves false
+   * when there was already a position or the read failed (the caller then catches up on connect).
+   */
+  async prime(signal?: AbortSignal): Promise<boolean> {
+    if (this.status.cursor || this.running) return false;
+    try {
+      const r = await call(this.o.http, {method: 'GET', path: routePath("get_events") + "?waitMs=0", signal});
+      const b = r.body as {events?: unknown; nextAfter?: unknown} | undefined;
+      if (signal?.aborted || this.running || this.status.cursor || !b || typeof b !== 'object' || typeof b.nextAfter !== 'string' || !b.nextAfter || b.nextAfter.length > 128) return false;
+      this.setStatus({cursor: b.nextAfter});
+      return true;
+    } catch { return false; }
+  }
+
   start(): void {
     if (this.running) return;
     this.running = true;

@@ -203,9 +203,11 @@ export function createShellFactOwner(o: Readonly<{
   };
 }
 
-/** First successful connection needs no cursor: a quiet relay follower may never get one. */
-export function attachShellFactFeed(events: EventsClient, hub: FreshnessHub, current: () => boolean, invalidate: () => void): () => void {
-  let queued = false, timer: unknown;
+/** First successful connection needs no cursor: a quiet relay follower may never get one. A feed
+ * primed before the shell's first reads (`primed`) opens from that position and replays what changed
+ * meanwhile as hints, so its first connection needs no catch-up read of everything. */
+export function attachShellFactFeed(events: EventsClient, hub: FreshnessHub, current: () => boolean, invalidate: () => void, primed = false): () => void {
+  let queued = primed, timer: unknown;
   const status = () => {
     if (queued || !current() || !events.getStatus().connected) return;
     queued = true;
