@@ -206,10 +206,10 @@ export class NativeShellBootstrapServices {
     const batch = this.unreadController;
     const currentRead = () => {this.assertCurrent(); if (batch !== this.unreadController || batch?.signal.aborted) throw cancelled();};
     this.inboxFailure = undefined;
-    // A profile inbox advertises only that audience. The actual owner's account-admin
-    // inbox advertises both; let that server answer drive the core badge's audience set.
+    // Every inbox answer lists the audiences this viewer may read, so the profile read
+    // alone tells an owner or administrator that the badge counts account-admin too (N5-2).
     if (!this.inboxLoaded) {
-      await this.inbox.load(this.options.viewer.role === 'owner' ? 'account-admin' : 'profile'); currentRead();
+      await this.inbox.load('profile'); currentRead();
       if (this.inboxFailure) throw this.inboxFailure;
       if (this.inbox.getSnapshot().phase !== 'ready') throw invalid();
       this.inboxLoaded = true;

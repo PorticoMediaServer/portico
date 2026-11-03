@@ -60,6 +60,7 @@ test('the inbox loads a view, and the badge counts every audience the viewer has
  const state=service.getSnapshot();
  assert.equal(state.phase,'ready');assert.equal(state.items.length,2);assert.deepEqual(state.audiences,['profile','account-admin']);
  assert.equal(state.unread,5,'profile 2 + account-admin 3');
+ assert.deepEqual(state.unreadBy,{profile:2,'account-admin':3},'each audience keeps its own count for the Server tab');
 });
 
 test('a failed refresh keeps what is on screen; only a first load with nothing is an error',async()=>{

@@ -142,6 +142,7 @@ export const webMessages = {
   'web.twoStep.replaceCodesAction': 'Replace codes',
   'web.password': 'Password',
   'web.notifications.audience': 'Audience',
+  'web.notifications.audienceUnread': '{audience}, {count} unread',
   'web.notifications.show': 'Show',
   'web.hostedAccount.signInTitle': 'Sign in to your Portico Account',
   'web.hostedAccount.signInBody': 'Profiles, devices, security and invitations belong to your Portico Account. Sign in to manage them.',

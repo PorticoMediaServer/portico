@@ -34,6 +34,8 @@ export type InboxSnapshot=Readonly<{
  counts:NotificationCounts;
  /** Unread across every audience the viewer has, for the badge. */
  unread:number;
+ /** The same, per audience: desktop-search draws it beside the other audience ("Server 1"). */
+ unreadBy:Readonly<Partial<Record<NotificationAudience,number>>>;
  revision:number;
  more:boolean;
  busy:boolean;
@@ -69,7 +71,7 @@ type InboxMore=Readonly<{pageToken:number;generation:number;audience:Notificatio
 
 export class InboxService{
  private api:InboxApi;private operationId:()=>string;
- private state:InboxSnapshot=Object.freeze<InboxSnapshot>({phase:'idle',audience:'profile',audiences:['profile'],view:'unread',items:[],counts:noCounts,unread:0,revision:0,more:false,busy:false});
+ private state:InboxSnapshot=Object.freeze<InboxSnapshot>({phase:'idle',audience:'profile',audiences:['profile'],view:'unread',items:[],counts:noCounts,unread:0,unreadBy:{},revision:0,more:false,busy:false});
  private listeners=new Set<()=>void>();private cursor='';private generation=0;private controller?:AbortController;private disposed=false;
  private unreadFlight?:Promise<number>;private unreadController?:AbortController;private unreadDirty=false;private options:InboxServiceOptions;
  // The one write this view owns. 'inflight' means its answer is still out and no
@@ -315,16 +317,17 @@ export class InboxService{
    let abort:()=>void=()=>{};
    const cancelled=new Promise<never>((_,reject)=>{abort=()=>reject(new Error('unread_refresh_aborted'));controller.signal.addEventListener('abort',abort,{once:true});});
    try{
-    let total=0;
+    let total=0;const by:Partial<Record<NotificationAudience,number>>={};
     for(const audience of audiences){
      const raw=await Promise.race([this.api.request<RouteResponse<"get_notifications_unread_count">>(routePath("get_notifications_unread_count") + "?audience=" + (encodeURIComponent(audience)),'GET',undefined,controller.signal),cancelled]);
      if(controller.signal.aborted||this.disposed)return this.state.unread;
-     total+=parseNotificationSummary(data(raw)).counts.unread;
+     by[audience]=parseNotificationSummary(data(raw)).counts.unread;total+=by[audience];
     }
     // An inbox load can discover the owner audience while the profile read is pending.
     // Never publish a partial/obsolete badge; coalesce changes into one fresh round.
     if(audiences.join(',')!==this.state.audiences.join(',')||revision!==this.state.revision)this.unreadDirty=true;
-    if(!this.unreadDirty&&total!==this.state.unread)this.publish({unread:total});
+    const unreadBy=Object.freeze(by);
+    if(!this.unreadDirty&&(total!==this.state.unread||JSON.stringify(unreadBy)!==JSON.stringify(this.state.unreadBy)))this.publish({unread:total,unreadBy});
    }catch{
     if(controller.signal.aborted||this.disposed)return this.state.unread;
     if(audiences.join(',')!==this.state.audiences.join(',')||revision!==this.state.revision)this.unreadDirty=true;

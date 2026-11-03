@@ -26,6 +26,9 @@ export const notificationCommands=['retry-job','open-download','dismiss-conflict
 export type NotificationCommand=(typeof notificationCommands)[number];
 
 export type NotificationAudience='profile'|'account-admin';
+/** Who may read the account-admin inbox: the account's owner or an administrator, the server's
+ * own rule (`operations.noticeAdministrator`; every client session is local). A member never asks. */
+export const readsAdminInbox=(role:string):boolean=>role==='owner'||role==='admin';
 export type NotificationSeverity='info'|'warning'|'critical';
 export type NotificationState='unread'|'read'|'archived'|'all';
 export type NotificationOutcome='applied'|'unchanged'|'not-found';

@@ -255,7 +255,7 @@ func SubscribeNotifications() (<-chan struct{}, func()) { return noticeWake.subs
 // the server notices the owner routed to administrators.
 func noticeAudiences(p identity.Principal, requested string) (string, []string, []string, error) {
 	profile, account := ViewerKey(p), AccountKey(p)
-	admin := p.Authority == "local" && (p.Role == "owner" || p.Role == "admin")
+	admin := noticeAdministrator(p)
 	switch requested {
 	case "", "all":
 		requested = "all"
@@ -275,6 +275,22 @@ func noticeAudiences(p identity.Principal, requested string) (string, []string, 
 		return requested, []string{account}, []string{notify.AudienceAccountAdmin}, nil
 	}
 	return "", nil, nil, invalidFields("audience")
+}
+
+// noticeAdministrator is who may read the account-admin inbox: a local owner or
+// administrator of the account.
+func noticeAdministrator(p identity.Principal) bool {
+	return p.Authority == "local" && (p.Role == "owner" || p.Role == "admin")
+}
+
+// noticeReadable is every inbox this principal may read, whichever one a request
+// named, so a client reading its profile inbox learns the administrators' inbox
+// is there too (N5-2).
+func noticeReadable(p identity.Principal) []string {
+	if noticeAdministrator(p) {
+		return []string{notify.AudienceProfile, notify.AudienceAccountAdmin}
+	}
+	return []string{notify.AudienceProfile}
 }
 
 // noticeFilter builds the scope predicate. Scopes and audiences are positional
@@ -399,10 +415,7 @@ func (s *Store) Notices(ctx context.Context, p identity.Principal, auth Authoriz
 		return out, invalidFields("limit")
 	}
 	out.Audience, out.State = audience, state
-	out.Audiences = []string{notify.AudienceProfile}
-	if len(audiences) > 1 || audience == notify.AudienceAccountAdmin {
-		out.Audiences = append([]string{}, notify.Audiences...)
-	}
+	out.Audiences = noticeReadable(p)
 	e = s.snapshot(ctx, auth, "", func(tx *sql.Tx) error {
 		now := s.now()
 		out.ObservedAt, out.RetentionDays = apiwire.Instant(now), notify.RetentionDays(tx)

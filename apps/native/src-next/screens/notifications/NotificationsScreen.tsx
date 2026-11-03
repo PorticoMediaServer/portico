@@ -3,7 +3,7 @@ import React, {useEffect, useLayoutEffect, useState, useSyncExternalStore} from 
 import {FlatList, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {noticeWords, type Notification, type NotificationAction} from '../../../../../packages/client-core/src/notifications';
+import {noticeWords, readsAdminInbox, type Notification, type NotificationAction} from '../../../../../packages/client-core/src/notifications';
 import type {InboxAction, InboxService, InboxView} from '../../../../../packages/client-core/src/inbox';
 import {Button, Tabs} from '../../kit/controls';
 import {Icon, type IconName} from '../../kit/Icon';
@@ -41,8 +41,8 @@ type NotificationsLease = Readonly<{
 }>;
 
 /** phone-app 9/21: the server's inbox, split by the audience envelopes it returns.
- * The profile feed is always this viewer's. The account-admin feed is requested only
- * for a local owner, the same rule the server enforces. Every word is either the
+ * The profile feed is always this viewer's. The account-admin feed is requested for the
+ * account's owner or an administrator, the same rule the server enforces (N5-2). Every word is either the
  * server's own notice or the catalogue; no notice is made up on the device. */
 export function NativeNotificationsScreen({context, route, runtime, profileService, adminService, retirement}: {
   context: NativeShellBootstrapContext;
@@ -94,7 +94,7 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
     void lease.profile.load('profile', view);
   }, [lease, retired, view]);
   useEffect(() => {
-    if (!lease || retired || context.account.account.role !== 'owner') return;
+    if (!lease || retired || !readsAdminInbox(context.account.account.role)) return;
     void lease.admin.load('account-admin', view);
   }, [context, lease, retired, view]);
   useEffect(() => {
@@ -109,7 +109,7 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
         && lease.retirement.getSnapshot() === undefined;
       if (!live) return;
       void lease.profile.load('profile', view);
-      if (context.account.account.role === 'owner') void lease.admin.load('account-admin', view);
+      if (readsAdminInbox(context.account.account.role)) void lease.admin.load('account-admin', view);
     };
     const recover = async (service: InboxService, audience: 'profile' | 'account-admin', signal: AbortSignal) => {
       const live = lease.live.value && sameAuthority(lease.authority, context.authority())
@@ -123,7 +123,7 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
     };
     const offs = [context.events.on('notification.changed', refresh),
       recoverEventState(context.events, ({signal}) => recover(lease.profile, 'profile', signal))];
-    if (context.account.account.role === 'owner') offs.push(recoverEventState(context.events, ({signal}) => recover(lease.admin, 'account-admin', signal)));
+    if (readsAdminInbox(context.account.account.role)) offs.push(recoverEventState(context.events, ({signal}) => recover(lease.admin, 'account-admin', signal)));
     return () => {for (const off of offs) off();};
   }, [context, lease, retired, view]);
 
@@ -134,7 +134,7 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
   if (!lease || lease.profile !== profileService || lease.admin !== adminService || lease.retirement !== retirement) return <NotificationsFrame testID="native-notifications-pending" title={t('next.shell.notifications')} onClose={close}/>;
 
   const hasLiveTV = runtime.getSnapshot().hasLiveTV;
-  const adminRequested = context.account.account.role === 'owner';
+  const adminRequested = readsAdminInbox(context.account.account.role);
   const viewLive = (service: InboxService, viewAt: InboxView) => current()
     && (service === lease.profile || service === lease.admin)
     && service.getSnapshot().view === viewAt;

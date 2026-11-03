@@ -20,7 +20,7 @@ function elements(node: unknown): ReactElement<any>[] {
 function panel(patch: Partial<InboxSnapshot> = {}) {
   const calls: {name: string; value?: unknown}[] = [];
   const snapshot: InboxSnapshot = {phase: 'ready', audience: 'profile', audiences: ['profile'], view: 'unread', items: [],
-    counts: {unread: 3, read: 0, archived: 0, total: 3}, unread: 3, revision: 1, more: false, busy: false, ...patch};
+    counts: {unread: 3, read: 0, archived: 0, total: 3}, unread: 3, unreadBy: {profile: 3}, revision: 1, more: false, busy: false, ...patch};
   const nodes = elements(NotificationsPanel({snapshot, children: 'Real notification content',
     onAudience: value => calls.push({name: 'audience', value}), onView: value => calls.push({name: 'view', value}),
     onReadAll: () => calls.push({name: 'readAll'}), onMore: () => calls.push({name: 'more'})}));
@@ -58,4 +58,19 @@ test('Load more appears only with a continuation and preserves busy feedback', (
   const more = f.nodes.filter(node => node.type === Button)[1];
   assert.equal(more.props.loading, true);
   more.props.onClick(); assert.deepEqual(f.calls, [{name: 'more'}]);
+});
+
+test('an owner or administrator sees For you and Server, with the unread count on the audience not on screen (N5-2)', () => {
+  const f = panel({audiences: ['profile', 'account-admin'], unread: 4, unreadBy: {profile: 3, 'account-admin': 1}});
+  const audience = f.nodes.filter(node => node.type === Segmented)[0];
+  assert.deepEqual(audience.props.items.map((item: any) => item.value), ['profile', 'account-admin']);
+  const [mine, server] = audience.props.items;
+  assert.equal(mine.label, 'For you', 'the audience on screen carries no count');
+  assert.equal(mine.accessibleLabel, undefined);
+  const parts = elements(server.label).filter(node => node.props.className === 'audienceCount');
+  assert.equal(parts.length, 1);
+  assert.equal(parts[0].props.children, '1');
+  assert.equal(server.accessibleLabel, 'Server, 1 unread');
+  const none = panel({audiences: ['profile', 'account-admin'], unreadBy: {profile: 3, 'account-admin': 0}});
+  assert.equal(none.nodes.filter(node => node.type === Segmented)[0].props.items[1].label, 'Server');
 });

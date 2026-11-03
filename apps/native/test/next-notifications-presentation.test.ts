@@ -20,7 +20,7 @@ test('notification sections use a count slot, intra-section separators and the a
   const {NativeNotificationsScreen} = await screenModule(new URL('../src-next/screens/notifications/NotificationsScreen.tsx', import.meta.url), {'./OwnFeedbackReport': {OwnFeedbackReport: 'OwnFeedbackReport'}, './notification-route': await import('../src-next/screens/notifications/notification-route.ts'), '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, 
     react, 'react-native': native, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
     '../../../../../packages/i18n/src': {defaultI18n: i18n},
-    '../../../../../packages/client-core/src/notifications': {noticeWords: (notice: any) => ({title: notice.id, body: 'Notice'})},
+    '../../../../../packages/client-core/src/notifications': {noticeWords: (notice: any) => ({title: notice.id, body: 'Notice'}), readsAdminInbox: (role: string) => role === 'owner' || role === 'admin'},
     '../../kit/controls': {Button: 'Button', Tabs: 'Tabs'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/overlays': {Menu: 'Menu'}, '../../kit/shell': {NotificationItem: 'NotificationItem'},
     '../../kit/states': {Quiet: ({children}: any) => children, StateView: 'StateView'}, '../../kit/shell/visual': {shellType},

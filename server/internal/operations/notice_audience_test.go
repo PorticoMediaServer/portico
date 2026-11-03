@@ -3,6 +3,7 @@ package operations
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
@@ -130,5 +131,39 @@ func TestNoticeSpecThresholdDefaultsSave(t *testing.T) {
 	if _, e = s.ApplyNotificationSettings(ctx, owner, auth, NotificationSettingsChange{ExpectedRevision: settings.Revision,
 		StorageWarningPercent: 10, StorageCriticalPercent: 5, CertificateWarningDays: 14}); e != nil {
 		t.Fatal(e)
+	}
+}
+
+// N5-2: every inbox read lists the audiences the viewer may read, whichever one it
+// asked for, so a client reading the profile inbox learns an owner or
+// administrator also has the administrators' inbox.
+func TestNoticeInboxListsEveryReadableAudience(t *testing.T) {
+	s, owner, member, auth := noticeFixture(t)
+	ctx := context.Background()
+	if _, e := s.DB.Exec(`INSERT INTO accounts(id,username,password_hash,profile_id,epoch) VALUES('admin','admin',x'00','admin-profile',1)`); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := s.DB.Exec(`UPDATE direct_memberships SET role='admin' WHERE account_id='admin'`); e != nil {
+		t.Fatal(e)
+	}
+	admin := identity.Principal{Viewer: identity.Viewer{Authority: "local", AccountID: "admin", ProfileID: "admin-profile", ServerID: "server", Role: "admin"}, Hash: "admin-session", Epoch: 1}
+	both := []string{notify.AudienceProfile, notify.AudienceAccountAdmin}
+	for _, c := range []struct {
+		name     string
+		viewer   identity.Principal
+		audience string
+		want     []string
+	}{
+		{"owner profile", owner, notify.AudienceProfile, both},
+		{"owner all", owner, "", both},
+		{"admin profile", admin, notify.AudienceProfile, both},
+		{"admin account-admin", admin, notify.AudienceAccountAdmin, both},
+		{"member profile", member, notify.AudienceProfile, []string{notify.AudienceProfile}},
+		{"member all", member, "all", []string{notify.AudienceProfile}},
+	} {
+		inbox, e := s.Notices(ctx, c.viewer, auth, NoticeQuery{Audience: c.audience})
+		if e != nil || !slices.Equal(inbox.Audiences, c.want) {
+			t.Fatalf("%s: %v %v", c.name, e, inbox.Audiences)
+		}
 	}
 }
