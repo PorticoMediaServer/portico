@@ -17,6 +17,7 @@ import (
 
 // Measure complete producer turns, including managed subtitle rows, issues,
 // folder progress and Reading semantic flushes, rather than just object inserts.
+// Each turn is one transaction within the inventory-pages envelope.
 func TestInventorySourcePageCost(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
@@ -72,9 +73,8 @@ func TestInventorySourcePageCost(t *testing.T) {
 				if p.Largest.Rows > 8192 || p.Largest.Pages > 1024 || p.Largest.VMOps > 2_000_000 {
 					t.Fatalf("named envelope exceeded: %+v", p.Largest)
 				}
-				if tc.name != "issues" && p.Largest.Rows > 160 {
-					t.Fatalf("ordinary fixture exceeds row target: %+v", p.Largest)
-				}
+				// A step now publishes its whole page (scanner M2): the plan grows
+				// with the page, and dbwork panics in tests past twice the plan.
 				t.Logf("turn=%d measured=%d max=%+v", turn, p.Measured, p.Largest)
 			}
 			if n := f.count(`SELECT count(*) FROM inventory_directories WHERE job_id=? AND state='pending'`, job.ID); n != 0 {

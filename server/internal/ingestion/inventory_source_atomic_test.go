@@ -35,7 +35,8 @@ func TestInventorySourceGroupAtomicReplayAndFences(t *testing.T) {
 		pages = append(pages, catalog.InventoryPageWrite{Relative: relative, Page: page})
 	}
 	commit := func(pages []catalog.InventoryPageWrite) error {
-		return f.s.catalog.CommitInventoryPages(context.Background(), job.ID, pages)
+		_, err := f.s.catalog.CommitInventoryPages(context.Background(), job.ID, pages)
+		return err
 	}
 	f.exec(`CREATE TRIGGER refuse_second_page BEFORE INSERT ON inventory_objects WHEN NEW.relative_path='B/Second.epub' BEGIN SELECT RAISE(ABORT,'injected page failure'); END`)
 	if err := commit(pages); err == nil {

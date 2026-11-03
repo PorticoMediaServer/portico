@@ -69,6 +69,8 @@ type Service struct {
 	ignoreScopes   map[string]map[string]remoteIgnoreScope
 	// reuseMu guards what a scan remembers to spare helper processes
 	// (scan_reuse.go).
+	// pages sizes each scan's inventory steps by measured writer hold.
+	pages pageBudgets
 	reuseMu  sync.Mutex
 	ready    map[string]readyProof
 	accepted map[acceptedKey]acceptedAnalysis

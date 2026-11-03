@@ -161,6 +161,7 @@ func (s *Service) forgetListing(job string) {
 	delete(s.ignoreScopes, job)
 	s.listingMu.Unlock()
 	s.forgetReuse(job)
+	s.forgetPageBudget(job)
 }
 
 // directoryRecheck is one analysis's view of the directories this scan listed.

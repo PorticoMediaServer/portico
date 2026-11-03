@@ -62,7 +62,7 @@ func TestInventorySourceTraversalRestartParity(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if err = f.s.catalog.CommitInventoryPages(context.Background(), old.ID, []catalog.InventoryPageWrite{{Relative: relative, Cursor: cursor, Page: page, DiscRoot: disc}}); err != nil {
+				if _, err = f.s.catalog.CommitInventoryPages(context.Background(), old.ID, []catalog.InventoryPageWrite{{Relative: relative, Cursor: cursor, Page: page, DiscRoot: disc}}); err != nil {
 					t.Fatal(err)
 				}
 			}

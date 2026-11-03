@@ -61,7 +61,7 @@ func TestDiscObservationCommitsWithSingleAndBatchedPages(t *testing.T) {
 			// Fail the last title observation, after the page's cursor writes.
 			// Even the first page of a batch must remain resumable after rollback.
 			exec(fmt.Sprintf(`CREATE TRIGGER refuse_disc_observation BEFORE INSERT ON inventory_objects WHEN NEW.relative_path='Film%d' BEGIN SELECT RAISE(ABORT,'injected disc observation failure'); END`, count))
-			if err = s.CommitInventoryPages(context.Background(), job, pages); err == nil {
+			if _, err = s.CommitInventoryPages(context.Background(), job, pages); err == nil {
 				t.Fatal("injected observation failure was ignored")
 			}
 			var done, objects int
@@ -76,7 +76,7 @@ func TestDiscObservationCommitsWithSingleAndBatchedPages(t *testing.T) {
 			}
 			exec(`DROP TRIGGER refuse_disc_observation`)
 			for replay := 0; replay < 2; replay++ {
-				if err = s.CommitInventoryPages(context.Background(), job, pages); err != nil {
+				if _, err = s.CommitInventoryPages(context.Background(), job, pages); err != nil {
 					t.Fatal(err)
 				}
 				for _, page := range pages {
