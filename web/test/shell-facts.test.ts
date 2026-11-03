@@ -55,6 +55,15 @@ test('first connected relay queues one catch-up without cursor, survives disconn
   for(const fn of resyncs)fn();assert.equal(catchups,2);current=false;off();hub.dispose();assert.equal(time.pending(),0);assert.equal(statuses.size+resyncs.size,0);
 });
 
+test('a feed primed before the shell\'s first reads needs no catch-up on connect; a resync still catches up', async () => {
+  const time=clock(),hub=new FreshnessHub(time.env);let connected=false,catchups=0;const statuses=new Set<()=>void>(),resyncs=new Set<()=>void>();
+  const events={getStatus:()=>({connected}),subscribeStatus:(fn:()=>void)=>{statuses.add(fn);return()=>statuses.delete(fn);},onResync:(fn:()=>void)=>{resyncs.add(fn);return()=>resyncs.delete(fn);}};
+  const off=attachShellFactFeed(events as never,hub,()=>true,()=>{catchups++;},true);
+  connected=true;for(const fn of statuses)fn();await time.advance(0);assert.equal(catchups,0,'the replay from the primed position covers the gap');
+  for(const fn of resyncs)fn();assert.equal(catchups,1,'a resync is still a catch-up');
+  off();hub.dispose();
+});
+
 test('independent server inputs retain each failure and full floor, even beside a terminal input', async () => {
   const h=harness();h.systemFailure(Object.assign(new Error('system refused'),{status:400}));
   h.preferenceFailure(Object.assign(new Error('preference wait'),{status:429,retryAfterSeconds:7200}));

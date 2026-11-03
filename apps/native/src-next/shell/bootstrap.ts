@@ -260,6 +260,11 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     const documentService = home;
     const identities = new IdentityClient(readers);
     markRestore('first-reads');
+    // The feed's position before the first reads: what changes while they are on their way is
+    // replayed as hints once the feed runs, instead of being missed until the next change.
+    const events = new EventsClient({http: localV1Http(local)});
+    await events.prime(signal.signal);
+    assertCurrent();
     const [librariesResult, initialAccount, initialAvatars, initialPreferences, server] = await Promise.all([
       readers.request(routePath('get_libraries'), 'GET', undefined, signal.signal).then(parseLibraryList).then(value => value.items, error => tolerateLibraryDirectory(error, signal.signal)),
       readers.readAccount(),
@@ -322,7 +327,6 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     const profileOption: ProfileOption = Object.freeze({id: profile.id, name: profile.name, initial: [...profile.name.trim()][0] ?? '', color: profile.art, primary: profile.primary, pinRequired: profile.pinRequired});
     libraries = Object.freeze(librariesResult ?? []); librariesUnavailable = librariesResult === undefined;
     let hasLiveTV = false;
-    const events = new EventsClient({http: localV1Http(local)});
     navigation = new NativeShellNavigation(authority, () => authority,
       (route, origin) => nativeReadRouteAllowed(route, libraries, Platform.isTV, origin), {tabStacks: !Platform.isTV});
     const readOrder = {libraries: new NativeReadOrder(), unread: new NativeReadOrder(), guide: new NativeReadOrder(), identity: new NativeReadOrder()};

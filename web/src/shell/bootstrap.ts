@@ -433,6 +433,9 @@ export class ShellBootstrap {
     cleanups.push(() => auth.stop());
     const events = new EventsClient({http: localV1Http(api), openStream: browserEventStream(api, session.viewer.serverId + ':' + viewerId(session), () => session.accessToken)});
     cleanups.push(() => events.stop());
+    // The feed's position before anything below is read: what changes meanwhile is replayed as hints.
+    const primed = await events.prime(signal);
+    if (!isCurrent()) return;
     const freshness = freshnessFor(api, {serverId: session.viewer.serverId, viewerId: viewerId(session)});
     cleanups.push(() => disposeFreshness(freshness));
     const preferences = new PreferencesReader(api, {serverId: session.viewer.serverId, viewerId: viewerId(session)});
@@ -523,7 +526,7 @@ export class ShellBootstrap {
     }));
     cleanups.push(attachShellFactFeed(events, freshness.hub, isCurrent, () => {
       factOwner?.all(); void inbox.refreshUnread();
-    }));
+    }, primed));
     cleanups.push(factsSource.subscribe(() => {
       if (!isCurrent()) return;
       display.remember(api, facts().serverName);
