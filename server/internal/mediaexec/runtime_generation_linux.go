@@ -9,12 +9,22 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 )
 
 type runtimeGeneration struct {
 	identity string
 	watch    libraryWatch
+	// checked is when the watch was last confirmed current.
+	checked time.Time
 }
+
+// runtimeGenerationRecheck is how long a confirmed generation is trusted
+// before its files are stat'ed again. Confirming one stats every executable,
+// library and alias in the closure (about 600 system calls for a distribution
+// FFmpeg), and playback-options asked on every call: 7% of a busy server's
+// CPU. A replaced binary or library is noticed within this window.
+var runtimeGenerationRecheck = 5 * time.Second
 
 var runtimeGenerations = struct {
 	sync.Mutex
@@ -71,7 +81,7 @@ func rememberRuntimeGeneration(ctx context.Context, key, identity string, watch 
 			break
 		}
 	}
-	runtimeGenerations.entries[key] = runtimeGeneration{identity, watch}
+	runtimeGenerations.entries[key] = runtimeGeneration{identity: identity, watch: watch, checked: time.Now()}
 }
 
 // CachedRuntimeIdentity returns a completed native observation only while its
@@ -88,7 +98,21 @@ func CachedRuntimeIdentity(ctx context.Context, executable string) (string, bool
 	runtimeGenerations.Lock()
 	entry, found := runtimeGenerations.entries[key]
 	runtimeGenerations.Unlock()
-	if !found || !entry.watch.generationCurrent(ctx) || key != runtimeGenerationKey(executable, configuredLibraries()) {
+	if !found {
+		return "", false
+	}
+	if time.Since(entry.checked) >= runtimeGenerationRecheck {
+		if !entry.watch.generationCurrent(ctx) {
+			return "", false
+		}
+		runtimeGenerations.Lock()
+		if current, ok := runtimeGenerations.entries[key]; ok && current.identity == entry.identity {
+			current.checked = time.Now()
+			runtimeGenerations.entries[key] = current
+		}
+		runtimeGenerations.Unlock()
+	}
+	if ctx.Err() != nil || key != runtimeGenerationKey(executable, configuredLibraries()) {
 		return "", false
 	}
 	return entry.identity, true
