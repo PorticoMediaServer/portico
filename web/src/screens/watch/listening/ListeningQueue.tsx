@@ -16,7 +16,7 @@ const t = defaultI18n.t;
 export function ListeningQueue({snapshot, policy, policyBusy, onEdit, onPolicy, onRefresh, onMore, save, window, summary}: Readonly<{
   snapshot: WebQueueListSnapshot; window?: ListeningQueueWindowProps;
   summary?: Readonly<{count: number; durationSeconds?: number; pivot: 'songs' | 'other'}>;
-  policy?: Pick<QueueSnapshot, 'repeat' | 'shuffled'>;
+  policy?: Pick<QueueSnapshot, 'repeat' | 'shuffled' | 'radio'>;
   policyBusy?: boolean;
   onEdit?: (shown: WebQueueListSnapshot, entryId: string, action: 'remove' | -1 | 1) => void;
   onPolicy: (shown: WebQueueListSnapshot, intent: V1QueuePolicyIntent) => void;
@@ -33,7 +33,7 @@ export function ListeningQueue({snapshot, policy, policyBusy, onEdit, onPolicy, 
   return <section className={styles.queue} aria-label={t('player.queue')}>
     {snapshot.error && <Banner action={{label: t('next.states.tryAgain'), onAction: () => onRefresh(snapshot)}}>{t('player.queueSaveChanged')}</Banner>}
     {policy && <div className={styles.policy}>
-      <Button size="small" variant="glass" disabled={busy} aria-pressed={policy.shuffled} onClick={() => onPolicy(snapshot, {action: 'shuffle', shuffled: !policy.shuffled})}>{t(policy.shuffled ? 'player.opt.shuffleOn' : 'player.opt.shuffleOff')}</Button>
+      {!policy.radio && <Button size="small" variant="glass" disabled={busy} aria-pressed={policy.shuffled} onClick={() => onPolicy(snapshot, {action: 'shuffle', shuffled: !policy.shuffled})}>{t(policy.shuffled ? 'player.opt.shuffleOn' : 'player.opt.shuffleOff')}</Button>}
       <Button size="small" variant="glass" disabled={busy} onClick={() => onPolicy(snapshot, {action: 'repeat', repeat: policy.repeat === 'off' ? 'all' : policy.repeat === 'all' ? 'one' : 'off'})}>{t(policy.repeat === 'off' ? 'player.opt.repeatOff' : policy.repeat === 'one' ? 'player.opt.repeatOne' : 'player.opt.repeatAll')}</Button>
     </div>}
     {!window && !snapshot.entries.length && <StateView title={t('player.queueEmpty')}/>}

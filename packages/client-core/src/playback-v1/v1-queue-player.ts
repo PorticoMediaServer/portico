@@ -406,7 +406,7 @@ export class V1QueuePlayer implements QueueController {
     const postPlay: QueuePostPlay = Object.freeze({nextEntryId: next.entryId, available: next.available, reason, countdownSeconds: header.postPlay?.countdownSeconds as 0|5|10|15 ?? 10, autoplay: header.postPlay?.autoplay ?? true, passoutCheckDue: header.postPlay?.passoutCheckDue ?? false, automaticAdvances: header.postPlay?.automaticAdvances ?? 0, startDuringCredits: header.postPlay?.startDuringCredits ?? false});
     const queue: QueueSnapshot = Object.freeze({
       id: header.id, scope: this.scope, revision: header.revision, highestSeenSequence: '0', replayWindow: Object.freeze({results: 256, bodies: 32}),
-      repeat: header.repeat, shuffled: !!header.shuffle, currentEntryId: current?.entryId ?? null, currentPlaybackId: this.session?.id ?? null, entries: Object.freeze(entries),
+      repeat: header.repeat, shuffled: !!header.shuffle, ...(header.segments.some(segment => segment.kind === 'radio') ? {radio: true as const} : {}), currentEntryId: current?.entryId ?? null, currentPlaybackId: this.session?.id ?? null, entries: Object.freeze(entries),
     });
     const projection = queueWindowProjection(header, this.window);
     const view: QueuePlaybackView = Object.freeze({

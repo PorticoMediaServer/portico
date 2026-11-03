@@ -12,6 +12,8 @@ export type QueueEntry = Readonly<{ id: string; removed: boolean } & (
 export type QueueEditReceipt = Readonly<{ operationId:string; sequence:string; disposition:'accepted'|'conflict'; acceptedRevision:string|null; replayed:boolean; bodyCompacted:boolean }>;
 export type QueueSnapshot = Readonly<{
  id: string; scope: QueueScope; revision: string; highestSeenSequence:string; replayWindow:Readonly<{results:256;bodies:32}>; editReceipt?:QueueEditReceipt; repeat: 'off' | 'one' | 'all'; shuffled: boolean;
+ /** A radio segment orders itself: the server refuses Shuffle on it (MU-8), so no client offers it. */
+ radio?: true;
  currentEntryId: string | null; currentPlaybackId: string | null; entries: readonly QueueEntry[];
 }>;
 export type QueueMutation = Readonly<{ operationId: string; sequence:string; expectedRevision: string } & (

@@ -38,7 +38,7 @@ export function ListeningPanels({host, snapshot, reportError, artwork, policyInT
   const durationMs = sameQueue && view?.durationKnown === true ? view.totalDurationMs : undefined;
   const summary = count !== undefined ? {count, pivot: snapshot.presentation?.kind === 'music' ? 'songs' as const : 'other' as const,
     ...(durationMs === undefined ? {} : {durationSeconds: durationMs / 1000})} : undefined;
-  return <ListeningQueue snapshot={list} summary={summary} policy={!policyInTransport && policy ? {repeat: policy.repeat, shuffled: policy.shuffled} : undefined} policyBusy={state.policyBusy}
+  return <ListeningQueue snapshot={list} summary={summary} policy={!policyInTransport && policy ? {repeat: policy.repeat, shuffled: policy.shuffled, ...(policy.radio ? {radio: true as const} : {})} : undefined} policyBusy={state.policyBusy}
     onPolicy={(shown, intent) => inline(() => owner.policy(state, shown, intent))} onRefresh={() => inline(() => owner.reloadQueue(state))}
     window={{artwork, snapshot: state.window, retained: state.retainedWindow, anchor: state.anchor, error: state.queueError, busy: state.policyBusy,
       onRetry: () => inline(() => owner.reloadQueue(state)), onEdit: (page, entryId, action) => inline(() => owner.queueEdit(state, page, entryId, action))}}
