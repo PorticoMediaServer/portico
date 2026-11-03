@@ -96,7 +96,7 @@ test('N3-2: the remote Play/Pause raises hidden controls without pausing, then t
 test('N3-2: a PIN pad holding Play/Pause keeps the player from taking it', async () => {
   const platform = Platform as {OS: string; isTV: boolean}, before = {...platform};
   Object.assign(platform, {OS: 'ios', isTV: true}); tvPlayPause.resetTVPlayPauseForTest();
-  const release = tvPlayPause.claimTVPlayPause();
+  const release = tvPlayPause.registerTVPlayPause('overlay').release;
   const controls = new NativeWatchControls(true), commands: string[] = [];
   const source = {fence, retired: false, dock: {local: {expanded: true}}, queue: {}, capabilities: {play: true, pause: true, seek: true}, playback: {intent: 'playing', positionSeconds: 17, duration: 100}};
   controls.source(fence, {expanded: true, autoHide: true, hiddenByPanel: false, paused: false, scrubbing: false, focusHeld: false});

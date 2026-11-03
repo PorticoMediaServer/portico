@@ -1,7 +1,7 @@
 import React, {useEffect, useRef} from 'react';
 import {Text, View} from 'react-native';
 import {useTVKeyEvent} from '../../platform/tv-keys';
-import {claimTVPlayPause} from '../../platform/tv-play-pause';
+import {useTVPlayPauseOwner} from '../../platform/tv-play-pause-owner';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {ProfileOption} from '../../kit/artwork';
 import {FocusProvider} from '../../kit/focus';
@@ -43,8 +43,8 @@ function ProfilePINForm(props: TVProfilePINFormProps) {
   useEffect(() => {if (!props.code) submitted.current = undefined;}, [props.code]);
   const remove = () => {if (!props.busy) {submitted.current = undefined; props.onCodeChange(props.code.slice(0, -1));}};
   // F-PROFILE-30: Play/Pause deletes a digit here, so playback never takes it.
-  useEffect(claimTVPlayPause, []);
-  useTVKeyEvent(event => {if (event.key === 'playPause' && event.phase === 'press') remove();});
+  const ownsPlayPause = useTVPlayPauseOwner('overlay');
+  useTVKeyEvent(event => {if (event.key === 'playPause' && event.phase === 'press' && ownsPlayPause()) remove();});
   const digit = (value: string) => {
     if (props.busy || props.code.length >= 4 || !/^\d$/.test(value)) return;
     const next = props.code + value;
