@@ -111,10 +111,10 @@ func RememberForRequest[T any](ctx context.Context, tx *sql.Tx, key string, clon
 // readSnapshots holds the read-only transactions dbwork opened and has not yet
 // ended. Only those may reuse a remembered answer: a transaction opened any
 // other way might have written, and must see its own writes.
-var readSnapshots sync.Map // *sql.Tx -> struct{}
+var readSnapshots sync.Map // *sql.Tx -> *snapshotMemo
 
 func registerReadSnapshot(tx *sql.Tx) func() {
-	readSnapshots.Store(tx, struct{}{})
+	readSnapshots.Store(tx, &snapshotMemo{})
 	return func() { readSnapshots.Delete(tx) }
 }
 
@@ -127,4 +127,63 @@ func readSnapshotTx(tx *sql.Tx) bool {
 	}
 	_, ok := readSnapshots.Load(tx)
 	return ok
+}
+
+// snapshotMemo holds answers computed inside one read snapshot.
+type snapshotMemo struct {
+	mu      sync.Mutex
+	entries map[string]any
+}
+
+var snapshotMemoHits atomic.Uint64
+
+// SnapshotMemoHits counts reads a snapshot answered from RememberInSnapshot.
+func SnapshotMemoHits() uint64 { return snapshotMemoHits.Load() }
+
+// RememberInSnapshot returns what fn answered for key earlier in the same
+// read-only snapshot, or asks fn and keeps a successful answer for the rest of
+// that snapshot. A snapshot sees one state of the database, so a read repeated
+// in it can only give the same answer: unlike RememberForRequest this changes
+// nothing a caller can observe, and it applies to any read, not only authority.
+// Outside a read-only snapshot dbwork opened (a write, a raw handle) fn runs
+// every time. clone copies a kept value before it is handed out; nil means it
+// has no shared parts.
+func RememberInSnapshot[T any](tx *sql.Tx, key string, clone func(T) T, fn func() (T, error)) (T, error) {
+	if tx == nil {
+		return fn()
+	}
+	if _, write := liveWrites.Load(tx); write {
+		return fn()
+	}
+	value, ok := readSnapshots.Load(tx)
+	if !ok {
+		return fn()
+	}
+	memo := value.(*snapshotMemo)
+	memo.mu.Lock()
+	kept, found := memo.entries[key]
+	memo.mu.Unlock()
+	if found {
+		snapshotMemoHits.Add(1)
+		answer := kept.(T)
+		if clone != nil {
+			answer = clone(answer)
+		}
+		return answer, nil
+	}
+	answer, err := fn()
+	if err != nil {
+		return answer, err
+	}
+	stored := answer
+	if clone != nil {
+		stored = clone(answer)
+	}
+	memo.mu.Lock()
+	if memo.entries == nil {
+		memo.entries = map[string]any{}
+	}
+	memo.entries[key] = stored
+	memo.mu.Unlock()
+	return answer, nil
 }
