@@ -40,6 +40,8 @@ export type InboxSnapshot=Readonly<{
  error?:string;
 }>;
 
+/** The first page's size, and the most the server returns in one page. */
+const PAGE=50,MAX_PAGE=100;
 const noCounts:NotificationCounts=Object.freeze({unread:0,read:0,archived:0,total:0});
 const data=(raw:unknown):unknown=>raw&&typeof raw==='object'&&'data' in (raw as Record<string,unknown>)?(raw as Record<string,unknown>).data:raw;
 // A transport failure ("Failed to fetch") is not something to show a person; the server's own
@@ -83,6 +85,8 @@ export class InboxService{
  private pageToken=0;
  private reading=false;
  private moreFlight?:InboxMore;
+ // The newest revision a `notification.changed` hint named that this view has not read yet.
+ private pending?:number;
  constructor(api:InboxApi,operationId:()=>string=()=>randomId(),options:InboxServiceOptions={}){this.api=api;this.operationId=operationId;this.options=options;}
  getSnapshot=()=>this.state;
  subscribe=(fn:()=>void)=>{this.listeners.add(fn);return()=>{this.listeners.delete(fn);};};
@@ -90,7 +94,34 @@ export class InboxService{
  dispose(){this.disposed=true;this.generation++;this.controller?.abort();this.unreadController?.abort();this.retireFlight();this.retireMore();this.retirePage();this.listeners.clear();}
 
  /** Loads the first page of a view. What is on screen stays until the new page arrives. */
- async load(audience:NotificationAudience=this.state.audience,view:InboxView=this.state.view):Promise<void>{
+ async load(audience:NotificationAudience=this.state.audience,view:InboxView=this.state.view):Promise<void>{return this.read(audience,view,PAGE);}
+ /**
+  * A `notification.changed` hint (OW-5): quietly reread the view on screen, keeping its rows
+  * until the new page arrives. A revision this page already holds (the echo of its own write)
+  * reads nothing. While a read, a continuation or a write is out, one reread follows it rather
+  * than cancelling it. A view that has paged on rereads as many rows as it shows, up to the
+  * server's page limit. `revision` is the event's own (a decimal string); without one, or on a
+  * stream resync, the view is reread.
+  */
+ refresh(revision?:string):void{
+  if(this.disposed||this.state.phase==='idle')return;
+  const named=revision!==undefined&&/^[0-9]{1,15}$/.test(revision)?Number(revision):undefined;
+  const wanted=named??Infinity;
+  if(wanted<=this.state.revision)return;
+  this.pending=Math.max(this.pending??0,wanted);
+  this.settle();
+ }
+ /** Runs the reread a hint asked for once nothing else is out. */
+ private settle(){
+  if(this.disposed||this.pending===undefined||this.reading||this.moreFlight||this.flight?.phase==='inflight')return;
+  const wanted=this.pending;this.pending=undefined;
+  if(wanted<=this.state.revision)return;
+  void this.read(this.state.audience,this.state.view,Math.min(MAX_PAGE,Math.max(PAGE,this.state.items.length)));
+ }
+ private firstPage(audience:NotificationAudience,view:InboxView,limit:number,signal:AbortSignal){
+  return this.api.request<RouteResponse<"get_notifications_inbox">>(routePath("get_notifications_inbox") + "?audience=" + (encodeURIComponent(audience)) + "&state=" + (view) + "&limit=" + limit,'GET',undefined,signal);
+ }
+ private async read(audience:NotificationAudience,view:InboxView,limit:number):Promise<void>{
   if(this.disposed)return;
   // A new page retires the write and the admitted page identity at once. The
   // rows stay on screen, but nothing is admitted to write against until this
@@ -101,14 +132,14 @@ export class InboxService{
   this.publish({phase:this.state.items.length&&same?'ready':'loading',audience,view,busy:false,error:undefined,...(same?{}:{items:[],more:false})});
   try{
    if(!this.readCurrent(generation,controller))return;
-   const inbox=parseNotificationInbox(data(await this.api.request<RouteResponse<"get_notifications_inbox">>(routePath("get_notifications_inbox") + "?audience=" + (encodeURIComponent(audience)) + "&state=" + (view) + "&limit=50",'GET',undefined,controller.signal)));
+   const inbox=parseNotificationInbox(data(await this.firstPage(audience,view,limit,controller.signal)));
    if(!this.readCurrent(generation,controller))return;
    this.adopt(inbox,audience,view);
    void this.refreshUnread();
   }catch(e){
    if(generation!==this.generation||controller.signal.aborted)return;
    this.publish({phase:this.state.items.length?'ready':'error',error:message(e,'notifications.error.load')});
-  }finally{if(generation===this.generation)this.reading=false;}
+  }finally{if(generation===this.generation){this.reading=false;this.settle();}}
  }
  async more():Promise<void>{
   if(this.disposed||this.reading||this.flight||this.moreFlight||!this.page||!this.cursor)return;
@@ -121,7 +152,7 @@ export class InboxService{
    // or dispatch a retained continuation against the replacement view.
    if(!this.moreCurrent(flight))return;
    const {audience,view,cursor,controller}=flight;
-   const inbox=parseNotificationInbox(data(await this.api.request<RouteResponse<"get_notifications_inbox">>(routePath("get_notifications_inbox") + "?audience=" + (encodeURIComponent(audience)) + "&state=" + (view) + "&limit=50&cursor=" + (encodeURIComponent(cursor)),'GET',undefined,controller.signal)));
+   const inbox=parseNotificationInbox(data(await this.api.request<RouteResponse<"get_notifications_inbox">>(routePath("get_notifications_inbox") + "?audience=" + (encodeURIComponent(audience)) + "&state=" + (view) + "&limit=" + PAGE + "&cursor=" + (encodeURIComponent(cursor)),'GET',undefined,controller.signal)));
    if(!this.moreCurrent(flight))return;
    this.moreFlight=undefined;
    this.cursor=inbox.nextCursor;
@@ -135,6 +166,7 @@ export class InboxService{
   }finally{
    if(this.moreFlight===flight)this.moreFlight=undefined;
    flight.controller.abort();
+   this.settle();
   }
  }
  /** Applies a change pushed by the event stream or long poll. */
@@ -165,6 +197,7 @@ export class InboxService{
   const next=before.items.map(n=>!chosen.has(n.id)?n:action==='read'?{...n,read:true,readAt:n.readAt??now}:action==='unread'?{...n,read:false,readAt:null}:action==='archive'?{...n,archived:true,archivedAt:now}:{...n,archived:false,archivedAt:null});
   this.publish({items:this.visible(next),error:undefined});
   await this.dispatch(flight,before);
+  this.settle();
  }
  async readAll():Promise<void>{
   if(this.disposed)return;
@@ -173,6 +206,7 @@ export class InboxService{
   const before=this.state,now=serverNow();
   this.publish({items:this.visible(before.items.map(n=>n.read?n:{...n,read:true,readAt:now})),error:undefined});
   await this.dispatch(flight,before);
+  this.settle();
  }
  /**
   * Claims the view's one write flight. Undefined means nothing is sent: no page
@@ -282,12 +316,12 @@ export class InboxService{
   this.publish({items:before.items,counts:before.counts,error:notice,busy:false});
   try{
    if(!this.readCurrent(generation,controller))return;
-   const inbox=parseNotificationInbox(data(await this.api.request<RouteResponse<"get_notifications_inbox">>(routePath("get_notifications_inbox") + "?audience=" + (encodeURIComponent(audience)) + "&state=" + (view) + "&limit=50",'GET',undefined,controller.signal)));
+   const inbox=parseNotificationInbox(data(await this.firstPage(audience,view,PAGE,controller.signal)));
    if(!this.readCurrent(generation,controller))return;
    this.adopt(inbox,audience,view,notice);
    void this.refreshUnread();
   }catch{/* the rows and the conflict copy stay as they are */}
-  finally{if(generation===this.generation)this.reading=false;}
+  finally{if(generation===this.generation){this.reading=false;this.settle();}}
  }
  private adopt(inbox:NotificationInbox,audience:NotificationAudience,view:InboxView,notice?:string){
   this.admit(inbox.revision,audience,view);
