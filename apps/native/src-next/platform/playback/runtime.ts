@@ -59,7 +59,7 @@ import {nativeListeningFor, serverPlaybackV1Kinds} from './native-listening-kind
 import {selectionSegments, selectionStartSeconds} from './selection';
 import type {VideoSnapshotCapture, VideoSnapshotSource} from '../video-snapshot';
 import {retainNativeVideoExitImage} from './video-exit-permission';
-import type {NativeExternalPresentationLifetime, NativePictureInPictureState, NativePlaybackReadLifetime, NativeListeningReadPort, NativeOfflinePlaybackLifetime, NativePlaybackStart, NativePlaybackChannelStart, NativePlaybackVersionSelection, NativePlaybackRuntimeOptions, NativePlaybackRuntimeSnapshot, NativePlaybackVideoSnapshot, NativePlaybackStarting, NativePlaybackStartTimedOut, NativeStartDisplay, PlaybackAuthority} from './types';
+import type {NativeExternalPresentationLifetime, NativePictureInPictureState, NativePlaybackReadLifetime, NativeListeningReadPort, NativeOfflinePlaybackLifetime, NativePlaybackStart, NativeSleepChoice, NativeSleepEnd, NativePlaybackChannelStart, NativePlaybackVersionSelection, NativePlaybackRuntimeOptions, NativePlaybackRuntimeSnapshot, NativePlaybackVideoSnapshot, NativePlaybackStarting, NativePlaybackStartTimedOut, NativeStartDisplay, PlaybackAuthority} from './types';
 
 const authorityKey = (value: PlaybackAuthority) => JSON.stringify([value.serverId, value.accountId, value.profileId, value.epoch, value.privacyFence ?? value.viewerFence]);
 /** The retained binding a native view reports, compared field by field. */
@@ -1785,7 +1785,25 @@ export class NativePlaybackRuntime {
   updateRemote = async (value: RemoteDock): Promise<void> => { if (this.active()) await this.onTransition(this.dock.remote(value, Date.now())); };
   dismissRemote = async (id: string): Promise<void> => { if (this.active()) await this.onTransition(this.dock.dismissRemote(id)); };
   continueHere = async (id: string): Promise<void> => { if (this.active()) await this.onTransition(this.dock.continueHere(id)); };
-  setSleepTimer = async (fence: PlaybackFence, minutes: number | null): Promise<void> => { if (this.matches(fence)) await this.playback.setListeningDeadline('sleep', minutes); };
+  setSleepTimer = async (fence: PlaybackFence, choice: NativeSleepChoice): Promise<void> => {
+    if (!this.matches(fence)) return;
+    if (typeof choice === 'string') {
+      // The end of this title, chapter or book: the listening service verifies chapter timing and
+      // the book's order before it arms (MU-6). A minutes deadline gives way to it.
+      if (!['item', 'chapter', 'book'].includes(choice)) throw new Error(serviceText('queuePlayer.unsupported'));
+      await this.playback.setListeningDeadline('sleep', null);
+      await this.queue.listening.setTimer(choice);
+    } else {
+      if (this.queue.listening.getSnapshot().timer) this.queue.listening.clearTimer();
+      await this.playback.setListeningDeadline('sleep', choice);
+    }
+    this.changed();
+  };
+  sleepEnd = (fence: PlaybackFence): NativeSleepEnd | undefined => {
+    if (!this.matches(fence)) return undefined;
+    const choice = this.queue.listening.getSnapshot().timer?.choice;
+    return choice === 'item' || choice === 'chapter' || choice === 'book' ? choice : undefined;
+  };
   stop = async (fence: PlaybackFence): Promise<void> => { if (this.matches(fence)) await this.onTransition(this.dock.close(fence)); };
   open = (fence: PlaybackFence): void => { if (this.matches(fence)) { this.expanded = true; this.dock.expand(fence); this.applyOptions(); this.publish(); } };
   collapse = (fence: PlaybackFence): void => { if (this.matches(fence)) { this.expanded = false; this.dock.collapse(fence); this.applyOptions(); this.publish(); } };
