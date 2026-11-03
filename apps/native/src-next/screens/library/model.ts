@@ -8,6 +8,7 @@ import {LibraryContentService, type ContentEntry, type ContentScope, type Librar
 import {libraryTabs, type LibraryTab, type LibraryTabId} from '../../../../../packages/client-core/src/presentation/library-tabs';
 import {NativeLibraryFilterDraft} from './filters';
 import type {NativeLibraryOpening} from './opening';
+import {viewerQueriesFor} from '../../shell/freshness';
 
 export const nativeLibraryEntryKey = (entry: ContentEntry): string => JSON.stringify([entry.kind, entry.libraryId, entry.id]);
 const cancelled = () => Object.assign(new Error('native_library_retired'), {name: 'AbortError'});
@@ -72,7 +73,8 @@ export class NativeLibraryDestination {
 
   constructor(options: NativeLibraryDestination['options']) {
     this.options = options;
-    this.discover = new LibraryContentService({api: {request: this.request}, scope: options.scope});
+    // Discover's pages live in the viewer's cache (the shell's API), so the hub keeps them current.
+    this.discover = new LibraryContentService({queries: viewerQueriesFor(options.api, options.scope), scope: options.scope});
     const tabs = libraryTabs(options.library.kind);
     const offered = options.initial ? tabs.find(value => value.pivot === options.initial!.definition.pivot) : undefined;
     this.initialOffered = !!offered;

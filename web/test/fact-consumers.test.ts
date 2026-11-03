@@ -229,14 +229,9 @@ test('Browse and Show committed adapters keep the original services and forward 
     const f = fixture(), h = createRenderer();let received: ScreenContext | undefined, constructed = 0, disposed = 0;
     const context = withQueries({api: f.api, events: f.context.events, scope: {serverId: 'server', viewerId: 'viewer'}, artwork: {}, isCurrent: f.context.isCurrent,
       get identity() {return f.context.facts.identity;}, subscribeIdentity: (listener: () => void) => subscribeFacts(f.context, listener), preferences: {getSnapshot: () => preferences, subscribe: () => () => {}}, effects: {reportError() {}}}) as unknown as ScreenContext;
-    // Stable per viewer, as the real freshness runtime's page memory is.
-    const pageMemory = {remember() {}, recall: () => undefined, forget() {}};
     const file = kind === 'browse' ? '../src/screens/browse/useBrowseLease.ts' : '../src/screens/detail/use-show-route.ts';
     const module = await componentModule(new URL(file, import.meta.url), {react: h.react, '../detail/context': {forwardIdentity, screenLifetime}, './context': {forwardIdentity},
       './controller': {BrowseController: class {constructor() {constructed++;}dispose() {disposed++;}}},
-      // The committed show opening now also keeps the page it drew in the viewer's memory, so
-      // the adapter reads its service's snapshot and subscribes to it; the stub supplies both.
-      '../../platform/freshness': {usePageMemory: () => pageMemory},
       './show-bindings': {createShowBindings: (screen: ScreenContext) => {received = screen;constructed++;
         return {select: async () => {}, dispose() {disposed++;}, service: {getSnapshot: () => ({phase: 'idle'}), subscribe: () => () => {}}};}},
       './episode-selection': {createEpisodeSelection: () => ({start() {}, dispose() {}})}});

@@ -205,6 +205,8 @@ export async function walkProbe(api: HttpLocalApi, input: ProbeInput): Promise<P
   let profileId = input.profileId;
   let role = input.role;
   const scopeOf = () => ({serverId, viewerId});
+  // The services read through a viewer cache, as in the apps, over the probe's own APIs so every read is recorded.
+  const cacheOver = (over: Parameters<typeof createViewerQueries>[0]['api']) => createViewerQueries({scope: scopeOf(), hub: new FreshnessHub(), api: over, gcTimeMs: Infinity});
 
   // 1. System and identity.
   const system = await rec.check('system', 'system', 'GET', '/v1/system', () => api.system()) as {id?: unknown} | undefined;
@@ -252,7 +254,7 @@ export async function walkProbe(api: HttpLocalApi, input: ProbeInput): Promise<P
     {items?: {id: string; name?: string; kind?: string}[]} | undefined;
   const libs = Array.isArray(libraries?.items) ? libraries.items.slice(0, MAX_LIBRARIES) : [];
   const collected: CollectedEntry[] = [];
-  const contentSvc = new LibraryContentService({api: contentApi, scope: scopeOf(), pageSize: 40});
+  const contentSvc = new LibraryContentService({queries: cacheOver(contentApi), scope: scopeOf(), pageSize: 40});
   async function selectContent(area: string, name: string, libraryId: string, route: ContentRoute): Promise<ContentProjection | undefined> {
     const path = route.view === 'home' ? `/v1/content?view=home&limit=12` : contentPath(libraryId, route, 40);
     try {
@@ -348,8 +350,7 @@ export async function walkProbe(api: HttpLocalApi, input: ProbeInput): Promise<P
   }
 
   // 4. Entities.
-  // The title is read through a viewer cache, as in the apps, over the probe's own API so every read is recorded.
-  const detailSvc = new DetailService({queries: createViewerQueries({scope: scopeOf(), hub: new FreshnessHub(), api, gcTimeMs: Infinity}), api, scope: scopeOf(), requestId});
+  const detailSvc = new DetailService({queries: cacheOver(api), api, scope: scopeOf(), requestId});
   const personIds = new Set<string>();
   const showTargets: {libraryId: string; showId: string}[] = [];
   const playable: {libraryId: string; itemId: string}[] = [];
@@ -389,7 +390,7 @@ export async function walkProbe(api: HttpLocalApi, input: ProbeInput): Promise<P
       fetchItemRecommendations(api, itemId, limit));
     if (entry.kind === 'show') showTargets.push({libraryId: entry.libraryId, showId: itemId});
   }
-  const showSvc = new ShowWorkspaceService({api: contentApi, scope: scopeOf()});
+  const showSvc = new ShowWorkspaceService({queries: cacheOver(contentApi), scope: scopeOf()});
   for (const target of showTargets.slice(0, limit)) {
     const path = `/v1/libraries/${encodeURIComponent(target.libraryId)}/show-workspace?showId=${encodeURIComponent(target.showId)}`;
     try {
