@@ -27,6 +27,7 @@ func niceOf(t *testing.T, tid int) int {
 // reports the thread it ran on and that thread's nice value.
 func observingHelper(t *testing.T) {
 	t.Helper()
+	useLowPriorityThreads(t)
 	previous := inProcessHelper
 	inProcessHelper = func(_ io.Reader, out io.Writer) error {
 		tid := unix.Gettid()

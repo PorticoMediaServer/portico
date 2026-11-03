@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/supervise"
 )
@@ -109,7 +110,7 @@ func runInProcess(ctx context.Context, data []byte, consume func(io.Reader) erro
 		err = inProcessHelper(bytes.NewReader(data), writer)
 	}
 	supervise.Go("storage.in-process", func() {
-		if background {
+		if background && !lowPriorityInline {
 			runLowPriority(serve)
 			return
 		}
@@ -174,6 +175,15 @@ func selfHelper(binary string) bool {
 	}
 	return binary == self.path
 }
+
+// lowPriorityInline runs background in-process work on the caller's own
+// goroutine, at normal priority, in test binaries. A testing/synctest bubble
+// can't hand its work to these threads: they would be started inside the
+// first bubble that used them and never exit (a deadlock when its test
+// returns), and every job carries the caller's pipe and context, whose
+// channels and timers can't be used from outside the bubble. The pool's own
+// tests opt back in (useLowPriorityThreads).
+var lowPriorityInline = testing.Testing()
 
 // lowPriorityThreads is how many dedicated threads serve background in-process
 // operations; more wait their turn. Admission already bounds background work
