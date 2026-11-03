@@ -140,7 +140,7 @@ function MagazineIssues({state, controller, theme, runtime, tablet, width, onOpe
 }) {
   const list = useRef<FlatList<MagazineRow>>(null), [headerHeight, setHeaderHeight] = useState(0), [visibleRows, setVisibleRows] = useState<readonly MagazineRow[]>([]);
   const shelfOffsets = useRef(new Map<string, {offset: number}>()).current;
-  const cardWidth = tablet ? 150 : Math.max(1, (width - 40 - 20) / 3), artHeight = cardWidth * 4 / 3, rowHeight = artHeight + 66;
+  const cardWidth = tablet ? 150 : Math.max(1, Math.min(150, (width - 40 - 20) / 3)), artHeight = cardWidth * 4 / 3, rowHeight = artHeight + 66;
   const rows = useMemo(() => state.years.flatMap(year => {
     const section = state.yearSections?.find(value => value.year === year.value), items = section?.items ?? [];
     const rows: MagazineRow[] = [{key: `${year.value}:heading`, year: year.value, kind: 'heading', index: -1, items: []}];
@@ -357,7 +357,7 @@ function IssueCard({issue, width, height, theme, runtime, onOpen, offer, actions
 }
 
 function PeriodicalSkeleton({magazine, tablet, width, top}: {magazine: boolean; tablet: boolean; width: number; top: number}) {
-  const cover = tablet ? 190 : 120, cell = tablet ? 150 : Math.max(1, (width - 60) / 3);
+  const cover = tablet ? 190 : 120, cell = tablet ? 150 : Math.max(1, Math.min(150, (width - 60) / 3));
   const preview = tablet ? width >= 900 ? Math.min(400, width * .42) : 250 : Math.max(1, width - 32);
   return <View style={{paddingTop: top, paddingHorizontal: tablet ? 28 : 20}}>
     <View style={{flexDirection: 'row', alignItems: 'flex-end', gap: tablet ? 28 : 18}}>

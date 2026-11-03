@@ -83,7 +83,7 @@ function GenreGrid({focusScope, destination, runtime, actions, owner, labels, op
   const model = useMemo(() => browseToolbarModel(source.capabilities!, source.capabilities!.library.kind, source.predicates, source.sort!, {t, locale, textEntry: true, owner}),
     [owner, t, locale, source.capabilities, source.predicates, source.sort]);
   const [first, setFirst] = useState(destination.getMemory().firstVisibleIndex), offset = useRef(destination.getMemory().offset);
-  const width = theme.platform === 'phone' ? (dimensions.width - 16 - 30 - 20) / 3 : 148;
+  const width = theme.platform === 'phone' ? Math.min(148, (dimensions.width - 16 - 30 - 20) / 3) : 148;
   const pageSubscribe = useCallback((listener: () => void) => collection.subscribePage(collection.pageOf(first), listener), [collection, first]);
   const pageVersion = useCallback(() => collection.getPageVersion(collection.pageOf(first)), [collection, first]);
   useSyncExternalStore(pageSubscribe, pageVersion);

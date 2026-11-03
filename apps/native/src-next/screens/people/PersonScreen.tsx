@@ -35,7 +35,8 @@ export function PersonScreen({focusScope, page, role, collection, runtime, actio
   const selectionRevision = useSyncExternalStore(selection?.subscribe ?? (() => () => {}), selection?.getSnapshot ?? (() => 0));
   useSyncExternalStore(actions.menuState.subscribe, actions.menuState.getSnapshot);
   const theme = useTheme(), dimensions = useWindowDimensions(), insets = useSafeAreaInsets();
-  const columns = theme.platform === 'phone' ? 3 : Math.max(3, Math.floor((dimensions.width - 40) / 150));
+  // N2-4: an upright phone is 3 columns; held sideways it gains columns rather than larger cards.
+  const columns = Math.max(3, Math.floor((dimensions.width - 40) / 150));
   const width = (dimensions.width - 32 - (columns - 1) * 10) / columns;
   const [range, setRange] = useState({first: 0, last: columns * 4 - 1});
   const [expanded, setExpanded] = useState(false), [sharing, setSharing] = useState(false), shareAnchor = useRef<View>(null);
