@@ -27,11 +27,14 @@ func prepareInfoOwnerTargetTx(ctx context.Context, tx *sql.Tx, asset int64, toke
 		return true, nil
 	}
 	if !missing && c.phase == 0 {
-		var typed bool
-		if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM catalog_info_input_witnesses WHERE change_id=?)`, c.id).Scan(&typed); err != nil {
+		// An abandoned (reclaiming) or frozen input belongs to recovery, which
+		// keeps its walk cursor in copy_family: it has no owner to choose, and
+		// marking one would restart that walk on every turn.
+		var typed, recovering bool
+		if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM catalog_info_input_witnesses WHERE change_id=?),copy_aux<0 FROM catalog_info_changes WHERE id=?`, c.id, c.id).Scan(&typed, &recovering); err != nil {
 			return false, err
 		}
-		if typed || c.familyMask != 0 {
+		if typed || recovering || c.familyMask != 0 {
 			return true, nil
 		}
 	}
@@ -84,7 +87,7 @@ func prepareInfoOwnerTargetTx(ctx context.Context, tx *sql.Tx, asset int64, toke
 	if err = tx.QueryRowContext(ctx, `SELECT cap_bytes-used_bytes>=2*length(CAST(? AS BLOB))+length(CAST(? AS BLOB)) FROM catalog_info_input_budget WHERE singleton=1`, chosen.String, revision.String).Scan(&room); err != nil || !room {
 		return false, err
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE catalog_info_changes SET target_owner_object=?,target_owner_revision=?,copy_family=1 WHERE id=? AND phase IN(0,1)`, chosen, revision, c.id)
+	_, err = tx.ExecContext(ctx, `UPDATE catalog_info_changes SET target_owner_object=?,target_owner_revision=?,copy_family=1 WHERE id=? AND phase IN(0,1) AND copy_aux>=0`, chosen, revision, c.id)
 	return err == nil, err
 }
 

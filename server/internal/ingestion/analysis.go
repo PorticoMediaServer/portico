@@ -18,6 +18,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
 	"github.com/PorticoMediaServer/portico/server/internal/subtitles"
 	"github.com/PorticoMediaServer/portico/server/internal/supervise"
+	"log"
 	"path/filepath"
 	"reflect"
 	"strconv"
@@ -613,7 +614,7 @@ func (s *Service) analyzeOne(parent context.Context, job string, source catalog.
 					s.keepAccepted(accepted, a.facts, a.completed)
 					return nil
 				}
-				return s.analysisOutcome(parent, job, object, revision, queuedPolicy, true, "analysis_publication_failed")
+				return s.publicationFailed(parent, job, object, revision, queuedPolicy, err)
 			}
 			if receipt.State != compactcatalog.InfoInputApplied {
 				s.keepAccepted(accepted, a.facts, a.completed)
@@ -677,7 +678,7 @@ func (s *Service) analyzeOne(parent context.Context, job string, source catalog.
 			if errors.Is(err, context.Canceled) {
 				return nil
 			}
-			return s.analysisOutcome(parent, job, object, revision, queuedPolicy, true, "analysis_publication_failed")
+			return s.publicationFailed(parent, job, object, revision, queuedPolicy, err)
 		}
 		return nil
 	}
@@ -835,7 +836,7 @@ func (s *Service) analyzeOne(parent context.Context, job string, source catalog.
 			}
 			return nil
 		}
-		return s.analysisOutcome(parent, job, object, revision, queuedPolicy, true, "analysis_publication_failed")
+		return s.publicationFailed(parent, job, object, revision, queuedPolicy, err)
 	}
 	if receipt.State != compactcatalog.InfoInputApplied {
 		if !descriptor && !before.Directory {
@@ -1011,7 +1012,7 @@ func (s *Service) refreshLocalMetadata(parent, ctx context.Context, job, object,
 		if infoPublicationDeferred(err) {
 			return nil
 		}
-		return s.analysisOutcome(parent, job, object, revision, queuedPolicy, true, "analysis_publication_failed")
+		return s.publicationFailed(parent, job, object, revision, queuedPolicy, err)
 	}
 	if receipt.State != compactcatalog.InfoInputApplied {
 		return nil
@@ -1356,4 +1357,12 @@ func finishScanTx(ctx context.Context, tx *sql.Tx, job, source string) error {
 // remain queued. They are not probe failures and may not acknowledge analysis.
 func infoPublicationDeferred(err error) bool {
 	return errors.Is(err, context.Canceled) || errors.Is(err, compactcatalog.ErrInfoInputBusy) || errors.Is(err, compactcatalog.ErrInfoInputDeferred) || errors.Is(err, compactcatalog.ErrInfoPreparing) || errors.Is(err, catalog.ErrDiscSelectionChanged)
+}
+
+// publicationFailed records an analysis the catalogue refused for a reason
+// that is not a deferral, and logs that reason: the warning alone names no
+// cause, and a refused publication can leave an input for recovery to reclaim.
+func (s *Service) publicationFailed(ctx context.Context, job, object, revision string, policy int64, cause error) error {
+	log.Printf("library scan %s: analysis of %s was not published: %v", job, object, cause)
+	return s.analysisOutcome(ctx, job, object, revision, policy, true, "analysis_publication_failed")
 }
