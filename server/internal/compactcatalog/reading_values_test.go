@@ -227,10 +227,20 @@ func TestReadingPathRuling45Vectors(t *testing.T) {
 		{"ambiguous", []string{"Isaac Asimov/Foundation.epub"}, []int64{1}, "Isaac Asimov", "", nil},
 		{"filename-author", []string{"Isaac Asimov/Isaac Asimov - Foundation.epub"}, []int64{1}, "Isaac Asimov", "", nil},
 		{"nemo", []string{"Little Nemo/Little Nemo 01.cbz", "Little Nemo/02.cbz"}, []int64{1, 2}, "", "Little Nemo", []float64{1, 2}},
-		{"not-every-title", []string{"Dune/Dune.epub", "Dune/Children of Dune.epub"}, []int64{1, 2}, "Dune", "", nil},
+		{"author-folder", []string{"Dune/Children of Dune.epub", "Dune/Dune Messiah.epub"}, []int64{1, 2}, "Dune", "", nil},
+		// DECISIONS 2 Nov 2026 (replacing §45 rule 3): a folder's role comes from
+		// the layout alone. One book in Author/Series is still author and series.
+		{"one-book-series", []string{"Brandon Sanderson/Mistborn/Book 1 - The Final Empire.epub"}, []int64{1}, "Brandon Sanderson", "Mistborn", []float64{1}},
+		{"two-book-series", []string{"Brandon Sanderson/Mistborn/Book 1 - The Final Empire.epub", "Brandon Sanderson/Mistborn/Book 2 - The Well of Ascension.epub"}, []int64{1, 2}, "Brandon Sanderson", "Mistborn", []float64{1, 2}},
+		{"numbered-book-under-author", []string{"Brandon Sanderson/Book 1 - The Final Empire.epub"}, []int64{1}, "Brandon Sanderson", "", nil},
+		{"one-numbered-issue", []string{"Batman/Batman 001.cbz"}, []int64{1}, "", "Batman", []float64{1}},
+		{"two-numbered-issues", []string{"Batman/Batman 001.cbz", "Batman/Batman 002.cbz"}, []int64{1, 2}, "", "Batman", []float64{1, 2}},
 		{"deep", []string{"A/B/C/One.epub", "A/B/C/Two.epub"}, []int64{1, 2}, "B", "C", nil},
 		{"formats-once", []string{"Dune/Dune.epub", "Dune/Dune.pdf"}, []int64{1, 1}, "", "", nil},
-		{"generic-deep", []string{"Books/Sci-fi/Frank Herbert/Dune.epub"}, []int64{1}, "Frank Herbert", "", nil},
+		{"generic-deep", []string{"Books/Frank Herbert/Dune.epub"}, []int64{1}, "Frank Herbert", "", nil},
+		// The accepted trade-off of the same ruling: a genre folder above an
+		// author folder reads as the author, the author folder as the series.
+		{"genre-above-author", []string{"Books/Sci-fi/Frank Herbert/Dune.epub"}, []int64{1}, "Sci-fi", "Frank Herbert", nil},
 		{"generic-only", []string{"Ebooks/Foundation.epub"}, []int64{1}, "", "", nil},
 		{"root-tags", []string{"Some Book [Group] (Digital).epub"}, []int64{1}, "", "", nil},
 	}

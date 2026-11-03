@@ -363,7 +363,7 @@ func normalizePathObjectTx(ctx context.Context, tx *sql.Tx, id string, v pathObj
 		}
 	}
 	input := ReadingRuleInput{Item: v.Item, SourceRoot: v.Source, RelativePath: filepath.ToSlash(v.Relative), Kind: v.Kind}
-	values, err := ReadingPathValue(input, 1, false)
+	values, err := ReadingPathValue(input)
 	if err != nil {
 		return err
 	}
@@ -1464,7 +1464,7 @@ func pathStageStep(ctx context.Context, tx *sql.Tx, b pathBuild, s pathScope, li
 		return 1, err
 	}
 	for _, v := range batch {
-		values, e := ReadingPathValue(ReadingRuleInput{Item: v.item, SourceRoot: s.Source, RelativePath: filepath.ToSlash(v.relative), Kind: v.kind}, int(min(b.Titles, 2)), b.NonSeries == 0)
+		values, e := ReadingPathValue(ReadingRuleInput{Item: v.item, SourceRoot: s.Source, RelativePath: filepath.ToSlash(v.relative), Kind: v.kind})
 		if e != nil {
 			return 0, e
 		}
