@@ -6,6 +6,8 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
+	"log"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -70,14 +72,22 @@ func WithReadSnapshot(ctx context.Context, db *sql.DB, fn func(context.Context) 
 	}
 	ctx, cancel := snapshotContext(ctx)
 	defer cancel()
+	beginAt := time.Now()
 	tx, err := ReadHandle(ctx, db).BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
+		log.Printf("SCRATCH-DEADLINE begin class=%v wait=%s err=%v pool=%+v", ClassFrom(ctx, ClassInteractive), time.Since(beginAt), err, ReadHandle(ctx, db).Stats())
 		return err
 	}
 	defer registerReadSnapshot(tx)()
 	defer tx.Rollback()
+	opened := time.Now()
 	if err = fn(withSnapshot(ctx, tx)); err != nil {
-		return snapshotError(ctx, err)
+		mapped := snapshotError(ctx, err)
+		if errors.Is(mapped, context.DeadlineExceeded) {
+			d, _ := ctx.Deadline()
+			log.Printf("SCRATCH-DEADLINE snapshot class=%v limit=%s age=%s untilDeadline=%s raw=%v snapshots=%+v pool=%+v\n%s", ClassFrom(ctx, ClassInteractive), snapshotLimit(ctx), time.Since(opened), time.Until(d), err, Snapshots(), ReadHandle(ctx, db).Stats(), debug.Stack())
+		}
+		return mapped
 	}
 	return snapshotError(ctx, tx.Commit())
 }

@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/catalogtest"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
@@ -121,6 +122,12 @@ func TestSelectionBatchSavedCollectionAndPlaylistSources(t *testing.T) {
 }
 
 func TestSelectionBatchLargeScalarIsTransient(t *testing.T) {
+	for i := 0; i < 6; i++ {
+		t.Run(fmt.Sprint(i), testSelectionBatchLargeScalarIsTransient)
+	}
+}
+
+func testSelectionBatchLargeScalarIsTransient(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
 	}
@@ -140,9 +147,10 @@ func TestSelectionBatchLargeScalarIsTransient(t *testing.T) {
 	state, oracle, witness := selectionBatchFixture(t, s, v, BrowseRequest{Library: "m", Profile: "p", ViewerFence: "f", Pivot: "movies", Query: node, Limit: 1}, HomeActionAuthority{})
 	peak := 0
 	for !state.Complete() {
+		stepAt := time.Now()
 		next, work, err := s.StepBrowseSelectionBatch(context.Background(), state, witness, SelectionBatchLimits{Rows: 20})
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf("step after %s: %v", time.Since(stepAt), err)
 		}
 		peak = max(peak, work.TransientScalarBytes)
 		if next.Bytes() > 100000 {
