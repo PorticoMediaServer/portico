@@ -58,7 +58,7 @@ func TestCheckpointPinnedReaderBoundsGateRestoresPolicyAndRecovers(t *testing.T)
 	defer spare.Close()
 	// Leave one control slot beside the pinned reader, the spare and the
 	// foreground loans. This is the existing public-pool headroom checkpoint
-	// control uses; the sole background connection is not a recovery resource.
+	// control uses; the background pool is not a recovery resource.
 	foreground := []*sql.Conn{}
 	for i := 0; i < pool.Stats().MaxOpenConnections-3; i++ {
 		loanCtx, cancel := context.WithTimeout(ctx, time.Second)

@@ -63,11 +63,11 @@ func writerHandle(db *sql.DB) *sql.DB {
 	return db // Handles supplied by embedders still use their own policy.
 }
 
-// ReadHandle selects the single-connection background read pool for classified
-// background work. The public handle remains the six-connection foreground
-// pool. Checkpoint control uses its existing reader-admission bypass and the
-// public pool: the background connection may hold the long read that recovery
-// must cancel, so waiting for that connection would prevent recovery itself.
+// ReadHandle selects the host-sized background read pool for classified
+// background work. The public handle remains the foreground pool. Checkpoint
+// control uses its existing reader-admission bypass and the public pool: a
+// background connection may hold the long read that recovery must cancel, so
+// waiting for one would prevent recovery itself.
 func ReadHandle(ctx context.Context, db *sql.DB) *sql.DB {
 	if db == nil {
 		return nil
