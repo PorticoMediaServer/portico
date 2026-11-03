@@ -9,6 +9,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/decodertest"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/localmetadata"
+	"github.com/PorticoMediaServer/portico/server/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server/internal/persistence"
 	"github.com/PorticoMediaServer/portico/server/internal/playback"
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
@@ -24,6 +25,15 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	// The media limits shim and the probe worker, as the server's main routes
+	// them, for tests that configure mediaexec.
+	if handled, err := mediaexec.RunHelper(os.Args[1:]); handled {
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 	if len(os.Args) == 2 && os.Args[1] == "--portico-storage-helper" {
 		if err := storage.Helper(os.Stdin, os.Stdout); err != nil {
 			fmt.Fprintln(os.Stderr, err)

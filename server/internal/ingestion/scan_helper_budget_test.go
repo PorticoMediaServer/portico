@@ -14,6 +14,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/decodertest"
 	"github.com/PorticoMediaServer/portico/server/internal/localmetadata"
+	"github.com/PorticoMediaServer/portico/server/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server/internal/persistence"
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
 )
@@ -26,11 +27,15 @@ import (
 // in-process path is the one measured. Measured on this fixture (six films):
 // before OPS-1 C, 36.5 per film on a first import and 7.8 on an unchanged
 // rescan; after C, 10.3 and 4.0; after M1, the two ffprobe passes per film on
-// a first import and none on a rescan.
+// a first import and none on a rescan; after M4, none per film: probes run on
+// long-lived sandboxes (sandboxesPerScan), where hosts support them.
 const (
 	processesPerScan            = 2
-	firstImportProcessesPerFile = 2
+	firstImportProcessesPerFile = 0
 	rescanProcessesPerFile      = 0
+	// sandboxesPerScan bounds probe sandboxes started per scan run (scanner
+	// M4): one per concurrent probe, never one per file.
+	sandboxesPerScan = 4
 )
 
 // processStarts is the helper processes the supervisor started: admitted
@@ -68,6 +73,10 @@ func TestScanHelperProcessBudget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// As the server configures it at start: the limits shim and probe workers.
+	if _, err = mediaexec.Configure(mediaexec.Options{StateDir: t.TempDir(), Helper: binary, SkipOrphanKill: true}); err != nil {
+		t.Fatal(err)
+	}
 	store := storage.New(binary)
 	cat.SetStorage(store)
 	meta, err := localmetadata.New(filepath.Join(root, "art"), ffmpeg, store)
@@ -102,9 +111,10 @@ func TestScanHelperProcessBudget(t *testing.T) {
 			}
 		}
 	}
-	before := processStarts(store)
+	before, pool := processStarts(store), mediaexec.ProbePoolSnapshot()
 	scan("first import")
 	firstTotal := processStarts(store) - before
+	firstPool := mediaexec.ProbePoolSnapshot()
 	var analysed int
 	if err = db.QueryRow(`SELECT count(*) FROM inventory_objects WHERE analysis_state='complete'`).Scan(&analysed); err != nil || analysed != films {
 		t.Fatalf("first import analysed %d of %d films (%v)", analysed, films, err)
@@ -112,7 +122,15 @@ func TestScanHelperProcessBudget(t *testing.T) {
 	scan("rescan")
 	rescanTotal := processStarts(store) - firstTotal - before
 	stats := store.Supervisor.Stats()
-	t.Logf("processes: first import %d (%.1f per film); rescan %d; %d of %d operations in process", firstTotal, float64(firstTotal)/films, rescanTotal, stats.InProcess, stats.Admitted)
+	sandboxes, probes := int(firstPool.WorkersStarted-pool.WorkersStarted), int(firstPool.Jobs-pool.Jobs)
+	t.Logf("processes: first import %d (%.1f per film), %d probe sandboxes for %d probes; rescan %d; %d of %d operations in process", firstTotal, float64(firstTotal)/films, sandboxes, probes, rescanTotal, stats.InProcess, stats.Admitted)
+	if mediaexec.ProbePoolAccepts(mediaexec.Job{Executable: decodertest.QualifiedFFprobe(t), Background: true}) {
+		// Scanner M4: probes run on long-lived sandboxes, at most one per
+		// concurrent probe, instead of one sandbox (and helper) per probe.
+		if probes < films || sandboxes > sandboxesPerScan {
+			t.Fatalf("a first import of %d films ran %d pooled probes on %d sandboxes; want every probe pooled on at most %d sandboxes", films, probes, sandboxes, sandboxesPerScan)
+		}
+	}
 	if firstTotal > processesPerScan+firstImportProcessesPerFile*films {
 		t.Fatalf("a first import of %d films started %d processes, over the budget of %d per scan plus %d per film", films, firstTotal, processesPerScan, firstImportProcessesPerFile)
 	}
