@@ -171,22 +171,28 @@ func ResetCommitWakes() {
 func wakeMatching(subscriptions []commitSubscription, changes *changeSet) {
 	changed := expandedChanges(changes.roots())
 	for _, subscription := range subscriptions {
-		wake := changed == nil || len(subscription.tables) == 0
-		for _, pattern := range subscription.tables {
-			for table := range changed {
-				if table == pattern || strings.HasSuffix(pattern, "*") && strings.HasPrefix(table, strings.TrimSuffix(pattern, "*")) {
-					wake = true
-					break
-				}
-			}
-			if wake {
-				break
-			}
-		}
-		if wake {
+		if changed == nil || len(subscription.tables) == 0 || matchesChanged(subscription.tables, changed) {
 			subscription.signal.Wake()
 		}
 	}
+}
+
+// matchesChanged reports whether a subscription's tables name a changed table:
+// an exact name is one lookup; only a "prefix*" pattern walks the set.
+func matchesChanged(patterns []string, changed map[string]bool) bool {
+	for _, pattern := range patterns {
+		if changed[pattern] {
+			return true
+		}
+		if prefix, ok := strings.CutSuffix(pattern, "*"); ok {
+			for table := range changed {
+				if strings.HasPrefix(table, prefix) {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func notifyDirectWrite(changes *changeSet) {

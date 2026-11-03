@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -88,7 +89,17 @@ func (s *changeSet) roots() map[string]bool {
 var wakeDependencies = struct {
 	sync.RWMutex
 	edges map[string]map[string]bool
-}{edges: map[string]map[string]bool{}}
+	// expanded caches each root set's closure. A scan commits the same few
+	// root sets thousands of times, and with this schema's triggers a closure
+	// is hundreds of tables: walking it on every commit was a third of the
+	// server's CPU during a scan (OPS-1 M2 profile). Cleared whenever an edge
+	// is added; cached sets are shared and read-only.
+	expanded map[string]map[string]bool
+}{edges: map[string]map[string]bool{}, expanded: map[string]map[string]bool{}}
+
+// expandedCacheLimit bounds the closure cache; past it the cache starts over.
+const expandedCacheLimit = 4096
+
 var mutationTarget = regexp.MustCompile(`(?i)\b(?:INSERT\s+(?:OR\s+\w+\s+)?INTO|REPLACE\s+INTO|UPDATE\s+(?:OR\s+\w+\s+)?|DELETE\s+FROM)\s*["\x60\[]?(\w+)`)
 var referenceTarget = regexp.MustCompile(`(?i)\bREFERENCES\s+["\x60\[]?(\w+)`)
 
@@ -142,6 +153,7 @@ func InstallWakeDependencies(ctx context.Context, db *sql.DB) error {
 	}
 	wakeDependencies.Lock()
 	defer wakeDependencies.Unlock()
+	clear(wakeDependencies.expanded)
 	// Handles in one process can be test databases with different schemas. Union
 	// edges is conservative: it may wake extra workers but never hides a cascade.
 	for from, targets := range edges {
@@ -154,16 +166,31 @@ func InstallWakeDependencies(ctx context.Context, db *sql.DB) error {
 	}
 	return nil
 }
+
+// expandedChanges is roots plus every table a trigger or foreign key can
+// change from them. The result is shared: callers must not modify it.
 func expandedChanges(roots map[string]bool) map[string]bool {
 	if roots == nil {
 		return nil
 	}
-	wakeDependencies.RLock()
-	defer wakeDependencies.RUnlock()
-	queue := make([]string, 0, len(roots))
+	names := make([]string, 0, len(roots))
 	for table := range roots {
-		queue = append(queue, table)
+		names = append(names, table)
 	}
+	slices.Sort(names)
+	key := strings.Join(names, "\x00")
+	wakeDependencies.RLock()
+	cached, ok := wakeDependencies.expanded[key]
+	wakeDependencies.RUnlock()
+	if ok {
+		return cached
+	}
+	wakeDependencies.Lock()
+	defer wakeDependencies.Unlock()
+	if cached, ok = wakeDependencies.expanded[key]; ok {
+		return cached
+	}
+	queue := names
 	for len(queue) > 0 {
 		table := queue[0]
 		queue = queue[1:]
@@ -174,5 +201,9 @@ func expandedChanges(roots map[string]bool) map[string]bool {
 			}
 		}
 	}
+	if len(wakeDependencies.expanded) >= expandedCacheLimit {
+		clear(wakeDependencies.expanded)
+	}
+	wakeDependencies.expanded[key] = roots
 	return roots
 }
