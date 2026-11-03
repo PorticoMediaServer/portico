@@ -264,7 +264,9 @@ const accountPages: readonly AuthoredPage[] = [
       ]},
       {id: 'subtitles', title: 'settings.section.subtitles', rows: [
         pref('playback.subtitleMode', 'settings.row.subtitleMode', {type: 'choice', choices: [
-          {value: 'off', label: 'settings.subtitleMode.off'}, {value: 'forced', label: 'settings.subtitleMode.forced'}, {value: 'always', label: 'settings.subtitleMode.always'},
+          // ST-1: every value the registry publishes, including its default (`foreign`), so the row is never blank.
+          {value: 'off', label: 'settings.subtitleMode.off'}, {value: 'foreign', label: 'next.settingsSpec.account.audio-subtitles.groups.1.rows.1.control.options.1.label'},
+          {value: 'forced', label: 'settings.subtitleMode.forced'}, {value: 'always', label: 'settings.subtitleMode.always'},
         ]}, {help: 'settings.help.subtitleMode'}),
         pref('playback.preferredSubtitleLanguages', 'pref.label.playback.preferredSubtitleLanguages', {type: 'languages'}, {help: 'settings.help.subtitleLanguages'}),
       ]},
@@ -272,7 +274,26 @@ const accountPages: readonly AuthoredPage[] = [
       {id: 'appearance', title: 'settings.section.subtitleAppearance', rows: [
         custom('subtitlePreview', 'settings.section.subtitleAppearance', {platforms: ['web']}),
         pref('playback.subtitleSize', 'settings.row.subtitleSize', {type: 'choice', choices: (['small', 'medium', 'large', 'extra-large'] as const).map(value => ({value, label: `settings.subtitleSize.${value}` as MessageId}))}),
-        pref('playback.subtitleBackground', 'settings.row.subtitleBackground', {type: 'choice', choices: (['none', 'translucent', 'opaque'] as const).map(value => ({value, label: `settings.subtitleBackground.${value}` as MessageId}))}),
+        pref('playback.subtitleBackground', 'settings.row.subtitleBackground', {type: 'choice', choices: [
+          {value: 'none', label: 'settings.subtitleBackground.none'}, {value: 'outline', label: 'next.settingsSpec.account.audio-subtitles.groups.2.rows.3.control.options.1.label'},
+          {value: 'shadow', label: 'next.settingsSpec.account.audio-subtitles.groups.2.rows.3.control.options.2.label'},
+          {value: 'translucent', label: 'settings.subtitleBackground.translucent'}, {value: 'opaque', label: 'settings.subtitleBackground.opaque'},
+        ]}),
+        // ST-3 (DECISIONS 2 Nov, "TV subtitle style controls follow the TV mock-up"): phones and tablets draw
+        // the spec's full appearance group; TV keeps Size and Background (tv-more f25), and what is set
+        // here applies on every device.
+        pref('playback.subtitleColor', 'next.settingsSpec.account.audio-subtitles.groups.2.rows.2.label', {type: 'choice', choices: (['white', 'yellow', 'cyan', 'green', 'pink'] as const)
+          .map((value, index) => ({value, label: `next.settingsSpec.account.audio-subtitles.groups.2.rows.2.control.options.${index}.label` as MessageId}))}, {platforms: ['phone']}),
+        pref('playback.subtitlePosition', 'next.settingsSpec.account.audio-subtitles.groups.2.rows.4.label', {type: 'choice', choices: (['bottom', 'raised', 'top'] as const)
+          .map((value, index) => ({value, label: `next.settingsSpec.account.audio-subtitles.groups.2.rows.4.control.options.${index}.label` as MessageId}))}, {platforms: ['phone']}),
+      ]},
+      {id: 'captions', title: 'next.settingsSpec.account.audio-subtitles.advanced.groups.2.title', advanced: true, platforms: ['phone'], rows: [
+        toggle('playback.useSystemCaptionStyle', 'next.settingsSpec.account.audio-subtitles.advanced.groups.2.rows.1.label'),
+      ]},
+      {id: 'subtitleDetails', title: 'next.settingsSpec.account.audio-subtitles.advanced.groups.4.title', advanced: true, platforms: ['phone'], rows: [
+        pref('playback.subtitleFont', 'next.settingsSpec.account.audio-subtitles.advanced.groups.4.rows.0.label', {type: 'choice', choices: (['default', 'serif', 'mono', 'rounded'] as const)
+          .map((value, index) => ({value, label: `next.settingsSpec.account.audio-subtitles.advanced.groups.4.rows.0.control.options.${index}.label` as MessageId}))}),
+        toggle('playback.keepSubtitleStyling', 'next.settingsSpec.account.audio-subtitles.advanced.groups.4.rows.1.label'),
       ]},
     ],
   },
