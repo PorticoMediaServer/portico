@@ -447,9 +447,8 @@ func separateFolderPinnedWrite(t *testing.T, writes []separateFolderObjectWrite,
 }
 
 func TestSeparateFolderIndexCensusClassifiesInventoryObjectWrites(t *testing.T) {
-	if testing.Short() {
-		t.Skip("full tier: measured normal parent 2.21s")
-	}
+	// Runs in the short tier too: about 2s, and a write it cannot classify is a
+	// production change that has to fail on the pull request, not in the queue.
 	statements, _ := productionStatements(t)
 	writes, problems := separateFolderObjectCensus(statements)
 	if len(problems) != 0 {

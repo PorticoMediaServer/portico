@@ -107,11 +107,14 @@ class IntegrationTests(unittest.TestCase):
         self.assertLess(generator,drift)
 
 class MergeGroupTests(unittest.TestCase):
-    def test_merge_group_uses_event_base_head(self):
+    def test_merge_group_plans_against_the_target_branch_tip(self):
         from unittest.mock import patch
         from plan import base_head
-        with patch('plan.command',side_effect=['b'*40+'\n','','','']):
-            self.assertEqual(base_head({'merge_group':{'base_sha':'a'*40,'head_sha':'b'*40}}, {'GITHUB_EVENT_NAME':'merge_group'}),('a'*40,'b'*40))
+        group={'base_sha':'a'*40,'head_sha':'b'*40,'base_ref':'refs/heads/main'}
+        with patch('plan.command',side_effect=['b'*40+'\n','','','','c'*40+'\n','d'*40+'\n']) as call:
+            self.assertEqual(base_head({'merge_group':group}, {'GITHUB_EVENT_NAME':'merge_group'}),('d'*40,'b'*40))
+        self.assertEqual(call.call_args_list[-2].args[0][:3],['git','rev-parse','--verify'])
+        self.assertEqual(call.call_args.args[0],['git','merge-base','b'*40,'c'*40])
 
 class TierTests(unittest.TestCase):
     def test_merge_tier_does_not_exclude_reviewed_deterministic_tests(self):
