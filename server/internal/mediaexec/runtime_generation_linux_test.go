@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestCachedRuntimeIdentityReadsNoExecutableOrMetadataBytes(t *testing.T) {
@@ -46,7 +47,16 @@ func TestCachedRuntimeIdentityReadsNoExecutableOrMetadataBytes(t *testing.T) {
 	}
 }
 
+// recheckEveryCall makes every cached lookup confirm its files, so a change is
+// refused on the very next call.
+func recheckEveryCall(t *testing.T) {
+	previous := runtimeGenerationRecheck
+	runtimeGenerationRecheck = 0
+	t.Cleanup(func() { runtimeGenerationRecheck = previous })
+}
+
 func TestCachedRuntimeIdentityRefusesChangedCodeGeneration(t *testing.T) {
+	recheckEveryCall(t)
 	tool := copyCacheELF(t)
 	before, complete, err := RuntimeIdentity(t.Context(), tool)
 	if err != nil || !complete {
@@ -80,6 +90,7 @@ func TestCachedRuntimeIdentityRefusesChangedCodeGeneration(t *testing.T) {
 }
 
 func TestCachedRuntimeIdentityRefusesLibraryAndAliasChanges(t *testing.T) {
+	recheckEveryCall(t)
 	for _, change := range []string{"library", "alias"} {
 		t.Run(change, func(t *testing.T) {
 			tool, library := copyCacheELF(t), copyCacheELF(t)
@@ -156,4 +167,28 @@ func BenchmarkRuntimeIdentityGeneration(b *testing.B) {
 			}
 		}
 	})
+}
+
+// Playback-options asked for the identity on every call, and confirming it stats
+// the whole closure. A confirmed generation is trusted for the recheck window,
+// then confirmed again: a replaced binary is refused once the window passes.
+func TestCachedRuntimeIdentityRechecksItsFilesOncePerWindow(t *testing.T) {
+	previous := runtimeGenerationRecheck
+	runtimeGenerationRecheck = time.Hour
+	t.Cleanup(func() { runtimeGenerationRecheck = previous })
+	tool := copyCacheELF(t)
+	identity, complete, err := RuntimeIdentity(t.Context(), tool)
+	if err != nil || !complete {
+		t.Fatal(identity, complete, err)
+	}
+	if err := os.Chtimes(tool, time.Now().Add(time.Minute), time.Now().Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if got, ready := CachedRuntimeIdentity(t.Context(), tool); !ready || got != identity {
+		t.Fatal("a confirmed generation was stat'ed again inside its window", got, ready)
+	}
+	runtimeGenerationRecheck = 0
+	if got, ready := CachedRuntimeIdentity(t.Context(), tool); ready || got != "" {
+		t.Fatal("a changed executable was trusted after the window", got, ready)
+	}
 }
