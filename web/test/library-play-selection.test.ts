@@ -26,6 +26,13 @@ function detail(id: string) {return {scope: {...scope, libraryId: 'library', ite
 const queue: QueueHeader = {id: 'actual-port-receipt', revision: '1', total: 1, repeat: 'off', segments: []};
 function deferred<T>() {let resolve!: (value: T) => void;const promise = new Promise<T>(done => {resolve = done;});return {promise, resolve};}
 async function settle() {for (let index = 0; index < 8; index++) await setImmediate();}
+type Owner = ReturnType<typeof setup>;
+/** Showing a window grants nothing; picking one row starts the selection, and the mounted window's real
+ *  grants are then read on a microtask. Returns the granted rows after those reads settle. */
+async function startSelection(owner: Owner, first: number, last: number) {
+  const rows = await owner.selection.registerWindow(first, last);owner.selection.toggle(rows[0]!);await settle();
+  return owner.selection.getSnapshot().rows;
+}
 function setup(playback?: Pick<V1QueuePlayer, 'playSegments'>, readDetail: (id: string, signal?: AbortSignal) => Promise<unknown> = async id => detail(id),
   personal?: Readonly<{myList?: boolean; favorite?: boolean; watched?: boolean}>,
   whole?: (start: number, request: {query?: unknown; sort: unknown}) => unknown) {
@@ -112,8 +119,10 @@ test('actual Detail grants resolve at four concurrent reads and remain bounded t
   });
   try {
     await owner.load();let done = false;
+    const shown = await owner.selection.registerWindow(0, 9);assert.equal(owner.detailReads(), 0);
+    owner.selection.toggle(shown[0]!);await settle();assert.equal(active, 4);
+    // The grant reads belong to the window that registration mounted; asking again returns that same read.
     const read = owner.selection.registerWindow(0, 9).then(rows => {done = true;return rows;});
-    await settle();assert.equal(active, 4);
     for (let round = 0; round < 10 && !done; round++) {for (const value of pending.splice(0)) value.result.resolve(detail(value.id));await settle();}
     const rows = await read;assert.equal(peak, 4);assert.equal(owner.detailReads(), 10);assert.equal(rows.length, 10);
     assert(rows.every(row => row.capabilities.play && !row.capabilities.myList && !row.capabilities.favorite && !row.capabilities.edit && !row.capabilities.queue));
@@ -122,11 +131,58 @@ test('actual Detail grants resolve at four concurrent reads and remain bounded t
   } finally {owner.dispose();}
 });
 
+test('showing a window reads no Detail and grants nothing; starting a selection reads each visible title once', async () => {
+  const owner = setup({playSegments: async () => queue});
+  try {
+    await owner.load();
+    const shown = await owner.selection.registerWindow(0, 2);
+    assert.equal(owner.detailReads(), 0);assert.equal(shown.length, 3);
+    assert(shown.every(row => Object.values(row.capabilities).every(offered => offered === false)));
+    await settle();assert.equal(owner.detailReads(), 0);
+    assert.equal(owner.selection.getSnapshot().selection!.active, false);
+    owner.selection.toggle(shown[0]);await settle();
+    assert.equal(owner.detailReads(), 3);
+    const rows = owner.selection.getSnapshot().rows;
+    assert.deepEqual(rows.map(row => row.position), [0, 1, 2]);
+    assert(rows.every(row => row.capabilities.play));
+    assert.equal(owner.selection.getSnapshot().canPlay, true);
+    await settle();assert.equal(owner.detailReads(), 3);
+  } finally {owner.dispose();}
+});
+
+test('cards shown before the page answered get their selection circles when it does, still with no Detail read', async () => {
+  const owner = setup({playSegments: async () => queue});
+  try {
+    owner.selection.start();
+    assert.deepEqual(await owner.selection.registerWindow(0, 2), []);
+    await owner.source.load();await settle();
+    assert.deepEqual(owner.selection.getSnapshot().rows.map(row => row.position), [0, 1, 2]);
+    assert.equal(owner.detailReads(), 0);
+  } finally {owner.dispose();}
+});
+
+test('a card picked and scrolled away before its grants are read still gets them, so the selection offers its actions', async () => {
+  const owner = setup({playSegments: async () => queue});
+  try {
+    await owner.load();
+    const shown = await owner.selection.registerWindow(0, 2);
+    owner.selection.toggle(shown[0]!);
+    // The viewer scrolls on at once: the window that would have read the pick's grants is replaced.
+    await owner.selection.registerWindow(10, 11);await settle();
+    assert.equal(owner.selection.getSnapshot().selection!.selectedKeys.length, 1);
+    assert.equal(owner.selection.getSnapshot().canPlay, true);
+    // The pick's own grant, then the new window's: nothing else.
+    assert.equal(owner.detailReads(), 3);
+    owner.selection.clear();await settle();
+    assert.equal(owner.selection.getSnapshot().selection!.active, false);
+  } finally {owner.dispose();}
+});
+
 test('replacement windows reject old row handles but explicit picks survive real page eviction', async () => {
   let ids: readonly string[] | undefined;
   const owner = setup({playSegments: async segments => {const first = segments[0].source;assert('items' in first);ids = first.items.ids;return queue;}});
   try {
-    await owner.load();const first = await owner.selection.registerWindow(0, 2);owner.selection.toggle(first[0]);
+    await owner.load();const first = await startSelection(owner, 0, 2);
     const sameEntries = await owner.selection.registerWindow(1, 3);
     assert.throws(() => owner.selection.toggle(first[1]), {name: 'AbortError'});
     assert.equal(sameEntries[0].position, 1);
@@ -146,11 +202,13 @@ test('replacing the mounted window cancels its unfinished grants before admittin
   }));
   try {
     await owner.load();
-    const first = assert.rejects(owner.selection.registerWindow(0, 9), {name: 'AbortError'});
+    const shown = await owner.selection.registerWindow(0, 9);owner.selection.toggle(shown[0]!);
     await settle();assert.equal(pending.length, 4);
+    const first = assert.rejects(owner.selection.registerWindow(0, 9), {name: 'AbortError'});
     const next = owner.selection.registerWindow(10, 11);
     await first;await settle();
-    assert(pending.slice(0, 4).every(value => value.signal!.aborted));
+    // The picked card's grant goes on (the selection needs it); the other unfinished ones are cancelled.
+    assert.deepEqual(pending.slice(0, 4).filter(value => !value.signal!.aborted).map(value => value.id), ['movie-0']);
     assert.deepEqual(pending.slice(4).map(value => value.id), ['movie-10', 'movie-11']);
     for (const value of pending.slice(4)) value.finish();
     const rows = await next;assert.deepEqual(rows.map(row => row.position), [10, 11]);
@@ -163,7 +221,7 @@ test('selection and navigation cancel a pending real-port call; reselecting or B
     const held = deferred<QueueHeader>();let lifetime: {signal?: AbortSignal; isCurrent?: () => boolean} | undefined;
     const owner = setup({playSegments: async (_segments, options) => {lifetime = options;return held.promise;}});
     try {
-      await owner.load();const rows = await owner.selection.registerWindow(0, 2);owner.selection.toggle(rows[0]);
+      await owner.load();const rows = await startSelection(owner, 0, 2);
       const playing = owner.selection.play();assert.equal(lifetime?.isCurrent?.(), true);
       if (navigate) owner.navigation.abort();else {owner.selection.clear();owner.selection.toggle(rows[0]);}
       assert.equal(lifetime?.signal?.aborted, true);assert.equal(lifetime?.isCurrent?.(), false);
@@ -194,7 +252,7 @@ test('an actual denied grant retires cached selections before any Play can be di
     return detail(id);
   });
   try {
-    await owner.load();const rows = await owner.selection.registerWindow(0, 1);owner.selection.toggle(rows[0]);
+    await owner.load();await startSelection(owner, 0, 1);
     assert.equal(owner.selection.getSnapshot().canPlay, true);denied = true;
     await assert.rejects(owner.selection.registerWindow(2, 3));
     assert.equal(owner.selection.getSnapshot().phase, 'error');assert.equal(owner.selection.getSnapshot().canPlay, false);
@@ -206,7 +264,8 @@ test('the original navigation signal cancels all queued grant reads and admits n
   const pending: {id: string; signal?: AbortSignal; result: ReturnType<typeof deferred<unknown>>}[] = [];
   const owner = setup({playSegments: async () => queue}, async (id, signal) => {const result = deferred<unknown>();pending.push({id, signal, result});return result.promise;});
   try {
-    await owner.load();const read = owner.selection.registerWindow(0, 9);await settle();assert.equal(owner.detailReads(), 4);
+    await owner.load();const shown = await owner.selection.registerWindow(0, 9);owner.selection.toggle(shown[0]!);await settle();assert.equal(owner.detailReads(), 4);
+    const read = owner.selection.registerWindow(0, 9);
     owner.navigation.abort();await assert.rejects(read, {name: 'AbortError'});assert(pending.every(value => value.signal?.aborted));
     for (const value of pending) value.result.resolve(detail(value.id));await settle();
     assert.equal(owner.detailReads(), 4);assert.deepEqual(owner.selection.getSnapshot().rows, []);
@@ -270,7 +329,7 @@ test('a whole-view descriptor from another page revision cannot become this page
 test('personal capabilities come from the title’s own Detail actions, with or without a playback port', async () => {
   const withPorts = setup(undefined, undefined, {myList: true, favorite: true, watched: true});
   try {
-    await withPorts.load();const rows = await withPorts.selection.registerWindow(0, 1);
+    await withPorts.load();const rows = await startSelection(withPorts, 0, 1);
     assert.equal(rows[0]?.capabilities.play, false);
     assert.equal(rows[0]?.capabilities.myList, true);
     assert.equal(rows[0]?.capabilities.favorite, true);
@@ -279,7 +338,7 @@ test('personal capabilities come from the title’s own Detail actions, with or 
   } finally {withPorts.dispose();}
   const without = setup();
   try {
-    await without.load();const rows = await without.selection.registerWindow(0, 1);
+    await without.load();const rows = await startSelection(without, 0, 1);
     assert.equal(rows[0]?.capabilities.myList, false);
     assert.equal(rows[0]?.capabilities.favorite, false);
     assert.equal(rows[0]?.capabilities.watched, false);
@@ -291,7 +350,7 @@ test('a personal port grants nothing when Detail does not enable that exact acti
   const owner = setup(undefined, async id => {const value = detail(id);value.actions = value.actions.filter(action => action.id !== 'watchlist');return value;},
     {myList: true, favorite: true, watched: true});
   try {
-    await owner.load();const rows = await owner.selection.registerWindow(0, 1);
+    await owner.load();const rows = await startSelection(owner, 0, 1);
     assert.equal(rows[0]?.capabilities.myList, false);
     assert.equal(rows[0]?.capabilities.favorite, true);
     assert.equal(rows[0]?.capabilities.watched, true);

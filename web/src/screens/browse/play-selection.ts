@@ -53,7 +53,9 @@ export type LibraryPlaySelectionOptions = Readonly<{
   personal?: Readonly<{myList?: boolean; favorite?: boolean; watched?: boolean}>;
 }>;
 type Grant = {entry: ContentEntry; pending: boolean; controller: AbortController; promise: Promise<SelectionItem>; resolve: (item: SelectionItem) => void; reject: (error: unknown) => void};
-type Window = {first: number; last: number; entries: readonly Readonly<{entry: ContentEntry; position: number}>[]; controller: AbortController; promise?: Promise<readonly LibraryPlayRow[]>; registrations: (() => void)[]};
+/** A mounted window's rows. `granted`: its rows carry each title's real grants, read from Detail; until a
+ *  selection starts they carry none, so showing a page never reads every visible title (CDATA-A1). */
+type Window = {first: number; last: number; granted: boolean; registered?: boolean; entries: readonly Readonly<{entry: ContentEntry; position: number}>[]; controller: AbortController; promise?: Promise<readonly LibraryPlayRow[]>; registrations: (() => void)[]};
 const cancelled = () => new DOMException('Library selection retired', 'AbortError');
 const unavailable = () => Object.assign(new Error('library-play-selection-unavailable'), {code: 'library-play-selection-unavailable'});
 const terminal = (error: unknown) => typeof error === 'object' && error !== null
@@ -80,6 +82,13 @@ export function createLibraryPlaySelection(input: LibraryPlaySelectionOptions) {
   const life = new AbortController(), listeners = new Set<() => void>(), grants = new Map<ContentEntry, Grant>(), queued: Grant[] = [];
   let active = 0, closed = false, started = false, model: BrowseSelectionModel | undefined, modelOff: (() => void) | undefined;
   let sourceOff = () => {}, collectionOff = () => {}, expected: Readonly<{queryRevision: number; revision: string}> | undefined;
+  /** Cards picked while their rows had no grants yet (the first pick starts the selection). Their grants
+   *  are read even when the grid has moved on, so the selection's actions are right for every pick. */
+  const ungrantedPicks = new Map<string, Readonly<{entry: ContentEntry; position: number}>>();
+  const pickRuns = new Map<string, () => void>();
+  const dropPicks = () => {ungrantedPicks.clear();for (const unregister of pickRuns.values()) unregister();pickRuns.clear();};
+  /** The range the grid showed before the page had answered: registered once it has. */
+  let wanted: Readonly<{first: number; last: number}> | undefined;
   let window: Window | undefined, handles = new WeakMap<LibraryPlayRow, Readonly<{window: Window; run: string}>>();
   let whole: Readonly<{query: SelectionQuery; unregister: () => void}> | undefined;
   let playing: Readonly<{operation: SelectionOperation<BrowseSelectionContext>; controller: AbortController}> | undefined;
@@ -106,7 +115,7 @@ export function createLibraryPlaySelection(input: LibraryPlaySelectionOptions) {
     if (closed) return;
     closed = true;interactions.dispose();sourceOff();collectionOff();modelOff?.();signal.removeEventListener('abort', dispose);
     life.abort();playing?.controller.abort();playing = undefined;clearWindow();
-    whole?.unregister();whole = undefined;model?.dispose();
+    whole?.unregister();whole = undefined;dropPicks();model?.dispose();
     for (const grant of grants.values()) {grant.controller.abort();grant.reject(cancelled());}
     grants.clear();queued.length = 0;
     state = Object.freeze({phase: reason === undefined ? 'retired' : 'error', rows: Object.freeze([]), resolving: false, playing: false, canPlay: false,
@@ -170,10 +179,20 @@ export function createLibraryPlaySelection(input: LibraryPlaySelectionOptions) {
           interactions.resetPreview();rangeTarget = undefined;rangeKeys.clear();
           if (playing && !model!.isOperationCurrent(playing.operation)) playing.controller.abort();
           publish();
+          // A selection has started: the mounted window's titles get their real grants now, after the
+          // change that started it has finished.
+          if (model!.getSnapshot().active && window && !window.granted) queueMicrotask(regrant);
+          if (!model!.getSnapshot().active && (ungrantedPicks.size || pickRuns.size)) dropPicks();
         });publish();
       } catch (failure) {retire(failure);}
     }
-    prune();
+    prune();flushWanted();
+  };
+  /** The grid showed its first cards before the page answered: once the page and its first cards
+   *  are in, they are registered, so their selection circles appear without a scroll. */
+  const flushWanted = () => {
+    if (!wanted || !model || !expected || closed || !source.collection.itemAt(wanted.first)) return;
+    const {first, last} = wanted;wanted = undefined;void registerWindow(first, last).catch(() => {});
   };
   function dispose() {retire();}
   const start = () => {
@@ -181,32 +200,50 @@ export function createLibraryPlaySelection(input: LibraryPlaySelectionOptions) {
     started = true;
     if (!current()) return;
     signal.addEventListener('abort', dispose, {once: true});
-    sourceOff = source.subscribe(sync);collectionOff = source.collection.subscribe(prune);sync();
+    sourceOff = source.subscribe(sync);collectionOff = source.collection.subscribe(() => {prune();flushWanted();});sync();
+  };
+  /** What a title offers before its grants are read: nothing, so no action is offered on it yet. */
+  const ungranted = (entry: ContentEntry): SelectionItem => Object.freeze({kind: entry.kind, id: entry.id, libraryId: entry.libraryId!, capabilities: selectionCapabilities(entry.kind, {})}) as SelectionItem;
+  const regrant = () => {
+    if (closed || !model?.getSnapshot().active || !window || window.granted) return;
+    const {first, last} = window;clearWindow();void registerWindow(first, last).catch(() => {});
   };
   const registerWindow = (first: number, last: number): Promise<readonly LibraryPlayRow[]> => {
     start();
     if (!current()) return Promise.reject(cancelled());
     // A visible range can arrive before the first accepted page revision. It
-    // grants nothing while waiting; only an actual action can be unavailable.
-    if (!model || !expected) return Promise.resolve(Object.freeze([]));
+    // grants nothing while waiting, and is registered once the page answers.
+    if (!model || !expected) {wanted = Object.freeze({first, last});return Promise.resolve(Object.freeze([]));}
+    wanted = undefined;
     if (!Number.isSafeInteger(first) || !Number.isSafeInteger(last) || first < 0 || last < first || last - first >= 60) return Promise.reject(unavailable());
     prune();
     const entries = Array.from({length: last - first + 1}, (_, offset) => ({position: first + offset, entry: source.collection.itemAt(first + offset)?.entry}))
       .flatMap(({entry, position}) => entry?.libraryId && source.contains(entry) && selectableSelectionKind(entry.kind, 'catalogue') ? [Object.freeze({entry, position})] : []);
-    if (window?.first === first && window.last === last && window.entries.length === entries.length && window.entries.every((value, index) => value.entry === entries[index].entry)) return window.promise!;
+    const granted = model.getSnapshot().active === true;
+    if (window?.first === first && window.last === last && window.granted === granted && window.entries.length === entries.length && window.entries.every((value, index) => value.entry === entries[index].entry)) return window.promise!;
+    // Picks on a window replaced before its grants were read keep their place in line for a grant.
+    const selectedKeys = new Set(model.getSnapshot().selectedKeys ?? []);
+    if (window && !(window.granted && window.registered) && granted && selectedKeys.size) {
+      const scope = model.getSnapshot().context.scope;
+      for (const {entry, position} of window.entries) {
+        const key = browseSelectionKey(scope, ungranted(entry));
+        if (selectedKeys.has(key)) ungrantedPicks.set(key, {entry, position});
+      }
+    }
     clearWindow();error = undefined;
     const visible = new Set(entries.map(value => value.entry));
-    for (const [entry, grant] of grants) if (grant.pending && !visible.has(entry)) {
+    const picked = new Set([...ungrantedPicks.values()].map(value => value.entry));
+    for (const [entry, grant] of grants) if (grant.pending && !visible.has(entry) && !picked.has(entry)) {
       grants.delete(entry);grant.controller.abort();grant.reject(cancelled());
     }
-    const captured: Window = {first, last, entries, controller: new AbortController(), registrations: []};window = captured;
+    const captured: Window = {first, last, granted, entries, controller: new AbortController(), registrations: []};window = captured;
     captured.promise = Promise.resolve().then(async () => {
       if (!current() || window !== captured) throw cancelled();
       const stop = AbortSignal.any([signal, life.signal, captured.controller.signal]);
       let onAbort!: () => void;
       const aborted = new Promise<never>((_, reject) => {onAbort = () => reject(cancelled());if (stop.aborted) onAbort();else stop.addEventListener('abort', onAbort, {once: true});});
       try {
-        const items = await Promise.race([Promise.all(entries.map(({entry}) => read(entry))), aborted]);
+        const items = granted ? await Promise.race([Promise.all(entries.map(({entry}) => read(entry))), aborted]) : entries.map(({entry}) => ungranted(entry));
         if (!current() || window !== captured || stop.aborted || entries.some(({entry}) => !source.contains(entry))) throw cancelled();
         const ticket = model!.captureContext(), rows: LibraryPlayRow[] = [];
         for (let begin = 0; begin < entries.length;) {
@@ -221,12 +258,28 @@ export function createLibraryPlaySelection(input: LibraryPlaySelectionOptions) {
           }
           begin = end;
         }
+        captured.registered = true;
+        if (granted) grantPicks(rows);
         const result = Object.freeze(rows);publish({rows: result, resolving: false});return result;
       } catch (failure) {
         if (!closed && window === captured) {clearWindow();error = failure;publish({rows: Object.freeze([]), resolving: false});}
         throw failure;
       } finally {stop.removeEventListener('abort', onAbort);}
     });publish({rows: Object.freeze([]), resolving: true, error: undefined});return captured.promise;
+  };
+  /** A pick made before its grants were read and no longer in the granted window: its own grant is
+   *  read and registered as a one-card run at its place, so the model holds its real capabilities. */
+  const grantPicks = (rows: readonly LibraryPlayRow[]) => {
+    const inWindow = new Set(rows.map(row => row.key));
+    for (const [key, pick] of [...ungrantedPicks]) {
+      ungrantedPicks.delete(key);
+      if (inWindow.has(key) || whole) continue;
+      void read(pick.entry).then(item => {
+        if (!current() || !model?.getSnapshot().active || pickRuns.has(key) || !source.contains(pick.entry)) return;
+        const registration = model.registerWindow(model.captureContext(), {id: 'pick:' + pick.position, sectionId: 'library', sectionOrder: 0, start: pick.position, items: [item]});
+        if (registration.ok) pickRuns.set(key, registration.unregister);
+      }, () => {});
+    }
   };
   /** Register the server's exact whole-view descriptor and select it. The model's
    * own checked query contract refuses any descriptor that does not name this
