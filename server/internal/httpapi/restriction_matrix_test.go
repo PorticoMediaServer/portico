@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -1358,12 +1359,24 @@ func buildRestrictionMatrix(t *testing.T) *restrictionEnv {
 	m.marker = regexp.MustCompile(`(?:^|[^A-Za-z0-9_-])(?:` + strings.Join(quoted, "|") + `)(?:$|[^A-Za-z0-9_-])`)
 
 	catalogFixtures.Drain()
-	m.callWithin = func(method, path, viewer string, limit time.Duration) (int, string) {
+	m.callWithin = func(method, path, viewer string, limit time.Duration) (status int, body string) {
 		ctx, cancel := context.WithTimeout(context.Background(), limit)
 		defer cancel()
 		r := httptest.NewRequest(method, path, nil).WithContext(ctx)
 		r.Header.Set("Authorization", "Bearer "+tokens[viewer])
 		w := httptest.NewRecorder()
+		// A streaming route that runs out of time after its header aborts the
+		// response with http.ErrAbortHandler, which net/http's server recovers
+		// (the client sees a dropped connection). This calls the handler
+		// directly, so it recovers it the same way.
+		defer func() {
+			if p := recover(); p != nil {
+				if p != http.ErrAbortHandler {
+					panic(p)
+				}
+				status, body = w.Code, w.Body.String()
+			}
+		}()
 		handler.ServeHTTP(w, r)
 		return w.Code, w.Body.String()
 	}
