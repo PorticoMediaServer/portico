@@ -1,12 +1,11 @@
 import {forwardIdentity} from '../detail/context';
 import {useLayoutEffect, useState} from 'react';
-import type {ShowWorkspaceRoute, ShowWorkspaceSnapshot} from '@core/show-workspace.ts';
+import type {ShowWorkspaceRoute} from '@core/show-workspace.ts';
 import type {WebShellPlaybackRuntime} from '../../platform/playback/runtime';
 import type {ProtectedLibraryScreen} from '../browse/screen-context';
 import type {ScreenContext} from './context';
 import {createShowBindings, type ShowBindings} from './show-bindings';
 import {createEpisodeSelection} from './episode-selection';
-import {usePageMemory} from '../../platform/freshness';
 
 type ShowRouteLease = Readonly<{
   context: ScreenContext; assembly: ProtectedLibraryScreen['context']; targetKey: string;
@@ -14,17 +13,12 @@ type ShowRouteLease = Readonly<{
   current: () => boolean; binding: ShowBindings; selection: ReturnType<typeof createEpisodeSelection>;
 }>;
 
-/** The page one show page owns in the viewer's memory, under the exact route it drew. */
-export function showPageKey(context: ScreenContext, target: Readonly<{libraryId: string; showId?: string; seasonId?: string}>): string {
-  return JSON.stringify(['show-page', context.scope.serverId, context.scope.viewerId, target.libraryId, target.showId ?? target.seasonId ?? '']);
-}
 
 /** One committed original show/season opening. Its binding keeps its own season,
  * expanded episode, view and revalidation state; data updates never reconstruct
  * it. A replaced route/authority/runtime instead receives entirely fresh owners. */
 export function useShowRoute(context: ScreenContext | undefined, captured: ProtectedLibraryScreen, target: ShowWorkspaceRoute) {
   const assembly = captured.context, runtime = captured.binding.playback?.runtime, targetKey = JSON.stringify(target);
-  const pages = usePageMemory();
   const [published, publish] = useState<ShowRouteLease>();
   useLayoutEffect(() => {
     if (!context) return;
@@ -34,23 +28,19 @@ export function useShowRoute(context: ScreenContext | undefined, captured: Prote
     let live = true;
     const current = () => live && !request.signal.aborted && context.isCurrent();
     const original: ScreenContext = forwardIdentity(context, {isCurrent: current});
-    const key = showPageKey(context, route);
-    // Back and Forward re-open the page this viewer left: it is drawn at once from the
-    // page it had, and the route's own read (and the hub's) refresh it in place.
-    const binding = createShowBindings(original, {initial: pages.recall<ShowWorkspaceSnapshot>(key)});
+    // Back and Forward re-open a page this viewer has had: the show is a document in the viewer's
+    // cache, drawn at once and read again in place only if something on it moved.
+    const binding = createShowBindings(original);
     const selection = createEpisodeSelection(original, binding,
       {serverId: viewer.serverId, authority: viewer.authority, accountId: viewer.accountId, profileId: viewer.profileId},
       runtime);
     selection.start();
     publish({context, assembly, targetKey, runtime, current, binding, selection});
-    const remember = (snapshot: ShowWorkspaceSnapshot) => {if (snapshot.phase === 'ready' && snapshot.data && snapshot.route) pages.remember(key, snapshot);};
-    remember(binding.service.getSnapshot());
-    const off = binding.service.subscribe(() => remember(binding.service.getSnapshot()));
     void binding.select(route, request.signal).catch(error => {if (current()) context.effects.reportError(error);});
     return () => {
-      live = false;request.abort();off();selection.dispose();binding.dispose();
+      live = false;request.abort();selection.dispose();binding.dispose();
     };
-  }, [context, assembly, runtime, targetKey, pages]);
+  }, [context, assembly, runtime, targetKey]);
   return context && published && published.context === context && published.assembly === assembly && published.targetKey === targetKey
     && published.runtime === runtime && published.current() ? published : undefined;
 }

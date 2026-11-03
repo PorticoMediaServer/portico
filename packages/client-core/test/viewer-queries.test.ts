@@ -269,3 +269,36 @@ test('a scope needs a server and a viewer', () => {
   assert.throws(() => createViewerQueries({scope: {serverId: 'server', viewerId: ''}, hub, api: server().api}));
   hub.dispose();
 });
+
+test('a quiet read waits for a pause in the person\'s input before its answer changes the screen', async () => {
+  const c = clock(), hub = new FreshnessHub({...c.env, settleMs: 300}), s = server();
+  const queries = make({scope: {serverId: 'server', viewerId: 'alex'}, hub, api: s.api});
+  const page = watch(queries, detail(queries));
+  await flush(); s.last(path).resolve({title: 'Arrival', cast: []});
+  await flush();
+  hub.accept(library('films', '2'));
+  await c.advance(1000);
+  assert.equal(s.count(path), 2);
+  // The person is pressing when the answer arrives: it is held.
+  hub.touch(); s.last(path).resolve({title: 'Arrival (2016)', cast: []});
+  await c.advance(100); hub.touch(); await c.advance(100);
+  assert.equal(page.observer.getCurrentResult().data?.title, 'Arrival', 'nothing moves under a press');
+  await c.advance(400);
+  assert.equal(page.observer.getCurrentResult().data?.title, 'Arrival (2016)', 'shown once input pauses');
+  page.stop();
+});
+
+test('a live value (a grid\'s controller) is let go once: when it is replaced, leaves the cache, or its viewer ends', async () => {
+  const {queries} = setup();
+  const released: string[] = [];
+  const live = (name: string) => ({name});
+  const options = (name: string) => ({queryKey: ['library', 'films', 'browse', name], queryFn: async () => live(name), meta: {release: (value: unknown) => released.push((value as {name: string}).name)}});
+  await queries.client.fetchQuery(options('a'));
+  queries.client.setQueryData(['library', 'films', 'browse', 'a'], live('a2'));
+  assert.deepEqual(released, ['a'], 'a replaced value is let go');
+  await queries.client.fetchQuery(options('b'));
+  queries.client.removeQueries({queryKey: ['library', 'films', 'browse', 'b'], exact: true});
+  assert.deepEqual(released, ['a', 'b'], 'a value leaving the cache is let go');
+  queries.dispose();
+  assert.deepEqual(released, ['a', 'b', 'a2'], 'and every value still held when the viewer ends');
+});

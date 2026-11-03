@@ -6,4 +6,8 @@
 export const queryKeys = Object.freeze({
   /** A title's page: `GET /v1/items/{id}/detail?related=…`. */
   itemDetail: (itemId: string, related: 'all' | 'none') => ['item', itemId, 'detail', related] as const,
+  /** One page of a show's workspace (`GET /v1/libraries/{id}/show-workspace?…`): its route and both cursors are the query string. */
+  showWorkspace: (libraryId: string, query: string) => ['library', libraryId, 'show-workspace', query] as const,
+  /** One page of a library's content route (`GET /v1/libraries/{id}/content?…`): an album, artist, book or See all page. */
+  content: (libraryId: string, query: string) => ['library', libraryId, 'content', query] as const,
 });

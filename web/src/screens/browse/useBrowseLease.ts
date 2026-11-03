@@ -35,7 +35,7 @@ export function useBrowseLease(context: ScreenContext, sourceKey: string, routeK
       dispose: () => {live = false;original.dispose();},
     };
     const controller = new BrowseController(life.api, JSON.parse(sourceKey) as BrowseSource, current);
-    const service = new LibraryContentService({api: life.api, scope: context.scope});
+    const service = new LibraryContentService({queries: context.queries, scope: context.scope});
     const screen: ScreenContext = forwardIdentity(context, {isCurrent: current});
     const lease: BrowseLease = {id: crypto.randomUUID(), context, screen, sourceKey, routeKey, playbackOwner, life, controller, service};
     publish(lease);

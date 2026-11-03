@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {LibraryContentService, type ContentRoute} from '../src/library-content.ts';
+import {withQueries} from './fixtures/viewer-queries.ts';
 
 const scope = {viewerId: JSON.stringify(['hosted', 'account', 'profile']), serverId: 'server'};
 const route: ContentRoute = {libraryId: 'movies', view: 'browse'};
@@ -25,7 +26,7 @@ function projection(path: string, changes: Record<string, unknown> = {}): any {
 }
 
 function service(request: (path: string, signal?: AbortSignal) => Promise<unknown>) {
-  return new LibraryContentService({api: {request: <T>(path: string, _method?: string, _body?: unknown, signal?: AbortSignal) => request(path, signal) as Promise<T>}, scope, timeoutMs: 1000});
+  return new LibraryContentService(withQueries({api: {request: <T>(path: string, _method?: string, _body?: unknown, signal?: AbortSignal) => request(path, signal) as Promise<T>}, scope, timeoutMs: 1000}));
 }
 
 test('sections and entries preserve exact totals', async () => {

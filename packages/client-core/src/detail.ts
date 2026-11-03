@@ -16,7 +16,7 @@ import {QueryObserver} from '@tanstack/query-core';
 import type {ViewerQueries} from './query/viewer-queries.ts';
 import type {ViewerQueryOptions} from './query/react.ts';
 import {queryKeys} from './query/keys.ts';
-import {dependsOn, titlesWithPersonalState} from './freshness-hub.ts';
+import {dependsOn, personalChangedHere, titlesWithPersonalState} from './freshness-hub.ts';
 import {linkAbortSignals} from './abort-lifetime.ts';
 export type DetailExtraType = 'trailer' | 'featurette' | 'deleted_scene' | 'behind_the_scenes' | 'interview' | 'scene' | 'short' | 'other';
 export type DetailExtra = Readonly<{ type: DetailExtraType; label: string; items: readonly ContentEntry[] }>;
@@ -432,7 +432,9 @@ export class DetailService {
       await api.acknowledgeUserMutation?.(command.operationId);
       if (this.disposed || generation !== this.generation) return;
       this.commands.shift(); command.resolve(); this.publish({ mutationError: null });
-      // What the change touched elsewhere on the page (Up Next, counts) is read in place, with no loading state.
+      // Every other page showing this title (its show's episode list, a Home row, a grid) reads again in place now (N4-5).
+      this.queries.moved(personalChangedHere(data.scope.libraryId, [data.item.id, data.item.episode?.showId, data.item.episode?.seasonId]));
+      // What the change touched elsewhere on this page (Up Next, counts) is read in place, with no loading state.
       await this.refresh().catch(() => {});
     } catch (error) {
       if (this.disposed || generation !== this.generation) return;

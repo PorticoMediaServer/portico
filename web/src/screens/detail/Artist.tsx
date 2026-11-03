@@ -7,8 +7,6 @@ import {router} from '../../router';
 import type {FactPart} from '@core/presentation/kit-model';
 import {clockText} from '@core/presentation/kit-model/text.ts';
 import {LibraryContentService, readListeningSimilar, type ContentEntry, type ContentProjection, type ContentSection, type LibraryContentApi} from '@core/library-content.ts';
-import {dependsOn} from '@core/freshness-hub.ts';
-import {useFreshDocument, usePageMemory} from '../../platform/freshness';
 import {AmbientArt, CircleArt} from '../../kit/artwork';
 import {Button, Chip} from '../../kit/controls';
 import {serverTextLabel} from '@core/presentation/server-text.ts';
@@ -47,8 +45,6 @@ type Similar = Readonly<{page: ContentProjection; token: object; value: Listenin
  * container, the server-ranked Top songs, then the artist's albums. */
 export function ArtistScreen({context, libraryId, artistId, onBack}: ArtistScreenProps) {
   const entry = useLocation({select: value => value});
-  const pages = usePageMemory();
-  const pageKey = JSON.stringify(['artist-page', context.scope.serverId, context.scope.viewerId, libraryId, artistId]);
   const [retry, setRetry] = useState(0), [lease, setLease] = useState<Lease>();
   const committed = useRef<Lease | undefined>(undefined);
   // Publish only at commit, then sample once for this setup's original lifetime.
@@ -57,22 +53,19 @@ export function ArtistScreen({context, libraryId, artistId, onBack}: ArtistScree
   useLayoutEffect(() => {
     const {onBack} = setupPorts.current;
     const scope = screenLifetime(context), life = new AbortController();
-    // Back draws the artist this viewer left at once, then reads it again in place.
-    const service = new LibraryContentService({api: scope.api, scope: {serverId: context.scope.serverId, viewerId: context.scope.viewerId}, initial: pages.recall(pageKey)});
-    const remember = () => {const snapshot = service.getSnapshot(); if (snapshot.phase === 'ready' && snapshot.projection) pages.remember(pageKey, snapshot);};
-    remember();
-    const offRemember = service.subscribe(remember);
+    // The artist is a document in the viewer's cache: Back draws it at once, and the hub reads it again in place only if it moved.
+    const service = new LibraryContentService({queries: context.queries, scope: {serverId: context.scope.serverId, viewerId: context.scope.viewerId}});
     const next: Lease = {service, api: scope.api, signal: life.signal, context, libraryId, artistId, entry, retry, onBack, live: true, claimed: false,
       isCurrent: () => {
         if (!next.live || committed.current !== next || router.state.location !== entry || life.signal.aborted) return false;
         if (!scope.current() || !context.isCurrent()) return false;
         return next.live && committed.current === next && router.state.location === entry && !life.signal.aborted;
       },
-      dispose: () => {next.live = false; if (committed.current === next) committed.current = undefined; offRemember(); life.abort(); service.cancel(); service.dispose(); scope.dispose();}};
+      dispose: () => {next.live = false; if (committed.current === next) committed.current = undefined; life.abort(); service.cancel(); service.dispose(); scope.dispose();}};
     committed.current = next;
     setLease(next);
     return () => {next.dispose(); setLease(current => current === next ? undefined : current);};
-  }, [context, libraryId, artistId, entry, retry, pageKey, pages]);
+  }, [context, libraryId, artistId, entry, retry]);
   const active = lease && lease.live && lease.context === context && lease.libraryId === libraryId && lease.artistId === artistId && lease.entry === entry && lease.retry === retry ? lease : undefined;
   const back = () => {if (active?.isCurrent()) active.onBack?.();};
   const retryOriginal = (failureCurrent: () => boolean) => {if (!active || active.claimed || !active.isCurrent() || !failureCurrent() || !active.isCurrent() || !failureCurrent()) return; active.claimed = true; active.live = false; setRetry(value => value === active.retry ? value + 1 : value);};
@@ -98,7 +91,6 @@ function ArtistBody({context, libraryId, artistId, lease, retry, back}: {context
     }, error => { if (active && lease.isCurrent()) { const failure = {lease, snapshot: service.getSnapshot(), error}; failureRef.current = failure; setFailed(failure); context.effects.reportError(error); } });
     return () => { active = false; };
   }, [service, lease, libraryId, artistId, context]);
-  useFreshDocument(() => [dependsOn.libraries], async refresh => { if (lease.isCurrent()) await service.revalidate(refresh); }, () => lease.isCurrent() && service.getSnapshot().phase === 'ready');
   const projection: ContentProjection | undefined = content.phase === 'ready' || content.phase === 'loading' ? content.projection ?? undefined : undefined;
   const artist = projection?.entity;
   const admitted = !!projection && !!artist && artist.kind === 'artist' && artist.id === artistId
