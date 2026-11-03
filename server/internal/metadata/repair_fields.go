@@ -59,7 +59,7 @@ func readRepairTarget(ctx context.Context, tx *sql.Tx, t RepairTarget, editable 
 	if compactcatalog.OwnerNamespace(compactcatalog.Kind(kind)) != t.Kind {
 		return e, sql.ErrNoRows
 	}
-	e.itemKind = kindName
+	e.itemKind, e.title = kindName, title
 	if t.Kind == "item" && !readingRepairKind(kindName) {
 		var stamp string
 		err = tx.QueryRowContext(ctx, `SELECT h.incarnation||':'||h.source_revision||':'||h.identity_revision||':'||h.metadata_revision FROM metadata_publication_heads h WHERE h.item_id=?`, entity).Scan(&stamp)

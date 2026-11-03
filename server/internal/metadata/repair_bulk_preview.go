@@ -14,6 +14,10 @@ import (
 type BulkPreviewValue struct {
 	Value string `json:"value"`
 	Count int64  `json:"count"`
+	// Titles names up to bulkPreviewTitles of the selected titles holding a
+	// scalar value, for "What will change" (OW-6). The list is complete only
+	// when its length equals Count. Display only: it never identifies a target.
+	Titles []string `json:"titles,omitempty"`
 }
 type BulkPreviewField struct {
 	State         string             `json:"state"`
@@ -75,10 +79,11 @@ func bulkPreviewGenres(values []string) []string {
 // at exhaustion, so the final validation reads current authority and revisions.
 type BulkPreviewSource func(context.Context, *sql.Tx, int64) (catalog.BulkMetadataSelectionPage, error)
 type bulkPreviewObservation struct {
-	field, value string
-	entries      []string
-	locked       bool
-	count        int64
+	// title is the observed title's display name, for naming what changes.
+	field, value, title string
+	entries             []string
+	locked              bool
+	count               int64
 }
 type bulkPreviewPage struct {
 	preview      BulkMetadataPreview
@@ -224,15 +229,15 @@ func (s *Service) bulkPreviewPageTx(ctx context.Context, tx *sql.Tx, selection c
    'genres',json(COALESCE((SELECT json_group_array(COALESCE(ts.label_override,t.label)) FROM catalog_entity_terms et JOIN catalog_terms t ON t.id=et.term_id JOIN catalog_term_sources ts ON ts.entity_id=et.entity_id AND ts.term_id=et.term_id WHERE et.entity_id=i.id AND t.vocab=1),'[]')))`
 		// SELECT-expression placeholders precede the bounded selection subquery.
 		args := append([]any{out.Kind, out.Kind}, selection.Args...)
-		vectors := `SELECT ` + vector + ` AS vector FROM (` + selection.SQL + `) selected JOIN catalog_entities i ON i.id=selected.id JOIN catalog_kinds k ON k.id=i.kind LEFT JOIN catalog_item_details d ON d.entity_id=i.id LEFT JOIN catalog_shows sh ON sh.entity_id=i.id LEFT JOIN catalog_artists ar ON ar.entity_id=i.id LEFT JOIN catalog_albums al ON al.entity_id=i.id LEFT JOIN catalog_books bk ON bk.entity_id=i.id`
-		grouped, e := tx.QueryContext(ctx, `SELECT vector,1 FROM (`+vectors+`)`, args...)
+		vectors := `SELECT ` + vector + ` AS vector,i.title AS title FROM (` + selection.SQL + `) selected JOIN catalog_entities i ON i.id=selected.id JOIN catalog_kinds k ON k.id=i.kind LEFT JOIN catalog_item_details d ON d.entity_id=i.id LEFT JOIN catalog_shows sh ON sh.entity_id=i.id LEFT JOIN catalog_artists ar ON ar.entity_id=i.id LEFT JOIN catalog_albums al ON al.entity_id=i.id LEFT JOIN catalog_books bk ON bk.entity_id=i.id`
+		grouped, e := tx.QueryContext(ctx, `SELECT vector,1,title FROM (`+vectors+`)`, args...)
 		if e != nil {
 			return page, e
 		}
 		for grouped.Next() {
-			var raw string
+			var raw, title string
 			var count int64
-			if err = grouped.Scan(&raw, &count); err != nil {
+			if err = grouped.Scan(&raw, &count, &title); err != nil {
 				break
 			}
 			var value bulkPreviewVector
@@ -240,7 +245,7 @@ func (s *Service) bulkPreviewPageTx(ctx context.Context, tx *sql.Tx, selection c
 				break
 			}
 			for _, spec := range out.Schema {
-				observation := bulkPreviewObservation{field: spec.Field, count: count}
+				observation := bulkPreviewObservation{field: spec.Field, count: count, title: title}
 				if spec.Field == "genres" {
 					observation.entries = bulkPreviewGenres(value.Genres)
 					observation.value = encodeList(observation.entries)

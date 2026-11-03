@@ -148834,6 +148834,13 @@ export const schemas = {
                             "minimum": 1,
                             "type": "integer"
                           },
+                          "titles": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "maxItems": 5,
+                            "type": "array"
+                          },
                           "value": {
                             "type": "string"
                           }
@@ -148909,6 +148916,13 @@ export const schemas = {
                           "count": {
                             "minimum": 1,
                             "type": "integer"
+                          },
+                          "titles": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "maxItems": 5,
+                            "type": "array"
                           },
                           "value": {
                             "type": "string"
@@ -148988,6 +149002,13 @@ export const schemas = {
                           "count": {
                             "minimum": 1,
                             "type": "integer"
+                          },
+                          "titles": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "maxItems": 5,
+                            "type": "array"
                           },
                           "value": {
                             "type": "string"
@@ -242048,6 +242069,13 @@ export const schemas = {
                             "minimum": 1,
                             "type": "integer"
                           },
+                          "titles": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "maxItems": 5,
+                            "type": "array"
+                          },
                           "value": {
                             "type": "string"
                           }
@@ -242123,6 +242151,13 @@ export const schemas = {
                           "count": {
                             "minimum": 1,
                             "type": "integer"
+                          },
+                          "titles": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "maxItems": 5,
+                            "type": "array"
                           },
                           "value": {
                             "type": "string"
@@ -242202,6 +242237,13 @@ export const schemas = {
                           "count": {
                             "minimum": 1,
                             "type": "integer"
+                          },
+                          "titles": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "maxItems": 5,
+                            "type": "array"
                           },
                           "value": {
                             "type": "string"

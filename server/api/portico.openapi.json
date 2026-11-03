@@ -153117,6 +153117,13 @@
                                 "minimum": 1,
                                 "type": "integer"
                               },
+                              "titles": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "maxItems": 5,
+                                "type": "array"
+                              },
                               "value": {
                                 "type": "string"
                               }
@@ -153192,6 +153199,13 @@
                               "count": {
                                 "minimum": 1,
                                 "type": "integer"
+                              },
+                              "titles": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "maxItems": 5,
+                                "type": "array"
                               },
                               "value": {
                                 "type": "string"
@@ -153271,6 +153285,13 @@
                               "count": {
                                 "minimum": 1,
                                 "type": "integer"
+                              },
+                              "titles": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "maxItems": 5,
+                                "type": "array"
                               },
                               "value": {
                                 "type": "string"
@@ -264396,6 +264417,13 @@
                                 "minimum": 1,
                                 "type": "integer"
                               },
+                              "titles": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "maxItems": 5,
+                                "type": "array"
+                              },
                               "value": {
                                 "type": "string"
                               }
@@ -264471,6 +264499,13 @@
                               "count": {
                                 "minimum": 1,
                                 "type": "integer"
+                              },
+                              "titles": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "maxItems": 5,
+                                "type": "array"
                               },
                               "value": {
                                 "type": "string"
@@ -264550,6 +264585,13 @@
                               "count": {
                                 "minimum": 1,
                                 "type": "integer"
+                              },
+                              "titles": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "maxItems": 5,
+                                "type": "array"
                               },
                               "value": {
                                 "type": "string"
@@ -660456,6 +660498,13 @@
                                       "minimum": 1,
                                       "type": "integer"
                                     },
+                                    "titles": {
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "maxItems": 5,
+                                      "type": "array"
+                                    },
                                     "value": {
                                       "type": "string"
                                     }
@@ -660531,6 +660580,13 @@
                                     "count": {
                                       "minimum": 1,
                                       "type": "integer"
+                                    },
+                                    "titles": {
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "maxItems": 5,
+                                      "type": "array"
                                     },
                                     "value": {
                                       "type": "string"
@@ -660610,6 +660666,13 @@
                                     "count": {
                                       "minimum": 1,
                                       "type": "integer"
+                                    },
+                                    "titles": {
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "maxItems": 5,
+                                      "type": "array"
                                     },
                                     "value": {
                                       "type": "string"
@@ -661155,6 +661218,13 @@
                                       "minimum": 1,
                                       "type": "integer"
                                     },
+                                    "titles": {
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "maxItems": 5,
+                                      "type": "array"
+                                    },
                                     "value": {
                                       "type": "string"
                                     }
@@ -661230,6 +661300,13 @@
                                     "count": {
                                       "minimum": 1,
                                       "type": "integer"
+                                    },
+                                    "titles": {
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "maxItems": 5,
+                                      "type": "array"
                                     },
                                     "value": {
                                       "type": "string"
@@ -661309,6 +661386,13 @@
                                     "count": {
                                       "minimum": 1,
                                       "type": "integer"
+                                    },
+                                    "titles": {
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "maxItems": 5,
+                                      "type": "array"
                                     },
                                     "value": {
                                       "type": "string"

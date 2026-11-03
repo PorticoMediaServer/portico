@@ -150,3 +150,15 @@ test('a shared preview with an absent value cannot claim a known prior differenc
   const unknown: BulkFieldValues = {state: 'shared', distinctCount: 1, truncated: false, values: [], entries: []};
   assert.equal(bulkSummary(schema, {year: unknown}, {...empty, fields: {year: '2020'}}, 4)[0]!.changedCount, undefined);
 });
+
+test('What will change names the titles a change touches when the preview names every one (OW-6)', () => {
+  const named: BulkFieldValues = {state: 'mixed', distinctCount: 2, truncated: false, entries: [],
+    values: [{value: '2019', count: 1, titles: ['Please Hold to My Hand']}, {value: '2020', count: 11, titles: ['A', 'B', 'C', 'D', 'E']}]};
+  const row = bulkSummary(schema, {year: named}, {...empty, fields: {year: '2020'}}, 12)[0]!;
+  assert.equal(row.changedCount, 1);
+  assert.deepEqual(row.changedTitles, ['Please Hold to My Hand'], 'the titles already holding 2020 are not needed');
+  assert.equal(bulkSummary(schema, {year: named}, {...empty, fields: {year: '2019'}}, 12)[0]!.changedTitles, undefined, 'eleven change: five names are not all of them');
+  const six: BulkFieldValues = {state: 'mixed', distinctCount: 3, truncated: false, entries: [],
+    values: [{value: '1', count: 3, titles: ['a', 'b', 'c']}, {value: '2', count: 3, titles: ['d', 'e', 'f']}, {value: '3', count: 1, titles: ['g']}]};
+  assert.equal(bulkSummary(schema, {year: six}, {...empty, fields: {year: '3'}}, 7)[0]!.changedTitles, undefined, 'more than five changes read as the count');
+});
