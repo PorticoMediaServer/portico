@@ -129,6 +129,7 @@ const emptySubtitle: SubtitleSnapshot = {catalog: null, plan: null, busy: false,
 function problem(code: string): never { throw new Error(code); }
 /** Stop on the starting dock is the viewer's own cancel: never reported as a failure. */
 const startStopped = () => new DOMException('Playback start stopped', 'AbortError');
+export type WebSleepEnd = 'item' | 'chapter' | 'book';
 const validSeconds = (value: number) => Number.isFinite(value) && value >= 0 && value <= 1e9;
 /** The server's capability document (`GET /v1/capabilities`): one read, ready to become a query. */
 const readServerCapabilities = (api: WebPlaybackSource['api'], signal: AbortSignal): Promise<unknown> => api.request<unknown>(encodedRoutePath('get_capabilities', {}), 'GET', undefined, signal);
@@ -2442,20 +2443,36 @@ export class WebShellPlaybackRuntime {
   }
   /** desktop-player f3: the drawn sleep timer. Only this stack's own local playback is
    * paused when the time is up; a group is never paused on a member's behalf. */
-  sleepTimer(fence: PlaybackFence): Readonly<{minutes: number; endsAt: number}> | undefined {
+  sleepTimer(fence: PlaybackFence): Readonly<{minutes: number; endsAt: number}> | Readonly<{end: WebSleepEnd}> | undefined {
     if (fence.kind !== 'queue' || !this.matches(fence)) return undefined;
     const timer = this.stack.sleepTimer;
-    if (!timer) return undefined;
+    if (!timer) {
+      // "End of this title, chapter or book" is the listening service's own timer (MU-6).
+      const end = this.stack.queue.listening.getSnapshot().timer?.choice;
+      return end === 'item' || end === 'chapter' || end === 'book' ? Object.freeze({end}) : undefined;
+    }
     // It lasts the whole run, across the queue's next tracks and parts (MU-3). A new playback is
     // a new run: retire the armed record rather than show a timer that no longer applies.
     if (timer.run !== this.playbackRun()) { this.clearSleepTimer(this.stack); return undefined; }
     return Object.freeze({minutes: timer.minutes, endsAt: timer.endsAt});
   }
-  setSleepTimer(fence: PlaybackFence, minutes: number): void {
+  /** Minutes (0 is off), or the end of this title, chapter or book. One timer at a time. */
+  async setSleepTimer(fence: PlaybackFence, choice: number | WebSleepEnd): Promise<void> {
     if (fence.kind !== 'queue') problem('playback_sleep_unavailable');
     const stack = this.require(fence);
+    if (typeof choice === 'string') {
+      if (!['item', 'chapter', 'book'].includes(choice)) problem('playback_sleep_unavailable');
+      this.clearSleepTimer(stack);
+      this.sync();
+      // The core verifies the chapter's timing or the book's order before it arms (MU-6).
+      await stack.queue.listening.setTimer(choice);
+      if (this.current(stack)) this.sync();
+      return;
+    }
+    const minutes = choice;
     if (!Number.isSafeInteger(minutes) || ![0, 15, 30, 45, 60, 90].includes(minutes)) problem('playback_sleep_unavailable');
     this.clearSleepTimer(stack);
+    if (stack.queue.listening.getSnapshot().timer) stack.queue.listening.clearTimer();
     if (!minutes) { this.sync(); return; }
     const token = {}, run = this.playbackRun();
     const timer = this.setTimer(() => {

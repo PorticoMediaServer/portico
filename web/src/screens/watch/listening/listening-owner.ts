@@ -1,10 +1,11 @@
+import {defaultI18n} from '@i18n';
 import {sameFence, type PlaybackFence} from '../../../../../packages/player-core/src/index.ts';
 import type {PlayerChapter, PlayerChaptersSnapshot} from '@core/player-chapters.ts';
 import type {LyricRevision, LyricsSnapshot} from '@core/lyrics.ts';
 import type {QueuePlaylistSave} from '@core/playback-v1/queue.ts';
 import type {V1QueuePolicyIntent} from '@core/playback-v1/v1-queue-player.ts';
 import type {WebPlaybackRuntimeSnapshot, WebShellPlaybackRuntime, WebListeningPort, WebListeningLifetime, WebListeningTarget, WebQueueListSnapshot,
-  WebQueueEditOpening, WebQueueEditSnapshot, WebQueueEditPage} from '../../../platform/playback';
+  WebQueueEditOpening, WebQueueEditSnapshot, WebQueueEditPage, WebSleepEnd} from '../../../platform/playback';
 import {dispatchWatch, type WatchIntent} from '../model';
 import {captureLibrarySettings, type ListeningSettingsInput, type ListeningLibrarySettings} from './library-settings';
 
@@ -21,7 +22,16 @@ export type ListeningOwnerInput = Readonly<{
   isCurrent(): boolean; lyricsEnabled: boolean; settings?: ListeningSettingsInput;
 }>;
 function stale(): never {throw new DOMException('Listening opening retired', 'AbortError');}
-export const listeningSleepChoices = Object.freeze([0, 15, 30, 45, 60, 90]);
+/** Off (0), minutes, or an end (MU-6): the core's own choices for the kind (FACTS §5). */
+export type ListeningSleepChoice = number | WebSleepEnd;
+const sleepMinuteChoices = Object.freeze([0, 15, 30, 45, 60, 90]);
+/** A choice as a control value, and back. */
+export const sleepChoiceValue = (choice: ListeningSleepChoice): string => String(choice);
+export const sleepChoiceFrom = (value: string): ListeningSleepChoice => value === 'item' || value === 'chapter' || value === 'book' ? value : Number(value);
+/** Its label: Off, N minutes, or the end it waits for. */
+export const sleepChoiceLabel = (choice: ListeningSleepChoice): string => {const t = defaultI18n.t;return choice === 'item' ? t('player.opt.sleepEndOfTitle') : choice === 'chapter' ? t('player.opt.sleepEndOfChapter') : choice === 'book' ? t('player.opt.sleepEndOfBook')
+    : choice ? t('player.opt.minutes', {count: choice}) : t('player.opt.off');};
+export const listeningSleepChoices = (kind: string): readonly ListeningSleepChoice[] => Object.freeze([...sleepMinuteChoices, ...(kind === 'audiobook' ? ['chapter', 'book'] as const : ['item'] as const)]);
 
 /** Presentation lifetime only. The existing runtime owns every media/session/queue
  * command. Each committed expansion, panel and mutation has its own original
@@ -56,7 +66,7 @@ export class ListeningOwner {
   private editRequest?:object;
   private initialChapters = false;
   private rates: readonly number[] = Object.freeze([]);
-  private minutes = 0;
+  private sleep: ListeningSleepChoice = 0;
   private pendingPanel?: ListeningPanel;
   private returnFocus?: HTMLElement;
   private dockPanel = false;
@@ -127,12 +137,12 @@ export class ListeningOwner {
     if (!this.current()) return;
     if (!this.read().dock.local?.expanded) this.retireView();
     else if(this.dockToken){this.dockToken=undefined;this.publish({dockOpening:null});}
-    let rates:readonly number[]=Object.freeze([]),minutes=0;
-    try{rates=this.offeredSpeeds(this.fence);minutes=this.readSleep(this.fence)?.minutes??0;}catch{/* An unavailable source offers no options. */}
+    let rates:readonly number[]=Object.freeze([]),sleep:ListeningSleepChoice=0;
+    try{rates=this.offeredSpeeds(this.fence);const timer=this.readSleep(this.fence);sleep=!timer?0:'end' in timer?timer.end:timer.minutes;}catch{/* An unavailable source offers no options. */}
     if(!this.current())return;
     const settingsAvailable=this.settings?.isCurrent()===true;
     if(!this.current())return;
-    const optionsChanged=rates.join(',')!==this.rates.join(',')||minutes!==this.minutes;this.rates=rates;this.minutes=minutes;
+    const optionsChanged=rates.join(',')!==this.rates.join(',')||sleep!==this.sleep;this.rates=rates;this.sleep=sleep;
     const chapters = this.port?.chapters.getSnapshot() ?? null, lyrics = this.port?.lyrics.getSnapshot() ?? null;
     const queue = this.port?.queue?.list.getSnapshot() ?? null;
     if (!this.current()) return;
@@ -258,10 +268,11 @@ export class ListeningOwner {
   setSpeed(shown: ListeningState, snapshot: WebPlaybackRuntimeSnapshot, rate: number, panel=false) {
     if (!this.admit(shown,panel) || !this.matches(snapshot) || !this.speeds().includes(rate) || !this.admit(shown,panel)) stale();this.writeSpeed(this.fence, rate);
   }
-  sleepMinutes() {return this.minutes;}
+  sleepChoice() {return this.sleep;}
+  sleepChoices() {return listeningSleepChoices(this.kind);}
   sleepOffered() {return this.state.current && this.fence.kind === 'queue' && !!this.port;}
-  setSleep(shown: ListeningState, snapshot: WebPlaybackRuntimeSnapshot, minutes: number, panel=false) {
-    if (!this.admit(shown,panel) || !this.matches(snapshot) || !this.sleepOffered() || !listeningSleepChoices.includes(minutes) || !this.admit(shown,panel)) stale();this.writeSleep(this.fence, minutes);
+  setSleep(shown: ListeningState, snapshot: WebPlaybackRuntimeSnapshot, choice: ListeningSleepChoice, panel=false) {
+    if (!this.admit(shown,panel) || !this.matches(snapshot) || !this.sleepOffered() || !this.sleepChoices().includes(choice) || !this.admit(shown,panel)) stale();return this.writeSleep(this.fence, choice);
   }
   async chapter(shown: ListeningState, snapshot: PlayerChaptersSnapshot, row: PlayerChapter, panel=false) {
     const lifetime = this.lifetime(shown,panel);if (!this.port) stale();await this.port.chapters.seek(snapshot, row, lifetime);

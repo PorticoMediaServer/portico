@@ -13,19 +13,20 @@ import {watchClock, watchSeek, watchSeekBounds, type WatchIntent} from '../model
 import {ListeningSeek} from './ListeningSeek';
 import ambientStyles from './listening-ambient.module.css';
 import styles from './audiobook-listening.module.css';
+import {sleepChoiceFrom, sleepChoiceLabel, sleepChoiceValue, type ListeningSleepChoice} from './listening-owner';
 const t = defaultI18n.t;
 
 /** Authored audiobook view of an existing local host. It mounts no media,
  * service, timer or runtime. Source-bearing callbacks carry the drawn witness. */
-export function AudiobookListening({snapshot, title, subtitle, cover, ambient, chapters, speedChoices, sleepChoices, sleepMinutes, skips, phone = false, sourceLabel, onShowPanel,canPlayOn,
+export function AudiobookListening({snapshot, title, subtitle, cover, ambient, chapters, speedChoices, sleepChoices, sleepChoice, skips, phone = false, sourceLabel, onShowPanel,canPlayOn,
   onIntent, onSpeed, onSleep, onChapter, onChapterPage, onChapterRetry, onCollapse, aside, notice}: Readonly<{
   snapshot: WebPlaybackRuntimeSnapshot; title: string; subtitle: ReactNode; cover?: ArtworkSource; ambient?: AmbientArtSource;
   skips: WatchBindings['skips']; phone?: boolean; sourceLabel?: string;canPlayOn?:boolean;
   onShowPanel?: (shown: WebPlaybackRuntimeSnapshot, panel: 'speed' | 'sleep' | 'chapters' | 'play-on' | 'options') => void;
-  chapters: PlayerChaptersSnapshot | null; speedChoices: readonly number[]; sleepChoices: readonly number[]; sleepMinutes: number;
+  chapters: PlayerChaptersSnapshot | null; speedChoices: readonly number[]; sleepChoices: readonly ListeningSleepChoice[]; sleepChoice: ListeningSleepChoice;
   onIntent: (shown: WebPlaybackRuntimeSnapshot, intent: WatchIntent) => void;
   onSpeed: (shown: WebPlaybackRuntimeSnapshot, rate: number) => void;
-  onSleep: (shown: WebPlaybackRuntimeSnapshot, minutes: number) => void;
+  onSleep: (shown: WebPlaybackRuntimeSnapshot, choice: ListeningSleepChoice) => void;
   onChapter: (shown: PlayerChaptersSnapshot, chapter: PlayerChapter) => void;
   onChapterPage: (shown: PlayerChaptersSnapshot, direction: 'next' | 'previous') => void;
   onChapterRetry: (shown: PlayerChaptersSnapshot) => void;
@@ -62,15 +63,15 @@ export function AudiobookListening({snapshot, title, subtitle, cover, ambient, c
       {!phone && <div className={styles.options}>
         {!!speedChoices.length && <div className={styles.option}><b>{t('player.opt.speed')}</b><Segmented className={styles.segments} aria-label={t('player.opt.speed')} value={String(p.rate)} items={speedChoices.map(rate => ({value: String(rate), label: `${defaultI18n.region.formatLocale ? new Intl.NumberFormat(defaultI18n.region.formatLocale).format(rate) : rate}×`}))}
           onValueChange={value => {const rate = Number(value);if (speedChoices.includes(rate)) onSpeed(snapshot, rate);}}/></div>}
-        {!!sleepChoices.length && <div className={styles.option}><b>{t('player.opt.sleepTimer')}</b><Segmented className={styles.segments} aria-label={t('player.opt.sleepTimer')} value={String(sleepMinutes)}
-          items={sleepChoices.map(minutes => ({value: String(minutes), label: minutes === 0 ? t('player.opt.off') : t('duration.minutes', {minutes})}))}
-          onValueChange={value => {const minutes = Number(value);if (sleepChoices.includes(minutes)) onSleep(snapshot, minutes);}}/></div>}
+        {!!sleepChoices.length && <div className={styles.option}><b>{t('player.opt.sleepTimer')}</b><Segmented className={styles.segments} aria-label={t('player.opt.sleepTimer')} value={sleepChoiceValue(sleepChoice)}
+          items={sleepChoices.map(choice => ({value: sleepChoiceValue(choice), label: typeof choice === 'number' && choice > 0 ? t('duration.minutes', {minutes: choice}) : sleepChoiceLabel(choice)}))}
+          onValueChange={value => {const choice = sleepChoiceFrom(value);if (sleepChoices.includes(choice)) onSleep(snapshot, choice);}}/></div>}
       </div>}
       {!phone && can('volume') && <div className={styles.volume}><Button variant="ghost" icon="i-vol" aria-label={t(p.muted ? 'player.unmute' : 'player.mute')} onClick={() => onIntent(snapshot, {kind: 'mute'})}/>
         <Slider aria-label={t('player.volume')} min={0} max={1} step={.01} value={p.muted ? 0 : p.volume} onValueChange={volume => onIntent(snapshot, {kind: 'volume', volume})}/></div>}
       {phone && <div className={styles.phoneOptions}>
         <button type="button" disabled={!onShowPanel || !speedChoices.length} onClick={() => onShowPanel?.(snapshot, 'speed')}><b>{new Intl.NumberFormat(defaultI18n.region.formatLocale).format(p.rate)}×</b>{t('player.opt.speed')}</button>
-        <button type="button" disabled={!onShowPanel || !sleepChoices.length} onClick={() => onShowPanel?.(snapshot, 'sleep')}><b><Icon name="i-moon" size={15}/>{sleepMinutes === 0 ? t('player.opt.off') : t('duration.minutes', {minutes: sleepMinutes})}</b>{t('player.opt.sleepTimer')}</button>
+        <button type="button" disabled={!onShowPanel || !sleepChoices.length} onClick={() => onShowPanel?.(snapshot, 'sleep')}><b><Icon name="i-moon" size={15}/>{typeof sleepChoice === 'number' && sleepChoice > 0 ? t('duration.minutes', {minutes: sleepChoice}) : sleepChoiceLabel(sleepChoice)}</b>{t('player.opt.sleepTimer')}</button>
         <button type="button" disabled={!onShowPanel || !chapters} onClick={() => onShowPanel?.(snapshot, 'chapters')}><b><Icon name="i-chapters" size={16}/>{chapters?.data?.status === 'available' ? chapters.data.totalCount : null}</b>{t('player.opt.chapters')}</button>
         {onShowPanel && canPlayOn===true && <button type="button" onClick={() => onShowPanel(snapshot, 'play-on')}><b><Icon name="i-cast" size={17}/></b>{t('next.dock.playOn')}</button>}
       </div>}

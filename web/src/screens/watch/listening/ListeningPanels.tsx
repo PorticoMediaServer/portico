@@ -7,7 +7,7 @@ import {LyricsPanel} from './LyricsPanel';
 import {ListeningQueue} from './ListeningQueue';
 import {ListeningChapters} from './ListeningChapters';
 import type {ListeningHost} from './use-listening-owner';
-import {listeningSleepChoices} from './listening-owner';
+import {sleepChoiceFrom, sleepChoiceLabel, sleepChoiceValue} from './listening-owner';
 import styles from './listening-panel.module.css';
 const t = defaultI18n.t;
 /** All callbacks capture the drawn host opening and the original service page. */
@@ -24,7 +24,7 @@ export function ListeningPanels({host, snapshot, reportError, artwork, policyInT
     onRetry={() => run(() => owner.lyricsRetry(state))} onChoose={state.lyrics?.data?.source&&state.lyrics.data.librarySelection===undefined?(shown,resource)=>run(()=>owner.chooseLyric(state,shown,resource)):undefined} onSeek={(shown, index) => run(() => owner.lyric(state, shown, index))}/>;
   if (state.panel === 'chapters') return <ListeningChapters host={host} snapshot={snapshot} reportError={reportError}/>;
   if (state.panel === 'speed') return <Segmented aria-label={t('player.opt.speed')} value={String(snapshot.presentation?.rate ?? 1)} items={owner.speeds().map(rate => ({value: String(rate), label: `${rate}×`}))} onValueChange={value => run(() => owner.setSpeed(state, snapshot, Number(value),true))}/>;
-  if (state.panel === 'sleep') return <Segmented aria-label={t('player.opt.sleepTimer')} value={String(owner.sleepMinutes())} items={(owner.sleepOffered() ? listeningSleepChoices : []).map(minutes => ({value: String(minutes), label: minutes ? t('player.opt.minutes', {count: minutes}) : t('player.opt.off')}))} onValueChange={value => run(() => owner.setSleep(state, snapshot, Number(value),true))}/>;
+  if (state.panel === 'sleep') return <Segmented aria-label={t('player.opt.sleepTimer')} value={sleepChoiceValue(owner.sleepChoice())} items={(owner.sleepOffered() ? owner.sleepChoices() : []).map(choice => ({value: sleepChoiceValue(choice), label: sleepChoiceLabel(choice)}))} onValueChange={value => run(() => owner.setSleep(state, snapshot, sleepChoiceFrom(value),true))}/>;
   if(state.panel==='options')return <div className={styles.tabs}>
     {!!owner.speeds().length&&<Button onClick={()=>owner.show(state,'speed')}>{t('player.opt.speed')}</Button>}
     {owner.sleepOffered()&&<Button onClick={()=>owner.show(state,'sleep')}>{t('player.opt.sleepTimer')}</Button>}
