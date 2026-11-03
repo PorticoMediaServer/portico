@@ -63,7 +63,7 @@ async function fixture() {
     '../../shell/model': {authorityKey}, '../../platform/offline-downloads': {offlineDownloads: {getSnapshot: () => ({supported})}},
     '../downloads/device': {createNativeDownloadsDevice: () => lease}, '../native-screen-services': {nativeScreenServices: () => ({requestId: async () => {ids++; return 'stable-operation';}})},
   });
-  const sourcePort = {...sources, getSnapshot: () => source}, activationPort = {...activation, getSnapshot: () => ({visible})};
+  const sourcePort = {...sources, getSnapshot: () => source, hold: () => () => {}}, activationPort = {...activation, getSnapshot: () => ({visible})};
   const modelPort = {...model, captureOperation: () => operation, isOperationCurrent: (value: unknown) => operationCurrent && value === operation};
   const create = (signal?: AbortSignal) => module.createNativeLibrarySelectionAction(context, sourcePort, activationPort, modelPort, signal, queue);
   return {module, context, held, create, calls, events, sourcePort, activationPort, modelPort, ids: () => ids, responders: (next: typeof responder) => {responder = next;},
