@@ -2,26 +2,25 @@ import {forwardIdentity} from '../detail/context';
 import {useRef, useLayoutEffect, useState} from 'react';
 import {LibraryContentService} from '@core/library-content.ts';
 import {screenLifetime, type ScreenContext} from '../detail/context';
-import {BrowseController, type BrowseQuery, type BrowseSource} from './controller';
 
 export type BrowseLease = Readonly<{
-  id: string; context: ScreenContext; screen: ScreenContext; sourceKey: string; routeKey: string; playbackOwner: unknown;
-  life: ReturnType<typeof screenLifetime>; controller: BrowseController; service: LibraryContentService;
+  id: string; context: ScreenContext; screen: ScreenContext; routeKey: string; playbackOwner: unknown;
+  life: ReturnType<typeof screenLifetime>; service: LibraryContentService;
 }>;
 
 /** A committed opening owns terminal resources. Strict effect replay creates
- * another opening; it never restarts the controller or API it just disposed.
+ * another opening; it never restarts the API it just disposed.
  * Each returned API/action keeps the original route predicate and authority.
- * `routeKey` is the page's address without its query: the grid opens on the address's query at
- * that moment (`opening`) and then follows the address itself, so a filter or a sort is never
- * another opening. */
-export function useBrowseLease(context: ScreenContext, sourceKey: string, routeKey: string, routeCurrent: () => boolean, playbackOwner?: unknown, opening?: BrowseQuery): BrowseLease | undefined {
+ * `routeKey` is the page's address without its query, so a filter or a sort is never another
+ * opening. The grid itself is not the opening's: it comes from the viewer's cache under its
+ * query (browse-cache.ts) and outlives the screen. */
+export function useBrowseLease(context: ScreenContext, routeKey: string, routeCurrent: () => boolean, playbackOwner?: unknown): BrowseLease | undefined {
   const [published, publish] = useState<BrowseLease>();
   // Publish only at commit, then sample once for this setup's original lifetime.
-  const setupPorts = useRef({routeCurrent, opening});
-  useLayoutEffect(() => {setupPorts.current = {routeCurrent, opening};});
+  const setupPorts = useRef({routeCurrent});
+  useLayoutEffect(() => {setupPorts.current = {routeCurrent};});
   useLayoutEffect(() => {
-    const {routeCurrent, opening} = setupPorts.current;
+    const {routeCurrent} = setupPorts.current;
     const original = screenLifetime(context);
     let live = true;
     const current = () => live && original.current() && routeCurrent();
@@ -37,16 +36,14 @@ export function useBrowseLease(context: ScreenContext, sourceKey: string, routeK
       },
       dispose: () => {live = false;original.dispose();},
     };
-    const source = JSON.parse(sourceKey) as BrowseSource;
-    const controller = new BrowseController(life.api, {...source, ...(opening?.predicates.length ? {predicates: opening.predicates} : {}), ...(opening?.sorts.length ? {sorts: opening.sorts} : {})}, current);
     const service = new LibraryContentService({queries: context.queries, scope: context.scope});
     const screen: ScreenContext = forwardIdentity(context, {isCurrent: current});
-    const lease: BrowseLease = {id: crypto.randomUUID(), context, screen, sourceKey, routeKey, playbackOwner, life, controller, service};
+    const lease: BrowseLease = {id: crypto.randomUUID(), context, screen, routeKey, playbackOwner, life, service};
     publish(lease);
-    return () => {life.dispose();controller.dispose();service.dispose();};
+    return () => {life.dispose();service.dispose();};
     // routeCurrent is deliberately captured by this opening, never replaced by
     // a successor closure. routeKey identifies changes to that predicate.
-  }, [context, sourceKey, routeKey, playbackOwner]);
-  return published?.context === context && published.sourceKey === sourceKey && published.routeKey === routeKey
+  }, [context, routeKey, playbackOwner]);
+  return published?.context === context && published.routeKey === routeKey
     && published.playbackOwner === playbackOwner && published.life.current() ? published : undefined;
 }

@@ -14,4 +14,8 @@ export const queryKeys = Object.freeze({
   showWorkspace: (libraryId: string, query: string) => ['library', libraryId, 'show-workspace', query] as const,
   /** One page of a library's content route (`GET /v1/libraries/{id}/content?…`): an album, artist, book or See all page. */
   content: (libraryId: string, query: string) => ['library', libraryId, 'content', query] as const,
+  /** A library tab's grid: its windowed pages and their session (the value is the live grid, not a document). `query` is the address's filters and order. */
+  libraryBrowse: (libraryId: string, pivot: string, query: string) => ['library', libraryId, 'browse', pivot, query] as const,
+  /** A Home row's See all grid, as `libraryBrowse`. */
+  homeRowBrowse: (rowId: string, query: string) => ['home', 'row', rowId, 'browse', query] as const,
 });

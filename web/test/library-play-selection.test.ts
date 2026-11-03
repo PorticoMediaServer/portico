@@ -161,6 +161,23 @@ test('cards shown before the page answered get their selection circles when it d
   } finally {owner.dispose();}
 });
 
+test('a window registered when the page answers but before its cards are stored gets its rows once they are', async () => {
+  const owner = setup({playSegments: async () => queue});
+  try {
+    owner.selection.start();
+    let asked = false;
+    // The grid reports its range the moment the page's revision is published.
+    const off = owner.source.subscribe(() => {
+      if (asked || !owner.source.getSnapshot().revision) return;
+      asked = true;void owner.selection.registerWindow(0, 2);
+    });
+    await owner.source.load();await settle();off();
+    assert.equal(asked, true);
+    assert.deepEqual(owner.selection.getSnapshot().rows.map(row => row.position), [0, 1, 2]);
+    assert.equal(owner.detailReads(), 0);
+  } finally {owner.dispose();}
+});
+
 test('a card picked and scrolled away before its grants are read still gets them, so the selection offers its actions', async () => {
   const owner = setup({playSegments: async () => queue});
   try {

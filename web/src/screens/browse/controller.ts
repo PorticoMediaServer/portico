@@ -5,6 +5,8 @@ import {createWindowedCollection, type WindowedCollection} from '@core/collectio
 import type {ContentEntry, LibraryContentApi} from '@core/library-content.ts';
 import {readReadingFacet} from '@core/browse-preparation.ts';
 import {isStaleAnswer} from '@core/freshness-actions.ts';
+import {listedTitlesWithPersonalState, readsPersonalState, titleIdsOf, type FreshDocument} from '@core/freshness-hub.ts';
+import type {ViewerQueries} from '@core/query/viewer-queries.ts';
 
 export {withLibraryScope} from '@core/browse-session.ts';
 export type BrowseMember = Readonly<{membershipId: string; entry: ContentEntry}>;
@@ -41,6 +43,10 @@ export class BrowseController {
   private session?: BrowseSession<BrowseMember>;
   /** The page whose address owns this grid's query, when one does (LB-1). */
   private route?: (query: BrowseQuery) => void;
+  /** The session a quiet re-read is replacing: its rows stay the shown ones until the new session answers. */
+  private replacing?: BrowseSession<BrowseMember>;
+  /** Keeps the grid current on the viewer's hub while it is cached, read in place while it is shown. */
+  private freshness?: FreshDocument;
   constructor(private api: LibraryContentApi, source: BrowseSource, private isCurrent: () => boolean) {
     this.source = Object.freeze({...source,
       ...(source.base ? {base: Object.freeze(source.base.map(captureNode))} : {}),
@@ -58,7 +64,7 @@ export class BrowseController {
   /** Borrowed row/menu actions require the same current resident object.
    * Explicit selection has its own retained picks and operation lifetime. */
   contains(entry: ContentEntry): boolean {
-    return this.current() && this.state.phase === 'ready' && !!this.state.revision && !!this.session?.owns(entry)
+    return this.current() && this.state.phase === 'ready' && !!this.state.revision && (!!this.session?.owns(entry) || !!this.replacing?.owns(entry))
       && this.collection.residentItems().some(member => member.entry === entry);
   }
   /** The same title in the list this controller holds now. A press that crossed a re-read of the
@@ -143,21 +149,70 @@ export class BrowseController {
     this.route = route;
     return () => {if (this.route === route) this.route = undefined;};
   }
-  /** Applies the address's query when it differs from the one shown; false when nothing changed.
-   *  A query this pivot can't run throws, and the grid keeps what it shows. */
-  follow(query: BrowseQuery): boolean {
-    const {capabilities: caps, phase} = this.state;
-    if (!this.current() || phase !== 'ready' || !caps) return false;
-    const predicates = Object.freeze(query.predicates.map(captureNode));
-    const sorts = Object.freeze(query.sorts.map(({field, direction, seed}) => Object.freeze({field, direction, ...(seed === undefined ? {} : {seed})})));
-    const sort = sorts[0];
-    if (!sort) return false;
-    if (JSON.stringify(predicates) === JSON.stringify(this.state.predicates) && JSON.stringify(sorts) === JSON.stringify(this.sorts.length ? this.sorts : [this.state.sort])) return false;
-    browseSessionBuilder({...this.sessionQuery(caps, predicates, sort), sorts}).limit(60).build();
-    if (!this.current()) return false;
-    this.sorts = sorts;
-    this.reset({predicates, sort});
-    return true;
+  /**
+   * The grid is a cached value that outlives its screen: the hub keeps it current. While it is
+   * shown (`show`), a title it holds, its library's content or order, or (for a query that reads
+   * it) this profile's state moving re-reads its visible pages in place; while it is not, the move
+   * is remembered and read when it is shown again. Ends with `dispose`.
+   */
+  keepCurrent(queries: ViewerQueries): void {
+    if (this.freshness || !this.current()) return;
+    const library = this.source.libraryId === '*' ? undefined : this.source.libraryId;
+    this.freshness = queries.keepCurrent({
+      dependencies: () => listedTitlesWithPersonalState(library, titleIdsOf(this.collection.residentItems().map(member => member.entry)),
+        readsPersonalState(this.fields())),
+      // Held (a selection is open on it): a move is remembered and read once the hold ends.
+      hasContent: () => this.state.phase === 'ready' && !!this.state.revision && this.holds === 0,
+      revalidate: context => this.revalidate(context.settle),
+    });
+  }
+  /** On screen now; returns the hide. A grid shown again after its opening failed tries again. */
+  show(): () => void {
+    const document = this.freshness;
+    document?.setOpen(true);
+    if (this.state.phase === 'error') void this.load();
+    return () => document?.setOpen(false);
+  }
+  isDisposed(): boolean { return this.life.signal.aborted; }
+  private holds = 0;
+  /** Keep the shown pages as they are (a selection is open over them; reading them again would
+   *  start a new page revision and end it). Returns the release; a move meanwhile is read then. */
+  hold(): () => void {
+    this.holds++;
+    let held = true;
+    return () => {if (!held) return; held = false; if (--this.holds === 0) this.freshness?.check();};
+  }
+  /** Every field the applied query filters or sorts on. */
+  private fields(): string[] {
+    const out: string[] = this.sorts.map(sort => sort.field);
+    const visit = (node: BrowseNode): void => {
+      if ('field' in node) out.push(node.field);
+      else if ('all' in node) node.all.forEach(visit);
+      else if ('any' in node) node.any.forEach(visit);
+      else visit(node.not);
+    };
+    [...(this.source.base ?? []), ...this.state.predicates].forEach(visit);
+    return out;
+  }
+  /**
+   * Reads the visible pages again under a fresh session and shows them in place, keeping the
+   * scroll. A failed read leaves the grid and its session as they were (the hub tries again later);
+   * a query change in the meantime makes it moot.
+   */
+  async revalidate(hold?: () => Promise<void>): Promise<void> {
+    const {capabilities: caps, predicates, sort, phase} = this.state;
+    if (!this.current() || phase !== 'ready' || !caps || !sort || !this.state.revision || !this.session) return;
+    const epoch = this.epoch, previous = this.session;
+    const next = this.openSession(caps, predicates, sort, epoch);
+    this.replacing = previous;
+    this.session = next;
+    try {
+      await this.collection.revalidate({fetchPage: next.fetchPage, ...(hold ? {hold} : {})});
+      if (this.session === next) previous.retire();
+    } catch (error) {
+      if (this.session === next) {next.retire(); this.session = previous;}
+      throw error;
+    } finally {if (this.replacing === previous) this.replacing = undefined;}
   }
   private sessionQuery(caps: BrowseCapabilities, predicates: readonly BrowseNode[], sort: BrowseSortSelection): BrowseSessionQuery {
     return {libraryId: this.source.libraryId, pivot: this.source.pivot, capabilities: caps, nodes: [...(this.source.base ?? []), ...predicates],
@@ -180,10 +235,16 @@ export class BrowseController {
     this.session = undefined;
     this.publish({...next, revision: undefined, queryRevision: this.state.queryRevision + 1});
     if (!this.current() || epoch !== this.epoch) return;
-    const session = new BrowseSession<BrowseMember>({query: this.sessionQuery(caps, predicates, sort),
+    const session = this.openSession(caps, predicates, sort, epoch);
+    this.session = session;
+    this.collection.invalidate(session.fetchPage);
+    this.collection.ensureRange(0, 0);
+  }
+  private openSession(caps: BrowseCapabilities, predicates: readonly BrowseNode[], sort: BrowseSortSelection, epoch: number): BrowseSession<BrowseMember> {
+    const session: BrowseSession<BrowseMember> = new BrowseSession<BrowseMember>({query: this.sessionQuery(caps, predicates, sort),
       request: (path, method, body, signal) => this.api.request(path, method, body, signal),
       ...(this.api.requestRaw ? {requestRaw: this.api.requestRaw.bind(this.api)} : {}),
-      current: () => this.current() && epoch === this.epoch,
+      current: () => this.current() && epoch === this.epoch && (this.session === session || this.replacing === session),
       item: (entry, page, index) => Object.freeze({membershipId: browseMembershipId(page, index)!, entry}),
       onRevision: revision => this.publish({revision}),
       onWhole: () => this.publish({}),
@@ -193,9 +254,7 @@ export class BrowseController {
         if (!this.staleRetried && this.state.revision === undefined && this.current() && epoch === this.epoch) {this.staleRetried = true; this.reset({}, true); return;}
         this.publish({revision: undefined, error});
       }});
-    this.session = session;
-    this.collection.invalidate(session.fetchPage);
-    this.collection.ensureRange(0, 0);
+    return session;
   }
   async facets(field: string, query: string, predicates: readonly BrowseNode[], signal: AbortSignal) {
     const {capabilities: caps, sort} = this.state;
@@ -247,5 +306,5 @@ export class BrowseController {
     else if (isStaleAnswer(this.collection.getSnapshot().error)) this.reset();
     else this.collection.retry();
   };
-  dispose() { this.route = undefined; this.life.abort(); this.epoch++; this.session?.retire(); this.collection.dispose(); this.listeners.clear(); }
+  dispose() { this.route = undefined; this.freshness?.dispose(); this.freshness = undefined; this.life.abort(); this.epoch++; this.session?.retire(); this.replacing?.retire(); this.replacing = undefined; this.collection.dispose(); this.listeners.clear(); }
 }
