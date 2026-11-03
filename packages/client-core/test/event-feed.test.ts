@@ -289,3 +289,17 @@ test('opt-in retained ownership keeps the background feed indefinitely without m
   retained = false; retention.forEach(fn => fn()); await timers.advance(30000); assert.equal(ended, 1);
   stop(); assert.equal(visibility.size, 0); assert.equal(retention.size, 0); hub.dispose();
 });
+
+test('prime takes the feed\'s position with one immediate read, so the stream opens from it', async () => {
+  const {EventsClient} = await import('../src/playback-v1/events.ts');
+  const paths: string[] = [];
+  const events = new EventsClient({http: {send: async (request: {path: string}) => { paths.push(request.path); return {status: 200, headers: {}, body: {events: [], nextAfter: 'position-h'}}; }} as never});
+  assert.equal(await events.prime(), true);
+  assert.deepEqual(paths, ['/v1/events?waitMs=0']);
+  assert.equal(events.getStatus().cursor, 'position-h');
+  assert.equal(await events.prime(), false, 'a position it already has is kept');
+  assert.equal(paths.length, 1);
+  const failing = new EventsClient({http: {send: async () => { throw new Error('offline'); }} as never});
+  assert.equal(await failing.prime(), false, 'a failed read leaves the catch-up to the first connection');
+  assert.equal(failing.getStatus().cursor, undefined);
+});
