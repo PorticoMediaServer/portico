@@ -13,7 +13,7 @@
  * profile read can reach another. The shell disposes it whenever the server, account, profile,
  * role or privacy fence changes, and builds a new one.
  */
-import {QueryClient, hashKey, type DefaultError, type DefaultedQueryObserverOptions, type Query, type QueryFunction, type QueryFunctionContext, type QueryKey, type QueryObserverOptions} from '@tanstack/query-core';
+import {QueryClient, hashKey, timeoutManager, type DefaultError, type DefaultedQueryObserverOptions, type Query, type QueryFunction, type QueryFunctionContext, type QueryKey, type QueryObserverOptions} from '@tanstack/query-core';
 import {finalAnswer, type FreshDocument, type FreshnessDependency, type FreshnessHub, type RevalidateContext} from '../freshness-hub.ts';
 import {linkAbortSignals, throwIfAborted} from '../abort-lifetime.ts';
 
@@ -22,7 +22,12 @@ export type QueryDependencies = readonly FreshnessDependency[] | ((data: unknown
 
 declare module '@tanstack/query-core' {
   interface Register {
-    queryMeta: {dependencies?: QueryDependencies};
+    queryMeta: {
+      dependencies?: QueryDependencies;
+      /** For a query whose value is a live object (a grid's controller with its windowed pages): let it go when it
+       * leaves the cache, is replaced by another value, or the viewer's cache ends. Called once per value. */
+      release?: (value: unknown) => void;
+    };
   }
 }
 
@@ -51,6 +56,23 @@ export type ViewerQueriesOptions = Readonly<{
   /** The most documents kept that nobody shows; the least recently shown goes first. */
   maxInactive?: number;
 }>;
+
+// The cache's own timers (collecting a document nobody shows) never keep a process alive: Node
+// (tests, the probe tool) lets them go at exit; browsers and React Native have no unref and are unchanged.
+const later = (callback: () => void, delay: number) => { const timer = setTimeout(callback, delay); (timer as {unref?: () => void}).unref?.(); return timer; };
+type Repeating = {timer?: ReturnType<typeof setTimeout>; [Symbol.toPrimitive]: () => number};
+timeoutManager.setTimeoutProvider<ReturnType<typeof setTimeout> | Repeating>({
+  setTimeout: (callback, delay) => later(callback, delay),
+  clearTimeout: timer => { if (timer !== undefined) clearTimeout(timer as ReturnType<typeof setTimeout>); },
+  // Nothing here repeats (no refetch interval), but the provider is whole: a chain of single timers.
+  setInterval: (callback, delay) => {
+    const handle: Repeating = {[Symbol.toPrimitive]: () => 0};
+    const next = () => { handle.timer = later(() => { next(); callback(); }, delay); };
+    next();
+    return handle;
+  },
+  clearInterval: handle => { const timer = (handle as Repeating | undefined)?.timer; if (timer !== undefined) clearTimeout(timer); },
+});
 
 const abortError = (): Error => Object.assign(new Error('This viewer is no longer signed in here.'), {name: 'AbortError'});
 
@@ -141,8 +163,10 @@ export function createViewerQueries(options: ViewerQueriesOptions): ViewerQuerie
       disposed = true;
       client.ended = true;
       life.abort(abortError());
-      freshness.stop();
       const all = client.getQueryCache().getAll();
+      // Live values (a grid's controller) are let go before anything is reset, so none outlives its viewer.
+      for (const query of all) freshness.releaseHeld(query);
+      freshness.stop();
       void client.cancelQueries();
       // A screen of this viewer still mounted while the shell changes over is told its document is
       // empty now, so it can never draw it again (removing a query alone would leave its last
@@ -167,6 +191,8 @@ class QueryFreshness {
   /** Queries whose fetch in flight was started by the hub, not by a screen. */
   private readonly hubReads = new WeakSet<Query>();
   private readonly lastShown = new Map<Query, number>();
+  /** The live value each releasing query holds, so it is let go exactly once. */
+  private readonly held = new Map<Query, unknown>();
   private readonly stopCache: () => void;
   private shown = 0;
   private readonly client: QueryClient;
@@ -180,8 +206,8 @@ class QueryFreshness {
       const query = event.query as Query;
       switch (event.type) {
         case 'added': case 'observerAdded': case 'observerRemoved': case 'observerOptionsUpdated': this.sync(query); if (event.type === 'observerRemoved') this.trim(query); break;
-        case 'removed': this.forget(query); break;
-        case 'updated': this.updated(query, event.action.type, event.action.type === 'error' ? event.action.error : undefined); break;
+        case 'removed': this.releaseHeld(query); this.forget(query); break;
+        case 'updated': this.track(query); this.updated(query, event.action.type, event.action.type === 'error' ? event.action.error : undefined); break;
       }
     });
   }
@@ -191,8 +217,24 @@ class QueryFreshness {
 
   document(query: Query): FreshDocument | undefined { return this.documents.get(query); }
 
+  /** A releasing query's value changed: the one it held is let go. */
+  private track(query: Query): void {
+    const release = query.meta?.release;
+    if (!release) return;
+    const before = this.held.get(query), now = query.state.data;
+    if (before === now) return;
+    if (before !== undefined) { try { release(before); } catch { /* a failed release never stops the cache */ } }
+    if (now === undefined) this.held.delete(query); else this.held.set(query, now);
+  }
+  releaseHeld(query: Query): void {
+    const release = query.meta?.release, value = this.held.get(query);
+    this.held.delete(query);
+    if (release && value !== undefined) { try { release(value); } catch { /* a failed release never stops the cache */ } }
+  }
+
   stop(): void {
     this.stopCache();
+    this.held.clear();
     for (const document of this.documents.values()) document.dispose();
     this.documents.clear(); this.lastShown.clear();
   }

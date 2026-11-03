@@ -13,7 +13,8 @@ import {selectionCapabilities} from './selection-model/capabilities.ts';
 /** The caller captures its own source continuity and principal/route authority.
  * Search/Saved fences and opaque Browse revisions remain in their own domains. */
 export type CatalogueSelectionLifetime = Readonly<{signal: AbortSignal; isCurrent(): boolean}>;
-export type CatalogueSelectionOptions = Readonly<{queries: ViewerQueries; api: DetailApi; scope: DetailScope; requestId(): Promise<string>}> & CatalogueSelectionLifetime;
+/** `fresh`: read each title's grants from the server, for a check right before a write (delete). Offering actions on visible cards reads through the cache. */
+export type CatalogueSelectionOptions = Readonly<{queries: ViewerQueries; api: DetailApi; scope: DetailScope; requestId(): Promise<string>; fresh?: boolean}> & CatalogueSelectionLifetime;
 /** Actual caller execution ports, never role-derived grants. Missing means unavailable. */
 export type CatalogueSelectionPorts = Readonly<Partial<Pick<SelectionCapabilities, 'play' | 'queue' | 'myList' | 'favorite' | 'watched' | 'edit' | 'delete' | 'playlist' | 'collection'>>>;
 const unavailable = () => Object.assign(new Error('catalogue-selection-unavailable'), {code: 'catalogue-selection-unavailable'});
@@ -62,8 +63,8 @@ export async function readCatalogueSelectionItem(options: CatalogueSelectionOpti
   const stop = () => service.dispose();
   signal.addEventListener('abort', stop, {once: true});
   try {
-    // The title's grants decide what the selection may do: its current ones, read from the server.
-    await service.select(target, {fresh: true});requireCurrent(lifetime);
+    // The title's grants decide what the selection offers; a write's own check reads them fresh (the server checks again either way).
+    await service.select(target, {fresh: options.fresh === true});requireCurrent(lifetime);
     const state = service.getSnapshot(), data = state.data;
     if (state.phase !== 'ready' || !data) throw state.error ?? unavailable();
     if (data.item.id !== entry.id || data.item.libraryId !== target.libraryId || data.item.kind !== entry.kind) throw unavailable();

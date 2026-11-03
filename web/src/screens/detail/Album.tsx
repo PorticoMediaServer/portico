@@ -18,7 +18,6 @@ import {useShellWidth} from '../../shell/viewport';
 import {runScreenCommand, screenLifetime, type ScreenContext} from './context';
 import {calendarDate, entrySubject, instantDate} from './model';
 import {ScreenProblem} from './ScreenProblem';
-import {usePageMemory} from '../../platform/freshness';
 import {MusicEntryMenu} from './MusicEntryMenu';
 import {OwnerMetadataGroup} from './OwnerMetadataGroup';
 import {SimilarTitleRow, TitleRow} from './Detail';
@@ -41,19 +40,17 @@ type OpenMenu = Readonly<{page: Page; projection: ContentProjection; seed: Conte
  * facts; track pages are read only when the person asks for the next page. */
 export function AlbumScreen({context, libraryId, albumId, onBack, onArtist}: AlbumScreenProps) {
   const width = useShellWidth(), phone = width < 1024, more = useRef<HTMLButtonElement>(null);
-  const pages = usePageMemory();
-  const key = JSON.stringify(['album-page', context.scope.serverId, context.scope.viewerId, libraryId, albumId]);
   const [page, setPage] = useState<Page>(), [retry, setRetry] = useState(0);
   const [similar, setSimilar] = useState<Similar>(), [menu, setMenu] = useState<OpenMenu>();
   useEffect(() => {
-    // Back draws the album this viewer left at once, then reads it again in place.
-    const life = screenLifetime(context), service = new LibraryContentService({api: life.api, scope: context.scope, initial: pages.recall(key)});
-    const publish = () => {const snapshot = service.getSnapshot(); if (snapshot.phase === 'ready' && snapshot.projection) pages.remember(key, snapshot); if (life.current()) setPage({context, libraryId, albumId, life, service, snapshot});};
+    // The album is a document in the viewer's cache: Back draws it at once, and the hub reads it again in place only if it moved.
+    const life = screenLifetime(context), service = new LibraryContentService({queries: context.queries, scope: context.scope});
+    const publish = () => {const snapshot = service.getSnapshot(); if (life.current()) setPage({context, libraryId, albumId, life, service, snapshot});};
     const off = service.subscribe(publish);
     publish();
     void service.select({libraryId, view: 'album', entityId: albumId}).catch(error => {if (life.current()) context.effects.reportError(error);});
     return () => {life.dispose(); off(); service.dispose();};
-  }, [context, libraryId, albumId, retry, key, pages]);
+  }, [context, libraryId, albumId, retry]);
   const active = page?.context === context && page.libraryId === libraryId && page.albumId === albumId && page.life.current() ? page : undefined;
   const projection = active?.snapshot.projection;
   // Publish only at commit, then sample once for this setup's original lifetime.
