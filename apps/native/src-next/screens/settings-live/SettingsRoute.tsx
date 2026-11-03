@@ -58,7 +58,9 @@ function createComposition(context: NativeShellBootstrapContext) {
         const allowed = admission();
         const fallback = <NativeSettingsScreen ports={ports} controller={settings} runtime={runtime} devicePreferences={devicePreferences} dashboard={dashboard}/>;
         if (allowed === 'denied') return fallback;
-        if (!Platform.isTV && allowed === 'owner' && route.page === 'live') return <NativeSettingsScreen key={route.channelId ?? 'live'} ports={ports} controller={settings} runtime={runtime} devicePreferences={devicePreferences} dashboard={dashboard} initialPage="live" initialChannelId={route.channelId}/>;
+        // A named server page opens on that page of Settings, which shows it only to a viewer who may
+        // see it (N5-3: Review devices opens People & devices, not the Dashboard). No page is the Dashboard.
+        if (!Platform.isTV && route.page) return <NativeSettingsScreen key={route.page === 'live' ? route.channelId ?? 'live' : route.page} ports={ports} controller={settings} runtime={runtime} devicePreferences={devicePreferences} dashboard={dashboard} initialPage={route.page} initialChannelId={route.page === 'live' ? route.channelId : undefined}/>;
         if (!Platform.isTV) return <NativeDashboardScreen ports={ports} controller={dashboard} runtime={runtime} deniedFallback={fallback}/>;
         const requested = isTVServerPage(route.page) ? route.page : undefined;
         const page = allowed === 'owner' ? requested ?? 'general' : requested === 'people' ? 'people' : 'dashboard';

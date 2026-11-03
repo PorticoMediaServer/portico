@@ -41,6 +41,7 @@ import {Screen, useScreenBack, useScreenEntry} from './Screen';
 import {registerBack} from '../../kit/navigation/back';
 import {nativeSettingsActionTarget} from './settings-actions';
 import {routePath} from '../../../../../packages/contracts/src/routes';
+import type {NativeShellRoute} from '../../shell/routes';
 import {parseSettingsConfiguration} from '../../../../../packages/client-core/src/settings-configuration';
 import {readSettingsBinding, settingsBinding, type SettingsBindingValue} from '../../../../../packages/client-core/src/presentation/settings-bindings';
 import {settingsSpec} from '../../../../../packages/client-core/src/presentation/settings-spec';
@@ -85,7 +86,9 @@ export function nativeSettingsIcon(name: string): IconName {
   return Object.hasOwn(nextIcons, key) ? key as IconName : 'i-sliders';
 }
 
-export function NativeSettingsScreen({ports, controller, runtime, devicePreferences, dashboard, initialPage, initialChannelId}: {ports: NativeSettingsLivePorts; controller: NativeSettingsController; runtime: NativeShellRuntime; devicePreferences: NativeDevicePreferences; dashboard?: NativeDashboardController; initialPage?: 'live' | 'profile'; initialChannelId?: string}) {
+/** A page Settings can open on: Profile & account, or a server page a route names. */
+export type NativeSettingsInitialPage = 'profile' | NonNullable<Extract<NativeShellRoute, {kind: 'server-settings'}>['page']>;
+export function NativeSettingsScreen({ports, controller, runtime, devicePreferences, dashboard, initialPage, initialChannelId}: {ports: NativeSettingsLivePorts; controller: NativeSettingsController; runtime: NativeShellRuntime; devicePreferences: NativeDevicePreferences; dashboard?: NativeDashboardController; initialPage?: NativeSettingsInitialPage; initialChannelId?: string}) {
   const theme = useTheme(), t = runtime.text.t, registry = useFocusRegistry(), insets = useSafeAreaInsets();
   const shell = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
@@ -176,8 +179,10 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
   const tabletAccountClusters: readonly (readonly string[])[] = [['profile', 'privacy'], ['playback', 'reading', 'languages', 'quality', 'music'], ['appearance', 'region', 'device']];
   const tabletServerClusters: readonly (readonly string[])[] = [['general', 'dashboard', 'history'], ['libraries', 'remote-sources', 'metadata', 'segments'], ['live', 'people', 'signin', 'remote', 'integrations'], ['streaming', 'storage', 'troubleshooting']];
   const tabletDefaultPage = accountPages.some(value => value.id === 'playback') ? 'playback' : accountPages[0]?.id;
-  // J-32: an account page (Profile & account) opens for every profile; a server page only for one that manages it.
-  const [selected, setSelected] = useState(() => !theme.isTV && initialPage && (managesServer || accountPages.some(value => value.id === initialPage)) ? initialPage : !theme.isTV && !compact ? tabletDefaultPage : accountPages[0]?.id), [query, setQuery] = useState(''), [pushed, setPushed] = useState(!theme.isTV && (!!initialPage || !compact));
+  // J-32: an account page (Profile & account) opens for every profile; a server page only for one that may see it.
+  // A route's page opens only when this viewer has it (a server page needs its own admission).
+  const opensInitial = !theme.isTV && !!initialPage && [...accountPages, ...serverPages].some(value => value.id === initialPage);
+  const [selected, setSelected] = useState(() => opensInitial ? initialPage : !theme.isTV && !compact ? tabletDefaultPage : accountPages[0]?.id), [query, setQuery] = useState(''), [pushed, setPushed] = useState(!theme.isTV && (opensInitial || !compact));
   // Once the wide pane is visible, shrinking keeps that same editor on screen.
   // Explicit phone Back still returns to the hub and releases its page normally.
   useLayoutEffect(() => {if (!theme.isTV && !compact) setPushed(true);}, [compact, theme.isTV]);
