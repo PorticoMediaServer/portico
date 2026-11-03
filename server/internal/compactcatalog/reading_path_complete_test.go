@@ -791,7 +791,7 @@ func TestReadingCompleteLinkEligibilityAloneChangesTheScopeInput(t *testing.T) {
 	f.seal()
 	completeDrain(t, f.c)
 	original := completeValues(t, f.c, a.item)
-	wantSingle, err := compactcatalog.ReadingPathValue(compactcatalog.ReadingRuleInput{Item: a.item, SourceRoot: f.source, RelativePath: a.relative, Kind: a.kind}, 1, true)
+	wantSingle, err := compactcatalog.ReadingPathValue(compactcatalog.ReadingRuleInput{Item: a.item, SourceRoot: f.source, RelativePath: a.relative, Kind: a.kind})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -826,7 +826,7 @@ func TestReadingCompleteMembershipMoveMissingReappearAndRootClear(t *testing.T) 
 	completeDrain(t, f.c)
 	check := func(p completePublication, titles int, every bool, relative string) {
 		t.Helper()
-		want, err := compactcatalog.ReadingPathValue(compactcatalog.ReadingRuleInput{Item: p.item, SourceRoot: f.source, RelativePath: relative, Kind: p.kind}, titles, every)
+		want, err := compactcatalog.ReadingPathValue(compactcatalog.ReadingRuleInput{Item: p.item, SourceRoot: f.source, RelativePath: relative, Kind: p.kind})
 		if err != nil {
 			t.Fatal(err)
 		}

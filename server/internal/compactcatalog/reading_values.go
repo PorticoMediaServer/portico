@@ -66,7 +66,6 @@ var readingSequence = regexp.MustCompile(`(?i)(?:^|[ _.-])(?:(?:v(?:ol(?:ume)?\.
 var readingDate = regexp.MustCompile(`\b(?:19|20)[0-9]{2}(?:-[0-9]{2}(?:-[0-9]{2})?|[0-9]{4})\b`)
 var readingOwnerNumber = regexp.MustCompile(`^[+]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$`)
 
-type readingDirectory struct{ root, path string }
 
 var readingGenericFolders = map[string]bool{
 	"books": true, "ebooks": true, "e-books": true, "comics": true, "manga": true, "magazines": true, "library": true,
@@ -162,6 +161,22 @@ func readingStripPrefix(value, prefix string) (string, bool) {
 	return strings.TrimLeft(string(v[len(p):]), " _.-"), true
 }
 
+// readingNumberedUnder reports whether a file numbers itself within folder:
+// it carries a number and is named after the folder ("Batman 001", "Nemo v01
+// - Little Nemo") or by the number alone ("02"). The folder is then a
+// numbered series. A numbered title of its own under an author's folder
+// ("Book 1 - The Final Empire") is not.
+func readingNumberedUnder(title, folder string) bool {
+	number, rest := readingNumber(readingTags.ReplaceAllString(title, " "), folder)
+	if number == nil {
+		return false
+	}
+	if _, ok := readingStripPrefix(readingCleanTitle(title), readingCleanTitle(folder)); ok {
+		return true
+	}
+	return readingCleanTitle(rest) == ""
+}
+
 func readingNumber(stem, series string) (*ReadingNumber, string) {
 	for _, pattern := range []*regexp.Regexp{readingMarkedNumber, readingDashNumber} {
 		for _, match := range pattern.FindAllStringSubmatchIndex(stem, -1) {
@@ -251,10 +266,18 @@ func readingPathInput(in ReadingRuleInput) error {
 	return nil
 }
 
-// ReadingPathValue applies a counted folder context. The ingest producer uses
-// this form while streaming bounded batches; it need not retain a whole source.
-func ReadingPathValue(in ReadingRuleInput, titles int, everySeries bool) (ReadingValues, error) {
-	if err := readingPathInput(in); err != nil || titles < 1 {
+// ReadingPathValue reads a book's or comic's author and series from its own
+// path. A folder's role comes from the layout alone, never from how many
+// titles it holds (DECISIONS, 2 Nov 2026, replacing ruling §45 rule 3):
+//   - Author/Title.ext: the folder is the author;
+//   - Author/Series/Title.ext: author and series, for one book or many;
+//   - Author/Title/Title.ext (a per-book folder, Calibre's "Title (id)"
+//     included): the outer folder is the author;
+//   - Series/Series 001.ext, a sequence-numbered folder with no author above
+//     it: the folder is the series.
+// Generic folder names count as absent, and the file's own author wins.
+func ReadingPathValue(in ReadingRuleInput) (ReadingValues, error) {
+	if err := readingPathInput(in); err != nil {
 		return ReadingValues{}, ErrReadingValue
 	}
 	parts := readingFolders(in.RelativePath)
@@ -273,21 +296,18 @@ func ReadingPathValue(in ReadingRuleInput, titles int, everySeries bool) (Readin
 		if len(parts) > 1 {
 			parent = readingFolderLabel(parts[len(parts)-2])
 		}
+		innerKey, titleKey := ReadingValueKey(readingCleanTitle(inner)), ReadingValueKey(readingCleanTitle(title))
 		switch {
-		case titles == 1:
-			if ReadingValueKey(readingCleanTitle(inner)) == ReadingValueKey(readingCleanTitle(title)) {
-				if parent != "" && v.Author == nil {
-					v.Author = &ReadingValue{parent, ReadingFolder}
-				}
-			} else if v.Author == nil {
-				v.Author = &ReadingValue{inner, ReadingFolder}
+		case innerKey == titleKey:
+			if parent != "" && v.Author == nil {
+				v.Author = &ReadingValue{parent, ReadingFolder}
 			}
 		case parent != "":
 			if v.Author == nil {
 				v.Author = &ReadingValue{parent, ReadingFolder}
 			}
 			v.Series = &ReadingValue{inner, ReadingFolder}
-		case everySeries:
+		case readingNumberedUnder(title, inner):
 			v.Series = &ReadingValue{inner, ReadingFolder}
 		default:
 			if v.Author == nil {
@@ -326,16 +346,10 @@ func ReadingPathValue(in ReadingRuleInput, titles int, everySeries bool) (Readin
 }
 
 func ReadingPathValues(items []ReadingRuleInput) (map[int64]ReadingValues, error) {
-	type folder struct {
-		count     int
-		allSeries bool
-	}
-	folders := map[readingDirectory]*folder{}
-	canonical := make([]ReadingRuleInput, 0, len(items))
+	out := make(map[int64]ReadingValues, len(items))
 	seen := map[int64]Kind{}
 	for _, in := range items {
-		key, evidence, err := ReadingPathFolderEvidence(in)
-		if err != nil {
+		if _, _, err := ReadingPathFolderEvidence(in); err != nil {
 			return nil, err
 		}
 		if kind, ok := seen[in.Item]; ok {
@@ -345,21 +359,7 @@ func ReadingPathValues(items []ReadingRuleInput) (map[int64]ReadingValues, error
 			continue
 		}
 		seen[in.Item] = in.Kind
-		canonical = append(canonical, in)
-		k := readingDirectory{in.SourceRoot, key}
-		f := folders[k]
-		if f == nil {
-			f = &folder{allSeries: true}
-			folders[k] = f
-		}
-		f.count++
-		f.allSeries = f.allSeries && evidence
-	}
-	out := make(map[int64]ReadingValues, len(canonical))
-	for _, in := range canonical {
-		key, _, _ := ReadingPathFolderEvidence(in)
-		f := folders[readingDirectory{in.SourceRoot, key}]
-		v, err := ReadingPathValue(in, f.count, f.allSeries)
+		v, err := ReadingPathValue(in)
 		if err != nil {
 			return nil, err
 		}
