@@ -125,6 +125,9 @@ func shimArgv(job Job, inner []string) []string {
 // TestMain) calls it first. It returns handled=false for any other argv, and
 // otherwise only returns if the exec failed.
 func RunHelper(args []string) (bool, error) {
+	if len(args) > 0 && args[0] == ProbeWorkerFlag {
+		return true, runProbeWorker(args)
+	}
 	if len(args) == 0 || args[0] != ShimFlag {
 		return false, nil
 	}
