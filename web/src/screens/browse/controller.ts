@@ -15,6 +15,8 @@ export type BrowseSource = Readonly<{libraryId: string; pivot: string; base?: re
 export type BrowseState = Readonly<{phase: 'loading' | 'ready' | 'error'; capabilities?: BrowseCapabilities; predicates: readonly BrowseNode[]; sort?: BrowseSortSelection; error?: unknown;
   /** Actual opaque page token, absent until this applied query has replied. */
   revision?: string; queryRevision: number}>;
+/** A grid's filters and order: what the page's address carries. */
+export type BrowseQuery = Readonly<{predicates: readonly BrowseNode[]; sorts: readonly BrowseSortSelection[]}>;
 function captureNode(input: BrowseNode): BrowseNode {
   const freeze = (node: BrowseNode): BrowseNode => {
     if ('field' in node) return Object.freeze({...node, value: Array.isArray(node.value) ? Object.freeze([...node.value]) : node.value});
@@ -37,6 +39,8 @@ export class BrowseController {
   private sorts: readonly BrowseSortSelection[] = [];
   /** The applied query's page source; replaced, never reused, when the query changes. */
   private session?: BrowseSession<BrowseMember>;
+  /** The page whose address owns this grid's query, when one does (LB-1). */
+  private route?: (query: BrowseQuery) => void;
   constructor(private api: LibraryContentApi, source: BrowseSource, private isCurrent: () => boolean) {
     this.source = Object.freeze({...source,
       ...(source.base ? {base: Object.freeze(source.base.map(captureNode))} : {}),
@@ -123,8 +127,36 @@ export class BrowseController {
     // Capturing/validating caller-owned input cannot re-enter and then overwrite
     // a query accepted in the meantime.
     if (!current()) return false;
-    if (selected !== original.sort) this.sorts = [selected];
+    const sorts = selected === original.sort && this.sorts.length ? this.sorts : [selected];
+    // A page whose address owns the query is asked to move there; the grid follows the address.
+    if (this.route) {this.route({predicates: captured, sorts}); return true;}
+    this.sorts = sorts;
     this.reset({predicates: captured, sort: selected});
+    return true;
+  }
+  /**
+   * The page's address owns this grid's filters and order: the toolbar's changes are sent to it
+   * (a history replace), and the grid follows the address with `follow`, never the other way
+   * round. Returns the release.
+   */
+  routeQueries(route: (query: BrowseQuery) => void): () => void {
+    this.route = route;
+    return () => {if (this.route === route) this.route = undefined;};
+  }
+  /** Applies the address's query when it differs from the one shown; false when nothing changed.
+   *  A query this pivot can't run throws, and the grid keeps what it shows. */
+  follow(query: BrowseQuery): boolean {
+    const {capabilities: caps, phase} = this.state;
+    if (!this.current() || phase !== 'ready' || !caps) return false;
+    const predicates = Object.freeze(query.predicates.map(captureNode));
+    const sorts = Object.freeze(query.sorts.map(({field, direction, seed}) => Object.freeze({field, direction, ...(seed === undefined ? {} : {seed})})));
+    const sort = sorts[0];
+    if (!sort) return false;
+    if (JSON.stringify(predicates) === JSON.stringify(this.state.predicates) && JSON.stringify(sorts) === JSON.stringify(this.sorts.length ? this.sorts : [this.state.sort])) return false;
+    browseSessionBuilder({...this.sessionQuery(caps, predicates, sort), sorts}).limit(60).build();
+    if (!this.current()) return false;
+    this.sorts = sorts;
+    this.reset({predicates, sort});
     return true;
   }
   private sessionQuery(caps: BrowseCapabilities, predicates: readonly BrowseNode[], sort: BrowseSortSelection): BrowseSessionQuery {
@@ -215,5 +247,5 @@ export class BrowseController {
     else if (isStaleAnswer(this.collection.getSnapshot().error)) this.reset();
     else this.collection.retry();
   };
-  dispose() { this.life.abort(); this.epoch++; this.session?.retire(); this.collection.dispose(); this.listeners.clear(); }
+  dispose() { this.route = undefined; this.life.abort(); this.epoch++; this.session?.retire(); this.collection.dispose(); this.listeners.clear(); }
 }

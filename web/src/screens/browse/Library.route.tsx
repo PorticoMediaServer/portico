@@ -54,7 +54,7 @@ import {useCommittedLibraryScreenContext, type ProtectedLibraryScreen} from './s
 import {useScreenAppearance} from './screen-preferences';
 import {browseConjunction, libraryTabAddress, parseLibraryScreenSearch, selectedLibraryTab, type LibraryScreenSearch} from './route-search';
 import {addressedQuery, addressedQueryKey, addressedSearch, appliedSorts, libraryAddressKey} from './address-query';
-import {useAddressBuild, useAddressReconcile, type AddressSync} from './use-address-query';
+import type {BrowseQuery} from './controller';
 import {SaveView} from './SaveView';
 import {FacetPage, ReadLibraryEntry, useReadLibrarySummary, authorPredicate, type FacetRequest} from '../read';
 import {isReadingLibrary} from './reading-library';
@@ -222,7 +222,7 @@ function readingLibraryMenu(resources: {life: {current: () => boolean}; controll
     {...(settings ? {onLibrarySettings: settings} : {})} {...(scan ? {onScan: scan} : {})}/>;
 }
 type BoundLibraryProps = {captured: ProtectedLibraryScreen; library: Library; search: LibraryScreenSearch; tabs?: readonly ReadingTab[]; musicLookup?: ReturnType<typeof useMusicLibrarySummary>; readingMarkAll?: () => void};
-function useBoundLibraryFrame({captured, library, search, tabs: offered, musicLookup}: BoundLibraryProps, context: ScreenContext, presentation: BoundPresentation, address: AddressSync) {
+function useBoundLibraryFrame({captured, library, search, tabs: offered, musicLookup}: BoundLibraryProps, context: ScreenContext, presentation: BoundPresentation) {
   const appearance = useScreenAppearance(captured.context)!, width = useShellWidth();
   // The offer needs this exact library's own online metadata agent. The fact is keyed to the
   // library and screen scope that produced it, so a stale read can never enable another library
@@ -242,12 +242,11 @@ function useBoundLibraryFrame({captured, library, search, tabs: offered, musicLo
   const musicSummary = musicLookup?.library ?? musicRead.library, musicLibraries = musicLookup?.libraries ?? musicRead.libraries;
   const pivot = search.pivot ?? requested?.pivot;
   const browse = !!pivot && !search.entityId && !search.category && !search.q && view !== 'discover';
-  // The grid is built from the address it was opened or navigated to, never from the toolbar's own
-  // replace echo: that keeps the same controller, its Filters panel and its scroll (LB-1).
-  const built = address.build.search;
-  const sourceKey = JSON.stringify({libraryId: library.id, pivot: pivot ?? '', predicates: built.query ? browseConjunction(built.query) : undefined,
-    sorts: built.sort ?? (requested?.defaultSort ? [requested.defaultSort] : undefined), defaultSorts: requested?.defaultSort ? [requested.defaultSort] : undefined});
-  return {context, appearance, width, ...presentation, onlineAttention, agentKey, setAgentFact, tabs, requested, view, musicMixes, musicSummary, musicLibraries, browse, sourceKey, address};
+  // The grid is this address's, without its query: a filter or a sort keeps the same controller,
+  // its Filters panel and its lease. It opens on the address's query and then follows it (LB-1).
+  const sourceKey = JSON.stringify({libraryId: library.id, pivot: pivot ?? '', defaultSorts: requested?.defaultSort ? [requested.defaultSort] : undefined});
+  const opening: BrowseQuery = {predicates: search.query ? browseConjunction(search.query) : [], sorts: search.sort ?? (requested?.defaultSort ? [requested.defaultSort] : [])};
+  return {context, appearance, width, ...presentation, onlineAttention, agentKey, setAgentFact, tabs, requested, view, musicMixes, musicSummary, musicLibraries, browse, sourceKey, opening};
 }
 type BoundPresentation = Readonly<{choice?: Readonly<{defaultView: 'grid' | 'list'; view: 'grid' | 'list'}>; setChoice: (choice: Readonly<{defaultView: 'grid' | 'list'; view: 'grid' | 'list'}>) => void; size: 'small' | 'medium' | 'large'; setSize: (size: 'small' | 'medium' | 'large') => void}>;
 function BoundLibrary(props: BoundLibraryProps) {
@@ -255,14 +254,13 @@ function BoundLibrary(props: BoundLibraryProps) {
   const [size, setSize] = useState<'small' | 'medium' | 'large'>('medium');
 
   const href = useLocation({select: libraryAddressKey});
-  const address = useAddressBuild(href, {...(props.search.query ? {query: props.search.query} : {}), ...(props.search.sort ? {sort: props.search.sort} : {})});
   const context = useCommittedLibraryScreenContext(props.captured, href, () => libraryAddressKey(router.state.location) === href);
-  return context ? <ContextLibrary {...props} context={context} presentation={{choice, setChoice, size, setSize}} address={address}/> : <Skeleton height={320}/>;
+  return context ? <ContextLibrary {...props} context={context} presentation={{choice, setChoice, size, setSize}}/> : <Skeleton height={320}/>;
 }
-function ContextLibrary(props: BoundLibraryProps & {context: ScreenContext; presentation: BoundPresentation; address: AddressSync}) {
-  const frame = useBoundLibraryFrame(props, props.context, props.presentation, props.address), {context, agentKey, setAgentFact} = frame, {library} = props;
+function ContextLibrary(props: BoundLibraryProps & {context: ScreenContext; presentation: BoundPresentation}) {
+  const frame = useBoundLibraryFrame(props, props.context, props.presentation), {context, agentKey, setAgentFact} = frame, {library} = props;
   const href = useLocation({select: libraryAddressKey}), runtime = props.captured.binding.playback?.runtime;
-  const resources = useBrowseLease(context, frame.sourceKey, `${href}#${frame.address.build.generation}`, () => libraryAddressKey(router.state.location) === href, runtime);
+  const resources = useBrowseLease(context, frame.sourceKey, href, () => libraryAddressKey(router.state.location) === href, runtime, frame.opening);
   // Publish only at commit, then sample once for this setup's original lifetime.
   const setupPorts1 = useRef({setAgentFact});
   useEffect(() => {setupPorts1.current = {setAgentFact};});
@@ -286,9 +284,10 @@ function ContextLibrary(props: BoundLibraryProps & {context: ScreenContext; pres
 function CommittedLibrary({captured, library, search, readingMarkAll, frame, resources, href}: BoundLibraryProps & {frame: ReturnType<typeof useBoundLibraryFrame>; resources: BrowseLease; href: string}) {
   const {context, appearance, width, choice, setChoice, size, setSize, onlineAttention, agentKey, tabs, requested, view, musicMixes, musicSummary, musicLibraries, browse} = frame;
   const state = useSyncExternalStore(resources.controller.subscribe, resources.controller.getSnapshot, resources.controller.getSnapshot);
-  // LB-1: the grid's filters and order are written to its own address (a replace that keeps the
-  // scroll), and a navigated address is read back into a rebuilt grid. Both sides are compared in
-  // one vocabulary once the grid knows its default order: the tab's own, else the pivot's.
+  // LB-1: the address owns the grid's filters and order. The toolbar writes them there (a replace
+  // that keeps the scroll), and the grid follows whatever the address holds, whether the toolbar,
+  // Back/Forward or a link put it there. Both sides are compared in one vocabulary once the grid
+  // knows its default order: the tab's own, else the pivot's.
   const addressed = useMemo(() => { /* Preserve the original ownership/invalidation keys. */ void state.queryRevision;
     if (!browse || state.phase !== 'ready' || !state.capabilities) return undefined;
     const pivot = state.capabilities.resolvedPivot ?? state.capabilities.pivots.find(value => value.id === resources.controller.source.pivot);
@@ -296,18 +295,22 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
     try {
       const grid = {predicates: state.predicates, sorts: appliedSorts(resources.controller.query().sort ?? [])};
       const route = addressedQuery({...(search.query ? {query: search.query} : {}), ...(search.sort ? {sort: search.sort} : {})}, defaults);
-      return {defaults, grid, routeKey: addressedQueryKey(route), controllerKey: addressedQueryKey(grid)};
+      return {defaults, route, routeKey: addressedQueryKey(route), controllerKey: addressedQueryKey(grid)};
     } catch {return undefined;}
   }, [browse, state.phase, state.capabilities, state.predicates, state.queryRevision, resources, requested?.defaultSort, search.query, search.sort]);
-  useAddressReconcile(frame.address, addressed?.routeKey, addressed?.controllerKey,
-    {...(search.query ? {query: search.query} : {}), ...(search.sort ? {sort: search.sort} : {})},
-    () => resources.life.current() && context.isCurrent(),
-    () => {
-      if (!addressed) return;
-      const {query: _query, sort: _sort, ...rest} = search;
-      void router.navigate({to: '/library/$libraryId', params: {libraryId: library.id}, search: {...rest, ...addressedSearch(addressed.grid, addressed.defaults)}, replace: true, resetScroll: false})
-        .catch(error => {if (resources.life.current() && context.isCurrent()) context.effects.reportError(error);});
-    });
+  const routing = useRef({search, defaults: addressed?.defaults});
+  useLayoutEffect(() => {routing.current = {search, defaults: addressed?.defaults};});
+  useLayoutEffect(() => browse ? resources.controller.routeQueries(query => {
+    const {search, defaults} = routing.current;
+    if (!defaults || !resources.life.current() || !context.isCurrent()) return;
+    const {query: _query, sort: _sort, ...rest} = search;
+    void router.navigate({to: '/library/$libraryId', params: {libraryId: library.id}, search: {...rest, ...addressedSearch(query, defaults)}, replace: true, resetScroll: false})
+      .catch(error => {if (resources.life.current() && context.isCurrent()) context.effects.reportError(error);});
+  }) : undefined, [browse, resources, context, library.id]);
+  useLayoutEffect(() => {
+    if (!addressed || addressed.routeKey === addressed.controllerKey || !resources.life.current() || !context.isCurrent()) return;
+    try {resources.controller.follow(addressed.route);} catch (error) {context.effects.reportError(error);}
+  }, [addressed, resources, context]);
   // O-161: the library's ⋯ copies its shareable address (this server's, on Hosted).
   const [linkToast, setLinkToast] = useState<ToastData | null>(null);
   const copyLibraryLink = () => {void copyLink('library', {libraryId: library.id}).then(
