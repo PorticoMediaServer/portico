@@ -7,7 +7,7 @@ import {savedReaderRoute} from './runtime.ts';
 import {sameSavedRoute} from './route';
 import {Icon} from '../../kit/Icon';
 import {PosterCard} from '../../kit/cards';
-import {homeCardModel} from '../home/model';
+import {savedCardModel} from '../home/model';
 import {shapeFor} from '@core/presentation/card-shape.ts';
 import type {ContentEntry} from '@core/library-content.ts';
 import type {SavedRuntime, SavedScreenRoute} from './runtime.ts';
@@ -62,7 +62,7 @@ export function SavedPhoneDirectory({runtime, downloadsOffered, artwork, select,
       <button type="button" className={styles.phonePreviewHead} onClick={() => select({view: 'watchlist'})}>
         <b>{t('saved.tab.watchlist')}</b>{count(value?.myList) !== undefined && <span>{defaultI18n.number(count(value!.myList)!)}</span>}<Icon name="i-right" size={16} />
       </button>
-      <div className={styles.phonePreviewRail}>{preview.map(media => <PosterCard key={media.id} model={homeCardModel(media, false, {t, locale: defaultI18n.region.formatLocale})}
+      <div className={styles.phonePreviewRail}>{preview.map(media => <PosterCard key={media.id} model={savedCardModel(media, {t, locale: defaultI18n.region.formatLocale})}
         artwork={artwork.foreground(media.posterUrl, 118 * (globalThis.devicePixelRatio || 1), 2 / 3)} context="shelf" onNavigate={() => openEntry(media)} />)}</div>
     </div>}
     <div className={directory.rows} role="list">

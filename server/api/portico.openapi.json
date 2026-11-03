@@ -6640,6 +6640,9 @@
                 "libraryId": {
                   "type": "string"
                 },
+                "libraryKind": {
+                  "type": "string"
+                },
                 "media": {
                   "properties": {
                     "absoluteNumber": {
@@ -7194,6 +7197,9 @@
                       "type": "object"
                     },
                     "libraryId": {
+                      "type": "string"
+                    },
+                    "libraryKind": {
                       "type": "string"
                     },
                     "missing": {
@@ -9227,6 +9233,9 @@
                     "libraryId": {
                       "type": "string"
                     },
+                    "libraryKind": {
+                      "type": "string"
+                    },
                     "media": {
                       "properties": {
                         "absoluteNumber": {
@@ -9781,6 +9790,9 @@
                           "type": "object"
                         },
                         "libraryId": {
+                          "type": "string"
+                        },
+                        "libraryKind": {
                           "type": "string"
                         },
                         "missing": {
@@ -16633,6 +16645,9 @@
           "libraryId": {
             "type": "string"
           },
+          "libraryKind": {
+            "type": "string"
+          },
           "media": {
             "properties": {
               "absoluteNumber": {
@@ -17187,6 +17202,9 @@
                 "type": "object"
               },
               "libraryId": {
+                "type": "string"
+              },
+              "libraryKind": {
                 "type": "string"
               },
               "missing": {
@@ -53815,6 +53833,9 @@
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -54369,6 +54390,9 @@
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -56367,6 +56391,9 @@
                               "libraryId": {
                                 "type": "string"
                               },
+                              "libraryKind": {
+                                "type": "string"
+                              },
                               "media": {
                                 "properties": {
                                   "absoluteNumber": {
@@ -56921,6 +56948,9 @@
                                     "type": "object"
                                   },
                                   "libraryId": {
+                                    "type": "string"
+                                  },
+                                  "libraryKind": {
                                     "type": "string"
                                   },
                                   "missing": {
@@ -63916,6 +63946,9 @@
                                 "libraryId": {
                                   "type": "string"
                                 },
+                                "libraryKind": {
+                                  "type": "string"
+                                },
                                 "media": {
                                   "properties": {
                                     "absoluteNumber": {
@@ -64470,6 +64503,9 @@
                                       "type": "object"
                                     },
                                     "libraryId": {
+                                      "type": "string"
+                                    },
+                                    "libraryKind": {
                                       "type": "string"
                                     },
                                     "missing": {
@@ -65712,6 +65748,9 @@
                             "libraryId": {
                               "type": "string"
                             },
+                            "libraryKind": {
+                              "type": "string"
+                            },
                             "media": {
                               "properties": {
                                 "absoluteNumber": {
@@ -66266,6 +66305,9 @@
                                   "type": "object"
                                 },
                                 "libraryId": {
+                                  "type": "string"
+                                },
+                                "libraryKind": {
                                   "type": "string"
                                 },
                                 "missing": {
@@ -67977,6 +68019,9 @@
                                 "libraryId": {
                                   "type": "string"
                                 },
+                                "libraryKind": {
+                                  "type": "string"
+                                },
                                 "media": {
                                   "properties": {
                                     "absoluteNumber": {
@@ -68531,6 +68576,9 @@
                                       "type": "object"
                                     },
                                     "libraryId": {
+                                      "type": "string"
+                                    },
+                                    "libraryKind": {
                                       "type": "string"
                                     },
                                     "missing": {
@@ -70335,6 +70383,9 @@
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -70889,6 +70940,9 @@
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -72128,6 +72182,9 @@
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -72682,6 +72739,9 @@
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -74393,6 +74453,9 @@
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -74947,6 +75010,9 @@
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -76541,6 +76607,9 @@
                     "libraryId": {
                       "type": "string"
                     },
+                    "libraryKind": {
+                      "type": "string"
+                    },
                     "media": {
                       "properties": {
                         "absoluteNumber": {
@@ -77095,6 +77164,9 @@
                           "type": "object"
                         },
                         "libraryId": {
+                          "type": "string"
+                        },
+                        "libraryKind": {
                           "type": "string"
                         },
                         "missing": {
@@ -78342,6 +78414,9 @@
                     "libraryId": {
                       "type": "string"
                     },
+                    "libraryKind": {
+                      "type": "string"
+                    },
                     "media": {
                       "properties": {
                         "absoluteNumber": {
@@ -78896,6 +78971,9 @@
                           "type": "object"
                         },
                         "libraryId": {
+                          "type": "string"
+                        },
+                        "libraryKind": {
                           "type": "string"
                         },
                         "missing": {
@@ -80364,6 +80442,9 @@
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -80918,6 +80999,9 @@
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -82160,6 +82244,9 @@
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -82714,6 +82801,9 @@
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -84425,6 +84515,9 @@
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -84979,6 +85072,9 @@
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -86783,6 +86879,9 @@
                     "libraryId": {
                       "type": "string"
                     },
+                    "libraryKind": {
+                      "type": "string"
+                    },
                     "media": {
                       "properties": {
                         "absoluteNumber": {
@@ -87337,6 +87436,9 @@
                           "type": "object"
                         },
                         "libraryId": {
+                          "type": "string"
+                        },
+                        "libraryKind": {
                           "type": "string"
                         },
                         "missing": {
@@ -88576,6 +88678,9 @@
                 "libraryId": {
                   "type": "string"
                 },
+                "libraryKind": {
+                  "type": "string"
+                },
                 "media": {
                   "properties": {
                     "absoluteNumber": {
@@ -89130,6 +89235,9 @@
                       "type": "object"
                     },
                     "libraryId": {
+                      "type": "string"
+                    },
+                    "libraryKind": {
                       "type": "string"
                     },
                     "missing": {
@@ -90841,6 +90949,9 @@
                     "libraryId": {
                       "type": "string"
                     },
+                    "libraryKind": {
+                      "type": "string"
+                    },
                     "media": {
                       "properties": {
                         "absoluteNumber": {
@@ -91395,6 +91506,9 @@
                           "type": "object"
                         },
                         "libraryId": {
+                          "type": "string"
+                        },
+                        "libraryKind": {
                           "type": "string"
                         },
                         "missing": {
@@ -95885,6 +95999,9 @@
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -96439,6 +96556,9 @@
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -98437,6 +98557,9 @@
                               "libraryId": {
                                 "type": "string"
                               },
+                              "libraryKind": {
+                                "type": "string"
+                              },
                               "media": {
                                 "properties": {
                                   "absoluteNumber": {
@@ -98991,6 +99114,9 @@
                                     "type": "object"
                                   },
                                   "libraryId": {
+                                    "type": "string"
+                                  },
+                                  "libraryKind": {
                                     "type": "string"
                                   },
                                   "missing": {
@@ -104596,6 +104722,9 @@
                                 "libraryId": {
                                   "type": "string"
                                 },
+                                "libraryKind": {
+                                  "type": "string"
+                                },
                                 "media": {
                                   "properties": {
                                     "absoluteNumber": {
@@ -105150,6 +105279,9 @@
                                       "type": "object"
                                     },
                                     "libraryId": {
+                                      "type": "string"
+                                    },
+                                    "libraryKind": {
                                       "type": "string"
                                     },
                                     "missing": {
@@ -106392,6 +106524,9 @@
                             "libraryId": {
                               "type": "string"
                             },
+                            "libraryKind": {
+                              "type": "string"
+                            },
                             "media": {
                               "properties": {
                                 "absoluteNumber": {
@@ -106946,6 +107081,9 @@
                                   "type": "object"
                                 },
                                 "libraryId": {
+                                  "type": "string"
+                                },
+                                "libraryKind": {
                                   "type": "string"
                                 },
                                 "missing": {
@@ -108657,6 +108795,9 @@
                                 "libraryId": {
                                   "type": "string"
                                 },
+                                "libraryKind": {
+                                  "type": "string"
+                                },
                                 "media": {
                                   "properties": {
                                     "absoluteNumber": {
@@ -109211,6 +109352,9 @@
                                       "type": "object"
                                     },
                                     "libraryId": {
+                                      "type": "string"
+                                    },
+                                    "libraryKind": {
                                       "type": "string"
                                     },
                                     "missing": {
@@ -111015,6 +111159,9 @@
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -111569,6 +111716,9 @@
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -112808,6 +112958,9 @@
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -113362,6 +113515,9 @@
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -115073,6 +115229,9 @@
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -115627,6 +115786,9 @@
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -117469,6 +117631,9 @@
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -118023,6 +118188,9 @@
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -119265,6 +119433,9 @@
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -119819,6 +119990,9 @@
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -121530,6 +121704,9 @@
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -122084,6 +122261,9 @@
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -123888,6 +124068,9 @@
                     "libraryId": {
                       "type": "string"
                     },
+                    "libraryKind": {
+                      "type": "string"
+                    },
                     "media": {
                       "properties": {
                         "absoluteNumber": {
@@ -124442,6 +124625,9 @@
                           "type": "object"
                         },
                         "libraryId": {
+                          "type": "string"
+                        },
+                        "libraryKind": {
                           "type": "string"
                         },
                         "missing": {
@@ -125681,6 +125867,9 @@
                 "libraryId": {
                   "type": "string"
                 },
+                "libraryKind": {
+                  "type": "string"
+                },
                 "media": {
                   "properties": {
                     "absoluteNumber": {
@@ -126235,6 +126424,9 @@
                       "type": "object"
                     },
                     "libraryId": {
+                      "type": "string"
+                    },
+                    "libraryKind": {
                       "type": "string"
                     },
                     "missing": {
@@ -127946,6 +128138,9 @@
                     "libraryId": {
                       "type": "string"
                     },
+                    "libraryKind": {
+                      "type": "string"
+                    },
                     "media": {
                       "properties": {
                         "absoluteNumber": {
@@ -128500,6 +128695,9 @@
                           "type": "object"
                         },
                         "libraryId": {
+                          "type": "string"
+                        },
+                        "libraryKind": {
                           "type": "string"
                         },
                         "missing": {
@@ -130608,6 +130806,9 @@
                     "libraryId": {
                       "type": "string"
                     },
+                    "libraryKind": {
+                      "type": "string"
+                    },
                     "media": {
                       "properties": {
                         "absoluteNumber": {
@@ -131162,6 +131363,9 @@
                           "type": "object"
                         },
                         "libraryId": {
+                          "type": "string"
+                        },
+                        "libraryKind": {
                           "type": "string"
                         },
                         "missing": {
@@ -135390,6 +135594,9 @@
               "libraryId": {
                 "type": "string"
               },
+              "libraryKind": {
+                "type": "string"
+              },
               "media": {
                 "properties": {
                   "absoluteNumber": {
@@ -135944,6 +136151,9 @@
                     "type": "object"
                   },
                   "libraryId": {
+                    "type": "string"
+                  },
+                  "libraryKind": {
                     "type": "string"
                   },
                   "missing": {
@@ -137373,6 +137583,9 @@
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -137927,6 +138140,9 @@
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -139449,6 +139665,9 @@
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -140003,6 +140222,9 @@
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -141894,6 +142116,9 @@
                   "libraryId": {
                     "type": "string"
                   },
+                  "libraryKind": {
+                    "type": "string"
+                  },
                   "media": {
                     "properties": {
                       "absoluteNumber": {
@@ -142448,6 +142673,9 @@
                         "type": "object"
                       },
                       "libraryId": {
+                        "type": "string"
+                      },
+                      "libraryKind": {
                         "type": "string"
                       },
                       "missing": {
@@ -143877,6 +144105,9 @@
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -144431,6 +144662,9 @@
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -145861,6 +146095,9 @@
               "libraryId": {
                 "type": "string"
               },
+              "libraryKind": {
+                "type": "string"
+              },
               "media": {
                 "properties": {
                   "absoluteNumber": {
@@ -146415,6 +146652,9 @@
                     "type": "object"
                   },
                   "libraryId": {
+                    "type": "string"
+                  },
+                  "libraryKind": {
                     "type": "string"
                   },
                   "missing": {
@@ -149333,6 +149573,9 @@
                     "libraryId": {
                       "type": "string"
                     },
+                    "libraryKind": {
+                      "type": "string"
+                    },
                     "media": {
                       "properties": {
                         "absoluteNumber": {
@@ -149887,6 +150130,9 @@
                           "type": "object"
                         },
                         "libraryId": {
+                          "type": "string"
+                        },
+                        "libraryKind": {
                           "type": "string"
                         },
                         "missing": {
@@ -156281,6 +156527,9 @@
                     "libraryId": {
                       "type": "string"
                     },
+                    "libraryKind": {
+                      "type": "string"
+                    },
                     "media": {
                       "properties": {
                         "absoluteNumber": {
@@ -156835,6 +157084,9 @@
                           "type": "object"
                         },
                         "libraryId": {
+                          "type": "string"
+                        },
+                        "libraryKind": {
                           "type": "string"
                         },
                         "missing": {
@@ -158129,6 +158381,9 @@
                     "libraryId": {
                       "type": "string"
                     },
+                    "libraryKind": {
+                      "type": "string"
+                    },
                     "media": {
                       "properties": {
                         "absoluteNumber": {
@@ -158683,6 +158938,9 @@
                           "type": "object"
                         },
                         "libraryId": {
+                          "type": "string"
+                        },
+                        "libraryKind": {
                           "type": "string"
                         },
                         "missing": {
@@ -160059,6 +160317,9 @@
                     "libraryId": {
                       "type": "string"
                     },
+                    "libraryKind": {
+                      "type": "string"
+                    },
                     "media": {
                       "properties": {
                         "absoluteNumber": {
@@ -160613,6 +160874,9 @@
                           "type": "object"
                         },
                         "libraryId": {
+                          "type": "string"
+                        },
+                        "libraryKind": {
                           "type": "string"
                         },
                         "missing": {
@@ -164325,6 +164589,9 @@
               "libraryId": {
                 "type": "string"
               },
+              "libraryKind": {
+                "type": "string"
+              },
               "media": {
                 "properties": {
                   "absoluteNumber": {
@@ -164879,6 +165146,9 @@
                     "type": "object"
                   },
                   "libraryId": {
+                    "type": "string"
+                  },
+                  "libraryKind": {
                     "type": "string"
                   },
                   "missing": {
@@ -166308,6 +166578,9 @@
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -166862,6 +167135,9 @@
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -172317,6 +172593,9 @@
               "libraryId": {
                 "type": "string"
               },
+              "libraryKind": {
+                "type": "string"
+              },
               "media": {
                 "properties": {
                   "absoluteNumber": {
@@ -172871,6 +173150,9 @@
                     "type": "object"
                   },
                   "libraryId": {
+                    "type": "string"
+                  },
+                  "libraryKind": {
                     "type": "string"
                   },
                   "missing": {
@@ -174328,6 +174610,9 @@
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -174882,6 +175167,9 @@
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -176709,6 +176997,9 @@
                     "libraryId": {
                       "type": "string"
                     },
+                    "libraryKind": {
+                      "type": "string"
+                    },
                     "media": {
                       "properties": {
                         "absoluteNumber": {
@@ -177263,6 +177554,9 @@
                           "type": "object"
                         },
                         "libraryId": {
+                          "type": "string"
+                        },
+                        "libraryKind": {
                           "type": "string"
                         },
                         "missing": {
@@ -178823,6 +179117,9 @@
                     "libraryId": {
                       "type": "string"
                     },
+                    "libraryKind": {
+                      "type": "string"
+                    },
                     "media": {
                       "properties": {
                         "absoluteNumber": {
@@ -179377,6 +179674,9 @@
                           "type": "object"
                         },
                         "libraryId": {
+                          "type": "string"
+                        },
+                        "libraryKind": {
                           "type": "string"
                         },
                         "missing": {
@@ -181582,6 +181882,9 @@
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -182136,6 +182439,9 @@
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -186320,6 +186626,9 @@
                                 "libraryId": {
                                   "type": "string"
                                 },
+                                "libraryKind": {
+                                  "type": "string"
+                                },
                                 "media": {
                                   "properties": {
                                     "absoluteNumber": {
@@ -186874,6 +187183,9 @@
                                       "type": "object"
                                     },
                                     "libraryId": {
+                                      "type": "string"
+                                    },
+                                    "libraryKind": {
                                       "type": "string"
                                     },
                                     "missing": {
@@ -188116,6 +188428,9 @@
                             "libraryId": {
                               "type": "string"
                             },
+                            "libraryKind": {
+                              "type": "string"
+                            },
                             "media": {
                               "properties": {
                                 "absoluteNumber": {
@@ -188670,6 +188985,9 @@
                                   "type": "object"
                                 },
                                 "libraryId": {
+                                  "type": "string"
+                                },
+                                "libraryKind": {
                                   "type": "string"
                                 },
                                 "missing": {
@@ -190381,6 +190699,9 @@
                                 "libraryId": {
                                   "type": "string"
                                 },
+                                "libraryKind": {
+                                  "type": "string"
+                                },
                                 "media": {
                                   "properties": {
                                     "absoluteNumber": {
@@ -190935,6 +191256,9 @@
                                       "type": "object"
                                     },
                                     "libraryId": {
+                                      "type": "string"
+                                    },
+                                    "libraryKind": {
                                       "type": "string"
                                     },
                                     "missing": {
@@ -192739,6 +193063,9 @@
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -193293,6 +193620,9 @@
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -194532,6 +194862,9 @@
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -195086,6 +195419,9 @@
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -196797,6 +197133,9 @@
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -197351,6 +197690,9 @@
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -199196,6 +199538,9 @@
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -199750,6 +200095,9 @@
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -200992,6 +201340,9 @@
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -201546,6 +201897,9 @@
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -203257,6 +203611,9 @@
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -203811,6 +204168,9 @@
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -205615,6 +205975,9 @@
                     "libraryId": {
                       "type": "string"
                     },
+                    "libraryKind": {
+                      "type": "string"
+                    },
                     "media": {
                       "properties": {
                         "absoluteNumber": {
@@ -206169,6 +206532,9 @@
                           "type": "object"
                         },
                         "libraryId": {
+                          "type": "string"
+                        },
+                        "libraryKind": {
                           "type": "string"
                         },
                         "missing": {
@@ -207408,6 +207774,9 @@
                 "libraryId": {
                   "type": "string"
                 },
+                "libraryKind": {
+                  "type": "string"
+                },
                 "media": {
                   "properties": {
                     "absoluteNumber": {
@@ -207962,6 +208331,9 @@
                       "type": "object"
                     },
                     "libraryId": {
+                      "type": "string"
+                    },
+                    "libraryKind": {
                       "type": "string"
                     },
                     "missing": {
@@ -209673,6 +210045,9 @@
                     "libraryId": {
                       "type": "string"
                     },
+                    "libraryKind": {
+                      "type": "string"
+                    },
                     "media": {
                       "properties": {
                         "absoluteNumber": {
@@ -210227,6 +210602,9 @@
                           "type": "object"
                         },
                         "libraryId": {
+                          "type": "string"
+                        },
+                        "libraryKind": {
                           "type": "string"
                         },
                         "missing": {
@@ -215795,6 +216173,9 @@
                     "libraryId": {
                       "type": "string"
                     },
+                    "libraryKind": {
+                      "type": "string"
+                    },
                     "media": {
                       "properties": {
                         "absoluteNumber": {
@@ -216349,6 +216730,9 @@
                           "type": "object"
                         },
                         "libraryId": {
+                          "type": "string"
+                        },
+                        "libraryKind": {
                           "type": "string"
                         },
                         "missing": {
@@ -219277,6 +219661,9 @@
                                 "libraryId": {
                                   "type": "string"
                                 },
+                                "libraryKind": {
+                                  "type": "string"
+                                },
                                 "media": {
                                   "properties": {
                                     "absoluteNumber": {
@@ -219831,6 +220218,9 @@
                                       "type": "object"
                                     },
                                     "libraryId": {
+                                      "type": "string"
+                                    },
+                                    "libraryKind": {
                                       "type": "string"
                                     },
                                     "missing": {
@@ -221073,6 +221463,9 @@
                             "libraryId": {
                               "type": "string"
                             },
+                            "libraryKind": {
+                              "type": "string"
+                            },
                             "media": {
                               "properties": {
                                 "absoluteNumber": {
@@ -221627,6 +222020,9 @@
                                   "type": "object"
                                 },
                                 "libraryId": {
+                                  "type": "string"
+                                },
+                                "libraryKind": {
                                   "type": "string"
                                 },
                                 "missing": {
@@ -223338,6 +223734,9 @@
                                 "libraryId": {
                                   "type": "string"
                                 },
+                                "libraryKind": {
+                                  "type": "string"
+                                },
                                 "media": {
                                   "properties": {
                                     "absoluteNumber": {
@@ -223892,6 +224291,9 @@
                                       "type": "object"
                                     },
                                     "libraryId": {
+                                      "type": "string"
+                                    },
+                                    "libraryKind": {
                                       "type": "string"
                                     },
                                     "missing": {
@@ -225696,6 +226098,9 @@
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -226250,6 +226655,9 @@
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -227489,6 +227897,9 @@
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -228043,6 +228454,9 @@
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -229754,6 +230168,9 @@
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -230308,6 +230725,9 @@
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -231902,6 +232322,9 @@
                     "libraryId": {
                       "type": "string"
                     },
+                    "libraryKind": {
+                      "type": "string"
+                    },
                     "media": {
                       "properties": {
                         "absoluteNumber": {
@@ -232456,6 +232879,9 @@
                           "type": "object"
                         },
                         "libraryId": {
+                          "type": "string"
+                        },
+                        "libraryKind": {
                           "type": "string"
                         },
                         "missing": {
@@ -233703,6 +234129,9 @@
                     "libraryId": {
                       "type": "string"
                     },
+                    "libraryKind": {
+                      "type": "string"
+                    },
                     "media": {
                       "properties": {
                         "absoluteNumber": {
@@ -234257,6 +234686,9 @@
                           "type": "object"
                         },
                         "libraryId": {
+                          "type": "string"
+                        },
+                        "libraryKind": {
                           "type": "string"
                         },
                         "missing": {
@@ -258743,6 +259175,9 @@
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -259297,6 +259732,9 @@
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -260595,6 +261033,9 @@
                 "libraryId": {
                   "type": "string"
                 },
+                "libraryKind": {
+                  "type": "string"
+                },
                 "media": {
                   "properties": {
                     "absoluteNumber": {
@@ -261149,6 +261590,9 @@
                       "type": "object"
                     },
                     "libraryId": {
+                      "type": "string"
+                    },
+                    "libraryKind": {
                       "type": "string"
                     },
                     "missing": {
@@ -297977,6 +298421,9 @@
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -298531,6 +298978,9 @@
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -465085,6 +465535,9 @@
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -465639,6 +466092,9 @@
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -473148,6 +473604,9 @@
                         "libraryId": {
                           "type": "string"
                         },
+                        "libraryKind": {
+                          "type": "string"
+                        },
                         "media": {
                           "properties": {
                             "absoluteNumber": {
@@ -473702,6 +474161,9 @@
                               "type": "object"
                             },
                             "libraryId": {
+                              "type": "string"
+                            },
+                            "libraryKind": {
                               "type": "string"
                             },
                             "missing": {
@@ -475159,6 +475621,9 @@
                                     "libraryId": {
                                       "type": "string"
                                     },
+                                    "libraryKind": {
+                                      "type": "string"
+                                    },
                                     "media": {
                                       "properties": {
                                         "absoluteNumber": {
@@ -475713,6 +476178,9 @@
                                           "type": "object"
                                         },
                                         "libraryId": {
+                                          "type": "string"
+                                        },
+                                        "libraryKind": {
                                           "type": "string"
                                         },
                                         "missing": {
@@ -499196,6 +499664,9 @@
                                     "libraryId": {
                                       "type": "string"
                                     },
+                                    "libraryKind": {
+                                      "type": "string"
+                                    },
                                     "media": {
                                       "properties": {
                                         "absoluteNumber": {
@@ -499749,6 +500220,9 @@
                                           "type": "object"
                                         },
                                         "libraryId": {
+                                          "type": "string"
+                                        },
+                                        "libraryKind": {
                                           "type": "string"
                                         },
                                         "missing": {
@@ -501746,6 +502220,9 @@
                                         "libraryId": {
                                           "type": "string"
                                         },
+                                        "libraryKind": {
+                                          "type": "string"
+                                        },
                                         "media": {
                                           "properties": {
                                             "absoluteNumber": {
@@ -502299,6 +502776,9 @@
                                               "type": "object"
                                             },
                                             "libraryId": {
+                                              "type": "string"
+                                            },
+                                            "libraryKind": {
                                               "type": "string"
                                             },
                                             "missing": {
@@ -506255,6 +506735,9 @@
                                     "libraryId": {
                                       "type": "string"
                                     },
+                                    "libraryKind": {
+                                      "type": "string"
+                                    },
                                     "media": {
                                       "properties": {
                                         "absoluteNumber": {
@@ -506809,6 +507292,9 @@
                                           "type": "object"
                                         },
                                         "libraryId": {
+                                          "type": "string"
+                                        },
+                                        "libraryKind": {
                                           "type": "string"
                                         },
                                         "missing": {
@@ -508807,6 +509293,9 @@
                                         "libraryId": {
                                           "type": "string"
                                         },
+                                        "libraryKind": {
+                                          "type": "string"
+                                        },
                                         "media": {
                                           "properties": {
                                             "absoluteNumber": {
@@ -509361,6 +509850,9 @@
                                               "type": "object"
                                             },
                                             "libraryId": {
+                                              "type": "string"
+                                            },
+                                            "libraryKind": {
                                               "type": "string"
                                             },
                                             "missing": {
@@ -526438,6 +526930,9 @@
                                           "libraryId": {
                                             "type": "string"
                                           },
+                                          "libraryKind": {
+                                            "type": "string"
+                                          },
                                           "media": {
                                             "properties": {
                                               "absoluteNumber": {
@@ -526992,6 +527487,9 @@
                                                 "type": "object"
                                               },
                                               "libraryId": {
+                                                "type": "string"
+                                              },
+                                              "libraryKind": {
                                                 "type": "string"
                                               },
                                               "missing": {
@@ -528234,6 +528732,9 @@
                                       "libraryId": {
                                         "type": "string"
                                       },
+                                      "libraryKind": {
+                                        "type": "string"
+                                      },
                                       "media": {
                                         "properties": {
                                           "absoluteNumber": {
@@ -528788,6 +529289,9 @@
                                             "type": "object"
                                           },
                                           "libraryId": {
+                                            "type": "string"
+                                          },
+                                          "libraryKind": {
                                             "type": "string"
                                           },
                                           "missing": {
@@ -530499,6 +531003,9 @@
                                           "libraryId": {
                                             "type": "string"
                                           },
+                                          "libraryKind": {
+                                            "type": "string"
+                                          },
                                           "media": {
                                             "properties": {
                                               "absoluteNumber": {
@@ -531053,6 +531560,9 @@
                                                 "type": "object"
                                               },
                                               "libraryId": {
+                                                "type": "string"
+                                              },
+                                              "libraryKind": {
                                                 "type": "string"
                                               },
                                               "missing": {
@@ -532857,6 +533367,9 @@
                                     "libraryId": {
                                       "type": "string"
                                     },
+                                    "libraryKind": {
+                                      "type": "string"
+                                    },
                                     "media": {
                                       "properties": {
                                         "absoluteNumber": {
@@ -533411,6 +533924,9 @@
                                           "type": "object"
                                         },
                                         "libraryId": {
+                                          "type": "string"
+                                        },
+                                        "libraryKind": {
                                           "type": "string"
                                         },
                                         "missing": {
@@ -534650,6 +535166,9 @@
                                 "libraryId": {
                                   "type": "string"
                                 },
+                                "libraryKind": {
+                                  "type": "string"
+                                },
                                 "media": {
                                   "properties": {
                                     "absoluteNumber": {
@@ -535204,6 +535723,9 @@
                                       "type": "object"
                                     },
                                     "libraryId": {
+                                      "type": "string"
+                                    },
+                                    "libraryKind": {
                                       "type": "string"
                                     },
                                     "missing": {
@@ -536915,6 +537437,9 @@
                                     "libraryId": {
                                       "type": "string"
                                     },
+                                    "libraryKind": {
+                                      "type": "string"
+                                    },
                                     "media": {
                                       "properties": {
                                         "absoluteNumber": {
@@ -537469,6 +537994,9 @@
                                           "type": "object"
                                         },
                                         "libraryId": {
+                                          "type": "string"
+                                        },
+                                        "libraryKind": {
                                           "type": "string"
                                         },
                                         "missing": {
@@ -539063,6 +539591,9 @@
                               "libraryId": {
                                 "type": "string"
                               },
+                              "libraryKind": {
+                                "type": "string"
+                              },
                               "media": {
                                 "properties": {
                                   "absoluteNumber": {
@@ -539617,6 +540148,9 @@
                                     "type": "object"
                                   },
                                   "libraryId": {
+                                    "type": "string"
+                                  },
+                                  "libraryKind": {
                                     "type": "string"
                                   },
                                   "missing": {
@@ -540864,6 +541398,9 @@
                               "libraryId": {
                                 "type": "string"
                               },
+                              "libraryKind": {
+                                "type": "string"
+                              },
                               "media": {
                                 "properties": {
                                   "absoluteNumber": {
@@ -541418,6 +541955,9 @@
                                     "type": "object"
                                   },
                                   "libraryId": {
+                                    "type": "string"
+                                  },
+                                  "libraryKind": {
                                     "type": "string"
                                   },
                                   "missing": {
@@ -542786,6 +543326,9 @@
                                 "libraryId": {
                                   "type": "string"
                                 },
+                                "libraryKind": {
+                                  "type": "string"
+                                },
                                 "media": {
                                   "properties": {
                                     "absoluteNumber": {
@@ -543340,6 +543883,9 @@
                                       "type": "object"
                                     },
                                     "libraryId": {
+                                      "type": "string"
+                                    },
+                                    "libraryKind": {
                                       "type": "string"
                                     },
                                     "missing": {
@@ -544711,6 +545257,9 @@
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -545265,6 +545814,9 @@
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -547414,6 +547966,9 @@
                                     "libraryId": {
                                       "type": "string"
                                     },
+                                    "libraryKind": {
+                                      "type": "string"
+                                    },
                                     "media": {
                                       "properties": {
                                         "absoluteNumber": {
@@ -547968,6 +548523,9 @@
                                           "type": "object"
                                         },
                                         "libraryId": {
+                                          "type": "string"
+                                        },
+                                        "libraryKind": {
                                           "type": "string"
                                         },
                                         "missing": {
@@ -549210,6 +549768,9 @@
                                 "libraryId": {
                                   "type": "string"
                                 },
+                                "libraryKind": {
+                                  "type": "string"
+                                },
                                 "media": {
                                   "properties": {
                                     "absoluteNumber": {
@@ -549764,6 +550325,9 @@
                                       "type": "object"
                                     },
                                     "libraryId": {
+                                      "type": "string"
+                                    },
+                                    "libraryKind": {
                                       "type": "string"
                                     },
                                     "missing": {
@@ -551475,6 +552039,9 @@
                                     "libraryId": {
                                       "type": "string"
                                     },
+                                    "libraryKind": {
+                                      "type": "string"
+                                    },
                                     "media": {
                                       "properties": {
                                         "absoluteNumber": {
@@ -552029,6 +552596,9 @@
                                           "type": "object"
                                         },
                                         "libraryId": {
+                                          "type": "string"
+                                        },
+                                        "libraryKind": {
                                           "type": "string"
                                         },
                                         "missing": {
@@ -553833,6 +554403,9 @@
                               "libraryId": {
                                 "type": "string"
                               },
+                              "libraryKind": {
+                                "type": "string"
+                              },
                               "media": {
                                 "properties": {
                                   "absoluteNumber": {
@@ -554387,6 +554960,9 @@
                                     "type": "object"
                                   },
                                   "libraryId": {
+                                    "type": "string"
+                                  },
+                                  "libraryKind": {
                                     "type": "string"
                                   },
                                   "missing": {
@@ -555626,6 +556202,9 @@
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -556180,6 +556759,9 @@
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -557891,6 +558473,9 @@
                               "libraryId": {
                                 "type": "string"
                               },
+                              "libraryKind": {
+                                "type": "string"
+                              },
                               "media": {
                                 "properties": {
                                   "absoluteNumber": {
@@ -558445,6 +559030,9 @@
                                     "type": "object"
                                   },
                                   "libraryId": {
+                                    "type": "string"
+                                  },
+                                  "libraryKind": {
                                     "type": "string"
                                   },
                                   "missing": {
@@ -567985,6 +568573,9 @@
                                 "libraryId": {
                                   "type": "string"
                                 },
+                                "libraryKind": {
+                                  "type": "string"
+                                },
                                 "media": {
                                   "properties": {
                                     "absoluteNumber": {
@@ -568538,6 +569129,9 @@
                                       "type": "object"
                                     },
                                     "libraryId": {
+                                      "type": "string"
+                                    },
+                                    "libraryKind": {
                                       "type": "string"
                                     },
                                     "missing": {
@@ -570535,6 +571129,9 @@
                                     "libraryId": {
                                       "type": "string"
                                     },
+                                    "libraryKind": {
+                                      "type": "string"
+                                    },
                                     "media": {
                                       "properties": {
                                         "absoluteNumber": {
@@ -571088,6 +571685,9 @@
                                           "type": "object"
                                         },
                                         "libraryId": {
+                                          "type": "string"
+                                        },
+                                        "libraryKind": {
                                           "type": "string"
                                         },
                                         "missing": {
@@ -572693,6 +573293,9 @@
                                     "libraryId": {
                                       "type": "string"
                                     },
+                                    "libraryKind": {
+                                      "type": "string"
+                                    },
                                     "media": {
                                       "properties": {
                                         "absoluteNumber": {
@@ -573247,6 +573850,9 @@
                                           "type": "object"
                                         },
                                         "libraryId": {
+                                          "type": "string"
+                                        },
+                                        "libraryKind": {
                                           "type": "string"
                                         },
                                         "missing": {
@@ -575245,6 +575851,9 @@
                                         "libraryId": {
                                           "type": "string"
                                         },
+                                        "libraryKind": {
+                                          "type": "string"
+                                        },
                                         "media": {
                                           "properties": {
                                             "absoluteNumber": {
@@ -575799,6 +576408,9 @@
                                               "type": "object"
                                             },
                                             "libraryId": {
+                                              "type": "string"
+                                            },
+                                            "libraryKind": {
                                               "type": "string"
                                             },
                                             "missing": {
@@ -592299,6 +592911,9 @@
                                           "libraryId": {
                                             "type": "string"
                                           },
+                                          "libraryKind": {
+                                            "type": "string"
+                                          },
                                           "media": {
                                             "properties": {
                                               "absoluteNumber": {
@@ -592853,6 +593468,9 @@
                                                 "type": "object"
                                               },
                                               "libraryId": {
+                                                "type": "string"
+                                              },
+                                              "libraryKind": {
                                                 "type": "string"
                                               },
                                               "missing": {
@@ -594095,6 +594713,9 @@
                                       "libraryId": {
                                         "type": "string"
                                       },
+                                      "libraryKind": {
+                                        "type": "string"
+                                      },
                                       "media": {
                                         "properties": {
                                           "absoluteNumber": {
@@ -594649,6 +595270,9 @@
                                             "type": "object"
                                           },
                                           "libraryId": {
+                                            "type": "string"
+                                          },
+                                          "libraryKind": {
                                             "type": "string"
                                           },
                                           "missing": {
@@ -596360,6 +596984,9 @@
                                           "libraryId": {
                                             "type": "string"
                                           },
+                                          "libraryKind": {
+                                            "type": "string"
+                                          },
                                           "media": {
                                             "properties": {
                                               "absoluteNumber": {
@@ -596914,6 +597541,9 @@
                                                 "type": "object"
                                               },
                                               "libraryId": {
+                                                "type": "string"
+                                              },
+                                              "libraryKind": {
                                                 "type": "string"
                                               },
                                               "missing": {
@@ -598718,6 +599348,9 @@
                                     "libraryId": {
                                       "type": "string"
                                     },
+                                    "libraryKind": {
+                                      "type": "string"
+                                    },
                                     "media": {
                                       "properties": {
                                         "absoluteNumber": {
@@ -599272,6 +599905,9 @@
                                           "type": "object"
                                         },
                                         "libraryId": {
+                                          "type": "string"
+                                        },
+                                        "libraryKind": {
                                           "type": "string"
                                         },
                                         "missing": {
@@ -600511,6 +601147,9 @@
                                 "libraryId": {
                                   "type": "string"
                                 },
+                                "libraryKind": {
+                                  "type": "string"
+                                },
                                 "media": {
                                   "properties": {
                                     "absoluteNumber": {
@@ -601065,6 +601704,9 @@
                                       "type": "object"
                                     },
                                     "libraryId": {
+                                      "type": "string"
+                                    },
+                                    "libraryKind": {
                                       "type": "string"
                                     },
                                     "missing": {
@@ -602776,6 +603418,9 @@
                                     "libraryId": {
                                       "type": "string"
                                     },
+                                    "libraryKind": {
+                                      "type": "string"
+                                    },
                                     "media": {
                                       "properties": {
                                         "absoluteNumber": {
@@ -603330,6 +603975,9 @@
                                           "type": "object"
                                         },
                                         "libraryId": {
+                                          "type": "string"
+                                        },
+                                        "libraryKind": {
                                           "type": "string"
                                         },
                                         "missing": {
@@ -605276,6 +605924,9 @@
                                     "libraryId": {
                                       "type": "string"
                                     },
+                                    "libraryKind": {
+                                      "type": "string"
+                                    },
                                     "media": {
                                       "properties": {
                                         "absoluteNumber": {
@@ -605830,6 +606481,9 @@
                                           "type": "object"
                                         },
                                         "libraryId": {
+                                          "type": "string"
+                                        },
+                                        "libraryKind": {
                                           "type": "string"
                                         },
                                         "missing": {
@@ -607072,6 +607726,9 @@
                                 "libraryId": {
                                   "type": "string"
                                 },
+                                "libraryKind": {
+                                  "type": "string"
+                                },
                                 "media": {
                                   "properties": {
                                     "absoluteNumber": {
@@ -607626,6 +608283,9 @@
                                       "type": "object"
                                     },
                                     "libraryId": {
+                                      "type": "string"
+                                    },
+                                    "libraryKind": {
                                       "type": "string"
                                     },
                                     "missing": {
@@ -609337,6 +609997,9 @@
                                     "libraryId": {
                                       "type": "string"
                                     },
+                                    "libraryKind": {
+                                      "type": "string"
+                                    },
                                     "media": {
                                       "properties": {
                                         "absoluteNumber": {
@@ -609891,6 +610554,9 @@
                                           "type": "object"
                                         },
                                         "libraryId": {
+                                          "type": "string"
+                                        },
+                                        "libraryKind": {
                                           "type": "string"
                                         },
                                         "missing": {
@@ -611695,6 +612361,9 @@
                               "libraryId": {
                                 "type": "string"
                               },
+                              "libraryKind": {
+                                "type": "string"
+                              },
                               "media": {
                                 "properties": {
                                   "absoluteNumber": {
@@ -612249,6 +612918,9 @@
                                     "type": "object"
                                   },
                                   "libraryId": {
+                                    "type": "string"
+                                  },
+                                  "libraryKind": {
                                     "type": "string"
                                   },
                                   "missing": {
@@ -613488,6 +614160,9 @@
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -614042,6 +614717,9 @@
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -615753,6 +616431,9 @@
                               "libraryId": {
                                 "type": "string"
                               },
+                              "libraryKind": {
+                                "type": "string"
+                              },
                               "media": {
                                 "properties": {
                                   "absoluteNumber": {
@@ -616307,6 +616988,9 @@
                                     "type": "object"
                                   },
                                   "libraryId": {
+                                    "type": "string"
+                                  },
+                                  "libraryKind": {
                                     "type": "string"
                                   },
                                   "missing": {
@@ -618011,6 +618695,9 @@
                               "libraryId": {
                                 "type": "string"
                               },
+                              "libraryKind": {
+                                "type": "string"
+                              },
                               "media": {
                                 "properties": {
                                   "absoluteNumber": {
@@ -618565,6 +619252,9 @@
                                     "type": "object"
                                   },
                                   "libraryId": {
+                                    "type": "string"
+                                  },
+                                  "libraryKind": {
                                     "type": "string"
                                   },
                                   "missing": {
@@ -628135,6 +628825,9 @@
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -628688,6 +629381,9 @@
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -632369,6 +633065,9 @@
                         "libraryId": {
                           "type": "string"
                         },
+                        "libraryKind": {
+                          "type": "string"
+                        },
                         "media": {
                           "properties": {
                             "absoluteNumber": {
@@ -632923,6 +633622,9 @@
                               "type": "object"
                             },
                             "libraryId": {
+                              "type": "string"
+                            },
+                            "libraryKind": {
                               "type": "string"
                             },
                             "missing": {
@@ -634352,6 +635054,9 @@
                                 "libraryId": {
                                   "type": "string"
                                 },
+                                "libraryKind": {
+                                  "type": "string"
+                                },
                                 "media": {
                                   "properties": {
                                     "absoluteNumber": {
@@ -634906,6 +635611,9 @@
                                       "type": "object"
                                     },
                                     "libraryId": {
+                                      "type": "string"
+                                    },
+                                    "libraryKind": {
                                       "type": "string"
                                     },
                                     "missing": {
@@ -636496,6 +637204,9 @@
                                 "libraryId": {
                                   "type": "string"
                                 },
+                                "libraryKind": {
+                                  "type": "string"
+                                },
                                 "media": {
                                   "properties": {
                                     "absoluteNumber": {
@@ -637050,6 +637761,9 @@
                                       "type": "object"
                                     },
                                     "libraryId": {
+                                      "type": "string"
+                                    },
+                                    "libraryKind": {
                                       "type": "string"
                                     },
                                     "missing": {
@@ -641488,6 +642202,9 @@
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -642041,6 +642758,9 @@
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -645153,6 +645873,9 @@
                             "libraryId": {
                               "type": "string"
                             },
+                            "libraryKind": {
+                              "type": "string"
+                            },
                             "media": {
                               "properties": {
                                 "absoluteNumber": {
@@ -645707,6 +646430,9 @@
                                   "type": "object"
                                 },
                                 "libraryId": {
+                                  "type": "string"
+                                },
+                                "libraryKind": {
                                   "type": "string"
                                 },
                                 "missing": {
@@ -647136,6 +647862,9 @@
                                     "libraryId": {
                                       "type": "string"
                                     },
+                                    "libraryKind": {
+                                      "type": "string"
+                                    },
                                     "media": {
                                       "properties": {
                                         "absoluteNumber": {
@@ -647690,6 +648419,9 @@
                                           "type": "object"
                                         },
                                         "libraryId": {
+                                          "type": "string"
+                                        },
+                                        "libraryKind": {
                                           "type": "string"
                                         },
                                         "missing": {
@@ -649120,6 +649852,9 @@
                         "libraryId": {
                           "type": "string"
                         },
+                        "libraryKind": {
+                          "type": "string"
+                        },
                         "media": {
                           "properties": {
                             "absoluteNumber": {
@@ -649674,6 +650409,9 @@
                               "type": "object"
                             },
                             "libraryId": {
+                              "type": "string"
+                            },
+                            "libraryKind": {
                               "type": "string"
                             },
                             "missing": {
@@ -671859,6 +672597,9 @@
                               "libraryId": {
                                 "type": "string"
                               },
+                              "libraryKind": {
+                                "type": "string"
+                              },
                               "media": {
                                 "properties": {
                                   "absoluteNumber": {
@@ -672413,6 +673154,9 @@
                                     "type": "object"
                                   },
                                   "libraryId": {
+                                    "type": "string"
+                                  },
+                                  "libraryKind": {
                                     "type": "string"
                                   },
                                   "missing": {
@@ -673707,6 +674451,9 @@
                               "libraryId": {
                                 "type": "string"
                               },
+                              "libraryKind": {
+                                "type": "string"
+                              },
                               "media": {
                                 "properties": {
                                   "absoluteNumber": {
@@ -674261,6 +675008,9 @@
                                     "type": "object"
                                   },
                                   "libraryId": {
+                                    "type": "string"
+                                  },
+                                  "libraryKind": {
                                     "type": "string"
                                   },
                                   "missing": {
@@ -675734,6 +676484,9 @@
                               "libraryId": {
                                 "type": "string"
                               },
+                              "libraryKind": {
+                                "type": "string"
+                              },
                               "media": {
                                 "properties": {
                                   "absoluteNumber": {
@@ -676288,6 +677041,9 @@
                                     "type": "object"
                                   },
                                   "libraryId": {
+                                    "type": "string"
+                                  },
+                                  "libraryKind": {
                                     "type": "string"
                                   },
                                   "missing": {
@@ -687707,6 +688463,9 @@
                         "libraryId": {
                           "type": "string"
                         },
+                        "libraryKind": {
+                          "type": "string"
+                        },
                         "media": {
                           "properties": {
                             "absoluteNumber": {
@@ -688261,6 +689020,9 @@
                               "type": "object"
                             },
                             "libraryId": {
+                              "type": "string"
+                            },
+                            "libraryKind": {
                               "type": "string"
                             },
                             "missing": {
@@ -689690,6 +690452,9 @@
                                 "libraryId": {
                                   "type": "string"
                                 },
+                                "libraryKind": {
+                                  "type": "string"
+                                },
                                 "media": {
                                   "properties": {
                                     "absoluteNumber": {
@@ -690244,6 +691009,9 @@
                                       "type": "object"
                                     },
                                     "libraryId": {
+                                      "type": "string"
+                                    },
+                                    "libraryKind": {
                                       "type": "string"
                                     },
                                     "missing": {
@@ -719324,6 +720092,9 @@
                                 "libraryId": {
                                   "type": "string"
                                 },
+                                "libraryKind": {
+                                  "type": "string"
+                                },
                                 "media": {
                                   "properties": {
                                     "absoluteNumber": {
@@ -719878,6 +720649,9 @@
                                       "type": "object"
                                     },
                                     "libraryId": {
+                                      "type": "string"
+                                    },
+                                    "libraryKind": {
                                       "type": "string"
                                     },
                                     "missing": {
@@ -723210,6 +723984,9 @@
                               "libraryId": {
                                 "type": "string"
                               },
+                              "libraryKind": {
+                                "type": "string"
+                              },
                               "media": {
                                 "properties": {
                                   "absoluteNumber": {
@@ -723764,6 +724541,9 @@
                                     "type": "object"
                                   },
                                   "libraryId": {
+                                    "type": "string"
+                                  },
+                                  "libraryKind": {
                                     "type": "string"
                                   },
                                   "missing": {
@@ -725324,6 +726104,9 @@
                               "libraryId": {
                                 "type": "string"
                               },
+                              "libraryKind": {
+                                "type": "string"
+                              },
                               "media": {
                                 "properties": {
                                   "absoluteNumber": {
@@ -725878,6 +726661,9 @@
                                     "type": "object"
                                   },
                                   "libraryId": {
+                                    "type": "string"
+                                  },
+                                  "libraryKind": {
                                     "type": "string"
                                   },
                                   "missing": {
@@ -729729,6 +730515,9 @@
                                 "libraryId": {
                                   "type": "string"
                                 },
+                                "libraryKind": {
+                                  "type": "string"
+                                },
                                 "media": {
                                   "properties": {
                                     "absoluteNumber": {
@@ -730283,6 +731072,9 @@
                                       "type": "object"
                                     },
                                     "libraryId": {
+                                      "type": "string"
+                                    },
+                                    "libraryKind": {
                                       "type": "string"
                                     },
                                     "missing": {
@@ -739756,6 +740548,9 @@
                                           "libraryId": {
                                             "type": "string"
                                           },
+                                          "libraryKind": {
+                                            "type": "string"
+                                          },
                                           "media": {
                                             "properties": {
                                               "absoluteNumber": {
@@ -740310,6 +741105,9 @@
                                                 "type": "object"
                                               },
                                               "libraryId": {
+                                                "type": "string"
+                                              },
+                                              "libraryKind": {
                                                 "type": "string"
                                               },
                                               "missing": {
@@ -741552,6 +742350,9 @@
                                       "libraryId": {
                                         "type": "string"
                                       },
+                                      "libraryKind": {
+                                        "type": "string"
+                                      },
                                       "media": {
                                         "properties": {
                                           "absoluteNumber": {
@@ -742106,6 +742907,9 @@
                                             "type": "object"
                                           },
                                           "libraryId": {
+                                            "type": "string"
+                                          },
+                                          "libraryKind": {
                                             "type": "string"
                                           },
                                           "missing": {
@@ -743817,6 +744621,9 @@
                                           "libraryId": {
                                             "type": "string"
                                           },
+                                          "libraryKind": {
+                                            "type": "string"
+                                          },
                                           "media": {
                                             "properties": {
                                               "absoluteNumber": {
@@ -744371,6 +745178,9 @@
                                                 "type": "object"
                                               },
                                               "libraryId": {
+                                                "type": "string"
+                                              },
+                                              "libraryKind": {
                                                 "type": "string"
                                               },
                                               "missing": {
@@ -746175,6 +746985,9 @@
                                     "libraryId": {
                                       "type": "string"
                                     },
+                                    "libraryKind": {
+                                      "type": "string"
+                                    },
                                     "media": {
                                       "properties": {
                                         "absoluteNumber": {
@@ -746729,6 +747542,9 @@
                                           "type": "object"
                                         },
                                         "libraryId": {
+                                          "type": "string"
+                                        },
+                                        "libraryKind": {
                                           "type": "string"
                                         },
                                         "missing": {
@@ -747968,6 +748784,9 @@
                                 "libraryId": {
                                   "type": "string"
                                 },
+                                "libraryKind": {
+                                  "type": "string"
+                                },
                                 "media": {
                                   "properties": {
                                     "absoluteNumber": {
@@ -748522,6 +749341,9 @@
                                       "type": "object"
                                     },
                                     "libraryId": {
+                                      "type": "string"
+                                    },
+                                    "libraryKind": {
                                       "type": "string"
                                     },
                                     "missing": {
@@ -750233,6 +751055,9 @@
                                     "libraryId": {
                                       "type": "string"
                                     },
+                                    "libraryKind": {
+                                      "type": "string"
+                                    },
                                     "media": {
                                       "properties": {
                                         "absoluteNumber": {
@@ -750787,6 +751612,9 @@
                                           "type": "object"
                                         },
                                         "libraryId": {
+                                          "type": "string"
+                                        },
+                                        "libraryKind": {
                                           "type": "string"
                                         },
                                         "missing": {
@@ -752736,6 +753564,9 @@
                                     "libraryId": {
                                       "type": "string"
                                     },
+                                    "libraryKind": {
+                                      "type": "string"
+                                    },
                                     "media": {
                                       "properties": {
                                         "absoluteNumber": {
@@ -753290,6 +754121,9 @@
                                           "type": "object"
                                         },
                                         "libraryId": {
+                                          "type": "string"
+                                        },
+                                        "libraryKind": {
                                           "type": "string"
                                         },
                                         "missing": {
@@ -754532,6 +755366,9 @@
                                 "libraryId": {
                                   "type": "string"
                                 },
+                                "libraryKind": {
+                                  "type": "string"
+                                },
                                 "media": {
                                   "properties": {
                                     "absoluteNumber": {
@@ -755086,6 +755923,9 @@
                                       "type": "object"
                                     },
                                     "libraryId": {
+                                      "type": "string"
+                                    },
+                                    "libraryKind": {
                                       "type": "string"
                                     },
                                     "missing": {
@@ -756797,6 +757637,9 @@
                                     "libraryId": {
                                       "type": "string"
                                     },
+                                    "libraryKind": {
+                                      "type": "string"
+                                    },
                                     "media": {
                                       "properties": {
                                         "absoluteNumber": {
@@ -757351,6 +758194,9 @@
                                           "type": "object"
                                         },
                                         "libraryId": {
+                                          "type": "string"
+                                        },
+                                        "libraryKind": {
                                           "type": "string"
                                         },
                                         "missing": {
@@ -759155,6 +760001,9 @@
                               "libraryId": {
                                 "type": "string"
                               },
+                              "libraryKind": {
+                                "type": "string"
+                              },
                               "media": {
                                 "properties": {
                                   "absoluteNumber": {
@@ -759709,6 +760558,9 @@
                                     "type": "object"
                                   },
                                   "libraryId": {
+                                    "type": "string"
+                                  },
+                                  "libraryKind": {
                                     "type": "string"
                                   },
                                   "missing": {
@@ -760948,6 +761800,9 @@
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -761502,6 +762357,9 @@
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -763213,6 +764071,9 @@
                               "libraryId": {
                                 "type": "string"
                               },
+                              "libraryKind": {
+                                "type": "string"
+                              },
                               "media": {
                                 "properties": {
                                   "absoluteNumber": {
@@ -763767,6 +764628,9 @@
                                     "type": "object"
                                   },
                                   "libraryId": {
+                                    "type": "string"
+                                  },
+                                  "libraryKind": {
                                     "type": "string"
                                   },
                                   "missing": {
@@ -776101,6 +776965,9 @@
                               "libraryId": {
                                 "type": "string"
                               },
+                              "libraryKind": {
+                                "type": "string"
+                              },
                               "media": {
                                 "properties": {
                                   "absoluteNumber": {
@@ -776655,6 +777522,9 @@
                                     "type": "object"
                                   },
                                   "libraryId": {
+                                    "type": "string"
+                                  },
+                                  "libraryKind": {
                                     "type": "string"
                                   },
                                   "missing": {

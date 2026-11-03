@@ -6557,6 +6557,9 @@ export const schemas = {
             "libraryId": {
               "type": "string"
             },
+            "libraryKind": {
+              "type": "string"
+            },
             "media": {
               "properties": {
                 "absoluteNumber": {
@@ -7099,6 +7102,9 @@ export const schemas = {
                   "type": "object"
                 },
                 "libraryId": {
+                  "type": "string"
+                },
+                "libraryKind": {
                   "type": "string"
                 },
                 "missing": {
@@ -9084,6 +9090,9 @@ export const schemas = {
                 "libraryId": {
                   "type": "string"
                 },
+                "libraryKind": {
+                  "type": "string"
+                },
                 "media": {
                   "properties": {
                     "absoluteNumber": {
@@ -9626,6 +9635,9 @@ export const schemas = {
                       "type": "object"
                     },
                     "libraryId": {
+                      "type": "string"
+                    },
+                    "libraryKind": {
                       "type": "string"
                     },
                     "missing": {
@@ -51256,6 +51268,9 @@ export const schemas = {
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -51798,6 +51813,9 @@ export const schemas = {
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -53755,6 +53773,9 @@ export const schemas = {
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -54297,6 +54318,9 @@ export const schemas = {
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -61272,6 +61296,9 @@ export const schemas = {
                             "libraryId": {
                               "type": "string"
                             },
+                            "libraryKind": {
+                              "type": "string"
+                            },
                             "media": {
                               "properties": {
                                 "absoluteNumber": {
@@ -61814,6 +61841,9 @@ export const schemas = {
                                   "type": "object"
                                 },
                                 "libraryId": {
+                                  "type": "string"
+                                },
+                                "libraryKind": {
                                   "type": "string"
                                 },
                                 "missing": {
@@ -63026,6 +63056,9 @@ export const schemas = {
                         "libraryId": {
                           "type": "string"
                         },
+                        "libraryKind": {
+                          "type": "string"
+                        },
                         "media": {
                           "properties": {
                             "absoluteNumber": {
@@ -63568,6 +63601,9 @@ export const schemas = {
                               "type": "object"
                             },
                             "libraryId": {
+                              "type": "string"
+                            },
+                            "libraryKind": {
                               "type": "string"
                             },
                             "missing": {
@@ -65250,6 +65286,9 @@ export const schemas = {
                             "libraryId": {
                               "type": "string"
                             },
+                            "libraryKind": {
+                              "type": "string"
+                            },
                             "media": {
                               "properties": {
                                 "absoluteNumber": {
@@ -65792,6 +65831,9 @@ export const schemas = {
                                   "type": "object"
                                 },
                                 "libraryId": {
+                                  "type": "string"
+                                },
+                                "libraryKind": {
                                   "type": "string"
                                 },
                                 "missing": {
@@ -67560,6 +67602,9 @@ export const schemas = {
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -68102,6 +68147,9 @@ export const schemas = {
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -69311,6 +69359,9 @@ export const schemas = {
                   "libraryId": {
                     "type": "string"
                   },
+                  "libraryKind": {
+                    "type": "string"
+                  },
                   "media": {
                     "properties": {
                       "absoluteNumber": {
@@ -69853,6 +69904,9 @@ export const schemas = {
                         "type": "object"
                       },
                       "libraryId": {
+                        "type": "string"
+                      },
+                      "libraryKind": {
                         "type": "string"
                       },
                       "missing": {
@@ -71535,6 +71589,9 @@ export const schemas = {
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -72077,6 +72134,9 @@ export const schemas = {
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -73641,6 +73701,9 @@ export const schemas = {
                 "libraryId": {
                   "type": "string"
                 },
+                "libraryKind": {
+                  "type": "string"
+                },
                 "media": {
                   "properties": {
                     "absoluteNumber": {
@@ -74183,6 +74246,9 @@ export const schemas = {
                       "type": "object"
                     },
                     "libraryId": {
+                      "type": "string"
+                    },
+                    "libraryKind": {
                       "type": "string"
                     },
                     "missing": {
@@ -75400,6 +75466,9 @@ export const schemas = {
                 "libraryId": {
                   "type": "string"
                 },
+                "libraryKind": {
+                  "type": "string"
+                },
                 "media": {
                   "properties": {
                     "absoluteNumber": {
@@ -75942,6 +76011,9 @@ export const schemas = {
                       "type": "object"
                     },
                     "libraryId": {
+                      "type": "string"
+                    },
+                    "libraryKind": {
                       "type": "string"
                     },
                     "missing": {
@@ -77375,6 +77447,9 @@ export const schemas = {
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -77917,6 +77992,9 @@ export const schemas = {
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -79129,6 +79207,9 @@ export const schemas = {
                   "libraryId": {
                     "type": "string"
                   },
+                  "libraryKind": {
+                    "type": "string"
+                  },
                   "media": {
                     "properties": {
                       "absoluteNumber": {
@@ -79671,6 +79752,9 @@ export const schemas = {
                         "type": "object"
                       },
                       "libraryId": {
+                        "type": "string"
+                      },
+                      "libraryKind": {
                         "type": "string"
                       },
                       "missing": {
@@ -81353,6 +81437,9 @@ export const schemas = {
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -81895,6 +81982,9 @@ export const schemas = {
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -83663,6 +83753,9 @@ export const schemas = {
                 "libraryId": {
                   "type": "string"
                 },
+                "libraryKind": {
+                  "type": "string"
+                },
                 "media": {
                   "properties": {
                     "absoluteNumber": {
@@ -84205,6 +84298,9 @@ export const schemas = {
                       "type": "object"
                     },
                     "libraryId": {
+                      "type": "string"
+                    },
+                    "libraryKind": {
                       "type": "string"
                     },
                     "missing": {
@@ -85414,6 +85510,9 @@ export const schemas = {
             "libraryId": {
               "type": "string"
             },
+            "libraryKind": {
+              "type": "string"
+            },
             "media": {
               "properties": {
                 "absoluteNumber": {
@@ -85956,6 +86055,9 @@ export const schemas = {
                   "type": "object"
                 },
                 "libraryId": {
+                  "type": "string"
+                },
+                "libraryKind": {
                   "type": "string"
                 },
                 "missing": {
@@ -87638,6 +87740,9 @@ export const schemas = {
                 "libraryId": {
                   "type": "string"
                 },
+                "libraryKind": {
+                  "type": "string"
+                },
                 "media": {
                   "properties": {
                     "absoluteNumber": {
@@ -88180,6 +88285,9 @@ export const schemas = {
                       "type": "object"
                     },
                     "libraryId": {
+                      "type": "string"
+                    },
+                    "libraryKind": {
                       "type": "string"
                     },
                     "missing": {
@@ -92652,6 +92760,9 @@ export const schemas = {
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -93194,6 +93305,9 @@ export const schemas = {
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -95151,6 +95265,9 @@ export const schemas = {
                           "libraryId": {
                             "type": "string"
                           },
+                          "libraryKind": {
+                            "type": "string"
+                          },
                           "media": {
                             "properties": {
                               "absoluteNumber": {
@@ -95693,6 +95810,9 @@ export const schemas = {
                                 "type": "object"
                               },
                               "libraryId": {
+                                "type": "string"
+                              },
+                              "libraryKind": {
                                 "type": "string"
                               },
                               "missing": {
@@ -101175,6 +101295,9 @@ export const schemas = {
                             "libraryId": {
                               "type": "string"
                             },
+                            "libraryKind": {
+                              "type": "string"
+                            },
                             "media": {
                               "properties": {
                                 "absoluteNumber": {
@@ -101717,6 +101840,9 @@ export const schemas = {
                                   "type": "object"
                                 },
                                 "libraryId": {
+                                  "type": "string"
+                                },
+                                "libraryKind": {
                                   "type": "string"
                                 },
                                 "missing": {
@@ -102929,6 +103055,9 @@ export const schemas = {
                         "libraryId": {
                           "type": "string"
                         },
+                        "libraryKind": {
+                          "type": "string"
+                        },
                         "media": {
                           "properties": {
                             "absoluteNumber": {
@@ -103471,6 +103600,9 @@ export const schemas = {
                               "type": "object"
                             },
                             "libraryId": {
+                              "type": "string"
+                            },
+                            "libraryKind": {
                               "type": "string"
                             },
                             "missing": {
@@ -105153,6 +105285,9 @@ export const schemas = {
                             "libraryId": {
                               "type": "string"
                             },
+                            "libraryKind": {
+                              "type": "string"
+                            },
                             "media": {
                               "properties": {
                                 "absoluteNumber": {
@@ -105695,6 +105830,9 @@ export const schemas = {
                                   "type": "object"
                                 },
                                 "libraryId": {
+                                  "type": "string"
+                                },
+                                "libraryKind": {
                                   "type": "string"
                                 },
                                 "missing": {
@@ -107463,6 +107601,9 @@ export const schemas = {
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -108005,6 +108146,9 @@ export const schemas = {
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -109214,6 +109358,9 @@ export const schemas = {
                   "libraryId": {
                     "type": "string"
                   },
+                  "libraryKind": {
+                    "type": "string"
+                  },
                   "media": {
                     "properties": {
                       "absoluteNumber": {
@@ -109756,6 +109903,9 @@ export const schemas = {
                         "type": "object"
                       },
                       "libraryId": {
+                        "type": "string"
+                      },
+                      "libraryKind": {
                         "type": "string"
                       },
                       "missing": {
@@ -111438,6 +111588,9 @@ export const schemas = {
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -111980,6 +112133,9 @@ export const schemas = {
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -113787,6 +113943,9 @@ export const schemas = {
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -114329,6 +114488,9 @@ export const schemas = {
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -115541,6 +115703,9 @@ export const schemas = {
                   "libraryId": {
                     "type": "string"
                   },
+                  "libraryKind": {
+                    "type": "string"
+                  },
                   "media": {
                     "properties": {
                       "absoluteNumber": {
@@ -116083,6 +116248,9 @@ export const schemas = {
                         "type": "object"
                       },
                       "libraryId": {
+                        "type": "string"
+                      },
+                      "libraryKind": {
                         "type": "string"
                       },
                       "missing": {
@@ -117765,6 +117933,9 @@ export const schemas = {
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -118307,6 +118478,9 @@ export const schemas = {
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -120075,6 +120249,9 @@ export const schemas = {
                 "libraryId": {
                   "type": "string"
                 },
+                "libraryKind": {
+                  "type": "string"
+                },
                 "media": {
                   "properties": {
                     "absoluteNumber": {
@@ -120617,6 +120794,9 @@ export const schemas = {
                       "type": "object"
                     },
                     "libraryId": {
+                      "type": "string"
+                    },
+                    "libraryKind": {
                       "type": "string"
                     },
                     "missing": {
@@ -121826,6 +122006,9 @@ export const schemas = {
             "libraryId": {
               "type": "string"
             },
+            "libraryKind": {
+              "type": "string"
+            },
             "media": {
               "properties": {
                 "absoluteNumber": {
@@ -122368,6 +122551,9 @@ export const schemas = {
                   "type": "object"
                 },
                 "libraryId": {
+                  "type": "string"
+                },
+                "libraryKind": {
                   "type": "string"
                 },
                 "missing": {
@@ -124050,6 +124236,9 @@ export const schemas = {
                 "libraryId": {
                   "type": "string"
                 },
+                "libraryKind": {
+                  "type": "string"
+                },
                 "media": {
                   "properties": {
                     "absoluteNumber": {
@@ -124592,6 +124781,9 @@ export const schemas = {
                       "type": "object"
                     },
                     "libraryId": {
+                      "type": "string"
+                    },
+                    "libraryKind": {
                       "type": "string"
                     },
                     "missing": {
@@ -126666,6 +126858,9 @@ export const schemas = {
                 "libraryId": {
                   "type": "string"
                 },
+                "libraryKind": {
+                  "type": "string"
+                },
                 "media": {
                   "properties": {
                     "absoluteNumber": {
@@ -127208,6 +127403,9 @@ export const schemas = {
                       "type": "object"
                     },
                     "libraryId": {
+                      "type": "string"
+                    },
+                    "libraryKind": {
                       "type": "string"
                     },
                     "missing": {
@@ -131409,6 +131607,9 @@ export const schemas = {
           "libraryId": {
             "type": "string"
           },
+          "libraryKind": {
+            "type": "string"
+          },
           "media": {
             "properties": {
               "absoluteNumber": {
@@ -131951,6 +132152,9 @@ export const schemas = {
                 "type": "object"
               },
               "libraryId": {
+                "type": "string"
+              },
+              "libraryKind": {
                 "type": "string"
               },
               "missing": {
@@ -133350,6 +133554,9 @@ export const schemas = {
                   "libraryId": {
                     "type": "string"
                   },
+                  "libraryKind": {
+                    "type": "string"
+                  },
                   "media": {
                     "properties": {
                       "absoluteNumber": {
@@ -133892,6 +134099,9 @@ export const schemas = {
                         "type": "object"
                       },
                       "libraryId": {
+                        "type": "string"
+                      },
+                      "libraryKind": {
                         "type": "string"
                       },
                       "missing": {
@@ -135386,6 +135596,9 @@ export const schemas = {
                   "libraryId": {
                     "type": "string"
                   },
+                  "libraryKind": {
+                    "type": "string"
+                  },
                   "media": {
                     "properties": {
                       "absoluteNumber": {
@@ -135928,6 +136141,9 @@ export const schemas = {
                         "type": "object"
                       },
                       "libraryId": {
+                        "type": "string"
+                      },
+                      "libraryKind": {
                         "type": "string"
                       },
                       "missing": {
@@ -137770,6 +137986,9 @@ export const schemas = {
               "libraryId": {
                 "type": "string"
               },
+              "libraryKind": {
+                "type": "string"
+              },
               "media": {
                 "properties": {
                   "absoluteNumber": {
@@ -138312,6 +138531,9 @@ export const schemas = {
                     "type": "object"
                   },
                   "libraryId": {
+                    "type": "string"
+                  },
+                  "libraryKind": {
                     "type": "string"
                   },
                   "missing": {
@@ -139711,6 +139933,9 @@ export const schemas = {
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -140253,6 +140478,9 @@ export const schemas = {
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -141654,6 +141882,9 @@ export const schemas = {
           "libraryId": {
             "type": "string"
           },
+          "libraryKind": {
+            "type": "string"
+          },
           "media": {
             "properties": {
               "absoluteNumber": {
@@ -142196,6 +142427,9 @@ export const schemas = {
                 "type": "object"
               },
               "libraryId": {
+                "type": "string"
+              },
+              "libraryKind": {
                 "type": "string"
               },
               "missing": {
@@ -145085,6 +145319,9 @@ export const schemas = {
                 "libraryId": {
                   "type": "string"
                 },
+                "libraryKind": {
+                  "type": "string"
+                },
                 "media": {
                   "properties": {
                     "absoluteNumber": {
@@ -145627,6 +145864,9 @@ export const schemas = {
                       "type": "object"
                     },
                     "libraryId": {
+                      "type": "string"
+                    },
+                    "libraryKind": {
                       "type": "string"
                     },
                     "missing": {
@@ -151970,6 +152210,9 @@ export const schemas = {
                 "libraryId": {
                   "type": "string"
                 },
+                "libraryKind": {
+                  "type": "string"
+                },
                 "media": {
                   "properties": {
                     "absoluteNumber": {
@@ -152512,6 +152755,9 @@ export const schemas = {
                       "type": "object"
                     },
                     "libraryId": {
+                      "type": "string"
+                    },
+                    "libraryKind": {
                       "type": "string"
                     },
                     "missing": {
@@ -153776,6 +154022,9 @@ export const schemas = {
                 "libraryId": {
                   "type": "string"
                 },
+                "libraryKind": {
+                  "type": "string"
+                },
                 "media": {
                   "properties": {
                     "absoluteNumber": {
@@ -154318,6 +154567,9 @@ export const schemas = {
                       "type": "object"
                     },
                     "libraryId": {
+                      "type": "string"
+                    },
+                    "libraryKind": {
                       "type": "string"
                     },
                     "missing": {
@@ -155664,6 +155916,9 @@ export const schemas = {
                 "libraryId": {
                   "type": "string"
                 },
+                "libraryKind": {
+                  "type": "string"
+                },
                 "media": {
                   "properties": {
                     "absoluteNumber": {
@@ -156206,6 +156461,9 @@ export const schemas = {
                       "type": "object"
                     },
                     "libraryId": {
+                      "type": "string"
+                    },
+                    "libraryKind": {
                       "type": "string"
                     },
                     "missing": {
@@ -159899,6 +160157,9 @@ export const schemas = {
           "libraryId": {
             "type": "string"
           },
+          "libraryKind": {
+            "type": "string"
+          },
           "media": {
             "properties": {
               "absoluteNumber": {
@@ -160441,6 +160702,9 @@ export const schemas = {
                 "type": "object"
               },
               "libraryId": {
+                "type": "string"
+              },
+              "libraryKind": {
                 "type": "string"
               },
               "missing": {
@@ -161840,6 +162104,9 @@ export const schemas = {
                   "libraryId": {
                     "type": "string"
                   },
+                  "libraryKind": {
+                    "type": "string"
+                  },
                   "media": {
                     "properties": {
                       "absoluteNumber": {
@@ -162382,6 +162649,9 @@ export const schemas = {
                         "type": "object"
                       },
                       "libraryId": {
+                        "type": "string"
+                      },
+                      "libraryKind": {
                         "type": "string"
                       },
                       "missing": {
@@ -167820,6 +168090,9 @@ export const schemas = {
           "libraryId": {
             "type": "string"
           },
+          "libraryKind": {
+            "type": "string"
+          },
           "media": {
             "properties": {
               "absoluteNumber": {
@@ -168362,6 +168635,9 @@ export const schemas = {
                 "type": "object"
               },
               "libraryId": {
+                "type": "string"
+              },
+              "libraryKind": {
                 "type": "string"
               },
               "missing": {
@@ -169789,6 +170065,9 @@ export const schemas = {
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -170331,6 +170610,9 @@ export const schemas = {
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -172128,6 +172410,9 @@ export const schemas = {
                 "libraryId": {
                   "type": "string"
                 },
+                "libraryKind": {
+                  "type": "string"
+                },
                 "media": {
                   "properties": {
                     "absoluteNumber": {
@@ -172670,6 +172955,9 @@ export const schemas = {
                       "type": "object"
                     },
                     "libraryId": {
+                      "type": "string"
+                    },
+                    "libraryKind": {
                       "type": "string"
                     },
                     "missing": {
@@ -174200,6 +174488,9 @@ export const schemas = {
                 "libraryId": {
                   "type": "string"
                 },
+                "libraryKind": {
+                  "type": "string"
+                },
                 "media": {
                   "properties": {
                     "absoluteNumber": {
@@ -174742,6 +175033,9 @@ export const schemas = {
                       "type": "object"
                     },
                     "libraryId": {
+                      "type": "string"
+                    },
+                    "libraryKind": {
                       "type": "string"
                     },
                     "missing": {
@@ -176912,6 +177206,9 @@ export const schemas = {
                   "libraryId": {
                     "type": "string"
                   },
+                  "libraryKind": {
+                    "type": "string"
+                  },
                   "media": {
                     "properties": {
                       "absoluteNumber": {
@@ -177454,6 +177751,9 @@ export const schemas = {
                         "type": "object"
                       },
                       "libraryId": {
+                        "type": "string"
+                      },
+                      "libraryKind": {
                         "type": "string"
                       },
                       "missing": {
@@ -181579,6 +181879,9 @@ export const schemas = {
                             "libraryId": {
                               "type": "string"
                             },
+                            "libraryKind": {
+                              "type": "string"
+                            },
                             "media": {
                               "properties": {
                                 "absoluteNumber": {
@@ -182121,6 +182424,9 @@ export const schemas = {
                                   "type": "object"
                                 },
                                 "libraryId": {
+                                  "type": "string"
+                                },
+                                "libraryKind": {
                                   "type": "string"
                                 },
                                 "missing": {
@@ -183333,6 +183639,9 @@ export const schemas = {
                         "libraryId": {
                           "type": "string"
                         },
+                        "libraryKind": {
+                          "type": "string"
+                        },
                         "media": {
                           "properties": {
                             "absoluteNumber": {
@@ -183875,6 +184184,9 @@ export const schemas = {
                               "type": "object"
                             },
                             "libraryId": {
+                              "type": "string"
+                            },
+                            "libraryKind": {
                               "type": "string"
                             },
                             "missing": {
@@ -185557,6 +185869,9 @@ export const schemas = {
                             "libraryId": {
                               "type": "string"
                             },
+                            "libraryKind": {
+                              "type": "string"
+                            },
                             "media": {
                               "properties": {
                                 "absoluteNumber": {
@@ -186099,6 +186414,9 @@ export const schemas = {
                                   "type": "object"
                                 },
                                 "libraryId": {
+                                  "type": "string"
+                                },
+                                "libraryKind": {
                                   "type": "string"
                                 },
                                 "missing": {
@@ -187867,6 +188185,9 @@ export const schemas = {
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -188409,6 +188730,9 @@ export const schemas = {
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -189618,6 +189942,9 @@ export const schemas = {
                   "libraryId": {
                     "type": "string"
                   },
+                  "libraryKind": {
+                    "type": "string"
+                  },
                   "media": {
                     "properties": {
                       "absoluteNumber": {
@@ -190160,6 +190487,9 @@ export const schemas = {
                         "type": "object"
                       },
                       "libraryId": {
+                        "type": "string"
+                      },
+                      "libraryKind": {
                         "type": "string"
                       },
                       "missing": {
@@ -191842,6 +192172,9 @@ export const schemas = {
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -192384,6 +192717,9 @@ export const schemas = {
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -194194,6 +194530,9 @@ export const schemas = {
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -194736,6 +195075,9 @@ export const schemas = {
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -195948,6 +196290,9 @@ export const schemas = {
                   "libraryId": {
                     "type": "string"
                   },
+                  "libraryKind": {
+                    "type": "string"
+                  },
                   "media": {
                     "properties": {
                       "absoluteNumber": {
@@ -196490,6 +196835,9 @@ export const schemas = {
                         "type": "object"
                       },
                       "libraryId": {
+                        "type": "string"
+                      },
+                      "libraryKind": {
                         "type": "string"
                       },
                       "missing": {
@@ -198172,6 +198520,9 @@ export const schemas = {
                       "libraryId": {
                         "type": "string"
                       },
+                      "libraryKind": {
+                        "type": "string"
+                      },
                       "media": {
                         "properties": {
                           "absoluteNumber": {
@@ -198714,6 +199065,9 @@ export const schemas = {
                             "type": "object"
                           },
                           "libraryId": {
+                            "type": "string"
+                          },
+                          "libraryKind": {
                             "type": "string"
                           },
                           "missing": {
@@ -200482,6 +200836,9 @@ export const schemas = {
                 "libraryId": {
                   "type": "string"
                 },
+                "libraryKind": {
+                  "type": "string"
+                },
                 "media": {
                   "properties": {
                     "absoluteNumber": {
@@ -201024,6 +201381,9 @@ export const schemas = {
                       "type": "object"
                     },
                     "libraryId": {
+                      "type": "string"
+                    },
+                    "libraryKind": {
                       "type": "string"
                     },
                     "missing": {
@@ -202233,6 +202593,9 @@ export const schemas = {
             "libraryId": {
               "type": "string"
             },
+            "libraryKind": {
+              "type": "string"
+            },
             "media": {
               "properties": {
                 "absoluteNumber": {
@@ -202775,6 +203138,9 @@ export const schemas = {
                   "type": "object"
                 },
                 "libraryId": {
+                  "type": "string"
+                },
+                "libraryKind": {
                   "type": "string"
                 },
                 "missing": {
@@ -204457,6 +204823,9 @@ export const schemas = {
                 "libraryId": {
                   "type": "string"
                 },
+                "libraryKind": {
+                  "type": "string"
+                },
                 "media": {
                   "properties": {
                     "absoluteNumber": {
@@ -204999,6 +205368,9 @@ export const schemas = {
                       "type": "object"
                     },
                     "libraryId": {
+                      "type": "string"
+                    },
+                    "libraryKind": {
                       "type": "string"
                     },
                     "missing": {
@@ -210546,6 +210918,9 @@ export const schemas = {
                 "libraryId": {
                   "type": "string"
                 },
+                "libraryKind": {
+                  "type": "string"
+                },
                 "media": {
                   "properties": {
                     "absoluteNumber": {
@@ -211088,6 +211463,9 @@ export const schemas = {
                       "type": "object"
                     },
                     "libraryId": {
+                      "type": "string"
+                    },
+                    "libraryKind": {
                       "type": "string"
                     },
                     "missing": {
@@ -236474,6 +236852,9 @@ export const schemas = {
                   "libraryId": {
                     "type": "string"
                   },
+                  "libraryKind": {
+                    "type": "string"
+                  },
                   "media": {
                     "properties": {
                       "absoluteNumber": {
@@ -237016,6 +237397,9 @@ export const schemas = {
                         "type": "object"
                       },
                       "libraryId": {
+                        "type": "string"
+                      },
+                      "libraryKind": {
                         "type": "string"
                       },
                       "missing": {
@@ -238284,6 +238668,9 @@ export const schemas = {
             "libraryId": {
               "type": "string"
             },
+            "libraryKind": {
+              "type": "string"
+            },
             "media": {
               "properties": {
                 "absoluteNumber": {
@@ -238826,6 +239213,9 @@ export const schemas = {
                   "type": "object"
                 },
                 "libraryId": {
+                  "type": "string"
+                },
+                "libraryKind": {
                   "type": "string"
                 },
                 "missing": {
@@ -275189,6 +275579,9 @@ export const schemas = {
                   "libraryId": {
                     "type": "string"
                   },
+                  "libraryKind": {
+                    "type": "string"
+                  },
                   "media": {
                     "properties": {
                       "absoluteNumber": {
@@ -275731,6 +276124,9 @@ export const schemas = {
                         "type": "object"
                       },
                       "libraryId": {
+                        "type": "string"
+                      },
+                      "libraryKind": {
                         "type": "string"
                       },
                       "missing": {

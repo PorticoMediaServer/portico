@@ -22,7 +22,7 @@ import {Skeleton, StateView} from '../../kit/states';
 import type {ShellArtwork} from '../../shell/artwork';
 import {useQuietRefresh} from '../../platform/freshness';
 import {useShellWidth} from '../../shell/viewport';
-import {homeCardModel} from '../home/model';
+import {savedCardModel} from '../home/model';
 import {BrowseEntryCard} from '../browse';
 import {LocalDownloads, ServerDownloads, type SavedDownloadEffects} from './Downloads';
 import {sameSavedDownloadsScope, type SavedDownloadsPort} from './downloads-port.ts';
@@ -392,7 +392,7 @@ export function SavedSection(bindings: SavedViewBindings & {service: SavedServic
         if (!media) return <StateView title={t('card.unavailable')} />;
         const selectable = bindings.catalogueSelection?.member(media);
         return <CatalogueSelectionEntry selection={selectable ? bindings.catalogueSelection : undefined} entry={selectable ?? media} position={selectable ? bindings.catalogueSelection!.position(selectable) : context.index}>{documentSelection => {
-        const common = {model: homeCardModel(media, false, {t, locale: defaultI18n.region.formatLocale}), artwork: artwork.foreground(media.posterUrl, presentation.cardWidth * devicePixelRatio, ratio),
+        const common = {model: savedCardModel(media, {t, locale: defaultI18n.region.formatLocale}), artwork: artwork.foreground(media.posterUrl, presentation.cardWidth * devicePixelRatio, ratio),
           selection: documentSelection ?? cardSelection, context: 'grid' as const, watched: media.watched, onNavigate: () => effects.openEntry(media),
           onPlay: media.playback && media.available !== false && !media.missing ? () => { void bindings.operations.run(signal => effects.playEntry(media, signal)).catch(effects.reportError); } : undefined,
           onMore: bindings.onMore ? (anchor: HTMLButtonElement) => bindings.onMore!(entry, anchor)

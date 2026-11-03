@@ -128,7 +128,7 @@ test('Saved preview cards preserve inactive selection and the actual native menu
     '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/cards': {PosterCard: 'PosterCard', SquareCard: 'SquareCard'},
     '../../kit/cards/primitives': {CardFrame: 'CardFrame', Parts: 'Parts'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../kit/overlays': {Menu: 'Menu'},
     '../../kit/controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable', Tabs: 'Tabs'}, '../../kit/states/usePullRefresh': {usePullRefresh: () => undefined}, '../../kit/dock/DockClearance': {useDockClearance: () => 0}, '../../kit/states': {}, '../../kit/Icon': {}, '../../kit/browse/presentation': {browseType: () => ({}), alpha: () => ''},
-    '../../kit/theme': {useTheme: () => theme}, '../../platform/offline-downloads': {groupOfflineEntries: () => []}, '../home/model': {homeCardText: () => ({caption: []}), nativeSearchCardText: () => ({caption: []})},
+    '../../kit/theme': {useTheme: () => theme}, '../../platform/offline-downloads': {groupOfflineEntries: () => []}, '../home/model': {homeCardText: () => ({caption: []}), savedCardText: () => ({caption: []}), nativeSearchCardText: () => ({caption: []})},
     './model': {savedProjectionCount: () => undefined, savedDirectoryCount: () => undefined},
     './SavedDownloadCard': {SavedDownloadCard: 'SavedDownloadCard'},
     '../downloads/playback': {openNativeSavedDownload},

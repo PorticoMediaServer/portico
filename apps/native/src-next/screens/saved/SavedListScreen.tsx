@@ -14,7 +14,7 @@ import type {NativeShellRuntime} from '../../shell/runtime';
 import type {NativeEntryMenuState} from '../destinations/entry-actions';
 import type {NativeDestinationActivationPort} from '../destinations/focus';
 import type {NativeSavedViewDestination} from './view-model';
-import {homeCardText} from '../home/model';
+import {savedCardText} from '../home/model';
 import {savedTitleCount} from './presentation';
 import {SavedSortMenu} from './SavedSortMenu';
 import {SavedLoading, SavedTail} from './SavedLoading';
@@ -127,7 +127,7 @@ export function SavedListScreen({route, destination, activation, runtime, action
 }
 
 function SavedListCard({entry, width, runtime, actions, selection}: {entry: ContentEntry; width: number; runtime: NativeShellRuntime; actions: NativeListActions; selection?: CardSelection}) {
-  const anchor = useRef<View>(null), text = homeCardText(entry, false, runtime.text), square = ['album', 'song', 'book', 'audiobook_file'].includes(entry.kind);
+  const anchor = useRef<View>(null), text = savedCardText(entry, runtime.text), square = ['album', 'song', 'book', 'audiobook_file'].includes(entry.kind);
   const progress = entry.duration && entry.progressSeconds ? Math.min(1, entry.progressSeconds / entry.duration) : undefined;
   const props = {testID: `saved-list-${encodeURIComponent(entry.id)}`, focusId: `saved-list-${entry.id}`, title: entry.displayTitle || entry.title, caption: text.caption,
     artwork: runtime.artwork(entry.posterUrl), progress, watched: entry.watched, width, onNavigate: () => actions.open(entry),

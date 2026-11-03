@@ -13,7 +13,7 @@ export function contentEntrySubject(entry: ContentEntry): CardSubject {
     : {mode: 'seasonal' as const, season: entry.seasonNumber, episode: entry.episodeNumber};
   return {id: entry.id, kind: entry.kind, title: entry.displayTitle ?? entry.title,
     seasonNumber: entry.seasonNumber, year: entry.year, contentRating: entry.contentRating, durationSeconds: entry.duration,
-    positionSeconds: entry.progressSeconds, genres: entry.genres, seasonCount: entry.seasonCount,
+    positionSeconds: entry.progressSeconds, genres: entry.genres, seasonCount: entry.seasonCount, ...(entry.libraryKind ? {libraryKind: entry.libraryKind} : {}),
     artist: entry.artist?.name, album: entry.album?.name, author: entry.author,
     show: entry.show ? {id: entry.show.id, title: entry.show.name} : undefined, episode,
     // W2-A6: a book's current chapter counts across the whole book, never within one part.
