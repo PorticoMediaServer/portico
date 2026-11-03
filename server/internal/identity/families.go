@@ -6,9 +6,9 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
-	"math"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/persistence"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -244,6 +244,12 @@ func (s *Service) familyRowTx(ctx context.Context, tx *sql.Tx, where, arg string
 // SessionFamilyTx is the current-token seam. It must not be used by renewal replay
 // or family logout, which intentionally accept authentic retired generations.
 func (s *Service) SessionFamilyTx(ctx context.Context, tx *sql.Tx, p Principal) (FamilyState, error) {
+	return dbwork.RememberForRequest(ctx, tx, "identity.family\x00"+principalMemoKey(p), nil, func() (FamilyState, error) {
+		return s.sessionFamilyTx(ctx, tx, p)
+	})
+}
+
+func (s *Service) sessionFamilyTx(ctx context.Context, tx *sql.Tx, p Principal) (FamilyState, error) {
 	// The family read now runs before the re-authorisation rather than after it,
 	// so the two guards ReauthorizeTx applied first are applied here instead.
 	if tx == nil || p.Hash == "" {
@@ -263,6 +269,12 @@ func (s *Service) SessionFamilyTx(ctx context.Context, tx *sql.Tx, p Principal) 
 // given digest, under the same family rules as authentication; ErrUnauthorized
 // once that sign-in has ended, rotated or expired.
 func (s *Service) PrincipalByDigestTx(ctx context.Context, tx *sql.Tx, hash string) (Principal, error) {
+	return dbwork.RememberForRequest(ctx, tx, "identity.digest\x00"+hash, nil, func() (Principal, error) {
+		return s.principalByDigestTx(ctx, tx, hash)
+	})
+}
+
+func (s *Service) principalByDigestTx(ctx context.Context, tx *sql.Tx, hash string) (Principal, error) {
 	if tx == nil || hash == "" {
 		return Principal{}, ErrUnauthorized
 	}

@@ -115,6 +115,9 @@ func Begin(ctx context.Context, db *sql.DB, class Class) (*Write, error) {
 		return &Write{tx: parent.tx, ctx: ctx, parent: parent}, nil
 	}
 	class = Effective(ctx, class)
+	// A request that writes may change who it is; it proves its authority
+	// afresh afterwards (request_memo.go).
+	forgetRequestMemo(ctx)
 	site := captureSite(2)
 	ctx = walContext(ctx, db, class, "")
 	release, err := acquireCatalogWrite(ctx, db, class)
@@ -478,6 +481,9 @@ func ExecWrite(ctx context.Context, db *sql.DB, class Class, query string, args 
 		return parent.tx.ExecContext(ctx, query, args...)
 	}
 	class = Effective(ctx, class)
+	// A request that writes may change who it is; it proves its authority
+	// afresh afterwards (request_memo.go).
+	forgetRequestMemo(ctx)
 	site := captureSite(2)
 	ctx = walContext(ctx, db, class, query)
 	release, err := acquireCatalogWrite(ctx, db, class)
@@ -569,7 +575,8 @@ func BeginSnapshot(ctx context.Context, db *sql.DB) (*Write, error) {
 		cancel()
 		return nil, err
 	}
-	return &Write{tx: tx, ctx: withSnapshot(ctx, tx), readOnly: true, release: cancel, changesAtStart: rowChanges(ctx, tx)}, nil
+	forget := registerReadSnapshot(tx)
+	return &Write{tx: tx, ctx: withSnapshot(ctx, tx), readOnly: true, release: func() { forget(); cancel() }, changesAtStart: rowChanges(ctx, tx)}, nil
 }
 
 type writerReservationKey struct{}

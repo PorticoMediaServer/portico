@@ -74,6 +74,7 @@ func WithReadSnapshot(ctx context.Context, db *sql.DB, fn func(context.Context) 
 	if err != nil {
 		return err
 	}
+	defer registerReadSnapshot(tx)()
 	defer tx.Rollback()
 	if err = fn(withSnapshot(ctx, tx)); err != nil {
 		return snapshotError(ctx, err)
@@ -127,9 +128,11 @@ func BeginRead(ctx context.Context, db *sql.DB) (*sql.Tx, func(), error) {
 		cancel()
 		return nil, nil, err
 	}
+	forget := registerReadSnapshot(tx)
 	var once sync.Once
 	return tx, func() {
 		once.Do(func() {
+			forget()
 			_ = tx.Rollback()
 			cancel()
 		})
