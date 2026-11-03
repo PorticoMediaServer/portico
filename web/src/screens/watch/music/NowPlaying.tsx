@@ -176,8 +176,8 @@ export function WatchMusicNowPlaying({binding, snapshot, expanded, onCollapse, p
           <ListeningSeek className={styles.scrub} position={at} duration={duration} bounds={bounds} disabled={!canSeek} phone={phone} onSeek={seek}/>
         </div>
         <div className={`${styles.controls} ${styles.fade2}`} data-music-content-group="1">
-          <button type="button" className={styles.ctl} aria-label={t(queue?.shuffled ? 'player.opt.shuffleOn' : 'player.opt.shuffleOff')}
-            aria-pressed={queue?.shuffled === true} disabled={policyBusy} onClick={() => policy({action: 'shuffle', shuffled: !queue?.shuffled})}><Icon name="i-shuffle" size={22}/></button>
+          {!queue?.radio && <button type="button" className={styles.ctl} aria-label={t(queue?.shuffled ? 'player.opt.shuffleOn' : 'player.opt.shuffleOff')}
+            aria-pressed={queue?.shuffled === true} disabled={policyBusy} onClick={() => policy({action: 'shuffle', shuffled: !queue?.shuffled})}><Icon name="i-shuffle" size={22}/></button>}
           <button type="button" className={styles.ctl} aria-label={t('next.dock.previous')} disabled={!can('previous')} onClick={() => send({kind: 'previous'})}><Icon name="i-prev" size={24} /></button>
           <button type="button" className={styles.big} data-playback-primary aria-label={presentation.playing ? t('next.dock.pause') : t('next.dock.play')} disabled={!can(presentation.playing ? 'pause' : 'play')}
             onClick={() => send({kind: presentation.playing ? 'pause' : 'play'})}><Icon name={presentation.playing ? 'i-pause' : 'i-play'} size={28} /></button>

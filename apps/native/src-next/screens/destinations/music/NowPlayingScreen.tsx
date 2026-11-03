@@ -376,7 +376,7 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
     <MusicFocusRegion id={`${focus}.transport`} entry="toggle" orientation="horizontal" style={{width: '100%', maxWidth: book ? 600 : 520, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: book ? 14 : 18}}>
       {book ? <Button testID={`${testID}-previous-chapter`} variant="text" iconOnly icon="i-prev" iconColor={theme.colors.text} iconSize={28} style={outerTransport}
         accessibilityLabel={t('player.previous')} disabled={!bookReader || !p.capabilities.seek || chapterBusy || !!chapter && chapter.index <= 1} onPress={() => moveChapter(-1)}/>
-        : policyReady ? <Button testID={`${testID}-shuffle`} variant="text" iconOnly icon="i-shuffle" iconColor={shuffled ? theme.colors.accentStrong : theme.colors.textSecondary} iconSize={22} style={outerTransport}
+        : policyReady && !drawnQueue?.radio ? <Button testID={`${testID}-shuffle`} variant="text" iconOnly icon="i-shuffle" iconColor={shuffled ? theme.colors.accentStrong : theme.colors.textSecondary} iconSize={22} style={outerTransport}
           accessibilityLabel={t('next.dock.shuffle')} accessibilityState={{selected: shuffled}} onPress={() => changePolicy({action: 'shuffle', shuffled: !shuffled})}/> : null}
       {book ? <Focusable testID={`${testID}-skip-back`} accessibilityRole="button" accessibilityLabel={t('player.skipBackSeconds', {seconds: skipBack})} disabled={!p.capabilities.seek || !bookReader}
         onPress={() => seekBook(position - skipBack)} style={[outerTransport, {alignItems: 'center', justifyContent: 'center'}]}>

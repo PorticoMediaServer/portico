@@ -47,7 +47,7 @@ export function useTVQueuePolicy({fence, queue, policy, reportError, testID}: {
   </Focusable>;
   const repeat = queue.queue.repeat;
   return {
-    shuffle: button('shuffle', queue.queue.shuffled, t('next.dock.shuffle'), {action: 'shuffle', shuffled: !queue.queue.shuffled}),
+    shuffle: queue.queue.radio ? null : button('shuffle', queue.queue.shuffled, t('next.dock.shuffle'), {action: 'shuffle', shuffled: !queue.queue.shuffled}),
     repeat: button('repeat', repeat !== 'off', t(repeat === 'one' ? 'next.dock.repeatOne' : repeat === 'all' ? 'next.dock.repeatAll' : 'next.dock.repeatOff'),
       {action: 'repeat', repeat: repeat === 'off' ? 'all' : repeat === 'all' ? 'one' : 'off'}),
   };
