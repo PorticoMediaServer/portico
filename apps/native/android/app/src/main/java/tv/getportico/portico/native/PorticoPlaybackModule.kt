@@ -23,6 +23,8 @@ class PorticoPlaybackModule(context: ReactApplicationContext) : PorticoEventModu
       made.onPictureInPicture = { change -> if (!invalidated) emit("PorticoPictureInPicture", change) }
       made.onListeningFact = { fact -> if (!invalidated) listening.fact(fact) }
       PorticoPlaybackController.shared = made
+      // The saved equalizer is in force before the first decoded buffer.
+      PorticoEqualizerStore.load(reactApplicationContext.applicationContext)
     }
   }
   private val controller: PorticoPlaybackController by controllerStore
@@ -72,7 +74,32 @@ class PorticoPlaybackModule(context: ReactApplicationContext) : PorticoEventModu
   fun audioProcessing(promise: Promise) {
     main.post {
       if (invalidated) { promise.reject("bridge_closed", "Playback bridge is closed."); return@post }
-      promise.resolve(Arguments.makeNativeMap(listening.audioProcessingFacts(reactApplicationContext)))
+      promise.resolve(Arguments.makeNativeMap(processingFacts()))
+    }
+  }
+
+  /** N1-2: the rate facts plus this device's equalizer, Apple's `audioProcessing` shape. */
+  private fun processingFacts(): Map<String, Any> =
+      listening.audioProcessingFacts(reactApplicationContext) + PorticoEqualizerStore.load(reactApplicationContext).facts()
+
+  /** This device's equalizer (`{enabled, preampDb, bands[10]}`), refused whole when out of range. */
+  @ReactMethod
+  fun setAudioEqualizer(value: ReadableMap?, promise: Promise) {
+    val settings = PorticoEqualizerSettings.parse(value?.toHashMap())
+    if (settings == null) { promise.reject("audio_eq_invalid", "The equalizer setting is invalid."); return }
+    main.post {
+      if (invalidated) { promise.reject("bridge_closed", "Playback bridge is closed."); return@post }
+      PorticoEqualizerStore.save(reactApplicationContext, settings)
+      promise.resolve(Arguments.makeNativeMap(processingFacts()))
+    }
+  }
+
+  @ReactMethod
+  fun resetAudioEqualizer(promise: Promise) {
+    main.post {
+      if (invalidated) { promise.reject("bridge_closed", "Playback bridge is closed."); return@post }
+      PorticoEqualizerStore.reset(reactApplicationContext)
+      promise.resolve(Arguments.makeNativeMap(processingFacts()))
     }
   }
 

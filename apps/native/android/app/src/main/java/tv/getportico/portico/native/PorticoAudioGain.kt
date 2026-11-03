@@ -75,8 +75,11 @@ internal class PorticoAudioGain {
   private var remaining = 0
   private var step = 0f
 
+  /** N1-2: this device's equalizer, after the gain, on the same decoded samples. */
+  private val equalizer = PorticoEqualizer()
+
   /** Begins a new stream at the current target, without a ramp from the previous one. */
-  fun reset() { level = target; goal = target; remaining = 0 }
+  fun reset() { level = target; goal = target; remaining = 0; equalizer.reset() }
 
   fun apply(input: ByteBuffer, sourceEncoding: Int, targetEncoding: Int, channelCount: Int, sampleRate: Int): ByteBuffer =
       applyObserved(input, sourceEncoding, targetEncoding, channelCount, sampleRate).buffer
@@ -100,14 +103,18 @@ internal class PorticoAudioGain {
     val observed = level.takeIf { remaining == 0 && it == goal && it.isFinite() && it > 0f
       && controls.known && controls.fade == 1.0 && controls.normalization == it
       && input.remaining() % sourceFrame == 0 }
-    if (level == 1f && goal == 1f && sourceEncoding == targetEncoding) return Applied(input, observed, controls.source, controls)
+    val equalized = equalizer.prepare(PorticoEqualizerStore.current, sampleRate, channelCount)
+    if (!equalized && level == 1f && goal == 1f && sourceEncoding == targetEncoding) return Applied(input, observed, controls.source, controls)
     val source = input.duplicate().order(ByteOrder.nativeOrder())
     val frames = source.remaining() / sourceFrame
     if (frames <= 0) return Applied(input, null)
     val out = ByteBuffer.allocateDirect(frames * targetFrame).order(ByteOrder.nativeOrder())
     repeat(frames) {
       if (remaining > 0) { level += step; if (--remaining == 0) level = goal }
-      repeat(channelCount) { writeSample(out, targetEncoding, readSample(source, sourceEncoding) * level) }
+      repeat(channelCount) { channel ->
+        val sample = readSample(source, sourceEncoding) * level
+        writeSample(out, targetEncoding, if (equalized) equalizer.process(sample, channel) else sample)
+      }
     }
     out.flip()
     return Applied(out, observed, controls.source, controls)
