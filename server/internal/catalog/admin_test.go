@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/catalogtest"
 	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
@@ -146,6 +148,7 @@ func TestAdminFirstPagesNeverFailDuringAScan(t *testing.T) {
 	}
 	stop := make(chan struct{})
 	scanned := make(chan error, 1)
+	var writes atomic.Int64
 	go func() {
 		defer close(scanned)
 		for n := 1; ; n++ {
@@ -158,12 +161,16 @@ func TestAdminFirstPagesNeverFailDuringAScan(t *testing.T) {
 				scanned <- err
 				return
 			}
+			writes.Store(int64(n))
 		}
 	}()
 	r := AdminRequest{ServerID: "server", Profile: "p", ViewerFence: "f", Limit: 40}
 	one := r
 	one.LibraryID = "tv"
-	for i := 0; i < 300; i++ {
+	// The reads run until the scan has written enough to prove something, not
+	// for a fixed count: how many reads that takes depends on how fast reads are.
+	started := time.Now()
+	for i := 0; i < 300 || (writes.Load() < 20 && time.Since(started) < 30*time.Second); i++ {
 		if _, e = s.AdminLibraries(context.Background(), r); e != nil {
 			break
 		}
