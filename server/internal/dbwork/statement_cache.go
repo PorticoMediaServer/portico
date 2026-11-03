@@ -296,11 +296,42 @@ func (s statementShape) invalidates() bool {
 	if s.temporary {
 		return true
 	}
-	if s.ordinary() || s.command == "EXPLAIN" {
+	if s.ordinary() || s.command == "EXPLAIN" || s.harmlessPragma() {
 		return false
 	}
-	// Unknown commands, DDL, ATTACH/DETACH and every PRAGMA remain conservative.
+	// Unknown commands, DDL, ATTACH/DETACH and every other PRAGMA remain
+	// conservative.
 	return true
+}
+
+// Reading these PRAGMAs, or setting synchronous or busy_timeout, cannot change
+// what a prepared statement means. Treating them as fences emptied a
+// connection's cache: browse reads PRAGMA schema_version twice per request, so
+// every pooled reader lost its statements and a busy server spent over a
+// quarter of its CPU re-preparing them; a durable write's synchronous toggles
+// emptied the writer's (about 170 statements) every time.
+var readOnlyPragmas = map[string]bool{
+	"schema_version": true, "data_version": true, "user_version": true, "application_id": true,
+	"page_count": true, "freelist_count": true, "page_size": true,
+}
+var settingPragmas = map[string]bool{"synchronous": true, "busy_timeout": true}
+
+func (s statementShape) harmlessPragma() bool {
+	if s.command != "PRAGMA" || !s.single {
+		return false
+	}
+	rest := strings.TrimSpace(s.sql[len("PRAGMA"):])
+	name, value, assigned := strings.Cut(rest, "=")
+	name = strings.ToLower(strings.TrimSpace(name))
+	name = strings.TrimPrefix(name, "main.")
+	if name == "" || strings.ContainsAny(name, " ()'\";.") {
+		return false
+	}
+	if !assigned {
+		return readOnlyPragmas[name] || settingPragmas[name]
+	}
+	value = strings.TrimSpace(value)
+	return settingPragmas[name] && value != "" && !strings.ContainsAny(value, " ()'\";")
 }
 
 func invalidatingStatement(query string) bool { return describeStatement(query).invalidates() }
