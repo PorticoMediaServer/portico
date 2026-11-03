@@ -101,6 +101,23 @@ func (s *Service) runMonitor(ctx context.Context) {
 		p.last = now
 		pending[source][relative] = p
 	}
+	// isWatched is whether a source is covered by the running watcher now.
+	isWatched := func(id string, source monitorSource) bool {
+		return ready && source.requested && !partial[id] && source.classification != "network"
+	}
+	// watchedAgain closes a source's unwatched spell. Only a spell longer than
+	// the grace owes a catch-up rescan. A spell ends when the watcher reports
+	// itself ready, not at the next tick: a watcher replaced because the
+	// request changed (every folder a first import lists changes it) is
+	// ready again within a second, and if that tick replaced it again the
+	// replacements would add up to a false outage and a whole-library rescan.
+	watchedAgain := func(id string, now time.Time) {
+		if since, ok := unwatchedSince[id]; ok && now.Sub(since) > watchGrace {
+			add(id, ".", now)
+		}
+		delete(unwatchedSince, id)
+		delete(fallback, id)
+	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -111,6 +128,12 @@ func (s *Service) runMonitor(ctx context.Context) {
 			}
 			if change.Ready {
 				ready = true
+				now := monitorClock()
+				for id, source := range sources {
+					if !source.remoteOwned && isWatched(id, source) {
+						watchedAgain(id, now)
+					}
+				}
 				continue
 			}
 			if change.SourceID == "" || change.RelativePath == "" {
@@ -193,14 +216,9 @@ func (s *Service) runMonitor(ctx context.Context) {
 					delete(unwatchedSince, id)
 					continue
 				}
-				watched := ready && source.requested && !partial[id] && source.classification != "network"
-				since, wasUnwatched := unwatchedSince[id]
-				if watched {
-					if wasUnwatched && now.Sub(since) > watchGrace {
-						add(id, ".", now)
-					}
-					delete(unwatchedSince, id)
-					delete(fallback, id)
+				_, wasUnwatched := unwatchedSince[id]
+				if isWatched(id, source) {
+					watchedAgain(id, now)
 					continue
 				}
 				// Startup owes only a bounded presence check. A new process or
