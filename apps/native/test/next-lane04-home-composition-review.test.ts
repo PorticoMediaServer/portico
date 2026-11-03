@@ -1,5 +1,5 @@
 import * as layoutModel from '../src-next/kit/layout/model.ts';
-import {homeContinuationCard} from '../../../packages/client-core/src/presentation/home-continuation';
+import {homeContinuationCard, homeContinuationSource} from '../../../packages/client-core/src/presentation/home-continuation';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
@@ -49,7 +49,7 @@ async function homeFixture(width: number, height: number) {
       useAnimatedScrollHandler: (fn: unknown) => fn, useSharedValue: (value: unknown) => react.useRef({value}).current},
     '@portico/design': {heroSpec: {thumbnail: {width: 104, height: 58}}},
     '../../../../../packages/i18n/src': {defaultI18n: {has: () => true}},
-    '../../../../../packages/client-core/src/presentation/home-continuation': {homeContinuationCard},
+    '../../../../../packages/client-core/src/presentation/home-continuation': {homeContinuationCard, homeContinuationSource},
     '../../../../../packages/client-core/src/presentation/home-spotlight': {
       homeRowPresentation: (row: any) => ({cards: row.entries.map((item: any) => ({entry: item})), title: row.id}),
       homeSpotlightModels: () => [{entry, reason: {text: 'Featured'}}], homeTitleFactParts: () => [],

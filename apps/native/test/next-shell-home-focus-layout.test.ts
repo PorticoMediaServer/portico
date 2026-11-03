@@ -1,5 +1,5 @@
 import * as homeWindow from '../src-next/screens/home/home-window';
-import {homeContinuationCard} from '../../../packages/client-core/src/presentation/home-continuation';
+import {homeContinuationCard, homeContinuationSource} from '../../../packages/client-core/src/presentation/home-continuation';
 import {createInitialRegionEntry} from '../src-next/kit/focus/initial-entry.ts';
 import {homeActionDiagnostics} from '../src-next/platform/home-action-diagnostics.ts';
 import assert from 'node:assert/strict';
@@ -38,7 +38,7 @@ test('initial TV focus reanchors when the compact hero measurement arrives and i
       'react-native': {AppState: {currentState: 'active'}, RefreshControl: 'RefreshControl', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 1920, height: 1080})},
       'react-native-reanimated': {default: {ScrollView: 'ScrollView'}, runOnJS: (fn: unknown) => fn, useAnimatedScrollHandler: (fn: unknown) => fn, useSharedValue: (value: unknown) => h.react.useRef({value}).current},
       '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
-      '../../../../../packages/client-core/src/presentation/home-continuation': {homeContinuationCard},
+      '../../../../../packages/client-core/src/presentation/home-continuation': {homeContinuationCard, homeContinuationSource},
     '../../../../../packages/client-core/src/presentation/home-spotlight': {homeRowPresentation: () => ({cards: [{entry}], title: 'Continue'}), homeSpotlightModels: () => [], homeTitleFactParts: () => []},
       '../../../../../packages/client-core/src/home-selection': {homeEntryCapabilities: () => ({playable: true, details: true, watchlisted: false})},
       '../../../../../packages/client-core/src/presentation/errors': {presentError},

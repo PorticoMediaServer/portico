@@ -12,7 +12,7 @@ import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {HomeChannel, HomeRow} from '../../../../../packages/client-core/src/home';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import {homeCollectionCaption, homeRowPresentation, homeSpotlightModels, homeTitleFactParts} from '../../../../../packages/client-core/src/presentation/home-spotlight';
-import {homeContinuationCard} from '../../../../../packages/client-core/src/presentation/home-continuation';
+import {homeContinuationCard, homeContinuationSource} from '../../../../../packages/client-core/src/presentation/home-continuation';
 import {homeEntryCapabilities} from '../../../../../packages/client-core/src/home-selection';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
 import {serverTextLabel} from '../../../../../packages/client-core/src/presentation/server-text';
@@ -568,7 +568,7 @@ function HomeCard({runtime, row, entry, rank, context, width, rowIndex, visible,
   // HM-4: Continue Listening (and Continue your books) draw the continuation from the row's own
   // resume target, as web does; native passed `ordinary` for Continue Listening.
   const resume = row.resumes?.find(value => value.entryId === entry.id)?.target ?? entry;
-  const text = homeContinuationCard(row.id, homeCardText(entry, row.kind === 'continue', runtime.text), homeCardText(resume, true, runtime.text));
+  const text = homeContinuationCard(row.id, homeCardText(entry, row.kind === 'continue', runtime.text), homeCardText(homeContinuationSource(entry, resume), true, runtime.text));
   // The admitted PiP fact only names the Continue row's own card when the same entry and a
   // current fence are playing; a matching title in a new or recommendation shelf stays quiet.
   const continueRow = row.kind === 'continue';

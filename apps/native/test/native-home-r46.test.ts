@@ -1,4 +1,4 @@
-import {homeContinuationCard} from '../../../packages/client-core/src/presentation/home-continuation';
+import {homeContinuationCard, homeContinuationSource} from '../../../packages/client-core/src/presentation/home-continuation';
 // @fabric-react
 import * as homeWindow from '../src-next/screens/home/home-window';
 import {createInitialRegionEntry} from '../src-next/kit/focus/initial-entry.ts';
@@ -180,7 +180,7 @@ async function homeModule(theme: typeof phoneTheme | (() => typeof phoneTheme), 
     '../../../../../packages/i18n/src': {defaultI18n},
     '../../../../../packages/client-core/src/home': {},
     '../../../../../packages/client-core/src/library-content': {},
-    '../../../../../packages/client-core/src/presentation/home-continuation': {homeContinuationCard},
+    '../../../../../packages/client-core/src/presentation/home-continuation': {homeContinuationCard, homeContinuationSource},
     '../../../../../packages/client-core/src/presentation/home-spotlight': {homeRowPresentation, homeSpotlightModels, homeTitleFactParts: () => []},
     '../../../../../packages/client-core/src/home-selection': {homeEntryCapabilities: () => ({playable: true, details: true, watchlisted: false})},
     '../../../../../packages/client-core/src/presentation/errors': {presentError},

@@ -1,5 +1,13 @@
 import type {CardTextModel} from './kit-model/facts.ts';
 
+import type {ContentEntry} from '../library-content.ts';
+
+/** The entry a continuation line is read from: a book with its whole-book progress (time left and
+ *  chapter count across every part, W2-A6); anything else, the row's own resume target. */
+export function homeContinuationSource(entry: ContentEntry, resume: ContentEntry): ContentEntry {
+  return entry.kind === 'book' && entry.bookProgress ? entry : resume;
+}
+
 /** The Home rows whose cards continue a listen or a book (HM-4). */
 export const homeContinuationRow = (rowId: string): boolean => rowId === 'listen_next' || rowId === 'continue_books';
 

@@ -1,5 +1,5 @@
 import * as mutationRecovery from '../../../packages/client-core/src/user-mutation-recovery.ts';
-import {homeContinuationCard} from '../../../packages/client-core/src/presentation/home-continuation';
+import {homeContinuationCard, homeContinuationSource} from '../../../packages/client-core/src/presentation/home-continuation';
 import {NativePendingChanges} from '../src-next/shell/pending-changes.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -74,7 +74,7 @@ test('Home distinguishes a direct chapter play from a container Resume with a ch
     react, './kit-model/index.ts': {},
   });
   const homeModel = await screenModule(new URL('../src-next/screens/home/model.ts', import.meta.url), {
-    react, '../../../../../packages/client-core/src/presentation/home-continuation': {homeContinuationCard},
+    react, '../../../../../packages/client-core/src/presentation/home-continuation': {homeContinuationCard, homeContinuationSource},
     '../../../../../packages/client-core/src/presentation/home-spotlight': {}, '../../../../../packages/client-core/src/presentation/kit-model': {},
     '../../../../../packages/client-core/src/presentation/content-entry-subject': {},
   });

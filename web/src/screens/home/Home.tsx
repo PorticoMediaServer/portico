@@ -11,7 +11,7 @@ import type {GuideChannel} from '@core/channel-guide.ts';
 import {dependsOn, type FreshDocument} from '@core/freshness-hub.ts';
 import {serverTextLabel} from '@core/presentation/server-text.ts';
 import {homeChannelSelection, homeEntryCapabilities} from '@core/home-selection.ts';
-import {homeContinuationCard} from '@core/presentation/home-continuation.ts';
+import {homeContinuationCard, homeContinuationSource} from '@core/presentation/home-continuation.ts';
 import {homeCollectionCaption} from '@core/presentation/home-spotlight.ts';
 import {channelMonograms, programmeFactParts, type TimeEnvironment} from '@portico/client-core/kit-model';
 import {useFreshness, useRecovering} from '../../platform/freshness';
@@ -281,7 +281,7 @@ function VisibleCard({entry, row, rowIndex, index, platform, layout, artwork, ef
   // A continuing listen or book draws the bar under its art and its continuation where the
   // author/artist line otherwise sits (HM-4: Continue Listening and Continue your books alike).
   const ordinary = homeCardModel(wide ? resume : entry, wide, {t, locale: time.locale});
-  const model = square ? homeContinuationCard(row.id, ordinary, homeCardModel(resume, true, {t, locale: time.locale})) : ordinary, continuing = model !== ordinary;
+  const model = square ? homeContinuationCard(row.id, ordinary, homeCardModel(homeContinuationSource(entry, resume), true, {t, locale: time.locale})) : ordinary, continuing = model !== ordinary;
   const source = wide ? entry.backdropUrl ?? entry.posterUrl : entry.posterUrl;
   // The drawn ranked card carries the number and the title only (mock.html#home).
   const ranked = row.id === 'community_watching' && !!row.period;
