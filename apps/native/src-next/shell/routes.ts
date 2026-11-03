@@ -32,8 +32,8 @@ export type NativeShellRoute = Readonly<
   | {kind: 'servers'; initialPanel?: 'consent-kind'}
   | {kind: 'notifications'}
   | {kind: 'licenses'}
-  | {kind: 'together'}
-  | {kind: 'account'}
+  /** `joinCode`: a Watch Together link's code, filled into Join with a code once. */
+  | {kind: 'together'; joinCode?: string}
   | {kind: 'downloads'}
   | {kind: 'edit-pins'}
   | {kind: 'search-genre'; value: string; label: string}

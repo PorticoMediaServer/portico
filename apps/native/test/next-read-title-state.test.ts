@@ -96,7 +96,7 @@ test('navigation or parent retirement aborts progress and closes the captured se
     const pending = new Promise<Response>(resolve => {release = resolve;});
     const f = fixture(controls(undefined, call => {signal = call.init.signal; return pending;})); t.after(() => f.state.dispose());
     const load = f.state.load(); await until(() => !!signal); const before = f.state.getSnapshot();
-    if (retirement === 'parent') f.parent.abort(); else f.navigation.open({kind: 'account'}, f.context.authority());
+    if (retirement === 'parent') f.parent.abort(); else f.navigation.open({kind: 'notifications'}, f.context.authority());
     await f.state.dispose(); await load; assert.equal(signal?.aborted, true);
     release(json({progress: null})); await new Promise(resolve => setImmediate(resolve));
     assert.equal(f.state.getSnapshot(), before); assert.equal(f.calls.filter(c => c.method === 'DELETE').length, 1);
@@ -117,7 +117,7 @@ test('replacement viewer cannot receive old title facts, retarget a retry or sen
 
 test('retired parent, inactive title and TV admission perform no Read network requests', async t => {
   const f = fixture(controls()); t.after(() => f.state.dispose()); f.parent.abort(); await f.state.load(); assert.equal(f.calls.length, 0);
-  const inactive = fixture(controls()); t.after(() => inactive.state.dispose()); inactive.navigation.open({kind: 'account'}, inactive.context.authority());
+  const inactive = fixture(controls()); t.after(() => inactive.state.dispose()); inactive.navigation.open({kind: 'notifications'}, inactive.context.authority());
   await inactive.state.load(); assert.equal(inactive.calls.length, 0);
   const tv = fixture(controls(), true); t.after(() => tv.state.dispose());
   assert.equal(await openNativeRead(tv.context, {itemId: 'item', sourceId: 'source'}), false); assert.equal(tv.calls.length, 0);

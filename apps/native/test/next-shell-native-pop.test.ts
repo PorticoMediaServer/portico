@@ -29,7 +29,7 @@ test('opening the identical route object twice creates distinct occurrences and 
 
 test('native completion spends exactly the captured snapshot and occurrence once', () => {
   const nav = new NativeShellNavigation(authority, () => authority);nav.open({kind: 'servers'}, authority);const prior = top(nav);
-  nav.open({kind: 'account'}, authority);const expected = nav.getSnapshot(), occurrence = top(nav).occurrence;let notices = 0;
+  nav.open({kind: 'notifications'}, authority);const expected = nav.getSnapshot(), occurrence = top(nav).occurrence;let notices = 0;
   nav.subscribe(() => notices++);
   assert.equal(nav.commitNativePop(expected, occurrence), true);assert.equal(top(nav).occurrence, prior.occurrence);
   assert.equal(nav.getSnapshot().route, prior.route);assert.equal(nav.getSnapshot().revision, expected.revision + 1);assert.equal(nav.getIntent(), 'restore');
@@ -71,7 +71,7 @@ test('admission reentry that opens a successor prevents the old native pop from 
   nav = new NativeShellNavigation(authority, () => authority, route => {
     if (reenter && route === title) {reenter = false;nav.open({kind: 'notifications'}, authority);}return true;
   });
-  nav.open(title, authority);nav.open({kind: 'account'}, authority);const expected = nav.getSnapshot(), occurrence = top(nav).occurrence;
+  nav.open(title, authority);nav.open({kind: 'notifications'}, authority);const expected = nav.getSnapshot(), occurrence = top(nav).occurrence;
   reenter = true;assert.equal(nav.commitNativePop(expected, occurrence), false);
   assert.equal(nav.getSnapshot().route.kind, 'notifications');assert.equal(nav.presentationStack().length, 4);nav.dispose();
 });
@@ -79,7 +79,7 @@ test('admission reentry that opens a successor prevents the old native pop from 
 test('admission reentrant duplicate completion cannot consume a second history entry', () => {
   let armed = false, nested: boolean | undefined, expected!: NativeRouteSnapshot, occurrence = '';let nav: NativeShellNavigation;
   nav = new NativeShellNavigation(authority, () => authority, () => {if (armed) {armed = false;nested = nav.commitNativePop(expected, occurrence);}return true;});
-  nav.open(title, authority);nav.open({kind: 'account'}, authority);expected = nav.getSnapshot();occurrence = top(nav).occurrence;
+  nav.open(title, authority);nav.open({kind: 'notifications'}, authority);expected = nav.getSnapshot();occurrence = top(nav).occurrence;
   armed = true;assert.equal(nav.commitNativePop(expected, occurrence), true);assert.equal(nested, false);assert.equal(nav.presentationStack().length, 2);assert.equal(top(nav).route, title);nav.dispose();
 });
 
@@ -128,7 +128,7 @@ test('mutating a caller authority object cannot rewrite the original navigation 
 
 test('restoring an occurrence does not make its older snapshot a fresh pop receipt', () => {
   const nav = new NativeShellNavigation(authority, () => authority);nav.open({kind: 'servers'}, authority);
-  const old = nav.getSnapshot(), occurrence = top(nav).occurrence;nav.open({kind: 'account'}, authority);nav.back(authority);
+  const old = nav.getSnapshot(), occurrence = top(nav).occurrence;nav.open({kind: 'notifications'}, authority);nav.back(authority);
   const restored = nav.getSnapshot();assert.equal(top(nav).occurrence, occurrence);assert.notEqual(restored, old);
   assert.equal(nav.commitNativePop(old, occurrence), false);assert.equal(nav.getSnapshot(), restored);
   assert.equal(nav.commitNativePop(restored, occurrence), true);nav.dispose();

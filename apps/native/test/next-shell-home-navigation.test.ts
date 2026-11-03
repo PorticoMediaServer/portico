@@ -45,14 +45,14 @@ test('a stale viewer cannot navigate, back into, or publish a former private rou
 test('Back returns through actual requests and disposal invalidates subsequent callers', () => {
   const routes = new NativeShellNavigation(authority, () => authority);
   routes.open({kind: 'servers'}, authority);
-  routes.open({kind: 'account'}, authority);
+  routes.open({kind: 'notifications'}, authority);
   assert.equal(routes.back(authority), true);
   assert.deepEqual(routes.getSnapshot().route, {kind: 'servers'});
   assert.equal(routes.back(authority), true);
   assert.deepEqual(routes.getSnapshot().route, {kind: 'shell', destination: {kind: 'home'}});
   assert.equal(routes.back(authority), false);
   routes.dispose();
-  assert.equal(routes.open({kind: 'account'}, authority), false);
+  assert.equal(routes.open({kind: 'notifications'}, authority), false);
 });
 
 test('retained route objects and their actual mounted origin survive a different shell destination', () => {

@@ -5,6 +5,7 @@ import type {ContentEntry} from '../../../../../packages/client-core/src/library
 import {encodedRoutePath} from '../../../../../packages/contracts/src/routes';
 import {nativeEntryRoute, nativeEntryRouteSupported, type NativeShellRoute} from '../../shell/routes';
 import type {ShellDestination} from '../../shell/model';
+import type {NativeContentLinkTarget} from '../../platform/content-links';
 
 export type ShareRead = (path: string, signal: AbortSignal) => Promise<unknown>;
 const shell = (destination: ShellDestination): NativeShellRoute => Object.freeze({kind: 'shell', destination: Object.freeze(destination)});
@@ -50,12 +51,33 @@ export type ContentLinkDeps = Readonly<{
   take: () => boolean; selectHome: () => void; open: (route: NativeShellRoute) => void;
   /** The ordinary Play/Resume of that title on this server. */
   play: (entry: ContentEntry) => Promise<void>;
+  /** This device keeps downloads (phones and tablets; a TV has no Downloads page). */
+  downloads: boolean;
 }>;
-export type ContentLinkOutcome = 'opened' | 'played' | 'no-access' | 'offline' | 'superseded';
+export type ContentLinkOutcome = 'opened' | 'played' | 'no-access' | 'offline' | 'old-invite' | 'superseded';
+
+/** N2-1: the page each app link opens over this server's Home (so Back lands on Home). */
+function appLinkRoute(link: Exclude<NativeContentLinkTarget, {action: 'item' | 'play' | 'old-invite'}>, deps: ContentLinkDeps): NativeShellRoute | undefined {
+  switch (link.action) {
+    // web.getportico.tv/account names no server; on a server it is that viewer's Profile & account (web's /account alias).
+    case 'account': return shell({kind: 'settings', page: 'profile'});
+    case 'together': return Object.freeze({kind: 'together', joinCode: link.code});
+    case 'downloads': return deps.downloads ? Object.freeze({kind: 'downloads'}) : undefined;
+  }
+}
 
 /** N5-1: a content link against the server open now. The title page opens over Home (so Back
  * lands on the title, then Home); `play` then resumes it. A title this viewer can't read says so. */
-export async function openContentLink(link: Readonly<{action: 'item' | 'play'; itemId: string}>, deps: ContentLinkDeps): Promise<ContentLinkOutcome> {
+export async function openContentLink(link: NativeContentLinkTarget, deps: ContentLinkDeps): Promise<ContentLinkOutcome> {
+  if (link.action !== 'item' && link.action !== 'play') {
+    if (!deps.take()) return 'superseded';
+    deps.selectHome();
+    // An old Portico Account invitation can't be used any more: the caller says to ask for a new one.
+    if (link.action === 'old-invite') return 'old-invite';
+    const route = appLinkRoute(link, deps);
+    if (route) deps.open(route);
+    return 'opened';
+  }
   let found: Awaited<ReturnType<typeof itemEntryRoute>>;
   try {found = await itemEntryRoute(link.itemId, deps.read, deps.signal);} catch {
     if (!deps.take()) return 'superseded';

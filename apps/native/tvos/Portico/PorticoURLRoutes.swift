@@ -59,7 +59,7 @@ public enum PorticoURLRoutes {
     parts.host == "downloads" && (parts.path.isEmpty || parts.path == "/") && parts.query == nil
   }
 
-  // Account, device, invitation and Watch Together routes follow the link contract
+  // Account, invitation and Watch Together routes follow the link contract
   // (`Project Architecture/Remediation/Spec — Link Contract.md`). Secrets travel only in the
   // fragment, never the query.
 
@@ -70,11 +70,6 @@ public enum PorticoURLRoutes {
     guard parts.host == "account", parts.path.isEmpty || parts.path == "/", parts.fragment == nil else { return false }
     guard let items = parts.queryItems else { return parts.query == nil }
     return items.count == 1 && items[0].name == "tab" && accountTabs.contains(items[0].value ?? "")
-  }
-
-  /// `portico://device` — approve a TV's sign-in (the code is typed on the approval screen).
-  static func isDevice(_ parts: URLComponents) -> Bool {
-    parts.host == "device" && (parts.path.isEmpty || parts.path == "/") && parts.query == nil && parts.fragment == nil
   }
 
   /// `portico://together/join/{code}` — a Watch Together invite.
@@ -184,8 +179,6 @@ public enum PorticoURLRoutes {
         // `event` and anything else in the query is for the web page only.
         let tab = parts.queryItems?.first(where: { $0.name == "tab" })?.value
         candidate = URL(string: tab.map { accountTabs.contains($0) ? "portico://account?tab=" + $0 : "portico://account" } ?? "portico://account")
-      case "/device":
-        candidate = URL(string: "portico://device")
       case "/join":
         if let code = fragmentValue(parts.fragment, "code"), let server = fragmentValue(parts.fragment, "server"),
            parts.query == nil, fragmentPairs(parts.fragment).count == 2, safeInvitationCode(code), safeServerOrigin(server),
@@ -242,6 +235,6 @@ public enum PorticoURLRoutes {
 #endif
     // Only an invitation carries a fragment (its token or code); every other route refuses one.
     if parts.fragment != nil { return isInvite(parts) || isJoin(parts) }
-    return isAccountReturn(parts) || isContentRoute(parts) || isDownloads(parts) || isAccount(parts) || isDevice(parts) || isTogetherJoin(parts) || isShared(parts)
+    return isAccountReturn(parts) || isContentRoute(parts) || isDownloads(parts) || isAccount(parts) || isTogetherJoin(parts) || isShared(parts)
   }
 }

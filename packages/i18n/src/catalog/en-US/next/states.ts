@@ -53,6 +53,8 @@ export const statesMessages = {
   'next.states.linkNoAccessBody': 'Ask whoever sent it to share that server with you.',
   'next.states.linkServerOffline': 'That server isn’t answering',
   'next.states.linkServerOfflineBody': 'The link will work once it’s back.',
+  'next.states.linkOldInvite': 'This invitation is out of date',
+  'next.states.linkOldInviteBody': 'Ask whoever sent it for a new one.',
   'next.states.pageFailedBody': 'This page ran into a problem. Try again, or head back to Home. Nothing you saved was lost.',
   'next.states.updating': '{server} is updating',
   'next.states.updatingBody': "It's moving to version {version} and will be back in about a minute. Anything that was playing stopped at its place, ready to pick up again.",

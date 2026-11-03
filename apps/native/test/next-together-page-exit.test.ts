@@ -32,7 +32,7 @@ const find = (node: any, id: string): any => {
   if (node.props?.testID === id) return node;
   return find(node.props?.children, id);
 };
-async function fixture(phase = 'idle', actualService?: any) {
+async function fixture(phase = 'idle', actualService?: any, joinCode?: string) {
   const group = {id: 'group', viewerMemberId: 'member', endedReason: 'ended'}, listeners = new Set<() => void>();
   let state: any = {phase, group: ['idle', 'left'].includes(phase) ? undefined : group, directory: [], busy: false}, back = 0, ends = 0, refreshes = 0;
   let pending: any, resolveJoin!: (value: boolean) => void; const calls: string[] = [];
@@ -53,7 +53,7 @@ async function fixture(phase = 'idle', actualService?: any) {
   let page = capture();
   const runtime = {text: {t: (s: string) => s}, getSnapshot: () => ({profile: {name: 'Name'}}), reportError: assert.fail};
   let tree: any;
-  const mount = async () => {const currentPage = page; const host = createFabricHookHost(() => {tree = module.NativeTogetherScreen({page: currentPage, controller, media: {}, ports: {context}, runtime,
+  const mount = async () => {const currentPage = page; const host = createFabricHookHost(() => {tree = module.NativeTogetherScreen({page: currentPage, controller, media: {}, ports: {context}, runtime, joinCode,
     onBack: () => {const snapshot = navigation.getSnapshot(); currentPage.back(); if (navigation.getSnapshot() !== snapshot) back++;}});}); await host.mount(); return host;};
   let host = await mount();
   return {get host() {return host;}, tree: () => tree, navigation, page: () => page, calls,
@@ -63,7 +63,7 @@ async function fixture(phase = 'idle', actualService?: any) {
     refuseCode: () => {state = {...state, phase: 'idle', error: 'together.error.join', joinFailure: {code: 'invite_not_found', inviteCode: 'ABCDEFGH'}}; for (const fn of listeners) fn();},
     leave: () => navigation.back(authority()), unmount: () => host.unmount(),
     revisit: async () => {await host.unmount(); navigation.open({kind: 'together'}, authority()); page = capture(); host = await mount();},
-    restore: async () => {await host.unmount(); navigation.open({kind: 'account'}, authority()); navigation.back(authority()); page = capture(); host = await mount();},
+    restore: async () => {await host.unmount(); navigation.open({kind: 'notifications'}, authority()); navigation.back(authority()); page = capture(); host = await mount();},
     replacePrincipal: () => {principal = '2'; for (const fn of authorityListeners) fn();},
     resolveJoin: (value: boolean) => resolveJoin(value), dispose: async () => {await host.unmount(); pages.dispose(); navigation.dispose(); controller.dispose(); lifetime.dispose();}};
 
@@ -84,6 +84,20 @@ test('the lobby refresh belongs to the page opening, not to its form or an unrel
     await act(() => find(f.tree(), 'together-display-name').props.onChangeText('Viewer'));
     await act(() => f.directory());
     assert.equal(f.refreshes(), 1, 'form edits and unrelated redraws do not refresh the lobby');
+  } finally {await f.dispose();}
+});
+test('N2-1: a Watch Together link opens Join with a code with its code filled in, once', async () => {
+  const f = await fixture('idle', undefined, 'ab12cd34');
+  try {
+    await act(async () => {});
+    assert.equal(find(f.tree(), 'together-form').props.open, true);
+    assert.equal(find(f.tree(), 'together-code').props.value, 'AB12CD34');
+    await act(() => find(f.tree(), 'together-display-name').props.onChangeText('Viewer'));
+    await act(() => find(f.tree(), 'together-form').props.footer.props.onPress());
+    assert.deepEqual(f.calls.filter(call => call === 'join'), ['join'], 'the viewer joins with the link\'s code');
+    f.resolveJoin(false); await act(async () => {});
+    f.pageBack(); await act(async () => {});
+    assert.equal(find(f.tree(), 'together-form').props.open, false, 'closed, it is not filled in again');
   } finally {await f.dispose();}
 });
 test('lobby form closes before page back', async () => {

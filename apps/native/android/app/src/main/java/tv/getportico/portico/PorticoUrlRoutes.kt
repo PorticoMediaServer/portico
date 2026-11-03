@@ -104,9 +104,6 @@ internal object PorticoUrlRoutes {
     return items.size == 1 && items[0].first == "tab" && items[0].second in ACCOUNT_TABS
   }
 
-  /** `portico://device`: approve a TV's sign-in (the code is typed on the approval screen). */
-  private fun isDevice(uri: Uri) = uri.host == "device" && bare(uri) && uri.encodedQuery == null && uri.encodedFragment == null
-
   /** `portico://together/join/{code}`: a Watch Together invite. */
   private fun isTogetherJoin(uri: Uri): Boolean {
     val path = uri.path ?: return false
@@ -145,7 +142,7 @@ internal object PorticoUrlRoutes {
     if (isPublicMeasurement(uri.toString())) return true
     // Only an invitation carries a fragment (its token or code); every other route refuses one.
     if (uri.encodedFragment != null) return isInvite(uri) || isJoin(uri)
-    return isAccountReturn(uri) || isContentRoute(uri) || isDownloads(uri) || isAccount(uri) || isDevice(uri) || isTogetherJoin(uri) || isShared(uri)
+    return isAccountReturn(uri) || isContentRoute(uri) || isDownloads(uri) || isAccount(uri) || isTogetherJoin(uri) || isShared(uri)
   }
 
   private fun percentEncoded(value: String): String {
@@ -157,7 +154,7 @@ internal object PorticoUrlRoutes {
     return out.toString()
   }
 
-  /** Translates an app link (web.getportico.tv/account, /device, /join…) into the one `portico://` route it means, or null. */
+  /** Translates an app link (web.getportico.tv/account, /join…) into the one `portico://` route it means, or null. */
   fun route(web: Uri): Uri? {
     if (web.scheme != "https" || web.host?.lowercase() !in UNIVERSAL_HOSTS || web.userInfo != null || web.port != -1) return null
     val raw = web.path ?: ""
@@ -175,7 +172,6 @@ internal object PorticoUrlRoutes {
     val candidate: String? = when (path) {
       // `event` and anything else in the query is for the web page only.
       "/account" -> queryItems(web)?.firstOrNull { it.first == "tab" }?.second.let { tab -> if (tab != null && tab in ACCOUNT_TABS) "portico://account?tab=$tab" else "portico://account" }
-      "/device" -> "portico://device"
       "/join" -> {
         val code = fragmentValue(web, "code")
         val server = fragmentValue(web, "server")

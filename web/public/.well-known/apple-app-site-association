@@ -5,7 +5,6 @@
         "appIDs": ["WB7BUK5Z7C.tv.getportico.app"],
         "components": [
           {"/": "/account", "comment": "Portico Account pages"},
-          {"/": "/device", "comment": "Approve a device"},
           {"/": "/join", "comment": "Server and account invitations"},
           {"/": "/together/join", "comment": "Watch Together"},
           {"/": "/app/account-return", "comment": "A provider sign-in returning to the app"},
