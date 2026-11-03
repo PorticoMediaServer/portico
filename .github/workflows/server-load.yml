@@ -9,7 +9,7 @@ on:
         description: Simulated people per phase
         default: '10,50,100'
   push:
-    branches: [scratch/server-load-l6b]
+    branches: [scratch/server-load-l6b-memo]
 permissions:
   contents: read
 concurrency:
@@ -42,7 +42,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/out"
           for run in "$RUNNER_TEMP"/load/load-*; do
-            cp "$run"/load.json "$run"/*.pb.gz "$run"/diagnostics-*.json "$RUNNER_TEMP/out/" 2>/dev/null || true
+            cp "$run"/load.json "$run"/*.pb.gz "$run"/goroutines-*.txt "$run"/diagnostics-*.json "$RUNNER_TEMP/out/" 2>/dev/null || true
             tail -400 "$run/server.log" > "$RUNNER_TEMP/out/server-tail.log" || true
           done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

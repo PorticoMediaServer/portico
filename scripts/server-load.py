@@ -167,6 +167,7 @@ class Load:
             time.sleep(self.args.secs / 2)
             for name in ['block', 'mutex', 'goroutine']:
                 (self.directory / f'{name}-{label}-{count}.pb.gz').write_bytes(self.api.call('GET', '/v1/admin/diagnostics/pprof/' + name, raw=True)[0])
+            (self.directory / f'goroutines-{label}-{count}.txt').write_bytes(self.api.call('GET', '/v1/admin/diagnostics/pprof/goroutine?debug=2', raw=True)[0])
             (self.directory / f'cpu-{label}-{count}.pb.gz').write_bytes(self.api.call('GET', '/v1/admin/diagnostics/pprof/profile?seconds=8', raw=True)[0])
             (self.directory / f'diagnostics-{label}-{count}.json').write_text(json.dumps(self.diagnostics(), indent=1))
             time.sleep(max(0, self.args.secs / 2 - 8))
