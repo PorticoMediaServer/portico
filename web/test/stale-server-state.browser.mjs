@@ -75,9 +75,22 @@ async function run(engine) {
     await page.getByLabel('Username').fill('e2e-owner');
     await page.getByLabel('Password', {exact: true}).fill('not-a-password');
     const home = page.waitForResponse(response => new URL(response.url()).pathname === '/v1/home' && response.ok(), {timeout: 30000});
+    // A failure says where the page went, not only where it was at one instant.
+    const paths = [], started = Date.now(), track = setInterval(() => {const path = new URL(page.url()).pathname; if (paths.at(-1)?.path !== path) paths.push({path, ms: Date.now() - started});}, 25);
+    const responses = [];
+    page.on('response', response => {const path = new URL(response.url()).pathname; if (path.startsWith('/v1/') && path !== '/v1/events') responses.push(`${response.status()} ${path} @${new URL(page.url()).pathname}`);});
     await page.getByRole('button', {name: 'Sign in', exact: true}).click();
     await home;
-    assert.equal(new URL(page.url()).pathname, '/');
+    const landed = new URL(page.url()).pathname;
+    if (landed !== '/') {
+      await page.waitForTimeout(5000);
+      console.log(`${engine}: after sign-in the page was at ${landed}; 5 s later ${new URL(page.url()).pathname}`);
+      console.log(`${engine}: paths ${JSON.stringify(paths)}`);
+      console.log(`${engine}: responses ${responses.join(' | ')}`);
+      console.log(`${engine}: page text ${(await page.locator('body').innerText()).slice(0, 800).replace(/\s+/g, ' ')}`);
+    }
+    clearInterval(track);
+    assert.equal(landed, '/');
     await context.close(); context = undefined;
 
     // 2. The server is reset: a new state folder and identity at the same address.
