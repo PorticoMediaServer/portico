@@ -30,29 +30,6 @@ export async function locateListeningChapter(reader: NativeListeningReadPort, se
   }
 }
 
-/** A chapter move can cross a page boundary, but may never borrow a successor
- * reader or change the seek target after the original reader retires. */
-export async function moveListeningChapter(reader: NativeListeningReadPort, seconds: number, direction: -1 | 1, seek: (seconds: number) => void): Promise<void> {
-  const chapter = await locateListeningChapter(reader, seconds);
-  if (!chapter || !reader.current()) return;
-  const original = reader.getSnapshot();
-  if (original.phase !== 'current' || original.chapters.phase !== 'ready' || !original.chapters.data) return;
-  const index = chapter.index + direction, data = original.chapters.data;
-  if (index < 1 || index > data.totalCount) return;
-  if (!data.chapters.some(value => value.index === index)) {
-    if (direction < 0 && original.chapters.pagination.canPrevious) await reader.readPreviousChapterPage();
-    else if (direction > 0 && data.nextCursor) await reader.readNextChapterPage();
-    else return;
-  }
-  if (!reader.current()) return;
-  const next = reader.getSnapshot();
-  if (next.phase !== 'current' || next.chapters.phase !== 'ready' || !next.chapters.data
-    || next.chapters.data.revision !== data.revision || next.chapters.data.scope.sourceId !== data.scope.sourceId
-    || next.chapters.data.scope.sessionId !== data.scope.sessionId || next.chapters.data.scope.generation !== data.scope.generation) return;
-  const target = next.chapters.data.chapters.find(value => value.index === index);
-  if (target) seek(target.startSeconds);
-}
-
 /** A press belongs to the exact page it drew; progress publishes may replace
  * the wrapper, but the source, revision and chapter tuple must still match. */
 export function listeningChapterSeek(reader: NativeListeningReadPort, drawn: NativeListeningReadSnapshot, id: string): number | undefined {

@@ -94,7 +94,7 @@ function bridge() {
     acknowledgeListening: async (owner, seq) => { calls.push({name: 'ack', args: [owner, seq]}); return true; },
     listeningAction: async () => { throw new Error('Unguarded action must not be used.'); },
     listeningActionFor: async (owner, target, action, value) => { calls.push({name: 'action', args: [owner, action, value, target]}); return true; },
-    listeningAdvance: async (owner, reason, entryId) => { calls.push({name: 'advance', args: [owner, reason, entryId]}); return true; },
+    listeningAdvance: async (owner, reason, entryId, startSeconds) => { calls.push({name: 'advance', args: [owner, reason, entryId, startSeconds]}); return true; },
     listeningDeadlines: async () => true,
     listeningCredentials: async (owner, token) => { calls.push({name: 'credentials', args: [owner, token]}); return true; },
     // The unified policy port: records what the owner would apply and answers as the test says.
@@ -133,7 +133,10 @@ test('the adapter hands the session over once, acknowledges snapshots and follow
   x.deliver(raw('someone-else', 99, session('s9')));
   assert.equal(events.length, 4);
   await adapter.advance('entry', 'e-9');
-  assert.ok(x.calls.some(c => c.name === 'advance' && c.args[1] === 'entry' && c.args[2] === 'e-9'));
+  assert.ok(x.calls.some(c => c.name === 'advance' && c.args[1] === 'entry' && c.args[2] === 'e-9' && c.args[3] === null));
+  // MU-7: a chapter in another book part starts that entry at the chapter.
+  await adapter.advance('entry', 'e-9', 754);
+  assert.deepEqual(x.calls.filter(c => c.name === 'advance').at(-1)?.args.slice(1), ['entry', 'e-9', 754]);
   await adapter.action('pause');
   assert.deepEqual(x.calls.find(c => c.name === 'action')!.args, ['owner-1', 'pause', null, {binding: events.at(-1)!.binding, commandRevision: 2, queue: {queueId: 'q1', entryId: 'e-s3'}}]);
   await adapter.detach(true);

@@ -31,7 +31,7 @@ import type {NativePlaybackReadLifetime, NativeSleepChoice, NativeSleepEnd} from
 import {BlurView, glassRecipe} from '../../../platform/native-blur';
 import {BottomSheet, Menu} from '../../../kit/overlays';
 import {useAudiobookRead, type AudiobookRead} from './use-audiobook-read';
-import {currentListeningChapter, locateListeningChapter, moveListeningChapter, listeningChapterSeek} from './audiobook-controls';
+import {currentListeningChapter, locateListeningChapter, listeningChapterSeek} from './audiobook-controls';
 import type {NativeListeningSong} from '../../../shell/listening-song-detail';
 import {RetainedOverlay} from '../../../kit/overlays/SurfacePaintHost';
 import {usePublishedPlayerMorph} from '../../../kit/dock/PlayerMorphBridge';
@@ -202,13 +202,6 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
   const seekBook = (seconds: number) => {
     if (!bookReader?.current() || paintPermit && !paintPermit.current()) return;
     const command = seekTo(occupant, seconds); if (command) onAction(command);
-  };
-  const moveChapter = (direction: -1 | 1) => {
-    if (!bookReader || chapterRead.current || !p.capabilities.seek) return;
-    const run = {}; chapterRead.current = run; setChapterBusy(true);
-    void moveListeningChapter(bookReader, position, direction, seekBook).catch(reportBookError).finally(() => {
-      if (chapterRead.current === run) {chapterRead.current = undefined; setChapterBusy(false);}
-    });
   };
   const sleepMinutes = sleepAtMs === null ? null : Math.max(0, Math.ceil((sleepAtMs - Date.now()) / 60_000));
   // A book's timer: off, minutes, or the end of this chapter or the book (MU-6, FACTS §5).
@@ -385,7 +378,7 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
     </View>
     <MusicFocusRegion id={`${focus}.transport`} entry="toggle" orientation="horizontal" style={{width: '100%', maxWidth: book ? 600 : 520, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: book ? 14 : 18}}>
       {book ? <Button testID={`${testID}-previous-chapter`} variant="text" iconOnly icon="i-prev" iconColor={theme.colors.text} iconSize={28} style={outerTransport}
-        accessibilityLabel={t('player.previous')} disabled={!bookReader || !p.capabilities.seek || chapterBusy || !!chapter && chapter.index <= 1} onPress={() => moveChapter(-1)}/>
+        accessibilityLabel={t('next.dock.previousChapter')} disabled={!p.capabilities.previous} onPress={() => act('previous')}/>
         : policyReady && !drawnQueue?.radio ? <Button testID={`${testID}-shuffle`} variant="text" iconOnly icon="i-shuffle" iconColor={shuffled ? theme.colors.accentStrong : theme.colors.textSecondary} iconSize={22} style={outerTransport}
           accessibilityLabel={t('next.dock.shuffle')} accessibilityState={{selected: shuffled}} onPress={() => changePolicy({action: 'shuffle', shuffled: !shuffled})}/> : null}
       {book ? <Focusable testID={`${testID}-skip-back`} accessibilityRole="button" accessibilityLabel={t('player.skipBackSeconds', {seconds: skipBack})} disabled={!p.capabilities.seek || !bookReader}
@@ -402,7 +395,7 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
       </Focusable> : <Button testID={`${testID}-next`} variant="text" iconOnly icon="i-next" iconColor={theme.colors.text} iconSize={wide ? 26 : 34} style={outerTransport}
         accessibilityLabel={t('player.next')} disabled={!p.capabilities.next} onPress={() => act('next')}/>}
       {book ? <Button testID={`${testID}-next-chapter`} variant="text" iconOnly icon="i-next" iconColor={theme.colors.text} iconSize={28} style={outerTransport}
-        accessibilityLabel={t('player.next')} disabled={!bookReader || !p.capabilities.seek || chapterBusy || !!chapter && chapter.index >= (chapterData?.totalCount ?? 0)} onPress={() => moveChapter(1)}/>
+        accessibilityLabel={t('next.dock.nextChapter')} disabled={!p.capabilities.next} onPress={() => act('next')}/>
         : policyReady ? <Button testID={`${testID}-repeat`} variant="text" iconOnly icon="i-repeat" iconColor={repeat === 'off' ? theme.colors.textSecondary : theme.colors.accentStrong} iconSize={22} style={outerTransport}
           accessibilityLabel={t(repeat === 'off' ? 'next.dock.repeatOff' : repeat === 'all' ? 'next.dock.repeatAll' : 'next.dock.repeatOne')}
           accessibilityState={{selected: repeat !== 'off'}} onPress={() => changePolicy({action: 'repeat', repeat: repeat === 'off' ? 'all' : repeat === 'all' ? 'one' : 'off'})}/> : null}

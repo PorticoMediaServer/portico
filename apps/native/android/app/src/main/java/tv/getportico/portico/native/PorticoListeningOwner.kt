@@ -668,14 +668,16 @@ internal class PorticoListeningOwner(private val context: Context, private val c
     enqueue("completion", null)
   }
 
-  private fun enqueue(reason: String, entryId: String?) {
+  private fun enqueue(reason: String, entryId: String?, startMs: Long? = null) {
     if (actions.size >= 16) actions.removeAt(0)
-    actions.add(hashMapOf("reason" to reason, "entryId" to entryId, "key" to newId(), "revision" to ++actionRevision, "tries" to 0))
+    actions.add(hashMapOf("reason" to reason, "entryId" to entryId, "startMs" to startMs, "key" to newId(), "revision" to ++actionRevision, "tries" to 0))
   }
 
-  fun advance(reason: String?, entryId: String?, owner: String): Boolean {
+  /** A chosen entry starts at `startSeconds` when given (a book chapter in another part), else where the viewer left it. */
+  fun advance(reason: String?, entryId: String?, owner: String, startSeconds: Double? = null): Boolean {
     if (activeOwner != owner || terminal || reason !in ADVANCES || queue == null) return false
     if ((reason == "entry") != v1Id(entryId)) return false
+    if (startSeconds != null && (reason != "entry" || !startSeconds.isFinite() || startSeconds < 0)) return false
     finishBoundaryTimer()
     resetInactivity()
     // Between commit and boundary the server's queue is already on the successor: Next, Previous
@@ -685,7 +687,7 @@ internal class PorticoListeningOwner(private val context: Context, private val c
     dropPrepared(null)
     safetyPaused = false
     ended = false
-    enqueue(reason!!, if (reason == "entry") entryId else null)
+    enqueue(reason!!, if (reason == "entry") entryId else null, startSeconds?.let { Math.round(it * 1000) })
     emit(); tick()
     return true
   }
@@ -696,6 +698,7 @@ internal class PorticoListeningOwner(private val context: Context, private val c
     val body = HashMap<String, Any?>()
     body["reason"] = action["reason"]
     if (v1Id(action["entryId"])) body["entryId"] = action["entryId"]
+    (action["startMs"] as? Long)?.let { body["startPositionMs"] = it }
     val id = session["id"]
     send("POST", queuePath("advance"), body, mapOf("If-Match" to (queue!!["revision"] as String), "Idempotency-Key" to (action["key"] as String))) { status, value, started, headers ->
       if (actions.firstOrNull() !== action || session["id"] != id) return@send
@@ -726,14 +729,15 @@ internal class PorticoListeningOwner(private val context: Context, private val c
       if (v1Session(started2)) { moveTo(started2!!, started, moved, action["reason"] == "completion"); return@send }
       val current = moved["current"] as? Map<*, *>
       val entry = current?.get("entryId")
-      if (v1Id(entry)) startEntry(entry as String, moved, action["reason"] == "completion") else { safetyPaused = true; apply(); emit() }
+      if (v1Id(entry)) startEntry(entry as String, moved, action["reason"] == "completion", if (entry == action["entryId"]) action["startMs"] as? Long else null) else { safetyPaused = true; apply(); emit() }
     }
   }
 
   /** An advance that didn't start the next session itself: the owner starts it, and the loop retries until the server answers. */
-  private fun startEntry(entryId: String, moved: Map<String, Any?>?, automatic: Boolean = false) {
+  private fun startEntry(entryId: String, moved: Map<String, Any?>?, automatic: Boolean = false, startMs: Long? = null) {
+    val from: Pair<String, Any> = if (startMs != null) "startPositionMs" to startMs else "startFrom" to "resume"
     startPending = mapOf("key" to newId(), "previous" to session["id"], "queue" to moved, "automatic" to automatic,
-        "body" to mapOf("queue" to mapOf("queueId" to queue!!["id"], "entryId" to entryId), "state" to intent, "startFrom" to "resume", "replacesSessionId" to session["id"]))
+        "body" to mapOf("queue" to mapOf("queueId" to queue!!["id"], "entryId" to entryId), "state" to intent, from, "replacesSessionId" to session["id"]))
     tick()
   }
 
