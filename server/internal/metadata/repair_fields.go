@@ -72,6 +72,17 @@ func readRepairTarget(ctx context.Context, tx *sql.Tx, t RepairTarget, editable 
 	if len(e.schema) == 0 {
 		return e, ErrRepairInput
 	}
+	if e.itemKind == "episode" {
+		// An absolutely numbered episode has no season to move to (applySeasonNumber refuses
+		// any change), so its editor doesn't offer one (OW-3).
+		var numbering string
+		if err = tx.QueryRowContext(ctx, `SELECT numbering FROM catalog_episodes WHERE entity_id=?`, entity).Scan(&numbering); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return e, err
+		}
+		if numbering != "seasonal" {
+			e.schema = withoutField(e.schema, "seasonNumber")
+		}
+	}
 	if !editable && !readingRepairKind(kindName) {
 		// The container stamp only fences editor revisions; it never rejects a
 		// target that resolved above.
@@ -480,7 +491,7 @@ func applySeasonNumber(ctx context.Context, tx *sql.Tx, t RepairTarget, entity i
 		return ErrRepairInput
 	}
 	number, err := strconv.Atoi(value)
-	if err != nil || number < 0 || number > 99 {
+	if err != nil || number < 0 || number > maxSeasonNumber {
 		return ErrRepairInput
 	}
 	var season int64
@@ -688,4 +699,18 @@ func candidatePreviews(ctx context.Context, tx *sql.Tx, t RepairTarget) (map[str
 		}
 	}
 	return out, rows.Err()
+}
+
+// maxSeasonNumber is the highest season an episode can be moved to; the editor's
+// field publishes the same bound.
+const maxSeasonNumber = 99
+
+func withoutField(schema []RepairFieldSpec, field string) []RepairFieldSpec {
+	out := make([]RepairFieldSpec, 0, len(schema))
+	for _, spec := range schema {
+		if spec.Field != field {
+			out = append(out, spec)
+		}
+	}
+	return out
 }

@@ -170,6 +170,10 @@ function categorize(f: Facts, deviceOnline: boolean | undefined): ErrorCategory 
 const codeBodies: Record<string, MessageId> = {
   reading_progress_pending: 'error.readingProgressPending',
   factor_setup_required: 'error.factorSetupRequired',
+  // OW-4: the metadata editor's own answers. A write the server didn't confirm, and an image it can't keep.
+  unconfirmed_change: 'error.unconfirmedChange',
+  artwork_cap_unreachable: 'error.artworkTooDetailed',
+  unsupported_artwork: 'web.metadata.uploadImageLimit',
   // PR-1: a remembered main profile past its management hour; the app asks for the PIN (it keeps watching).
   profile_pin_manage: 'error.profilePinManage',
   queue_too_large: 'error.queueTooLarge',
@@ -207,7 +211,7 @@ const codeBodies: Record<string, MessageId> = {
   session_ended: 'error.sessionEnded',
 };
 /** Codes whose sentence says what to do instead, so the notice offers no Try again. */
-const noActionCodes = new Set(['comic_archive_unsupported', 'local_metadata_only', 'credential_limit', 'access_tokens_off', 'webhook_limit', 'session_ended', 'image_too_large', 'reading_progress_pending', 'factor_setup_required']);
+const noActionCodes = new Set(['comic_archive_unsupported', 'local_metadata_only', 'credential_limit', 'access_tokens_off', 'webhook_limit', 'session_ended', 'image_too_large', 'reading_progress_pending', 'factor_setup_required', 'artwork_cap_unreachable', 'unsupported_artwork']);
 
 export function presentError(error: unknown, context: ErrorContext = 'generic', options: PresentOptions = {}): PresentedError {
   const i18n = options.i18n ?? defaultI18n;

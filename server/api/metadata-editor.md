@@ -52,7 +52,9 @@ Each entry in `fields` is one of:
 - `{"value": "PG-13"}` — set the value and lock the field.
 - `{"values": ["Noir", "Rewatch"]}` — set a `list` field and lock it.
 - `{"value": ""}` — clear the field. An empty number clears it; it never becomes
-  zero.
+  zero. A field the schema marks `"required": true` (an episode's `seasonNumber`
+  and `episodeNumber`, its position in the show) can't be cleared: the edit is
+  refused with `400`. An episode numbered absolutely has no `seasonNumber`.
 - `{"useAutomatic": true}` — restore the provider or scanner value and release
   the lock.
 - `{"locked": false}` — change only the lock, keeping the current value.

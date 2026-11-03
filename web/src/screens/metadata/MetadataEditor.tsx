@@ -10,7 +10,7 @@ import {Icon} from '../../kit/Icon';
 import {Button, TextField, TabsParts} from '../../kit/controls';
 import {Dialog} from '../../kit/overlays/Dialog';
 import {providerName} from '@core/server-admin/attention-words.ts';
-import {HostedError} from '../../kit/accounts/ServicesAuth';
+import {MetadataError} from './MetadataError';
 import styles from './metadata.module.css';
 import {Artwork as Picture} from '../../kit/artwork';
 import type {ShellArtwork} from '../../shell/artwork';
@@ -89,7 +89,8 @@ export function MetadataEditor({api, scope, target, onClose, initialTab = 'gener
     setError(undefined);
     const saved = await service.command(command, data, caller);
     if (caller && (caller.signal.aborted || !caller.current())) return false;
-    if (!saved) setError(service.getSnapshot().error ?? new Error(t('web.metadata.saveChanges')));
+    // The service's own answer is already shown above; only a failure it didn't publish is shown here (no second notice).
+    if (!saved && !service.getSnapshot().error) setError(new Error(t('web.metadata.saveChanges')));
     return saved;
   };
   const makeThumbnail = useCallback(async (expectedData: RepairData) => {
@@ -123,9 +124,9 @@ export function MetadataEditor({api, scope, target, onClose, initialTab = 'gener
     </nav></TabsParts.List>
     <TabsParts.Content value={shown} className={styles.editorBody}>
     {state.phase === 'loading' ? <p className={styles.working}>{t('web.metadata.loading')}</p> : null}
-    {state.error ? <HostedError error={state.error} /> : null}
+    {state.error ? <MetadataError error={state.error} /> : null}
     {state.phase === 'uncertain' || state.phase === 'conflict' || state.phase === 'error' ? <Button size="small" onClick={() => {setError(undefined); void service.load(target);}}>{t('next.states.tryAgain')}</Button> : null}
-    {error ? <HostedError error={error} /> : null}
+    {error ? <MetadataError error={error} /> : null}
     {state.phase === 'saving' ? <p className={styles.working}>{t('web.metadata.applying')}</p> : null}
     {data && state.phase !== 'loading' ? <>
       {shown === 'general' ? <General data={data} draft={draft} set={set} requiredTitle={target.kind !== 'season'} /> : null}
@@ -159,8 +160,9 @@ export function MetadataEditor({api, scope, target, onClose, initialTab = 'gener
 
 
 /** The server's own bounds, checked beside the field as the frame draws them. */
-function fieldError(spec: RepairFieldSpec, value: string, values: readonly string[] = [], requiredTitle = false): string {
-  const label = t(spec.label as Parameters<typeof t>[0]);
+export function fieldError(spec: RepairFieldSpec, value: string, values: readonly string[] = [], requiredTitle = false): string {
+  // The server sends a plain label; a catalogue key only where one exists (as the field's own label reads).
+  const label = fieldLabel(spec);
   if (requiredTitle && spec.field === 'title' && value.trim() === '') return t('web.metadata.titleRequired');
   if (spec.type === 'list') {
     if (spec.max !== undefined && values.length > spec.max) return t('web.metadata.tooManyEntries', {label, max: spec.max});
@@ -168,7 +170,8 @@ function fieldError(spec: RepairFieldSpec, value: string, values: readonly strin
     return '';
   }
   if (spec.type === 'integer' || spec.type === 'number') {
-    if (value.trim() === '') return '';
+    // OW-3: an episode's season and number can't be cleared; say so beside the field, before Save, with its bounds.
+    if (value.trim() === '') return spec.required ? spec.min !== undefined && spec.max !== undefined ? t('web.metadata.numberRange', {label, min: spec.min, max: spec.max}) : t('web.metadata.wholeNumber', {label}) : '';
     const number = Number(value);
     if (!Number.isSafeInteger(number) || number < 0 || String(number) !== value) return t('web.metadata.wholeNumber', {label});
     if (spec.min !== undefined || spec.max !== undefined) {
@@ -260,7 +263,7 @@ function TagList({spec, values, locked, onValues, onLock, busy}: {spec: RepairFi
   onValues: (values: readonly string[]) => void; onLock: (locked: boolean) => void;
 }) {
   const [text, setText] = useState(''), [error, setError] = useState(''), errorId = useId();
-  const label = t(spec.label as Parameters<typeof t>[0]), genre = spec.field === 'genres' || spec.field === 'genre';
+  const label = fieldLabel(spec), genre = spec.field === 'genres' || spec.field === 'genre';
   const placeholder = genre ? t('web.metadata.addGenreHelp') : spec.field === 'tags' ? t('web.metadata.addTagChip') : spec.field === 'labels' ? t(values.length ? 'web.metadata.addLabelChip' : 'web.metadata.emptyLabelsChip') : t('web.metadata.addListChip', {label});
   const add = () => {
     if (busy) return;
