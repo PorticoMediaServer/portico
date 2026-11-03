@@ -1493,7 +1493,12 @@ var PorticoCastContracts = (function(exports) {
 				},
 				"completionSessionId": { "type": "string" },
 				"entryId": { "type": "string" },
-				"reason": { "type": "string" }
+				"reason": { "type": "string" },
+				"startPositionMs": {
+					"maximum": 9007199254740991,
+					"minimum": -9007199254740991,
+					"type": "integer"
+				}
 			},
 			"required": ["reason"],
 			"type": "object"

@@ -1350,8 +1350,10 @@ export class WebShellPlaybackRuntime {
           && session.itemId === fence.itemId && session.queue?.queueId === queue?.queue.id && session.queue?.entryId === fence.entryId;
         const controls: WebPlaybackPresentation['controls'][number][] = finished || stillWatchingReplay ? ['replay'] : playback.phase === 'ended' || playback.phase === 'error' ? [] : [playback.intent === 'playing' ? 'pause' : 'play'];
         if (!playback.ended && (finished || ['ready', 'starting'].includes(playback.phase))) controls.push('seek');
-        if (fence.kind === 'queue' && queue?.next.available && !playback.ended) controls.push('next');
-        if (fence.kind === 'queue' && queue && (queue.queue.entries.findIndex(entry => entry.id === fence.entryId) > 0 || playback.positionSeconds > 3) && !playback.ended) controls.push('previous');
+        // A book part with known chapters moves by chapter, across parts (MU-7).
+        const chapterNext = fence.kind === 'queue' ? stack.queue.chapterTarget('next') : undefined, chapterPrevious = fence.kind === 'queue' ? stack.queue.chapterTarget('previous') : undefined;
+        if (fence.kind === 'queue' && (chapterNext !== undefined ? !!chapterNext : queue?.next.available) && !playback.ended) controls.push('next');
+        if (fence.kind === 'queue' && queue && (chapterPrevious !== undefined ? !!chapterPrevious : queue.queue.entries.findIndex(entry => entry.id === fence.entryId) > 0 || playback.positionSeconds > 3) && !playback.ended) controls.push('previous');
         if (this.source.settings.webVolume() && this.video) controls.push('volume');
         if (this.group?.matches(fence)) {
           const group = this.group.active(), queue = this.groupServices.get(this.group)?.getSnapshot().queue ?? group?.queue;
@@ -2211,11 +2213,22 @@ export class WebShellPlaybackRuntime {
       if (this.current(stack)) this.sync();
     } finally {finishRetention();}
   }
+  /** On a book part with known chapters, Previous and Next move by chapter: a seek within the
+   * part, else a jump to the chapter's part at the chapter's start (MU-7). False: not a book
+   * with chapters here, so the queue moves as for any other item. */
+  private async chapterMove(stack: Stack, fence: PlaybackFence, direction: 'previous' | 'next'): Promise<boolean> {
+    if (fence.kind !== 'queue') return false;
+    const target = stack.queue.chapterTarget(direction);
+    if (target === undefined) return false;
+    if (target === null) return true;
+    await stack.queue.playChapter(target, seconds => this.seek(fence, seconds));
+    return true;
+  }
   async previous(fence: PlaybackFence): Promise<void> {
     if (fence.kind === 'channel') problem('playback_command_unavailable');const stack = this.offered(fence, 'previous');
     const finishRetention = this.retainMediaStart(stack.life.signal, () => this.current(stack));
     try {
-      if (fence.kind === 'local') await stack.local!.controller.previous(fence);else if (!await this.groupTransport('previous', fence)) await stack.queue.previous();
+      if (fence.kind === 'local') await stack.local!.controller.previous(fence);else if (!await this.groupTransport('previous', fence) && !await this.chapterMove(stack, fence, 'previous')) await stack.queue.previous();
       if (this.current(stack)) this.sync();
     } finally {finishRetention();}
   }
@@ -2223,7 +2236,7 @@ export class WebShellPlaybackRuntime {
     if (fence.kind === 'channel') problem('playback_command_unavailable');const stack = this.offered(fence, 'next');
     const finishRetention = this.retainMediaStart(stack.life.signal, () => this.current(stack));
     try {
-      if (fence.kind === 'local') await stack.local!.controller.next(fence);else if (!await this.groupTransport('next', fence)) {
+      if (fence.kind === 'local') await stack.local!.controller.next(fence);else if (!await this.groupTransport('next', fence) && !await this.chapterMove(stack, fence, 'next')) {
         const view = stack.queue.getSnapshot().view;if (!view) problem('playback_command_unavailable');await stack.queue.next(view.queue.id, view.queue.revision);
       }
       if (this.current(stack)) this.sync();

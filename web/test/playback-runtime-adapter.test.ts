@@ -3809,6 +3809,24 @@ test('MU-3: the sleep timer lasts the run, across the next track, and pauses wha
  assert.equal(f.runtime.sleepTimer(f.runtime.getSnapshot().fence as typeof second),undefined);
 });
 
+test('MU-7: on a book part with chapters, Previous and Next move by chapter, into another part at the chapter start',async t=>{
+ const f=setup(t);await f.runtime.play('song-one',0);await f.arrive();
+ const fence=f.runtime.getSnapshot().fence!;if(fence.kind!=='queue')throw Error('missing queue fence');
+ const runtime=f.runtime as any,queue=runtime.stack.queue,selected:unknown[]=[],seeks:number[]=[];
+ let targets:Record<string,unknown>={next:{itemId:'part-b',startSeconds:30},previous:{itemId:fence.itemId,startSeconds:12}};
+ queue.chapterTarget=(direction:string)=>targets[direction];
+ queue.selectQueuedItem=async(itemId:string,start:number)=>{selected.push([itemId,start]);};
+ queue.next=async()=>{throw Error('a chapter move never moves the queue');};queue.previous=queue.next;
+ runtime.seek=async(_fence:unknown,seconds:number)=>{seeks.push(seconds);};
+ runtime.sync();
+ assert.ok(f.runtime.getSnapshot().presentation?.controls.includes('next'));assert.ok(f.runtime.getSnapshot().presentation?.controls.includes('previous'));
+ await f.runtime.next(fence);await f.runtime.previous(fence);
+ assert.deepEqual(selected,[['part-b',30]],'a chapter in another part starts that part there');assert.deepEqual(seeks,[12],'a chapter in this part is a seek');
+ targets={next:null,previous:null};runtime.sync();
+ const controls=f.runtime.getSnapshot().presentation?.controls??[];
+ assert.ok(!controls.includes('next')&&!controls.includes('previous'),'no chapter that way: the arrows are off, not queue moves');
+});
+
 test('PB-1, MU-2: a screen start queues the server-named container anchored on the item; a list it was pressed in wins',async t=>{
  const f=setup(t),context={signal:new AbortController().signal,isCurrent:()=>true};
  f.intercept(async(request,response)=>request.path==='/v1/items/book-part/playback-options'?{...response,body:{...response.body as object,container:{kind:'book',id:'book-1'}}}:response);

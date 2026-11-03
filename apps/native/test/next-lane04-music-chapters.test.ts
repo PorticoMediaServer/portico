@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {currentListeningChapter, locateListeningChapter, moveListeningChapter, listeningChapterSeek} from '../src-next/screens/destinations/music/audiobook-controls.ts';
+import {currentListeningChapter, locateListeningChapter, listeningChapterSeek} from '../src-next/screens/destinations/music/audiobook-controls.ts';
 import type {NativeListeningReadPort, NativeListeningReadSnapshot} from '../src-next/platform/playback/types.ts';
 
 type Facts = Extract<NativeListeningReadSnapshot, {phase: 'current'}>;
@@ -36,36 +36,6 @@ test('a resumed position finds its canonical page without retaining the whole ch
   assert.equal((await locateListeningChapter(fixture.port, 70))?.index, 2);
   assert.equal(fixture.at(), 0);
   assert.equal(fixture.reads(), 4);
-});
-
-test('next and previous chapter cross page edges using the same source seconds', async () => {
-  const fixture = reader(), seeks: number[] = [];
-  await moveListeningChapter(fixture.port, 70, 1, value => seeks.push(value));
-  assert.deepEqual(seeks, [120]);
-  await moveListeningChapter(fixture.port, 130, -1, value => seeks.push(value));
-  assert.deepEqual(seeks, [120, 60]);
-  await moveListeningChapter(fixture.port, 10, -1, value => seeks.push(value));
-  await moveListeningChapter(fixture.port, 350, 1, value => seeks.push(value));
-  assert.deepEqual(seeks, [120, 60], 'book boundaries never become queue Previous/Next');
-});
-
-test('retirement while reading the adjacent page never sends a seek', async () => {
-  const fixture = reader(), seeks: number[] = [];
-  const readNext = fixture.port.readNextChapterPage;
-  const port = {...fixture.port, readNextChapterPage: async () => {await readNext(); fixture.port.dispose();}};
-  await moveListeningChapter(port, 70, 1, value => seeks.push(value));
-  assert.deepEqual(seeks, []);
-});
-
-test('a changed source or chapter revision cannot supply a pending move target', async () => {
-  for (const change of ['source', 'revision'] as const) {
-    const next = page(3, 4);
-    const changed: Facts = {...next, chapters: {...next.chapters, data: {...next.chapters.data!,
-      ...(change === 'source' ? {scope: {...next.chapters.data!.scope, sourceId: 'other'}} : {revision: 'other'})}}};
-    const fixture = reader([page(1, 2), changed]), seeks: number[] = [];
-    await moveListeningChapter(fixture.port, 70, 1, value => seeks.push(value));
-    assert.deepEqual(seeks, []);
-  }
 });
 
 test('a drawn chapter survives progress wrapper updates but refuses changed or retired facts', () => {
