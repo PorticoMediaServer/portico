@@ -10,6 +10,12 @@ import {firstOfEach,keepReadable,noteSkipped,oneOfOr} from './tolerant.ts';
 import {mergeRevalidatedList} from './freshness-actions.ts';
 import {parseHomeActions, type HomeActions} from './home.ts';
 import type {FetchPage} from './collections/windowed.ts';
+import {QueryObserver} from '@tanstack/query-core';
+import type {ViewerQueries} from './query/viewer-queries.ts';
+import type {ViewerQueryOptions} from './query/react.ts';
+import {queryKeys} from './query/keys.ts';
+import {dependsOn, titlesWithPersonalState} from './freshness-hub.ts';
+import {linkAbortSignals} from './abort-lifetime.ts';
 import type {UserMutationCoordinator, UserMutationScope} from './user-mutations.ts';
 /** Transport/state for server-authored semantic projections. No client ranking or grouping. */
 export type ContentView = 'discover' | 'browse' | 'collections' | 'categories' | 'show' | 'season' | 'artist' | 'album' | 'book' | 'collection' | 'releases' | 'songs' | 'authors' | 'series' | 'author' | 'book_series' | 'disc';
@@ -462,11 +468,29 @@ export function libraryContentPages(options: Readonly<{ api: LibraryContentApi; 
     return { items: grid.entries, total: grid.totalCount };
   };
 }
-type Operation = { route: ContentRoute; page: Page; history: Page[]; fence: ContentProjection | null };
+/** `fresh`: read the server even when the cache holds the page (an explicit Refresh or Try again, or a restart after the server refused a cursor). */
+type Operation = { route: ContentRoute; page: Page; history: Page[]; fence: ContentProjection | null; fresh?: boolean };
 type ContentFlight = { id: object; generation: number; controller: AbortController; context?: ContentReadContext; committed: boolean; onAbort?: () => void; settle?: () => void };
 type ContentCheckpoint = Readonly<{ snapshot: LibraryContentSnapshot; history: Page[]; current: Page; operation?: Operation }>;
+/** One page of a library's content route (a view, its entity, sort, category and search, and a cursor): a document in the viewer's cache, read once and kept current by the hub. */
+export function contentPageQuery(queries: ViewerQueries, r: ContentRoute, cursor: string | null, pageSize = 40): ViewerQueryOptions<ContentProjection> {
+  const query = new URLSearchParams({ view: r.view, limit: String(pageSize) });
+  for (const field of ['entityId','sort','direction','category','q'] as const) if (r[field] !== undefined) query.set(field, r[field]!);
+  if (cursor) query.set('cursor', cursor);
+  return {
+    queryKey: queryKeys.content(r.libraryId, query.toString()),
+    queryFn: async ({signal}) => {
+      const deadline = linkAbortSignals([signal], 15_000);
+      try { return projection(await queries.api.request<unknown>(encodedRoutePath("get_libraries_id_content", {"id": encodeURIComponent(r.libraryId)}) + "?" + query, 'GET', undefined, deadline.signal), r, queries.scope, pageSize); }
+      catch (error) { if (deadline.signal.aborted && !signal.aborted) throw new ContentFailure('timeout', 'The server took too long to respond. Try again.', true); throw error; }
+      finally { deadline.dispose(); }
+    },
+    meta: {dependencies: [dependsOn.libraries, ...titlesWithPersonalState(r.libraryId), dependsOn.event('stream.resync')]},
+  };
+}
+
 export class LibraryContentService {
-  private api: LibraryContentApi;
+  private readonly queries: ViewerQueries;
   private bound: ContentScope;
   private pageSize: number;
   private timeoutMs: number;
@@ -479,25 +503,20 @@ export class LibraryContentService {
   private history: Page[] = [];
   private current: Page = { cursor: null };
   private disposed = false;
-  private quiet?: AbortController;
+  /** The first page of the route on screen, kept current by the hub; a newer answer is merged in place. */
+  private head?: QueryObserver<ContentProjection, Error>; private stopHead?: () => void;
   private headSerial = 0;
   private snapshot: LibraryContentSnapshot;
   private continuationRecovery: 'restart' | 'refresh-required';
   private flight?: ContentFlight;
   private checkpoint: ContentCheckpoint;
-  constructor(options: { api: LibraryContentApi; scope: ContentScope; pageSize?: number; timeoutMs?: number; continuationRecovery?: 'restart' | 'refresh-required'; initial?: LibraryContentSnapshot }) {
-    this.api = options.api; this.bound = scope(options.scope); this.pageSize = options.pageSize ?? 40; this.timeoutMs = options.timeoutMs ?? 15_000; this.continuationRecovery = options.continuationRecovery ?? 'restart';
+  constructor(options: { queries: ViewerQueries; scope: ContentScope; pageSize?: number; timeoutMs?: number; continuationRecovery?: 'restart' | 'refresh-required' }) {
+    this.queries = options.queries; this.bound = scope(options.scope);
+    if (this.bound.serverId !== this.queries.scope.serverId) throw new Error('A library is read from its own server\'s cache.'); this.pageSize = options.pageSize ?? 40; this.timeoutMs = options.timeoutMs ?? 15_000; this.continuationRecovery = options.continuationRecovery ?? 'restart';
     if (!Number.isInteger(this.pageSize) || this.pageSize < 1 || this.pageSize > 100 || !Number.isFinite(this.timeoutMs) || this.timeoutMs <= 0 || this.timeoutMs > 120_000) throw new Error('Invalid content request bounds.');
     if (this.continuationRecovery !== 'restart' && this.continuationRecovery !== 'refresh-required') throw new Error('Invalid continuation recovery policy.');
-    this.snapshot = this.seeded(options.initial) ?? this.empty();
+    this.snapshot = this.empty();
     this.checkpoint = Object.freeze({ snapshot: this.snapshot, history: [], current: { cursor: null } });
-  }
-  /** The page this viewer last had for this route, kept beside the viewer so a return
-   * (history Back, a cover, a route re-open) draws it at once and reads again in place. */
-  private seeded(initial?: LibraryContentSnapshot): LibraryContentSnapshot | undefined {
-    if (!initial || initial.phase !== 'ready' || !initial.projection || !initial.route) return undefined;
-    if (initial.scope.serverId !== this.bound.serverId || initial.scope.viewerId !== this.bound.viewerId) return undefined;
-    return Object.freeze({...initial, generation: this.generation, phase: 'ready', error: null});
   }
   private empty(): LibraryContentSnapshot { return Object.freeze({ generation: this.generation, scope: this.bound, route: null, phase: 'idle', projection: null, sections: Object.freeze([]), appended: Object.freeze([]), pagination: Object.freeze({ cursor: null, canPrevious: false, next: Object.freeze([]) }), error: null }); }
   getSnapshot = (): LibraryContentSnapshot => this.snapshot;
@@ -538,74 +557,59 @@ export class LibraryContentService {
     if (!flight.committed) this.restore(checkpoint, generation);
   }
   private assertActive(): void { if (this.disposed) throw new Error('Content service is disposed.'); }
-  select(input: ContentRoute, options: { cursor?: string | null; context?: ContentReadContext } = {}): Promise<void> {
+  select(input: ContentRoute, options: { cursor?: string | null; context?: ContentReadContext; fresh?: boolean } = {}): Promise<void> {
     this.assertActive();
     const refusal = this.admissionRefusal(options.context); if (refusal) return refusal;
     const selected = route(input.q === undefined ? input : { ...input, q: input.q.trim() }), cursor = options.cursor ?? null;
     if (cursor !== null && (!string(cursor, 4096) || !cursor)) throw new Error('Invalid content cursor.');
-    return this.load({ route: selected, page: { cursor }, history: [], fence: null }, options.context);
+    return this.load({ route: selected, page: { cursor }, history: [], fence: null, ...(options.fresh ? { fresh: true } : {}) }, options.context);
   }
   /** Explicit refresh always restarts the first page, including after stale_continuation. */
-  refresh(context?: ContentReadContext): Promise<void> { this.assertActive(); const refusal = this.admissionRefusal(context); if (refusal) return refusal; return this.snapshot.route ? this.select(this.snapshot.route, { context }) : Promise.resolve(); }
+  refresh(context?: ContentReadContext): Promise<void> { this.assertActive(); const refusal = this.admissionRefusal(context); if (refusal) return refusal; return this.snapshot.route ? this.select(this.snapshot.route, { context, fresh: true }) : Promise.resolve(); }
   retry(context?: ContentReadContext): Promise<void> {
     this.assertActive(); const refusal = this.admissionRefusal(context); if (refusal) return refusal;
     if (this.snapshot.phase === 'refresh-required') return this.refresh(context);
-    return this.operation ? this.load(this.operation, context) : Promise.resolve();
+    return this.operation ? this.load({ ...this.operation, fresh: true }, context) : Promise.resolve();
   }
   /**
    * Read the first page again without touching `phase`, and show it in place. What is on screen
    * stays until the answer is in; a failed read rejects and changes nothing. A service that has
    * moved on to a later page keeps that page and publishes the fresh first page as `head`.
    */
-  async revalidate(context?: { signal?: AbortSignal; settle?: () => Promise<void> }): Promise<void> {
-    this.assertActive();
-    const route = this.snapshot.route;
-    if (!route || this.snapshot.phase !== 'ready' || !this.snapshot.projection) return;
-    this.quiet?.abort(); const controller = new AbortController(); this.quiet = controller;
-    const stop = () => controller.abort();
-    context?.signal?.addEventListener('abort', stop, { once: true });
-    const generation = this.generation, api = this.api, bound = this.bound;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    try {
-      const query = new URLSearchParams({ view: route.view, limit: String(this.pageSize) });
-      for (const field of ['entityId','sort','direction','category','q'] as const) if (route[field] !== undefined) query.set(field, route[field]!);
-      const raw = await Promise.race([
-        api.request<RouteResponse<"get_libraries_id_content">>(encodedRoutePath("get_libraries_id_content", {"id": encodeURIComponent(route.libraryId)}) + "?" + (query), 'GET', undefined, controller.signal),
-        new Promise<never>((_, reject) => { timer = setTimeout(() => { reject(new ContentFailure('timeout', 'The server took too long to respond. Try again.', true)); controller.abort(); }, this.timeoutMs); }),
-      ]);
-      if (this.disposed || generation !== this.generation || controller.signal.aborted) return;
-      const result = projection(raw, route, bound, this.pageSize);
-      await context?.settle?.();
-      if (this.disposed || generation !== this.generation || controller.signal.aborted || this.snapshot.phase !== 'ready') return;
-      if (result.scope.viewerFence !== this.snapshot.projection?.scope.viewerFence) {
-        // An old tail and its cursors belong to the previous visibility policy.
-        this.history = []; this.current = { cursor: null };
-        this.operation = { route, page: this.current, history: [], fence: null };
-        this.publish({ projection: result, sections: result.sections, appended: result.sections, error: null,
-          head: Object.freeze({ serial: ++this.headSerial, sections: result.sections }),
-          pagination: Object.freeze({ cursor: null, canPrevious: false, next: Object.freeze(result.sections.filter(s => s.nextCursor).map(s => Object.freeze({ sectionId: s.id, cursor: s.nextCursor }))) }) });
-        return;
-      }
-      // Nothing changed on the first page: nothing is published, so nothing re-renders.
-      if (this.current.cursor === null && JSON.stringify(result) === JSON.stringify(this.snapshot.projection)) return;
-      const head = Object.freeze({ serial: ++this.headSerial, sections: result.sections });
-      const appended = mergeHead(this.snapshot.appended, result.sections);
-      // A section that did not change is the same object as before, so a list built on it is left alone.
-      const before = new Map(this.snapshot.sections.map(s => [s.id, s]));
-      const sections = Object.freeze(result.sections.map(s => { const old = before.get(s.id); return old && JSON.stringify(old) === JSON.stringify(s) ? old : s; }));
-      if (this.current.cursor === null) this.publish({ projection: result, sections, appended, head, pagination: Object.freeze({ cursor: null, canPrevious: false, next: Object.freeze(result.sections.filter(s => s.nextCursor).map(s => Object.freeze({ sectionId: s.id, cursor: s.nextCursor }))) }) });
-      else this.publish({ head, appended });
-    } catch (error) {
-      if (this.disposed || generation !== this.generation || controller.signal.aborted) return;
-      const e = error as { status?: unknown; code?: unknown } | null;
+  /** While a route is shown, its first page is watched: a newer answer (the hub read it again) is shown in place. */
+  private watchHead(route: ContentRoute): void {
+    this.stopHead?.();
+    const generation = this.generation;
+    this.head = new QueryObserver<ContentProjection, Error>(this.queries.client, contentPageQuery(this.queries, route, null, this.pageSize));
+    let seen = this.head.getCurrentResult().data;
+    this.stopHead = this.head.subscribe(next => {
+      if (this.disposed || generation !== this.generation || this.snapshot.phase !== 'ready' || !this.snapshot.projection) return;
+      const e = next.error as { status?: unknown } | null;
       // The server answered that this is gone or not allowed: that is the screen's state now, not a failed refresh.
-      if (e?.status === 401 || e?.status === 403 || e?.status === 404) { await this.refresh(); return; }
-      throw error;
-    } finally {
-      if (timer) clearTimeout(timer);
-      context?.signal?.removeEventListener('abort', stop);
-      if (this.quiet === controller) this.quiet = undefined;
+      if (e && (e.status === 401 || e.status === 403 || e.status === 404)) { void this.refresh().catch(() => {}); return; }
+      const result = next.data; if (!result || result === seen) return; seen = result;
+      this.mergeHead(route, result);
+    });
+  }
+  private mergeHead(route: ContentRoute, result: ContentProjection): void {
+    if (result.scope.viewerFence !== this.snapshot.projection?.scope.viewerFence) {
+      // An old tail and its cursors belong to the previous visibility policy.
+      this.history = []; this.current = { cursor: null };
+      this.operation = { route, page: this.current, history: [], fence: null };
+      this.publish({ projection: result, sections: result.sections, appended: result.sections, error: null,
+        head: Object.freeze({ serial: ++this.headSerial, sections: result.sections }),
+        pagination: Object.freeze({ cursor: null, canPrevious: false, next: Object.freeze(result.sections.filter(s => s.nextCursor).map(s => Object.freeze({ sectionId: s.id, cursor: s.nextCursor }))) }) });
+      return;
     }
+    // Nothing changed on the first page: nothing is published, so nothing re-renders.
+    if (this.current.cursor === null && JSON.stringify(result) === JSON.stringify(this.snapshot.projection)) return;
+    const head = Object.freeze({ serial: ++this.headSerial, sections: result.sections });
+    const appended = mergeHead(this.snapshot.appended, result.sections);
+    // A section that did not change is the same object as before, so a list built on it is left alone.
+    const before = new Map(this.snapshot.sections.map(s => [s.id, s]));
+    const sections = Object.freeze(result.sections.map(s => { const old = before.get(s.id); return old && JSON.stringify(old) === JSON.stringify(s) ? old : s; }));
+    if (this.current.cursor === null) this.publish({ projection: result, sections, appended, head, pagination: Object.freeze({ cursor: null, canPrevious: false, next: Object.freeze(result.sections.filter(s => s.nextCursor).map(s => Object.freeze({ sectionId: s.id, cursor: s.nextCursor }))) }) });
+    else this.publish({ head, appended });
   }
   next(sectionId: string, context?: ContentReadContext): Promise<void> {
     this.assertActive();
@@ -622,16 +626,6 @@ export class LibraryContentService {
     if (this.snapshot.phase !== 'ready' || !this.snapshot.route || !this.history.length) return Promise.resolve();
     return this.load({ route: this.snapshot.route, page: this.history[this.history.length - 1], history: this.history.slice(0, -1), fence: this.snapshot.projection }, context);
   }
-  /** A new scoped API must be bound to the new viewer/server; tokens never enter this service. */
-  setScope(next: ContentScope, api: LibraryContentApi): void {
-    this.assertActive(); const checked = scope(next), old = this.flight; const generation = ++this.generation;
-    if (old) this.release(old);
-    this.bound = checked; this.api = api;
-    this.operation = undefined; this.history = []; this.current = { cursor: null }; this.activeKey = ''; this.pending = undefined;
-    this.snapshot = this.empty(); this.checkpoint = Object.freeze({ snapshot: this.snapshot, history: [], current: this.current });
-    old?.controller.abort(); old?.settle?.();
-    if (!this.disposed && this.generation === generation && !this.flight) this.publish(this.snapshot);
-  }
   cancel(): void {
     this.assertActive(); const old = this.flight, route = this.snapshot.route; const generation = ++this.generation;
     if (old) this.release(old);
@@ -641,10 +635,10 @@ export class LibraryContentService {
     if (!this.disposed && this.generation === generation && !this.flight) this.publish(this.snapshot);
   }
   dispose(): void {
-    const old = this.flight, quiet = this.quiet;
-    this.disposed = true; this.generation++; this.listeners.clear(); this.quiet = undefined;
+    const old = this.flight;
+    this.disposed = true; this.generation++; this.listeners.clear(); this.stopHead?.(); this.stopHead = undefined;
     if (old) this.release(old);
-    old?.controller.abort(); old?.settle?.(); quiet?.abort();
+    old?.controller.abort(); old?.settle?.();
   }
   private load(op: Operation, context?: ContentReadContext): Promise<void> {
     const refusal = this.admissionRefusal(context); if (refusal) return refusal;
@@ -681,39 +675,58 @@ export class LibraryContentService {
       context.signal.addEventListener('abort', flight.onAbort, { once: true });
       if (context.signal.aborted || this.retired(context) || this.flight !== flight || flight.generation !== this.generation) { this.retire(flight); return completion; }
     }
+    // A page this viewer has had, with nothing owed, is shown at once: Back reads nothing and draws no loading frame.
+    if (!op.fence && !op.fresh) {
+      const options = contentPageQuery(this.queries, op.route, op.page.cursor, this.pageSize);
+      const held = this.queries.client.getQueryData<ContentProjection>(options.queryKey);
+      if (held && this.queries.documentFor(options.queryKey)?.getState().stale !== true) {
+        const owns = () => !this.disposed && flight.generation === this.generation && this.flight === flight;
+        try {
+          this.snapshot = Object.freeze({ ...this.snapshot, generation: flight.generation, route: op.route, error: null });
+          this.commit(op, held, flight, checkpoint, owns);
+          if (flight.committed) { settle(); return completion; }
+        } catch { /* fall through to an ordinary read, which reports it */ }
+      }
+    }
     this.publish({ generation: flight.generation, route: op.route, phase: 'loading', projection: retain ? checkpoint.snapshot.projection : null, sections: retain ? checkpoint.snapshot.sections : Object.freeze([]), appended: retain ? checkpoint.snapshot.appended : Object.freeze([]), error: null, pagination: retain ? checkpoint.snapshot.pagination : Object.freeze({ cursor: op.page.cursor, canPrevious: false, next: Object.freeze([]) }) });
     // A synchronous subscriber can leave the route, call currentness, or install a successor.
     if (this.admission(context, flight.generation, flight) !== 'current') { this.retire(flight); return completion; }
-    const task = this.fetch(op, this.api, this.bound, controller, flight.generation, flight, context, checkpoint);
+    const task = this.fetch(op, controller, flight.generation, flight, context, checkpoint);
     const done = () => settle();
     void task.then(done, done);
     return completion;
   }
-  private async fetch(op: Operation, api: LibraryContentApi, bound: ContentScope, controller: AbortController, generation: number, flight: ContentFlight, context: ContentReadContext | undefined, checkpoint: ContentCheckpoint): Promise<void> {
+  /** A page's answer, checked against the operation that asked for it and published as ready; the route's first page is then watched. */
+  private commit(op: Operation, result: ContentProjection, flight: ContentFlight, checkpoint: ContentCheckpoint, check: () => boolean): void {
+    if (op.page.cursor && op.fence && result.scope.viewerFence !== op.fence.scope.viewerFence) throw new ContentFailure('stale_continuation', 'The library changed. Refresh to continue.', true);
+    if (op.page.sectionId && (result.sections.length !== 1 || result.sections[0].id !== op.page.sectionId)) invalid();
+    const repeats = (c: string) => c === op.page.cursor || op.history.some(p => p.cursor === c);
+    const sections = result.sections.some(s2 => s2.nextCursor && repeats(s2.nextCursor)) ? Object.freeze(result.sections.map(s2 => (s2.nextCursor && repeats(s2.nextCursor) ? Object.freeze({ ...s2, nextCursor: '' }) : s2))) : result.sections;
+    if (!check()) return;
+    flight.committed = true;
+    this.release(flight);
+    this.history = op.history; this.current = op.page;
+    this.publish({ phase: 'ready', projection: result, sections, appended: op.page.cursor === null ? sections : appendSectionPage(checkpoint.snapshot.appended, sections), head: op.page.cursor === null ? undefined : checkpoint.snapshot.head, pagination: Object.freeze({ cursor: op.page.cursor, canPrevious: this.history.length > 0, next: Object.freeze(sections.filter(s => s.nextCursor).map(s => Object.freeze({ sectionId: s.id, cursor: s.nextCursor }))) }) });
+    this.watchHead(op.route);
+  }
+  private async fetch(op: Operation, controller: AbortController, generation: number, flight: ContentFlight, context: ContentReadContext | undefined, checkpoint: ContentCheckpoint): Promise<void> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let onAbort: (() => void) | undefined;
     const owns = () => !this.disposed && generation === this.generation && this.flight === flight;
     const check = () => { if (!owns() || controller.signal.aborted) return false; if (context && this.retired(context)) { if (owns()) this.retire(flight); return false; } return owns(); };
     const checkFailure = () => { if (!owns()) return false; if (context && this.retired(context)) { if (owns()) this.retire(flight); return false; } return owns(); };
-    const query = new URLSearchParams({ view: op.route.view, limit: String(this.pageSize) });
-    for (const field of ['entityId','sort','direction','category','q'] as const) if (op.route[field] !== undefined) query.set(field, op.route[field]!);
-    if (op.page.cursor) query.set('cursor', op.page.cursor);
-    const path = encodedRoutePath("get_libraries_id_content", {"id": encodeURIComponent(op.route.libraryId)}) + "?" + (query);
+    const options = contentPageQuery(this.queries, op.route, op.page.cursor, this.pageSize);
     try {
       if (!check()) return;
-      const cancelled = new Promise<never>((_, reject) => { onAbort = () => reject(new ContentFailure('cancelled', 'Library request cancelled.')); controller.signal.addEventListener('abort', onAbort, { once: true }); });
-      const raw = await Promise.race([api.request<unknown>(path, 'GET', undefined, controller.signal), cancelled, new Promise<never>((_, reject) => { timer = setTimeout(() => { reject(new ContentFailure('timeout', 'The server took too long to respond. Try again.', true)); controller.abort(); }, this.timeoutMs); })]);
+      const cancelled = new Promise<never>((_, reject) => { onAbort = () => {
+        // A read this page abandons is stopped too, unless another screen is showing the same page.
+        const query = this.queries.client.getQueryCache().find({ queryKey: options.queryKey, exact: true });
+        if (query && query.getObserversCount() === 0) void query.cancel({ revert: true });
+        reject(new ContentFailure('cancelled', 'Library request cancelled.'));
+      }; controller.signal.addEventListener('abort', onAbort, { once: true }); });
+      const result = await Promise.race([this.queries.client.fetchQuery(op.fence || op.fresh ? {...options, staleTime: 0} : options), cancelled, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new ContentFailure('timeout', 'The server took too long to respond. Try again.', true)), this.timeoutMs); })]);
       if (!check()) return;
-      const result = projection(raw, op.route, bound, this.pageSize);
-      if (op.page.cursor && op.fence && result.scope.viewerFence !== op.fence.scope.viewerFence) throw new ContentFailure('stale_continuation', 'The library changed. Refresh to continue.', true);
-      if (op.page.sectionId && (result.sections.length !== 1 || result.sections[0].id !== op.page.sectionId)) invalid();
-      const repeats = (c: string) => c === op.page.cursor || op.history.some(p => p.cursor === c);
-      const sections = result.sections.some(s2 => s2.nextCursor && repeats(s2.nextCursor)) ? Object.freeze(result.sections.map(s2 => (s2.nextCursor && repeats(s2.nextCursor) ? Object.freeze({ ...s2, nextCursor: '' }) : s2))) : result.sections;
-      if (!check()) return;
-      flight.committed = true;
-      this.release(flight);
-      this.history = op.history; this.current = op.page;
-      this.publish({ phase: 'ready', projection: result, sections, appended: op.page.cursor === null ? sections : appendSectionPage(checkpoint.snapshot.appended, sections), head: op.page.cursor === null ? undefined : checkpoint.snapshot.head, pagination: Object.freeze({ cursor: op.page.cursor, canPrevious: this.history.length > 0, next: Object.freeze(sections.filter(s => s.nextCursor).map(s => Object.freeze({ sectionId: s.id, cursor: s.nextCursor }))) }) });
+      this.commit(op, result, flight, checkpoint, check);
     } catch (error) {
       if (!checkFailure()) return;
       // An internal deadline abort is still this flight's retryable timeout; an
@@ -738,7 +751,7 @@ export class LibraryContentService {
         this.release(flight);
         controller.abort();
         if (this.disposed || this.generation !== recoveryGeneration || this.flight) return;
-        await this.load({ route: op.route, page: { cursor: null }, history: [], fence: null }, context);
+        await this.load({ route: op.route, page: { cursor: null }, history: [], fence: null, fresh: true }, context);
         return;
       }
       const code = string(e?.code) && e?.code ? e.code : 'request_failed';

@@ -11,6 +11,7 @@ import {NativeShellNavigation, nativeDestinationActivation} from '../src-next/sh
 import {nativeDestinationLifetime} from '../src-next/screens/destinations/lifetime';
 import {NativeLibraryDestination} from '../src-next/screens/library/model';
 import {screenModule} from './helpers/screen-harness.mjs';
+import {viewerQueriesFor} from '../src-next/shell/freshness';
 
 const tick = () => new Promise<void>(resolve => setImmediate(resolve));
 const library = {id: 'actual-movies', name: 'Movies', kind: 'movie'};
@@ -69,7 +70,8 @@ async function fixture() {
   navigation.open({kind: 'shell', destination: {kind: 'library', libraryId: library.id}}, authority);
   return {context, source, authority, navigation, calls, starts, detailReads, create: () => createNativeLibraryPlaySelection(context, source),
     load: async () => {await source.load(); await tick(); await tick();},
-    permitted: (value: boolean) => {permitted = value;}, hold: () => {hold = true;},
+    // The grant changes on the server, and the hub hears it: the titles' cached pages are read again.
+    permitted: (value: boolean) => {permitted = value; viewerQueriesFor(api, {serverId: 'server'}).client.removeQueries({queryKey: ['item']});}, hold: () => {hold = true;},
     holdQueue: () => {queued = () => {};}, finishQueue: () => {queued!(queue);},
     retire: () => {active = false; for (const listener of [...authorityListeners]) listener();},
   };

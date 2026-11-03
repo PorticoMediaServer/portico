@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createAudiobookBindings} from './bindings.ts';
 import type {ScreenContext} from '../context.ts';
+import {withQueries} from '../../../../../packages/client-core/test/fixtures/viewer-queries.ts';
 const target = {libraryId: 'audio', view: 'book' as const, entityId: 'book'};
 function harness(kind = 'audiobook') {
   let active = true, calls = 0;
@@ -11,10 +12,13 @@ function harness(kind = 'audiobook') {
     entity: {id: 'book', libraryId: 'audio', kind: 'book', title: 'Book'}, heading: {key: 'entity.title', fallback: 'Book'},
     listening: {target: {libraryId: 'audio', kind: 'book', id: 'book'}, actions: ['play'], resumeUnavailable: false, resume: {itemId: 'part', positionMs: 12000}},
     sections: [{id: 'files', type: 'list', heading: {key: 'files', fallback: 'Parts'}, entries: [{id: 'part', libraryId: 'audio', kind: 'audiobook_file', title: 'Part', available: true, playback: {itemId: 'part', startMs: 0}}], totalCount: 1, nextCursor: ''}]};
-  const context = {api: {request: async () => {calls++;return raw;}}, scope: {serverId: 'server', viewerId: 'viewer'}, isCurrent: () => active,
-    effects: {play: async (value: unknown) => {starts.push(value);}, openEntry: () => {}}} as unknown as ScreenContext;
+  // The bindings read through the viewer's cache: a cache over this fake API.
+  const context = withQueries(({api: {request: async () => {calls++;return raw;}}, scope: {serverId: 'server', viewerId: 'viewer'}, isCurrent: () => active,
+    effects: {play: async (value: unknown) => {starts.push(value);}, openEntry: () => {}}}) as never) as unknown as ScreenContext;
   const binding = createAudiobookBindings(context, target);
-  return {binding, raw, starts, calls: () => calls, retire: () => {active = false;}};
+  /** The page moved on the server (a newer catalog revision) and a hint says so: the next load reads the new page. */
+  const moved = () => {raw.revision = {...raw.revision, catalog: raw.revision.catalog + 1};return context.queries.client.invalidateQueries();};
+  return {binding, raw, starts, moved, calls: () => calls, retire: () => {active = false;}};
 }
 test('constructor is inert and a non-audiobook library cannot authorize the page', async () => {
   const h = harness('book');assert.equal(h.calls(), 0);
@@ -36,5 +40,6 @@ test('a forged row or retired authority cannot start playback', async () => {
 });
 test('a superseded projection cannot authorize a command', async () => {
   const h = harness();await h.binding.load();const page = h.binding.service.getSnapshot().projection!;
-  await h.binding.load();await assert.rejects(h.binding.primary(page), {name: 'AbortError'});h.binding.dispose();
+  await h.moved();await h.binding.load();assert.notEqual(h.binding.service.getSnapshot().projection, page);
+  await assert.rejects(h.binding.primary(page), {name: 'AbortError'});h.binding.dispose();
 });

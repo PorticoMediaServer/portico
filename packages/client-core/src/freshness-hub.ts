@@ -130,6 +130,16 @@ export function titleIdsOf(entries: readonly Readonly<{id: string; navigation?: 
   return out;
 }
 
+/**
+ * What a personal-state change made on this device moves, named as the server's own hint names it:
+ * the library's and every library's personal state, and the pages about these titles. Pass to
+ * `ViewerQueries.moved` once the write is confirmed, so every page showing those titles (a show's
+ * episode list, a Home row, a grid) reads again in place without waiting for the feed.
+ */
+export function personalChangedHere(libraryId: string, titleIds: readonly (string | undefined)[]): readonly FreshnessDependency[] {
+  return [dependsOn.personal(libraryId), dependsOn.personal(), ...[...new Set(titleIds.filter((t): t is string => !!t))].map(t => `personal:title:${t}`)];
+}
+
 /** Everything a screen of titles with personal marks depends on, for one library or all of them. */
 export function titlesWithPersonalState(libraryId?: string): readonly FreshnessDependency[] {
   return [dependsOn.content(libraryId), dependsOn.order(libraryId), dependsOn.personal(libraryId), dependsOn.progress(libraryId)];

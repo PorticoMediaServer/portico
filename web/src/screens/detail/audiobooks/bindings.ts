@@ -1,14 +1,14 @@
-import {LibraryContentService, readListeningSimilar, type ContentEntry, type ContentProjection, type LibraryContentSnapshot} from '@core/library-content.ts';
+import {LibraryContentService, readListeningSimilar, type ContentEntry, type ContentProjection} from '@core/library-content.ts';
 import {getContainerState, setContainerFlag, setContainerState} from '@core/container-state.ts';
 import {browseCapabilitiesPath, parseBrowseCapabilities, validateBrowseQuery, type BrowseCapabilities} from '@core/browse.ts';
 import {RelationRowPager, type RelationPage} from '@core/relation-rows.ts';
 import {screenLifetime, type ScreenContext} from '../context';
 
 export type AudiobookTarget = Readonly<{libraryId: string; view: 'book' | 'author' | 'book_series'; entityId: string}>;
-export function createAudiobookBindings(context: ScreenContext, input: AudiobookTarget, page: {initial?: LibraryContentSnapshot} = {}) {
+export function createAudiobookBindings(context: ScreenContext, input: AudiobookTarget) {
   const target = Object.freeze({...input});
   const life = screenLifetime(context);
-  const service = new LibraryContentService({api: life.api, scope: context.scope, pageSize: 40, ...(page.initial ? {initial: page.initial} : {})});
+  const service = new LibraryContentService({queries: context.queries, scope: context.scope, pageSize: 40});
   const current = (page: ContentProjection) => {
     life.assert();
     const snapshot = service.getSnapshot();

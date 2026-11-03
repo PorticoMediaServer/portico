@@ -1,8 +1,9 @@
 import {wireFixture} from './wire-fixture.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LibraryContentService, type ContentProjection, type ContentRoute, type LibraryContentApi } from '../src/library-content.ts';
+import { LibraryContentService, contentPageQuery, type ContentProjection, type ContentRoute, type LibraryContentApi } from '../src/library-content.ts';
 import { resetSkippedParts, skippedParts } from '../src/tolerant.ts';
+import {withQueries} from './fixtures/viewer-queries.ts';
 const scope = { viewerId: JSON.stringify(['hosted','account','profile']), serverId: 'server' };
 const route: ContentRoute = { libraryId: 'movies', view: 'browse' };
 function entry(id = 'item') { return { id, kind: 'movie', title: `Server title ${id}`, navigation: { view: 'item', entityId: id } }; }
@@ -11,7 +12,7 @@ function projection(path: string, changes: Record<string, unknown> = {}): any {
   return { heading: { key: 'library.title', fallback: 'Named Library' }, scope: { serverId: 'server', libraryId: decodeURIComponent(u.pathname.split('/')[3]), libraryKind: 'movie', view: u.searchParams.get('view'), entityId: u.searchParams.get('entityId') ?? '', viewerFence: 'fence' }, revision: { catalog: 3, viewer: 4 }, query: { sort: u.searchParams.get('sort') ?? 'title', direction: u.searchParams.get('direction') ?? 'asc', category: u.searchParams.get('category') ?? '', q: u.searchParams.get('q') ?? '', limit: Number(u.searchParams.get('limit')), searchMode: 'title_prefix' }, navigation: [{ id: 'discover', labelKey: 'library.discover', view: 'discover' }, { id: 'browse', labelKey: 'library.browse', view: 'browse' }], sorts: [{ id: 'title', labelKey: 'sort.title', directions: ['asc','desc'] }], filters: [{ id: 'category', labelKey: 'filter.category', options: [{ id: 'decade:1990', label: '1990s', count: 5 }] }], sections: [{ id: 'server-grid', type: 'grid', heading: { key: 'server.heading', fallback: 'Server-selected heading' }, entries: [entry()], totalCount: 1, nextCursor: '' }], ...changes };
 }
 function service(request: (path: string, signal?: AbortSignal) => Promise<unknown>, timeoutMs = 1000) {
-  return new LibraryContentService({ api: { request: <T>(path: string, _method?: string, _body?: unknown, signal?: AbortSignal) => request(path, signal).then(v=>wireFixture(v,{'duration': 'durationMs', 'progressSeconds': 'progressMs', 'startSeconds': 'startMs', 'positionSeconds': 'positionMs'})) as Promise<T> }, scope, timeoutMs });
+  return new LibraryContentService(withQueries({ api: { request: <T>(path: string, _method?: string, _body?: unknown, signal?: AbortSignal) => request(path, signal).then(v=>wireFixture(v,{'duration': 'durationMs', 'progressSeconds': 'progressMs', 'startSeconds': 'startMs', 'positionSeconds': 'positionMs'})) as Promise<T> }, scope, timeoutMs }));
 }
 function fixtureApi(read: (path: string, method?: string, body?: unknown, signal?: AbortSignal) => Promise<unknown>): LibraryContentApi {
   return { request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => read(path, method, body, signal) as Promise<T> };
@@ -120,14 +121,9 @@ test('same in-flight route is deduplicated without client entry membership chang
   assert.equal(nav.getSnapshot().phase, 'ready');
 });
 
-test('new viewer/server scope clears old projection and fences old scoped API', async () => {
-  const result = deferred<unknown>(); let path = '';
-  const nav = service(async p => { path = p; return result.promise; }); const pending = nav.select(route);
-  nav.setScope({ viewerId: 'new-viewer', serverId: 'new-server' }, { request: async <T>(p: string) => { const data = projection(p); data.scope.serverId = 'new-server'; return data as T; } });
-  assert.equal(nav.getSnapshot().phase, 'idle'); assert.equal(nav.getSnapshot().projection, null);
-  await nav.select(route); result.resolve(projection(path)); await pending;
-  assert.equal(nav.getSnapshot().projection!.scope.serverId, 'new-server');
-  assert.equal(nav.getSnapshot().scope.viewerId, 'new-viewer');
+test('a library is read only from its own server\'s viewer cache', () => {
+  const other = withQueries({ api: fixtureApi(async () => projection('/x')), scope: { serverId: 'other-server', viewerId: 'viewer' } });
+  assert.throws(() => new LibraryContentService({ queries: other.queries, scope }), /own server/);
 });
 
 test('one bounded page replaces previous page and continuation addresses selected section only', async () => {
@@ -190,27 +186,25 @@ test('the original continuation promise stays pending until its recovered head f
   } finally {nav.dispose(); head.resolve(recoveryPath ? projection(recoveryPath) : undefined);}
 });
 
-test('a continuation recovery cannot replace a successor admitted during its original abort', async () => {
+test('a continuation recovery cannot replace a successor opened while it reads the first page again', async () => {
   const paths: string[] = [];
-  let successor: Promise<void> | undefined;
-  const nav = service(async (path, signal) => {
+  let recovery: ReturnType<typeof deferred<unknown>> | undefined;
+  const nav = service(async path => {
     paths.push(path);
-    if (path.includes('cursor=')) {
-      assert.ok(signal);
-      signal.addEventListener('abort', () => {successor = nav.select({libraryId: 'other', view: 'browse'});}, {once: true});
-      throw Object.assign(new Error('changed'), {code: 'stale_continuation', status: 409});
-    }
+    if (path.includes('cursor=')) throw Object.assign(new Error('changed'), {code: 'stale_continuation', status: 409});
+    if (path.includes('/libraries/movies/') && paths.some(p => p.includes('cursor='))) { recovery = deferred<unknown>(); return recovery.promise; }
     const data = projection(path); data.sections[0].nextCursor = 'old'; return data;
   });
   try {
     await nav.select(route);
-    await nav.next('server-grid');
-    assert.ok(successor, 'the original abort admitted the actual successor');
-    await successor;
+    const more = nav.next('server-grid');
+    for (let i = 0; i < 20 && !recovery; i++) await new Promise(resolve => setImmediate(resolve));
+    assert.ok(recovery, 'the refused cursor restarts the first page');
+    const successor = nav.select({libraryId: 'other', view: 'browse'});
+    recovery!.resolve(projection('/v1/libraries/movies/content?view=browse&limit=40'));
+    await Promise.allSettled([more, successor]);
     assert.equal(nav.getSnapshot().phase, 'ready');
-    assert.equal(nav.getSnapshot().route?.libraryId, 'other');
-    assert.equal(paths.length, 3, 'the retired fallback never dispatches over the successor');
-    assert.ok(paths[2].includes('/libraries/other/'));
+    assert.equal(nav.getSnapshot().route?.libraryId, 'other', 'the recovered head never replaces the successor');
   } finally {nav.dispose();}
 });
 
@@ -330,7 +324,7 @@ test('Home is read through the composed Home API, not the library content servic
  assert.throws(()=>nav.select({libraryId:'movies',view:'home'} as any),/Invalid library content route/);
 });
 
-test('same-destination refresh retains bounded content until replacement; destination and permission changes clear it', async () => {
+test('same-destination refresh retains bounded content until replacement; another destination clears it', async () => {
   const response = deferred<unknown>(); let count = 0;
   const nav = service(async path => ++count === 1 ? projection(path) : response.promise);
   await nav.select(route);
@@ -338,7 +332,8 @@ test('same-destination refresh retains bounded content until replacement; destin
   const refresh = nav.refresh();
   assert.equal(nav.getSnapshot().phase, 'loading');
   assert.equal(nav.getSnapshot().projection, original);
-  nav.setScope({...scope, viewerId:'other'}, {request:async () => {throw Object.assign(new Error('Denied'), {status:403});}});
+  // Another destination never shows this one's rows while it reads.
+  void nav.select({ ...route, libraryId: 'other' }).catch(() => {});
   assert.equal(nav.getSnapshot().projection, null);
   response.resolve(projection('/v1/libraries/movies/content?view=browse&limit=40'));
   await refresh;
@@ -478,37 +473,35 @@ test('a quiet read replaces the first page in place with no loading state, and l
   await nav.select(route);
   const phases: string[] = []; nav.subscribe(() => phases.push(nav.getSnapshot().phase));
   ids = ['new', 'one', 'two'];
-  await nav.revalidate();
+  await quietRead(nav);
   assert.deepEqual(nav.getSnapshot().sections[0].entries.map(e => e.id), ['new', 'one', 'two']);
   assert.deepEqual(phases, ['ready'], 'never loading, never empty');
   assert.equal(nav.getSnapshot().head!.serial, 1);
   const shown = nav.getSnapshot();
   fail = true;
-  await assert.rejects(nav.revalidate(), { status: 503 });
+  await assert.rejects(quietRead(nav), { status: 503 });
   assert.equal(nav.getSnapshot(), shown);
-  // The person may be mid-press: the answer waits for the pause it is given.
-  fail = false; ids = ['later'];
-  let release!: () => void; const pause = new Promise<void>(r => { release = r; });
-  const quiet = nav.revalidate({ settle: () => pause });
-  await new Promise(r => setTimeout(r, 5));
-  assert.equal(nav.getSnapshot(), shown);
-  release(); await quiet;
-  assert.deepEqual(nav.getSnapshot().sections[0].entries.map(e => e.id), ['later']);
+  // Waiting for a pause in the person's input before an answer is shown is the hub's, for every cached document (viewer-queries.test.ts).
 });
 
 test('a quiet read while on a later page keeps that page and publishes the fresh first page as head', async () => {
-  const nav = service(async path => { const data = projection(path); const later = path.includes('cursor='); data.sections[0].entries = [entry(later ? 'page-two' : 'page-one')]; data.sections[0].nextCursor = later ? '' : 'next'; return data; });
+  let firstPage = 'page-one';
+  const nav = service(async path => { const data = projection(path); const later = path.includes('cursor='); data.sections[0].entries = [entry(later ? 'page-two' : firstPage)]; data.sections[0].nextCursor = later ? '' : 'next'; return data; });
   await nav.select(route); await nav.next('server-grid');
   assert.equal(nav.getSnapshot().sections[0].entries[0].id, 'page-two');
-  await nav.revalidate();
+  // A new title arrives at the front of the library: the hub reads the first page again.
+  firstPage = 'page-one-new';
+  await quietRead(nav);
   assert.equal(nav.getSnapshot().sections[0].entries[0].id, 'page-two', 'the page the service is on is untouched');
   assert.equal(nav.getSnapshot().pagination.cursor, 'next');
-  assert.equal(nav.getSnapshot().head!.sections[0].entries[0].id, 'page-one');
+  assert.equal(nav.getSnapshot().head!.sections[0].entries[0].id, 'page-one-new');
   // A title that is gone, or access that was removed, becomes the screen's own state through an ordinary load.
-  const gone = service(async path => { if (path.includes('gone=')) throw Object.assign(new Error('gone'), { status: 404, code: 'not_found' }); return projection(path); });
+  let isGone = false;
+  const gone = service(async path => { if (isGone) throw Object.assign(new Error('gone'), { status: 404, code: 'not_found', retryable: false }); return projection(path); });
   await gone.select(route);
-  (gone as any).api = { request: async () => { throw Object.assign(new Error('gone'), { status: 404, code: 'not_found', retryable: false }); } };
-  await gone.revalidate();
+  isGone = true;
+  await quietRead(gone).catch(() => {});
+  await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(gone.getSnapshot().phase, 'error'); assert.equal(gone.getSnapshot().error!.code, 'not_found');
 });
 
@@ -524,7 +517,7 @@ test('a changed viewer fence replaces every loaded library page and retires its 
  try{
   await nav.select(route);await nav.next('server-grid');
   assert.equal(nav.getSnapshot().appended[0].entries.length,2);
-  fence='new-fence';await nav.revalidate();
+  fence='new-fence';await quietRead(nav);
   const fresh=nav.getSnapshot();
   for(const sections of [fresh.sections,fresh.appended,fresh.head!.sections])assert.deepEqual(sections[0].entries.map(e=>e.id),['new-fence-head']);
   assert.equal(fresh.projection!.scope.viewerFence,'new-fence');
@@ -555,7 +548,7 @@ test('everything read so far is one list per section: later pages append, More w
   const untouched = nav.getSnapshot().appended[1];
   // A new title arrives at the front of section a while the screen is open.
   first = [shelf('a', ['new', 'a1'], 'a-next-2'), shelf('b', ['b1', 'b2'], 'b-next')];
-  await nav.revalidate();
+  await quietRead(nav);
   assert.deepEqual(ids(), ['new,a1,a2,a3', 'b1,b2,b3'], 'the fresh first page leads; what was scrolled into stays');
   assert.equal(nav.getSnapshot().appended[1], untouched, 'a section that did not change is the same object');
   assert.equal(nav.getSnapshot().appended[0].nextCursor, '', 'the section continues from where the person was (its end)');
@@ -577,7 +570,7 @@ test('author and series heroes are exact entities in their own library',async()=
 
 test('refresh-required policy keeps committed rows for an explicit current retry',async()=>{
  let calls=0; const ctx={signal:new AbortController().signal,isCurrent:()=>true};
- const service=new LibraryContentService({scope,continuationRecovery:'refresh-required',api:fixtureApi(async (path:string)=>{calls++; if(new URL(path,'https://x').searchParams.get('cursor'))throw Object.assign(new Error('stale'),{code:'stale_continuation'}); return projection(path,{sections:[{...projection(path).sections[0],nextCursor:'next'}]});})});
+ const service=new LibraryContentService(withQueries({scope,continuationRecovery:'refresh-required',api:fixtureApi(async (path:string)=>{calls++; if(new URL(path,'https://x').searchParams.get('cursor'))throw Object.assign(new Error('stale'),{code:'stale_continuation'}); return projection(path,{sections:[{...projection(path).sections[0],nextCursor:'next'}]});})}));
  await service.select(route,{context:ctx});
  assert.equal(calls,1);
  await service.next('server-grid',ctx);
@@ -594,7 +587,7 @@ test('refresh-required policy keeps committed rows for an explicit current retry
 
 test('an original-opening abort retires only its flight and restores the committed baseline',async()=>{
  const initial=deferred<unknown>(); const late=deferred<unknown>(); let calls=0, signal:AbortSignal|undefined;
- const service=new LibraryContentService({scope,api:fixtureApi(async (path:string,_m?:string,_b?:unknown,s?:AbortSignal)=>{calls++;signal=s;return calls===1?initial.promise:late.promise;})});
+ const service=new LibraryContentService(withQueries({scope,api:fixtureApi(async (path:string,_m?:string,_b?:unknown,s?:AbortSignal)=>{calls++;signal=s;return calls===1?initial.promise:late.promise;})}));
  const first=service.select(route); initial.resolve(projection('/v1/libraries/movies/content?view=browse&limit=40',{sections:[{...projection('/x').sections[0],nextCursor:'next'}]})); await first;
  const controller=new AbortController(); const ctx={signal:controller.signal,isCurrent:()=>true};
  const pending=service.next('server-grid',ctx); await new Promise(r=>setImmediate(r));
@@ -612,7 +605,7 @@ test('an original-opening abort retires only its flight and restores the committ
 
 test('same key with a new opening context is isolated; duplicate same opening coalesces',async()=>{
  const reads:ReturnType<typeof deferred<unknown>>[]=[]; let calls=0;
- const service=new LibraryContentService({scope,api:fixtureApi(async ()=>{calls++;const d=deferred<unknown>();reads.push(d);return d.promise;})});
+ const service=new LibraryContentService(withQueries({scope,api:fixtureApi(async ()=>{calls++;const d=deferred<unknown>();reads.push(d);return d.promise;})}));
  const c1={signal:new AbortController().signal,isCurrent:()=>true},c2={signal:new AbortController().signal,isCurrent:()=>true};
  const a=service.select(route,{context:c1}), b=service.select(route,{context:c1});
  assert.strictEqual(a,b,'the same opening and key coalesce');
@@ -630,7 +623,7 @@ test('same key with a new opening context is isolated; duplicate same opening co
 test('a synchronous loading subscriber can coalesce the same opening without recursion',async()=>{
  let calls=0, nested:Promise<void>|undefined;
  const ctx={signal:new AbortController().signal,isCurrent:()=>true};
- const nav=new LibraryContentService({scope,api:fixtureApi(async(path:string)=>{calls++;return projection(path,{sections:[{...projection(path).sections[0],nextCursor:'next'}]});})});
+ const nav=new LibraryContentService(withQueries({scope,api:fixtureApi(async(path:string)=>{calls++;return projection(path,{sections:[{...projection(path).sections[0],nextCursor:'next'}]});})}));
  nav.subscribe(()=>{if(nav.getSnapshot().phase==='loading'&&!nested)nested=nav.select(route,{context:ctx});});
  await nav.select(route,{context:ctx});
  if(nested)await nested;
@@ -641,7 +634,7 @@ test('a synchronous loading subscriber can coalesce the same opening without rec
 
 test('isCurrent-only retirement after a successful response restores the committed baseline',async()=>{
  const response=deferred<unknown>(); let current=true,calls=0;
- const nav=new LibraryContentService({scope,api:fixtureApi(async(path:string)=>{calls++;return calls===1?projection(path,{sections:[{...projection(path).sections[0],nextCursor:'next'}]}):response.promise;})});
+ const nav=new LibraryContentService(withQueries({scope,api:fixtureApi(async(path:string)=>{calls++;return calls===1?projection(path,{sections:[{...projection(path).sections[0],nextCursor:'next'}]}):response.promise;})}));
  const ctx={signal:new AbortController().signal,isCurrent:()=>current};
  await nav.select(route,{context:ctx});
  const pending=nav.next('server-grid',ctx);
@@ -655,16 +648,17 @@ test('isCurrent-only retirement after a successful response restores the committ
 
 test('aborting the predecessor after a successor opening installs cannot erase it',async()=>{
  const reads:ReturnType<typeof deferred<unknown>>[]=[]; let calls=0;
- const nav=new LibraryContentService({scope,api:fixtureApi(async()=>{calls++;const d=deferred<unknown>();reads.push(d);return d.promise;})});
+ const nav=new LibraryContentService(withQueries({scope,api:fixtureApi(async()=>{calls++;const d=deferred<unknown>();reads.push(d);return d.promise;})}));
  const first=nav.select(route,{context:{signal:new AbortController().signal,isCurrent:()=>true}});
  reads[0]!.resolve(projection('/v1/libraries/movies/content?view=browse&limit=40'));
  await first;
  const c1=new AbortController(), c2=new AbortController();
- const older=nav.select(route,{context:{signal:c1.signal,isCurrent:()=>true}});
- const newer=nav.select(route,{context:{signal:c2.signal,isCurrent:()=>true}});
- assert.equal(calls,3);
+ // Each asks the server again (an explicit Refresh): the two openings share one read of the page.
+ const older=nav.select(route,{context:{signal:c1.signal,isCurrent:()=>true},fresh:true});
+ const newer=nav.select(route,{context:{signal:c2.signal,isCurrent:()=>true},fresh:true});
+ assert.equal(calls,2);
  c1.abort();
- reads[2]!.resolve(projection('/v1/libraries/movies/content?view=browse&limit=40',{sections:[{...projection('/x').sections[0],entries:[entry('successor')]}]}));
+ reads[1]!.resolve(projection('/v1/libraries/movies/content?view=browse&limit=40',{sections:[{...projection('/x').sections[0],entries:[entry('successor')]}]}));
  await Promise.allSettled([older,newer]);
  assert.equal(nav.getSnapshot().phase,'ready');
  assert.equal(nav.getSnapshot().sections[0]!.entries[0]!.id,'successor');
@@ -673,7 +667,7 @@ test('aborting the predecessor after a successor opening installs cannot erase i
 
 test('a reentrant currentness predicate cannot overwrite the successor it installs',async()=>{
  const reads:ReturnType<typeof deferred<unknown>>[]=[]; let reenter=false,successor:Promise<void>|undefined;
- const nav=new LibraryContentService({scope,api:fixtureApi(async()=>{const d=deferred<unknown>();reads.push(d);return d.promise;})});
+ const nav=new LibraryContentService(withQueries({scope,api:fixtureApi(async()=>{const d=deferred<unknown>();reads.push(d);return d.promise;})}));
  const ctx={signal:new AbortController().signal,isCurrent:()=>{if(reenter){reenter=false;successor=nav.select({libraryId:'other',view:'browse'});return false;}return true;}};
  const first=nav.select({libraryId:'movies',view:'browse'},{context:ctx});
  reads[0]!.resolve(projection('/v1/libraries/movies/content?view=browse&limit=40',{sections:[{...projection('/x').sections[0],nextCursor:'next'}]}));
@@ -692,7 +686,7 @@ test('a reentrant currentness predicate cannot overwrite the successor it instal
 
 test('an abort listener installing a successor during cleanup is not rolled back',async()=>{
  const reads:ReturnType<typeof deferred<unknown>>[]=[];let successor:Promise<void>|undefined;
- const nav=new LibraryContentService({scope,api:fixtureApi(async()=>{const d=deferred<unknown>();reads.push(d);return d.promise;})});
+ const nav=new LibraryContentService(withQueries({scope,api:fixtureApi(async()=>{const d=deferred<unknown>();reads.push(d);return d.promise;})}));
  const first=nav.select(route,{context:{signal:new AbortController().signal,isCurrent:()=>true}});
  reads[0]!.resolve(projection('/v1/libraries/movies/content?view=browse&limit=40',{sections:[{...projection('/x').sections[0],nextCursor:'next'}]}));
  await first;
@@ -712,13 +706,20 @@ test('an abort listener installing a successor during cleanup is not rolled back
  nav.dispose();
 });
 
+/** What the hub does when something a route's first page shows moved: read it again through the viewer's cache. */
+async function quietRead(nav: LibraryContentService): Promise<void> {
+  const q = (nav as any).queries, route = nav.getSnapshot().route!;
+  try { await q.client.fetchQuery({...contentPageQuery(q, route, null, (nav as any).pageSize), staleTime: 0}); }
+  finally { await new Promise(resolve => setTimeout(resolve, 2)); }
+}
+
 function openingHarness(options: { continuationRecovery?: 'restart' | 'refresh-required'; timeoutMs?: number } = {}) {
  const reads: { path: string; signal: AbortSignal; resolve: (value: unknown) => void; reject: (reason: unknown) => void }[] = [];
  const api: LibraryContentApi = { request: <T>(path: string, _method?: string, _body?: unknown, signal?: AbortSignal): Promise<T> => {
   assert.ok(signal);
   return new Promise<T>((resolve, reject) => { reads.push({ path, signal, resolve: value => resolve(value as T), reject }); });
  } };
- const nav = new LibraryContentService({ scope, api, ...options });
+ const nav = new LibraryContentService(withQueries({ scope, api, ...options }));
  const context = () => ({ signal: new AbortController().signal, isCurrent: () => true });
  const complete = (index: number, id = 'item', cursor = 'next') => {
   const read = reads[index]!;
@@ -755,15 +756,14 @@ for (const trigger of ['replacement', 'retirement'] as const) {
   assert.equal(h.nav.getSnapshot().phase, 'ready'); h.nav.dispose();
  });
 
- for (const action of ['scope', 'cancel', 'dispose'] as const) {
+ for (const action of ['cancel', 'dispose'] as const) {
   test(`actual HTTP abort during ${trigger}: no-flight ${action} wins over the outer read`, async () => {
    const h = openingHarness(); await h.seed();
    const opening = new AbortController();
    const old = h.nav.next('server-grid', { signal: opening.signal, isCurrent: () => true });
    let replacementApiCalls = 0;
    h.reads[1]!.signal.addEventListener('abort', () => {
-    if (action === 'scope') h.nav.setScope({ viewerId: 'new-viewer', serverId: 'new-server' }, { request: async <T>() => { replacementApiCalls++; throw new Error('old operation crossed scope'); } });
-    else if (action === 'cancel') h.nav.cancel();
+    if (action === 'cancel') h.nav.cancel();
     else h.nav.dispose();
    }, { once: true });
    const outer = trigger === 'replacement' ? h.nav.select(route, { context: h.context() }) : (opening.abort(), Promise.resolve());
@@ -771,7 +771,6 @@ for (const trigger of ['replacement', 'retirement'] as const) {
    const stopped = h.nav.getSnapshot();
    assert.equal(h.reads.length, 2); assert.equal(replacementApiCalls, 0);
    if (action !== 'dispose') { assert.equal(stopped.phase, 'idle'); assert.equal(stopped.projection, null); }
-   if (action === 'scope') assert.equal(stopped.scope.serverId, 'new-server');
    h.complete(1, 'late'); await new Promise(resolve => setImmediate(resolve));
    assert.strictEqual(h.nav.getSnapshot(), stopped, 'late completion cannot restore the predecessor');
    if (action === 'dispose') assert.throws(() => h.nav.refresh(), /disposed/);
@@ -888,7 +887,7 @@ test('retired Refresh and late error preserve refresh-required cache without a h
 test('successful explicit Refresh replaces a prior quiet head with its new first-page metadata', async () => {
  const h = openingHarness({ continuationRecovery: 'refresh-required' }); await h.seed();
  const more = h.nav.next('server-grid', h.context()); h.complete(1, 'second-page', 'tail'); await more;
- const quiet = h.nav.revalidate(); h.complete(2, 'quiet-head', 'next'); await quiet;
+ const quiet = quietRead(h.nav); await new Promise(resolve => setImmediate(resolve)); h.complete(2, 'quiet-head', 'next'); await quiet;
  const head = h.nav.getSnapshot().head; assert.ok(head);
  const stale = h.nav.next('server-grid', h.context());
  h.reads[3]!.reject(Object.assign(new Error('stale'), { code: 'stale_continuation' })); await stale;
@@ -909,5 +908,6 @@ test('opening timeout remains retryable, while legacy restart carries its origin
  restart.reads[1]!.reject(Object.assign(new Error('stale'), { code: 'stale_continuation' })); await new Promise(resolve => setImmediate(resolve));
  assert.equal(restart.reads.length, 3); assert.equal(new URL(restart.reads[2]!.path, 'https://x').searchParams.has('cursor'), false);
  controller.abort(); await next;
- assert.equal(restart.reads[2]!.signal.aborted, true); assert.equal(restart.nav.getSnapshot().phase, 'ready'); restart.nav.dispose();
+ // The page still shows this route, so its first page stays in the cache and is read to its end.
+ assert.equal(restart.reads[2]!.signal.aborted, false); assert.equal(restart.nav.getSnapshot().phase, 'ready'); restart.nav.dispose();
 });

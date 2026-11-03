@@ -405,7 +405,7 @@ export class NativeTVMusicController {
       if (!this.current() || signal.aborted) throw membershipFailure('native_music_retired');
       return value;
     }};
-    const service = new LibraryContentService({api, scope: this.options.lifetime.scope, pageSize: 1});
+    const service = new LibraryContentService({queries: viewerQueriesFor(api, this.options.lifetime.scope), scope: this.options.lifetime.scope, pageSize: 1});
     let retained=false;
     const abort = () => service.dispose();
     signal.addEventListener('abort', abort, {once: true});

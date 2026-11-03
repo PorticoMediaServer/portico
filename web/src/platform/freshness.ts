@@ -14,37 +14,14 @@ import type {EventsClient} from '@core/playback-v1/events.ts';
  * the old cache is emptied at once, with every request it started aborted, so nothing one viewer
  * read reaches the next.
  */
-export type FreshnessRuntime = {api: HttpLocalApi; scope: string; hub: FreshnessHub; queries: ViewerQueries; pages: PageMemory};
+export type FreshnessRuntime = {api: HttpLocalApi; scope: string; hub: FreshnessHub; queries: ViewerQueries};
 let runtime: FreshnessRuntime | undefined;
-/** The page a route last showed, in the order it was last shown. */
-const PAGE_MEMORY_MAX = 24;
-
-/**
- * Last-known pages, kept beside the viewer (not the screen) so a route that is opened
- * again — browser Back and Forward, a cover from the player, a card tapped twice — draws
- * the page it had at once and reads it again in place. Only the screen's own service
- * adopts a page: it is shown as that service's state, so every command keeps working.
- */
-export type PageMemory = {
-  remember<T>(key: string, page: T): void;
-  recall<T>(key: string): T | undefined;
-  forget(key: string): void;
-};
-function pageMemory(): PageMemory {
-  const held = new Map<string, unknown>();
-  return {
-    remember(key, page) {held.delete(key); held.set(key, page); for (const oldest of held.keys()) {if (held.size <= PAGE_MEMORY_MAX) break; held.delete(oldest);}},
-    recall: <T,>(key: string) => held.get(key) as T | undefined,
-    forget: key => {held.delete(key);},
-  };
-}
-
 export function freshnessFor(api: HttpLocalApi, scope: {viewerId: string; serverId: string}): FreshnessRuntime {
   const key = scope.serverId + '\n' + scope.viewerId;
   if (runtime && runtime.api === api && runtime.scope === key && !runtime.queries.isDisposed()) return runtime;
   const old = runtime;
   const hub = new FreshnessHub();
-  runtime = {api, scope: key, hub, queries: createViewerQueries({scope, hub, api}), pages: pageMemory()};
+  runtime = {api, scope: key, hub, queries: createViewerQueries({scope, hub, api})};
   if (old) {
     // The old viewer's documents go now; nothing may be shown or stored from them again.
     old.queries.dispose();
@@ -79,10 +56,6 @@ const hooks = createQueryHooks({useMemo, useEffect, useCallback, useSyncExternal
  */
 export function useQuery<TData, TKey extends QueryKey = QueryKey>(options: ViewerQueryOptions<TData, TKey>): QueryObserverResult<TData, Error> {
   return hooks.useViewerQuery(useFreshness().queries, options);
-}
-/** The viewer's last-known pages, for a route that shows what it had when it is opened again. */
-export function usePageMemory(): PageMemory {
-  return useFreshness().pages;
 }
 /** Browser signals only; the owning shell supplies its actual session and feed. */
 export function bindBrowserFreshness(runtime: FreshnessRuntime, events: EventsClient | null, page: Document = document, browser: Window = window): () => void {
