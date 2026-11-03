@@ -16,6 +16,7 @@ import {Button} from '../../kit/controls';
 import type {ShellPopoverProps} from '../../route-registry';
 import styles from './notifications.module.css';
 import {notificationDestination} from './notification-destination';
+import {OwnFeedbackReport} from './OwnFeedbackReport';
 import {startNotificationScan} from '@core/notification-actions.ts';
 import {NotificationScreenAdmission} from './notification-screen-admission';
 
@@ -75,6 +76,7 @@ function NotificationsFeed({captured, mode, limit, onDone}: {captured: Captured;
     opening?.leave(state, current => {if (current()) void router.navigate({to: '/'});});
   };
   const apply = (action: InboxAction, note: Notification) => {if (state.items.includes(note)) opening?.run(state, () => {void service.apply(action, [note.id]);});};
+  const [report, setReport] = useState<string>();
   const go = (to: () => Promise<unknown>) => {void to(); if (mode === 'popover') done.current?.();};
   const open = (note: Notification, action: NotificationAction) => {
     if (!opening?.owns(state) || !state.items.includes(note) || !note.actions.includes(action)) return;
@@ -82,6 +84,7 @@ function NotificationsFeed({captured, mode, limit, onDone}: {captured: Captured;
     if (!target) return;
     // Commands done in place: the notice stays where it is (Dismiss archives it; Scan again starts the scan and marks it read).
     if (target.view === 'archive') {apply('archive', note); return;}
+    if (target.view === 'own-report') {opening.run(state, () => {setReport(target.reportId); void service.apply('read', [note.id]);}); return;}
     if (target.view === 'scan') {
       opening.run(state, () => {
         void startNotificationScan(context.api, target.libraryId).then(() => service.apply('read', [note.id])).catch(error => {if (context.isCurrent()) captured.binding.home.effects.reportError(error);});
@@ -121,6 +124,6 @@ function NotificationsFeed({captured, mode, limit, onDone}: {captured: Captured;
         })}
   </NotificationsPanel>;
   if (!opening) return null;
-  return panel;
+  return <>{panel}{report && <OwnFeedbackReport api={context.api} reportId={report} onClose={() => setReport(undefined)} />}</>;
 }
 export default defineWebScreen({id: 'notifications', component: NotificationsScreen, shellPopover: NotificationsPopover});

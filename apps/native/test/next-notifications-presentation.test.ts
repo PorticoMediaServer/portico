@@ -17,7 +17,7 @@ const i18n = {t: (key: string) => key, has: () => true, number: String, relative
 const shellType = (fontSize: number, weight = 600) => ({fontSize, fontWeight: String(weight)});
 
 test('notification sections use a count slot, intra-section separators and the approved server outline', async () => {
-  const {NativeNotificationsScreen} = await screenModule(new URL('../src-next/screens/notifications/NotificationsScreen.tsx', import.meta.url), {'./notification-route': await import('../src-next/screens/notifications/notification-route.ts'), '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, 
+  const {NativeNotificationsScreen} = await screenModule(new URL('../src-next/screens/notifications/NotificationsScreen.tsx', import.meta.url), {'./OwnFeedbackReport': {OwnFeedbackReport: 'OwnFeedbackReport'}, './notification-route': await import('../src-next/screens/notifications/notification-route.ts'), '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, 
     react, 'react-native': native, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
     '../../../../../packages/i18n/src': {defaultI18n: i18n},
     '../../../../../packages/client-core/src/notifications': {noticeWords: (notice: any) => ({title: notice.id, body: 'Notice'})},

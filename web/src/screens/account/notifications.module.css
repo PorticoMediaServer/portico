@@ -1,3 +1,10 @@
 /* The Notifications page on desktop: the bell panel's own feed, given the page's width. */
 .page { width: 720px; max-width: 100%; margin: 0 auto; padding: calc(var(--shell-top, 76px) + 24px) 0 80px; }
 .page > section { border-radius: 18px; background: var(--color-raised); }
+
+/* "Your report has an update" → Open report: the reporter's read-only report (OwnFeedbackReport), styled as the owner's report sheet. */
+.reportMeta { margin: 0 0 12px; font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
+.reportMessage { margin: 0 0 16px; font-size: var(--type-body-size); color: var(--color-text); white-space: pre-wrap; overflow-wrap: anywhere; }
+.reportReply { margin: 0 0 12px; padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+.reportReply p { margin: 0 0 6px; font-size: var(--type-body-size); color: var(--color-text); white-space: pre-wrap; overflow-wrap: anywhere; }
+.reportReply footer { font-size: var(--type-caption-size); color: var(--color-text-tertiary); }

@@ -17,6 +17,7 @@ import {sameAuthority, type ShellDestination} from '../../shell/model';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeShellRoute} from '../../shell/routes';
 import {notificationCommand, notificationRoute, startNotificationScan, type NotificationCommandTarget} from './notification-route';
+import {OwnFeedbackReport} from './OwnFeedbackReport';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {StandardBackdrop} from '../../kit/artwork';
 
@@ -56,7 +57,7 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
   const admin = useSyncExternalStore(adminService.subscribe, adminService.getSnapshot);
   const retired = useSyncExternalStore(retirement.subscribe, retirement.getSnapshot);
   const [view, setView] = useState<InboxView>('unread');
-  const [chosen, setChosen] = useState<Notification>();
+  const [chosen, setChosen] = useState<Notification>(), [report, setReport] = useState<string>();
   const [lease, setLease] = useState<NotificationsLease>();
 
   // Admission and retirement belong to the committed layout, not to render. The
@@ -192,6 +193,7 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
     const service = serviceFor(notice);
     if (!noticeLive(service, viewAt, notice)) return;
     if (command.kind === 'archive') {void service.apply('archive', [notice.id]).catch(runtime.reportError); return;}
+    if (command.kind === 'report') {setReport(command.reportId); void service.apply('read', [notice.id]).catch(runtime.reportError); return;}
     void startNotificationScan(context.api, command.libraryId).then(() => service.apply('read', [notice.id])).catch(runtime.reportError);
   };
   const actionsFor = (notice: Notification, viewAt: InboxView) => notice.actions.flatMap((action, index) => {
@@ -264,6 +266,7 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
       }}/>
     <Menu testID="notification-actions" open={chosen !== undefined} onOpenChange={open => {if (!open) setChosen(undefined);}} presentation="sheet"
       title={chosenWords?.title} description={chosenWords?.body} items={menu}/>
+    {report && <OwnFeedbackReport api={context.api} reportId={report} onClose={() => setReport(undefined)}/>}
   </NotificationsFrame>;
 }
 
