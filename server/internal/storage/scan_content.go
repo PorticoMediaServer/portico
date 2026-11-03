@@ -160,6 +160,11 @@ func runScanCommand(ctx context.Context, binary string, args []string, path stri
 	} else {
 		fdArgs[index] = prefix + descriptorInput
 	}
+	if !directory && (c.MountedRoot == nil || c.MountedRoot(path) == "") && localFilesystem(filepath.Clean(r.Root)) && mediaexec.ProbePoolAccepts(job) {
+		if handled, err := runPooledScanCommand(ctx, c, input.source, r, job, out); handled {
+			return true, err
+		}
+	}
 	argv, err := mediaexec.Argv(job)
 	if err != nil {
 		return true, err
@@ -317,4 +322,42 @@ var placeholderOnce struct {
 func descriptorPlaceholder() (*os.File, error) {
 	placeholderOnce.Do(func() { placeholderOnce.file, placeholderOnce.err = os.Open(os.DevNull) })
 	return placeholderOnce.file, placeholderOnce.err
+}
+
+// runPooledScanCommand is scanner M4's probe: the admitted file is opened here,
+// under the same containment the helper used (openInventoryContent: beneath
+// the root, root identity and file revision re-proven), and handed to a
+// long-lived sandboxed worker as descriptor 3 (mediaexec.RunPooledProbe). No
+// helper process starts and no sandbox is set up per file. handled is false
+// when the pool can't take the job; nothing has run and the caller's helper
+// path proceeds as before.
+func runPooledScanCommand(ctx context.Context, c *Client, source string, r InventoryRequest, job mediaexec.Job, out io.Writer) (bool, error) {
+	handled := false
+	err := c.Supervisor.RunFunc(ctx, "scan:"+source, func(ctx context.Context, low bool) error {
+		file, err := openInventoryContent(r)
+		if err != nil {
+			handled = true
+			return err
+		}
+		defer file.Close()
+		result, ok, err := mediaexec.RunPooledProbe(ctx, mediaexec.PooledProbe{Job: job, Input: file, OutputLimit: 4 << 20, LowPriority: low})
+		if !ok {
+			return nil
+		}
+		handled = true
+		if err != nil {
+			return err
+		}
+		if _, err = out.Write(result.Stdout); err != nil {
+			return err
+		}
+		if result.Err != nil {
+			return withStderr(result.Err, result.Stderr)
+		}
+		return nil
+	})
+	if !handled && err == nil {
+		return false, nil
+	}
+	return true, err
 }

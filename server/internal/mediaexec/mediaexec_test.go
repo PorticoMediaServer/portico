@@ -22,8 +22,11 @@ import (
 func TestMain(m *testing.M) {
 	// This test binary is the limits shim, as the server binary is in production.
 	if handled, err := RunHelper(os.Args[1:]); handled {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		os.Exit(0)
 	}
 	if os.Getenv("PORTICO_TEST_CRASHED_SERVER") != "" && crashedServerHook != nil {
 		crashedServerHook()

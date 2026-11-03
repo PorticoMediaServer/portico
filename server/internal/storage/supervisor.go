@@ -219,6 +219,26 @@ func (s *Supervisor) RunOwnedCompletion(ctx context.Context, key string, cmd *ex
 func (s *Supervisor) RunOwnedLinear(ctx context.Context, key string, cmd *exec.Cmd, consume func(io.Reader) error, afterExit, afterRetired func()) error {
 	return s.runAdmission(ctx, key, cmd, consume, afterExit, afterRetired, false)
 }
+
+// RunFunc admits fn exactly as Run admits a helper (the key's pool, the
+// duplicate-key fence, background waiting) and runs it in this process instead
+// of starting one. The slot is held until fn returns. Scanner M4 runs pooled
+// probes this way: the probe's tool still runs in its sandbox, but no helper
+// process is started to launch it. lowPriority says whether this pool's work
+// runs with the background policy (nice 19, idle IO).
+func (s *Supervisor) RunFunc(ctx context.Context, key string, fn func(ctx context.Context, lowPriority bool) error) error {
+	if e := ctx.Err(); e != nil {
+		return e
+	}
+	p, e := s.admit(ctx, key, true)
+	if e != nil {
+		return e
+	}
+	defer s.release(key, p)
+	s.inProcess.Add(1)
+	return fn(ctx, (p == poolBackground || p == poolScanProbe) && !s.backgroundNormal.Load())
+}
+
 func (s *Supervisor) run(ctx context.Context, key string, cmd *exec.Cmd, consume func(io.Reader) error, afterExit, afterRetired func()) error {
 	return s.runAdmission(ctx, key, cmd, consume, afterExit, afterRetired, true)
 }

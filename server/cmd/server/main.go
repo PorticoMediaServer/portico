@@ -97,12 +97,14 @@ func main() {
 		os.Exit(archive7z.Main(os.Args[2:], os.Stdin, os.Stdout))
 	}
 	// The media process shim (mediaexec) replaces itself with the sandboxed
-	// tool; it must not start anything else first.
+	// tool, and a probe worker serves until the server closes it; neither may
+	// start anything else first. The shim only returns on failure.
 	if handled, e := mediaexec.RunHelper(os.Args[1:]); handled {
 		if e != nil {
 			fmt.Fprintln(os.Stderr, e)
+			os.Exit(1)
 		}
-		os.Exit(1)
+		os.Exit(0)
 	}
 	if handled, e := decoder.RunHelper(os.Args[1:]); handled {
 		if e != nil {
