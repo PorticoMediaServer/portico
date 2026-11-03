@@ -1259,6 +1259,10 @@ func (s *Service) Advance(ctx context.Context, c Caller, id, ifMatch string, req
 		case req.Reason == "previous":
 			if l.q.current == 0 && l.q.repeat == "all" {
 				l.q.current = max(0, total-1)
+				// Back over the wrap is the lap just played, in its own order.
+				if l.q.shuffle && l.q.lap > 0 {
+					l.q.lap--
+				}
 			} else {
 				l.q.current = max(0, l.q.current-1)
 			}
@@ -1268,6 +1272,11 @@ func (s *Service) Advance(ctx context.Context, c Caller, id, ifMatch string, req
 			l.q.current++
 		case l.q.repeat == "all":
 			l.q.current = 0
+			// Each lap of a shuffled queue is a fresh order (MU-9), as the
+			// prepared transition's wrap already makes it (transitions.go).
+			if l.q.shuffle {
+				l.q.lap++
+			}
 
 		default:
 			return false, ErrQueueEnded
