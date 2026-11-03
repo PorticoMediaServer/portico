@@ -19,6 +19,7 @@ import {createNativePersonCreditWindow, type NativePersonCreditWindow} from './c
 import {PersonScreen} from './PersonScreen';
 import {authorityKey} from '../../shell/model';
 import {StandardBackdrop} from '../../kit/artwork';
+import {usePageWidth} from '../../kit/layout/page-inset';
 
 type PersonRoute = Extract<NativeShellRoute, {kind: 'person'}>;
 type Entry = {
@@ -85,7 +86,7 @@ export function createNativePersonRenderer(context: NativeShellBootstrapContext)
 }
 
 function PersonHost({entry, runtime, back}: {entry: Entry; runtime: NativeShellRuntime; back: () => void}) {
-  const theme = useTheme(), dimensions = useWindowDimensions(), insets = useSafeAreaInsets();
+  const theme = useTheme(), dimensions = useWindowDimensions(), insets = useSafeAreaInsets(), pageWidth = usePageWidth();
   const place = useNativeStackPlacement(entry.route), stacked = useNativeStackHosted();
   const state = useSyncExternalStore(entry.source.subscribe, entry.source.getSnapshot);
   const active = useSyncExternalStore(entry.source.activation.subscribe, entry.source.activation.getSnapshot);
@@ -102,7 +103,7 @@ function PersonHost({entry, runtime, back}: {entry: Entry; runtime: NativeShellR
       runtime={runtime} actions={entry.actions} selection={entry.selection} onRole={role => {void entry.source.select({role});}} onBack={back}/>
       // W-2 sweep: the full-page state, below Back and the status bar, as a title that couldn't load.
       : state.phase === 'error' ? <ScreenErrorPage {...runtime.error(state.error, () => {void entry.source.load();})}/>
-      : <GridSkeleton elapsedMs={elapsed} scrollOffset={0} viewportHeight={dimensions.height} width={dimensions.width} totalCount={9} columns={3}/>}
+      : <GridSkeleton elapsedMs={elapsed} scrollOffset={0} viewportHeight={dimensions.height} width={pageWidth} totalCount={9} columns={3}/>}
     {state.phase !== 'ready' && <Focusable testID="person-pending-back" accessibilityLabel={defaultI18n.t('action.back')} onPress={back} style={{position: 'absolute', top: insets.top + 8, left: 16, width: 40, height: 40, justifyContent: 'center', alignItems: 'center'}}><Icon name="i-left" size={22} color={theme.colors.text}/></Focusable>}
   </View>);
 }

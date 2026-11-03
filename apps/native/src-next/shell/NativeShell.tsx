@@ -23,6 +23,7 @@ import type {NativeShellRoute} from './routes';
 import {PhoneTabBar} from './PhoneTabBar';
 import {PhoneHomeHeader} from './PhoneHomeHeader';
 import {MediumRail} from './MediumRail';
+import {pageInsetElement} from '../kit/layout/page-inset';
 import {TVRail} from './TVRail';
 import {TVProfileMenu} from './TVProfileMenu';
 import {NativePlaybackLayer} from './NativePlaybackLayer';
@@ -297,9 +298,11 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     </View>;
   };
   // phone-detail and motion 2.9: the tab bar stays still under pushed pages, which end above it.
+  // N2-3, tablet 6 and 8: on a tablet a pushed page sits in the width beside the rail, which stays.
   // The reader and live TV are full-screen.
+  const pushedInset = (route: NativeShellRoute) => sideNavigation && !immersiveRoute(route) ? sideWidth : 0;
   const pushedPage = (route: NativeShellRoute, node: React.ReactNode) => <Animated.View pointerEvents={initialPlayer ? 'none' : 'box-none'} accessibilityElementsHidden={!!initialPlayer}
-    importantForAccessibility={initialPlayer ? 'no-hide-descendants' : 'auto'} style={[{position: 'absolute', top: 0, left: 0, right: 0, bottom: immersiveRoute(route) ? 0 : barHeight}, initialTitleStyle]}>{node}</Animated.View>;
+    importantForAccessibility={initialPlayer ? 'no-hide-descendants' : 'auto'} style={[{position: 'absolute', top: 0, left: pushedInset(route), right: 0, bottom: immersiveRoute(route) ? 0 : barHeight}, initialTitleStyle]}>{pageInsetElement(pushedInset(route), node)}</Animated.View>;
   const basePage = <>
       {paintedDestination.kind === 'home' ? <HomeScreen runtime={runtime} authority={snapshot.authority} active={!settingsPage && !snapshot.mediaExpanded && snapshot.homeVisible} heroObscured={settingsPage || snapshot.homeObscured} railExpanded={railExpanded} bottomInset={homeBottom} onScrolledChange={setHomeScrolled} holdRailDim={holdRailDim} releaseRailDim={releaseRailDim}/>
         : <View style={{flex: 1, paddingBottom: pageBottom}}>
@@ -320,7 +323,7 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     {!snapshot.selectionActive && (stacks ? !immersiveRoute(stackTop) : snapshot.contentVisible !== false) && !chromeHidden && (!theme.isTV || topLayer === 'page') && (theme.isTV ? <TVRail authority={snapshot.authority} returnTo={currentPageFocus} libraries={snapshot.libraries} hasLiveTV={snapshot.hasLiveTV} destination={snapshot.railDestination ?? destination} profile={snapshot.profile} unread={snapshot.unreadNotifications} dimmed={destination.kind === 'home' && snapshot.homeVisible && !snapshot.mediaExpanded && !!railDim && !railDim.retired} onNavigate={next => {if (snapshot.contentVisible !== false && sameDestination(next, destination)) {expanded(false); runtime.scrollToTop(destination);} else if (next.kind === 'library') openLibrary(next.libraryId); else navigate(next);}}
       onProfile={() => setAccountOpen(true)} profileRef={avatarRef} onExpandedChange={expanded}/>
       : <>
-        {sideNavigation && snapshot.contentVisible !== false && <MediumRail expanded={layout.kind === 'desktop' && sidebarExpanded} onToggle={layout.kind === 'desktop' ? toggleSidebar : undefined} serverName={snapshot.serverName} libraries={snapshot.libraries} hasLiveTV={snapshot.hasLiveTV} destination={railDestination} profile={snapshot.profile} unread={snapshot.unreadNotifications}
+        {sideNavigation && (!!stacks || snapshot.contentVisible !== false) && <MediumRail expanded={layout.kind === 'desktop' && sidebarExpanded} onToggle={layout.kind === 'desktop' ? toggleSidebar : undefined} serverName={snapshot.serverName} libraries={snapshot.libraries} hasLiveTV={snapshot.hasLiveTV} destination={railDestination} profile={snapshot.profile} unread={snapshot.unreadNotifications}
           serverAction={snapshot.account.serverAction && {id: snapshot.account.serverAction.id, label: snapshot.account.serverAction.label, onPress: snapshot.account.serverAction.onPress}}
           notificationAction={notifications && {label: notifications.label, onPress: notifications.onPress}}
           profileRef={avatarRef} short={dimensions.height - insets.top - insets.bottom < 800}

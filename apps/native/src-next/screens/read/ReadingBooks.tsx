@@ -35,6 +35,7 @@ import {nativeReadingDownloadOffer, nativeReadingRowLifetime, type NativeReading
 import {PhoneReadingBookCard, PhoneReadingBookCover} from './PhoneReadingBookCard';
 import {nativePublicationReadsAvailable} from '../../../platform/offline-reading';
 import {openNativeReadingBookEntry} from './reading-books-open';
+import {usePageWidth} from '../../kit/layout/page-inset';
 
 const noopSubscribe = () => () => {};
 /** One committed layout of the grid: the route it was drawn under, and the
@@ -53,7 +54,7 @@ export function NativeReadingBooks({context, runtime, library, tab, owner, label
    * with the owner of the mount that reported it. */
   onCount?: (owner: object, text: string | undefined) => void;
 }) {
-  const theme = useTheme(), phone = theme.platform === 'phone', dimensions = useWindowDimensions(), lifetime = useMemo(() => nativeDestinationLifetime(context), [context]);
+  const theme = useTheme(), phone = theme.platform === 'phone', dimensions = useWindowDimensions(), pageWidth = usePageWidth(), lifetime = useMemo(() => nativeDestinationLifetime(context), [context]);
   const current = useCallback(() => opening.isCurrent() && lifetime.current() && context.libraries().some(value => value.id === library.id && value.kind === library.kind),
     [opening, lifetime, context, library.id, library.kind]);
   const destination = useMemo(() => new NativeLibraryDestination({api: context.api, scope: lifetime.scope, library, current, tab}), [context, lifetime, library, tab, current]);
@@ -151,7 +152,7 @@ export function NativeReadingBooks({context, runtime, library, tab, owner, label
   // The grid fills the actual pane: the shell rail and the docked Filters pane
   // are already outside it, so the window width would overshoot every row. The
   // drawn A-Z rail keeps its own 52 pt clear while it is shown.
-  const docked = !phone && dimensions.width > dimensions.height, width = paneWidth ?? dimensions.width;
+  const docked = !phone && dimensions.width > dimensions.height, width = paneWidth ?? pageWidth;
   const pane = filters && docked ? filterWidth : 0;
   // tablet-read#1b draws the A-Z rail beside the Books grid, beside the docked
   // Filters too; it is shown while the server publishes letters for this sort.

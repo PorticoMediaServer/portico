@@ -15,8 +15,20 @@ import * as shellFreshness from '../../src-next/shell/freshness.ts';
 //   module, so a PIN pad's registration and the player's meet in one place.
 // - The shell's cache accessor (shell/freshness): the real module, so a screen over a fixture's API
 //   reads through a viewer cache of that same API.
+// - The page inset (kit/layout/page-inset) is the real context over the fixture's own React, and the page width
+//   is the fixture's own window less it, so a screen sized from a fixture window keeps that size (N2-3).
 // - The covered-screen layer (kit/focus/CoveredLayer) behaves as on touch: a View hidden from
 //   touches and screen readers while covered.
+const pageInsets = new WeakMap();
+function pageInsetLeaf(react, native) {
+  // The fake `hooks()` React has no context: its provider is a named element and the inset reads zero.
+  let context = pageInsets.get(react);
+  if (!context) {context = react.createContext ? react.createContext(0) : {Provider: 'NativePageInsetProvider'}; pageInsets.set(react, context);}
+  const usePageInset = () => react.useContext ? react.useContext(context) : 0;
+  return {NativePageInsetProvider: context.Provider, usePageInset,
+    usePageWidth: () => Math.max(0, (native?.useWindowDimensions?.().width ?? 0) - usePageInset()),
+    pageInsetElement: (inset, children) => react.createElement(context.Provider, {value: inset}, children)};
+}
 const leaf = (source, react, native) => /(^|\/)server-clock(\.ts)?$/.test(source) && /client-core\/src\/server-clock|^\.\/server-clock/.test(source) ? serverClock
   : /(^|\/)failure-words$/.test(source) ? failureWords
   : /(^|\/)platform\/tv-play-pause$/.test(source) ? tvPlayPause
@@ -24,6 +36,7 @@ const leaf = (source, react, native) => /(^|\/)server-clock(\.ts)?$/.test(source
   : /(^|\/)platform\/tv-play-pause-owner$/.test(source) ? {useTVPlayPauseOwner: tvPlayPause.tvPlayPauseOwnerHook(react)}
   // The shell's cache accessor (shell/freshness) is pure: a screen built over a fixture's own API reads through a cache of that API.
   : /(^|\/)shell\/freshness$|^\.\/freshness$/.test(source) ? shellFreshness
+  : /(^|\/)kit\/layout\/page-inset$/.test(source) ? pageInsetLeaf(react, native)
   : /(^|\/)kit\/focus\/CoveredLayer$/.test(source) ? {CoveredLayer: ({covered, children, style, testID}) => react.createElement('View',
     {style, testID, pointerEvents: covered ? 'none' : 'auto', accessibilityElementsHidden: covered, importantForAccessibility: covered ? 'no-hide-descendants' : 'auto'}, children)}
   // The one Back dispatcher (kit/navigation/back) forwards to the fixture's own BackHandler, gated by `active`, so a

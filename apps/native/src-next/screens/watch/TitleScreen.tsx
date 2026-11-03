@@ -34,6 +34,7 @@ import {sameFence} from '../../../../../packages/player-core/src';
 import {durationText} from '../../../../../packages/client-core/src/presentation/kit-model/text';
 import {usePlatformPosture} from '../../platform/platformPosture';
 import {mediumRailMetrics} from '../../shell/model';
+import {usePageInset} from '../../kit/layout/page-inset';
 import {BlurView} from '../../platform/native-blur';
 import {TVRow} from '../../kit/layout/TVRow';
 
@@ -113,7 +114,8 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
   const activeFocus = registry?.capture();
   const fold = posture.status === 'available' && posture.window?.width === viewport.width && posture.window.height === viewport.height
     ? posture.folds.find(value => value.orientation === 'vertical' && value.bounds.left > 0 && value.bounds.left < viewport.width) : undefined;
-  const rail = mediumRailMetrics.width;
+  // N2-3: the page is drawn beside the rail on a tablet; its panes are measured from where it starts.
+  const inset = usePageInset(), rail = inset || mediumRailMetrics.width, pageWidth = Math.max(0, viewport.width - inset);
   const divider = fold ? Math.min(viewport.width - 280, Math.max(rail + 280, fold.bounds.left)) : viewport.width;
   const twoPane = !props.watch && theme.platform === 'tablet' && viewport.width > viewport.height && !!fold;
   // tablet-play3: an upright tablet draws the phone's watch page with larger
@@ -129,8 +131,8 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
   const headerHeight = (phoneTitle ? 48 : 50) + insets.top;
   // foldable3g splits the watch page's own sections across the two book pages.
   const titleOnly = props.watch?.sections === 'title', episodesOnly = props.watch?.sections === 'episodes';
-  const leftWidth = twoPane ? divider - rail : viewport.width, rightWidth = twoPane ? viewport.width - divider : viewport.width;
-  const bodyWidth = props.watch?.width ?? (twoPane ? rightWidth : viewport.width);
+  const leftWidth = twoPane ? divider - inset : pageWidth, rightWidth = twoPane ? viewport.width - divider : pageWidth;
+  const bodyWidth = props.watch?.width ?? (twoPane ? rightWidth : pageWidth);
   const scroll = useRef<ScrollView>(null), titleMore = useRef<View>(null), titlePlay = useRef<View>(null), titlePlayOn = useRef<View>(null), bodyTop = useRef(0), cells = useRef(new Map<string, {y: number; height: number}>());
   const [tvBrowsing, setTVBrowsing] = useState(false), [tvTab, setTVTab] = useState<NativeTitleTab>(snapshot.place.tab);
   const tvAnchor = useRef<Readonly<{browsing: boolean; anchor?: string}> | undefined>(undefined), tvAligned = useRef('');

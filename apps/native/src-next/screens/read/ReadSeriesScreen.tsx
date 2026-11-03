@@ -1,5 +1,5 @@
 import React, {useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {Text, View, useWindowDimensions} from 'react-native';
+import {Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {generatedCoverTint} from '@portico/design';
 import {defaultI18n} from '../../../../../packages/i18n/src';
@@ -21,6 +21,7 @@ import {useTheme} from '../../kit/theme';
 import type {NativeShellRoute} from '../../shell/routes';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import type {NativeReadSeries} from './read-series-model';
+import {usePageWidth} from '../../kit/layout/page-inset';
 
 const {t} = defaultI18n;
 const initial = (title: string): string => title.trim().slice(0, 1).toUpperCase() || '·';
@@ -32,7 +33,7 @@ type SeriesRoute = Extract<NativeShellRoute, {kind: 'read-series'}>;
 export function ReadSeriesScreen({controller, route, comic, context, runtime, onBack}: {
   controller: NativeReadSeries; route: SeriesRoute; comic: boolean; context: NativeShellBootstrapContext; runtime: NativeShellRuntime; onBack: () => void;
 }) {
-  const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot), theme = useTheme(), insets = useSafeAreaInsets(), dimensions = useWindowDimensions();
+  const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot), theme = useTheme(), insets = useSafeAreaInsets(), pageWidth = usePageWidth();
   const phone = theme.platform === 'phone';
   const actions = useReadingActions(context, runtime, controller);
   const offer = (item: ReadingItem) => {const lifetime = controller.itemLifetime(item);
@@ -56,7 +57,7 @@ export function ReadSeriesScreen({controller, route, comic, context, runtime, on
   // The volumes grid fills its own pane (the shell rail is outside it) and the drawn
   // phone page puts three portrait covers across with 10 pt between columns.
   const columns = theme.platform === 'phone' ? 3 : 5, columnGap = 10, rowGap = 16;
-  const width = Math.max(96, Math.min(220, (Math.min(900, paneWidth ?? dimensions.width) - 40 - columnGap * (columns - 1)) / columns));
+  const width = Math.max(96, Math.min(220, (Math.min(900, paneWidth ?? pageWidth) - 40 - columnGap * (columns - 1)) / columns));
   const height = width * 3 / 2;
   const progression = continuedRow ? Math.max(0, Math.min(1, continuedRow.progress.location.progression)) : undefined;
   const readLabel = continued ? t('next.cards.read')

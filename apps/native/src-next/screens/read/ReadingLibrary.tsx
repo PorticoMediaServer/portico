@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
-import {ScrollView, Text, View, useWindowDimensions} from 'react-native';
+import {ScrollView, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {generatedCoverTint} from '@portico/design';
 import {defaultI18n} from '../../../../../packages/i18n/src';
@@ -34,6 +34,7 @@ import {NativeReadingDownloads, nativeReadingPageOpening, nativeReadingDownloadO
 import {NativeReadingDiscovery} from './reading-discovery';
 import {NativeReadingLibrary} from './reading-library';
 import {TVRow} from '../../kit/layout/TVRow';
+import {usePageWidth} from '../../kit/layout/page-inset';
 
 export type NativeReadingLibraryScreenProps = Readonly<{
   context: NativeShellBootstrapContext;
@@ -57,7 +58,7 @@ const authorPart = (item: ReadingItem) => item.author ? [{id: 'author', text: it
  * is used. An item opens its own book page, whose series link reaches the
  * signed series page; the library itself lists no synthetic series row. */
 export function NativeReadingLibraryScreen(props: NativeReadingLibraryScreenProps) {
-  const {context, runtime, libraryId, title, labels, onBack} = props, theme = useTheme(), insets = useSafeAreaInsets(), dimensions = useWindowDimensions();
+  const {context, runtime, libraryId, title, labels, onBack} = props, theme = useTheme(), insets = useSafeAreaInsets(), pageWidth = usePageWidth();
   const library = context.libraries().find(value => value.id === libraryId);
   const navigation = useSyncExternalStore(context.navigation.subscribe, context.navigation.getSnapshot);
   const {route: renderedRoute, revision: renderedRevision} = navigation;
@@ -170,7 +171,7 @@ export function NativeReadingLibraryScreen(props: NativeReadingLibraryScreenProp
   const retryBooks = () => {void books.retry().catch(runtime.reportError);};
   const retry = <StateView testID="reading-library-error" variant="inline" {...runtime.error(tab === 'discover' ? discoveryState.error : booksState.error, tab === 'discover' ? retryDiscover : retryBooks, 'library')}/>;
   const empty = <StateView testID="reading-library-empty" variant="inline" title={defaultI18n.t('library.emptyLibrary')} body={defaultI18n.t('library.emptyLibraryBody')}/>;
-  const columns = tablet ? 4 : 3, gap = 16, width = Math.max(96, ((paneWidth ?? dimensions.width) - theme.gutter * 2 - gap * (columns - 1)) / columns);
+  const columns = tablet ? 4 : 3, gap = 16, width = Math.max(96, ((paneWidth ?? pageWidth) - theme.gutter * 2 - gap * (columns - 1)) / columns);
   const loading = <ReadingLoading ready={false} style={{flex: 1, minHeight: 480}} skeleton={<ReadingGridSkeleton width={width} columns={columns} gap={gap} gutter={theme.gutter}/>}/>;
   const discover = <ScrollView testID="reading-discover" contentContainerStyle={{paddingBottom: insets.bottom + 40}}>
     {discoveryState.phase === 'error' ? retry : null}

@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject} from 'react';
-import {ScrollView, Text, View, useWindowDimensions} from 'react-native';
+import {ScrollView, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import {defaultI18n} from '../../../../../packages/i18n/src';
@@ -19,6 +19,7 @@ import type {NativeEntryMenuState} from '../destinations/entry-actions';
 import type {NativeSavedSelectionPort} from '../saved/SavedScreen';
 import {savedDuration} from '../saved/presentation';
 import type {NativeCollectionSort, NativeCollectionState} from './controller';
+import {usePageWidth} from '../../kit/layout/page-inset';
 
 export type NativeCollectionScreenProps = Readonly<{
   focusScope: string; state: NativeCollectionState;
@@ -52,7 +53,7 @@ const years = (state: NativeCollectionState) => {
  * Members render from a bounded window (LR05): only the cards in view are mounted,
  * and the focused card's page stays in memory. */
 export function NativeCollectionScreen(props: NativeCollectionScreenProps) {
-  const {state, runtime, onBack, actions, selection} = props, theme = useTheme(), t = defaultI18n.t, dimensions = useWindowDimensions(), insets = useSafeAreaInsets();
+  const {state, runtime, onBack, actions, selection} = props, theme = useTheme(), t = defaultI18n.t, insets = useSafeAreaInsets(), pageWidth = usePageWidth();
   useSyncExternalStore(actions?.menuState?.subscribe ?? (() => () => {}), actions?.menuState?.getSnapshot ?? (() => 0));
   useSyncExternalStore(selection?.subscribe ?? (() => () => {}), selection?.getSnapshot ?? (() => 0));
   const tv = theme.isTV, compact = !tv && theme.platform === 'phone', [sortOpen, setSortOpen] = useState(false), [pageMenu, setPageMenu] = useState(false);
@@ -67,7 +68,7 @@ export function NativeCollectionScreen(props: NativeCollectionScreenProps) {
   const sort = state.sorts.find(value => value.id === state.sort);
   const sortItems: MenuEntry[] = state.sorts.map(value => ({id: value.id, label: sortLabel(value), selected: value.id === state.sort,
     onSelect: () => props.onSort(value.id, value.directions[0] ?? 'asc')}));
-  const cardWidth = tv ? 214 : Math.max(120, (dimensions.width - 50) / 2), error = state.error;
+  const cardWidth = tv ? 214 : Math.max(120, (pageWidth - 50) / 2), error = state.error;
   const empty = state.phase === 'ready' && state.totalCount === 0, failed = !!error && !state.totalCount;
   const controls = <View style={{flexDirection: 'row', alignItems: 'center', gap: tv ? 18 : 10, marginTop: tv ? 30 : compact ? 18 : 16,
     ...(compact ? {paddingHorizontal: 20} : {})}}>
@@ -123,7 +124,7 @@ export function NativeCollectionScreen(props: NativeCollectionScreenProps) {
       : <WindowedGrid testID={compact ? 'collection-list' : 'collection-grid'} collection={collection} getKey={nativeCollectionEntryKey}
         header={<>{hero}{compact && controls}{automatic}
           <View style={{paddingHorizontal: compact ? 0 : 20, paddingTop: compact ? 14 : 18}}>{toolbar}{status}</View></>}
-        itemWidth={compact ? dimensions.width : cardWidth} itemHeight={compact ? 98 : cardWidth * 1.5} captionHeight={compact ? 0 : 46}
+        itemWidth={compact ? pageWidth : cardWidth} itemHeight={compact ? 98 : cardWidth * 1.5} captionHeight={compact ? 0 : 46}
         gap={compact ? 0 : 10} rowGap={compact ? 0 : 18} gutter={compact ? 0 : 20} rightGutter={compact ? 0 : 20} paddingBottom={80}
         renderPlaceholder={failed || empty ? () => null : placeholder}
         renderItem={(entry, context) => compact

@@ -27,6 +27,7 @@ import type {NativeGenreBrowseDestination} from './genre-browse';
 import {GenreFilters} from './GenreFilters';
 import {StandardBackdrop} from '../../kit/artwork';
 import {TVRow} from '../../kit/layout/TVRow';
+import {usePageWidth} from '../../kit/layout/page-inset';
 
 const label = (value: {id: string; labelKey?: string}, t: NativeShellRuntime['text']['t']) => {
   const key = browseNameId(value.id, value.labelKey, defaultI18n.has);
@@ -45,7 +46,7 @@ export function GenreBrowseScreen({focusScope, name, value, destination, activat
 }>) {
   const t = runtime.text.t;
   const labels = useMemo(() => browseLabels(t), [t]);
-  const theme = useTheme(), dimensions = useWindowDimensions(), insets = useSafeAreaInsets();
+  const theme = useTheme(), dimensions = useWindowDimensions(), insets = useSafeAreaInsets(), pageWidth = usePageWidth();
   const state = useSyncExternalStore(destination.subscribe, destination.getSnapshot), active = useSyncExternalStore(activation.subscribe, activation.getSnapshot);
   const [filters, setFilters] = useState<NativeLibraryFilterDraft>(), [elapsed, setElapsed] = useState(0);
   const place = useNativeStackPlacement(stackRoute), stacked = useNativeStackHosted();
@@ -68,7 +69,7 @@ export function GenreBrowseScreen({focusScope, name, value, destination, activat
     {state.phase === 'ready' && state.capabilities && state.sort && state.collection ? <GenreGrid focusScope={focusScope} destination={destination} runtime={runtime} actions={actions} owner={owner} labels={labels}
       openFilters={() => {if (active.visible) setFilters(destination.createFilters());}} filtersOpen={!!filters}/>
       : state.phase === 'error' ? <StateView variant="centered" {...runtime.error(state.error, destination.retry)}/>
-      : <GridSkeleton elapsedMs={elapsed} scrollOffset={0} viewportHeight={dimensions.height - 160} width={dimensions.width} totalCount={9} columns={3}/>}
+      : <GridSkeleton elapsedMs={elapsed} scrollOffset={0} viewportHeight={dimensions.height - 160} width={pageWidth} totalCount={9} columns={3}/>}
     {filters && state.capabilities && state.sort && <GenreFilters draft={filters} capabilities={state.capabilities} sort={state.sort} fixed={fixed} runtime={runtime} owner={owner} labels={labels} onClose={() => setFilters(undefined)}/>}
   </View>);
 }

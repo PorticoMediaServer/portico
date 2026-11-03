@@ -1,5 +1,5 @@
 import React, {useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject} from 'react';
-import {ScrollView, Text, View, useWindowDimensions} from 'react-native';
+import {ScrollView, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n, type MessageId} from '../../../../../packages/i18n/src';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
@@ -35,6 +35,7 @@ import {SavedConfirmSheet, SavedNameSheet} from './SavedForms';
 import {isReadingLibraryKind} from '../read/platform';
 import {exactDurationSeconds, personalMosaic, playlistEntryMosaic, savedDuration, savedItemCount, savedLibraryName, savedPlaylistEyebrow,
   savedResourceEyebrow, savedTitleCount, savedViewConditionCount, savedVisibility, savedVisibilityHelp} from './presentation';
+import {usePageWidth} from '../../kit/layout/page-inset';
 
 const t = defaultI18n.t;
 
@@ -99,7 +100,7 @@ function membershipRows(isPlaylist: boolean, state: Readonly<{saved?: SavedSnaps
 /** collections.html 11a–13c and 18–20. The page reads the actual Saved route
  * through its canonical service; commands go back through the same service. */
 export function SavedResourceScreen({route, destination, activation, runtime, actions, selection, libraries, back, changed, showOnHome, openInLibrary, condition}: NativeSavedResourceProps) {
-  const theme = useTheme(), insets = useSafeAreaInsets(), dimensions = useWindowDimensions(), instance = React.useId();
+  const theme = useTheme(), insets = useSafeAreaInsets(), pageWidth = usePageWidth(), instance = React.useId();
   const dockTop = useDockClearance();
   const active = useSyncExternalStore(activation.subscribe, activation.getSnapshot);
   const snapshot = useSyncExternalStore(destination.subscribe, destination.getSnapshot);
@@ -453,7 +454,7 @@ export function SavedResourceScreen({route, destination, activation, runtime, ac
     opening.current = undefined; pageOpening.current = undefined; setRowMenuState(undefined);
     setPageMenu(false); nameOpening.current = undefined; deleteOpening.current = undefined; setRenaming(undefined); setDeleting(undefined);
   }, [stateError]);
-  const width = theme.isTV ? 1920 - theme.gutter * 2 : dimensions.width - theme.gutter * 2;
+  const width = theme.isTV ? 1920 - theme.gutter * 2 : pageWidth - theme.gutter * 2;
   const focusIds = useMemo(() => nativeDestinationFocusIds(runtime.getSnapshot().authority), [runtime]);
   const region = `saved.resource.${theme.isTV ? `${instance}.` : ''}${route.view === 'playlist' ? route.playlistId : `${route.view}:${route.resourceId ?? ''}`}`;
   const viewport = useRef({offset: 0, height: 0, extent: 0});
@@ -566,7 +567,7 @@ export function SavedResourceScreen({route, destination, activation, runtime, ac
             {reordering && !theme.isTV ? <SavedReorderList rows={rows} runtime={runtime} disabled={busy || snapshot.phase === 'loading' || !canReorder}
               onMove={moveRow} onPlace={placeRow} onDragging={setDragging}/>
               : !isPlaylist && resource?.kind === 'view'
-                ? <SavedResourceViewGrid entries={media} runtime={runtime} actions={actions} selection={selection} tv={theme.isTV} windowWidth={theme.isTV ? 1920 : dimensions.width} gutter={theme.gutter}/>
+                ? <SavedResourceViewGrid entries={media} runtime={runtime} actions={actions} selection={selection} tv={theme.isTV} windowWidth={theme.isTV ? 1920 : pageWidth} gutter={theme.gutter}/>
                 : rows.map(row => <SavedResourceRow key={row.id} row={row} width={width} runtime={runtime} actions={actions} selection={selection?.item(row.media)} library={savedLibraryName(libraries, row.media.libraryId)}
                   onMore={anchor => openEntryMenu(row, anchor)}/>)}
             {snapshot.phase === 'loading' && rows.length > 0 && <View style={{paddingHorizontal: theme.gutter, paddingVertical: 12}}><SavedTail row={resource?.kind !== 'view'} width={resource?.kind === 'view' ? width / (theme.isTV ? 7 : 3) : width}/></View>}
