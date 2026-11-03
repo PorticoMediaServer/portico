@@ -14,7 +14,7 @@
  * role or privacy fence changes, and builds a new one.
  */
 import {QueryClient, hashKey, timeoutManager, type DefaultError, type DefaultedQueryObserverOptions, type Query, type QueryFunction, type QueryFunctionContext, type QueryKey, type QueryObserverOptions} from '@tanstack/query-core';
-import {finalAnswer, type FreshDocument, type FreshnessDependency, type FreshnessHub, type RevalidateContext} from '../freshness-hub.ts';
+import {finalAnswer, type FreshDocument, type FreshDocumentOptions, type FreshnessDependency, type FreshnessHub, type RevalidateContext} from '../freshness-hub.ts';
 import {linkAbortSignals, throwIfAborted} from '../abort-lifetime.ts';
 
 /** What a query was built from: the hub dependencies it moves with. A function is asked again each time a hint arrives. */
@@ -41,6 +41,12 @@ export type ViewerQueries = Readonly<{
   api: ViewerRequester;
   /** This device changed these: what was built from them is read again (gathered, after a pause in input). */
   moved(dependencies: readonly FreshnessDependency[]): void;
+  /**
+   * Keep something that is not a cached document current on this viewer's hub (a grid that re-reads
+   * its visible pages in place): read again when its dependencies move, on the hub's usual terms.
+   * Open it while it is shown; it ends with the viewer's cache.
+   */
+  keepCurrent(options: FreshDocumentOptions): FreshDocument;
   /** The hub document that keeps a query current, while the query is in the cache. */
   documentFor(queryKey: QueryKey): FreshDocument | undefined;
   isDisposed(): boolean;
@@ -141,6 +147,7 @@ export function createViewerQueries(options: ViewerQueriesOptions): ViewerQuerie
   });
 
   const settles = new Map<string, RevalidateContext['settle']>();
+  const kept = new Set<FreshDocument>();
   client.wrap = (fn: QueryFunction): QueryFunction => async (context: QueryFunctionContext) => {
     live();
     const value = await fn(context);
@@ -156,6 +163,15 @@ export function createViewerQueries(options: ViewerQueriesOptions): ViewerQuerie
   return Object.freeze({
     scope, client, api,
     moved(dependencies: readonly FreshnessDependency[]) { if (!disposed) for (const d of dependencies) hub.note(d); },
+    keepCurrent(options: FreshDocumentOptions) {
+      const document = hub.document(options);
+      if (disposed) { document.dispose(); return document; }
+      // An owner that ends its document first leaves the cache's list too.
+      const end = document.dispose.bind(document);
+      document.dispose = () => { kept.delete(document); end(); };
+      kept.add(document);
+      return document;
+    },
     documentFor(queryKey: QueryKey) { const query = client.getQueryCache().find({queryKey, exact: true}); return query ? freshness.document(query) : undefined; },
     isDisposed: () => disposed,
     dispose() {
@@ -176,6 +192,8 @@ export function createViewerQueries(options: ViewerQueriesOptions): ViewerQuerie
       client.getMutationCache().clear();
       client.unmount();
       settles.clear();
+      for (const document of kept) document.dispose();
+      kept.clear();
     },
   });
 }

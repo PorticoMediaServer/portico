@@ -377,3 +377,38 @@ test('an authority answer on the first page is never re-read', async () => {
   } finally {destination.dispose();}
 });
 
+
+test('a shown grid is read again in place when its library moves, keeping its pages if the read fails', async () => {
+  const {viewerQueriesFor} = await import('../src-next/shell/freshness.ts');
+  const {dependsOn} = await import('../../../packages/client-core/src/freshness-hub.ts');
+  let renamed = false, failing = false, browses = 0;
+  const api: LibraryContentApi = {request: async <T>(path: string, _method?: string, body?: unknown) => {
+    if (path.includes('capabilities')) return capabilities as T;
+    browses++;
+    if (failing) throw Object.assign(new Error('down'), {status: 503});
+    const answer = page(body as BrowseRequestBody, 3);
+    if (renamed) answer.entries[0] = {...answer.entries[0]!, title: 'Renamed'};
+    return answer as T;
+  }};
+  const destination = new NativeLibraryDestination({api, scope, library, current: () => true});
+  try {
+    await destination.load();
+    const collection = destination.getSnapshot().collection!;
+    collection.ensureRange(0, 2);
+    for (let i = 0; i < 20 && collection.residentItems().length < 3; i++) await tick();
+    const before = browses;
+    // Another device renames a title in this library: the hub hears the library's content move.
+    renamed = true;
+    viewerQueriesFor(api, scope).moved([dependsOn.content(library.id)]);
+    await new Promise(resolve => setTimeout(resolve, 900));
+    assert.ok(browses > before, 'the visible pages were read again');
+    assert.equal(collection.residentItems()[0]!.title, 'Renamed', 'and replaced in place');
+    assert.equal(destination.getSnapshot().phase, 'ready');
+    // A read that fails leaves the grid exactly as it was.
+    failing = true;
+    viewerQueriesFor(api, scope).moved([dependsOn.content(library.id)]);
+    await new Promise(resolve => setTimeout(resolve, 900));
+    assert.equal(collection.residentItems()[0]!.title, 'Renamed');
+    assert.equal(destination.getSnapshot().phase, 'ready');
+  } finally {destination.dispose();}
+});
