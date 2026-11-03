@@ -69,7 +69,14 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
   let queryAction: NativeLibrarySelectionAction | undefined, stopQueryAction: (() => void) | undefined;
   let personal: ReturnType<typeof createCataloguePersonalSelection> | undefined, personalCurrent: (() => boolean) | undefined, personalToken = 0;
   let personalDetach: (() => boolean) | undefined;
-  const emit = () => {revision++; for (const listener of [...listeners]) listener();};
+  // While a selection is open, the grid's pages are held as they are (the hub's quiet re-read waits).
+  let releaseHold: (() => void) | undefined;
+  const syncHold = () => {
+    const open = !disposed && (entering || !!producer?.model.getSnapshot().active);
+    if (open && !releaseHold) releaseHold = source.hold();
+    else if (!open && releaseHold) {releaseHold(); releaseHold = undefined;}
+  };
+  const emit = () => {revision++; syncHold(); for (const listener of [...listeners]) listener();};
   const visible = () => !disposed && lifetime.current() && activation.getSnapshot().visible;
   const model = () => producer?.model;
   const snapshot = (): SelectionSnapshot<BrowseSelectionContext> | undefined => model()?.getSnapshot();
@@ -401,7 +408,7 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
     render: (artwork?: (path?: string) => React.ReactNode) => <LibrarySelectionBars store={store} artwork={artwork ?? (() => null)}/>,
   };
   const off = [source.subscribe(() => {if (producer && sourceToken() !== token) {const state = queryAction?.getSnapshot(); reset(!!queryAction?.current() && (!!state?.job || state?.phase === 'submitting' || state?.phase === 'uncertain'));} emit();}), activation.subscribe(() => {if (!visible()) reset(); emit();}), context.subscribeAuthority(() => {reset(); emit();})];
-  return Object.freeze({...port, dispose: () => {if (disposed) return; disposed = true; off.forEach(stop => stop()); reset(); listeners.clear();}});
+  return Object.freeze({...port, dispose: () => {if (disposed) return; disposed = true; off.forEach(stop => stop()); reset(); syncHold(); listeners.clear();}});
 }
 
 type Store = {subscribe(listener: () => void): () => void; getSnapshot(): number; snapshot(): SelectionSnapshot<BrowseSelectionContext> | undefined;

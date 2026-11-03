@@ -4,6 +4,7 @@ import {BrowseTotalsMemory, browseCapabilitiesPath, completeBrowseNode, parseBro
 import {BrowseSession, browseSessionBuilder, type BrowseSessionQuery} from '../../../../../packages/client-core/src/browse-session';
 import {createWindowedCollection, type WindowedCollection} from '../../../../../packages/client-core/src/collections/windowed';
 import {isStaleAnswer} from '../../../../../packages/client-core/src/freshness-actions';
+import {listedTitlesWithPersonalState, readsPersonalState, titleIdsOf, type FreshDocument} from '../../../../../packages/client-core/src/freshness-hub';
 import {LibraryContentService, type ContentEntry, type ContentScope, type LibraryContentApi, type LibraryContentSnapshot} from '../../../../../packages/client-core/src/library-content';
 import {libraryTabs, type LibraryTab, type LibraryTabId} from '../../../../../packages/client-core/src/presentation/library-tabs';
 import {NativeLibraryFilterDraft} from './filters';
@@ -40,6 +41,19 @@ export type NativeLibrarySnapshot = Readonly<{
   error?: unknown;
 }>;
 
+/** Every field a query filters or sorts on, so a query that reads this profile's state moves with it. */
+function fieldsOf(predicates: readonly BrowseNode[], sort?: BrowseSortSelection): string[] {
+  const out: string[] = sort ? [sort.field] : [];
+  const visit = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    const value = node as {field?: unknown; all?: unknown; any?: unknown; not?: unknown};
+    if (typeof value.field === 'string') out.push(value.field);
+    for (const child of [...(Array.isArray(value.all) ? value.all : []), ...(Array.isArray(value.any) ? value.any : []), value.not]) visit(child);
+  };
+  predicates.forEach(visit);
+  return out;
+}
+
 /** Ruling 37 keeps today's canSave rule, against this tab's actual opening sort. */
 export function nativeLibraryCanSave(source: NativeLibrarySnapshot, draft: NativeLibraryViewDraft): boolean {
   return source.phase === 'ready' && !!source.defaultSort &&
@@ -68,6 +82,10 @@ export class NativeLibraryDestination {
   private readonly totals = new BrowseTotalsMemory();
   /** The applied query's page source; a new tab or query retires it. */
   private session?: BrowseSession<ContentEntry>;
+  /** The session a quiet re-read is replacing: still current until the new one has answered. */
+  private replacing?: BrowseSession<ContentEntry>;
+  /** Keeps the shown grid current on the viewer's hub. */
+  private freshness?: FreshDocument;
   private readonly initialOffered: boolean;
   private initialApplied = false;
 
@@ -131,7 +149,7 @@ export class NativeLibraryDestination {
     if (tab.id === this.state.tab.id && this.state.phase === 'ready') return;
     const retryQuery = tab.id === this.state.tab.id && this.state.phase === 'error' && this.state.collection && this.state.sort
       ? {predicates: this.state.predicates, sort: this.state.sort} : undefined;
-    this.retireFilters(); this.controller?.abort(); this.discover.cancel(); this.state.collection?.dispose();
+    this.retireFilters(); this.controller?.abort(); this.discover.cancel(); this.freshness?.dispose(); this.freshness = undefined; this.state.collection?.dispose();
     this.session?.retire(); this.session = undefined;
     const controller = new AbortController(), revision = ++this.operation; this.controller = controller; this.staleRetried = false;
     this.publish({tab, phase: 'loading', capabilities: undefined, collection: undefined, predicates: [], sort: undefined, defaultSort: undefined, revision: undefined, wholeSelection: undefined, wholeSelectionUnavailable: undefined, unfilteredTotal: undefined, error: undefined,
@@ -177,6 +195,7 @@ export class NativeLibraryDestination {
       this.publish({phase: 'ready', capabilities, predicates, sort: chosenSort, defaultSort: sort, collection});
       if (this.options.initial && this.initialOffered) this.initialApplied = true;
       collection.ensureRange(0, 0);
+      this.keepCurrent(collection);
     } catch (error) {if (this.current() && revision === this.operation && !controller.signal.aborted) this.publish({phase: 'error', error});}
   }
   private query(capabilities: BrowseCapabilities, tab: LibraryTab, predicates: readonly BrowseNode[], sort: BrowseSortSelection): BrowseSessionQuery {
@@ -187,8 +206,8 @@ export class NativeLibraryDestination {
   }
   /** The shared Browse session for this exact tab, filter and sort (SIM-12). This model keeps
    * only what is native: the remembered unfiltered total and its own published state. */
-  private open(capabilities: BrowseCapabilities, tab: LibraryTab, predicates: readonly BrowseNode[], sort: BrowseSortSelection): BrowseSession<ContentEntry> {
-    this.session?.retire();
+  private open(capabilities: BrowseCapabilities, tab: LibraryTab, predicates: readonly BrowseNode[], sort: BrowseSortSelection, retirePrevious = true): BrowseSession<ContentEntry> {
+    if (retirePrevious) this.session?.retire();
     const base = JSON.stringify(tab.fixedFilter ?? []) === JSON.stringify(predicates);
     const totalsKey = JSON.stringify([this.options.scope, this.options.library.id, tab.id, tab.pivot]);
     let answered = false;
@@ -196,7 +215,7 @@ export class NativeLibraryDestination {
       request: (path, method, body, signal) => this.request(path, method, body, signal),
       ...(this.options.api.requestRaw ? {requestRaw: this.options.api.requestRaw.bind(this.options.api)} : {}),
       onPreparationError: error => this.publish({error}),
-      current: () => this.current() && this.session === session && this.state.phase === 'ready',
+      current: () => this.current() && (this.session === session || this.replacing === session) && this.state.phase === 'ready',
       item: entry => entry,
       onRevision: revision => this.publish({revision}),
       // Only the first page of a replayable view carries the aggregate; later pages never
@@ -224,6 +243,44 @@ export class NativeLibraryDestination {
     this.session = session;
     return session;
   }
+  /**
+   * The grid stays current while it is open: when a title it shows, its library's content or order,
+   * or (for a query that reads it) this profile's state moves, its visible pages are read again in
+   * place under a fresh session, with the scroll kept. A failed read leaves the grid as it was.
+   */
+  private keepCurrent(collection: WindowedCollection<ContentEntry>): void {
+    this.freshness?.dispose();
+    const library = this.options.library.id;
+    this.freshness = viewerQueriesFor(this.options.api, this.options.scope).keepCurrent({
+      dependencies: () => listedTitlesWithPersonalState(library, titleIdsOf(collection.residentItems()), readsPersonalState(fieldsOf(this.state.predicates, this.state.sort))),
+      // Held (a selection is open on it): a move is remembered and read once the hold ends.
+      hasContent: () => this.state.phase === 'ready' && this.state.collection === collection && this.holds === 0,
+      revalidate: async context => {
+        const {capabilities, tab, predicates, sort} = this.state;
+        if (!this.current() || this.state.collection !== collection || !capabilities || !sort) return;
+        const previous = this.session;
+        this.replacing = previous;
+        const next = this.open(capabilities, tab, predicates, sort, false);
+        try {
+          await collection.revalidate({fetchPage: next.fetchPage, hold: context.settle});
+          if (this.session === next) previous?.retire();
+        } catch (error) {
+          // The grid keeps its pages and the session they came from; the hub tries again later.
+          if (this.session === next) { next.retire(); this.session = previous; }
+          throw error;
+        } finally { if (this.replacing === previous) this.replacing = undefined; }
+      },
+    });
+    this.freshness.setOpen(true);
+  }
+  private holds = 0;
+  /** Keep the shown pages as they are while a selection is open over them (reading them again
+   *  starts a new page revision, which ends it). Returns the release; a move meanwhile is read then. */
+  hold = (): (() => void) => {
+    this.holds++;
+    let held = true;
+    return () => {if (!held) return; held = false; if (--this.holds === 0) this.freshness?.check();};
+  };
   setQuery = (predicates: readonly BrowseNode[], sort = this.state.sort, keep?: NativeLibraryFilterDraft): void => {
     if (!this.current() || !this.state.capabilities || !this.state.collection || !sort) return;
     const {capabilities, tab, collection} = this.state;
@@ -279,8 +336,8 @@ export class NativeLibraryDestination {
   dispose = (): void => {
     if (this.disposed) return;
     this.disposed = true; this.retireFilters(); this.operation++; this.controller?.abort(); this.unsubscribe(); this.pending = undefined; this.pendingTab = undefined;
-    this.discover.cancel(); this.discover.dispose(); this.state.collection?.dispose(); this.totals.clear();
-    this.session?.retire(); this.session = undefined;
+    this.discover.cancel(); this.discover.dispose(); this.freshness?.dispose(); this.freshness = undefined; this.state.collection?.dispose(); this.totals.clear();
+    this.session?.retire(); this.session = undefined; this.replacing?.retire(); this.replacing = undefined;
     this.memory = {firstVisibleIndex: 0, offset: 0};
     this.state = Object.freeze({...this.state, phase: 'idle', capabilities: undefined, collection: undefined, predicates: [], sort: undefined, revision: undefined, wholeSelection: undefined, wholeSelectionUnavailable: undefined,
       discover: this.discover.getSnapshot(), memory: {firstVisibleIndex: 0, offset: 0}, unfilteredTotal: undefined, error: undefined});
