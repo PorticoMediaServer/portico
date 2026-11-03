@@ -403,24 +403,35 @@ func (w *Worker) Run(ctx context.Context) {
 	signal := worker.NewSignal()
 	unregister := dbwork.WakeOnTables(signal, "catalog_*", "compact_*", "reading_path_dirty_work", "reading_path_source_barrier", "reading_path_availability_pending")
 	defer unregister()
+	ctx = dbwork.WithPaceSlices(ctx)
 	worker.Run(ctx, "catalogue derived data", signal, func(ctx context.Context) time.Duration {
-		if !dbwork.Yield(ctx) {
-			return 0
-		}
-		batchStarted := time.Now()
-		n, err := w.Step(ctx, BatchMax)
-		if ctx.Err() != nil {
-			return 0
-		}
-		if err != nil {
-			log.Printf("Catalogue derived data will retry: %v", err)
-			return 5 * time.Second
-		}
-		if n > 0 {
+		// Many domains advance one unit per turn, a millisecond or so of work.
+		// Going back to the loop between turns cost each one a timer wake of its
+		// own, so a pass keeps turning for up to derivedPassSlice of work,
+		// paced as one slice (dbwork.WithPaceSlices).
+		passStarted := time.Now()
+		for {
+			if !dbwork.Yield(ctx) {
+				return 0
+			}
+			batchStarted := time.Now()
+			n, err := w.Step(ctx, BatchMax)
+			if ctx.Err() != nil {
+				return 0
+			}
+			if err != nil {
+				log.Printf("Catalogue derived data will retry: %v", err)
+				return 5 * time.Second
+			}
+			if n == 0 {
+				break
+			}
 			if !dbwork.PaceBackground(ctx, batchStarted) {
 				return 0
 			}
-			return time.Millisecond
+			if time.Since(passStarted) >= derivedPassSlice {
+				return time.Millisecond
+			}
 		}
 		// Blocked Reading scopes are parked until a dependency write wakes
 		// this loop; only a quiet-gap hold needs the timer.
@@ -431,6 +442,9 @@ func (w *Worker) Run(ctx context.Context) {
 		return wait
 	})
 }
+
+// derivedPassSlice bounds how long one pass of the derived loop keeps turning.
+const derivedPassSlice = 50 * time.Millisecond
 
 // startupFailures bounds how many set-aside titles a start reads back.
 const startupFailures = 20000

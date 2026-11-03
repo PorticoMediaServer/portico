@@ -21,8 +21,17 @@ func PaceBackground(ctx context.Context, batchStarted time.Time) bool {
 	if !ForegroundWorkActive() {
 		return true
 	}
-	yields.Add(1)
 	elapsed := time.Since(batchStarted)
+	if slice, _ := ctx.Value(paceSliceKey{}).(*paceSlice); slice != nil {
+		// Short quanta are paced as one slice of work: a pause after each
+		// would cost far more than the quantum itself.
+		slice.ran += elapsed
+		if slice.ran < paceSliceMinimum {
+			return ctx.Err() == nil
+		}
+		elapsed, slice.ran = slice.ran, 0
+	}
+	yields.Add(1)
 	pause := 50 * time.Millisecond
 	switch BackgroundSpeed(ctx) {
 	case SpeedGentle:
@@ -44,4 +53,18 @@ func PaceBackground(ctx context.Context, batchStarted time.Time) bool {
 	case <-ctx.Done():
 		return false
 	}
+}
+
+// paceSliceMinimum is the work a sliced loop does between pauses.
+const paceSliceMinimum = 5 * time.Millisecond
+
+type paceSliceKey struct{}
+
+type paceSlice struct{ ran time.Duration }
+
+// WithPaceSlices makes PaceBackground under ctx pause once per slice of at
+// least paceSliceMinimum of work instead of after every quantum. ctx must
+// belong to one loop goroutine.
+func WithPaceSlices(ctx context.Context) context.Context {
+	return context.WithValue(ctx, paceSliceKey{}, &paceSlice{})
 }
