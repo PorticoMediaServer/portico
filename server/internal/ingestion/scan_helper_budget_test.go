@@ -4,12 +4,10 @@ package ingestion
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/assets"
@@ -22,59 +20,24 @@ import (
 
 // Every storage helper is a new process, which costs 0.1–0.4 s on a small VPS
 // (OPS-1, 2 Nov: 31 helpers per film on a first import made a 14-library demo
-// scan take 40+ minutes). These budgets hold the number of helpers a scan
-// starts per file, so a change that starts one more per file fails here
-// instead of on someone's server. Measured on this fixture (six films): before
-// OPS-1 C, 36.5 per film on a first import and 7.8 on an unchanged rescan;
-// after it, 10.3 and 4.0. Larger libraries amortise the folder pages further.
+// scan take 40+ minutes). Since scanner M1, local stat, list and reads run in
+// process and only tools (the sandboxed ffprobe passes) start one. These
+// budgets hold the processes a scan starts, using the real helper binary so the
+// in-process path is the one measured. Measured on this fixture (six films):
+// before OPS-1 C, 36.5 per film on a first import and 7.8 on an unchanged
+// rescan; after C, 10.3 and 4.0; after M1, the two ffprobe passes per film on
+// a first import and none on a rescan.
 const (
-	firstImportHelpersPerFile = 12
-	rescanHelpersPerFile      = 5
+	processesPerScan            = 2
+	firstImportProcessesPerFile = 2
+	rescanProcessesPerFile      = 0
 )
 
-func helperCounter(t *testing.T) (*storage.Client, func() map[string]int) {
-	t.Helper()
-	binary, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
-	log := filepath.Join(t.TempDir(), "helper.log")
-	script := filepath.Join(t.TempDir(), "counted-helper")
-	body := fmt.Sprintf("#!/bin/sh\npayload=$(cat)\nprintf '%%s\\n' \"$payload\" >> %q\nprintf '%%s' \"$payload\" | exec %q \"$@\"\n", log, binary)
-	if err := os.WriteFile(script, []byte(body), 0700); err != nil {
-		t.Fatal(err)
-	}
-	return storage.New(script), func() map[string]int {
-		t.Helper()
-		raw, err := os.ReadFile(log)
-		if err != nil && !os.IsNotExist(err) {
-			t.Fatal(err)
-		}
-		found := map[string]int{}
-		for _, line := range strings.Split(string(raw), "\n") {
-			if strings.TrimSpace(line) == "" {
-				continue
-			}
-			var call struct {
-				Operation string `json:"operation"`
-			}
-			if err := json.Unmarshal([]byte(line), &call); err != nil {
-				t.Fatalf("unrecorded helper request %q: %v", line, err)
-			}
-			found[call.Operation]++
-		}
-		return found
-	}
-}
-
-func helperTotal(calls map[string]int) int {
-	n := 0
-	for op, c := range calls {
-		if op != "inventory-watch" {
-			n += c
-		}
-	}
-	return n
+// processStarts is the helper processes the supervisor started: admitted
+// operations minus those served in process.
+func processStarts(store *storage.Client) int {
+	stats := store.Supervisor.Stats()
+	return int(stats.Admitted - stats.InProcess)
 }
 
 func TestScanHelperProcessBudget(t *testing.T) {
@@ -101,7 +64,11 @@ func TestScanHelperProcessBudget(t *testing.T) {
 	}
 	defer db.Close()
 	cat := catalog.New(db)
-	store, counts := helperCounter(t)
+	binary, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := storage.New(binary)
 	cat.SetStorage(store)
 	meta, err := localmetadata.New(filepath.Join(root, "art"), ffmpeg, store)
 	if err != nil {
@@ -135,21 +102,21 @@ func TestScanHelperProcessBudget(t *testing.T) {
 			}
 		}
 	}
-	before := helperTotal(counts())
+	before := processStarts(store)
 	scan("first import")
-	first := counts()
-	firstTotal := helperTotal(first) - before
+	firstTotal := processStarts(store) - before
 	var analysed int
 	if err = db.QueryRow(`SELECT count(*) FROM inventory_objects WHERE analysis_state='complete'`).Scan(&analysed); err != nil || analysed != films {
 		t.Fatalf("first import analysed %d of %d films (%v)", analysed, films, err)
 	}
 	scan("rescan")
-	rescanTotal := helperTotal(counts()) - firstTotal - before
-	t.Logf("helpers: first import %d (%.1f per film) %v; rescan %d (%.1f per film)", firstTotal, float64(firstTotal)/films, first, rescanTotal, float64(rescanTotal)/films)
-	if firstTotal > firstImportHelpersPerFile*films {
-		t.Fatalf("a first import of %d films started %d helper processes, over the budget of %d per film: %v", films, firstTotal, firstImportHelpersPerFile, first)
+	rescanTotal := processStarts(store) - firstTotal - before
+	stats := store.Supervisor.Stats()
+	t.Logf("processes: first import %d (%.1f per film); rescan %d; %d of %d operations in process", firstTotal, float64(firstTotal)/films, rescanTotal, stats.InProcess, stats.Admitted)
+	if firstTotal > processesPerScan+firstImportProcessesPerFile*films {
+		t.Fatalf("a first import of %d films started %d processes, over the budget of %d per scan plus %d per film", films, firstTotal, processesPerScan, firstImportProcessesPerFile)
 	}
-	if rescanTotal > rescanHelpersPerFile*films {
-		t.Fatalf("a rescan of %d unchanged films started %d helper processes, over the budget of %d per film", films, rescanTotal, rescanHelpersPerFile)
+	if rescanTotal > processesPerScan+rescanProcessesPerFile*films {
+		t.Fatalf("a rescan of %d unchanged films started %d processes, over the budget of %d per scan plus %d per film", films, rescanTotal, processesPerScan, rescanProcessesPerFile)
 	}
 }

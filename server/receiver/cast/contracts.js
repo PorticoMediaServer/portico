@@ -22452,6 +22452,11 @@ var PorticoCastContracts = (function(exports) {
 							"minimum": -9007199254740991,
 							"type": "integer"
 						},
+						"inProcess": {
+							"maximum": 9007199254740991,
+							"minimum": -9007199254740991,
+							"type": "integer"
+						},
 						"playbackActive": {
 							"maximum": 9007199254740991,
 							"minimum": -9007199254740991,
@@ -22498,6 +22503,7 @@ var PorticoCastContracts = (function(exports) {
 						"scanProbeActive",
 						"scanProbeCapacity",
 						"admitted",
+						"inProcess",
 						"queued",
 						"refused",
 						"queueWaitMillis"

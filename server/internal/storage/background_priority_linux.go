@@ -41,6 +41,11 @@ func applyBackgroundPriority(cmd *exec.Cmd) {
 	}
 }
 
+// lowerCurrentThread gives the calling OS thread the background policies. The
+// caller is one of runLowPriority's threads, locked for the life of the
+// process, so the lowered priority never reaches other work.
+func lowerCurrentThread() { lowerThread(unix.Gettid()) }
+
 func lowerThread(tid int) {
 	_ = unix.Setpriority(unix.PRIO_PROCESS, tid, 19)
 	const (
