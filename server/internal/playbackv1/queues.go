@@ -205,6 +205,9 @@ type AdvanceRequest struct {
 	// header revision alone cannot identify a replaced session on the same entry.
 	CompletionSessionID  string `json:"completionSessionId,omitempty"`
 	CompletionGeneration int    `json:"completionGeneration,omitempty"`
+	// A chosen entry can start at a position instead of where the viewer left
+	// it: a book chapter in another part (MU-7). Only with reason "entry".
+	StartPositionMs *int64 `json:"startPositionMs,omitempty"`
 }
 
 // queueRow is one queues_v1 row.

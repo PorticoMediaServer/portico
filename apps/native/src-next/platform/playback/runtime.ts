@@ -1468,6 +1468,8 @@ export class NativePlaybackRuntime {
       && (nextFence.kind !== 'queue' || previousFence?.kind === 'queue' && previousFence.showId === nextFence.showId && previousFence.seasonId === nextFence.seasonId)
       ? previousFence : nextFence;
     const currentIndex = fence?.kind === 'queue' ? view?.items.findIndex(item => item.entryId === fence.entryId) ?? -1 : -1;
+    // A book part with known chapters moves by chapter, across parts (MU-7).
+    const chapterPrevious = fence?.kind === 'queue' ? this.queue.chapterTarget('previous') : undefined, chapterNext = fence?.kind === 'queue' ? this.queue.chapterTarget('next') : undefined;
     const ready = !!fence && !this.retired && (playback.phase === 'ready' || playback.phase === 'starting');
     const session = this.currentSession();
     const localTracks = fence?.kind === 'local' ? this.localTracks?.getSnapshot() : undefined;
@@ -1513,7 +1515,7 @@ export class NativePlaybackRuntime {
       ...(this.o.pictureInPictureControls ? {pictureInPicture: Object.freeze({request: this.pictureRequests, active: this.pictureAttempt?.state === 'active', state: this.pictureState,
         ...(this.pictureBinding && externalPresentationBinding && sameNativePresentation(this.pictureBinding, externalPresentationBinding) ? {binding: this.pictureBinding} : {})})} : {}), retired: this.retired,
       capabilities: Object.freeze({queueSelection: queueSelectionReady, queueEdit: queueEditReady, queuePolicy: ready && fence?.kind === 'queue' && !!view && session?.queue?.queueId === view.queue.id && view.queue.currentEntryId === fence.entryId, retry: playback.phase === 'error' && !this.preparing && fence?.kind === 'queue' && session?.kind === 'vod' && session.presentation.subtitle?.delivery !== 'other' && view?.queue.currentEntryId === fence.entryId && view.queue.entries.some(entry => entry.id === fence.entryId && !entry.hidden && !entry.removed), play: ready && playback.intent === 'paused', pause: ready && playback.intent === 'playing', stop: !!fence, seek: ready && (seekWindow ? seekWindow.endSeconds > seekWindow.startSeconds : playback.duration > 0),
-        previous: ready && fence?.kind === 'queue' && (playback.positionSeconds > 3 || currentIndex > 0), next: ready && fence?.kind === 'queue' && !!view && view.next.reason !== 'end', cast: ready && fence?.kind === 'queue' && !!this.o.openDestinations,
+        previous: ready && fence?.kind === 'queue' && (chapterPrevious !== undefined ? !!chapterPrevious : playback.positionSeconds > 3 || currentIndex > 0), next: ready && fence?.kind === 'queue' && (chapterNext !== undefined ? !!chapterNext : !!view && view.next.reason !== 'end'), cast: ready && fence?.kind === 'queue' && !!this.o.openDestinations,
         // The system route picker moves the retained player; Portico adds no second transport.
         airPlayVideo: ready && fence?.kind === 'queue' && localPicture?.kind === 'video' && !this.path.controller.getSnapshot().changing
           && this.o.engineFeatures(this.coordinator.getEngine() === 'mpv' ? 'mpv' : 'native').airPlayVideo,
@@ -1773,8 +1775,18 @@ export class NativePlaybackRuntime {
     this.playback.seek(seconds);
   };
   skip = async (fence: PlaybackFence, seconds: number): Promise<void> => { if (this.matches(fence) && Number.isFinite(seconds)) await this.seek(fence, Math.max(0, this.playback.getSnapshot().positionSeconds + seconds)); };
-  previous = async (fence: PlaybackFence): Promise<void> => { if (this.matches(fence) && this.snapshot.capabilities.previous) await this.queue.previous(); };
-  next = async (fence: PlaybackFence): Promise<void> => { const view = this.queue.getSnapshot().view; if (this.matches(fence) && this.snapshot.capabilities.next && view) await this.queue.next(view.queue.id, view.queue.revision); };
+  previous = async (fence: PlaybackFence): Promise<void> => { if (this.matches(fence) && this.snapshot.capabilities.previous && !await this.chapterMove(fence, 'previous')) await this.queue.previous(); };
+  next = async (fence: PlaybackFence): Promise<void> => { const view = this.queue.getSnapshot().view; if (this.matches(fence) && this.snapshot.capabilities.next && !await this.chapterMove(fence, 'next') && view) await this.queue.next(view.queue.id, view.queue.revision); };
+  /** On a book part with known chapters, Previous and Next move by chapter: a seek within the
+   * part, else a jump to the chapter's part at the chapter's start (MU-7). False: the queue moves. */
+  private async chapterMove(fence: PlaybackFence, direction: 'previous' | 'next'): Promise<boolean> {
+    if (fence.kind !== 'queue') return false;
+    const target = this.queue.chapterTarget(direction);
+    if (target === undefined) return false;
+    if (target === null) return true;
+    await this.queue.playChapter(target, seconds => this.seek(fence, seconds));
+    return true;
+  }
   goLive = async (fence: PlaybackFence): Promise<void> => { if (this.matches(fence) && fence.kind === 'channel') this.channelControl?.goLive(); };
 
   /** The remote dock's own transitions: this app's player is not the source of any of them. */

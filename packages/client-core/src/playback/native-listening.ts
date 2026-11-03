@@ -100,8 +100,9 @@ export type NativeQueueAdvance='next'|'previous'|'entry';
 export interface NativeListeningV1Control {
  adopt(context:NativeListeningV1Context,sink:(event:NativeListeningV1Event)=>void):Promise<void>;
  action(action:ListeningAction,value?:number,expected?:NativeListeningCommandTarget):Promise<void>;
- /** A queue move the viewer asked for; the owner sends the `:advance` and plays its session. */
- advance(reason:NativeQueueAdvance,entryId?:string):Promise<void>;
+ /** A queue move the viewer asked for; the owner sends the `:advance` and plays its session,
+  * from `startSeconds` for a chosen entry when given (a chapter in another book part). */
+ advance(reason:NativeQueueAdvance,entryId?:string,startSeconds?:number):Promise<void>;
  refresh():Promise<void>;
  deadlines(value:ListeningDeadlines):Promise<void>;
  configure?(policy:NativeListeningPolicy):Promise<boolean>;

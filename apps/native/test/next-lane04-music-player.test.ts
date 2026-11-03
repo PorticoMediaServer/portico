@@ -108,8 +108,9 @@ test('audiobook controls use configured skips and canonical chapter/rate/sleep p
   assert.equal(f.button('shuffle'), undefined); assert.equal(f.button('repeat'), undefined);
   f.button('skip-back').props.onPress(); f.button('skip-forward').props.onPress();
   assert.deepEqual(f.commands.map(command => command.seconds), [55, 100]);
-  f.button('next-chapter').props.onPress(); await Promise.resolve(); await Promise.resolve();
-  assert.equal(f.commands.at(-1).seconds, 120);
+  // MU-7: the chapter arrows are the runtime's Previous/Next, which move by book chapter across parts.
+  f.button('next-chapter').props.onPress(); f.button('previous-chapter').props.onPress();
+  assert.deepEqual(f.commands.slice(-2).map(command => command.type), ['next', 'previous']);
   f.button('speed').props.onPress(); f.render();
   const speed = f.button('speed-menu'); assert.equal(speed.props.open, true);
   speed.props.items.find((item: any) => item.id === '1.5').onSelect(); assert.deepEqual(f.rates, [1.5]);

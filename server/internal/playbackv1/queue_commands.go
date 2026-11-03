@@ -1206,6 +1206,9 @@ func (s *Service) Advance(ctx context.Context, c Caller, id, ifMatch string, req
 	default:
 		return QueueReply{}, &FieldError{Path: "reason"}
 	}
+	if req.StartPositionMs != nil && (req.Reason != "entry" || *req.StartPositionMs < 0 || *req.StartPositionMs > maxStartPositionMs) {
+		return QueueReply{}, &FieldError{Path: "startPositionMs"}
+	}
 	q, err := s.queueFor(ctx, c, id, ifMatch, true)
 	if err != nil {
 		return QueueReply{}, err
@@ -1351,6 +1354,10 @@ func (s *Service) Advance(ctx context.Context, c Caller, id, ifMatch string, req
 		// the quality request.
 		if err == nil && (old.ended == 0 || req.Reason == "completion" && old.device == c.DeviceID) {
 			start := StartRequest{Queue: &QueueRef{QueueID: l.q.id, EntryID: reply.Queue.Current.EntryID}}
+			if req.StartPositionMs != nil && reply.Queue.Current.EntryID == req.EntryID {
+				position := *req.StartPositionMs
+				start.StartPositionMs = &position
+			}
 			var prior struct {
 				storedRequest
 				State string `json:"state"`

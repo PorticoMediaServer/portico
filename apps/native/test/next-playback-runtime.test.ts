@@ -3543,3 +3543,25 @@ test('N1-4: a streamed subtitle the engine cannot take up is marked unavailable,
     assert.equal(d.runtime.getSnapshot().subtitleUnavailable, undefined, 'a failure about another plan never marks this one');
   } finally {d.runtime.dispose();}
 });
+
+test('MU-7: on a book part with chapters, Previous and Next move by chapter, into another part at the chapter start', async () => {
+  const d = fixture();
+  try {
+    d.runtime.connect();
+    await d.runtime.queue.playEntries([queueItemInput('song-1'), queueItemInput('song-2')], {startSeconds: 0}); await settle();
+    const fence = d.runtime.getSnapshot().fence; assert.ok(fence?.kind === 'queue');
+    const runtime = d.runtime as any, queue = runtime.queue, selected: unknown[] = [], seeks: number[] = [];
+    let targets: Record<string, unknown> = {next: {itemId: 'part-b', startSeconds: 30}, previous: {itemId: fence.itemId, startSeconds: 12}};
+    queue.chapterTarget = (direction: string) => targets[direction];
+    queue.selectQueuedItem = async (itemId: string, start: number) => {selected.push([itemId, start]);};
+    queue.next = async () => {throw new Error('a chapter move never moves the queue');}; queue.previous = queue.next;
+    runtime.seek = async (_fence: unknown, seconds: number) => {seeks.push(seconds);};
+    runtime.changed();
+    assert.equal(d.runtime.getSnapshot().capabilities.next, true); assert.equal(d.runtime.getSnapshot().capabilities.previous, true);
+    await d.runtime.next(fence); await d.runtime.previous(fence);
+    assert.deepEqual(selected, [['part-b', 30]], 'a chapter in another part starts that part there');
+    assert.deepEqual(seeks, [12], 'a chapter in this part is a seek');
+    targets = {next: null, previous: null}; runtime.changed();
+    assert.equal(d.runtime.getSnapshot().capabilities.next, false); assert.equal(d.runtime.getSnapshot().capabilities.previous, false);
+  } finally { d.runtime.dispose(); }
+});

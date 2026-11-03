@@ -495,13 +495,16 @@ static NSDictionary *V1DecodePlan(NSDictionary *presentation){
  if(next&&![next[@"available"] boolValue]){[self emit];return;} // the end of the queue
  [self enqueue:@"completion" entry:nil];
 }
-- (void)enqueue:(NSString *)reason entry:(NSString *)entryId {
+- (void)enqueue:(NSString *)reason entry:(NSString *)entryId {[self enqueue:reason entry:entryId startMs:nil];}
+- (void)enqueue:(NSString *)reason entry:(NSString *)entryId startMs:(NSNumber *)startMs {
  if(_actions.count>=16){[_actions removeObjectAtIndex:0];}
- [_actions addObject:@{@"reason":reason,@"entryId":entryId?:NSNull.null,@"key":NewID(),@"revision":@(++_actionRevision),@"tries":@0}];
+ [_actions addObject:@{@"reason":reason,@"entryId":entryId?:NSNull.null,@"startMs":startMs?:NSNull.null,@"key":NewID(),@"revision":@(++_actionRevision),@"tries":@0}];
 }
-- (BOOL)advance:(NSString *)reason entry:(NSString *)entryId owner:(NSString *)owner {
+- (BOOL)advance:(NSString *)reason entry:(NSString *)entryId owner:(NSString *)owner {return [self advance:reason entry:entryId start:nil owner:owner];}
+- (BOOL)advance:(NSString *)reason entry:(NSString *)entryId start:(NSNumber *)startSeconds owner:(NSString *)owner {
  if(![_owner isEqual:owner]||_terminal||![@[@"next",@"previous",@"entry"] containsObject:reason]||!_queue)return NO;
  if([reason isEqual:@"entry"]!=V1ID(entryId))return NO;
+ if(startSeconds&&(![reason isEqual:@"entry"]||!isfinite(startSeconds.doubleValue)||startSeconds.doubleValue<0))return NO;
  [self beginControlGrace];[self resetInactivity];
  // Between commit and boundary the server's queue is already on the successor: Next, Previous
  // and a lock-screen skip mean "that one, now" (INT T3). A chosen entry then moves from there.
@@ -509,12 +512,13 @@ static NSDictionary *V1DecodePlan(NSDictionary *presentation){
  if(_committed){[self promoteCommitted];if(![reason isEqual:@"entry"])return YES;}
  if([reason isEqual:@"previous"]&&!_audible&&[[_controller listeningSnapshot][@"positionSeconds"] doubleValue]>3)return [self action:@"seek" value:@0 owner:owner];
  [self dropPrepared:nil];_safetyPaused=NO;_ended=NO;
- [self enqueue:reason entry:[reason isEqual:@"entry"]?entryId:nil];[self emit];[self tick];return YES;
+ [self enqueue:reason entry:[reason isEqual:@"entry"]?entryId:nil startMs:startSeconds?@(llround(startSeconds.doubleValue*1000)):nil];[self emit];[self tick];return YES;
 }
 - (void)runAction {
  NSDictionary *action=_actions.firstObject;
  [self dropPrepared:nil]; // any queue command cancels a preparation (§18.2)
  NSMutableDictionary *body=[@{@"reason":action[@"reason"]} mutableCopy];if(V1ID(action[@"entryId"]))body[@"entryId"]=action[@"entryId"];
+ if([action[@"startMs"] isKindOfClass:NSNumber.class])body[@"startPositionMs"]=action[@"startMs"];
  NSString *session=_session[@"id"];
  [self send:@"POST" path:[self queuePath:@"advance"] body:body headers:@{@"If-Match":_queue[@"revision"],@"Idempotency-Key":action[@"key"]} completion:^(NSInteger status,id value,double started,PorticoListeningRequest *request){
   if(self->_actions.firstObject!=action||![self->_session[@"id"] isEqual:session])return;
@@ -536,15 +540,16 @@ static NSDictionary *V1DecodePlan(NSDictionary *presentation){
   [self acceptQueue:queue];
   if(V1Session(result[@"session"])){[self moveTo:result[@"session"] started:started queue:queue automatic:[action[@"reason"] isEqual:@"completion"]];return;}
   NSDictionary *current=V1Dictionary(queue[@"current"]);
-  if(V1ID(current[@"entryId"]))[self startEntry:current[@"entryId"] queue:queue automatic:[action[@"reason"] isEqual:@"completion"]];
+  if(V1ID(current[@"entryId"]))[self startEntry:current[@"entryId"] queue:queue automatic:[action[@"reason"] isEqual:@"completion"] startMs:[current[@"entryId"] isEqual:action[@"entryId"]]&&[action[@"startMs"] isKindOfClass:NSNumber.class]?action[@"startMs"]:nil];
   else{self->_safetyPaused=YES;[self apply];[self emit];}
  }];
 }
 /** An advance that didn't start the next session itself (spec §18.5 says it does; older servers
  * don't): the owner starts it, and the loop retries until the server answers (INT T14). */
-- (void)startEntry:(NSString *)entryId queue:(NSDictionary *)queue automatic:(BOOL)automatic {
- _startPending=@{@"automatic":@(automatic),@"key":NewID(),@"previous":_session[@"id"],@"queue":queue?:NSNull.null,
-  @"body":@{@"queue":@{@"queueId":_queue[@"id"],@"entryId":entryId},@"state":_intent,@"startFrom":@"resume",@"replacesSessionId":_session[@"id"]}};
+- (void)startEntry:(NSString *)entryId queue:(NSDictionary *)queue automatic:(BOOL)automatic startMs:(NSNumber *)startMs {
+ NSMutableDictionary *body=[@{@"queue":@{@"queueId":_queue[@"id"],@"entryId":entryId},@"state":_intent,@"replacesSessionId":_session[@"id"]} mutableCopy];
+ if(startMs)body[@"startPositionMs"]=startMs;else body[@"startFrom"]=@"resume";
+ _startPending=@{@"automatic":@(automatic),@"key":NewID(),@"previous":_session[@"id"],@"queue":queue?:NSNull.null,@"body":body};
  [self tick];
 }
 - (void)startPendingEntry {
