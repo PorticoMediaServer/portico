@@ -8,6 +8,8 @@ from pathlib import Path
 import re
 import subprocess
 
+import source_readers
+
 ROOT = Path(__file__).resolve().parents[1]
 COMPONENTS = ['web', 'packages', 'apps/native', 'apps/vega', 'apps/desktop', 'website']
 
@@ -20,6 +22,16 @@ def decode_stream(raw):
         obj, end = decoder.raw_decode(raw.lstrip()); result.append(obj); raw = raw.lstrip()[end:]
     return result
 
+def target_tip(group):
+    """The commit the queue's target branch points at, from the planner's full-history checkout."""
+    match=re.fullmatch(r'refs/heads/([A-Za-z0-9._/-]+)',group.get('base_ref',''))
+    if not match: raise ValueError('merge group has no target branch ref')
+    local='refs/remotes/origin/'+match[1]
+    try: return command(['git','rev-parse','--verify','--quiet',local+'^{commit}']).strip()
+    except subprocess.CalledProcessError:
+        command(['git','fetch','--no-tags','origin','+refs/heads/'+match[1]+':'+local])
+        return command(['git','rev-parse','--verify',local+'^{commit}']).strip()
+
 def base_head(event, env):
     head = command(['git', 'rev-parse', 'HEAD']).strip()
     if env.get('GITHUB_EVENT_NAME') == 'pull_request':
@@ -27,13 +39,18 @@ def base_head(event, env):
         base = command(['git', 'merge-base', head, target]).strip()
     elif env.get('GITHUB_EVENT_NAME') == 'merge_group':
         checkout=head
-        base=event['merge_group']['base_sha']
-        head=event['merge_group']['head_sha']
+        group=event['merge_group']
+        head=group['head_sha']
         if checkout != head: raise ValueError('checkout does not match merge group head')
-        for ref in [base,head]:
+        for ref in [group['base_sha'],head]:
             if not re.fullmatch('[0-9a-f]{40}',ref): raise ValueError('invalid merge group SHA')
             command(['git','cat-file','-e',ref+'^{commit}'])
-        command(['git','merge-base','--is-ancestor',base,head])
+        command(['git','merge-base','--is-ancestor',group['base_sha'],head])
+        # A group's own base_sha is the previous group's head, so a group whose diff held only web
+        # files planned no Go tests even though the groups ahead of it changed Go and nothing had
+        # merged yet. Plan against the target branch's tip: each group tests everything it carries
+        # beyond main.
+        base=command(['git','merge-base',head,target_tip(group)]).strip()
     elif env.get('GITHUB_EVENT_NAME') == 'push':
         base = event['before']
         if not re.fullmatch('[0-9a-f]{40}', base) or set(base) == {'0'}:
@@ -122,8 +139,19 @@ def guarded_costs(packages, durations):
                     adjusted[p['ImportPath']+'.'+match[1]]=0
     return adjusted
 
+def reader_packages(listed, hits):
+    """{import path: {test: [changed path]}} for the declared source-reading tests the changed paths reach."""
+    by_dir={str(Path(p['Dir']).relative_to(ROOT)):p for p in listed}; chosen={}
+    for directory,tests in hits.items():
+        if directory not in by_dir: raise ValueError('source reader package is not a Go package: '+directory)
+        chosen[by_dir[directory]['ImportPath']]=tests
+    return chosen
+
 def make_plan(paths, full=False, tier="short"):
     selected, go = components(paths,full); go_fallbacks=[]; inventory=[]; exemptions=[]; packages=[]; modules=[]
+    # Go-owned means the change itself reaches Go (server/ or apikit/, contracts, the root). A change that
+    # only reaches a test reading its files (packages/i18n, web/public) selects just those tests.
+    go_owned=go; readers={} if full else source_readers.select(paths); reader_tests={}; go=go or bool(readers)
     tags=command(['python3','scripts/release-build-tags.py','--capability']).strip()
     if go:
         for module in ['server','apikit']:
@@ -133,12 +161,17 @@ def make_plan(paths, full=False, tier="short"):
             packages.extend(listed); modules.append(module)
         probe_seeds={p['ImportPath'] for p in packages if any(re.search(r'ffmpeg|ffprobe', (Path(p['Dir'])/f).read_text(),re.I) for field in ['GoFiles','TestGoFiles','XTestGoFiles'] for f in p.get(field,[]))}
         probe_packages=closure(packages,probe_seeds)
+        far=go_owned and not any(x.startswith(('server/','apikit/')) for x in paths)
         if full: go_fallbacks.append('explicit full inventory')
-        elif not any(x.startswith(('server/','apikit/')) for x in paths): go_fallbacks.append('cross-component/root or contracts change without Go-owned paths')
-        seeds = go_seeds(packages, paths, full or not any(x.startswith(('server/','apikit/')) for x in paths),diagnostics=go_fallbacks)
+        elif far: go_fallbacks.append('cross-component/root or contracts change without Go-owned paths')
+        seeds = go_seeds(packages, paths, full or far,diagnostics=go_fallbacks)
         chosen=closure(packages,seeds)
-        if tier != 'short':
+        if tier != 'short' and go_owned:
             chosen.update(p['ImportPath'] for p in packages if any(s in p['ImportPath'] for s in ['/httpapi','/identity','/auth','/session','/privacy']))
+        # Tests that read other packages' files (source censuses and guards) are selected whenever those
+        # files change, which the import graph cannot see. A package already chosen runs all its tests.
+        reader_tests={k:v for k,v in reader_packages(packages,readers).items() if k not in chosen}
+        chosen.update(reader_tests)
         packages=[p for p in packages if p['ImportPath'] in chosen]
         for p in packages:
             # go list's build-aware files; include examples and fuzz seed parents.
@@ -161,6 +194,11 @@ def make_plan(paths, full=False, tier="short"):
     durations={k.replace('portico.local/server','github.com/PorticoMediaServer/portico/server'):v for k,v in durations.items()}
     tiers=json.loads((ROOT/'ci/tiers.json').read_text())
     all_inventory=list(inventory)
+    # A package chosen only for its source-reading tests runs just those: the rest of its tests are unrelated.
+    for package,names in reader_tests.items():
+        missing=sorted(names.keys()-{t['name'] for t in inventory if t['package']==package})
+        if missing: raise ValueError('source reader tests not in '+package+': '+', '.join(missing))
+    inventory=[t for t in inventory if t['package'] not in reader_tests or t['name'] in reader_tests[t['package']]]
     diagnostics=[t for lane in tiers['nightly_lanes'].values() for t in lane]
     exclusions=diagnostics if tier=='nightly' else tiers['nightly_only']
     if tier=='short': durations=guarded_costs(packages,durations)
@@ -194,8 +232,8 @@ def make_plan(paths, full=False, tier="short"):
     inventory=[t for t in inventory if (t['package'],t['name']) not in assigned_keys]
     bins,costs=balance(inventory,durations)
     from explain import selection_reasons
-    why=selection_reasons(paths,full,selected,go,components,js_reasons,go_fallbacks)
-    return {'selection_diagnostics':why,'ffmpeg_packages':sorted(probe_packages) if go else [],'android':android_selected(paths,full),'all_inventory':all_inventory,'nightly_diagnostics':diagnostics,'js_owned_producers':assigned,'tier':tier,'paths':paths,'tags':tags,'packages':[{'module':p['module'],'package':p['ImportPath']} for p in packages], 'inventory':inventory,'shards':bins,'predicted_seconds':costs,'js':js,'tier_exclusions':exclusions, 'compile_only_examples':exemptions, 'unmeasured_parents':[t for t in inventory if t['package']+'.'+t['name'] not in durations]}
+    why=selection_reasons(paths,full,selected,go_owned,components,js_reasons,go_fallbacks,source_readers=reader_tests)
+    return {'selection_diagnostics':why,'source_reader_tests':[{'package':k,'name':n,'changed':c} for k,v in sorted(reader_tests.items()) for n,c in sorted(v.items())],'ffmpeg_packages':sorted(probe_packages) if go else [],'android':android_selected(paths,full),'all_inventory':all_inventory,'nightly_diagnostics':diagnostics,'js_owned_producers':assigned,'tier':tier,'paths':paths,'tags':tags,'packages':[{'module':p['module'],'package':p['ImportPath']} for p in packages], 'inventory':inventory,'shards':bins,'predicted_seconds':costs,'js':js,'tier_exclusions':exclusions, 'compile_only_examples':exemptions, 'unmeasured_parents':[t for t in inventory if t['package']+'.'+t['name'] not in durations]}
 
 def event_tier(event, tier, full):
     if event in ['pull_request','push']:

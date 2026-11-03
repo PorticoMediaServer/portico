@@ -1,0 +1,218 @@
+{
+  "version": 1,
+  "readers": [
+    {
+      "package": "server/internal/dbwork",
+      "why": "Source disciplines that walk every production Go file in the server",
+      "reads": ["server/*.go"],
+      "ignore": ["*_test.go", "*/testdata/*"],
+      "files": ["server/internal/dbwork/discipline_test.go", "server/internal/dbwork/finish_discipline_test.go", "server/internal/dbwork/foreignkeys_test.go", "server/internal/dbwork/plan_census_test.go", "server/internal/dbwork/snapshot_discipline_test.go", "server/internal/dbwork/sql_callback_guard_test.go"],
+      "tests": ["TestEveryWriteHandleIsFinishedWhereItIsUsed", "TestNoArbitrarySQLCallbackSurfaces", "TestNoRawForeignKeyDisablingOutsideDBWork", "TestNoRawWriteTransactionsOutsideDBWork", "TestNoWritesThroughReadSnapshots", "TestWriteCensus"]
+    },
+    {
+      "package": "server/internal/supervise",
+      "why": "Source discipline that walks every production Go file in the server",
+      "reads": ["server/*.go"],
+      "ignore": ["*_test.go", "*/testdata/*"],
+      "files": ["server/internal/supervise/discipline_test.go"],
+      "tests": ["TestEveryGoroutineIsStartedThroughThisPackage"]
+    },
+    {
+      "package": "server/internal/mediaexec",
+      "why": "Spawn inventory that walks every production Go file in the server",
+      "reads": ["server/*.go"],
+      "ignore": ["*_test.go", "*/testdata/*"],
+      "files": ["server/internal/mediaexec/spawn_inventory_test.go"],
+      "tests": ["TestEveryProcessSpawnIsMediaexecOrListed"]
+    },
+    {
+      "package": "server/internal/persistence",
+      "why": "SQL censuses that read every production Go file in the server (the separate-folder index census scans the ingestion writes of inventory_objects)",
+      "reads": ["server/*.go", "server/internal/enrichment/testdata/schema.sql"],
+      "ignore": ["*_test.go", "*/testdata/*"],
+      "files": ["server/internal/persistence/dropped_tables_guard_test.go", "server/internal/persistence/known_schema_test.go", "server/internal/persistence/separate_folder_index_test.go", "server/internal/persistence/statements_prepare_test.go", "server/internal/persistence/statements_scan_test.go", "server/internal/persistence/upsert_trigger_guard_test.go"],
+      "tests": ["TestNoInsertOrIgnoreUpdateTriggerOnAnUpsertedTable", "TestNoProductionSQLNamesADroppedCatalogueTable", "TestProductionStatementsDoNotScanTheCatalogue", "TestProductionStatementsPrepareAgainstTheBaseline", "TestSeparateFolderHeadLiteralMatchesProductionSource", "TestSeparateFolderIndexCensusClassifiesInventoryObjectWrites", "TestSeparateFolderIndexCostsOneInsertEntryAndNoHotWrite", "TestSubsystemSchemaObjectsMatchTheSources"]
+    },
+    {
+      "package": "server/internal/operations",
+      "why": "Setting consumer guard that reads each named consumer file in the server, client-core and web",
+      "reads": ["server/*.go", "server/internal/persistence/migrations/0001_baseline.sql", "packages/client-core/src/*.ts", "web/src/shell/settings.ts"],
+      "ignore": ["*_test.go", "*/testdata/*"],
+      "files": ["server/internal/operations/setting_consumers_test.go"],
+      "tests": ["TestStoredPreferencesHaveRuntimeConsumers", "TestStoredSettingsHaveRuntimeConsumers"]
+    },
+    {
+      "package": "server/internal/compactcatalog",
+      "why": "Reads the baseline schema of the persistence package",
+      "reads": ["server/internal/persistence/migrations/0001_baseline.sql"],
+      "files": ["server/internal/compactcatalog/block_split_capacity_test.go"],
+      "tests": ["TestBlockSplitsSeekInsideEqualKeyRuns"]
+    },
+    {
+      "package": "server/internal/httpapi",
+      "why": "Route admission and credential scope guards that scan the networking package source",
+      "reads": ["server/internal/networking/*.go"],
+      "ignore": ["*_test.go", "*/testdata/*"],
+      "files": ["server/internal/httpapi/admission_test.go", "server/internal/httpapi/api_credentials_test.go"],
+      "tests": ["TestEveryRegisteredRouteHasALane", "TestEveryRouteDeclaresACredentialScope"]
+    },
+    {
+      "package": "server/internal/httpapi",
+      "why": "Compares the API level with the contracts package",
+      "reads": ["packages/contracts/src/api-level.ts"],
+      "files": ["server/internal/httpapi/api_level_test.go"],
+      "tests": ["TestAPILevelMatchesContracts", "TestCapabilitiesRegistryMatchesContracts"]
+    },
+    {
+      "package": "server/internal/httpapi",
+      "why": "Checks the unhashed web assets",
+      "reads": ["web/public/"],
+      "files": ["server/internal/httpapi/installation_assets_test.go"],
+      "tests": ["TestUnversionedWebAssetsAreNotNamedLikeHashedOnes"]
+    },
+    {
+      "package": "server/internal/httpapi",
+      "why": "Reads the publisher font",
+      "reads": ["packages/reader-core/assets/"],
+      "files": ["server/internal/httpapi/reading_publisher_assets_test.go"],
+      "tests": ["TestReadingPrivatePublisherAssetsRemainOriginalAndAuthorityBound"]
+    },
+    {
+      "package": "server/internal/reading",
+      "why": "Reads the publisher font",
+      "reads": ["packages/reader-core/assets/"],
+      "files": ["server/internal/reading/css_test.go"],
+      "tests": ["TestEPUBDeclaredLocalCSSPreservesEveryAsset", "TestEPUBOriginalObfuscatedFontsAndEncryptionAreEnumeratedUnchanged"]
+    },
+    {
+      "package": "server/internal/httpapi",
+      "why": "Reads the pinned rclone bundle lock",
+      "reads": ["third_party/rclone/bundle.lock.json"],
+      "files": ["server/internal/httpapi/reading_remote_integration_test.go"],
+      "tests": ["TestReadingRemoteDefaultProfilePreparation", "TestReadingRemoteRegistered", "TestReadingRemoteSequentialPDF"]
+    },
+    {
+      "package": "server/internal/rcloneprogram",
+      "why": "Reads the pinned rclone bundle lock",
+      "reads": ["third_party/rclone/bundle.lock.json"],
+      "files": ["server/internal/rcloneprogram/program_test.go", "server/internal/rcloneprogram/serve_real_integration_test.go"],
+      "tests": ["TestLockedCachedRangeDoesNotMaterializeWholeFile", "TestLockedCustomServeRechecksImageImmediatelyBeforeStart", "TestLockedCustomServeRejectsEnforceImageSubstitution", "TestLockedDAVMixedOperationBudget", "TestLockedDAVNestedSmallArchiveAtOneConnection", "TestLockedRcloneServeLifecycleAndObservableReplacement", "TestLockedSFTPMixedOperationBudget", "TestLockedSMBMixedOperationBudget", "TestPinnedVersionsMatchPackaging"]
+    },
+    {
+      "package": "server/internal/remotesources",
+      "why": "Reads the pinned rclone bundle lock",
+      "reads": ["third_party/rclone/bundle.lock.json"],
+      "files": ["server/internal/remotesources/fresh_range_integration_test.go"],
+      "tests": ["TestDedicatedDAVOwnerCanSaveNineSources", "TestDedicatedDAVSetupRunsBoundedOriginChecksAfterPhysicalStop", "TestFreshRangeRealMetadataAndRetainedRevocations", "TestFreshSequentialRealRangeUnsupportedOrigin", "TestImportedSavedPrivateEndpointsAndCryptOrigin", "TestNativeSavedNASConnectionAndForbiddenEdits", "TestResolvedWebDAVSetupUsesActualRetainedProcess", "TestSourceControllerRealSharedProcessAndScanPublication"]
+    },
+    {
+      "package": "server/internal/remotesources",
+      "why": "Reads the rclone program Samba fixture",
+      "reads": ["server/internal/rcloneprogram/testdata/"],
+      "files": ["server/internal/remotesources/native_nas_integration_test.go"],
+      "tests": ["TestImportedSavedPrivateEndpointsAndCryptOrigin", "TestNativeSavedNASConnectionAndForbiddenEdits"]
+    },
+    {
+      "package": "server/internal/apispec",
+      "why": "Reads the HTTP API read-path golden",
+      "reads": ["server/internal/httpapi/testdata/readpath_golden.json"],
+      "files": ["server/internal/apispec/errors_test.go"],
+      "tests": ["TestHandlerGoldenErrorEnvelopes"]
+    },
+    {
+      "package": "server/internal/assets",
+      "why": "Reads the decoder music format fixtures",
+      "reads": ["server/internal/decoder/testdata/"],
+      "files": ["server/internal/assets/music_probe_test.go", "server/internal/assets/probe_formats_test.go"],
+      "tests": ["TestLocalProbesRejectSecondaryFileDemuxers", "TestMusepackBasicProbeUsesValidatedHeaderTimeline", "TestMusepackHeaderCannotBypassObservedFactsOrReadAuthority"]
+    },
+    {
+      "package": "server/internal/assets",
+      "why": "Reads the disc fixtures",
+      "reads": ["fixtures/discs/"],
+      "files": ["server/internal/assets/disc_inventory_probe_test.go", "server/internal/assets/disc_probe_test.go"],
+      "tests": ["TestDiscTitleProbeUsesActualConfinedISOAndRechecksInvocation", "TestSelectedDiscTitleActualMediaProbe"]
+    },
+    {
+      "package": "server/internal/assets",
+      "why": "Reads the generated HDR fixtures",
+      "reads": ["fixtures/video/hdr-generated/"],
+      "files": ["server/internal/assets/dolby_vision_real_test.go"],
+      "tests": ["TestDolbyVisionDecodedSourceFactsFromGeneratedMedia"]
+    },
+    {
+      "package": "server/internal/catalog",
+      "why": "Reads the decoder music format fixtures",
+      "reads": ["server/internal/decoder/testdata/"],
+      "files": ["server/internal/catalog/music_musepack_scan_test.go"],
+      "tests": ["TestMusicMusepackBasicTimelineReachesStoredFacts"]
+    },
+    {
+      "package": "server/internal/catalog",
+      "why": "Reads the disc fixtures",
+      "reads": ["fixtures/discs/"],
+      "files": ["server/internal/catalog/disc_publication_test.go"],
+      "tests": ["TestAcceptDiscAlternateStagesRequestedTitleOnly", "TestDiscOwnerObservationChoosesLowestCurrentObjectID", "TestDiscStructurePublicationStableIdentitiesReorderAndCurrentRead", "TestDiscStructureSourceFencesAndCorruptionStayClosed", "TestFileInfoBatchedDiscFactsKeepObservationFences", "TestInfoDiscCrossedCustodySwapKeepsPinsWithCurrentObjects", "TestInfoDiscMediaSourceAlternateOnlyStagesRequestedTimedTitle", "TestInfoDiscMediaSourceAlternateRespectsOwnerChoiceAndStagesRequestedTitle", "TestInfoDiscMediaSourceMainStagesTimedTitleAndStopsWhenUnchanged", "TestInfoDiscMediaSourceRejectsUnfencedFacts", "TestInfoDiscRepointDischargesAndNormalProducerReanalyzes", "TestInfoDiscSourcePublishesNormalizedStructureAndKeepsSurvivingTokens", "TestInfoInventorySourceClearsDiscMainAssociationWithoutSelection", "TestInfoInventorySourceDiscMediaPublishesSelectedTimedTitle", "TestInfoInventorySourceFingerprintBindsHiddenTechnicalFamilies", "TestInfoInventorySourceUsesLiveFenceAndExplicitReceipt", "TestInfoOwnerMissingNeverNeedsLedgerRoomAndPinsOldTree", "TestInfoOwnerTargetChoosesFactsFreeLowestIDBeforeProbe"]
+    },
+    {
+      "package": "server/internal/catalog",
+      "why": "Reads the client-core channel tint vectors",
+      "reads": ["packages/client-core/test/fixtures/channel-tint-vectors.json"],
+      "files": ["server/internal/catalog/music_mix_tint_test.go"],
+      "tests": ["TestMusicMixTintUsesCanonicalCrossPlatformChannelVectors"]
+    },
+    {
+      "package": "server/internal/disc",
+      "why": "Reads the disc fixtures",
+      "reads": ["fixtures/discs/"],
+      "files": ["server/internal/disc/contract_test.go", "server/internal/disc/dovi_test.go"],
+      "tests": ["TestCapturedProbeStructureCannotBeMutatedByItsConsumer", "TestCapturedStructureDoesNotCarryAcrossCaptureSourceOrBytes", "TestCapturedStructureRejectsNonCaptureOrMalformedEvidence", "TestDiscISOProbeUsesActualConfinedInventoryInput", "TestDiscScopedFFmpegInputs", "TestDolbyVisionDependencyIsAnObservedSameClipVideoPID", "TestDolbyVisionDiscFixturesAndActualSandboxedProbe", "TestFFmpegInputRequiresExactObservedTitle", "TestFixtureInventoryAndNavigation", "TestHelperFixtureProbeAndCrossClipSeek", "TestHelperScrambledPESRefusesPlayableTitles", "TestISOActualUDF250Descriptor", "TestOneCaptureCannotVersionADiscFolder", "TestProbeRejectsMalformedOrAmbiguousFacts", "TestSelectedDiscTitleActualDecodedSeek"]
+    },
+    {
+      "package": "server/internal/ingestion",
+      "why": "Reads the decoder music format fixtures",
+      "reads": ["server/internal/decoder/testdata/"],
+      "files": ["server/internal/ingestion/music_scanner_conformance_test.go"],
+      "tests": ["TestMusicScannerConformanceMusepackBasicStoresValidatedTimeline"]
+    },
+    {
+      "package": "server/internal/playback",
+      "why": "Reads the decoder music format fixtures",
+      "reads": ["server/internal/decoder/testdata/"],
+      "files": ["server/internal/playback/hls_probe_formats_test.go"],
+      "tests": ["TestCopyTimelineProbeRejectsSecondaryFileDemuxers"]
+    },
+    {
+      "package": "server/internal/administration",
+      "why": "Runs the release manifest script",
+      "reads": ["scripts/write-public-update-manifest.mjs"],
+      "files": ["server/internal/administration/public_feed_test.go", "server/internal/administration/versions_test.go"],
+      "tests": ["TestAnUnsealedReleaseFeedOffersNoUpdate", "TestPublishedFeedBytesDriveUpdateNotice", "TestUpdatesReadTheManifestTheReleasePipelinePublishes"]
+    },
+    {
+      "package": "server/cmd/server",
+      "why": "Compares recovery copy with the string catalogue",
+      "reads": ["packages/i18n/src/catalog/en-US/settings.ts"],
+      "files": ["server/cmd/server/startup_recovery_test.go"],
+      "tests": ["TestRecoveryCopyMatchesStringCatalogue"]
+    },
+    {
+      "package": "server/internal/hosted",
+      "why": "Compares the account step window with the contracts package",
+      "reads": ["packages/contracts/src/account-step.ts"],
+      "files": ["server/internal/hosted/account_step_window_test.go"],
+      "tests": ["TestClientsAndServerShareOneAccountStepWindow"]
+    }
+  ],
+  "reviewed": {
+    "server/internal/hosted/owner_change_journey_test.go": "Runs go test of ./internal/httpapi as a producer; reads no file of another package",
+    "server/internal/httpapi/admin_access_test.go": "Records contract JSON under server/testdata/contracts, which belongs to no Go package, so a change there already selects every Go test",
+    "server/internal/httpapi/device_contract_test.go": "Records contract JSON under server/testdata/contracts, which belongs to no Go package, so a change there already selects every Go test",
+    "server/internal/httpapi/foundation_test.go": "Records contract JSON under server/testdata/contracts, which belongs to no Go package, so a change there already selects every Go test",
+    "server/internal/httpapi/openapi_coverage_test.go": "Reads server/api/portico.openapi.json, which belongs to no Go package, so a change there already selects every Go test; its other input is its own package",
+    "server/internal/httpapi/playback_diagnostics_test.go": "Records contract JSON under server/testdata/contracts, which belongs to no Go package, so a change there already selects every Go test",
+    "server/internal/httpapi/playback_v1_admission_test.go": "Reads contract JSON under server/testdata/contracts, which belongs to no Go package, so a change there already selects every Go test",
+    "server/internal/httpapi/reading_client_integration_test.go": "Runs the client-core reading client against a live server; an execution dependency, not a source read, and not selected by client-core changes",
+    "server/internal/storage/inventory_absence_test.go": "A ../ path is the traversal case the test refuses; nothing is read"
+  }
+}
