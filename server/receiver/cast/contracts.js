@@ -16083,6 +16083,7 @@ var PorticoCastContracts = (function(exports) {
 								"minimum": -9007199254740991,
 								"type": "integer"
 							},
+							"required": { "type": "boolean" },
 							"type": { "type": "string" }
 						},
 						"required": [
@@ -107286,6 +107287,7 @@ var PorticoCastContracts = (function(exports) {
 									"minimum": -9007199254740991,
 									"type": "integer"
 								},
+								"required": { "type": "boolean" },
 								"type": { "type": "string" }
 							},
 							"required": [
@@ -107520,6 +107522,7 @@ var PorticoCastContracts = (function(exports) {
 									"minimum": -9007199254740991,
 									"type": "integer"
 								},
+								"required": { "type": "boolean" },
 								"type": { "type": "string" }
 							},
 							"required": [
@@ -107561,6 +107564,7 @@ var PorticoCastContracts = (function(exports) {
 									"minimum": -9007199254740991,
 									"type": "integer"
 								},
+								"required": { "type": "boolean" },
 								"type": { "type": "string" }
 							},
 							"required": [
@@ -107952,6 +107956,7 @@ var PorticoCastContracts = (function(exports) {
 								"minimum": -9007199254740991,
 								"type": "integer"
 							},
+							"required": { "type": "boolean" },
 							"type": { "type": "string" }
 						},
 						"required": [
@@ -174049,6 +174054,7 @@ var PorticoCastContracts = (function(exports) {
 									"minimum": -9007199254740991,
 									"type": "integer"
 								},
+								"required": { "type": "boolean" },
 								"type": { "type": "string" }
 							},
 							"required": [
@@ -174283,6 +174289,7 @@ var PorticoCastContracts = (function(exports) {
 									"minimum": -9007199254740991,
 									"type": "integer"
 								},
+								"required": { "type": "boolean" },
 								"type": { "type": "string" }
 							},
 							"required": [
@@ -174324,6 +174331,7 @@ var PorticoCastContracts = (function(exports) {
 									"minimum": -9007199254740991,
 									"type": "integer"
 								},
+								"required": { "type": "boolean" },
 								"type": { "type": "string" }
 							},
 							"required": [
@@ -174763,6 +174771,7 @@ var PorticoCastContracts = (function(exports) {
 								"minimum": -9007199254740991,
 								"type": "integer"
 							},
+							"required": { "type": "boolean" },
 							"type": { "type": "string" }
 						},
 						"required": [
@@ -175232,6 +175241,7 @@ var PorticoCastContracts = (function(exports) {
 								"minimum": -9007199254740991,
 								"type": "integer"
 							},
+							"required": { "type": "boolean" },
 							"type": { "type": "string" }
 						},
 						"required": [
