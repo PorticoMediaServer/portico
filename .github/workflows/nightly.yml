@@ -47,7 +47,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        source: [916ff8690c2216acf1a7d4ac819bbb373a9e3e13, 1d6cf26130b942a4df2362d2cccc7ff9cd8b8165]
+        source: [916ff8690c2216acf1a7d4ac819bbb373a9e3e13, c937dd0ecfbb18cb8c12abec325787738aee166d]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -83,7 +83,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: 86c3e98fa0149a22c09051f6aa18b2dd1e7557ef
+          ref: 5bf291848d1b5ba5d926d4b81bc562de9d24d15f
           persist-credentials: false
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with:
@@ -110,5 +110,41 @@ jobs:
         if: always()
         with:
           name: darwin-product-bound
+          path: evidence
+          retention-days: 3
+
+  artwork:
+    runs-on: macos-15
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        source: [6b2b227c122718f7f1b43589eb6f496db3f38131]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ matrix.source }}
+          persist-credentials: false
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: |
+            server/go.sum
+            apikit/go.sum
+      - name: Check APFS behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TMPDIR="$(python3 -c 'import os; print(os.path.realpath(os.environ["RUNNER_TEMP"]))')"
+          mkdir evidence
+          git rev-parse HEAD > evidence/source-sha.txt
+          cd server
+          set +e
+          go test -json -p 1 -count=1 -run '^TestArtworkEnumerationUsesActualNamesStampsAndConfinedReads$' ./internal/ingestion > ../evidence/artwork.jsonl 2> ../evidence/artwork.stderr
+          echo "$?" > ../evidence/artwork.exit
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: artwork-${{ matrix.source }}
           path: evidence
           retention-days: 3
