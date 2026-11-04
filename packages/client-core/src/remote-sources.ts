@@ -835,7 +835,8 @@ async saveProfile(profile:SourceReadSettings,values:SourceReadValues,guard?:()=>
    if(!this.live()||(guard&&!guard())||epoch!==this.epoch)throw new Error('Scope changed.');
    // Recovery may supply only the CURRENT typed GET, never an old source receipt.
    if(record(raw)&&record(raw.settings)){
-    this.fence(raw);const settings=sourceReadSettings(raw.settings);
+    // The PUT's own answer: a write is checked against the fence of the reads it was made from.
+    this.fence(raw,true);const settings=sourceReadSettings(raw.settings);
     if(settings.sourceId!==profile.sourceId)invalid();
     pending.profile={settings};
    }else{
