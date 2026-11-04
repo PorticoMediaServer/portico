@@ -88,3 +88,27 @@ test('quiet section input admission cancels stale configuration while unreadabil
   fail=true;const before=f.controller.getSnapshot(section),result=await input.refresh();assert.equal(result.kind,'unreadable');if(result.kind==='unreadable')assert.equal(result.error,error);assert.equal(f.controller.getSnapshot(section),before);
  }finally{f.dispose();}
 });
+
+const quality = settingsSpec.find(section => section.scope === 'account' && section.id === 'quality')!;
+const awayConfiguration: SettingsConfiguration = {...configuration, fields: [
+  {id: 'streaming.awayExact', key: 'remote.bitrate_limit_mbps', current: 0, effective: 0, default: 0, source: 'default', configOnly: false, applicationMode: 'next-operation'},
+]};
+
+test('an owner\'s Quality page reads the server\'s away-from-home cap; a member\'s never asks (ST-7)', async () => {
+  const owner = fixture({readConfiguration: async () => awayConfiguration});
+  try {
+    assert.equal(owner.controller.awayLimit(), undefined);
+    await owner.controller.load(quality);
+    assert.equal(owner.controller.getSnapshot(quality).error, undefined);
+    assert.equal(owner.controller.awayLimit(), 'original');
+  } finally {owner.dispose();}
+  const member = fixture({owner: false, readConfiguration: async () => {throw new Error('a member never reads server configuration');}});
+  try {await member.controller.load(quality);assert.equal(member.controller.awayLimit(), undefined);assert.equal(member.controller.getSnapshot(quality).error, undefined);}
+  finally {member.dispose();}
+});
+
+test('a refused cap read leaves the row out and never fails the owner\'s own Quality page (ST-7)', async () => {
+  const f = fixture({readConfiguration: async () => {throw Object.assign(new Error('refused'), {status: 403, code: 'forbidden'});}});
+  try {await f.controller.load(quality);assert.equal(f.controller.getSnapshot(quality).error, undefined);assert.equal(f.controller.awayLimit(), undefined);}
+  finally {f.dispose();}
+});

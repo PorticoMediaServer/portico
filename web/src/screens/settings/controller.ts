@@ -148,6 +148,12 @@ export class SettingsController {
     if (this.current()) this.configuration = configuration;
   };
   getSnapshot = (section: SettingsSection) => this.sectionReads.snapshot(`${section.scope}/${section.id}`);
+  /** ST-7: the server's away-from-home cap (`streaming.awayQuality`), for a main-profile owner only, once read. */
+  awayLimit = (): string | undefined => {
+    if (!this.current() || !this.forms.runtime || !this.configuration) return undefined;
+    const binding = settingsBinding('streaming.awayQuality'), value = binding ? readSettingsBinding(binding, this.sources(), 'streaming.awayQuality') : undefined;
+    return value && typeof value.effective === 'string' ? value.effective : undefined;
+  };
   messageDetailMinutes = (): LogDetailMinutes | undefined => {
     if (!this.current()) return;
     const value = this.forms.logs?.status()?.logDetailMinutes;
@@ -265,6 +271,9 @@ export class SettingsController {
       .filter((id): id is NonNullable<typeof id> => id !== undefined && !!this.forms[id]));
     const reads = [...formIds].map(id => ({id: `form/${id}`, load: async () => {const form = this.forms[id]!;await form.load();if (form.error()) throw form.error();}}));
     if (section.scope === 'server' && this.forms.runtime) reads.push({id: 'configuration', load: this.readConfiguration});
+    // ST-7: the owner's Quality page shows the server's away-from-home cap from the same configuration document.
+    // A refused or unreadable answer leaves that row out; it never fails the viewer's own page.
+    if (section.scope === 'account' && section.id === 'quality' && this.forms.runtime) reads.push({id: 'configuration', load: () => this.readConfiguration().catch(() => {})});
     if (section.scope === 'server' && section.id === 'storage' && this.forms.runtime) reads.push({id: 'backups', load: this.backups.load});
     return this.sectionReads.load(`${section.scope}/${section.id}`, reads);
   };
