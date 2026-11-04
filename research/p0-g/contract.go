@@ -162,7 +162,7 @@ type Grant struct {
 	epoch uint64
 }
 type Governor interface {
-	Try(Request) Decision // synchronous, bounded, no waiting and no allocation/IO
+	Try(Request) Decision // synchronous, bounded, no waiting or external IO/work-buffer allocation
 	Cancel(*Grant)        // revokes new work; does NOT return physical capacity
 }
 

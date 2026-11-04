@@ -235,6 +235,10 @@ func TestIOSliceRetiresBeforeHelper(t *testing.T) {
 	helper := granted(t, g, request(c, ScanMinimum, Amounts{0, 1, 8, 0}))
 	r := request(c, ScanMinimum, Amounts{0, 0, 0, 0, 4})
 	r.IO = []DeviceIO{{DeviceID: "spindle-1", Class: Seeking, Outstanding: 1, Bytes: 4}}
+	duplicate := r
+	duplicate.Need[IOBytes] = 8
+	duplicate.IO = append(append([]DeviceIO(nil), r.IO...), r.IO[0])
+	require(t, g.Try(duplicate).Refusal.Code == Invalid, "duplicate physical IO key accepted")
 	io := granted(t, g, r)
 	require(t, g.Try(r).Refusal != nil, "two seeking streams on same spindle")
 	require(t, g.IOCompleted(io, "spindle-1") == nil, "IO seam")

@@ -57,8 +57,16 @@ func (g *Fake) Try(r Request) Decision {
 			return refuse(Capacity)
 		}
 	}
+	if len(r.IO) > 8 {
+		return refuse(Invalid)
+	}
 	ioBytes := int64(0)
-	for _, io := range r.IO {
+	for i, io := range r.IO {
+		for _, prior := range r.IO[:i] {
+			if prior.DeviceID == io.DeviceID {
+				return refuse(Invalid)
+			}
+		}
 		if io.DeviceID == "" || io.Outstanding != 1 || io.Bytes < 0 {
 			return refuse(Invalid)
 		}
