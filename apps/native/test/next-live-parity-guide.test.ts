@@ -71,7 +71,7 @@ async function fixture({isTV = false, width, height, role = 'owner', sources = t
     FlatList: ({data, renderItem, ListHeaderComponent}: any) => jsx('FlatList', null, ListHeaderComponent, ...(data ?? []).map((item: unknown, index: number) => jsx(React.Fragment, {key: index}, renderItem({item})))),
     useWindowDimensions: () => ({width: theme.width, height: height ?? 1080})};
   const controls = {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable', Segmented: 'Segmented', Select: 'Select'};
-  const focus = {FocusRegion: 'Region', FocusItem: 'FocusItem', useFocusRegistry: () => ({subscribe, cellPosition: () => undefined, focus: () => true})};
+  const focus = {FocusRegion: 'Region', FocusItem: 'FocusItem', useCovered: () => false, useFocusRegistry: () => ({subscribe, cellPosition: () => undefined, focus: () => true})};
   class FakeFeatures {
     dispose() {}
     async reminders() {return {items: []};}
@@ -93,7 +93,7 @@ async function fixture({isTV = false, width, height, role = 'owner', sources = t
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, 'react-native-gesture-handler': {GestureDetector: 'GestureDetector'},
     'react-native-reanimated': {default: {View: 'AnimatedView'}, useAnimatedStyle: (fn: () => unknown) => fn()}, '../../../../../packages/client-core/src/channel-guide': channels,
     '../../../../../packages/client-core/src/guide': guide, '../../../../../packages/client-core/src/guide/directory': {...directory, GuideFeatureClient: FakeFeatures}, './GuideLoadingMarker': {GuideLoadingMarker: 'Loading'},
-    '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, '../../shell/model': shellModel, './RecordingsScreen': {NativeRecordingsScreen: 'Recordings'}, '../../tv/layout/guide-focus': {},
+    '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, '../../platform/tv-keys': {useTVKeyEvent: noop}, '../../shell/model': shellModel, './RecordingsScreen': {NativeRecordingsScreen: 'Recordings'}, '../../tv/layout/guide-focus': {},
     '../destinations/useTVPageBack': {useTVPageBack: noop}, '../destinations/useEntryFocus': {useDestinationEntryFocus: noop}, './guide-presentation': guidePresentation,
     '../../kit/useScreenReader': {useScreenReader: () => false},
     './useGuideTimePan': {useGuideTimePan: () => ({active: false, position: {value: 0}, adjust: noop})}, '../../../../../packages/client-core/src/presentation/live-availability': availability, './guide-pan-model': guidePan, './LivePhonePicker': {NativeLivePhonePicker: 'PhonePicker'},
@@ -192,6 +192,13 @@ for (const [name, options] of [['phone', {width: 390, height: 844}], ['tablet', 
         // button, so on TV the new first row asks for that entry (not native recovery); touch has no focus to place.
         const firstRow = f.list().props.renderItem({item: 0});
         assert.equal(firstRow.props.entryEnabled, name === 'TV', name === 'TV' ? 'TV: the first row asks for the guide entry' : 'touch: no entry ask');
+        if (name === 'TV') {
+          assert.equal(firstRow.props.entryOpen(), true, 'TV: the ask is still armed');
+          // One shot: a later revision (here a sort change) is not the one Show all produced, so the row never asks again.
+          f.controller.select({sort: 'name'}); await f.host.settle();
+          await f.until(() => f.list() !== undefined);
+          assert.equal(f.list().props.renderItem({item: 0}).props.entryEnabled, false, 'TV: a later revision never asks');
+        }
       } finally {await f.close();}
     });
   }

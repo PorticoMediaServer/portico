@@ -1,6 +1,6 @@
 import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import {channelUnavailableMessage, liveGuideStale, liveServerWideNotice} from '../../../../../packages/client-core/src/presentation/live-availability';
-import React, {useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import React, {useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {FlatList, Platform, ScrollView, Text, View, VirtualizedList, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {GestureDetector} from 'react-native-gesture-handler';
@@ -13,7 +13,7 @@ import {legacyChannel, legacyProgramme, legacyProgram, layoutRow, nowNext, pxPer
 import {GuideFeatureClient, type GuideAiring, type GuideReminder} from '../../../../../packages/client-core/src/guide/directory';
 import type {RecordingDraft} from '../../../../../packages/client-core/src/dvr';
 import {Button, Chip, Focusable, Segmented, Select} from '../../kit/controls';
-import {FocusItem, FocusRegion, useFocusRegistry} from '../../kit/focus';
+import {FocusItem, FocusRegion, useCovered, useFocusRegistry} from '../../kit/focus';
 import {Banner, Dialog, Menu, ToastHost, type ToastMessage} from '../../kit/overlays';
 import {useDockClearance} from '../../kit/dock/DockClearance';
 import {Artwork, ChannelMark} from '../../kit/artwork';
@@ -25,6 +25,7 @@ import {alpha, shellType} from '../../kit/shell/visual';
 import {fontFamilies, useTheme} from '../../kit/theme';
 import {useScreenReader} from '../../kit/useScreenReader';
 import {usePlatformPosture} from '../../platform/platformPosture';
+import {useTVKeyEvent} from '../../platform/tv-keys';
 import {sameAuthority, shellLayout} from '../../shell/model';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {tvFocusIds} from '../../shell/tv-focus';
@@ -47,7 +48,7 @@ import {TVManagementHandoff} from '../../tv/auth';
 import {publicTVHandoffAddress} from '../../tv/auth/TVHandoff';
 import {seriesFormDefaults, type SeriesForm} from './recording-rule-presentation';
 import {nativeServerAdmission} from './server/tv-server-reader';
-import {liveGuideEntry, tvGroupEdges, tvProgrammeGroups} from './tv-settings-focus';
+import {guideReentryNext, liveGuideEntry, livePageTakesFocus, tvGroupEdges, tvProgrammeGroups, type GuideReentry, type GuideReentryEvent} from './tv-settings-focus';
 import {registerBack} from '../../kit/navigation/back';
 import {TVRow} from '../../kit/layout/TVRow';
 
@@ -102,8 +103,15 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   const [laterRecordings, setLaterRecordings] = useState<ReadonlyMap<string, Readonly<{id: string; state: string}>>>(new Map()), [laterRecording, setLaterRecording] = useState<ReadonlySet<string>>(new Set());
   const [recordingsOpen, setRecordingsOpen] = useState(false), [recordingsReturn, setRecordingsReturn] = useState(0), [ownerOpen, setOwnerOpen] = useState(false);
   const [managementReturn, setManagementReturn] = useState(0);
-  // The revision Show all was pressed at (TV): the guide's next rows ask for its entry once (liveGuideEntry).
-  const [guideReentry, setGuideReentry] = useState<number>();
+  // Show all's one-shot entry ask (TV): armed at the press, bound to the revision it produces, and disarmed by the
+  // remote's keys, a guide cell taking focus, a filter chosen again or any later revision (guideReentryNext).
+  const [guideReentry, setGuideReentry] = useState<GuideReentry>(), guideReentryRef = useRef<GuideReentry | undefined>(undefined);
+  const reentry = (event: GuideReentryEvent) => {
+    const next = guideReentryNext(guideReentryRef.current, event);
+    if (next !== guideReentryRef.current) {guideReentryRef.current = next; setGuideReentry(next);}
+  };
+  useLayoutEffect(() => {reentry({kind: 'revision', revision: state.revision});}, [state.revision]);
+  useTVKeyEvent(event => reentry({kind: 'key', key: event.key}));
   const [management, setManagement] = useState<Readonly<{opening: object; url: string}>>();
   const navigation = ports.context.navigation;
   const route = useSyncExternalStore(navigation.subscribe, navigation.getSnapshot);
@@ -214,7 +222,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   const selectedSources = useMemo(() => source ? [source] : state.sources, [source, state.sources]);
   const tvRegistry = useFocusRegistry(), tvRange = nativeGuidePanRange(selectedSources, end - start);
   const revealTVCell = (index: number, cell?: GuideCell) => {
-    if (guideReentry !== undefined) setGuideReentry(undefined);
+    reentry({kind: 'focus'});
     const shell = runtime.getSnapshot();
     if (!theme.isTV || managementOwnsPage() || !controller.lifetime.current() || shell.destination.kind !== 'live' || shell.contentVisible === false || shell.mediaExpanded) return;
     // Native focus has already arrived. This only brings that native host's row/time into view.
@@ -366,7 +374,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   // a count the store does not know draws none.
   const filterActive = !!state.options.favorites || !!state.options.group, hasSources = state.sources.length > 0;
   // A filter chosen again before the guide took its entry cancels it: entry must never pull focus off a chip.
-  useEffect(() => {if (filterActive) setGuideReentry(undefined);}, [filterActive]);
+  useEffect(() => {if (filterActive) reentry({kind: 'filter'});}, [filterActive]);
   const groupCounts = new Map<string, number>();
   for (const value of selectedSources) for (const group of value.groupCounts) groupCounts.set(group.name, (groupCounts.get(group.name) ?? 0) + group.count);
   const favoriteCount = hasSources ? selectedSources.reduce((sum, value) => sum + value.favoriteCount, 0) : undefined;
@@ -382,7 +390,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   // Show all unmounts the focused button and this whole region; on TV the guide then asks for its own entry
   // (tv-focus 24: the programme on now on the first channel) instead of leaving focus to native recovery.
   const filterEmptyView = <StateView testID="live-filter-empty" title={t('guide.filterEmpty', {filter: state.options.group ?? t('channels.favorites')})}
-    primaryAction={{id: 'show-all', label: t('channels.showAll'), onPress: () => {if (theme.isTV) setGuideReentry(state.revision); select({favorites: false, group: undefined});}}}/>;
+    primaryAction={{id: 'show-all', label: t('channels.showAll'), onPress: () => {if (theme.isTV) reentry({kind: 'press', revision: state.revision}); select({favorites: false, group: undefined});}}}/>;
   const managesServer = managementCurrent();
   // The public destination must be registered by Web and admitted by the handoff's
   // exact public URL validator before a control can offer it.
@@ -528,7 +536,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
         <VirtualizedList ref={list} refreshControl={pull} key={`${state.revision}:${view}`} data={null} getItem={(_, index) => index} getItemCount={() => data.total ?? 12} keyExtractor={index => String(index)} initialNumToRender={12} maxToRenderPerBatch={12} windowSize={5} removeClippedSubviews={false} getItemLayout={(_, index) => ({index, length: rowHeight + rowGap, offset: index * (rowHeight + rowGap)})}
           onLayout={() => list.current?.scrollToOffset({offset: guideOffset.current, animated: false})} onScroll={event => {guideOffset.current = event.nativeEvent.contentOffset.y;}} scrollEventThrottle={16}
           onViewableItemsChanged={({viewableItems}) => {const rows = visibleGuideRows(viewableItems.map(value => value.index).filter((value): value is number => value !== null)); if (!rows) return; visible.current = rows; controller.setViewport({firstRow: visible.current.first, lastRow: visible.current.last, start, end});}}
-          renderItem={({item: index}) => <LiveRow tvRange={tvRange} onTVFocus={revealTVCell} panPosition={panPosition} panActive={panActive} laneWidth={width - channelWidth} clock={clock} entryEnabled={liveGuideEntry(state.revision, recordingsReturn, managementReturn, guideReentry)} key={`${state.revision}:${index}`} index={index} controller={controller} runtime={runtime} start={start} end={end} now={now} channelWidth={channelWidth} rowHeight={rowHeight} px={px} list={view === 'list'} onOpen={open} onChannelMenu={openChannelMenu} selected={twoPane ? selected : undefined} grid={grid} watch={watch}/>}/>
+          renderItem={({item: index}) => <LiveRow tvRange={tvRange} onTVFocus={revealTVCell} panPosition={panPosition} panActive={panActive} laneWidth={width - channelWidth} clock={clock} entryEnabled={liveGuideEntry(state.revision, recordingsReturn, managementReturn, guideReentry)} entryOpen={() => guideReentry === undefined || guideReentryRef.current !== undefined} key={`${state.revision}:${index}`} index={index} controller={controller} runtime={runtime} start={start} end={end} now={now} channelWidth={channelWidth} rowHeight={rowHeight} px={px} list={view === 'list'} onOpen={open} onChannelMenu={openChannelMenu} selected={twoPane ? selected : undefined} grid={grid} watch={watch}/>}/>
         </FocusRegion>
         {phone && view === 'guide' && <Animated.View pointerEvents="none" style={[{position: 'absolute', left: channelWidth, top: 30, bottom: 0}, pastShade]}><Svg width="100%" height="100%" accessible={false}><Defs><LinearGradient id={`${shadeId}-past`} x1="0" y1="0" x2="1" y2="0"><Stop offset="0" stopColor={theme.colors.ink} stopOpacity={.38}/><Stop offset="1" stopColor={theme.colors.ink} stopOpacity={.12}/></LinearGradient></Defs><Rect width="100%" height="100%" fill={`url(#${shadeId}-past)`}/></Svg></Animated.View>}
         {view === 'guide' && (inNowSpan || panActive) && <View pointerEvents="none" style={{position: 'absolute', left: channelWidth, right: 0, top: 0, bottom: theme.isTV ? 60 : 0, overflow: 'hidden'}}><Animated.View style={[{position: 'absolute', left: nowX, top: 0, bottom: 0, width: theme.isTV ? 3 : 2, backgroundColor: `${theme.colors.accentStrong}88`}, nowShift]}><Animated.View style={[{position: 'absolute', top: theme.isTV ? 0 : 4, width: 60, height: theme.isTV ? 30 : 22, alignItems: 'center', justifyContent: 'center', borderRadius: theme.isTV ? 6 : 4, backgroundColor: theme.colors.accentStrong}, nowPillShift]}><Text style={[shellType(theme.isTV ? 20 : 12, 800), {color: theme.colors.ink}]}>{clock(now)}</Text></Animated.View></Animated.View></View>}
@@ -578,7 +586,7 @@ const cellFocusId = (channel: GuideChannelRow, cell: GuideCellIdentity) =>
     cell.kind === 'programme' ? cell.id : cell.kind === 'gap' ? cell.start : null]);
 const cellRefKey = (cell: GuideCell) => JSON.stringify([cell.program ? 'programme' : 'gap', cell.program?.id ?? cell.start]);
 
-function LiveRow({selected, onChannelMenu, tvRange, onTVFocus, panPosition, panActive, laneWidth, clock, entryEnabled, index, controller, runtime, start, end, now, channelWidth, rowHeight, px, list, onOpen, grid, watch}: {tvRange: ReturnType<typeof nativeGuidePanRange>; onTVFocus: (index: number, cell?: GuideCell) => void; panPosition: SharedValue<number>; panActive: boolean; laneWidth: number; clock: (at: number) => string | undefined; entryEnabled: boolean; index: number; controller: NativeLiveController; runtime: NativeShellRuntime; start: number; end: number; now: number; channelWidth: number; rowHeight: number; px: number; list: boolean; onOpen: (channel: GuideChannelRow, program?: GuideProgram, node?: View | null) => void; grid: string; watch: (channel: GuideChannelRow) => void; onChannelMenu: (channel: GuideChannelRow, node?: View | null) => void; selected?: Readonly<{channel: GuideChannelRow; program?: GuideProgram}>}) {
+function LiveRow({selected, onChannelMenu, tvRange, onTVFocus, panPosition, panActive, laneWidth, clock, entryEnabled, entryOpen, index, controller, runtime, start, end, now, channelWidth, rowHeight, px, list, onOpen, grid, watch}: {tvRange: ReturnType<typeof nativeGuidePanRange>; onTVFocus: (index: number, cell?: GuideCell) => void; panPosition: SharedValue<number>; panActive: boolean; laneWidth: number; clock: (at: number) => string | undefined; entryEnabled: boolean; entryOpen: () => boolean; index: number; controller: NativeLiveController; runtime: NativeShellRuntime; start: number; end: number; now: number; channelWidth: number; rowHeight: number; px: number; list: boolean; onOpen: (channel: GuideChannelRow, program?: GuideProgram, node?: View | null) => void; grid: string; watch: (channel: GuideChannelRow) => void; onChannelMenu: (channel: GuideChannelRow, node?: View | null) => void; selected?: Readonly<{channel: GuideChannelRow; program?: GuideProgram}>}) {
   const theme = useTheme(), t = runtime.text.t, guide = controller.guide;
   useSyncExternalStore(listener => guide.subscribePage(guide.pageOf(index), listener), () => guide.getSnapshot().version);
   const overscan = theme.isTV ? tvRange ? SLOT_MS : 0 : panActive ? (end - start) / 2 : 0;
@@ -593,7 +601,15 @@ function LiveRow({selected, onChannelMenu, tvRange, onTVFocus, panPosition, panA
   const entryCell: GuideCellIdentity | undefined = list ? {kind: 'now'}
     : first ? {kind: 'programme', id: first.id}
       : cells[0] ? {kind: 'gap', start: cells[0].start} : undefined;
-  const entry = useScreenEntry(theme.isTV && entryEnabled && index === 0 && channel && entryCell ? {regionId: grid, childId: cellFocusId(channel, entryCell)} : undefined, controller.lifetime.current);
+  // The ask is made only while the page can take it: not covered, still the Live destination, visible and not
+  // under expanded media (what revealTVCell checks, plus covered), and not cancelled since it was armed.
+  const covered = useCovered(), coveredRef = useRef(covered), entryOpenRef = useRef(entryOpen); coveredRef.current = covered; entryOpenRef.current = entryOpen;
+  const entryCurrent = useCallback(() => {
+    if (!controller.lifetime.current()) return false;
+    const shell = runtime.getSnapshot();
+    return livePageTakesFocus({covered: coveredRef.current, destination: shell.destination.kind, contentVisible: shell.contentVisible, mediaExpanded: shell.mediaExpanded}) && entryOpenRef.current();
+  }, [controller, runtime]);
+  const entry = useScreenEntry(theme.isTV && entryEnabled && index === 0 && channel && entryCell ? {regionId: grid, childId: cellFocusId(channel, entryCell)} : undefined, entryCurrent);
   const channelRef = useRef<View>(null), programRefs = useRef(new Map<string, View>());
   if (!channel) return theme.isTV ? <View style={{height: rowHeight, marginBottom: rowGap, flexDirection: 'row', backgroundColor: theme.colors.raised, opacity: .4, borderRadius: 12}}>
     <FocusItem focusId={`pending-channel:${index}`} cell={{row: index, kind: 'channel'}}><Focusable focusKind="row" accessibilityLabel={t('status.loading')} onFocus={() => onTVFocus(index)} style={{width: channelWidth, height: rowHeight}}/></FocusItem>
