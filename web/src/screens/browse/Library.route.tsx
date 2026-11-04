@@ -219,7 +219,7 @@ function withLinkToast(menu: ReactNode, toast: ToastData | null, dismiss: () => 
   return menu === undefined ? undefined : <>{menu}<ToastHost toast={toast} onDismiss={dismiss}/></>;
 }
 function libraryMenu(resources: {life: {current: () => boolean}; controller?: {canSaveView: () => boolean}}, context: ScreenContext, library: Library, onlineAttention: boolean, save: () => void, scan?: () => void, markAll?: () => void, copy?: () => void) {
-  const owner = context.identity?.viewer.role === 'owner' && context.identity.viewer.authority === 'local' && context.identity.capabilities?.manageServer === true;
+  const owner = managesServer(context);
   const unmatched = onlineAttention && context.effects.editMetadata ? () => {if (resources.life.current() && context.isCurrent()) void router.navigate({to: '/library/$libraryId', params: {libraryId: library.id}, search: {unmatched: true}}).catch(context.effects.reportError);} : undefined;
   const settings = owner ? () => {if (resources.life.current() && context.isCurrent()) void router.navigate({to: '/settings', search: {scope: 'server', section: 'libraries'}}).catch(context.effects.reportError);} : undefined;
   const canSave = resources.life.current() && context.isCurrent() && !!resources.controller?.canSaveView();
@@ -227,9 +227,15 @@ function libraryMenu(resources: {life: {current: () => boolean}; controller?: {c
   return <LibraryMenu owner={!!owner} read={isReadingLibrary(library.kind)} {...(copy ? {onCopyLink: copy} : {})} {...(markAll ? {onMarkAll: markAll} : {})} {...(canSave ? {onSaveView: save} : {})} {...(unmatched ? {onUnmatched: unmatched} : {})}
     {...(settings ? {onLibrarySettings: settings} : {})} {...(scan ? {onScan: scan} : {})}/>;
 }
+/** The local owner who may manage this server. A reading screen's identity may carry no viewer yet (it reads its
+ * pivots first), so every step is optional. */
+function managesServer(context: ScreenContext): boolean {
+  const identity = context.identity, viewer = identity?.viewer;
+  return viewer?.role === 'owner' && viewer.authority === 'local' && identity?.capabilities?.manageServer === true;
+}
 /** Scan for new files, offered to the owner when the server lists `scan` for this library. Every library kind's ⋯ uses it. */
 function useLibraryScan(context: ScreenContext, library: Library, life: ScanLease['life']): (() => void) | undefined {
-  const manageServer = context.identity?.viewer.authority === 'local' && context.identity.viewer.role === 'owner' && context.identity.capabilities?.manageServer === true;
+  const manageServer = managesServer(context);
   const [scanOffer, setScanOffer] = useState<Readonly<{lease: ScanLease; allowed: boolean}>>();
   useLayoutEffect(() => {
     if (!manageServer) {setScanOffer(undefined); return;}
