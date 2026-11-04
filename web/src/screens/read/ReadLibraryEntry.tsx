@@ -3,7 +3,7 @@ import {forwardIdentity} from '../detail/context';
 import {useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {calendarDate, defaultI18n} from '@i18n';
 import {generatedCoverTint} from '@design';
-import type {ReadingDiscover, ReadingDiscoverRowKey, ReadingShortRead, ReadingPeriodicalIssue, ReadingPeriodicalGroup} from '@portico/client-core';
+import {readingResumePage, type ReadingDiscover, type ReadingDiscoverRowKey, type ReadingShortRead, type ReadingPeriodicalIssue, type ReadingPeriodicalGroup} from '@portico/client-core';
 import type {FactPart} from '@portico/client-core/kit-model';
 import {useProtectedWebScreenContext} from '../../route-registry-view';
 import {router} from '../../router';
@@ -49,14 +49,17 @@ const generated = (item: Readonly<{title: string; author?: Readonly<{value: stri
 
 /** The accepted Continue index already names the actual progressed version. */
 function resumeRows(resources: Resources, items: readonly ReadingContinueItem[]): readonly ReadResumeItem[] {
+  const page = (row: ReadingContinueItem) => readingResumePage(row.progress);
   return items.map(row => ({id: row.item.id, card: {
     artwork: resources.artwork.foreground(row.item.coverUrl, 380, 2 / 3),
     /** desktop-read 1b: an issue keeps its own 3:4 cover, a book keeps the drawn spine. */
     kind: row.item.publicationType?.value === 'magazine' ? 'magazine' as const : row.item.publicationType?.value === 'newspaper' ? 'newspaper' as const : 'book' as const,
     model: {title: row.item.title, caption: authorFacts(row.item.author), progress: row.progress.location.progression},
-    /** desktop-read 1b: where you are, from the saved location's own section. A stale
-     *  location is not presented as current, and no remaining time is inferred. */
-    ...(row.progress.stale || !row.progress.location.section ? {} : {location: {id: 'section', text: row.progress.location.section, role: 'context' as const}}),
+    /** desktop-read 1b: where you are. A page book says its page; an EPUB's saved section is a
+     *  package path (OEBPS/chapter3.xhtml), never a place a reader would name, so it says nothing
+     *  until the row carries a chapter title (SRV-A2). A stale location is not presented as
+     *  current, and no remaining time is inferred. */
+    ...(page(row) === undefined ? {} : {location: {id: 'section', text: t('next.reader.pageLabel', {page: defaultI18n.number(page(row)!)}), role: 'context' as const}}),
     fallback: generated(row.item), disabled: !row.item.inventoryAvailable, visible: true, playLabel: t('next.reader.read'),
     onNavigate: () => {if (resources.bindings.authority.isCurrent()) void router.navigate({to: '/item/$itemId', params: {itemId: row.item.id}}).catch(resources.reportError);},
     onPlay: row.item.inventoryAvailable ? () => {if (resources.bindings.authority.isCurrent()) void router.navigate(readChosenDestination(row.item.id)).catch(resources.reportError);} : undefined,
