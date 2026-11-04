@@ -246,6 +246,15 @@ class PorticoPlaybackModule(context: ReactApplicationContext) : PorticoEventModu
   }
 
   @ReactMethod
+  fun listeningChapters(owner: String?, plan: ReadableMap?, promise: Promise) {
+    val value = plan?.toHashMap()
+    main.post {
+      if (!invalidated && v1(owner) && listening.chapters(value, owner!!)) promise.resolve(true)
+      else promise.reject("listening_chapters", "Chapter steps could not be saved.")
+    }
+  }
+
+  @ReactMethod
   fun listeningDeadlines(owner: String?, deadlines: ReadableMap?, promise: Promise) {
     val value = deadlines?.toHashMap()
     main.post {

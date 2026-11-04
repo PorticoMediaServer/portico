@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {bookChapterIndex, bookChapterTarget, playingBookChapter, readBookChapters, type BookChapter} from '../src/book-chapters.ts';
+import {bookChapterIndex, bookChapterMove, bookChapterSteps, bookChapterTarget, playingBookChapter, readBookChapters, type BookChapter} from '../src/book-chapters.ts';
 import {PlaybackService} from '../src/index.ts';
 import {FakePlaybackServer, fakeHttp} from '../src/playback-v1/testing/fake-server.ts';
 import {V1PlaybackApi} from '../src/playback-v1/legacy-bridge.ts';
@@ -55,6 +55,30 @@ test('Previous and Next chapter step through the book, across parts', () => {
   assert.equal(bookChapterTarget(chapters, 'part-b', 32, 'previous')?.id, 'part-a:2', 'at the start of a part, Previous goes to the part before');
   assert.equal(bookChapterTarget(chapters, 'part-a', 2, 'previous'), null, 'nothing before the first chapter');
   assert.equal(bookChapterTarget(chapters, 'part-z', 2, 'next'), undefined, 'a part the list doesn\'t know moves the queue instead');
+});
+
+test('MU-7: the steps a native player holds move exactly as Previous and Next chapter do in the app', () => {
+  // Three parts, the middle one with a gap before its first chapter, so every edge is covered.
+  const chapters: BookChapter[] = [
+    ...rows(),
+    {id: 'part-c:1', itemId: 'part-c', index: 1, number: 5, title: 'Five', startSeconds: 0, endSeconds: 60},
+  ];
+  const entries: Record<string, string> = {'part-a': 'e-a', 'part-b': 'e-b', 'part-c': 'e-c'};
+  for (const itemId of ['part-a', 'part-b', 'part-c']) {
+    const plan = bookChapterSteps(chapters, 's1', itemId, id => entries[id])!;
+    assert.ok(plan.steps.length <= chapters.length);
+    for (let seconds = 0; seconds <= 1900; seconds += 0.25) for (const direction of ['previous', 'next'] as const) {
+      const target = bookChapterTarget(chapters, itemId, seconds, direction);
+      const expected = target === null ? null : target!.itemId === itemId ? {kind: 'seek', seconds: target!.startSeconds} : {kind: 'entry', entryId: entries[target!.itemId], startSeconds: target!.startSeconds};
+      assert.deepEqual(bookChapterMove(plan, seconds, direction), expected, `${itemId} ${direction} at ${seconds}`);
+    }
+  }
+  const unseen = bookChapterSteps(chapters, 's1', 'part-b', id => id === 'part-b' ? 'e-b' : undefined)!;
+  assert.deepEqual(unseen.steps.map(step => step.entryId), [null, null], 'a part whose queue entry isn\'t known is left out');
+  assert.deepEqual(bookChapterMove(unseen, 1000, 'next'), {kind: 'queue'}, 'and the queue moves instead');
+  assert.deepEqual(bookChapterMove(unseen, 31, 'previous'), {kind: 'queue'});
+  assert.deepEqual(bookChapterMove(unseen, 100, 'next'), {kind: 'seek', seconds: 900});
+  assert.equal(bookChapterSteps(chapters, 's1', 'part-z', id => entries[id]), undefined);
 });
 
 test('a playing book reads its chapters once, and a chapter in another part starts there in the same queue move', async () => {

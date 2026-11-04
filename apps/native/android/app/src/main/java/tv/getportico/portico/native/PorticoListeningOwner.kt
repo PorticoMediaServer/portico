@@ -72,6 +72,8 @@ internal class PorticoListeningOwner(private val context: Context, private val c
   // The session reported for now; while a committed edge drains, `audible` is the one heard.
   private var session: Map<String, Any?> = emptyMap()
   private var audible: Map<String, Any?>? = null
+  /** The playing book part's chapter steps, for remote Previous and Next (MU-7). */
+  private var chapterSteps: Map<String, Any?>? = null
   private var end: Map<String, Any?>? = null
   private var queueHeader: Map<String, Any?>? = null
   private var queue: MutableMap<String, Any?>? = null
@@ -185,6 +187,7 @@ internal class PorticoListeningOwner(private val context: Context, private val c
     mutationIssuedBaseMs = System.currentTimeMillis() + (num(handover["mutationClockOffsetMs"])?.toLong() ?: 0L); mutationClockMono=mono()
     this.mutationScope = mutationScope; stopDisposition = null
     activeOwner = owner
+    chapterSteps = null
     this.origin = origin
     this.token = token
     journalKey = "listening-v1:$principal"
@@ -1052,6 +1055,30 @@ internal class PorticoListeningOwner(private val context: Context, private val c
     return true
   }
 
+  /** The app's chapter steps for the playing book part, or null off a book (MU-7). */
+  fun chapters(value: Map<String, Any?>?, owner: String): Boolean {
+    if (activeOwner != owner || terminal) return false
+    if (value != null && !PorticoListeningPolicy.validChapterSteps(value)) return false
+    chapterSteps = value
+    return true
+  }
+
+  /** On a book part with chapter steps, remote Previous and Next move by chapter, as the app's
+   * own buttons do: a seek in this part, else the chapter's part from the chapter's start. False:
+   * the queue moves as for any other item. */
+  private fun chapterRemote(next: Boolean, owner: String): Boolean {
+    val plan = chapterSteps ?: return false
+    if (audible != null || plan["sessionId"] != session["id"] || plan["itemId"] != session["itemId"]) return false
+    val position = num(controller.listeningSnapshot()["positionSeconds"]) ?: return false
+    val move = PorticoListeningPolicy.chapterMove(plan, position, next) ?: return true
+    when (move.kind) {
+      "seek" -> action("seek", move.seconds, owner)
+      "entry" -> advance("entry", move.entryId, owner, move.seconds)
+      else -> return false
+    }
+    return true
+  }
+
   fun credentials(token: String?, owner: String): Boolean {
     if (activeOwner != owner || terminal || token.isNullOrEmpty() || token.contains('\n') || token.contains('\r')) return false
     this.token = token
@@ -1416,6 +1443,7 @@ internal class PorticoListeningOwner(private val context: Context, private val c
     var amount = value
     if (action == "toggle") resolved = if (allowed() && intent == "playing") "pause" else "resume"
     if (action == "skip") { amount = Math.max(0.0, (num(controller.listeningSnapshot()["positionSeconds"]) ?: 0.0) + (value ?: 0.0)); resolved = "seek" }
+    if ((action == "next" || action == "previous") && chapterRemote(action == "next", owner)) return
     action(resolved, amount, owner)
   }
 

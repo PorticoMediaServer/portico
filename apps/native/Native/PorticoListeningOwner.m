@@ -147,6 +147,8 @@ static NSDictionary *V1DecodePlan(NSDictionary *presentation){
  NSString *_owner,*_origin,*_token,*_journalKey,*_error,*_notice,*_audioAttempt;
  // The session reported for now; while a committed edge drains, `_audible` is the one heard.
  NSDictionary *_session,*_audible,*_end,*_queueHeader;
+ // The playing book part's chapter steps, for remote Previous and Next (MU-7).
+ NSDictionary *_chapterSteps;
  NSMutableDictionary *_queue;
  double _duration,_audibleDuration,_pausedAt;
  BOOL _transitions,_wasPlaying;
@@ -211,7 +213,7 @@ static NSDictionary *V1DecodePlan(NSDictionary *presentation){
  if(_owner)[self retire:_owner stop:NO];
  _mutationIssuedBaseMs=Wall()*1000+[context[@"mutationClockOffsetMs"] doubleValue];_mutationClockMono=Mono();
  _mutationScope=V1Dictionary(context[@"mutationScope"]);_stopDisposition=nil;
- _owner=[owner copy];_origin=[origin copy];_token=[token copy];_journalKey=[@"listening-v1:" stringByAppendingString:principal];
+ _owner=[owner copy];_chapterSteps=nil;_origin=[origin copy];_token=[token copy];_journalKey=[@"listening-v1:" stringByAppendingString:principal];
  _pausedAt=0;_wasPlaying=NO;_session=[session copy];_audible=nil;_end=nil;_queueHeader=nil;
  _queue=V1ID(queueId)?[@{@"id":queueId,@"revision":queueRevision} mutableCopy]:nil;
  _duration=[context[@"durationSeconds"] doubleValue];if(_duration<=0)_duration=[_render durationSeconds:session[@"presentation"]];
@@ -797,6 +799,25 @@ static BOOL ListeningConsecutiveOnAlbum(NSString *album,NSInteger disc,NSInteger
  if(![_owner isEqual:owner]||_terminal||!Text(token)||[token rangeOfCharacterFromSet:NSCharacterSet.newlineCharacterSet].location!=NSNotFound)return NO;
  _token=[token copy];return YES;
 }
+- (BOOL)chapters:(NSDictionary *)plan owner:(NSString *)owner {
+ if(![_owner isEqual:owner]||_terminal)return NO;
+ if(plan&&(id)plan!=NSNull.null&&!PorticoChapterStepsValid(plan))return NO;
+ _chapterSteps=(id)plan==NSNull.null?nil:[plan copy];return YES;
+}
+/** On a book part with chapter steps, remote Previous and Next move by chapter, as the app's own
+ * buttons do: a seek in this part, else the chapter's part from the chapter's start. NO: the
+ * queue moves as for any other item. */
+- (BOOL)chapterRemote:(BOOL)next owner:(NSString *)owner {
+ NSDictionary *plan=_chapterSteps;
+ if(!plan||_audible||![plan[@"sessionId"] isEqual:_session[@"id"]]||![plan[@"itemId"] isEqual:_session[@"itemId"]])return NO;
+ NSNumber *position=[_controller listeningSnapshot][@"positionSeconds"];
+ if(![position isKindOfClass:NSNumber.class])return NO;
+ NSDictionary *move=PorticoChapterMove(plan,position.doubleValue,next);
+ if(!move)return YES;
+ if([move[@"kind"] isEqual:@"seek"]){[self action:@"seek" value:move[@"seconds"] owner:owner];return YES;}
+ if([move[@"kind"] isEqual:@"entry"]){[self advance:@"entry" entry:move[@"entryId"] start:move[@"seconds"] owner:owner];return YES;}
+ return NO;
+}
 - (BOOL)route:(NSDictionary *)route owner:(NSString *)owner {
  if(![_owner isEqual:owner]||!V1Dictionary(route)||!ListeningBool(route[@"ready"])||!ListeningNumber(route[@"revision"],0,9007199254740991.0,YES))return NO;
  NSInteger revision=[route[@"revision"] longLongValue];BOOL ready=[route[@"ready"] boolValue];
@@ -1058,6 +1079,7 @@ static BOOL ListeningConsecutiveOnAlbum(NSString *album,NSInteger disc,NSInteger
  if([action isEqual:@"toggle"])resolved=([self allowed]&&[_intent isEqual:@"playing"])?@"pause":@"resume";
  if([action isEqual:@"skip-back"]||[action isEqual:@"skip-forward"]){BOOL back=[action isEqual:@"skip-back"];value=@(back?-(_skipBackSeconds>0?_skipBackSeconds:30):(_skipForwardSeconds>0?_skipForwardSeconds:30));action=@"skip";}
  if([action isEqual:@"skip"]){resolvedValue=@(MAX(0,[[_controller listeningSnapshot][@"positionSeconds"] doubleValue]+value.doubleValue));resolved=@"seek";}
+ if(([action isEqual:@"next"]||[action isEqual:@"previous"])&&[self chapterRemote:[action isEqual:@"next"] owner:installedOwner])return;
  [self action:resolved value:resolvedValue owner:installedOwner];
 }
 - (void)installRemoteCommands {

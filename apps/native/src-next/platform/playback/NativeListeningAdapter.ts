@@ -5,6 +5,7 @@ import {listeningDeadline,type NativeListeningV1Context,type NativeListeningV1Co
 import {parseQueue,parseSession,parseSessionEnd} from '../../../../../packages/client-core/src/playback-v1/types.ts';
 import {serviceText} from '../../../../../packages/client-core/src/presentation/service-text';
 import {routeOrigin} from '../../../../../packages/client-core/src/route-identity';
+import type {BookChapterSteps} from '../../../../../packages/client-core/src/book-chapters.ts';
 /** Whose listening this is: the server and viewer (the native owner scopes its Keychain records by
  * `principalKey`). */
 export type ListeningPrincipal = Readonly<{origin:string;serverId:string;authority:'local'|'hosted';accountId:string;profileId:string}>;
@@ -30,6 +31,8 @@ export interface NativeListeningBridge {
  adoptListeningSession?(context:Record<string,unknown>):Promise<unknown>;
  listeningAdvance?(owner:string,reason:string,entryId:string|null,startSeconds:number|null):Promise<unknown>;
  listeningSessionUpdated?(owner:string,sessionId:string):Promise<unknown>;
+ /** The playing book part's chapter steps for the lock screen's Previous and Next (MU-7). */
+ listeningChapters?(owner:string,plan:BookChapterSteps|null):Promise<unknown>;
 }
 // Keep the bridge capability bounds aligned with the Apple and Android producers.
 const nativeListeningRates: readonly number[] = [.5,.75,1,1.25,1.5,1.75,2,2.5,3];
@@ -153,6 +156,11 @@ export class NativeListeningV1Adapter implements NativeListeningV1Control {
   const active=this.current;if(!active)return;
   if(!this.bridge.listeningAdvance)throw new Error('This app version can’t move the queue from the system player.');
   await this.refresh();if(this.current===active)await this.bridge.listeningAdvance(active.owner,reason,entryId??null,reason==='entry'&&startSeconds!==undefined?startSeconds:null);
+ }
+ async chapters(plan:BookChapterSteps|null){
+  const active=this.current;if(!active||!this.bridge.listeningChapters)return;
+  const held=plan&&Object.freeze({...plan,steps:Object.freeze(plan.steps.map(step=>Object.freeze({startSeconds:step.startSeconds,entryId:step.entryId})))});
+  await this.bridge.listeningChapters(active.owner,held);
  }
  async deadlines(value:ListeningDeadlines){const active=this.current;if(!active)return;await this.refresh();if(this.current===active)await this.bridge.listeningDeadlines(active.owner,value);}
  async configure(policy:NativeListeningPolicy):Promise<boolean>{

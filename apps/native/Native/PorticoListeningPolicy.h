@@ -61,5 +61,45 @@ static inline NSNumber *PorticoPreferredListeningRate(NSString *kind,id preferen
  if(![kind isEqual:@"audiobook_file"])return @1;
  return [preferences isKindOfClass:NSDictionary.class]&&PorticoBookRate(preferences[@"bookRate"])?preferences[@"bookRate"]:nil;
 }
+static inline BOOL PorticoPolicyWireID(id value) {
+ return [value isKindOfClass:NSString.class]&&[value length]>=1&&[value length]<=128&&[value rangeOfCharacterFromSet:[[NSCharacterSet characterSetWithCharactersInString:@"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"] invertedSet]].location==NSNotFound;
+}
+/** A book part's chapter steps for the lock screen's Previous and Next (MU-7): the shape
+ * client-core's bookChapterSteps sends, `{sessionId, itemId, steps, before, after}`. */
+static inline BOOL PorticoChapterStepsValid(id value) {
+ if(![value isKindOfClass:NSDictionary.class]||[value count]!=5||!PorticoPolicyWireID(value[@"sessionId"])||!PorticoPolicyWireID(value[@"itemId"])
+   ||![@[@"end",@"queue"] containsObject:value[@"before"]]||![@[@"end",@"queue"] containsObject:value[@"after"]])return NO;
+ NSArray *steps=value[@"steps"];
+ if(![steps isKindOfClass:NSArray.class]||!steps.count||steps.count>4100)return NO;
+ int run=0; // 0 before the part's own steps, 1 in them, 2 after them
+ for(NSDictionary *step in steps){
+  if(![step isKindOfClass:NSDictionary.class]||step.count!=2||!PorticoPolicyNumber(step[@"startSeconds"],0,1e9))return NO;
+  id entry=step[@"entryId"];
+  if(entry==NSNull.null){if(run==2)return NO;run=1;}
+  else if(!PorticoPolicyWireID(entry))return NO;
+  else if(run==1)run=2;
+ }
+ return run>0;
+}
+static inline id PorticoChapterStepEntry(NSArray *steps,NSInteger at){id entry=((NSDictionary *)steps[at])[@"entryId"];return entry==NSNull.null?nil:entry;}
+static inline double PorticoChapterStepStart(NSArray *steps,NSInteger at){return [((NSDictionary *)steps[at])[@"startSeconds"] doubleValue];}
+static inline NSDictionary *PorticoChapterGo(NSArray *steps,NSInteger at,id past) {
+ if(at<0||at>=(NSInteger)steps.count)return [past isEqual:@"queue"]?@{@"kind":@"queue"}:nil;
+ NSString *entry=PorticoChapterStepEntry(steps,at);
+ return entry?@{@"kind":@"entry",@"entryId":entry,@"seconds":@(PorticoChapterStepStart(steps,at))}:@{@"kind":@"seek",@"seconds":@(PorticoChapterStepStart(steps,at))};
+}
+/** Where Previous or Next chapter goes, by the same rules as client-core's bookChapterMove (a
+ * chapter counts as started half a second early; Previous over three seconds in restarts it):
+ * `{kind: seek|entry|queue, seconds, entryId}`, or nil for nothing that way. */
+static inline NSDictionary *PorticoChapterMove(NSDictionary *plan,double seconds,BOOL next) {
+ NSArray *steps=plan[@"steps"];NSInteger first=-1;
+ for(NSInteger i=0;i<(NSInteger)steps.count;i++)if(!PorticoChapterStepEntry(steps,i)){first=i;break;}
+ if(first<0||!isfinite(seconds))return @{@"kind":@"queue"};
+ NSInteger current=first-1;
+ for(NSInteger i=first;i<(NSInteger)steps.count&&!PorticoChapterStepEntry(steps,i);i++)if(PorticoChapterStepStart(steps,i)<=seconds+.5)current=i;
+ if(next)return PorticoChapterGo(steps,current+1,plan[@"after"]);
+ if(current>=0&&!PorticoChapterStepEntry(steps,current)&&seconds-PorticoChapterStepStart(steps,current)>3)return PorticoChapterGo(steps,current,@"end");
+ return PorticoChapterGo(steps,current-1,plan[@"before"]);
+}
 #endif
 #endif

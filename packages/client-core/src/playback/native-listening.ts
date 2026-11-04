@@ -1,6 +1,7 @@
 import type {AudioEffectsSettings} from '../audio-effects.ts';
 import type {QueueHeader,Session,SessionEnd} from '../playback-v1/types.ts';
 import type {AudiobookPreferences} from '../audiobook-preferences.ts';
+import type {BookChapterSteps} from '../book-chapters.ts';
 /** Absolute user deadlines; neither a render nor a lease renewal restarts them. */
 export type ListeningDeadlines = Readonly<{sleepAtMs:number|null;passoutAtMs:number|null}>;
 export const noListeningDeadlines:ListeningDeadlines=Object.freeze({sleepAtMs:null,passoutAtMs:null});
@@ -103,6 +104,9 @@ export interface NativeListeningV1Control {
  /** A queue move the viewer asked for; the owner sends the `:advance` and plays its session,
   * from `startSeconds` for a chosen entry when given (a chapter in another book part). */
  advance(reason:NativeQueueAdvance,entryId?:string,startSeconds?:number):Promise<void>;
+ /** The playing book part's chapter steps for the device's own Previous and Next (the lock
+  * screen, a headset, a car), or `null` off a book: the owner moves by chapter as the app does. */
+ chapters?(plan:BookChapterSteps|null):Promise<void>;
  refresh():Promise<void>;
  deadlines(value:ListeningDeadlines):Promise<void>;
  configure?(policy:NativeListeningPolicy):Promise<boolean>;

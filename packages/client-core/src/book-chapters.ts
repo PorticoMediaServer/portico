@@ -86,3 +86,56 @@ export function bookChapterTarget(chapters: readonly BookChapter[], itemId: stri
   if (playing?.itemId === itemId && seconds - playing.startSeconds > RESTART_AFTER) return playing;
   return chapters[current - 1] ?? null;
 }
+
+/** One place Previous or Next chapter can go, for a device's own player (the lock screen, a
+ * headset, a car): a chapter start in the playing part (`entryId: null`), or in another part,
+ * which plays that queue entry from there. */
+export type BookChapterStep = Readonly<{startSeconds: number; entryId: string | null}>;
+/** The playing part's chapters with the book chapters on either side of it, as the native owner
+ * holds them for its remote controls (MU-7). `before`/`after` say what lies past the listed
+ * steps: `end` (the book's start or end: nothing) or `queue` (chapters whose queue entry this
+ * player hasn't seen: the queue moves instead). */
+export type BookChapterSteps = Readonly<{sessionId: string; itemId: string; steps: readonly BookChapterStep[]; before: 'end' | 'queue'; after: 'end' | 'queue'}>;
+export type BookChapterMove = Readonly<{kind: 'seek'; seconds: number}> | Readonly<{kind: 'entry'; entryId: string; startSeconds: number}> | Readonly<{kind: 'queue'}> | null;
+
+/** The steps a native player needs for part `itemId`: two book chapters before the part (Previous
+ * from before its first chapter goes to the one before the chapter playing), its own, and the one
+ * after. `entryFor` finds another part's queue entry; one it can't find ends the list there.
+ * `undefined` when the list has no chapter in this part. */
+export function bookChapterSteps(chapters: readonly BookChapter[], sessionId: string, itemId: string, entryFor: (itemId: string) => string | undefined): BookChapterSteps | undefined {
+  const first = chapters.findIndex(chapter => chapter.itemId === itemId);
+  if (first < 0) return undefined;
+  let last = first;
+  while (chapters[last + 1]?.itemId === itemId) last++;
+  const steps: BookChapterStep[] = [];
+  let before: 'end' | 'queue' = 'end', after: 'end' | 'queue' = 'end';
+  for (let i = first - 1; i >= Math.max(0, first - 2); i--) {
+    const entryId = entryFor(chapters[i]!.itemId);
+    if (!entryId) { before = 'queue'; break; }
+    steps.unshift(Object.freeze({startSeconds: chapters[i]!.startSeconds, entryId}));
+  }
+  for (let i = first; i <= last; i++) steps.push(Object.freeze({startSeconds: chapters[i]!.startSeconds, entryId: null}));
+  const following = chapters[last + 1];
+  if (following) {
+    const entryId = entryFor(following.itemId);
+    if (entryId) steps.push(Object.freeze({startSeconds: following.startSeconds, entryId})); else after = 'queue';
+  }
+  return Object.freeze({sessionId, itemId, steps: Object.freeze(steps), before, after});
+}
+
+/** Where Previous or Next chapter goes from `seconds` in the steps' part, as `bookChapterTarget`
+ * decides it. The Apple and Android owners carry the same rules (PorticoListeningPolicy). */
+export function bookChapterMove(plan: Pick<BookChapterSteps, 'steps' | 'before' | 'after'>, seconds: number, direction: 'previous' | 'next'): BookChapterMove {
+  const {steps} = plan;
+  const first = steps.findIndex(step => step.entryId === null);
+  if (first < 0 || !Number.isFinite(seconds)) return {kind: 'queue'};
+  let current = first - 1;
+  for (let i = first; i < steps.length && steps[i]!.entryId === null; i++) if (steps[i]!.startSeconds <= seconds + START_TOLERANCE) current = i;
+  const go = (step: BookChapterStep | undefined, past: 'end' | 'queue'): BookChapterMove =>
+    !step ? past === 'queue' ? {kind: 'queue'} : null
+      : step.entryId === null ? {kind: 'seek', seconds: step.startSeconds} : {kind: 'entry', entryId: step.entryId, startSeconds: step.startSeconds};
+  if (direction === 'next') return go(steps[current + 1], plan.after);
+  const playing = steps[current];
+  if (playing?.entryId === null && seconds - playing.startSeconds > RESTART_AFTER) return go(playing, 'end');
+  return go(current - 1 >= 0 ? steps[current - 1] : undefined, plan.before);
+}
