@@ -11459,7 +11459,7 @@
       ]
     },
     "internal/reading/comic.go": {
-      "sha256": "3970060d336c9dc452b7459e530a2cc35cc65e0965c11330de8cf4f620cf10a9",
+      "sha256": "dfffce5b04f3961eb180675fe1164fe358e8b4ad48f363f42c4b88fc1bebe78a",
       "effects": [
         {
           "table": "*",

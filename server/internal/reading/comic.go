@@ -154,13 +154,22 @@ func inspectImage(b []byte) (Image, error) {
 	return Image{MIME: "image/" + kind, Width: c.Width, Height: c.Height}, nil
 }
 
-// One transform at a time bounds the worst-case decoded image memory. Waiting
-// and every archive/source read remain owned by the request's cancellation.
+// One page read/transform at a time bounds member buffers and decoded image
+// memory. Waiters retain no page bytes and remain owned by request cancellation.
 var imageWork = make(chan struct{}, 1)
 
 func (c *Comic) Page(ctx context.Context, index, width int) (Page, error) {
 	if index < 0 || index >= len(c.Names) || (width != 0 && (width < 32 || width > 2048)) {
 		return Page{}, ErrInvalid
+	}
+	select {
+	case imageWork <- struct{}{}:
+		defer func() { <-imageWork }()
+	case <-ctx.Done():
+		return Page{}, ctx.Err()
+	}
+	if err := ctx.Err(); err != nil {
+		return Page{}, err
 	}
 	name := c.Names[index]
 	// The direct-folder member reader takes precedence when the publication was
@@ -174,12 +183,6 @@ func (c *Comic) Page(ctx context.Context, index, width int) (Page, error) {
 		return Page{}, unreadableMember(err)
 	}
 	if width != 0 && width < info.Width {
-		select {
-		case imageWork <- struct{}{}:
-			defer func() { <-imageWork }()
-		case <-ctx.Done():
-			return Page{}, ctx.Err()
-		}
 		img, _, err := image.Decode(bytes.NewReader(b))
 		if err != nil {
 			return Page{}, unreadableMember(ErrInvalid)
