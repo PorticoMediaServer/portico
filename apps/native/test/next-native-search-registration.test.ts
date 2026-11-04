@@ -17,7 +17,7 @@ const capabilities: BrowseCapabilities = {
   queryLimits: {maximumDepth: 6, maximumClauses: 50, maximumBytes: 8192, maximumSorts: 1, defaultLimit: 40, maximumLimit: 100, cursorTtlMs: 600000},
 };
 const art = (id: string, slot: 'poster' | 'backdrop' = 'poster') => ({kind: 'item', id,
-  path: `/v1/metadata/item/${id}/art/${slot}?v=${'a'.repeat(64)}&w=${slot === 'poster' ? 400 : 1920}`});
+  path: `/v1/metadata/item/${id}/art/${slot}?v=${'a'.repeat(64)}&${slot === 'poster' ? `sd=533x800.54008.${'d'.repeat(16)}&ld=600x900.65669.${'e'.repeat(16)}` : `sd=800x450.49940.${'b'.repeat(16)}&ld=1920x1080.162149.${'c'.repeat(16)}`}`});
 const movie = {id: 'movie', libraryId: 'movies', kind: 'movie', title: 'Stored Genre Movie (Full Cut)', displayTitle: 'Genuine display title',
   posterUrl: art('movie').path, navigation: {view: 'item', entityId: 'movie'}, playback: {itemId: 'movie'}};
 const otherMovie = {id: 'other', libraryId: 'movies', kind: 'movie', title: 'Other authorized title', available: false, navigation: {view: 'item', entityId: 'other'}, posterUrl: art('other').path};

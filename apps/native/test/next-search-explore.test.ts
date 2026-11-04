@@ -6,7 +6,7 @@ import {nativeSearchGenreTiles} from '../src-next/screens/search/genre-tiles.ts'
 import {screenModule} from './helpers/screen-harness.mjs';
 
 const art = (id: string, slot = 'poster') => ({kind: 'item' as const, id,
-  path: `/v1/metadata/item/${id}/art/${slot}?v=${'a'.repeat(64)}&w=${slot === 'poster' ? 400 : 1920}`});
+  path: `/v1/metadata/item/${id}/art/${slot}?v=${'a'.repeat(64)}&${slot === 'poster' ? `sd=533x800.54008.${'d'.repeat(16)}&ld=600x900.65669.${'e'.repeat(16)}` : `sd=800x450.49940.${'b'.repeat(16)}&ld=1920x1080.162149.${'c'.repeat(16)}`}`});
 const genre = (value: string, count = 1) => ({value, label: `Metadata ${value}`, count,
   covers: [art(`${value}_a`), art(`${value}_b`)], backdrop: art(`${value}_wide`, 'backdrop')});
 type Page = SearchGenrePage & {hasGenres?: boolean; previousCursor?: string; reloadCursor?: string};

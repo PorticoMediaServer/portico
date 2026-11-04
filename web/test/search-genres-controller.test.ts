@@ -4,7 +4,7 @@ import {routePath} from '../../packages/contracts/src/routes.ts';
 import {SearchGenresController, type SearchGenreSlot} from '../src/screens/search/genres.ts';
 
 const artwork = (id: string, role: 'backdrop' | 'poster') => ({kind: 'item', id,
-  path: `${routePath('get_metadata_kind_id_art_role', {kind: 'item', id, role})}?v=${'a'.repeat(64)}&w=${role === 'backdrop' ? 1920 : 400}`});
+  path: `${routePath('get_metadata_kind_id_art_role', {kind: 'item', id, role})}?v=${'a'.repeat(64)}&${role === 'backdrop' ? `sd=800x450.49940.${'b'.repeat(16)}&ld=1920x1080.162149.${'c'.repeat(16)}` : `sd=533x800.54008.${'d'.repeat(16)}&ld=600x900.65669.${'e'.repeat(16)}`}`});
 const genre = (value: string, count: number, backdrop = true, covers = 2) => ({value, label: value, count,
   ...(backdrop ? {backdrop: artwork(value + '-backdrop', 'backdrop')} : {}),
   covers: Array.from({length: covers}, (_, index) => artwork(value + '-cover-' + index, 'poster'))});
