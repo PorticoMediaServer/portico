@@ -1320,8 +1320,6 @@ export const webMessages = {
   'web.console.nav.librariesLede': 'What the server knows about and where it comes from.',
   'web.console.nav.storageLede': 'Remote storage attached to this server.',
   'web.console.nav.channelsLede': 'Always-on channels generated from your libraries.',
-  'web.console.ownerTitle': 'Only the server owner can manage this server',
-  'web.console.ownerBody': 'Ask the owner to share what you need, or sign in with the owner account.',
   'web.activity.tasks': 'Background tasks',
   'web.activity.noTasks': 'No tasks yet',
   'web.activity.noTasksBody': 'Scans, metadata refreshes and maintenance appear here as they run.',

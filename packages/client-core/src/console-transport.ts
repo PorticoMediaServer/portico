@@ -17,6 +17,7 @@ export class ConsoleTransportError extends Error {
  constructor(status:number,code:string,currentRevision?:number,fields?:string[]){
   const messages:Record<string,string>={
    unauthorized:'This selected-server session no longer has the required access.',
+   profile_pin_manage:'Enter this profile’s PIN to manage this account.',
    invalid_console_request:'Check the indicated fields and their limits.',
    console_conflict:'The document changed. Read its current revision before reapplying your changes.',
    console_capacity:'The server is busy or a local quota was reached. Retry this action later.',
@@ -55,7 +56,8 @@ export async function readConsoleJson<T>(response:Response,signal:AbortSignal):P
  if(!response.ok){
   const e=(value&&typeof value==='object'&&!Array.isArray(value)?(value as {error?:unknown}).error:undefined);
   const data=e&&typeof e==='object'&&!Array.isArray(e)?e as Record<string,unknown>:{};
-  const code=response.status===401||response.status===403?'unauthorized':typeof data.code==='string'?data.code:'console_unavailable';
+  // Every refusal reads as `unauthorized`, except the management PIN (PR-1): that sign-in may still manage once its PIN is entered.
+  const code=response.status===403&&data.code==='profile_pin_manage'?'profile_pin_manage':response.status===401||response.status===403?'unauthorized':typeof data.code==='string'?data.code:'console_unavailable';
   const current=data.current&&typeof data.current==='object'&&!Array.isArray(data.current)?data.current as Record<string,unknown>:{};
   const revisionValue=data.currentRevision??current.revision;
   const revision=typeof revisionValue==='number'&&Number.isSafeInteger(revisionValue)&&revisionValue>=0?revisionValue:undefined;
