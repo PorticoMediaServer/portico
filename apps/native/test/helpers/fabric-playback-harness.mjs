@@ -181,7 +181,8 @@ export async function fabricPlayback(runtime, tv = true, watch, withShell = fals
   exports.render(React.createElement(Parent), 11, undefined, true, {onUncaughtError: error => errors.push(error), onCaughtError: error => errors.push(error), onRecoverableError: error => errors.push(error)});
   try {await settle();} catch (error) {exports.stopSurface(11); throw error;}
   return {adapter, commits, nativeProps, callbacks, errors, settle, get parentRenders() {return parentRenders;},
-    chrome, get watchWrapper() {return containers.findLast(props => props.children?.type === WatchProbe);},
+    chrome, // On TV the outlet's own wrapper holds a CoveredLayer around the chrome (a presented state can cover it).
+    get watchWrapper() {return containers.findLast(props => props.pointerEvents === 'box-none' && (props.children?.type === WatchProbe || props.children?.props?.children?.type === WatchProbe));},
     get captureClears() {return captureClears;},
     async resize(width, height) {window = {width, height}; for (const listener of dimensionListeners) listener(); await settle();},
     async unmount() {exports.stopSurface(11); await settle();}};
