@@ -3,6 +3,8 @@ export const readerMessages = {
   'next.reader.exportHighlights': 'Export highlights',
   'next.reader.unreadablePage': 'This page can’t be read. The rest of the book is still here.',
   'next.reader.unreadableSection': 'This part of the book can’t be read. Turn the page to keep reading.',
+  'next.reader.publicationTooLargeTitle': 'This book is too large to open',
+  'next.reader.publicationTooLargeBody': 'The reader can’t open a book this size. It’s still in your library.',
   'next.reader.saveFile': 'Save file',
   'next.reader.addToCollection': 'Add to a collection',
   'next.reader.markRead': 'Mark as read',
