@@ -142,35 +142,39 @@ type adminEventCandidate struct {
 //
 // All the seeks share one read snapshot, so an audit append that lands between
 // two of them cannot mix an older and a newer state into one alleged latest set.
-// The snapshot is rolled back before the caller re-proves authority.
+// The snapshot is closed before the caller re-proves authority.
 func readAdminEvents(ctx context.Context, db *sql.DB, out *adminEvents) error {
-	gated, err := dbwork.BeginSnapshot(ctx, db)
+	candidates := make([]adminEventCandidate, 0, len(adminSafeEventCodes)*out.Limit)
+	// End our view before the route's fresh authority proof, including when
+	// borrowing the request cache. An explicit outer transaction keeps custody.
+	err := dbwork.WithReadSnapshotOnce(ctx, db, func(ctx context.Context) error {
+		tx := dbwork.Snapshot(ctx)
+		for _, code := range adminSafeEventCodes {
+			rows, err := tx.QueryContext(ctx, `SELECT sequence,time_ms FROM console_audit WHERE action=? ORDER BY sequence DESC LIMIT ?`, code, out.Limit)
+			if err != nil {
+				return err
+			}
+			for rows.Next() {
+				var candidate adminEventCandidate
+				if err := rows.Scan(&candidate.sequence, &candidate.at); err != nil {
+					rows.Close()
+					return err
+				}
+				candidate.code = adminEventCode(code)
+				candidates = append(candidates, candidate)
+			}
+			err = rows.Err()
+			rows.Close()
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		return err
 	}
-	defer gated.Rollback()
-	tx := gated.Tx()
-	candidates := make([]adminEventCandidate, 0, len(adminSafeEventCodes)*out.Limit)
-	for _, code := range adminSafeEventCodes {
-		rows, err := tx.QueryContext(ctx, `SELECT sequence,time_ms FROM console_audit WHERE action=? ORDER BY sequence DESC LIMIT ?`, code, out.Limit)
-		if err != nil {
-			return err
-		}
-		for rows.Next() {
-			var candidate adminEventCandidate
-			if err := rows.Scan(&candidate.sequence, &candidate.at); err != nil {
-				rows.Close()
-				return err
-			}
-			candidate.code = adminEventCode(code)
-			candidates = append(candidates, candidate)
-		}
-		err = rows.Err()
-		rows.Close()
-		if err != nil {
-			return err
-		}
-	}
+
 	sort.Slice(candidates, func(i, j int) bool { return candidates[i].sequence > candidates[j].sequence })
 	if len(candidates) > out.Limit {
 		candidates = candidates[:out.Limit]
