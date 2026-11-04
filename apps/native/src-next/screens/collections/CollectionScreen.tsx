@@ -66,6 +66,10 @@ export function NativeCollectionScreen(props: NativeCollectionScreenProps) {
   const ambient = runtime.ambient(backdrop), foreground = runtime.artwork(backdrop);
   const facts = [t('next.browse.filmCount', {count: state.totalCount}), years(state)].filter((value): value is string => !!value);
   const sort = state.sorts.find(value => value.id === state.sort);
+  /** tv-detail#10: the lede and watched tally from the collection read. A fact the read does not carry is not drawn: it has no studio, and the catalogue collection view offers only the title, added and year sorts, so "In collection order" would not be true. */
+  const lede = state.projection?.entity?.overview?.trim() || undefined;
+  const watchedCount = state.complete ? state.complete.filter(entry => entry.watched).length : state.projection?.entity?.watchedCount;
+  const watchedSummary = watchedCount && state.totalCount ? t('next.browse.watchedOf', {watched: watchedCount, count: state.totalCount}) : undefined;
   const sortItems: MenuEntry[] = state.sorts.map(value => ({id: value.id, label: sortLabel(value), selected: value.id === state.sort,
     onSelect: () => props.onSort(value.id, value.directions[0] ?? 'asc')}));
   const cardWidth = tv ? 214 : Math.max(120, (pageWidth - 50) / 2), error = state.error;
@@ -77,8 +81,8 @@ export function NativeCollectionScreen(props: NativeCollectionScreenProps) {
     <Button testID="collection-shuffle" focusId="collection-shuffle" variant="glass" icon="i-shuffle" onPress={props.onShuffle}
       size={tv ? 'hero' : undefined} iconOnly={compact} accessibilityLabel={t('title.shuffle')}
       style={compact ? {width: 48, height: 48, borderRadius: 24} : undefined}>{t('title.shuffle')}</Button>
-    {compact && <Button testID="collection-menu" variant="glass" icon="i-more" iconOnly accessibilityLabel={t('card.more', {title: state.title})}
-      onPress={() => setPageMenu(true)} style={{width: 48, height: 48, borderRadius: 24}}/>}
+    {(compact || tv) && <Button testID="collection-menu" focusId="collection-menu" variant="glass" icon="i-more" iconOnly accessibilityLabel={t('card.more', {title: state.title})}
+      size={tv ? 'hero' : undefined} onPress={() => setPageMenu(true)} style={compact ? {width: 48, height: 48, borderRadius: 24} : undefined}/>}
   </View>;
   const hero = <View style={{height: tv ? 620 : compact ? 300 : 360}}>
     <AmbientArt source={ambient} foreground={foreground} treatment="title" height={tv ? 760 : 460}/>
@@ -88,6 +92,7 @@ export function NativeCollectionScreen(props: NativeCollectionScreenProps) {
       <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: tv ? 20 : 12, justifyContent: compact ? 'center' : 'flex-start', marginTop: tv ? 12 : compact ? 0 : 6}}>
         {facts.map((fact, index) => <Text key={index} style={[browseType(theme, tv ? 24 : 13, index === 0 ? 700 : 500), {color: theme.colors.textSecondary}]}>{fact}</Text>)}
       </View>
+      {tv && lede && <Text testID="collection-lede" numberOfLines={2} style={[browseType(theme, 26, 400, 0, 37.7), {color: theme.colors.textSecondary, marginTop: 14, maxWidth: 1100}]}>{lede}</Text>}
       {!compact && controls}
     </View>
   </View>;
@@ -98,8 +103,10 @@ export function NativeCollectionScreen(props: NativeCollectionScreenProps) {
   const toolbar = <View style={{flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: tv ? 28 : compact ? 8 : 14, ...(compact ? {paddingHorizontal: 20} : {})}}>
     {compact && <Text style={[browseType(theme, 13, 600), {color: theme.colors.textTertiary}]}>{facts[0]}</Text>}
     {compact && <View style={{flex: 1}}/>}
+    {tv && watchedSummary && <Text testID="collection-watched-summary" style={[browseType(theme, 24, 600), {color: theme.colors.textTertiary}]}>{watchedSummary}</Text>}
+    {tv && <View style={{flex: 1}}/>}
     {state.sorts.length > 1 && <Chip testID="collection-sort" onPress={() => setSortOpen(true)}>{sort ? sortLabel(sort) : defaultI18n.t('web.filters.sortBy')}</Chip>}
-    {!compact && <View style={{flex: 1}}/>}
+    {!compact && !tv && <View style={{flex: 1}}/>}
     {!tv && !compact && selection?.start && <Chip icon="i-check" onPress={() => selection.start?.()}>{t('next.selection.select')}</Chip>}
     {state.phase === 'loading' ? <Quiet><Text style={[browseType(theme, tv ? 22 : 13, 500), {color: theme.colors.textTertiary}]}>{t('status.loading')}</Text></Quiet> : null}
   </View>;

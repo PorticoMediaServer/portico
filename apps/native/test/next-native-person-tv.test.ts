@@ -47,7 +47,7 @@ test('TV person draws the ten-foot composition from the real person page', async
     assert.equal(flat(name.props.style).fontSize, 96, 'tv-detail#5 name at display size');
     const born = nodes.find(node => node.type === 'Text' && node.props.children === defaultI18n.t('web.person.born', {date: defaultI18n.date('1946-12-18', 'long')}));
     assert.ok(born);
-    assert.ok(nodes.some(node => node.type === 'Text' && node.props.children === defaultI18n.t('web.person.titles', {count: 2})));
+    assert.ok(nodes.some(node => node.type === 'Text' && node.props.children === defaultI18n.t('web.person.titlesOnServer', {count: 2})));
     const bio = nodes.find(node => node.props.testID === 'person-biography');
     assert.ok(descendants(bio).some(node => node.type === 'Text' && node.props.children === 'Steven Allan Spielberg is an American filmmaker.'));
     bio.props.onPress(); await host.rerender();

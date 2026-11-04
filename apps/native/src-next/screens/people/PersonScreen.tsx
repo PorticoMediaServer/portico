@@ -106,7 +106,7 @@ export function PersonScreen({focusScope, page, role, collection, groups, runtim
     </View>}
     <View style={{flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 12, marginHorizontal: 20, marginBottom: 10}}>
       <Text accessibilityRole="header" style={[browseType(theme, 18, 700, -.015), {color: theme.colors.text}]}>{t('web.person.credits')}</Text>
-      <Text style={[browseType(theme, 14, 600), {color: theme.colors.textTertiary}]}>{t('web.person.titles', {count: page.pageInfo.total})}</Text>
+      <Text style={[browseType(theme, 14, 600), {color: theme.colors.textTertiary}]}>{t('web.person.titlesOnServer', {count: page.pageInfo.total})}</Text>
     </View>
     <View style={{flexDirection: 'row', gap: 8, marginHorizontal: 20, marginBottom: 12}}>
       {theme.platform !== 'phone' && selection?.start && <Chip testID="person-select" icon="i-check" onPress={() => selection.start?.()}>{t('next.selection.select')}</Chip>}
@@ -188,7 +188,7 @@ export function TVPerson({focusScope, page, role, collection, groups, runtime, a
           <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 28, rowGap: 10, marginBottom: 20}}>
             {dates && <Text style={[browseType(theme, 24, 700), {color: theme.colors.text}]}>{dates}</Text>}
             {person.birthPlace && <Text style={[browseType(theme, 24), {color: theme.colors.textSecondary}]}>{person.birthPlace}</Text>}
-            <Text style={[browseType(theme, 24, 500), {color: theme.colors.textSecondary}]}>{t('web.person.titles', {count: total})}</Text>
+            <Text style={[browseType(theme, 24, 500), {color: theme.colors.textSecondary}]}>{t('web.person.titlesOnServer', {count: total})}</Text>
           </View>
           {person.biography && <Focusable testID="person-biography" onPress={() => setExpanded(value => !value)} accessibilityRole="button"
             accessibilityState={{expanded}} focusKind="row" focusRadius={10} style={{maxWidth: 1060}}>
