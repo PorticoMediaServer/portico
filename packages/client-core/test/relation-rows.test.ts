@@ -73,6 +73,18 @@ test('a failed page keeps the continuation; a refused one reads the row again on
   await twice.more(); await twice.more();
   assert.equal(tries, 3); assert.equal(twice.getSnapshot().cursor, undefined); assert.deepEqual(twice.getSnapshot().error, {code: 'invalid_cursor', stale: true});
   assert.deepEqual(twice.getSnapshot().entries.map(e => e.id), ['m3'], 'what was shown stays when the row ends');
+  // A later, separate access change is read again too: the guard clears once a continuation succeeds.
+  // refuse → re-read → next page → refuse → re-read again.
+  const seq: string[] = []; let refusals = 0;
+  const later = recommendationRowPager(api(path => {
+    seq.push(path.includes('cursor=') ? path.split('cursor=')[1]! : 'first');
+    if (path.includes('cursor=c1') || path.includes('cursor=c3')) { refusals++; return Object.assign(new Error('Expired'), {code: 'invalid_cursor'}); }
+    if (path.includes('cursor=c2')) return row({entries: [movie('m5')], nextCursor: 'c3'});
+    return row({entries: [movie(refusals === 1 ? 'm4' : 'm6')], nextCursor: refusals === 1 ? 'c2' : 'c4'});
+  }), {kind: 'item', id: 't1'}, validateHomeRow(row()));
+  await later.more(); await later.more(); await later.more();
+  assert.deepEqual(seq, ['c1', 'first', 'c2', 'c3', 'first']);
+  assert.deepEqual(later.getSnapshot().entries.map(e => e.id), ['m6']); assert.equal(later.getSnapshot().cursor, 'c4'); assert.equal(later.getSnapshot().error, undefined);
   // A first page that fails on the re-read ends the row too.
   const gone = recommendationRowPager(api(() => Object.assign(new Error('Expired'), {code: 'invalid_cursor'})), {kind: 'item', id: 't1'}, validateHomeRow(row()));
   await gone.more();

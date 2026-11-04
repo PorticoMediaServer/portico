@@ -50,8 +50,10 @@ export type RelationRowSnapshot = Readonly<{
  * A cursor the server refuses (`invalid_cursor`) means its scope, the viewer fence or profile, no
  * longer matches: access was decided again, not the row finished (relation_rows.go). The row is read
  * again once from its first page (`read('')`), whose entries and cursor replace what is shown, so
- * nothing allowed is hidden and nothing read under the old fence stays. A second refusal ends the
- * row. A real move of the row (`stale_continuation`, a revision check) ends it too.
+ * nothing allowed is hidden and nothing read under the old fence stays. A second refusal before any
+ * continuation succeeds ends the row; once a page continues from the re-read, a later, separate
+ * access change is read again the same way. A real move of the row (`stale_continuation`, a revision
+ * check) ends it.
  */
 export class RelationRowPager {
   private state: RelationRowSnapshot;
@@ -85,6 +87,8 @@ export class RelationRowPager {
       if (this.disposed || controller.signal.aborted) return;
       const seen = new Set(this.state.entries.map(entry => entry.id));
       const added = page.entries.filter(entry => !seen.has(entry.id) && seen.add(entry.id));
+      // A continuation answered: the re-read (if any) worked, and a later refusal is a new access change.
+      this.reread = false;
       this.publish({entries: Object.freeze([...this.state.entries, ...added]), ...(page.nextCursor ? {cursor: page.nextCursor} : {}), loading: false});
     } catch (error) {
       if (this.disposed || controller.signal.aborted) return;

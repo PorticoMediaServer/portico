@@ -576,6 +576,7 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
           // MOB-054/TV-019: each related row continues to its end through the title's row route.
           const pages = snapshot.related?.[row.id], entries = pages?.entries ?? row.entries;
           const paging = pages ? {hasMore: pages.hasMore, loading: pages.loading, failed: pages.failed, waitingId: pages.waitingId, fulfilled: pages.fulfilled,
+            ...(pages.replaced ? {refocus: {focusId: tvItemKey({id: pages.replaced.entryId}), serial: pages.replaced.serial}} : {}),
             waitingItem: relatedWaiting(pages.waitingId, row.entries[0]), requestNext: () => controller.moreRelated(row.id, pages)} : undefined;
           return cell(row.id, <View><Text style={[theme.isTV ? theme.type.rowHeading : theme.type.heading, {color: theme.colors.text, marginBottom: theme.isTV ? 22 : 14}]}>{row.heading}</Text>
           {theme.isTV ? <TVShelf items={entries} getKey={tvItemKey} getFocusId={tvItemKey} focus={regions.related.get(row.id)} itemWidth={214} itemHeight={420} gap={28} paging={paging}

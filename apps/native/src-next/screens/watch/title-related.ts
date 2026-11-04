@@ -16,6 +16,9 @@ export type NativeRelatedRowSnapshot = Readonly<{
   /** Stable per continuation: the row's waiting host survives an empty page. */
   waitingId: string;
   fulfilled?: Readonly<{waitingId: string; firstItemId?: string}>;
+  /** The row was read again from its first page in place of what was shown (the server refused its cursor). Focus that
+   * was on a title no longer in the row moves to `entryId`, in the row: the last title that survived, or the first. */
+  replaced?: Readonly<{entryId: string; serial: number}>;
 }>;
 
 /** One related row of one detail revision, read to its end (MOB-054, TV-019): the shared
@@ -25,6 +28,7 @@ export class NativeRelatedRow {
   private readonly off: () => void;
   private readonly key: string;
   private readonly pager: RelationRowPager;
+  private replacements = 0;
   constructor(key: string, pager: RelationRowPager, changed: () => void) {
     this.key = key; this.pager = pager;
     const first = pager.getSnapshot();
@@ -36,9 +40,13 @@ export class NativeRelatedRow {
       const appended = previous.entries.every((entry, index) => next.entries[index]?.id === entry.id);
       const added = appended && next.entries.length > previous.entries.length ? next.entries[previous.entries.length] : undefined;
       const answered = previous.loading && !next.loading && !next.error;
+      const before = new Set(previous.entries.map(entry => entry.id));
+      const target = !appended && next.entries.length ? next.entries.filter(entry => before.has(entry.id)).at(-1) ?? next.entries[0] : undefined;
+      const replaced = target ? {entryId: target.id, serial: ++this.replacements} : previous.replaced;
       this.state = Object.freeze({entries: next.entries, hasMore: !!next.cursor, loading: next.loading, failed: !!next.error,
         waitingId: next.cursor ? this.waitingId(next.cursor) : previous.waitingId,
-        ...(answered ? {fulfilled: {waitingId: previous.waitingId, ...(added ? {firstItemId: added.id} : {})}} : previous.fulfilled ? {fulfilled: previous.fulfilled} : {})});
+        ...(answered ? {fulfilled: {waitingId: previous.waitingId, ...(added ? {firstItemId: added.id} : {})}} : previous.fulfilled ? {fulfilled: previous.fulfilled} : {}),
+        ...(replaced ? {replaced} : {})});
       changed();
     });
   }
