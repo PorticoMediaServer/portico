@@ -29,7 +29,7 @@ const {NativePlaybackRuntime} = await sourceModule(new URL('../src-next/platform
   '../../../../../packages/client-core/src/playback-v1/http': {call: unused}, '../../../../../packages/client-core/src/playback-v1/options': {PlaybackOptionsClient: unused},
   '../../../../../packages/client-core/src/playback-v1/v1-queue-player': {V1QueuePlayer: unused, serverSupportsQueueTransitions: unused, queueVideoKind: unused},
   '../../../../../packages/client-core/src/playback-v1/queue': {QueueClient: unused},
-  '../../../../../packages/client-core/src/trickplay': {preferredTrickplaySet: unused, readItemTrickplay: unused},
+  '../../../../../packages/client-core/src/trickplay': {downloadTrickplaySet: unused, preferredTrickplaySet: unused, readItemTrickplay: unused},
   '../../../../../packages/client-core/src/playback-v1/channel-control': {V1ChannelControl: unused, serverSupportsV1Channels: unused},
   '../../../../../packages/client-core/src/playback/linear-protocol': {channelSeconds: unused},
   '../../../../../packages/client-core/src/guide/directory': {fetchGuideSourceSummaries: unused}, '../../../../../packages/client-core/src/guide/legacy-source': {legacyChannel: unused},
