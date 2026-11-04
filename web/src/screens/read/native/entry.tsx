@@ -70,8 +70,8 @@ function NativeReading({guest}: {guest: ReadingGuest}) {
       publication = await createReadingPublication(guest.session);
       if (publication.format === 'epub') fonts = await loadReadFonts({document, signal: publication.signal});
       if (!authority.isCurrent()) return;
-      const adapters = publication.format === 'epub' ? [createEpubAdapter({fonts: fonts!.fonts})] : publication.format === 'pdf'
-        ? [createPdfAdapter(readerPdfAdapterOptions)] : [createComicAdapter({format: publication.format, pages: publication.comicPages!})];
+      const adapters = publication.format === 'epub' ? [createEpubAdapter({fonts: fonts!.fonts, unreadable: defaultI18n.t('next.reader.unreadableSection')})] : publication.format === 'pdf'
+        ? [createPdfAdapter(readerPdfAdapterOptions)] : [createComicAdapter({format: publication.format, unreadable: defaultI18n.t('next.reader.unreadablePage'), pages: publication.comicPages!})];
       reader = bindReadPreferences({adapters, preferences: guest.preferences, authority, reportError: () => {if (alive) setFailed(true);}});
       progress = bindReadingProgress({controller: reader.controller, session: guest.session, initial: guest.initialProgress, authority, reportError: () => {if (alive) setFailed(true);}});
       progressRef.current = progress;
