@@ -254,7 +254,7 @@ function NewspaperEditions({state, controller, theme, runtime, tablet, width, on
     {selected ? <View style={{width: previewWidth, alignSelf: 'center'}}>
       <Focusable ref={previewAnchor} accessibilityRole="button" accessibilityLabel={selected.item.title}
         accessibilityState={previewSelection?.active ? {selected: previewSelection.selected} : undefined}
-        onPress={previewSelection?.active ? previewSelection.onToggle : () => onOpen(selected)}
+        disabled={selected.item.inventoryAvailable !== true} onPress={previewSelection?.active ? previewSelection.onToggle : () => onOpen(selected)}
         onLongPressAction={previewOffer ? () => actions.actions.show(previewOffer) : undefined} focusKind="row"
         style={{height: tablet ? previewWidth * 4 / 3 : 446, borderRadius: 10, overflow: 'hidden', backgroundColor: theme.colors.raised,
           borderWidth: previewSelection?.selected ? 2 : 0, borderColor: theme.colors.accentStrong}}>
@@ -342,10 +342,12 @@ function IssueArtwork({issue, title, width, height, runtime, theme, read = false
 
 function IssueCard({issue, width, height, theme, runtime, onOpen, offer, actions}: {issue: ReadingPeriodicalIssue; width: number; height: number; theme: Theme;
   runtime: NativeShellRuntime; onOpen: () => void; offer: IssueOffer; actions: ReadingActionsPort}) {
-  const anchor = useRef<View>(null), target = offer(issue, anchor), selection = target ? actions.selection(target) : undefined;
+  // N5-4: an issue the server can't serve now is drawn but takes no open, menu or selection (as web).
+  const unavailable = issue.item.inventoryAvailable !== true;
+  const anchor = useRef<View>(null), target = unavailable ? undefined : offer(issue, anchor), selection = target ? actions.selection(target) : undefined;
   const date = calendarDate(defaultI18n, issue.issueDate), read = readingItemIsRead(issue.item);
-  return <Focusable ref={anchor} accessibilityRole="button" accessibilityLabel={`${issue.item.title}${date ? `. ${date}` : ''}`} focusKind="row" focusRadius={10}
-    accessibilityState={selection?.active ? {selected: selection.selected} : undefined} onPress={selection?.active ? selection.onToggle : onOpen}
+  return <Focusable ref={anchor} accessibilityRole="button" accessibilityLabel={`${issue.item.title}${date ? `. ${date}` : ''}`} focusKind="row" focusRadius={10} disabled={unavailable}
+    accessibilityState={selection?.active ? {selected: selection.selected} : unavailable ? {disabled: true} : undefined} onPress={selection?.active ? selection.onToggle : onOpen}
     onLongPressAction={target ? () => actions.actions.show(target) : undefined} style={{width}}>
     <View style={{borderRadius: 10, borderWidth: selection?.selected ? 2 : 0, borderColor: theme.colors.accentStrong}}>
       <IssueArtwork issue={issue} title={issue.item.title} width={width} height={height} runtime={runtime} theme={theme} read={read}/>
