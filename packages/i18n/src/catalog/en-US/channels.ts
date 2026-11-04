@@ -89,6 +89,7 @@ export const channelMessages = {
   'guide.watchLive': 'Watch live',
   'guide.watchChannel': 'Watch channel',
   'guide.record': 'Record',
+  'guide.recordAiring': 'Record {title} at {time}',
   'guide.recordSeries': 'Record series…',
   'guide.recordSeriesTitle': 'Record series',
   'guide.newOnly': 'New episodes only',

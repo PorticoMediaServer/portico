@@ -81,7 +81,7 @@ async function guideFixture(width = 1180, screenReader = false, facts: Readonly<
   const adjustments: number[] = []; let panOptions: any;
   const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch'};
   const lifetime = {authority, current: () => true, signal: new AbortController().signal};
-  const source = {id: 'source', name: 'Source', guideDays: 2, groups: [], provenance: 'live-source', channelCount: 1, unavailableReasons: {}, refreshState: 'ready', ...facts.source};
+  const source = {id: 'source', name: 'Source', guideDays: 2, groups: [], groupCounts: [], favoriteCount: 0, provenance: 'live-source', channelCount: 1, unavailableReasons: {}, refreshState: 'ready', ...facts.source};
   const channel = {id: 'channel', sourceId: 'source', kind: 'live', name: 'Channel', number: '1', favorite: false, provenance: 'live-source', hidden: false, tuneAvailable: true, ...facts.channel};
   const programme = {id: 'programme', title: 'Programme', start: Date.now() - 60_000, end: Date.now() + 60_000};
   const data = {total: 1, version: 0}, state = {sources: [source], options: {}, revision: 0, view: 'guide', mutating: false};

@@ -9,8 +9,10 @@ export function tvSettingsResultGroups(groups: readonly string[], entry: (id: st
   return groups.filter(id => entry(id) !== undefined);
 }
 
-export function tvProgrammeGroups(value: Readonly<{watch: boolean; record: boolean; remind: boolean; later: readonly string[]; recordError: boolean; preferenceError: boolean}>): readonly string[] {
-  return [...(value.watch ? ['watch'] : []), ...(value.record ? ['record'] : []), 'favorite',
-    ...(value.remind ? ['remind'] : []), ...value.later.map(id => `later:${id}`),
+/** The groups in reading order. `laterFirst` is the TV sheet, which reads "Later on" before its actions. */
+export function tvProgrammeGroups(value: Readonly<{watch: boolean; record: boolean; remind: boolean; later: readonly string[]; recordError: boolean; preferenceError: boolean; laterFirst?: boolean}>): readonly string[] {
+  const later = value.later.map(id => `later:${id}`);
+  return [...(value.laterFirst ? later : []), ...(value.watch ? ['watch'] : []), ...(value.record ? ['record'] : []), 'favorite',
+    ...(value.remind ? ['remind'] : []), ...(value.laterFirst ? [] : later),
     ...(value.recordError ? ['record-error'] : []), ...(value.preferenceError ? ['preference-error'] : [])];
 }

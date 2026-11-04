@@ -71,9 +71,10 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   const insetLeft = landscape ? Math.max(12, insets.left + 8) : compact ? 0 : theme.isTV ? 0 : 20;
   const insetRight = landscape ? Math.max(12, insets.right + 8) : compact || theme.isTV ? 0 : 20;
   const [now, setNow] = useState(serverNow), [start, setStart] = useState(() => floorTo(serverNow(), SLOT_MS) - (theme.isTV || phoneChrome ? SLOT_MS : 0)), [measuredWidth, setMeasuredWidth] = useState(theme.isTV ? 1660 : theme.width - 40);
-  // phone-app 5: phones open on the list, upright or sideways; the shell's own
-  // layout classifier decides which windows are phones, and a remembered view wins.
-  const view = state.view ?? (shellLayout(theme.width, dimensions.height, theme.isTV).kind === 'phone' ? 'list' : 'guide');
+  // phone-guide 2: until the user chooses, a phone held upright opens on the list and a phone held
+  // sideways on the guide; the shell's own layout classifier decides which windows are phones
+  // (a short landscape window is one), and a remembered view always wins.
+  const view = state.view ?? (!landscape && shellLayout(theme.width, dimensions.height, theme.isTV).kind === 'phone' ? 'list' : 'guide');
   const setView = (value: 'guide' | 'list') => {if (value === 'list') goNow(); controller.chooseView(value);};
   const [selected, setSelected] = useState<Readonly<{channel: GuideChannelRow; program?: GuideProgram}>>();
   const selectedRef = useRef(selected); selectedRef.current = selected;
@@ -98,6 +99,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   const [recording, setRecording] = useState(false), [recordError, setRecordError] = useState<unknown>();
   const [series, setSeries] = useState<Readonly<{draft: RecordingDraft; defaults?: SeriesForm}>>(), [toast, setToast] = useState<ToastMessage | null>(null);
   const [reminders, setReminders] = useState<ReadonlyMap<string, GuideReminder>>(new Map()), [later, setLater] = useState<readonly GuideAiring[]>([]);
+  const [laterRecordings, setLaterRecordings] = useState<ReadonlyMap<string, Readonly<{id: string; state: string}>>>(new Map()), [laterRecording, setLaterRecording] = useState<ReadonlySet<string>>(new Set());
   const [recordingsOpen, setRecordingsOpen] = useState(false), [recordingsReturn, setRecordingsReturn] = useState(0), [ownerOpen, setOwnerOpen] = useState(false);
   const [managementReturn, setManagementReturn] = useState(0);
   const [management, setManagement] = useState<Readonly<{opening: object; url: string}>>();
@@ -167,8 +169,9 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   }, [runtime.navigation, twoPane]);
   // A selected programme carries the guide's own later airings and this profile's reminders; both are server reads.
   useEffect(() => {
-    if (!selected) {setLater([]); return;}
+    if (!selected) {setLater([]); setLaterRecordings(new Map()); return;}
     let live = true;
+    setLaterRecordings(new Map());
     const raw = legacyChannel(selected.channel), at = serverNow();
     void features.reminders().then(value => {if (live) setReminders(new Map(value.items.map(item => [item.airing.programme.id, item])));}, () => {});
     if (raw) void features.airings({channelId: raw.id, sourceId: raw.sourceId, kind: raw.provenance, start: new Date(at).toISOString(), end: new Date(at + 12 * 3600e3).toISOString(), limit: 8})
@@ -182,6 +185,19 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
       if (!existing && value) setReminders(current => new Map(current).set(value.airing.programme.id, value));
       if (existing) setReminders(current => {const next = new Map(current); next.delete(airing.programme.id); return next;});
     }).catch(error => {if (controller.lifetime.current()) runtime.reportError(error);});
+  };
+  // A later airing is scheduled exactly as the selected programme is: same call, same options.
+  const recordLater = (airing: GuideAiring) => {
+    const channel = selected && legacyChannel(selected.channel), id = airing.programme.id;
+    if (!channel || laterRecording.has(id)) return;
+    setLaterRecording(current => new Set(current).add(id));
+    void recordings.schedule({channel, programme: airing.programme, series: false}, defaultRecordingOptions).then(result => {
+      if (!controller.lifetime.current() || !result) {if (controller.lifetime.current()) setRecordError(recordings.getSnapshot().error); return;}
+      setLaterRecordings(current => new Map(current).set(id, {id: result.value.id, state: result.value.state}));
+      guide.invalidate();
+    }, error => {if (controller.lifetime.current()) setRecordError(error);}).finally(() => {
+      if (controller.lifetime.current()) setLaterRecording(current => {const next = new Set(current); next.delete(id); return next;});
+    });
   };
   const askSeries = async (channel: GuideChannelRow, programme: GuideProgram) => {
     const rawChannel = legacyChannel(channel), rawProgramme = legacyProgramme(programme);
@@ -323,7 +339,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   const sortPicker = phoneChrome ? <NativeLivePhonePicker testID="live-sort" accessibilityLabel={t('channels.sort')} value={state.options.sort ?? 'number'} options={sortOptions.map(option => ({id: option.value, label: option.label}))} onChange={chooseSort} placement="bottom-end" secondary>{sortOptions.find(option => option.value === state.options.sort)?.label}</NativeLivePhonePicker>
     : <Select testID="live-sort" accessibilityLabel={t('channels.sort')} value={state.options.sort ?? 'number'} options={sortOptions} onValueChange={chooseSort}/>;
   const hasRecordings = state.sources.some(value => value.recordAvailable);
-  const controls = ids.surface('live.controls'), grid = ids.surface('live.grid'), filters = ids.surface('live.filters');
+  const controls = ids.surface('live.controls'), grid = ids.surface('live.grid'), filters = ids.surface('live.filters'), notices = ids.surface('live.notices');
   useTVPageBack(runtime, {kind: 'live'}, theme.isTV && !managementActive, {
     registerTop: true, scope: JSON.stringify([state.revision, view]),
     current: () => controller.lifetime.current() && !recordingsOpen && !ownerOpen && !managementOwnsPage() && !selected,
@@ -343,22 +359,24 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
     scrollTop: () => {list.current?.scrollToOffset({offset: 0, animated: false}); goNow();},
   });
   const viewSwitch = <Segmented testID="live-view" variant="phone" style={{backgroundColor: theme.colors.raisedHigh, borderRadius: 10}} value={view} onValueChange={value => setView(value as 'list' | 'guide')} itemProps={item => ({accessibilityLabel: t(item.value === 'list' ? 'channels.viewList' : 'channels.viewGuide'), style: {height: 32, borderRadius: 8, paddingLeft: 9, paddingRight: 11}})} items={(['list', 'guide'] as const).map(value => ({value, label: <View style={{flexDirection: 'row', gap: 6, alignItems: 'center'}}><Icon name={value === 'list' ? 'i-list' : 'i-timeline'} size={16} color={view === value ? theme.colors.text : theme.colors.textTertiary}/><Text style={[shellType(13.5, 700), {color: view === value ? theme.colors.text : theme.colors.textTertiary}]}>{t(value === 'list' ? 'channels.viewList' : 'channels.viewGuide')}</Text></View>}))}/>;
+  // Counts are the server's own summaries (and the loaded guide's total while nothing is filtered);
+  // a count the store does not know draws none.
+  const filterActive = !!state.options.favorites || !!state.options.group, hasSources = state.sources.length > 0;
+  const groupCounts = new Map<string, number>();
+  for (const value of selectedSources) for (const group of value.groupCounts) groupCounts.set(group.name, (groupCounts.get(group.name) ?? 0) + group.count);
+  const favoriteCount = hasSources ? selectedSources.reduce((sum, value) => sum + value.favoriteCount, 0) : undefined;
+  const allCount = filterActive ? hasSources ? selectedSources.reduce((sum, value) => sum + value.channelCount, 0) : undefined : data.total;
   const filterChips = <TVRow><FlatList horizontal data={groups} keyExtractor={group => group} showsHorizontalScrollIndicator={false} initialNumToRender={10} maxToRenderPerBatch={10} windowSize={3} style={{flexGrow: landscape ? 1 : 0, flex: landscape ? 1 : undefined, height: theme.isTV ? 64 : phoneChrome ? 34 : 44}} contentContainerStyle={{gap: theme.isTV ? 12 : phoneChrome ? 8 : 10, paddingHorizontal: compact ? 20 : 0}}
-          ListHeaderComponent={<View style={{flexDirection: 'row', gap: theme.isTV ? 12 : phoneChrome ? 8 : 10}}>{phoneChrome && sourcePicker}<Chip style={phoneChrome ? {height: 34, borderRadius: 9, paddingHorizontal: 12} : undefined} textStyle={phoneChrome ? shellType(13.5, 700) : undefined} focusId="all" testID="live-filter-all" selected={!state.options.favorites && !state.options.group} onPress={() => select({favorites: false, group: undefined})}>{t('channels.filterAll')}</Chip><Chip style={phoneChrome ? {height: 34, borderRadius: 9, paddingHorizontal: 12} : undefined} textStyle={phoneChrome ? shellType(13.5, 700) : undefined} focusId="favorites" testID="live-filter-favorites" selected={state.options.favorites === true} onPress={() => select({favorites: !state.options.favorites, group: undefined})}>{t('channels.favorites')}</Chip>{ports.context.account.account.role === 'owner' && <Chip style={phoneChrome ? {height: 34, borderRadius: 9, paddingHorizontal: 12} : undefined} textStyle={phoneChrome ? shellType(13.5, 700) : undefined} focusId="hidden" testID="live-filter-hidden" selected={state.options.includeServerHidden === true} onPress={() => select({includeServerHidden: !state.options.includeServerHidden})}>{t('channels.showHidden')}</Chip>}</View>}
-          renderItem={({item: group}) => <Chip style={phoneChrome ? {height: 34, borderRadius: 9, paddingHorizontal: 12} : undefined} textStyle={phoneChrome ? shellType(13.5, 700) : undefined} focusId={`group:${group}`} testID={`live-filter-${group}`} selected={state.options.group === group} onPress={() => select({group, favorites: false})}>{group}</Chip>}/></TVRow>;
+          ListHeaderComponent={<View style={{flexDirection: 'row', gap: theme.isTV ? 12 : phoneChrome ? 8 : 10}}>{phoneChrome && sourcePicker}<Chip style={phoneChrome ? {height: 34, borderRadius: 9, paddingHorizontal: 12} : undefined} textStyle={phoneChrome ? shellType(13.5, 700) : undefined} focusId="all" testID="live-filter-all" count={allCount} selected={!state.options.favorites && !state.options.group} onPress={() => select({favorites: false, group: undefined})}>{t('channels.filterAll')}</Chip><Chip style={phoneChrome ? {height: 34, borderRadius: 9, paddingHorizontal: 12} : undefined} textStyle={phoneChrome ? shellType(13.5, 700) : undefined} focusId="favorites" testID="live-filter-favorites" count={favoriteCount} selected={state.options.favorites === true} onPress={() => select({favorites: !state.options.favorites, group: undefined})}>{t('channels.favorites')}</Chip>{ports.context.account.account.role === 'owner' && <Chip style={phoneChrome ? {height: 34, borderRadius: 9, paddingHorizontal: 12} : undefined} textStyle={phoneChrome ? shellType(13.5, 700) : undefined} focusId="hidden" testID="live-filter-hidden" selected={state.options.includeServerHidden === true} onPress={() => select({includeServerHidden: !state.options.includeServerHidden})}>{t('channels.showHidden')}</Chip>}</View>}
+          renderItem={({item: group}) => <Chip style={phoneChrome ? {height: 34, borderRadius: 9, paddingHorizontal: 12} : undefined} textStyle={phoneChrome ? shellType(13.5, 700) : undefined} focusId={`group:${group}`} testID={`live-filter-${group}`} count={groupCounts.get(group)} selected={state.options.group === group} onPress={() => select({group, favorites: false})}>{group}</Chip>}/></TVRow>;
   useDestinationEntryFocus({visible: theme.isTV && !managementActive && !recordingsOpen && recordingsReturn > 0, intent: 'restore', revision: recordingsReturn}, {regionId: controls, childId: 'live-recordings'});
   useDestinationEntryFocus({visible: theme.isTV && !managementActive && !recordingsOpen && managementReturn > 0, intent: 'restore', revision: managementReturn}, {regionId: controls, childId: 'live-owner-open'});
   const empty = !state.loading && state.sources.length === 0;
+  // web Live.route: a filter that matches no channel says so and offers the way back to All.
+  const filterEmpty = !empty && filterActive && data.total === 0 && !data.channelsError;
+  const filterEmptyView = <StateView testID="live-filter-empty" title={t('channels.filterEmptyTitle', {filter: state.options.group ?? t('channels.favorites')})}
+    primaryAction={{id: 'show-all', label: t('channels.showAll'), onPress: () => select({favorites: false, group: undefined})}}/>;
   const managesServer = managementCurrent();
-  // Spec §10 and states 2 (Banner): a stale guide and a server-wide reason are each said once, from the
-  // server's own source summaries, as on web (LT-3, LT-4 native half, W2-A10). A quiet line; no focus on TV.
-  const serverWide = liveServerWideNotice(selectedSources, managesServer), stale = liveGuideStale(selectedSources);
-  const guideNotices = serverWide || stale ? <View testID="live-guide-notices" style={{gap: 8, marginBottom: theme.isTV ? 24 : 10, paddingHorizontal: compact ? 20 : 0}}>
-    {serverWide && <Banner testID="live-server-wide" placement="inline" variant="quiet" tone="warning" icon="i-alert"
-      message={<Text><Text style={{fontFamily: fontFamilies[700], color: theme.colors.text}}>{t(serverWide.title)}</Text>{' '}{t(serverWide.body)}</Text>}
-      accessibilityLabel={`${t(serverWide.title)} ${t(serverWide.body)}`}/>}
-    {stale && <Banner testID="live-guide-stale" placement="inline" variant="quiet" tone="warning" icon="i-clock" message={t('guide.stale')}/>}
-  </View> : null;
   // The public destination must be registered by Web and admitted by the handoff's
   // exact public URL validator before a control can offer it.
   const managementUrl = useMemo(() => {
@@ -375,6 +393,22 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
     if (!theme.isTV) {setInitialOwnerAction(action); setOwnerOpen(true); return;}
     if (managementUrl) setManagement({opening: managementOwner, url: managementUrl});
   };
+  // Spec §10 and states 2 (Banner): a stale guide and a server-wide reason are each said once, from the
+  // server's own source summaries, as on web (LT-3, LT-4 native half, W2-A10). A quiet line; the owner
+  // alone also gets the way to the source (web's guide.openSource), which is the page the setup
+  // actions open. A member's line stays quiet and takes no focus.
+  const serverWide = liveServerWideNotice(selectedSources, managesServer), stale = liveGuideStale(selectedSources);
+  const staleSource = stale && managesServer && (!theme.isTV || managementUrl !== undefined);
+  const tvNotices = theme.isTV && staleSource;
+  const staleLine = <Banner testID="live-guide-stale" placement="inline" variant="quiet" tone="warning" icon="i-clock" message={t('guide.stale')}/>;
+  const staleRow = <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}><View style={{flexShrink: 1}}>{staleLine}</View>
+    <Button focusId="live-guide-stale-source" testID="live-guide-stale-source" variant="glass" size="small" onPress={() => openManagement()}>{t('guide.openSource')}</Button></View>;
+  const guideNotices = serverWide || stale ? <View testID="live-guide-notices" style={{gap: 8, marginBottom: theme.isTV ? 24 : 10, paddingHorizontal: compact ? 20 : 0}}>
+    {serverWide && <Banner testID="live-server-wide" placement="inline" variant="quiet" tone="warning" icon="i-alert"
+      message={<Text><Text style={{fontFamily: fontFamilies[700], color: theme.colors.text}}>{t(serverWide.title)}</Text>{' '}{t(serverWide.body)}</Text>}
+      accessibilityLabel={`${t(serverWide.title)} ${t(serverWide.body)}`}/>}
+    {stale && (!staleSource ? staleLine : tvNotices ? <FocusRegion id={notices} orientation="horizontal" edges={{left: ids.rail, up: filters, down: grid}}>{staleRow}</FocusRegion> : staleRow)}
+  </View> : null;
   if (managementActive && management) return <TVManagementHandoff url={management.url} onBack={closeManagement}/>;
   if (ownerOpen && !theme.isTV) return <NativeLiveOwnerScreen controller={owner} recordings={recordings} ports={ports} runtime={runtime} initialAction={initialOwnerAction} onClose={() => {setInitialOwnerAction(undefined); setOwnerOpen(false); setRecordingsReturn(value => value + 1);}}/>;
   if (recordingsOpen) return <NativeRecordingsScreen controller={recordings} ports={ports} runtime={runtime} owner={theme.isTV ? undefined : owner} onGuide={() => {setRecordingsReturn(value => value + 1); setRecordingsOpen(false);}}/>;
@@ -385,7 +419,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   const tvCanRemind = !!selected && selected.channel.kind === 'live' && !!selected.program && selected.program.start > now;
   const programmeRegion = ids.surface('live.programme');
   const programmeGroups = tvProgrammeGroups({watch: showTVWatch, record: tvCanRecord, remind: !!(tvCanRemind && selected && legacyChannel(selected.channel)),
-    later: later.map(airing => airing.programme.id), recordError: recordError !== undefined, preferenceError: state.mutationError !== undefined});
+    later: later.map(airing => airing.programme.id), recordError: recordError !== undefined, preferenceError: state.mutationError !== undefined, laterFirst: true});
   const programmeGroup = (id: string, children: React.ReactNode, style?: React.ComponentProps<typeof View>['style'], horizontal = false) => {
     if (!theme.isTV) return style ? <View style={style}>{children}</View> : <>{children}</>;
     return <FocusRegion id={`${programmeRegion}.${id}`} orientation={horizontal ? 'horizontal' : 'vertical'}
@@ -395,8 +429,30 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   const watchProgramme = selected?.channel.tuneAvailable ? <Button ref={opener} testID="live-watch" icon="i-play" onPress={() => watch(selected.channel)}>{t(onNowProgramme ? 'guide.watchLive' : 'guide.watchChannel')}</Button> : null;
   // Spec §10: an unavailable channel says why in its sheet, where Watch would be (LT-4, as web's programme panel).
   const sheetReason = selected && !selected.channel.tuneAvailable ? channelUnavailableMessage(selected.channel.tuneUnavailableReason ?? '') : undefined;
+  // The TV sheet reads "Later on" before its actions (tv.html 6); phone and tablet keep it after them.
+  const laterOn = selected && later.length > 0 ? <View style={{gap: 10}} testID="live-later">
+          <Text style={[shellType(theme.isTV ? 22 : 13, 700), {color: theme.colors.text}]}>{t('guide.laterOn', {channel: selected.channel.name})}</Text>
+          {later.map(airing => {
+            const code = episodeLabel(airing.programme.episode?.number !== undefined ? {mode: 'seasonal' as const, season: airing.programme.episode.season, episode: airing.programme.episode.number} : undefined, 'player', runtime.text)?.text;
+            const range = programmeTimeRange(Date.parse(airing.programme.start), Date.parse(airing.programme.end), {...runtime.text, timeZone: state.options.timezone})?.text;
+            const recordingOf = laterRecordings.get(airing.programme.id) ?? (airing.programme.recordingId ? {id: airing.programme.recordingId, state: airing.programme.recordingState ?? ''} : undefined);
+            const laterRecordable = !theme.isTV && selected.channel.kind === 'live' && selected.channel.recordAvailable && Date.parse(airing.programme.end) > now;
+            return <React.Fragment key={airing.programme.id}>{programmeGroup(`later:${airing.programme.id}`, <>
+              <Text style={[shellType(theme.isTV ? 20 : 12.5), {color: theme.colors.textSecondary, width: theme.isTV ? 90 : 70}]}>{clock(Date.parse(airing.programme.start))}</Text>
+              <View style={{flex: 1, minWidth: 0}}>
+                <View style={{flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 3}}>{[code, airing.programme.title].filter(Boolean).map((part, index) => <Text key={index} numberOfLines={1} style={[shellType(theme.isTV ? 22 : 14, 600), {color: theme.colors.text}]}>{part}</Text>)}</View>
+                {range && <Text numberOfLines={1} style={[shellType(theme.isTV ? 18 : 12), {color: theme.colors.textTertiary, marginTop: 2}]}>{range}</Text>}
+              </View>
+              <Focusable testID={`live-later-remind-${airing.programme.id}`} focusKind="button" accessibilityRole="button" accessibilityLabel={t(reminders.has(airing.programme.id) ? 'guide.stopRemind' : 'guide.remind')} onPress={() => remind(airing, reminders.get(airing.programme.id))} style={{width: theme.isTV ? 48 : 44, height: theme.isTV ? 48 : 44, alignItems: 'center', justifyContent: 'center'}}><Icon name={reminders.has(airing.programme.id) ? 'i-bell-f' : 'i-bell'} size={theme.isTV ? 24 : 20} color={reminders.has(airing.programme.id) ? theme.colors.accentStrong : theme.colors.textTertiary}/></Focusable>
+              {laterRecordable && <Focusable testID={`live-later-record-${airing.programme.id}`} focusKind="button" accessibilityRole="button" accessibilityLabel={recordingOf ? t(recordLabelKey(recordingOf)) : t('guide.recordAiring', {title: airing.programme.title, time: clock(Date.parse(airing.programme.start)) ?? ''})} disabled={laterRecording.has(airing.programme.id) || !!recordingOf} onPress={() => recordLater(airing)} style={{width: 44, height: 44, alignItems: 'center', justifyContent: 'center'}}><Icon name="i-rec" size={20} color={recordingOf ? theme.colors.record : theme.colors.textTertiary}/></Focusable>}
+              <Focusable testID={`live-later-open-${airing.programme.id}`} focusKind="button" accessibilityRole="button" accessibilityLabel={airing.programme.title} onPress={() => setSelected({channel: selected.channel, program: {...legacyProgram(airing.programme), ...(recordingOf ? {recording: recordingOf} : {})}})} style={{width: theme.isTV ? 48 : 44, height: theme.isTV ? 48 : 44, alignItems: 'center', justifyContent: 'center'}}><Icon name="i-info" size={theme.isTV ? 24 : 20} color={theme.colors.textTertiary}/></Focusable>
+            </>, {flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48}, true)}</React.Fragment>;
+          })}
+          <Text style={[shellType(theme.isTV ? 18 : 12), {color: theme.colors.textTertiary}]}>{t('guide.reminderSet')}</Text>
+        </View> : null;
   const programmeBody = selected ? <View style={{gap: 20}}>
         {selected.program && <ProgrammeDetails programme={selected.program} now={now} runtime={runtime}/>}
+        {theme.isTV && laterOn}
         {sheetReason && <Banner testID="live-sheet-reason" placement="inline" variant="quiet" tone="warning" icon="i-alert" message={t(sheetReason)}/>}
         {(theme.isTV ? showTVWatch : onNowProgramme) && programmeGroup('watch', watchProgramme)}
         {selected.channel.kind === 'live' && selected.channel.recordAvailable && selected.program && selected.program.end > now && programmeGroup('record', <>
@@ -410,7 +466,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
               setSelected(current => current?.channel.id === selected.channel.id && current.program?.id === selected.program?.id ? {...current, program: {...current.program!, recording: {id: receipt.id, state: receipt.state}}} : current);
               guide.invalidate();
             }, error => {if (controller.lifetime.current()) setRecordError(error);}).finally(() => {if (controller.lifetime.current()) setRecording(false);});
-          }}>{t(selected.program.recording?.state === 'recording' ? 'web.dvr.state.recording' : selected.program.recording?.state === 'conflicted' ? 'web.dvr.state.conflicted' : selected.program.recording ? 'guide.recordingScheduled' : 'guide.record')}</Button>
+          }}>{t(recordLabelKey(selected.program.recording))}</Button>
           <Button style={{flex: 1}} variant="glass" testID="live-record-series" onPress={() => {if (selected.program) void askSeries(selected.channel, selected.program);}}>{t('guide.recordSeries')}</Button>
         </>, {flexDirection: 'row', gap: 10}, true)}
         {theme.isTV && programmeGroup('favorite', <Button ref={theme.isTV && !showTVWatch && !tvCanRecord ? opener : undefined} focusableWhenDisabled variant="glass" testID="live-channel-favorite" icon={selected.channel.favorite ? 'i-star-f' : 'i-star'}
@@ -424,27 +480,11 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
           return programmeGroup('remind', <Button variant="glass" testID="live-remind" focusableWhenDisabled icon={existing ? 'i-bell-f' : 'i-bell'} disabled={!airing} onPress={() => {if (airing) remind(airing, existing);}}>{t(existing ? 'guide.stopRemind' : 'guide.remind')}</Button>);
         })()}
         {!onNowProgramme && !theme.isTV && watchProgramme}
-        {later.length > 0 && <View style={{gap: 10}} testID="live-later">
-          <Text style={[shellType(theme.isTV ? 22 : 13, 700), {color: theme.colors.text}]}>{t('guide.laterOn', {channel: selected.channel.name})}</Text>
-          {later.map(airing => {
-            const code = episodeLabel(airing.programme.episode?.number !== undefined ? {mode: 'seasonal' as const, season: airing.programme.episode.season, episode: airing.programme.episode.number} : undefined, 'player', runtime.text)?.text;
-            const range = programmeTimeRange(Date.parse(airing.programme.start), Date.parse(airing.programme.end), {...runtime.text, timeZone: state.options.timezone})?.text;
-            return <React.Fragment key={airing.programme.id}>{programmeGroup(`later:${airing.programme.id}`, <>
-              <Text style={[shellType(theme.isTV ? 20 : 12.5), {color: theme.colors.textSecondary, width: theme.isTV ? 90 : 70}]}>{clock(Date.parse(airing.programme.start))}</Text>
-              <View style={{flex: 1, minWidth: 0}}>
-                <View style={{flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 3}}>{[code, airing.programme.title].filter(Boolean).map((part, index) => <Text key={index} numberOfLines={1} style={[shellType(theme.isTV ? 22 : 14, 600), {color: theme.colors.text}]}>{part}</Text>)}</View>
-                {range && <Text numberOfLines={1} style={[shellType(theme.isTV ? 18 : 12), {color: theme.colors.textTertiary, marginTop: 2}]}>{range}</Text>}
-              </View>
-              <Focusable testID={`live-later-remind-${airing.programme.id}`} focusKind="button" accessibilityRole="button" accessibilityLabel={t(reminders.has(airing.programme.id) ? 'guide.stopRemind' : 'guide.remind')} onPress={() => remind(airing, reminders.get(airing.programme.id))} style={{width: theme.isTV ? 48 : 44, height: theme.isTV ? 48 : 44, alignItems: 'center', justifyContent: 'center'}}><Icon name={reminders.has(airing.programme.id) ? 'i-bell-f' : 'i-bell'} size={theme.isTV ? 24 : 20} color={reminders.has(airing.programme.id) ? theme.colors.accentStrong : theme.colors.textTertiary}/></Focusable>
-              <Focusable testID={`live-later-open-${airing.programme.id}`} focusKind="button" accessibilityRole="button" accessibilityLabel={airing.programme.title} onPress={() => setSelected({channel: selected.channel, program: legacyProgram(airing.programme)})} style={{width: theme.isTV ? 48 : 44, height: theme.isTV ? 48 : 44, alignItems: 'center', justifyContent: 'center'}}><Icon name="i-info" size={theme.isTV ? 24 : 20} color={theme.colors.textTertiary}/></Focusable>
-            </>, {flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48}, true)}</React.Fragment>;
-          })}
-          <Text style={[shellType(theme.isTV ? 18 : 12), {color: theme.colors.textTertiary}]}>{t('guide.reminderSet')}</Text>
-        </View>}
+        {!theme.isTV && laterOn}
         {recordError !== undefined && programmeGroup('record-error', <StateView testID="live-record-error" {...runtime.error(recordError, () => setRecordError(undefined), 'live')}/>, undefined, true)}
         {state.mutationError !== undefined && programmeGroup('preference-error', <StateView testID="live-channel-preference-error" {...runtime.error(state.mutationError, favorite, 'live')}/>, undefined, true)}
   </View> : null;
-  const programmeFocusBody = theme.isTV && programmeBody ? <FocusRegion id={programmeRegion} entryRegion={`${programmeRegion}.${programmeGroups[0]}`} stops={{up: true, down: true, left: true, right: true}}>{programmeBody}</FocusRegion> : programmeBody;
+  const programmeFocusBody = theme.isTV && programmeBody ? <FocusRegion id={programmeRegion} entryRegion={`${programmeRegion}.${programmeGroups.find(group => !group.startsWith('later:'))}`} stops={{up: true, down: true, left: true, right: true}}>{programmeBody}</FocusRegion> : programmeBody;
   return <Screen title={!theme.isTV && !phoneChrome ? t('search.chip.liveTV') : undefined} style={theme.isTV ? {paddingTop: 56, paddingRight: 8} : phoneChrome ? {paddingTop: insets.top + (landscape ? 0 : 14)} : undefined}>
     <View ref={content} onLayout={event => {setMeasuredWidth(event.nativeEvent.layout.width); measureContent();}}
       style={{flex: 1, paddingLeft: insetLeft, paddingRight: twoPane ? Math.max(insetRight, contentWidth - guideEnd) : insetRight}}>
@@ -467,7 +507,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
         {!theme.isTV && sortPicker}
         {managesServer && <Button testID="live-owner-open" variant="glass" size="small" icon="i-sliders" disabled={theme.isTV && !managementUrl} onPress={() => openManagement()}>{t('settings.server.live')}</Button>}
       </FocusRegion>}
-      {!landscape && <FocusRegion id={filters} orientation="horizontal" entry={state.options.favorites ? 'favorites' : state.options.group ? `group:${state.options.group}` : 'all'} edges={{left: ids.rail, up: controls, down: grid}} style={{marginBottom: theme.isTV ? 38 : stackedHeader ? 8 : 30}}>
+      {!landscape && <FocusRegion id={filters} orientation="horizontal" entry={state.options.favorites ? 'favorites' : state.options.group ? `group:${state.options.group}` : 'all'} edges={{left: ids.rail, up: controls, down: tvNotices ? notices : grid}} style={{marginBottom: theme.isTV ? 38 : stackedHeader ? 8 : 30}}>
         {filterChips}
       </FocusRegion>}
       {stackedHeader && <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, paddingHorizontal: compact ? 20 : 0}}>{view === 'guide' ? dayPicker : <View style={{flexDirection: 'row', gap: 6, alignItems: 'center'}}><Text style={[shellType(13, 700), {color: theme.colors.text}]}>{t('guide.onNow')}</Text><Text style={[shellType(13), {color: theme.colors.textSecondary}]}>{clock(now)}</Text></View>}{sortPicker}</View>}
@@ -481,9 +521,9 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
           <Button testID="live-earlier" variant="glass" size="small" icon="i-left" disabled={!panActive} onPress={() => pan.adjust(-4 * SLOT_MS)}>{t('guide.earlier')}</Button>
           <Button testID="live-later" variant="glass" size="small" trailingIcon="i-right" disabled={!panActive} onPress={() => pan.adjust(4 * SLOT_MS)}>{t('guide.later')}</Button>
         </View>}
-        <GestureDetector gesture={pan.gesture}><View style={{flex: 1}}>
+        {filterEmpty ? theme.isTV ? <FocusRegion id={grid} edges={{up: tvNotices ? notices : filters, left: ids.rail}} style={{flex: 1}}>{filterEmptyView}</FocusRegion> : filterEmptyView : <GestureDetector gesture={pan.gesture}><View style={{flex: 1}}>
         {view === 'guide' && <View style={{height: theme.isTV ? 50 : 30, flexDirection: 'row', marginLeft: landscape ? 0 : channelWidth}}>{landscape && <View style={{width: channelWidth, paddingLeft: 4}}>{dayPicker}</View>}<View style={{flex: 1, overflow: 'hidden'}}><Animated.View style={[{flex: 1}, rulerShift]}>{rulerTicks(start - overscan, end + overscan, px, state.options.timezone).map(tick => <View key={tick.atMs} style={{position: 'absolute', left: tick.x - overscan * px, height: theme.isTV ? 28 : 22, borderLeftWidth: 1, borderLeftColor: theme.colors.line}}><Text style={[shellType(theme.isTV ? 20 : 11), {marginLeft: 10, color: theme.colors.textSecondary}]}>{clock(tick.atMs)}</Text></View>)}</Animated.View></View></View>}
-        <FocusRegion id={grid} edges={theme.isTV ? {up: filters, left: ids.rail} : undefined} stops={theme.isTV ? {right: true, down: true} : undefined}
+        <FocusRegion id={grid} edges={theme.isTV ? {up: tvNotices ? notices : filters, left: ids.rail} : undefined} stops={theme.isTV ? {right: true, down: true} : undefined}
           timeGrid={theme.isTV ? {initialTime: now, start, end} : undefined} style={{flex: 1}}>
         <VirtualizedList ref={list} refreshControl={pull} key={`${state.revision}:${view}`} data={null} getItem={(_, index) => index} getItemCount={() => data.total ?? 12} keyExtractor={index => String(index)} initialNumToRender={12} maxToRenderPerBatch={12} windowSize={5} removeClippedSubviews={false} getItemLayout={(_, index) => ({index, length: rowHeight + rowGap, offset: index * (rowHeight + rowGap)})}
           onLayout={() => list.current?.scrollToOffset({offset: guideOffset.current, animated: false})} onScroll={event => {guideOffset.current = event.nativeEvent.contentOffset.y;}} scrollEventThrottle={16}
@@ -493,7 +533,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
         {phone && view === 'guide' && <Animated.View pointerEvents="none" style={[{position: 'absolute', left: channelWidth, top: 30, bottom: 0}, pastShade]}><Svg width="100%" height="100%" accessible={false}><Defs><LinearGradient id={`${shadeId}-past`} x1="0" y1="0" x2="1" y2="0"><Stop offset="0" stopColor={theme.colors.ink} stopOpacity={.38}/><Stop offset="1" stopColor={theme.colors.ink} stopOpacity={.12}/></LinearGradient></Defs><Rect width="100%" height="100%" fill={`url(#${shadeId}-past)`}/></Svg></Animated.View>}
         {view === 'guide' && (inNowSpan || panActive) && <View pointerEvents="none" style={{position: 'absolute', left: channelWidth, right: 0, top: 0, bottom: theme.isTV ? 60 : 0, overflow: 'hidden'}}><Animated.View style={[{position: 'absolute', left: nowX, top: 0, bottom: 0, width: theme.isTV ? 3 : 2, backgroundColor: `${theme.colors.accentStrong}88`}, nowShift]}><Animated.View style={[{position: 'absolute', top: theme.isTV ? 0 : 4, width: 60, height: theme.isTV ? 30 : 22, alignItems: 'center', justifyContent: 'center', borderRadius: theme.isTV ? 6 : 4, backgroundColor: theme.colors.accentStrong}, nowPillShift]}><Text style={[shellType(theme.isTV ? 20 : 12, 800), {color: theme.colors.ink}]}>{clock(now)}</Text></Animated.View></Animated.View></View>}
         {phone && view === 'guide' && <>{(['earlier', 'later'] as const).map(direction => <Animated.View key={direction} style={[{position: 'absolute', top: 3, ...(direction === 'earlier' ? {left: channelWidth + 3} : {right: 3})}, direction === 'earlier' ? earlierNow : laterNow]}><Focusable testID={`live-docked-now-${direction}`} accessibilityRole="button" accessibilityLabel={t(direction === 'earlier' ? 'guide.nowEarlier' : 'guide.nowLater')} onPress={goNow} style={{height: 24, paddingHorizontal: 9, borderRadius: 12, backgroundColor: theme.colors.accentStrong, flexDirection: 'row', gap: 1, alignItems: 'center'}}>{direction === 'earlier' && <Icon name="i-left" size={14} color={theme.colors.ink}/>}<Text style={[shellType(12, 800), {color: theme.colors.ink}]}>{t('guide.now')}</Text>{direction === 'later' && <Icon name="i-right" size={14} color={theme.colors.ink}/>}</Focusable></Animated.View>)}</>}
-        </View></GestureDetector>
+        </View></GestureDetector>}
         {data.channelsError && <StateView {...runtime.error(new Error('guide_channels_unavailable'), () => guide.reset(), 'live')}/>}
       </>}
     </View>
@@ -662,6 +702,9 @@ function GuideChannelArt({channel, source, size}: {channel: GuideChannelRow; sou
   return mark ? <ChannelMark mark={mark} source={source} size={size}/> : source ? <Artwork source={source} fit="contain"/> : null;
 }
 
+/** A scheduled airing says its state where Record was; an unscheduled one says Record. */
+const recordLabelKey = (recording?: Readonly<{state: string}>) => recording?.state === 'recording' ? 'web.dvr.state.recording' : recording?.state === 'conflicted' ? 'web.dvr.state.conflicted' : recording ? 'guide.recordingScheduled' : 'guide.record';
+
 export function ProgrammeDetails({programme, now, runtime}: {programme: GuideProgram; now: number; runtime: NativeShellRuntime}) {
   const theme = useTheme(), t = runtime.text.t;
   const episode = programme.episode?.number !== undefined ? {mode: 'seasonal' as const, season: programme.episode.season, episode: programme.episode.number} : undefined;
@@ -675,7 +718,7 @@ export function ProgrammeDetails({programme, now, runtime}: {programme: GuidePro
     return <View style={{gap: 22}}>
       <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 20}}>{[...row, ...tags].map(fact => <Text key={fact.id} style={[shellType(22, fact.id === 'remaining' ? 700 : 400), {color: theme.colors.textSecondary}]}>{fact.text}</Text>)}</View>
       {onNow && <View style={{height: 5, borderRadius: 3, backgroundColor: theme.colors.line, overflow: 'hidden'}}><View style={{height: '100%', width: `${fraction * 100}%`, backgroundColor: theme.colors.accentStrong}}/></View>}
-      {programme.description && <Text style={[shellType(22), {color: theme.colors.textSecondary, lineHeight: 33}]}>{programme.description}</Text>}
+      <Text style={[shellType(22), {color: programme.description ? theme.colors.textSecondary : theme.colors.textTertiary, lineHeight: 33}]}>{programme.description || t('guide.noDescription')}</Text>
     </View>;
   }
   const identity = programmeFactParts({episode, subtitle: programme.subtitle}, runtime.text);
@@ -699,6 +742,6 @@ export function ProgrammeDetails({programme, now, runtime}: {programme: GuidePro
       {started && <Text numberOfLines={1} style={[shellType(12.5), {color: theme.colors.textTertiary}]}>{started.text}</Text>}
       {remaining && <Text numberOfLines={1} style={[shellType(12.5), {color: theme.colors.textTertiary}]}>{remaining.text}</Text>}
     </View>}
-    {programme.description && <Text numberOfLines={theme.width < 700 ? 3 : undefined} style={[shellType(13), {color: theme.colors.textSecondary, lineHeight: 20}]}>{programme.description}</Text>}
+    <Text numberOfLines={theme.width < 700 ? 3 : undefined} style={[shellType(13), {color: programme.description ? theme.colors.textSecondary : theme.colors.textTertiary, lineHeight: 20}]}>{programme.description || t('guide.noDescription')}</Text>
   </View>;
 }
