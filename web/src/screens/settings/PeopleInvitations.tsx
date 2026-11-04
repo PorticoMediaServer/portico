@@ -48,7 +48,7 @@ function invitationRow(invitation: ServerInvitation, libraries: readonly {id: st
  * the link/revoke commands. Nothing is cached: every read reauthorizes and the
  * share link is prepared only for the explicit row opening, then copied with a
  * fresh gesture from the existing ready card. */
-export function PeopleInvitations({invitations, serverName, signIn, libraries, authority, version, openInvite, openHome, reportError, onTotal}: Readonly<{
+export function PeopleInvitations({invitations, serverName, signIn, libraries, authority, version, openInvite, openHome, reportError}: Readonly<{
   invitations: SettingsInvitations;
   serverName: string;
   signIn?: 'local' | 'portico';
@@ -59,8 +59,6 @@ export function PeopleInvitations({invitations, serverName, signIn, libraries, a
   openInvite: ((opener: HTMLElement) => void) | undefined;
   openHome: () => void;
   reportError: (error: unknown) => void;
-  /** The invitations' total, for a phone's Invitations tab count (owner-people 24a). */
-  onTotal?: (total: number | undefined) => void;
 }>) {
   const [entry, setEntry] = useState<Readonly<{view: InvitationsView; invitations: SettingsInvitations; authority: typeof authority; id: number}>>();
   const entrySequence = useRef(0);
@@ -75,10 +73,10 @@ export function PeopleInvitations({invitations, serverName, signIn, libraries, a
   // A fresh layout entry also gives the child fresh query/page/modal state.
   return entry && entry.invitations === invitations && entry.authority === authority && entry.view.current()
     && <InvitationTable key={entry.id} version={version} view={entry.view} invitations={entry.invitations} serverName={serverName} signIn={signIn} libraries={libraries} authority={entry.authority}
-    openInvite={openInvite} openHome={openHome} reportError={reportError} onTotal={onTotal} />;
+    openInvite={openInvite} openHome={openHome} reportError={reportError} />;
 }
 
-function InvitationTable({view, invitations, serverName, signIn, libraries, authority, version, openInvite, openHome, reportError, onTotal}: Readonly<{
+function InvitationTable({view, invitations, serverName, signIn, libraries, authority, version, openInvite, openHome, reportError}: Readonly<{
   view: InvitationsView;
   version: number;
   invitations: SettingsInvitations;
@@ -89,8 +87,6 @@ function InvitationTable({view, invitations, serverName, signIn, libraries, auth
   openInvite: ((opener: HTMLElement) => void) | undefined;
   openHome: () => void;
   reportError: (error: unknown) => void;
-  /** The invitations' total, for a phone's Invitations tab count (owner-people 24a). */
-  onTotal?: (total: number | undefined) => void;
 }>) {
   const [query, setQuery] = useState<TableQuery>(initialQuery), [refresh, setRefresh] = useState(0);
   const [scope, setScope] = useState<InvitationScope>();
@@ -136,8 +132,6 @@ function InvitationTable({view, invitations, serverName, signIn, libraries, auth
   }, [view, query, refresh, version]);
   useLayoutEffect(() => confirming ? view.commitOpening(confirming) : undefined, [view, confirming]);
   const page = view.pageCurrent(resident) ? resident : undefined;
-  const total = page?.value.totalCount;
-  useEffect(() => {onTotal?.(total);}, [onTotal, total]);
   const opening = view.openingCurrent(confirming) ? confirming : undefined;
   const shareOpening = view.openingCurrent(sharing) ? sharing : undefined;
   const shownShare = useRetained(shareOpening), shownRevoke = useRetained(opening);
