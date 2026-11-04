@@ -200,6 +200,33 @@ func routesUnderTest() []struct{ method, path string } {
 	return out
 }
 
+func hostileRequestBudget(method, path string) time.Duration {
+	// Realtime routes wait for disconnection; a finite event list is an
+	// ordinary read, regardless of its path spelling.
+	if routeLanes[method+" "+path] == laneRealtime && strings.HasSuffix(path, "/events") {
+		return 10 * time.Millisecond
+	}
+	return 2 * time.Second
+}
+
+func TestHostileRequestBudgetDistinguishesEventReadsFromStreams(t *testing.T) {
+	for _, tc := range []struct {
+		path string
+		want time.Duration
+	}{
+		{"/v1/admin/access/events", 2 * time.Second},
+		{"/v1/admin/logs/events", 10 * time.Millisecond},
+		{"/v1/events", 10 * time.Millisecond},
+		{"/v1/groups/{id}/events", 10 * time.Millisecond},
+		{"/v1/items", 2 * time.Second},
+		{"/v1/notifications/capabilities", 2 * time.Second},
+	} {
+		if got := hostileRequestBudget("GET", tc.path); got != tc.want {
+			t.Errorf("%s budget=%s, want %s", tc.path, got, tc.want)
+		}
+	}
+}
+
 func TestEveryRouteSurvivesHostileInput(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
@@ -228,10 +255,7 @@ func TestEveryRouteSurvivesHostileInput(t *testing.T) {
 				if authorized {
 					r.Header.Set("Authorization", "Bearer "+token)
 				}
-				budget := 2 * time.Second
-				if strings.HasSuffix(route.path, "/events") {
-					budget = 10 * time.Millisecond
-				}
+				budget := hostileRequestBudget(route.method, route.path)
 				ctx, cancel := context.WithTimeout(r.Context(), budget)
 				r = r.WithContext(ctx)
 				w := httptest.NewRecorder()
