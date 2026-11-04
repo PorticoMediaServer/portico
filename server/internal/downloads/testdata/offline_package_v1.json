@@ -1,0 +1,145 @@
+{
+  "key": {
+    "id": "11111111111111111111111111111111",
+    "algorithm": "ed25519",
+    "publicKey": "RqUNU8GunBouXiQXQDCmtRlMO86RllW6IjohiUd3HVg",
+    "createdAt": "2026-11-04T00:00:00Z"
+  },
+  "receipt": {
+    "receiptId": "2222222222222222222222222222222222222222222222222222222222222222",
+    "algorithm": "ed25519",
+    "keyId": "11111111111111111111111111111111",
+    "payload": "eyJraW5kIjoicG9ydGljby5kb3dubG9hZC1yZWNlaXB0IiwidmVyc2lvbiI6IjEiLCJyZWNlaXB0SWQiOiIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyIiwia2V5SWQiOiIxMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMSIsInZpZXdlciI6eyJhdXRob3JpdHkiOiJsb2NhbCIsImFjY291bnRJZCI6IjQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0IiwicHJvZmlsZUlkIjoiNTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTUiLCJzZXJ2ZXJJZCI6IjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2In0sIml0ZW1JZCI6IkJ3Y0hCd2NIQndjSEJ3Y0hCd2NIQnciLCJwcmVwYXJhdGlvbklkIjoiMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMyIsInF1YWxpdHkiOiJvcmlnaW5hbCIsInF1YWxpdHlMYWJlbCI6Ik9yaWdpbmFsIiwiYXJ0aWZhY3QiOnsic2hhMjU2IjoiNjE3NDhlMDFjNzA2MTg0YzFhN2QwMTZlYmVjMTg5MjM3YWJiNTkxNTQ0OThmYjExMjgyYjY4ZWJmNDk5NmMzNyIsImJ5dGVzIjozMH0sImlzc3VlZEF0IjoiMjAyNi0xMS0wNFQwMDowMDowMFoiLCJleHBpcmVzQXQiOiIyMDI2LTEyLTA0VDAwOjAwOjAwWiJ9",
+    "signature": "hBHlHH4tUicH7Z3oSwk_1Bbmc50oKk_VgTkglLPSzQZZJC9mTLnLNpQu1RzJgdcW1-KvZuijjRnNOwi_aYdQBQ",
+    "claims": {
+      "kind": "portico.download-receipt",
+      "version": "1",
+      "receiptId": "2222222222222222222222222222222222222222222222222222222222222222",
+      "keyId": "11111111111111111111111111111111",
+      "viewer": {
+        "authority": "local",
+        "accountId": "44444444444444444444444444444444",
+        "profileId": "55555555555555555555555555555555",
+        "serverId": "66666666666666666666666666666666"
+      },
+      "itemId": "BwcHBwcHBwcHBwcHBwcHBw",
+      "preparationId": "3333333333333333333333333333333333333333333333333333333333333333",
+      "quality": "original",
+      "qualityLabel": "Original",
+      "artifact": {
+        "sha256": "61748e01c706184c1a7d016ebec189237abb59154498fb11282b68ebf4996c37",
+        "bytes": 30
+      },
+      "issuedAt": "2026-11-04T00:00:00Z",
+      "expiresAt": "2026-12-04T00:00:00Z"
+    },
+    "revision": 1
+  },
+  "bundle": {
+    "preparationId": "3333333333333333333333333333333333333333333333333333333333333333",
+    "itemId": "BwcHBwcHBwcHBwcHBwcHBw",
+    "quality": "original",
+    "qualityLabel": "Original",
+    "title": {
+      "durationMs": 6000,
+      "kind": "movie",
+      "onServer": true,
+      "title": "Compatibility film",
+      "year": 2026
+    },
+    "overview": "Stored copy",
+    "media": {
+      "container": "mp4",
+      "videoCodec": "h264",
+      "audioCodec": "aac",
+      "width": 1920,
+      "height": 1080
+    },
+    "artwork": [
+      {
+        "role": "poster",
+        "path": "artwork/poster",
+        "contentType": "image/jpeg"
+      }
+    ],
+    "chapters": [
+      {
+        "endMs": 6000,
+        "image": {
+          "path": "chapters/source/1/image",
+          "contentType": "image/jpeg"
+        },
+        "index": 1,
+        "startMs": 0,
+        "title": "Opening"
+      }
+    ],
+    "markers": [
+      {
+        "automatic": true,
+        "endMs": 2000,
+        "kind": "intro",
+        "startMs": 0
+      }
+    ],
+    "audio": [
+      {
+        "index": 1,
+        "language": "eng",
+        "title": "English",
+        "codec": "aac",
+        "channels": 2,
+        "default": true
+      }
+    ],
+    "subtitles": [
+      {
+        "id": "subtitle",
+        "revision": 3,
+        "language": "eng",
+        "title": "Authored captions",
+        "default": true,
+        "forced": false,
+        "files": {
+          "ass": {
+            "path": "subtitles/subtitle/3/original.ass",
+            "contentType": "text/x-ssa"
+          },
+          "font0": {
+            "path": "subtitles/subtitle/3/fonts/font0",
+            "contentType": "font/ttf"
+          },
+          "vtt": {
+            "path": "subtitles/subtitle/3.vtt",
+            "contentType": "text/vtt"
+          }
+        }
+      }
+    ],
+    "trickplay": {
+      "columns": 2,
+      "durationMs": 6000,
+      "frameCount": 3,
+      "id": "preview",
+      "intervalMs": 2000,
+      "rows": 1,
+      "sourceOffsetMs": 2000,
+      "thumbnails": {
+        "path": "trickplay/preview/thumbnails.vtt",
+        "contentType": "text/vtt"
+      },
+      "tileHeight": 90,
+      "tileWidth": 160,
+      "tiles": [
+        {
+          "path": "trickplay/preview/tiles/0.jpg",
+          "contentType": "image/jpeg"
+        },
+        {
+          "path": "trickplay/preview/tiles/1.jpg",
+          "contentType": "image/jpeg"
+        }
+      ]
+    }
+  }
+}

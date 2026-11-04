@@ -59,12 +59,124 @@
       {
         "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
         "name": "TestMBStagingTenThousandCompleteFinalWriterHold"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+        "name": "TestMixedViewerLoadUnderBackgroundWork"
       }
     ],
     "golden": [
       {
         "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
         "name": "TestReadPathGoldenEquivalence"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+        "name": "TestPlaybackV1WireCompatibility"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+        "name": "TestPlaybackV1CapabilitiesAndOptions"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+        "name": "TestPlaybackV1SessionLifecycle"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+        "name": "TestPlaybackV1QualityDefaultsAndAutomaticSteps"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+        "name": "TestPlaybackV1InPlayerTrackChoicesLastOnePlayback"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+        "name": "TestPlaybackV1SubtitleOriginalUsesGrantRangesAndRevocation"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+        "name": "TestPlaybackV1QueueTransitionFences"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+        "name": "TestPlaybackV1CommitNextRefusesPreparedGenerationDrift"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+        "name": "TestPlaybackV1CommittedPlanIsThePreparedOne"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+        "name": "TestPlaybackV1ExpiredPreparationIsSwept"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+        "name": "TestAirPlayReceiverPreparesExactCurrentChoicesBeforeHandoff"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+        "name": "TestAirPlayReceiverSeekToStartDuringBurnHandoff"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+        "name": "TestCastReceiverCurrentOccurrenceRoutes"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+        "name": "TestCastLostReconnectRecovers"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+        "name": "TestRevokedSignerCannotRedeemOrReconnectACastTarget"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+        "name": "TestConvertingSeekRestartsOnlyAfterRevisionCommit"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+        "name": "TestAirPlayReceiverRenewalWinsStaleExpiryAndEndWinsLateRenewal"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+        "name": "TestInitialCastStartBindsSelectedEntryAndRefusesConcurrentSession"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/playbackv1",
+        "name": "TestGrantReplacementWritesEvidenceUnderTheOldGeneration"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/mediaanalysis",
+        "name": "TestTrickplayV1WireCompatibility"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/downloads",
+        "name": "TestOfflineV1PackageCompatibility"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/downloads",
+        "name": "TestReceiptReplayRespectsRevocation"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/downloads",
+        "name": "TestReceiptSignVerifyRevalidateAndRevoke"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/downloads",
+        "name": "TestBundleCarriesTheFilmsFacts"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/downloads",
+        "name": "TestBundleListsTheFilesChapters"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+        "name": "TestHLSManifestRepresentationRangeReloadAndGrantRevocation"
+      },
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/playback",
+        "name": "TestOccurrenceStaysLiveAcrossTokenRotation"
       }
     ],
     "scanner": [
