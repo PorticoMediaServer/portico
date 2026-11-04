@@ -6,6 +6,7 @@ import {hooks, screenModule, listeningCoverFixture} from './helpers/screen-harne
 import * as chapters from '../src-next/screens/destinations/music/audiobook-controls.ts';
 import {durationText} from '../../../packages/client-core/src/presentation/kit-model/text.ts';
 import {GestureCommitScope} from '../src-next/kit/controls/gesture-commit.ts';
+import {defaultI18n as realI18n} from '../../../packages/i18n/src/index.ts';
 
 const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...nodes(value.props.children)] : [];
 const text = (value: any): string => Array.isArray(value) ? value.map(text).join('') : value?.props ? text(value.props.children) : value == null || typeof value === 'boolean' ? '' : String(value);
@@ -32,7 +33,8 @@ async function fixture(book = false, width = 390) {
     '../../../platform/playback/equalizer': {nativeEqualizer: {subscribe: () => () => {}, getSnapshot: () => ({supported: false})}},
     '../../../platform/overlay-keys': {registerOverlayKeys: () => () => {}}, '../../watch/Equalizer': {NativeWatchEqualizer: 'Equalizer'},
     './MusicSignal': {MusicSignalLine: 'Signal', MusicSignalSheet: 'SignalSheet'},
-    '../../../../../../packages/i18n/src': {defaultI18n: {t: (key: string, values?: any) => key === 'player.opt.minutes' ? `${values.count} min` : key}},
+    '../../../../../../packages/i18n/src': {defaultI18n: {t: (key: string, values?: any) => key === 'player.opt.minutes' ? `${values.count} min`
+      : key === 'player.clockOf' || key === 'web.player.chapterTotal' ? realI18n.t(key, values) : key}},
     '../../../../../../packages/client-core/src/presentation/kit-model/text': {durationText, clockText: (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`},
     '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', AmbientArt: 'AmbientArt', Artwork: 'Artwork'}, '../../../kit/controls': {Button: 'Button', Focusable: 'Focusable'},
     '../../../kit/controls/gesture-commit': {GestureCommitScope}, '../../../kit/Icon': {Icon: 'Icon'}, '../../../kit/theme': {useTheme: () => theme},
@@ -157,6 +159,18 @@ test('MU-2: with the whole book known, the Chapters pane lists every part\'s cha
   rows[0].props.onPress(); await Promise.resolve();
   assert.deepEqual(played, ['part-a:1'], 'a chapter in another part is played through the runtime');
   assert.ok(f.nodes().some(node => node.props.testID === 'now-playing-chapter-line' && text(node).includes('Three')));
+  // tablet-play: the chapter's own clock in words.
+  assert.match(text(f.nodes().find(node => node.props.testID === 'now-playing-chapter-line')), /\d+:\d\d of 1:00$/);
+});
+
+test('phone-app 15: on a phone the chapter line ends with the book\'s chapter count, "of N", never a bare or unknown total', async () => {
+  const f = await fixture(true), row = (id: string, itemId: string, number: number, title: string, start: number, end: number) => ({id, itemId, index: 1, number, title, startSeconds: start, endSeconds: end});
+  f.props.audiobook = {...f.props.audiobook, bookChapters: () => ({bookId: 'book', itemId: 'item', phase: 'ready', current: 2,
+    chapters: [row('part-a:1', 'part-a', 1, 'One', 0, 600), row('part-a:2', 'part-a', 2, 'Two', 600, 1200), row('item:1', 'item', 3, 'Three', 0, 7200)]}), playBookChapter: async () => {}};
+  f.render();
+  const line = text(f.nodes().find(node => node.props.testID === 'now-playing-chapter-line'));
+  assert.ok(line.includes('Three')); assert.ok(line.endsWith('of 3'), line);
+  assert.doesNotMatch(line, /\d+\/\d+|undefined/);
 });
 
 test('phone audiobook options use 54pt glass faces with the active ring and whole-book remaining line', async () => {

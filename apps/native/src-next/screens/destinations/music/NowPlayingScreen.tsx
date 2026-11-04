@@ -383,7 +383,9 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
     {book && chapter ? <View testID={`${testID}-chapter-line`} style={{width: '100%', maxWidth: 600, marginTop: wide ? 26 : 18, flexDirection: 'row', alignItems: 'center', gap: wide ? 8 : 6}}>
       <Icon name="i-list" size={18} color={theme.colors.textSecondary}/>
       <Text style={[browseType(theme, wide ? 14 : 13.5, 700), {flexShrink: 1, color: wide ? theme.colors.text : theme.colors.textSecondary}]}>{chapter.title}</Text>
-      <Text style={[browseType(theme, wide ? 13 : 13.5, wide ? 500 : 600), {marginLeft: wide ? undefined : 'auto', color: wide ? theme.colors.textSecondary : theme.colors.textTertiary}]}>{wide ? `${clockText(Math.max(0, position - chapter.startSeconds))} / ${clockText(chapter.endSeconds - chapter.startSeconds)}` : `${chapter.index}/${chapterTotal}`}</Text>
+      <Text style={[browseType(theme, wide ? 13 : 13.5, wide ? 500 : 600), {marginLeft: wide ? undefined : 'auto', color: wide ? theme.colors.textSecondary : theme.colors.textTertiary}]}>{/* tablet-play: "12:04 of 31:40"; phone-app 15: "of 19" (nothing until the count is known). */}
+        {wide ? t('player.clockOf', {position: clockText(Math.max(0, position - chapter.startSeconds)), duration: clockText(chapter.endSeconds - chapter.startSeconds)})
+          : chapterTotal !== undefined ? t('web.player.chapterTotal', {total: chapterTotal}) : ''}</Text>
     </View> : null}
     </ListeningGroup></ListeningSwipeArea>
     <ListeningGroup fence={playback.fence} index={1} height={height}>
