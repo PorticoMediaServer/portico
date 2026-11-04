@@ -1,7 +1,6 @@
 import {useEffect, useMemo, useRef, useSyncExternalStore, type ReactNode} from 'react';
 import {defaultI18n} from '@i18n';
 import type {LibraryContentService, ContentEntry, ContentRoute, ContentSection} from '@core/library-content.ts';
-import {serverTextLabel} from '@core/presentation/server-text.ts';
 import type {TextEnvironment} from '@portico/client-core/kit-model';
 import type {ShellArtwork} from '../../shell/artwork';
 import {HomeSkeleton, StateView} from '../../kit/states';
@@ -18,6 +17,7 @@ import {Icon} from '../../kit/Icon';
 import type {CardSelection} from '../../kit/cards';
 import {useDiscoverySelection, discoveryEntries, discoverySections, type DiscoverySelectionInput} from './discovery-selection';
 import {PagedShelf} from './PagedShelf';
+import {discoveryHeading} from './discovery-heading';
 import type {BrowsePresentation} from './Library';
 import {browsePresentation, type ScreenAppearance} from './appearance';
 import type {MusicMixesBinding} from './music-mixes-binding';
@@ -97,7 +97,7 @@ export function LibraryDiscoveryScreen({menuContext, service, route, header, emp
       const continuing = snapshot.projection!.scope.libraryKind === 'audiobook' && section.id === 'continue_listening', resume = continuing && width >= 600;
       const cardWidth = resume ? 456 : appearance.cardWidth, musicGenres = snapshot.projection!.scope.libraryKind === 'music' && section.id === 'genres';
       const shape = resume ? 456 / 180 : musicGenres ? cardWidth / 152 : square ? 1 : 2 / 3;
-      return <PagedShelf key={section.id} focusScope={service} heading={serverTextLabel(defaultI18n, {code: section.heading.key, fallback: section.heading.fallback, params: section.heading.params})}
+      return <PagedShelf key={section.id} focusScope={service} heading={discoveryHeading(section)}
         platform={width >= 1024 ? 'desktop' : 'phone-web'} reducedMotion={preferences?.reducedMotion ?? reducedMotion} items={section.entries} getKey={entry => entry.id} cardWidth={cardWidth} artworkRatio={shape}
         hasMore={!!section.nextCursor} continuation={section.nextCursor} onMore={() => {void service.next(section.id);}} onSeeAll={section.seeAll ? () => onSeeAll(section) : undefined}
         onVisibleRange={registerWindow ? (first, last) => registerWindow(section, first, last) : undefined} renderItem={(entry, context) => <CatalogueSelectionEntry selection={selection} entry={entry} position={(orderBase.get(section.id) ?? 0) + context.index}>{cardSelection => {
@@ -120,7 +120,7 @@ export function LibraryDiscoveryScreen({menuContext, service, route, header, emp
 function RecentTiles({section, actions, artwork, nowPlayingAlbumId, selection, wrapCard, base}: {section: ContentSection; actions: DiscoveryBindings['actions']; artwork: ShellArtwork; nowPlayingAlbumId?: string;
   selection?: CatalogueDocumentSelection; wrapCard: (base: BrowseItemActions, entry: ContentEntry) => BrowseItemActions; base: number}) {
   const artSize = (useShellWidth() >= 1024 ? 76 : 52) * devicePixelRatio;
-  const heading = serverTextLabel(defaultI18n, {code: section.heading.key, fallback: section.heading.fallback, params: section.heading.params});
+  const heading = discoveryHeading(section);
   return <section className={styles.section} aria-label={heading}>
     <header className={styles.heading}><h2>{heading}</h2></header>
     <div className={styles.grid} role="list">

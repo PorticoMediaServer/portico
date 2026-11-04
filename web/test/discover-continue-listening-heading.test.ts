@@ -2,13 +2,20 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {defaultI18n} from '@i18n';
 import {serverTextLabel} from '@core/presentation/server-text.ts';
+import {discoveryHeading} from '../src/screens/browse/discovery-heading.ts';
 
-test('an audiobook or music library\'s Discover heads its continuation "Continue listening" (desktop-listen #books, phone-app music and audiobooks)', () => {
-  // The server names the shelf with this code and a fallback; the client's words win.
-  assert.equal(serverTextLabel(defaultI18n, {code: 'home.row.continueListening', fallback: 'Continue Listening'}), 'Continue listening');
+const heading = (key: string, fallback: string) => ({key, fallback});
+
+test('a music or audiobook library\'s Discover heads its continuation "Continue listening", read by its section id (desktop-listen #books, phone-app)', () => {
+  assert.equal(discoveryHeading({id: 'continue_listening', heading: heading('home.row.continueListening', 'Continue Listening')}), 'Continue listening');
+  // Every other shelf keeps the server's named code.
+  assert.equal(discoveryHeading({id: 'continue_watching', heading: heading('home.row.continueWatching', 'Continue Watching')}), 'Continue Watching');
+  assert.equal(discoveryHeading({id: 'recently_added', heading: heading('home.row.recentlyAdded', 'Recently added')}), 'Recently added');
 });
 
-test('Home keeps its row name in title case, as its frames draw it beside Continue Watching (motion, collections)', () => {
+test('Home keeps "Continue Listening" in title case beside "Continue Watching": the server\'s continue_listening row and listen_next alike', () => {
+  // /v1/home/rows/continue_listening names itself with the same shared code Discover's shelf carries.
+  assert.equal(serverTextLabel(defaultI18n, {code: 'home.row.continueListening', fallback: 'Continue Listening'}), 'Continue Listening');
   assert.equal(defaultI18n.t('next.home.continueListening'), 'Continue Listening');
   assert.equal(defaultI18n.t('next.home.continueWatching'), 'Continue Watching');
 });
