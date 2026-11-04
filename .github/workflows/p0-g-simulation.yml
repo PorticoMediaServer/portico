@@ -20,6 +20,7 @@ jobs:
           GOWORK: 'off'
           SEEDS: '10000'
           RESULT_JSON: results.json
+          TAIL_RESULT_JSON: long-tail.json
         shell: bash
         run: |
           set -o pipefail
@@ -35,5 +36,6 @@ jobs:
           name: p0-g-simulation
           path: |
             research/p0-g/results.json
+            research/p0-g/long-tail.json
             research/p0-g/simulation.log
             research/p0-g/negative-controls.log

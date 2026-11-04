@@ -105,7 +105,28 @@ type Scope struct {
 	Source  int64
 } // zero = wildcard
 // Volume/device quantities use qualified physical resource IDs in production.
+type IOClass uint8
+
+const (
+	Sequential IOClass = iota
+	Seeking
+	NetworkIO
+)
+
+type DeviceIO struct {
+	DeviceID    string
+	Class       IOClass
+	Outstanding uint16
+	Bytes       int64
+}
+type UnitBudget struct {
+	RawRows uint32
+	VMOps   uint64
+	Pages   uint32
+}
 type Request struct {
+	Budget    UnitBudget // prospective legal work, checked by private writer per sub-batch
+	IO        []DeviceIO // exact physical-device slices; HDD outstanding <=1
 	Key       JobKey
 	Owner     OwnerID
 	Class     Class

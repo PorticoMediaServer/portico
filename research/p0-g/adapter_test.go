@@ -228,3 +228,23 @@ func TestWedgedActorStaticFallback(t *testing.T) {
 	p := granted(t, g, request(c, Background, Amounts{1}))
 	_ = g.Retired(p)
 }
+
+func TestIOSliceRetiresBeforeHelper(t *testing.T) {
+	c := &Clock{}
+	g := NewFake(c)
+	helper := granted(t, g, request(c, ScanMinimum, Amounts{0, 1, 8, 0}))
+	r := request(c, ScanMinimum, Amounts{0, 0, 0, 0, 4})
+	r.IO = []DeviceIO{{DeviceID: "spindle-1", Class: Seeking, Outstanding: 1, Bytes: 4}}
+	io := granted(t, g, r)
+	require(t, g.Try(r).Refusal != nil, "two seeking streams on same spindle")
+	require(t, g.IOCompleted(io, "spindle-1") == nil, "IO seam")
+	require(t, g.Used[ScanMinimum][Helper] == 1, "helper custody lost at IO seam")
+	cpu := granted(t, g, request(c, ScanMinimum, Amounts{0, 0, 0, 100}))
+	next := granted(t, g, r) // CPU phase can overlap next source's disk slice
+	require(t, g.IOCompleted(io, "spindle-1") != nil, "duplicate IO credit")
+	_ = g.Retired(io)
+	_ = g.Retired(next)
+	_ = g.Retired(cpu)
+	_ = g.Retired(helper)
+	require(t, g.Check() == nil, "IO/helper resource leak")
+}

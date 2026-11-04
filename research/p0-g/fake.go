@@ -57,6 +57,23 @@ func (g *Fake) Try(r Request) Decision {
 			return refuse(Capacity)
 		}
 	}
+	ioBytes := int64(0)
+	for _, io := range r.IO {
+		if io.DeviceID == "" || io.Outstanding != 1 || io.Bytes < 0 {
+			return refuse(Invalid)
+		}
+		if io.Bytes > r.Need[IOBytes]-ioBytes {
+			return refuse(Invalid)
+		}
+		ioBytes += io.Bytes
+		for _, h := range g.Physical {
+			for _, held := range h.request.IO {
+				if held.DeviceID == io.DeviceID {
+					return refuse(Capacity)
+				}
+			}
+		}
+	}
 	if r.Writer {
 		for _, h := range g.Physical {
 			if h.request.Writer {
@@ -158,4 +175,25 @@ func (g *Fake) Recover() bool {
 	g.epoch++
 	g.degraded = false
 	return true
+}
+
+func (g *Fake) IOCompleted(p *Grant, device string) error {
+	h, ok := g.Physical[p.id]
+	if !ok {
+		return errors.New("unknown IO grant")
+	}
+	for i, io := range h.request.IO {
+		if io.DeviceID == device {
+			h.request.IO = append(append([]DeviceIO(nil), h.request.IO[:i]...), h.request.IO[i+1:]...)
+			h.request.Need[IOBytes] -= io.Bytes
+			g.Used[h.request.Class][IOBytes] -= io.Bytes
+			g.Physical[p.id] = h
+			if logical, ok := g.Live[p.id]; ok {
+				logical.request = h.request
+				g.Live[p.id] = logical
+			}
+			return nil
+		}
+	}
+	return errors.New("duplicate/unknown IO completion")
 }

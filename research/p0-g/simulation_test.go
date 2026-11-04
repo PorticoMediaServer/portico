@@ -108,6 +108,9 @@ type event struct {
 	generation int
 }
 type result struct {
+	ServiceMissTicks                                               int
+	TailLatency                                                    []int64
+	TailUnits                                                      int
 	Latency                                                        []int64
 	Applied, Retried, Refused, LostWake, Crash, Stale, RetireDelay int
 	MaxScanGap                                                     int64
@@ -117,12 +120,13 @@ type result struct {
 // Fake single-writer, fake IO, fake process exit. Every loop advances exactly 1ms.
 // Scan pipeline: claim tx -> read IO -> helper -> canonical publication tx.
 // A cancelled helper cannot publish; next attempt starts only after physical exit.
-func simulate(t *testing.T, seed int64, weak, bg, busy bool) result {
+func simulate(t *testing.T, seed int64, weak, bg, busy, longTail bool) result {
 	t.Helper()
 	rng := rand.New(rand.NewSource(seed))
 	c := &Clock{}
 	g := NewFake(c)
 	var out result
+	tailWindows := [][2]int64{}
 	const count = 64
 	jobs := make([]receipt, count)
 	for i := range jobs {
@@ -251,7 +255,7 @@ func simulate(t *testing.T, seed int64, weak, bg, busy bool) result {
 			if age > out.MaxScanGap {
 				out.MaxScanGap = age
 			}
-			require(t, age <= 125, fmt.Sprintf("seed %d first/trailing runnable stage starved at %d age %d", seed, now, age))
+			require(t, longTail || age <= 125, fmt.Sprintf("seed %d first/trailing runnable stage starved at %d age %d", seed, now, age))
 		} else {
 			readySince = -1
 		}
@@ -264,9 +268,12 @@ func simulate(t *testing.T, seed int64, weak, bg, busy bool) result {
 				windowService -= serviceTicks[now-1000]
 			}
 			if now >= 999 {
-				require(t, windowService >= 50, fmt.Sprintf("seed %d reserved scan service missing at %d: %d/1000ms", seed, now, windowService))
+				if windowService < 50 {
+					out.ServiceMissTicks++
+				}
+				require(t, longTail || windowService >= 50, fmt.Sprintf("seed %d reserved scan service missing at %d: %d/1000ms", seed, now, windowService))
 			}
-			require(t, now-lastVisible <= 500, fmt.Sprintf("seed %d no visible publication during foreground at %d", seed, now))
+			require(t, longTail || now-lastVisible <= 500, fmt.Sprintf("seed %d no visible publication during foreground at %d", seed, now))
 		}
 		if finish != nil {
 			require(t, g.Check() == nil, "writer accounting")
@@ -283,8 +290,14 @@ func simulate(t *testing.T, seed int64, weak, bg, busy bool) result {
 			wr.Writer = true
 			wr.MaxHold = time.Duration(quantum) * time.Millisecond
 			p := granted(t, g, wr)
-			writerUntil = now + quantum
-			out.ScanMS += quantum
+			actual := quantum
+			if longTail && rng.Intn(100) == 0 {
+				actual = int64(40 + rng.Intn(6))
+				out.TailUnits++
+				tailWindows = append(tailWindows, [2]int64{now, now + actual})
+			}
+			writerUntil = now + actual
+			out.ScanMS += actual
 			finish = func() {
 				require(t, g.Retired(p) == nil, "writer retirement")
 				if publishing {
@@ -317,6 +330,12 @@ func simulate(t *testing.T, seed int64, weak, bg, busy bool) result {
 			writerUntil = now + w.duration
 			finish = func() {
 				out.Latency = append(out.Latency, c.MS-w.arrival)
+				for _, span := range tailWindows {
+					if w.arrival >= span[0] && w.arrival < span[1] {
+						out.TailLatency = append(out.TailLatency, c.MS-w.arrival)
+						break
+					}
+				}
 				require(t, g.Retired(p) == nil, "FG retirement")
 			}
 		} else if bg && now < 3000 && rng.Intn(4) == 0 {
@@ -325,7 +344,13 @@ func simulate(t *testing.T, seed int64, weak, bg, busy bool) result {
 			wr.Writer = true
 			wr.MaxHold = time.Duration(quantum) * time.Millisecond
 			p := granted(t, g, wr)
-			writerUntil = now + quantum
+			actual := quantum
+			if longTail && rng.Intn(100) == 0 {
+				actual = int64(40 + rng.Intn(6))
+				out.TailUnits++
+				tailWindows = append(tailWindows, [2]int64{now, now + actual})
+			}
+			writerUntil = now + actual
 			finish = func() { require(t, g.Retired(p) == nil, "optional retirement") }
 		}
 		// Fill a bounded command queue with oversized candidates: refuse before effects.
@@ -383,8 +408,8 @@ func TestSeeds(t *testing.T) {
 			// Same foreground arrival/service process for on/off; foreground-only and
 			// sustained 90%-writer cases alternate; RNG background never changes arrivals.
 			busy := seed%2 == 0
-			a := simulate(t, seed, weak, false, busy)
-			b := simulate(t, seed, weak, true, busy)
+			a := simulate(t, seed, weak, false, busy, false)
+			b := simulate(t, seed, weak, true, busy, false)
 			require(t, len(a.Latency) == len(b.Latency), fmt.Sprintf("seed %d refused foreground", seed))
 			p95 := percentile(b.Latency, 95) - percentile(a.Latency, 95)
 			p99 := percentile(b.Latency, 99) - percentile(a.Latency, 99)
@@ -508,4 +533,56 @@ func TestLimitsAndRetirement(t *testing.T) {
 	r.Writer = true
 	r.MaxHold = 26 * time.Millisecond
 	require(t, g.Try(r).Refusal != nil, "unbounded writer admitted")
+}
+
+// A qualification experiment, not a passing latency assertion. Q's measured
+// 40.9/42.7ms accepted-body holds motivate a fixed 1% 40..45ms tail.
+func TestLongUnitTail(t *testing.T) {
+	type report struct {
+		ServiceMissTicks                                                                                                                       int
+		Profile                                                                                                                                string
+		Seeds, ForegroundSamples, TailUnits, TailArrivalSamples                                                                                int
+		ForegroundP95MS, ForegroundP99MS, P95DeltaMS, P99DeltaMS, TailArrivalP95MS, TailArrivalP99MS, WorstSeedP95DeltaMS, WorstSeedP99DeltaMS int64
+	}
+	reports := []report{}
+	for _, weak := range []bool{false, true} {
+		r := report{Profile: map[bool]string{false: "reference-model", true: "weak-model"}[weak], Seeds: 1000}
+		base, loaded, inflight := []int64{}, []int64{}, []int64{}
+		for seed := int64(0); seed < 1000; seed++ {
+			a := simulate(t, seed, weak, false, true, false)
+			b := simulate(t, seed, weak, true, true, true)
+			base = append(base, a.Latency...)
+			loaded = append(loaded, b.Latency...)
+			inflight = append(inflight, b.TailLatency...)
+			r.TailUnits += b.TailUnits
+			r.ServiceMissTicks += b.ServiceMissTicks
+			d95 := percentile(b.Latency, 95) - percentile(a.Latency, 95)
+			d99 := percentile(b.Latency, 99) - percentile(a.Latency, 99)
+			if d95 > r.WorstSeedP95DeltaMS {
+				r.WorstSeedP95DeltaMS = d95
+			}
+			if d99 > r.WorstSeedP99DeltaMS {
+				r.WorstSeedP99DeltaMS = d99
+			}
+		}
+		r.ForegroundSamples = len(loaded)
+		r.TailArrivalSamples = len(inflight)
+		r.ForegroundP95MS = percentile(loaded, 95)
+		r.ForegroundP99MS = percentile(loaded, 99)
+		r.P95DeltaMS = r.ForegroundP95MS - percentile(base, 95)
+		r.P99DeltaMS = r.ForegroundP99MS - percentile(base, 99)
+		r.TailArrivalP95MS = percentile(inflight, 95)
+		r.TailArrivalP99MS = percentile(inflight, 99)
+		reports = append(reports, r)
+	}
+	data, e := json.MarshalIndent(reports, "", "  ")
+	if e != nil {
+		t.Fatal(e)
+	}
+	fmt.Println(string(data))
+	if path := os.Getenv("TAIL_RESULT_JSON"); path != "" {
+		if e := os.WriteFile(path, append(data, '\n'), 0600); e != nil {
+			t.Fatal(e)
+		}
+	}
 }
