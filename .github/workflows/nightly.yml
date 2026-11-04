@@ -1,19 +1,12 @@
-name: macOS reading full-order diagnostic only
+name: macOS adaptive inventory boundary controls (diagnostic only)
 on:
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  macos_suite:
-    # Report-only (lead decision, 1 Nov 2026): the server suite on macOS has never passed end to
-    # end, and the release builds no longer run it. This lists every failing test by name so the
-    # macOS failures can be fixed in one batch; it becomes blocking once that list is empty.
+  controls:
     runs-on: macos-15
-    timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [2]
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -22,42 +15,18 @@ jobs:
         with:
           go-version-file: server/go.mod
           cache-dependency-path: '**/go.sum'
-      - name: Development engine (NOT FOR USE)
-        run: python3 scripts/development-engine.py fetch --target macos-arm64 --output "$RUNNER_TEMP/engine"
-      - name: macOS suite, one shard of packages (report-only)
-        working-directory: server
-        env:
-          SHARD: ${{ matrix.shard }}
-          SHARDS: '8'
+      - run: python3 scripts/development-engine.py fetch --target macos-arm64 --output "$RUNNER_TEMP/engine"
+      - name: Real portable EOF and legal adaptive-budget HTTP controls
         run: |
           set -euo pipefail
-          # macOS's default /var temp path aliases /private/var. Private-directory
-          # guards and SQLite compare canonical paths; give fixtures that same root.
           export TMPDIR="$(python3 -c 'import os; print(os.path.realpath(os.environ["RUNNER_TEMP"]))')"
-          tags="$(python3 ../scripts/release-build-tags.py --capability)"
-          go build -tags "$tags" -o "$RUNNER_TEMP/portico-server" ./cmd/server
-          export PORTICO_PLAYBACK_TEST_HELPER="$RUNNER_TEMP/portico-server"
           export PORTICO_FFMPEG="$RUNNER_TEMP/engine/bin/ffmpeg" PORTICO_FFPROBE="$RUNNER_TEMP/engine/bin/ffprobe" PORTICO_CI_ENGINE=development
-          go list -tags "$tags" ./... | awk -v n="$SHARDS" -v i="$SHARD" 'NR % n == i' > "$RUNNER_TEMP/packages.txt"
-          mkdir -p "$RUNNER_TEMP/macos-suite"
-          status=0
-          go test -tags "$tags" -json -timeout 60m $(cat "$RUNNER_TEMP/packages.txt") > "$RUNNER_TEMP/macos-suite/shard-$SHARD.jsonl" 2> "$RUNNER_TEMP/macos-suite/shard-$SHARD.stderr" || status=$?
-          python3 - "$RUNNER_TEMP/macos-suite/shard-$SHARD.jsonl" >> "$GITHUB_STEP_SUMMARY" <<'PY'
-          import json, sys
-          failed, blocked = [], set()
-          for line in open(sys.argv[1]):
-              try: e = json.loads(line)
-              except ValueError: continue
-              if e.get('Action') == 'fail':
-                  (failed.append(f"{e['Package']} {e['Test']}") if e.get('Test') else blocked.add(e['Package']))
-          print(f"### macOS suite shard: {len(failed)} failing tests, {len(blocked)} failing packages")
-          for name in sorted(failed): print(f"- {name}")
-          for name in sorted(blocked - {f.split()[0] for f in failed}): print(f"- {name} (package failed to build or run)")
-          PY
-          exit $status
+          tags="$(python3 scripts/release-build-tags.py --capability)"
+          go build -C server -tags "$tags" -o "$RUNNER_TEMP/portico-server" ./cmd/server
+          export PORTICO_PLAYBACK_TEST_HELPER="$RUNNER_TEMP/portico-server"
+          python3 ci/macos_reading_budget_diagnostic.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: macos-suite-${{ matrix.shard }}
-          path: ${{ runner.temp }}/macos-suite
-          retention-days: 7
+          name: macos-reading-budget-controls
+          path: evidence/
