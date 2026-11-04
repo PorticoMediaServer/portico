@@ -60,5 +60,8 @@ export function ServerHeader({serverName, viewerRole, audience, health, facts = 
       {health && <span className={styles.health} data-health={health}>{t(health === 'normal' ? 'next.shell.health.normal' : 'next.shell.health.attention')}</span>}
       {facts.map(fact => <span key={fact.id} data-role={fact.role}>{fact.text}</span>)}
     </div></div>
+    {/* Phone width (owner-libraries 24a, owner-dashboard 9, live-owner 18): one card, "Server", the name and whose area it is. */}
+    <div className={styles.phoneCard}><ServerMark size={34} /><div><small>{t('next.shell.server')}</small><b>{serverName}</b></div>
+      {viewerRole === 'owner' ? <OwnerTag size="phone" t={t} /> : <span className={styles.badge} data-size="phone">{t('next.shell.administrator')}</span>}</div>
   </header>;
 }
