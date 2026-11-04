@@ -120,10 +120,10 @@ def fanout(out):
   db.close()
   for suffix in ['', '-wal','-shm']:pathlib.Path(str(p)+suffix).unlink(missing_ok=True)
  shared=[]
- for n in ([36,777,1024] if os.getenv("ENVELOPE") else [8,255,264,4096] if os.getenv("SUPPORTED") else [10000,100000]):
+ for n in (([8,255,4096,36,777,1024] if os.getenv("CUE_RANGE") else [36,777,1024]) if os.getenv("ENVELOPE") else [8,255,264,4096] if os.getenv("SUPPORTED") else [10000,100000]):
   p=out/'shared.db';db=DB(p);create(db);reference_seed(db);lo,hi=populate_members(db,n)
   db.exec(f"INSERT INTO catalog_assets VALUES(10000000,'shared','/shared',1,1,'mkv','h264','aac',1920,1080,123,1); INSERT INTO catalog_asset_links SELECT id,10000000,0,1 FROM catalog_entities WHERE id BETWEEN {lo} AND {hi};")
-  if os.getenv('ENVELOPE'):
+  if os.getenv('ENVELOPE') and n in [36,777,1024]:
    envelope_setup(db,n,lo,hi)
   elif os.getenv('SUPPORTED'):
    # True kind/parent relationships on exact T1 entity DDL.
@@ -133,7 +133,7 @@ def fanout(out):
     db.exec("INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,playback_origin_incarnation,playback_origin_revision) VALUES(152,CAST(printf('%016d',152) AS BLOB),2,2,'Cross-library show','cross','c','cross','c',152,zeroblob(16),zeroblob(16),zeroblob(16),1)")
     db.exec(f"UPDATE catalog_entities SET kind=4,parent_id=161,show_id=151,season_id=161,numbering='seasonal',episode_number=id WHERE id BETWEEN {lo+255} AND {hi-1}")
     db.exec(f"UPDATE catalog_entities SET library_id=2,kind=4,parent_id=152,show_id=152,season_id=NULL,numbering='seasonal',episode_number=id WHERE id>{hi-1}")
-  for case in (['asset-change','asset-delete','cue-size-resolution-change','cue-size-resolution-delete'] if os.getenv('SUPPORTED') else ['asset-change','asset-delete']):
+  for case in ((['asset-change','asset-delete','cue-size-resolution-change','cue-size-resolution-delete','cue-range-change','cue-range-delete'] if os.getenv('CUE_RANGE') else ['asset-change','asset-delete','cue-size-resolution-change','cue-size-resolution-delete']) if os.getenv('SUPPORTED') else ['asset-change','asset-delete']):
    xs=[]
    for rep in range(101 if os.getenv('SUPPORTED') else 5):
     if case in ['asset-change','cue-size-resolution-change']:
@@ -155,6 +155,15 @@ def fanout(out):
       cue=(f'((id-{lo})%256)>0' if n==1024 else f'id<{lo+768} AND ((id-{lo})%256)>0' if n==777 else '0')
      change+=f'UPDATE catalog_entities SET file_size_key={newsize},resolution_key={newres},revision=revision+1 WHERE id BETWEEN {lo} AND {hi} AND ({cue});'
      compute=f'UPDATE catalog_entities SET duration_key={newdur},file_size_key={newsize},resolution_key={newres},revision=revision+1 WHERE id BETWEEN {lo} AND {hi} AND NOT ({cue}) RETURNING id'
+    if case.startswith('cue-range'):
+     newsize,newres,newdur=(999999,2160,336) if case.endswith('change') else (0,0,0)
+     if n in [255,4096]:affected=f'id={hi}'
+     elif n==1024:affected=f'((id-{lo})%256) IN(0,255)'
+     elif n==777:affected=f'(id<{lo+768} AND ((id-{lo})%256) IN(0,255)) OR id>={lo+768}'
+     else:affected='1'
+     change=('UPDATE catalog_assets SET duration=456,size=999999,height=2160 WHERE id=10000000;' if case.endswith('change') else 'DELETE FROM catalog_asset_links WHERE asset_id=10000000;DELETE FROM catalog_assets WHERE id=10000000;')
+     change+=f'UPDATE catalog_entities SET file_size_key={newsize},resolution_key={newres},revision=revision+1 WHERE id BETWEEN {lo} AND {hi};'
+     compute=f'UPDATE catalog_entities SET duration_key={newdur},revision=revision+1 WHERE id BETWEEN {lo} AND {hi} AND ({affected}) RETURNING id'
     rec=timed(db,change,compute);rec['rows_read_lower_bound']=n;xs.append(rec)
     if case.endswith('delete'):db.exec(f"INSERT INTO catalog_assets VALUES(10000000,'shared','/shared',1,1,'mkv','h264','aac',1920,1080,123,1); INSERT INTO catalog_asset_links SELECT id,10000000,0,1 FROM catalog_entities WHERE id BETWEEN {lo} AND {hi};")
    summary=summarize(xs);summary.update(case=case,parents=n,max_ms=max(x['ms'] for x in xs),max_changes=max(x['changes'] for x in xs),strict=summary['p99_ms']<=10 and max(x['ms'] for x in xs)<=25,max50=max(x['ms'] for x in xs)<=50)
