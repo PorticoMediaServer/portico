@@ -301,3 +301,24 @@ test('a TV match opening that is covered before its row takes focus never asks, 
     assert.ok(asks.length > 0); assert.ok(asks.every(entry => !entry.activation.visible));
   } finally {f.unmount(); search.tv = false; search.covered = false;}
 });
+
+test('Sol 8 on #823: a late touch measurement never scrolls the next page',async()=>{
+ const f=await searchFixture({width:800});try{
+  f.nodes().find((node:any)=>node.type==='SettingsSearchResults').props.onNavigate('playback','subtitles');f.render();
+  const reveal=providers(f)[0].flash.reveal;let complete:any;const firstScrolls:any[]=[],secondScrolls:any[]=[];
+  const scroll=()=>f.nodes().find((node:any)=>node.type==='ScrollView'&&node.props.ref&&node.props.onLayout);
+  const a={getNativeScrollRef:()=> 'host-A',scrollTo:(value:any)=>firstScrolls.push(value)};scroll().props.ref.current=a;scroll().props.onLayout({nativeEvent:{layout:{height:400}}});
+  reveal({measureLayout:(host:any,callback:any)=>{assert.equal(host,'host-A');complete=callback}});
+  f.find('settings-search').props.onChangeText('');f.render();f.find('settings-page-region').props.onPress();f.render();
+  const b={getNativeScrollRef:()=> 'host-B',scrollTo:(value:any)=>secondScrolls.push(value)};scroll().props.ref.current=b;scroll().props.onLayout({nativeEvent:{layout:{height:500}}});
+  complete(0,900,500,60);
+  assert.deepEqual(secondScrolls,[],'Playback measurement must not scroll Region');assert.deepEqual(firstScrolls,[]);
+ }finally{f.unmount()}
+});
+test('Sol 8 on #823: the aimed row is dropped when the Settings route opening is replaced',async()=>{
+ const f=await searchFixture({tv:true});try{
+  providers(f).find((value:any)=>value.open).open('subtitles');f.render();assert.equal(providers(f)[0].highlight,'subtitles');
+  f.replace();f.render();
+  assert.ok(providers(f).every((value:any)=>!value.highlight&&!value.flash),'old row aim may not decorate a replacement Settings opening');
+ }finally{f.unmount();search.tv=false}
+});
