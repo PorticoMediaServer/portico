@@ -10,8 +10,8 @@ import {RenameLibrary} from './RenameLibrary';
 import {LibraryScanAction} from './LibraryActions';
 import {useLibraryLyricsFetch} from './use-lyrics-fetch';
 import styles from './library-header.module.css';
+import {libraryCountText} from '@core/presentation/library-counts.ts';
 
-const pivots: Readonly<Record<string, string>> = {movie: 'movies', show: 'shows', artist: 'artists', album: 'albums', song: 'songs', book: 'books'};
 const neverCurrent = () => false;
 /** Only the selected server library's bounded summary supplies counts and art. */
 export function LibraryHeader({libraryId, name, service, artwork, onError, rename, lyrics}: Readonly<{
@@ -53,7 +53,7 @@ export function LibraryHeader({libraryId, name, service, artwork, onError, renam
     <div className={styles.content}>
       <h1>{name}</h1>
       <div className={styles.facts}>
-        {library?.summary?.counts.map(count => <span key={count.kind}>{defaultI18n.t(count.atLeast ? 'lib.countAtLeast' : 'lib.count', {count: count.count, pivot: pivots[count.kind] ?? count.kind})}</span>)}
+        {library?.summary?.counts.map(count => <span key={count.kind}>{libraryCountText(count)}</span>)}
         {active ? <span role="status">{defaultI18n.t('next.settings.libraries.scanning')}</span> : scan?.finishedAt && Number.isFinite(Date.parse(scan.finishedAt)) && ['complete', 'complete_with_warnings'].includes(scan.status)
           ? <span>{defaultI18n.t('server.libraries.scanned', {when: defaultI18n.dateTime(scan.finishedAt)})}</span> : null}
       </div>

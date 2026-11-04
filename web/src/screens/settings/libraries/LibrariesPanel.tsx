@@ -17,11 +17,11 @@ import type {ShellArtwork} from '../../../shell/artwork';
 import styles from './libraries.module.css';
 import {libraryRows, movedIds, movedLibraryIds, type LibraryKind} from './model';
 import {AddLibrary} from './AddLibrary';
+import {libraryCountText} from '@core/presentation/library-counts.ts';
 
 const t = defaultI18n.t;
 const kindIcons: Readonly<Record<LibraryKind, IconName>> = {movie: 'i-film', tv: 'i-tvlib', anime: 'i-tvlib', music: 'i-music', audiobook: 'i-headph', book: 'i-sbook', comic: 'i-page'};
 
-const countPivots: Readonly<Record<string, string>> = {movie: 'movies', show: 'shows', artist: 'artists', album: 'albums', song: 'songs', book: 'books'};
 const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
 /** owner-libraries.html frames 1 and 24a: each library is its covers, its name and its counts, with one state line
@@ -160,7 +160,7 @@ export function LibrariesPanel({api, service, onEdit, onError, serverName, artwo
           const source = artwork?.foreground(path, 120, square ? 1 : 2 / 3, {group: 'settings-libraries', order});
           return source ? [<span key={path}><Artwork source={source} alt="" visible /></span>] : [];
         }).reverse();
-        const counts = (library?.summary?.counts ?? []).map(count => t(count.atLeast ? 'lib.countAtLeast' : 'lib.count', {count: count.count, pivot: countPivots[count.kind] ?? count.kind}));
+        const counts = (library?.summary?.counts ?? []).map(count => libraryCountText(count));
         return <>
           {covers.length ? <span className={styles.covers} data-square={square || undefined} aria-hidden="true">{covers}</span>
             : <span className={styles.kindIcon}><Icon name={kindIcons[row.kind]} size={22} /></span>}
