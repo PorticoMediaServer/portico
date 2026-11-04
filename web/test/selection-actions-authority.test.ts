@@ -49,7 +49,7 @@ test('J-13 Add to collection from a selection of picked titles: the same, never 
   } finally {picker.close();}
 });
 
-test('J-12 Edit of picked titles: the preview issues the editing fence, with no page fence needed, and a changed fence is refused', async () => {
+test('J-12 Edit of picked titles: the preview issues the editing fence, with no page fence needed; a preview under a moved fence is newer and an older one cannot save', async () => {
   const preview = {variant: 'ready', serverId, viewerFence: 'c'.repeat(64), contentKind: 'movie', kind: 'item', total: 1,
     schema: [{field: 'studio', label: 'Studio', group: 'general', type: 'text', bulk: true, maxLength: 300}], singleItemFields: [], excludedFields: [],
     fields: {studio: {state: 'shared', distinctCount: 1, value: '', values: [{value: '', count: 1}], entries: [], locked: 0, truncated: false}},
@@ -68,8 +68,10 @@ test('J-12 Edit of picked titles: the preview issues the editing fence, with no 
   const receipts = await editor.save(operation, ready, {fields: {studio: 'FX Studio'}, lists: {}, lockEdited: true});
   assert.equal(receipts[0]?.updated, 1, 'the edit is written');
   assert.deepEqual(bodies.find(entry => entry.path === '/v1/metadata/bulk')?.body.targets, [{kind: 'item', id: 'movie-1', expectedRevision: 'd'.repeat(64)}]);
+  // Step 7: a preview under a moved fence is the newer answer; a save from the preview read before it is refused.
   answer = {...preview, viewerFence: 'f'.repeat(64)};
-  await assert.rejects(editor.preview(operation), (error: unknown) => error instanceof SelectionEditorError && error.code === 'metadata-authority-changed');
+  assert.equal((await editor.preview(operation)).viewerFence, 'f'.repeat(64));
+  await assert.rejects(editor.save(operation, ready, {fields: {studio: 'FX Studio'}, lists: {}, lockEdited: true}), (error: unknown) => error instanceof SelectionEditorError && error.code === 'metadata-preview-not-current');
 });
 
 for (const [name, args] of [['J-14 My List', {watchlist: true}], ['Watched', {watched: true}]] as const) {
