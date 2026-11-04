@@ -15,16 +15,18 @@ const notice=(id:string,audience='profile')=>({
  dedupeKey:'download:'+id,revision:7,createdAt:at(1),updatedAt:at(1),expiresAt:at(99),
  readAt:null,archivedAt:null,read:false,archived:false,cursor:id});
 const counts=(unread:number)=>({unread,read:0,archived:0,total:unread});
+/** The server's envelope around every notification document. */
+const scope={serverId:'server',viewerFence:'a'.repeat(64)};
 
 function server(){
  const reads:string[]=[],posts:string[]=[];
  let revision=7,items:any[]=[notice('n-1'),notice('n-2')];
  const api={request:<T,>(path:string,method='GET'):Promise<T>=>{
-  if(method==='POST'){posts.push(path);return Promise.resolve({data:{revision:++revision,audience:'profile',applied:1,receipts:[],counts:counts(items.length)}} as T);}
+  if(method==='POST'){posts.push(path);return Promise.resolve({scope,data:{revision:++revision,audience:'profile',applied:1,receipts:[],counts:counts(items.length)}} as T);}
   reads.push(path);
-  if(path.startsWith('/v1/notifications/unread-count'))return Promise.resolve({data:{revision,audience:'profile',counts:counts(items.filter(n=>!n.read).length),observedAt:at(2)}} as T);
+  if(path.startsWith('/v1/notifications/unread-count'))return Promise.resolve({scope,data:{revision,audience:'profile',counts:counts(items.filter(n=>!n.read).length),observedAt:at(2)}} as T);
   const view=new URLSearchParams(path.slice(path.indexOf('?')+1)).get('state');
-  return Promise.resolve({data:{revision,audience:'profile',audiences:['profile'],state:view,counts:counts(items.length),items:view==='archived'?[]:items,nextCursor:'',observedAt:at(2),retentionDays:180}} as T);
+  return Promise.resolve({scope,data:{revision,audience:'profile',audiences:['profile'],state:view,counts:counts(items.length),items:view==='archived'?[]:items,nextCursor:'',observedAt:at(2),retentionDays:180}} as T);
  }};
  return {api,reads,posts,set:(next:{revision?:number;items?:any[]})=>{revision=next.revision??revision;items=next.items??items;}};
 }
@@ -134,4 +136,67 @@ test('privacy: an inbox of an ended viewer\'s cache shows nothing and reads noth
  assert.notEqual(service.getSnapshot().phase,'ready');
  assert.equal(inboxReads(s.reads),0);
  service.dispose();
+});
+
+/** A screen's own requester: everything it sends ends when the screen closes. */
+function screenApi(base:ReturnType<typeof server>['api']){
+ const life=new AbortController();
+ const api={request:<T,>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>=>new Promise<T>((resolve,reject)=>{
+  const stop=()=>reject(Object.assign(new Error('closed'),{name:'AbortError'}));
+  for(const s of [life.signal,signal])if(s){if(s.aborted)stop();else s.addEventListener('abort',stop,{once:true});}
+  (base.request as any)(path,method,body,signal).then(resolve,reject);
+ })};
+ return {api,close:()=>life.abort()};
+}
+
+test('the screen that started a shared read closes, and the other inbox waiting on it still gets the view',async()=>{
+ const s=server();let release!:()=>void;const open=new Promise<void>(r=>{release=r;});
+ const held={request:async<T,>(path:string,method?:string):Promise<T>=>{if(path.startsWith('/v1/notifications/inbox'))await open;return s.api.request<T>(path,method);}};
+ const {queries}=cache(held);
+ const screenA=screenApi(held),screenB=screenApi(held);
+ const first=new InboxService(screenA.api,()=>'op',{queries}),second=new InboxService(screenB.api,()=>'op',{queries});
+ const a=first.load('profile','unread');await tick();
+ const b=second.load('profile','unread');await tick();
+ first.dispose();screenA.close();
+ release();await Promise.allSettled([a,b]);await tick();
+ assert.equal(second.getSnapshot().phase,'ready','the second inbox is answered');
+ assert.deepEqual(second.getSnapshot().items.map(n=>n.id),['n-1','n-2']);
+ assert.equal(inboxReads(s.reads),1,'one read, shared');
+ second.dispose();
+});
+
+test('a cached notification answer without a well-formed envelope, or for another audience, is refused and kept nowhere',async()=>{
+ const doc=(audience='profile')=>({revision:1,audience,audiences:['profile'],state:'unread',counts:counts(0),items:[],nextCursor:'',observedAt:at(2),retentionDays:180});
+ for(const answer of [
+  {data:doc()},
+  {scope:{serverId:'server'},data:doc()},
+  {scope:{serverId:'server',viewerFence:'not-a-fence'},data:doc()},
+  {scope:{viewerFence:'a'.repeat(64)},data:doc()},
+  {scope,data:doc('account-admin')},
+ ]){
+  let retired=0;
+  const api={request:async<T,>(path:string):Promise<T>=>(path.startsWith('/v1/notifications/unread-count')?{scope,data:{revision:1,audience:'profile',counts:counts(0),observedAt:at(2)}}:answer) as T};
+  const {queries}=cache(api);
+  const inbox=new InboxService(api,()=>'op',{queries,onScopeChanged:()=>{retired++;}});
+  await inbox.load('profile','unread');await tick();
+  assert.equal(inbox.getSnapshot().phase,'error',JSON.stringify(answer.scope));
+  assert.equal(queries.client.getQueryData(queryKeys.notificationsInbox('profile','unread')),undefined,'nothing kept');
+  assert.equal(retired,0,'an unreadable answer retires nothing');
+  inbox.dispose();
+ }
+});
+
+test('another server\'s answer to a shared notification read retires every screen waiting on it, and is kept nowhere',async()=>{
+ const other={scope:{serverId:'elsewhere',viewerFence:'a'.repeat(64)},data:{revision:1,audience:'profile',audiences:['profile'],state:'unread',counts:counts(0),items:[],nextCursor:'',observedAt:at(2),retentionDays:180}};
+ let release!:()=>void;const open=new Promise<void>(r=>{release=r;});
+ const api={request:async<T,>(path:string):Promise<T>=>{if(path.startsWith('/v1/notifications/inbox'))await open;return (path.startsWith('/v1/notifications/unread-count')?{...other,data:{revision:1,audience:'profile',counts:counts(0),observedAt:at(2)}}:other) as T;}};
+ const {queries}=cache(api);
+ const retired:string[]=[];
+ const first=new InboxService(api,()=>'op',{queries,onScopeChanged:()=>{retired.push('first');}}),second=new InboxService(api,()=>'op',{queries,onScopeChanged:()=>{retired.push('second');}});
+ const a=first.load('profile','unread'),b=second.load('profile','unread');await tick();
+ release();await Promise.allSettled([a,b]);await tick();
+ assert.ok(retired.includes('first')&&retired.includes('second'),'both screens retire: '+retired.join(','));
+ assert.equal(queries.client.getQueryData(queryKeys.notificationsInbox('profile','unread')),undefined);
+ assert.equal(first.getSnapshot().items.length,0);assert.equal(second.getSnapshot().items.length,0);
+ first.dispose();second.dispose();
 });

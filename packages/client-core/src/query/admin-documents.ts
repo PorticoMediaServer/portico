@@ -7,20 +7,10 @@
 import type {QueryKey} from '@tanstack/query-core';
 import type {ViewerQueries} from './viewer-queries.ts';
 import type {ViewerQueryOptions} from './react.ts';
+import {until} from './until.ts';
 
 /** Owner documents carry figures the server sends no hint for (load, uptime), so a held one is shown at once for this long only. */
 export const adminDocumentMaxAgeMs = 30_000;
-
-/** `value`, or a rejection as soon as `signal` aborts: a shared read goes on for its other owners. */
-export function untilAborted<T>(value: Promise<T>, signal?: AbortSignal): Promise<T> {
-  if (!signal) return value;
-  return new Promise<T>((resolve, reject) => {
-    const stop = () => reject(Object.assign(new Error('aborted'), {name: 'AbortError'}));
-    if (signal.aborted) { stop(); return; }
-    signal.addEventListener('abort', stop, {once: true});
-    value.then(v => { signal.removeEventListener('abort', stop); resolve(v); }, e => { signal.removeEventListener('abort', stop); reject(e); });
-  });
-}
 
 /** The cached document under `key`, when nothing it was built from has moved and it is not too old. */
 export function heldDocument<T>(queries: ViewerQueries, key: QueryKey, maxAgeMs: number = adminDocumentMaxAgeMs, now: number = Date.now()): T | undefined {
@@ -39,5 +29,5 @@ export function readDocument<T>(queries: ViewerQueries, options: ViewerQueryOpti
     const held = heldDocument<T>(queries, options.queryKey as QueryKey, read.maxAgeMs);
     if (held !== undefined) return Promise.resolve(held);
   }
-  return untilAborted(queries.client.fetchQuery({...options, staleTime: 0}), read.signal);
+  return until(queries.client.fetchQuery({...options, staleTime: 0}), read.signal);
 }

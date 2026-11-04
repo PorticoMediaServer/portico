@@ -17,7 +17,7 @@ test('CAS conflict remains an error until owner reads current state, no auto ren
 test('job cancellation requires server action and only refreshes after acknowledgement',async()=>{const writes:string[]=[];const s=service(async(p,m)=>{if(m==='DELETE'){writes.push(p);return undefined;}return data(p);});await s.selectLibrary('one');assert.throws(()=>s.cancelJob('foreign'));await s.cancelJob('job-one');assert.deepEqual(writes,['/v1/admin/ingestion/jobs/job-one']);assert.equal(s.getSnapshot().mutation.phase,'complete');s.dispose();});
 test('scope change during mutation fences late response and clears source paths',async()=>{const d=deferred();const s=service(async(p,m)=>m==='PATCH'?d.promise:data(p));await s.selectLibrary('one');const pending=s.rename('New',1);s.setScope({...scope,viewerId:'another'},{request:async<T>()=>{throw new Error('unused');}});await pending;d.resolve({scope:wireScope,library:library('one','New',2)});await Promise.resolve();assert.equal(s.getSnapshot().selected.data,null);assert.equal(s.getSnapshot().directory.data,null);assert.equal(s.getSnapshot().mutation.phase,'idle');s.dispose();});
 test('owner denial on any lane clears every privileged cached projection',async()=>{let denied=false;const s=service(async p=>{if(denied)throw Object.assign(new Error('Denied'),{status:403,code:'forbidden'});return data(p);});await s.loadLibraries();await s.selectLibrary('one');denied=true;await s.loadJobs();assert.equal(s.getSnapshot().directory.data,null);assert.equal(s.getSnapshot().selected.data,null);assert.equal(s.getSnapshot().jobs.phase,'error');s.dispose();});
-test('oversized pages, an unreadable revision or cursor and a changed owner fence fail closed',async()=>{for(const bad of ['size','fence','revision','cursor','shape']){const s=service(async p=>{const raw=data(p);if(p.includes('/jobs')){if(bad==='size')raw.items=Array(41).fill(job());if(bad==='fence')raw.scope={...wireScope,viewerFence:'changed'};if(bad==='revision')raw.revision='1';if(bad==='cursor')raw.nextCursor=7;if(bad==='shape')raw.items={};}return raw;});await s.loadLibraries();await s.selectLibrary('one');assert.equal(s.getSnapshot().jobs.phase,'error',bad);assert.equal(s.getSnapshot().jobs.data,null);s.dispose();}});
+test('oversized pages and an unreadable revision, cursor or shape fail closed',async()=>{for(const bad of ['size','revision','cursor','shape']){const s=service(async p=>{const raw=data(p);if(p.includes('/jobs')){if(bad==='size')raw.items=Array(41).fill(job());if(bad==='revision')raw.revision='1';if(bad==='cursor')raw.nextCursor=7;if(bad==='shape')raw.items={};}return raw;});await s.loadLibraries();await s.selectLibrary('one');assert.equal(s.getSnapshot().jobs.phase,'error',bad);assert.equal(s.getSnapshot().jobs.data,null);s.dispose();}});
 test('a scan or a library this app cannot read is left out and the rest of the page is kept',async()=>{
  const s=service(async p=>{const raw=data(p);const u=new URL(p,'https://x');
   if(u.pathname==='/v1/admin/jobs')raw.items=[job(),{...job('job-foreign'),libraryId:'foreign'},{...job('job-future'),status:'hibernating'},{...job('job-two'),actions:['cancel','teleport','cancel'],futureField:1},{...job(),processed:99},{...job('job-done'),status:'complete',actions:['cancel','retry']},'nonsense'];
@@ -247,11 +247,11 @@ test('a removed logical page keeps the original window and stale error instead o
  items.splice(2);server.bump();const answer=await s.refreshDirectory();assert.equal(answer.kind,'unreadable');if(answer.kind==='unreadable')assert.equal(answer.error,stale);assert.equal(s.getSnapshot(),before);s.dispose();
 });
 
-test('revision movement during reanchor is not silently mixed or restarted and changed viewer proof still retires',async()=>{
+test('revision movement during reanchor is not silently mixed or restarted; a moved viewer fence is only a read to answer',async()=>{
  for(const changed of ['revision','viewer'] as const){
   const server=revisionDirectory(),{s}=server;await s.loadLibraries();await s.nextLibraries();const before=s.getSnapshot();server.bump();
   server.gate(async(path,raw)=>{if(!path.includes('cursor=')){if(changed==='revision')server.bump();else (raw as any).scope={...wireScope,viewerFence:'another-owner'};}return raw;});
-  const answer=await s.refreshDirectory();assert.equal(answer.kind,'unreadable');if(changed==='revision')assert.equal(s.getSnapshot(),before);else assert.equal(s.getSnapshot().directory.data,null);s.dispose();
+  const answer=await s.refreshDirectory();if(changed==='revision'){assert.equal(answer.kind,'unreadable');assert.equal(s.getSnapshot(),before);}else{assert.equal(answer.kind,'adopted');assert.equal(s.getSnapshot().directory.phase,'ready');assert.ok(s.getSnapshot().directory.data);}s.dispose();
  }
 });
 
@@ -296,7 +296,7 @@ test('a library administrator selects a library although list and library reads 
  const s=service(async p=>{const value=data(p);const u=new URL(p,'https://x');return {...value,scope:u.pathname==='/v1/admin/libraries'||u.pathname==='/v1/admin/jobs'?listFence:{serverId:'server',viewerFence:libraryFence}};});
  await s.loadLibraries();await s.selectLibrary('one');
  assert.equal(s.getSnapshot().directory.phase,'ready');assert.equal(s.getSnapshot().selected.phase,'ready');assert.equal(s.getSnapshot().jobs.phase,'ready');
- libraryFence='another-session';await s.reconcile().catch(()=>{});
- assert.equal(s.getSnapshot().selected.phase==='ready'&&s.getSnapshot().selected.error==null,false,'a changed single-library fence still refuses');
+ libraryFence='another-session';await s.reconcile();
+ assert.equal(s.getSnapshot().selected.phase,'ready','a moved single-library fence only means read again: the answer is shown');assert.equal(s.getSnapshot().selected.data?.scope.viewerFence,'another-session');assert.equal(s.getSnapshot().directory.phase,'ready');
  s.dispose();
 });

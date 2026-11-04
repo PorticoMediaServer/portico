@@ -9,6 +9,7 @@ import {screenModule} from './helpers/screen-harness.mjs';
 import * as installation from '../../../packages/client-core/src/installation.ts';
 import * as freshnessHub from '../../../packages/client-core/src/freshness-hub.ts';
 import * as queryKeys from '../../../packages/client-core/src/query/keys.ts';
+import * as queryUntil from '../../../packages/client-core/src/query/until.ts';
 
 const routePath = (name: string) => '/test/' + name;
 const unsupported = () => {throw new Error('Unexpected bootstrap-resource test path');};
@@ -19,7 +20,7 @@ const routes = {routePath, encodedRoutePath: unsupported, routeBody: (_name: str
 const inbox = await screenModule(new URL('../../../packages/client-core/src/inbox.ts', import.meta.url), {
   react,
   '../../contracts/src/routes.ts': routes, '../../contracts/src/route-paths.ts': routes, './random-id.ts': {randomId: () => 'operation'}, './installation.ts': installation, './notifications.ts': notifications,
-  './freshness-hub.ts': freshnessHub, './query/keys.ts': queryKeys,
+  './freshness-hub.ts': freshnessHub, './query/keys.ts': queryKeys, './query/until.ts': queryUntil,
   './presentation/service-text.ts': {serviceProblem: () => 'Request failed', serviceText: (key: string) => key},
 });
 const preferences = await screenModule(new URL('../../../packages/client-core/src/preferences-reader.ts', import.meta.url), {
