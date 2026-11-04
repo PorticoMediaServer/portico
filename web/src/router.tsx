@@ -14,6 +14,7 @@ import {localDeviceHint} from './platform/local-device-entry';
 import {createServerScope, scopedLinks} from './platform/server-scope';
 import {currentWebEnvironment} from './platform/environment';
 import {LinkUnavailableScreen, linkUnavailableSearch} from './shell/LinkUnavailable';
+import {rememberSettingsReturn, trackSettingsReturn} from './shell/settings-return';
 
 // Local approval links are hints, not grants. Scrub before Router parses/stores
 // the initial history entry; account return/Security paths are never captured.
@@ -83,16 +84,7 @@ export const routeTree = rootRoute.addChildren([...destinations, ...devRoutes]);
 export const router = createRouter({routeTree, rewrite: serverScope.rewrite, defaultViewTransition: false, scrollRestorationBehavior: 'instant', disableGlobalCatchBoundary: true});
 declare module '@tanstack/react-router' { interface Register { router: typeof router } }
 
-/** Mobile web Settings is a full page with Done (owner-libraries 24, owner-dashboard 9, live-owner 18): Done leaves
- * Settings for the page it was opened from. The router remembers the last location outside Settings as it resolves. */
-const settingsPaths = new Set(['/settings', '/dashboard']);
-let outsideSettings: string | undefined;
-const rememberOutsideSettings = () => {
-  const location = router.state.location;
-  if (!settingsPaths.has(location.pathname)) outsideSettings = location.href;
-};
-router.subscribe('onResolved', rememberOutsideSettings);
-/** Where Settings' Done goes: the page Settings was opened from, or Home when it was opened directly. */
-export function settingsReturnHref(): string {
-  return outsideSettings ?? '/';
-}
+// Settings' Done (shell/settings-return.ts) goes back to the last page outside Settings, under the same authority.
+trackSettingsReturn(() => router.state.location);
+router.subscribe('onResolved', rememberSettingsReturn);
+export {settingsReturnHref} from './shell/settings-return';
