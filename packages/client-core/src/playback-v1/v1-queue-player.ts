@@ -464,15 +464,27 @@ export class V1QueuePlayer implements QueueController {
     return this.playItem(episodeId, startSeconds, undefined, undefined, undefined, undefined, {from: {container: {kind: 'show', id: showId}}});
   }
 
-  /** Resolve beyond the resident window before using the ordinary run-preserving jump. */
-  selectEpisode(episodeId: string): Promise<void> { return this.selectQueuedItem(episodeId); }
+  /** Resolve beyond the resident window before using the ordinary run-preserving jump. An
+   * episode this run doesn't hold joins it as the next entry first (W1-A1: a show run leaves its
+   * specials out unless it is anchored on one), so the pick is still the same playback with the
+   * same choices, never a 404 and never a new run. */
+  selectEpisode(episodeId: string): Promise<void> { return this.selectQueuedItem(episodeId, undefined, true); }
 
   /** Jump within this run's queue to the entry playing `itemId`, from `startSeconds` when given
-   * (else where the viewer left it). The entry may be outside the resident window. */
-  async selectQueuedItem(itemId: string, startSeconds?: number): Promise<void> {
+   * (else where the viewer left it). The entry may be outside the resident window. `join`: an
+   * item the queue doesn't hold is added as the next entry, then played. */
+  async selectQueuedItem(itemId: string, startSeconds?: number, join = false): Promise<void> {
     const header=this.header;
     if(!header)throw new PlaybackApiError(404,'not_found','never');
-    const found=await this.client.entryForItem(header.id,itemId);
+    let found:Awaited<ReturnType<QueueClient['entryForItem']>>;
+    try{found=await this.client.entryForItem(header.id,itemId);}
+    catch(error){
+      if(!join||!(error instanceof PlaybackApiError)||error.status!==404||this.disposed||this.header?.id!==header.id)throw error;
+      const added=await this.client.addSegment(header.id,this.header.revision,'next',{source:{items:{ids:[itemId]}}});
+      if(this.disposed||this.header?.id!==header.id)return;
+      this.header=added.queue;
+      found=await this.client.entryForItem(header.id,itemId);
+    }
     if(this.disposed||this.header?.id!==header.id)return;
     await this.playEntry(header.id,found.entry.entryId,found.revision,startSeconds);
   }

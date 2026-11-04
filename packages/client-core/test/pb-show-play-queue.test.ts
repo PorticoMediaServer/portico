@@ -41,6 +41,25 @@ test('PB-1: Play on an episode queues its show anchored on it, so the Episodes d
   } finally {f.stop(); f.player.dispose();}
 });
 
+test('W1-A1: a special the show run leaves out joins the run as the next entry and plays, in the same playback', async () => {
+  const f = await fixture();
+  try {
+    await f.player.playItem('show-0', undefined, undefined, undefined, undefined, undefined, {from: {container: {kind: 'show', id: 'show'}}});
+    const run = f.playback.getSnapshot().playbackRun;
+    await f.player.selectEpisode('special-1');
+    assert.equal(f.player.currentSession()?.itemId, 'special-1', 'the special plays');
+    assert.equal(f.creates().length, 1, 'no new queue');
+    assert.equal(f.playback.getSnapshot().playbackRun, run, 'the same run, so its choices carry on');
+    assert.ok(f.calls.some(call => call.method === 'POST' && call.path.endsWith('/segments') && (call.body as {placement?: string}).placement === 'next'), 'added as the next entry');
+    // An ordinary queued pick never adds anything.
+    const segments = f.calls.filter(call => call.path.endsWith('/segments')).length;
+    await f.player.selectEpisode('show-1');
+    assert.equal(f.calls.filter(call => call.path.endsWith('/segments')).length, segments);
+    // Only the drawer's pick joins the run: other jumps keep refusing an item the queue doesn't hold.
+    await assert.rejects(f.player.selectQueuedItem('special-2'), (error: {status?: number}) => error.status === 404);
+  } finally {f.stop(); f.player.dispose();}
+});
+
 test('PB-1: an explicit start position and version still travel with the anchored queue', async () => {
   const f = await fixture();
   try {
