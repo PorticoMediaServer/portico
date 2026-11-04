@@ -3,6 +3,7 @@ import {defaultI18n} from '@i18n';
 import {passwordStrength} from '@core/password-strength.ts';
 import {directMemberCreateFailure, directMemberInputReady, type CreatedDirectMember, type NewDirectMember} from '@core/direct-member-create.ts';
 import {Button, TextField} from '../../kit/controls';
+import {Icon} from '../../kit/Icon';
 import {Dialog} from '../../kit/overlays';
 import {usePhone} from '../../kit/overlays/shared';
 import {AuthPasswordField} from '../../kit/accounts/AuthStage';
@@ -24,11 +25,11 @@ export function AddAccountDialog({open, onOpenChange, libraries, add, onAdded, r
 }>) {
   const [username, setUsername] = useState(''), [name, setName] = useState(''), [password, setPassword] = useState('');
   const [all, setAll] = useState(true), [chosen, setChosen] = useState<readonly string[]>([]);
-  const [busy, setBusy] = useState(false), [failure, setFailure] = useState<'taken' | 'failed'>();
+  const [busy, setBusy] = useState(false), [failure, setFailure] = useState<'taken' | 'failed'>(), [picking, setPicking] = useState(false);
   const request = useRef<AbortController | undefined>(undefined), strength = useId();
   const input: NewDirectMember = {username, name, password, allowedLibraries: all ? [] : chosen};
   const ready = directMemberInputReady(input) && passwordStrength(password).acceptable && (all || chosen.length > 0);
-  const reset = () => {setUsername(''); setName(''); setPassword(''); setAll(true); setChosen([]); setFailure(undefined);};
+  const reset = () => {setUsername(''); setName(''); setPassword(''); setAll(true); setChosen([]); setFailure(undefined); setPicking(false);};
   const close = () => {if (busy) return; request.current?.abort(); reset(); onOpenChange(false);};
   const submit = () => {
     if (!ready || busy) return;
@@ -49,7 +50,10 @@ export function AddAccountDialog({open, onOpenChange, libraries, add, onAdded, r
   return <Dialog open={open} onOpenChange={value => {if (!value) close();}} title={t('web.people.addAccountTitle')} description={t('next.settings.people.addAccountLede')}
     returnFocusRef={returnFocusRef} dismissOnBack={!busy} {...(phone ? {headerAction: cancel, showCloseButton: false, stackFooter: true} : {})}
     footer={phone ? confirm : <>{cancel}{confirm}</>}>
-    <form className={`${styles.form} ${styles.addForm}`} onSubmit={event => {event.preventDefault(); submit();}}>
+    {phone && picking ? <div className={`${styles.form} ${styles.addForm}`}>
+      <div className={styles.pickHead}><Button size="small" variant="text" onClick={() => setPicking(false)}>{t('next.overlays.done')}</Button></div>
+      <LibraryChecks libraries={libraries} all={all} chosen={chosen} disabled={busy} onAll={value => {setAll(value); if (value) setChosen([]);}} onChosen={setChosen} />
+    </div> : <form className={`${styles.form} ${styles.addForm}`} onSubmit={event => {event.preventDefault(); submit();}}>
       {failure === 'failed' && <p role="alert">{t('next.settings.people.addAccountFailed')}</p>}
       <TextField label={t('accounts.signIn.username')} description={t('next.settings.people.usernameHelp')} autoComplete="off" autoCapitalize="none" spellCheck={false}
         value={username} disabled={busy} error={failure === 'taken' ? t('web.directJoin.error.taken') : undefined}
@@ -60,20 +64,39 @@ export function AddAccountDialog({open, onOpenChange, libraries, add, onAdded, r
           onChange={event => setPassword(event.currentTarget.value)} />
         <ServicesStrength password={password} id={strength} />
       </div>
-      <fieldset disabled={busy} className={styles.fieldset}>
-        <legend>{t('web.people.visibleLibraries')}</legend>
-        <label className={styles.choice}>
-          <input type="checkbox" checked={all} onChange={event => {setAll(event.currentTarget.checked); if (event.currentTarget.checked) setChosen([]);}} />
-          <span>{t('web.people.allLibrariesLater')}</span>
-        </label>
-        {!all && libraries.map(library => <label key={library.id} className={styles.choice}>
-          <input type="checkbox" checked={chosen.includes(library.id)} onChange={event => {
-            const checked = event.currentTarget.checked;
-            setChosen(current => checked ? [...current, library.id] : current.filter(id => id !== library.id));
-          }} />
-          <span>{library.name}</span>
-        </label>)}
-      </fieldset>
-    </form>
+      <AddAccountLibraries phone={phone} libraries={libraries} all={all} chosen={chosen} disabled={busy}
+        onAll={value => {setAll(value); if (value) setChosen([]);}} onChosen={setChosen} onPick={() => setPicking(true)} />
+    </form>}
   </Dialog>;
+}
+
+type LibraryProps = Readonly<{libraries: readonly {id: string; name: string}[]; all: boolean; chosen: readonly string[]; disabled: boolean;
+  onAll: (all: boolean) => void; onChosen: (ids: readonly string[]) => void}>;
+
+/** Frame 6 (desktop): "All libraries, including ones added later", and unticking it lists the libraries. */
+function LibraryChecks({libraries, all, chosen, disabled, onAll, onChosen}: LibraryProps) {
+  return <fieldset disabled={disabled} className={styles.fieldset}>
+    <legend>{t('web.people.visibleLibraries')}</legend>
+    <label className={styles.choice}>
+      <input type="checkbox" checked={all} onChange={event => onAll(event.currentTarget.checked)} />
+      <span>{t('web.people.allLibrariesLater')}</span>
+    </label>
+    {!all && libraries.map(library => <label key={library.id} className={styles.choice}>
+      <input type="checkbox" checked={chosen.includes(library.id)} onChange={event => {
+        const checked = event.currentTarget.checked;
+        onChosen(checked ? [...chosen, library.id] : chosen.filter(id => id !== library.id));
+      }} />
+      <span>{library.name}</span>
+    </label>)}
+  </fieldset>;
+}
+
+/** The libraries control: frame 6's checkboxes on a desktop; on a phone frame 25's grouped row, "Libraries they can
+ * see" with its value and a chevron, which opens the same choice in the sheet. */
+export function AddAccountLibraries({phone, onPick, ...props}: LibraryProps & Readonly<{phone: boolean; onPick: () => void}>) {
+  if (!phone) return <LibraryChecks {...props} />;
+  const value = props.all ? t('next.settings.people.allLibraries') : t('next.settings.invitations.libraries', {count: props.chosen.length});
+  return <button type="button" className={styles.pickRow} disabled={props.disabled} onClick={onPick}>
+    <span>{t('web.people.visibleLibraries')}</span><span className={styles.pickValue}>{value}</span><Icon name="i-right" size={18} />
+  </button>;
 }

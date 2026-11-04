@@ -17,9 +17,32 @@ test('the People heading draws Add account (glass) before Invite someone, as own
 
 test('the dialog follows owner-people 6: Username, Profile name, Password with the strength meter, Libraries; ready only when complete and strong', () => {
   const dialog = read('../src/screens/settings/people-add-account.tsx');
-  const order = ['accounts.signIn.username', 'web.people.profileName', 'accounts.signIn.password', 'web.people.visibleLibraries'].map(key => dialog.indexOf(`t('${key}')`));
+  const form = dialog.slice(dialog.indexOf('<form'));
+  const order = [`t('accounts.signIn.username')`, `t('web.people.profileName')`, `t('accounts.signIn.password')`, '<AddAccountLibraries'].map(mark => form.indexOf(mark));
   assert.ok(order.every((at, index) => at > 0 && (index === 0 || at > order[index - 1]!)), JSON.stringify(order));
   assert.match(dialog, /<ServicesStrength password=\{password\} id=\{strength\} \/>/);
   assert.match(dialog, /const ready = directMemberInputReady\(input\) && passwordStrength\(password\)\.acceptable && \(all \|\| chosen\.length > 0\);/);
   assert.match(dialog, /error=\{failure === 'taken' \? t\('web\.directJoin\.error\.taken'\) : undefined\}/);
+});
+
+test('on a phone the libraries are frame 25\'s grouped row, "Libraries they can see" with its value, not the desktop checkboxes', async () => {
+  const {registerHooks} = await import('node:module');
+  const {transformTsx} = await import('./transform-tsx.mjs');
+  registerHooks({load(url, context, next) {
+    if (url.endsWith('.module.css')) return {format: 'module', source: 'export default new Proxy({}, {get: (_, key) => String(key)});', shortCircuit: true};
+    if (url.endsWith('.tsx')) return {format: 'module', source: transformTsx(url), shortCircuit: true};
+    return next(url, context);
+  }});
+  const {createElement} = await import('react');
+  const {renderToStaticMarkup} = await import('react-dom/server');
+  const {AddAccountLibraries} = await import('../src/screens/settings/people-add-account.tsx');
+  const libraries = [{id: 'a', name: 'Movies'}, {id: 'b', name: 'Music'}];
+  const props = {libraries, all: true, chosen: [], disabled: false, onAll() {}, onChosen() {}, onPick() {}};
+  const phone = renderToStaticMarkup(createElement(AddAccountLibraries, {...props, phone: true}));
+  assert.match(phone, /<button type="button"[^>]*>.*Libraries they can see.*All libraries.*<\/button>/s);
+  assert.doesNotMatch(phone, /type="checkbox"/);
+  assert.match(renderToStaticMarkup(createElement(AddAccountLibraries, {...props, phone: true, all: false, chosen: ['a']})), /1 library/);
+  const desktop = renderToStaticMarkup(createElement(AddAccountLibraries, {...props, phone: false}));
+  assert.match(desktop, /type="checkbox"/);
+  assert.match(desktop, /All libraries, including ones added later/);
 });

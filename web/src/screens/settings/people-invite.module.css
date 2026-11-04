@@ -41,3 +41,9 @@
   .sheetCancel { margin-left: auto; }
   .sheetConfirm { flex: 1; }
 }
+/* owner-people 25: the phone's grouped Libraries row, and the choice it opens in the sheet. */
+.pickRow { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 8px 14px; border: 0; border-radius: 12px; background: var(--color-raised); color: var(--color-text); font: inherit; text-align: left; cursor: pointer; }
+.pickRow:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+.pickRow > span:first-child { flex: 1; min-width: 0; }
+.pickValue { color: var(--color-text-tertiary); }
+.pickHead { display: flex; justify-content: flex-end; margin-bottom: -10px; }
