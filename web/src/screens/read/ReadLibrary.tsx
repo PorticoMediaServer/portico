@@ -67,11 +67,11 @@ export function ReadDiscovery({rows, focusScope, platform, reducedMotion, newspa
   onVisibleRange?: (row: ReadDiscoveryRow, range: Readonly<{first: number; last: number}>) => void;
 }>) {
   return <div className={styles.rows}>{rows.map(row => {
-    const common = {key: row.id, focusScope, heading: row.heading, subtitle: row.subtitle, onSeeAll: row.onSeeAll,
+    const common = {focusScope, heading: row.heading, subtitle: row.subtitle, onSeeAll: row.onSeeAll,
       onVisibleRange: (first: number, last: number) => {row.onVisibleRange?.(first, last);onVisibleRange?.(row, {first, last});}, platform, reducedMotion};
-    if (row.kind === 'resume') return <ReadShelf {...common} items={row.items} getKey={resumeKey} renderItem={item => <ReadResumeCard {...item.card} />} />;
-    if (row.kind === 'series') return <ReadShelf {...common} items={row.items} getKey={seriesKey} renderItem={item => <SeriesTile {...item.card} />} />;
-    return <ReadShelf {...common} items={row.items} getKey={coverKey} renderItem={item => <CoverCard {...item.card} />} />;
+    if (row.kind === 'resume') return <ReadShelf key={row.id} {...common} items={row.items} getKey={resumeKey} renderItem={item => <ReadResumeCard {...item.card} />} />;
+    if (row.kind === 'series') return <ReadShelf key={row.id} {...common} items={row.items} getKey={seriesKey} renderItem={item => <SeriesTile {...item.card} />} />;
+    return <ReadShelf key={row.id} {...common} items={row.items} getKey={coverKey} renderItem={item => <CoverCard {...item.card} />} />;
   })}{newspaper}{children}</div>;
 }
 

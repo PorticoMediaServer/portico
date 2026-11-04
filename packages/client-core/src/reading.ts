@@ -234,7 +234,8 @@ function validateDiscoverRow(row: ReadingDiscover['rows'][number], libraryId: st
       if (row.series !== undefined || 'newIssues' in row) fail('invalid_document');
       for (const entry of short) {
         checkItem(entry.item, libraryId);
-        if (entry.item.format !== 'epub' || !integer(entry.wordCount, 1, 44999) || !integer(entry.estimatedSeconds, 1, 10800) || entry.estimatedSeconds !== Math.ceil(entry.wordCount * 60 / 250)) fail('invalid_document');
+        // The server counts words in EPUBs and PDFs alike (reading/discover_short_reads.go); both are short reads.
+        if (entry.item.format !== 'epub' && entry.item.format !== 'pdf' || !integer(entry.wordCount, 1, 44999) || !integer(entry.estimatedSeconds, 1, 10800) || entry.estimatedSeconds !== Math.ceil(entry.wordCount * 60 / 250)) fail('invalid_document');
         once(entry.item.id);
       }
       size = short.length;
