@@ -78,7 +78,8 @@
 .toolbar[data-platform=tv] .separator { height: 40px; width: 1.5px; }
 .toolbar[data-platform=tv] .applied { padding: 24px 0 0; gap: 12px; }
 .toolbar[data-platform=tv] .appliedChip { height: 52px; font-size: 20px; }
-.filterBuilder { padding: 0 32px 24px; }
+/* desktop-browse #filters: the panel body already sets the 32px edge its title and footer share; the groups sit on it. */
+.filterBuilder { padding: 0 0 24px; }
 .filterGroup > h3 { display: flex; align-items: center; gap: 10px; margin: 24px 0 12px; font-size: 15px; line-height: normal; font-weight: 700; }
 .filterGroup > h3 > span { font-size: 12.5px; color: var(--color-accent-strong); }
 .fieldGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
