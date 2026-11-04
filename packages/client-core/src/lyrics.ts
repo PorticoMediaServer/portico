@@ -214,7 +214,9 @@ export class LyricsService {
     private bound() { const source = this.state.data?.source; if (!source)
         throw new Error('No verified song source is selected.'); return { sourceId: source.id, sourceVersion: source.version, sessionId: this.target.sessionId ?? '' }; }
     private check(raw: unknown) { return parseLyricsView(raw, this.scope, this.target); }
-    private async run(work: (signal: AbortSignal) => Promise<Partial<LyricsSnapshot>>) {
+    /** `write`: the answer to a lyrics write (and its fresh read). Step 7: only a write's answer still
+     * refuses a moved viewer fence; on a read a moved fence is a newer answer, and 401/403 still clear. */
+    private async run(work: (signal: AbortSignal) => Promise<Partial<LyricsSnapshot>>, write = false) {
         if (this.disposed)
             return;
         const previousGeneration = this.generation;
@@ -233,7 +235,7 @@ export class LyricsService {
             if (g === this.generation && !this.disposed) {
                 if (result.data) {
                     const incoming = result.data;
-                    if (this.fence && this.fence !== incoming.scope.viewerFence) {
+                    if (write && this.fence && this.fence !== incoming.scope.viewerFence) {
                         const error = new Error('Viewer permissions changed.') as Error & {
                             status: number;
                         };
@@ -361,7 +363,7 @@ export class LyricsService {
         });
         return completion;
     }
-    private mutate(suffix: string, method: string, body: unknown) { return this.run(async (signal) => { await this.request(this.path(suffix), method, body, signal); const raw = await this.request(this.path() + this.query(), 'GET', undefined, signal); return { data: this.check(raw), candidates: [], preview: null }; }); }
+    private mutate(suffix: string, method: string, body: unknown) { return this.run(async (signal) => { await this.request(this.path(suffix), method, body, signal); const raw = await this.request(this.path() + this.query(), 'GET', undefined, signal); return { data: this.check(raw), candidates: [], preview: null }; }, true); }
     upload = (input: LyricUpload) => !this.state.data?.source ? Promise.resolve() : this.mutate('', 'POST', { ...this.bound(), ...input, resourceId: input.resourceId ?? '', expectedRevision: input.expectedRevision ?? 0 });
     setOffset = (resource: LyricRevision, milliseconds: number) => !this.state.data?.source ? Promise.resolve() : this.mutate('/' + encodeURIComponent(resource.id) + '/offset', 'PATCH', { ...this.bound(), expectedRevision: resource.revision, offsetMs: milliseconds });
     remove = (resource: LyricRevision) => !this.state.data?.source ? Promise.resolve() : this.mutate('/' + encodeURIComponent(resource.id), 'DELETE', { ...this.bound(), expectedRevision: resource.revision });
@@ -378,7 +380,7 @@ export class LyricsService {
     preview = (resource: LyricRevision) => this.run(async (signal) => { const raw = await this.request(this.path('/' + encodeURIComponent(resource.id) + '/revisions/' + resource.revision) + this.query(), 'GET', undefined, signal); const r = revision(raw, true); if (r.id !== resource.id || r.revision !== resource.revision)
         invalid(); return { preview: r }; });
     configureProvider = (enabled: boolean) => { const revision = this.state.data?.providers.revision; if (revision === undefined)
-        return Promise.resolve(); return this.run(async (signal) => { await this.request(routePath("put_lyrics_provider"), 'PUT', routeBody("put_lyrics_provider", { enabled, expectedRevision: revision }), signal); const raw = await this.request(this.path() + this.query(), 'GET', undefined, signal); return { data: this.check(raw), candidates: [] }; }); };
+        return Promise.resolve(); return this.run(async (signal) => { await this.request(routePath("put_lyrics_provider"), 'PUT', routeBody("put_lyrics_provider", { enabled, expectedRevision: revision }), signal); const raw = await this.request(this.path() + this.query(), 'GET', undefined, signal); return { data: this.check(raw), candidates: [] }; }, true); };
     cancel = () => {
         const generation = this.generation; this.choice?.retire(new Error('Lyrics choice was cancelled.'));
         if (this.disposed || generation !== this.generation || this.choice) return;
