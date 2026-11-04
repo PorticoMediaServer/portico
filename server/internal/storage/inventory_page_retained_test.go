@@ -146,7 +146,7 @@ func streamTestClient(t *testing.T, body string) (*Client, string) {
 	}
 	root := t.TempDir()
 	script := filepath.Join(root, "helper")
-	scriptBody := "#!/bin/sh\nIFS= read -r request\nprintf 'start\\n' >> '" + filepath.Join(root, "starts") + "'\n" + body
+	scriptBody := "#!/bin/sh\nIFS= read -r request\nIFS= read -r demand\nprintf 'start\\n' >> '" + filepath.Join(root, "starts") + "'\n" + body
 	if err := os.WriteFile(script, []byte(scriptBody), 0700); err != nil {
 		t.Fatal(err)
 	}
