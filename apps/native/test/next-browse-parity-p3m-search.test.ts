@@ -16,12 +16,12 @@ const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : 
 const text = (node: any): string => Array.isArray(node) ? node.map(text).join('') : typeof node === 'string' ? node : node?.props ? text(node.props.children) : '';
 const idle = {generation: 1, scope: {}, query: null, phase: 'idle', data: null, groups: [], pagination: {cursor: null, canPrevious: false}, error: null};
 
-const now = serverNow();
+const now = Date.UTC(2026, 10, 4, 12);
 const programme = (id: string, title: string) => ({id, channelId: 'ch1', title, start: now - 20 * 60_000, end: now + 40 * 60_000, subtitle: 'Evening edition', flags: {live: true}});
 const card = (id: string, sourceId: string) => ({channel: {sourceId, id, name: `Channel ${id}`, number: '4', mark: {text: 'C', seed: `${sourceId}:${id}`}}, programmes: [programme(id, `News ${id}`)]});
 const readyOnNow = {phase: 'ready', cards: [card('a', 'tuner'), card('b', 'tuner'), card('c', 'm3u')], at: now};
 
-async function mountSearch({hasLiveTV, onNow, typed = false}: {hasLiveTV: boolean; onNow?: any; typed?: boolean}) {
+async function mountSearch({hasLiveTV, onNow, typed = false, at = now}: {hasLiveTV: boolean; onNow?: any; typed?: boolean; at?: number}) {
   const host = hooks();
   (host.react as any).useId = () => 'search-p3m';
   const theme = createTheme({width: 390, isTV: false});
@@ -33,7 +33,7 @@ async function mountSearch({hasLiveTV, onNow, typed = false}: {hasLiveTV: boolea
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47, bottom: 34, left: 0, right: 0})},
     '../../../../../packages/i18n/src': {defaultI18n},
     '../../../../../packages/client-core/src/presentation/search-model': {orderedSearchGroups, SEARCH_CHIPS, searchGroupLabel, topSearchResult, topResultKindLabel},
-    '../../../../../packages/client-core/src/guide/now-next': {nowNext}, '../../../../../packages/client-core/src/server-clock': {serverNow},
+    '../../../../../packages/client-core/src/guide/now-next': {nowNext}, '../../../../../packages/client-core/src/server-clock': {serverNow: () => at},
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../kit/cards': {GenreTile: 'GenreTile', LiveCard: 'LiveCard'}, '../../kit/cards/primitives': {CardFrame: 'CardFrame'},
     '../../kit/controls': {Chip: 'Chip', Focusable: 'Focusable', TextField: 'TextField'}, '../../kit/selection': {SelectionCircle: 'SelectionCircle'},
     '../../kit/overlays': {Banner: 'Banner'}, '../../kit/states': {GridSkeleton: 'GridSkeleton', StateView: 'StateView'}, '../../kit/Icon': {Icon: 'Icon'},
@@ -47,7 +47,7 @@ async function mountSearch({hasLiveTV, onNow, typed = false}: {hasLiveTV: boolea
   const tree = host.render(() => view.SearchScreen({
     destination: {subscribe: () => () => {}, getSnapshot: () => snapshot, refreshHistory: async () => {}, clearHistory: async () => {}, setText: () => {},
       selectGroup: () => {}, commit: async () => {}, useRecent: () => {}, next: async () => {}, retry: async () => {}},
-    runtime: {artwork: () => undefined, text: defaultI18n, reportError: () => {}, error: () => ({title: 'error'}), registerScrollToTop: () => () => {},
+    runtime: {artwork: () => undefined, text: {...defaultI18n, timeZone: 'UTC'}, reportError: () => {}, error: () => ({title: 'error'}), registerScrollToTop: () => () => {},
       subscribe: () => () => {}, getSnapshot: () => ({hasLiveTV}), onDestination: (destination: unknown) => destinations.push(destination)},
     explore: {subscribe: () => () => {}, getSnapshot: () => ({phase: 'ready', genres: [], backdropGenres: [], initialHeading: 'next.search.browseByGenre', emptyHeading: 'next.search.browseInstead'}), load: async () => {}, openGenre: () => {}},
     ...(onNow ? {onNow: {subscribe: () => () => {}, getSnapshot: () => onNow, load: async () => {loads.push('load');}}} : {}),
@@ -78,12 +78,32 @@ test('empty Search on a server with Live TV draws On now, a Guide link and the l
   assert.equal(shown.props.channel, 'Channel a');
   assert.ok(shown.props.progress > .3 && shown.props.progress < .4, 'twenty of sixty minutes in');
   assert.deepEqual(shown.props.flags.map((flag: any) => flag.id), ['live'], 'the Live tag');
-  assert.match(shown.props.range, /^Ends \d{1,2}:\d{2}/, 'Ends h:mm, as drawn');
+  const current = readyOnNow.cards[0]!.programmes[0]!;
+  assert.equal(shown.props.range, defaultI18n.t('guide.ends', {time: programmeTimeRange(current.start, current.end, {...defaultI18n, timeZone: 'UTC'})!.end}));
   assert.equal(shown.props.number, undefined, 'no channel number');
   assert.equal(shown.props.caption, undefined, 'no remaining-time line');
   shown.props.onNavigate();
   assert.deepEqual(page.destinations.at(-1), {kind: 'live'}, 'a card opens Live TV');
 });
+
+for (const [name, at, start, end, spansDays] of [
+  ['same day', Date.UTC(2026, 10, 4, 12), Date.UTC(2026, 10, 4, 11), Date.UTC(2026, 10, 4, 13), false],
+  ['next day', Date.UTC(2026, 10, 4, 23, 30), Date.UTC(2026, 10, 4, 23), Date.UTC(2026, 10, 5, 0, 10), true],
+] as const) {
+  test(`On now uses the shared end caption across ${name} with an injected clock`, async () => {
+    const current = {...programme('a', 'News a'), start, end};
+    const onNow = {...readyOnNow, at, cards: [{...card('a', 'tuner'), programmes: [current]}]};
+    const page = await mountSearch({hasLiveTV: true, onNow, at});
+    const body = page.paint(page.section);
+    const entry = body.find(node => typeof node.type === 'function' && node.props.card)!;
+    const shown = page.paint(entry).find(node => node.type === 'LiveCard');
+    const range = programmeTimeRange(start, end, {...defaultI18n, timeZone: 'UTC'})!;
+    assert.equal(range.spansDays, spansDays);
+    assert.equal(shown.props.range, defaultI18n.t('guide.ends', {time: range.end}));
+    assert.equal(shown.props.title, 'News a');
+    assert.ok(shown.props.progress > 0 && shown.props.progress < 1);
+  });
+}
 
 test('the On now row is absent without Live TV, while typing, and when the read left nothing', async () => {
   assert.equal((await mountSearch({hasLiveTV: false, onNow: readyOnNow})).section, undefined, 'no Live TV on the server');
