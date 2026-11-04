@@ -105,7 +105,7 @@ func TestGridValidatorSurvivesTokenRotationAndUnrelatedWrites(t *testing.T) {
 	}
 }
 
-func TestCatalogueFailuresRequireOwner(t *testing.T) {
+func TestCatalogueFailuresRequireAdministrativeAccess(t *testing.T) {
 	d, _, owner, member := notificationFixture(t)
 	mux := http.NewServeMux()
 	d.foundationRoutes(mux)
