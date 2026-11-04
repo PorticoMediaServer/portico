@@ -9,7 +9,7 @@ import {defaultI18n} from '../../../packages/i18n/src';
 import * as personalSaved from '../../../packages/client-core/src/personal-saved';
 import * as shellModel from '../src-next/shell/model';
 import * as lifetime from '../src-next/screens/destinations/lifetime';
-import {screenModule} from './helpers/screen-harness.mjs';
+import {hooks, screenModule} from './helpers/screen-harness.mjs';
 
 // The route module, with its React views stubbed and its controller, lifetime and authority checks real.
 const loadRoute = () => screenModule(new URL('../src-next/screens/home/CustomizeRoute.tsx', import.meta.url), {
@@ -43,12 +43,14 @@ test('C: a view added in the draft whose library is no longer visible drops with
   assert.equal(controller.addSavedView(added), true);assert.equal(controller.addSavedView(kept), true);
   visible = new Set(['library']);
   assert.equal(controller.dropUnoffered(), 1, 'only the added view the viewer can no longer see drops');
+  assert.equal(controller.getSnapshot().noLongerAvailable, 1, 'the notice counts it');
   const rows = controller.getSnapshot().rows;
   assert.deepEqual(rows.map(row => row.id), ['recent', 'view:pinned', 'view:kept']);
   assert.equal(rows.find(row => row.id === 'view:pinned')?.savedView, undefined, 'the layout view stays, without its stale binding');
   assert.equal(controller.dropUnoffered(), 0, 'nothing more to drop');
   assert.equal(await controller.save(), true, 'Save is not blocked by the view that is no longer current');
   assert.deepEqual(writes, [{order: ['recent', 'view:pinned', 'view:kept'], hidden: [], revision: 7}]);
+  assert.equal(controller.getSnapshot().noLongerAvailable, undefined, 'a successful Save clears the notice');
   controller.dispose();
 });
 
@@ -86,4 +88,96 @@ test('C: a moved viewer fence and a smaller library list keep Customize Home ope
     screen.reconcile();
     assert.equal(backs, 0, 'Customize does not close');assert.equal(screen.owns(route), true);
   } finally {screen.dispose();}
+});
+
+// Review (#751): the access change lands while a Save is in flight. The drop is owed until that command settles; when
+// the server refuses the Save, the added view drops, the notice counts it, and Save works again.
+test('C: an access change during an in-flight Save that the server refuses drops the view once the Save settles', async () => {
+  const added = view('added', 'gone');let visible = true, attempts = 0;
+  const refusal = {resolve: (_: unknown) => {}};
+  const controller = new NativeHomeCustomizeController({current: () => true, requestId: async () => 'request',
+    savedViews: {serverId: 'server', isCurrent: () => visible}, home: {
+      loadLayout: async () => layout(), resetLayout: async () => {},
+      saveLayout: async () => {attempts++;if (attempts === 1) {await new Promise(resolve => {refusal.resolve = resolve;});throw {status: 403, code: 'forbidden'};}return layout();}}});
+  await controller.load();
+  assert.equal(controller.addSavedView(added), true);
+  const saving = controller.save();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(controller.getSnapshot().pending, true);
+  visible = false;
+  assert.equal(controller.dropUnoffered(), 0, 'nothing drops under an in-flight Save');
+  assert.deepEqual(controller.getSnapshot().rows.map(row => row.id), ['recent', 'view:added']);
+  refusal.resolve(undefined);
+  assert.equal(await saving, false);
+  const settled = controller.getSnapshot();
+  assert.deepEqual(settled.rows.map(row => row.id), ['recent'], 'the owed drop ran when the Save settled');
+  assert.equal(settled.noLongerAvailable, 1);assert.equal(settled.retry, undefined);assert.equal(settled.pending, false);
+  controller.toggle('recent');
+  assert.equal(await controller.save(), true, 'Save works again');assert.equal(attempts, 2);
+  controller.dispose();
+});
+
+test('C: a Saved intent that could not be added never hides the views-dropped notice', async () => {
+  const {customizeNotice} = await loadRoute();
+  assert.equal(customizeNotice(undefined, undefined), undefined);
+  assert.equal(customizeNotice('Unavailable.', undefined), 'Unavailable.');
+  assert.equal(customizeNotice(undefined, '1 saved view is no longer available.'), '1 saved view is no longer available.');
+  assert.equal(customizeNotice('Unavailable.', '1 saved view is no longer available.'), 'Unavailable. 1 saved view is no longer available.');
+  assert.equal(defaultI18n.t('next.home.viewsNoLongerAvailable', {count: 2}), '2 saved views are no longer available.');
+});
+
+// TV: the dropped view's row unmounts while it holds focus. Focus goes to the row now in its place (here the row
+// above) inside the side panel, never out of it; focus already elsewhere in the panel stays where it is.
+test('C: on TV, focus on a dropped view moves to its neighbour inside the side panel', async () => {
+  const owner = hooks(), effects: (() => void | (() => void))[] = [], focused: unknown[] = [];
+  // Effects run after each render when their dependencies change, as React runs them.
+  const react: any = {...owner.react, useLayoutEffect: () => {}, useId: () => 'customize',
+    useEffect: (effect: () => void | (() => void), deps?: readonly unknown[]) => {
+      const held: {current: readonly unknown[] | undefined} = owner.react.useRef(undefined);
+      if (!held.current || !deps || deps.some((value, index) => value !== held.current![index])) {held.current = deps;effects.push(effect);}
+    }};
+  react.default = react;
+  const frames: (() => void)[] = [];
+  const raf = globalThis.requestAnimationFrame, caf = globalThis.cancelAnimationFrame;
+  globalThis.requestAnimationFrame = ((callback: () => void) => {frames.push(callback);return frames.length;}) as never;
+  globalThis.cancelAnimationFrame = (() => {}) as never;
+  let focus: {regionId: string; childId: string} | undefined;
+  const registry = {capture: () => focus, attachedFocus: () => undefined};
+  const theme = {isTV: true, platform: 'tv', colors: {text: '#fff', textSecondary: '#aaa', textTertiary: '#777', raisedHigh: '#222', accentStrong: '#0af', shadow: '#000', line: '#333'},
+    textScale: 1, type: {title: {}, body: {}, bodyStrong: {}, caption: {}, captionStrong: {}}};
+  const {HomeCustomize} = await screenModule(new URL('../src-next/screens/home/HomeCustomize.tsx', import.meta.url), {
+    react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', TVEventHandler: {addListener: () => ({remove() {}})}, findNodeHandle: () => 1},
+    'react-native-gesture-handler': {Gesture: {Native: () => ({})}, GestureDetector: 'GestureDetector'}, '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
+    '../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel: (_i18n: unknown, text: unknown, fallback: string) => text ?? fallback},
+    '../../../../../packages/client-core/src/presentation/home-row-reason': {homeRowReasonParts: () => undefined},
+    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch'}, '../../kit/focus': {useFocusRegistry: () => registry},
+    '../../kit/Icon': {Icon: 'Icon'}, '../../kit/browse/presentation': {alpha: (value: string) => value},
+    '../../kit/overlays': {BottomSheet: 'BottomSheet', Dialog: 'Dialog', SidePanel: 'SidePanel'}, '../../kit/overlays/OverlayHost': {focusTarget: (node: unknown) => {focused.push(node);}},
+    '../../kit/theme': {nativeType: () => ({}), useTheme: () => theme}, './customize-controller': {}, './customize-drag': {},
+    '../../platform/tv-key-source': {tvKeySource: 'native'}, '../../platform/tv-key-adapter': {createTVKeyAdapter: () => ({read: () => undefined})},
+  });
+  const recent = {id: 'recent', title: 'Recently added', kind: 'recent', reorderable: true, hideable: true, required: false, hidden: false};
+  const added = {id: 'view:added', title: 'View added', kind: 'saved_view', savedView: view('added', 'gone'), reorderable: true, hideable: true, required: false, hidden: false};
+  let state: any = {phase: 'ready', pending: false, dirty: true, conflict: false, showConflict: false, rows: [recent, added]};
+  const controller = {subscribe: () => () => {}, getSnapshot: () => state, isCurrent: () => true};
+  const props = {controller, copy: {save: 'Save', addView: 'Add view', title: 'Customize'}, i18n: {t: (key: string) => key}, onClose() {}, onAddView() {}, summary: () => '', testID: 'customize'};
+  const all = (node: any): any[] => Array.isArray(node) ? node.flatMap(all) : node?.props ? [node, ...all(node.props.children), ...all(node.props.footer)] : [];
+  const draw = () => {effects.length = 0;const tree = owner.render(() => HomeCustomize(props));
+    for (const node of all(tree)) if (typeof node.props.ref === 'function') node.props.ref({id: node.props.focusId});
+    const add = all(tree).find(node => node.props.focusId === 'add-view');if (add) add.props.ref.current = {id: 'add-view'};
+    for (const effect of effects) effect();return tree;};
+  try {
+    assert.equal(all(draw()).some(node => node.type === 'SidePanel'), true);
+    frames.length = 0;focused.length = 0;
+    focus = {regionId: 'customize', childId: 'view:added'};
+    state = {...state, rows: [recent], noLongerAvailable: 1};
+    const after = draw();
+    for (const frame of frames.splice(0)) frame();
+    assert.deepEqual(focused, [{id: 'recent'}], 'focus moves to the row above, inside the panel');
+    assert.equal(all(after).some(node => node.type === 'SidePanel' && node.props.open === true), true, 'the panel stays open');
+    focus = {regionId: 'customize', childId: 'recent:visibility'};focused.length = 0;
+    state = {...state, rows: [recent, added]};draw();for (const frame of frames.splice(0)) frame();
+    state = {...state, rows: [recent]};draw();for (const frame of frames.splice(0)) frame();
+    assert.deepEqual(focused, [], 'focus already elsewhere in the panel stays');
+  } finally {globalThis.requestAnimationFrame = raf;globalThis.cancelAnimationFrame = caf;}
 });

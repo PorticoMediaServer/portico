@@ -132,6 +132,24 @@ export function HomeCustomize({controller, copy, i18n, onClose, onAddView, views
     });
     return () => listener?.remove();
   }, [controller, regionId, registry, state.pending, state.pickedId, theme.isTV]);
+  /** Ruling C (step 7 item 4): a saved view that drops after an access change unmounts its row. On TV, focus that was
+   * on it (or that the unmount left detached) goes to the row now in its place, the row above, or Add view: it stays in
+   * the panel. Focus already elsewhere in the panel is left where it is. */
+  const shownRows = useRef(state.rows);
+  useEffect(() => {
+    const before = shownRows.current;shownRows.current = state.rows;
+    if (!theme.isTV || !controller.isCurrent()) return;
+    const kept = (row: {id: string}) => state.rows.some(value => value.id === row.id), gone = before.filter(row => !kept(row));
+    if (!gone.length) return;
+    const on = (childId: string | undefined, row: {id: string}) => childId === row.id || !!childId?.startsWith(row.id + ':');
+    const attached = registry.attachedFocus?.();
+    if (attached && (attached.regionId !== regionId || !gone.some(row => on(attached.childId, row)))) return;
+    const active = registry.capture?.();
+    if (!attached && active && active.regionId === regionId && !gone.some(row => on(active.childId, row))) return;
+    const lost = before.indexOf(gone[0]!), neighbor = before.slice(lost + 1).find(kept) ?? before.slice(0, lost).reverse().find(kept);
+    const frame = requestAnimationFrame(() => {if (controller.isCurrent()) focusTarget((neighbor && rowRefs.current.get(neighbor.id)) ?? addView.current);});
+    return () => cancelAnimationFrame(frame);
+  }, [controller, regionId, registry, state.rows, theme.isTV]);
   const rowHeight = theme.isTV ? 70 : 58;
   /** One focus frame at a time, leased to the controller that asked for it. The lease is
    * cancelled synchronously when this screen is torn down or handed a different controller, so a

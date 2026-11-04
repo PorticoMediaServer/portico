@@ -18,6 +18,8 @@ export type NativeHomeCustomization = Readonly<{
   showConflict: boolean;
   error?: unknown;
   retry?: 'save' | 'reset';
+  /** Added saved views that dropped since the layout was last read or saved (ruling C); the notice's count. */
+  noLongerAvailable?: number;
 }>;
 export type NativeHomeResetOpening = Readonly<{controller: NativeHomeCustomizeController; layout: HomeLayoutView; revision: number}>;
 type Ports = Readonly<{
@@ -46,6 +48,8 @@ export class NativeHomeCustomizeController {
   private generation = 0;
   private command?: {kind: 'save' | 'reset'; rows: readonly NativeHomeCustomizeRow[]; revision: number; generation: number; abort: AbortController; key?: string; accepted: boolean};
   private alive = true;
+  /** An access change arrived while a Save or Reset was in flight: the drop runs once that command settles. */
+  private dropOwed = false;
   constructor(ports: Ports) {
     this.ports = ports;
     this.editor = this.createEditor();
@@ -105,7 +109,7 @@ export class NativeHomeCustomizeController {
   private accept(layout: HomeLayoutView): void {
     this.base = layout; this.pickedOrder = undefined; this.pickedDraft = undefined; this.savedViews.clear();
     this.baseRows = this.draftRows();
-    this.publish({phase: 'ready', rows: this.baseRows, revision: layout.revision, layout,
+    this.publish({phase: 'ready', rows: this.baseRows, revision: layout.revision, layout, noLongerAvailable: undefined,
       pickedId: undefined, pickupOrder: undefined, pending: false, conflict: false, showConflict: false, error: undefined, retry: undefined});
   }
   /** Adds the current server resource to the transient layout only. Save is
@@ -187,10 +191,12 @@ export class NativeHomeCustomizeController {
    * added in this draft that are no longer offered drop out; the count is returned for the notice. Rows already in the
    * server's layout stay (dropping them would unpin them on Save) and lose a saved-view binding that is no longer
    * current, so it cannot block Save. An unaccepted Save or Reset that captured the old rows is dropped, so Save works
-   * again; one in flight, or already accepted, is left to finish as before. Layout writes still pin the revision.
+   * again. One in flight is left to finish, and the drop is owed until it settles. Layout writes still pin the revision.
    */
   dropUnoffered = (): number => {
-    if (!this.current() || this.state.phase !== 'ready' || this.state.pending) return 0;
+    if (!this.current() || this.state.phase !== 'ready') return 0;
+    if (this.state.pending) {this.dropOwed = true; return 0;}
+    this.dropOwed = false;
     const offered = (view: PersonalResource) => !!this.ports.savedViews?.isCurrent(view);
     let dropped = 0, picked = false;
     for (const [id, view] of this.editor.getSnapshot().draft?.added ?? []) {
@@ -203,7 +209,8 @@ export class NativeHomeCustomizeController {
     if (stale) {this.command!.abort.abort(); this.command = undefined;}
     if (!dropped && !unbound && !stale) return 0;
     if (picked) {this.pickedOrder = undefined; this.pickedDraft = undefined;}
-    this.publish({rows: this.draftRows(), ...(stale ? {error: undefined, retry: undefined} : {}), ...(picked ? {pickedId: undefined, pickupOrder: undefined} : {})});
+    this.publish({rows: this.draftRows(), ...(dropped ? {noLongerAvailable: (this.state.noLongerAvailable ?? 0) + dropped} : {}),
+      ...(stale ? {error: undefined, retry: undefined} : {}), ...(picked ? {pickedId: undefined, pickupOrder: undefined} : {})});
     return dropped;
   };
   save = async (): Promise<boolean> => {
@@ -250,6 +257,9 @@ export class NativeHomeCustomizeController {
         this.publish({pending: false, error, conflict, showConflict: conflict, retry: conflict ? undefined : command.kind});
       }
       return false;
+    } finally {
+      // The access change that arrived while this command was in flight is applied now that it has settled.
+      if (this.dropOwed && !this.state.pending) this.dropUnoffered();
     }
   };
   dispose = (): void => {this.alive = false; this.generation++; this.editor.dispose(); this.command?.abort.abort();this.command = undefined;this.listeners.clear(); this.base = undefined; this.pickedOrder = undefined; this.pickedDraft = undefined; this.savedViews.clear();};
