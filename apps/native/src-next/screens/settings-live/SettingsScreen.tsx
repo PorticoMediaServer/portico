@@ -20,9 +20,9 @@ import {defaultI18n, type MessageId} from '../../../../../packages/i18n/src';
 import {resetRecommendations} from '../../../../../packages/client-core/src/recommendation-feedback';
 import {nextIcons} from '../../../../../packages/design/src/next-icons';
 import {Button, Focusable, Select, Switch, TextField} from '../../kit/controls';
-import {FocusRegion, useFocusRegistry} from '../../kit/focus';
+import {FocusRegion, useCovered, useFocusRegistry} from '../../kit/focus';
 import {Icon, type IconName} from '../../kit/Icon';
-import {ChoiceMatrix, SettingsRow, SettingsSheet, SettingsSearchResults, LanguageList, ShortcutTiles, type LanguageOption} from '../../kit/shell';
+import {ChoiceMatrix, SettingsRow, SettingsRowTargetContext, SettingsSheet, SettingsSearchResults, LanguageList, ShortcutTiles, type LanguageOption, type SettingsRowTargeting} from '../../kit/shell';
 import {ProfileFace} from '../../kit/artwork';
 import {shellType} from '../../kit/shell/visual';
 import {useTheme} from '../../kit/theme';
@@ -218,6 +218,9 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
   useSyncExternalStore(trackSearchFocus ? registry.subscribe : noFocusSubscription, trackSearchFocus ? registry.getSnapshot : noFocusSnapshot, noFocusSnapshot);
   const voiceSearch = useTVVoiceSearch(theme.isTV && searching, controller.lifetime, setQuery, runtime.reportError);
   const [restoreRevision, setRestoreRevision] = useState(0);
+  const [target, setTarget] = useState<Readonly<{page: string; rowId: string; serial: number}>>();
+  const targetSerial = useRef(0), aimedCovered = useRef<number | undefined>(undefined), covered = useCovered();
+  const pageScroll = useRef<ScrollView>(null), pageScrollHeight = useRef(0);
   const liveControllers = useMemo(() => {
     if (!managesServer || theme.isTV) return undefined;
     const lifetime = controller.lifetime;
@@ -229,8 +232,16 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
   const searchable = useMemo(() => ({headings: structure.headings.flatMap(heading => heading.id === 'account' ? [heading]
     : heading.id === 'server' && serverPages.length ? [{...heading, pages: serverPages}] : [])}), [structure, serverPages]);
   const matches = searchSettings(searchable, query, t);
-  /** A result's address names its heading and page: open that page (a Server page by its own id). */
-  const openMatch = (address: string) => {const found = findSettingsPage(searchable, address); if (found) choose(found.page.id);};
+  /** A result's address names its heading and page: open that page (a Server page by its own id), aimed at the result's row.
+   * Touch (settings.html): the row scrolls to the middle and flashes once. TV (tv-more 34): search closes and the page opens
+   * with the row highlighted and focused. */
+  const openMatch = (address: string, rowId?: string) => {
+    const found = findSettingsPage(searchable, address);
+    if (!found || !viewCurrent()) return;
+    if (theme.isTV) {setSearching(false); setQuery('');}
+    choose(found.page.id);
+    if (rowId) setTarget({page: found.page.id, rowId, serial: ++targetSerial.current});
+  };
   const matchingPages = accountPages.flatMap(value => {
     const found = matches.filter(match => match.address === value.id);
     if (!found.length) return [];
@@ -238,6 +249,15 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
   });
   const serverPage = serverPages.find(value => value.id === selected);
   const page = serverPage ?? accountPages.find(value => value.id === selected) ?? accountPages[0];
+  // The opened row belongs to the page a match opened; any other page (TV column focus included) drops it.
+  if (target && target.page !== page?.id) setTarget(undefined);
+  const aimed = target && target.page === page?.id ? target : undefined;
+  const reveal = useCallback((row: View) => {
+    const host = pageScroll.current?.getNativeScrollRef?.();
+    if (host) row.measureLayout(host, (_x, y, _width, height) => pageScroll.current?.scrollTo({y: Math.max(0, y - (pageScrollHeight.current - height) / 2), animated: false}));
+  }, []);
+  const rowTargeting = useMemo<SettingsRowTargeting>(() => !aimed ? {} : theme.isTV ? {highlight: aimed.rowId}
+    : {flash: {rowId: aimed.rowId, serial: aimed.serial, reveal}}, [aimed, theme.isTV, reveal]);
   const ids = useMemo(() => tvFocusIds(controller.lifetime.authority), [controller]);
   const column = ids.surface('settings.pages'), rows = ids.surface(`settings.rows.${page?.id ?? ''}`), keyboard = ids.surface('settings.keyboard'), searchField = ids.surface('settings.search');
   // Actual attached controls decide which result groups participate in the focus graph.
@@ -246,6 +266,11 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
   const matchEdges = (id: string) => tvGroupEdges(matchRegions, id, searchField);
   const enter = useScreenEntry(theme.isTV && page ? {regionId: column, childId: accountPages[0].id} : undefined, controller.lifetime.current);
   useDestinationEntryFocus({visible: theme.isTV && !searching, intent: restoreRevision ? 'enter' : 'restore', revision: restoreRevision}, page ? {regionId: column, childId: page.id} : undefined);
+  // TV: the page a match opened enters on that row. Asked once per opening and only while Settings is the top layer: an
+  // opening that was covered before its row took focus never asks, then or after it is uncovered.
+  if (covered && aimed) aimedCovered.current = aimed.serial;
+  useDestinationEntryFocus({visible: theme.isTV && !searching && !covered && !!aimed && aimedCovered.current !== aimed.serial, intent: 'enter', revision: aimed?.serial ?? 0},
+    aimed ? {regionId: rows, childId: aimed.rowId} : undefined);
   const remoteSourcesPage = !theme.isTV && page?.id === 'remote-sources';
   const remoteBack = useRef<(() => boolean) | undefined>(undefined);
   const setRemoteBack = useCallback((handler: (() => boolean) | undefined) => {remoteBack.current = handler;}, []);
@@ -330,7 +355,7 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
     if (first) {pageState.current = {...pageState.current, selected: first}; setSelected(first);}
   }, [accountPages, viewCurrent]);
   const leaveServerPage = () => {if (!viewCurrent()) return; const first = accountPages[0]?.id; if (first) {pageState.current = {...pageState.current, selected: first}; setSelected(first); registry.focus({regionId: column, childId: first});}};
-  const choose = (id: string) => {if (!viewCurrent()) return; pageState.current = {...pageState.current, selected: id, pushed: !theme.isTV}; setSelected(id); if (!theme.isTV) setPushed(true);};
+  const choose = (id: string) => {if (!viewCurrent()) return; pageState.current = {...pageState.current, selected: id, pushed: !theme.isTV}; setSelected(id); setTarget(undefined); if (!theme.isTV) setPushed(true);};
   const phoneBack = () => {if (!viewCurrent()) return; if (!remoteSourcesPage || !remoteBack.current?.()) popPage();};
   const viewerRole = ports.context.account.account.role === 'owner' ? 'owner' as const : ports.context.account.canManage ? 'administrator' as const : 'member' as const;
   // Android may report 0 here while the surface still draws under the status bar; StatusBar.currentHeight is the measured fallback.
@@ -394,13 +419,13 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
           band={serverPage ? <ServerBand viewerRole={viewerRole} audience={viewerRole === 'administrator' ? 'administrators' : 'owner'} height={56} style={{position: 'absolute', inset: 0}}/> : undefined}/>}
         {!compact && !dashboardPage && !(theme.isTV && searching) && !customPage && <Text accessibilityRole="header" style={[shellType(theme.isTV ? 44 : 40, 800), {color: theme.colors.text, marginBottom: 28, marginHorizontal: compact ? 20 : 0}]}>{t(page.title)}</Text>}
         {state.error !== undefined && <StateView {...runtime.error(state.error, () => {void controller.refresh();}, 'settings')}/>}
-        {historyPage ? <NativeServerHistory ports={ports} runtime={runtime} compactHeader={compact}/> : peoplePage ? <NativeServerPeople ports={ports} runtime={runtime} compactHeader={compact}/> : signInPage ? <NativeServerSignIn ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/> : metadataPage ? <NativeServerMetadata ports={ports} runtime={runtime} compactHeader={compact} onLibraries={() => choose('libraries')}/> : dashboardPage ? <NativeDashboardScreen controller={dashboard!} ports={ports} runtime={runtime} inline onDenied={dashboardDenied} deniedFallback={null}/> : remoteAccessPage ? <NativeRemoteAccessPage ports={ports} runtime={runtime} compactHeader={compact}/> : segmentsPage ? <NativeServerSegments ports={ports} runtime={runtime}/> : remoteSourcesPage ? <NativeRemoteSourcesScreen ports={ports} runtime={runtime} onBackHandlerChange={setRemoteBack}/> : livePage ? <NativeLiveOwnerScreen controller={liveControllers!.owner} recordings={liveControllers!.recordings} ports={ports} runtime={runtime} onClose={leaveServerPage} initialChannelId={initialChannelId}/> : librariesPage ? <NativeOwnerLibrariesPanel ports={ports} runtime={runtime}/> : troubleshootingPage ? <NativeServerTroubleshooting ports={ports} runtime={runtime} compactHeader={compact}/> : storagePage ? <NativeServerStorage ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/> : integrationsPage ? <NativeServerIntegrations ports={ports} runtime={runtime} compactHeader={compact}/> : streamingPage ? <NativeServerStreaming ports={ports} runtime={runtime} compactHeader={compact}/> : generalPage ? <NativeServerGeneral ports={ports} runtime={runtime} compactHeader={compact}/> : <FormScrollView key={page.id} style={theme.isTV ? {marginHorizontal: -24, marginTop: -16} : undefined} contentContainerStyle={theme.isTV ? {paddingHorizontal: 24, paddingTop: 16, paddingBottom: 80} : {paddingHorizontal: compact ? 20 : 0, paddingBottom: 80}} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
+        {historyPage ? <NativeServerHistory ports={ports} runtime={runtime} compactHeader={compact}/> : peoplePage ? <NativeServerPeople ports={ports} runtime={runtime} compactHeader={compact}/> : signInPage ? <NativeServerSignIn ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/> : metadataPage ? <NativeServerMetadata ports={ports} runtime={runtime} compactHeader={compact} onLibraries={() => choose('libraries')}/> : dashboardPage ? <NativeDashboardScreen controller={dashboard!} ports={ports} runtime={runtime} inline onDenied={dashboardDenied} deniedFallback={null}/> : remoteAccessPage ? <NativeRemoteAccessPage ports={ports} runtime={runtime} compactHeader={compact}/> : segmentsPage ? <NativeServerSegments ports={ports} runtime={runtime}/> : remoteSourcesPage ? <NativeRemoteSourcesScreen ports={ports} runtime={runtime} onBackHandlerChange={setRemoteBack}/> : livePage ? <NativeLiveOwnerScreen controller={liveControllers!.owner} recordings={liveControllers!.recordings} ports={ports} runtime={runtime} onClose={leaveServerPage} initialChannelId={initialChannelId}/> : librariesPage ? <NativeOwnerLibrariesPanel ports={ports} runtime={runtime}/> : troubleshootingPage ? <NativeServerTroubleshooting ports={ports} runtime={runtime} compactHeader={compact}/> : storagePage ? <NativeServerStorage ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/> : integrationsPage ? <NativeServerIntegrations ports={ports} runtime={runtime} compactHeader={compact}/> : streamingPage ? <NativeServerStreaming ports={ports} runtime={runtime} compactHeader={compact}/> : generalPage ? <NativeServerGeneral ports={ports} runtime={runtime} compactHeader={compact}/> : <FormScrollView key={page.id} ref={pageScroll} onLayout={event => {pageScrollHeight.current = event.nativeEvent.layout.height;}} style={theme.isTV ? {marginHorizontal: -24, marginTop: -16} : undefined} contentContainerStyle={theme.isTV ? {paddingHorizontal: 24, paddingTop: 16, paddingBottom: 80} : {paddingHorizontal: compact ? 20 : 0, paddingBottom: 80}} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
           {theme.isTV && searching ? <>
             {query.trim().length >= 2 && matches.length > 0 && <Text testID="settings-search-count" style={[shellType(20, 600), {color: theme.colors.textTertiary, marginBottom: 18}]}>{t('next.shell.tvSettingsMatchCount', {count: matches.length})}</Text>}
             {query.trim().length >= 2 && !matches.length && <StateView title={t('next.states.noMatches', {query: query.trim()})}/>}
-            {matchingPages.map(value => <View key={value.id}><Text accessibilityRole="header" style={[shellType(32, 800), {color: theme.colors.text, marginBottom: 24}]}>{t(value.title)}</Text><SettingsPageBody reportedOutputs={reportedOutputs} awayLimitLabel={awayLimitLabel} onStreaming={() => choose('streaming')} onQuality={() => choose('quality')} page={value} ports={ports} controller={controller} runtime={runtime} devicePreferences={devicePreferences} region={ids.surface(`settings.matches.${value.id}`)} column={keyboard} verticalEdges={matchEdges(ids.surface(`settings.matches.${value.id}`))}/></View>)}
+            {matchingPages.map(value => <View key={value.id}><Text accessibilityRole="header" style={[shellType(32, 800), {color: theme.colors.text, marginBottom: 24}]}>{t(value.title)}</Text><SettingsRowTargetContext.Provider value={{open: rowId => openMatch(value.id, rowId)}}><SettingsPageBody reportedOutputs={reportedOutputs} awayLimitLabel={awayLimitLabel} onStreaming={() => choose('streaming')} onQuality={() => choose('quality')} page={value} ports={ports} controller={controller} runtime={runtime} devicePreferences={devicePreferences} region={ids.surface(`settings.matches.${value.id}`)} column={keyboard} verticalEdges={matchEdges(ids.surface(`settings.matches.${value.id}`))}/></SettingsRowTargetContext.Provider></View>)}
             <Text testID="settings-search-help" style={[shellType(18, 400), {color: theme.colors.textTertiary, marginTop: 24}]}>{t('next.shell.tvSettingsSearchHelp')}</Text>
-          </> : <SettingsPageBody reportedOutputs={reportedOutputs} awayLimitLabel={awayLimitLabel} onStreaming={() => choose('streaming')} onQuality={() => choose('quality')} page={page} ports={ports} controller={controller} runtime={runtime} devicePreferences={devicePreferences} region={rows} column={column}/>}
+          </> : <SettingsRowTargetContext.Provider value={rowTargeting}><SettingsPageBody reportedOutputs={reportedOutputs} awayLimitLabel={awayLimitLabel} onStreaming={() => choose('streaming')} onQuality={() => choose('quality')} page={page} ports={ports} controller={controller} runtime={runtime} devicePreferences={devicePreferences} region={rows} column={column} aimedRow={aimed}/></SettingsRowTargetContext.Provider>}
         </FormScrollView>}
       </View>}
     </View>
@@ -456,7 +481,7 @@ function engineOpeningAlive(
     && live.preferences === opening.preferences && live.mount === opening.mount && live.route === opening.route
     && opening.route === navigation.getSnapshot() && controller.lifetime.current();
 }
-function SettingsPageBody({page, ports, controller, runtime, devicePreferences, region, column, reportedOutputs, awayLimitLabel, onStreaming, onQuality, verticalEdges}: {verticalEdges?: {up?: string; down?: string}; reportedOutputs?: Readonly<{hdr: boolean; surround: boolean}>; awayLimitLabel?: string; onStreaming: () => void; onQuality: () => void; page: SettingsPage; ports: NativeSettingsLivePorts; controller: NativeSettingsController; runtime: NativeShellRuntime; devicePreferences: NativeDevicePreferences; region: string; column: string}) {
+function SettingsPageBody({page, ports, controller, runtime, devicePreferences, region, column, reportedOutputs, awayLimitLabel, onStreaming, onQuality, verticalEdges, aimedRow}: {aimedRow?: Readonly<{rowId: string; serial: number}>; verticalEdges?: {up?: string; down?: string}; reportedOutputs?: Readonly<{hdr: boolean; surround: boolean}>; awayLimitLabel?: string; onStreaming: () => void; onQuality: () => void; page: SettingsPage; ports: NativeSettingsLivePorts; controller: NativeSettingsController; runtime: NativeShellRuntime; devicePreferences: NativeDevicePreferences; region: string; column: string}) {
   const theme = useTheme(), t = runtime.text.t, state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const [advanced, setAdvanced] = useState(false);
   // The public browser handoff does not grant native password/two-step editing.
@@ -573,6 +598,9 @@ function SettingsPageBody({page, ports, controller, runtime, devicePreferences, 
     : page.sections;
   // Frame 12: Apple TV's Advanced holds Capabilities, Connection, Storage and Support, so the
   // Connection group (with Insecure connections, P2-69) is on every native platform.
+  // A search result aimed at a row under Advanced opens Advanced, once per opening.
+  const aimedAdvanced = !!aimedRow && pageSections.some(section => section.advanced && section.rows.some(row => settingsRowId(row) === aimedRow.rowId));
+  useLayoutEffect(() => {if (aimedAdvanced) setAdvanced(true);}, [aimedAdvanced, aimedRow?.serial]);
   const sections = pageSections.filter(section => !section.advanced || advanced);
   const equalizer = useSyncExternalStore(nativeEqualizer.subscribe, nativeEqualizer.getSnapshot);
   const showEqualizer = page.id === 'music' && equalizer.supported;
