@@ -102,7 +102,7 @@ export function LibraryIdentity({library, libraries, pivot, tabs, onPivot, onLib
   wash?: ReactNode;
   /** The drawn count line under the library name; absent draws none. */
   counts?: readonly FactPart[];
-  /** A drawn header action before the ⋯ (Music Discover's Shuffle all). */
+  /** A drawn header action before the ⋯ (Music Discover's Shuffle all); wide headers only, as phone-web 6 and phone-app draw none. */
   action?: ReactNode;
 }>) {
   const appearance = browsePresentation(base, preferences, libraryViewOverride);
@@ -111,7 +111,7 @@ export function LibraryIdentity({library, libraries, pivot, tabs, onPivot, onLib
   const switcher = <LibrarySwitcher libraries={libraries} value={library.id} onValueChange={onLibrary} compact={compact}/>;
   const navigation = tabs.length && onPivot ? <Tabs className={compact ? styles.phoneTabs : styles.headerTabs} value={pivot} onValueChange={onPivot} items={tabs} phone={compact}/> : undefined;
   const ambient = appearance.backdrops ? wash ?? (library.latestArtwork ? <AmbientArt source={artwork.ambient(library.latestArtwork, {group: library.id, order: 0})} treatment="library" width="100%" height={560}/> : undefined) : undefined;
-  return compact ? <StickyBrowseHeader name={library.name} switcher={switcher} menu={menu} onLibraries={onLibraries} topInset={0}>{navigation}</StickyBrowseHeader> :
+  return compact ? <StickyBrowseHeader name={library.name} switcher={switcher} menu={libraryMenu} onLibraries={onLibraries} topInset={0}>{navigation}</StickyBrowseHeader> :
     <LibraryHeader name={library.name} counts={counts} switcher={switcher} menu={menu} ambient={ambient}>{navigation}</LibraryHeader>;
 }
 export function LibraryBrowse(bindings: LibraryBrowseBindings) {
