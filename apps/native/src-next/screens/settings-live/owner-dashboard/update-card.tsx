@@ -8,15 +8,17 @@ import {useTheme} from '../../../kit/theme';
 import {alpha, shellType} from '../../../kit/shell/visual';
 import type {Translate} from './model';
 
-/** owner-dashboard 2b: what the update card says. Drawn only while the owner's cached release check reports a newer build. */
-export type OwnerUpdateView = Readonly<{latest: string; current: string; notesURL?: string; checking: boolean}>;
+/** owner-dashboard 2b: what the update card says. Drawn only while the owner's cached release check reports a newer build.
+ * `checkFailed`: the owner's pressed check didn't get an answer; the card keeps the last report and the page says so
+ * (frame 8's error card). A failed background read stays quiet. */
+export type OwnerUpdateView = Readonly<{latest: string; current: string; notesURL?: string; checking: boolean; checkFailed: boolean}>;
 
 /** Release notes open only an https page the server's report names; anything else leaves the button off. */
 export function ownerUpdateView(snapshot: UpdatesSnapshot): OwnerUpdateView | undefined {
   const report = snapshot.report;
   if (!report?.updateAvailable || !report.latest) return undefined;
   const notes = /^https:\/\/[^\s]+$/i.test(report.latest.url) ? report.latest.url : undefined;
-  return Object.freeze({latest: report.latest.version, current: report.current.version, ...(notes ? {notesURL: notes} : {}), checking: snapshot.busy});
+  return Object.freeze({latest: report.latest.version, current: report.current.version, ...(notes ? {notesURL: notes} : {}), checking: snapshot.busy, checkFailed: snapshot.error === 'check'});
 }
 
 /** The update's own tinted card at the end of Alerts. Portico never installs an update by itself: the card says so, and its
