@@ -363,6 +363,7 @@
   "web/src/screens/metadata/MetadataEditor.tsx": 1,
   "web/src/screens/metadata/NeedsAttention.tsx": 1,
   "web/src/screens/metadata/SongLyricsEditor.tsx": 1,
+  "web/src/screens/pins/pins-controller.ts": 1,
   "web/src/screens/read/ReadItemEntry.tsx": 1,
   "web/src/screens/read/ReadMetadata.tsx": 1,
   "web/src/screens/read/ReaderAnnotations.tsx": 1,
