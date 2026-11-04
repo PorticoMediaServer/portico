@@ -5,11 +5,11 @@
   },
   "status": 200,
   "body": {
-    "serverId": "srv_7sWWdcN9umujBzM2AlDkD--4cuPxXxauxkI6fcBZgm8",
-    "viewerFence": "ab1da7679b8fd47a66bd5283fd6d00f93cb595073b274539bac2c502cb2d74b3",
+    "serverId": "srv_57MkdGEKGCnAB9a66c0O9-xdsk5s1sPnT4_SjF9LMLs",
+    "viewerFence": "3c4d357469c72563b01b5f1c8bf76f120d5197776aa8b96a8800b4136ff4d5ee",
     "rows": [
       {
-        "viewerFence": "ab1da7679b8fd47a66bd5283fd6d00f93cb595073b274539bac2c502cb2d74b3",
+        "viewerFence": "3c4d357469c72563b01b5f1c8bf76f120d5197776aa8b96a8800b4136ff4d5ee",
         "deferred": true,
         "seeAll": {
           "type": "row",
@@ -34,18 +34,17 @@
         "critical": true,
         "cursorCapable": true,
         "entries": [],
-        "total": 0,
         "start": 0,
         "limit": 12,
         "hasMore": false,
         "nextCursor": "",
         "revision": {
-          "catalog": 125,
+          "catalog": 32,
           "viewer": 0
         }
       },
       {
-        "viewerFence": "ab1da7679b8fd47a66bd5283fd6d00f93cb595073b274539bac2c502cb2d74b3",
+        "viewerFence": "3c4d357469c72563b01b5f1c8bf76f120d5197776aa8b96a8800b4136ff4d5ee",
         "deferred": true,
         "seeAll": {
           "type": "row",
@@ -70,18 +69,17 @@
         "critical": false,
         "cursorCapable": true,
         "entries": [],
-        "total": 0,
         "start": 0,
         "limit": 12,
         "hasMore": false,
         "nextCursor": "",
         "revision": {
-          "catalog": 125,
+          "catalog": 32,
           "viewer": 0
         }
       },
       {
-        "viewerFence": "ab1da7679b8fd47a66bd5283fd6d00f93cb595073b274539bac2c502cb2d74b3",
+        "viewerFence": "3c4d357469c72563b01b5f1c8bf76f120d5197776aa8b96a8800b4136ff4d5ee",
         "deferred": true,
         "seeAll": {
           "type": "row",
@@ -106,18 +104,17 @@
         "critical": false,
         "cursorCapable": true,
         "entries": [],
-        "total": 0,
         "start": 0,
         "limit": 12,
         "hasMore": false,
         "nextCursor": "",
         "revision": {
-          "catalog": 125,
+          "catalog": 32,
           "viewer": 0
         }
       },
       {
-        "viewerFence": "ab1da7679b8fd47a66bd5283fd6d00f93cb595073b274539bac2c502cb2d74b3",
+        "viewerFence": "3c4d357469c72563b01b5f1c8bf76f120d5197776aa8b96a8800b4136ff4d5ee",
         "deferred": true,
         "seeAll": {
           "type": "row",
@@ -142,18 +139,17 @@
         "critical": false,
         "cursorCapable": false,
         "entries": [],
-        "total": 0,
         "start": 0,
         "limit": 12,
         "hasMore": false,
         "nextCursor": "",
         "revision": {
-          "catalog": 125,
+          "catalog": 32,
           "viewer": 0
         }
       },
       {
-        "viewerFence": "ab1da7679b8fd47a66bd5283fd6d00f93cb595073b274539bac2c502cb2d74b3",
+        "viewerFence": "3c4d357469c72563b01b5f1c8bf76f120d5197776aa8b96a8800b4136ff4d5ee",
         "deferred": true,
         "seeAll": {
           "type": "guide"
@@ -177,28 +173,27 @@
         "critical": false,
         "cursorCapable": true,
         "entries": [],
-        "total": 0,
         "start": 0,
         "limit": 12,
         "hasMore": false,
         "nextCursor": "",
         "revision": {
-          "catalog": 125,
+          "catalog": 32,
           "viewer": 0
         }
       },
       {
-        "viewerFence": "ab1da7679b8fd47a66bd5283fd6d00f93cb595073b274539bac2c502cb2d74b3",
+        "viewerFence": "3c4d357469c72563b01b5f1c8bf76f120d5197776aa8b96a8800b4136ff4d5ee",
         "deferred": true,
         "seeAll": {
           "type": "row",
           "rowId": "listen_next"
         },
         "id": "listen_next",
-        "title": "Listen next",
+        "title": "Continue Listening",
         "titleText": {
-          "code": "next.home.listenNext",
-          "fallback": "Listen next"
+          "code": "next.home.continueListening",
+          "fallback": "Continue Listening"
         },
         "kind": "listening",
         "artworkShape": "square",
@@ -207,24 +202,23 @@
         "policyState": "available",
         "priority": 70,
         "cacheTtlMs": 45000,
-        "required": false,
-        "hideable": true,
+        "required": true,
+        "hideable": false,
         "reorderable": true,
         "critical": false,
         "cursorCapable": true,
         "entries": [],
-        "total": 0,
         "start": 0,
         "limit": 12,
         "hasMore": false,
         "nextCursor": "",
         "revision": {
-          "catalog": 125,
+          "catalog": 32,
           "viewer": 0
         }
       },
       {
-        "viewerFence": "ab1da7679b8fd47a66bd5283fd6d00f93cb595073b274539bac2c502cb2d74b3",
+        "viewerFence": "3c4d357469c72563b01b5f1c8bf76f120d5197776aa8b96a8800b4136ff4d5ee",
         "deferred": true,
         "platforms": [
           "web",
@@ -247,19 +241,124 @@
         "policyState": "available",
         "priority": 80,
         "cacheTtlMs": 45000,
+        "required": true,
+        "hideable": false,
+        "reorderable": true,
+        "critical": false,
+        "cursorCapable": true,
+        "entries": [],
+        "start": 0,
+        "limit": 12,
+        "hasMore": false,
+        "nextCursor": "",
+        "revision": {
+          "catalog": 32,
+          "viewer": 0
+        }
+      },
+      {
+        "viewerFence": "3c4d357469c72563b01b5f1c8bf76f120d5197776aa8b96a8800b4136ff4d5ee",
+        "deferred": true,
+        "seeAll": {
+          "type": "row",
+          "rowId": "recommended"
+        },
+        "id": "recommended",
+        "title": "Recommended for you",
+        "titleText": {
+          "code": "home.row.recommended",
+          "fallback": "Recommended for you"
+        },
+        "kind": "recommendation",
+        "artworkShape": "poster",
+        "endpoint": "/v1/media/…",
+        "privacySensitivity": "personal",
+        "policyState": "available",
+        "priority": 90,
+        "cacheTtlMs": 300000,
         "required": false,
         "hideable": true,
         "reorderable": true,
         "critical": false,
         "cursorCapable": true,
         "entries": [],
-        "total": 0,
         "start": 0,
         "limit": 12,
         "hasMore": false,
         "nextCursor": "",
         "revision": {
-          "catalog": 125,
+          "catalog": 32,
+          "viewer": 0
+        }
+      },
+      {
+        "viewerFence": "3c4d357469c72563b01b5f1c8bf76f120d5197776aa8b96a8800b4136ff4d5ee",
+        "deferred": true,
+        "seeAll": {
+          "type": "row",
+          "rowId": "for_you"
+        },
+        "id": "for_you",
+        "title": "More recommendations",
+        "titleText": {
+          "code": "home.row.moreRecommendations",
+          "fallback": "More recommendations"
+        },
+        "kind": "family",
+        "artworkShape": "poster",
+        "endpoint": "/v1/media/…",
+        "privacySensitivity": "personal",
+        "policyState": "available",
+        "family": "for_you",
+        "priority": 91,
+        "cacheTtlMs": 300000,
+        "required": false,
+        "hideable": true,
+        "reorderable": true,
+        "critical": false,
+        "cursorCapable": false,
+        "entries": [],
+        "start": 0,
+        "limit": 12,
+        "hasMore": false,
+        "nextCursor": "",
+        "revision": {
+          "catalog": 32,
+          "viewer": 0
+        }
+      },
+      {
+        "viewerFence": "3c4d357469c72563b01b5f1c8bf76f120d5197776aa8b96a8800b4136ff4d5ee",
+        "deferred": true,
+        "seeAll": {
+          "type": "row",
+          "rowId": "trending_now"
+        },
+        "id": "trending_now",
+        "title": "Trending now",
+        "titleText": {
+          "code": "home.row.trending",
+          "fallback": "Trending now"
+        },
+        "kind": "recommendation",
+        "artworkShape": "poster",
+        "endpoint": "/v1/media/…",
+        "privacySensitivity": "catalog",
+        "policyState": "available",
+        "priority": 92,
+        "cacheTtlMs": 300000,
+        "required": false,
+        "hideable": true,
+        "reorderable": true,
+        "critical": false,
+        "cursorCapable": true,
+        "entries": [],
+        "start": 0,
+        "limit": 12,
+        "hasMore": false,
+        "nextCursor": "",
+        "revision": {
+          "catalog": 32,
           "viewer": 0
         }
       }
@@ -271,9 +370,9 @@
       "hiddenRowIds": []
     },
     "revision": {
-      "catalog": 125,
+      "catalog": 106,
       "viewer": 0
     },
-    "generatedAt": "2026-10-29T09:33:18.400Z"
+    "generatedAt": "2026-11-04T23:04:26.955Z"
   }
 }

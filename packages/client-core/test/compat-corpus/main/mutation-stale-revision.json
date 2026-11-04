@@ -1,0 +1,40 @@
+{
+  "request": {
+    "method": "PATCH",
+    "path": "/v1/queues/q_wjDuclY-933K4hsZip7a",
+    "body": {
+      "repeat": "off"
+    }
+  },
+  "status": 412,
+  "body": {
+    "error": {
+      "code": "revision_mismatch",
+      "message": "This information changed. Refresh and try again.",
+      "retry": "after_refresh",
+      "current": {
+        "id": "q_wjDuclY-933K4hsZip7a",
+        "revision": "1",
+        "total": 1,
+        "durationKnown": false,
+        "remainingCount": 0,
+        "current": {
+          "entryId": "s64tzvu2yptuv7hu4-0",
+          "position": 0
+        },
+        "repeat": "off",
+        "segments": [
+          {
+            "id": "g5hyvifco6iqudk3e",
+            "kind": "items",
+            "label": "1 items",
+            "count": 1,
+            "state": "ready"
+          }
+        ],
+        "segmentCount": 1
+      },
+      "requestId": "c4e750cf7ae99b567f1fadb22f6060dc"
+    }
+  }
+}

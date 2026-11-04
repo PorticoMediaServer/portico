@@ -16,27 +16,29 @@
             },
             {
               "kind": "album",
-              "count": 5,
+              "count": 1,
               "atLeast": false
             },
             {
               "kind": "song",
-              "count": 8,
+              "count": 2,
               "atLeast": false
             }
           ],
           "coverUrls": [],
           "latestArtwork": "",
-          "firstScan": true,
+          "firstScan": false,
           "emptyKnown": true,
           "empty": false
         },
         "defaultView": "browse",
-        "id": "mwfyVGEodaDR-41WZWE9CxfZmjta0r9qK5znWd0L0vY",
-        "name": "Music",
+        "id": "9a3IebhQ3xWM26Tz6APnX1ZvD6OEujVYDgoqIQKYm8I",
+        "name": "Corpus music",
         "kind": "music",
         "pinned": false
       }
-    ]
+    ],
+    "privacyFence": "db0435724a3ba2b69b5cd796b2ce0ae39bdc04b1bda94313a6bf4190bb317d75",
+    "viewerFence": "3c4d357469c72563b01b5f1c8bf76f120d5197776aa8b96a8800b4136ff4d5ee"
   }
 }

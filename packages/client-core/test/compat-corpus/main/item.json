@@ -1,29 +1,38 @@
 {
   "request": {
     "method": "GET",
-    "path": "/v1/items/MKTg1OVAPuefVNdiOObFwQ"
+    "path": "/v1/items/bAZQAVzHDCxwaoVCUU3pKw"
   },
   "status": 200,
   "body": {
-    "addedAt": "2026-10-29T09:33:17.276Z",
+    "variant": "item",
+    "addedAt": "2026-11-04T23:04:25.027Z",
+    "audioFacts": {
+      "codec": "flac",
+      "sampleRate": 48000,
+      "bitDepth": 16,
+      "channels": 1,
+      "layout": "mono",
+      "lossless": true
+    },
     "available": true,
-    "durationMs": 0,
-    "fileInfoOpening": "AgAAAAAAAAAFAAAAAAAAAAFN-25Jx2J5YEiDCFILH_0BAAAAAAAAAAYAAAAAAAAAfQAAAAAAAAAAGOL3vq8TQAAwpODU5UA-559U12I45sXB-DLXhmDTl_3awMcrjyy2m-3nIk4R-pb-at87OtY9QPQAAAAAAAAAAn5Hocx8q44lZ-B4E-Teqxc",
-    "id": "MKTg1OVAPuefVNdiOObFwQ",
+    "durationMs": 2000,
+    "fileInfoOpening": "AgAAAAAAAAABAAAAAAAAAAGRQYkXSCLg9IpuxKal8DkfAAAAAAAAAAoAAAAAAAAAagAAAAAAAAAAGOT7baipsABsBlABXMcMLHBqhUJRTekr5Ur0B6IFOpBG8CII-mZ_CKcvLmkYkdOHVMOMlExNhQEAAAAAAAAAAv_7it97rG5brAh_HFJVnq8",
+    "id": "bAZQAVzHDCxwaoVCUU3pKw",
     "kind": "song",
-    "libraryId": "mwfyVGEodaDR-41WZWE9CxfZmjta0r9qK5znWd0L0vY",
+    "libraryId": "9a3IebhQ3xWM26Tz6APnX1ZvD6OEujVYDgoqIQKYm8I",
     "missing": false,
     "progressMs": 0,
     "song": {
       "providerReleaseStatus": "unmatched",
-      "albumId": "bTGvP6tnJCefjTxJ0KgLQQ",
-      "albumTitle": "Assembly of Copper",
-      "albumArtist": "Unknown artist",
-      "artist": "Unknown artist",
+      "albumId": "a9-kiXbGAdJ6MDfQWpRsww",
+      "albumTitle": "Corpus Album",
+      "albumArtist": "Corpus Artist",
+      "artist": "Corpus Artist",
       "trackNumber": 1,
       "providerMatchStatus": "pending"
     },
-    "title": "01 - Ticket",
+    "title": "Track 1",
     "watched": false
   }
 }

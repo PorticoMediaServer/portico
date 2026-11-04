@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"github.com/PorticoMediaServer/portico/server/internal/catalogtest"
 	"github.com/PorticoMediaServer/portico/server/internal/integrationids"
 	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"github.com/PorticoMediaServer/portico/server/internal/playbackv1"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -248,6 +248,29 @@ func TestCompatibilityNotificationUsesNativeOwnerRefusal(t *testing.T) {
 		w = compatibilityCall(f, "GET", path, f.member, "")
 		if w.Code != 404 {
 			t.Fatalf("unknown GUID: %d %s", w.Code, w.Body)
+		}
+	}
+}
+
+// Jellystat's inspected source requests the mixed-case spelling. Keep this gap
+// explicit while the approved compatibility route vocabulary stays unchanged.
+func TestJellystatMixedCaseMediaFactsRemainUnqualified(t *testing.T) {
+	f := integrationFixture(t)
+	c := catalogtest.New(t, f.deps.DB)
+	lib := c.Library("jellystat", "Movies", "movie", "/movies")
+	item := c.Movie(lib, "/movies/Film.mkv", "Film", 2000)
+	c.Drain()
+	guid, err := (integrationids.Store{DB: f.deps.DB}).Encode(context.Background(), "item", item.Public)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		path   string
+		status int
+	}{{"/Items/" + guid + "/PlaybackInfo", 200}, {"/Items/" + guid + "/playbackinfo", 404}} {
+		w := compatibilityCall(f, "GET", tc.path, f.owner, "")
+		if w.Code != tc.status {
+			t.Fatalf("documented Jellystat spelling %s: %d %s", tc.path, w.Code, w.Body)
 		}
 	}
 }

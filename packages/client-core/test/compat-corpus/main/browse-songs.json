@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/v1/libraries/mwfyVGEodaDR-41WZWE9CxfZmjta0r9qK5znWd0L0vY/browse",
+    "path": "/v1/libraries/9a3IebhQ3xWM26Tz6APnX1ZvD6OEujVYDgoqIQKYm8I/browse",
     "body": {
       "pivot": "songs",
       "query": null,
@@ -14,6 +14,7 @@
   },
   "status": 200,
   "body": {
+    "variant": "ready",
     "pivot": "songs",
     "applied": {
       "query": null,
@@ -26,138 +27,97 @@
     },
     "entries": [
       {
-        "addedAt": "2026-10-29T09:33:17.276Z",
+        "addedAt": "2026-11-04T23:04:25.027Z",
         "album": {
-          "id": "bTGvP6tnJCefjTxJ0KgLQQ",
-          "name": "Assembly of Copper"
+          "id": "a9-kiXbGAdJ6MDfQWpRsww",
+          "name": "Corpus Album"
+        },
+        "audioFacts": {
+          "codec": "flac",
+          "sampleRate": 48000,
+          "bitDepth": 16,
+          "channels": 1,
+          "layout": "mono",
+          "lossless": true
         },
         "available": true,
-        "durationMs": 0,
+        "durationMs": 2000,
         "favorite": false,
-        "id": "MKTg1OVAPuefVNdiOObFwQ",
+        "id": "bAZQAVzHDCxwaoVCUU3pKw",
         "kind": "song",
-        "libraryId": "mwfyVGEodaDR-41WZWE9CxfZmjta0r9qK5znWd0L0vY",
+        "libraryId": "9a3IebhQ3xWM26Tz6APnX1ZvD6OEujVYDgoqIQKYm8I",
         "missing": false,
         "navigation": {
           "view": "item",
-          "entityId": "MKTg1OVAPuefVNdiOObFwQ"
+          "entityId": "bAZQAVzHDCxwaoVCUU3pKw"
         },
         "playback": {
-          "itemId": "MKTg1OVAPuefVNdiOObFwQ"
+          "itemId": "bAZQAVzHDCxwaoVCUU3pKw"
         },
         "progressMs": 0,
-        "sortLetter": "#",
-        "subtitle": "Unknown artist",
-        "title": "01 - Ticket",
+        "sortLetter": "T",
+        "subtitle": "Corpus Artist",
+        "title": "Track 1",
         "trackNumber": 1,
         "watched": false
       },
       {
-        "addedAt": "2026-10-29T09:33:17.478Z",
+        "addedAt": "2026-11-04T23:04:25.088Z",
         "album": {
-          "id": "QLnwN9NLPDtrRs-2jHFeVg",
-          "name": "Second Copper"
+          "id": "a9-kiXbGAdJ6MDfQWpRsww",
+          "name": "Corpus Album"
+        },
+        "audioFacts": {
+          "codec": "flac",
+          "sampleRate": 48000,
+          "bitDepth": 16,
+          "channels": 1,
+          "layout": "mono",
+          "lossless": true
         },
         "available": true,
-        "durationMs": 0,
+        "durationMs": 2000,
         "favorite": false,
-        "id": "HM7_7rY0KNf0HHLXLgWIEQ",
+        "id": "hOQ3vrxy0TzqdtDl_dzMMw",
         "kind": "song",
-        "libraryId": "mwfyVGEodaDR-41WZWE9CxfZmjta0r9qK5znWd0L0vY",
+        "libraryId": "9a3IebhQ3xWM26Tz6APnX1ZvD6OEujVYDgoqIQKYm8I",
         "missing": false,
         "navigation": {
           "view": "item",
-          "entityId": "HM7_7rY0KNf0HHLXLgWIEQ"
+          "entityId": "hOQ3vrxy0TzqdtDl_dzMMw"
         },
         "playback": {
-          "itemId": "HM7_7rY0KNf0HHLXLgWIEQ"
+          "itemId": "hOQ3vrxy0TzqdtDl_dzMMw"
         },
         "progressMs": 0,
-        "sortLetter": "#",
-        "subtitle": "Unknown artist",
-        "title": "01 - Ticket",
-        "trackNumber": 1,
-        "watched": false
-      },
-      {
-        "addedAt": "2026-10-29T09:33:16.707Z",
-        "album": {
-          "id": "VSvWMIj5pmrp-8bBxOVmTA",
-          "name": "AlbumAlac"
-        },
-        "available": true,
-        "durationMs": 0,
-        "favorite": false,
-        "id": "yP_nlQbI01pBR-PbWft-JQ",
-        "kind": "song",
-        "libraryId": "mwfyVGEodaDR-41WZWE9CxfZmjta0r9qK5znWd0L0vY",
-        "missing": false,
-        "navigation": {
-          "view": "item",
-          "entityId": "yP_nlQbI01pBR-PbWft-JQ"
-        },
-        "playback": {
-          "itemId": "yP_nlQbI01pBR-PbWft-JQ"
-        },
-        "progressMs": 0,
-        "sortLetter": "A",
-        "subtitle": "Unknown artist",
-        "title": "AlbumAlac",
+        "sortLetter": "T",
+        "subtitle": "Corpus Artist",
+        "title": "Track 2",
         "trackNumber": 2,
-        "watched": false
-      },
-      {
-        "addedAt": "2026-10-29T09:33:16.827Z",
-        "album": {
-          "id": "VSvWMIj5pmrp-8bBxOVmTA",
-          "name": "AlbumAlac"
-        },
-        "available": true,
-        "durationMs": 0,
-        "favorite": false,
-        "id": "2tZFxVhxBzLv-2FH87QC5Q",
-        "kind": "song",
-        "libraryId": "mwfyVGEodaDR-41WZWE9CxfZmjta0r9qK5znWd0L0vY",
-        "missing": false,
-        "navigation": {
-          "view": "item",
-          "entityId": "2tZFxVhxBzLv-2FH87QC5Q"
-        },
-        "playback": {
-          "itemId": "2tZFxVhxBzLv-2FH87QC5Q"
-        },
-        "progressMs": 0,
-        "sortLetter": "A",
-        "subtitle": "Unknown artist",
-        "title": "AlbumAlac",
-        "trackNumber": 1,
         "watched": false
       }
     ],
     "pageInfo": {
       "start": 0,
-      "total": 4,
+      "total": 2,
       "totalIsLowerBound": false,
-      "revision": "browse_3981450a19d2b108c41c7326078f4967fec4e73356d06ab4bb550c1d4478a49f",
+      "revision": "browse_2aa10ec1ff151beca890466e9d37eda471413600b2a42818cfe7f630fa2270f4",
       "hasMore": false,
       "nextCursor": "",
-      "durationMs": 0,
-      "durationIsLowerBound": true
+      "durationMs": 4000,
+      "durationIsLowerBound": false
     },
     "positionIndex": [
       {
-        "key": "#",
+        "key": "T",
         "index": 0
-      },
-      {
-        "key": "A",
-        "index": 2
       }
     ],
     "wholeSelectionPreparing": {
+      "variant": "preparing",
       "kind": "browse-selection-preparing",
       "state": "preparing",
-      "queryId": "k4eo7xzPOFoe30HRpfMwbjn33GqnrbHYdVqSRPSEpKY",
+      "queryId": "fp8SK0lZMWMLzcceWpSMc1V3SK6SrX2axN30KkmH9_A",
       "retryAfterMs": 1000
     }
   }
