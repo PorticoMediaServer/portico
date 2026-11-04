@@ -157,6 +157,7 @@ export const selectionMessages = {
   'next.selection.onlyChangedSaved': 'Only fields you change are saved.',
   'next.selection.save': 'Save {items}',
   'next.selection.saved': 'Saved',
+  'next.selection.noLongerAvailable': '{count, plural, one {# title is no longer available.} other {# titles are no longer available.}}',
   'next.selection.bulkResult': '{updated, number} updated, {failed, number} failed',
   'next.selection.bulkResultHelpPhone': 'The {count, number} that worked are saved. {titles} is unchanged.',
   'next.selection.metadataConflictPhone': 'Someone else changed this title while you were editing. Reopen it, then repeat the change.',

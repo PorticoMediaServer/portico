@@ -175,6 +175,7 @@ for (const tv of [false, true]) test(`actual ${tv ? 'TV' : 'phone'} Home/Row eff
     assert.equal(admissions, admitted, 'an unrelated document update retains the canonical unchanged-row registration');
     for (const [id, token] of beforeTokens) assert.equal(tokens.get(id), token);
     await act(() => bindings.selection('recent').onToggle('recent-b'));
-    assert.equal(controller.getSnapshot().selection.summary.count, 1, 'canonical reconciliation still leaves genuine unchanged membership actionable');
+    // Ruling D (step 7 item 4): the unrelated document update keeps recent-a, still offered; recent-b joins it.
+    assert.equal(controller.getSnapshot().selection.summary.count, 2, 'canonical reconciliation keeps the picks still offered and leaves genuine unchanged membership actionable');
   } finally {await host.unmount(); remove(); bindings.dispose(); navigation.dispose(); home.dispose();}
 });

@@ -70,7 +70,9 @@ export function createShellSelection(context: ShellAssemblyContext, playback: Ho
   const anchor: {current: HTMLElement | null} = {current: null};
   const source: SelectionRendererSource = {controller, queryActions,
     metadata: {api: {request: context.api.request.bind(context.api), requestMetadataUpload: context.api.requestMetadataUpload.bind(context.api)}, scope: {serverId: viewer.serverId, viewerId: JSON.stringify([viewer.authority, viewer.accountId, viewer.profileId])},
-      current: snapshot => viewer.role === 'owner' && isCurrent(snapshot.context) && snapshot.editor?.preview?.viewerFence === context.viewerFence}, anchor, artwork: context.artwork, reportError, owner: viewer.role === 'owner', editorAudience: selectionEditorAudience(viewer.role), dockVisible};
+      // Ruling A: the editor's preview is never compared with another domain's fence. The selection's Home context gates
+      // the write, and SelectionSurfaces checks the preview itself is still the one shown.
+      current: snapshot => viewer.role === 'owner' && isCurrent(snapshot.context)}, anchor, artwork: context.artwork, reportError, owner: viewer.role === 'owner', editorAudience: selectionEditorAudience(viewer.role), dockVisible};
   let acceptedContext = JSON.stringify(currentContext()), acceptedEnvironment = JSON.stringify(environment());
   const sync = () => {
     if (retired || !context.isCurrent()) {interactions.retireRows();return;}
