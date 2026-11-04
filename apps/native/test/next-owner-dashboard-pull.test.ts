@@ -20,6 +20,8 @@ async function fixture(inline = false) {
     '../../../kit/controls': {Button: 'Button', TextField: 'TextField'}, '../../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'}, '../../../kit/theme': {useTheme: () => ({isTV: false, colors: {}})},
     '../../../kit/states/usePullRefresh': {usePullRefresh: (run: () => Promise<unknown>, onError: unknown, offset: number) => {const control = {type: 'Pull', props: {run, onError, offset}}; pulls.push(control); return control;}},
     './reader': {createNativeOwnerDashboardReader: () => reader}, './model': model, './move-sheet': {OwnerMoveSheet: 'OwnerMoveSheet'}, './page': {OwnerDashboardPage: 'OwnerDashboardPage'},
+    '../../../../../../packages/client-core/src/server-admin/updates-source': {SettingsUpdatesSource: class {subscribe = () => () => {}; getSnapshot = () => ({phase: 'idle', busy: false}); load = async () => {}; check = async () => {}; dispose() {}}},
+    './update-card': {ownerUpdateView: () => undefined},
   });
   const runtime = {text: {t: (id: string) => id}, artwork: () => undefined};
   const ports = {serverName: () => 'Portico demo', context: {navigation: {back() {}}}, requestId: () => 'request'};
@@ -49,7 +51,7 @@ test('the Dashboard page draws its scroll view with the pull control and no Refr
     './model': model, './parts': {OwnerAlertCard: 'OwnerAlertCard', OwnerCalm: 'OwnerCalm', OwnerJobGroup: 'OwnerJobGroup', OwnerJobRow: 'OwnerJobRow', OwnerSection: 'OwnerSection', OwnerSubheading: 'OwnerSubheading'},
     './health': {OwnerHealthSection: 'OwnerHealthSection'}, './statistics': {OwnerStatisticsSection: 'OwnerStatisticsSection'},
     './streams': {OwnerCompactRows: 'OwnerCompactRows', OwnerNowPlayingHeader: 'OwnerNowPlayingHeader', OwnerShowAll: 'OwnerShowAll', OwnerStreamCards: 'OwnerStreamCards', OwnerStreamTotals: 'OwnerStreamTotals'},
-    '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'},
+    '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, './update-card': {OwnerUpdateCard: 'OwnerUpdateCard'},
   });
   const pull = {type: 'Pull', props: {}};
   const props = {t: (id: string) => id, role: 'owner', serverName: 'Portico demo', topInset: 47, health: {degraded: false, status: 'Healthy', line: ''}, updated: 'Updated just now', loading: false,
