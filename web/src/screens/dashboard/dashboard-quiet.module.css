@@ -6,13 +6,16 @@
 .slot { display: contents; }
 .grouped > .slot { display: block; }
 .grouped.grouped { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 16px; row-gap: 44px; align-items: start; }
+/* settings.html's Dashboard (settings/README rule 4, dashboard.js; owner-dashboard frame 10 defers to it):
+   Alerts first as one box across the page, then Now playing, Server load and the statistics, and Background tasks last. */
 .grouped > :not([data-dashboard-section]):not([data-dashboard-quiet-slot]) { grid-column: 1 / -1; grid-row: 1; }
-.grouped > [data-dashboard-section='streams'] { grid-column: 1 / -1; grid-row: 2; }
-.grouped > [data-dashboard-section='updates'] { grid-column: 1; grid-row: 3; min-width: 0; }
-.grouped > [data-dashboard-quiet-slot='tasks'] { grid-column: 2; grid-row: 3; min-width: 0; }
+.grouped > [data-dashboard-section='updates'] { grid-column: 1 / -1; grid-row: 2; min-width: 0; }
+.grouped > [data-dashboard-section='streams'] { grid-column: 1 / -1; grid-row: 3; }
 .grouped > [data-dashboard-quiet-slot='load'] { grid-column: 1 / -1; grid-row: 4; min-width: 0; }
 .grouped > [data-dashboard-section='activity'] { grid-column: 1 / -1; grid-row: 5; min-width: 0; }
-.grouped[data-quiet-embedded] > [data-dashboard-section='streams'] { grid-row: 1; }
-.grouped[data-quiet-embedded] > [data-dashboard-section='updates'], .grouped[data-quiet-embedded] > [data-dashboard-quiet-slot='tasks'] { grid-row: 2; }
+.grouped > [data-dashboard-quiet-slot='tasks'] { grid-column: 1 / -1; grid-row: 6; min-width: 0; }
+.grouped[data-quiet-embedded] > [data-dashboard-section='updates'] { grid-row: 1; margin-top: 28px; }
+.grouped[data-quiet-embedded] > [data-dashboard-section='streams'] { grid-row: 2; }
 .grouped[data-quiet-embedded] > [data-dashboard-quiet-slot='load'] { grid-row: 3; }
 .grouped[data-quiet-embedded] > [data-dashboard-section='activity'] { grid-row: 4; }
+.grouped[data-quiet-embedded] > [data-dashboard-quiet-slot='tasks'] { grid-row: 5; }
