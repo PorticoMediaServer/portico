@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
+import {settingsPathRow} from '../src/kit/settings/path-rows.ts';
 
 const shell = readFileSync(new URL('../src/kit/shell/settings.module.css', import.meta.url), 'utf8');
 const server = readFileSync(new URL('../src/screens/settings/server/server.module.css', import.meta.url), 'utf8');
@@ -19,7 +20,11 @@ test('a long path in the Storage usage list wraps inside the panel', () => {
 
 test('a path row (Back up to, Data folder) is stacked from the row, so "Loading…" and the path share one layout', () => {
   const rowsSource = readFileSync(new URL('../src/kit/settings/SettingsRows.tsx', import.meta.url), 'utf8');
-  assert.match(rowsSource, / path=\{c\.type === 'folder' \|\| c\.type === 'readonly' && c\.mono === true\}/);
+  assert.match(rowsSource, / path=\{settingsPathRow\(row\.id, c\.type\)\}/);
+  // Only real path rows: a folder control, or the two read-only data folders. Short mono values stay two-column.
+  for (const id of ['storage.dataFolder', 'signin.dataFolder']) assert.equal(settingsPathRow(id, 'readonly'), true, id);
+  assert.equal(settingsPathRow('storage.backupFolder', 'folder'), true);
+  for (const id of ['language.timeZone', 'remote.listen', 'general.serverId', 'general.configFile', 'device.serverAddress', 'remote.secure']) assert.equal(settingsPathRow(id, 'readonly'), false, id);
   const surfaces = readFileSync(new URL('../src/kit/shell/SettingsSurfaces.tsx', import.meta.url), 'utf8');
   assert.match(surfaces, /data-path=\{path \|\| undefined\}/);
   const spec = readFileSync(new URL('../../packages/client-core/src/presentation/settings-spec.ts', import.meta.url), 'utf8');
