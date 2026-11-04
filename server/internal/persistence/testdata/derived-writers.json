@@ -4448,7 +4448,7 @@
       ]
     },
     "internal/compactcatalog/derive.go": {
-      "sha256": "d0a7bb28c7c718c130d67800f79e4aab5d40e72c1806141867d834c74a190622",
+      "sha256": "4c5a2d0c476f9f774a241389b302cd20bacafc5c8ef4a04b659fa2816e5be41a",
       "effects": [
         {
           "table": "*",
@@ -4754,7 +4754,7 @@
       ]
     },
     "internal/compactcatalog/visibility_source_fanout.go": {
-      "sha256": "ffad0045d835d3cb30004edc0b345a82e2f87a05727a91a852ce04f60d6fdff9",
+      "sha256": "5a6092d2af238734c16f96244900c16e04538beaab0fa4244fb4de404b920b79",
       "effects": [
         {
           "table": "*",
