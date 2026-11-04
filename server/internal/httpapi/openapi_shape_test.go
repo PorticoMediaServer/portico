@@ -31,6 +31,12 @@ func TestGeneratedOpenAPIReadBodiesRequiredListsAndRecommendationQueries(t *test
 	if !ok || len(paths) == 0 {
 		t.Fatal("generated document has no paths")
 	}
+	for _, path := range []string{"/v1/items/{id}/recommendations", "/v1/shows/{id}/recommendations", "/v1/items/{id}/recommendations/rows/{row}", "/v1/shows/{id}/recommendations/rows/{row}"} {
+		operation := paths[path].(map[string]any)["get"].(map[string]any)
+		if operation["description"] != catalog.MoreLikeDescription() {
+			t.Fatalf("%s lost ranked-set limits and Total/completion semantics: %v", path, operation["description"])
+		}
+	}
 	for path, raw := range paths {
 		operations := raw.(map[string]any)
 		for _, method := range []string{"get", "head"} {

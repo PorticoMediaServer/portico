@@ -243,8 +243,8 @@ func (s *Service) recTitleWork(item Item) (work int64, title string, err error) 
 	return work, title, err
 }
 
-// moreLikeRelation is More like X: the title's work ranked against every
-// eligible title by shared catalogue facets (moreLikeOrder).
+// moreLikeRelation is More like X: a fixed ranked recommendation set
+// selected by shared catalogue facets (moreLikeOrder).
 func (s *Service) moreLikeRelation(viewer Viewer, item Item) (relationSpec, bool, error) {
 	work, title, err := s.recTitleWork(item)
 	if err != nil || work == 0 {

@@ -77,6 +77,7 @@ func TestRecommendationCandidateSetsStayBounded(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := New(db)
+	checkLargeMoreLikePages(t, c, s, Viewer{Profile: "p", Fence: "f", Libraries: []string{"films"}}, targetID)
 	r := HomeRequest{Profile: "p", Libraries: []string{"films"}}
 	target := c.Public(targetID)
 	if _, whole, err := s.smallLibraryItems(r, recommendationPoolCutover); err != nil || whole {

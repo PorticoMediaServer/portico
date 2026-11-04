@@ -414623,6 +414623,7 @@
     },
     "/v1/items/{id}/recommendations": {
       "get": {
+        "description": "More like X is a ranked recommendation set, not every title sharing a facet. A same-library set of at most 1024 works retains its exact ranking; a larger library returns at most 300 recommendations from at most 400 fully rescored candidates. Total and completion describe the selected ranked set. Continuations exhaust that fixed set without changing prior pages.",
         "operationId": "get_items_id_recommendations",
         "parameters": [
           {
@@ -417127,6 +417128,7 @@
     },
     "/v1/items/{id}/recommendations/rows/{row}": {
       "get": {
+        "description": "More like X is a ranked recommendation set, not every title sharing a facet. A same-library set of at most 1024 works retains its exact ranking; a larger library returns at most 300 recommendations from at most 400 fully rescored candidates. Total and completion describe the selected ranked set. Continuations exhaust that fixed set without changing prior pages.",
         "operationId": "get_items_id_recommendations_row",
         "parameters": [
           {
@@ -513241,6 +513243,7 @@
     },
     "/v1/shows/{id}/recommendations": {
       "get": {
+        "description": "More like X is a ranked recommendation set, not every title sharing a facet. A same-library set of at most 1024 works retains its exact ranking; a larger library returns at most 300 recommendations from at most 400 fully rescored candidates. Total and completion describe the selected ranked set. Continuations exhaust that fixed set without changing prior pages.",
         "operationId": "get_shows_id_recommendations",
         "parameters": [
           {
@@ -515745,6 +515748,7 @@
     },
     "/v1/shows/{id}/recommendations/rows/{row}": {
       "get": {
+        "description": "More like X is a ranked recommendation set, not every title sharing a facet. A same-library set of at most 1024 works retains its exact ranking; a larger library returns at most 300 recommendations from at most 400 fully rescored candidates. Total and completion describe the selected ranked set. Continuations exhaust that fixed set without changing prior pages.",
         "operationId": "get_shows_id_recommendations_row",
         "parameters": [
           {

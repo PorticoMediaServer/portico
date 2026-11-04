@@ -16,7 +16,7 @@ func registerFileInfo(registry *apikit.Registry, d Dependencies) {
 	if err := registerFileInfoWindows(registry, d); err != nil {
 		panic(err)
 	}
-	v1Route(registry, apikit.Metadata{Audience: apikit.Clients, ID: "get_items_id_recommendations_row", Method: "GET", Path: "/v1/items/{id}/recommendations/rows/{row}", Summary: "Page a title recommendation row to exhaustion", Access: apikit.Device, Requires: apikit.ScopeRead, Lane: apikit.Browsing, Admission: laneBrowsing, Cost: apikit.PageSized, Status: 200, Query: []string{"cursor", "limit"}, QueryIntegers: emptyLimitQuery(37, 200), Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "stale_continuation", "internal"}}, func(ctx context.Context, r *http.Request, _ struct{}) (catalog.HomeRow, error) {
+	v1Route(registry, apikit.Metadata{Audience: apikit.Clients, ID: "get_items_id_recommendations_row", Method: "GET", Path: "/v1/items/{id}/recommendations/rows/{row}", Description: catalog.MoreLikeDescription(), Summary: "Page a title recommendation row to exhaustion", Access: apikit.Device, Requires: apikit.ScopeRead, Lane: apikit.Browsing, Admission: laneBrowsing, Cost: apikit.PageSized, Status: 200, Query: []string{"cursor", "limit"}, QueryIntegers: emptyLimitQuery(37, 200), Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "stale_continuation", "internal"}}, func(ctx context.Context, r *http.Request, _ struct{}) (catalog.HomeRow, error) {
 		limit, err := recommendationRowLimit(r)
 		if err != nil {
 			return catalog.HomeRow{}, err
@@ -51,7 +51,7 @@ func registerFileInfo(registry *apikit.Registry, d Dependencies) {
 		}
 		return out, nil
 	})
-	v1Route(registry, apikit.Metadata{Audience: apikit.Clients, ID: "get_shows_id_recommendations_row", Method: "GET", Path: "/v1/shows/{id}/recommendations/rows/{row}", Summary: "Page a show recommendation row to exhaustion", Access: apikit.Device, Requires: apikit.ScopeRead, Lane: apikit.Browsing, Admission: laneBrowsing, Cost: apikit.PageSized, Status: 200, Query: []string{"cursor", "limit"}, QueryIntegers: emptyLimitQuery(37, 200), Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "stale_continuation", "internal"}}, func(ctx context.Context, r *http.Request, _ struct{}) (catalog.HomeRow, error) {
+	v1Route(registry, apikit.Metadata{Audience: apikit.Clients, ID: "get_shows_id_recommendations_row", Method: "GET", Path: "/v1/shows/{id}/recommendations/rows/{row}", Description: catalog.MoreLikeDescription(), Summary: "Page a show recommendation row to exhaustion", Access: apikit.Device, Requires: apikit.ScopeRead, Lane: apikit.Browsing, Admission: laneBrowsing, Cost: apikit.PageSized, Status: 200, Query: []string{"cursor", "limit"}, QueryIntegers: emptyLimitQuery(37, 200), Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "stale_continuation", "internal"}}, func(ctx context.Context, r *http.Request, _ struct{}) (catalog.HomeRow, error) {
 		limit, err := recommendationRowLimit(r)
 		if err != nil {
 			return catalog.HomeRow{}, err

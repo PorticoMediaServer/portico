@@ -396,21 +396,6 @@ func relationRanked(ranked []recCandidate) *relationOrdered {
 	return out
 }
 
-// moreLikeOrder ranks every eligible title by the catalogue facets it shares
-// with work, then catalogue quality and stable id: the viewer's visibility and
-// negatives apply inside the order, so its length is the row's exact total.
-func (s *Service) moreLikeOrder(viewer Viewer, work int64) func(int) (*relationOrdered, error) {
-	return func(int) (*relationOrdered, error) {
-		visible, args := viewer.entityVisibilitySQL("i.id", "l.library_id")
-		visible += ` AND NOT EXISTS(SELECT 1 FROM personal_items negative WHERE negative.item_id=i.id AND negative.profile_id=? AND (negative.not_interested=1 OR negative.rating<=4))`
-		args = append(args, viewer.Profile)
-		ids, err := scanInt64s(s.read().Query(`SELECT id FROM (SELECT i.id,count(DISTINCT seed.facet) score,max(candidate.quality) quality FROM catalog_rec_facets seed
- JOIN catalog_rec_postings candidate ON candidate.facet=seed.facet JOIN catalog_entities i ON i.id=candidate.entity_id JOIN catalog_libraries l ON l.id=i.library_id
- WHERE seed.entity_id=? AND i.library_id=(SELECT library_id FROM catalog_entities WHERE id=?) AND i.id<>? AND `+visible+` GROUP BY i.id) ORDER BY score DESC,quality DESC,id`, append([]any{work, work, work}, args...)...))
-		return &relationOrdered{ids: ids, complete: true}, err
-	}
-}
-
 // directorRelation is "Directed by" a film's first credited director: every
 // film of theirs in the library, newest first.
 func (s *Service) directorRelation(item Item) ([]relationSpec, error) {
