@@ -464,13 +464,6 @@ export function parseCreditPage(raw: unknown, itemId: string, group: 'cast' | 'c
   return Object.freeze({ revision:Object.freeze({catalog:raw.revision.catalog,viewer:raw.revision.viewer}),group, credits: Object.freeze(credits), total: Math.max(integer(raw.total) ? raw.total : 0, credits.length), ...(raw.nextCursor ? { nextCursor: raw.nextCursor as string } : {}) });
 }
 
-/** A detail row retains its whole loaded prefix through exhaustion. */
-export function appendCreditPage(current: CreditPage, next: CreditPage): CreditPage {
- if(current.group!==next.group) invalid();
- if(current.revision.catalog!==next.revision.catalog || current.revision.viewer!==next.revision.viewer) throw new Failure('stale_continuation','Reload credits after the title changes.');
- const seen=new Set(current.credits.map(credit=>credit.id));
- return Object.freeze({...next,credits:Object.freeze([...current.credits,...next.credits.filter(credit=>!seen.has(credit.id))])});
-}
 export async function readCreditPage(api:DetailApi,itemId:string,group:'cast'|'crew',options:{cursor?:string;limit?:number}={},signal?:AbortSignal):Promise<CreditPage> {
  const query=new URLSearchParams({group,limit:String(options.limit??37)});if(options.cursor)query.set('cursor',options.cursor);
  return parseCreditPage(await api.request<RouteResponse<'get_items_id_credits'>>(encodedRoutePath('get_items_id_credits',{id:encodeURIComponent(itemId)})+'?'+query,'GET',undefined,signal),itemId,group);
