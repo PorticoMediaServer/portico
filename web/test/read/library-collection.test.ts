@@ -7,7 +7,7 @@ import {readItemEligibility} from '../../src/screens/read/navigation.ts';
 
 const tick = () => new Promise<void>(resolve => setImmediate(resolve));
 async function settle(done: () => boolean) {for (let i = 0; i < 100 && !done(); i++) await tick(); assert.ok(done(), 'bounded unit request settled');}
-function fixture(total = 480, wrongLibrary = false) {
+function fixture(total = 480, wrongLibrary = false, budget = Infinity) {
   const calls: URL[] = [];
   const api = new HttpLocalApi('http://127.0.0.1:39117', 'unit-token', async input => {
     const url = new URL(String(input)); calls.push(url);
@@ -15,7 +15,8 @@ function fixture(total = 480, wrongLibrary = false) {
       ? new Response(JSON.stringify({chosenSourceId: 'unit-source', versions: [{sourceId: 'unit-source', format: 'epub', size: 500, inventoryAvailable: false}]}), {headers: {'Content-Type': 'application/json'}})
       : new Response('{}', {status: 404, headers: {'Content-Type': 'application/json'}});
     const start = Number(url.searchParams.get('cursor') ?? 0), limit = Number(url.searchParams.get('limit'));
-    const items = Array.from({length: Math.max(0, Math.min(limit, total - start))}, (_, offset) => ({id: `unit-${start + offset}`, sourceId: `source-${start + offset}`,
+    // RD-6: the server's byte budget can stop a page early, with a cursor from the last item kept.
+    const items = Array.from({length: Math.max(0, Math.min(limit, budget, total - start))}, (_, offset) => ({id: `unit-${start + offset}`, sourceId: `source-${start + offset}`,
       libraryId: wrongLibrary ? 'another-library' : 'unit-library', title: `Unit title ${start + offset}`, format: 'epub', inventoryAvailable: true}));
     return new Response(JSON.stringify({items, ...(start + items.length < total ? {nextCursor: String(start + items.length)} : {})}), {headers: {'Content-Type': 'application/json'}});
   });
@@ -37,6 +38,17 @@ test('actual cursor pages feed the existing sparse collection without fabricated
   await settle(() => collection.getSnapshot().totalIsLowerBound === false);
   assert.equal(collection.getSnapshot().total, 480); assert.equal(collection.itemAt(479)?.id, 'unit-479');
   assert.ok(f.calls.length <= 10);
+});
+
+test('RD-6: a page the server stopped early is read on from its cursor, so every item has its place and none is skipped', async t => {
+  const f = fixture(130, false, 7); t.after(() => f.dispose());
+  const collection = f.rows.collection;
+  collection.ensureRange(0, 70); await settle(() => collection.itemAt(69) !== undefined);
+  assert.notEqual(collection.getSnapshot().status, 'error');
+  for (let i = 0; i < 70; i++) assert.equal(collection.itemAt(i)?.id, `unit-${i}`, `slot ${i}`);
+  collection.ensureRange(120, 130); await settle(() => collection.getSnapshot().totalIsLowerBound === false);
+  assert.equal(collection.getSnapshot().total, 130); assert.equal(collection.itemAt(129)?.id, 'unit-129');
+  assert.ok(f.calls.every(call => Number(call.searchParams.get('limit')) >= 1), 'each top-up asks only for the slots left');
 });
 
 test('an unexpected library row never becomes a visible or selectable Read item', async t => {
