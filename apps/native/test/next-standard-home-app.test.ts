@@ -201,11 +201,17 @@ test('standard index/App Home actions use restored authority, current documents 
         const previous = app.card().props.onPress;
         await app.refresh();
         assert.notEqual(app.card().props.onPress, previous);
-        const count = app.requests.length;
+        // Only what a Play could send counts: the shell's own background reads (guide sources,
+        // the unread badge) may land in this window on a slow runner and are not playback.
+        const playback = () => app.requests.filter(
+          (request: {method: string; path: string}) =>
+            request.method !== 'GET' || /playback|queue/.test(request.path),
+        );
+        const count = playback().length;
         previous();
         await app.settle();
         assert.equal(
-          app.requests.length,
+          playback().length,
           count,
           'a deliberately retained stale callback cannot dispatch playback',
         );
