@@ -719890,6 +719890,7 @@
           "body_too_large",
           "comic_archive_unsupported",
           "internal",
+          "reading_session_expired",
           "database_busy",
           "writer_capacity"
         ],
@@ -720267,6 +720268,7 @@
           "revision_mismatch",
           "request_in_progress",
           "body_too_large",
+          "reading_session_expired",
           "internal",
           "database_busy"
         ],
@@ -720639,6 +720641,7 @@
           "revision_mismatch",
           "request_in_progress",
           "body_too_large",
+          "reading_session_expired",
           "internal",
           "database_busy",
           "writer_capacity"
@@ -720758,6 +720761,7 @@
           "body_too_large",
           "comic_archive_unsupported",
           "internal",
+          "reading_session_expired",
           "database_busy"
         ],
         "x-lane": "media",
@@ -720866,6 +720870,7 @@
           "body_too_large",
           "comic_archive_unsupported",
           "internal",
+          "reading_session_expired",
           "database_busy",
           "writer_capacity"
         ],
@@ -720992,6 +720997,7 @@
           "body_too_large",
           "comic_archive_unsupported",
           "internal",
+          "reading_session_expired",
           "database_busy"
         ],
         "x-lane": "media",
@@ -721157,6 +721163,7 @@
           "body_too_large",
           "comic_archive_unsupported",
           "internal",
+          "reading_session_expired",
           "database_busy"
         ],
         "x-lane": "browsing",
@@ -721378,6 +721385,7 @@
           "body_too_large",
           "comic_archive_unsupported",
           "internal",
+          "reading_session_expired",
           "database_busy",
           "writer_capacity"
         ],
@@ -721597,6 +721605,7 @@
           "body_too_large",
           "comic_archive_unsupported",
           "internal",
+          "reading_session_expired",
           "search_busy",
           "database_busy"
         ],
@@ -721717,6 +721726,7 @@
           "body_too_large",
           "comic_archive_unsupported",
           "internal",
+          "reading_session_expired",
           "database_busy"
         ],
         "x-lane": "media",
@@ -721823,6 +721833,7 @@
           "body_too_large",
           "comic_archive_unsupported",
           "internal",
+          "reading_session_expired",
           "database_busy"
         ],
         "x-lane": "media",

@@ -1,6 +1,8 @@
 package httpapi
 
 import (
+	"strings"
+
 	"github.com/PorticoMediaServer/portico/apikit"
 	"github.com/PorticoMediaServer/portico/server/internal/reading"
 )
@@ -35,7 +37,11 @@ func registerReadingHTTPContracts(registry *apikit.Registry) error {
 	}
 	errors := []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "revision_required", "revision_mismatch", "request_in_progress", "body_too_large", "comic_archive_unsupported", "internal"}
 	metadata := func(id, method, path, summary string, scope apikit.Scope) apikit.Metadata {
-		return apikit.Metadata{Audience: apikit.Clients, ID: id, Method: method, Path: path, Summary: summary, Access: apikit.Device, Requires: scope, Lane: apikit.Browsing, Admission: laneBrowsing, Cost: apikit.PageSized, Status: 200, Errors: errors}
+		m := apikit.Metadata{Audience: apikit.Clients, ID: id, Method: method, Path: path, Summary: summary, Access: apikit.Device, Requires: scope, Lane: apikit.Browsing, Admission: laneBrowsing, Cost: apikit.PageSized, Status: 200, Errors: errors}
+		if strings.Contains(path, "/sessions/{sessionId}") {
+			m.Errors = append(append([]string{}, m.Errors...), "reading_session_expired")
+		}
+		return m
 	}
 	m := metadata("get_reading_items", "GET", "/v1/reading/items", "List visible reading publications", apikit.ScopeRead)
 	m.Query = []string{"libraryId", "cursor", "limit"}
