@@ -22,6 +22,7 @@ const width = (value: number) => { (globalThis as {__detailWidth: {width: number
 
 const {TitleActions, TitleDetails} = await import('../src/screens/detail/Detail.tsx');
 const {createDetailSpecimen} = await import('../src/dev/entries/detail-specimen.tsx');
+const {WatchBodyPlaybackContext} = await import('../src/screens/detail/watch-body-playback.tsx');
 const {DetailService} = await import('@core/detail.ts');
 
 const specimenContext = (specimen: ReturnType<typeof createDetailSpecimen>) => ({
@@ -55,6 +56,36 @@ test('frame 2 draws the white Resume button with the long time left and Start ov
     // The drawn caption is the title's own long duration, not the compact "1h 26m left".
     assert.match(body, /1 h 26 min left/);
     assert.match(body, new RegExp(defaultI18n.t('next.controls.startOver')));
+  } finally { service.dispose(); }
+});
+
+test('phone-player 4: on the watch page the white button follows the video, Pause while it plays and Play when paused', async () => {
+  width(390);
+  const {data, binding, service} = await detailData('2');
+  try {
+    let toggles = 0;
+    const watch = (playing: boolean) => ({playing, enabled: true, toggle: () => {toggles++;}});
+    const draw = (playing: boolean) => text(renderToStaticMarkup(createElement(WatchBodyPlaybackContext.Provider, {value: watch(playing)},
+      createElement(TitleActions, {binding, data, watch: watch(playing)}))));
+    const playing = draw(true);
+    assert.match(playing, new RegExp(defaultI18n.t('next.dock.pause')));
+    assert.doesNotMatch(playing, new RegExp(defaultI18n.t('next.controls.resume')), 'never Resume over the video that is playing');
+    assert.doesNotMatch(playing, new RegExp(defaultI18n.t('next.controls.startOver')));
+    assert.doesNotMatch(playing, /1 h 26 min left/, 'no resume line under it');
+    assert.match(draw(false), new RegExp(`^${defaultI18n.t('next.dock.play')}`));
+  } finally { service.dispose(); }
+});
+
+test('phone-player 4: under the watch page an expanded episode keeps Play or Resume for itself, never the video’s Pause', async () => {
+  width(390);
+  const {data, binding, service} = await detailData('2');
+  try {
+    // The watch page provides the playing video; an expanded episode's TitleActions gets no `watch`.
+    const html = text(renderToStaticMarkup(createElement(WatchBodyPlaybackContext.Provider, {value: {playing: true, enabled: true, toggle: () => assert.fail('the episode must not pause the video')}},
+      createElement(TitleActions, {binding, data}))));
+    assert.match(html, new RegExp(`^${defaultI18n.t('next.controls.resume')}`));
+    assert.doesNotMatch(html, new RegExp(defaultI18n.t('next.dock.pause')));
+    assert.match(html, /1 h 26 min left/, 'its own resume line');
   } finally { service.dispose(); }
 });
 
