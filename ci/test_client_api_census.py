@@ -58,6 +58,10 @@ let sessionTask = session.dataTask(with: request)
         site={'file':'web/src/guard.ts','id':'x','line':1}
         with self.assertRaises(ValueError): classify([site],e)
         self.assertEqual(len(classify([dict(site,forwardedRequest=True)],e)[1]),1)
+        direct,exempt=classify([dict(site,forwardedRequest=True)]*2,e)
+        self.assertEqual((len(direct),len(exempt)),(1,1))
+        e['web/src/guard.ts']['additionalSites']={'url':{'category':'platform-url','reason':'core-issued grant bytes'}}
+        self.assertEqual(len(classify([{'file':'web/src/guard.ts','id':'url'}],e)[1]),1)
 
     def test_typescript_real_requests_aliases_writes_and_url_builders(self):
         with tempfile.TemporaryDirectory() as directory:

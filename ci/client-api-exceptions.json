@@ -287,5 +287,94 @@
     "sites": [
       "web/src/screens/saved/Saved.route.tsx#816b9d4e902eb35a"
     ]
+  },
+  "apps/native/src-next/platform/local-invitation.ts": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/platform/local-invitation.ts#6b4b80fea4c6f24f"
+    ]
+  },
+  "apps/native/src-next/platform/portico-invitation.ts": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/platform/portico-invitation.ts#66fc97bd23104b7c",
+      "apps/native/src-next/platform/portico-invitation.ts#6b4b80fea4c6f24f"
+    ]
+  },
+  "apps/native/src-next/screens/accounts/AccountRoutes.tsx": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/screens/accounts/AccountRoutes.tsx#c4184836fefaaeea"
+    ]
+  },
+  "apps/native/src-next/screens/accounts/PhoneFirstLibrary.tsx": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/screens/accounts/PhoneFirstLibrary.tsx#b8207c47568a781e"
+    ]
+  },
+  "apps/native/src-next/screens/settings-live/native-account-security.ts": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/screens/settings-live/native-account-security.ts#ac6bff316e9651a4"
+    ]
+  },
+  "web/src/platform/account-entry.ts": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "web/src/platform/account-entry.ts#c7b92ef4da804e52",
+      "web/src/platform/account-entry.ts#0fa84fab8e65b5a7",
+      "web/src/platform/account-entry.ts#c7b92ef4da804e52",
+      "web/src/platform/account-entry.ts#8f0f90ccb04346c0",
+      "web/src/platform/account-entry.ts#c1be8f65fb647f76"
+    ]
+  },
+  "web/src/screens/settings/account-profile/ProfileSignIn.tsx": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "web/src/screens/settings/account-profile/ProfileSignIn.tsx#9e6a79b79d0ed36d"
+    ]
+  },
+  "web/src/screens/settings/account-profile/devices.ts": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "web/src/screens/settings/account-profile/devices.ts#3ff7af3cf21b1237"
+    ]
+  },
+  "web/src/screens/settings/account-profile/restrictions.ts": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "web/src/screens/settings/account-profile/restrictions.ts#4191dac33fc3f60a"
+    ]
+  },
+  "web/src/screens/settings/account-profile/sign-out-others.ts": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "web/src/screens/settings/account-profile/sign-out-others.ts#6b5f1c742ae7f7f0"
+    ]
+  },
+  "web/src/screens/settings/account-profile/source.ts": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "web/src/screens/settings/account-profile/source.ts#f4255d8be27f5820"
+    ]
+  },
+  "web/src/screens/settings/invitations.ts": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "web/src/screens/settings/invitations.ts#4993d189442aa6cf"
+    ]
   }
 }

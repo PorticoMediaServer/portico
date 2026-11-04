@@ -185,6 +185,7 @@ def exception_pins(entry):
 def classify(sites, exceptions):
     approved = {'platform-url','native-extension','native-listening','separate-product','platform-transport'}
     exempt, direct = [], []
+    remaining = {path: Counter(entry['sites']) + Counter(entry.get('additionalSites', {}).keys()) for path,entry in exceptions.items()}
     for path,entry in exceptions.items():
         if any(pin['category'] not in approved or not pin['reason'].strip() for pin in exception_pins(entry).values()) or any(c in path for c in '*?['):
             raise ValueError(f'Invalid exception (exact file, approved category and reason required): {path}')
@@ -192,7 +193,8 @@ def classify(sites, exceptions):
     for site in sites:
         entry = exceptions.get(site['file'])
         pin = exception_pins(entry).get(site['id']) if entry else None
-        allowed = pin is not None
+        allowed = pin is not None and remaining[site['file']][site['id']] > 0
+        if allowed: remaining[site['file']][site['id']] -= 1
         if allowed and pin['category']=='platform-transport' and not site.get('forwardedRequest'):
             raise ValueError(f"{site['file']}:{site['line']}: platform transport must forward path, method, body unchanged to request with only a signal argument")
         (exempt if allowed else direct).append(site)
@@ -204,7 +206,7 @@ def base_guard(baseline, exceptions, old_baseline, old_exceptions):
     # An app slice cannot hide a new domain request by broadening an existing exception.
     for path,entry in exceptions.items():
         old=old_exceptions.get(path)
-        if not old or any(exception_pins(old).get(key)!=pin for key,pin in exception_pins(entry).items()):
+        if not old or any(exception_pins(old).get(key)!=pin for key,pin in exception_pins(entry).items()) or Counter(entry['sites'])-Counter(old['sites']):
             errors.append(f'{path}: exception expanded or changed; obtain a separate approved census-policy change')
     return errors
 
@@ -231,8 +233,8 @@ def main():
             return json.loads(r.stdout)
         old_baseline,old_exceptions=old(BASELINE),old(ALLOWLIST)
         if old_baseline is not None:new+=base_guard(baseline,exceptions,old_baseline,old_exceptions or {})
-    current_ids=set(counts(exempt))
-    stale_exceptions=[site for e in exceptions.values() for site in exception_pins(e) if site not in current_ids]
+    pinned = sum((Counter(e['sites']) + Counter(e.get('additionalSites', {}).keys()) for e in exceptions.values()), Counter())
+    stale_exceptions = list((pinned - Counter(counts(exempt))).elements())
     if stale_exceptions:new += [f'{site}: stale exception; remove its allowance' for site in stale_exceptions]
     if a.report:a.report.write_text(json.dumps({'direct':direct,'exceptions':exempt},indent=2)+'\n')
     if new:
