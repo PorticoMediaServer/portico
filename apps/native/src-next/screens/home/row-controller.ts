@@ -26,14 +26,13 @@ export class NativeHomeRowController {
   private readonly api: HomeApi;
   readonly rowId: string;
   private readonly current: () => boolean;
-  private readonly viewerFence: string;
   private state: NativeHomeRowSnapshot = Object.freeze({phase: 'loading', filters: [], counts: []});
   private listeners = new Set<() => void>();
   private abort = new AbortController();
   private generation = 0;
   private alive = true;
-  constructor(options: {api: HomeApi; rowId: string; viewerFence: string; current: () => boolean; kinds: readonly NativeHomeRowKind[]}) {
-    this.api = options.api; this.rowId = options.rowId; this.viewerFence = options.viewerFence; this.current = options.current;
+  constructor(options: {api: HomeApi; rowId: string; current: () => boolean; kinds: readonly NativeHomeRowKind[]}) {
+    this.api = options.api; this.rowId = options.rowId; this.current = options.current;
     this.allKinds = Object.freeze(options.kinds.filter(kind => kind.libraryIds.length).map(kind => Object.freeze({id: kind.id, libraryIds: Object.freeze([...kind.libraryIds])})));
     this.kinds = this.allKinds;
     this.collection = createWindowedCollection({pageSize: 60, maxResidentPages: 6, maxConcurrent: 1,
@@ -61,7 +60,8 @@ export class NativeHomeRowController {
     try {
       const [raw, row] = await Promise.all([this.request(browseCapabilitiesPath('*', acrossPivot('homeRow'))), fetchHomeRow(this.api, this.rowId, {limit: 60}, this.abort.signal)]);
       if (!this.valid(generation)) return;
-      if (row.id !== this.rowId || row.viewerFence !== this.viewerFence) throw stale();
+      // The row read now is the server's answer for the viewer now; a moved fence is newer, not stale (a refusal is a 401/403).
+      if (row.id !== this.rowId) throw stale();
       const capabilities = parseBrowseCapabilities(raw), pivot = capabilities.pivots.find(value => value.id === acrossPivot('homeRow'));
       if (!pivot?.defaultSort[0]) throw stale();
       const sort = groupSort(this.state.sort, true, capabilities.sorts, pivot.defaultSort[0]);

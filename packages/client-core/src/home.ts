@@ -418,7 +418,8 @@ export function hasFencedHomeMembership(rowId: string): boolean {
 
 /** Keep the loaded prefix and append the server page until nextCursor is empty. */
 export function appendHomeRowPage(row: HomeRow, page: HomeRow): HomeRow {
-  if(row.id!==page.id||row.viewerFence!==page.viewerFence)invalid();
+  // The server binds a row's cursor to the viewer fence and refuses an old one (invalid_cursor), so only the row's own revision is compared here.
+  if(row.id!==page.id)invalid();
   if(!row.live&&(row.revision.catalog!==page.revision.catalog||row.revision.viewer!==page.revision.viewer))throw Object.assign(new Error('The row revision changed.'),{code:'stale_continuation'});
   if(row.live||page.live){
     if(!row.live||!page.live||row.live.revision!==page.live.revision||row.live.observedAt!==page.live.observedAt||row.live.group!==page.live.group)invalid();

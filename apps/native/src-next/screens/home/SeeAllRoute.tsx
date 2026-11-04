@@ -64,7 +64,7 @@ export function createNativeHomeRows(context: NativeShellBootstrapContext, repor
     for (const [route, source] of rows) if (!keep.has(route)) {source.abort.abort(); source.actions.dispose(); source.controller.dispose(); rows.delete(route);}
     for (const route of keep) {
       if (route.kind !== 'home-see-all' || route.destination.type !== 'row' || rows.has(route)) continue;
-      const controller = new NativeHomeRowController({api: context.api, rowId: route.destination.rowId, viewerFence: context.authority().viewerFence,
+      const controller = new NativeHomeRowController({api: context.api, rowId: route.destination.rowId,
         current: () => alive && context.current() && rows.has(route),
         kinds: context.libraries().filter(library => !Platform.isTV || !hiddenReadingLibraryOnTV(library.kind)).map(library => ({id: library.id, libraryIds: [library.id]}))});
       const actions = createNativeEntryActions(context, {

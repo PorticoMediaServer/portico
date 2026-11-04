@@ -252,3 +252,12 @@ test('Home-origin membership keeps exact delivery targets across page append',as
  assert.throws(()=>validateHomeRow(row({displayTargets:[{membershipId:'show',entryId:'absent'}]})),{code:'invalid_home'});
  assert.throws(()=>appendHomeRowPage(first,validateHomeRow(row({id:'new_on_server',entries:[entry('new-season','season')],displayTargets:[{membershipId:'show',entryId:'new-season'}]}))),{code:'stale_continuation'});
 });
+
+test('step 7: a row page is checked by the row\'s own revision; the fence is the server\'s cursor to refuse',async()=>{
+ const {appendHomeRowPage}=await import('../src/home.ts');
+ const first=validateHomeRow(row({id:'new_on_server',entries:[entry('one','movie')],nextCursor:'second'}));
+ const moved=validateHomeRow(row({id:'new_on_server',viewerFence:'moved',entries:[entry('two','movie')],nextCursor:''}));
+ assert.deepEqual(appendHomeRowPage(first,moved).entries.map(e=>e.id),['one','two'],'a page answered under a moved fence is the newer answer');
+ assert.throws(()=>appendHomeRowPage(first,validateHomeRow(row({id:'new_on_server',revision:{catalog:99,viewer:99},entries:[entry('two','movie')]}))),{code:'stale_continuation'});
+ assert.throws(()=>appendHomeRowPage(first,validateHomeRow(row({id:'another',entries:[entry('two','movie')]}))),{code:'invalid_home'});
+});
