@@ -23,6 +23,7 @@ const {BookChapterList} = await import('../src/screens/watch/listening/BookChapt
 const {ListeningQueue} = await import('../src/screens/watch/listening/ListeningQueue.tsx');
 const {ListeningQueueWindow} = await import('../src/screens/watch/listening/ListeningQueueWindow.tsx');
 const {ListeningSeek} = await import('../src/screens/watch/listening/ListeningSeek.tsx');
+const {ListeningTabs} = await import('../src/screens/watch/listening/ListeningPanels.tsx');
 function elements(tree: ReactNode): any[] {const result: any[] = [];Children.forEach(tree, child => {if (isValidElement<any>(child)) {result.push(child);result.push(...elements((child as import('react').ReactElement<{children?: ReactNode}>).props.children));}});return result;}
 const noop = () => {};
 const chapter = (index: number, start: number, end: number): PlayerChapter => ({id: `source:${index}`, index, title: `Chapter ${index}`, startSeconds: start, endSeconds: end, action: {id: 'seek', positionSeconds: start}});
@@ -199,6 +200,27 @@ test('queue rows use supplied art/artist/duration while hidden and unavailable r
   assert.ok(text.includes('Real artist'));assert.ok(text.includes('2:03'));
   for (const privateText of ['Hidden title', 'Hidden artist', 'Unavailable title', 'Unavailable artist']) assert.equal(text.includes(privateText), false);
 });
+test('desktop-listen 4: "Now playing" heads the playing row, which still says so to a screen reader', () => {
+  const page: any = {start: 0, total: 2, revision: '7', canNext: false, canPrevious: false, rows: [
+    {entryId: 'one', itemId: 'one', position: 0, title: 'First', artist: 'A', durationMs: 211000, available: true, hidden: false, current: true},
+    {entryId: 'two', itemId: 'two', position: 1, title: 'Second', artist: 'B', durationMs: 191000, available: true, hidden: false, current: false},
+  ]};
+  const tree = elements(ListeningQueueWindow({snapshot: {phase: 'ready', page, busy: false}, retained: null, anchor: 0, error: false, busy: false, onRetry: noop, onEdit: noop}));
+  const heads = tree.filter(element => element.props.className === 'section');
+  assert.equal(heads.length, 1); assert.equal(heads[0].props.children, defaultI18n.t('player.queueNowPlaying')); assert.equal(heads[0].props['aria-hidden'], 'true');
+  const rows = tree.filter(element => element.props.role === 'listitem');
+  assert.equal(rows.length, 2, 'the head is not a list row');
+  assert.equal(tree.indexOf(heads[0]) < tree.indexOf(rows[0]), true, 'above the playing row');
+  const spoken = tree.find(element => element.type === 'small' && element.props.children === defaultI18n.t('player.queueNowPlaying'));
+  assert.equal(spoken.props.className, 'srOnly', 'the row keeps the words for a screen reader, not as a visible subline');
+});
+
+test('desktop-listen 4: the music side tabs carry their drawn icons', () => {
+  const host: any = {owner: {lyricsOffered: () => true, chaptersOffered: () => false, queueOffered: () => true, show: noop}, state: {panel: 'queue'}};
+  const buttons = elements(ListeningTabs({host})).filter(element => element.props.onClick);
+  assert.deepEqual(buttons.map(button => button.props.icon), ['i-queue', 'i-lyrics']);
+});
+
 test('listening seek renders native range semantics over the drawn rail and puts remaining labels below on phone', () => {
   const sought: number[] = [];
   const tree = elements(ListeningSeek({position: 60, duration: 180, bounds: {start: 0, end: 180}, phone: true,
@@ -211,11 +233,11 @@ test('listening seek renders native range semantics over the drawn rail and puts
 });
 
 
-test('Up next footer displays supplied canonical count and total duration separately', () => {
+test('Up next footer says the supplied canonical count and total length as drawn: "6 songs, 28 min"', () => {
   const snapshot: any = {current: true, queueId: 'queue', revision: '7', change: 'idle', more: null, entries: []};
-  const tree = elements(ListeningQueue({snapshot, onPolicy: noop, onRefresh: noop, summary: {count: 42, pivot: 'songs', durationSeconds: 4000}}));
-  assert.ok(tree.some(element => element.props.children === defaultI18n.t('lib.count', {count: 42, pivot: 'songs'})));
-  assert.ok(tree.some(element => element.props.children === '1:06:40'));
+  const tree = elements(ListeningQueue({snapshot, onPolicy: noop, onRefresh: noop, summary: {count: 6, pivot: 'songs', durationSeconds: 28 * 60}}));
+  assert.ok(tree.some(element => element.props.children === '6 songs, 28 min'));
   const unknown = elements(ListeningQueue({snapshot, onPolicy: noop, onRefresh: noop, summary: {count: 42, pivot: 'songs'}}));
-  assert.equal(unknown.some(element => element.props.children === '0:00'), false);
+  assert.ok(unknown.some(element => element.props.children === defaultI18n.t('lib.count', {count: 42, pivot: 'songs'})), 'no length known: the count alone');
+  assert.equal(unknown.some(element => typeof element.props.children === 'string' && element.props.children.includes(', ')), false);
 });

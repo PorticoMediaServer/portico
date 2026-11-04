@@ -22,6 +22,11 @@
 .volume { width: var(--np-column, 480px); max-width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; }
 .volume > :last-child { width: 160px; flex: none; }
 .side { position: absolute; z-index: var(--layer-row-arrow); right: 32px; top: 92px; bottom: 32px; width: 452px; min-height: 0; overflow: auto; border-radius: 20px; padding: 14px 16px; background: color-mix(in srgb, var(--color-ink) 44%, transparent); -webkit-backdrop-filter: blur(30px); backdrop-filter: blur(30px); border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent); }
+/* desktop-listen 4: the queue's count, length and Save as playlist sit at the panel's foot, under the rows. */
+.side { display: flex; flex-direction: column; }
+.side > .fade3 { display: flex; flex-direction: column; flex: 1 0 auto; }
+.side [data-listening-queue] { display: flex; flex-direction: column; flex: 1 0 auto; }
+.side [data-listening-queue] > footer { position: sticky; bottom: -14px; margin: auto -16px -14px; padding: 14px 16px; border-top: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent); background: color-mix(in srgb, var(--color-ink) 92%, transparent); -webkit-backdrop-filter: blur(30px); backdrop-filter: blur(30px); }
 .side h2 { margin: 0 0 12px; font-size: var(--type-fixed-size-15px); font-weight: var(--type-fixed-weight-800); letter-spacing: var(--type-fixed-tracking-minus-point-01em); }
 .section { margin: 14px 0 8px; font-size: var(--type-fixed-size-12px); font-weight: var(--type-fixed-weight-700); color: var(--color-text-tertiary); }
 .queueRow { display: flex; align-items: center; gap: 12px; min-height: 44px; }

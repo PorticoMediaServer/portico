@@ -7,9 +7,14 @@ import type {WebQueueListSnapshot} from '../../../platform/playback/queue-list';
 import {Button, TextField} from '../../../kit/controls';
 import {Banner, Dialog} from '../../../kit/overlays';
 import {StateView} from '../../../kit/states';
-import {watchClock} from '../model';
+import {durationText} from '@core/presentation/kit-model/text.ts';
 import styles from './listening-panel.module.css';
 const t = defaultI18n.t;
+const summaryText = (summary: Readonly<{count: number; durationSeconds?: number; pivot: 'songs' | 'other'}>) => {
+  const count = t('lib.count', {count: summary.count, pivot: summary.pivot});
+  const duration = summary.durationSeconds !== undefined && summary.durationSeconds > 0 ? durationText(summary.durationSeconds, t) : undefined;
+  return duration ? t('web.player.queueSummary', {count, duration}) : count;
+};
 
 /** Occurrence rows and accepted policy only. Every callback receives the exact
  * rendered queue witness; the existing owner remains the mutation authority. */
@@ -30,7 +35,7 @@ export function ListeningQueue({snapshot, policy, policyBusy, onEdit, onPolicy, 
   if (!snapshot.current) return null;
   const busy = snapshot.change === 'sending' || policyBusy === true || window?.busy === true || window?.snapshot?.busy === true, saving = save?.busy === true || save?.progress?.state === 'saving';
   const message = save?.progress ? queueSaveMessage(save.progress) : undefined;
-  return <section className={styles.queue} aria-label={t('player.queue')}>
+  return <section className={styles.queue} aria-label={t('player.queue')} data-listening-queue>
     {snapshot.error && <Banner action={{label: t('next.states.tryAgain'), onAction: () => onRefresh(snapshot)}}>{t('player.queueSaveChanged')}</Banner>}
     {policy && <div className={styles.policy}>
       {!policy.radio && <Button size="small" variant="glass" disabled={busy} aria-pressed={policy.shuffled} onClick={() => onPolicy(snapshot, {action: 'shuffle', shuffled: !policy.shuffled})}>{t(policy.shuffled ? 'player.opt.shuffleOn' : 'player.opt.shuffleOff')}</Button>}
@@ -46,8 +51,8 @@ export function ListeningQueue({snapshot, policy, policyBusy, onEdit, onPolicy, 
       </div>}
     </div>)}</div>}
     <footer className={styles.footer}>
-      {summary && <span className={styles.summary}><span>{t('lib.count', {count: summary.count, pivot: summary.pivot})}</span>
-        {summary.durationSeconds !== undefined && <span>{watchClock(summary.durationSeconds)}</span>}</span>}
+      {/* desktop-listen 4: "6 songs, 28 min". */}
+      {summary && <span className={styles.summary}>{summaryText(summary)}</span>}
       {!window && snapshot.more !== null && snapshot.more > 0 && <span>{t('player.queueMore', {count: snapshot.more})}</span>}
       {onMore && <Button size="small" variant="glass" disabled={busy} onClick={() => onMore(snapshot)}>{t('next.live.more')}</Button>}
       {save && <Button size="small" variant="glass" disabled={busy || saving} onClick={() => save.openDialog(snapshot)}>{t('player.queueSave')}</Button>}
