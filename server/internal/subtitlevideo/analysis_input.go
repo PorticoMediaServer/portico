@@ -34,3 +34,27 @@ func (r *Runtime) AnalysisDecoder(input subtitles.RenderInput) func(context.Cont
 		return input.Validate(ctx)
 	}
 }
+
+// AnalysisProbe shares one retained source and extent ledger across the closed
+// frame/packet observations. It grants no path or arbitrary ffprobe arguments.
+func (r *Runtime) AnalysisProbe(input subtitles.RenderInput) func(context.Context, string, decoder.AnalysisProbeSpec) ([]byte, error) {
+	ledger := &extentLedger{}
+	return func(ctx context.Context, key string, spec decoder.AnalysisProbeSpec) ([]byte, error) {
+		if err := input.Validate(ctx); err != nil {
+			return nil, err
+		}
+		b, err := openBridge(ctx, input, ledger)
+		if err != nil {
+			return nil, err
+		}
+		defer b.Close()
+		data, err := decoder.RunAnalysisProbe(ctx, r.storage.Supervisor, key, r.ffprobe, b.url, b.reservation, spec, r.libraries...)
+		if err != nil {
+			return nil, err
+		}
+		if err = input.Validate(ctx); err != nil {
+			return nil, err
+		}
+		return data, nil
+	}
+}
