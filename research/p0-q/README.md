@@ -147,3 +147,22 @@ and uncheckpointed bytes are recorded. These bytes bound the prefix carried;
 they are not a VFS-exact unsynced-background-byte oracle. FULL still syncs the WAL
 prefix, so security latency is not inferred from small row size. Few real-rate
 security samples mean p99 is the observed maximum, not a high-confidence tail.
+
+## Governed-reader and snapshot-cap controls
+
+The unbounded global-A reader is retained as a negative: NORMAL100k standard
+reached the WAL reserve despite passing observed writer p99/max4.81/24.38ms.
+The bounded control uses title-page probes paced20Hz; background publication is
+still continuously offered. An independent preparation snapshot worker holds a
+real read transaction for requested250ms/1s/2s, then releases for50ms. Actual
+lifetime is recorded, including scheduler delay; the requested cap is not assumed
+a hard native guarantee. WAL time series and resets/minute plus foreground-page
+latency show whether each lease/gap combination permits reuse. A cap alone is
+not claimed sufficient with arbitrarily overlapping readers.
+
+A frame-range ledger distinguishes background NORMAL and user NORMAL WAL frames
+since the last confirmed FULL sync or advancing PASSIVE sync. Security events
+record this known durability-debt estimate as well as committed/uncheckpointed
+prefix sizes. In-flight sync is conservatively outstanding; this is not a claim
+about the OS dirty-byte cache. Epoch/salt changes record WAL resets. Long mixed
+runs report actual rename/tombstone-operation counts, not just the2048 insert cap.

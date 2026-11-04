@@ -630,9 +630,13 @@ func main() {
 	dir := flag.String("dir", "", "scratch output")
 	samples := flag.Int("samples", 16, "query samples excluding warmup")
 	rounds := flag.Int("rounds", 2048, "churn transactions")
+	pinCap := flag.Duration("snapshot-cap", 0, "controlled preparation snapshot lifetime")
+	bounded := flag.Bool("bounded-readers", false, "20Hz bounded title-page read control")
 	mixed := flag.Bool("mixed", false, "mixed security/progress traffic")
 	minimum := flag.Duration("mixed-duration", 600*time.Second, "minimum mixed observation")
 	flag.Parse()
+	snapshotCap = *pinCap
+	boundedReaders = *bounded
 	mixedEnabled = *mixed
 	mixedDuration = *minimum
 	configure(*config)

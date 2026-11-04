@@ -28,6 +28,7 @@ var cpDone = make(chan struct{})
 var cpRunning atomic.Bool
 var cpSequence, commitCount, readerCount atomic.Uint64
 var mixedEnabled bool
+var boundedReaders bool
 var mixedDuration = 600 * time.Second
 var mixedStart time.Time
 var fgEvents = []struct {
@@ -128,6 +129,7 @@ func admitPublication() {
 func setupExperiment(db *sql.DB, path string) {
 	databasePath = path
 	writerDB = db
+	startSnapshotProbe()
 	for _, name := range []string{"cache_size", "cache_spill", "page_size", "synchronous", "wal_autocheckpoint"} {
 		var v any
 		must(db.QueryRow("PRAGMA " + name).Scan(&v))
@@ -152,14 +154,19 @@ func setupExperiment(db *sql.DB, path string) {
 				}
 				start := time.Now()
 				beforeW, beforeR := commitCount.Load(), readerCount.Load()
+				beforeWal := walState()
 				cpSequence.Add(1)
 				cpRunning.Store(true)
 				var busy, frames, backfilled int
 				e := cp.QueryRow("PRAGMA wal_checkpoint(PASSIVE)").Scan(&busy, &frames, &backfilled)
 				ms := float64(time.Since(start).Microseconds()) / 1000
+				afterW, afterR := commitCount.Load(), readerCount.Load()
 				cpRunning.Store(false)
 				w := walState()
-				event := map[string]any{"ms": ms, "busy": busy, "log_frames": frames, "backfilled_frames": backfilled, "writer_commits_during": commitCount.Load() - beforeW, "reader_queries_during": readerCount.Load() - beforeR, "start_unix_ns": start.UnixNano(), "end_unix_ns": time.Now().UnixNano(), "wal": w, "cadence_ms": checkpointEvery.Milliseconds()}
+				if e == nil {
+					markCheckpointDurable(beforeWal, w, frames, backfilled)
+				}
+				event := map[string]any{"ms": ms, "busy": busy, "log_frames": frames, "backfilled_frames": backfilled, "writer_commits_during": afterW - beforeW, "reader_queries_during": afterR - beforeR, "start_unix_ns": start.UnixNano(), "end_unix_ns": time.Now().UnixNano(), "wal": w, "cadence_ms": checkpointEvery.Milliseconds()}
 				if e != nil {
 					event["error"] = e.Error()
 				}
@@ -196,11 +203,15 @@ func sortForeground() {
 	}
 }
 func stopExperiment() {
+	if snapshotStarted {
+		close(snapshotStop)
+		<-snapshotDone
+	}
 	if passiveEnabled {
 		close(cpStop)
 		<-cpDone
 	}
-	emit("wal_summary", map[string]any{"peak_physical_bytes": peakPhysical.Load(), "peak_uncheckpointed_bytes": peakLogical.Load(), "soft_bytes": walSoft, "hard_bytes": walHard, "checkpointer_cadence_ms": checkpointEvery.Milliseconds()})
+	emit("wal_summary", map[string]any{"peak_physical_bytes": peakPhysical.Load(), "peak_uncheckpointed_bytes": peakLogical.Load(), "sampled_resets": resetCount, "snapshot_cap_ms": snapshotCap.Milliseconds(), "soft_bytes": walSoft, "hard_bytes": walHard, "checkpointer_cadence_ms": checkpointEvery.Milliseconds()})
 	emit("proc_stat_end", readProcStat())
 }
 func serviceForeground(db *sql.DB) {
@@ -212,6 +223,7 @@ func serviceForeground(db *sql.DB) {
 		fgNext++
 		target := mixedStart.Add(event.at)
 		w := walState()
+		debt := currentDurabilityDebt(w)
 		class := "progress_NORMAL"
 		syncMode := "NORMAL"
 		table := "q_progress"
@@ -228,7 +240,7 @@ func serviceForeground(db *sql.DB) {
 		native(db, "foreground."+class+".commit", "COMMIT")
 		hold := float64(time.Since(begin).Microseconds()) / 1000
 		exec(db, "PRAGMA synchronous="+durability)
-		emit("foreground_write", map[string]any{"class": class, "arrival_unix_ns": target.UnixNano(), "start_unix_ns": start.UnixNano(), "queue_ms": float64(start.Sub(target).Microseconds()) / 1000, "transaction_ms": hold, "response_ms": float64(time.Since(target).Microseconds()) / 1000, "wal_before": w, "background_commits": commitCount.Load() - uint64(fgNext), "checkpoint_running": cpRunning.Load(), "wal_bytes_scope": "committed prefix and uncheckpointed bytes; not an exact unsynced-byte oracle"})
+		emit("foreground_write", map[string]any{"class": class, "arrival_unix_ns": target.UnixNano(), "start_unix_ns": start.UnixNano(), "queue_ms": float64(start.Sub(target).Microseconds()) / 1000, "transaction_ms": hold, "response_ms": float64(time.Since(target).Microseconds()) / 1000, "wal_before": w, "known_durability_debt": debt, "background_commits": commitCount.Load() - uint64(fgNext), "checkpoint_running": cpRunning.Load(), "wal_bytes_scope": "committed prefix and uncheckpointed bytes; not an exact unsynced-byte oracle"})
 	}
 }
 func finishMixed(db *sql.DB) {
@@ -299,6 +311,7 @@ func cpuNative(db interface {
 }, tag, q string, a ...any) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	preWal := walState()
 	wait := threadWait()
 	cpu := threadClock()
 	t := time.Now()
@@ -322,6 +335,139 @@ func cpuNative(db interface {
 		emit("native_cpu_sample", map[string]any{"tag": tag, "ms": elapsed, "thread_cpu_ms": cpuMs, "sched_wait_ms": waitMs, "checkpoint_overlap": overlap, "start_unix_ns": t.UnixNano(), "end_unix_ns": time.Now().UnixNano()})
 	}
 	if strings.Contains(tag, "commit") {
+		trackCommit(preWal, walState(), tag)
 		commitCount.Add(1)
 	}
+}
+
+var snapshotCap time.Duration
+var snapshotStop = make(chan struct{})
+var snapshotDone = make(chan struct{})
+var snapshotStarted bool
+
+func startSnapshotProbe() {
+	if snapshotCap <= 0 {
+		return
+	}
+	snapshotStarted = true
+	go func() {
+		defer close(snapshotDone)
+		db := open(databasePath)
+		defer db.Close()
+		for {
+			select {
+			case <-snapshotStop:
+				return
+			default:
+			}
+			start := time.Now()
+			exec(db, "BEGIN")
+			var id int
+			e := db.QueryRow("SELECT id FROM catalog_entities ORDER BY id LIMIT 1").Scan(&id)
+			if e != nil && e != sql.ErrNoRows {
+				panic(e)
+			}
+			timer := time.NewTimer(snapshotCap)
+			select {
+			case <-snapshotStop:
+				timer.Stop()
+				exec(db, "COMMIT")
+				return
+			case <-timer.C:
+			}
+			exec(db, "COMMIT")
+			emit("snapshot_lifetime", map[string]any{"configured_ms": snapshotCap.Milliseconds(), "actual_ms": float64(time.Since(start).Microseconds()) / 1000, "start_unix_ns": start.UnixNano()})
+			select {
+			case <-snapshotStop:
+				return
+			case <-time.After(50 * time.Millisecond):
+			}
+		}
+	}()
+}
+
+type frameRange struct {
+	start, end uint32
+	user       bool
+}
+
+var debtMu sync.Mutex
+var debtSalt string
+var knownDurableFrame uint32
+var ranges = []frameRange{}
+var resetCount uint64
+
+func pruneDurability() {
+	out := ranges[:0]
+	for _, r := range ranges {
+		if r.end > knownDurableFrame {
+			out = append(out, r)
+		}
+	}
+	ranges = out
+}
+func trackCommit(before, after walInfo, tag string) {
+	if !before.Valid || !after.Valid {
+		return
+	}
+	debtMu.Lock()
+	defer debtMu.Unlock()
+	if debtSalt != after.Salt {
+		if debtSalt != "" {
+			resetCount++
+			emit("wal_reset", map[string]any{"count": resetCount, "salt": after.Salt, "active_bytes": after.ActiveBytes})
+		}
+		debtSalt = after.Salt
+		knownDurableFrame = 0
+		ranges = nil
+	}
+	if strings.Contains(tag, "security_FULL") || durability == "FULL" {
+		knownDurableFrame = after.Frames
+		pruneDurability()
+		return
+	}
+	start := before.Frames
+	if before.Salt != after.Salt {
+		start = 0
+	}
+	if after.Frames > start {
+		ranges = append(ranges, frameRange{start, after.Frames, strings.Contains(tag, "progress_NORMAL")})
+	}
+	pruneDurability()
+}
+func markCheckpointDurable(before, after walInfo, frames, backfilled int) {
+	if !before.Valid || !after.Valid || before.Salt != after.Salt || backfilled <= int(before.Backfill) {
+		return
+	}
+	debtMu.Lock()
+	defer debtMu.Unlock()
+	if debtSalt == after.Salt && uint32(frames) > knownDurableFrame {
+		knownDurableFrame = uint32(frames)
+		pruneDurability()
+	}
+}
+func currentDurabilityDebt(w walInfo) map[string]any {
+	debtMu.Lock()
+	defer debtMu.Unlock()
+	bg, user := uint64(0), uint64(0)
+	if w.Salt == debtSalt {
+		for _, r := range ranges {
+			start := r.start
+			if start < knownDurableFrame {
+				start = knownDurableFrame
+			}
+			end := r.end
+			if end > w.Frames {
+				end = w.Frames
+			}
+			if end > start {
+				if r.user {
+					user += uint64(end - start)
+				} else {
+					bg += uint64(end - start)
+				}
+			}
+		}
+	}
+	return map[string]any{"background_bytes": bg * 4120, "normal_user_bytes": user * 4120, "known_durable_frame": knownDurableFrame, "scope": "frame ledger after last confirmed FULL or advancing PASSIVE sync; in-flight sync conservatively outstanding"}
 }

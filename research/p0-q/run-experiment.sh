@@ -3,7 +3,9 @@ set -euo pipefail
 root="$RUNNER_TEMP/p0-q-experiment"
 mkdir -p "$root/out" "$root/work"
 mixed_args=()
-if [ "${MIXED:-0}" = 1 ]; then mixed_args=(-mixed -mixed-duration 600s); fi
+if [ "${SNAPSHOT_CAP:-0}" != 0 ]; then mixed_args+=(-snapshot-cap "${SNAPSHOT_CAP}ms"); fi
+if [ "${BOUNDED:-0}" = 1 ]; then mixed_args+=(-bounded-readers); fi
+if [ "${MIXED:-0}" = 1 ]; then mixed_args+=(-mixed -mixed-duration 600s); fi
 cleanup() { sudo python3 -c 'import shutil,sys; shutil.rmtree(sys.argv[1],ignore_errors=True)' "$root/work"; }
 trap cleanup EXIT
 lscpu > "$root/out/cpu.txt"

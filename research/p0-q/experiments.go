@@ -228,14 +228,22 @@ func experiment(db *sql.DB, path string, n, samples, rounds int, mode string) {
 				first, deferred, proof := hybridOnce(rd, q)
 				emit("concurrent_hybrid", map[string]any{"query": q.Text, "first_ms": first, "deferred_ms": deferred, "proof": proof})
 			} else {
-				search(rd, "A", q)
+				if boundedReaders {
+					fastTitlePage(rd, q)
+				} else {
+					search(rd, "A", q)
+				}
 				emit("concurrent_tune", map[string]any{"query": q.Text, "ms": float64(time.Since(t).Microseconds()) / 1000, "checkpoint_overlap": cpActive || cpRunning.Load() || cpSeq != cpSequence.Load()})
 			}
 			readerCount.Add(1)
 			i++
+			if boundedReaders {
+				time.Sleep(50 * time.Millisecond)
+			}
 		}
 	}()
 	peakWal := int64(0)
+	churnOps := 0
 	for i, started := 0, time.Now(); i < rounds || (mixedEnabled && time.Since(started) < mixedDuration); i++ {
 		serviceForeground(db)
 		admitPublication()
@@ -248,6 +256,7 @@ func experiment(db *sql.DB, path string, n, samples, rounds int, mode string) {
 			renameFragment(db, 1+i%shared, fmt.Sprintf("Ada Churn Common %d", i))
 			native(db, "churn.commit", "COMMIT")
 		})
+		churnOps++
 		if f, e := os.Stat(path + "-wal"); e == nil {
 			peakWal = max(peakWal, f.Size())
 		}
@@ -290,5 +299,5 @@ func experiment(db *sql.DB, path string, n, samples, rounds int, mode string) {
 	emit("debt_final", debt(db))
 	finishMixed(db)
 	dumpOperations()
-	emit("completed", map[string]any{"wal_peak_bytes": peakWal, "peak_same_level": maxDebt, "tombstone_operations": rounds * 2})
+	emit("completed", map[string]any{"wal_peak_bytes": peakWal, "peak_same_level": maxDebt, "tombstone_operations": churnOps * 2, "churn_operations": churnOps, "new_items": min(churnOps, rounds)})
 }
