@@ -47,6 +47,30 @@ test('a guide summary read that started before a write never replaces the facts 
   } finally {recordings.dispose(); lifetime.dispose();}
 });
 
+test('a write while the Recordings facts read is held reads the facts afresh; the held read never stands over them (review)', async () => {
+  let reads = 0, storageReads = 0, conflicts = 2, release!: () => void;
+  const {lifetime, recordings} = controller({
+    summary: async () => {reads++; const sampled = conflicts; if (reads === 2) await new Promise<void>(resolve => {release = resolve;}); return {...summary(sampled), upcoming: sampled ? 2 : 1};},
+    // The fresh read reaches storage first; the held read's storage answers after it.
+    storage: async () => ({call: ++storageReads}),
+    cancel: async () => {conflicts = 0; return {id: 'r', state: 'cancelled'};},
+    list: async () => ({revision: 1, recordings: [], rules: []}),
+  });
+  try {
+    await recordings.loadSummary();
+    const held = recordings.loadFacts();
+    assert.ok(await recordings.cancel({id: 'r', revision: 1, state: 'scheduled'} as any), 'the cancel succeeds');
+    for (let i = 0; i < 4; i++) await new Promise(resolve => setImmediate(resolve));
+    assert.equal(reads, 3, 'the post-write facts read starts afresh instead of joining the held one');
+    assert.deepEqual([recordings.getSnapshot().summary?.conflicts, recordings.getSnapshot().summary?.upcoming], [0, 1]);
+    assert.deepEqual(recordings.getSnapshot().storage, {call: 1});
+    release(); await held;
+    for (let i = 0; i < 4; i++) await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual([recordings.getSnapshot().summary?.conflicts, recordings.getSnapshot().summary?.upcoming], [0, 1], 'the held summary answers last but does not bring the old counts back');
+    assert.equal(storageReads, 2); assert.deepEqual(recordings.getSnapshot().storage, {call: 1}, 'nor does its storage');
+  } finally {recordings.dispose(); lifetime.dispose();}
+});
+
 test('a summary read that fails draws no dot and is never the Recordings page\'s error', async () => {
   const {lifetime, recordings} = controller({summary: async () => {throw new Error('offline');}});
   try {
