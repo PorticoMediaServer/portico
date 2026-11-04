@@ -220,12 +220,18 @@ func browse(c *sql.Conn, out, hash string) {
 						continue
 					}
 					xs := []float64{}
+					refusals := []float64{}
+					errs := map[string]int{}
+					terminal := 0
 					var plan []any
 					var lastSQL string
 					for j := -20; j < samples; j++ {
 						where := "library_id=1 AND kind=1 AND retired=0"
+						if col == "resolution_key" {
+							where += " AND kind IN(1,2,3,4,10)"
+						}
 						if page == "random-keyset" {
-							anchor := 2048 + ((j+21)*104729)%(resident-4096)
+							anchor := resident/5 + ((j+21)*104729)%(resident*3/5)
 							op := ">"
 							if direction == "DESC" {
 								op = "<"
@@ -234,26 +240,20 @@ func browse(c *sql.Conn, out, hash string) {
 						}
 						q := "SELECT " + projection + " FROM catalog_entities WHERE " + where + " ORDER BY " + col + " " + direction + ",id " + direction + " LIMIT 40"
 						lastSQL = q
-						start := time.Now()
-						rows, e := c.QueryContext(context.Background(), q)
-						must(e)
-						columns, e := rows.Columns()
-						must(e)
-						count := 0
-						for rows.Next() {
-							v := make([]any, len(columns))
-							ptr := make([]any, len(columns))
-							for k := range v {
-								ptr[k] = &v[k]
+						ms, n, _, err := readSample(c, q, 200*time.Millisecond)
+						if err != "" {
+							errs[err]++
+							refusals = append(refusals, ms)
+							if len(refusals) >= 5 {
+								break
 							}
-							must(rows.Scan(ptr...))
-							count++
+							continue
 						}
-						must(rows.Err())
-						must(rows.Close())
-						ms := float64(time.Since(start).Nanoseconds()) / 1e6
-						if count != 40 {
-							panic(fmt.Sprintf("incomplete browse rows %d", count))
+						if n > 40 {
+							panic("browse limit violated")
+						}
+						if n < 40 {
+							terminal++
 						}
 						if j >= 0 {
 							xs = append(xs, ms)
@@ -268,12 +268,19 @@ func browse(c *sql.Conn, out, hash string) {
 						plan = append(plan, detail)
 					}
 					must(rows.Close())
-					results = append(results, map[string]any{"sort": col, "direction": direction, "projection": projection, "page": page, "n": len(xs), "p50_ms": pct(xs, .5), "p95_ms": pct(xs, .95), "p99_ms": pct(xs, .99), "max_ms": pct(xs, 1), "samples_ms": xs, "last_sql": lastSQL, "plan": plan})
+					result := map[string]any{"sort": col, "direction": direction, "projection": projection, "page": page, "n": len(xs), "refusals_ms": refusals, "errors": errs, "terminal_pages": terminal, "samples_ms": xs, "last_sql": lastSQL, "plan": plan}
+					if len(xs) > 0 {
+						result["p50_ms"] = pct(xs, .5)
+						result["p95_ms"] = pct(xs, .95)
+						result["p99_ms"] = pct(xs, .99)
+						result["max_ms"] = pct(xs, 1)
+					}
+					results = append(results, result)
+					save(filepath.Join(out, fmt.Sprintf("bundled-browse-%d.json", os.Getpid())), map[string]any{"ddl_sha256": hash, "entities": resident, "results": results, "boundary": "Movie SQL; 500 attempts after20warmups; first/changing tuple anchors; 200ms physical read deadline, refusals excluded from ready percentiles; logical partial-index guard explicit; warm OS, no HTTP/authority"})
 				}
 			}
 		}
 	}
-	save(filepath.Join(out, fmt.Sprintf("bundled-browse-%d.json", os.Getpid())), map[string]any{"ddl_sha256": hash, "entities": resident, "results": results, "boundary": "Movie entity SQL pages; ID-only vs card columns, first vs changing tuple anchors, complete40rows,500samples after20warmups; no authority/HTTP, OS warm"})
 }
 func main() {
 	ddl := flag.String("ddl", "", "exact integrated DDL")
@@ -446,6 +453,10 @@ func readSample(c *sql.Conn, q string, deadline time.Duration) (float64, int, st
 	}
 	if e == nil {
 		e = rows.Err()
+	}
+	closeErr := rows.Close()
+	if e == nil {
+		e = closeErr
 	}
 	err := ""
 	if e != nil {
