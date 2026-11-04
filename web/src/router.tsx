@@ -14,6 +14,7 @@ import {localDeviceHint} from './platform/local-device-entry';
 import {createServerScope, scopedLinks} from './platform/server-scope';
 import {currentWebEnvironment} from './platform/environment';
 import {LinkUnavailableScreen, linkUnavailableSearch} from './shell/LinkUnavailable';
+import {rememberSettingsReturn, trackSettingsReturn} from './shell/settings-return';
 
 // Local approval links are hints, not grants. Scrub before Router parses/stores
 // the initial history entry; account return/Security paths are never captured.
@@ -82,3 +83,8 @@ export const routeTree = rootRoute.addChildren([...destinations, ...devRoutes]);
 // errorComponents still catch their own destinations.
 export const router = createRouter({routeTree, rewrite: serverScope.rewrite, defaultViewTransition: false, scrollRestorationBehavior: 'instant', disableGlobalCatchBoundary: true});
 declare module '@tanstack/react-router' { interface Register { router: typeof router } }
+
+// Settings' Done (shell/settings-return.ts) goes back to the last page outside Settings, under the same authority.
+trackSettingsReturn(() => router.state.location);
+router.subscribe('onResolved', rememberSettingsReturn);
+export {settingsReturnHref} from './shell/settings-return';

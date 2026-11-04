@@ -103,3 +103,23 @@ for (const replacement of ['page', 'authority'] as const) {
     pager.dispose();h.binding.dispose();
   });
 }
+
+test('More audiobooks: a continuation the server refuses reads the first page once in place of the row; a second refusal ends it', async () => {
+  const refused = () => {throw Object.assign(new Error('Expired'), {code: 'invalid_cursor'});};
+  let reads = 0;
+  const h = harness(path => {
+    reads++;
+    if (path.includes('cursor=')) return refused();
+    // The first page read again after the refusal: the old row's b2 is gone, b9 is new, and a new cursor follows.
+    return reads === 1 ? response([book('b1'), book('b2')], 'tail') : response([book('b9'), book('b1')], 'again');
+  });
+  await h.binding.load();const page = h.binding.service.getSnapshot().projection!;
+  const first = await h.binding.moreBooks(page), pager = h.binding.moreBooksPager(page, first);
+  await pager.more();
+  assert.deepEqual(pager.getSnapshot().entries.map(e => e.id), ['b9', 'b1']);assert.equal(pager.getSnapshot().cursor, 'again');
+  assert.equal(pager.getSnapshot().error, undefined);assert.equal(h.paths[2], '/v1/items/seed/similar?limit=12', 'the first page, without a cursor');
+  await pager.more();
+  assert.deepEqual(pager.getSnapshot().error, {code: 'invalid_cursor', stale: true});assert.equal(pager.getSnapshot().cursor, undefined);
+  assert.deepEqual(pager.getSnapshot().entries.map(e => e.id), ['b9', 'b1']);assert.equal(h.paths.length, 4);
+  pager.dispose();h.binding.dispose();
+});

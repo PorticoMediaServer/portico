@@ -6,13 +6,14 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
 
-func configureProbePool(t *testing.T) {
+func configureProbePool(t testing.TB) {
 	t.Helper()
 	binary, err := os.Executable()
 	if err != nil {
@@ -126,5 +127,85 @@ func TestProbeWorkerRefusesOutsideItsPIDNamespace(t *testing.T) {
 	}
 	if err := runProbeWorker([]string{ProbeWorkerFlag, "/usr/bin/ffprobe"}); !errors.Is(err, errProbeWorkerOutsideSandbox) {
 		t.Fatalf("worker outside a PID namespace: %v", err)
+	}
+}
+
+// Custody belongs to namespace creation. Warm eligibility and probes must not
+// reread the ELF closure; a replacement sandbox must still validate it.
+func TestProbeWorkerValidatesLibrariesOnlyForNewSandboxes(t *testing.T) {
+	_, ffprobe := sandboxed(t)
+	configureProbePool(t)
+	job := Job{Executable: ffprobe, Background: true}
+	// Version output is deterministic and still launches the real confined tool.
+	input, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer input.Close()
+	p := PooledProbe{Job: job, Input: input, OutputLimit: 1 << 20}
+	p.Job.Args = []string{"-version"}
+	previous := openLibraryMetadataInput
+	reads := 0
+	openLibraryMetadataInput = func(path string, flags int, mode os.FileMode) (*os.File, error) {
+		reads++
+		return previous(path, flags, mode)
+	}
+	t.Cleanup(func() { openLibraryMetadataInput = previous })
+	run := func() {
+		t.Helper()
+		result, handled, err := RunPooledProbe(context.Background(), p)
+		if !handled || err != nil || result.Err != nil {
+			t.Fatalf("probe handled=%v err=%v tool=%v stderr=%s", handled, err, result.Err, result.Stderr)
+		}
+	}
+	run()
+	if reads == 0 {
+		t.Fatal("new sandbox skipped library validation")
+	}
+	reads = 0
+	if !ProbePoolAccepts(job) {
+		t.Fatal("warm probe refused")
+	}
+	run()
+	if reads != 0 {
+		t.Fatalf("warm eligibility/probe reread library metadata %d times", reads)
+	}
+	closeIdleProbeWorkers()
+	run()
+	if reads == 0 {
+		t.Fatal("replacement sandbox skipped library validation")
+	}
+	closeIdleProbeWorkers()
+	openLibraryMetadataInput = func(string, int, os.FileMode) (*os.File, error) { return nil, os.ErrPermission }
+	before := ProbePoolSnapshot().WorkersStarted
+	if _, handled, err := RunPooledProbe(context.Background(), p); handled || err != nil {
+		t.Fatalf("unverifiable closure must fall back without starting a worker: handled=%v err=%v", handled, err)
+	}
+	if ProbePoolSnapshot().WorkersStarted != before {
+		t.Fatal("new sandbox started without library custody")
+	}
+}
+
+// Two eligibility decisions per probe model storage admission and pool dispatch.
+func BenchmarkProbeWorkerProbeLaunchPlanning(b *testing.B) {
+	tool, err := exec.LookPath("ffprobe")
+	if err != nil {
+		b.Skip(err)
+	}
+	if posture := Decide(tool); !posture.Sandboxed {
+		b.Skip(posture.Reason)
+	}
+	configureProbePool(b)
+	job := Job{Executable: tool, Background: true}
+	if !ProbePoolAccepts(job) {
+		b.Fatal("probe refused")
+	}
+	b.ResetTimer()
+	for b.Loop() {
+		for range 2 {
+			if !ProbePoolAccepts(job) {
+				b.Fatal("probe refused")
+			}
+		}
 	}
 }

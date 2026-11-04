@@ -348,3 +348,81 @@ test('SRV-A2: a Continue card names a page book\'s page and never an EPUB\'s pac
   assert.equal(readingResumePage({location: {format: 'cbz', pageIndex: -1, progression: 0}}), undefined);
 });
 
+
+// RD-8 / DECISIONS W-19: a profile's own sessions never refuse an open (the server closes its least
+// recently used one); only the server-wide cap answers 503 `reading_sessions_busy` with Retry-After.
+const busy = (retryAfter?: string) => new Response(JSON.stringify({error: {code: 'reading_sessions_busy', message: 'Too many reading sessions are open. Try again in a moment.', retry: 'same_request'}}),
+  {status: 503, headers: {'Content-Type': 'application/json', ...(retryAfter === undefined ? {} : {'Retry-After': retryAfter})}});
+const opens = (f: ReturnType<typeof setup>) => f.calls.filter(call => call.url.pathname === routePath('post_reading_sessions')).length;
+
+/** Mock timers, plus the delays the code under test asks for, so a test ticks only once the
+ * Retry-After wait is really armed (under load the open's await chain can be slower). */
+function busyTimers(t: import('node:test').TestContext) {
+  t.mock.timers.enable({apis: ['setTimeout']});
+  const mocked = globalThis.setTimeout, delays: number[] = [];
+  globalThis.setTimeout = ((fn: () => void, ms?: number, ...rest: unknown[]) => {delays.push(ms ?? 0); return (mocked as (...a: unknown[]) => unknown)(fn, ms, ...rest);}) as typeof setTimeout;
+  return {
+    async armed(ms: number) {for (let i = 0; i < 20000 && !delays.includes(ms); i++) await new Promise(setImmediate); assert.ok(delays.includes(ms), `a ${ms} ms wait was armed`);},
+    restore() {globalThis.setTimeout = mocked;},
+  };
+}
+
+test('RD-8: a busy server is waited out as Retry-After asks, then the open is tried once more and succeeds', async t => {
+  const clock = busyTimers(t);
+  try {
+    const f = setup(); let refusals = 1;
+    f.hook(call => call.url.pathname === routePath('post_reading_sessions') && refusals-- > 0 ? busy('2') : undefined);
+    const opening = f.client.open({itemId: 'book', sourceId: 'asset'});
+    await clock.armed(2000);
+    assert.equal(opens(f), 1);
+    t.mock.timers.tick(1900); for (let i = 0; i < 50; i++) await new Promise(setImmediate);
+    assert.equal(opens(f), 1, 'not before Retry-After');
+    t.mock.timers.tick(100);
+    const session = await opening;
+    assert.equal(opens(f), 2); assert.equal(session.manifest.sessionId, 'session');
+  } finally {clock.restore();}
+});
+
+test('RD-8: still busy after the one wait, the open fails as reading_sessions_busy (503) carrying Retry-After, never looping', async t => {
+  const clock = busyTimers(t);
+  try {
+    const f = setup();
+    f.hook(call => call.url.pathname === routePath('post_reading_sessions') ? busy('3') : undefined);
+    const settled = f.client.open({itemId: 'book', sourceId: 'asset'}).then(() => assert.fail('opened'), (error: unknown) => error);
+    await clock.armed(3000);
+    t.mock.timers.tick(3000);
+    const error = await settled as ReadingError & {retryAfterSeconds?: number};
+    assert.ok(coded('reading_sessions_busy')(error)); assert.equal(error.status, 503);
+    assert.equal(error.retryAfterSeconds, 3, 'the reader can say when to try again');
+    assert.equal(opens(f), 2, 'one wait, one more try');
+  } finally {clock.restore();}
+});
+
+test('RD-8: the wait is capped and abortable, and a busy answer without Retry-After waits the short default', async t => {
+  const clock = busyTimers(t);
+  try {
+    const capped = setup(); let once = 1;
+    capped.hook(call => call.url.pathname === routePath('post_reading_sessions') && once-- > 0 ? busy('3600') : undefined);
+    const long = capped.client.open({itemId: 'book', sourceId: 'asset'});
+    await clock.armed(10_000); t.mock.timers.tick(10_000); await long; assert.equal(opens(capped), 2, 'an hour asked, ten seconds waited at most');
+    const aborted = setup(), controller = new AbortController();
+    aborted.hook(call => call.url.pathname === routePath('post_reading_sessions') ? busy('2') : undefined);
+    const cancelled = aborted.client.open({itemId: 'book', sourceId: 'asset'}, controller.signal).then(() => 'opened', (error: unknown) => error instanceof ReadingError ? error.code : String(error));
+    await clock.armed(2000);
+    controller.abort(); assert.equal(await cancelled, 'cancelled'); assert.equal(opens(aborted), 1, 'leaving the reader stops the wait');
+    const plain = setup(); let first = 1;
+    plain.hook(call => call.url.pathname === routePath('post_reading_sessions') && first-- > 0 ? busy() : undefined);
+    const quick = plain.client.open({itemId: 'book', sourceId: 'asset'});
+    for (let i = 0; i < 20000 && opens(plain) < 1; i++) await new Promise(setImmediate);
+    for (let i = 0; i < 20000 && opens(plain) < 2; i++) {t.mock.timers.tick(100); await new Promise(setImmediate);}
+    await quick; assert.equal(opens(plain), 2);
+  } finally {clock.restore();}
+});
+
+test('RD-8: a busy reading open presents in the catalogue\'s retry-later words, with its Retry-After', async () => {
+  const {presentError} = await import('../src/presentation/errors.ts');
+  const {defaultI18n} = await import('../../i18n/src/index.ts');
+  const shown = presentError(new ReadingError('reading_sessions_busy', 503, 3));
+  assert.equal(shown.category, 'busy'); assert.equal(shown.body, defaultI18n.t('error.busy'));
+  assert.equal(shown.retryAfterSeconds, 3);
+});

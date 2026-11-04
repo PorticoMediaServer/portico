@@ -1,21 +1,39 @@
-/* The owner's Libraries list. Rows use the settings panel's own type and line
-   treatment: a 60px row with the library's name over its folder, one glass
-   action and the row menu. Nothing here draws scan progress. */
+/* owner-libraries.html frames 1 and 24a: one panel of library rows. Each row is its grip, a fan of
+   its covers, its name over its counts, one state line and the row menu. */
 .list {
   margin: 0;
   padding: 0;
   list-style: none;
-  border-top: 1px solid var(--color-line-soft);
+  border-radius: 16px;
+  background: var(--color-raised-soft);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  overflow: hidden;
+  container-type: inline-size;
 }
 
 .row {
   display: flex;
   align-items: center;
-  gap: 16px;
-  min-height: 64px;
-  padding: 12px 4px;
-  border-bottom: 1px solid var(--color-line-soft);
+  gap: 18px;
+  min-height: 127px;
+  padding: 18px 20px;
 }
+.row + .row { border-top: 1px solid var(--color-line-soft); }
+
+.covers { flex: none; display: flex; flex-direction: row-reverse; justify-content: flex-end; align-items: flex-start; width: 144px; height: 90px; }
+/* Covers are in reverse order, so the first cover paints last and sits on top, the others fanned behind it. */
+.covers > span { flex: none; width: 60px; height: 90px; border-radius: 6px; overflow: hidden; box-shadow: 0 6px 16px -6px var(--color-ink); }
+.covers > span + span { margin-right: -22px; }
+.covers > span:nth-last-child(2) { height: 84px; margin-top: 3px; } .covers > span:nth-last-child(3) { height: 78px; margin-top: 6px; }
+.covers[data-square] > span { width: 72px; height: 72px; }
+.covers[data-square] { height: 90px; align-items: center; }
+.identity .name { font-size: var(--type-subheading-size); font-weight: var(--type-title-weight); }
+.counts { display: flex; flex-wrap: wrap; gap: 0 12px; font-size: var(--type-caption-size); color: var(--color-text-secondary); }
+.state { display: inline-flex; align-items: center; gap: 8px; font-size: var(--type-caption-size); color: var(--color-text-secondary); white-space: nowrap; }
+.state > i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--color-healthy); }
+.stateNarrow { display: none; }
+.state[data-state='scanning'] { color: var(--color-accent-strong); font-weight: var(--type-body-strong-weight); }
+.state[data-state='scanning'] > i { background: var(--color-accent-strong); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent-strong) 25%, transparent); }
 
 .grip { flex: none; width: 24px; height: 36px; display: grid; place-items: center; padding: 0; border: 0; background: none; color: var(--color-text-tertiary); cursor: grab; touch-action: none; }
 .grip:active { cursor: grabbing; }
@@ -39,21 +57,13 @@
   overflow-wrap: anywhere;
 }
 
-.folder, .lastScan {
+.folder {
   font-size: var(--type-caption-size);
   font-weight: var(--type-micro-weight);
   color: var(--color-text-tertiary);
   overflow-wrap: anywhere;
 }
 
-.scanning {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--type-caption-size);
-  font-weight: var(--type-body-strong-weight);
-  color: var(--color-text-secondary);
-}
 
 .loading,
 .empty {
@@ -155,11 +165,27 @@
 .skippedEmpty b {font-size: var(--type-subheading-size); font-weight: var(--type-title-weight); letter-spacing: var(--type-subheading-tracking);}
 .skippedEmpty p {margin: 8px 0 0; max-width: 420px; font-size: var(--type-body-size); line-height: var(--type-body-line); color: var(--color-text-secondary);}
 
-.lastScan { display: none; }
-@media (max-width: 599px) {
-  .row { gap: 8px; }
+/* Wide list: the state sits at the row's right, before the menu. A narrow list (a phone, 24a, or a 1024 window
+   beside the settings menu) keeps it as the last line under the counts. */
+@container (min-width: 680px) {
+  .identity { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 20px; row-gap: 4px; }
+  .identity > * { grid-column: 1; }
+  .identity > .state { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+}
+@container (max-width: 679px) {
+  .row { gap: 12px; min-height: 0; padding: 12px 12px 12px 4px; }
   .grip { width: 24px; min-height: 44px; }
   .kindIcon { width: 28px; }
-  .folder { display: none; }
-  .lastScan:not(:empty) { display: block; }
+  .covers { width: 72px; height: 54px; }
+  .covers > span { width: 36px; height: 54px; } .covers > span + span { margin-right: -18px; }
+  .covers > span:nth-last-child(2) { height: 50px; margin-top: 2px; } .covers > span:nth-last-child(3) { height: 46px; margin-top: 4px; }
+  .covers[data-square] { height: 54px; } .covers[data-square] > span { width: 44px; height: 44px; margin-top: 5px; } .covers[data-square] > span + span { margin-right: -30px; }
+}
+/* Phone width follows 24a: no grip (the ⋯ menu's Move up / Move down reorder), no dot beside an idle state (the
+   accent dot marks Scanning only), and the short wording ("Scanned today", no time). */
+@media (max-width: 599px) {
+  .row { padding-left: 14px; }
+  .grip { display: none; }
+  .state[data-state='idle'] > i { display: none; }
+  .stateWide { display: none; } .stateNarrow { display: inline; }
 }

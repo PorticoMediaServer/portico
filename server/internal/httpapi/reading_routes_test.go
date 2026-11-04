@@ -179,7 +179,7 @@ func TestReadingRegisteredPDFLifecycle(t *testing.T) {
 	if w.Code != 204 || w.Body.Len() != 0 {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	if w = readingHTTP(t, h, "GET", base+"/source", token, m.Revision, nil); w.Code != 403 {
+	if w = readingHTTP(t, h, "GET", base+"/source", token, m.Revision, nil); w.Code != 410 || v1Code(w) != "reading_session_expired" {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	current := readingOpened(t, r, h)
@@ -264,7 +264,7 @@ func TestReadingRegisteredArchiveAssets(t *testing.T) {
 			if w = readingHTTP(t, h, "DELETE", base, token, "", nil); w.Code != 204 {
 				t.Fatal(w.Code, w.Body.String())
 			}
-			if w = readingHTTP(t, h, "GET", path, token, m.Revision, nil); w.Code != 403 {
+			if w = readingHTTP(t, h, "GET", path, token, m.Revision, nil); w.Code != 410 || v1Code(w) != "reading_session_expired" {
 				t.Fatal(w.Code, w.Body.String())
 			}
 		})

@@ -262,7 +262,9 @@ export class SettingsController {
       error: this.rowErrors.has(row.id) ? defaultI18n.t('next.states.pageFailedBody') : undefined};
   };
   configurationMatches = (query: string) => this.configuration && this.options.role === 'owner' && this.options.mainProfile ? searchConfiguration(this.configuration, query).filter(field => configurationFieldEligible(field, this.eligible) && (settingsRowIndex.has(field.id) || settingsSpec.some(section => section.configOnly.some(item => item.key === field.key)))).map(field => ({...field, label: settingsRowIndex.has(field.id) ? defaultI18n.t(settingsRowIndex.get(field.id)!.row.label) : defaultI18n.t(settingsSpec.flatMap(section => section.configOnly).find(item => item.key === field.key)!.label), path: this.configuration!.path})) : [];
-  load = (section: SettingsSection): Promise<void> => {
+  /** The server band's health and storage facts ("Running normally · Up for … · free · Database …"), read once for
+   * every server page, including pages that own their other reads (Live TV & Channels, Remote sources). */
+  loadServerHeader = (section: SettingsSection): Promise<void> => {
     if (!this.current() || !this.sectionVisible(section)) return Promise.resolve();
     if (section.scope === 'server' && this.forms.runtime && !this.headerLoading) this.headerLoading = (async () => {
       const [health, storage] = await Promise.allSettled([this.console.measurement('health'), this.console.measurement('storage')]);
@@ -271,6 +273,11 @@ export class SettingsController {
       this.header = settingsServerHeader(this.headerHealth,this.headerStorage);
       this.publish({});
     })();
+    return this.headerLoading ?? Promise.resolve();
+  };
+  load = (section: SettingsSection): Promise<void> => {
+    if (!this.current() || !this.sectionVisible(section)) return Promise.resolve();
+    void this.loadServerHeader(section);
     const formIds = new Set([...settingsRowIndex.values()].filter(location => location.section === section && this.eligible(location.row))
       .map(location => settingsBinding(location.row.id)?.form)
       .map(id => id === 'connectivityStatus' ? 'connectivity' : id)

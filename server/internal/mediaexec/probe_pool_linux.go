@@ -143,12 +143,15 @@ func ProbePoolAccepts(job Job) bool {
 
 type probeWorkerArgs struct {
 	executable string
-	argv       []string
+	helper     string
+	job        Job
+	posture    Posture
 	low        bool
 }
 
-// probeWorkerSpec decides whether p can use the pool and builds its worker's
-// launch: the job's own sandbox with the server binary bound in as the worker.
+// probeWorkerSpec decides whether p can use the pool without rebuilding a
+// sandbox an idle worker already owns. Library custody is checked when a new
+// namespace is created, never cached across namespace launches.
 func probeWorkerSpec(p PooledProbe) (string, probeWorkerArgs, bool) {
 	job := p.Job
 	if !ProbePoolEnabled.Load() || p.Input == nil || job.PreConfined || job.Loopback != "" || job.Hardware || job.Fonts ||
@@ -171,23 +174,28 @@ func probeWorkerSpec(p PooledProbe) (string, probeWorkerArgs, bool) {
 	if err != nil {
 		return "", probeWorkerArgs{}, false
 	}
-	key := strings.Join(append([]string{exe, fmt.Sprint(job.Background, p.LowPriority, job.MaxFileBytes)}, job.Libraries...), "\x00")
-	shell := job
-	shell.Executable, shell.Args = exe, nil
-	inner, err := sandboxArgv(shell, posture)
+	key := strings.Join(append([]string{exe, helper, fmt.Sprint(job.Background, p.LowPriority, job.MaxFileBytes)}, job.Libraries...), "\x00")
+	job.Executable, job.Args = exe, nil
+	return key, probeWorkerArgs{executable: exe, helper: helper, job: job, posture: posture, low: p.LowPriority}, true
+}
+
+// launchArgv runs only when taking an idle worker failed. Even a recycled or
+// retried worker revalidates its complete library closure and read-only binds.
+func (spec probeWorkerArgs) launchArgv() ([]string, error) {
+	inner, err := sandboxArgv(spec.job, spec.posture)
 	if err != nil {
-		return "", probeWorkerArgs{}, false
+		return nil, err
 	}
-	inner, err = asProbeWorker(inner, exe, helper)
+	inner, err = asProbeWorker(inner, spec.executable, spec.helper)
 	if err != nil {
-		return "", probeWorkerArgs{}, false
+		return nil, err
 	}
 	// The worker's own process gets the job's process policy (no files, low
 	// priority); its CPU limit is set per tool process instead, since the
 	// worker lives across jobs.
-	launch := shell
+	launch := spec.job
 	launch.MaxCPUSeconds = 0
-	return key, probeWorkerArgs{executable: exe, argv: shimArgv(launch, inner), low: p.LowPriority}, true
+	return shimArgv(launch, inner), nil
 }
 
 // asProbeWorker turns a probe's sandbox invocation, which ends with
@@ -330,6 +338,10 @@ func reapIdleProbeWorkers() {
 }
 
 func startProbeWorker(spec probeWorkerArgs) (*probeWorker, error) {
+	argv, err := spec.launchArgv()
+	if err != nil {
+		return nil, err
+	}
 	fds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_SEQPACKET|unix.SOCK_CLOEXEC, 0)
 	if err != nil {
 		return nil, err
@@ -338,8 +350,8 @@ func startProbeWorker(spec probeWorkerArgs) (*probeWorker, error) {
 	defer child.Close()
 	w := &probeWorker{control: control, exited: make(chan struct{}), stderr: &bytes.Buffer{}}
 	cmd := &exec.Cmd{
-		Path:       spec.argv[0],
-		Args:       spec.argv,
+		Path:       argv[0],
+		Args:       argv,
 		Env:        passedEnvironmentList(),
 		ExtraFiles: []*os.File{child},
 		Stderr:     &limited{buffer: w.stderr, limit: probeStderrBytes},

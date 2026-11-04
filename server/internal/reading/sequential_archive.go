@@ -96,6 +96,10 @@ func safeEntry(e sequentialEntry) error {
 }
 
 func openSequentialArchive(ctx context.Context, source SequentialSource) (*archive, error) {
+	return openSequentialArchiveWithLimits(ctx, source, safetyArchiveLimits)
+}
+
+func openSequentialArchiveWithLimits(ctx context.Context, source SequentialSource, limits archiveLimits) (*archive, error) {
 	if source.Size < 22 || source.Size > MaxSource || source.Open == nil {
 		return nil, ErrLimit
 	}
@@ -146,6 +150,9 @@ func openSequentialArchive(ctx context.Context, source SequentialSource) (*archi
 		if _, duplicate := all[e.name]; duplicate {
 			return nil, ErrInvalid
 		}
+		if uint64(e.size) > limits.member {
+			return nil, limits.exceeded
+		}
 		if err = safeEntry(e); err != nil {
 			return nil, err
 		}
@@ -158,13 +165,13 @@ func openSequentialArchive(ctx context.Context, source SequentialSource) (*archi
 			}
 			decoder := flate.NewReader(c.r)
 			hash := crc32.NewIEEE()
-			n, readErr := io.Copy(hash, io.LimitReader(contextReader{ctx, decoder}, MaxMember+1))
+			n, readErr := io.Copy(hash, io.LimitReader(contextReader{ctx, decoder}, int64(limits.member)+1))
 			decoder.Close()
 			if readErr != nil {
 				return nil, readErr
 			}
-			if n > MaxMember {
-				return nil, ErrLimit
+			if uint64(n) > limits.member {
+				return nil, limits.exceeded
 			}
 			e.size = n
 			e.compressed = c.position() - e.data
@@ -199,8 +206,8 @@ func openSequentialArchive(ctx context.Context, source SequentialSource) (*archi
 			return nil, err
 		}
 		expanded += e.size
-		if expanded > MaxExpanded {
-			return nil, ErrLimit
+		if uint64(expanded) > limits.total {
+			return nil, limits.exceeded
 		}
 		all[e.name] = e
 		if !e.directory {

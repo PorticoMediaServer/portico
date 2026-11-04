@@ -117,7 +117,13 @@ type ReadingSessionRequest struct {
 	ItemID   string `json:"itemId"`
 	SourceID string `json:"sourceId"`
 }
+type ReadingPublicationLimits struct {
+	MemberBytes int64 `json:"memberBytes"`
+	TotalBytes  int64 `json:"totalBytes"`
+}
+
 type ReadingSessionResponse struct {
+	Limits      *ReadingPublicationLimits    `json:"limits,omitempty"`
 	Conversion  *ReadingConversionProvenance `json:"conversion,omitempty"`
 	CanSaveFile bool                         `json:"canSaveFile,omitempty"`
 	CanAnnotate bool                         `json:"canAnnotate,omitempty"`

@@ -21,6 +21,8 @@ export const shellMessages = {
   'next.shell.server': 'Server',
   'next.shell.serverSettings': 'Server settings',
   'next.shell.ownerOnly': 'Owner only',
+  /** A server page shared with administrators (owner-server 33, 43a; owner-people 24a). */
+  'next.shell.ownerAndAdministrators': 'Owner and administrators',
   'next.shell.owner': 'Owner',
   'next.shell.administrator': 'Administrator',
   'next.shell.administrators': 'Administrators',

@@ -25,7 +25,7 @@ export type SeriesRulesProps = Readonly<{view: SeriesRulesView; navigation?: Rea
   preview?: Readonly<{ruleId: string; settings: RuleSettings; count: number; airings: readonly RuleAiring[]}>}>;
 export function LiveRecordingTabs({view, conflicts, onChange}: {view: 'guide' | 'recordings'; conflicts?: number; onChange?: (value: 'guide' | 'recordings') => void}) {
   return <Tabs className={styles.tabs} listClassName={styles.tabList} value={view} onValueChange={value => {if (value === 'guide' || value === 'recordings') onChange?.(value);}} aria-label={t('next.home.shell.live')} items={[
-    {value: 'guide', label: t('channels.title')}, {value: 'recordings', label: <>{t('recordings.title')}{conflicts !== undefined && conflicts > 0 && <span className={styles.conflictNote}>{t('next.live.conflicts', {count: conflicts})}</span>}</>},
+    {value: 'guide', label: t('channels.tabGuide')}, {value: 'recordings', label: <>{t('recordings.title')}{conflicts !== undefined && conflicts > 0 && <span className={styles.conflictNote}>{t('next.live.conflicts', {count: conflicts})}</span>}</>},
   ]}/>;
 }
 export function SeriesRules({view, navigation, busy = false, error, tail, onGuide, onView, onSave, onDelete, onDraft, preview}: SeriesRulesProps) {

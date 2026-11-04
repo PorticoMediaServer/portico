@@ -291,7 +291,7 @@ def js_static(plan,component):
     if component=='apps/desktop': execute(['npm','run','test:rust'],ROOT/component)
 
 def aggregate(plan,needs):
-    expected={'planner':True,'hygiene':True,'go_build':bool(plan['packages']),'go_vet_cross':bool(plan['packages']),'go_tests':bool(plan['packages']),'js':any(x['shards'] for x in plan['js']),'js_static':bool(plan['js']), 'android':plan.get('android',False)}
+    expected={'planner':True,'hygiene':True,'go_build':bool(plan['packages']),'go_vet_cross':bool(plan['packages']),'go_tests':bool(plan['packages']),'decoder_sandbox':bool(plan['packages']),'js':any(x['shards'] for x in plan['js']),'js_static':bool(plan['js']), 'android':plan.get('android',False)}
     for job,required in expected.items():
         actual=needs.get(job,{}).get('result')
         if actual != ('success' if required else 'skipped'): raise ValueError(f'{job}: unexpected {actual}')

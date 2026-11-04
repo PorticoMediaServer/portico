@@ -60,7 +60,7 @@ for (const tv of [false, true]) test(`actual ${tv ? 'TV' : 'phone'} Home/Row eff
     react, 'react-native': native, 'react-native-reanimated': animated,
     'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'},
     '../../../../../packages/i18n/src': {defaultI18n}, '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => theme},
-    '../focus': {FocusProvider: 'FocusProvider', FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', focusTestID: () => 'native-card', useOptionalFocusRegistry: () => registry},
+    '../focus': {FocusProvider: 'FocusProvider', FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', focusTestID: () => 'native-card', useCovered: () => false, useOptionalFocusRegistry: () => registry},
     '../focus/page-boundary': {useRowPageBoundary() {}}, './model': layoutModel, './row-state': rowState, './FocusAnchor': {useFocusAnchor}, './MotionItem': {MotionItem: 'MotionItem'}, './types': {itemSelection: () => undefined},
   });
   const recovery = await screenModule(new URL('../src-next/screens/home/useTvHomeRecovery.ts', import.meta.url), {

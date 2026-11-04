@@ -145,7 +145,10 @@ jobs:
           SHARD: ${{ matrix.shard }}
           SHARDS: '8'
         run: |
-          set -uo pipefail
+          set -euo pipefail
+          # macOS's default /var temp path aliases /private/var. Private-directory
+          # guards and SQLite compare canonical paths; give fixtures that same root.
+          export TMPDIR="$(python3 -c 'import os; print(os.path.realpath(os.environ["RUNNER_TEMP"]))')"
           tags="$(python3 ../scripts/release-build-tags.py --capability)"
           go build -tags "$tags" -o "$RUNNER_TEMP/portico-server" ./cmd/server
           export PORTICO_PLAYBACK_TEST_HELPER="$RUNNER_TEMP/portico-server"
@@ -173,6 +176,10 @@ jobs:
           name: macos-suite-${{ matrix.shard }}
           path: ${{ runner.temp }}/macos-suite
           retention-days: 7
+  decoder_sandbox:
+    needs: planner
+    if: needs.planner.outputs.go == 'true'
+    uses: ./.github/workflows/decoder-sandbox.yml
   go_tests:
     needs: planner
     if: needs.planner.outputs.go == 'true'
@@ -400,7 +407,7 @@ jobs:
   merge:
     name: ci/nightly/full
     if: ${{ !cancelled() }}
-    needs: [planner, hygiene, go_build, go_vet_cross, go_tests, js, js_static, android, diagnostic]
+    needs: [planner, hygiene, go_build, go_vet_cross, go_tests, decoder_sandbox, js, js_static, android, diagnostic]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:

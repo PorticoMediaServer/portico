@@ -99,6 +99,10 @@ func probeFormatsCommand(executable, input string, reservation *EndpointReservat
 }
 
 func confinedProbeCommand(executable, input string, reservation *EndpointReservation, args []string, libraries ...string) (*exec.Cmd, error) {
+	return probeJobCommand(executable, input, reservation, args, false, libraries...)
+}
+
+func probeJobCommand(executable, input string, reservation *EndpointReservation, args []string, background bool, libraries ...string) (*exec.Cmd, error) {
 	if !filepath.IsAbs(executable) || filepath.Clean(executable) != executable {
 		return nil, ErrInvalidConfiguration
 	}
@@ -117,7 +121,7 @@ func confinedProbeCommand(executable, input string, reservation *EndpointReserva
 	if !reservation.matches(endpoint) {
 		return nil, ErrInvalidConfiguration
 	}
-	return confinedCommand(executable, args, endpoint, libraries...)
+	return decoderJob{executable: executable, args: args, endpoint: endpoint, libraries: libraries, background: background}.command()
 }
 
 func bridgeEndpoint(input string) (string, error) {

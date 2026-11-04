@@ -143,6 +143,12 @@ export function parseRetryAfter(value: string | null | undefined, wallNowMs: num
 }
 
 /** A server floor carried by an error: retryAfterMs, or ApiError's retryAfterSeconds. */
+/** A response's Retry-After header, by parseRetryAfter, in milliseconds from now; the one place a
+ * raw Response's header is read, so modules holding a fetch Response need no header literal. */
+export function retryAfterFrom(headers: Readonly<{get(name: string): string | null}>, wallNowMs: number = serverNow()): number | undefined {
+  return parseRetryAfter(headers.get('Retry-After'), wallNowMs);
+}
+
 export function serverFloorFrom(error: unknown): ServerFloor | undefined {
   if (!error || typeof error !== 'object') return undefined;
   const e = error as {retryAfterMs?: unknown; retryAfterSeconds?: unknown};

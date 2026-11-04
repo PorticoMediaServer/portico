@@ -55,6 +55,7 @@ internal/catalog/episodic_reparse.go	(*Service).ReparseEpisodicIssues	ExecWrite	
 internal/catalog/episodic_reparse.go	(*Service).ReparseEpisodicIssues	WithWriteTx	ClassMaintenance	-
 internal/catalog/facet_runtime.go	(*FacetRuntime).writeBase	WithWriteTxContext	ClassBackgroundMedia	-
 internal/catalog/file_info_separate.go	(*Service).SeparateFileInfoVersion	Begin	ClassFrom(ctx, dbwork.ClassInteractive)	-
+internal/catalog/info_inventory_streams.go	(*Service).AcceptInventoryStreams	WithWriteTxContext	ClassBackgroundMedia	-
 internal/catalog/inventory.go	(*Service).CommitInventoryDiscRoot	Begin	ClassBackgroundMedia	-
 internal/catalog/inventory.go	(*Service).CommitInventoryNaming	Begin	ClassFrom(ctx, dbwork.ClassInteractive)	-
 internal/catalog/inventory.go	(*Service).CommitInventoryPage	Begin	ClassFrom(ctx, dbwork.ClassInteractive)	inventoryPagesPlanFor(len(page.Entries))

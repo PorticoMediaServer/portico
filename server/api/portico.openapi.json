@@ -139842,6 +139842,25 @@
           "itemId": {
             "type": "string"
           },
+          "limits": {
+            "properties": {
+              "memberBytes": {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              },
+              "totalBytes": {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "memberBytes",
+              "totalBytes"
+            ],
+            "type": "object"
+          },
           "metadata": {
             "properties": {
               "author": {
@@ -494858,6 +494877,25 @@
                     "itemId": {
                       "type": "string"
                     },
+                    "limits": {
+                      "properties": {
+                        "memberBytes": {
+                          "maximum": 9007199254740991,
+                          "minimum": -9007199254740991,
+                          "type": "integer"
+                        },
+                        "totalBytes": {
+                          "maximum": 9007199254740991,
+                          "minimum": -9007199254740991,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "memberBytes",
+                        "totalBytes"
+                      ],
+                      "type": "object"
+                    },
                     "metadata": {
                       "properties": {
                         "author": {
@@ -495088,6 +495126,7 @@
           "comic_archive_unsupported",
           "internal",
           "reading_sessions_busy",
+          "reading_publication_too_large",
           "database_busy",
           "writer_capacity"
         ],
@@ -495163,6 +495202,7 @@
           "body_too_large",
           "comic_archive_unsupported",
           "internal",
+          "reading_session_expired",
           "database_busy",
           "writer_capacity"
         ],
@@ -495540,6 +495580,7 @@
           "revision_mismatch",
           "request_in_progress",
           "body_too_large",
+          "reading_session_expired",
           "internal",
           "database_busy"
         ],
@@ -495912,6 +495953,7 @@
           "revision_mismatch",
           "request_in_progress",
           "body_too_large",
+          "reading_session_expired",
           "internal",
           "database_busy",
           "writer_capacity"
@@ -496031,6 +496073,7 @@
           "body_too_large",
           "comic_archive_unsupported",
           "internal",
+          "reading_session_expired",
           "reading_member_unreadable",
           "database_busy"
         ],
@@ -496140,6 +496183,7 @@
           "body_too_large",
           "comic_archive_unsupported",
           "internal",
+          "reading_session_expired",
           "database_busy",
           "writer_capacity"
         ],
@@ -496266,6 +496310,7 @@
           "body_too_large",
           "comic_archive_unsupported",
           "internal",
+          "reading_session_expired",
           "reading_member_unreadable",
           "database_busy"
         ],
@@ -496432,6 +496477,7 @@
           "body_too_large",
           "comic_archive_unsupported",
           "internal",
+          "reading_session_expired",
           "database_busy"
         ],
         "x-lane": "browsing",
@@ -496653,6 +496699,7 @@
           "body_too_large",
           "comic_archive_unsupported",
           "internal",
+          "reading_session_expired",
           "database_busy",
           "writer_capacity"
         ],
@@ -496872,6 +496919,7 @@
           "body_too_large",
           "comic_archive_unsupported",
           "internal",
+          "reading_session_expired",
           "search_busy",
           "database_busy"
         ],
@@ -496992,6 +497040,7 @@
           "body_too_large",
           "comic_archive_unsupported",
           "internal",
+          "reading_session_expired",
           "database_busy"
         ],
         "x-lane": "media",
@@ -497098,6 +497147,7 @@
           "body_too_large",
           "comic_archive_unsupported",
           "internal",
+          "reading_session_expired",
           "database_busy"
         ],
         "x-lane": "media",

@@ -349,7 +349,6 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   const chooseSort = (sort: string) => select({sort: sort as 'number' | 'name'});
   const sortPicker = phoneChrome ? <NativeLivePhonePicker testID="live-sort" accessibilityLabel={t('channels.sort')} value={state.options.sort ?? 'number'} options={sortOptions.map(option => ({id: option.value, label: option.label}))} onChange={chooseSort} placement="bottom-end" secondary>{sortOptions.find(option => option.value === state.options.sort)?.label}</NativeLivePhonePicker>
     : <Select testID="live-sort" accessibilityLabel={t('channels.sort')} value={state.options.sort ?? 'number'} options={sortOptions} onValueChange={chooseSort}/>;
-  const hasRecordings = state.sources.some(value => value.recordAvailable);
   const controls = ids.surface('live.controls'), grid = ids.surface('live.grid'), filters = ids.surface('live.filters');
   useTVPageBack(runtime, {kind: 'live'}, theme.isTV && !managementActive, {
     registerTop: true, scope: JSON.stringify([state.revision, view]),
@@ -392,6 +391,8 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   const filterEmptyView = <StateView testID="live-filter-empty" title={t('guide.filterEmpty', {filter: state.options.group ?? t('channels.favorites')})}
     primaryAction={{id: 'show-all', label: t('channels.showAll'), onPress: () => {if (theme.isTV) reentry({kind: 'press', revision: state.revision}); select({favorites: false, group: undefined});}}}/>;
   const managesServer = managementCurrent();
+  // As on web: the Recordings entry is drawn unless the viewer has no sources and no way to set one up; a server that cannot record shows its own unavailable state inside.
+  const hasRecordings = !(empty && !managesServer);
   // The public destination must be registered by Web and admitted by the handoff's
   // exact public URL validator before a control can offer it.
   const managementUrl = useMemo(() => {

@@ -71,16 +71,9 @@ func (p Policy) Allowed(ctx context.Context, db *sql.DB, who identity.Principal,
 	if db == nil {
 		return identity.ErrUnauthorized
 	}
-	gated, e := dbwork.BeginSnapshot(ctx, db)
-	if e != nil {
-		return e
-	}
-	tx := gated.Tx()
-	defer gated.Rollback()
-	if e = p.AllowedTxContext(ctx, who, library, tx); e != nil {
-		return e
-	}
-	return gated.Commit()
+	return withPolicySnapshot(ctx, db, func(snapshot context.Context) error {
+		return p.AllowedTxContext(snapshot, who, library, dbwork.Snapshot(snapshot))
+	})
 }
 
 // AllowedSet answers the same question as Allowed for several libraries at once,
@@ -102,29 +95,46 @@ func (p Policy) AllowedSet(ctx context.Context, db *sql.DB, who identity.Princip
 	if db == nil {
 		return nil, identity.ErrUnauthorized
 	}
-	gated, e := dbwork.BeginSnapshot(ctx, db)
-	if e != nil {
-		return nil, e
-	}
-	tx := gated.Tx()
-	defer gated.Rollback()
-	for _, library := range libraries {
-		if _, decided := out[library]; decided {
-			continue
+	err := withPolicySnapshot(ctx, db, func(snapshot context.Context) error {
+		tx := dbwork.Snapshot(snapshot)
+		for _, library := range libraries {
+			if _, decided := out[library]; decided {
+				continue
+			}
+			switch err := p.AllowedTxContext(snapshot, who, library, tx); {
+			case err == nil:
+				out[library] = true
+			case errors.Is(err, identity.ErrUnauthorized):
+				out[library] = false
+			default:
+				return err
+			}
 		}
-		switch err := p.AllowedTxContext(ctx, who, library, tx); {
-		case err == nil:
-			out[library] = true
-		case errors.Is(err, identity.ErrUnauthorized):
-			out[library] = false
-		default:
-			return nil, err
-		}
-	}
-	if e = gated.Commit(); e != nil {
-		return nil, e
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	return out, nil
+}
+
+// Read checks share the request's read snapshot and pass its context through
+// nested policy reads. Inside a writer, retain BeginSnapshot's borrowed-write
+// semantics: a failed child check aborts the parent even if its caller ignores
+// the error.
+func withPolicySnapshot(ctx context.Context, db *sql.DB, fn func(context.Context) error) error {
+	if !dbwork.InWriteTx(ctx) {
+		return dbwork.WithReadSnapshot(ctx, db, fn)
+	}
+	borrowed, err := dbwork.BeginSnapshot(ctx, db)
+	if err != nil {
+		return err
+	}
+	defer borrowed.Rollback()
+	if err = fn(borrowed.Context()); err != nil {
+		return err
+	}
+	return borrowed.Commit()
 }
 
 type privateOwner struct{ authority, account, profile string }

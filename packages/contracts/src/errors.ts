@@ -745,6 +745,18 @@ export const errors = [
     "retry": "never"
   },
   {
+    "code": "reading_publication_too_large",
+    "status": 422,
+    "message": "This book exceeds the reading limits.",
+    "retry": "never"
+  },
+  {
+    "code": "reading_session_expired",
+    "status": 410,
+    "message": "This reading session has ended. Open the book again to continue.",
+    "retry": "never"
+  },
+  {
     "code": "reading_sessions_busy",
     "status": 503,
     "message": "Too many reading sessions are open. Try again in a moment.",

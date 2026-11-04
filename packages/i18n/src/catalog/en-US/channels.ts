@@ -23,6 +23,9 @@ export const channelMessages = {
 
   'channels.view': 'View',
   'channels.viewGuide': 'Guide',
+  /** desktop-live: the wide view switch names the guide Grid, so Guide is free for the tab. */
+  'channels.viewGrid': 'Grid',
+  'channels.tabGuide': 'Guide',
   'channels.viewList': 'List',
   'channels.filterAll': 'All',
   'channels.favorites': 'Favorites',

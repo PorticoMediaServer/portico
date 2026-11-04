@@ -73,7 +73,8 @@ export function createAudiobookBindings(context: ScreenContext, input: Audiobook
     moreBooks(page: ContentProjection, signal?: AbortSignal) {return readMoreBooks(page, undefined, signal);},
     moreBooksPager(page: ContentProjection, first: RelationPage) {
       current(page);
-      return new RelationRowPager(first, (cursor, signal) => readMoreBooks(page, cursor, signal));
+      // read('') is the first page again, after the server refuses a continuation (RelationRowPager).
+      return new RelationRowPager(first, (cursor, signal) => readMoreBooks(page, cursor || undefined, signal));
     },
     /** Reads once and retains this exact page's own checked Books capabilities: which real
      * filters it offers for book kinds, so only those become destinations. */
