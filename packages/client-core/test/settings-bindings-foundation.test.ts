@@ -19,7 +19,7 @@ test('typed Mbps input is empty by default and converts only explicit numbers',(
  assert.throws(()=>settingsBindingPatch(binding,Number.NaN));
 });
 test('configuration preserves current/effective/default and config-only source search',()=>{
- const doc=parseSettingsConfiguration({revision:3,registryRevision:'38b',path:'/config/portico.toml',fields:[{id:'updates.channel',key:'updates.channel',current:'beta',effective:'stable',default:'stable',source:'file',configOnly:true,applicationMode:'restart'}]});
+ const doc=parseSettingsConfiguration({revision:3,registryRevision:'38b',signInPolicyRevision:'policy-1',path:'/config/portico.toml',fields:[{id:'updates.channel',key:'updates.channel',current:'beta',effective:'stable',default:'stable',source:'file',configOnly:true,applicationMode:'restart'}]});
  assert.equal(searchConfiguration(doc,'updates.channel beta')[0]?.source,'file');
  assert.deepEqual(readSettingsBinding(settingsBinding('updates.channel')!,{configuration:doc},'updates.channel'),{current:'beta',effective:'stable',default:'stable',source:'file',configOnly:true,applicationMode:'restart'});
  assert.throws(()=>parseSettingsConfiguration({...doc,fields:[...doc.fields,...doc.fields]}));

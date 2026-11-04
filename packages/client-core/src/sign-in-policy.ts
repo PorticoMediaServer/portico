@@ -53,5 +53,5 @@ export function patchSignInPolicy(api: SignInPolicyAPI, expectedRevision: string
 
 /** Someone else changed the policy first: re-read and show what is current. */
 export function signInPolicyConflict(error: unknown): boolean {
-  return !!error && typeof error === 'object' && ((error as {code?: unknown}).code === 'revision_mismatch' || [409, 412].includes((error as {status?: unknown}).status as number));
+  return !!error && typeof error === 'object' && (error as {code?: unknown}).code === 'revision_mismatch';
 }

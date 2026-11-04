@@ -8,7 +8,7 @@ import {SettingsController, type SettingsControllerOptions} from '../src/screens
 
 const serverId = 'captured-server', fence = 'a'.repeat(64);
 const section = settingsSpec.find(section => section.scope === 'server' && section.id === 'integrations')!;
-const configuration: SettingsConfiguration = {revision: 4, registryRevision: 'actual-registry', path: '/actual/portico.toml', fields: [
+const configuration: SettingsConfiguration = {revision: 4, registryRevision: 'actual-registry', signInPolicyRevision: 'policy-1', path: '/actual/portico.toml', fields: [
   {id: 'integrations.maxWebhooks', key: 'integrations.max_webhooks', current: 12, effective: 10, default: 8, source: 'file', configOnly: true, applicationMode: 'next-operation'},
 ]};
 const preferences: PreferenceSnapshot = {deviceClass: 'web', registry: {revision: 'test', fields: []}, documents: [], effective: {}, effectiveSource: {}, clampedFields: [], registryRevision: 'test'};

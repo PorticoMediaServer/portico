@@ -19,13 +19,17 @@ export type SettingsSections = Readonly<{
 
 /** The parent supplies actual domain adapters. This layer owns no query resolver or key map. */
 /** Sign-in draws its own page and the controller's rows (Advanced's nine policy rows, #713): its snapshot is the
- * Sign-in page's, renewed whenever either changes, so a re-read after a save redraws the rows. */
-let signInPair: {page: unknown; rows: unknown; snapshot: unknown} | undefined;
-function signInSnapshot<T>(page: T, rows: unknown): T {
-  if (signInPair?.page !== page || signInPair.rows !== rows) signInPair = {page, rows, snapshot: page && typeof page === 'object' ? {...page} : page};
-  return signInPair.snapshot as T;
+ * Sign-in page's, renewed whenever either changes, so a re-read after a save redraws the rows. One pairing per
+ * bindings instance. */
+function signInSnapshots() {
+  let pair: {page: unknown; rows: unknown; snapshot: unknown} | undefined;
+  return <T,>(page: T, rows: unknown): T => {
+    if (pair?.page !== page || pair.rows !== rows) pair = {page, rows, snapshot: page && typeof page === 'object' ? {...page} : page};
+    return pair.snapshot as T;
+  };
 }
 export function createSettingsBindings(controller: SettingsController, options: SettingsControllerOptions, identity: ShellIdentity, sections: SettingsSections, presentation?: Readonly<{identity: () => ShellIdentity; subscribe: (listener: () => void) => () => void; getSnapshot: () => unknown}>): SettingsBindings {
+  const signInSnapshot = signInSnapshots();
   /** A switch row belongs to the direction its server is not already in. Both
    * drawn directions have their own surface; without the captured owner switch
    * they stay out rather than becoming dead controls. The local change-owner row

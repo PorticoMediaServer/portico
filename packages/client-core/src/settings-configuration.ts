@@ -1,8 +1,8 @@
 import {unreadableServerResponse} from './server-messages.ts';
 
 export type ConfigurationValue = Readonly<{id:string;key:string;current:unknown;effective:unknown;default:unknown;source:'default'|'server'|'file';configOnly:boolean;applicationMode:string}>;
-/** `signInPolicyRevision`: the sign-in policy's own revision (#713), the expectedRevision for its PATCH. */
-export type SettingsConfiguration = Readonly<{revision:number;registryRevision:string;path:string;fields:readonly ConfigurationValue[];signInPolicyRevision?:string}>;
+/** `signInPolicyRevision`: the sign-in policy's own revision (#713), the expectedRevision for its PATCH. Required. */
+export type SettingsConfiguration = Readonly<{revision:number;registryRevision:string;path:string;fields:readonly ConfigurationValue[];signInPolicyRevision:string}>;
 export type SettingsConfigurationAPI = Readonly<{request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>}>;
 const object=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const text=(v:unknown,max:number):v is string=>typeof v==='string'&&v.length<=max&&!/[\u0000-\u001f]/.test(v);
@@ -26,8 +26,8 @@ export function parseSettingsConfiguration(raw:unknown):SettingsConfiguration{
   ids.add(field.id);keys.add(field.key);
   return Object.freeze({id:field.id,key:field.key,current:value(field.current),effective:value(field.effective),default:value(field.default),source:field.source as ConfigurationValue['source'],configOnly:field.configOnly,applicationMode:field.applicationMode});
  });
- if(raw.signInPolicyRevision!==undefined&&(!text(raw.signInPolicyRevision,256)||!raw.signInPolicyRevision))return bad();
- return Object.freeze({revision:raw.revision as number,registryRevision:raw.registryRevision,path:raw.path,fields:Object.freeze(fields),...(typeof raw.signInPolicyRevision==='string'?{signInPolicyRevision:raw.signInPolicyRevision}:{})});
+ if(!text(raw.signInPolicyRevision,256)||!raw.signInPolicyRevision)return bad();
+ return Object.freeze({revision:raw.revision as number,registryRevision:raw.registryRevision,path:raw.path,fields:Object.freeze(fields),signInPolicyRevision:raw.signInPolicyRevision});
 }
 /** Search uses current values from the producer, including config-only fields. */
 export function searchConfiguration(configuration:SettingsConfiguration,query:string):readonly ConfigurationValue[]{

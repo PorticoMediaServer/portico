@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {ConsoleClient,type ConsoleAPI} from '../src/console.ts';
 
-const document={revision:4,registryRevision:'settings-r40.1',path:'/state/portico.toml',fields:[{id:'streaming.musicAwayQuality',key:'streaming.music_away_quality',current:'320',effective:'96',default:'original',source:'file',configOnly:false,applicationMode:'next-operation'}]};
+const document={revision:4,registryRevision:'settings-r40.1',signInPolicyRevision:'policy-1',path:'/state/portico.toml',fields:[{id:'streaming.musicAwayQuality',key:'streaming.music_away_quality',current:'320',effective:'96',default:'original',source:'file',configOnly:false,applicationMode:'next-operation'}]};
 const fence='a'.repeat(64);
 const scope={serverId:'actual-server',viewerId:'actual-viewer'};
 

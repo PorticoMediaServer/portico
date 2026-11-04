@@ -4,7 +4,7 @@ import {parseSettingsConfiguration} from '../src/settings-configuration.ts';
 
 // The configuration route answers {scope, data}. The settings pages read the answer itself,
 // and TV Server settings › General showed "This couldn't load" (walk, 1 Nov).
-const document = {revision: 7, registryRevision: 'settings-r40.1', path: '/srv/portico.toml', fields: [
+const document = {revision: 7, registryRevision: 'settings-r40.1', signInPolicyRevision: 'policy-1', path: '/srv/portico.toml', fields: [
   {id: 'storage.missingRule', key: 'storage.remove_missing_titles', current: 'after_days', effective: 'after_days', default: 'after_days', source: 'default', configOnly: false, applicationMode: 'hot'},
 ]};
 
