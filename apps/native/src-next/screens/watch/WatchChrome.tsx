@@ -844,7 +844,9 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
             <View style={{flex: 1}}/>{qualityChip(true)}
             {props.fullWindowRequest?.() && controls.canFullWindow() && !controls.getSnapshot().fullWindow && icon('fullscreen', 'i-fs', t('next.states.shortcut.fullscreen'), () => {if (current() && props.fullWindowRequest?.()) controls.setFullWindow(fence, true);})}
           </View>}
-          {!compact && <View style={{flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 8}}>
+          {/* phone-player 1b: while you drag, the chips step aside (kept in place, hidden) until you let go. */}
+          {!compact && <View testID="watch-chip-row" pointerEvents={scrubbing ? 'none' : 'auto'} accessibilityElementsHidden={scrubbing} importantForAccessibility={scrubbing ? 'no-hide-descendants' : 'auto'}
+            style={{flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 8, opacity: scrubbing ? 0 : 1}}>
             {linear
               ? (props.onGuide ? chip('episodes', 'i-list', t('player.live.guide'), undefined, () => {if (controlsCurrent() && props.onGuide) props.onGuide();}) : null)
               : fence.kind === 'queue' && fence.showId ? chip('episodes', 'i-stack', t('title.episodes'), undefined) : null}

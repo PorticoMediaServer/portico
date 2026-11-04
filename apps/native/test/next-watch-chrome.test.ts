@@ -115,6 +115,7 @@ test('every genuine chrome child mounts the strict focus target hook with unique
     'react-native': {findNodeHandle: () => null, TVFocusGuideView: 'Guide', View: 'View'}, '../theme': {useTheme: () => ({isTV})}, './registry': registryModule, './useHostRef': hostRefModule,
   });
   const descendants = (node: any): any[] => Array.isArray(node) ? node.flatMap(descendants) : React.isValidElement(node) ? [node, ...descendants((node as any).props.children)] : [];
+  const artwork = () => undefined;
   for (const {tv, compact} of [{tv: false, compact: false}, {tv: false, compact: true}, {tv: true, compact: false}]) {
     isTV = tv;
     const controls = new NativeWatchControls(tv), currentFence = {...fence, showId: 'show'};
@@ -123,10 +124,12 @@ test('every genuine chrome child mounts the strict focus target hook with unique
     controls.source(currentFence, {expanded: true, autoHide: true, hiddenByPanel: false, paused: false, scrubbing: false, focusHeld: false}); controls.reveal(currentFence);
     let tree: any;
     const host = createFabricHookHost(() => {tree = NativeWatchChrome({source, controls, playback, text: {t: defaultI18n.t}, quality: 'Original', width: 1920, height: 1080, compact, skipBackSeconds: 10, skipForwardSeconds: 30,
-      onMinimize() {}, onPictureInPicture() {}, onCast() {}, onFullWindow() {}, reportError: assert.fail});});
+      artwork, onMinimize() {}, onPictureInPicture() {}, onCast() {}, onFullWindow() {}, reportError: assert.fail});});
     await host.mount();
     try {
       const region = descendants(tree).find(node => node.type === 'FocusRegion' && node.props.id === 'watch-controls'); assert.equal(region.props.id, 'watch-controls');
+      // #605: every layout's timeline (TV, tablet, phone) gets the scrub picture's artwork resolver.
+      assert.deepEqual(descendants(tree).filter(node => node.type === 'Timeline').map(node => node.props.artwork), [artwork], `artwork reaches the ${tv ? 'TV' : compact ? 'phone' : 'tablet'} timeline`);
       const targets = descendants(region).filter(node => node.type === 'Button' || node.type === 'Focusable');
       const ids = targets.map(node => node.props.focusId);
       assert.equal(new Set(ids).size, targets.length); assert.ok(ids.every(id => typeof id === 'string' && id.startsWith('watch-')));
@@ -218,6 +221,31 @@ test('seek preview keeps transport native targets mounted for a guide-based Down
     assert.equal(find('watch-transport').props.style.opacity, 1);
     assert.equal(focusRegistry.capture()?.childId, 'watch-option-quality');
   } finally {await host.unmount(); controls.dispose();}
+});
+
+test('phone-player 1b: while you drag, the chips step aside in place, and come back when you let go', async () => {
+  const previousTV = isTV; isTV = false;
+  const artwork = () => undefined;
+  const controls = new NativeWatchControls(false), currentFence = {...fence, showId: 'show'};
+  const source = {fence: currentFence, retired: false, dock: {local: {expanded: true}}, queue: {}, capabilities: {play: true, pause: true, seek: true, subtitleTrack: true}, playback: {intent: 'paused', positionSeconds: 17, duration: 100}};
+  const playback = {getSnapshot: () => source};
+  controls.source(currentFence, {expanded: true, autoHide: true, hiddenByPanel: false, paused: false, scrubbing: false, focusHeld: false}); controls.reveal(currentFence);
+  let tree: any;
+  const host = createFabricHookHost(() => {tree = NativeWatchChrome({source, controls, playback, text: {t: defaultI18n.t}, quality: 'Original', width: 844, height: 390, compact: false,
+    skipBackSeconds: 10, skipForwardSeconds: 30, artwork, onMinimize() {}, reportError: assert.fail});});
+  await host.mount();
+  try {
+    assert.equal(descendants(tree).find(node => node.type === 'Timeline' && !node.props.tv).props.artwork, artwork, 'the scrub picture still reaches the timeline (#605)');
+    const row = () => descendants(tree).find(node => node.props.testID === 'watch-chip-row');
+    assert.equal(row().props.style.opacity, 1); assert.equal(row().props.pointerEvents, 'auto');
+    const timeline = descendants(tree).find(node => node.type === 'Timeline' && !node.props.tv);
+    timeline.props.onPreview(25); await host.flush();
+    assert.equal(row().props.style.opacity, 0, 'hidden while dragging');
+    assert.equal(row().props.pointerEvents, 'none'); assert.equal(row().props.importantForAccessibility, 'no-hide-descendants');
+    assert.equal(row().props.style.marginTop, 10, 'its space is kept, so nothing moves');
+    timeline.props.onPreview(undefined); await host.flush();
+    assert.equal(row().props.style.opacity, 1, 'back when you let go');
+  } finally {await host.unmount(); controls.dispose(); isTV = previousTV;}
 });
 
 /** Authored UNRUN source: actual chrome/controller with controlled paint driver,
