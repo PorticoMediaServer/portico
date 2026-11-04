@@ -88,7 +88,8 @@ export function AllResultsRow({result, binding, selection, excluded, size, onSee
   return <section ref={root} className={`${styles.section} ${styles.pagedSection}`} data-group={result.id}
     style={{'--search-preview-count': Math.max(1, Math.min(cap, entries.length)), '--search-preview-width': `${result.id === 'people' || result.id === 'artists' ? 124 : result.id === 'live-tv' ? 300 : compact ? 132 : 150 * size}px`} as CSSProperties}>
     {parts.map((part, index) => <div key={index} ref={node => {if (node) partNodes.current.set(index, node); else partNodes.current.delete(index);}}><PagedShelf className={`${styles.pagedRow} ${index ? styles.followingRow : ''}`} heading={t(searchGroupLabel(result.id))}
-      subtitle={!index && result.totalCountExact ? result.totalCount > entries.length ? t('web.search.someOf', {shown: entries.length, total: result.totalCount}) : result.totalCount : undefined}
+      // desktop-search #s-all: the count names the line's cards against the total ("4 of 10" when there are more).
+      subtitle={!index && result.totalCountExact ? result.totalCount > Math.min(cap, entries.length) ? t('web.search.someOf', {shown: Math.min(cap, entries.length), total: result.totalCount}) : result.totalCount : undefined}
       actions={index ? undefined : actions} items={part} getKey={({entry}) => keyOf(entry)} renderItem={({entry, index: position}, item) => renderEntry(entry, position, displayedSet.has(entry) || item.focused)}
       focusScope={binding.service.getSnapshot().query ?? binding} platform={viewport < 600 ? 'phone-web' : 'desktop'}
       cardWidth={cardWidth} artworkRatio={result.id === 'movies' || result.id === 'shows' ? 2 / 3 : result.id === 'episodes' || result.id === 'live-tv' ? 16 / 9 : result.id === 'songs' ? cardWidth / 58 : result.id === 'reading' ? part[0] && periodical(part[0].entry) ? 3 / 4 : 2 / 3 : 1}
