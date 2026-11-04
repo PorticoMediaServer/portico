@@ -277,6 +277,25 @@ func TestArtworkSlowPublicationDoesNotBlockReadsOrPreviews(t *testing.T) {
 	if err = queued.Commit(); err != nil {
 		t.Fatal(err)
 	}
+	// This tests publication independence with usable readers. A cold burst
+	// may correctly exhaust the interactive snapshot cap while opening the
+	// schema, independently of the held writer. Retain every allowed reader
+	// until the pool is warm, then release them before publication starts.
+	func() {
+		var readers []*sql.Conn
+		defer func() {
+			for _, reader := range readers {
+				reader.Close()
+			}
+		}()
+		for i := 0; i < db.Stats().MaxOpenConnections; i++ {
+			reader, err := db.Conn(ctx)
+			if err != nil {
+				t.Fatal("warm artwork reader", err)
+			}
+			readers = append(readers, reader)
+		}
+	}()
 	fetching, resume := make(chan struct{}), make(chan struct{})
 	var release sync.Once
 	defer release.Do(func() { close(resume) })
