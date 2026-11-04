@@ -22,7 +22,7 @@ const controlsAtoms = {Focusable: 'Focusable', Button: 'Button', TextField: 'Tex
 const nativeAtoms = {View: 'View', Text: 'Text', ScrollView: 'ScrollView', ActivityIndicator: 'Spinner', StyleSheet: {absoluteFill: {}}, useWindowDimensions: () => ({width: 1920, height: 1080})};
 const svg = {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop', Path: 'Path', Text: 'SvgText'};
 const find = (tree: any, id: string) => descendants(tree).find((node: any) => node.props.testID === id || node.props.id === id);
-const gesture = () => {const value: any = {}; for (const key of ['enabled', 'minDistance', 'onBegin', 'onUpdate', 'onEnd', 'onFinalize']) value[key] = () => value; return value;};
+const gesture = () => {const value: any = {}; for (const key of ['enabled', 'minDistance', 'onBegin', 'onUpdate', 'onEnd', 'onFinalize']) value[key] = (handler: unknown) => {if (typeof handler === 'function') ((globalThis as any).__w1PanHandlers ??= {})[key] = handler; return value;}; return value;};
 const animation = (h: ReturnType<typeof watchHooks>) => ({default: {View: 'Animated'}, runOnJS: (f: unknown) => f, useSharedValue: (value: unknown) => h.react.useRef({value}).current,
   useAnimatedStyle: (read: () => unknown) => read(), withTiming: (value: unknown) => value, cancelAnimation() {}, Easing: {linear: (value: number) => value}});
 
@@ -38,7 +38,7 @@ async function timelineFixture(vega = false) {
   const {NativeWatchTimeline} = await screenModule(new URL('../src-next/screens/watch/WatchTimeline.tsx', import.meta.url), {
     react: h.react, 'react-native': nativeAtoms, 'react-native-gesture-handler': {Gesture: {Pan: gesture}, GestureDetector: 'Gesture'}, 'react-native-reanimated': animation(h),
     '../../../../../packages/player-core/src': playerCore, '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: String, durationText: (seconds: number) => `${Math.round(seconds / 60)} min`}, '../../../../../packages/i18n/src': i18n,
-    '../../kit/controls': controlsAtoms, '../../kit/theme': themed, './TrickplayStrip': {NativeTrickplayStrip: 'Trickplay'}, './landing-store': landingStoreModule, '../../kit/useMotion': {useMotion: () => ({timing: () => ({})})},
+    '../../kit/controls': controlsAtoms, '../../kit/theme': themed, './TrickplayStrip': {NativeTrickplayStrip: 'Trickplay', NativeScrubPreview: 'ScrubPreview', scrubCardCentre: (await import('../src-next/screens/watch/trickplay-frame.ts')).scrubCardCentre}, './landing-store': landingStoreModule, '../../kit/useMotion': {useMotion: () => ({timing: () => ({})})},
     '../../platform/tv-keys': {useTVKeyEvent: (handler: typeof key) => {key = handler;}},
     '../../platform/siri-remote': {touchScrub, useSiriRemoteTouch: (enabled: boolean, handler: typeof touch) => {touchListening = enabled; touch = handler;}}, '../../platform/tv-seek-repeat': {createTVSeekRepeat: (step: any) => createTVSeekRepeat(step, clock)},
   });
@@ -419,3 +419,67 @@ test('failure bar edges follow real recovery actions and no invented alternate i
     f.change({...f.source(), entry: undefined}); assert.equal(f.draw().props.differentVersion, undefined, 'a channel or missing entry cannot invent a version target');
   } finally {f.close();}
 });
+
+test('WEBFIX-A1: while a phone or tablet drags, the card above the knob shows the picture there and its time; with no picture the time bubble stays', async () => {
+  const h = watchHooks();
+  const {NativeScrubPreview} = await screenModule(new URL('../src-next/screens/watch/TrickplayStrip.tsx', import.meta.url), {
+    react: h.react, 'react-native': {...nativeAtoms, Image: 'Image', StyleSheet: {absoluteFill: {}, create: (value: unknown) => value}}, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'},
+    '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: (seconds: number) => `t${seconds}`}, '../../kit/theme': themed, '../../kit/useMotion': {useMotion: () => ({effects: {shadows: true}})},
+    './trickplay-frame': await import('../src-next/screens/watch/trickplay-frame.ts'),
+  });
+  const set = {id: 's', sourceId: 'src', sourceRevision: 'r', width: 3200, height: 1800, tileWidth: 320, tileHeight: 180, columns: 10, rows: 10, intervalSeconds: 10, durationSeconds: 1000,
+    sourceOffsetSeconds: 0, tileCount: 1, frameCount: 100, stale: false, revision: 'r', tilesUrl: '/v1/items/i/trickplay/s/tiles', thumbnailsUrl: ''};
+  const draw = (props: Record<string, unknown>) => {h.render(() => NativeScrubPreview({seconds: 125, left: 160, fallback: 'Bubble', ...props})); return h.flush();};
+  try {
+    const card = draw({set, artwork: (path: string) => ({uri: `https://server${path}`, cacheKey: path, headers: {Authorization: 'Bearer x'}})});
+    assert.equal(card.props.testID, 'scrub-preview');
+    assert.equal(flattenStyle(card.props.style).width, 178); assert.equal(flattenStyle(card.props.style).height, 100);
+    const image = descendants(card).find((node: any) => node.type === 'Image');
+    assert.equal(image.props.source.uri, 'https://server/v1/items/i/trickplay/s/tiles/0.jpg');
+    assert.deepEqual(image.props.source.headers, {Authorization: 'Bearer x'}, 'the sheet is read with the authority\'s own headers');
+    assert.ok(descendants(card).some((node: any) => node.type === 'Text' && node.props.children === 't125'), 'its time sits on the picture');
+    const local = draw({set: {...set, tileUrls: ['file:///d/extras/trickplay-0']}, artwork: () => assert.fail('a downloaded sheet never goes through the server resolver')});
+    assert.equal(descendants(local).find((node: any) => node.type === 'Image').props.source.uri, 'file:///d/extras/trickplay-0');
+    assert.equal(draw({set: null}), 'Bubble', 'no preview set: the plain time bubble');
+    assert.equal(draw({set, artwork: undefined}), 'Bubble', 'no artwork resolver for a server sheet: the time bubble, never a broken picture');
+    assert.equal(flattenStyle(card.props.style).left, 160); assert.equal(flattenStyle(card.props.style).marginLeft, -89, 'centred on the point it is given');
+  } finally {h.unmount();}
+});
+
+test('#598 r2: the phone scrub card stays whole inside a 390-wide timeline at both ends', async () => {
+  const {scrubCardCentre} = await import('../src-next/screens/watch/trickplay-frame.ts');
+  for (const fraction of [0, 0.01, 0.5, 0.99, 1]) {
+    const centre = scrubCardCentre(fraction, 390);
+    assert.ok(centre - 89 >= 0 && centre + 89 <= 390, `${fraction}: ${centre}`);
+  }
+  assert.equal(scrubCardCentre(0.5, 390), 195, 'over the knob in the middle');
+  assert.equal(scrubCardCentre(0, 390), 89); assert.equal(scrubCardCentre(1, 390), 301);
+  assert.equal(scrubCardCentre(0.9, 1200), 1080, 'a wide timeline keeps it over the knob');
+  assert.equal(scrubCardCentre(0.3, 150), 75, 'a timeline narrower than the card centres it');
+});
+
+test('#598 r2: a phone drag gives the scrub card the session\'s preview set, clamped to the timeline; with no set it falls back to the time bubble', async () => {
+  for (const offered of [true, false]) {
+    const f = await timelineFixture();
+    const handlers: Record<string, (event: any, success?: boolean) => void> = {};
+    try {
+      const set = {id: 's', tileWidth: 320, tileHeight: 180, columns: 10, rows: 10, intervalSeconds: 10, durationSeconds: 1000, sourceOffsetSeconds: 0, tileCount: 1, frameCount: 100};
+      let reads = 0;
+      f.props.tv = false; f.props.playback.trickplay = async () => {reads++; return offered ? set : null;};
+      f.draw();
+      // Record the pan handlers the timeline installs, then measure a 390-wide phone timeline.
+      const root = f.tree();
+      const view = root.props.children; view.props.onLayout({nativeEvent: {layout: {width: 390}}});
+      Object.assign(handlers, (globalThis as any).__w1PanHandlers ?? {});
+      assert.ok(handlers.onBegin, 'the timeline installs its pan handlers');
+      handlers.onBegin({x: 388}); f.draw(); await new Promise(resolve => setImmediate(resolve)); f.draw();
+      const card = descendants(f.tree()).find((node: any) => node.type === 'ScrubPreview');
+      assert.ok(card, 'dragging draws the scrub card');
+      assert.equal(reads, 1, 'the set is read once, when the drag starts');
+      if (offered) assert.equal(card.props.set, set, 'the card gets the session\'s preview set'); else assert.equal(card.props.set, null, 'no set: the card falls back to its time bubble');
+      assert.ok(card.props.fallback, 'the time bubble is its fallback');
+      assert.equal(card.props.left, 301, 'near the end the card is kept whole inside the 390 timeline');
+    } finally {f.close(); delete (globalThis as any).__w1PanHandlers;}
+  }
+});
+

@@ -822,7 +822,7 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
         </View>}
         {!theme.isTV && <View style={{position: 'absolute', left: (side ?? (compact ? 14 : 60)) + (props.edgeInsets?.left ?? 0), right: (side ?? (compact ? 6 : 60)) + (props.edgeInsets?.right ?? 0), bottom: compact ? 8 : 15}}>
           {!compact && <View style={{marginBottom: 8}}>
-            <NativeWatchTimeline source={source} controls={controls} playback={playback} compact={compact} enabled={controlsEnabled} liveEdge={liveEdge} onPreview={setLanding} reportError={props.reportError} skipBackSeconds={props.skipBackSeconds} skipForwardSeconds={props.skipForwardSeconds}/>
+            <NativeWatchTimeline source={source} controls={controls} playback={playback} artwork={props.artwork} compact={compact} enabled={controlsEnabled} liveEdge={liveEdge} onPreview={setLanding} reportError={props.reportError} skipBackSeconds={props.skipBackSeconds} skipForwardSeconds={props.skipForwardSeconds}/>
           </View>}
           <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
             <Text style={[theme.type.bodyStrong, {fontSize: 12.5, color: theme.colors.text, fontVariant: ['tabular-nums']}]}>{clockText(source.playback.positionSeconds)}</Text>
@@ -855,7 +855,7 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
           </View>}
         </View>}
         {!theme.isTV && compact && <View style={{position: 'absolute', left: (props.edgeInsets?.left ?? 0), right: (props.edgeInsets?.right ?? 0), bottom: -21}}>
-          <NativeWatchTimeline source={source} controls={controls} playback={playback} compact enabled={controlsEnabled} onPreview={setLanding} reportError={props.reportError} skipBackSeconds={props.skipBackSeconds} skipForwardSeconds={props.skipForwardSeconds}/>
+          <NativeWatchTimeline source={source} controls={controls} playback={playback} artwork={props.artwork} compact enabled={controlsEnabled} onPreview={setLanding} reportError={props.reportError} skipBackSeconds={props.skipBackSeconds} skipForwardSeconds={props.skipForwardSeconds}/>
         </View>}
       </FocusRegion>
     </Animated.View>
