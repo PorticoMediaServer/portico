@@ -508,7 +508,10 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
   };
   // Frame #grid: seven fluid columns at 1440 on Medium. 170 is the Medium card size the
   // drawn column paints; the screen fills each column to the gutter.
-  const appearanceBase = {view: appearance.libraryView, cardWidth: (width < 600 ? 112 : 170) * (size === 'small' ? .8 : size === 'large' ? 1.2 : 1), backdrops: appearance.showBackdrops, cardSize: size};
+  // phone-app 5: a phone's poster grid is three across (about 100px cards at 375–390); square grids (albums,
+  // audiobooks) stay two across as the phone frames draw them.
+  const phoneCard = library.kind === 'music' || library.kind === 'audiobook' ? 112 : 88;
+  const appearanceBase = {view: appearance.libraryView, cardWidth: (width < 600 ? phoneCard : 170) * (size === 'small' ? .8 : size === 'large' ? 1.2 : 1), backdrops: appearance.showBackdrops, cardSize: size};
   /** A Reading library draws the same wash and count line on its Books pivot, which builds its own header. */
   /** The owner's Scan row is offered only when this library's own management read says the
    *  server allows scanning it. Each setup gets a fresh lease: its own service, the captured
