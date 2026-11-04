@@ -62,7 +62,7 @@
   "apps/native/src-next/platform/accounts.ts": 1,
   "apps/native/src-next/platform/credentials.ts": 1,
   "apps/native/src-next/platform/local-invitation.ts": 1,
-  "apps/native/src-next/platform/play-on/cast.ts": 7,
+  "apps/native/src-next/platform/play-on/cast.ts": 2,
   "apps/native/src-next/platform/play-on/controller.ts": 6,
   "apps/native/src-next/platform/playback/listening-controls.ts": 2,
   "apps/native/src-next/platform/playback/native.ios.tsx": 1,
