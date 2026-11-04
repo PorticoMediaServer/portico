@@ -796,6 +796,7 @@ export class ReadingSession {
   /** The server's current id for this session. `manifest.sessionId` is the one it opened with. */
   #sessionId: string;
   #renewal: Promise<void> | undefined;
+  #renewed = new Set<(previous: string, next: string) => void>();
   constructor(client: ReadingClient, manifest: ReadingManifest) {
     this.#client = client; this.manifest = frozen(manifest); this.signal = this.#life.signal; this.#sessionId = this.manifest.sessionId;
     this.#retire = () => this.retire(client.signal.reason); client.signal.addEventListener('abort', this.#retire, {once: true});
@@ -805,6 +806,9 @@ export class ReadingSession {
   #check = () => { this.#client.check(this.signal); };
   /** The id the server knows this session by now; it changes only when an ended session is renewed. */
   get sessionId(): string { return this.#sessionId; }
+  /** Told when an ended session is renewed under a new id, so a holder that remembers the id (to
+   * release it on a hard leave) follows it. Returns an unsubscribe. */
+  onRenew(listener: (previous: string, next: string) => void): () => void { this.#renewed.add(listener); return () => { this.#renewed.delete(listener); }; }
   /** RD-7: when the server has ended this session (410), open the same book again once, transparently,
    * and send the one request again under the new session; the reader stays where it is. A second 410,
    * or a renewal that fails or finds another revision, ends the session as `reading_session_expired`
@@ -830,6 +834,7 @@ export class ReadingSession {
           throw expired;
         }
         this.#sessionId = fresh.sessionId;
+        for (const listener of [...this.#renewed]) { try { listener(used, fresh.sessionId); } catch { /* A holder cannot undo the renewal. */ } }
       } finally { this.#renewal = undefined; }
     })();
     try { await this.#renewal; }

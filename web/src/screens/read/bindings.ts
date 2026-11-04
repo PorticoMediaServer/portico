@@ -75,7 +75,7 @@ export function createReadBindings(context: ReadBindingContext): ReadBindings {
     if (!viewerMatches()) return Promise.resolve();
     releasing++;
     const cleanup = new AbortController(), deadline = setTimeout(() => cleanup.abort(), 2000);
-    return opened.close(cleanup.signal).then(() => forgetHeld(opened.manifest.sessionId)).catch(() => {}).finally(() => {clearTimeout(deadline); releasing--;});
+    return opened.close(cleanup.signal).then(() => forgetHeld(opened.sessionId)).catch(() => {}).finally(() => {clearTimeout(deadline); releasing--;});
   };
   let opening: Promise<void> = Promise.resolve();
   // RD-8: the busy wait between a refused open and its one retry holds no session, so leaving stops it
@@ -100,7 +100,10 @@ export function createReadBindings(context: ReadBindingContext): ReadBindings {
     opening = attempt.then(opened => {if (pending !== operation || !current()) return release(opened);}, () => {});
     const opened = await attempt;
     if (!current() || pending !== operation) throw new ReadingError('cancelled');
-    pending = undefined; session = opened; rememberHeld(opened.manifest.sessionId); return opened;
+    pending = undefined; session = opened; rememberHeld(opened.sessionId);
+    // RD-7: a renewed session is held under its new id; the ended one needs no farewell.
+    opened.onRenew((previous, next) => {forgetHeld(previous); if (session === opened) rememberHeld(next);});
+    return opened;
   };
   // A hard leave (reload, tab close) never runs the cleanup below, so each one left a session held until it
   // expired, and about ten reloads reached the profile's cap (P2-74 E-web-33). The held session gets a farewell the
@@ -109,7 +112,7 @@ export function createReadBindings(context: ReadBindingContext): ReadBindings {
   const pageGone = (event: Event) => {
     const held = session;
     if ((event as PageTransitionEvent).persisted || !held || !viewerMatches()) return;
-    context.api.farewell?.(routePath('delete_reading_sessions_sessionId', {sessionId: held.manifest.sessionId}), 'DELETE');
+    context.api.farewell?.(routePath('delete_reading_sessions_sessionId', {sessionId: held.sessionId}), 'DELETE');
   };
   page?.addEventListener('pagehide', pageGone);
   const dispose = () => {
