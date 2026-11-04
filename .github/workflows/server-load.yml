@@ -1,50 +1,79 @@
-name: Server under load
-# Simulated people browse, open titles, search, ask for playback options and open
-# books while a scan and analysis run (scripts/server-load.py). A 4-vCPU hosted
-# runner is about the size of a small VPS. Budgets in ci/server-load-budgets.json.
+name: Receipt wake artwork control
 on:
   workflow_dispatch:
-    inputs:
-      users:
-        description: Simulated people per phase
-        default: '10,50,100'
-  schedule:
-    - cron: '41 5 * * *'
 permissions:
   contents: read
 concurrency:
-  group: server-load
+  group: artwork-wake-control-${{ github.ref }}
   cancel-in-progress: false
 jobs:
-  load:
+  isolated-pair:
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with: {persist-credentials: false}
+        with:
+          ref: 6fc05c49b6fec6ec82b35979bfcc72644c543e0c
+          path: head
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: e97871f80086e9047fc430b6913ad9688fb02772
+          path: parent
+          persist-credentials: false
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
-        with: {go-version-file: server/go.mod, cache-dependency-path: '**/go.sum'}
-      - name: Install FFmpeg and bubblewrap, and allow unprivileged user namespaces as a Debian VPS does
-        run: |
-          sudo apt-get update -q && sudo apt-get install -yq ffmpeg bubblewrap
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-      - name: Build the server
-        working-directory: server
-        run: go build -tags devtrust -o "$RUNNER_TEMP/portico-server" ./cmd/server
-      - name: Load
+        with:
+          go-version-file: head/server/go.mod
+          cache-dependency-path: '**/go.sum'
+      - name: Compare five isolated runs per revision
         env:
-          USERS: ${{ inputs.users || '10,50,100' }}
+          HEAD_REVISION: 6fc05c49b6fec6ec82b35979bfcc72644c543e0c
+          PARENT_REVISION: e97871f80086e9047fc430b6913ad9688fb02772
         run: |
-          mkdir -p "$RUNNER_TEMP/load"
-          python3 scripts/server-load.py --scratch "$RUNNER_TEMP/load" --binary "$RUNNER_TEMP/portico-server" --users "$USERS" --budgets ci/server-load-budgets.json
-      - name: Collect results and profiles (no credentials or media)
-        if: always()
-        run: |
-          mkdir -p "$RUNNER_TEMP/out"
-          for run in "$RUNNER_TEMP"/load/load-*; do
-            cp "$run"/load.json "$run"/*.pb.gz "$run"/diagnostics-*.json "$RUNNER_TEMP/out/" 2>/dev/null || true
-            tail -400 "$run/server.log" > "$RUNNER_TEMP/out/server-tail.log" || true
-          done
+          python3 - <<'PYCODE'
+          import hashlib, json, os, pathlib, subprocess, sys
+          workspace = pathlib.Path(os.environ['GITHUB_WORKSPACE'])
+          out = pathlib.Path(os.environ['RUNNER_TEMP']) / 'artwork-wake-control'
+          out.mkdir()
+          test = 'TestArtworkSlowPublicationDoesNotBlockReadsOrPreviews'
+          tags = subprocess.check_output(['python3', 'scripts/release-build-tags.py', '--capability'], cwd=workspace/'head', text=True).strip()
+          sides = {'head': os.environ['HEAD_REVISION'], 'parent': os.environ['PARENT_REVISION']}
+          summary = {'test': test, 'tags': tags, 'goVersion': subprocess.check_output(['go','version'], text=True).strip(), 'sources': {}, 'runs': []}
+          for side, revision in sides.items():
+              checkout = workspace/side
+              assert subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=checkout, text=True).strip() == revision
+              deps = subprocess.check_output(['go','list','-deps','-test','-tags',tags,'./internal/metadata'], cwd=checkout/'server', text=True).splitlines()
+              (out/(side+'-dependencies.txt')).write_text('\n'.join(sorted(set(deps)))+'\n')
+              source = checkout/'server/internal/metadata/artwork_test.go'
+              summary['sources'][side] = {'revision': revision, 'artworkTestSHA256': hashlib.sha256(source.read_bytes()).hexdigest(), 'ingestionInDependencies': 'github.com/PorticoMediaServer/portico/server/internal/ingestion' in deps}
+          assert summary['sources']['head']['artworkTestSHA256'] == summary['sources']['parent']['artworkTestSHA256']
+          # A fresh go-test process and its own fixture for every observation.
+          # Alternate the revisions on the same idle hosted runner. Test source,
+          # its internal deadlines and the CI package timeout stay unchanged.
+          for repetition in range(1, 6):
+              for side in ('head', 'parent'):
+                  command = ['go','test','-json','-count=1','-p=1','-timeout=780s','-short','-tags',tags,'-run','^'+test+'$','./internal/metadata']
+                  result = subprocess.run(command, cwd=workspace/side/'server', capture_output=True, text=True, timeout=900)
+                  stem = side+'-'+str(repetition)
+                  (out/(stem+'.jsonl')).write_text(result.stdout)
+                  (out/(stem+'.stderr')).write_text(result.stderr)
+                  events = [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
+                  terminals = [e for e in events if e.get('Test') == test and e.get('Action') in ('pass','fail','skip')]
+                  package = [e for e in events if not e.get('Test') and e.get('Action') in ('pass','fail','skip')]
+                  record = {'side': side, 'repetition': repetition, 'revision': sides[side], 'exit': result.returncode, 'testTerminals': terminals, 'packageTerminals': package, 'diagnostics': [e['Output'].strip() for e in events if e.get('Test') == test and 'Output' in e and not e['Output'].startswith(('=== RUN', '--- PASS', '--- FAIL'))]}
+                  summary['runs'].append(record)
+                  (out/'summary.json').write_text(json.dumps(summary, indent=2)+'\n')
+                  print(json.dumps({'side': side, 'repetition': repetition, 'exit': result.returncode, 'test': [(e['Action'], e.get('Elapsed')) for e in terminals], 'diagnostics': record['diagnostics']}), flush=True)
+          complete = all(len(r['testTerminals']) == 1 and len(r['packageTerminals']) == 1 and r['testTerminals'][0]['Action'] in ('pass','fail') for r in summary['runs']) and len(summary['runs']) == 10
+          summary['complete'] = complete
+          summary['counts'] = {side: {state: sum(r['side']==side and len(r['testTerminals'])==1 and r['testTerminals'][0]['Action']==state for r in summary['runs']) for state in ('pass','fail','skip')} for side in sides}
+          (out/'summary.json').write_text(json.dumps(summary, indent=2)+'\n')
+          print(json.dumps({'complete': complete, 'counts': summary['counts']}), flush=True)
+          sys.exit(0 if complete and all(r['exit']==0 for r in summary['runs']) else 1)
+          PYCODE
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
-        with: {name: server-load, path: '${{ runner.temp }}/out', retention-days: 14}
+        with:
+          name: artwork-wake-pair
+          path: ${{ runner.temp }}/artwork-wake-control
+          retention-days: 7
