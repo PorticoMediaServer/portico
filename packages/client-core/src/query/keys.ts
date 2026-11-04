@@ -28,6 +28,12 @@ export const queryKeys = Object.freeze({
   adminDashboardReport: (range: unknown) => ['admin', 'dashboard', 'report', range] as const,
   /** The first page of the play history for one set of filters and one sort (later pages are its continuation, never cached). */
   adminPlayHistory: (filter: unknown, sort: unknown) => ['admin', 'play-history', filter, sort] as const,
+  /** An owner's view of one library: `GET /v1/admin/libraries/{id}` (its source, last scan and offered actions). */
+  adminLibraryManagement: (libraryId: string) => ['admin', 'library', libraryId, 'management'] as const,
+  /** A library's inventory, first page only (`GET …/inventory-config` with `GET …/inventory`, no cursor); later pages are direct reads. */
+  adminLibraryInventory: (libraryId: string, sourceId: string, state: string) => ['admin', 'library', libraryId, 'inventory', {sourceId, state}, 'cursor0'] as const,
+  /** Every owner document of the admin tree: what is dropped when the server refuses the viewer. */
+  adminLibraries: () => ['admin', 'library'] as const,
   /** A Home row's See all grid, as `libraryBrowse`. */
   homeRowBrowse: (rowId: string, query: string) => ['home', 'row', rowId, 'browse', query] as const,
 });

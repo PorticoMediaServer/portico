@@ -1,6 +1,7 @@
 import {useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {defaultI18n} from '@i18n';
 import type {ContentScope, LibraryContentApi} from '@core/library-content.ts';
+import type {ViewerQueries} from '@core/query/viewer-queries.ts';
 import {LibraryInventoryService, type InventorySource} from '@core/library-inventory.ts';
 import {Button, RichSelect, TextField} from '../../../kit/controls';
 import {Dialog} from '../../../kit/overlays/Dialog';
@@ -16,16 +17,16 @@ const label = (id: string) => t(('next.settingsSpec.server.libraries.panels.libr
  * kind and health, and the drawn folder menu — scan this folder, check
  * availability, edit and remove. Every command runs through the owner's own
  * inventory service and reconciles from the server's answer. */
-export function LibraryFolders({libraryId, api, scope, isCurrent, onError, serverName}: Readonly<{
-  libraryId: string; api: LibraryContentApi; scope: ContentScope; isCurrent: () => boolean; onError: (error: unknown) => void; serverName?: string;
+export function LibraryFolders({libraryId, api, queries, scope, isCurrent, onError, serverName}: Readonly<{
+  libraryId: string; api: LibraryContentApi; queries?: ViewerQueries; scope: ContentScope; isCurrent: () => boolean; onError: (error: unknown) => void; serverName?: string;
 }>) {
-  const service = useMemo(() => new LibraryInventoryService({api, scope, libraryId}), [api, scope, libraryId]);
+  const service = useMemo(() => new LibraryInventoryService({api, scope, libraryId, queries}), [api, queries, scope, libraryId]);
   const snapshot = useSyncExternalStore(service.subscribe, service.getSnapshot, service.getSnapshot);
   const [menu, setMenu] = useState<string>(), [editing, setEditing] = useState<InventorySource>(), [removing, setRemoving] = useState<InventorySource>(), [busy, setBusy] = useState(false);
   const [confirmation, setConfirmation] = useState('');
   useEffect(() => {setConfirmation('');}, [removing]);
   const [picking, setPicking] = useState(false), [adding, setAdding] = useState<string>();
-  useEffect(() => { void service.refresh().catch(onError); return () => service.dispose(); }, [service, onError]);
+  useEffect(() => { void service.refresh(false).catch(onError); return () => service.dispose(); }, [service, onError]);
   const lifetime = useRef<{running: boolean} | undefined>(undefined);
   useEffect(() => {
     const capture = {running: false}; lifetime.current = capture; setBusy(false);

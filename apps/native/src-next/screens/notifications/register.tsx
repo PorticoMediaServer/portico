@@ -101,8 +101,11 @@ export function createNativeNotificationsRenderer(context: NativeShellBootstrapC
     // Both audiences read through the viewer's cache: a view opened again shows at once, and a
     // change made in one is read again in the other.
     const queries = viewerQueriesFor(context.api, {serverId: authority.serverId});
-    profile = new InboxService(api, operationId, {queries});
-    admin = new InboxService(api, operationId, {queries});
+    // A cached read is shared, so it is read with the cache's own requester; the envelope checks this
+    // screen's requester makes travel with it, and another server's answer still retires this screen.
+    const onScopeChanged = () => {scopeChanged();};
+    profile = new InboxService(api, operationId, {queries, onScopeChanged});
+    admin = new InboxService(api, operationId, {queries, onScopeChanged});
     const dispose = () => {
       if (retired) return;
       retired = true;
