@@ -137,6 +137,14 @@ export class HomeSelectionController {
     }
     return offered;
   }
+  /** A pick the newer answer does not list is unknown, not gone, while the row it was picked in still has pages the
+   * answer did not read (a refresh reads first pages only). It is gone once that row is fully loaded or no longer
+   * there, the spotlight no longer shows it, or its library is no longer visible to the viewer. */
+  private unknown(item: SelectionIdentity, sectionId: string) {
+    const visible = this.options.visibleLibraries?.();
+    if ('libraryId' in item && visible && !visible.includes(item.libraryId)) return false;
+    return sectionId !== 'home:spotlight' && this.rows().some(row => row.id === sectionId && row.hasMore);
+  }
   /** Revision changes may retain a menu's semantic opener, never its old grants or in-flight work. */
   private reconcile(context: SelectionContext, environment: SelectionEnvironment) {
     const previous = this.state.context, menu = this.state.menu, source = this.menuSource, window = menu && this.windows.get(menu.windowId), menuWindow = this.menuWindow;
@@ -163,10 +171,10 @@ export class HomeSelectionController {
       this.invalidate(keep, survive ? 'keep' : 'clear');
       this.environment = {...environment};
       if (survive) {
-        const offered = this.offeredMembers(context);
-        dropped = this.selection.moveContext(context, item => offered.get(selectionKey(context.scope, item))?.item);
+        const offered = this.offeredMembers(context), previous = new Map([...this.held.values()].map(member => [selectionKey(context.scope, member.item), member]));
+        dropped = this.selection.moveContext(context, (item, sectionId) => offered.get(selectionKey(context.scope, item))?.item ?? (this.unknown(item, sectionId) ? item : undefined));
         this.held.clear();
-        for (const key of this.selection.getSnapshot().selectedKeys) {const member = offered.get(key); if (member) this.held.set(key, member);}
+        for (const key of this.selection.getSnapshot().selectedKeys) {const member = offered.get(key) ?? previous.get(key); if (member) this.held.set(key, member);}
       } else this.selection.setContext(context);
       this.document = this.options.home.getSnapshot().document;
       this.publish({context: this.selection.getSnapshot().context, selection: this.selection.getSnapshot(), actions: selectionActions(this.selection.getSnapshot().summary, this.environment), action: idle()});

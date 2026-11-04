@@ -122,6 +122,8 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
   const playback = context.playback.selectionPlayback(isCurrent);
   const controller = new HomeSelectionController({queries: viewerQueriesFor(context.api, {serverId: scope.serverId}), api: context.api, events: context.events, home: context.home, context: homeSelectionContext(scope, initial), environment: environment(), isCurrent,
     requestId: feedback.requestId, playback, reportError, notify: feedback.notice,
+    // An unread or empty directory is unknown, never "no library is visible" (that would drop every pick).
+    visibleLibraries: () => {const libraries = context.libraries();return libraries.length ? libraries.map(library => library.id) : undefined;},
     routes: {openEntry: entry => {if (!nativeEntryRouteSupported(entry)) reportError(failure('unavailable')); else open(nativeEntryRoute(entry));}, openCollection: collection => open({kind: 'collection', libraryId: collection.collection.libraryId, collectionId: collection.collection.id, title: collection.collection.name}),
       openDestination: destination => open({kind: 'saved-destination', destination})}});
   let queryAction: NativeSelectionActionPresentation | undefined, stopQueryAction: (() => void) | undefined;

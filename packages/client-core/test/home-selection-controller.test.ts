@@ -800,3 +800,39 @@ test('A: a preview under another fence than Home opens the editor, and a save af
   await assert.rejects(save!, /cancelled/);
   assert.deepEqual(writes, []); h.controller.dispose();
 });
+
+// Review (#740): a refresh reads only a row's first page, so a pick from a later page is missing from the newer answer
+// without being gone. It is unknown, and kept, while its row still has pages; it drops only when its row is fully loaded
+// or gone, or its library is no longer visible.
+test('D: a pick from a row\'s later page survives an artwork refresh that reads only first pages, with no notice', () => {
+  const [a, b, c] = [entry('a'), entry('b'), entry('c')], h = harness([a, b, c]), notices: string[] = []; h.options.notify = message => notices.push(message);
+  h.replace({...h.document, rows: [{...row([a, b, c]), hasMore: true}]});
+  const loaded = h.document.rows[0]!, key = menuKey(h, c);
+  assert.equal(h.controller.registerWindow({id: 'page-2', row: loaded, entries: [loaded.entries[2]!], start: 2, sectionOrder: 0}).ok, true);
+  h.controller.toggle('page-2', key);
+  h.replace({...h.document, rows: [{...row([{...a, title: 'New art a'}, {...b, title: 'New art b'}]), hasMore: true, revision: {catalog: 2, viewer: 1}}], revision: {catalog: 2, viewer: 1}});
+  assert.deepEqual(h.controller.getSnapshot().selection.selectedKeys, [key], 'the later-page pick is unknown, not gone');
+  assert.deepEqual(notices, []);
+  h.replace({...h.document, rows: [{...row([a, b]), hasMore: false, revision: {catalog: 3, viewer: 1}}], revision: {catalog: 3, viewer: 1}});
+  assert.deepEqual(h.controller.getSnapshot().selection.selectedKeys, [], 'once the row is fully loaded without it, the pick is gone');
+  assert.equal(notices.length, 1); assert.equal(notices[0], '1 item is no longer available.');
+  h.controller.dispose();
+});
+test('D: an access change that takes a row\'s library away drops its picks, whether the row is gone or still has pages', () => {
+  for (const variant of ['row gone', 'row still paged'] as const) {
+    const a = entry('a'), x = {...entry('x'), libraryId: 'library-2'}, h = harness([a]), notices: string[] = [];
+    h.options.notify = message => notices.push(message); h.options.visibleLibraries = () => ['library', 'library-2'];
+    const other = {...row([x]), id: 'other', libraryId: 'library-2', hasMore: true};
+    h.replace({...h.document, rows: [h.document.rows[0]!, other]});
+    h.controller.registerWindow({id: 'recent', row: h.document.rows[0]!, sectionOrder: 0});
+    h.controller.registerWindow({id: 'other', row: h.document.rows[1]!, sectionOrder: 1});
+    h.controller.selectLoaded(); assert.equal(h.controller.getSnapshot().selection.summary.count, 2, variant);
+    const moved = 'e'.repeat(64);
+    h.options.visibleLibraries = () => ['library'];
+    h.replace({...h.document, viewerFence: moved, revision: {catalog: 2, viewer: 2},
+      rows: [{...h.document.rows[0]!, viewerFence: moved}, ...(variant === 'row still paged' ? [{...other, entries: [], viewerFence: moved}] : [])]});
+    assert.deepEqual(h.controller.getSnapshot().selection.selectedKeys, [h.controller.key(homeEntrySelection(a, {platform: 'web', playbackAvailable: true, queueAvailable: true})!)], variant);
+    assert.deepEqual(notices, ['1 item is no longer available.'], variant);
+    h.controller.dispose();
+  }
+});
