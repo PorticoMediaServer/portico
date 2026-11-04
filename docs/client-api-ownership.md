@@ -52,7 +52,11 @@ allowance. Approved categories are:
 - Android `PorticoListeningOwner.kt` and Apple `PorticoListeningOwner.m`,
   explicitly approved to own queue/session/item/user-mutation requests while JS
   is suspended;
-- Cast receiver, website and Hosted as separate products.
+- Cast receiver, website and Hosted as separate products;
+- individually approved platform transport guards: core fully builds path, method,
+  body and auth; the wrapper adds only lifetime/authority/abort and constructs
+  nothing. The scanner requires unchanged path/method/body identifiers and only
+  a fourth signal argument at these pinned calls.
 
 Native byte-transport executors which take an already constructed core request
 are reported too; their migration disposition must preserve platform IO and

@@ -90,7 +90,8 @@ try {
       ids(c);
       const callee=text(c.expression).replace(/\s+/g,' ');
       const line=file.getLineAndCharacterOfPosition(c.expression.end).line+1;
-      sites.push({file:path,line,kind,owner:owner?text(owner.name):'<module>',callee,operations:[...new Set(operations)].sort(),expression:text(c).replace(/\s+/g,' ')});
+      const forwardedRequest = nameOf(c.expression)==='request' && c.arguments?.length===4 && ['path','method','body'].every((name,i)=>c.arguments[i]?.kind===K.Identifier && c.arguments[i].text===name);
+      sites.push({file:path,line,kind,forwardedRequest,owner:owner?text(owner.name):'<module>',callee,operations:[...new Set(operations)].sort(),expression:text(c).replace(/\s+/g,' ')});
     }
   }
 } finally {api.close();rmSync(scratch,{recursive:true,force:true});}

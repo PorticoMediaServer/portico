@@ -211,5 +211,47 @@
     "sites": [
       "apps/vega/src/bridge/subtitles.ts#2940ee6c6beefd6d"
     ]
+  },
+  "apps/native/src-next/screens/downloads/device.ts": {
+    "category": "platform-transport",
+    "reason": "Approved device custody and linked abort: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/screens/downloads/device.ts#96d07b074f1306f7"
+    ]
+  },
+  "apps/native/src-next/screens/saved/directory-commands.ts": {
+    "category": "platform-transport",
+    "reason": "Approved activation/authority guard and linked abort: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/screens/saved/directory-commands.ts#9eb7d77b98551dd7"
+    ]
+  },
+  "apps/native/src-next/screens/saved/view-model.ts": {
+    "category": "platform-transport",
+    "reason": "Approved captured generation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/screens/saved/view-model.ts#e6d66232346a5342"
+    ]
+  },
+  "web/src/screens/pins/pins-controller.ts": {
+    "category": "platform-transport",
+    "reason": "Approved lifetime and linked abort: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "web/src/screens/pins/pins-controller.ts#e657a03b6ce99c49"
+    ]
+  },
+  "web/src/screens/saved/runtime.ts": {
+    "category": "platform-transport",
+    "reason": "Approved SavedOperations guard and tracked abort: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "web/src/screens/saved/runtime.ts#0822d86e77028652"
+    ]
+  },
+  "web/src/screens/watch/music/favorite-binding.ts": {
+    "category": "platform-transport",
+    "reason": "Approved playback opening/authority and linked abort: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "web/src/screens/watch/music/favorite-binding.ts#8b63ad0b49068bdd"
+    ]
   }
 }

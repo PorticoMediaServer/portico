@@ -53,6 +53,12 @@ let sessionTask = session.dataTask(with: request)
         for bad in [{'apps/native/*':e['apps/native/x.kt']},{'apps/native/x.kt':dict(e['apps/native/x.kt'],reason='')}]:
             with self.assertRaises(ValueError):classify([],bad)
 
+    def test_platform_transport_pins_require_unchanged_request_arguments(self):
+        e={'web/src/guard.ts':{'category':'platform-transport','reason':'Reviewed exact core-built request guard','sites':['x']}}
+        site={'file':'web/src/guard.ts','id':'x'}
+        with self.assertRaises(ValueError): classify([site],e)
+        self.assertEqual(len(classify([dict(site,forwardedRequest=True)],e)[1]),1)
+
     def test_typescript_real_requests_aliases_writes_and_url_builders(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory); (root/'src').mkdir()

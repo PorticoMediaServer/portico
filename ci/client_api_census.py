@@ -178,7 +178,7 @@ def compare(actual, baseline):
 
 
 def classify(sites, exceptions):
-    approved = {'platform-url','native-extension','native-listening','separate-product'}
+    approved = {'platform-url','native-extension','native-listening','separate-product','platform-transport'}
     exempt, direct = [], []
     for path,entry in exceptions.items():
         if entry['category'] not in approved or not entry['reason'].strip() or any(c in path for c in '*?['):
@@ -186,7 +186,10 @@ def classify(sites, exceptions):
         if not entry.get('sites'): raise ValueError(f'Exception must pin its exact construction/request sites: {path}')
     for site in sites:
         entry = exceptions.get(site['file'])
-        (exempt if entry and site['id'] in entry['sites'] else direct).append(site)
+        allowed = entry and site['id'] in entry['sites']
+        if allowed and entry['category']=='platform-transport' and not site.get('forwardedRequest'):
+            raise ValueError(f"{site['file']}:{site['line']}: platform transport must forward path, method, body unchanged to request with only a signal argument")
+        (exempt if allowed else direct).append(site)
     return direct, exempt
 
 
