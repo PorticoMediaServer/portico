@@ -193,3 +193,34 @@ test('guide accepts programme-bound images and refuses unscoped or external imag
   assert.equal(parsed.image,image===safe?safe:undefined);
  }
 });
+
+// Step 7 (lead, 5 Nov): a guide cursor the server refuses (409 guide_refresh_required: the window changed, or the viewer's
+// access was decided again) reads the window's first page once in place of what is shown; a continuation that answers
+// clears that guard; a refusal straight after the re-read shows the error, and Try again reads the first page, never the
+// refused cursor again.
+test('step 7: a refused guide cursor reads the window\'s first page once, and Try again after a second refusal reads the first page',async()=>{
+ const asked:string[]=[];const script=['refuse','answer','refuse','refuse'];let firsts=0;
+ const api:ChannelApi={request:async<T>(path:string)=>{
+  const cursor=new URL(path,'https://x.invalid').searchParams.get('cursor')??'';asked.push(cursor);
+  const value=fixture();
+  if(!cursor){firsts++;value.guide.nextCursor=`c${firsts}`;value.guide.viewerFence=`fence-${firsts}`;return value as T;}
+  if(script.shift()==='answer'){value.guide.nextCursor=`${cursor}+`;return value as T;}
+  throw Object.assign(new Error('The guide changed. Reload this time window.'),{status:409,code:'guide_refresh_required'});
+ }};
+ const service=new ChannelGuideService(api,'server');
+ await service.load(route);assert.equal(firsts,1);
+ // First refusal: the first page is read again, quietly, in place of what is shown.
+ const phases:string[]=[];const off=service.subscribe(()=>phases.push(service.getSnapshot().phase));
+ await service.load(route,'next');off();
+ assert.equal(firsts,2);assert.equal(service.getSnapshot().phase,'ready');assert.equal(service.getSnapshot().guide?.viewerFence,'fence-2');
+ assert.equal(service.getSnapshot().hasPrevious,false);assert.ok(!phases.includes('error'),'the refusal is not shown');
+ // A continuation answers, then a second change refuses again: read again too.
+ await service.load(route,'next');assert.equal(service.getSnapshot().guide?.nextCursor,'c2+');
+ await service.load(route,'next');assert.equal(firsts,3);assert.equal(service.getSnapshot().phase,'ready');
+ // A refusal straight after that re-read shows the error.
+ await service.load(route,'next');assert.equal(firsts,3);assert.equal(service.getSnapshot().phase,'error');
+ // Try again reads the window's first page, not the refused cursor.
+ const before=asked.length;await service.load(route,'refresh');
+ assert.equal(asked[before],'');assert.equal(firsts,4);assert.equal(service.getSnapshot().phase,'ready');
+ service.dispose();
+});
