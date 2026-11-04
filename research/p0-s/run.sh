@@ -13,6 +13,10 @@ cg=$(awk -F: '$1=="0" {print $3}' /proc/self/cgroup)
    echo "$field"; cat "/sys/fs/cgroup$cg/$field"
  done
 } > "$out/host-$stage.txt"
+if [ "$stage" = full ]; then
+  "$RUNNER_TEMP/p0-s-full" --ddl "research/p0-s/$TARGET_DDL" --db "$out/full.db" --out "$out" --seed 1000000
+  exit
+fi
 if [ "$stage" = supported ]; then
   export TARGET_ENTITY=1 SUPPORTED=1
   python3 research/p0-s/adversarial.py --out "$out" --mode fanout

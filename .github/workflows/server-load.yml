@@ -5,11 +5,14 @@ on:
       mode:
         description: 'churn or growth (pure growing initial scan)'
         default: churn
+      ddl:
+        description: 'Pinned full schema basename under research/p0-s'
+        default: full-d07d13.sql
 permissions:
   contents: read
 jobs:
   scale:
-    if: ${{ inputs.mode != 'sweep' && inputs.mode != 'fanout' && inputs.mode != 'supported' }}
+    if: ${{ inputs.mode != 'sweep' && inputs.mode != 'fanout' && inputs.mode != 'supported' && inputs.mode != 'full' }}
     runs-on: ubuntu-24.04
     env:
       MODE: ${{ inputs.mode || 'churn' }}
@@ -76,6 +79,45 @@ jobs:
         if: always()
         with:
           name: p0-s-${{ inputs.mode }}-${{ matrix.profile }}-rep${{ matrix.repetition }}
+          path: |
+            ${{ runner.temp }}/p0-s/*.json
+            ${{ runner.temp }}/p0-s/*.txt
+          retention-days: 14
+
+  full:
+    if: ${{ inputs.mode == 'full' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 80
+    env:
+      TARGET_DDL: ${{ inputs.ddl || 'full-d07d13.sql' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [standard, legacy8]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: '**/go.sum'}
+      - name: Build bundled-engine companion through compiler overlay
+        run: |
+          mkdir -p "$RUNNER_TEMP/p0-s"
+          git rev-parse HEAD > "$RUNNER_TEMP/p0-s/source.txt"
+          git archive HEAD | sha256sum >> "$RUNNER_TEMP/p0-s/source.txt"
+          sha256sum "research/p0-s/$TARGET_DDL" >> "$RUNNER_TEMP/p0-s/source.txt"
+          python3 - <<'PY'
+          import json,os,pathlib
+          p=pathlib.Path(os.environ['RUNNER_TEMP'])/'full-overlay.json'
+          p.write_text(json.dumps({'Replace':{str(pathlib.Path.cwd()/'server/cmd/devhash/main.go'):str(pathlib.Path.cwd()/'research/p0-s/full.go')}}))
+          PY
+          cd server
+          go build -overlay="$RUNNER_TEMP/full-overlay.json" -o "$RUNNER_TEMP/p0-s-full" ./cmd/devhash
+      - name: Exact full schema on bundled engine
+        run: bash research/p0-s/launch.sh "$RUNNER_TEMP/p0-s" 1000000 '${{ matrix.profile }}' full
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: p0-s-full-${{ matrix.profile }}
           path: |
             ${{ runner.temp }}/p0-s/*.json
             ${{ runner.temp }}/p0-s/*.txt
