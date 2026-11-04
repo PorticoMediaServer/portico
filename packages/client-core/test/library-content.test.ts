@@ -29,6 +29,22 @@ test('an unknown card kind drops only that Discover entry and retains the sectio
   nav.dispose();
 });
 
+test('a Music Discover rail as long as the page asked for is drawn whole, not dropped (DR-1)', async () => {
+  const rail = (id: string, length: number) => ({id, type: 'rail', heading: {key: id, fallback: id}, entries: Array.from({length}, (_, i) => entry(`${id}-${i}`)), totalCount: length, nextCursor: ''});
+  resetSkippedParts();
+  const nav = service(async path => {assert.equal(new URL(path, 'https://server.test').searchParams.get('limit'), '40'); return projection(path, {sections: [rail('artists', 40), rail('recent', 13), rail('continue', 12)]});});
+  await nav.select({libraryId: 'music', view: 'discover'});
+  assert.equal(nav.getSnapshot().phase, 'ready');
+  assert.deepEqual(nav.getSnapshot().sections.map(section => [section.id, section.entries.length]), [['artists', 40], ['recent', 13], ['continue', 12]]);
+  assert.deepEqual(skippedParts().filter(part => part.document === 'content' && part.part === 'sections'), []);
+  nav.dispose();
+  // Still bounded: more than was asked for is not a rail this page can hold.
+  const over = service(async path => projection(path, {sections: [rail('artists', 41), rail('continue', 3)]}));
+  await over.select({libraryId: 'music', view: 'discover'});
+  assert.deepEqual(over.getSnapshot().sections.map(section => section.id), ['continue']);
+  over.dispose();
+});
+
 test('catalog entry retains every valid genre beyond the former preview size', async () => {
   const genres = Array.from({length: 25}, (_, i) => `Genre ${i}`);
   const nav = service(async path => { const result = projection(path); result.sections[0].entries[0].genres = genres; return result; });

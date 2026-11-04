@@ -381,11 +381,14 @@ function projection(raw: unknown, expected: ContentRoute, bound: ContentScope, p
     return Object.freeze({ id: n.id, labelKey: n.labelKey, options: Object.freeze(options) });
   }), n => n.id);
   // Discover carries Continue, Recommended, the personal rows, Trending and Recently added.
+  // DR-1: a rail holds what this page asked for. A Music library's Artists, New albums, Recently played and Playlists
+  // rails are built at the request's limit (40, server maximum 100); the generic rows stop at 12.
+  const railBound = Math.min(100, Math.max(12, pageSize));
   const sections = firstOfEach('content', 'sections', keepReadable('content', 'sections', boundedArray(raw.sections, 24), n => {
     if (!record(n) || !id(n.id) || !string(n.nextCursor ?? '', 4096)) invalid();
     // A layout this app does not know is drawn as a grid, which holds any number of entries.
     const type = oneOfOr('content', 'section.type', n.type, ['rail', 'grid', 'list'] as const, 'grid');
-    const entries = firstOfEach('content', 'entries', keepReadable('content', 'entries', boundedArray(n.entries, type === 'rail' ? 12 : 100), v => {
+    const entries = firstOfEach('content', 'entries', keepReadable('content', 'entries', boundedArray(n.entries, type === 'rail' ? railBound : 100), v => {
       const row = entry(v);
       if (row.libraryId !== undefined && row.libraryId !== expected.libraryId) invalid();
       return row;
