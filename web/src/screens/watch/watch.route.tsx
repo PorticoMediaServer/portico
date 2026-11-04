@@ -2,6 +2,7 @@ import {defineWebScreen} from '../../route-registry';
 import {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {useProtectedWebScreenContext} from '../../route-registry-view';
 import {createDetailBindings, WatchTitleBody, type ScreenContext, type WatchMyList} from '../detail';
+import {WatchBodyPlaybackProvider} from './WatchBodyPlayback';
 import {WatchPlayback} from './WatchPlayback';
 import type {WatchBindings, WatchPanelContext} from './types';
 import {WatchBodyOwner, type RetainedWatchBody} from './RetainedBody';
@@ -187,7 +188,7 @@ function RegisteredWatchPlayback({binding}: {binding: WatchBindings | undefined}
     {owner && runtime && <WatchBodyOwner captured={owner} runtime={runtime} target={target} onReady={setBody} />}
     <WatchPlayback binding={binding} context={owner?.context} surfaces={held ? {...panels, available: [...(panels?.available ?? []), ...(episodes ? ['episodes' as const] : [])],
       render: renderPanel,
-      body: <div hidden={!matches}><WatchTitleBody binding={held.binding} compact /></div>, bodyIdentity: `${captured?.binding.scopeKey}:${held.key}`,
+      body: <div hidden={!matches}>{runtime && binding ? <WatchBodyPlaybackProvider runtime={runtime} reportError={binding.reportError}><WatchTitleBody binding={held.binding} compact /></WatchBodyPlaybackProvider> : <WatchTitleBody binding={held.binding} compact />}</div>, bodyIdentity: `${captured?.binding.scopeKey}:${held.key}`,
       myList: matches && list.available && typeof list.watchlisted === 'boolean' ? {selected: list.watchlisted, pending: list.busy,
         toggle: () => {const current = held.binding.myList.getSnapshot();if (typeof current.watchlisted !== 'boolean') throw new DOMException('Title state changed', 'AbortError');return held.binding.myList.set(!current.watchlisted);}} : undefined,
       ...(end ? {end} : {}),
