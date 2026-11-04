@@ -79,13 +79,14 @@ export function SearchScreen({focusScope, destination, runtime, explore, onNow =
     return () => cancelAnimationFrame(frame);
   }, [activeRoute.visible, theme.isTV, theme.platform]);
   useEffect(() => selection?.register(state.search, state.groups), [selection, state.groups, state.search]);
-  // The row is read only on the empty page of a server with Live TV, and only while this page is showing.
-  const onNowOffered = hasLiveTV && !typed && !theme.isTV;
-  useEffect(() => {
-    if (activeRoute.visible && onNowOffered) run(onNow.load());
-  }, [activeRoute.visible, onNow, onNowOffered, run]);
   // The programmes on now are read for one moment; the row re-reads the clock while it is showing.
   const [now, setNow] = useState(() => serverNow());
+  // The row is read only on the empty page of a server with Live TV, and only while this page is showing; the clock
+  // passing the first shown programme's end reads it again (on-now.ts `until`), as does showing the page after that.
+  const onNowOffered = hasLiveTV && !typed && !theme.isTV, onNowDue = live.until !== undefined && now >= live.until;
+  useEffect(() => {
+    if (activeRoute.visible && onNowOffered) run(onNow.load());
+  }, [activeRoute.visible, onNow, onNowOffered, onNowDue, run]);
   useEffect(() => {
     if (!activeRoute.visible || !onNowOffered) return;
     setNow(serverNow());

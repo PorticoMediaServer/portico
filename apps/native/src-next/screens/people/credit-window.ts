@@ -9,12 +9,14 @@ import type {NativePersonController} from './controller';
 const cancelled = () => Object.assign(new Error('native_person_window_retired'), {name: 'AbortError', code: 'cancelled'});
 const changed = () => Object.assign(new Error('native_person_page_changed'), {code: 'stale_data'});
 
-/** One department of the arrived person page: the TV page draws a row per department (tv-detail frame 10). */
-export type NativePersonDepartmentGroup = Readonly<{department: string; total: number}>;
+/** One department of the arrived person page: the TV page draws a row per department (tv-detail frame 10, `f9`).
+ * `first` is its first page when it was read with the page (a re-read: NativePersonSnapshot.departmentPages). */
+export type NativePersonDepartmentGroup = Readonly<{department: string; total: number; first?: PersonPage}>;
 
 /** Sparse credits for one arrived Person/group snapshot. Cursors are only
  * server-returned tokens; seeking follows those tokens, never an offset guess.
- * With `group`, the window reads that one department of the same arrived page (no seeded first page). */
+ * With `group`, the window reads that one department of the same arrived page, seeded with its first page when that
+ * was read with the page. */
 export function createNativePersonCreditWindow(context: NativeShellBootstrapContext,
   target: Extract<NativeShellRoute, {kind: 'person'}>, source: NativePersonController, group?: NativePersonDepartmentGroup) {
   const lifetime = nativeDestinationLifetime(context), seed = source.getSnapshot();
@@ -23,14 +25,16 @@ export function createNativePersonCreditWindow(context: NativeShellBootstrapCont
   }
   if (seed.pageOrigin !== 'initial') throw new Error('native_person_initial_page_required');
   const first = seed.page, requestGroup = group ? {department: group.department} : seed.group, windowTotal = group ? group.total : first.pageInfo.total;
+  // Page zero: the arrived page itself, or the department's own first page when it arrived with it (else none).
+  const seeded = group ? group.first : first;
   // Selection uses real sparse offsets, never the compact order of resident pages.
   const positions = new WeakMap<PersonCredit, number>();
-  if (!group) first.credits.forEach((credit, index) => positions.set(credit, index));
+  seeded?.credits.forEach((credit, index) => positions.set(credit, index));
   let disposed = false;
   const pending = new Set<AbortController>(), cleanups: (() => void)[] = [];
   // Bounded cursor checkpoints contain no page bodies. Page zero is the real
   // arrived seed; old checkpoints can be reached again through canonical reads.
-  const cursors = new Map<number, string | null>(group ? [[0, null]] : [[0, null], [1, first.pageInfo.nextCursor || null]]);
+  const cursors = new Map<number, string | null>(seeded ? [[0, null], [1, seeded.pageInfo.nextCursor || null]] : [[0, null]]);
   const retained = () => context.navigation.getSnapshot().route === target || context.navigation.retainedRoutes().includes(target);
   const dispose = () => {
     if (disposed) return;
@@ -78,13 +82,13 @@ export function createNativePersonCreditWindow(context: NativeShellBootstrapCont
   // Page zero is the arrived seed, resident from the first render: a window built again after a re-read paints the credits
   // it has at once, so a focused card that the new first page still holds never turns into a placeholder.
   const collection = createWindowedCollection<PersonCredit>({pageSize: 40, maxResidentPages: 5, maxConcurrent: 1, prefetchPages: 0,
-    initialPage: {items: first.credits, total: first.pageInfo.total},
+    ...(seeded ? {initialPage: {items: seeded.credits, total: windowTotal}} : {}),
     keyOf: credit => JSON.stringify([credit.media.libraryId, credit.media.kind, credit.media.id, credit.creditKind, credit.role, credit.character]),
     fetchPage: async (start, count, signal) => {
       if (!visible() || signal.aborted) throw cancelled();
       if (count !== 40 || start % 40 !== 0) throw new Error('native_person_page_alignment_required');
       const index = start / 40;
-      if (index === 0 && !group) return {items: first.credits, total: windowTotal};
+      if (index === 0 && seeded) return {items: seeded.credits, total: windowTotal};
       let known = index;
       while (!cursors.has(known)) known--;
       let page: PersonPage | undefined;
