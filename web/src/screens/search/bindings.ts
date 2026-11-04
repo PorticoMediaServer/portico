@@ -1,3 +1,4 @@
+import {readSearchLiveGuides} from '@core/query/search-guide.ts';
 import {serverNow} from '@core/server-clock.ts';
 import {forwardIdentity} from '../detail/context';
 import {entryStartDisplay} from '../../platform/playback/subject';
@@ -5,11 +6,10 @@ import {SearchService, clearSearchHistory, deleteSearchHistoryEntry, searchFirst
 import {queryKeys} from '@core/query/keys.ts';
 import type {ViewerQueries} from '@core/query/viewer-queries.ts';
 import {serviceI18n} from '@core/presentation/service-text.ts';
-import {guideWindow, parseChannelGuide, type GuideChannel} from '@core/channel-guide.ts';
+import {guideWindow, type GuideChannel} from '@core/channel-guide.ts';
 import {nowNext, type GuideProgram} from '@core/guide/index.ts';
 import {legacyProgram} from '@core/guide/legacy-source.ts';
 import {channelTint, programmeFactParts, type ChannelMarkModel, type FactPart} from '@portico/client-core/kit-model';
-import {routePath} from '../../../../packages/contracts/src/routes.ts';
 import {screenLifetime, type ScreenContext} from '../detail/context';
 import {createDetailBindings} from '../detail/bindings';
 import {createShowBindings} from '../detail/show-bindings';
@@ -123,14 +123,11 @@ export function createSearchBindings(context: ScreenContext, queries: ViewerQuer
       if (!timezone) { publishLive(NO_LIVE_CARDS); return; }
       for (const [sourceId, ids] of bySource) {
         const route = {kind: 'live-source' as const, sourceId, timezone, search: '', ...guideWindow()};
-        for (let start = 0; start < ids.length; start += 50) {
-          const query = new URLSearchParams({...route, channels: ids.slice(start, start + 50).join(','), limit: '50'});
-          const raw = await life.api.request<unknown>(routePath('get_guide') + '?' + query, 'GET', undefined, signal);
-          if (!still()) return;
-          const guide = parseChannelGuide(raw, context.scope.serverId, route);
+        const complete = await readSearchLiveGuides(life.api, context.scope.serverId, route, ids, {signal, isCurrent: still, receive: guide => {
           const now = serverNow();
           for (const channel of guide.channels) next.set(channel.id, liveCard(channel, now, timezone));
-        }
+        }});
+        if (!complete) return;
       }
       if (!still()) return;
       publishLive(next);
