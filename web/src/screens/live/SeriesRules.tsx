@@ -24,10 +24,11 @@ export type SeriesRulesProps = Readonly<{view: SeriesRulesView; navigation?: Rea
   onDraft?: (rule: SeriesRule | undefined, settings: RuleSettings | undefined) => void;
   preview?: Readonly<{ruleId: string; settings: RuleSettings; count: number; airings: readonly RuleAiring[]}>}>;
 export type RecordingView = 'upcoming' | 'recorded' | 'rules' | 'history' | 'storage';
-/** phone-app 12: on a phone the Recordings views are underline tabs (Upcoming, Recorded, Series rules, History), the
- * page's own; Storage opens from its meter. Wider screens keep the chips. Shown only at phone width (rules.module.css). */
+/** phone-app 12: on a phone the Recordings views are the page's underline tabs (Upcoming, Recorded, Series rules,
+ * History, Storage); the storage meter stays too, as the frame draws both. Wider screens keep the chips. Shown only at
+ * phone width (rules.module.css). */
 export function RecordingPhoneTabs({views, value, onChange}: {views: readonly Readonly<{id: RecordingView; label: string}>[]; value: RecordingView; onChange?: (id: RecordingView) => void}) {
-  const shown = views.filter(item => item.id !== 'storage');
+  const shown = views;
   return <Tabs phone className={styles.phoneViews} value={value} aria-label={t('recordings.title')}
     onValueChange={id => {const item = shown.find(view => view.id === id); if (item) onChange?.(item.id);}}
     items={shown.map(item => ({value: item.id, label: item.label}))}/>;
