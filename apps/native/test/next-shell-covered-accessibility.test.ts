@@ -12,7 +12,7 @@ for (const tv of [false, true]) test(`${tv ? 'TV' : 'touch'} shell hides its cov
   const snapshot = {authority, destination: {kind: 'home'}, libraries: [], profile: {}, account: {actions: []}, homeVisible: true,
     contentVisible: true, mediaExpanded: false, selectionActive: false, homeObscured: false};
   const runtime = {getSnapshot: () => snapshot, subscribe: () => () => {}, home: {getSnapshot: () => ({})},
-    renderWatch: () => h.react.createElement('VisibleSplitWatchPanes'), renderRoutes: () => h.react.createElement('Routes'), renderSelection: () => null};
+    renderWatch: () => h.react.createElement('VisibleSplitWatchPanes'), playback: {}, renderRoutes: () => h.react.createElement('Routes'), renderSelection: () => null};
   const registry = {subscribe: () => () => {}, getSnapshot: () => ({}), capture: () => undefined, hasRetainedFocus: () => false};
   const {NativeShell} = await screenModule(new URL('../src-next/shell/NativeShell.tsx', import.meta.url), {...stackSlotFixture, 
     react: {...react, default: react}, 'react-native': {View: 'View', useWindowDimensions: () => ({width: tv ? 1920 : 840, height: tv ? 1080 : 880})},
@@ -49,9 +49,31 @@ for (const tv of [false, true]) test(`${tv ? 'TV' : 'touch'} shell hides its cov
       // W-12: the base page never holds focus itself; every CoveredLayer is an autoFocus guide on TV (next-covered-layer.test.ts).
       assert.equal(layer.props.autoFocus, undefined, 'no per-caller option: the layer itself decides');
     } else assert.equal(layer, undefined);
-    const watch = nodes(tree).find(node => node.type === 'View' && (Array.isArray(node.props.children) ? node.props.children : [node.props.children]).some((child: any) => child?.type === 'VisibleSplitWatchPanes'));
+    const watch = nodes(tree).find(node => (node.type === 'View' || node.type === 'CoveredLayer') && (Array.isArray(node.props.children) ? node.props.children : [node.props.children]).some((child: any) => child?.type === 'VisibleSplitWatchPanes'));
     assert.ok(watch, 'the separate watch outlet remains mounted');
     assert.notEqual(watch.props.accessibilityElementsHidden, true);
     assert.notEqual(watch.props.importantForAccessibility, 'no-hide-descendants');
+    if (tv) assert.equal(watch.props.covered, false, 'nothing presented: the watch outlet takes focus normally');
   }
+  if (!tv) return;
+  // #593 review: a presented state (the refused-link page) over the expanded player or the listening screen covers
+  // them too, so the chrome's preferred picture can't pull focus from under the page. The same element stays mounted.
+  const byTestID = (tree: unknown, id: string) => nodes(tree).find(node => node.type === 'CoveredLayer' && node.props.testID === id);
+  snapshot.contentVisible = true; snapshot.mediaExpanded = true;
+  let tree = render();
+  assert.equal(byTestID(tree, 'native-shell-playback').props.covered, false, 'the expanded player is the top layer');
+  assert.equal(byTestID(tree, 'native-shell-watch').props.covered, false);
+  for (const id of ['native-shell-playback', 'native-shell-watch']) assert.equal(byTestID(tree, id).props.inertWhenUncovered, true, `${id} is no focus guide while uncovered (next-covered-layer)`);
+  const playbackElement = byTestID(tree, 'native-shell-playback').props.children;
+  const release = layerStack.presentTVLayer('content-link-unavailable', () => true);
+  try {
+    tree = render();
+    assert.equal(byTestID(tree, 'native-shell-playback').props.covered, true, 'the player and listening host are covered under the page');
+    assert.equal(byTestID(tree, 'native-shell-watch').props.covered, true, 'and so is the watch chrome');
+    assert.equal(byTestID(tree, 'native-shell-playback').props.children.type, playbackElement.type, 'the playback layer is the same element: nothing remounts');
+    const playbackWrapper = nodes(tree).find(node => node.type === 'View' && [node.props.children].flat().some((child: any) => child?.props?.testID === 'native-shell-playback'));
+    assert.equal(playbackWrapper.props.style.zIndex, 8, 'and keeps its place above the routes');
+  } finally {release();}
+  tree = render();
+  assert.equal(byTestID(tree, 'native-shell-playback').props.covered, false, 'closed: the player takes focus again');
 });

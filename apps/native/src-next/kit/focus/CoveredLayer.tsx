@@ -1,5 +1,5 @@
-import React, {createContext, useContext} from 'react';
-import {TVFocusGuideView, View, type StyleProp, type ViewStyle} from 'react-native';
+import React, {createContext, useContext, useEffect, useRef} from 'react';
+import {TVFocusGuideView, View, type FocusGuideMethods, type StyleProp, type ViewStyle} from 'react-native';
 import {useTheme} from '../theme';
 
 /**
@@ -25,13 +25,22 @@ import {useTheme} from '../theme';
 const Covered = createContext(false);
 export function useCovered(): boolean {return useContext(Covered);}
 
-export function CoveredLayer({covered, children, style, testID, hostRef}: {covered: boolean; children: React.ReactNode; style?: StyleProp<ViewStyle>; testID?: string;
+export function CoveredLayer({covered, children, style, testID, hostRef, inertWhenUncovered = false}: {covered: boolean; children: React.ReactNode; style?: StyleProp<ViewStyle>; testID?: string;
   /** The layer's own native host, for a caller that claims focus into it (W-12: the shell's last fallback). */
-  hostRef?: React.Ref<View>}) {
+  hostRef?: React.Ref<View>;
+  /** A wrapper that only covers (the playback layer and the watch chrome under a presented state, #610): while
+   *  uncovered it is no focus guide at all on TV, so it never changes D-pad entry into what it holds. Android:
+   *  a view is a guide only with `autoFocus` or destinations. tvOS: the guide made while covered is removed by
+   *  asking for no destinations once `autoFocus` is off (`setFocusDestinations` re-runs `handleFocusGuide`,
+   *  which removes a guide with neither); a prop change alone would leave it, hiding the subtree. */
+  inertWhenUncovered?: boolean}) {
   const {isTV} = useTheme();
+  const guide = useRef<View & FocusGuideMethods>(null);
+  useEffect(() => {if (isTV && inertWhenUncovered && !covered) guide.current?.setDestinations?.([]);}, [isTV, inertWhenUncovered, covered]);
   const outer = useContext(Covered), inside = covered || outer;
   const hidden = {accessibilityElementsHidden: covered, importantForAccessibility: covered ? 'no-hide-descendants' as const : 'auto' as const};
   const content = <Covered.Provider value={inside}>{children}</Covered.Provider>;
   if (!isTV) return <View ref={hostRef} style={style} testID={testID} pointerEvents={covered ? 'none' : 'auto'} {...hidden}>{content}</View>;
+  if (inertWhenUncovered) return <TVFocusGuideView ref={guide as never} style={style} testID={testID} focusable={!covered} autoFocus={covered} {...hidden}>{content}</TVFocusGuideView>;
   return <TVFocusGuideView ref={hostRef as never} style={style} testID={testID} focusable={!covered} autoFocus {...hidden}>{content}</TVFocusGuideView>;
 }

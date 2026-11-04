@@ -122,7 +122,9 @@ export function provideTVLayerClaim(key: 'listening', claim: () => boolean): () 
 const presented = new Map<string, () => boolean>(), presentedListeners = new Set<() => void>();
 let presentedKeys = '[]';
 const publishPresented = () => {presentedKeys = JSON.stringify([...presented.keys()]); for (const listener of [...presentedListeners]) listener();};
-export function presentTVLayer(key: string, claim: () => boolean): () => void {
+/** The states that may be presented: each is a known page, so nothing else can push into the stack. */
+export type TVPresentedLayerKey = 'content-link-unavailable';
+export function presentTVLayer(key: TVPresentedLayerKey, claim: () => boolean): () => void {
   presented.delete(key); presented.set(key, claim); publishPresented();
   return () => {if (presented.get(key) !== claim) return; presented.delete(key); publishPresented();};
 }

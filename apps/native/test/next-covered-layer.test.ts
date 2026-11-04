@@ -1,3 +1,4 @@
+import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
@@ -62,4 +63,43 @@ test('W-9 (2eec0520): a covered layer tells every control in it that it is cover
   const provided = (element: any) => [element.props.children].flat()[0].props.value;
   assert.equal(provided(h.render(() => module.CoveredLayer({covered: true, children: 'page'}))), true, 'covered: its controls are inert');
   assert.equal(provided(h.render(() => module.CoveredLayer({covered: false, children: 'page'}))), false, 'uncovered: its controls work');
+});
+
+// #610 review: the playback and watch wrappers only cover. Uncovered they must be no focus guide at all, so they never
+// change D-pad entry into the dock, the listening screen or the expanded player.
+const nativeSource = (path: string) => readFileSync(new URL(`../node_modules/react-native/${path}`, import.meta.url), 'utf8').replace(/\s+/g, ' ');
+test('an inert-when-uncovered layer is no focus guide while uncovered, on Android and tvOS, and still blocks everything under it when covered', async () => {
+  const h = hooks(), effects: (() => void)[] = [];
+  const react = {...withContext(h.react), useEffect: (effect: () => void) => {effects.push(effect);}};
+  const {CoveredLayer} = await screenModule(new URL('../src-next/kit/focus/CoveredLayer.tsx', import.meta.url), {
+    react: {...react, default: react}, 'react-native': {TVFocusGuideView: 'TVFocusGuideView', View: 'View'}, '../theme': {useTheme: () => ({isTV: true})}});
+  const asked: unknown[][] = [];
+  const render = (covered: boolean) => {
+    effects.length = 0;
+    const element = h.render(() => CoveredLayer({covered, inertWhenUncovered: true, children: 'player', testID: 'native-shell-playback'})) as any;
+    element.props.ref.current = {setDestinations: (value: unknown[]) => {asked.push(value);}};
+    for (const effect of effects) effect();
+    return element;
+  };
+  const open = render(false);
+  assert.equal(open.type, 'TVFocusGuideView');
+  assert.equal(open.props.autoFocus, false, 'uncovered: no autoFocus');
+  assert.equal(open.props.destinations, undefined, 'and no destinations');
+  // Android (ReactViewGroup.isTVFocusGuide = isFocusDestinationsSet || autoFocus): a plain view group.
+  assert.match(nativeSource('ReactAndroid/src/main/java/com/facebook/react/views/view/ReactViewGroup.kt'), /public val isTVFocusGuide: Boolean get\(\) = .*isFocusDestinationsSet \|\| autoFocus/);
+  assert.equal(!!(open.props.destinations?.length) || open.props.autoFocus, false, 'so it is not a focus guide on Android');
+  // tvOS: never focusable itself, and the guide made while covered is removed by asking for no destinations.
+  assert.deepEqual(tvosNativeProps(open.props), {isTVSelectable: false, autoFocus: false});
+  const fabric = nativeSource('React/Fabric/Mounting/ComponentViews/View/RCTViewComponentView.mm');
+  assert.match(fabric, /- \(void\)setFocusDestinations:\(NSArray\*\)destinations \{.*?\[self handleFocusGuide\];/);
+  assert.match(fabric, /\} else if \(_autoFocus\) \{ \[self addFocusGuide:@\[self\]\]; \} else \{ .*?\[self removeFocusGuide\]; \}/);
+  assert.deepEqual(asked, [[]], 'uncovered: it asks for no destinations, which removes any tvOS guide');
+  const covered = render(true);
+  assert.equal(covered.type, open.type, 'the same element covered or not: nothing under it remounts');
+  assert.equal(covered.props.focusable, false, 'covered: Android FOCUS_BLOCK_DESCENDANTS / tvOS hidden subtree');
+  assert.deepEqual(tvosNativeProps(covered.props), {isTVSelectable: false, autoFocus: true}, 'covered: a guide that hides its subtree');
+  assert.equal(covered.props.importantForAccessibility, 'no-hide-descendants');
+  assert.deepEqual(asked, [[]], 'covering asks nothing more (react-native-tvos clears destinations itself)');
+  render(false);
+  assert.deepEqual(asked, [[], []], 'uncovered again: the guide is removed again');
 });
