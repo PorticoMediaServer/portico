@@ -177,13 +177,13 @@ type MergeReview struct {
 }
 
 func (s *Service) RepairPreview(ctx context.Context, t RepairTarget, merge *RepairTarget, authorize func(*sql.Tx) error) (RepairPreview, error) {
+	return metadataReadValue(ctx, s, func(ctx context.Context) (RepairPreview, error) { return s.repairPreview(ctx, t, merge, authorize) })
+}
+
+func (s *Service) repairPreview(ctx context.Context, t RepairTarget, merge *RepairTarget, authorize func(*sql.Tx) error) (RepairPreview, error) {
 	out := RepairPreview{Message: "Descendants are processed in durable pages. Each item keeps its identity, locks, files and personal state. A failed item retains its previous metadata."}
-	gated, err := dbwork.BeginSnapshot(ctx, s.db)
-	if err != nil {
-		return out, err
-	}
-	tx := gated.Tx()
-	defer gated.Rollback()
+	tx := dbwork.Snapshot(ctx)
+	var err error
 	if authorize == nil {
 		return out, ErrRepairInput
 	}
@@ -287,7 +287,7 @@ func (s *Service) RepairPreview(ctx context.Context, t RepairTarget, merge *Repa
 		m.Blockers = append(m.Blockers, "Merge publication is blocked: this catalog has no closed reconciliation/undo registry for all playback, Saved, queue and provider-history references. No references or media will be moved by this review.")
 		out.Merge = m
 	}
-	return out, gated.Commit()
+	return out, nil
 }
 func queueRepairCascade(ctx context.Context, tx *sql.Tx, t RepairTarget, library, base, actor, intent, now string) error {
 	if intent != "repair_assets" && intent != "refresh_unlocked" {

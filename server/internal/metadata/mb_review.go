@@ -76,13 +76,13 @@ type MBSelection struct {
 }
 
 func (s *Service) MusicBrainzState(kind, id string) (MBState, error) {
+	return metadataReadValue(context.Background(), s, func(ctx context.Context) (MBState, error) { return s.musicBrainzState(ctx, kind, id) })
+}
+
+func (s *Service) musicBrainzState(ctx context.Context, kind, id string) (MBState, error) {
 	out := MBState{Kind: kind, EntityID: id, Candidates: []MBCandidate{}, Actions: []string{}, Attribution: "Music metadata provided by MusicBrainz."}
-	gated, e := dbwork.BeginSnapshot(context.Background(), s.db)
-	if e != nil {
-		return out, e
-	}
-	tx := gated.Tx()
-	defer gated.Rollback()
+	tx := dbwork.Snapshot(ctx)
+	var e error
 	// The public id resolves once; every statement below seeks on the integer
 	// entity id. Unknown or malformed ids read as not found, as before.
 	entity, e := entityid.Resolve(context.Background(), tx, id)
@@ -164,7 +164,7 @@ func (s *Service) MusicBrainzState(kind, id string) (MBState, error) {
 		}
 	}
 	out.Actions = append(out.Actions, "search", "policy")
-	return out, gated.Commit()
+	return out, nil
 }
 func (s *Service) SelectMusicBrainz(kind, id string, m MBSelection, authorize func(*sql.Tx) error) error {
 	s.resetMBMutationPick()

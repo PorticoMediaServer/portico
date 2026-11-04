@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
+	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/thirdparty/sqlite"
 )
 
@@ -27,8 +28,54 @@ func (c artworkAdmissionConnector) Connect(ctx context.Context) (driver.Conn, er
 // The old reader skipped admission and could open the entire cold pool while
 // every queued read was already spending its two-second snapshot lifetime.
 func TestArtworkReadsUseSnapshotAdmission(t *testing.T) {
-	for _, preview := range []bool{false, true} {
-		t.Run(map[bool]string{false: "selected", true: "preview"}[preview], func(t *testing.T) {
+	type readCase struct {
+		name string
+		read func(*Service, context.Context) error
+	}
+	cases := []readCase{
+		{"selected", func(s *Service, ctx context.Context) error {
+			_, _, err := s.EntityArtworkVariant(ctx, RepairTarget{"item", "fixture"}, "poster", "", ArtworkSmall, "")
+			return err
+		}},
+		{"preview", func(s *Service, ctx context.Context) error {
+			_, _, err := s.PreviewArtwork(ctx, RepairTarget{"item", "fixture"}, strings.Repeat("a", 64), ArtworkSmall)
+			return err
+		}},
+		{"capture-artwork", func(s *Service, ctx context.Context) error { _, _, err := s.CaptureArtworkContext(ctx); return err }},
+		{"repair-state", func(s *Service, ctx context.Context) error {
+			_, err := s.RepairState(ctx, RepairTarget{"item", "fixture"}, func(*sql.Tx) error { return nil })
+			return err
+		}},
+		{"repair-preview", func(s *Service, ctx context.Context) error {
+			_, err := s.RepairPreview(ctx, RepairTarget{"item", "fixture"}, nil, func(*sql.Tx) error { return nil })
+			return err
+		}},
+		{"attention", func(s *Service, ctx context.Context) error { _, err := s.Attention(ctx, "fixture", "", 1); return err }},
+		{"library-agent", func(s *Service, ctx context.Context) error { _, err := s.LibraryAgent(ctx, "fixture"); return err }},
+		{"screen-policy", func(s *Service, ctx context.Context) error { _, err := s.ScreenPolicy(ctx, "fixture"); return err }},
+		{"screen-state", func(s *Service, ctx context.Context) error {
+			_, err := s.ScreenState(ctx, "item", "fixture")
+			return err
+		}},
+		{"music-state", func(s *Service, _ context.Context) error { _, err := s.MusicBrainzState("song", "fixture"); return err }},
+		{"settings", func(s *Service, ctx context.Context) error { _, err := s.MetadataSettings(ctx); return err }},
+	}
+	cases = append(cases,
+		readCase{"episode-command", func(s *Service, ctx context.Context) error {
+			s.EpisodeThumbnails = thumbnailRuntime(t, s, nil)
+			s.EpisodeThumbnails.Sources = &episodeAvailabilitySources{t: t}
+			var owner identity.Principal
+			owner.Authority, owner.AccountID, owner.ProfileID, owner.Hash = "local", "account", "profile", "hash"
+			_, err := s.MakeEpisodeThumbnail(ctx, RepairTarget{"item", "fixture"}, RepairCommand{Action: "make_episode_thumbnail", ExpectedRevision: strings.Repeat("a", 64)}, owner, func(*sql.Tx) error { return nil })
+			return err
+		}},
+		readCase{"episode-scan", func(s *Service, ctx context.Context) error {
+			_, _, err := s.ScanEpisodeThumbnails(ctx, "job", "source", "object", "revision", 1)
+			return err
+		}},
+	)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
 			base, err := sqlite.NewConnector(":memory:")
 			if err != nil {
 				t.Fatal(err)
@@ -39,26 +86,19 @@ func TestArtworkReadsUseSnapshotAdmission(t *testing.T) {
 			db := sql.OpenDB(artworkAdmissionConnector{base, func(ctx context.Context) (driver.Conn, error) {
 				calls++
 				if got := dbwork.Snapshots().Held; got != held+1 {
-					t.Errorf("cold artwork connection bypassed snapshot admission: held=%d, want %d", got, held+1)
+					t.Errorf("cold metadata connection bypassed snapshot admission: held=%d, want %d", got, held+1)
 				}
 				if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > dbwork.ForegroundSnapshotLifetime {
-					t.Error("admitted artwork reader lost its foreground lifetime")
+					t.Error("admitted metadata reader lost its foreground lifetime")
 				}
 				return nil, stopped
 			}})
 			defer db.Close()
-			s := &Service{db: db}
-			var file *os.File
-			if preview {
-				file, _, err = s.PreviewArtwork(context.Background(), RepairTarget{"item", "fixture"}, strings.Repeat("a", 64), ArtworkSmall)
-			} else {
-				file, _, err = s.EntityArtworkVariant(context.Background(), RepairTarget{"item", "fixture"}, "poster", "", ArtworkSmall, "")
-			}
-			if file != nil || !errors.Is(err, stopped) || calls != 1 {
-				t.Fatalf("connection refusal: file=%v err=%v opens=%d", file, err, calls)
+			if err := tc.read(&Service{db: db}, context.Background()); !errors.Is(err, stopped) || calls != 1 {
+				t.Fatalf("connection refusal: err=%v opens=%d", err, calls)
 			}
 			if got := dbwork.Snapshots().Held; got != held {
-				t.Fatalf("failed artwork open leaked snapshot admission: %d, want %d", got, held)
+				t.Fatalf("failed metadata open leaked snapshot admission: %d, want %d", got, held)
 			}
 		})
 	}
@@ -115,5 +155,24 @@ func TestArtworkReadFailureAbortsCarriedWriter(t *testing.T) {
 				t.Fatalf("failed nested artwork read allowed its writer to commit: %v", err)
 			}
 		})
+	}
+}
+
+func TestArtworkCapturedContextKeepsItsCallerAfterSnapshotCloses(t *testing.T) {
+	s, _, _ := repairFixture(t)
+	type key struct{}
+	caller, cancel := context.WithCancel(context.WithValue(context.Background(), key{}, "caller"))
+	captured, check, err := s.CaptureArtworkContext(caller)
+	if err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+	if captured.Err() != nil || dbwork.Snapshot(captured) != nil || captured.Value(key{}) != "caller" || check == nil {
+		cancel()
+		t.Fatal("captured artwork context retained its finished read instead of its caller")
+	}
+	cancel()
+	if !errors.Is(captured.Err(), context.Canceled) {
+		t.Fatal("captured artwork context lost caller cancellation")
 	}
 }

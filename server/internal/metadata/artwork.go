@@ -133,12 +133,9 @@ func (s *Service) EntityArtworkVariant(ctx context.Context, t RepairTarget, role
 func (s *Service) withArtworkSnapshot(ctx context.Context, read func(context.Context) (*os.File, string, error)) (*os.File, string, error) {
 	var file *os.File
 	var mime string
-	err := dbwork.WithReadSnapshot(ctx, s.db, func(ctx context.Context) error {
+	err := s.readWithSnapshot(ctx, func(ctx context.Context) error {
 		var err error
 		file, mime, err = read(ctx)
-		if err == nil {
-			err = ctx.Err()
-		}
 		return err
 	})
 	if err != nil {
@@ -151,12 +148,8 @@ func (s *Service) withArtworkSnapshot(ctx context.Context, read func(context.Con
 }
 
 func (s *Service) entityArtworkVariant(ctx context.Context, t RepairTarget, role, subject string, size ArtworkSize, version string) (*os.File, string, error) {
-	gated, err := dbwork.BeginSnapshot(ctx, s.db)
-	if err != nil {
-		return nil, "", err
-	}
-	tx := gated.Tx()
-	defer gated.Rollback()
+	tx := dbwork.Snapshot(ctx)
+	var err error
 	if err = validateArtworkTarget(ctx, tx, t); err != nil {
 		return nil, "", err
 	}
@@ -179,10 +172,6 @@ func (s *Service) entityArtworkVariant(ctx context.Context, t RepairTarget, role
 			s.queueMissingArtwork(selectedTarget, selectedRole, subject)
 			return nil, "", ErrArtworkPending
 		}
-		if e = gated.Commit(); e != nil {
-			f.Close()
-			return nil, "", e
-		}
 		return f, mime, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
@@ -203,9 +192,6 @@ func (s *Service) entityArtworkVariant(ctx context.Context, t RepairTarget, role
 			return nil, "", err
 		}
 		if strings.HasPrefix(value, "local:") {
-			if err = gated.Commit(); err != nil {
-				return nil, "", err
-			}
 			return s.LocalArtwork(strings.TrimPrefix(value, "local:"))
 		}
 	}

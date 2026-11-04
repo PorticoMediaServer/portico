@@ -128,43 +128,51 @@ func (s *Service) MakeEpisodeThumbnail(ctx context.Context, target RepairTarget,
 	if !s.EpisodeThumbnails.ready() {
 		return RepairState{}, ErrArtworkPending
 	}
-	g, err := dbwork.BeginSnapshot(ctx, s.db)
-	if err != nil {
-		return RepairState{}, err
-	}
-	defer g.Rollback()
-	tx := g.Tx()
-	if err = authorize(tx); err != nil {
-		return RepairState{}, err
-	}
-	video, err := s.episodeThumbnailVideoTx(ctx, tx, target)
-	if err != nil {
-		return RepairState{}, err
-	}
-	captured, err := captureEpisodeThumbnailTx(ctx, tx, target, video.LibrarySourceID, video.ObjectID, video.SourceRevision)
-	if err != nil {
-		return RepairState{}, err
-	}
-	if captured.RepairRevision != command.ExpectedRevision {
-		return RepairState{}, ErrRepairConflict
-	}
-	policy, err := catalog.EpisodeThumbnailPolicyTx(ctx, tx, captured.LibraryID)
-	if err != nil {
-		return RepairState{}, err
-	}
+	var captured episodeThumbnailCapture
+	var mode string
+	var source EpisodeThumbnailSource
 	runtime := s.EpisodeThumbnails
-	source, err := runtime.Sources.ResolveEpisodeThumbnailTx(ctx, tx, EpisodeThumbnailInvocation{Target: captured.sourceTarget(), Purpose: EpisodeThumbnailExplicit, Operation: catalog.EpisodeThumbnailOperation, CostClass: mediaanalysis.EpisodeThumbnailCostClass, Owner: owner})
+	caller := ctx
+	err := s.readWithSnapshot(ctx, func(ctx context.Context) error {
+		tx := dbwork.Snapshot(ctx)
+		var err error
+		if err = authorize(tx); err != nil {
+			return err
+		}
+		video, err := s.episodeThumbnailVideoTx(ctx, tx, target)
+		if err != nil {
+			return err
+		}
+		captured, err = captureEpisodeThumbnailTx(ctx, tx, target, video.LibrarySourceID, video.ObjectID, video.SourceRevision)
+		if err != nil {
+			return err
+		}
+		if captured.RepairRevision != command.ExpectedRevision {
+			return ErrRepairConflict
+		}
+		policy, err := catalog.EpisodeThumbnailPolicyTx(ctx, tx, captured.LibraryID)
+		if err != nil {
+			return err
+		}
+		mode = policy.Mode
+		// Source custody outlives this read; keep its original caller context.
+		source, err = runtime.Sources.ResolveEpisodeThumbnailTx(caller, tx, EpisodeThumbnailInvocation{Target: captured.sourceTarget(), Purpose: EpisodeThumbnailExplicit, Operation: catalog.EpisodeThumbnailOperation, CostClass: mediaanalysis.EpisodeThumbnailCostClass, Owner: owner})
+		if err != nil {
+			return err
+		}
+		if source == nil {
+			return ErrArtworkPending
+		}
+		return nil
+	})
 	if err != nil {
+		if source != nil {
+			source.Close()
+		}
 		return RepairState{}, err
-	}
-	if source == nil {
-		return RepairState{}, ErrArtworkPending
 	}
 	defer source.Close()
-	if err = g.Commit(); err != nil {
-		return RepairState{}, err
-	}
-	return s.generateEpisodeThumbnail(ctx, captured, policy.Mode, true, source, MBActor{Authority: owner.Authority, AccountID: owner.AccountID, ProfileID: owner.ProfileID}, authorize)
+	return s.generateEpisodeThumbnail(ctx, captured, mode, true, source, MBActor{Authority: owner.Authority, AccountID: owner.AccountID, ProfileID: owner.ProfileID}, authorize)
 }
 
 func (s *Service) generateEpisodeThumbnail(ctx context.Context, captured episodeThumbnailCapture, mode string, manual bool, source EpisodeThumbnailSource, actor MBActor, authorize func(*sql.Tx) error) (RepairState, error) {

@@ -164,16 +164,14 @@ func (s *Service) mbSelectionInput(ctx context.Context, j mbJob) (string, string
 		return hint, "", nil
 	}
 	if j.kind == "song" && j.base.ReleaseRevision != "" {
-		gated, e := dbwork.BeginSnapshot(ctx, s.db)
-		if e != nil {
-			return "", "", e
-		}
-		tx := gated.Tx()
-		defer gated.Rollback()
-		if e = s.activeMB(ctx, tx, j); e != nil {
-			return "", "", e
-		}
-		p, e := readMBTrack(ctx, tx, j, "")
+		p, e := metadataReadValue(ctx, s, func(ctx context.Context) (mbTrackProjection, error) {
+			gated := dbwork.Snapshot(ctx)
+			var e error
+			if e = s.activeMB(ctx, gated, j); e != nil {
+				return mbTrackProjection{}, e
+			}
+			return readMBTrack(ctx, gated, j, "")
+		})
 		if e != nil {
 			return "", "", e
 		}

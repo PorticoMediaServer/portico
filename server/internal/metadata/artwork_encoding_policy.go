@@ -38,12 +38,9 @@ func (s *Service) CaptureArtworkContext(ctx context.Context) (context.Context, f
 	if s == nil || s.db == nil || ctx == nil {
 		return nil, nil, ErrRepairInput
 	}
-	snapshot, err := dbwork.BeginSnapshot(ctx, s.db)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer snapshot.Rollback()
-	policy, err := readArtworkEncodingPolicyTx(ctx, snapshot.Tx())
+	policy, err := metadataReadValue(ctx, s, func(ctx context.Context) (artworkEncodingPolicy, error) {
+		return readArtworkEncodingPolicyTx(ctx, dbwork.Snapshot(ctx))
+	})
 	if err != nil {
 		return nil, nil, err
 	}

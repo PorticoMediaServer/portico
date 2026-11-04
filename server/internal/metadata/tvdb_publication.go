@@ -370,14 +370,10 @@ func (s *Service) runTVDBAcquisition(ctx context.Context, p tvdbPublication) err
 				case <-requestCtx.Done():
 					return
 				case <-tick.C:
-					gated3, e := dbwork.BeginSnapshot(requestCtx, s.db)
-					if e != nil {
-						cancel()
-						return
-					}
-					tx := gated3.Tx()
-					e = s.activeTVDBPublication(requestCtx, tx, p)
-					gated3.Rollback()
+					e := s.readWithSnapshot(requestCtx, func(ctx context.Context) error {
+						gated3 := dbwork.Snapshot(ctx)
+						return s.activeTVDBPublication(ctx, gated3, p)
+					})
 					if e != nil {
 						cancel()
 						return

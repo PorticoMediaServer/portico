@@ -343,15 +343,15 @@ func screenProviderEnabled(b screenBase, provider string) bool {
 	return false
 }
 func (s *Service) screenBeforeRequest(ctx context.Context, p *screenClaim, provider string) error {
+	return s.readWithSnapshot(ctx, func(ctx context.Context) error { return s.screenBeforeRequestRead(ctx, p, provider) })
+}
+
+func (s *Service) screenBeforeRequestRead(ctx context.Context, p *screenClaim, provider string) error {
 	if !screenProviderEnabled(p.Base, provider) {
 		return &metadataprovider.Error{Provider: provider, Code: "provider_disabled"}
 	}
-	gated4, err := dbwork.BeginSnapshot(ctx, s.db)
-	if err != nil {
-		return err
-	}
-	tx := gated4.Tx()
-	defer gated4.Rollback()
+	tx := dbwork.Snapshot(ctx)
+	var err error
 	ok, err := s.screenCurrent(ctx, tx, p)
 	if err != nil {
 		return err

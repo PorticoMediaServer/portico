@@ -47,12 +47,8 @@ func (s *Service) PreviewArtwork(ctx context.Context, t RepairTarget, candidate 
 }
 
 func (s *Service) previewArtwork(ctx context.Context, t RepairTarget, candidate string, size ArtworkSize) (*os.File, string, error) {
-	gated, err := dbwork.BeginSnapshot(ctx, s.db)
-	if err != nil {
-		return nil, "", err
-	}
-	tx := gated.Tx()
-	defer gated.Rollback()
+	tx := dbwork.Snapshot(ctx)
+	var err error
 	current, err := artworkFence(ctx, tx, t)
 	if err != nil {
 		return nil, "", err
@@ -72,10 +68,6 @@ func (s *Service) previewArtwork(ctx context.Context, t RepairTarget, candidate 
 	f, err := s.openArtworkObject(digest)
 	if err != nil {
 		return nil, "", ErrArtworkPending
-	}
-	if err = gated.Commit(); err != nil {
-		f.Close()
-		return nil, "", err
 	}
 	return f, mime, nil
 }
