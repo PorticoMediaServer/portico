@@ -68,7 +68,7 @@ export function PersonScreen({focusScope, page, role, collection, runtime, actio
   const initials = person.name.split(/\s+/u).filter(Boolean).slice(0, 2).map(word => [...word][0]).join('');
   const known = page.person.knownFor;
   // O-162: Share and Copy link for this person (the page had no ⋯ while no person action existed).
-  const shareItems: MenuEntry[] = shareLinkActions(runtime.getSnapshot().authority.serverId, 'person', {personId: person.id},
+  const shareItems: MenuEntry[] = shareLinkActions(runtime.shareScope?.(), 'person', {personId: person.id},
     {notice: runtime.notice, report: runtime.reportError}).map(action => ({id: action.id, label: action.label, icon: action.icon, onSelect: action.onSelect}));
   const header = <>
     <View pointerEvents="none" style={{position: 'absolute', top: 0, left: 0, right: 0, height: 560, overflow: 'hidden'}}>

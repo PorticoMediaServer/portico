@@ -611,6 +611,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     };
     const runtime: RestoredNativeShellRuntime = {...bound, retirementSignal: signal.signal, playback, watch, firstLibraryContext: context, playOn,
       retryLibraries: () => {if (current()) freshness.invalidateLibraries();},
+      shareScope: () => current() && session ? Object.freeze({serverId: authority.serverId, hosted: session.viewer.authority === 'hosted', origin: local.baseUrl}) : undefined,
       reportPlaybackProblem: async consent => {
         const lifetime = new NativeScreenLifetime(context);
         try {await sendNativeDeviceReport({context, lifetime}, consent);} finally {lifetime.dispose();}

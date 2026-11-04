@@ -389,7 +389,7 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
     canSaveView={canSaveView} onSaveView={() => {
       if (state.sort && nativeLibraryCanSave(state, {predicates: state.predicates, sort: state.sort})) actions.saveView(destination, {predicates: state.predicates, sort: state.sort});
     }} onMarkAll={actions.markAll && state.collection ? markAll : undefined}
-    shareActions={theme.isTV ? undefined : shareLinkActions(runtime.getSnapshot().authority.serverId, 'library', {libraryId: state.library.id}, {notice: runtime.notice, report: runtime.reportError})}/>;
+    shareActions={theme.isTV ? undefined : shareLinkActions(runtime.shareScope?.(), 'library', {libraryId: state.library.id}, {notice: runtime.notice, report: runtime.reportError})}/>;
   homeActionDiagnostics.libraryMenu('element', runtime);
   const select = selection && <Button testID="library-select-header" variant="text" size="compact" icon="i-check" style={{height: 44}} onPress={selection.start}>{defaultI18n.t('next.selection.select')}</Button>;
   const screenGutter = tabletLayout ? expanded ? 32 : 28 : theme.gutter;

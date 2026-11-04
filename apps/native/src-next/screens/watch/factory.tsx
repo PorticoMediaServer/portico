@@ -1,6 +1,6 @@
 import React, {useSyncExternalStore} from 'react';
 import {releaseQuietly} from '../../../../../packages/client-core/src/cleanup';
-import {shareLinkActions} from '../share/share-actions';
+import {shareLinkActions, type NativeShareScope} from '../share/share-actions';
 import type {View} from 'react-native';
 import type {HttpLocalApi} from '../../../../../packages/client-core/src';
 import {DetailService, type DetailProjection, type DetailScope, type PersonalIntent} from '../../../../../packages/client-core/src/detail';
@@ -93,6 +93,8 @@ export type NativeWatchFactoryPorts = Readonly<{
   scope: DetailScope;
   authority: ShellAuthority;
   current: () => ShellAuthority;
+  /** The server Share and Copy link speak for (N5-6). */
+  shareScope?: () => NativeShareScope | undefined;
   /** Genuine bootstrap lifetime, separate from the current playback output. */
   isCurrent?: () => boolean;
   subscribeCurrent: (listener: () => void) => () => void;
@@ -422,7 +424,7 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
     ports.openMenu(captured, {fileInfo: accepted => fileInfo(captured, accepted), ...(discTitles ? {discTitles} : {}), ...(select ? {select: () => {if (current(captured)) select();}} : {}), ...(hasVersions ? {differentVersion: () => versions(captured)} : {}), ...(menuEntry ? {entry: menuEntry} : {}),
       ...(() => {
         // O-162: Share and Copy link for this item on this server, from client-core's one builder (touch only).
-        const shared = ports.isTV ? [] : shareLinkActions(ports.current().serverId, 'item', {itemId: entry.id}, {notice: ports.notice, report: ports.title.reportError});
+        const shared = ports.isTV ? [] : shareLinkActions(ports.shareScope?.(), 'item', {itemId: entry.id}, {notice: ports.notice, report: ports.title.reportError});
         const all = [...(extraActions ?? []), ...shared];
         return all.length ? {extraActions: all.map(action => ({...action, onSelect: () => {if (current(captured) && !('disabled' in action && action.disabled)) action.onSelect();}}))} : {};
       })()}, anchorRef);
