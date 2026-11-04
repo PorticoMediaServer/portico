@@ -33,3 +33,38 @@ const escapeXml = (text: string) => text.replace(/[&<>"']/g, c => ({'&': '&amp;'
 /** A reflowable section that says this part of the book can't be read (`text` from the catalogue). */
 export const unreadableSectionXhtml = (text: string) => `<?xml version="1.0" encoding="utf-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml"><head><title></title></head><body><p data-reader-unreadable="true" style="margin:30vh 0 0;text-align:center;opacity:.72">${escapeXml(text)}</p></body></html>`;
+
+/** A transparent 1×1 GIF: an image the server rejected is left out instead of drawing the
+ * browser's broken-image glyph (an empty or `null` body would). */
+const TRANSPARENT_GIF = Uint8Array.from(atob('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'), c => c.charCodeAt(0));
+const isMarkup = (path: string, mime: string) => ['text/html', 'application/xhtml+xml'].includes(mime) || /\.x?html?$/i.test(path);
+const isImage = (path: string, mime: string) => mime.startsWith('image/') || /\.(?:png|jpe?g|gif|webp|svg|avif|bmp)$/i.test(path);
+
+/** What an EPUB member the server rejected as content becomes once the book is open:
+ * a section becomes the placeholder section (`text` from the catalogue), an image a
+ * transparent pixel, and anything else (a font, a stylesheet) an empty body. */
+export function unreadableEpubMember(path: string, mime: string, text: string): Blob {
+  if (isMarkup(path, mime)) return new Blob([unreadableSectionXhtml(text)], {type: 'application/xhtml+xml'});
+  if (isImage(path, mime)) return new Blob([TRANSPARENT_GIF], {type: 'image/gif'});
+  return new Blob([], {type: mime});
+}
+
+/** The sections of one open EPUB that are placeholders. Their words are the reader's, not
+ * the book's: never a search hit, never selectable or highlighted, and a Contents
+ * `#fragment` inside one opens at the placeholder's start. */
+export class UnreadableSections {
+  readonly #paths = new Set<string>();
+  add(path: string): void {this.#paths.add(path);}
+  has(path: string | undefined): boolean {return path !== undefined && this.#paths.has(path);}
+  /** The fragment to look for in `section`, or `undefined` for the section's start. */
+  fragment(section: string, fragment: string | undefined): string | undefined {return this.has(section) ? undefined : fragment;}
+}
+
+/** Draws a placeholder section's line, through the CSSOM so a book stylesheet or the reader's
+ * own text rules can't override it: centred, and not selectable. */
+export function settleUnreadableSection(doc: Document): void {
+  for (const note of doc.querySelectorAll<HTMLElement>('[data-reader-unreadable]')) {
+    for (const [name, value] of [['margin', '30vh 0 0'], ['text-align', 'center'], ['text-indent', '0'], ['opacity', '.72'],
+      ['user-select', 'none'], ['-webkit-user-select', 'none']] as const) note.style.setProperty(name, value, 'important');
+  }
+}

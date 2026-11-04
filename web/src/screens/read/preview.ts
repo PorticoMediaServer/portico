@@ -1,4 +1,4 @@
-import {ReaderError, throwIfAborted} from '@portico/reader-core';
+import {ReaderError, memberUnreadable, throwIfAborted} from '@portico/reader-core';
 import type {ReaderHostController, ReaderMountAuthority} from './mount';
 
 export type ReadPagePreview = Readonly<{url: string; width: number; height: number; dispose: () => void}>;
@@ -8,8 +8,11 @@ export type ReadPagePreviewOptions<P extends object> = Readonly<{
 }>;
 
 /** One visible preview from the current canonical document. Callers mount a
- * bounded visible window; no archive, second document or preview cache lives here. */
-export async function loadReadPagePreview<P extends object>({controller, index, width, authority, signal}: ReadPagePreviewOptions<P>): Promise<ReadPagePreview> {
+ * bounded visible window; no archive, second document or preview cache lives here.
+ * RD-2: a page the server rejected as content (422 `reading_member_unreadable`) has no
+ * preview, so it resolves `undefined` and the caller keeps its plain tile; it is not a
+ * reader failure, and the rest of the strip, the Pages panel and the zoom map carry on. */
+export async function loadReadPagePreview<P extends object>({controller, index, width, authority, signal}: ReadPagePreviewOptions<P>): Promise<ReadPagePreview | undefined> {
   const initial = controller.getSnapshot(), life = new AbortController();
   const active = life.signal;
   let url: string | undefined, disposed = false;
@@ -37,5 +40,9 @@ export async function loadReadPagePreview<P extends object>({controller, index, 
     throwIfAborted(active); if (!current()) throw new ReaderError('aborted');
     url = URL.createObjectURL(new Blob([image.bytes.slice() as Uint8Array<ArrayBuffer>], {type: image.mime}));
     return Object.freeze({url, width: image.width, height: image.height, dispose});
-  } catch (error) { dispose(); throw error; }
+  } catch (error) {
+    dispose();
+    if (memberUnreadable(error) && !signal.aborted && authority.isCurrent()) return undefined;
+    throw error;
+  }
 }

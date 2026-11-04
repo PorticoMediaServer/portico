@@ -102,6 +102,7 @@ function PageImage({controller, authority, reportError, format, index, large = f
     const life = new AbortController();
     let loaded: ReadPagePreview | undefined, alive = true;
     void loadReadPagePreview({controller, index, width: large ? 180 : 96, authority, signal: signal ? AbortSignal.any([life.signal, signal]) : life.signal}).then(value => {
+      if (!value) return;
       if (!alive || signal?.aborted) {value.dispose(); return;}
       loaded = value; setPreview(value);
     }).catch(error => {if (alive && authority.isCurrent() && !life.signal.aborted && !signal?.aborted) reportError(readerErrorCode(error));});

@@ -1,5 +1,6 @@
 export * from './ports.ts';
 export {ReaderError, readerErrorCode, throwIfAborted} from './errors.ts';
+export {MEMBER_UNREADABLE, memberUnreadable} from './unreadable.ts';
 export {ReaderController, validateLocation} from './controller.ts';
 export {createReadingController} from './reading.ts';
 export type {ReadingController, ReadingControllerOptions} from './reading.ts';
