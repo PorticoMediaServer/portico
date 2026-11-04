@@ -32,9 +32,10 @@ export function SourceList({snapshot, refresh, add, configure, channels, act}: S
           {id: 'upload', label: t('web.liveTv.upload'), description: t('web.liveTv.uploadMeta'), onSelect: () => add('upload')},
         ]}/>
     </div></div>
+    <p className={styles.lede}>{t('next.liveOwner.sourcesLede')}</p>
     {!snapshot.document && !snapshot.loading && <Button size="small" onClick={refresh}>{t('action.tryAgain')}</Button>}
     {!snapshot.document && snapshot.loading && <p role="status">{t('status.loadingThing', {thing: t('server.thing.liveSources')})}</p>}
-    {snapshot.document && !snapshot.document.sources.length && <div className={styles.empty}><h4>{t('live.noSources')}</h4><p>{t('web.liveTv.noSourcesHelp')}</p><Button size="small" icon="i-plus" onClick={() => setAddOpen(true)}>{t('web.liveTv.addSource')}</Button></div>}
+    {snapshot.document && !snapshot.document.sources.length && <div className={styles.empty}><span className={styles.emptyIcon} aria-hidden="true"><Icon name="i-tv" size={24}/></span><h4>{t('live.noSources')}</h4><p>{t('web.liveTv.noSourcesHelp')}</p><Button variant="primary" size="small" icon="i-plus" onClick={() => setAddOpen(true)}>{t('web.liveTv.addSource')}</Button></div>}
     {!!snapshot.document?.sources.length && <div className={styles.sources}>{snapshot.document.sources.map(source => {
       const status = snapshot.document!.refresh.find(value => value.sourceId === source.id);
       const state = liveSourceState(source, status);
