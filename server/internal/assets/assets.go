@@ -6,10 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"math"
-	"os"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/audiotags"
 	"github.com/PorticoMediaServer/portico/server/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server/internal/mediatools"
@@ -17,6 +13,10 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/readingcap"
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
 	"github.com/PorticoMediaServer/portico/server/internal/subtitles"
+	"io"
+	"math"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -97,11 +97,6 @@ type Probe struct {
 	ReadGuard  func(context.Context, string) error
 	Binary     string
 	Supervisor *storage.Supervisor
-	// PacketPeak asks AnalyzePlayback for the video's peak bitrate, which
-	// reads every packet of the file. A basic scan leaves it off (playback
-	// plans from the container's average, as Plex does without deep
-	// analysis); a scan whose policy reads whole files anyway turns it on.
-	PacketPeak bool
 }
 type boundedBuffer struct {
 	data  []byte

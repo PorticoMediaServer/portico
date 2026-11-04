@@ -5,19 +5,24 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io"
-	"math"
-	"os/exec"
+	"errors"
 	"github.com/PorticoMediaServer/portico/server/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server/internal/mediatools"
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
+	"io"
+	"math"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
 )
 
 // PlaybackAnalysisRevision invalidates earlier scan results on the next bounded inventory pass.
-const PlaybackAnalysisRevision = "playback_facts:4"
+const PlaybackAnalysisRevision = "playback_headers:1"
+const PlaybackFramesRevision = "playback_frames:1"
+const PacketPeakRevision = "packet_peak:1"
+
+var ErrPlaybackObservation = errors.New("incomplete playback frame observation")
 
 func (p Probe) analysisOutput(ctx context.Context, path string, limit int, args ...string) ([]byte, error) {
 	if p.ReadGuard != nil {
@@ -52,67 +57,65 @@ func (p Probe) analysisOutput(ctx context.Context, path string, limit int, args 
 	return out.data, e
 }
 
-// AnalyzePlayback is analysis-lane-only. Missing, timed-out or truncated probes
-// remain unobserved; no peak estimate is published from a partial packet pass.
-func (p Probe) AnalyzePlayback(ctx context.Context, path string, f *Facts) {
-	var video *Stream
-	for i := range f.Streams {
-		if f.Streams[i].Type == "video" {
-			video = &f.Streams[i]
-			break
-		}
+// ApplyFrameCadence merges only observed decoded facts into retained headers.
+func ApplyFrameCadence(raw []byte, d *StreamDetail) error {
+	if err := validateFrameObservation(raw); err != nil {
+		return err
 	}
-	if video == nil {
-		return
+	analyzeFrames(raw, d)
+	return nil
+}
+
+func NeedsFrameHDR(s Stream) bool {
+	return s.Codec == "hevc" || s.Codec == "av1" || s.Codec == "vp9" || s.Detail.DolbyVisionProfile > 0
+}
+
+// ApplyFrameHDR never treats a picture without side data as proof of absence.
+func ApplyFrameHDR(raw []byte, d *StreamDetail) error {
+	if err := validateFrameObservation(raw); err != nil {
+		return err
 	}
-	boundedFrames, cancelFrames := context.WithTimeout(ctx, 12*time.Second)
-	frames, frameErr := p.analysisOutput(boundedFrames, path, 4<<20, "-select_streams", "v:0", "-read_intervals", "%+#240", "-show_frames", "-show_entries", "frame=best_effort_timestamp_time,interlaced_frame,repeat_pict", "-of", "json")
-	cancelFrames()
-	if frameErr == nil {
-		analyzeFrames(frames, &video.Detail)
+	analyzeDolbyVisionFrames(raw, d)
+	var doc struct {
+		Frames []struct {
+			Side []probeSideData `json:"side_data_list"`
+		} `json:"frames"`
 	}
-	// HDR10+ and, where the container did not carry it, HDR10 static metadata
-	// travel in the first picture (SEI in HEVC elementary and MPEG-TS sources).
-	if video.Codec == "hevc" || video.Codec == "av1" || video.Codec == "vp9" || video.Detail.DolbyVisionProfile > 0 {
-		bounded, cancel := context.WithTimeout(ctx, 8*time.Second)
-		raw, e := p.analysisOutput(bounded, path, 1<<20, "-select_streams", "v:0", "-read_intervals", "%+#1", "-show_frames", "-show_entries", "frame=media_type,width,height,side_data_list", "-of", "json")
-		cancel()
-		if e == nil {
-			analyzeDolbyVisionFrames(raw, &video.Detail)
-			var doc struct {
-				Frames []struct {
-					Side []probeSideData `json:"side_data_list"`
-				} `json:"frames"`
-			}
-			if json.Unmarshal(raw, &doc) == nil {
-				for _, frame := range doc.Frames {
-					for _, side := range frame.Side {
-						switch {
-						case strings.Contains(side.Type, "SMPTE2094-40"):
-							video.Detail.HDR10Plus = true
-						case side.Type == "Mastering display metadata" && video.Detail.MasterDisplay == "":
-							video.Detail.MasterDisplay = side.masteringDisplay()
-						case side.Type == "Content light level metadata" && video.Detail.MaxCLL == "":
-							video.Detail.MaxCLL = side.contentLightLevel()
-						}
-					}
-				}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return ErrPlaybackObservation
+	}
+	for _, frame := range doc.Frames {
+		for _, side := range frame.Side {
+			switch {
+			case strings.Contains(side.Type, "SMPTE2094-40"):
+				d.HDR10Plus = true
+			case side.Type == "Mastering display metadata" && d.MasterDisplay == "":
+				d.MasterDisplay = side.masteringDisplay()
+			case side.Type == "Content light level metadata" && d.MaxCLL == "":
+				d.MaxCLL = side.contentLightLevel()
 			}
 		}
 	}
-	if !p.PacketPeak {
-		return
+	return nil
+}
+
+func validateFrameObservation(raw []byte) error {
+	var doc struct {
+		Frames []map[string]json.RawMessage `json:"frames"`
 	}
-	bounded, cancel := context.WithTimeout(ctx, 90*time.Second)
-	defer cancel()
-	raw, e := p.analysisOutput(bounded, path, 32<<20, "-select_streams", "v:0", "-show_packets", "-show_entries", "packet=dts_time,size", "-of", "csv=p=0")
-	if e == nil {
-		video.Detail.MaxBitRate = packetPeak(raw)
+	if json.Unmarshal(raw, &doc) != nil || len(doc.Frames) == 0 || len(doc.Frames) > 240 {
+		return ErrPlaybackObservation
 	}
+	for _, frame := range doc.Frames {
+		if frame == nil {
+			return ErrPlaybackObservation
+		}
+	}
+	return nil
 }
 
 // A rolling one-second packet window catches bursts across second boundaries.
-func packetPeak(raw []byte) int64 {
+func PacketPeak(raw []byte) int64 {
 	type packet struct {
 		time float64
 		size int64

@@ -715,7 +715,7 @@ func runWithInstanceLock(takeLock func(string) (*instanceLock, error)) (runErr e
 		return sources.Acquire(ctx, path, purpose)
 	}}
 	doneAnalysis := reporter.step("analysis", "Open media analysis storage")
-	analysisService, e := initializeAnalysis(db, state, subtitleRenderer, ffmpegTool, storeIO.Supervisor)
+	analysisService, e := initializeAnalysis(db, state, subtitleRenderer, ffmpegTool, ffprobeTool, storeIO.Supervisor)
 	doneAnalysis(e)
 	if e != nil {
 		return e

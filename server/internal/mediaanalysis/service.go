@@ -39,24 +39,29 @@ type Input interface {
 	Validate(context.Context) error
 	Close() error
 }
+type Probe func(context.Context, string, decoder.AnalysisProbeSpec) ([]byte, error)
+
 type Decode func(context.Context, string, decoder.AnalysisSpec, func(io.Reader) error) error
 type Options struct {
-	Sonic             *sonic.Runtime
-	OpenSonic         func() (*sonic.Runtime, error)
-	DB                *sql.DB
-	Directory, FFmpeg string
-	Open              func(context.Context, string, string) (Input, error)
-	Decoder           func(Input) Decode
+	Sonic                      *sonic.Runtime
+	OpenSonic                  func() (*sonic.Runtime, error)
+	DB                         *sql.DB
+	Directory, FFmpeg, FFprobe string
+	Open                       func(context.Context, string, string) (Input, error)
+	Decoder                    func(Input) Decode
+	Probe                      func(Input) Probe
 	// These are explicit operator budgets, not duration-derived playback limits.
 	MaxInputBytes, MaxGeneratedBytes, MaxCacheBytes int64
 	MaxPreviewFrames                                int
 	RetainDays                                      int
 }
 type Service struct {
-	Admission func(context.Context, *sql.Tx, string) (bool, error)
-	db        *sql.DB
-	artifacts *mediaartifact.Store
-	options   Options
+	Admission     func(context.Context, *sql.Tx, string) (bool, error)
+	db            *sql.DB
+	artifacts     *mediaartifact.Store
+	options       Options
+	catalog       *catalog.Service
+	streamPending map[Request]*streamObservation
 	// Serializes closed-byte publication/reference checks, opening leases and GC.
 	// Source IO and decoder execution never hold this mutex or a database writer.
 	publication     sync.Mutex
@@ -97,6 +102,9 @@ func New(o Options) (*Service, error) {
 	if o.MaxCacheBytes < o.MaxGeneratedBytes || o.MaxCacheBytes > 16<<40 || o.MaxInputBytes < 1<<20 || o.MaxInputBytes > 16<<40 || o.MaxGeneratedBytes < 1<<20 || o.MaxGeneratedBytes > 4<<30 || o.MaxPreviewFrames < 16 || o.MaxPreviewFrames > 4096 || o.RetainDays < 1 || o.RetainDays > 365 {
 		return nil, ErrInput
 	}
+	if p, e := exec.LookPath(o.FFprobe); e == nil {
+		o.FFprobe, _ = filepath.Abs(p)
+	}
 	if p, e := exec.LookPath(o.FFmpeg); e == nil {
 		o.FFmpeg, _ = filepath.Abs(p)
 	}
@@ -109,7 +117,7 @@ func New(o Options) (*Service, error) {
 		a.Close()
 		return nil, err
 	}
-	return &Service{custody: &artifactCustody{locks: physical}, physical: physical, db: o.DB, artifacts: a, options: o, slot: make(chan struct{}, 1)}, nil
+	return &Service{catalog: catalog.New(o.DB), streamPending: map[Request]*streamObservation{}, custody: &artifactCustody{locks: physical}, physical: physical, db: o.DB, artifacts: a, options: o, slot: make(chan struct{}, 1)}, nil
 }
 func (s *Service) Close() error {
 	// Caller cancels/joins the scanner before closing this service.
@@ -136,6 +144,7 @@ type binding struct {
 	AssetID, ItemID, Container, AudioCodec, VideoCodec, BasicRevision string
 	DurationUS, MarkerRevision                                        int64
 	ProbeEvidence, SourceBinding, WorkAlgorithm                       string
+	TimedDisc                                                         bool
 	Trickplay                                                         catalog.TrickplaySettings
 	Video                                                             assets.StreamDetail
 	SonicTracks                                                       []sonicTrackBinding
@@ -168,7 +177,7 @@ func (s *Service) readBindingTx(ctx context.Context, tx *sql.Tx, r Request, mark
 	}
 	b.Trickplay = p.Trickplay.Normalized()
 	var duration float64
-	err = tx.QueryRowContext(ctx, `SELECT o.asset_id,a.container,a.audio_codec,a.video_codec,a.duration,o.analysis_revision,o.size,o.modified_ns FROM inventory_objects o JOIN catalog_assets a ON a.token=o.asset_id WHERE o.id=? AND o.source_id=? AND o.revision=? AND o.root_incarnation=? AND o.retired=0 AND o.state='available' AND a.available=1`, r.ObjectID, b.Source.ID, r.SourceRevision, b.Source.Incarnation).Scan(&b.AssetID, &b.Container, &b.AudioCodec, &b.VideoCodec, &duration, &b.BasicRevision, &b.SourceSize, &b.SourceModifiedNS)
+	err = tx.QueryRowContext(ctx, `SELECT o.asset_id,a.container,a.audio_codec,a.video_codec,a.duration,o.analysis_revision,o.size,o.modified_ns,EXISTS(SELECT 1 FROM inventory_disc_facts d WHERE d.object_id=o.id AND d.media_title_key<>'') FROM inventory_objects o JOIN catalog_assets a ON a.token=o.asset_id WHERE o.id=? AND o.source_id=? AND o.revision=? AND o.root_incarnation=? AND o.retired=0 AND o.state='available' AND a.available=1`, r.ObjectID, b.Source.ID, r.SourceRevision, b.Source.Incarnation).Scan(&b.AssetID, &b.Container, &b.AudioCodec, &b.VideoCodec, &duration, &b.BasicRevision, &b.SourceSize, &b.SourceModifiedNS, &b.TimedDisc)
 	if err != nil {
 		return
 	}

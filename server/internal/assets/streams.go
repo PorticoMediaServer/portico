@@ -78,7 +78,7 @@ func PersistStreams(tx *sql.Tx, asset string, size, modified int64, streams []St
 	if streams == nil {
 		return nil
 	}
-	fingerprint, e := streamInputFingerprint(streams)
+	fingerprint, e := StreamInputFingerprint(streams)
 	if e != nil {
 		return e
 	}

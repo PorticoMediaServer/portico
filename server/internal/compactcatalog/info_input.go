@@ -1406,28 +1406,30 @@ func (r InfoStreamRow) infoStageRow() (int, []any) {
 
 // InfoStreamBreadthRow is family 3, asset_stream_breadth.
 type InfoStreamBreadthRow struct {
-	InputOrdinal        int64
-	AssetID             string
-	StreamIndex         int64
-	AudioDescription    int64
-	AudioVariant        string
-	ChromaSubsampling   string
-	FPSNumerator        int64
-	FPSDenominator      int64
-	FrameRateMode       string
-	InterlaceAnalysis   string
-	Telecine            int64
-	DOVIRPU             int64
-	DOVIBaseLayer       int64
-	DOVIMetadataKnown   int64
-	DOVIEnhancementType string
-	DOVICMVersion       string
+	InputOrdinal           int64
+	AssetID                string
+	StreamIndex            int64
+	AudioDescription       int64
+	AudioVariant           string
+	ChromaSubsampling      string
+	FPSNumerator           int64
+	FPSDenominator         int64
+	FrameRateMode          string
+	InterlaceAnalysis      string
+	Telecine               int64
+	DOVIRPU                int64
+	DOVIBaseLayer          int64
+	DOVIMetadataKnown      int64
+	DOVIEnhancementType    string
+	DOVICMVersion          string
+	PlaybackFramesRevision string
+	PacketPeakRevision     string
 }
 
 func (r InfoStreamBreadthRow) infoStageRow() (int, []any) {
 	return 3, []any{r.InputOrdinal, r.AssetID, r.StreamIndex, r.AudioDescription, r.AudioVariant,
 		r.ChromaSubsampling, r.FPSNumerator, r.FPSDenominator, r.FrameRateMode, r.InterlaceAnalysis,
-		r.Telecine, r.DOVIRPU, r.DOVIBaseLayer, r.DOVIMetadataKnown, r.DOVIEnhancementType, r.DOVICMVersion}
+		r.Telecine, r.DOVIRPU, r.DOVIBaseLayer, r.DOVIMetadataKnown, r.DOVIEnhancementType, r.DOVICMVersion, r.PlaybackFramesRevision, r.PacketPeakRevision}
 }
 
 // InfoChapterFactRow is family 4, asset_chapter_facts.
@@ -1732,7 +1734,7 @@ type infoStageTable struct {
 var infoStageTables = [infoInputFamilies + 1]infoStageTable{
 	1:  {table: "catalog_info_new_stream_facts", assetAt: 1, columns: "input_ordinal,asset_id,revision,size,modified_ns,fingerprint,detail_version"},
 	2:  {table: "catalog_info_new_streams", assetAt: 1, columns: "input_ordinal,asset_id,stream_index,type,codec,language,title,channels,channel_layout,is_default,is_forced,color_transfer,color_primaries,detail_json"},
-	3:  {table: "catalog_info_new_stream_breadth", assetAt: 1, columns: "input_ordinal,asset_id,stream_index,audio_description,audio_variant,chroma_subsampling,fps_numerator,fps_denominator,frame_rate_mode,interlace_analysis,telecine,dovi_rpu,dovi_base_layer,dovi_metadata_known,dovi_enhancement_type,dovi_cm_version"},
+	3:  {table: "catalog_info_new_stream_breadth", assetAt: 1, columns: "input_ordinal,asset_id,stream_index,audio_description,audio_variant,chroma_subsampling,fps_numerator,fps_denominator,frame_rate_mode,interlace_analysis,telecine,dovi_rpu,dovi_base_layer,dovi_metadata_known,dovi_enhancement_type,dovi_cm_version,playback_frames_revision,packet_peak_revision"},
 	4:  {table: "catalog_info_new_chapter_facts", assetAt: 1, columns: "input_ordinal,asset_id,revision,size,modified_ns,status,fingerprint"},
 	5:  {table: "catalog_info_new_chapters", assetAt: 1, columns: "input_ordinal,asset_id,chapter_index,title,start_seconds,end_seconds"},
 	6:  {table: "catalog_info_new_subtitle_facts", assetAt: 1, columns: "input_ordinal,asset_id,revision,size,modified_ns,origin_us,timing_known,status,fingerprint"},

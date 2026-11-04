@@ -5,7 +5,7 @@ import (
 )
 
 func TestDolbyVisionActualFrameMetadataSeparatesMELAndFEL(t *testing.T) {
-	for _, test := range []struct{ offset, want string }{{"1", "FEL"}, {"0", "MEL"}} {
+	for _, test := range []struct{ offset, want string }{{"1", "fel"}, {"0", "mel"}} {
 		t.Run(test.want, func(t *testing.T) {
 			d := StreamDetail{DolbyVisionProfile: 7, EnhancementLayer: true}
 			component := `{"nlq_offset":` + test.offset + `,"vdr_in_max":8388608,"linear_deadzone_slope":0,"linear_deadzone_threshold":0}`

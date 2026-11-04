@@ -3,11 +3,15 @@ package subtitlevideo
 import (
 	"context"
 	"errors"
+	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
 
+	"github.com/PorticoMediaServer/portico/server/internal/assets"
 	"github.com/PorticoMediaServer/portico/server/internal/decoder"
+	"github.com/PorticoMediaServer/portico/server/internal/decodertest"
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
 )
 
@@ -15,6 +19,55 @@ type analysisProbeInput struct {
 	fixtureCachedSource
 	failAt   int
 	conflict error
+}
+
+type retainedProbeMedia struct {
+	data        []byte
+	validations int
+}
+
+func (i *retainedProbeMedia) Evidence() string               { return "exact-generated-dv-clip" }
+func (i *retainedProbeMedia) Size() int64                    { return int64(len(i.data)) }
+func (i *retainedProbeMedia) Validate(context.Context) error { i.validations++; return nil }
+func (i *retainedProbeMedia) Close() error                   { return nil }
+func (i *retainedProbeMedia) ReadExtent(_ context.Context, offset, length int64) ([]byte, error) {
+	if offset < 0 || length < 1 || offset+length > int64(len(i.data)) {
+		return nil, io.ErrUnexpectedEOF
+	}
+	return append([]byte(nil), i.data[offset:offset+length]...), nil
+}
+
+func TestAnalysisProbeReadsRealFramesAndPacketsThroughRetainedBridge(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "fixtures", "video", "dovi-probe-r40", "source-MEL.mp4"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := &retainedProbeMedia{data: raw}
+	sup := &storage.Supervisor{Limit: 1}
+	r := &Runtime{ffprobe: decodertest.QualifiedFFprobe(t), storage: &storage.Client{Supervisor: sup}}
+	probe := r.AnalysisProbe(input)
+	detail := assets.StreamDetail{DynamicRange: assets.RangeDolbyVision, DolbyVisionProfile: 7, EnhancementLayer: true}
+	frames, err := probe(context.Background(), "real-cadence", decoder.AnalysisProbeSpec{Kind: decoder.ProbeFrameCadence})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assets.ApplyFrameCadence(frames, &detail); err != nil {
+		t.Fatal(err)
+	}
+	hdr, err := probe(context.Background(), "real-hdr", decoder.AnalysisProbeSpec{Kind: decoder.ProbeFrameHDR})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assets.ApplyFrameHDR(hdr, &detail); err != nil {
+		t.Fatal(err)
+	}
+	packets, err := probe(context.Background(), "real-packets", decoder.AnalysisProbeSpec{Kind: decoder.ProbePacketPeak})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !detail.DolbyVisionMetadataKnown || !detail.DolbyVisionRPU || detail.DolbyVisionEnhancementType != "mel" || assets.PacketPeak(packets) <= 0 || input.validations < 6 || sup.Active() != 0 {
+		t.Fatal("retained real observations lost", detail, input.validations, sup.Active())
+	}
 }
 
 func (i *analysisProbeInput) Validate(context.Context) error {

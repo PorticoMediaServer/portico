@@ -153,6 +153,9 @@ func (s *Service) analysisWindowTx(ctx context.Context, tx *sql.Tx, job string, 
 	if policy.Allows("probe") {
 		required = append(required, assets.PlaybackAnalysisRevision)
 	}
+	if policy.Allows(catalog.PlaybackFramesOperation) {
+		required = append(required, assets.PlaybackFramesRevision)
+	}
 	// A remote source's own page can switch whole-file analysis stages off for
 	// the files found through it. Local folders keep the library's policy.
 	if switches, ok, e := remotesources.AnalysisSwitchesTx(ctx, tx, source.ID); e != nil {
@@ -534,9 +537,6 @@ func (s *Service) analyzeOne(parent context.Context, job string, source catalog.
 	probe.ReadGuard = func(check context.Context, _ string) error {
 		return s.analysisAllowed(check, job, source.LibraryID, policy.Revision, "probe")
 	}
-	// The peak-bitrate pass reads every packet; only a policy that already
-	// reads whole files (a deep operation) pays for it.
-	probe.PacketPeak = deep
 	// One directory recheck is shared by every projection for this file, so a
 	// folder is observed once per analysis instead of once per consumer. The
 	// projections stay separate: each still answers only its own question, and
@@ -711,9 +711,6 @@ func (s *Service) analyzeOne(parent context.Context, job string, source catalog.
 		}
 	} else {
 		f, err = probe.InspectScan(readContext("probe"), path)
-		if err == nil {
-			probe.AnalyzePlayback(readContext("probe"), path, &f)
-		}
 	}
 	if err == nil && f.DiscAlternate {
 		after, e := stat()
