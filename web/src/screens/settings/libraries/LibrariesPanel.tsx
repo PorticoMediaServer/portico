@@ -64,13 +64,14 @@ export function LibrariesPanel({api, service, onEdit, onError, serverName, artwo
   const onlineMenu = agentFact?.api === api && agentFact.library === menuLibrary && agentFact.online;
   const lastScanLabel = (id: string) => {
     const job = libraries.find(library => library.id === id)?.lastScan;
-    if (!job) return t('next.ownerLibraries.neverScanned');
+    if (!job) {const never = t('next.ownerLibraries.neverScanned'); return {wide: never, narrow: never};}
     if ((job.status === 'complete' || job.status === 'complete_with_warnings') && job.finishedAt && Number.isFinite(Date.parse(job.finishedAt))) {
       const at = new Date(job.finishedAt), now = new Date(), yesterday = new Date(now.getTime() - 86_400_000);
-      // owner-libraries 1: "Scanned today at 3:12 PM", then yesterday, then the date.
-      if (sameDay(at, now)) return t('next.ownerLibraries.scannedToday', {time: defaultI18n.time(at)});
-      if (sameDay(at, yesterday)) return t('next.ownerLibraries.scannedYesterday', {time: defaultI18n.time(at)});
-      return t('server.libraries.scanned', {when: defaultI18n.dateTime(job.finishedAt)});
+      // Wide (owner-libraries 1): "Scanned today at 3:12 PM". Narrow (24a): "Scanned today".
+      if (sameDay(at, now)) return {wide: t('next.ownerLibraries.scannedToday', {time: defaultI18n.time(at)}), narrow: t('next.ownerLibraries.scannedTodayShort')};
+      if (sameDay(at, yesterday)) return {wide: t('next.ownerLibraries.scannedYesterday', {time: defaultI18n.time(at)}), narrow: t('next.ownerLibraries.scannedYesterdayShort')};
+      const when = t('server.libraries.scanned', {when: defaultI18n.date(at, 'dayMonth')});
+      return {wide: t('server.libraries.scanned', {when: defaultI18n.dateTime(job.finishedAt)}), narrow: when};
     }
     return undefined;
   };
@@ -167,7 +168,8 @@ export function LibrariesPanel({api, service, onEdit, onError, serverName, artwo
             <b className={styles.name}>{row.name}</b>
             {counts.length > 0 && <small className={styles.counts}>{counts.map(text => <span key={text}>{text}</span>)}</small>}
             <small className={styles.state} data-state={row.scanning ? 'scanning' : 'idle'} role={row.scanning ? 'status' : undefined}>
-              <i aria-hidden="true" />{row.scanning ? t('next.settings.libraries.scanning') : lastScanLabel(row.id)}</small>
+              <i aria-hidden="true" />{row.scanning ? t('next.settings.libraries.scanning') : (() => {const label = lastScanLabel(row.id); return label && <>
+                <span className={styles.stateWide}>{label.wide}</span><span className={styles.stateNarrow}>{label.narrow}</span></>;})()}</small>
           </span>
         </>;
       })()}
