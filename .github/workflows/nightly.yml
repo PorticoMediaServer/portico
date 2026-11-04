@@ -17,6 +17,9 @@ jobs:
         run: gh run download 41825281590 -R PorticoMediaServer/portico -n selection -D "$RUNNER_TEMP/original-selection"
       - run: python3 ci/run.py download --plan "$RUNNER_TEMP/original-selection/ci-plan.json"
       - run: python3 ci/run.py ffmpeg --index 2 --plan "$RUNNER_TEMP/original-selection/ci-plan.json"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version-file: .node-version, cache: npm, cache-dependency-path: package-lock.json}
+      - run: npm ci --no-audit --no-fund
       - name: Same VM original then checkpoint-owner fixture, twenty natural backup attempts each
         env:
           RECORDED_PLAN: '${{ runner.temp }}/original-selection/ci-plan.json'
