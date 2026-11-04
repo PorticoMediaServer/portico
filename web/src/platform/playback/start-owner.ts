@@ -2,7 +2,7 @@ import {serverNow} from '@core/server-clock.ts';
 import type {HttpLocalApi, LocalSession} from '@core/index.ts';
 import {localV1Http} from '@core/playback-v1/local-http.ts';
 import {SessionsClient} from '@core/playback-v1/sessions.ts';
-import {readPreparingChannel} from '@core/query/playback.ts';
+import {stopOriginalPreparingChannel} from '@core/query/playback.ts';
 import {WebPreparingStarts} from './preparing-start';
 
 /** Captured once by the shell, before any Home/playback stack exists. A retired
@@ -47,18 +47,6 @@ export function createWebPreparingStarts(api: HttpLocalApi, session: LocalSessio
       observed.discTitle?.id !== session.discTitle?.id || observed.discTitle?.revision !== session.discTitle?.revision) return;
     if (!claimStop()) return;
     await client.stop(session.id, undefined, signal);
-  }, stopChannel: async (body, actual, signal, uninstalled, claimStop) => {
-    const http = cleanupHttp(signal, uninstalled);
-    // The general playable Session intentionally omits channelId. Read the
-    // official view instead; never fabricate a Session from late response facts.
-    // O-159 open tier (R-09): a newer server's enum value in an optional member must not leave Stop doing nothing.
-    const observed = await readPreparingChannel(http, actual.id, signal);
-    if (observed.id !== actual.id || observed.presentation.generation !== actual.generation || observed.role !== 'local' ||
-      observed.state === 'ended' || !['live', 'channel'].includes(observed.kind) || observed.channelId !== body.channelId ||
-      observed.queue || observed.itemId || observed.versionId || observed.discTitle) return;
-    // The guide generation stays in the original POST receipt; SessionView does
-    // not echo it. A later guide/source read cannot replace that admission.
-    if (!claimStop()) return;
-    await new SessionsClient(http).stop(actual.id, undefined, signal);
-  }});
+  }, stopChannel: (body, actual, signal, uninstalled, claimStop) =>
+    stopOriginalPreparingChannel(cleanupHttp(signal, uninstalled), body, actual, signal, claimStop)});
 }

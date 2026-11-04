@@ -1643,7 +1643,7 @@ export class WebShellPlaybackRuntime {
   /** The playing item's facts draw its dock and its Now playing. A passing failure (a 503
    * burst) is read again twice, after 1 s and 3 s, before the start reports it: music must
    * never play on with nothing drawn (P2-74 E-web-14). */
-  private async readItemBounded(itemId: string, signal: AbortSignal, current: () => boolean): Promise<ItemResponse> {
+  private readItemBounded(itemId: string, signal: AbortSignal, current: () => boolean): Promise<ItemResponse> {
     return readPlaybackItemBounded(this.source.api, itemId, signal, current, {setTimer: (run, ms) => this.setTimer(run, ms), clearTimer: timer => this.clearTimer(timer)});
   }
 
