@@ -25,7 +25,7 @@ export function OwnerUpdateCard({update, t, onReleaseNotes, onCheck}: {update: O
   const theme = useTheme();
   return <View testID="owner-update-card" accessibilityLabel={t('next.shell.updateAvailable')} style={{padding: 16, borderRadius: 14, overflow: 'hidden', backgroundColor: theme.colors.raised, borderWidth: 1, borderColor: alpha(theme.colors.accentStrong, .28)}}>
     <Svg pointerEvents="none" style={{position: 'absolute', left: 0, top: 0, right: 0, bottom: 0}} width="100%" height="100%">
-      <Defs><LinearGradient id="owner-update-tint" x1="0%" y1="0%" x2="100%" y2="58%"><Stop offset="0" stopColor={theme.colors.accent} stopOpacity=".24"/><Stop offset=".72" stopColor={theme.colors.accent} stopOpacity=".05"/></LinearGradient></Defs>
+      <Defs><LinearGradient id="owner-update-tint" x1="0%" y1="0%" x2="100%" y2="58%"><Stop offset="0" stopColor={theme.colors.accent} stopOpacity=".24"/><Stop offset="0.72" stopColor={theme.colors.accent} stopOpacity=".05"/></LinearGradient></Defs>
       <Rect width="100%" height="100%" fill="url(#owner-update-tint)"/>
     </Svg>
     <View style={{flexDirection: 'row', gap: 14}}>
