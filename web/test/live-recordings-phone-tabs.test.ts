@@ -4,10 +4,11 @@ import {readFileSync} from 'node:fs';
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
-test('phone Recordings views are frame 12\'s underline tabs (Upcoming, Recorded, Series rules, History); wider screens keep the chips', () => {
+test('phone Recordings views are frame 12\'s five underline tabs (Upcoming, Recorded, Series rules, History, Storage); wider screens keep the chips', () => {
   const rules = read('../src/screens/live/SeriesRules.tsx'), screen = read('../src/screens/live/RecordingsScreen.tsx');
   assert.match(rules, /export function RecordingPhoneTabs\(/);
-  assert.match(rules, /const shown = views\.filter\(item => item\.id !== 'storage'\);/);
+  assert.match(rules, /const shown = views;/);
+  assert.doesNotMatch(rules, /item\.id !== 'storage'/);
   assert.match(rules, /<Tabs phone className=\{styles\.phoneViews\}/);
   assert.match(rules, /<RecordingPhoneTabs views=\{views\} value="rules" onChange=\{onView\}\/>/);
   assert.match(screen, /<RecordingPhoneTabs views=\{views\} value=\{view\} onChange=\{goView\}\/>/);
