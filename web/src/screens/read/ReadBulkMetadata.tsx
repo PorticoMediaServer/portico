@@ -6,7 +6,7 @@ import {routePath} from '../../../../packages/contracts/src/routes.ts';
 import {BulkEditor, type BulkEditorDraft} from '../../kit/selection';
 import {Button} from '../../kit/controls';
 import {Dialog} from '../../kit/overlays';
-import {OwnerTag} from '../../kit/shell';
+import {OwnerEditorTag} from '../../kit/selection/OwnerEditorTag';
 import {editorCoreDraft, editorResultView, editorValues} from '../../shell/selection-presentation';
 import {screenLifetime, type ScreenContext} from '../detail/context';
 import {ReadSeriesOrder} from './ReadSeriesOrder';
@@ -96,5 +96,5 @@ export function ReadBulkMetadata({context, items, kind, anchor, onClose}: {conte
       const result = editorResultView(receipts), failures = result?.results.filter(row => !row.ok).map(row => row.id) ?? [];
       if (!ids.length || ids.some(id => !failures.includes(id))) return;
       const selected = items.filter(item => ids.includes(item.id)); if (selected.length === ids.length) void save(selected, value);
-    }} ownerTag={<OwnerTag/>}/>;
+    }} ownerTag={<OwnerEditorTag/>}/>;
 }

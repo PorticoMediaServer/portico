@@ -5,7 +5,7 @@ import type {HomeSelectionProgress} from '@core/home-selection/types.ts';
 import {BulkEditor, MixedEditExplainer, type BulkEditorDraft} from '../../kit/selection';
 import {Dialog} from '../../kit/overlays';
 import {Button} from '../../kit/controls';
-import {OwnerTag} from '../../kit/shell';
+import {OwnerEditorTag} from '../../kit/selection/OwnerEditorTag';
 import {editorUiDraft, editorValues} from '../../shell/selection-presentation';
 import type {LibraryEditorSession} from './SelectionEditorSurface';
 import type {SelectionEditorOptions} from './selection-editor';
@@ -48,7 +48,7 @@ export function QuerySelectionEditorSurface({session, options, onClose}: {sessio
   return <BulkEditor open onOpenChange={open => {if (!open && !busy) close();}} returnFocusRef={anchor}
     selection={{count: preview.total, kind: target.summary.types[0].kind}} schema={preview.schema} singleItemFields={preview.singleItemFields}
     values={editorValues(preview)} draft={draft} onDraftChange={value => {if (!busy && !error) setDraft(value);}}
-    onSave={value => {void save(value);}} onRetry={() => {void save(draft);}} targets={[]} busy={busy} ownerTag={<OwnerTag/>}
+    onSave={value => {void save(value);}} onRetry={() => {void save(draft);}} targets={[]} busy={busy} ownerTag={<OwnerEditorTag/>}
     description={progress ? t(progress.totalKnown ? 'next.selection.jobProgress' : 'next.selection.jobPreparing', {done: progress.done, total: progress.total}) : undefined}
     error={error ? t('next.selection.editorUncertain') : undefined}/>;
 }
