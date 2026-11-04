@@ -119,7 +119,7 @@ func (s *Service) View(ctx context.Context, a Access, t Target, position string)
 	if out.CanManage {
 		out.Budgets = map[string]any{"maxInputBytes": fmt.Sprint(s.options.MaxInputBytes), "maxGeneratedBytesPerStage": fmt.Sprint(s.stageLimit(ctx)), "maxPreviewFrames": s.options.MaxPreviewFrames, "retainDays": s.options.RetainDays, "maxCacheBytes": fmt.Sprint(s.cacheLimit(ctx))}
 	}
-	rows, e := tx.QueryContext(ctx, `SELECT r.stage,r.algorithm,r.evidence,r.created_ms,r.summary_json,COALESCE((SELECT id FROM analysis_artifacts a WHERE a.result_id=r.id AND a.kind IN ('waveform','fingerprint') LIMIT 1),'') FROM analysis_heads h JOIN analysis_results r ON r.id=h.result_id WHERE h.object_id=? AND h.source_revision=? AND r.root_incarnation=? AND r.configuration_generation=? AND r.retired_ms=0 AND (?='' OR r.evidence=?) ORDER BY r.stage LIMIT 16`, v.ObjectID, v.Revision, v.Incarnation, v.Configuration, v.Evidence, v.Evidence)
+	rows, e := tx.QueryContext(ctx, `SELECT r.stage,r.algorithm,r.evidence,r.created_ms,r.summary_json,COALESCE((SELECT id FROM analysis_artifacts a WHERE a.result_id=r.id AND a.kind IN ('waveform','fingerprint') LIMIT 1),'') FROM analysis_heads h JOIN analysis_results r ON r.id=h.result_id WHERE h.object_id=? AND h.source_revision=? AND r.root_incarnation=? AND r.configuration_generation=? AND r.retired_ms=0 AND r.stage<>'packet_peak' AND (?='' OR r.evidence=?) ORDER BY r.stage LIMIT 16`, v.ObjectID, v.Revision, v.Incarnation, v.Configuration, v.Evidence, v.Evidence)
 	if e != nil {
 		return out, e
 	}
@@ -222,7 +222,7 @@ func (s *Service) View(ctx context.Context, a Access, t Target, position string)
 		} else if e != sql.ErrNoRows {
 			return out, e
 		}
-		rows, e = tx.QueryContext(ctx, `SELECT s.job_id,j.status,s.stage,s.state,s.attempt,s.processed_bytes,s.error_code,s.updated_ms FROM analysis_stage_runs s JOIN jobs j ON j.id=s.job_id WHERE s.object_id=? AND s.source_revision=? ORDER BY s.updated_ms DESC,s.stage LIMIT 32`, v.ObjectID, v.Revision)
+		rows, e = tx.QueryContext(ctx, `SELECT s.job_id,j.status,s.stage,s.state,s.attempt,s.processed_bytes,s.error_code,s.updated_ms FROM analysis_stage_runs s JOIN jobs j ON j.id=s.job_id WHERE s.object_id=? AND s.source_revision=? AND s.stage<>'packet_peak' ORDER BY s.updated_ms DESC,s.stage LIMIT 32`, v.ObjectID, v.Revision)
 		if e != nil {
 			return out, e
 		}

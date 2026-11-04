@@ -6,12 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"io"
 	"os"
-	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"sync/atomic"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/assets"
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/decoder"
 	"github.com/PorticoMediaServer/portico/server/internal/livechannels"
@@ -29,6 +30,8 @@ type artifactOutput struct {
 	Width, Height  int
 }
 type produced struct {
+	streams   *streamObservation
+	grant     string
 	Summary   any
 	Artifacts []artifactOutput
 	Markers   []Marker
@@ -54,6 +57,12 @@ func (s *Service) RunOne(ctx context.Context, request Request) (done bool, warni
 	defer physical.Close()
 	if err = s.cleanStaging(); err != nil {
 		return false, "", err
+	}
+	// A retained immutable observation re-proves its original catalog admission
+	// before publication/ACK. Do this before a fresh binding can return early on
+	// revoked consent, so its unaccepted prefix is actually abandoned.
+	if work := s.streamPending[request]; work != nil {
+		return s.resumeStreamObservation(ctx, work)
 	}
 	gated, err := dbwork.Begin(ctx, s.db, dbwork.ClassBackgroundMedia)
 	if err != nil {
@@ -102,18 +111,15 @@ func (s *Service) RunOne(ctx context.Context, request Request) (done bool, warni
 	// due says whether a stage is next for this file: allowed, not done, not
 	// given up on, and not waiting for a retry. wait is true for the last.
 	due := func(op string) (ready, wait bool, code string, err error) {
-		if !p.Allows(op) {
-			return false, false, "", nil
-		}
-		// The source's own page can switch this whole-file stage off for the
-		// files found through it; execution follows that, not only enqueueing.
-		if allowed, e := sourceStageAllowedTx(ctx, tx, b.Source.ID, op); e != nil {
+		grant, e := s.stageGrantTx(ctx, tx, b, p, op)
+		if e != nil || grant == "" {
 			return false, false, "", e
-		} else if !allowed {
-			return false, false, "", nil
 		}
 		var complete bool
 		err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM analysis_heads h JOIN analysis_results r ON r.id=h.result_id WHERE h.object_id=? AND h.source_revision=? AND h.stage=? AND r.algorithm=? AND r.root_incarnation=? AND r.configuration_generation=? AND r.retired_ms=0 AND (?='' OR r.evidence=?))`, request.ObjectID, request.SourceRevision, op, s.stageAlgorithm(b, op), b.Source.Incarnation, b.Source.Generation, b.ProbeEvidence, b.ProbeEvidence).Scan(&complete)
+		if err == nil && complete && streamStage(op) && !b.TimedDisc && b.VideoCodec != "" && b.Container != "strm" && b.Container != "disc" && b.Container != "iso" && b.Container != "bluray" && b.Container != "dvd" {
+			complete, err = s.streamMarkerTx(ctx, tx, b, op)
+		}
 		if err != nil || complete {
 			return false, false, "", err
 		}
@@ -133,7 +139,13 @@ func (s *Service) RunOne(ctx context.Context, request Request) (done bool, warni
 		return true, false, "", nil
 	}
 	stage := ""
+	candidates := []string{catalog.PlaybackFramesOperation, packetPeakStage}
 	for _, op := range catalog.DeepScanOperations {
+		if op != catalog.PlaybackFramesOperation {
+			candidates = append(candidates, op)
+		}
+	}
+	for _, op := range candidates {
 		if op == catalog.SonicOperation && !s.SonicCanAttempt() {
 			continue
 		}
@@ -202,11 +214,11 @@ func (s *Service) RunOne(ctx context.Context, request Request) (done bool, warni
 	// stages, so a stage disabled between selection and capture never runs.
 	kept := stages[:0]
 	for _, op := range stages {
-		allowed, e := sourceStageAllowedTx(ctx, tx, b.Source.ID, op)
+		grant, e := s.stageGrantTx(ctx, tx, b, p, op)
 		if e != nil {
 			return false, "", e
 		}
-		if allowed {
+		if grant != "" {
 			kept = append(kept, op)
 		}
 	}
@@ -238,6 +250,13 @@ func (s *Service) RunOne(ctx context.Context, request Request) (done bool, warni
 			}
 		}
 		return false, "", first
+	}
+	if streamStage(stage) {
+		grant, e := s.stageGrant(ctx, b, p, stage)
+		if e != nil {
+			return fail(e)
+		}
+		return s.runStreamStage(ctx, b, stage, grant, publications[stage], physical, read)
 	}
 	if input == nil {
 		input, err = s.options.Open(ctx, b.ItemID, b.AssetID)
@@ -387,19 +406,32 @@ func (s *Service) publish(ctx context.Context, b binding, stage, id, evidence, t
 	if e != nil {
 		return e
 	}
-	if current.Consent != b.Consent || current.AssetID != b.AssetID || current.Source.Incarnation != b.Source.Incarnation || current.Source.Generation != b.Source.Generation || current.DurationUS != b.DurationUS || current.ProbeEvidence != b.ProbeEvidence || b.Container == "strm" && evidence != b.ProbeEvidence || stage == catalog.SonicOperation && current.SonicBinding != b.SonicBinding {
+	if current.TimedDisc != b.TimedDisc || current.Consent != b.Consent || current.AssetID != b.AssetID || current.Source.Incarnation != b.Source.Incarnation || current.Source.Generation != b.Source.Generation || current.DurationUS != b.DurationUS || current.ProbeEvidence != b.ProbeEvidence || b.Container == "strm" && evidence != b.ProbeEvidence || stage == catalog.SonicOperation && current.SonicBinding != b.SonicBinding {
 		return ErrConflict
 	}
 	p, e := catalog.ScanPolicyTx(ctx, tx, b.Source.LibraryID)
 	if e != nil {
 		return e
 	}
-	if !p.Allows(stage) {
+	grant := stage
+	if out.grant != "" {
+		grant = out.grant
+	}
+	if !p.Allows(grant) {
 		return context.Canceled
+	}
+	if out.streams != nil {
+		applied, e := s.catalog.InventoryStreamsAppliedTx(ctx, tx, out.streams.input, out.streams.receipt)
+		if e != nil {
+			return e
+		}
+		if !applied {
+			return storage.ErrBusy
+		}
 	}
 	// Publication is the last boundary: a source page change during a long
 	// decode must not publish a stage it has since switched off.
-	if allowed, e := sourceStageAllowedTx(ctx, tx, current.Source.ID, stage); e != nil {
+	if allowed, e := sourceStageAllowedTx(ctx, tx, current.Source.ID, grant); e != nil {
 		return e
 	} else if !allowed {
 		return context.Canceled
@@ -461,12 +493,20 @@ func (s *Service) publish(ctx context.Context, b binding, stage, id, evidence, t
 	}
 	var ops []string
 	_ = json.Unmarshal([]byte(raw), &ops)
-	found := false
-	for _, v := range ops {
-		found = found || v == stage
+	add := func(value string) {
+		for _, v := range ops {
+			if v == value {
+				return
+			}
+		}
+		ops = append(ops, value)
 	}
-	if !found {
-		ops = append(ops, stage)
+	add(stage)
+	if stage == catalog.PlaybackFramesOperation {
+		add(assets.PlaybackFramesRevision)
+	}
+	if stage == packetPeakStage {
+		add(assets.PacketPeakRevision)
 	}
 	if _, e = tx.ExecContext(ctx, `UPDATE inventory_objects SET analysis_operations_json=?,analysis_revision=?,analysis_error='' WHERE id=? AND revision=?`, jsonString(ops), b.SourceRevision, b.ObjectID, b.SourceRevision); e != nil {
 		return e

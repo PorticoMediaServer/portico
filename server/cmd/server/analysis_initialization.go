@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"log"
 	"os"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"strconv"
 
 	"github.com/PorticoMediaServer/portico/server/internal/mediaanalysis"
@@ -17,8 +17,8 @@ import (
 )
 
 // ffmpeg is the shared, already resolved and verified startup tool.
-func initializeAnalysis(db *sql.DB, state string, inputs *subtitlevideo.Runtime, ffmpeg string, supervisor *storage.Supervisor) (*mediaanalysis.Service, error) {
-	o := mediaanalysis.Options{DB: db, Directory: storagepaths.Path(state, "analysis-artifacts"), FFmpeg: ffmpeg, Open: func(ctx context.Context, item, asset string) (mediaanalysis.Input, error) {
+func initializeAnalysis(db *sql.DB, state string, inputs *subtitlevideo.Runtime, ffmpeg, ffprobe string, supervisor *storage.Supervisor) (*mediaanalysis.Service, error) {
+	o := mediaanalysis.Options{DB: db, Directory: storagepaths.Path(state, "analysis-artifacts"), FFmpeg: ffmpeg, FFprobe: ffprobe, Probe: func(input mediaanalysis.Input) mediaanalysis.Probe { return inputs.AnalysisProbe(input) }, Open: func(ctx context.Context, item, asset string) (mediaanalysis.Input, error) {
 		return inputs.OpenSubtitleInput(ctx, item, asset, "")
 	}, Decoder: func(input mediaanalysis.Input) mediaanalysis.Decode { return inputs.AnalysisDecoder(input) }}
 	helper := os.Getenv("PORTICO_SONIC_HELPER")

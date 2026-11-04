@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"io"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
+	"io"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/assets"
@@ -28,6 +28,12 @@ func TestEpisodeThumbnailScanCallbackKeepsExistingJobPendingUntilSettled(t *test
 			cat := catalog.New(c.DB)
 			scanner := New(c.DB, cat, assets.Probe{})
 			if err := dbwork.WithWriteTx(context.Background(), c.DB, dbwork.ClassInteractive, func(tx *sql.Tx) error {
+				// This callback fixture starts after the preceding packet recipe has
+				// applied its canonical stream facts. No source bytes belong to
+				// the callback oracle below.
+				if err := assets.PersistStreams(tx, episode.Token, 1000, 1, []assets.Stream{{Index: 0, Type: "video", Codec: "h264", Detail: assets.StreamDetail{MaxBitRate: 2400, StreamBreadth: assets.StreamBreadth{PacketPeakRevision: assets.PacketPeakRevision}}}}); err != nil {
+					return err
+				}
 				return catalog.ApplyScanPolicyTx(context.Background(), tx, "episodes", catalog.ScanPolicy{Tier: "custom", Operations: []string{"probe", catalog.EpisodeThumbnailOperation}})
 			}); err != nil {
 				t.Fatal(err)
@@ -63,6 +69,27 @@ func TestEpisodeThumbnailScanCallbackKeepsExistingJobPendingUntilSettled(t *test
 			}
 			if !p.Allows(catalog.EpisodeThumbnailOperation) {
 				t.Fatal("saved registered operation missing", p)
+			}
+			// The generic runner acknowledges the canonical packet marker in
+			// its own quantum before the thumbnail callback is due. Settle that
+			// predecessor without consuming the inventory queue's callback ACK.
+			settled := false
+			for range 4 {
+				done, warning, err := generic.RunOne(context.Background(), mediaanalysis.Request{JobID: job.ID, ObjectID: "object", SourceRevision: "revision-a", PolicyRevision: p.Revision})
+				if err != nil || warning != "" {
+					t.Fatal("preceding stage did not settle", warning, err)
+				}
+				if done {
+					settled = true
+					break
+				}
+			}
+			if !settled {
+				t.Fatal("preceding internal stage still pending")
+			}
+			var before string
+			if err := c.DB.QueryRow(`SELECT state FROM inventory_analysis_queue WHERE job_id=?`, job.ID).Scan(&before); err != nil || before != "pending" {
+				t.Fatal("generic predecessor acknowledged the callback's queue entry", before, err)
 			}
 			calls := 0
 			if outcome != "missing" {

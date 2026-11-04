@@ -54,9 +54,9 @@ func analyzeDolbyVisionFrames(raw []byte, d *StreamDetail) {
 					mel = mel && *c.Offset == 0 && *c.Maximum == one && *c.Slope == 0 && *c.Threshold == 0
 				}
 				if complete {
-					d.DolbyVisionEnhancementType = "FEL"
+					d.DolbyVisionEnhancementType = "fel"
 					if mel {
-						d.DolbyVisionEnhancementType = "MEL"
+						d.DolbyVisionEnhancementType = "mel"
 					}
 				}
 			}

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
 )
 
@@ -29,7 +30,7 @@ func TestAnalysisProbeClosedRecipes(t *testing.T) {
 			if err != nil || recipe.limit != tc.limit || recipe.deadline != tc.deadline {
 				t.Fatalf("recipe %+v: %v", recipe, err)
 			}
-			want := []string{"-v", "error", "-threads", "1", "-protocol_whitelist", "http,tcp", "-format_whitelist", ordinaryProbeFormats, "-probesize", "8388608", "-analyzeduration", "5000000", "-select_streams", "v:0"}
+			want := []string{"-v", "error", "-threads", "1", "-protocol_whitelist", "http,tcp", "-format_whitelist", mediaexec.LocalInputFormats, "-probesize", "8388608", "-analyzeduration", "5000000", "-select_streams", "v:0"}
 			want = append(want, tc.query...)
 			want = append(want, input)
 			if got := recipe.args(input); !reflect.DeepEqual(got, want) {
@@ -41,6 +42,23 @@ func TestAnalysisProbeClosedRecipes(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAnalysisProbeKeepsAllOrdinaryHeaderDemuxers(t *testing.T) {
+	recipe, err := analysisProbeRecipe(ProbeFrameCadence)
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := recipe.args("http://127.0.0.1:19502/input/" + strings.Repeat("c", 64))
+	for i, arg := range args {
+		if arg == "-format_whitelist" {
+			if args[i+1] != mediaexec.LocalInputFormats {
+				t.Fatalf("frame pass rejects ordinary scanner formats: %s", args[i+1])
+			}
+			return
+		}
+	}
+	t.Fatal("missing closed format whitelist")
 }
 
 func TestAnalysisProbeRetiresOnCancellation(t *testing.T) {

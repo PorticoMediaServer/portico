@@ -22,7 +22,7 @@ func TestDolbyVisionDecodedSourceFactsFromGeneratedMedia(t *testing.T) {
 		file, layer   string
 		dv, hdr10plus bool
 	}{
-		{"source-MEL.mp4", "MEL", true, false}, {"source-FEL.mp4", "FEL", true, false},
+		{"source-MEL.mp4", "mel", true, false}, {"source-FEL.mp4", "fel", true, false},
 		{"dv-8.1.hevc", "", true, false}, {"dv-8.4.hevc", "", true, false},
 		{"base-pq.hevc", "", false, false}, {"hdr10plus.hevc", "", false, true},
 	} {
@@ -49,7 +49,13 @@ func TestDolbyVisionDecodedSourceFactsFromGeneratedMedia(t *testing.T) {
 			if before.DolbyVisionRPU || before.DolbyVisionBaseLayer || before.DolbyVisionMetadataKnown {
 				t.Fatal("stream configuration claimed decoded packet observations")
 			}
-			probe.AnalyzePlayback(context.Background(), path, &facts)
+			raw, err := probe.analysisOutput(context.Background(), path, 1<<20, "-select_streams", "v:0", "-read_intervals", "%+#1", "-show_frames", "-show_entries", "frame=media_type,width,height,side_data_list", "-of", "json")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = ApplyFrameHDR(raw, &facts.Streams[0].Detail); err != nil {
+				t.Fatal(err)
+			}
 			got := facts.Streams[0].Detail
 			if got.DolbyVisionRPU != sample.dv || got.DolbyVisionBaseLayer != sample.dv || got.DolbyVisionMetadataKnown != sample.dv || got.DolbyVisionEnhancementType != sample.layer || got.HDR10Plus != sample.hdr10plus || got.DolbyVisionCMVersion != "" {
 				t.Fatalf("decoded source facts: %+v; wanted DV=%t EL=%q HDR10+=%t", got, sample.dv, sample.layer, sample.hdr10plus)

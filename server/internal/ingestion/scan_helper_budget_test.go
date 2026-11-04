@@ -26,16 +26,17 @@ import (
 // budgets hold the processes a scan starts, using the real helper binary so the
 // in-process path is the one measured. Measured on this fixture (six films):
 // before OPS-1 C, 36.5 per film on a first import and 7.8 on an unchanged
-// rescan; after C, 10.3 and 4.0; after M1, the two ffprobe passes per film on
-// a first import and none on a rescan; after M4, none per film: probes run on
-// long-lived sandboxes (sandboxesPerScan), where hosts support them.
+// rescan; after C, 10.3 and 4.0; after M1, two ffprobe passes per film on
+// a first import and none on a rescan; after frame deferral, one header probe
+// per film. M4 reuses long-lived probe sandboxes (sandboxesPerScan) where
+// hosts support them, so each file no longer starts a sandbox.
 const (
 	processesPerScan            = 2
 	firstImportProcessesPerFile = 0
 	// unpooledProbesPerFile is a first import's processes per film where the
-	// host has no decoder sandbox (no bubblewrap, as on CI runners): each of
-	// the two ffprobe passes then starts its own helper, as before M4.
-	unpooledProbesPerFile  = 2
+	// host has no decoder sandbox (no bubblewrap, as on CI runners): each
+	// header probe starts its own helper. Frame probes belong to Deep only.
+	unpooledProbesPerFile  = 1
 	rescanProcessesPerFile = 0
 	// sandboxesPerScan bounds probe sandboxes started per scan run (scanner
 	// M4): one per concurrent probe, never one per file.

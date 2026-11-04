@@ -65,7 +65,7 @@ func AnalysisOperations() []AnalysisOperation {
 		{"artwork_extraction", "Embedded artwork", "metadata-only", "Extracts cover art already embedded in the file.", all, true, []string{"probe"}, true, false},
 		{"subtitle_discovery", "Subtitle discovery", "metadata-only", "Lists the subtitle tracks inside the file and the subtitle files beside it.", video, true, []string{"probe"}, false, false},
 		{"chapter_read", "Chapter markers", "metadata-only", "Reads chapter markers the file already carries.", append([]string{"book"}, video...), true, []string{"probe"}, false, false},
-		{"deep_stream_analysis", "Deep stream analysis", "single-pass-read", "Reads the whole file to confirm frame rate, bit depth, HDR format and stream health when headers are incomplete.", video, false, []string{"probe"}, false, false},
+		{"playback_frames", "Playback frames", "decode", "Observes decoded interlace, cadence and supplemental HDR metadata. Header facts apply until this completes.", video, false, []string{"probe"}, false, false},
 		{"subtitle_extraction", "Subtitle extraction", "single-pass-read", "Writes embedded text subtitles out as separate tracks so they can be delivered without a conversion.", video, false, []string{"subtitle_discovery"}, true, false},
 		{"loudness", "Loudness measurement", "single-pass-read", "Measures programme loudness so playback can normalise between items.", all, false, []string{"probe"}, false, false},
 		{"audio_fingerprint", "Audio fingerprint", "single-pass-read", "Computes an acoustic fingerprint used to match recordings that tags cannot identify.", []string{"music"}, false, []string{"probe"}, false, false},

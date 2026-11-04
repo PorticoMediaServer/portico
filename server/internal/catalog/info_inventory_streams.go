@@ -25,12 +25,13 @@ type InventoryStreamInput struct {
 	consent               SourceAnalysisConsent
 	headRevision          int64
 	headFingerprint       string
+	operation             string
 }
 
 // InventoryStreams reads one bounded stream set and its head in one snapshot.
 // It requires Basic to have applied for this exact inventory revision.
-func (s *Service) InventoryStreams(ctx context.Context, job, object, revision string, policy int64) (InventoryStreamInput, error) {
-	input := InventoryStreamInput{job: job, object: object, revision: revision, policy: policy}
+func (s *Service) InventoryStreams(ctx context.Context, job, object, revision string, policy int64, operation string) (InventoryStreamInput, error) {
+	input := InventoryStreamInput{job: job, object: object, revision: revision, policy: policy, operation: operation}
 	tx, close, err := dbwork.BeginRead(ctx, s.db)
 	if err != nil {
 		return input, err
@@ -41,12 +42,25 @@ func (s *Service) InventoryStreams(ctx context.Context, job, object, revision st
 		return input, err
 	}
 	f := input.frame
+	if !f.policy.Allows(operation) {
+		return input, context.Canceled
+	}
+	if allowed, e := SourceScanOperationAllowedTx(ctx, tx, f.source.ID, operation); e != nil || !allowed {
+		return input, errors.Join(context.Canceled, e)
+	}
 	input.consent, err = SourceAnalysisConsentTx(ctx, tx, f.source.ID)
 	if err != nil {
 		return input, err
 	}
 	if !input.consent.Allowed {
 		return input, storage.ErrRemoteAnalysisDisabled
+	}
+	var pending bool
+	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM catalog_info_changes WHERE asset_id=? AND asset_token=? AND family_mask&7<>0 AND (phase BETWEEN 1 AND 3 OR phase=0 AND copy_aux<0))`, f.asset, f.token).Scan(&pending); err != nil {
+		return input, err
+	}
+	if pending {
+		return input, compactcatalog.ErrInfoInputBusy
 	}
 	err = tx.QueryRowContext(ctx, `SELECT revision,fingerprint FROM asset_stream_facts WHERE asset_id=? AND size=? AND modified_ns=? AND detail_version=?`, f.token, f.size, f.modified, assets.StreamDetailVersion).Scan(&input.headRevision, &input.headFingerprint)
 	if err != nil {
@@ -80,26 +94,49 @@ func (s *Service) InventoryStreams(ctx context.Context, job, object, revision st
 	return input, nil
 }
 
+func inventoryStreamIdentity(input InventoryStreamInput) ([32]byte, compactcatalog.InfoWitness, error) {
+	if input.headRevision <= 0 || input.Streams == nil {
+		return [32]byte{}, compactcatalog.InfoWitness{}, compactcatalog.ErrInfoInvariant
+	}
+	streamFingerprint, err := infoInventoryFingerprint(assets.Facts{Streams: input.Streams})
+	if err != nil {
+		return [32]byte{}, compactcatalog.InfoWitness{}, err
+	}
+	raw, err := json.Marshal([]any{"inventory-streams:1", input.headRevision, input.headFingerprint, streamFingerprint})
+	if err != nil {
+		return [32]byte{}, compactcatalog.InfoWitness{}, err
+	}
+	fingerprint := sha256.Sum256(raw)
+	f := input.frame
+	witness := compactcatalog.InfoWitness{Kind: compactcatalog.InfoWitnessRefresh, JobID: input.job, SourceID: f.source.ID, SourceGeneration: f.source.Generation, RootIncarnation: f.source.Incarnation, ObjectID: input.object, ObjectRevision: input.revision, PolicyRevision: input.policy, Fingerprint: fingerprint}
+	return fingerprint, witness, nil
+}
+
+// AbandonInventoryStreams retires only this exact unaccepted observation. It
+// needs no live replacement authority and never abandons an accepted receipt.
+func (s *Service) AbandonInventoryStreams(ctx context.Context, input InventoryStreamInput) error {
+	fingerprint, witness, err := inventoryStreamIdentity(input)
+	if err != nil {
+		return err
+	}
+	clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+	defer cancel()
+	return dbwork.WithWriteTxContext(clean, s.db, dbwork.ClassBackgroundMedia, func(c context.Context, tx *sql.Tx) error {
+		_, err := compactcatalog.AbandonInfoSourceTx(c, tx, input.frame.asset, input.frame.token, witness, fingerprint)
+		return err
+	})
+}
+
 // AcceptInventoryStreams replaces only stream families 1/2/3, including their
 // coherent head fingerprint/revision. Scalars, naming, artwork, chapters,
 // subtitles and the scan queue are untouched. The caller must retain the
 // accepted-pending receipt and wait for applied before acknowledging its work.
 // Timed disc associations require their disc-aware publisher instead.
 func (s *Service) AcceptInventoryStreams(ctx context.Context, input InventoryStreamInput) (out compactcatalog.InfoAcceptReceipt, retErr error) {
-	if input.headRevision <= 0 || input.Streams == nil {
-		return compactcatalog.InfoAcceptReceipt{}, compactcatalog.ErrInfoInvariant
-	}
-	streamFingerprint, err := infoInventoryFingerprint(assets.Facts{Streams: input.Streams})
+	fingerprint, witness, err := inventoryStreamIdentity(input)
 	if err != nil {
 		return compactcatalog.InfoAcceptReceipt{}, err
 	}
-	raw, err := json.Marshal([]any{"inventory-streams:1", input.headRevision, input.headFingerprint, streamFingerprint})
-	if err != nil {
-		return compactcatalog.InfoAcceptReceipt{}, err
-	}
-	fingerprint := sha256.Sum256(raw)
-	f := input.frame
-	witness := compactcatalog.InfoWitness{Kind: compactcatalog.InfoWitnessRefresh, JobID: input.job, SourceID: f.source.ID, SourceGeneration: f.source.Generation, RootIncarnation: f.source.Incarnation, ObjectID: input.object, ObjectRevision: input.revision, PolicyRevision: input.policy, Fingerprint: fingerprint}
 	// PublishInfoSource owns the handle after Begin, but an initial retry check
 	// can refuse before Begin runs. Re-prove this immutable producer's exact
 	// prefix on terminal loss so it cannot strand an accepted queued successor.
@@ -107,12 +144,7 @@ func (s *Service) AcceptInventoryStreams(ctx context.Context, input InventoryStr
 		if !(compactcatalog.InfoInputNeedsAbort(retErr) || errors.Is(retErr, context.Canceled) || errors.Is(retErr, context.DeadlineExceeded) || errors.Is(retErr, sql.ErrNoRows)) {
 			return
 		}
-		clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
-		defer cancel()
-		if err := dbwork.WithWriteTxContext(clean, s.db, dbwork.ClassBackgroundMedia, func(c context.Context, tx *sql.Tx) error {
-			_, err := compactcatalog.AbandonInfoSourceTx(c, tx, f.asset, f.token, witness, fingerprint)
-			return err
-		}); err != nil {
+		if err := s.AbandonInventoryStreams(ctx, input); err != nil {
 			retErr = errors.Join(retErr, err)
 		}
 	}()
@@ -120,6 +152,12 @@ func (s *Service) AcceptInventoryStreams(ctx context.Context, input InventoryStr
 		f, err := inventoryInfoFrameTx(ctx, tx, input.job, input.object, input.revision, input.policy, true)
 		if err != nil {
 			return err
+		}
+		if !f.policy.Allows(input.operation) {
+			return context.Canceled
+		}
+		if allowed, e := SourceScanOperationAllowedTx(ctx, tx, f.source.ID, input.operation); e != nil || !allowed {
+			return errors.Join(context.Canceled, e)
 		}
 		old := input.frame
 		if f.asset != old.asset || f.token != old.token || f.size != old.size || f.modified != old.modified || f.source.ID != old.source.ID || f.source.Generation != old.source.Generation || f.source.Incarnation != old.source.Incarnation {
@@ -165,4 +203,46 @@ func (s *Service) AcceptInventoryStreams(ctx context.Context, input InventoryStr
 		}
 		return compactcatalog.InfoInputSpec{AssetID: f.asset, Token: f.token, ExpectedEpoch: epoch, FamilyMask: infoSourceFamilyMask(families), Fingerprint: fingerprint, Witnesses: []compactcatalog.InfoWitness{witness}}, families, nil
 	})
+}
+
+// InventoryStreamsAppliedTx acknowledges only the exact receipt and canonical
+// stream set, after re-proving the original operation/source admission. A GC’d
+// receipt is settled only if that exact fingerprint is now canonical.
+func (s *Service) InventoryStreamsAppliedTx(ctx context.Context, tx *sql.Tx, input InventoryStreamInput, receipt compactcatalog.InfoAcceptReceipt) (bool, error) {
+	f, err := inventoryInfoFrameTx(ctx, tx, input.job, input.object, input.revision, input.policy, true)
+	if err != nil {
+		return false, err
+	}
+	old := input.frame
+	if f.asset != old.asset || f.token != old.token || f.size != old.size || f.modified != old.modified || f.source.ID != old.source.ID || f.source.Generation != old.source.Generation || f.source.Incarnation != old.source.Incarnation || !f.policy.Allows(input.operation) {
+		return false, compactcatalog.ErrInfoInputDrift
+	}
+	if err = CheckSourceAnalysisConsentTx(ctx, tx, input.consent); err != nil {
+		return false, err
+	}
+	if allowed, e := SourceScanOperationAllowedTx(ctx, tx, f.source.ID, input.operation); e != nil || !allowed {
+		return false, errors.Join(context.Canceled, e)
+	}
+	if receipt.ChangeID != 0 {
+		current, e := compactcatalog.InfoInputReceiptTx(ctx, tx, receipt.ChangeID)
+		if e != nil && !errors.Is(e, sql.ErrNoRows) {
+			return false, e
+		}
+		if e == nil && current.State != compactcatalog.InfoInputApplied {
+			return false, nil
+		}
+	}
+	fingerprint, err := assets.StreamInputFingerprint(input.Streams)
+	if err != nil {
+		return false, err
+	}
+	var matches bool
+	err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM asset_stream_facts WHERE asset_id=? AND fingerprint=? AND size=? AND modified_ns=? AND detail_version=?)`, f.token, fingerprint, f.size, f.modified, assets.StreamDetailVersion).Scan(&matches)
+	if err != nil {
+		return false, err
+	}
+	if !matches {
+		return false, compactcatalog.ErrInfoInputDrift
+	}
+	return true, nil
 }

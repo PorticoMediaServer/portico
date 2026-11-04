@@ -93,9 +93,9 @@ func registerLibrariesHTTPContracts(registry *apikit.Registry) error {
 	}
 	// internal/httpapi/inventory.go:139
 	if err := apikit.RegisterHTTP[struct {
-		Tier             string   "json:\"tier\""
-		Operations       []string "json:\"operations\""
-		ExpectedRevision int64    "json:\"expectedRevision\""
+		Tier             string                 "json:\"tier\""
+		Operations       catalog.ScanOperations "json:\"operations\""
+		ExpectedRevision int64                  "json:\"expectedRevision\""
 	}, catalog.ScanPolicy](registry, apikit.Metadata{Audience: apikit.Clients, ID: "put_admin_libraries_id_scan_policy", Method: "PUT", Path: "/v1/admin/libraries/{id}/scan-policy", Summary: "Save server library scan policy", Access: apikit.Admin, AdminScope: "libraries", Requires: apikit.ScopeLibrary, Lane: apikit.Default, Admission: laneAdminHeavy, Cost: apikit.Constant, BodyLimit: 65536, Status: 200, Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "internal"}}); err != nil {
 		return err
 	}

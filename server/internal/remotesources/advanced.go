@@ -10,6 +10,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/usermutation"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/apikit"
@@ -795,7 +796,7 @@ func (s AnalysisSwitches) Filter(operations []string) []string {
 		if !s.advancedMediaAnalysis {
 			heavy := false
 			for _, stage := range catalog.DeepScanOperations {
-				heavy = heavy || op == stage
+				heavy = heavy || op == stage || strings.HasPrefix(op, stage+":")
 			}
 			if heavy {
 				continue

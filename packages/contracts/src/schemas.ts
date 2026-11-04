@@ -32540,9 +32540,25 @@ export const schemas = {
         "properties": {
           "operations": {
             "items": {
+              "enum": [
+                "probe",
+                "local_metadata",
+                "subtitles",
+                "playback_frames",
+                "checksum",
+                "chapter_images",
+                "trickplay",
+                "waveform",
+                "loudness",
+                "fingerprint",
+                "sonic",
+                "episode_thumbnail"
+              ],
               "type": "string"
             },
-            "type": "array"
+            "maxItems": 12,
+            "type": "array",
+            "uniqueItems": true
           },
           "revision": {
             "maximum": 9007199254740991,
@@ -92443,9 +92459,25 @@ export const schemas = {
         "properties": {
           "operations": {
             "items": {
+              "enum": [
+                "probe",
+                "local_metadata",
+                "subtitles",
+                "playback_frames",
+                "checksum",
+                "chapter_images",
+                "trickplay",
+                "waveform",
+                "loudness",
+                "fingerprint",
+                "sonic",
+                "episode_thumbnail"
+              ],
               "type": "string"
             },
-            "type": "array"
+            "maxItems": 12,
+            "type": "array",
+            "uniqueItems": true
           },
           "revision": {
             "maximum": 9007199254740991,
@@ -148699,6 +148731,7 @@ export const schemas = {
                 "probe",
                 "local_metadata",
                 "subtitle_discovery",
+                "playback_frames",
                 "loudness",
                 "audio_fingerprint",
                 "trickplay",
@@ -148708,7 +148741,7 @@ export const schemas = {
               ],
               "type": "string"
             },
-            "maxItems": 9,
+            "maxItems": 10,
             "type": "array",
             "uniqueItems": true
           },
@@ -148953,6 +148986,7 @@ export const schemas = {
                 "probe",
                 "local_metadata",
                 "subtitle_discovery",
+                "playback_frames",
                 "loudness",
                 "audio_fingerprint",
                 "trickplay",
@@ -148962,7 +148996,7 @@ export const schemas = {
               ],
               "type": "string"
             },
-            "maxItems": 9,
+            "maxItems": 10,
             "type": "array",
             "uniqueItems": true
           },
@@ -261615,9 +261649,25 @@ export const schemas = {
       },
       "operations": {
         "items": {
+          "enum": [
+            "probe",
+            "local_metadata",
+            "subtitles",
+            "playback_frames",
+            "checksum",
+            "chapter_images",
+            "trickplay",
+            "waveform",
+            "loudness",
+            "fingerprint",
+            "sonic",
+            "episode_thumbnail"
+          ],
           "type": "string"
         },
-        "type": "array"
+        "maxItems": 12,
+        "type": "array",
+        "uniqueItems": true
       },
       "tier": {
         "type": "string"
@@ -261634,9 +261684,25 @@ export const schemas = {
     "properties": {
       "operations": {
         "items": {
+          "enum": [
+            "probe",
+            "local_metadata",
+            "subtitles",
+            "playback_frames",
+            "checksum",
+            "chapter_images",
+            "trickplay",
+            "waveform",
+            "loudness",
+            "fingerprint",
+            "sonic",
+            "episode_thumbnail"
+          ],
           "type": "string"
         },
-        "type": "array"
+        "maxItems": 12,
+        "type": "array",
+        "uniqueItems": true
       },
       "revision": {
         "maximum": 9007199254740991,
@@ -265519,9 +265585,25 @@ export const schemas = {
       },
       "operations": {
         "items": {
+          "enum": [
+            "probe",
+            "local_metadata",
+            "subtitles",
+            "playback_frames",
+            "checksum",
+            "chapter_images",
+            "trickplay",
+            "waveform",
+            "loudness",
+            "fingerprint",
+            "sonic",
+            "episode_thumbnail"
+          ],
           "type": "string"
         },
-        "type": "array"
+        "maxItems": 12,
+        "type": "array",
+        "uniqueItems": true
       },
       "sessionId": {
         "type": "string"
@@ -265578,9 +265660,25 @@ export const schemas = {
     "properties": {
       "operations": {
         "items": {
+          "enum": [
+            "probe",
+            "local_metadata",
+            "subtitles",
+            "playback_frames",
+            "checksum",
+            "chapter_images",
+            "trickplay",
+            "waveform",
+            "loudness",
+            "fingerprint",
+            "sonic",
+            "episode_thumbnail"
+          ],
           "type": "string"
         },
-        "type": "array"
+        "maxItems": 12,
+        "type": "array",
+        "uniqueItems": true
       },
       "revision": {
         "maximum": 9007199254740991,
@@ -266847,6 +266945,7 @@ export const schemas = {
                 "probe",
                 "local_metadata",
                 "subtitle_discovery",
+                "playback_frames",
                 "loudness",
                 "audio_fingerprint",
                 "trickplay",
@@ -266856,7 +266955,7 @@ export const schemas = {
               ],
               "type": "string"
             },
-            "maxItems": 9,
+            "maxItems": 10,
             "type": "array",
             "uniqueItems": true
           },
@@ -267228,6 +267327,7 @@ export const schemas = {
                 "probe",
                 "local_metadata",
                 "subtitle_discovery",
+                "playback_frames",
                 "loudness",
                 "audio_fingerprint",
                 "trickplay",
@@ -267237,7 +267337,7 @@ export const schemas = {
               ],
               "type": "string"
             },
-            "maxItems": 9,
+            "maxItems": 10,
             "type": "array",
             "uniqueItems": true
           },
@@ -267482,6 +267582,7 @@ export const schemas = {
                 "probe",
                 "local_metadata",
                 "subtitle_discovery",
+                "playback_frames",
                 "loudness",
                 "audio_fingerprint",
                 "trickplay",
@@ -267491,7 +267592,7 @@ export const schemas = {
               ],
               "type": "string"
             },
-            "maxItems": 9,
+            "maxItems": 10,
             "type": "array",
             "uniqueItems": true
           },

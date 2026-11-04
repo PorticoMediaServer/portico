@@ -28,7 +28,7 @@ func inventoryStreamsFixture(t *testing.T) (*Service, *sql.DB, InventoryStreamIn
 	if _, err := db.Exec(`UPDATE inventory_objects SET analysis_revision=revision WHERE id=?`, object); err != nil {
 		t.Fatal(err)
 	}
-	input, err := s.InventoryStreams(context.Background(), job, object, revision, policy)
+	input, err := s.InventoryStreams(context.Background(), job, object, revision, policy, "probe")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +192,7 @@ func TestInventoryStreamsPublishesOnlyStreamsAndKeepsPendingReceipt(t *testing.T
 	if err = db.QueryRow(unchanged, input.object, input.frame.asset).Scan(&after); err != nil || after != before {
 		t.Fatal("unrelated metadata changed", before, after, err)
 	}
-	current, err := s.InventoryStreams(ctx, input.job, input.object, input.revision, input.policy)
+	current, err := s.InventoryStreams(ctx, input.job, input.object, input.revision, input.policy, "probe")
 	if err != nil || current.headRevision != input.headRevision+1 || current.Streams[0].Detail.InterlaceAnalysis != assets.InterlaceDecodedInterlaced || current.Streams[0].Detail.ChromaSubsampling != "420" || current.Streams[1].Language != "en" {
 		t.Fatal("stream set or head lost", current, err)
 	}
