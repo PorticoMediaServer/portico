@@ -769,7 +769,7 @@ test('D: an access change keeps the picks still offered, drops the rest, and say
   assert.equal(context.scope.privacyFence, moved);
   assert.deepEqual(h.controller.getSnapshot().selection.selectedKeys, [h.controller.key(homeEntrySelection(kept, {platform: 'web', playbackAvailable: true, queueAvailable: true})!)]);
   assert.deepEqual(notices, [defaultI18n.t('next.selection.noLongerAvailable', {count: 2})]);
-  assert.equal(notices[0], '2 titles are no longer available.');
+  assert.equal(notices[0], '2 items are no longer available.');
   h.replace({...next});
   assert.equal(notices.length, 1, 'a later answer that drops nothing says nothing');
   assert.equal(h.controller.registerWindow({id: 'window', row: next.rows[0]!, sectionOrder: 0}).ok, true);
