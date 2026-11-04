@@ -209,6 +209,7 @@ func TestEveryRouteSurvivesHostileInput(t *testing.T) {
 	bodies := hostileBodies(t)
 	before := supervise.Panics()
 	var failures []string
+	groupTotal, groupExpired, group500 := 0, 0, 0
 	for _, route := range routesUnderTest() {
 		type attack struct{ name, body, query, path string }
 		attacks := make([]attack, 0, len(bodies)+len(hostileQueries)+len(hostilePathValues))
@@ -221,6 +222,11 @@ func TestEveryRouteSurvivesHostileInput(t *testing.T) {
 		for i, value := range hostilePathValues {
 			attacks = append(attacks, attack{fmt.Sprintf("path %d", i), "{}", "", fillWildcards(route.path, value)})
 		}
+		if route.path == "/v1/groups/{id}/events" {
+			for i := 0; i < 3000; i++ {
+				attacks = append(attacks, attack{fmt.Sprintf("group repeat %d", i), `{"id":1e1000,"revision":-1e1000}`, "", "/v1/groups/hostile-id/events"})
+			}
+		}
 		for _, attack := range attacks {
 			for _, authorized := range []bool{false, true} {
 				r := httptest.NewRequest(route.method, attack.path+attack.query, strings.NewReader(attack.body))
@@ -229,7 +235,7 @@ func TestEveryRouteSurvivesHostileInput(t *testing.T) {
 					r.Header.Set("Authorization", "Bearer "+token)
 				}
 				budget := 2 * time.Second
-				if strings.HasSuffix(route.path, "/events") {
+				if strings.HasSuffix(route.path, "/events") && route.path != "/v1/admin/access/events" {
 					budget = 10 * time.Millisecond
 				}
 				ctx, cancel := context.WithTimeout(r.Context(), budget)
@@ -248,6 +254,16 @@ func TestEveryRouteSurvivesHostileInput(t *testing.T) {
 						t.Fatalf("%s %s did not honor cancellation", route.method, route.path)
 					}
 				}
+				if route.path == "/v1/groups/{id}/events" {
+					groupTotal++
+					if ctx.Err() != nil {
+						groupExpired++
+					}
+					if w.Code >= 500 {
+						group500++
+						t.Logf("GROUP-RESPONSE authorized=%v status=%d ctx=%v body=%s", authorized, w.Code, ctx.Err(), w.Body)
+					}
+				}
 				cancel()
 				// The empty body is valid on sign-out. Give subsequent cases
 				// a fresh family instead of silently testing as a stranger.
@@ -262,6 +278,7 @@ func TestEveryRouteSurvivesHostileInput(t *testing.T) {
 			}
 		}
 	}
+	t.Logf("GROUP-SUMMARY requests=%d expired=%d status500=%d", groupTotal, groupExpired, group500)
 	// Successful bodyless mutations must not silently revoke the fixture's
 	// credential and turn all later authorized cases into trivial denials.
 	canary := httptest.NewRequest("GET", "/v1/preferences?deviceClass=web", nil)

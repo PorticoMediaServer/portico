@@ -2,9 +2,11 @@ package httpapi
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/apikit"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
@@ -94,7 +96,13 @@ type castConfigurationBody struct {
 func registerSocial(r *apikit.Registry, d Dependencies) {
 	store := d.Social()
 	viewer := func(w http.ResponseWriter, q *http.Request) (identity.Principal, bool) {
+		started := time.Now()
+		deadline, _ := q.Context().Deadline()
+		entryBudget := time.Until(deadline)
 		p, e := d.principal(q)
+		if e != nil && strings.HasPrefix(q.URL.Path, "/v1/groups/") && strings.HasSuffix(q.URL.Path, "/events") && q.Context().Err() != nil {
+			fmt.Printf("GROUP-PHASE authentication elapsed=%s entryBudget=%s err=%T:%v ctx=%v\n", time.Since(started), entryBudget, e, e, q.Context().Err())
+		}
 		if e != nil {
 			socialFailure(w, e)
 			return p, false

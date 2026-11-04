@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
@@ -637,12 +638,21 @@ func (s *Store) ReadGroup(ctx context.Context, p identity.Principal, id string) 
 	// written: a member polling their group must see a host who has gone away as
 	// gone, but must not make every one of those polls a transaction. The UPDATE
 	// and the events belong to the next writer, or to the sweep.
+	started := time.Now()
+	deadline, _ := ctx.Deadline()
+	entryBudget := time.Until(deadline)
 	tx, done, e := dbwork.BeginRead(ctx, s.DB)
+	acquisition := time.Since(started)
 	if e != nil {
+		fmt.Printf("GROUP-PHASE read-acquisition elapsed=%s entryBudget=%s err=%T:%v ctx=%v\n", acquisition, entryBudget, e, e, ctx.Err())
 		return out, e
 	}
 	defer done()
+	executionStart := time.Now()
 	g, e := loadGroup(ctx, tx, id)
+	if e != nil && (ctx.Err() != nil || errors.Is(e, sql.ErrTxDone)) {
+		fmt.Printf("GROUP-PHASE read-execution acquisition=%s execution=%s entryBudget=%s err=%T:%v ctx=%v\n", acquisition, time.Since(executionStart), entryBudget, e, e, ctx.Err())
+	}
 	if e != nil {
 		return out, e
 	}
