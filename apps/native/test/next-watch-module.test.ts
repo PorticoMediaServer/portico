@@ -118,3 +118,20 @@ test('module preserves the genuine adapter/outlet, current preferences, body and
   assert.equal(module.entryMenu.isOpen(entry), false);
   module.dispose(); module.dispose(); assert.equal(optionsDisposed, 1); assert.equal(screensDisposed, 1); assert.deepEqual(layouts, [undefined]); assert.deepEqual(errors, []);
 });
+
+test('N5-6 wiring: a title menu\'s Share and Copy link speak for the signed-in server: Portico Account (hosted) or local with its own address, and nothing once the module is retired', () => {
+  let live = true, viewerAuthority: 'local' | 'hosted' = 'local';
+  const navigation = new NativeShellNavigation(authority, () => authority);
+  const playback = {getSnapshot: () => ({dock: {}}), subscribe: () => () => {}, dock: {collapse: () => undefined}, onTransition: async () => {}};
+  const context = {current: () => live, authority: () => authority, session: () => ({viewer: {...authority, authority: viewerAuthority}}), api: {baseUrl: 'https://den.example:8443'},
+    subscribeAuthority: () => () => {}, navigation, playback, watch: {},
+    preferences: () => ({registry: {fields: []}, effective: {'playback.skipBackMs': 10000, 'playback.skipForwardMs': 30000, 'audiobooks.skipBackMs': 60000, 'audiobooks.skipForwardMs': 90000, 'audiobooks.resumeRewindMs': 0}})};
+  const module = createNativeWatchModule(context, {names, title: {renderError() {}}, presentation: () => {}});
+  try {
+    assert.deepEqual(captured.shareScope(), {serverId: 'server', hosted: false, origin: 'https://den.example:8443'}, 'a local-account server shares its own address');
+    viewerAuthority = 'hosted';
+    assert.equal(captured.shareScope().hosted, true, 'a Portico Account server shares the canonical link');
+    live = false;
+    assert.equal(captured.shareScope(), undefined, 'a retired module offers no link');
+  } finally {module.dispose();}
+});
