@@ -1,3 +1,4 @@
+import {readCatalogueItemResponse, readPlaybackCatalogueItem} from '@core/query/catalogue-reads.ts';
 import {playbackFailurePermanent} from '@core/playback-messages.ts';
 import {readPlaybackTrickplay, type PlaybackTrickplaySelection} from './trickplay.ts';
 import {captureAppLogRecorder, type AppLogCode, type AppLogRecorder} from '../app-log';
@@ -644,7 +645,7 @@ export class WebShellPlaybackRuntime {
     const readDeadline = this.startDeadline();
     try {
       const reading = AbortSignal.any([context.signal, previous.life.signal, this.life.signal, stopped.signal, readDeadline.signal]);
-      const raw = await readDeadline.race(this.source.api.request<ItemResponse>(encodedRoutePath('get_items_id', {id: encodeURIComponent(captured.itemId)}), 'GET', undefined, reading));
+      const raw = await readDeadline.race(readCatalogueItemResponse(this.source.api, captured.itemId, reading));
       check();
       if (!this.current(previous) || serial !== this.operation) problem('stale_selection_context');
       const item = parseMediaItem(raw);
@@ -759,7 +760,7 @@ export class WebShellPlaybackRuntime {
     const serial = ++this.operation, previous = this.stack;
     const finishRetention = this.retainMediaStart(context.signal, () => serial === this.operation);
     try {
-      const raw = await this.source.api.request<ItemResponse>(encodedRoutePath('get_items_id', {id: encodeURIComponent(itemId)}), 'GET', undefined, AbortSignal.any([context.signal, previous.life.signal, this.life.signal]));
+      const raw = await readCatalogueItemResponse(this.source.api, itemId, AbortSignal.any([context.signal, previous.life.signal, this.life.signal]));
       if (!this.current(previous) || serial !== this.operation || context.signal.aborted || !context.isCurrent()) problem('stale_selection_context');
       const item = parseMediaItem(raw);if (item.id !== itemId || !item.available || raw.missing) problem('invalid_playback_target');
       // Music starts docked once per room; after that each song keeps Now playing as the listener left it.
@@ -1456,7 +1457,8 @@ export class WebShellPlaybackRuntime {
     const current = () => this.current(stack) && stack.sessionKey === key && !abort.signal.aborted;
     const read = async () => {
       if (stack.metadataItemId !== itemId || !stack.libraryId || !stack.subject) {
-        const raw = await this.readItemBounded(itemId, AbortSignal.any([abort.signal, stack.life.signal]), current)
+        const raw = await readPlaybackCatalogueItem(this.source.api, itemId, {signal: AbortSignal.any([abort.signal, stack.life.signal]), isCurrent: current,
+          setTimer: this.setTimer.bind(this), clearTimer: this.clearTimer.bind(this)})
           .catch(error => this.queueFactsInstead(stack, itemId, current, error));
         if (raw) {
           const item = parseMediaItem(raw);
@@ -1642,25 +1644,6 @@ export class WebShellPlaybackRuntime {
   /** The playing item's facts draw its dock and its Now playing. A passing failure (a 503
    * burst) is read again twice, after 1 s and 3 s, before the start reports it: music must
    * never play on with nothing drawn (P2-74 E-web-14). */
-  private async readItemBounded(itemId: string, signal: AbortSignal, current: () => boolean): Promise<ItemResponse> {
-    const path = encodedRoutePath('get_items_id', {id: encodeURIComponent(itemId)});
-    for (let attempt = 0; ; attempt++) {
-      // A read that hangs is a failure too: each attempt gets 8 s.
-      const attemptLife = new AbortController(), expiry = this.setTimer(() => attemptLife.abort(), 8000);
-      try { return await this.source.api.request<ItemResponse>(path, 'GET', undefined, AbortSignal.any([signal, attemptLife.signal])); }
-      catch (error) {
-        const failure = error as {name?: string; status?: number; retryable?: boolean} | undefined;
-        const timedOut = attemptLife.signal.aborted && !signal.aborted;
-        const passing = timedOut || failure?.retryable === true || (failure?.status ?? 0) >= 500;
-        if (attempt >= 2 || !passing || failure?.name === 'AbortError' && !timedOut || signal.aborted || !current()) throw error;
-        await new Promise<void>((resolve, reject) => {
-          const timer = this.setTimer(() => {signal.removeEventListener('abort', stop); resolve();}, attempt ? 3000 : 1000);
-          const stop = () => {this.clearTimer(timer); reject(new DOMException('Playback metadata read stopped', 'AbortError'));};
-          signal.addEventListener('abort', stop, {once: true});
-        });
-      } finally { this.clearTimer(expiry); }
-    }
-  }
 
   private clearSourceResources(stack: Stack): void {
     stack.metadataAbort?.abort(); stack.metadataAbort = undefined;

@@ -1,3 +1,4 @@
+import * as catalogueReads from '../../../packages/client-core/src/query/catalogue-reads.ts';
 // Node 24: node --experimental-vm-modules --experimental-transform-types --import ./test/register.mjs test/next-playback-engine-offline.test.mjs
 // Runs the real runtime command/fact methods and coordinator against explicit service/engine
 // ports. Full PlaybackService/server/native integration remains in next-playback-runtime.test.ts.
@@ -21,6 +22,7 @@ const {NativePlaybackCoordinator} = await sourceModule(new URL('../src-next/plat
   '../../../../../packages/client-core/src/presentation/service-text': {serviceText},
 });
 const {NativePlaybackRuntime} = await sourceModule(new URL('../src-next/platform/playback/runtime.ts', import.meta.url), {
+  '../../../../../packages/client-core/src/query/catalogue-reads': catalogueReads,
   'react-native': {AppState: {}, NativeModules: {}},
   './start-failure': {startFailureHttp: unused}, './capacity-retry': {capacityRetryHttp: unused}, './listening-controls': {createNativeListeningReadPort: unused},
   '../../../../../packages/client-core/src/index': {PlaybackService: unused}, '../../../../../packages/client-core/src/detail': {DetailService: unused}, '../../shell/freshness': {viewerQueriesFor: unused},

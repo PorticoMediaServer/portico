@@ -1,8 +1,7 @@
+import {readCatalogueItem} from '../../../../../packages/client-core/src/query/catalogue-reads';
 import {parseServerLinkTarget, type ServerLinkTarget} from '../../../../../packages/client-core/src/server-links';
 import {decideShareLink, type ParsedShare, type ShareContext} from './share-link';
-import {parseMediaItem} from '../../../../../packages/client-core/src/media-item';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
-import {encodedRoutePath} from '../../../../../packages/contracts/src/routes';
 import {nativeEntryRoute, nativeEntryRouteSupported, type NativeShellRoute} from '../../shell/routes';
 import type {ShellDestination} from '../../shell/model';
 import type {NativeContentLinkTarget} from '../../platform/content-links';
@@ -36,7 +35,7 @@ export async function shareRoute(target: ServerLinkTarget, read: ShareRead, sign
 /** An id alone can't draw a title page: read the item from this server first (collections,
  * playlists, albums and books are all `item`; their own pages come from the entry's kind). */
 export async function itemEntryRoute(itemId: string, read: ShareRead, signal: AbortSignal): Promise<Readonly<{entry: ContentEntry; route?: NativeShellRoute}>> {
-  const item = parseMediaItem(await read(encodedRoutePath('get_items_id', {id: encodeURIComponent(itemId)}), signal));
+  const item = await readCatalogueItem({request: path => read(path, signal)}, itemId, signal);
   const kind = item.kind === 'track' ? 'song' : item.kind === 'audiobook' ? 'audiobook_file' : item.kind;
   const entry = {...item, kind} as unknown as ContentEntry;
   return {entry, route: nativeEntryRouteSupported(entry) ? nativeEntryRoute(entry) : undefined};

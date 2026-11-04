@@ -1,3 +1,4 @@
+import {readLibraryDirectory} from '@core/query/catalogue-reads.ts';
 import type {LibraryRouteProofOwner} from './library-route-proof';
 import type {HttpLocalApi, LocalSession} from '@core/index.ts';
 import {dependsOn, finalAnswer, isSharedReadSuperseded, type FreshnessHub, type FreshnessInterest, type InterestOutcome, type InterestReadContext} from '@core/freshness-hub.ts';
@@ -5,7 +6,6 @@ import type {LocalSessionRefresher} from '@core/session-refresh.ts';
 import type {PreferencesReader} from '@core/preferences-reader.ts';
 import {parseDirectSnapshot, type DirectSnapshot} from '@core/profile-management.ts';
 import {parseServerSignIn, type ServerSignIn} from '@core/sign-in.ts';
-import {parseLibraryList} from '@core/library-list.ts';
 import {fetchGuideSourceSummaries, type GuideSourceSummaries} from '@core/guide/directory.ts';
 import type {EventsClient} from '@core/playback-v1/events.ts';
 import {routePath} from '../../../packages/contracts/src/routes.ts';
@@ -130,8 +130,7 @@ export function createShellFactOwner(o: Readonly<{
   const directory = add('directory', [dependsOn.libraries], async context => {
     const captured = o.session(), proofTicket = o.libraryRouteProof?.beginDirectory();
     try {
-      const raw = await o.api.request(routePath('get_libraries'), 'GET', undefined, context.signal);
-      const value = parseLibraryList(raw);
+      const {raw, value} = await readLibraryDirectory(o.api, context.signal);
       if (!sameRequest(captured, context.signal)) return {kind: 'superseded'};
       if (value.fences) {
         if (privacy !== undefined && value.fences.privacyFence !== privacy) {o.retire(); return {kind: 'superseded'};}
