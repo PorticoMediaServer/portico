@@ -114872,7 +114872,10 @@ var PorticoCastContracts = (function(exports) {
 										},
 										"chromaSubsampling": { "type": "string" },
 										"codec": { "type": "string" },
-										"dolbyVisionBaseLayer": { "type": "boolean" },
+										"dolbyVisionBaseLayer": {
+											"nullable": true,
+											"type": "boolean"
+										},
 										"dolbyVisionCmVersion": { "type": "string" },
 										"dolbyVisionCompatibility": {
 											"maximum": 9007199254740991,
@@ -114885,7 +114888,10 @@ var PorticoCastContracts = (function(exports) {
 											"minimum": -9007199254740991,
 											"type": "integer"
 										},
-										"dolbyVisionRpu": { "type": "boolean" },
+										"dolbyVisionRpu": {
+											"nullable": true,
+											"type": "boolean"
+										},
 										"fps": { "type": "number" },
 										"frameRateDenominator": {
 											"maximum": 9007199254740991,
@@ -114899,7 +114905,10 @@ var PorticoCastContracts = (function(exports) {
 											"type": "integer"
 										},
 										"hdr": { "type": "string" },
-										"hdr10Plus": { "type": "boolean" },
+										"hdr10Plus": {
+											"nullable": true,
+											"type": "boolean"
+										},
 										"height": {
 											"maximum": 9007199254740991,
 											"minimum": -9007199254740991,
@@ -156632,7 +156641,10 @@ var PorticoCastContracts = (function(exports) {
 											},
 											"chromaSubsampling": { "type": "string" },
 											"codec": { "type": "string" },
-											"dolbyVisionBaseLayer": { "type": "boolean" },
+											"dolbyVisionBaseLayer": {
+												"nullable": true,
+												"type": "boolean"
+											},
 											"dolbyVisionCmVersion": { "type": "string" },
 											"dolbyVisionCompatibility": {
 												"maximum": 9007199254740991,
@@ -156645,7 +156657,10 @@ var PorticoCastContracts = (function(exports) {
 												"minimum": -9007199254740991,
 												"type": "integer"
 											},
-											"dolbyVisionRpu": { "type": "boolean" },
+											"dolbyVisionRpu": {
+												"nullable": true,
+												"type": "boolean"
+											},
 											"fps": { "type": "number" },
 											"frameRateDenominator": {
 												"maximum": 9007199254740991,
@@ -156659,7 +156674,10 @@ var PorticoCastContracts = (function(exports) {
 												"type": "integer"
 											},
 											"hdr": { "type": "string" },
-											"hdr10Plus": { "type": "boolean" },
+											"hdr10Plus": {
+												"nullable": true,
+												"type": "boolean"
+											},
 											"height": {
 												"maximum": 9007199254740991,
 												"minimum": -9007199254740991,
