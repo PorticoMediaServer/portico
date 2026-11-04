@@ -1,0 +1,60 @@
+name: Schema v1 P0-V research
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  differential:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shape: [tiny, smoke]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+      - name: Record facts and real HTTP responses, without changing tracked server files
+        run: python3 research/p0-v/run.py --shape ${{ matrix.shape }} --out "$RUNNER_TEMP/p0v"
+      - name: Independent differential and corruption controls
+        run: |
+          if [ '${{ matrix.shape }}' = tiny ]; then
+            python3 research/p0-v/checks.py "$RUNNER_TEMP/p0v/export.json" --plans research/p0-v/plans.json > "$RUNNER_TEMP/results.json"
+          else
+            python3 research/p0-v/checks.py "$RUNNER_TEMP/p0v/export.json" > "$RUNNER_TEMP/results.json"
+          fi
+          cat "$RUNNER_TEMP/results.json"
+      - name: Missing-index plan mutation must be rejected
+        if: matrix.shape == 'tiny'
+        run: |
+          P0V_PLAN_DROP_INDEX=1 python3 research/p0-v/run.py --out "$RUNNER_TEMP/p0v-mutant"
+          if python3 research/p0-v/checks.py "$RUNNER_TEMP/p0v-mutant/export.json" --plans research/p0-v/plans.json > "$RUNNER_TEMP/negative.log" 2>&1; then
+            echo 'Missing-index plan was accepted'; exit 1
+          fi
+          cat "$RUNNER_TEMP/negative.log"
+          grep -q 'EXPLAIN golden changed' "$RUNNER_TEMP/negative.log"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: differential-${{ matrix.shape }}
+          path: ${{ runner.temp }}/results.json
+      - name: Cleanup fixture and build scratch
+        if: always()
+        run: python3 -c 'import os,pathlib,shutil; base=pathlib.Path(os.environ["RUNNER_TEMP"]); [shutil.rmtree(base / p, ignore_errors=True) for p in ["p0v", "p0v-mutant"]]'
+  reference-scale:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        size: [100000, 400000, 1000000]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - name: Reference feasibility only, no new-store parity claim
+        run: python3 research/p0-v/scale.py --size ${{ matrix.size }} > "$RUNNER_TEMP/results.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: reference-${{ matrix.size }}
+          path: ${{ runner.temp }}/results.json
