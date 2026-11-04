@@ -42,7 +42,7 @@ import {LibraryListRow} from './LibraryListRow';
 import {NativeLibraryDirectory} from './directory';
 import {LibraryFilters, libraryFiltersDockWidth, libraryFiltersOverWidth, libraryFiltersTabletPane} from './LibraryFilters';
 import {LibraryJumpSheet} from './LibraryJumpSheet';
-import {libraryJumpLetter, libraryJumpLetters} from './jump';
+import {libraryAlphabetRail, libraryJumpLetter, libraryJumpLetters} from './jump';
 import type {NativeLibraryFilterDraft, NativeLibraryFilterSnapshot} from './filters';
 import {libraryAppliedFilters} from './applied-filters';
 import {libraryTabletGridGeometry} from './library-grid';
@@ -588,7 +588,7 @@ export function LibraryGrid({destination, runtime, activation, actions, labels, 
   const base = source.tab.fixedFilter ?? [], filtered = JSON.stringify(source.predicates) !== JSON.stringify(base);
   const applied = libraryAppliedFilters(toolbar.applied.filter(node => !base.some(fixed => JSON.stringify(fixed) === JSON.stringify(node))), source.capabilities!, labels);
   const appliedRegion = `${ids.libraryToolbar(source.library.id)}.applied`;
-  const alphabet = !!state.positionIndex && state.total !== undefined && source.sort?.field === 'title' && source.sort.direction === 'asc' && !source.predicates.length;
+  const alphabet = libraryAlphabetRail(state.positionIndex, state.total, source.sort);
   const tabletGeometry = tablet ? libraryTabletGridGeometry(paneWidth, {expanded, rail: alphabet}) : undefined;
   const total = source.unfilteredTotal;
   const count = state.total === undefined ? undefined : filtered && total
