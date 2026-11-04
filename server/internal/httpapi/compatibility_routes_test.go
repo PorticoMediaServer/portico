@@ -4,14 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
+	"github.com/PorticoMediaServer/portico/server/internal/access"
 	"github.com/PorticoMediaServer/portico/server/internal/catalogtest"
 	"github.com/PorticoMediaServer/portico/server/internal/integrationids"
 	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"github.com/PorticoMediaServer/portico/server/internal/playbackv1"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func compatibilityCall(f administrationFixture, method, path, secret, body string) *httptest.ResponseRecorder {
@@ -249,5 +251,134 @@ func TestCompatibilityNotificationUsesNativeOwnerRefusal(t *testing.T) {
 		if w.Code != 404 {
 			t.Fatalf("unknown GUID: %d %s", w.Code, w.Body)
 		}
+	}
+}
+
+// Required field accesses and the grouped feature gate are pinned to HA core
+// e0f1a46e1e7f7c24d127274d727c567108a14050 entity.py and media_player.py.
+// This is an adapter regression, not stock-tool setup qualification.
+func TestCompatibilityHomeAssistantSessionMonitoringFacts(t *testing.T) {
+	f := newV1Fixture(t, 1)
+	if _, err := f.db.Exec(`INSERT INTO server_settings(singleton,"integrations.compatibilityEnabled") VALUES(1,1) ON CONFLICT(singleton) DO UPDATE SET "integrations.compatibilityEnabled"=1`); err != nil {
+		t.Fatal(err)
+	}
+	var session playbackv1.SessionView
+	f.call("POST", "/v1/playback/sessions", map[string]string{"Idempotency-Key": "ha-monitor-session-1"}, startBody(f.items[0], nil), 201, &session)
+	settleCompactCatalogue(t, f.db)
+	for _, state := range []string{"playing", "paused"} {
+		f.call("PATCH", "/v1/playback/sessions/"+session.ID, map[string]string{"If-Match": session.Revision}, map[string]any{"state": state, "positionMs": 3000}, 200, &session)
+		w := f.raw("GET", "/Sessions", f.owner.AccessToken, nil, nil)
+		var rows []map[string]any
+		if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &rows) != nil || len(rows) != 1 {
+			t.Fatalf("sessions: %d %s", w.Code, w.Body)
+		}
+		row := rows[0]
+		var version string
+		var updated int64
+		if err := f.db.QueryRow(`SELECT COALESCE(d.app_version,''),s.updated_ms FROM playback_v1_sessions s LEFT JOIN identity_devices d ON d.id=s.device_id AND d.account_id=s.account_id WHERE s.id=?`, session.ID).Scan(&version, &updated); err != nil {
+			t.Fatal(err)
+		}
+		if row["ApplicationVersion"] != version || row["LastPlaybackCheckIn"] != time.UnixMilli(updated).UTC().Format(time.RFC3339Nano) {
+			t.Fatalf("not native facts: %+v", row)
+		}
+		caps, ok := row["Capabilities"].(map[string]any)
+		if !ok || caps["SupportsMediaControl"] != false || len(caps["SupportedCommands"].([]any)) != 0 {
+			t.Fatalf("unsupported HA features: %+v", row)
+		}
+		if row["NowPlayingItem"] == nil || row["PlayState"].(map[string]any)["IsPaused"] != (state == "paused") {
+			t.Fatalf("playback facts: %+v", row)
+		}
+	}
+}
+
+func TestCompatibilityHomeAssistantSessionSampleSurvivesInterleavedUpdate(t *testing.T) {
+	for _, nativePath := range []string{"/v1/admin/sessions", "/v1/playback/controls"} {
+		t.Run(nativePath, func(t *testing.T) {
+			f := newV1Fixture(t, 1)
+			if _, err := f.db.Exec(`INSERT INTO server_settings(singleton,"integrations.compatibilityEnabled") VALUES(1,1) ON CONFLICT(singleton) DO UPDATE SET "integrations.compatibilityEnabled"=1`); err != nil {
+				t.Fatal(err)
+			}
+			// Retain the production self-call seam so an update lands after the native
+			// dashboard response and before the integration device-fact read.
+			f.deps.self = &selfHandler{}
+			f.deps.Access = AccessArea{Access: access.New(f.db)}
+			f.handler = New(f.deps)
+			var session playbackv1.SessionView
+			f.call("POST", "/v1/playback/sessions", map[string]string{"Idempotency-Key": "ha-interleaving-session"}, startBody(f.items[0], nil), 201, &session)
+			f.call("PATCH", "/v1/playback/sessions/"+session.ID, map[string]string{"If-Match": session.Revision}, map[string]any{"state": "playing", "positionMs": 3000}, 200, &session)
+			settleCompactCatalogue(t, f.db)
+			var sampledAt int64
+			if err := f.db.QueryRow(`SELECT updated_ms FROM playback_v1_sessions WHERE id=?`, session.ID).Scan(&sampledAt); err != nil {
+				t.Fatal(err)
+			}
+			token := f.owner.AccessToken
+			if nativePath == "/v1/playback/controls" {
+				var grant struct {
+					Secret string `json:"secret"`
+				}
+				f.call("POST", "/v1/admin/api-keys", nil, map[string]any{"operationId": "ha-interleaving-grant", "name": "HA monitoring", "scopes": []string{"read", "playback"}}, 201, &grant)
+				token = grant.Secret
+			}
+			nested := f.deps.self.h
+			changed := false
+			f.deps.self.h = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				nested.ServeHTTP(w, r)
+				if r.URL.Path == nativePath && !changed {
+					changed = true
+					f.clockOffset.Add(int64(time.Second))
+					f.call("PATCH", "/v1/playback/sessions/"+session.ID, map[string]string{"If-Match": session.Revision}, map[string]any{"state": "paused", "positionMs": 9000}, 200, &session)
+				}
+			})
+			w := f.raw("GET", "/Sessions", token, nil, nil)
+			var rows []map[string]any
+			if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &rows) != nil || len(rows) != 1 || !changed {
+				t.Fatalf("interleaving not exercised: %d %s changed=%v", w.Code, w.Body, changed)
+			}
+			row := rows[0]
+			state := row["PlayState"].(map[string]any)
+			if state["IsPaused"] != false || state["PositionTicks"] != float64(30000000) || row["LastPlaybackCheckIn"] != time.UnixMilli(sampledAt).UTC().Format(time.RFC3339Nano) {
+				t.Fatalf("torn native sample: %+v", row)
+			}
+		})
+	}
+}
+
+func TestCompatibilityHomeAssistantDeviceVersions(t *testing.T) {
+	for _, tc := range []struct {
+		name, version string
+		missing       bool
+	}{{"populated", "2026.11.4", false}, {"empty", "", false}, {"missing", "", true}} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newV1Fixture(t, 1)
+			if _, err := f.db.Exec(`INSERT INTO server_settings(singleton,"integrations.compatibilityEnabled") VALUES(1,1) ON CONFLICT(singleton) DO UPDATE SET "integrations.compatibilityEnabled"=1`); err != nil {
+				t.Fatal(err)
+			}
+			var session playbackv1.SessionView
+			f.call("POST", "/v1/playback/sessions", map[string]string{"Idempotency-Key": "ha-version-session-" + tc.name}, startBody(f.items[0], nil), 201, &session)
+			f.call("PATCH", "/v1/playback/sessions/"+session.ID, map[string]string{"If-Match": session.Revision}, map[string]any{"state": "playing", "positionMs": 3000}, 200, &session)
+			if tc.missing {
+				if _, err := f.db.Exec(`UPDATE playback_v1_sessions SET device_id='absent-device' WHERE id=?`, session.ID); err != nil {
+					t.Fatal(err)
+				}
+			} else if _, err := f.db.Exec(`UPDATE identity_devices SET app_version=? WHERE id=(SELECT device_id FROM playback_v1_sessions WHERE id=?)`, tc.version, session.ID); err != nil {
+				t.Fatal(err)
+			}
+			settleCompactCatalogue(t, f.db)
+			w := f.raw("GET", "/Sessions", f.owner.AccessToken, nil, nil)
+			var rows []map[string]any
+			if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &rows) != nil || len(rows) != 1 {
+				t.Fatalf("sessions: %d %s", w.Code, w.Body)
+			}
+			if rows[0]["ApplicationVersion"] != tc.version {
+				t.Fatalf("expected explicit version %q: %+v", tc.version, rows[0])
+			}
+			checkin, ok := rows[0]["LastPlaybackCheckIn"].(string)
+			if _, err := time.Parse(time.RFC3339Nano, checkin); !ok || err != nil {
+				t.Fatalf("missing native timestamp: %+v", rows[0])
+			}
+			if rows[0]["Capabilities"].(map[string]any)["SupportsMediaControl"] != false {
+				t.Fatalf("unsupported HA controls: %+v", rows[0])
+			}
+		})
 	}
 }

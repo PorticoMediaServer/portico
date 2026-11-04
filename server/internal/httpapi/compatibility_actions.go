@@ -97,6 +97,10 @@ func (d Dependencies) compatibilitySessions(w http.ResponseWriter, r *http.Reque
 			}
 		}
 		out := map[string]any{"Id": guid, "DeviceId": device["id"], "DeviceName": device["name"], "Client": row["app"], "UserId": userGUID, "UserName": username, "PlayState": playState, "SupportsMediaControl": len(supported) > 0, "SupportsRemoteControl": len(supported) > 0, "SupportedCommands": []string{}}
+		// HA groups browse/search/play-start with transport under this flag. The
+		// stock integration is monitoring-only; do not advertise those features.
+		out["ApplicationVersion"] = compatText(row["appVersion"])
+		out["Capabilities"] = map[string]any{"SupportsMediaControl": false, "SupportsPersistentIdentifier": false, "SupportedCommands": []string{}}
 		if out["Client"] == nil {
 			out["Client"] = "Portico"
 		}
@@ -113,6 +117,7 @@ func (d Dependencies) compatibilitySessions(w http.ResponseWriter, r *http.Reque
 			}
 			translated["RunTimeTicks"] = int64(compatNumber(row["durationMs"]) * 10000)
 			out["NowPlayingItem"] = translated
+			out["LastPlaybackCheckIn"] = row["updatedAt"]
 		}
 		if delivery := compatObject(row["delivery"]); len(delivery) > 0 {
 			playState["PlayMethod"] = delivery["method"]
