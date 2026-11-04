@@ -52,6 +52,9 @@ export type ShellProps = Readonly<{
   dockVisible: boolean;
   /** The verified connection reports the server away; the native desktop host draws one quiet line. */
   serverAway?: boolean;
+  /** states.html 4b: the shell's reads have failed for a while (the freshness hub's reachability, as on native).
+   * A browser draws the same quiet line from it; the desktop host keeps its own `serverAway`. */
+  reachability?: Readonly<{getSnapshot: () => 'reachable' | 'unreachable'; subscribe: (listener: () => void) => () => void}>;
   onSignOut: () => void; onSignOutPorticoAccount?: () => void; onSwitchProfile?:(profileId:string,pin:string,signal:AbortSignal)=>Promise<void>;
   /** PR-1: management refusals for this sign-in; each one asks for the open profile's PIN (choosing it again unlocks management). */
   manageGate?: ManageGate; onSwitchServer?:(serverId:string,expectedRevision?:number)=>Promise<void>; savedServers?:readonly {id:string;label:string}[];
@@ -72,7 +75,7 @@ const collapseMemoryKey = 'portico.next.sidebar-collapsed';
 export function Shell(props: ShellProps) {
   return <PhoneSelectionProvider><ShellFrame {...props}/></PhoneSelectionProvider>;
 }
-function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, onSignOut, onSignOutPorticoAccount,onSwitchProfile,manageGate,onSwitchServer,savedServers,onFeedback,pendingChanges, phoneSelection, overlays, windowChrome, children}: ShellProps) {
+function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, reachability, onSignOut, onSignOutPorticoAccount,onSwitchProfile,manageGate,onSwitchServer,savedServers,onFeedback,pendingChanges, phoneSelection, overlays, windowChrome, children}: ShellProps) {
   useWindowScrollAnchor();
   const sizeClass = useSizeClass(), coarsePointer = useCoarsePointer();
   // A live screen selection draws its own action bar here, in place of the tab bar.
@@ -80,7 +83,9 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, onSignOut
   const desktop = sizeClass === 'expanded' && !coarsePointer, compact = sizeClass === 'compact', scrolled = useShellScrolled();
   const chrome = usePageWindowChrome(scrolled);
   // Only the native desktop host, whose window chrome reports an OS, draws the away line.
-  const awayShown = serverAway === true && chrome.os !== undefined;
+  const reach = useSyncExternalStore(reachability?.subscribe ?? noSubscription, () => reachability?.getSnapshot() ?? 'reachable', () => 'reachable' as const);
+  // The desktop host reads its verified route; a browser reads the shell's sustained read failures (15 s).
+  const awayShown = chrome.os !== undefined ? serverAway === true : reach === 'unreachable';
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try { return window.localStorage.getItem(collapseMemoryKey) === 'true'; } catch { return false; }
   });
@@ -255,7 +260,7 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, onSignOut
         </nav>)}
       </>}
     </div>
-    {awayShown && <ConnectionAway serverName={identity.serverName} />}
+    {awayShown && <ConnectionAway serverName={identity.serverName} downloads={chrome.os !== undefined} />}
     {children}
     <Dialog open={!!profileChoice&&(profileChoice.pinRequired===true||!!profileError)} onOpenChange={open=>{if(!open){profileProof.current=undefined;profileRequest.current?.abort();setProfileChoice(undefined);setProfilePin('');setProfileError(undefined);}}} title={profileDisplay?.name??identity.profileName}
       description={unlocking ? t('error.profilePinManage') : undefined}
