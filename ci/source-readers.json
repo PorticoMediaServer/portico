@@ -2,6 +2,25 @@
   "version": 1,
   "readers": [
     {
+      "package": "server/internal/identity",
+      "why": "Membership authority censuses inspect every production Go writer across build tags and the installed schema trigger bodies",
+      "reads": [
+        "server/*.go",
+        "server/internal/persistence/migrations/0001_baseline.sql"
+      ],
+      "ignore": [
+        "*_test.go"
+      ],
+      "files": [
+        "server/internal/identity/membership_writer_census_test.go"
+      ],
+      "tests": [
+        "TestEveryMembershipWriterUsesTheSharedTransactionPath",
+        "TestMembershipTriggerCensusFindsCommentSeparatedUpdate",
+        "TestNoSchemaTriggerBypassesTheMembershipAuthorityPath"
+      ]
+    },
+    {
       "package": "server/internal/dbwork",
       "why": "Source disciplines that walk every production Go file in the server",
       "reads": ["server/*.go"],
