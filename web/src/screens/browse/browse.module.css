@@ -127,3 +127,6 @@
 .browseContent[data-filters-docked='true'] { margin-right: 380px; }
 .dockedFilters { border-radius: 0; }
 .dockedFilters > footer { display: flex; gap: 10px; }
+/* phone-app 4d: the Libraries title with Edit pins at its right. */
+.librariesHead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.editPins[data-variant=text] { flex: none; color: var(--color-accent-strong); }

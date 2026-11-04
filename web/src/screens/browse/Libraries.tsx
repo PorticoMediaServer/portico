@@ -13,11 +13,13 @@ export type LibrariesBindings = Readonly<{
   onOpen: (id: string) => void;
   /** One quiet line under the heading, such as counts that did not load. */
   notice?: ReactNode;
+  /** phone-app 4d: Edit pins at the right of the Libraries title. */
+  action?: ReactNode;
 }>;
 /** The overview uses bounded library summaries, never reads their title catalogues. */
-export function LibrariesScreen({libraries, artwork, onOpen, notice}: LibrariesBindings) {
+export function LibrariesScreen({libraries, artwork, onOpen, notice, action}: LibrariesBindings) {
   const compact = useShellWidth() < 600;
-  return <section className={styles.libraries}><h1>{defaultI18n.t('next.browse.libraries')}</h1>{notice}<div className={styles.libraryCards} data-compact={compact}>
+  return <section className={styles.libraries}><div className={styles.librariesHead}><h1>{defaultI18n.t('next.browse.libraries')}</h1>{action}</div>{notice}<div className={styles.libraryCards} data-compact={compact}>
     {libraries.map((library, index) => {
       const model = {title: library.name, caption: library.summary.counts.map(count => ({id: count.kind, role: 'supplement' as const,
         text: libraryCountText(count)}))};

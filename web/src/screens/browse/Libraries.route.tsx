@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {defaultI18n} from '@i18n';
 import {readLibrarySummaries} from '@core/library-summary.ts';
 import {defineWebScreen} from '../../route-registry';
@@ -11,11 +11,14 @@ import {useShellWidth} from '../../shell/viewport';
 import {useLoadingClock} from '../detail/Loading';
 import {LibrariesScreen} from './Libraries';
 import styles from './browse.module.css';
+import {PinEditor} from '../pins/PinEditor';
+import {Button} from '../../kit/controls';
 
 function LibrariesRouteScreen() {
   const captured = useProtectedWebScreenContext(), context = captured?.context, width = useShellWidth(), elapsed = useLoadingClock();
   const [libraries, setLibraries] = useState<Awaited<ReturnType<typeof readLibrarySummaries>>>();
   const [failed, setFailed] = useState(false), [attempt, setAttempt] = useState(0);
+  const [editingPins, setEditingPins] = useState(false), pinsTrigger = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!context) return;
     // A summary that did not answer is read once more after a short wait, then left to Try again.
@@ -43,8 +46,12 @@ function LibrariesRouteScreen() {
   if (failed && !shown) return <section className={styles.libraries}>{heading}<StateView title={defaultI18n.t('next.states.pageFailed')} body={defaultI18n.t('next.states.pageFailedBody')}
     primary={{id: 'retry', label: defaultI18n.t('next.states.tryAgain'), onPress: retry}}/></section>;
   const notice = failed && !libraries ? <Banner icon="i-warn" action={{label: defaultI18n.t('next.states.tryAgain'), onAction: retry}}>{defaultI18n.t('next.browse.librarySummariesUnavailable')}</Banner> : undefined;
-  return shown ? <LibrariesScreen libraries={shown} notice={notice} artwork={captured.context.artwork}
-    onOpen={libraryId => {void router.navigate({to: '/library/$libraryId', params: {libraryId}, search: {}}).catch(captured.binding.home.effects.reportError);}}/>
+  // phone-app 4d: Edit pins beside the title; closing re-reads the overview and the shell's libraries in the new order.
+  const editPins = <Button ref={pinsTrigger} variant="text" size="small" className={styles.editPins} onClick={() => {if (captured.context.isCurrent()) setEditingPins(true);}}>{defaultI18n.t('pins.edit')}</Button>;
+  const pinEditor = <PinEditor open={editingPins} api={captured.context.api} serverId={captured.context.facts.identity.viewer.serverId} isCurrent={captured.context.isCurrent}
+    libraries={known.libraries} returnFocusRef={pinsTrigger} onClose={() => {setEditingPins(false); if (captured.context.isCurrent()) {retry(); captured.context.retryLibraries?.();}}}/>;
+  return shown ? <>{pinEditor}<LibrariesScreen libraries={shown} notice={notice} artwork={captured.context.artwork} action={editPins}
+    onOpen={libraryId => {void router.navigate({to: '/library/$libraryId', params: {libraryId}, search: {}}).catch(captured.binding.home.effects.reportError);}}/></>
     : <section className={styles.libraries}>{heading}<GridSkeleton elapsedMs={elapsed} window={{width, height: window.innerHeight, scrollTop: window.scrollY}} itemCount={6}/></section>;
 }
 
