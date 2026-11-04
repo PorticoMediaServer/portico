@@ -7,6 +7,12 @@ function available(element: HTMLElement | null): element is HTMLElement {
     && !element.matches(':disabled,[aria-disabled="true"]') && element.getClientRects().length > 0;
 }
 
+/** A full playback surface is up: video, music Now Playing or audiobook listening. The same selector and
+ * visibility test this focus owner uses, so the shell's quiet notices hide under exactly these surfaces. */
+export function fullPlaybackSurfaceUp(document: Pick<Document, 'querySelectorAll'>): boolean {
+  return Array.from(document.querySelectorAll<HTMLElement>(surfaces)).some(available);
+}
+
 /** One focus lifetime for the retained full player, shared by video and listening.
  * Route content stays mounted; only the covered route's input/a11y exposure changes. */
 export class ExpandedPlaybackFocus {

@@ -58,6 +58,10 @@
    server stops answering. It never covers the page and leaves by itself. */
 .away { position: fixed; z-index: var(--layer-navigation); top: 88px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 18px 0 14px; border-radius: 20px; white-space: nowrap; background: color-mix(in srgb, var(--color-ink) 90%, transparent); -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); box-shadow: 0 14px 30px -12px color-mix(in srgb, var(--color-ink) 80%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--color-text) 10%, transparent); font-size: var(--type-nav-size); font-weight: var(--type-nav-weight); line-height: var(--type-nav-line); color: var(--color-text-secondary); }
 .shell[data-navigation='rail'] .away, .shell[data-navigation='sidebar'] .away { top: 16px; }
+/* A browser's line takes no pointer; the page under it stays usable. Under a full player or reader it is hidden. */
+.away:not([data-interactive]) { pointer-events: none; }
+.away[hidden] { display: none; }
+.away strong { color: var(--color-text); font-weight: var(--type-title-weight); }
 .awayDot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--color-amber); box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-amber) 16%, transparent); }
 .awayLink { margin-left: 6px; font-weight: var(--type-button-weight); color: var(--color-accent-strong); text-decoration: none; }
 /* motion.html 3.1: the bars themselves are named so a page change holds them still. The
