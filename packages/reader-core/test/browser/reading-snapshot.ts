@@ -1,6 +1,6 @@
 import {createEpubAdapter,createReadingController,loadLiterataFont,sourceFromBlob} from '../../src/index.ts';
 import {parsePreferenceSnapshot,readingPreferences,readingPreferencesPatch,type PreferenceSnapshot,type ReadingPreferencesChange} from '@portico/client-core';
-import bootstrap from '../../../../server/testdata/contracts/get-bootstrap.json';
+import bootstrap from '../../../../server/testdata/contracts/get-preferences.json';
 import manropeUrl from '../../../../web/src/kit/fonts/manrope-var-latin.woff2?url';
 import {sha256} from '@noble/hashes/sha2.js';
 
@@ -20,7 +20,7 @@ function assert(value:unknown,message:string):asserts value {if(!value)throw Err
 
 async function run() {
   const checks:string[]=[],errors:string[]=[],surface=document.querySelector<HTMLElement>('#surface')!;
-  let snapshot=parsePreferenceSnapshot(bootstrap.response.preferences);
+  let snapshot=parsePreferenceSnapshot(bootstrap.response.data);
   const book=await fetch('/publication.epub',{credentials:'omit'}).then(response=>{assert(response.ok,'lawful fixture response');return response.blob();});
   const revision=Array.from(sha256(new Uint8Array(await book.arrayBuffer())),byte=>byte.toString(16).padStart(2,'0')).join('');
   const [literata,manrope]=await Promise.all([loadLiterataFont(),fetch(manropeUrl,{credentials:'omit'}).then(response=>response.blob())]);

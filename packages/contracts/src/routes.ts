@@ -20449,30 +20449,6 @@ export const routes = [
   },
   {
     "audience": "Clients",
-    "id": "get_bootstrap",
-    "method": "GET",
-    "path": "/v1/bootstrap",
-    "summary": "Read this viewer's startup state",
-    "access": "device",
-    "requires": "read",
-    "lane": "browsing",
-    "cost": "page_sized",
-    "bodyLimit": 0,
-    "query": [
-      "deviceClass"
-    ],
-    "errors": [
-      "unauthorized",
-      "not_permitted",
-      "invalid_request",
-      "internal",
-      "database_busy"
-    ],
-    "status": 200,
-    "admission": "browsing"
-  },
-  {
-    "audience": "Clients",
     "id": "get_browse_capabilities",
     "method": "GET",
     "path": "/v1/browse-capabilities",

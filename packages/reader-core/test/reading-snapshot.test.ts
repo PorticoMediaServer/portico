@@ -7,8 +7,8 @@ import {createReadingController} from '../src/index.ts';
 import type {ReaderAdapter, ReaderMount, ReaderView} from '../src/index.ts';
 import {epubDisplay} from '../src/epub/display.ts';
 
-// Actual recorded server bootstrap; the registry remains the only defaults.
-const recorded=JSON.parse(readFileSync(new URL('../../../server/testdata/contracts/get-bootstrap.json',import.meta.url),'utf8')).response.preferences;
+// Actual recorded server preferences; the registry remains the only defaults.
+const recorded=JSON.parse(readFileSync(new URL('../../../server/testdata/contracts/get-preferences.json',import.meta.url),'utf8')).response.data;
 const initial=()=>parsePreferenceSnapshot(recorded);
 const source={id:'snapshot-controller-fixture',revision:'revision-1',size:1};
 const viewport={width:1440,height:900};

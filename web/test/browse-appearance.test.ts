@@ -5,7 +5,7 @@ import {appearancePreferences} from '@core/preference-effects.ts';
 import {parsePreferenceSnapshot} from '@core/preferences.ts';
 import {browsePresentation, cardScale} from '../src/screens/browse/appearance.ts';
 
-const wire = JSON.parse(readFileSync(new URL('../../server/testdata/contracts/get-bootstrap.json', import.meta.url), 'utf8')).response.preferences;
+const wire = JSON.parse(readFileSync(new URL('../../server/testdata/contracts/get-preferences.json', import.meta.url), 'utf8')).response.data;
 const confirmed = parsePreferenceSnapshot(wire);
 const base = {view: 'grid' as const, cardWidth: 190, cardSize: 'medium' as const, backdrops: true};
 

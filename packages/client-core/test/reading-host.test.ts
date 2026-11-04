@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {createReadingHost, connectReadingHost, type ReadingHostSession, type ReadingHostSearchAll} from '../src/reading-host.ts';
 import {parsePreferenceSnapshot} from '../src/preferences.ts';
 import {ReadingError, type ReadingManifest} from '../src/reading.ts';
-const preferences = parsePreferenceSnapshot(JSON.parse(readFileSync(new URL('../../../server/testdata/contracts/get-bootstrap.json', import.meta.url), 'utf8')).response.preferences);
+const preferences = parsePreferenceSnapshot(JSON.parse(readFileSync(new URL('../../../server/testdata/contracts/get-preferences.json', import.meta.url), 'utf8')).response.data);
 function pair(format: 'pdf' | 'epub' | 'cbz' = 'pdf', beforeConnect?: (host: ReturnType<typeof createReadingHost>) => void, onSearchAll?: ReadingHostSearchAll) {
   const life = new AbortController(), sent: string[] = [], calls: string[] = [];
   const payload = Uint8Array.from({length: 170003}, (_, i) => i % 251);

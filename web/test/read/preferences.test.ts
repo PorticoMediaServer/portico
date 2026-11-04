@@ -6,7 +6,7 @@ import type {ReaderAdapter, ReaderMount} from '@portico/reader-core';
 import {bindReadPreferences} from '../../src/screens/read/preferences.ts';
 import {mountReaderSurface} from '../../src/screens/read/mount.ts';
 
-const recorded = JSON.parse(readFileSync(new URL('../../../server/testdata/contracts/get-bootstrap.json', import.meta.url), 'utf8')).response.preferences;
+const recorded = JSON.parse(readFileSync(new URL('../../../server/testdata/contracts/get-preferences.json', import.meta.url), 'utf8')).response.data;
 const initial = () => parsePreferenceSnapshot(recorded);
 const tick = () => new Promise<void>(resolve => setImmediate(resolve));
 

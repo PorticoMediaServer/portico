@@ -257,6 +257,7 @@
     "server/internal/httpapi/openapi_coverage_test.go": "Reads server/api/portico.openapi.json, which belongs to no Go package, so a change there already selects every Go test; its other input is its own package",
     "server/internal/httpapi/playback_diagnostics_test.go": "Records contract JSON under server/testdata/contracts, which belongs to no Go package, so a change there already selects every Go test",
     "server/internal/httpapi/playback_v1_admission_test.go": "Reads contract JSON under server/testdata/contracts, which belongs to no Go package, so a change there already selects every Go test",
+    "server/internal/httpapi/preference_contract_test.go": "Records contract JSON under server/testdata/contracts; reads no external source, and contract fixture changes already select every Go test",
     "server/internal/storage/inventory_absence_test.go": "A ../ path is the traversal case the test refuses; nothing is read"
   }
 }

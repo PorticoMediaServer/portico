@@ -9,7 +9,7 @@ import {parsePreferenceSnapshot} from '../src/preferences.ts';
 import {routePath} from '../../contracts/src/index.ts';
 
 const revision = 'a'.repeat(64), channel = 'captured_sequential_channel';
-const preferences = parsePreferenceSnapshot(JSON.parse(readFileSync(new URL('../../../server/testdata/contracts/get-bootstrap.json', import.meta.url), 'utf8')).response.preferences);
+const preferences = parsePreferenceSnapshot(JSON.parse(readFileSync(new URL('../../../server/testdata/contracts/get-preferences.json', import.meta.url), 'utf8')).response.data);
 const viewer: Viewer = {accountId: 'account', profileId: 'profile', serverId: 'server', authority: 'local', role: 'member'};
 const coded = (code: string) => (error: unknown) => error instanceof ReadingError && error.code === code;
 async function until(check: () => boolean) {for (let n = 0; n < 30 && !check(); n++) await new Promise<void>(resolve => setImmediate(resolve)); assert.ok(check());}
