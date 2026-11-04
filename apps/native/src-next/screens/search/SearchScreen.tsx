@@ -3,6 +3,7 @@ import {FlatList, Keyboard, ScrollView, Text, View, useWindowDimensions, type Te
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
+import {repeat} from '../../../../../packages/client-core/src/timer';
 import type {SearchEntry, SearchGroup} from '../../../../../packages/client-core/src/search';
 import {orderedSearchGroups, SEARCH_CHIPS, searchGroupLabel, topSearchResult, topResultKindLabel} from '../../../../../packages/client-core/src/presentation/search-model';
 import {Artwork, StandardBackdrop} from '../../kit/artwork';
@@ -88,8 +89,8 @@ export function SearchScreen({focusScope, destination, runtime, explore, onNow =
   useEffect(() => {
     if (!activeRoute.visible || !onNowOffered) return;
     setNow(serverNow());
-    const timer = setInterval(() => setNow(serverNow()), 30_000);
-    return () => clearInterval(timer);
+    const tick = repeat(async () => {setNow(serverNow());}, {everyMs: 30_000, backoff: {baseMs: 30_000, maxMs: 30_000, jitter: 'none'}, immediate: false});
+    return () => tick.stop();
   }, [activeRoute.visible, onNowOffered]);
   useEffect(() => theme.isTV ? undefined : runtime.registerScrollToTop({kind: 'search'}, () => {
     scroll.current?.scrollTo({y: 0, animated: !theme.reduceMotion});
