@@ -8,7 +8,9 @@ import {ApiError} from '../src/index.ts';
 import type {PreparationResponse, PreparationRuntime} from '../src/read-preparation.ts';
 import {getEventListeners} from 'node:events';
 
-const artwork = (id: string, role: 'poster' | 'backdrop', kind = 'item') => ({kind, id, path: `/v1/metadata/${kind}/${id}/art/${role}?v=${'a'.repeat(64)}&w=${role === 'backdrop' ? 1920 : 400}`});
+// The server's artwork reference (artworkref): the source, then both slot descriptions.
+const slots = (role: 'poster' | 'backdrop') => role === 'backdrop' ? `sd=800x450.49940.${'b'.repeat(16)}&ld=1920x1080.162149.${'c'.repeat(16)}` : `sd=533x800.54008.${'d'.repeat(16)}&ld=600x900.65669.${'e'.repeat(16)}`;
+const artwork = (id: string, role: 'poster' | 'backdrop', kind = 'item') => ({kind, id, path: `/v1/metadata/${kind}/${id}/art/${role}?v=${'a'.repeat(64)}&${slots(role)}`});
 const answer = () => ({variant: 'ready', queryId: 'genre_1', revision: 'opaque-authorized-revision', genres: [
   {value: 'Sci-Fi & Fantasy', label: 'Sci-Fi & Fantasy', count: 17, backdrop: artwork('film-a', 'backdrop'), covers: [artwork('film-b', 'poster'), artwork('show-c', 'poster', 'show')]},
   {value: 'Crime', label: 'Crime', count: 9, covers: []},
@@ -52,7 +54,7 @@ test('accepts only the exact selected-art kind, subject, role and bounded relati
     `${artwork('film-a', 'backdrop').path}#fragment`,
     artwork('film-a', 'backdrop').path.replace('v=', 'subject=someone&v='),
     artwork('film-a', 'backdrop').path.replace('a'.repeat(64), 'A'.repeat(64)),
-    artwork('film-a', 'backdrop').path.replace('w=1920', 'w=400'),
+    `${artwork('film-a', 'backdrop').path}&w=400`, artwork('film-a', 'backdrop').path.replace(/&ld=[^&]*/, ''),
     `${artwork('film-a', 'backdrop').path}&v=${'b'.repeat(64)}`,
   ]) {const raw = answer(); raw.genres[0].backdrop!.path = path; assert.throws(() => parseSearchGenres(raw), path);}
   const raw: any = answer();
@@ -531,4 +533,23 @@ test('fallback following continuation consumes predecessor and can still reancho
   assert.equal(new URL(f.gets().at(-1)!.path, 'https://local.invalid').searchParams.has('cursor'), false);
   assert.deepEqual(f.deletes().map(c => c.path), ['/v1/genre-queries/genre_1', '/v1/genre-queries/genre_2']);
   releaseSearchGenres(exact); f.scope.abort(); assert.equal(f.deletes().length, 3);
+});
+
+test('Search "Browse by genre" (survey A17): preparing, then a ready answer in the server\'s artwork form, reads every backdrop', async () => {
+  // The server's artwork reference (artworkref): `?v={source}&sd=…&ld=…`. The parser required `?v=…&w=1920`,
+  // refused every genre, and the section never drew after the preparing → ready switch.
+  // A preview answer as the fixture server sends it: hasGenres, no cursors, every genre with its backdrop.
+  const {nextCursor: _cursor, ...base} = ready('genre_1');
+  const preview = {...base, hasGenres: true, genres: (base.genres as {backdrop?: unknown}[]).filter(genre => genre.backdrop)};
+  const f = rawFixture([response(202, pending('genre_1', 1000)), response(200, preview)]);
+  const done = readSearchGenres(f.api, {limit: 8, preview: 'backdrop'}, f.scope.signal, f.options);
+  await flush(); f.clock.fire();
+  const page = await done;
+  assert.equal(f.gets().length, 2);
+  assert.equal(f.gets()[0]!.path, '/v1/search/genres?limit=8&preview=backdrop');
+  assert.equal(f.gets()[1]!.path, '/v1/genre-queries/genre_1');
+  assert.ok(page.genres.length > 0);
+  for (const genre of page.genres) if (genre.backdrop) assert.match(genre.backdrop.path, /\?v=[a-f0-9]{64}&sd=\d+x\d+\.\d+\.[a-f0-9]{16}&ld=\d+x\d+\.\d+\.[a-f0-9]{16}$/);
+  assert.ok(page.genres.some(genre => genre.backdrop), 'backdrops survive the parse');
+  f.scope.abort();
 });
