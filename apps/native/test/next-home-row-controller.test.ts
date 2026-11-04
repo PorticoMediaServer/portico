@@ -31,7 +31,7 @@ function fixture() {
       pageInfo: {start: body.range.start, total: 87, totalIsLowerBound: false, revision: 'browse-revision', hasMore: true, nextCursor: 'next'}, positionIndex: []} as T;
     throw new Error('unexpected_fixture_request');
   }};
-  const controller = new NativeHomeRowController({api, rowId: 'continue', viewerFence: 'home-viewer', current: () => current,
+  const controller = new NativeHomeRowController({api, rowId: 'continue', current: () => current,
     kinds: [{id: 'tv', libraryIds: ['shows']} ]});
   return {controller, calls, retire: () => {current = false;}};
 }

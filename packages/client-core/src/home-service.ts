@@ -606,7 +606,8 @@ export class HomeService {
       const stopped = cancelled();
       if (stopped) return stopped;
       const current = this.state.document;
-      if (!current || current.serverId !== shown.serverId || current.viewerFence !== shown.viewerFence) return ignored('viewer_changed');
+      if (!current || current.serverId !== shown.serverId) return ignored('viewer_changed');
+      // A Home read again under a moved fence replaces its rows (mergeHomeDocument), so the row check below covers it.
       // Even an equal cursor cannot authorize a page against a replaced membership or Live observation.
       if (current.rows.find(r => r.id === rowId) !== row) return ignored('row_changed');
     };
