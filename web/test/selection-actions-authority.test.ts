@@ -87,9 +87,10 @@ for (const [name, args] of [['J-14 My List', {watchlist: true}], ['Watched', {wa
   });
 }
 
-// Ruling B (step 7 item 4): the picked leaves' detail reads must agree. A leaf read under an older fence (the viewer's
-// access was decided again while they were read) is read again once from the server; if the leaves still disagree,
-// the picker shows picker-selection-changed. Before, any disagreement ended the open at once.
+// Ruling B (step 7 item 4): the picked leaves' detail reads must agree. When they don't (the viewer's access was decided
+// again while they were read, or the cache held an older page), every leaf is read again once from the server and only
+// then compared; if they still disagree, the picker shows picker-selection-changed. Before, any disagreement ended the
+// open at once.
 function leafApi(requests: {path: string; method?: string; body?: any}[], fenceFor: (read: number) => string) {
   let reads = 0;
   return {request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
@@ -106,14 +107,14 @@ function leafApi(requests: {path: string; method?: string; body?: any}[], fenceF
 const pickedLeaf = (id: string) => ({kind: leaf.kind, id, libraryId: leaf.libraryId, capabilities: {play: true, queue: true, playlist: true, collection: true, myList: true, watched: true, favorite: true, download: false, edit: true, refresh: true, delete: true}});
 const leafPorts = (value: ReturnType<typeof leafApi>) => ({api: value, queries: testQueries(value, {serverId, viewerId: 'viewer'}), serverId, viewerId: '["local","account","profile"]',
   isCurrent: () => true, requestId: async () => 'request-1', pickerIdentity: identity});
-test('B: a leaf read under an older fence is read again once, and the picker opens on the newer answer', async () => {
+test('B: leaves that disagree are all read again once, and the picker opens on the newer answer', async () => {
   const requests: {path: string; method?: string; body?: any}[] = [], states: any[] = [];
   const picker = new LibraryPickerProducer([pickedLeaf(leaf.id), pickedLeaf('second')] as never, 'collection',
     leafPorts(leafApi(requests, read => read === 1 ? 'c'.repeat(64) : 'd'.repeat(64))) as never, true, state => states.push(state));
   try {
     await picker.open();
     assert.deepEqual(states.at(-1)?.rows?.map((row: {id: string}) => row.id), ['destination-1']);
-    assert.deepEqual(requests.filter(request => request.path.includes('/detail')).map(request => decodeURIComponent(request.path.split('/')[3]!)), [leaf.id, 'second', leaf.id]);
+    assert.deepEqual(requests.filter(request => request.path.includes('/detail')).map(request => decodeURIComponent(request.path.split('/')[3]!)), [leaf.id, 'second', leaf.id, 'second']);
   } finally {picker.close();}
 });
 test('B: leaves that still disagree after the one re-read show picker-selection-changed, with no second re-read', async () => {
@@ -122,7 +123,26 @@ test('B: leaves that still disagree after the one re-read show picker-selection-
     leafPorts(leafApi(requests, read => String(read % 10).repeat(64))) as never, true, () => {});
   try {
     await assert.rejects(picker.open(), /picker-selection-changed/);
-    assert.equal(requests.filter(request => request.path.includes('/detail')).length, 3);
+    assert.equal(requests.filter(request => request.path.includes('/detail')).length, 4);
     assert.equal(requests.some(request => request.path === '/v1/home/destination-picker' || request.path.includes('destination')), false);
+  } finally {picker.close();}
+});
+
+// Review probe (#733): the last leaf read is not the newest answer when it came from the cache. [second] is cached
+// under fence c, the server moves to d, and opening [first, second] reads first from the server (d) and second from
+// the cache (c). Every leaf is then read again from the server, so the stale cached one is too, and the picker opens.
+test('B: a cached older page of the last leaf is read again too, and the picker opens', async () => {
+  const requests: {path: string; method?: string; body?: any}[] = [], states: any[] = [];
+  let fence = 'c'.repeat(64);
+  const shared = leafPorts(leafApi(requests, () => fence));
+  const warm = new LibraryPickerProducer([pickedLeaf('second')] as never, 'collection', shared as never, true, () => {});
+  try {await warm.open();} finally {warm.close();}
+  fence = 'd'.repeat(64);requests.length = 0;
+  const picker = new LibraryPickerProducer([pickedLeaf(leaf.id), pickedLeaf('second')] as never, 'collection', shared as never, true, state => states.push(state));
+  try {
+    await picker.open();
+    assert.deepEqual(states.at(-1)?.rows?.map((row: {id: string}) => row.id), ['destination-1']);
+    assert.deepEqual(requests.filter(request => request.path.includes('/detail')).map(request => decodeURIComponent(request.path.split('/')[3]!)), [leaf.id, leaf.id, 'second'],
+      'second came from the cache first, then both were read from the server');
   } finally {picker.close();}
 });

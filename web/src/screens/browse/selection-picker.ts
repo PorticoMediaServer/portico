@@ -83,13 +83,15 @@ export class LibraryPickerProducer {
       if (!('libraryId' in selected) || selected.capabilities[this.kind] !== true) throw new Error('picker-action-not-permitted');
       members.push(['show', 'season', 'album', 'artist', 'book', 'collection'].includes(selected.kind) ? {selected} : {selected, data: await read(selected, false)});
     }
-    // The leaves' reads must agree with each other. One read under an older fence or revision than the newest (the
-    // viewer's access was decided again while they were read, or the cache held an older page) is read again once,
-    // from the server; leaves that still disagree after that show picker-selection-changed.
+    // The leaves' reads must agree with each other. When they don't (the viewer's access was decided again while they
+    // were read, or the cache held an older page of one of them), every leaf is read again once, from the server, and
+    // only then compared: no read is trusted as the newest. Leaves that still disagree show picker-selection-changed.
     const answer = (leaf: Leaf) => JSON.stringify([leaf.data!.scope.viewerFence, leaf.data!.revision.catalog, leaf.data!.revision.viewer]);
-    const leaves = members.filter(leaf => leaf.data), newest = leaves.length ? answer(leaves.at(-1)!) : undefined;
-    for (const leaf of leaves) if (answer(leaf) !== newest) leaf.data = await read(leaf.selected, true);
-    if (leaves.some(leaf => answer(leaf) !== newest)) throw new Error('picker-selection-changed');
+    const leaves = members.filter(leaf => leaf.data), agree = () => leaves.every(leaf => answer(leaf) === answer(leaves[0]!));
+    if (!agree()) {
+      for (const leaf of leaves) leaf.data = await read(leaf.selected, true);
+      if (!agree()) throw new Error('picker-selection-changed');
+    }
     const picks: SelectedItem[] = members.map(({selected, data}) => {
       if (!data) return Object.freeze({key: JSON.stringify([selected.libraryId, selected.kind, selected.id]), item: selected});
       const playlist = data.actions.some(action => action.id === 'add_to_playlist' && action.enabled);
