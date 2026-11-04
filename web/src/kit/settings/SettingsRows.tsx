@@ -36,7 +36,11 @@ export function SettingsRows(input: SettingsRowsProps) {
   const environment = input.environment ?? browserSettingsEnvironment;
   const props = {...input, state: (row: RowSpec): SettingPresentation => settingsRowVisible(row, environment) ? input.state(row) : {present: false}};
   const advanced = (props.holder.advanced?.groups ?? []).flatMap(group => children(group.rows)).filter(row => props.state(row).present);
-  const summary = advanced.filter(row => props.state(row).changed).map(row => `${props.state(row).label ?? t(row.label)}: ${props.state(row).displayValue ?? ''}`);
+  // A changed row names its value; one with no readable value (a custom control) is named alone, never "Label:".
+  const summary = advanced.filter(row => props.state(row).changed).map(row => {
+    const label = props.state(row).label ?? t(row.label), value = props.state(row).displayValue?.trim();
+    return value ? `${label}: ${value}` : label;
+  });
   return <>
     {(props.holder.groups ?? []).map((group, index) => <Group key={index} group={group} {...props} />)}
     {advanced.length > 0 && <SettingsAdvanced open={props.advancedOpen} onOpenChange={props.onAdvancedChange} summary={summary}>{props.holder.advanced?.groups?.map((group, index) => <Group key={index} group={group} advanced {...props} />)}</SettingsAdvanced>}
