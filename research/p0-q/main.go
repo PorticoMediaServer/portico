@@ -72,14 +72,22 @@ func native(db interface {
 	t := time.Now()
 	exec(db, q, a...)
 	nativeMax.Lock()
-	nativeMax.values[tag] = append(nativeMax.values[tag], float64(time.Since(t).Microseconds())/1000)
+	elapsed := float64(time.Since(t).Microseconds()) / 1000
+	nativeMax.values[tag] = append(nativeMax.values[tag], elapsed)
+	if elapsed > 25 {
+		emit("slow_native", map[string]any{"tag": tag, "ms": elapsed, "start_unix_ns": t.UnixNano(), "end_unix_ns": time.Now().UnixNano()})
+	}
 	nativeMax.Unlock()
 }
 func measured(tag string, f func()) {
 	t := time.Now()
 	f()
 	nativeMax.Lock()
-	nativeMax.values[tag] = append(nativeMax.values[tag], float64(time.Since(t).Microseconds())/1000)
+	elapsed := float64(time.Since(t).Microseconds()) / 1000
+	nativeMax.values[tag] = append(nativeMax.values[tag], elapsed)
+	if elapsed > 25 {
+		emit("slow_writer", map[string]any{"tag": tag, "ms": elapsed, "start_unix_ns": t.UnixNano(), "end_unix_ns": time.Now().UnixNano()})
+	}
 	nativeMax.Unlock()
 }
 func encode(s string) string {
@@ -121,7 +129,9 @@ func initial(s string) string {
 	return prefix(w[0])
 }
 
-var indexes = []string{"own_prefix", "fragment_prefix", "fragment_lexical", "fragment_grams"}
+var autoMerge, crisisMerge, buildBatch, mergePages = 2, 16, 8, 1
+var durability = "FULL"
+var indexes = []string{"search_own_prefix", "search_fragment_prefix", "search_fragment_lexical", "search_fragment_grams"}
 
 func open(path string) *sql.DB {
 	db, e := sql.Open("sqlite", path)
@@ -133,30 +143,27 @@ func open(path string) *sql.DB {
 	return db
 }
 func create(db *sql.DB, variant string) {
+	if variant != "A" {
+		panic("candidate schema stores A indexes; B is dispatch-only in experiments")
+	}
+	exec(db, "PRAGMA foreign_keys=OFF")
 	exec(db, "PRAGMA journal_mode=WAL")
-	exec(db, "PRAGMA synchronous=FULL")
+	exec(db, "PRAGMA synchronous="+durability)
 	exec(db, "PRAGMA wal_autocheckpoint=0")
-	exec(db, `CREATE TABLE own(id INTEGER PRIMARY KEY,library INTEGER NOT NULL,kind INTEGER NOT NULL,rating INTEGER NOT NULL,title TEXT NOT NULL,title_fold TEXT NOT NULL,title_prefix_tokens TEXT NOT NULL,initial_prefix_tokens TEXT NOT NULL) STRICT`)
-	exec(db, `CREATE INDEX own_exact ON own(library,kind,title_fold,id)`)
+	exec(db, candidateSQL)
+	exec(db, "CREATE TABLE q_items(id INTEGER PRIMARY KEY,rating INTEGER NOT NULL,title TEXT NOT NULL) STRICT")
+	exec(db, `CREATE VIEW own AS SELECT s.entity_id id,s.library_id library,s.kind,q.rating,q.title,s.title_fold,s.title_prefix_tokens,s.initial_prefix_tokens FROM search_own s CROSS JOIN q_items q ON q.id=s.entity_id`)
+	exec(db, `CREATE VIEW fragments AS SELECT id,CASE WHEN owner_person IS NOT NULL THEN -owner_person WHEN field=3 THEN -(owner_entity-300000000) ELSE owner_entity END owner,field,prefix_tokens,lexical_tokens,normalized FROM search_fragments`)
 	exec(db, `CREATE TABLE rel(parent INTEGER NOT NULL,child INTEGER NOT NULL,PRIMARY KEY(parent,child)) WITHOUT ROWID`)
 	exec(db, `CREATE INDEX rel_child ON rel(child,parent)`)
-	exec(db, `CREATE TABLE fragments(id INTEGER PRIMARY KEY,owner INTEGER NOT NULL,field INTEGER NOT NULL,prefix_tokens TEXT NOT NULL,lexical_tokens TEXT NOT NULL,normalized TEXT NOT NULL) STRICT`)
-	exec(db, `CREATE INDEX frag_owner ON fragments(owner,field,id)`)
 	exec(db, `CREATE TABLE edges(fragment INTEGER NOT NULL,entity INTEGER NOT NULL,PRIMARY KEY(fragment,entity)) WITHOUT ROWID`)
 	exec(db, `CREATE INDEX edge_entity ON edges(entity,fragment)`)
-	exec(db, `CREATE VIRTUAL TABLE own_prefix USING fts5(title_prefix_tokens,initial_prefix_tokens,content='own',content_rowid='id',tokenize='ascii',prefix='6 12 18 24 30 36 42 48 54 60 66 72')`)
-	p := "6 12 18 24 30 36 42 48 54 60 66 72"
-	if variant == "B" {
-		p = "18 24 30 36 42 48 54 60 66 72"
-	}
-	exec(db, `CREATE VIRTUAL TABLE fragment_prefix USING fts5(prefix_tokens,content='fragments',content_rowid='id',tokenize='ascii',prefix='`+p+`')`)
-	exec(db, `CREATE VIRTUAL TABLE fragment_lexical USING fts5(lexical_tokens,content='fragments',content_rowid='id',tokenize='unicode61 remove_diacritics 2',prefix='2 3 4')`)
-	exec(db, `CREATE VIRTUAL TABLE fragment_grams USING fts5(normalized,content='fragments',content_rowid='id',tokenize='trigram')`)
+	exec(db, "INSERT INTO search_revision VALUES(1,1)")
 	for _, x := range indexes {
 		for _, kv := range []struct {
 			k string
 			v int
-		}{{"automerge", 2}, {"crisismerge", 16}, {"usermerge", 2}} {
+		}{{"automerge", autoMerge}, {"crisismerge", crisisMerge}, {"usermerge", 2}} {
 			exec(db, "INSERT INTO "+x+"("+x+",rank) VALUES(?,?)", kv.k, kv.v)
 		}
 	}
@@ -171,8 +178,17 @@ func fragment(db *sql.DB, id, owner, field int, text string) {
 	fragmentValues(db, id, owner, field, p, lex, norm)
 }
 func fragmentValues(db *sql.DB, id, owner, field int, p, lex, norm string) {
-	exec(db, "INSERT INTO fragments VALUES(?,?,?,?,?,?)", id, owner, field, p, lex, norm)
-	for _, x := range []struct{ idx, col, v string }{{"fragment_prefix", "prefix_tokens", p}, {"fragment_lexical", "lexical_tokens", lex}, {"fragment_grams", "normalized", norm}} {
+	var entity, person any
+	entity = owner
+	if field == 2 {
+		entity = nil
+		person = -owner
+	}
+	if field == 3 {
+		entity = 300000000 - owner
+	}
+	exec(db, "INSERT INTO search_fragments(id,owner_entity,owner_person,field,ordinal,source_revision,prefix_tokens,lexical_tokens,normalized) VALUES(?,?,?,?,0,'q-source-v1',?,?,?)", id, entity, person, field, p, lex, norm)
+	for _, x := range []struct{ idx, col, v string }{{"search_fragment_prefix", "prefix_tokens", p}, {"search_fragment_lexical", "lexical_tokens", lex}, {"search_fragment_grams", "normalized", norm}} {
 		native(db, "fts.insert."+x.idx, "INSERT INTO "+x.idx+"(rowid,"+x.col+") VALUES(?,?)", id, x.v)
 	}
 }
@@ -220,8 +236,9 @@ func insertItem(db *sql.DB, i, shared int) {
 	t := title(i)
 	p, init := prefix(t), initial(t)
 	kind, parent := shape(i)
-	exec(db, "INSERT INTO own VALUES(?,?,?,?,?,?,?,?)", i, (i/100)%8, kind, i%100, t, facettext.SearchFold(t), p, init)
-	native(db, "fts.insert.own_prefix", "INSERT INTO own_prefix(rowid,title_prefix_tokens,initial_prefix_tokens) VALUES(?,?,?)", i, p, init)
+	exec(db, "INSERT INTO q_items VALUES(?,?,?)", i, i%100, t)
+	exec(db, "INSERT INTO search_own VALUES(?,?,?,?,?,?)", i, (i/100)%8, kind, facettext.SearchFold(t), p, init)
+	native(db, "fts.insert.search_own_prefix", "INSERT INTO search_own_prefix(rowid,title_prefix_tokens,initial_prefix_tokens) VALUES(?,?,?)", i, p, init)
 	fragment(db, 100000000+i, i, 1, t)
 	if parent >= 0 {
 		exec(db, "INSERT INTO rel VALUES(?,?)", parent, i)
@@ -246,7 +263,7 @@ func build(db *sql.DB, n int) {
 	for i := 1; i <= shared+max(1, shared/10); {
 		measured("build.shared.tx", func() {
 			exec(db, "BEGIN IMMEDIATE")
-			for end := min(shared+max(1, shared/10)+1, i+8); i < end; i++ {
+			for end := min(shared+max(1, shared/10)+1, i+buildBatch); i < end; i++ {
 				if i <= shared {
 					name := fmt.Sprintf("%s %s %d", []string{"Ada", "John", "Jo", "Al", "Alice", "Nolan", "Akira", "Lee"}[i%8], []string{"Lovelace", "Smith", "Williams", "Li", "Cooper", "Johnson"}[i%6], i)
 					fragment(db, i, -i, 2, name)
@@ -264,7 +281,7 @@ func build(db *sql.DB, n int) {
 	for i := 0; i < n; {
 		measured("build.tx", func() {
 			exec(db, "BEGIN IMMEDIATE")
-			for end := min(n, i+8); i < end; i++ {
+			for end := min(n, i+buildBatch); i < end; i++ {
 				insertItem(db, i, shared)
 			}
 			native(db, "build.commit", "COMMIT")
@@ -384,7 +401,7 @@ func maintain(db *sql.DB, tag string) {
 			}
 			measured(tag+".tx."+idx, func() {
 				exec(db, "BEGIN IMMEDIATE")
-				native(db, tag+".step."+idx, "INSERT INTO "+idx+"("+idx+",rank) VALUES('merge',1)")
+				native(db, tag+".step."+idx, "INSERT INTO "+idx+"("+idx+",rank) VALUES('merge',?)", mergePages)
 				native(db, tag+".commit."+idx, "COMMIT")
 			})
 		}
@@ -394,7 +411,7 @@ func merge(db *sql.DB, tag string) {
 	for _, x := range indexes {
 		measured(tag+".tx."+x, func() {
 			exec(db, "BEGIN IMMEDIATE")
-			native(db, tag+".step."+x, "INSERT INTO "+x+"("+x+",rank) VALUES('merge',1)")
+			native(db, tag+".step."+x, "INSERT INTO "+x+"("+x+",rank) VALUES('merge',?)", mergePages)
 			native(db, tag+".commit."+x, "COMMIT")
 		})
 	}
@@ -406,10 +423,10 @@ func renameFragmentValues(db *sql.DB, id int, pNew, lNew, nNew string) {
 	var owner, field int
 	var p, l, n string
 	must(db.QueryRow("SELECT owner,field,prefix_tokens,lexical_tokens,normalized FROM fragments WHERE id=?", id).Scan(&owner, &field, &p, &l, &n))
-	for _, x := range []struct{ idx, col, v string }{{"fragment_prefix", "prefix_tokens", p}, {"fragment_lexical", "lexical_tokens", l}, {"fragment_grams", "normalized", n}} {
+	for _, x := range []struct{ idx, col, v string }{{"search_fragment_prefix", "prefix_tokens", p}, {"search_fragment_lexical", "lexical_tokens", l}, {"search_fragment_grams", "normalized", n}} {
 		native(db, "fts.delete."+x.idx, "INSERT INTO "+x.idx+"("+x.idx+",rowid,"+x.col+") VALUES('delete',?,?)", id, x.v)
 	}
-	exec(db, "DELETE FROM fragments WHERE id=?", id)
+	exec(db, "DELETE FROM search_fragments WHERE id=?", id)
 	if field == 1 {
 		pNew = ""
 	}
@@ -418,23 +435,24 @@ func renameFragmentValues(db *sql.DB, id int, pNew, lNew, nNew string) {
 func renameTitle(db *sql.DB, id int, s string) {
 	var p, in string
 	must(db.QueryRow("SELECT title_prefix_tokens,initial_prefix_tokens FROM own WHERE id=?", id).Scan(&p, &in))
-	native(db, "fts.delete.own_prefix", "INSERT INTO own_prefix(own_prefix,rowid,title_prefix_tokens,initial_prefix_tokens) VALUES('delete',?,?,?)", id, p, in)
-	exec(db, "UPDATE own SET title=?,title_fold=?,title_prefix_tokens=?,initial_prefix_tokens=? WHERE id=?", s, facettext.SearchFold(s), prefix(s), initial(s), id)
-	native(db, "fts.insert.own_prefix", "INSERT INTO own_prefix(rowid,title_prefix_tokens,initial_prefix_tokens) VALUES(?,?,?)", id, prefix(s), initial(s))
+	native(db, "fts.delete.search_own_prefix", "INSERT INTO search_own_prefix(search_own_prefix,rowid,title_prefix_tokens,initial_prefix_tokens) VALUES('delete',?,?,?)", id, p, in)
+	exec(db, "UPDATE q_items SET title=? WHERE id=?", s, id)
+	exec(db, "UPDATE search_own SET title_fold=?,title_prefix_tokens=?,initial_prefix_tokens=? WHERE entity_id=?", facettext.SearchFold(s), prefix(s), initial(s), id)
+	native(db, "fts.insert.search_own_prefix", "INSERT INTO search_own_prefix(rowid,title_prefix_tokens,initial_prefix_tokens) VALUES(?,?,?)", id, prefix(s), initial(s))
 	renameFragment(db, 100000000+id, s)
 }
 
 // Per-token exact sets are materialized before choosing the rarest lead. Synthetic recipes
 // all fit the production caps. This is not a production full-recipe implementation.
 func termSQL(term, variant string, fallback bool) (string, []any) {
-	q := `SELECT o.rowid entity,CASE WHEN o.rowid IN(SELECT rowid FROM own_prefix WHERE own_prefix MATCH ?) THEN 2 ELSE 1 END tier,0.0 score FROM own_prefix o WHERE own_prefix MATCH ?`
+	q := `SELECT o.rowid entity,CASE WHEN o.rowid IN(SELECT rowid FROM search_own_prefix WHERE search_own_prefix MATCH ?) THEN 2 ELSE 1 END tier,0.0 score FROM search_own_prefix o WHERE search_own_prefix MATCH ?`
 	args := []any{"initial_prefix_tokens:" + encode(term) + "*", "title_prefix_tokens:" + encode(term) + "*"}
 	if fallback {
 		q = `SELECT f.owner entity,1 tier,s.score*4 score FROM fallback_scores s JOIN fragments f ON f.id=s.id WHERE f.field=1 AND instr(f.normalized,?)>0`
 		args = []any{term}
 	}
 	if fallback || variant == "A" || len([]rune(term)) >= 3 {
-		fragq := `SELECT e.entity,0 tier,0.0 score FROM fragment_prefix p JOIN edges e ON e.fragment=p.rowid WHERE fragment_prefix MATCH ?`
+		fragq := `SELECT e.entity,0 tier,0.0 score FROM search_fragment_prefix p JOIN edges e ON e.fragment=p.rowid WHERE search_fragment_prefix MATCH ?`
 		a := []any{encode(term) + "*"}
 		if fallback {
 			fragq = `SELECT e.entity,0 tier,s.score FROM fallback_scores s JOIN fragments f ON f.id=s.id JOIN edges e ON e.fragment=f.id WHERE instr(f.normalized,?)>0`
@@ -469,7 +487,8 @@ type Query struct {
 
 var queries = []Query{{"prefix1", "a", false}, {"prefix2", "jo", false}, {"prefix3", "ada", false}, {"full_word", "harbor", false}, {"multi_word", "harbor ada", false}, {"numeric6", "1984", false}, {"numeric_long", "1234567", false}, {"cjk1", "東", false}, {"cjk2", "東京", false}, {"long_word", "nebuchadnezzar", false}, {"restricted", "a", true}}
 
-func search(db *sql.DB, v string, query Query) (int, []int) {
+func search(db *sql.DB, v string, q Query) (int, []int) { return searchExcluding(db, v, q, false) }
+func searchExcluding(db *sql.DB, v string, query Query, exclude bool) (int, []int) {
 	terms := facettext.SearchTerms(query.Text)
 	lead, count := 0, int(^uint(0)>>1)
 	for i, t := range terms {
@@ -479,7 +498,7 @@ func search(db *sql.DB, v string, query Query) (int, []int) {
 		if fallbackQuery(query.Text) {
 			exec(db, "CREATE TEMP TABLE IF NOT EXISTS fallback_scores(id INTEGER PRIMARY KEY, score REAL NOT NULL)")
 			exec(db, "DELETE FROM fallback_scores")
-			exec(db, "INSERT INTO fallback_scores SELECT rowid,-bm25(fragment_lexical) FROM fragment_lexical WHERE fragment_lexical MATCH ?", `"`+t+`"*`)
+			exec(db, "INSERT INTO fallback_scores SELECT rowid,-bm25(search_fragment_lexical) FROM search_fragment_lexical WHERE search_fragment_lexical MATCH ?", `"`+t+`"*`)
 		}
 		s, args := termSQL(t, v, fallbackQuery(query.Text))
 		exec(db, "INSERT INTO "+tbl+" "+s, args...)
@@ -496,6 +515,9 @@ func search(db *sql.DB, v string, query Query) (int, []int) {
 		}
 	}
 	sqlq += "WHERE 1=1 "
+	if exclude {
+		sqlq += "AND NOT EXISTS(SELECT 1 FROM ctitles c WHERE c.entity=o.id) "
+	}
 	if query.Restricted {
 		sqlq += "AND o.rating=0 "
 	}
@@ -546,7 +568,7 @@ func quality(db *sql.DB, v string) {
 		emit("quality", map[string]any{"variant": v, "query": s, "population": n, "page": ids})
 	}
 	var n int
-	must(db.QueryRow("SELECT count(*) FROM fragment_prefix WHERE fragment_prefix MATCH ?", encode("jo")+"*").Scan(&n))
+	must(db.QueryRow("SELECT count(*) FROM search_fragment_prefix WHERE search_fragment_prefix MATCH ?", encode("jo")+"*").Scan(&n))
 	emit("native_short_prefix_still_matches", n)
 }
 func controls(db *sql.DB, v string) {
@@ -554,14 +576,14 @@ func controls(db *sql.DB, v string) {
 	renameTitle(db, 0, "RollbackSentinel")
 	exec(db, "ROLLBACK")
 	var n int
-	must(db.QueryRow("SELECT count(*) FROM own_prefix WHERE own_prefix MATCH ?", encode("rollbacksent")+"*").Scan(&n))
+	must(db.QueryRow("SELECT count(*) FROM search_own_prefix WHERE search_own_prefix MATCH ?", encode("rollbacksent")+"*").Scan(&n))
 	if n != 0 {
 		panic("rollback leaked MATCH")
 	}
 	exec(db, "BEGIN IMMEDIATE")
 	renameFragment(db, 1, "UniqueRenameSentinel")
 	exec(db, "COMMIT")
-	must(db.QueryRow("SELECT count(*) FROM fragment_prefix WHERE fragment_prefix MATCH ?", encode("uniquerenam")+"*").Scan(&n))
+	must(db.QueryRow("SELECT count(*) FROM search_fragment_prefix WHERE search_fragment_prefix MATCH ?", encode("uniquerenam")+"*").Scan(&n))
 	if n != 1 {
 		panic("rename MATCH failed")
 	}
@@ -571,6 +593,8 @@ func controls(db *sql.DB, v string) {
 	emit("controls", map[string]any{"rollback_match": true, "renamed_match": true, "external_content_integrity": true})
 }
 func main() {
+	mode := flag.String("mode", "baseline", "baseline, hybrid or tune")
+	config := flag.String("config", "baseline", "native policy experiment")
 	n := flag.Int("n", 1000, "base items")
 	v := flag.String("variant", "A", "A or B")
 	profile := flag.String("profile", "smoke", "hardware profile")
@@ -578,17 +602,22 @@ func main() {
 	samples := flag.Int("samples", 16, "query samples excluding warmup")
 	rounds := flag.Int("rounds", 2048, "churn transactions")
 	flag.Parse()
+	configure(*config)
 	must(os.MkdirAll(*dir, 0755))
 	path := filepath.Join(*dir, "search.sqlite")
 	db := open(path)
 	defer db.Close()
 	var version string
 	must(db.QueryRow("SELECT sqlite_version()").Scan(&version))
-	emit("environment", map[string]any{"sqlite": version, "go": runtime.Version(), "cpus": runtime.NumCPU(), "profile": *profile, "variant": *v, "items": *n, "pid": os.Getpid()})
+	emit("environment", map[string]any{"sqlite": version, "go": runtime.Version(), "cpus": runtime.NumCPU(), "profile": *profile, "variant": *v, "items": *n, "pid": os.Getpid(), "mode": *mode, "config": *config, "automerge": autoMerge, "crisismerge": crisisMerge, "batch": buildBatch, "merge_pages": mergePages, "synchronous": durability, "candidate_sha256": candidateSHA(), "candidate_fk_checks": false})
 	create(db, *v)
 	build(db, *n)
 	emit("allocation_base", allocation(db, path))
 	emit("debt_base", debt(db))
+	if *mode != "baseline" {
+		experiment(db, path, *n, *samples, *rounds, *mode)
+		return
+	}
 	for _, t := range []string{"a", "jo", "ada", "harbor", "東京"} {
 		s, args := termSQL(t, *v, false)
 		rows, e := db.Query("EXPLAIN QUERY PLAN "+s, args...)
@@ -678,7 +707,7 @@ func main() {
 	for _, idx := range indexes {
 		measured("merge_rollback."+idx, func() {
 			exec(db, "BEGIN IMMEDIATE")
-			exec(db, "INSERT INTO "+idx+"("+idx+",rank) VALUES('merge',1)")
+			exec(db, "INSERT INTO "+idx+"("+idx+",rank) VALUES('merge',?)", mergePages)
 			native(db, "rollback", "ROLLBACK")
 		})
 	}

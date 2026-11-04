@@ -52,3 +52,43 @@ across 4 vCPUs; it is a resource-envelope approximation, not a calibrated 2015 i
 The benchmark has no media-file IO; HDD media performance is not tested. Database
 storage remains runner SSD. The workflow removes disposable databases and uploads
 only JSONL and environment/build evidence, retained for 30 days.
+
+## Candidate-schema / C / native-policy experiments
+
+`schema-v1/p0-q-tuning` embeds the exact full candidate SCHEMA.sql, SHA256
+`d07d13b0146246d28e5122c85b0880f48f9d95addded5bab19c3ffe91f18a2f0`.
+All candidate tables/indexes load unchanged, including search_own,
+search_fragments, search_revision and all four canonical FTS declarations.
+Native experiments hold the A schema constant. Fixtures use auxiliary q_items,
+rel/edges and own/fragments adapter views; foreign-key checks are OFF because
+non-search domain parents are not populated. UNIQUE/CHECK/STRICT and exact
+external-content ownership remain active. This isolates native FTS/source costs;
+it does not qualify full typed parent/FK/revision/receipt acceptance. Every result
+records the full candidate SHA and explicit configuration.
+
+Original reduced prototype differences: renamed own/fragments/FTS objects,
+ratings/title/kind/library fixture columns, one signed owner rather than separate
+entity/person ownership, no ordinal/source revision/uniqueness/FKs/global head,
+and synthetic edges. All four FTS tokenizers/content mode/column sets/prefix
+lengths in A were logically equivalent. B changed only context prefix lengths
+and dispatch. Empty independent People/Reading indexes now exist in the full
+candidate but remain outside the measured four-index workload.
+
+C runs B's short-input title-first dispatch on the A index, then computes a
+separate full A context population excluding the complete title population.
+Count/ID witnesses verify A = C_titles disjoint-union C_context, including al,
+jo and harbor ad. Context pages are bounded, but the candidate set is not
+truncated. First-response and deferred-completion latency are separate; total
+completion is not called fast. C needs no frozen-schema change. Production
+cursor/fence/pending-group/total semantics and implementation of resumable
+context pagination remain runtime/API build gates. The lab uses one stable read
+snapshot across both parts to test the partition, not a proposed long-lived
+production snapshot. Diagnostic context time includes set-count/witness checks.
+
+Policy matrix at100k on both profiles: 2/16 auto/crisis, batch8, FULL baseline;
+auto0 batch8; auto0 batch1; auto0 batch1 NORMAL (durability diagnostic only);
+auto0 batch1 crisis8; auto0 batch1 merge4. All use governed explicit merges and
+same-level ceiling4 observation; no silent unbounded debt or optimize. Slow
+native calls emit start/end timestamps. Separate strace cohorts record only
+fsync/fdatasync calls to distinguish sync wait from engine work; traced wall
+latencies are labeled instrumented, never substituted for untraced results.

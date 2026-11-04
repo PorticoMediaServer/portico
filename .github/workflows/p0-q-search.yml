@@ -1,7 +1,7 @@
 name: Phase 0 search research
 on:
   push:
-    branches: ['schema-v1/p0-q-*']
+    branches: ['schema-v1/p0-q-search']
     paths: ['research/p0-q/**', '.github/workflows/p0-q-search.yml']
   workflow_dispatch:
 env:

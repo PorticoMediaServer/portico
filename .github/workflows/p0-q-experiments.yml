@@ -1,0 +1,79 @@
+name: Phase 0 search dispatch and native hold
+on:
+  push:
+    branches: ['schema-v1/p0-q-tuning']
+    paths: ['research/p0-q/**', '.github/workflows/p0-q-experiments.yml']
+permissions:
+  contents: read
+env:
+  GOWORK: "off"
+jobs:
+  measure:
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [standard, old8g]
+        case:
+          - {mode: tune, n: 100000, config: baseline}
+          - {mode: tune, n: 100000, config: noauto-b8}
+          - {mode: tune, n: 100000, config: noauto-b1}
+          - {mode: tune, n: 100000, config: noauto-normal-b1}
+          - {mode: tune, n: 100000, config: noauto-crisis8-b1}
+          - {mode: tune, n: 100000, config: noauto-merge4-b1}
+          - {mode: hybrid, n: 100000, config: baseline}
+          - {mode: hybrid, n: 400000, config: baseline}
+          - {mode: hybrid, n: 1000000, config: baseline}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: research/p0-q/go.mod, cache-dependency-path: research/p0-q/go.sum}
+      - name: Build
+        working-directory: research/p0-q
+        run: go build -o "$RUNNER_TEMP/p0-q-bench" .
+      - name: Measure
+        env:
+          MODE: ${{ matrix.case.mode }}
+          N: ${{ matrix.case.n }}
+          CONFIG: ${{ matrix.case.config }}
+          PROFILE: ${{ matrix.profile }}
+        run: bash research/p0-q/run-experiment.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: p0-q-${{ matrix.case.mode }}-${{ matrix.profile }}-${{ matrix.case.n }}-${{ matrix.case.config }}
+          path: '${{ runner.temp }}/p0-q-experiment/out'
+          retention-days: 30
+  trace:
+    strategy:
+      fail-fast: false
+      matrix:
+        config: [baseline, noauto-b8, noauto-normal-b1]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: research/p0-q/go.mod, cache-dependency-path: research/p0-q/go.sum}
+      - name: Build
+        working-directory: research/p0-q
+        run: go build -o "$RUNNER_TEMP/p0-q-bench" .
+      - name: Install syscall tracer
+        run: sudo apt-get update -q && sudo apt-get install -yq strace
+      - name: Trace sync calls (separate diagnostic cohort)
+        env:
+          MODE: tune
+          N: 100000
+          CONFIG: ${{ matrix.config }}
+          PROFILE: standard
+          TRACE: 1
+        run: bash research/p0-q/run-experiment.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: p0-q-trace-standard-100000-${{ matrix.config }}
+          path: '${{ runner.temp }}/p0-q-experiment/out'
+          retention-days: 30

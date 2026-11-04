@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root="$RUNNER_TEMP/p0-q-experiment"
+mkdir -p "$root/out" "$root/work"
+cleanup() { sudo python3 -c 'import shutil,sys; shutil.rmtree(sys.argv[1],ignore_errors=True)' "$root/work"; }
+trap cleanup EXIT
+lscpu > "$root/out/cpu.txt"
+free -b > "$root/out/memory.txt"
+lsblk -o NAME,TYPE,SIZE,ROTA,MOUNTPOINT > "$root/out/disks.txt"
+go version -m "$RUNNER_TEMP/p0-q-bench" > "$root/out/build.txt"
+git rev-parse HEAD > "$root/out/head.txt"
+git archive HEAD | sha256sum > "$root/out/archive.sha256"
+if [ "$PROFILE" = old8g ]; then
+ docker pull ubuntu:24.04
+ docker image inspect ubuntu:24.04 --format '{{json .RepoDigests}}' > "$root/out/container.txt"
+ docker run --rm --network none --memory 8g --memory-swap 8g --cpus 2 --cpuset-cpus 0-3 \
+   -v "$RUNNER_TEMP/p0-q-bench:/bench:ro" -v "$root:/data" ubuntu:24.04 \
+   /bin/bash -c "cat /sys/fs/cgroup/memory.max /sys/fs/cgroup/cpu.max; /bench -n $N -variant A -profile old8g -mode $MODE -config $CONFIG -samples 8 -dir /data/work" \
+   > "$root/out/result.jsonl" 2> "$root/out/result.stderr"
+else
+ if [ "${TRACE:-0}" = 1 ]; then
+  strace -f -ttt -T -e trace=fsync,fdatasync -o "$root/fsync.log" \
+   /usr/bin/time -v "$RUNNER_TEMP/p0-q-bench" -n "$N" -variant A -profile standard -mode "$MODE" -config "$CONFIG" -samples 8 -dir "$root/work" \
+   > "$root/out/result.jsonl" 2> "$root/out/result.stderr"
+  gzip -c "$root/fsync.log" > "$root/out/fsync.log.gz"
+ else
+  /usr/bin/time -v "$RUNNER_TEMP/p0-q-bench" -n "$N" -variant A -profile standard -mode "$MODE" -config "$CONFIG" -samples 8 -dir "$root/work" \
+   > "$root/out/result.jsonl" 2> "$root/out/result.stderr"
+ fi
+fi
