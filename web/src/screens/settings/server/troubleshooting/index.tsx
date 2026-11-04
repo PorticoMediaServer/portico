@@ -76,7 +76,7 @@ export function TroubleshootingPage({messages, reports, feedback, support, subsc
     <SupportPanel source={support} subscribe={subscribe} reportError={reportError} exportOnly advancedRows={options} problems={problems} advancedSummary={advancedSummary}/>
   </div>;
   return <TabsPrimitive.Root className={styles.page} data-view={view} value={view} onValueChange={value => {const tab = TABS.find(entry => entry.id === value);if (tab) setView(tab.id);}}>
-    <Button variant="glass" size="small" icon="i-left" onClick={() => setView(undefined)}>{t('next.settingsSpec.server.troubleshooting.title')}</Button>
+    <Button className={styles.back} variant="glass" size="small" icon="i-left" onClick={() => setView(undefined)}>{t('next.settingsSpec.server.troubleshooting.title')}</Button>
     <TabsPrimitive.List className={styles.tabs}>{TABS.map(tab => <TabsPrimitive.Trigger key={tab.id} value={tab.id}
       className={styles.tab}>{t(tab.label)}</TabsPrimitive.Trigger>)}</TabsPrimitive.List>
     <TabsPrimitive.Content value={view}>
