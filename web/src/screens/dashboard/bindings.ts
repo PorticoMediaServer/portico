@@ -75,16 +75,24 @@ export function createDashboardBindings(options: DashboardBindingOptions): Dashb
   const current = () => !life.signal.aborted && options.isCurrent() && options.isMainProfile() && (options.role === 'owner' || options.role === 'admin');
   const assert = (owner = false) => {if (!current()) {close(); throw new DOMException('Dashboard authority changed', 'AbortError');} if (owner && options.role !== 'owner') throw new DOMException('Dashboard authority changed', 'AbortError');};
   const offAuthority = options.subscribeAuthority?.(() => {if (!current()) close();});
+  /** A 401 ends this lifetime, and so does a 403, which the page is told about once so it draws the refusal
+   * (states frame 13c) instead of going blank. The management PIN (`profile_pin_manage`, PR-1) ends nothing:
+   * the shell asks for it, and the refused read reports itself like any other. */
+  const refused = (status: unknown, code: unknown) => {
+    if (status !== 401 && status !== 403 || code === 'profile_pin_manage') return;
+    const held = current(); close();
+    if (held && status === 403) options.effects.reportError(Object.freeze({status, code}));
+  };
   const api: PlayHistoryApi = {request: async <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
     assert(); try {const readSignal = signal ? AbortSignal.any([signal, life.signal]) : life.signal;
       const request = () => options.api.request<T>(path, method, body, readSignal);
-      const result = await (options.events?.resyncReads && (!method || method === 'GET') ? options.events.resyncReads.run(readSignal, request) : request()); assert(); return result;} catch (error) {if (error && typeof error === 'object' && 'status' in error && (error.status === 401 || error.status === 403)) close(); throw error;}
+      const result = await (options.events?.resyncReads && (!method || method === 'GET') ? options.events.resyncReads.run(readSignal, request) : request()); assert(); return result;} catch (error) {if (error && typeof error === 'object') refused((error as {status?: unknown}).status, (error as {code?: unknown}).code); throw error;}
   }};
   const http = localV1Http({requestRaw: async (...args: Parameters<HttpLocalApi['requestRaw']>) => {
     assert(); const [path, method, init] = args;
     const readSignal = init?.signal ? AbortSignal.any([init.signal, life.signal]) : life.signal;
     const request = () => options.api.requestRaw(path, method, {...init, signal: readSignal});
-    const result = await (options.events?.resyncReads && method === 'GET' ? options.events.resyncReads.run(readSignal, request) : request()); if (result.status === 401 || result.status === 403) close(); assert(); return result;
+    const result = await (options.events?.resyncReads && method === 'GET' ? options.events.resyncReads.run(readSignal, request) : request()); refused(result.status, (result.body as {error?: {code?: unknown}} | undefined)?.error?.code); assert(); return result;
   }});
   const data = new DashboardDataClient(api), sessions = new AdminSessionsClient(http), consoleClient = new ConsoleClient(api, options.scope);
   const controls = playbackControlsService(api.request.bind(api));

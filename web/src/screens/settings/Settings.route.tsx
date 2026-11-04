@@ -145,7 +145,8 @@ export function SettingsEntry() {
   const location = useRouterState({select: state => state.location});
   const [owned, setOwned] = useState<SettingsBuild>();
   const [profilePIN, setProfilePIN] = useState<ProfilePINRequest>();
-  const [failure, setFailure] = useState(false), [retry, setRetry] = useState(0);
+  // What replaced the page: a failed read or command, kept so a refusal draws its own state (owner only, or the PIN).
+  const [failure, setFailure] = useState<false | Readonly<{error: unknown}>>(false), [retry, setRetry] = useState(0);
   const context = protectedContext?.context;
   useSyncExternalStore(context?.factsSource?.subscribe ?? noPreferences, () => context?.factsSource?.getSnapshot() ?? context?.facts, () => undefined);
   // The same confirmed reader drives calendar lifetime. A zone change retires
@@ -234,7 +235,7 @@ export function SettingsEntry() {
       const bound = value.bind(target);methods.set(property, {original: value, bound});return bound;
     }});
     const buildContext = forwardFacts(context, {api, isCurrent: current});
-    const reportError = () => {if (current()) setFailure(true);};
+    const reportError = (error?: unknown) => {if (current()) setFailure({error});};
     const language = snapshot ? shellLanguage(snapshot) : defaultI18n;
     const uiLocale = language.locale, appLocale = language.region.formatLocale;
     const identity = context.facts.identity, viewer = context.session().viewer;
@@ -699,7 +700,8 @@ export function SettingsEntry() {
   const selected = protectedContext && owned && sameBuildInputs(owned.inputs, inputs) && owned.current() ? owned : undefined;
   if (!selected) return null;
   const navigate = (next: Parameters<typeof SettingsScreen>[0]['route']) => {if (selected.current()) void router.navigate({to: '/settings', search: () => next});};
-  const settings = failure ? {...selected.settings, section: () => <SettingsPageFailure retry={() => {if (selected.current()) setRetry(value => value + 1);}} home={selected.settings.openHome} />} : selected.settings;
+  const settings = failure ? {...selected.settings, section: () => <SettingsPageFailure retry={() => {if (selected.current()) setRetry(value => value + 1);}} home={selected.settings.openHome} error={failure.error}
+    server={route.scope === 'server' ? {name: selected.settings.serverName, openMySettings: () => navigate({scope: 'account', section: 'profile'})} : undefined} />} : selected.settings;
   // A URL that names its scope or section was a link to that page (a Dashboard
   // or storage alert), so the compact layout opens the page, not the list.
   const openDetail = typeof raw.scope === 'string' || typeof raw.section === 'string';
@@ -707,7 +709,7 @@ export function SettingsEntry() {
     <SettingsScreen bindings={settings} route={route} navigate={navigate} openDetail={openDetail} />
   </SecureAddressProvider>
     {profilePIN && selected.profiles === profilePIN.source && <ProfilePINDialog key={JSON.stringify([profilePIN.target.id, profilePIN.target.revision, profilePIN.remove])}
-      request={profilePIN} isCurrent={() => selected.profilePINCurrent(profilePIN) && selected.profiles === profilePIN.source && !!profilePIN.source.getSnapshot().document} onClose={() => selected.closeProfilePIN(profilePIN)} onFailure={() => {if (selected.profilePINCurrent(profilePIN)) setFailure(true);}} />}
+      request={profilePIN} isCurrent={() => selected.profilePINCurrent(profilePIN) && selected.profiles === profilePIN.source && !!profilePIN.source.getSnapshot().document} onClose={() => selected.closeProfilePIN(profilePIN)} onFailure={() => {if (selected.profilePINCurrent(profilePIN)) setFailure({error: undefined});}} />}
   </>;
 }
 

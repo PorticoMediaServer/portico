@@ -80,6 +80,15 @@ test('server and viewer fences revoke the entire selected scope',async()=>{
  await c.settings();c.setDraft('private','do not retain');let denied=0;c.onDenied(()=>denied++);foreign=true;
  await assert.rejects(c.settings(),/selected viewer changed/);assert.equal(c.hasDrafts(),false);assert.equal(denied,1);await assert.rejects(c.settings(),/closed/);c.dispose();
 });
+test('reads a refusal ends fail with that refusal, not an abort; the management PIN closes nothing',async()=>{
+ const forbidden=new ConsoleTransportError(403,'forbidden');let refuse!:()=>void;
+ const c=client(async(path,_method,_body,signal)=>path==='/v1/admin/settings/configuration'?new Promise((_,reject)=>signal.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')))):new Promise((_,reject)=>{refuse=()=>reject(forbidden);}));
+ const configuration=c.configuration(),health=c.settings();refuse();
+ await assert.rejects(health,error=>error===forbidden);await assert.rejects(configuration,error=>error===forbidden);await assert.rejects(c.settings(),error=>error===forbidden);c.dispose();
+ const pin=new ConsoleTransportError(403,'profile_pin_manage');let calls=0;
+ const d=client(async()=>{calls++;if(calls===1)throw pin;return envelope(settings());});d.setDraft('kept',true);
+ await assert.rejects(d.settings(),error=>error===pin);assert.equal(d.hasDrafts(),true);assert.equal((await d.settings()).revision,1);d.dispose();
+});
 test('authority failures clear drafts and late responses after disposal never publish',async()=>{
  const c=client(async()=>{throw new ConsoleTransportError(401,'unauthorized');});c.setDraft('private',true);await assert.rejects(c.settings());assert.equal(c.hasDrafts(),false);c.dispose();
  let resolve!:(v:unknown)=>void;const d=client(async()=>new Promise(r=>resolve=r));const request=d.settings();d.dispose();resolve(envelope(settings()));await assert.rejects(request,/ended/);
@@ -101,6 +110,12 @@ function nativeResponse(value:string,status=200,length:string|null=String(Buffer
  const headers=new Headers({'Content-Type':'application/json'});if(length!==null)headers.set('Content-Length',length);
  return {ok:status>=200&&status<300,status,headers,body:null,text:async()=>value} as Response;
 }
+test('a refusal reads as unauthorized, except the management PIN, which keeps its code',async()=>{
+ const signal=new AbortController().signal,body=(code:string)=>JSON.stringify({error:{code,message:'Refused.'}});
+ await assert.rejects(readConsoleJson(nativeResponse(body('forbidden'),403),signal),(e:ConsoleTransportError)=>e.status===403&&e.code==='unauthorized');
+ await assert.rejects(readConsoleJson(nativeResponse(body('profile_pin_manage'),401),signal),(e:ConsoleTransportError)=>e.status===401&&e.code==='unauthorized');
+ await assert.rejects(readConsoleJson(nativeResponse(body('profile_pin_manage'),403),signal),(e:ConsoleTransportError)=>e.status===403&&e.code==='profile_pin_manage'&&/PIN/.test(e.message));
+});
 test('bounded native fetch accepts text without browser stream primitives',async()=>{assert.deepEqual(await readConsoleJson(nativeResponse('{"value":true}'),new AbortController().signal),{value:true});});
 test('native fetch accepts a buffered body without a declared length but rejects deceptive and excessive bounds',async()=>{
  // A compressing proxy (chunked gzip) sends no Content-Length; native fetch has already buffered the body.

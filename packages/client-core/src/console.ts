@@ -130,13 +130,16 @@ let sequence=0;
 export function consoleOperationId():string{return globalThis.crypto?.randomUUID?.()??`op-${Date.now().toString(36)}-${(++sequence).toString(36)}-${Math.random().toString(36).slice(2,16)}`;}
 export class ConsoleClient {
  private disposed=false;private fence?:string;private requests=new Set<AbortController>();private intents=new Map<string,{body:string;key:string;method:string;parse:(v:unknown)=>unknown;binding?:UserMutationScope;ack?:Promise<void>}>();private reconciled=new Set<()=>void>();private listeners=new Set<()=>void>();
- private drafts=new Map<string,unknown>();private denied=false;private recoveredExport?:SupportExport;
+ private drafts=new Map<string,unknown>();private denied=false;private refusal?:unknown;private recoveredExport?:SupportExport;
  private settingsRead = new Map<number,RuntimeSettings>();
  private pendingSettings?:{expectedRevision:number;baseline:RuntimeSettings;patch:string};
  private api:ConsoleAPI;readonly scope:ConsoleScope;
  constructor(api:ConsoleAPI,scope:ConsoleScope){if(!scope.serverId||!scope.viewerId)throw new Error('A selected viewer is required.');this.api=api;this.scope={...scope};}
  onDenied=(fn:()=>void)=>{this.listeners.add(fn);return()=>{this.listeners.delete(fn);};};
- private revoke(){this.denied=true;this.recoveredExport=undefined;this.drafts.clear();this.intents.clear();this.settingsRead.clear();this.pendingSettings=undefined;for(const c of this.requests)c.abort();for(const fn of this.listeners)fn();}
+ /** A 401 or 403 closes this scope; every read it ends then fails with that refusal, not with an abort, so a page
+  * can say it was refused (states frame 13c). The management PIN (`profile_pin_manage`) closes nothing: the shell asks
+  * for it and the same scope reads again once it is entered. */
+ private revoke(refusal?:unknown){this.denied=true;this.refusal??=refusal;this.recoveredExport=undefined;this.drafts.clear();this.intents.clear();this.settingsRead.clear();this.pendingSettings=undefined;for(const c of this.requests)c.abort();for(const fn of this.listeners)fn();}
  dispose(){this.disposed=true;this.recoveredExport=undefined;for(const c of this.requests)c.abort();this.requests.clear();this.drafts.clear();this.intents.clear();this.settingsRead.clear();this.pendingSettings=undefined;this.listeners.clear();this.reconciled.clear();}
  setDraft(key:string,value:unknown){if(this.disposed||this.denied)return;if(value===undefined)this.drafts.delete(key);else this.drafts.set(key,value);}
  getDraft<T>(key:string):T|undefined{return this.drafts.get(key) as T|undefined;}
@@ -169,12 +172,13 @@ export class ConsoleClient {
   }catch(e){if(!(userMutationRoute(path,intent.method)&&this.api.getUserMutationCoordinator?.())&&obj(e)&&[400,404,409,410,429].includes(e.status)){if(this.intents.get(path)===intent)this.intents.delete(path);for(const fn of this.reconciled)fn();}throw e;}
  }
  private async call<T>(path:string,method:string,body:unknown,parse:(v:unknown)=>T,custody?:{ack?:Promise<void>}):Promise<T>{
-  if(this.disposed||this.denied)throw new Error('This server scope is closed.');const c=new AbortController();this.requests.add(c);const timer=setTimeout(()=>c.abort(),10000);
-  try{const raw=await (this.api.requestConsole?this.api.requestConsole<unknown>(path,method,body,c.signal):this.api.request<unknown>(path,method,body,c.signal));if(this.disposed||this.denied||c.signal.aborted)throw new Error('Console request ended.');
+  if(this.disposed||this.denied)throw this.ended(new Error('This server scope is closed.'));const c=new AbortController();this.requests.add(c);const timer=setTimeout(()=>c.abort(),10000);
+  try{const raw=await (this.api.requestConsole?this.api.requestConsole<unknown>(path,method,body,c.signal):this.api.request<unknown>(path,method,body,c.signal));if(this.disposed||this.denied||c.signal.aborted)throw this.ended(new Error('Console request ended.'));
    if(!obj(raw)||!obj(raw.scope)||raw.scope.serverId!==this.scope.serverId||typeof raw.scope.viewerFence!=='string'||!/^[a-f0-9]{64}$/.test(raw.scope.viewerFence)||this.fence!==undefined&&this.fence!==raw.scope.viewerFence){this.revoke();throw new Error('The selected viewer changed. Reopen this server.');}
    const out=parse(raw.data);this.fence=raw.scope.viewerFence;const intent=body&&typeof body==='object'?(body as Record<string,unknown>).idempotencyKey:undefined;if(typeof intent==='string'){if(custody)await(custody.ack??=(this.api.acknowledgeUserMutation?.(intent)??Promise.resolve()).catch(error=>{custody.ack=undefined;throw error;}));else await this.api.acknowledgeUserMutation?.(intent);}return out;
-  }catch(e){if(obj(e)&&(e.status===401||e.status===403))this.revoke();throw e;}finally{clearTimeout(timer);this.requests.delete(c);}
+  }catch(e){if(obj(e)&&(e.status===401||e.status===403)&&e.code!=='profile_pin_manage')this.revoke(e);throw this.ended(e);}finally{clearTimeout(timer);this.requests.delete(c);}
  }
+ private ended(error:unknown){return !this.disposed&&this.denied&&this.refusal!==undefined?this.refusal:error;}
  /**
   * A change guarded by the revision that was read. When the document moved in between (another
   * device, a job's own progress), a caller may reread and prove that its edited fields or command

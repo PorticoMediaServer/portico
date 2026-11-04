@@ -44,6 +44,27 @@ test('terminal private-read refusal synchronously retires every mounted consumer
   const b = createDashboardBindings(options({api: {...options().api, request: async () => {throw {status: 403};}}}));
   const off = b.subscribeAuthority!(() => changed++); await assert.rejects(b.read.plays({period: 'all'})); assert.equal(b.isCurrent(), false); assert.equal(changed, 1); off(); b.dispose();
 });
+test('a refused read tells the page once, so it draws the refusal; the management PIN closes nothing', async () => {
+  const reported: unknown[] = [];
+  const effects = (o: DashboardBindingOptions) => ({...o.effects, reportError: (error: unknown) => {reported.push(error);}});
+  const refused = createDashboardBindings({...options(), effects: effects(options()), api: {request: async () => {throw {status: 403, code: 'forbidden'};}, requestRaw: async () => ({status: 403, headers: {}, body: {error: {code: 'forbidden'}}})}});
+  await Promise.allSettled([refused.read.plays({period: 'all'}), refused.read.status(), refused.read.sessions()]);
+  assert.equal(refused.isCurrent(), false);
+  assert.deepEqual(reported, [{status: 403, code: 'forbidden'}]);
+  refused.dispose(); reported.length = 0;
+  const raw = createDashboardBindings({...options(), effects: effects(options()), api: {...options().api, requestRaw: async () => ({status: 403, headers: {}, body: {error: {code: 'forbidden'}}})}});
+  await assert.rejects(raw.read.sessions()); assert.equal(raw.isCurrent(), false); assert.deepEqual(reported, [{status: 403, code: 'forbidden'}]);
+  raw.dispose(); reported.length = 0;
+  const signedOut = createDashboardBindings({...options(), effects: effects(options()), api: {...options().api, request: async () => {throw {status: 401, code: 'unauthorized'};}}});
+  await assert.rejects(signedOut.read.plays({period: 'all'})); assert.equal(signedOut.isCurrent(), false); assert.deepEqual(reported, []);
+  signedOut.dispose();
+  const pin = {status: 403, code: 'profile_pin_manage'};
+  const locked = createDashboardBindings({...options(), effects: effects(options()), api: {request: async () => {throw pin;}, requestRaw: async () => ({status: 403, headers: {}, body: {error: pin}})}});
+  await assert.rejects(locked.read.plays({period: 'all'}), (error: unknown) => error === pin);
+  await assert.rejects(locked.read.sessions(), (error: {code?: unknown}) => error.code === 'profile_pin_manage');
+  assert.equal(locked.isCurrent(), true); assert.deepEqual(reported, []);
+  locked.dispose();
+});
 test('shell authority notification clears current bindings before another request', () => {
   let notify!: () => void, current = true;
   const b = createDashboardBindings(options({isCurrent: () => current, subscribeAuthority: listener => {notify = listener; return () => {};}}));
