@@ -72,3 +72,76 @@ func TestHomeAlbumContinuesAtItsCurrentSong(t *testing.T) {
 		t.Fatalf("cross-profile continuation: %+v %v", rows, err)
 	}
 }
+
+// W2-A5 (Home decision, 2 Nov): an album continues as an album, with its current
+// song and how far through the album that song is, on Home and in the music
+// library's Discover. The resume is the current song from its start, never
+// mid-song.
+func TestAlbumContinuationCarriesAlbumProgressOnHomeAndDiscover(t *testing.T) {
+	db := homeFixture(t)
+	s := New(db)
+	c := catalogtest.New(t, db)
+	r := homeRequestFixture("music")
+	album := homeItem(t, db, "album")
+	// Each fixture song is 5,400 s long: paused in song 2, one song of three is behind.
+	listen := func(id, state string, at time.Time) {
+		item := homeItem(t, db, id)
+		c.Exec(`INSERT INTO progress(profile_id,item_id,position,unit,playback_id) VALUES('p',?,0,0,?) ON CONFLICT(profile_id,item_id) DO UPDATE SET position=0`, item.ID, "play-"+id)
+		c.Exec(`INSERT INTO progress_activity VALUES('p','music',?,?,?) ON CONFLICT(profile_id,item_id) DO UPDATE SET updated_at=excluded.updated_at,state=excluded.state`, item.ID, at.Format(time.RFC3339), state)
+	}
+	listen("t1", "ended", r.Now.Add(-3*time.Minute))
+	listen("t2", "paused", r.Now.Add(-time.Minute))
+	c.Drain()
+	check := func(where string, entries []ContentEntry) {
+		t.Helper()
+		for _, e := range entries {
+			if e.ID != album.Public {
+				continue
+			}
+			if e.Playback == nil || e.Playback.ItemID != homeItem(t, db, "t2").Public || e.Playback.StartSeconds == nil || *e.Playback.StartSeconds != 0 {
+				t.Fatalf("%s: the album resumes at its current song's start: %+v", where, e.Playback)
+			}
+			if e.Duration == nil || *e.Duration != 16200 || e.ProgressSeconds == nil || *e.ProgressSeconds != 5400 {
+				t.Fatalf("%s: album progress %v of %v, want 5400 of 16200", where, deref(e.ProgressSeconds), deref(e.Duration))
+			}
+			return
+		}
+		t.Fatalf("%s: the album is not continued: %+v", where, entries)
+	}
+	row, err := s.HomeSingleRow(r, "listen_next", HomeRowPage{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	check("Home", row.Entries)
+	discovery, err := s.DiscoverWithRestrictions("music", "p", r.Viewer.Restrictions, r.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, section := range discovery.Sections {
+		if section.ID == "continue_listening" {
+			found = true
+			check("Discover", section.Items)
+		}
+	}
+	if !found {
+		t.Fatalf("music Discover has no Continue Listening: %+v", discovery.Sections)
+	}
+	// Another profile's listening continues nothing in this profile's Discover.
+	if other, err := s.DiscoverWithRestrictions("music", "q", r.Viewer.Restrictions, r.Now); err != nil {
+		t.Fatal(err)
+	} else {
+		for _, section := range other.Sections {
+			if section.ID == "continue_listening" {
+				t.Fatalf("cross-profile Discover continuation: %+v", section.Items)
+			}
+		}
+	}
+}
+
+func deref(v *float64) any {
+	if v == nil {
+		return nil
+	}
+	return *v
+}

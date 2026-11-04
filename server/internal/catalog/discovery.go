@@ -361,6 +361,12 @@ func (s *Service) DiscoverWithRestrictions(library, profile string, restrictions
 			return out, sourceErr
 		}
 		rows, e = s.read().Query(`SELECT id FROM (`+source.base+`) ORDER BY ord DESC,id LIMIT 12`, source.args...)
+	} else if lib.Kind == "music" {
+		// Music continues by album (W2-A5): songs keep no position, so the listening
+		// walk below never names one. The same continuation and resume as Home's.
+		r.Viewer = Viewer{Profile: profile, Libraries: []string{library}, Restrictions: restrictions}
+		albums, albumArgs := homeAlbumContinuation(r, []string{library}, nil)
+		rows, e = s.read().Query(`SELECT pid(album.public_id) FROM (`+albums+`) chosen JOIN catalog_entities album ON album.id=chosen.album ORDER BY chosen.ord DESC,album.public_id LIMIT 12`, albumArgs...)
 	} else {
 		// The listening walk's bounded window takes the profile first.
 		rows, e = s.read().Query(`SELECT id FROM (`+homeContinueBase(mode)+`) candidate WHERE `+clause+` ORDER BY ord DESC,id LIMIT 12`, append([]any{profile}, args...)...)
@@ -382,9 +388,20 @@ func (s *Service) DiscoverWithRestrictions(library, profile string, restrictions
 		return out, e
 	}
 	if len(ids) > 0 {
-		entries, e := s.homeEntries(profile, ids)
+		hydrate := s.homeEntries
+		if lib.Kind == "music" {
+			// Albums are works, hydrated as Home's listening row hydrates them.
+			hydrate = s.homeEngineEntries
+		}
+		entries, e := hydrate(profile, ids)
 		if e != nil {
 			return out, e
+		}
+		if lib.Kind == "music" {
+			// Each album names its current song and how far through the album it is.
+			if _, e = s.homeAudioResume(r, entries); e != nil {
+				return out, e
+			}
 		}
 		out.Sections = append(out.Sections, DiscoverySection{ID: mode, Title: title, TitleText: ServerText{Code: map[string]string{"continue_watching": "home.row.continueWatching", "continue_listening": "home.row.continueListening"}[mode], Fallback: title}, Items: entries, Total: len(entries)})
 	}

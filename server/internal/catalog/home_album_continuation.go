@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"encoding/json"
 	"strconv"
 	"strings"
 )
@@ -47,4 +48,50 @@ func homeAlbumContinuation(r HomeRequest, libraries []string, albums []string) (
 		args = append(args, idsJSON(albums))
 	}
 	return query, args
+}
+
+// homeAlbumProgress is how far through each album its current song is (W2-A5),
+// in one statement for the page: the album's visible songs' total length and
+// the length of those before the current song, in seconds, by album public id.
+// An album whose songs have no known length gets no progress.
+func (s *Service) homeAlbumProgress(r HomeRequest, current map[string]string) (map[string][2]float64, error) {
+	out := map[string][2]float64{}
+	if len(current) == 0 {
+		return out, nil
+	}
+	pairs := make([][2]string, 0, len(current))
+	for album, song := range current {
+		pairs = append(pairs, [2]string{album, song})
+	}
+	visible, args := r.Viewer.itemVisibilitySQL("n.entity_id")
+	rows, err := s.read().Query(`SELECT album,sum(seconds),sum(CASE WHEN before THEN seconds ELSE 0 END) FROM (
+ SELECT json_extract(pair.value,'$[0]') AS album,
+ (COALESCE(n.disc_number,1),COALESCE(n.track_number,0),n.entity_id)<(COALESCE(t.disc_number,1),COALESCE(t.track_number,0),t.entity_id) AS before,
+ (SELECT COALESCE(max(NULLIF(COALESCE(l.end_seconds,a.duration)-l.start_seconds,0)),0) FROM catalog_asset_links l JOIN catalog_assets a ON a.id=l.asset_id WHERE l.entity_id=n.entity_id AND a.available=1 AND l.available=1) AS seconds
+ FROM json_each(?) pair
+ JOIN catalog_entities album ON album.public_id=pid_blob(json_extract(pair.value,'$[0]'))
+ JOIN catalog_entities target ON target.public_id=pid_blob(json_extract(pair.value,'$[1]'))
+ JOIN catalog_songs t ON t.entity_id=target.id AND t.album_id=album.id
+ JOIN catalog_songs n INDEXED BY catalog_songs_listening_order ON n.album_id=album.id
+ WHERE `+homeVisible("n.entity_id")+` AND `+visible+`) GROUP BY album`, append([]any{pairsJSON(pairs)}, args...)...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var album string
+		var total, before float64
+		if err = rows.Scan(&album, &total, &before); err != nil {
+			return nil, err
+		}
+		if total > 0 {
+			out[album] = [2]float64{total, before}
+		}
+	}
+	return out, rows.Err()
+}
+
+func pairsJSON(pairs [][2]string) string {
+	raw, _ := json.Marshal(pairs)
+	return string(raw)
 }
