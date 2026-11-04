@@ -115,7 +115,8 @@ func copyDatabase(ctx context.Context, source *sql.DB, dest string, progress fun
 
 // The optional guard lets an embedding abort a copy at a step boundary. The
 // built-in time, progress, work and disk limits apply regardless.
-func copyDatabaseGuarded(ctx context.Context, source *sql.DB, dest string, progress func(done, total int64), limits copyLimits, guard func(done, total int64) error) error {
+func copyDatabaseGuarded(ctx context.Context, source *sql.DB, dest string, progress func(done, total int64), limits copyLimits, guard func(done, total int64) error) (retErr error) {
+	defer redBackupPhase(ctx, source, "copy-database")(&retErr)
 	if source == nil || dest == "" {
 		return errors.New("backup: no database to copy")
 	}
@@ -157,14 +158,22 @@ type copyRun struct {
 	backup *sqlite.Backup
 	owner  any
 	// pageSize and the step accounting are read on the first step.
-	pageSize int64
-	charged  int64
-	allowed  int64
+	pageSize                   int64
+	charged                    int64
+	allowed                    int64
+	diagSteps, diagRestarts    int
+	diagWaitTotal, diagWaitMax time.Duration
 }
 
 var errWriterReplaced = errors.New("backup: the writer connection was replaced during the copy")
 
-func (r *copyRun) copy(ctx context.Context, sourcePath string, progress func(done, total int64), guard func(done, total int64) error) error {
+func (r *copyRun) copy(ctx context.Context, sourcePath string, progress func(done, total int64), guard func(done, total int64) error) (retErr error) {
+	start := time.Now()
+	phase := "start"
+	defer func() {
+		log.Printf("REDS-COPY phase=%s elapsed=%s error=%v steps=%d restarts=%d charged=%d allowed=%d wait_total=%s wait_max=%s wal=%+v ledger=%+v gate=%+v", phase, time.Since(start), retErr, r.diagSteps, r.diagRestarts, r.charged, r.allowed, r.diagWaitTotal, r.diagWaitMax, dbwork.WAL(ctx, r.source), dbwork.WALReservations(r.source), dbwork.WriteGate().Stats())
+	}()
+
 	stepBytes := r.limits.stepBytes
 	lastProgress := time.Now()
 	lastRemaining := -1
@@ -175,6 +184,7 @@ func (r *copyRun) copy(ctx context.Context, sourcePath string, progress func(don
 			return err
 		}
 		if time.Since(lastProgress) >= r.limits.noProgress {
+			phase = "no-progress"
 			return ErrBackupPressure
 		}
 		if lastDisk.IsZero() || time.Since(lastDisk) >= backupDiskEvery {
@@ -186,6 +196,8 @@ func (r *copyRun) copy(ctx context.Context, sourcePath string, progress func(don
 		// The wait for a ticket is part of the no-progress budget: a backup
 		// that never gets a turn ends there, rather than at the deadline.
 		wait, cancelWait := context.WithDeadline(ctx, lastProgress.Add(r.limits.noProgress))
+		r.diagSteps++
+		phase = "step"
 		step, err := r.step(wait, stepBytes)
 		cancelWait()
 		if err != nil {
@@ -193,6 +205,7 @@ func (r *copyRun) copy(ctx context.Context, sourcePath string, progress func(don
 			case ctx.Err() != nil:
 				return ctx.Err()
 			case errors.Is(err, context.DeadlineExceeded):
+				phase = "step-deadline"
 				return ErrBackupPressure
 			case errors.Is(err, dbwork.ErrWriterCapacity):
 				// A full writer queue refuses the newest least important
@@ -207,6 +220,7 @@ func (r *copyRun) copy(ctx context.Context, sourcePath string, progress func(don
 		if step.busy {
 			busy++
 			if busy >= r.limits.busyLimit {
+				phase = "busy-limit"
 				return ErrBackupPressure
 			}
 			if err = sleepContext(ctx, backupBusyBackoff); err != nil {
@@ -216,6 +230,7 @@ func (r *copyRun) copy(ctx context.Context, sourcePath string, progress func(don
 		}
 		busy = 0
 		if r.charged > r.allowed {
+			phase = "copy-allowance"
 			return ErrBackupPressure
 		}
 		// Forward progress is fewer pages left than after the last step. A
@@ -223,10 +238,14 @@ func (r *copyRun) copy(ctx context.Context, sourcePath string, progress func(don
 		if step.remaining < lastRemaining || lastRemaining < 0 || !step.more {
 			lastProgress = time.Now()
 		}
+		if lastRemaining >= 0 && step.remaining > lastRemaining {
+			r.diagRestarts++
+		}
 		lastRemaining = step.remaining
 		if step.more && step.took > r.limits.slowStep && stepBytes > r.limits.slowStepBytes {
 			stepBytes = r.limits.slowStepBytes
 		} else if step.more && r.limits.quiet > 0 && step.took > r.limits.quiet {
+			phase = "quiet-limit"
 			return ErrBackupPressure
 		}
 		copied := int64(step.pages-step.remaining) * r.pageSize
@@ -255,7 +274,11 @@ type stepResult struct {
 // step takes one writer ticket and copies at most stepBytes. The first step
 // starts the backup; the step that reaches the end finishes it.
 func (r *copyRun) step(ctx context.Context, stepBytes int64) (out stepResult, err error) {
+	waitStart := time.Now()
 	ctx, conn, release, err := dbwork.ReserveWriterConn(ctx, r.source, r.limits.class)
+	waitTook := time.Since(waitStart)
+	r.diagWaitTotal += waitTook
+	r.diagWaitMax = max(r.diagWaitMax, waitTook)
 	if err != nil {
 		return out, err
 	}

@@ -221,6 +221,14 @@ func TestEveryRouteSurvivesHostileInput(t *testing.T) {
 		for i, value := range hostilePathValues {
 			attacks = append(attacks, attack{fmt.Sprintf("path %d", i), "{}", "", fillWildcards(route.path, value)})
 		}
+
+		// Diagnostic sampling of the original failing authorized finite read while
+		// the exact shard's other packages retain their normal parallel load.
+		if route.method == "GET" && route.path == "/v1/admin/access/events" {
+			for i := 0; i < 1000; i++ {
+				attacks = append(attacks, attack{fmt.Sprintf("phase-replay-%d", i), "", "", route.path})
+			}
+		}
 		for _, attack := range attacks {
 			for _, authorized := range []bool{false, true} {
 				r := httptest.NewRequest(route.method, attack.path+attack.query, strings.NewReader(attack.body))
