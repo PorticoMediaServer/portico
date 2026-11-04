@@ -13,6 +13,7 @@ func policyErrorDefinitions() []apierror.Definition {
 		{Code: "avatar_not_found", Status: 404, Message: "This profile picture is no longer available.", Retry: apierror.AfterRefresh},
 		{Code: "profile_changed", Status: 409, Message: publicErrorMessage("profile_changed"), Retry: apierror.Never},
 		{Code: "search_busy", Status: 429, Message: "Too many searches are already running. Try again in a moment.", Retry: apierror.SameRequest},
+		{Code: "reading_member_unreadable", Status: 422, Message: "This page could not be read.", Retry: apierror.Never},
 		{Code: "reading_sessions_busy", Status: 503, Message: "Too many reading sessions are open. Try again in a moment.", Retry: apierror.SameRequest},
 		{Code: "recording_root_request_expired", Status: 410, Message: publicErrorMessage("console_expired"), Retry: apierror.Never},
 		{Code: "invalid_query", Status: 400, Message: publicErrorMessage("invalid_request"), Retry: apierror.Never},

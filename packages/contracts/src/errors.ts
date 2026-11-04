@@ -739,6 +739,12 @@ export const errors = [
     "retry": "same_request"
   },
   {
+    "code": "reading_member_unreadable",
+    "status": 422,
+    "message": "This page could not be read.",
+    "retry": "never"
+  },
+  {
     "code": "reading_sessions_busy",
     "status": 503,
     "message": "Too many reading sessions are open. Try again in a moment.",
