@@ -154,7 +154,7 @@ input:focus-visible + .radio { outline: 3px solid var(--color-focus); outline-of
      its own line under the label (owner-server 43c), so a wide select or a path never crushes the label to a word a line
      and the select keeps its whole value. A short row keeps label and control side by side. */
   .rowControl { min-width: 0; }
-  .row:has(> .rowLabel > p):has(> .rowControl [role='combobox']), .row:has(> .rowControl > * > :is(code, pre)) { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .row:has(> .rowLabel > p):has(> .rowControl [role='combobox']), .row:has(> .rowControl :is(code, pre)) { grid-template-columns: minmax(0, 1fr); gap: 10px; }
   .row:has(> .rowLabel > p):has(> .rowControl [role='combobox']) > .rowControl, .row:has(> .rowLabel > p):has(> .rowControl [role='combobox']) > .rowControl > *,
-  .row:has(> .rowControl > * > :is(code, pre)) > .rowControl, .row:has(> .rowControl > * > :is(code, pre)) > .rowControl > * { justify-content: flex-start; }
+  .row:has(> .rowControl :is(code, pre)) > .rowControl, .row:has(> .rowControl :is(code, pre)) > .rowControl > * { justify-content: flex-start; }
 }

@@ -8,7 +8,7 @@ const phone = (css: string) => css.slice(css.lastIndexOf('@media (max-width: 599
 
 test('at phone width a row with a help line and a select, or a path value, stacks its control under the label', () => {
   const rules = phone(shell);
-  assert.match(rules, /\.row:has\(> \.rowLabel > p\):has\(> \.rowControl \[role='combobox'\]\), \.row:has\(> \.rowControl > \* > :is\(code, pre\)\) \{ grid-template-columns: minmax\(0, 1fr\);/);
+  assert.match(rules, /\.row:has\(> \.rowLabel > p\):has\(> \.rowControl \[role='combobox'\]\), \.row:has\(> \.rowControl :is\(code, pre\)\) \{ grid-template-columns: minmax\(0, 1fr\);/);
   // Nothing truncates a select's value or forces a share on short rows.
   assert.doesNotMatch(rules, /minmax\(45%/);
 });
