@@ -3000,10 +3000,6 @@
     },
     {
       "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
-      "test": "TestNoInsertOrIgnoreUpdateTriggerOnAnUpsertedTable"
-    },
-    {
-      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
       "test": "TestNormalizedSettingsHintsFollowCommittedRevision"
     },
     {
@@ -3037,10 +3033,6 @@
     {
       "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
       "test": "TestProductionStatementsDoNotScanTheCatalogue"
-    },
-    {
-      "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
-      "test": "TestProductionStatementsPrepareAgainstTheBaseline"
     },
     {
       "package": "github.com/PorticoMediaServer/portico/server/internal/persistence",
