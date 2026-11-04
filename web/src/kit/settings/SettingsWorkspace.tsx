@@ -4,10 +4,14 @@ import {Icon} from '../Icon';
 import {PushedNavBar} from '../shell/SettingsSurfaces';
 import styles from './settings.module.css';
 
-export function SettingsWorkspace({navigation, children, scope, compactPage = false, onBack}: {navigation: ReactNode; children: ReactNode; scope: 'account' | 'server'; compactPage?: boolean; onBack: () => void}) {
+/** At phone width a settings page is a full page (owner-libraries 24a, owner-dashboard 9, live-owner 18): "‹ Settings"
+ * back to the list, the page's title in the middle and Done, which leaves Settings. */
+export function SettingsWorkspace({navigation, children, scope, compactPage = false, onBack, title, onDone}: {navigation: ReactNode; children: ReactNode; scope: 'account' | 'server'; compactPage?: boolean; onBack: () => void;
+  title?: string; onDone?: () => void}) {
   return <div className={styles.workspace} data-scope={scope} data-compact-page={compactPage || undefined}>
     <div className={styles.master}>{navigation}</div>
-    <div className={styles.detail}><div className={styles.compactBack}><PushedNavBar backLabel={defaultI18n.t('next.shell.settings')} onBack={onBack} safeArea={false} /></div>{children}</div>
+    <div className={styles.detail}><div className={styles.compactBack}><PushedNavBar backLabel={defaultI18n.t('next.shell.settings')} onBack={onBack} safeArea={false} title={title}
+      trailing={onDone && <button type="button" className={styles.compactDone} onClick={onDone}>{defaultI18n.t('next.settings.done')}</button>} /></div>{children}</div>
   </div>;
 }
 export function SettingsPageHeading({title, saveState, actions}: {title: string; saveState?: 'saving' | 'saved'; actions?: ReactNode}) {

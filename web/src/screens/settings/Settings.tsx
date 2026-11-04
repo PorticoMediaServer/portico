@@ -10,6 +10,7 @@ import {Button} from '../../kit/controls';
 import {Dialog, useRetained} from '../../kit/overlays';
 import {settingsChangeConfirmation} from '@core/presentation/settings-change-confirm.ts';
 import {Tabs} from '../../kit/controls/Choices';
+import {router, settingsReturnHref} from '../../router';
 import {settingsIconName} from '../../kit/settings/icons';
 import {ServerHeader, type ServerAudience} from '../../kit/shell/ServerIdentity';
 import {useShellWidth} from '../../shell/viewport';
@@ -137,7 +138,8 @@ export function SettingsScreen({bindings, route, navigate, openDetail = false}: 
   const fact = configuration.find(fact => fact.key === configurationKey);
   const editing = (target: EventTarget | null) => target instanceof HTMLElement && (target.isContentEditable || target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement && !['button','checkbox','radio','range','submit','reset','file','color','hidden'].includes(target.type));
   return <SettingsOpenContext.Provider value={quietOpen}><div className={styles.screen} onFocusCapture={event => {if(editing(event.target))bindings.inputActive?.(true);}}
-    onBlurCapture={event => {if(editing(event.target) && !editing(event.relatedTarget))bindings.inputActive?.(false);}}><SettingsWorkspace scope={selected.scope} navigation={navigation} compactPage={compactPage} onBack={() => setCompactPage(false)}>
+    onBlurCapture={event => {if(editing(event.target) && !editing(event.relatedTarget))bindings.inputActive?.(false);}}><SettingsWorkspace scope={selected.scope} navigation={navigation} compactPage={compactPage} onBack={() => setCompactPage(false)}
+      title={libraryPage ? String(libraryTitle) : t(section.title)} onDone={() => {void router.navigate({href: settingsReturnHref()});}}>
     {selected.scope === 'server' && bindings.role !== 'member' && (bindings.role === 'owner' ? <ServerHeader serverName={bindings.serverName} viewerRole="owner" audience={audience} health={bindings.serverHealth?.()} facts={bindings.serverFacts()} /> : <ServerHeader serverName={bindings.serverName} viewerRole="administrator" audience="administrators" health={bindings.serverHealth?.()} facts={bindings.serverFacts()} />)}
     {libraryPage && <Button variant="glass" size="small" icon="i-left" onClick={() => {setPanel(undefined);opener.current?.focus();}}>{t(section.title)}</Button>}
     {libraryPage && bindings.panelHeader ? bindings.panelHeader(panelContext, libraryTitle) : <SettingsPageHeading title={libraryPage ? libraryTitle : t(section.title)} saveState={snapshot.saveState} />}
