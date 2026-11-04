@@ -18,9 +18,10 @@ async function fixture({hosted = true, matching = true, tv = false}: {hosted?: b
   let lifetimeCurrent = true, credentialReads = 0;
   const context: any = {account: {account: {id: 'member', ...(hosted ? {hostedAccountId: 'portico-account'} : {})}}, current: () => true,
     api: {request: () => {throw new Error('Hosted notices must not use the server transport');}}};
-  const lifetime: any = {current: () => lifetimeCurrent};
+  const lifetimeAbort = new AbortController();
+  const lifetime: any = {current: () => lifetimeCurrent, signal: lifetimeAbort.signal};
   const calls: any[][] = [], signals: AbortSignal[] = [];
-  let stored = false, failSave = false, failRead = false;
+  let stored = false, failSave = false, failRead = false, saveGate: Promise<void> | undefined;
   const credentials = {getSnapshot: () => ({session}), subscribe: (listener: () => void) => {listeners.add(listener); return () => listeners.delete(listener);},
     synchronize: async () => {}, accessSession: async () => session};
   const {NativeServerOfflineNoticeRow} = await screenModule(new URL('../src-next/screens/settings-live/NativeServerOfflineNoticeRow.tsx', import.meta.url), {
@@ -30,6 +31,7 @@ async function fixture({hosted = true, matching = true, tv = false}: {hosted?: b
       async request(path: string, method: string, body: unknown, signal?: AbortSignal) {
         calls.push([this.origin, this.token, path, method, body]); if (signal) signals.push(signal);
         if (method === 'GET') {if (failRead) throw new Error('read failed'); return {serverOffline: stored};}
+        if (saveGate) await saveGate;
         if (failSave) throw new Error('save failed');
         stored = (body as {serverOffline: boolean}).serverOffline; return {serverOffline: stored};
       }}},
@@ -47,9 +49,9 @@ async function fixture({hosted = true, matching = true, tv = false}: {hosted?: b
   const store = (value: boolean) => {stored = value;};
   return {render, settle, calls, signals, store, credentialReads: () => credentialReads,
     find: (type: string) => nodes(tree).find(node => node.type === type),
-    failRead: () => {failRead = true;}, failSave: (value = true) => {failSave = value;},
+    failRead: () => {failRead = true;}, holdSave: () => {saveGate = new Promise(() => {});}, failSave: (value = true) => {failSave = value;},
     session: (value: any) => {session = value; for (const listener of [...listeners]) listener(); render();},
-    retire: () => {lifetimeCurrent = false;}, dispose: () => cleanup?.()};
+    retire: () => {lifetimeCurrent = false; lifetimeAbort.abort();}, dispose: () => cleanup?.()};
 }
 
 test('Portico Account: the switch shows the account\'s stored choice once read, and saves a flip over the hosted API', async () => {
@@ -110,5 +112,18 @@ test('Signing out of the Portico Account mid-read removes the row and aborts the
   await f.settle();
   assert.equal(f.find('SettingsRow'), undefined);
   assert.ok(f.signals.every(signal => signal.aborted) || f.calls.length === 0);
+  f.dispose();
+});
+
+test('Ending the Settings lifetime cancels a save in flight at once, not at unmount', async () => {
+  const f = await fixture();
+  f.store(true); f.render(); await f.settle();
+  f.holdSave(); f.find('Switch').props.onCheckedChange(false);
+  for (let i = 0; i < 4; i++) await new Promise(resolve => setImmediate(resolve));
+  assert.equal(f.calls.at(-1)![3], 'PUT');
+  const put = f.signals.at(-1)!;
+  assert.equal(put.aborted, false);
+  f.retire();
+  assert.equal(put.aborted, true, 'the PUT is aborted when the lifetime ends');
   f.dispose();
 });
