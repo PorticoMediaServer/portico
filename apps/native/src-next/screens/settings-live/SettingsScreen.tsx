@@ -220,7 +220,7 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
   const [restoreRevision, setRestoreRevision] = useState(0);
   const [target, setTarget] = useState<Readonly<{opening: object; page: string; rowId: string; serial: number}>>();
   const targetSerial = useRef(0), aimedCovered = useRef<number | undefined>(undefined), covered = useCovered();
-  const pageScroll = useRef<ScrollView>(null), pageScrollHeight = useRef(0);
+  const pageScroll = useRef<ScrollView>(null), pageViewport = useRef<Readonly<{page: string; height: number}> | undefined>(undefined);
   const liveControllers = useMemo(() => {
     if (!managesServer || theme.isTV) return undefined;
     const lifetime = controller.lifetime;
@@ -257,25 +257,28 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
   // The aim as committed: a measurement answers only for the aim, opening and scroll host it was asked for. Each opening
   // (serial) is revealed once. Fabric commits the row's layout effects before this page's, so a row that asks before its
   // aim and scroll host are committed waits here and is revealed at this page's commit; it answers false, so its next
-  // native layout asks again if the scroll host is still missing.
+  // native layout asks again if the scroll host is still missing. It also waits for this page's scroller to report a real
+  // height (on a first opening the scroller has only just mounted, and Fabric's measureLayout answers at once), and that
+  // layout reveals it.
   const committedAim = useRef<typeof target>(undefined), revealedSerial = useRef<number | undefined>(undefined);
   const waitingRow = useRef<Readonly<{row: View; serial: number}> | undefined>(undefined);
   const reveal = useCallback((row: View, serial: number) => {
     if (revealedSerial.current === serial) return true;
-    const aim = committedAim.current, scroll = pageScroll.current, host = scroll?.getNativeScrollRef?.();
-    if (aim?.serial !== serial || !scroll || !host) {waitingRow.current = {row, serial}; return false;}
+    const aim = committedAim.current, scroll = pageScroll.current, host = scroll?.getNativeScrollRef?.(), viewport = pageViewport.current;
+    if (aim?.serial !== serial || !scroll || !host || viewport?.page !== aim.page || !(viewport.height > 0)) {waitingRow.current = {row, serial}; return false;}
     revealedSerial.current = serial; waitingRow.current = undefined;
     row.measureLayout(host, (_x, y, _width, height) => {
       if (committedAim.current !== aim || aim.opening !== openingRef.current || pageScroll.current !== scroll) return;
-      scroll.scrollTo({y: Math.max(0, y - (pageScrollHeight.current - height) / 2), animated: false});
+      scroll.scrollTo({y: Math.max(0, y - (viewport.height - height) / 2), animated: false});
     });
     return true;
   }, []);
-  useLayoutEffect(() => {
-    committedAim.current = aimed;
-    const waiting = waitingRow.current;
-    if (waiting && waiting.serial === aimed?.serial) reveal(waiting.row, waiting.serial); else waitingRow.current = undefined;
-  }, [aimed, reveal]);
+  const revealWaiting = useCallback(() => {
+    const waiting = waitingRow.current, aim = committedAim.current;
+    if (waiting && waiting.serial === aim?.serial) reveal(waiting.row, waiting.serial); else waitingRow.current = undefined;
+  }, [reveal]);
+  useLayoutEffect(() => {committedAim.current = aimed; revealWaiting();}, [aimed, revealWaiting]);
+  const pageScrollLayout = useCallback((pageId: string, height: number) => {pageViewport.current = {page: pageId, height}; revealWaiting();}, [revealWaiting]);
   const rowTargeting = useMemo<SettingsRowTargeting>(() => !aimed ? {} : theme.isTV ? {highlight: aimed.rowId}
     : {flash: {rowId: aimed.rowId, serial: aimed.serial, reveal}}, [aimed, theme.isTV, reveal]);
   const ids = useMemo(() => tvFocusIds(controller.lifetime.authority), [controller]);
@@ -439,7 +442,7 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
           band={serverPage ? <ServerBand viewerRole={viewerRole} audience={viewerRole === 'administrator' ? 'administrators' : 'owner'} height={56} style={{position: 'absolute', inset: 0}}/> : undefined}/>}
         {!compact && !dashboardPage && !(theme.isTV && searching) && !customPage && <Text accessibilityRole="header" style={[shellType(theme.isTV ? 44 : 40, 800), {color: theme.colors.text, marginBottom: 28, marginHorizontal: compact ? 20 : 0}]}>{t(page.title)}</Text>}
         {state.error !== undefined && <StateView {...runtime.error(state.error, () => {void controller.refresh();}, 'settings')}/>}
-        {historyPage ? <NativeServerHistory ports={ports} runtime={runtime} compactHeader={compact}/> : peoplePage ? <NativeServerPeople ports={ports} runtime={runtime} compactHeader={compact}/> : signInPage ? <NativeServerSignIn ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/> : metadataPage ? <NativeServerMetadata ports={ports} runtime={runtime} compactHeader={compact} onLibraries={() => choose('libraries')}/> : dashboardPage ? <NativeDashboardScreen controller={dashboard!} ports={ports} runtime={runtime} inline onDenied={dashboardDenied} deniedFallback={null}/> : remoteAccessPage ? <NativeRemoteAccessPage ports={ports} runtime={runtime} compactHeader={compact}/> : segmentsPage ? <NativeServerSegments ports={ports} runtime={runtime}/> : remoteSourcesPage ? <NativeRemoteSourcesScreen ports={ports} runtime={runtime} onBackHandlerChange={setRemoteBack}/> : livePage ? <NativeLiveOwnerScreen controller={liveControllers!.owner} recordings={liveControllers!.recordings} ports={ports} runtime={runtime} onClose={leaveServerPage} initialChannelId={initialChannelId}/> : librariesPage ? <NativeOwnerLibrariesPanel ports={ports} runtime={runtime}/> : troubleshootingPage ? <NativeServerTroubleshooting ports={ports} runtime={runtime} compactHeader={compact}/> : storagePage ? <NativeServerStorage ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/> : integrationsPage ? <NativeServerIntegrations ports={ports} runtime={runtime} compactHeader={compact}/> : streamingPage ? <NativeServerStreaming ports={ports} runtime={runtime} compactHeader={compact}/> : generalPage ? <NativeServerGeneral ports={ports} runtime={runtime} compactHeader={compact}/> : <FormScrollView key={page.id} ref={pageScroll} onLayout={event => {pageScrollHeight.current = event.nativeEvent.layout.height;}} style={theme.isTV ? {marginHorizontal: -24, marginTop: -16} : undefined} contentContainerStyle={theme.isTV ? {paddingHorizontal: 24, paddingTop: 16, paddingBottom: 80} : {paddingHorizontal: compact ? 20 : 0, paddingBottom: 80}} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
+        {historyPage ? <NativeServerHistory ports={ports} runtime={runtime} compactHeader={compact}/> : peoplePage ? <NativeServerPeople ports={ports} runtime={runtime} compactHeader={compact}/> : signInPage ? <NativeServerSignIn ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/> : metadataPage ? <NativeServerMetadata ports={ports} runtime={runtime} compactHeader={compact} onLibraries={() => choose('libraries')}/> : dashboardPage ? <NativeDashboardScreen controller={dashboard!} ports={ports} runtime={runtime} inline onDenied={dashboardDenied} deniedFallback={null}/> : remoteAccessPage ? <NativeRemoteAccessPage ports={ports} runtime={runtime} compactHeader={compact}/> : segmentsPage ? <NativeServerSegments ports={ports} runtime={runtime}/> : remoteSourcesPage ? <NativeRemoteSourcesScreen ports={ports} runtime={runtime} onBackHandlerChange={setRemoteBack}/> : livePage ? <NativeLiveOwnerScreen controller={liveControllers!.owner} recordings={liveControllers!.recordings} ports={ports} runtime={runtime} onClose={leaveServerPage} initialChannelId={initialChannelId}/> : librariesPage ? <NativeOwnerLibrariesPanel ports={ports} runtime={runtime}/> : troubleshootingPage ? <NativeServerTroubleshooting ports={ports} runtime={runtime} compactHeader={compact}/> : storagePage ? <NativeServerStorage ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/> : integrationsPage ? <NativeServerIntegrations ports={ports} runtime={runtime} compactHeader={compact}/> : streamingPage ? <NativeServerStreaming ports={ports} runtime={runtime} compactHeader={compact}/> : generalPage ? <NativeServerGeneral ports={ports} runtime={runtime} compactHeader={compact}/> : <FormScrollView key={page.id} ref={pageScroll} onLayout={event => pageScrollLayout(page.id, event.nativeEvent.layout.height)} style={theme.isTV ? {marginHorizontal: -24, marginTop: -16} : undefined} contentContainerStyle={theme.isTV ? {paddingHorizontal: 24, paddingTop: 16, paddingBottom: 80} : {paddingHorizontal: compact ? 20 : 0, paddingBottom: 80}} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
           {theme.isTV && searching ? <>
             {query.trim().length >= 2 && matches.length > 0 && <Text testID="settings-search-count" style={[shellType(20, 600), {color: theme.colors.textTertiary, marginBottom: 18}]}>{t('next.shell.tvSettingsMatchCount', {count: matches.length})}</Text>}
             {query.trim().length >= 2 && !matches.length && <StateView title={t('next.states.noMatches', {query: query.trim()})}/>}
