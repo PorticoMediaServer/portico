@@ -29,6 +29,7 @@ import {TVProfileMenu} from './TVProfileMenu';
 import {NativePlaybackLayer} from './NativePlaybackLayer';
 import {NativeStackSlots, NativeStackSlotsProvider} from '../kit/navigation/stack-slot';
 import {TouchStacks, nativeStackMotionTier, type NativeStackPage} from './TouchStacks';
+import {ShellUnreachableLine} from './UnreachableLine';
 
 const noStacks = () => () => {};
 const topRoute = (stacks: NativeShellRuntime['stacks']): NativeShellRoute | undefined => {
@@ -349,6 +350,8 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     {runtime.renderWatch && <View pointerEvents="box-none" style={{position: 'absolute', inset: 0, zIndex: theme.layers.player + 1}}>{runtime.renderWatch()}</View>}
     {theme.isTV ? runtime.renderRoutes({covered: !topLayer?.startsWith('route:'), hostRef: routeLayer}) : <Animated.View pointerEvents={initialPlayer ? 'none' : 'box-none'} accessibilityElementsHidden={!!initialPlayer}
       importantForAccessibility={initialPlayer ? 'no-hide-descendants' : 'auto'} style={[{position: 'absolute', inset: 0}, initialTitleStyle]}>{runtime.renderRoutes()}</Animated.View>}
+    <ShellUnreachableLine reachability={runtime.reachability} serverName={snapshot.serverName} layout={layout}
+      hidden={!!snapshot.mediaExpanded || tvListeningPresent || (stacks ? immersiveRoute(stackTop) : false)}/>
     {runtime.renderSelection()}
     {runtime.renderDownloads?.()}
     {runtime.renderPendingChanges?.()}

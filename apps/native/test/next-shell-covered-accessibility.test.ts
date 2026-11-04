@@ -28,7 +28,7 @@ for (const tv of [false, true]) test(`${tv ? 'TV' : 'touch'} shell hides its cov
     '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'},
     '../screens/home/home-start': {homeStartModel: () => ({}), resolveTVHomeStart: () => undefined, canYieldTVHomeMenu: () => false},
     './model': model, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}},
-    './PhoneTabBar': {PhoneTabBar: 'PhoneTabBar'}, './PhoneHomeHeader': {PhoneHomeHeader: 'PhoneHomeHeader'}, './MediumRail': {MediumRail: 'MediumRail'}, './TVRail': {TVRail: 'TVRail'}, './TVProfileMenu': {TVProfileMenu: 'TVProfileMenu'}, './NativePlaybackLayer': {NativePlaybackLayer: 'NativePlaybackLayer'},
+    './PhoneTabBar': {PhoneTabBar: 'PhoneTabBar'}, './PhoneHomeHeader': {PhoneHomeHeader: 'PhoneHomeHeader'}, './MediumRail': {MediumRail: 'MediumRail'}, './TVRail': {TVRail: 'TVRail'}, './TVProfileMenu': {TVProfileMenu: 'TVProfileMenu'}, './UnreachableLine': {ShellUnreachableLine: () => null}, './NativePlaybackLayer': {NativePlaybackLayer: 'NativePlaybackLayer'},
   });
   const root = h.render(() => NativeShell({runtime}));
   const session = nodes(root).find(node => node.type?.name === 'ShellSession'); assert.ok(session);

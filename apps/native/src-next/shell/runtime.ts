@@ -109,6 +109,9 @@ export interface NativeShellRuntime {
   renderHomeEmpty: () => ReactNode;
   /** Read the library directory again now (Home's Try again while it is unavailable). */
   retryLibraries?: () => void;
+  /** Whether the server has stopped answering for a while after this viewer connected (the shell
+   *  hub's reachability). It clears by itself on the next answer. */
+  reachability?: Readonly<{getSnapshot: () => 'reachable' | 'unreachable'; subscribe: (listener: () => void) => () => void}>;
   /** The drawn Switch server action, when the installed source offers that route. */
   openServers?: (initialPanel?: 'consent-kind') => void;
   /** Sanctioned, already-known connection facts for a recovery panel: the server's display

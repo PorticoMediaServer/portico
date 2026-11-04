@@ -35,7 +35,7 @@ test('the real shell mounts one persistent player and a separate box-none watch 
     '../kit/shell': {}, '../kit/browse': {}, '../kit/theme': {useTheme: () => theme}, '../kit/useMotion': {useMotion: () => ({transforms: false, timing: () => ({duration: 0})})},
     '../kit/focus': {...layerStack, CoveredLayer: 'CoveredLayer', useFocusRegistry: () => registry}, './tv-focus': focus, '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'}, './model': model,
     './PhoneTabBar': {}, './MediumRail': {MediumRail: 'MediumRail'}, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}}, './PhoneHomeHeader': {}, './TVRail': {TVRail: 'TVRail'}, './TVProfileMenu': {TVProfileMenu: 'ProfileMenu'},
-    './NativePlaybackLayer': {NativePlaybackLayer: 'PersistentPlaybackLayer'}, './DesktopHeader': {},
+    './UnreachableLine': {ShellUnreachableLine: () => null}, './NativePlaybackLayer': {NativePlaybackLayer: 'PersistentPlaybackLayer'}, './DesktopHeader': {},
   });
   const rootHost = createFabricHookHost(() => {root = NativeShell({runtime});});
   let sessionHost: Awaited<ReturnType<typeof createFabricHookHost>> | undefined;
