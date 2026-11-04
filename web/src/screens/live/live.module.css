@@ -391,3 +391,5 @@
 .guideScreen[data-phone-landscape] .guideChannel { gap: 10px; }
 .guideScreen[data-phone-landscape] .guideChannelText b { font-size: var(--type-fixed-size-12point-5px); }
 .guideScreen[data-phone-landscape] .guideChannelText small { font-size: var(--type-fixed-size-11point-5px); }
+/* phone-app 12: on a phone the Recordings views are the page's underline tabs (RecordingPhoneTabs), not chips. */
+@media (max-width: 599px) { .recordingsChips { display: none; } }

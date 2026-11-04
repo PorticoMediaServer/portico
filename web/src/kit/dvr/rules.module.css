@@ -93,7 +93,11 @@
 }
 /* phone-app 12: Recordings is a sub-page on a phone. The back bar replaces the Live TV head and the Guide | Recordings tabs. */
 .phoneNav { display: none; }
+.phoneViews { display: none; }
 @media (max-width: 599px) {
   .page:has(> .phoneNav) > :is(.header, .tabs) { display: none; }
   .phoneNav { display: block; padding: 6px calc(var(--shell-gutter, var(--gutter-desktop)) - 10px) 0; }
+  /* phone-app 12: the views are underline tabs on a phone; the chips are the wide screens'. */
+  .phoneViews { display: block; padding: 4px var(--shell-gutter, var(--gutter-desktop)) 0; }
+  .chips { display: none; }
 }

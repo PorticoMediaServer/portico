@@ -23,6 +23,15 @@ export type SeriesRulesProps = Readonly<{view: SeriesRulesView; navigation?: Rea
   onSave: (rule: SeriesRule, settings: RuleSettings) => Promise<boolean>; onDelete: (rule: SeriesRule) => Promise<boolean>;
   onDraft?: (rule: SeriesRule | undefined, settings: RuleSettings | undefined) => void;
   preview?: Readonly<{ruleId: string; settings: RuleSettings; count: number; airings: readonly RuleAiring[]}>}>;
+export type RecordingView = 'upcoming' | 'recorded' | 'rules' | 'history' | 'storage';
+/** phone-app 12: on a phone the Recordings views are underline tabs (Upcoming, Recorded, Series rules, History), the
+ * page's own; Storage opens from its meter. Wider screens keep the chips. Shown only at phone width (rules.module.css). */
+export function RecordingPhoneTabs({views, value, onChange}: {views: readonly Readonly<{id: RecordingView; label: string}>[]; value: RecordingView; onChange?: (id: RecordingView) => void}) {
+  const shown = views.filter(item => item.id !== 'storage');
+  return <Tabs phone className={styles.phoneViews} value={value} aria-label={t('recordings.title')}
+    onValueChange={id => {const item = shown.find(view => view.id === id); if (item) onChange?.(item.id);}}
+    items={shown.map(item => ({value: item.id, label: item.label}))}/>;
+}
 export function LiveRecordingTabs({view, conflicts, onChange}: {view: 'guide' | 'recordings'; conflicts?: number; onChange?: (value: 'guide' | 'recordings') => void}) {
   return <Tabs className={styles.tabs} listClassName={styles.tabList} value={view} onValueChange={value => {if (value === 'guide' || value === 'recordings') onChange?.(value);}} aria-label={t('next.home.shell.live')} items={[
     {value: 'guide', label: t('channels.tabGuide')}, {value: 'recordings', label: <>{t('recordings.title')}{conflicts !== undefined && conflicts > 0 && <span className={styles.conflictNote}>{t('next.live.conflicts', {count: conflicts})}</span>}</>},
@@ -59,6 +68,7 @@ export function SeriesRules({view, navigation, busy = false, error, tail, onGuid
     sourceName={view.sourceName} channels={view.channelCount === undefined ? undefined : t('player.info.channels', {count: view.channelCount})} through={view.guideThrough === undefined ? undefined : t('next.live.guideThrough', {day: view.guideThrough})} navigation={navigation}
     back={onGuide && {label: t('next.home.shell.live'), title: t('recordings.title'), onBack: onGuide}}>
     <LiveRecordingTabs view="recordings" conflicts={view.conflictCount} onChange={value => {if (value === 'guide') onGuide?.();}}/>
+    <RecordingPhoneTabs views={views} value="rules" onChange={onView}/>
     <div className={styles.recordingBar}><div className={styles.chips} aria-label={t('recordings.title')}>
       {views.map(item => <Chip className={styles.chip} key={item.id} selected={item.id === 'rules'} count={item.count} onClick={onView ? () => onView(item.id) : undefined}>{item.label}</Chip>)}
     </div>{view.storage && <RecordingStorage used={t('next.live.storageUsed', {amount: view.storage.used})} free={t('next.live.storageFree', {amount: view.storage.free})}
