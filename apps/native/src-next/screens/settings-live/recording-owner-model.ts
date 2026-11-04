@@ -25,7 +25,7 @@ export type DVRDefaults = Readonly<{
   sidecars: Readonly<{nfo: boolean; poster: boolean; fanart: boolean; thumbnail: boolean}>;
   tunerPreference: string; liveTunerConflict: string;
 }>;
-export type DVRDocument = Readonly<{revision: number; settings: DVRDefaults; enumerations: Readonly<Record<string, readonly string[]>>}>;
+export type DVRDocument = Readonly<{revision: number; settings: DVRDefaults; folderTokens: readonly Readonly<{token: string}>[]; enumerations: Readonly<Record<string, readonly string[]>>}>;
 const keep = (v: unknown, maxCount = 1000): KeepPolicy => {
   if (!object(v) || !oneOf(v.mode, ['keep-all', 'keep-count', 'keep-days'] as const) || !count(v.keepCount, maxCount) || !count(v.keepDays, 3650) || !flag(v.keepUntilWatched)) invalid();
   return Object.freeze({mode: v.mode, keepCount: v.keepCount, keepDays: v.keepDays, keepUntilWatched: v.keepUntilWatched});
