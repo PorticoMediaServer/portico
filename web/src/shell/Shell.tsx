@@ -55,7 +55,7 @@ export type ShellProps = Readonly<{
   /** states.html 4b: the shell's reads have failed for a while (the freshness hub's reachability, as on native).
    * A browser draws the same quiet line from it; the desktop host keeps its own `serverAway`. */
   reachability?: Readonly<{getSnapshot: () => 'reachable' | 'unreachable'; subscribe: (listener: () => void) => () => void}>;
-  onSignOut: () => void; onSignOutPorticoAccount?: () => void; onSwitchProfile?:(profileId:string,pin:string,signal:AbortSignal)=>Promise<void>;
+  onSignOut: () => void; onSwitchProfile?:(profileId:string,pin:string,signal:AbortSignal)=>Promise<void>;
   /** PR-1: management refusals for this sign-in; each one asks for the open profile's PIN (choosing it again unlocks management). */
   manageGate?: ManageGate; onSwitchServer?:(serverId:string,expectedRevision?:number)=>Promise<void>; savedServers?:readonly {id:string;label:string}[];
   onFeedback?: () => void;
@@ -75,7 +75,7 @@ const collapseMemoryKey = 'portico.next.sidebar-collapsed';
 export function Shell(props: ShellProps) {
   return <PhoneSelectionProvider><ShellFrame {...props}/></PhoneSelectionProvider>;
 }
-function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, reachability, onSignOut, onSignOutPorticoAccount,onSwitchProfile,manageGate,onSwitchServer,savedServers,onFeedback,pendingChanges, phoneSelection, overlays, windowChrome, children}: ShellProps) {
+function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, reachability, onSignOut,onSwitchProfile,manageGate,onSwitchServer,savedServers,onFeedback,pendingChanges, phoneSelection, overlays, windowChrome, children}: ShellProps) {
   useWindowScrollAnchor();
   const sizeClass = useSizeClass(), coarsePointer = useCoarsePointer();
   // A live screen selection draws its own action bar here, in place of the tab bar.
@@ -190,7 +190,7 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, reachabil
       settings: () => { void navigate({to: '/settings'}); },
       ...(!desktop ? {notifications: () => { void navigate({to: '/notifications'}); }} : {}),
       watchTogether: () => { void navigate({to: '/watch-together'}); }, feedback: onFeedback,
-      help: () => { void navigate({to: '/help'}); }, signOut: onSignOut,signOutPorticoAccount:onSignOutPorticoAccount,
+      help: () => { void navigate({to: '/help'}); }, signOut: onSignOut,
       // Read when the menu draws: it opens only while this browser remembers the profile open now.
       ...(accountOpen && deviceRemembers(viewer.serverId, viewer.profileId) ? {forgetRememberedProfile: () => forgetRememberedProfile(viewer.serverId)} : {}),
     }} trigger={navigation === 'sidebar' ? <button type="button" className={styles.profileRow} aria-label={[t('web.account.switchProfileOrServer'), identity.username || t('next.shell.usernameUnavailable'), identity.serverName].join(', ')}>

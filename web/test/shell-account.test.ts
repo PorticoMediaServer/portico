@@ -105,3 +105,14 @@ test('the avatar menu\'s identity line names the server, then how this account s
   assert.equal(defaultI18n.t('web.shell.localAccount'), 'Server account');
   assert.equal(defaultI18n.t('account.portico'), 'Portico Account');
 });
+
+test('a Portico Account viewer gets one sign-out in the avatar menu, for this server; the account\'s own page signs out of the account', () => {
+  const base = identity('nana_r'), menu = render({...base, signIn: 'portico', viewer: {...base.viewer, role: 'member'}, capabilities: {manageAccount: true, managePeople: false, manageServer: false, manageSignIn: false}} as ShellIdentity);
+  assert.equal(typeof menu.actions.signOut, 'function');
+  assert.equal((menu.actions as Record<string, unknown>).signOutPorticoAccount, undefined);
+  const surfaces = readFileSync(new URL('../src/kit/shell/AccountSurfaces.tsx', import.meta.url), 'utf8');
+  assert.equal(surfaces.match(/icon="i-out"/g)?.length, 1);
+  assert.doesNotMatch(surfaces, /accounts\.signOut\.portico/);
+  // The Portico Account's sign-out stays where the account is managed.
+  assert.match(readFileSync(new URL('../src/screens/accounts/Servers.route.tsx', import.meta.url), 'utf8'), /signOutBrowserPorticoAccount\(\)/);
+});

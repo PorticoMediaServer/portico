@@ -28,7 +28,7 @@ import {negotiateServer,parseServerSignIn} from '@core/sign-in.ts';
 import {defaultI18n} from '@i18n';
 import {lastKnownShell, rememberShell} from './last-known';
 import {settingsReturnAuthority} from './settings-return';
-import {browserAppSessionActions,signOutBrowserPorticoAccount,type BrowserAppSessionActions} from '../platform/app-sessions';
+import {browserAppSessionActions,type BrowserAppSessionActions} from '../platform/app-sessions';
 import {mountBrowserUserMutations, browserConnectionEnvironment, restoreBrowserConnection, trackBrowserConnection, forgetBrowserConnection} from '../platform/server-connections';
 import {displayableTransportCode, launchFailure, retryDelayMs, savedSignInUnusable, serverIsStarting} from './connection-retry';
 import {bootRecoveryDeadline, bootRecoveryDelay, documentStartedAt} from './boot-state';
@@ -48,7 +48,7 @@ export type ShellAssemblyContext = Readonly<{
   facts: ShellFacts; factsSource?: ShellFactsSource; homeAuthority?: () => void;
   /** Read the library directory again now (an inline Try again after it did not answer). */
   retryLibraries?: () => void; observeDirect?: (snapshot: DirectSnapshot) => void; preferences?: PreferencesReader; epoch: number; viewerFence?: string; isCurrent: () => boolean;
-  signOut: () => void; signOutPorticoAccount?: () => void; switchProfile:(profileId:string,pin:string,signal:AbortSignal)=>Promise<void>; manageGate?: ManageGate; switchServer:(serverId:string,expectedRevision?:number)=>Promise<void>; savedServers:readonly {id:string;label:string}[];
+  signOut: () => void; switchProfile:(profileId:string,pin:string,signal:AbortSignal)=>Promise<void>; manageGate?: ManageGate; switchServer:(serverId:string,expectedRevision?:number)=>Promise<void>; savedServers:readonly {id:string;label:string}[];
 }>;
 export type ShellAssembly = Readonly<{
   getBinding: () => ShellBindings;
@@ -469,14 +469,13 @@ export class ShellBootstrap {
     const authorityKey = shellArtworkAuthorityKey(session, epoch);
     const artwork = authenticatedArtwork({api, auth, identity: {serverId: session.viewer.serverId, viewerId: viewerId(session), authorityKey}, currentToken: () => session.accessToken, isCurrent});
     cleanups.push(() => artwork.dispose());
-    const signOutPorticoAccount=initialFacts.identity.signIn==='portico'?()=>{if(!isCurrent()||facts().identity.signIn!=='portico')return;signingOut=true;this.fence();this.publish({phase:'signed-out'});void signOutBrowserPorticoAccount().catch(error=>this.publish({phase:'error',error})).finally(()=>api.getRouteConnection()?.dispose());}:undefined;
     // Choosing the open profile again is the management unlock (PR-1): only a remembered sign-in is ever locked, so it stays remembered.
     const switchProfile=async(profileId:string,pin:string,signal:AbortSignal)=>{if(!isCurrent())throw new Error('The viewer changed.');await (this.environment.actions?.()??browserAppSessionActions()).switchProfile(api,session,profileId,pin,signal,isCurrent,profileId===session.viewer.profileId);if(isCurrent())this.restart();};
     const display=browserServerDisplay();display.remember(api,facts().serverName);
     const saved=(await (this.environment.actions?.()??browserAppSessionActions()).store.read()).servers;
     const savedServers=await display.choices(saved.map(value=>({pin:value.connection.pin,origin:value.connection.logicalOrigin,signIn:value.signIn})),signal);
     if (!isCurrent()) return;
-    const context: ShellAssemblyContext = {api, session: () => session, auth, events, freshness, home, inbox, artwork, factsSource, libraryRouteProof: libraryRouteProof.source, homeAuthority: factOwner.authority, observeDirect: factOwner.observeDirect, retryLibraries: () => {if (isCurrent()) factOwner?.request('directory');}, get facts() {return facts();}, preferences, epoch, get viewerFence() {return isCurrent() ? facts().identity.fences?.viewerFence : undefined;}, isCurrent, signOut,signOutPorticoAccount,switchProfile,manageGate,switchServer:this.selectServer,get savedServers() {return savedServers.map(value => value.id === session.viewer.serverId ? {...value, label: facts().serverName} : value);}};
+    const context: ShellAssemblyContext = {api, session: () => session, auth, events, freshness, home, inbox, artwork, factsSource, libraryRouteProof: libraryRouteProof.source, homeAuthority: factOwner.authority, observeDirect: factOwner.observeDirect, retryLibraries: () => {if (isCurrent()) factOwner?.request('directory');}, get facts() {return facts();}, preferences, epoch, get viewerFence() {return isCurrent() ? facts().identity.fences?.viewerFence : undefined;}, isCurrent, signOut,switchProfile,manageGate,switchServer:this.selectServer,get savedServers() {return savedServers.map(value => value.id === session.viewer.serverId ? {...value, label: facts().serverName} : value);}};
     const assembly = await this.assemble(context);
     if (!isCurrent()) { assembly.dispose(); return; }
     cleanups.push(() => assembly.dispose());
