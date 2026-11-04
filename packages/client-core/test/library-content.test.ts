@@ -224,16 +224,23 @@ test('a continuation recovery cannot replace a successor opened while it reads t
   } finally {nav.dispose();}
 });
 
-test('a continuation read after the library moved is still a page; only another viewer\'s answer restarts the list', async () => {
+test('a continuation read after the library moved is still a page; only the server refusing a cursor from before the viewer\'s fence moved restarts the list', async () => {
   for (const mutate of [(d: any) => { d.revision.catalog++; }, (d: any) => { d.revision.viewer++; }]) {
     const nav = service(async path => { const data = projection(path); data.sections[0].nextCursor = 'next'; if (path.includes('cursor=')) { mutate(data); data.sections[0].nextCursor = ''; } return data; });
     await nav.select(route); await nav.next('server-grid');
     assert.equal(nav.getSnapshot().phase, 'ready'); assert.equal(nav.getSnapshot().pagination.cursor, 'next');
   }
   let calls = 0;
-  const nav = service(async path => { calls++; const data = projection(path); data.sections[0].nextCursor = 'next'; if (path.includes('cursor=')) data.scope.viewerFence = 'other-viewer'; return data; });
+  let moved = false;
+  // The server binds a cursor to the fence it was read under: after the fence moved, it refuses it (`invalid_cursor`).
+  const nav = service(async path => { calls++; const data = projection(path); data.sections[0].nextCursor = 'next'; if (moved) { data.scope.viewerFence = 'other-viewer'; if (path.includes('cursor=')) throw Object.assign(new Error('Invalid cursor'), { code: 'invalid_cursor', status: 400 }); } return data; });
+  await nav.select(route); moved = true; await nav.next('server-grid');
+  assert.equal(nav.getSnapshot().phase, 'ready'); assert.equal(nav.getSnapshot().pagination.cursor, null); assert.equal(nav.getSnapshot().projection!.scope.viewerFence, 'other-viewer'); assert.equal(calls, 3);
+});
+test('a continuation is never checked against the first page\'s fence by the client: the server answered it', async () => {
+  const nav = service(async path => { const data = projection(path); data.sections[0].nextCursor = 'next'; if (path.includes('cursor=')) { data.scope.viewerFence = 'answered-under-a-newer-fence'; data.sections[0].nextCursor = ''; } return data; });
   await nav.select(route); await nav.next('server-grid');
-  assert.equal(nav.getSnapshot().phase, 'ready'); assert.equal(nav.getSnapshot().pagination.cursor, null); assert.equal(calls, 3);
+  assert.equal(nav.getSnapshot().phase, 'ready'); assert.equal(nav.getSnapshot().pagination.cursor, 'next', 'the page is appended');
 });
 
 test('rejects wrong scope, oversized lists, a wrong revision and a wrong continuation section', async () => {
@@ -831,17 +838,16 @@ test('incoming opening retired by HTTP cleanup restores its exact committed chec
  h.complete(2, 'next-page', ''); await next; h.nav.dispose();
 });
 
-for (const refusal of ['stale_continuation', 'invalid_cursor', 'foreign-fence'] as const) {
+// A next page under another viewer fence is refused by the server (its cursor is bound to the fence): `invalid_cursor`.
+for (const refusal of ['stale_continuation', 'invalid_cursor'] as const) {
  test(`explicit continuation policy retains metadata and cursor for ${refusal} until current Refresh`, async () => {
   const h = openingHarness({ continuationRecovery: 'refresh-required' }); await h.seed();
   const baseline = h.nav.getSnapshot(); const context = h.context();
   const next = h.nav.next('server-grid', context);
-  if (refusal === 'foreign-fence') {
-   const raw = projection(h.reads[1]!.path); raw.scope.viewerFence = 'other'; h.reads[1]!.resolve(raw);
-  } else h.reads[1]!.reject(Object.assign(new Error('refused'), { code: refusal }));
+  h.reads[1]!.reject(Object.assign(new Error('refused'), { code: refusal }));
   await next;
   assert.equal(h.reads.length, 2); assert.equal(h.nav.getSnapshot().phase, 'refresh-required');
-  assert.equal(h.nav.getSnapshot().error?.code, refusal === 'foreign-fence' ? 'stale_continuation' : refusal);
+  assert.equal(h.nav.getSnapshot().error?.code, refusal);
   for (const key of ['projection', 'sections', 'appended', 'head'] as const) assert.strictEqual(h.nav.getSnapshot()[key], baseline[key]);
   assert.equal(h.nav.getSnapshot().sections[0]!.nextCursor, 'next');
   assert.deepEqual(h.nav.getSnapshot().pagination.next, []); assert.equal(h.nav.getSnapshot().pagination.canPrevious, false);

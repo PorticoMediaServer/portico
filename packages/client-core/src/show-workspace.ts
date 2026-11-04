@@ -161,7 +161,8 @@ export class ShowWorkspaceService{
  private apply(op:Operation,data:ShowWorkspaceData):void{
   if(op.fence?.allowCatalogAdvance&&[op.anchor.expandedEpisodeId,op.anchor.focusedEpisodeId].some(id=>id&&!data.episodes.sections[0]?.entries.some(e=>e.id===id)))throw new Failure('stale_continuation','The selected episode changed. Refresh this show.');
   // A return after playback continues the place it left only within the same show page family: the server's cursors are bound to them.
-  if(op.fence&&(data.scope.viewerFence!==op.fence.viewerFence||data.revision.catalog<op.fence.revision.catalog||data.revision.viewer<op.fence.revision.viewer))throw new Failure('stale_continuation','This show changed. Refresh to load its current episodes.',true);
+  // A moved viewer fence is the server's to refuse (every cursor is bound to it: `invalid_cursor`); an older revision of this show is not a page of it.
+  if(op.fence&&(data.revision.catalog<op.fence.revision.catalog||data.revision.viewer<op.fence.revision.viewer))throw new Failure('stale_continuation','This show changed. Refresh to load its current episodes.',true);
   const entries=data.episodes.sections[0]?.entries??[];let a=op.anchor;
   if((a.expandedEpisodeId&&!entries.some(e=>e.id===a.expandedEpisodeId))||(a.focusedEpisodeId&&!entries.some(e=>e.id===a.focusedEpisodeId)))throw new Failure('stale_continuation','The requested episode anchor is no longer on this page.',true);
   if(op.route.episodeId&&!op.cursor&&!a.expandedEpisodeId)a=Object.freeze({...a,expandedEpisodeId:op.route.episodeId,focusedEpisodeId:op.route.episodeId});

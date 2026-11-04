@@ -335,7 +335,7 @@ export class SearchService{
  private async fetch(op:Operation,api:LibraryContentApi,scope:ContentScope,controller:AbortController,generation:number){let timer:ReturnType<typeof setTimeout>|undefined;let abort:()=>void=()=>{};
   try{const raw=await Promise.race([api===this.api?this.request(op,controller.signal,false):api.request<unknown>(searchPath(op.query,this.pageSize,op.cursor),'GET',undefined,controller.signal),new Promise<never>((_,reject)=>{abort=()=>reject(new Failure('cancelled','Search cancelled.'));controller.signal.addEventListener('abort',abort,{once:true});timer=setTimeout(()=>{reject(new Failure('timeout','Search took too long. Try again.',true));controller.abort();},this.timeoutMs);})]);if(this.disposed||generation!==this.generation)return;const data=parse(raw,op,scope,this.pageSize);
    // A later page read after the library moved is still a valid page; only another viewer's answer is refused.
-   if(op.fence&&data.scope.viewerFence!==op.fence.scope.viewerFence)throw new Failure('stale_continuation','Search results changed. Refresh to continue.',true);
+   // A continuation under another viewer fence is the server's to refuse (its cursor is bound to the fence: `invalid_cursor`, which reloads the first page below); a first page is simply current.
    // A cursor that comes back again would page for ever: that group has reached its end.
    const repeats=(c:string)=>c===op.cursor||op.history.some(p=>p.cursor===c);
    const groups=data.groups.some(g=>g.nextCursor&&repeats(g.nextCursor))?Object.freeze(data.groups.map(g=>g.nextCursor&&repeats(g.nextCursor)?Object.freeze({...g,nextCursor:''}):g)):data.groups;

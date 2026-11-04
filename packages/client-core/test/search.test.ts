@@ -76,13 +76,14 @@ test('pause aborts quiet revalidation and refuses its late replacement',async()=
  }finally{s.dispose();}
 });
 
-test('a continuation viewer-fence change withdraws the old page before automatic refresh can be paused',async()=>{
+test('a cursor refused after the viewer fence moved withdraws the old page before automatic refresh can be paused',async()=>{
  const held=deferred();let reads=0,refreshPath='';
  const refreshing=deferred();
  const s=service(async path=>{
   reads++;
   if(reads===1)return result(path,{groups:[group('movies',['old'],'next-cursor')]});
-  if(reads===2){const raw=result(path);return {...raw,scope:{...raw.scope,viewerFence:'different-viewer-fence'}};}
+  // The viewer's fence moved: the server refuses the cursor read under the old one.
+  if(reads===2)throw Object.assign(new Error('Invalid cursor'),{code:'invalid_cursor',status:400});
   refreshPath=path;refreshing.resolve(undefined);return held.promise;
  });
  try{
@@ -279,7 +280,7 @@ test('same in-flight command is singleflight, cancel clears even ignored abort',
 test('scope change clears query and pending data before a new principal binds',async()=>{const d=deferred();const s=service(async()=>d.promise);const pending=s.select('private');s.setScope({...scope,viewerId:'different-profile'},{request:async<T>()=>{throw new Error('unused');}});await pending;d.resolve({});await Promise.resolve();assert.equal(s.getSnapshot().scope.viewerId,'different-profile');assert.equal(s.getSnapshot().query,null);assert.deepEqual(s.getSnapshot().groups,[]);s.dispose();});
 test('timeout settles transport ignoring abort and explicit retry can recover',async()=>{let calls=0;const s=service(async p=>{calls++;return calls===1?new Promise(()=>{}):result(p);},5);await s.select('test');assert.equal(s.getSnapshot().error?.code,'timeout');await s.retry();assert.equal(s.getSnapshot().phase,'ready');s.dispose();});
 test('denied read clears previously visible data and never offers stale results',async()=>{let denied=false;const s=service(async p=>{if(denied)throw Object.assign(new Error('Permission removed'),{code:'forbidden'});return result(p);});await s.select('test');denied=true;await s.refresh();assert.equal(s.getSnapshot().phase,'error');assert.equal(s.getSnapshot().data,null);assert.deepEqual(s.getSnapshot().groups,[]);s.dispose();});
-test('a later page read after the library moved is still a page; another viewer\'s answer restarts the search quietly',async()=>{for(const change of ['catalog','viewer','fence']){let second=false,calls=0;const s=service(async p=>{calls++;const raw=result(p);raw.groups=raw.groups.map((g:any)=>g.id==='movies'?group('movies',['one'],p.includes('cursor=')?'':'next'):g);if(second&&p.includes('cursor=')){if(change==='fence')raw.scope.viewerFence='new-fence';else raw.revision[change]++;}return raw;});await s.select('test');second=true;await s.next('movies');assert.equal(s.getSnapshot().phase,'ready');assert.notEqual(s.getSnapshot().data,null);assert.equal(calls,change==='fence'?3:2);assert.equal(s.getSnapshot().pagination.cursor,change==='fence'?null:'next');s.dispose();}});
+test('a later page read after the library moved is still a page; a cursor the server refuses after the viewer\'s fence moved restarts the search quietly',async()=>{for(const change of ['catalog','viewer','fence']){let second=false,calls=0;const s=service(async p=>{calls++;const raw=result(p);raw.groups=raw.groups.map((g:any)=>g.id==='movies'?group('movies',['one'],p.includes('cursor=')?'':'next'):g);if(second&&p.includes('cursor=')){if(change==='fence')throw Object.assign(new Error('Invalid cursor'),{code:'invalid_cursor',status:400});raw.revision[change]++;}return raw;});await s.select('test');second=true;await s.next('movies');assert.equal(s.getSnapshot().phase,'ready');assert.notEqual(s.getSnapshot().data,null);assert.equal(calls,change==='fence'?3:2);assert.equal(s.getSnapshot().pagination.cursor,change==='fence'?null:'next');s.dispose();}});
 test('wrong scope, query, revision or limit fail closed',async()=>{const changes=[(r:any)=>r.scope.serverId='wrong',(r:any)=>r.scope.viewerFence='',(r:any)=>r.query.q='other',(r:any)=>r.query.limit=41,(r:any)=>r.query.group='movies',(r:any)=>r.revision.catalog=-1,(r:any)=>r.groups=Array(65).fill(r.groups[0]),(r:any)=>r.capabilities.maxLimit=0];for(const change of changes){const s=service(async p=>{const raw=result(p);change(raw);return raw;});await s.select('test');assert.equal(s.getSnapshot().phase,'error');assert.equal(s.getSnapshot().data,null);s.dispose();}});
 test('pagination history is bounded to 64 prior pages and a repeated cursor ends the group',async()=>{const s=service(async p=>{const u=new URL(p,'https://x'),index=Number(u.searchParams.get('cursor')??0);const raw=result(p);raw.groups=raw.groups.map((g:any)=>g.id==='movies'?group('movies',[String(index)],String(index+1)):g);return raw;});await s.select('test',{group:'movies'});for(let i=0;i<70;i++)await s.next('movies');for(let i=0;i<64;i++)await s.previous();assert.equal(s.getSnapshot().pagination.canPrevious,false);assert.equal(s.getSnapshot().groups[0].items[0].id,'6');s.dispose();const repeated=service(async p=>{const raw=result(p);raw.groups=raw.groups.map((g:any)=>g.id==='movies'?group('movies',['one'],'same'):g);return raw;});await repeated.select('test');await repeated.next('movies');assert.equal(repeated.getSnapshot().phase,'ready');assert.equal(repeated.getSnapshot().groups.find(g=>g.id==='movies')!.nextCursor,'');repeated.dispose();});
 test('a stale server cursor restarts the search from its first page without a refresh state',async()=>{const paths:string[]=[];const phases:string[]=[];const s=service(async p=>{paths.push(p);if(p.includes('cursor='))throw Object.assign(new Error('Expired continuation'),{code:'stale_continuation',retryable:true});const raw=result(p);raw.groups=raw.groups.map((g:any)=>g.id==='movies'?group('movies',['one'],'next'):g);return raw;});await s.select('test');s.subscribe(()=>phases.push(s.getSnapshot().phase));await s.next('movies');assert.equal(s.getSnapshot().phase,'ready');assert(!phases.includes('refresh-required')&&!phases.includes('error'));assert(!paths.at(-1)!.includes('cursor='));assert.equal(paths.length,3);s.dispose();});
@@ -381,12 +382,12 @@ test('continuation children own independent cancellation and keep the original v
  }finally{movies?.dispose();shows?.dispose();s.dispose();}
 });
 
-test('continuation forks reject unoffered cursors and revalidate a changed viewer fence',async()=>{
+test('continuation forks reject unoffered cursors and restart when the server refuses a cursor from before the fence moved',async()=>{
  const paths:string[]=[];
  const s=service(async path=>{
   paths.push(path);const raw=result(path),cursor=new URL(path,'https://fixture.invalid').searchParams.has('cursor');
   raw.groups=raw.groups.map((value:any)=>group(value.id,['one'],value.id==='movies'?'movies-next':''));
-  if(cursor)raw.scope.viewerFence='changed-fence';return raw;
+  if(cursor)throw Object.assign(new Error('Invalid cursor'),{code:'invalid_cursor',status:400});return raw;
  });
  let child:SearchService|undefined;
  try{
