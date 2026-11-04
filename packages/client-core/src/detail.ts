@@ -483,7 +483,8 @@ export async function readDetailMoreLike(api:DetailApi,itemId:string,options:{cu
  return row;
 }
 export function appendDetailRecommendationPage(current:HomeRow,next:HomeRow):HomeRow {
- if(current.id!==next.id || current.endpoint!==next.endpoint || current.viewerFence!==next.viewerFence)invalid();
+ // The server binds the row's cursor to the viewer fence and refuses an old one (invalid_cursor); only the row's own revision is compared.
+ if(current.id!==next.id || current.endpoint!==next.endpoint)invalid();
  if(current.revision.catalog!==next.revision.catalog || current.revision.viewer!==next.revision.viewer)throw new Failure('stale_continuation','Reload recommendations after the title changes.');
  const seen=new Set(current.entries.map(entry=>entry.id));
  return Object.freeze({...current,entries:Object.freeze([...current.entries,...next.entries.filter(entry=>!seen.has(entry.id))]),nextCursor:next.nextCursor,hasMore:next.hasMore,total:next.total});

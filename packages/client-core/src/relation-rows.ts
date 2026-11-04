@@ -18,13 +18,13 @@ function invalid(): never {
 /** The page a row belongs to: a title, or a show. */
 export type RelationRowOwner = Readonly<{kind: 'item' | 'show'; id: string}>;
 
-/** One continuation of a title's or show's row. The row and its fence are exact. */
-export async function readRecommendationRowPage(api: HomeApi, owner: RelationRowOwner, row: Pick<HomeRow, 'id' | 'viewerFence'>, options: {cursor?: string; limit?: number} = {}, signal?: AbortSignal): Promise<HomeRow> {
+/** One continuation of a title's or show's row. The row is exact; a cursor from before the fence moved is the server's to refuse (invalid_cursor). */
+export async function readRecommendationRowPage(api: HomeApi, owner: RelationRowOwner, row: Pick<HomeRow, 'id'>, options: {cursor?: string; limit?: number} = {}, signal?: AbortSignal): Promise<HomeRow> {
   const query = new URLSearchParams({limit: String(options.limit ?? 37)});
   if (options.cursor) query.set('cursor', options.cursor);
   const route = owner.kind === 'show' ? 'get_shows_id_recommendations_row' : 'get_items_id_recommendations_row';
   const page = validateHomeRow(await api.request<RouteResponse<'get_items_id_recommendations_row'>>(encodedRoutePath(route, {id: encodeURIComponent(owner.id), row: encodeURIComponent(row.id)}) + '?' + query, 'GET', undefined, signal));
-  if (page.id !== row.id || page.viewerFence !== row.viewerFence) invalid();
+  if (page.id !== row.id) invalid();
   return page;
 }
 
@@ -43,8 +43,8 @@ export type RelationRowSnapshot = Readonly<{
 /**
  * One row read to exhaustion, from its first page. `more()` reads the next page once (a repeated
  * call while a page is loading, or at the row's end, does nothing); a title already shown keeps
- * its first place. A failed page keeps the continuation for a later `more()`, except a stale one,
- * which ends the row.
+ * its first place. A failed page keeps the continuation for a later `more()`, except a stale or
+ * refused one, which ends the row.
  */
 export class RelationRowPager {
   private state: RelationRowSnapshot;
@@ -80,7 +80,8 @@ export class RelationRowPager {
     } catch (error) {
       if (this.disposed || controller.signal.aborted) return;
       const code = typeof (error as {code?: unknown})?.code === 'string' ? (error as {code: string}).code : 'request_failed';
-      const stale = code === 'stale_continuation';
+      // A continuation the server no longer honours (the row or the viewer's access moved) ends the row; the page's own re-read brings a new first page.
+      const stale = code === 'stale_continuation' || code === 'invalid_cursor';
       this.publish({entries: this.state.entries, ...(stale ? {} : {cursor}), loading: false, error: Object.freeze({code, stale})});
     } finally {
       if (this.controller === controller) this.controller = undefined;
