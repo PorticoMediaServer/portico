@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 jobs:
   attribution:
     runs-on: ubuntu-24.04
@@ -16,6 +17,15 @@ jobs:
         with:
           go-version-file: server/go.mod
           cache-dependency-path: '**/go.sum'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .node-version
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: selection
+          run-id: 41840165310
+          github-token: ${{ github.token }}
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg bubblewrap
       - name: Five isolated parent repetitions before and after today's merges
         run: python3 ci/recording_layout_diagnostic.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

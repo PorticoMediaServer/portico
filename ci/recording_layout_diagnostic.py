@@ -1,6 +1,7 @@
 """Immutable before/after product source with failure-only test diagnostics."""
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 
@@ -54,3 +55,12 @@ func recordingWaitDiagnostics(t *testing.T, db *sql.DB) {
     events = [json.loads(line) for line in (out / (label + '-cohort.jsonl')).read_text().splitlines()]
     terminals = [e['Action'] for e in events if e.get('Test') == 'TestRecordingLayoutActualStoreAndIO' and e.get('Action') in ['pass', 'fail', 'skip']]
     assert len(terminals) == 5 and set(terminals) <= {'pass', 'fail'}, (label, terminals)
+
+    if label == 'after':
+        shutil.copyfile(root / 'ci-plan.json', tree / 'ci-plan.json')
+        subprocess.run(['npm', 'ci', '--no-audit', '--no-fund'], cwd=tree, check=True)
+        subprocess.run(['npm', 'run', 'build'], cwd=tree / 'packages/contracts', check=True)
+        subprocess.run(['python3', 'ci/run.py', 'helper'], cwd=tree, check=True)
+        result = subprocess.run(['python3', 'ci/run.py', 'go', '--index', '0'], cwd=tree)
+        (out / 'full-go0.exit').write_text(str(result.returncode) + '\n')
+        shutil.copytree(tree / 'ci-results', out / 'full-go0')
