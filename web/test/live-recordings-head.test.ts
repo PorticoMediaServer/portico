@@ -17,7 +17,7 @@ test('the Recordings head and body follow the shell gutter, as the Channels tab 
 });
 
 test('on a phone the Recordings head stays one line: title size, no wrap, the source choice keeps its width', () => {
-  const phone = rules.slice(rules.lastIndexOf('@media (max-width: 599px) {'));
+  const phone = rules.slice(rules.indexOf('@media (max-width: 599px) {\n  .header {'));
   assert.match(phone, /\.header \{ padding-inline: var\(--shell-gutter, var\(--gutter-desktop\)\); gap: 8px; flex-wrap: nowrap; \}/);
   assert.match(phone, /\.header h1 \{ font-size: var\(--type-title-size\); white-space: nowrap; \}/);
   assert.match(phone, /\.header \.source \{ flex: none; \}/);

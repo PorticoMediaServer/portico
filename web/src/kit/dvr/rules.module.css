@@ -91,3 +91,9 @@
   .header .source { flex: none; }
   .header p { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
+/* phone-app 12: Recordings is a sub-page on a phone. The back bar replaces the Live TV head and the Guide | Recordings tabs. */
+.phoneNav { display: none; }
+@media (max-width: 599px) {
+  .page:has(> .phoneNav) > :is(.header, .tabs) { display: none; }
+  .phoneNav { display: block; padding: 6px calc(var(--shell-gutter, var(--gutter-desktop)) - 10px) 0; }
+}
