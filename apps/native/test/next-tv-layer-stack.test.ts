@@ -225,3 +225,31 @@ test('step 4: preferredFocus asks once on both platforms; a layout change on tvO
     assert.notEqual(engine.focused, 'play', `${platform}: uncovering does not ask again`);
   }
 });
+
+test('a refused content link on TV: a presented state covers the shell, takes focus on Home, and closing it returns focus to where it was', async () => {
+  const {presentTVLayer, tvPresentedLayers} = await import('../src-next/kit/focus/layer-stack.ts');
+  const registry = createFocusRegistry(), time = clock(), log: string[] = [];
+  const stack = createTVLayerStack(registry, time);
+  const card = {regionId: 'home.continue', childId: 'film'};
+  registry.configure({id: 'home.continue', order: ['film']}); registry.attach(card, host(log, 'home-card', () => registry.didFocus(card)));
+  registry.didFocus(card);
+  const specs = () => tvLayerSpecs([], false, false, () => host(log, 'page-layer'), () => host(log, 'route-layer'), JSON.parse(tvPresentedLayers.getSnapshot()));
+  stack.sync(tvLayerSpecs([], false, false, () => host(log, 'page-layer'), () => null));
+  assert.equal(tvPresentedLayers.getSnapshot(), '[]');
+  const home = {regionId: 'content-link-unavailable', childId: 'home'};
+  registry.configure({id: 'content-link-unavailable', order: ['home'], hold: true});
+  registry.attach(home, host(log, 'home-button', () => registry.didFocus(home)));
+  let notified = 0; const off = tvPresentedLayers.subscribe(() => {notified++;});
+  const release = presentTVLayer('content-link-unavailable', () => registry.focusRegion('content-link-unavailable'));
+  try {
+    assert.equal(notified, 1); assert.deepEqual(JSON.parse(tvPresentedLayers.getSnapshot()), ['content-link-unavailable']);
+    stack.sync(specs());
+    assert.equal(stack.top(), 'presented:content-link-unavailable', 'over the page');
+    assert.equal(specs().at(-1)!.key, 'presented:content-link-unavailable', 'above the player and listening layers too (it is last)');
+    assert.equal(registry.capture()?.childId, 'home', 'focus is on Home, not the covered page');
+    release();
+    assert.equal(tvPresentedLayers.getSnapshot(), '[]');
+    stack.sync(specs());
+    assert.equal(registry.capture()?.childId, 'film', 'closing returns to where focus was');
+  } finally {release(); off(); stack.dispose();}
+});

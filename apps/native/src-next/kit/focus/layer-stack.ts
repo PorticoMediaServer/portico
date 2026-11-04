@@ -116,11 +116,28 @@ export function provideTVLayerClaim(key: 'listening', claim: () => boolean): () 
   layerClaims.set(key, claim);
   return () => {if (layerClaims.get(key) === claim) layerClaims.delete(key);};
 }
-/** The full-screen TV layers, bottom first: the page, each route over it, the player, the listening screen. */
+/** Full-screen states drawn outside the shell that cover everything while present (a refused content link on TV).
+ * Each gives the stack its claim; the stack puts it on top, takes focus into it, and gives the layer below its
+ * focus back when it goes. */
+const presented = new Map<string, () => boolean>(), presentedListeners = new Set<() => void>();
+let presentedKeys = '[]';
+const publishPresented = () => {presentedKeys = JSON.stringify([...presented.keys()]); for (const listener of [...presentedListeners]) listener();};
+export function presentTVLayer(key: string, claim: () => boolean): () => void {
+  presented.delete(key); presented.set(key, claim); publishPresented();
+  return () => {if (presented.get(key) !== claim) return; presented.delete(key); publishPresented();};
+}
+/** The presented layers' keys, bottom first, as a JSON string (a useSyncExternalStore snapshot). */
+export const tvPresentedLayers = Object.freeze({
+  subscribe: (listener: () => void) => {presentedListeners.add(listener); return () => {presentedListeners.delete(listener);};},
+  getSnapshot: () => presentedKeys,
+});
+/** The full-screen TV layers, bottom first: the page, each route over it, the player, the listening screen, then any
+ * presented state. */
 export function tvLayerSpecs(routes: readonly string[], expanded: boolean, listening: boolean,
-  page: () => FocusHost | null, route: () => FocusHost | null): readonly TVLayerSpec[] {
+  page: () => FocusHost | null, route: () => FocusHost | null, presentedKeysNow: readonly string[] = []): readonly TVLayerSpec[] {
   return [{key: 'page', host: page}, ...routes.map(key => ({key, host: route})),
     // The player takes focus itself (its preferred control); the listening screen tells the stack which control it
     // opens on. Either way the stack covers what is under them and gives the layer below its focus back when they go.
-    ...expanded ? [{key: 'player'}] : [], ...listening ? [{key: 'listening', claim: () => layerClaims.get('listening')?.() ?? false}] : []];
+    ...expanded ? [{key: 'player'}] : [], ...listening ? [{key: 'listening', claim: () => layerClaims.get('listening')?.() ?? false}] : [],
+    ...presentedKeysNow.map(key => ({key: `presented:${key}`, claim: () => presented.get(key)?.() ?? false}))];
 }

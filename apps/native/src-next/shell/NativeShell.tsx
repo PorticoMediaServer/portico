@@ -12,7 +12,7 @@ import {useTheme} from '../kit/theme';
 import {useMotion} from '../kit/useMotion';
 import {registerTVMenuFallback} from '../platform/menu-key';
 import {useTVMenuCapture} from '../platform/tv-menu';
-import {CoveredLayer, createTVLayerStack, tvLayerSpecs, tvRouteLayerKeys, useFocusRegistry, type FocusSnapshot} from '../kit/focus';
+import {CoveredLayer, createTVLayerStack, tvLayerSpecs, tvPresentedLayers, tvRouteLayerKeys, useFocusRegistry, type FocusSnapshot} from '../kit/focus';
 import {tvFocusIds, sameDestination} from './tv-focus';
 import {HomeScreen} from '../screens/home/HomeScreen';
 import {canYieldTVHomeMenu, homeStartModel, resolveTVHomeStart} from '../screens/home/home-start';
@@ -100,13 +100,15 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   useEffect(() => () => layers?.dispose(), [layers]);
   const navigationPort = runtime.navigation;
   const routeLayerKeys = useSyncExternalStore(navigationPort?.subscribe ?? noStacks, () => tvRouteLayerKeys(navigationPort), () => '[]');
+  // A full-screen state drawn beside the shell (a refused content link) covers everything while present.
+  const presentedLayerKeys = useSyncExternalStore(tvPresentedLayers?.subscribe ?? noStacks, () => tvPresentedLayers?.getSnapshot() ?? '[]', () => '[]');
   const layerSpecs = useMemo(() => {
     if (!theme.isTV) return [];
     const routes = JSON.parse(routeLayerKeys) as string[];
     // A runtime without the Back stack still says whether a route covers the page.
     if (!routes.length && snapshot.contentVisible === false) routes.push('route:current');
-    return tvLayerSpecs(routes, snapshot.mediaExpanded === true, tvListeningPresent, () => baseLayer.current, () => routeLayer.current);
-  }, [routeLayerKeys, snapshot.contentVisible, snapshot.mediaExpanded, theme.isTV, tvListeningPresent]);
+    return tvLayerSpecs(routes, snapshot.mediaExpanded === true, tvListeningPresent, () => baseLayer.current, () => routeLayer.current, JSON.parse(presentedLayerKeys) as string[]);
+  }, [routeLayerKeys, presentedLayerKeys, snapshot.contentVisible, snapshot.mediaExpanded, theme.isTV, tvListeningPresent]);
   const topLayer = layerSpecs.at(-1)?.key;
   useLayoutEffect(() => {if (!runtime.retirementSignal?.aborted) layers?.sync(layerSpecs);}, [layers, layerSpecs, runtime]);
   useEffect(() => () => {railRelease.current?.();}, []);
