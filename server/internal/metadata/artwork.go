@@ -122,6 +122,32 @@ func (s *Service) EntityArtworkVariant(ctx context.Context, t RepairTarget, role
 	if !validArtworkRole(role) || len(subject) > 160 {
 		return nil, "", ErrRepairInput
 	}
+	return s.withArtworkSnapshot(ctx, func(ctx context.Context) (*os.File, string, error) {
+		return s.entityArtworkVariant(ctx, t, role, subject, size, version)
+	})
+}
+
+// Artwork uses the common snapshot admission and the request's reusable view.
+// A burst waits before its snapshot lifetime starts, rather than opening every
+// cold pool connection under an already-running snapshot deadline.
+func (s *Service) withArtworkSnapshot(ctx context.Context, read func(context.Context) (*os.File, string, error)) (*os.File, string, error) {
+	var file *os.File
+	var mime string
+	err := dbwork.WithReadSnapshot(ctx, s.db, func(ctx context.Context) error {
+		var err error
+		file, mime, err = read(ctx)
+		return err
+	})
+	if err != nil {
+		if file != nil {
+			file.Close()
+		}
+		return nil, "", err
+	}
+	return file, mime, nil
+}
+
+func (s *Service) entityArtworkVariant(ctx context.Context, t RepairTarget, role, subject string, size ArtworkSize, version string) (*os.File, string, error) {
 	gated, err := dbwork.BeginSnapshot(ctx, s.db)
 	if err != nil {
 		return nil, "", err

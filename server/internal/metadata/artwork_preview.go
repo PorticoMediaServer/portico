@@ -41,6 +41,12 @@ func (s *Service) PreviewArtwork(ctx context.Context, t RepairTarget, candidate 
 	if size != ArtworkSmall && size != ArtworkLarge {
 		return nil, "", ErrRepairInput
 	}
+	return s.withArtworkSnapshot(ctx, func(ctx context.Context) (*os.File, string, error) {
+		return s.previewArtwork(ctx, t, candidate, size)
+	})
+}
+
+func (s *Service) previewArtwork(ctx context.Context, t RepairTarget, candidate string, size ArtworkSize) (*os.File, string, error) {
 	gated, err := dbwork.BeginSnapshot(ctx, s.db)
 	if err != nil {
 		return nil, "", err
