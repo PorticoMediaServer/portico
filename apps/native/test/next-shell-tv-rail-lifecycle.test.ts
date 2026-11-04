@@ -92,7 +92,7 @@ test(`${adapter}: the real TV shell retains its page opener and retires Menu bef
     '../kit/shell': {AccountMenu: 'AccountMenu'}, '../kit/browse': {}, '../kit/shell/brand': {headerWordmark}, '../kit/theme': {useTheme: () => theme}, '../kit/useMotion': {useMotion: () => motion},
     '../kit/focus': {...layerStack, CoveredLayer: 'CoveredLayer', useFocusRegistry: () => registry, requestNativeFocus: () => {requests.push('layer-claim'); return true;}}, './tv-focus': focusModel, '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'}, './model': shellModel,
     './PhoneTabBar': {}, './MediumRail': {MediumRail: 'MediumRail'}, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}}, './PhoneHomeHeader': {}, './TVRail': {TVRail: 'TVRail'}, './TVProfileMenu': {TVProfileMenu: 'ProfileMenu'},
-    './NativePlaybackLayer': {NativePlaybackLayer: 'PlaybackLayer'}, './DesktopHeader': {},
+    './UnreachableLine': {ShellUnreachableLine: () => null}, './NativePlaybackLayer': {NativePlaybackLayer: 'PlaybackLayer'}, './DesktopHeader': {},
   });
   const frames = new Map<number, FrameRequestCallback>(); let sequence = 0;
   const previousFrame = globalThis.requestAnimationFrame, previousCancel = globalThis.cancelAnimationFrame;
