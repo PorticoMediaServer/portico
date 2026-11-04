@@ -5,6 +5,7 @@ import * as serverClock from '../../../../packages/client-core/src/server-clock.
 import * as failureWords from '../../src-next/screens/watch/failure-words.ts';
 import * as tvPlayPause from '../../src-next/platform/tv-play-pause.ts';
 import * as shellFreshness from '../../src-next/shell/freshness.ts';
+import {replacementRefocusHook} from '../../src-next/kit/focus/replacement-refocus-hook.ts';
 
 // Pure leaves a screen gets for real (or as a faithful double) unless a fixture supplies its own.
 // - The server clock has no platform dependency: the real module, whether a screen imports it by
@@ -19,6 +20,8 @@ import * as shellFreshness from '../../src-next/shell/freshness.ts';
 //   is the fixture's own window less it, so a screen sized from a fixture window keeps that size (N2-3).
 // - The covered-screen layer (kit/focus/CoveredLayer) behaves as on touch: a View hidden from
 //   touches and screen readers while covered.
+// - The replacement refocus hook (kit/focus/replacement-refocus) is the real one over the fixture's own React: a
+//   component that keeps focus in a replaced row (Row, the TV search grid) needs no entry in a hand-built map.
 const pageInsets = new WeakMap();
 function pageInsetLeaf(react, native) {
   // The fake `hooks()` React has no context: its provider is a named element and the inset reads zero.
@@ -38,6 +41,7 @@ const leaf = (source, react, native) => /(^|\/)server-clock(\.ts)?$/.test(source
   // The shell's cache accessor (shell/freshness) is pure: a screen built over a fixture's own API reads through a cache of that API.
   : /(^|\/)shell\/freshness$|^\.\/freshness$/.test(source) ? shellFreshness
   : /(^|\/)kit\/layout\/page-inset$/.test(source) ? pageInsetLeaf(react, native)
+  : /(^|\/)focus\/replacement-refocus$/.test(source) ? {useReplacementRefocus: replacementRefocusHook(react)}
   : /(^|\/)kit\/focus\/CoveredLayer$/.test(source) ? {CoveredLayer: ({covered, children, style, testID}) => react.createElement('View',
     {style, testID, pointerEvents: covered ? 'none' : 'auto', accessibilityElementsHidden: covered, importantForAccessibility: covered ? 'no-hide-descendants' : 'auto'}, children)}
   // The one Back dispatcher (kit/navigation/back) forwards to the fixture's own BackHandler, gated by `active`, so a

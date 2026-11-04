@@ -252,13 +252,49 @@ func TestDeliveryIsSignedRetriedAndLogged(t *testing.T) {
 		dispatcher.Step(ctx)
 		clock = clock.Add(5 * time.Hour)
 	}
-	log, err = store.Deliveries(ctx, nil, made.Webhook.ID, "", 1)
-	if err != nil || len(log.Items) != 1 || log.Items[0].State != "failed" || log.Items[0].Attempts != len(retryDelays)+1 || log.Items[0].Error != "redirect_not_followed" || log.NextCursor == "" {
-		t.Fatalf("given up: %v %+v", err, log)
+	// The fan-out trigger uses wall-clock milliseconds, so separate events
+	// can share a timestamp even though retries use the test clock. Exercise
+	// that case explicitly instead of relying on this machine's speed.
+	if _, err = db.Exec(`UPDATE webhook_deliveries SET created_ms=? WHERE webhook_id=?`, clock.UnixMilli(), made.Webhook.ID); err != nil {
+		t.Fatal(err)
 	}
-	more, err := store.Deliveries(ctx, nil, made.Webhook.ID, log.NextCursor, 1)
-	if err != nil || len(more.Items) != 1 || more.Items[0].ID == log.Items[0].ID {
-		t.Fatalf("second page of the log: %v %+v", err, more)
+	// With tied timestamps the log sorts by id, not insertion order. Verify
+	// the exhausted delivery by its signed event id, wherever it appears.
+	redirectID := target.last().header.Get(HeaderEventID)
+	all, err := store.Deliveries(ctx, nil, made.Webhook.ID, "", 0)
+	if err != nil || len(all.Items) != 3 {
+		t.Fatalf("complete log: %v %+v", err, all)
+	}
+	var exhausted *Delivery
+	for i := range all.Items {
+		if all.Items[i].ID == redirectID {
+			exhausted = &all.Items[i]
+		}
+	}
+	if exhausted == nil || exhausted.State != "failed" || exhausted.Attempts != len(retryDelays)+1 || exhausted.Error != "redirect_not_followed" {
+		t.Fatalf("given up: %+v", exhausted)
+	}
+	// Every tied row must appear once across one-item cursor pages, in the
+	// promised descending-id tie order; none may be skipped or repeated.
+	seen := map[string]bool{}
+	cursor, previous := "", ""
+	for {
+		log, err = store.Deliveries(ctx, nil, made.Webhook.ID, cursor, 1)
+		if err != nil || len(log.Items) != 1 {
+			t.Fatalf("log page: %v %+v", err, log)
+		}
+		id := log.Items[0].ID
+		if seen[id] || previous != "" && id >= previous {
+			t.Fatalf("tied log row repeated or out of order: %s after %s", id, previous)
+		}
+		seen[id], previous = true, id
+		if log.NextCursor == "" {
+			break
+		}
+		cursor = log.NextCursor
+	}
+	if len(seen) != len(all.Items) {
+		t.Fatalf("cursor pages covered %d deliveries, want %d", len(seen), len(all.Items))
 	}
 	if _, err = store.Deliveries(ctx, nil, made.Webhook.ID, "not-a-cursor", 1); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("forged cursor: %v", err)

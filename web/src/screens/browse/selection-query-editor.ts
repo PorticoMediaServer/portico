@@ -26,8 +26,8 @@ export function createQuerySelectionEditor(options: SelectionEditorOptions) {
       if (target.mode !== 'query' || target.summary.types.length !== 1 || target.summary.unavailableActions?.metadataPreview || !target.summary.every.edit) throw new Error('query-editor-unavailable');
       const query = selectionQuerySelector(target); if (!query.ok) throw new Error('query-editor-refined');
       const preview = await fetchBulkMetadataPreview(api, {selector: query.selector, expected: query.expected}, serverId, signal, {isCurrent: options.isCurrent}); check();
-      if (editingFence !== undefined && preview.viewerFence !== editingFence) throw new Error('metadata-authority-changed');
       if (preview.total !== target.total || preview.contentKind !== target.summary.types[0].kind) throw new Error('metadata-preview-mismatch');
+      // A preview under a moved fence is the newer answer (step 7); only the newest preview can start the job (save).
       editingFence = preview.viewerFence;
       grants.set(preview, operation); return preview;
     },

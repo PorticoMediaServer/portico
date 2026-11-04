@@ -30,7 +30,7 @@ async function scene(platform: 'android' | 'tvos') {
     './row-state': rowState, '../focus/page-boundary': {useRowPageBoundary() {}},
     './FocusAnchor': {useFocusAnchor: () => ({anchor() {}, repeating: false, offset: {value: 0}, scrollRef: {current: null}, stop() {}, move() {}})},
     './model': layoutModel, './MotionItem': {MotionItem: ({style, children}: any) => e(native.View, {style}, children)}, './types': layoutTypes, './TVRow': {TVRow}});
-  const {useReplacementRefocus} = await screenModule(new URL('../src-next/kit/focus/replacement-refocus.ts', import.meta.url), {react, './CoveredLayer': focus});
+  const {replacementRefocusHook} = await import('../src-next/kit/focus/replacement-refocus-hook.ts'), useReplacementRefocus = replacementRefocusHook(react as never);
   const registry = focus.createFocusRegistry();
   const requests: {regionId: string; childId: string}[] = [], focusOf = registry.focus;
   registry.focus = ((address: {regionId: string; childId: string}, options?: unknown) => {requests.push({...address}); return focusOf(address, options as never);}) as typeof registry.focus;
@@ -39,15 +39,15 @@ async function scene(platform: 'android' | 'tvos') {
   const SearchRow = ({ids, refocus}: {ids: readonly string[]; refocus?: {focusId: string; serial: number}}) => e(row.Row, {title: '', showHeading: false, items: ids, getKey: (id: string) => id,
     itemWidth: 196, itemHeight: 290, gap: 28, selection: unselected, initialViewportWidth: 1920, focus: {id: 'search.movies', edges: {up: 'search.keyboard'}}, refocus,
     renderItem: (id: string, slot: any) => e(Focusable, {testID: id, focusId: slot.focusId, onFocus: slot.onFocus, onBlur: slot.onBlur, style: {width: 196, height: 290}}, () => null)});
-  const SongsGrid = ({ids, refocus, targeted}: {ids: readonly string[]; refocus?: {focusId: string; serial: number}; targeted: boolean}) => {
-    useReplacementRefocus(registry, 'search.songs', targeted ? refocus : undefined, ids);
-    return e(focus.FocusRegion, {id: 'search.songs', orientation: 'free', grid: {columns: 1, count: ids.length}, entry: ids[0], edges: {up: 'search.keyboard'}, style: {width: 900}},
+  const SongsGrid = ({ids, refocus, targeted, regionId = 'search.songs'}: {ids: readonly string[]; refocus?: {focusId: string; serial: number}; targeted: boolean; regionId?: string}) => {
+    useReplacementRefocus(registry, regionId, targeted ? refocus : undefined, focus.useCovered(), (id: string) => !ids.includes(id));
+    return e(focus.FocusRegion, {id: regionId, orientation: 'free', grid: {columns: 1, count: ids.length}, entry: ids[0], edges: {up: 'search.keyboard'}, style: {width: 900}},
       ids.map((id, index) => e(focus.FocusItem, {key: id, focusId: id, cell: {index}}, e(Stop, {id, w: 900, h: 84}))));
   };
-  const Scene = ({kind, ids, refocus, targeted = true, covered = false}: {kind: 'row' | 'grid'; ids: readonly string[]; refocus?: {focusId: string; serial: number}; targeted?: boolean; covered?: boolean}) =>
+  const Scene = ({kind, ids, refocus, targeted = true, covered = false, regionId}: {kind: 'row' | 'grid'; ids: readonly string[]; refocus?: {focusId: string; serial: number}; targeted?: boolean; covered?: boolean; regionId?: string}) =>
     e(focus.FocusProvider, {registry}, e(native.View, {style: {flex: 1}},
       e(focus.FocusRegion, {id: 'search.keyboard', orientation: 'horizontal', style: {height: 120}}, e(Stop, {id: 'keyboard', w: 240, h: 80})),
-      e(focus.CoveredLayer, {covered}, kind === 'row' ? e(SearchRow, {ids, refocus: targeted ? refocus : undefined}) : e(SongsGrid, {ids, refocus, targeted}))));
+      e(focus.CoveredLayer, {covered}, kind === 'row' ? e(SearchRow, {ids, refocus: targeted ? refocus : undefined}) : e(SongsGrid, {ids, refocus, targeted, regionId}))));
   return {engine, e, Scene, requests};
 }
 
@@ -94,4 +94,36 @@ for (const platform of ['android', 'tvos'] as const) for (const [kind, regionId]
 for (const platform of ['android', 'tvos'] as const) test(`${platform} grid: without the target, focus is wherever recovery puts it, not the named entry`, async () => {
   const result = await replaced(platform, 'grid', 'e1', ['e9', 'e2', 'e3'], 'e3', {targeted: false});
   assert.deepEqual(result.requests, []); assert.notEqual(result.focused, 'e3');
+});
+
+// Once per serial (lead, 5 Nov): a replacement's request is decided once. A later change of the region's id (the effect
+// running again with the same serial) does not ask again.
+for (const platform of ['android', 'tvos'] as const) test(`${platform} grid: a region id change after the request does not ask again for the same replacement`, async () => {
+  const s = await scene(platform);
+  try {
+    await s.engine.render(s.e(s.Scene, {kind: 'grid', ids: ['e1', 'e2', 'e3']}));
+    await s.engine.focus('e1');
+    await s.engine.render(s.e(s.Scene, {kind: 'grid', ids: ['e9', 'e2', 'e3'], refocus: {focusId: 'e3', serial: 1}}));
+    await s.engine.settle(); await tick(); await s.engine.settle();
+    assert.deepEqual(s.requests, [{regionId: 'search.songs', childId: 'e3'}]);
+    await s.engine.render(s.e(s.Scene, {kind: 'grid', ids: ['e9', 'e2', 'e3'], refocus: {focusId: 'e3', serial: 1}, regionId: 'search.songs-again'}));
+    await s.engine.settle(); await tick(); await s.engine.settle();
+    assert.deepEqual(s.requests, [{regionId: 'search.songs', childId: 'e3'}], 'one request for one replacement');
+  } finally {await s.engine.unmount();}
+});
+
+// #724 review probe: a replacement that commits while covered is decided then, and asks nothing; uncovering it, then the
+// person moving focus, then a change of the region's id, never asks for it later.
+for (const platform of ['android', 'tvos'] as const) test(`${platform} grid: a replacement committed while covered asks nothing, even after uncover and a region change`, async () => {
+  const s = await scene(platform);
+  try {
+    await s.engine.render(s.e(s.Scene, {kind: 'grid', ids: ['e1', 'e2', 'e3']}));
+    await s.engine.focus('e1');
+    const replaced = {kind: 'grid' as const, ids: ['e9', 'e2', 'e3'], refocus: {focusId: 'e3', serial: 1}};
+    await s.engine.render(s.e(s.Scene, {...replaced, covered: true})); await s.engine.settle(); await tick();
+    await s.engine.render(s.e(s.Scene, {...replaced, covered: false})); await s.engine.settle(); await tick();
+    await s.engine.focus('keyboard');
+    await s.engine.render(s.e(s.Scene, {...replaced, regionId: 'search.songs-again'})); await s.engine.settle(); await tick(); await s.engine.settle();
+    assert.deepEqual(s.requests, []); assert.equal(s.engine.focused, 'keyboard');
+  } finally {await s.engine.unmount();}
 });

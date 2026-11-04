@@ -370,7 +370,7 @@ function Boundary({context, view, routeCurrent, onView, onGuide}: {context: Scre
           : view === 'history' ? <HistoryView snapshot={snapshot} now={now} controller={lease.controller}/>
             : <StorageView snapshot={snapshot} tuners={lease.tuners}/>;
   return <RecordingsLayout key={lease.id} title={t('next.home.shell.live')} sourceLabel={t('channels.source')} allChannels={t('channels.all')}
-    sourceName={context.identity?.serverName ?? ''} navigation={undefined}>
+    sourceName={context.identity?.serverName ?? ''} navigation={undefined} back={{label: t('next.home.shell.live'), title: t('recordings.title'), onBack: goGuide}}>
     <LiveRecordingTabs view="recordings" conflicts={summary?.conflicts} onChange={value => {if (value === 'guide') goGuide();}}/>
     <div className={styles.recordingsBar}>
       <div className={styles.recordingsChips} role="group" aria-label={t('recordings.title')}>

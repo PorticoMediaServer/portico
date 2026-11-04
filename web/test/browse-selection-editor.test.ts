@@ -56,3 +56,29 @@ test('a save sends the direct bulk edit for the previewed targets and returns pe
   assert.deepEqual(body.lists, {});
   assert.equal(body.lockEdited, true);
 });
+
+// Step 7: the editor's Try again could never succeed after the viewer's access was decided again. The first preview's
+// fence was remembered and every later preview under another one was refused (metadata-authority-changed) for as long as
+// the editor lived. A preview read under a moved fence is the newer answer. Saving stays gated on the latest preview's
+// fence: a save from an older preview is refused before anything is sent.
+test('step 7: Try again after an access change previews under the moved fence, and only the newest preview can save', async () => {
+  let fence = 'a'.repeat(64); const sent: unknown[] = [];
+  const api = {request: async (path: string, _method?: string, body?: unknown) => {
+    if (path.includes('preview')) return {...preview, viewerFence: fence};
+    sent.push(body);
+    const edit = body as {operationId: string; targets: {kind: string; id: string}[]};
+    return {operationId: edit.operationId, results: edit.targets.map(target => ({kind: target.kind, id: target.id, ok: true, revision: 'c'.repeat(64)})), updated: edit.targets.length, failed: 0};
+  }};
+  const editor = createSelectionEditor({api: api as never, events: {on: () => () => {}}, requestId: async () => 'operation-1', isCurrent: () => true, serverId: 'server'});
+  const operation = {target: explicit} as never;
+  const older = await editor.preview(operation);
+  fence = 'e'.repeat(64);
+  const newer = await editor.preview(operation);
+  assert.equal(newer.viewerFence, 'e'.repeat(64), 'the preview under the moved fence is shown');
+  // The older preview's grant was issued under the fence that moved: its save is refused, and nothing is sent.
+  await assert.rejects(editor.save(operation, older, {fields: {contentRating: 'G'}, lists: {}, lockEdited: true}),
+    (error: unknown) => error instanceof SelectionEditorError && error.code === 'metadata-preview-not-current');
+  assert.equal(sent.length, 0);
+  const receipts = await editor.save(operation, newer, {fields: {contentRating: 'G'}, lists: {}, lockEdited: true});
+  assert.equal(receipts[0]?.updated, 1); assert.equal(sent.length, 1);
+});

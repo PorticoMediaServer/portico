@@ -60,18 +60,21 @@ async function scene(platform: 'android' | 'tvos') {
   return {engine, e, Scene, requests};
 }
 
-/** Credits 0–5 shown (two pages), focus on `start`; a re-read brings a new first page, arriving one render later. */
-async function replaced(platform: 'android' | 'tvos', start: string, targeted = true) {
+/** Credits 0–5 shown (two pages), focus on `start`; a re-read brings a new first page. The new window seeds that page
+ * (credit-window.ts `initialPage`), so it is there on the replacement's first render. `during` runs while the re-read is
+ * in flight (the old row still shown); the log is every focus move from the replacement on. */
+async function replaced(platform: 'android' | 'tvos', start: string, targeted = true, during?: (s: Awaited<ReturnType<typeof scene>>) => Promise<void>) {
   const s = await scene(platform), before = personPage('old'), after = personPage('moved');
   try {
     await s.engine.render(s.e(s.Scene, {page: before, loaded: 6, targeted}));
     await s.engine.focus(`credit-${start}`);
-    // The new window: nothing has arrived on its first render; its first page arrives on the next.
-    await s.engine.render(s.e(s.Scene, {page: after, loaded: 0, targeted}));
-    await s.engine.settle(); await tick(); await s.engine.settle();
+    await during?.(s);
+    const from = s.engine.log.length;
     await s.engine.render(s.e(s.Scene, {page: after, loaded: 3, targeted}));
     await s.engine.settle(); await tick(); await s.engine.settle();
-    return {focused: s.engine.focused, requests: s.requests};
+    // Later renders of the same replacement ask nothing more.
+    await s.engine.render(s.e(s.Scene, {page: after, loaded: 3, targeted})); await s.engine.settle(); await tick();
+    return {focused: s.engine.focused, requests: s.requests, moves: s.engine.log.slice(from), tag: (id: string) => s.engine.tag(id)};
   } finally {await s.engine.unmount();}
 }
 
@@ -82,16 +85,24 @@ for (const platform of ['android', 'tvos'] as const) {
     assert.equal(result.focused, 'credit-2');
   });
 
-  test(`${platform}: a person's credits read again keep focus on the same credit when the new first page holds it`, async () => {
+  test(`${platform}: a person's credits read again keep focus on the same credit when the new first page holds it, and focus never leaves it`, async () => {
     const result = await replaced(platform, '1');
-    assert.deepEqual(result.requests, [{regionId: 'person.credits', childId: '1'}]);
-    assert.equal(result.focused, 'credit-1');
+    assert.deepEqual(result.requests, [], 'the seeded card is still there: nothing to ask');
+    assert.equal(result.focused, 'credit-1'); assert.deepEqual(result.moves, [], 'focus did not move at all');
   });
 
-  test(`${platform}: without the shelf's target, focus leaves the credits when the focused card goes`, async () => {
+  test(`${platform}: a keypress during the re-read wins, and focus never leaves the row`, async () => {
+    // Focus on credit 0; while the re-read is in flight the person presses Right, to credit 1.
+    const result = await replaced(platform, '0', true, async s => {await s.engine.press('right'); assert.equal(s.engine.focused, 'credit-1');});
+    assert.equal(result.focused, 'credit-1', 'focus is where the person moved it');
+    assert.deepEqual(result.requests, []); assert.deepEqual(result.moves, []);
+  });
+
+  test(`${platform}: without the shelf's target, nothing is asked and focus is wherever the registry's own recovery puts it`, async () => {
+    // With the first page seeded, the registry walks back from the removed credit 4 to the nearest attached one (2). The
+    // target names the same credit here; it is the row's own word, whatever the platform or that recovery would choose.
     const result = await replaced(platform, '4', false);
-    assert.deepEqual(result.requests, []);
-    assert.ok(!String(result.focused).startsWith('credit-'), `focus is at ${result.focused}, out of the row`);
+    assert.deepEqual(result.requests, []); assert.equal(result.focused, 'credit-2');
   });
 }
 
@@ -104,8 +115,6 @@ async function noFire(platform: 'android' | 'tvos', mode: 'not-held' | 'covered'
   try {
     await s.engine.render(s.e(s.Scene, {page: before, loaded: 6}));
     await s.engine.focus(mode === 'not-held' ? 'filters' : 'credit-4');
-    await s.engine.render(s.e(s.Scene, {page: after, loaded: 0, covered: mode === 'covered'}));
-    await s.engine.settle(); await tick();
     const hold = mode === 'unmounted' || mode === 'control';
     if (hold) globalThis.queueMicrotask = callback => {held.push(callback);};
     try {await s.engine.render(s.e(s.Scene, {page: after, loaded: 3, covered: mode === 'covered'}));}
@@ -133,3 +142,19 @@ for (const platform of ['android', 'tvos'] as const) {
     assert.ok(result.held > 0); assert.deepEqual(result.requests, []);
   });
 }
+
+// Decided when the replacement commits: a target that can take focus only later (a window that did not seed its first
+// page) is never asked for then, so focus is never taken from where the person has since put it.
+for (const platform of ['android', 'tvos'] as const) test(`${platform}: a target that arrives after the replacement is never asked for, and focus stays where the person put it`, async () => {
+  const s = await scene(platform), before = personPage('old'), after = personPage('moved');
+  try {
+    await s.engine.render(s.e(s.Scene, {page: before, loaded: 6}));
+    await s.engine.focus('credit-4');
+    // Unseeded: nothing of the new first page on the replacement's render; focus leaves the row.
+    await s.engine.render(s.e(s.Scene, {page: after, loaded: 0})); await s.engine.settle(); await tick();
+    // The person moves focus themself, then the first page arrives.
+    await s.engine.focus('filters');
+    await s.engine.render(s.e(s.Scene, {page: after, loaded: 3})); await s.engine.settle(); await tick(); await s.engine.settle();
+    assert.deepEqual(s.requests, []); assert.equal(s.engine.focused, 'filters');
+  } finally {await s.engine.unmount();}
+});
