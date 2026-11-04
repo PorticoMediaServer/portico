@@ -5,6 +5,7 @@ export const liveMessages = {
   'next.live.guideThrough': 'Guide through {day}',
   'next.live.favoritesFirst': 'Favorites first',
   'next.live.conflicts': '{count, plural, one {# conflict} other {# conflicts}}',
+  'next.live.recordingsConflicts': '{count, plural, one {Recordings, a conflict needs a look} other {Recordings, # conflicts need a look}}',
   'next.live.upcomingCount': '{count, plural, one {# upcoming} other {# upcoming}}',
   'next.live.matchCount': '{count, plural, one {# upcoming airing matches} other {# upcoming airings match}}',
   'next.live.recordedCount': '{count} recorded so far',
