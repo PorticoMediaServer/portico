@@ -10,6 +10,7 @@ import {mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {join, resolve} from 'node:path';
 import {parseArgs} from 'node:util';
 import {randomUUID} from 'node:crypto';
+import {execFileSync} from 'node:child_process';
 import {encodedRoutePath, routePath} from '../../packages/contracts/src/route-paths.ts';
 import {scrub} from './scrub.mjs';
 
@@ -24,12 +25,13 @@ if (!password) throw new Error('no password in the password file');
 rmSync(out, {recursive: true, force: true});
 mkdirSync(out, {recursive: true});
 let token = '';
+const installationId = randomUUID();
 const notes = [];
 const enc = encodeURIComponent;
 
 async function call(method, path, body, headers = {}) {
   const res = await fetch(base + path, {
-    method, headers: {...(body !== undefined ? {'content-type': 'application/json'} : {}), ...(token ? {authorization: `Bearer ${token}`} : {}), ...headers},
+    method, headers: {'X-Portico-Installation-Id': installationId, 'X-Portico-Device-Name': 'Compatibility corpus', 'X-Portico-Device-Platform': 'script', ...(body !== undefined ? {'content-type': 'application/json'} : {}), ...(token ? {authorization: `Bearer ${token}`} : {}), ...headers},
     body: body !== undefined ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(30000),
   });
   const text = await res.text();
@@ -128,7 +130,14 @@ if (queueId) await record('queue-window', 'GET', `${encodedRoutePath('get_queue_
 else notes.push(`queue create answered ${created.status}; no queue window recorded`);
 
 await record('events', 'GET', `${routePath('get_events')}?waitMs=0`);
+await record('invalid-event-continuation', 'GET', `${routePath('get_events')}?after=invalid&waitMs=0`);
+if (queueId) {
+  const path = encodedRoutePath('update_queue', {id: enc(queueId)});
+  await record('mutation-missing-revision', 'PATCH', path, {repeat: 'off'}, {'Idempotency-Key': randomUUID()});
+  await record('mutation-stale-revision', 'PATCH', path, {repeat: 'off'}, {'If-Match': '"0"', 'Idempotency-Key': randomUUID()});
+}
 
-writeFileSync(join(out, 'manifest.json'), JSON.stringify({recordedFrom: {version: system.json?.version ?? null, apiLevel: system.json?.apiLevel ?? null}, library: {id: library.id, kind: library.kind}, itemId, notes}, null, 2) + '\n');
+
+writeFileSync(join(out, 'manifest.json'), JSON.stringify({recordedFrom: {sourceRevision: execFileSync('git', ['rev-parse', 'HEAD'], {encoding: 'utf8'}).trim(), version: system.json?.version ?? null, apiLevel: system.json?.apiLevel ?? null}, library: {id: library.id, kind: library.kind}, itemId, notes}, null, 2) + '\n');
 console.log(notes.length ? `notes: ${notes.join('; ')}` : 'done');
 void home; void capabilities;

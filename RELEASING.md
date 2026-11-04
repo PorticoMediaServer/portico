@@ -85,3 +85,16 @@ These signatures are separate from Windows Authenticode, Apple notarization and 
 The Docker build uses the same pinned FFmpeg build. It fetches npm and Go dependencies, copies in the bundled subtitle files and installs the runtime packages listed in the `Dockerfile`. The full inventory is in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 Passing the release tests doesn't prove a build works on physical Apple or Android devices, or with a particular GPU.
+
+
+## API compatibility evidence
+
+Before the first stable 1.0 tag, complete the [release corpus procedure](scripts/compat-corpus/README.md)
+and [actual-tool qualification matrix](docs/integration-qualification.md). Freeze
+the reviewed producer schema/corpus with its exact client parser pin. Later
+releases must pass both released-parser/current-producer and
+current-parser/released-producer directions, including error/precondition,
+continuation/resync, offline receipt and Cast projection coverage. Current
+contract regeneration and synthetic unknown-field tests alone are insufficient.
+No 1.0 compatibility baseline or qualified smaller automation vocabulary exists
+yet; do not label development recordings or source research as release acceptance.

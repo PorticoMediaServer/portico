@@ -1,0 +1,18 @@
+{
+  "request": {
+    "method": "PATCH",
+    "path": "/v1/queues/q_wjDuclY-933K4hsZip7a",
+    "body": {
+      "repeat": "off"
+    }
+  },
+  "status": 428,
+  "body": {
+    "error": {
+      "code": "revision_required",
+      "message": "Refresh before making this change.",
+      "retry": "after_refresh",
+      "requestId": "90e28b9a248fd52fea7b36d7abdab1b8"
+    }
+  }
+}

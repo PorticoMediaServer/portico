@@ -1,34 +1,35 @@
 {
   "request": {
     "method": "GET",
-    "path": "/v1/items/MKTg1OVAPuefVNdiOObFwQ/file-info/groups?opening=<scrubbed>&limit=50"
+    "path": "/v1/items/bAZQAVzHDCxwaoVCUU3pKw/file-info/groups?opening=<scrubbed>&limit=50"
   },
   "status": 200,
   "body": {
+    "variant": "groups",
     "scope": {
-      "serverId": "srv_7sWWdcN9umujBzM2AlDkD--4cuPxXxauxkI6fcBZgm8",
-      "libraryId": "mwfyVGEodaDR-41WZWE9CxfZmjta0r9qK5znWd0L0vY",
-      "itemId": "MKTg1OVAPuefVNdiOObFwQ",
-      "viewerFence": "s_9H2BRgx9fji61xhlWG3nTVXO_nG2nvpKi4fUVQKbo"
+      "serverId": "srv_57MkdGEKGCnAB9a66c0O9-xdsk5s1sPnT4_SjF9LMLs",
+      "libraryId": "9a3IebhQ3xWM26Tz6APnX1ZvD6OEujVYDgoqIQKYm8I",
+      "itemId": "bAZQAVzHDCxwaoVCUU3pKw",
+      "viewerFence": "NAxiY9Ch_55VB5hyWWm0MC7NSiCtCRazfFgBJNn4gDI"
     },
     "detail": {
       "scope": {
-        "serverId": "srv_7sWWdcN9umujBzM2AlDkD--4cuPxXxauxkI6fcBZgm8",
-        "libraryId": "mwfyVGEodaDR-41WZWE9CxfZmjta0r9qK5znWd0L0vY",
-        "itemId": "MKTg1OVAPuefVNdiOObFwQ",
-        "viewerFence": "8831511cf2cef880db84da4b677c9ae41c91147d35d6d4222c39799ecf56e9aa"
+        "serverId": "srv_57MkdGEKGCnAB9a66c0O9-xdsk5s1sPnT4_SjF9LMLs",
+        "libraryId": "9a3IebhQ3xWM26Tz6APnX1ZvD6OEujVYDgoqIQKYm8I",
+        "itemId": "bAZQAVzHDCxwaoVCUU3pKw",
+        "viewerFence": "3a1882fd7c431caeb603cde4d1d79e55a8468656188c5c214623a4aa56a5a9ac"
       },
       "revision": {
-        "catalog": 444,
+        "catalog": 106,
         "viewer": 0
       }
     },
-    "basis": "pSHsD66KeoXrbHyX6QJNqiXzefkQupVObqG6U99-RPU",
+    "basis": "sgUDsow4pzBxxyadrTkOI5f6rX4VI4oOYQh0jpL1uTg",
     "window": {
-      "queryId": "AgAAAAAAAAAFAAAAAAAAAAFN-25Jx2J5YEiDCFILH_0BAAAAAAAAAAoAAAAAAAABvAAAAAAAAAAAGOL3vq8TQAAwpODU5UA-559U12I45sXB-DLXhmDTl_3awMcrjyy2m-3nIk4R-pb-at87OtY9QPQAAAAAAAAAAqVfyWs7L8BltPU6Qn5dNJk.AQYBGOL3vq8TQABV64uJ4-pM7H6C4Skzo_rRzyuMm3FTPvCXFPJXrFK4D6Uh7A-uinqF62x8l-kCTaol83n5ELqVTm6hulPffkT1AAAAAAAAAAUAAAAAAAAAAAAAAAAAAAAApbNViH5c402jn5vTD4waKQ",
+      "queryId": "AgAAAAAAAAABAAAAAAAAAAGRQYkXSCLg9IpuxKal8DkfAAAAAAAAAAoAAAAAAAAAagAAAAAAAAAAGOT7baipsABsBlABXMcMLHBqhUJRTekr5Ur0B6IFOpBG8CII-mZ_CKcvLmkYkdOHVMOMlExNhQEAAAAAAAAAAv_7it97rG5brAh_HFJVnq8.AQYBGOT7baipsADVtTXyVu01vOOyhHACPizocnja5iu8zULmJ703REG1FLIFA7KMOKcwcccmna05DiOX-q1-FSOKDmEIdI6S9bk4AAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAUxsw_Ak4Cfr1TeIqyJqRTQ",
       "limit": 50,
       "returned": 1,
-      "reloadCursor": "AQYDGOL3vq8TQABV64uJ4-pM7H6C4Skzo_rRzyuMm3FTPvCXFPJXrFK4D6Uh7A-uinqF62x8l-kCTaol83n5ELqVTm6hulPffkT1AAAAAAAAAAMAAAAAAAAAAwAAAAAAAAAAEhZTSh53MWp8Ar7iwrG6dg"
+      "reloadCursor": "AQYDGOT7baipsADVtTXyVu01vOOyhHACPizocnja5iu8zULmJ703REG1FLIFA7KMOKcwcccmna05DiOX-q1-FSOKDmEIdI6S9bk4AAAAAAAAAAEAAAAAAAAAAQAAAAAAAAAAgdL9UttBPxo3jQzAQ57bOA"
     },
     "kind": "file-info-groups",
     "surface": {
@@ -45,12 +46,12 @@
     },
     "groups": [
       {
-        "id": "AQEY4ve-rxNAAKUh7A-uinqF62x8l-kCTaol83n5ELqVTm6hulPffkT1AAAAAAAAAAVN-25Jx2J5YEiDCFILH_0BAAAAAAAAAAUAAAAAAAAAA037bknHYnlgSIMIUgsf_QHutGc8hz3yzT8Fwa0pYxbY7DiZelqca-d9asgXFyJ5rwAAAAAAAAADAAAAAAAAAAMAAAAAAAAAAgAAAAAAAAABAAAAAAAAAAEAAAAAAACBoQAAAAAAAAfQAYSxU9VS1dUW-i0CJBR2RiQ",
-        "headOccurrence": "AQAY4ve-rxNAAKUh7A-uinqF62x8l-kCTaol83n5ELqVTm6hulPffkT1AAAAAAAAAAVN-25Jx2J5YEiDCFILH_0BAAAAAAAAAAUAAAAAAAAAA037bknHYnlgSIMIUgsf_QHutGc8hz3yzT8Fwa0pYxbY7DiZelqca-d9asgXFyJ5rwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH_bKbF3H2R0ax3geIuMGB4",
+        "id": "AQEY5PttqKmwALIFA7KMOKcwcccmna05DiOX-q1-FSOKDmEIdI6S9bk4AAAAAAAAAAGRQYkXSCLg9IpuxKal8DkfAAAAAAAAAAEAAAAAAAAAAZFBiRdIIuD0im7EpqXwOR9_dlBYMPjalQc5VEd38TM6aeDhGUQ3GFt6Nhu6KpGT8AAAAAAAAAABAAAAAAAAAAEAAAAAAAAAAQAAAAAAAAABAAAAAAAAAAEAAAAAAACHOwAAAAAAAAfQAT3g0yjWbsr6XzU9bvNampA",
+        "headOccurrence": "AQAY5PttqKmwALIFA7KMOKcwcccmna05DiOX-q1-FSOKDmEIdI6S9bk4AAAAAAAAAAGRQYkXSCLg9IpuxKal8DkfAAAAAAAAAAEAAAAAAAAAAZFBiRdIIuD0im7EpqXwOR9_dlBYMPjalQc5VEd38TM6aeDhGUQ3GFt6Nhu6KpGT8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACBG_Mr7UebLJ6-YI1tQEE4",
         "ordinal": 1,
         "memberCount": 1,
-        "container": "mp3",
-        "sizeBytes": 33185,
+        "container": "flac",
+        "sizeBytes": 34619,
         "durationMs": 2000,
         "audioCount": 1,
         "subtitleCount": 0
