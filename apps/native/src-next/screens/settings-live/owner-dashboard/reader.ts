@@ -7,6 +7,7 @@ import {playbackControlsService} from '../../../../../../packages/client-core/sr
 import {sendSeekTo, sendTransport, type TransportCommand} from '../../../../../../packages/client-core/src/server-admin/now-playing';
 import {fixStatePermissions} from '../../../../../../packages/client-core/src/backups';
 import type {TelemetryReading} from '../../../../../../packages/client-core/src/telemetry';
+import type {UpdatesApi} from '../../../../../../packages/client-core/src/server-admin/updates-source';
 import type {NativeScreenLifetime} from '../lifetime';
 import type {NativeSettingsLivePorts} from '../ports';
 import type {OwnerHealthWindow, OwnerViewingPeriod} from './model';
@@ -27,6 +28,8 @@ export type NativeOwnerDashboardReader = Readonly<{
   transport(sessionId: string, command: TransportCommand): Promise<void>;
   move(sessionId: string, positionMs: number): Promise<void>;
   fixPermissions(operationId: string): Promise<void>;
+  /** The owner's release check (read and pressed check), on this lifetime. */
+  updates: UpdatesApi;
   dispose(): void;
 }>;
 
@@ -51,6 +54,7 @@ export function createNativeOwnerDashboardReader(lifetime: NativeScreenLifetime,
     transport: (sessionId: string, command: TransportCommand) => sendTransport(controls, sessionId, command).then(() => undefined),
     move: (sessionId: string, positionMs: number) => sendSeekTo(controls, sessionId, positionMs).then(() => undefined),
     fixPermissions: (operationId: string) => fixStatePermissions(api, authority.serverId, operationId, lifetime.signal),
+    updates: api,
     dispose: () => console_.dispose(),
   });
 }

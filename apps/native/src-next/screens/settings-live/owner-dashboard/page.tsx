@@ -13,6 +13,7 @@ import {ownerCompactWindow, ownerStreamTotals, ownerUsesCompactRows} from './mod
 import {OwnerAlertCard, OwnerCalm, OwnerJobGroup, OwnerJobRow, OwnerSection, OwnerSubheading} from './parts';
 import {OwnerHealthSection} from './health';
 import {OwnerStatisticsSection} from './statistics';
+import {OwnerUpdateCard, type OwnerUpdateView} from './update-card';
 import {OwnerCompactRows, OwnerNowPlayingHeader, OwnerShowAll, OwnerStreamCards, OwnerStreamTotals, type OwnerStreamEntry} from './streams';
 import {StandardBackdrop} from '../../../kit/artwork';
 
@@ -33,6 +34,10 @@ export type OwnerDashboardPageProps = Readonly<{
   allError?: unknown;
   people?: string;
   alerts: readonly OwnerAlertView[];
+  /** owner-dashboard 2b: the update's own card at the end of Alerts, only while the owner's release check reports one. */
+  update?: OwnerUpdateView;
+  onReleaseNotes?: () => void;
+  onCheckUpdate?: () => void;
   jobs: readonly OwnerJobView[];
   telemetry?: TelemetryReading;
   telemetryError?: unknown;
@@ -111,6 +116,7 @@ export function OwnerDashboardPage(props: OwnerDashboardPageProps) {
         <OwnerSection title={t('next.dashboard.alerts')} sub={props.alerts.length ? String(props.alerts.length) : undefined}>
           {props.alerts.length ? props.alerts.map((alert, index) => <View key={alert.id} style={{marginTop: index ? 12 : 0}}><OwnerAlertCard alert={alert} t={t} onAcknowledge={() => props.onAcknowledge(alert)} {...(props.onFixPermissions ? {onFixPermissions: () => props.onFixPermissions!(alert)} : {})}/></View>)
             : <OwnerCalm icon="i-check" tone="good" title={t('web.overview.noAlerts')}/>}
+          {props.update ? <View style={{marginTop: 12}}><OwnerUpdateCard update={props.update} t={t} onReleaseNotes={() => props.onReleaseNotes?.()} onCheck={() => props.onCheckUpdate?.()}/></View> : null}
         </OwnerSection>
         <OwnerSection title={t('settings.server.activity')}>
           {props.jobs.length ? <>

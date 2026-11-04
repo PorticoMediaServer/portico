@@ -8,7 +8,8 @@ import type {TelemetryReading} from '../../../../../../packages/client-core/src/
 import type {AdminSession} from '../../../../../../packages/client-core/src/playback-v1/types';
 import {offersScrubber, sessionViewer, STOP_MESSAGE_MAX, stopMessage, transportOffers, type TransportCommand} from '../../../../../../packages/client-core/src/server-admin/now-playing';
 import type {Job} from '../../../../../../packages/client-core/src/console';
-import {View} from 'react-native';
+import {Linking, View} from 'react-native';
+import {SettingsUpdatesSource, type UpdatesSnapshot} from '../../../../../../packages/client-core/src/server-admin/updates-source';
 import {Button, TextField} from '../../../kit/controls';
 import {BottomSheet, Menu, type MenuEntry} from '../../../kit/overlays';
 import {useTheme} from '../../../kit/theme';
@@ -23,7 +24,11 @@ import {
 } from './model';
 import {OwnerMoveSheet} from './move-sheet';
 import {OwnerDashboardPage} from './page';
+import {ownerUpdateView} from './update-card';
 import type {OwnerStreamEntry} from './streams';
+
+const noUpdates: UpdatesSnapshot = Object.freeze({phase: 'idle', busy: false}), noUpdatesSubscription = () => () => {};
+const noUpdatesSnapshot = () => noUpdates;
 
 type TelemetryState = Readonly<{reading?: TelemetryReading; error?: unknown}>;
 type SummaryState = Readonly<{summary?: PlaySummary; error?: unknown}>;
@@ -67,6 +72,13 @@ export function NativeOwnerDashboardPhone({controller, ports, runtime, inline = 
   const [jobMenu, setJobMenu] = useState<OwnerJobView>(), [busy, setBusy] = useState(false), [actionError, setActionError] = useState<unknown>();
   const owner = state.admission === 'owner';
   const telemetry = useOwnerTelemetry(reader, healthWindow, owner), statistics = useOwnerStatistics(reader, viewingPeriod, owner);
+  // owner-dashboard 2b: the owner's cached release check, read once per showing and on pull; a pressed check asks the server once.
+  const updates = useMemo(() => owner
+    ? new SettingsUpdatesSource(reader.updates, () => controller.lifetime.current(), runtime.reportError) // query-read: kept (owner-only release check on the Dashboard's own lifetime; it reads the server's cached report, never the feed)
+    : undefined, [owner, reader, controller, runtime]);
+  useEffect(() => {if (!updates) return; void updates.load(); return () => updates.dispose();}, [updates]);
+  const updateSnapshot = React.useSyncExternalStore(updates?.subscribe ?? noUpdatesSubscription, updates?.getSnapshot ?? noUpdatesSnapshot);
+  const update = owner ? ownerUpdateView(updateSnapshot) : undefined;
   useEffect(() => {const timer = setInterval(() => setNow(serverNow()), 30_000); return () => clearInterval(timer);}, []);
   const totals = state.totals ?? ownerDerivedTotals(state.sessions);
   const compact = ownerUsesCompactRows(totals);
@@ -99,7 +111,7 @@ export function NativeOwnerDashboardPhone({controller, ports, runtime, inline = 
     setBusy(true); setActionError(undefined);
     try {await work(); await controller.refresh();} catch (error) {setActionError(error);} finally {setBusy(false);}
   };
-  const reload = () => {setActionError(undefined); setAllRevision(value => value + 1); telemetry.reload(); statistics.reload(); return controller.refresh();};
+  const reload = () => {setActionError(undefined); setAllRevision(value => value + 1); telemetry.reload(); statistics.reload(); void updates?.load(); return controller.refresh();};
   const refresh = () => {void reload();};
   // owner-dashboard 2: pulling down refreshes the page; the ring stays until the Dashboard's own read settles, under the page's top bar.
   const pull = usePullRefresh(reload, setActionError, inline ? 0 : insets.top + 48);
@@ -131,6 +143,8 @@ export function NativeOwnerDashboardPhone({controller, ports, runtime, inline = 
       streams={entries} streamTotals={totals} expanded={expanded && compact} allStreams={allEntries} allError={all.error}
       onShowAll={() => setExpanded(true)} onShowFewer={() => setExpanded(false)} onRetryAll={() => setAllRevision(value => value + 1)}
       people={totals.streams ? ownerPeopleLine(totals, t) : t('next.shell.streams', {count: 0})} alerts={alerts} jobs={jobs}
+      update={update} onCheckUpdate={() => {void updates?.check();}}
+      onReleaseNotes={() => {const url = update?.notesURL; if (url && controller.lifetime.current()) void Linking.openURL(url).catch(error => {if (controller.lifetime.current()) runtime.reportError(error);});}}
       telemetry={telemetry.reading} telemetryError={telemetry.error} healthWindow={healthWindow} healthNote={ownerIsNewServer(health.uptimeSeconds) ? t('next.dashboard.healthLater') : undefined}
       summary={statistics.summary} statisticsError={statistics.error} viewingPeriod={viewingPeriod}
       onBack={() => ports.context.navigation.back(controller.lifetime.authority)} refreshControl={pull} onRetry={refresh}
