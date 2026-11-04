@@ -39,16 +39,30 @@ type = http
 url = https://files.example/[media]
 `
 
+// Isolate every platform's account config root, then use the same OS location
+// as the real reader (XDG on Unix, Application Support on macOS, AppData on Windows).
+func accountConfigTestDirectory(t *testing.T) string {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("AppData", filepath.Join(home, "AppData"))
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
 func writeAccountConfig(t *testing.T, body string) string {
 	t.Helper()
-	root := t.TempDir()
+	root := accountConfigTestDirectory(t)
 	if err := os.MkdirAll(filepath.Join(root, "rclone"), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(root, "rclone", "rclone.conf"), []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("XDG_CONFIG_HOME", root)
 	return filepath.Join(root, "rclone", "rclone.conf")
 }
 
@@ -80,8 +94,7 @@ func TestAccountConfigRemotesProjectNamesAndReasonsOnly(t *testing.T) {
 }
 
 func TestAccountConfigRemotesAreEmptyWhenAbsent(t *testing.T) {
-	root := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", root)
+	accountConfigTestDirectory(t)
 	path, remotes, _, err := ReadAccountRcloneConfig()
 	if err != nil {
 		t.Fatal(err)
@@ -197,8 +210,7 @@ func TestAccountConfigAmbiguousGrammarIsWithheld(t *testing.T) {
 }
 
 func TestAccountConfigRejectsNonRegularFiles(t *testing.T) {
-	root := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", root)
+	root := accountConfigTestDirectory(t)
 	if err := os.MkdirAll(filepath.Join(root, "rclone", "rclone.conf"), 0o700); err != nil {
 		t.Fatal(err)
 	}
