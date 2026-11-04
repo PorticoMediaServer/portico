@@ -5,7 +5,7 @@ import {registerHooks} from 'node:module';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {routes} from '../../packages/contracts/src/routes.ts';
-import {serverTierMayCall} from '../../packages/client-core/src/server-admin/route-access.ts';
+import {serverTierMayCall, serverTierMayCallAccess} from '../../packages/client-core/src/server-admin/route-access.ts';
 import {transformTsx} from './transform-tsx.mjs';
 
 registerHooks({load(url, context, next) {
@@ -34,6 +34,19 @@ test('a tier may call a route as routes.ts publishes it: the log reads are admin
   }
   // A device route that asks for administration publishes no administrator tier, so it stays the owner's.
   assert.equal(serverTierMayCall('get_admin_feedback_reports', 'admin'), false);
+});
+
+test('an administrator may call only the access kinds named for it; an unknown or future kind is not allowed', () => {
+  assert.equal(serverTierMayCallAccess({access: 'admin_scope'}, 'admin'), true);
+  for (const access of ['public', 'device', 'viewer_item_restrictions']) {
+    assert.equal(serverTierMayCallAccess({access}, 'admin'), true, access);
+    assert.equal(serverTierMayCallAccess({access, requires: 'admin'}, 'admin'), false, `${access} asking for administration`);
+  }
+  for (const access of ['owner', 'admin_owner', 'future_kind', '']) assert.equal(serverTierMayCallAccess({access}, 'admin'), false, access);
+  assert.equal(serverTierMayCallAccess({access: 'future_kind'}, 'owner'), true, 'the owner may call any route');
+  // Every access kind main publishes is one the check names, so none reaches it by falling through.
+  const named = new Set(['admin_scope', 'owner', 'public', 'device', 'viewer_item_restrictions']);
+  for (const route of routes) assert.ok(named.has(route.access), `${route.id}: ${route.access}`);
 });
 
 test('every route a Troubleshooting part names is a published route', () => {
