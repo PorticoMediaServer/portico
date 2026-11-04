@@ -62,7 +62,7 @@ func TestOwnerMediaUsesOrdinaryConnections(t *testing.T) {
 	if resp.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("owner media bypassed ordinary ceiling: status=%d", resp.StatusCode)
 	}
-	for _, path := range []string{"/v1/admin/connectivity/status", "/v1/bootstrap", "/v1/preferences", "/v1/console/registry"} {
+	for _, path := range []string{"/v1/admin/connectivity/status", "/v1/preferences", "/v1/console/registry"} {
 		resp, err := request(path)
 		if err != nil {
 			t.Fatalf("%s: %v", path, err)

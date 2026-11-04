@@ -7,7 +7,7 @@ import {createReadingController, type ReaderAdapter, type ReaderMount} from '@po
 import {bindReadingProgress} from '../../src/screens/read/progress.ts';
 
 const revision = 'a'.repeat(64), source = {id: 'unit-source', revision, size: 1};
-const preferences = parsePreferenceSnapshot(JSON.parse(readFileSync(new URL('../../../server/testdata/contracts/get-bootstrap.json', import.meta.url), 'utf8')).response.preferences);
+const preferences = parsePreferenceSnapshot(JSON.parse(readFileSync(new URL('../../../server/testdata/contracts/get-preferences.json', import.meta.url), 'utf8')).response.data);
 async function fixture(saved = true, conflict = false) {
   let serverRevision = 0, mount!: ReaderMount<ReadingPreferences>;
   const writes: {expectedRevision: number; location: ReadingLocation}[] = [], errors: unknown[] = [];

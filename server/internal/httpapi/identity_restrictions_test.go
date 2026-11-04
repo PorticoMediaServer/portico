@@ -18,7 +18,7 @@ func TestViewerRestrictionCacheUsesAuthorityQualifiedProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := httptest.NewRequest("GET", "/v1/bootstrap", nil)
+	r := httptest.NewRequest("GET", "/v1/libraries", nil)
 	policy, _, err := d.viewerRestrictions(r, local)
 	if err != nil || policy.MaximumAge == nil || *policy.MaximumAge != 13 {
 		t.Fatalf("local profile restrictions: %+v %v", policy, err)

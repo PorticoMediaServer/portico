@@ -5,7 +5,7 @@ import {HttpLocalApi, ReadingError, parsePreferenceSnapshot} from '@portico/clie
 import {routePath} from '../../../packages/contracts/src/index.ts';
 import {createReadBindings} from '../../src/screens/read/bindings.ts';
 
-const preferences = parsePreferenceSnapshot(JSON.parse(readFileSync(new URL('../../../server/testdata/contracts/get-bootstrap.json', import.meta.url), 'utf8')).response.preferences);
+const preferences = parsePreferenceSnapshot(JSON.parse(readFileSync(new URL('../../../server/testdata/contracts/get-preferences.json', import.meta.url), 'utf8')).response.data);
 function fixture(options: {hold?: Promise<void>; route?: AbortSignal; busy?: number; expired?: Set<string>} = {}) {
   let busy = options.busy ?? 0;
   let routeCurrent = true;

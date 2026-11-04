@@ -6,7 +6,7 @@ import {settingsSpec, type SettingsRow} from '@core/presentation/settings-spec.t
 import {settingsBinding} from '@core/presentation/settings-bindings.ts';
 import {readingSettingsAdapter} from '../src/screens/settings/reading-adapter.ts';
 
-const recorded = JSON.parse(readFileSync(new URL('../../server/testdata/contracts/get-bootstrap.json', import.meta.url), 'utf8')).response.preferences;
+const recorded = JSON.parse(readFileSync(new URL('../../server/testdata/contracts/get-preferences.json', import.meta.url), 'utf8')).response.data;
 const base = parsePreferenceSnapshot(recorded);
 function drawnRows(): SettingsRow[] {
   const section = settingsSpec.find(candidate => candidate.scope === 'account' && candidate.id === 'reading');

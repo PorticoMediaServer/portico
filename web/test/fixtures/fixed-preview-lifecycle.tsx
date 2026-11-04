@@ -3,7 +3,7 @@ import {flushSync} from 'react-dom';
 import {createRoot} from 'react-dom/client';
 import {parsePreferenceSnapshot, type ReadingPreferences} from '@portico/client-core';
 import {createReadingController, ReaderError, sourceFromBlob, type ReaderAdapter, type ReaderMount, type ReaderPageImage, type ReadingPublication} from '@portico/reader-core';
-import bootstrap from '../../../server/testdata/contracts/get-bootstrap.json';
+import bootstrap from '../../../server/testdata/contracts/get-preferences.json';
 import {ReaderBook, type ReaderBookState} from '../../src/screens/read/ReaderBook';
 import '../../src/kit/tokens.css';
 import '../../src/bootstrap.css';
@@ -11,7 +11,7 @@ import fixedStyles from '../../src/screens/read/fixed-page.module.css';
 
 const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jC1sAAAAASUVORK5CYII='), c => c.charCodeAt(0));
 const image = (): ReaderPageImage => ({mime: 'image/png', bytes: png, width: 1, height: 1});
-const preferences = parsePreferenceSnapshot(bootstrap.response.preferences);
+const preferences = parsePreferenceSnapshot(bootstrap.response.data);
 type Pending = {resolve: (image: ReaderPageImage) => void; reject: (error: unknown) => void};
 type Read = {source: string; index: number; width: number; signal: AbortSignal};
 type Harness = {rerender(): void; advance(page: number): Promise<void>; defer(index: number): void; reject(): Promise<void>; resolve(): void; replace(): void; retire(): void; observations(): {reads: {source: string; index: number; width: number; aborted: boolean}[]; created: string[]; revoked: string[]; displayed: string[]; source: string; errors: {source: string; error: unknown}[]; listeners: number};};
