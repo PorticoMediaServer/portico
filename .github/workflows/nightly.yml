@@ -14,7 +14,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        replay: [a, b, c, d]
+        include:
+          - {replay: pr677-a, source_run: '41792546748', shard: 4}
+          - {replay: pr677-b, source_run: '41792546748', shard: 4}
+          - {replay: pr681-a, source_run: '41793452518', shard: 3}
+          - {replay: pr681-b, source_run: '41793452518', shard: 3}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {persist-credentials: false}
@@ -23,14 +27,15 @@ jobs:
       - name: Fetch the failing short shard's exact recorded selection
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh run download 41790112870 -R PorticoMediaServer/portico -n selection -D "$RUNNER_TEMP/original-selection"
+          SOURCE_RUN: ${{ matrix.source_run }}
+        run: gh run download "$SOURCE_RUN" -R PorticoMediaServer/portico -n selection -D "$RUNNER_TEMP/original-selection"
       - run: python3 ci/run.py download --plan "$RUNNER_TEMP/original-selection/ci-plan.json"
-      - run: python3 ci/run.py ffmpeg --index 1 --plan "$RUNNER_TEMP/original-selection/ci-plan.json"
+      - run: python3 ci/run.py ffmpeg --index ${{ matrix.shard }} --plan "$RUNNER_TEMP/original-selection/ci-plan.json"
       - name: Replay the original four-package short shard
         env:
           PORTICO_ARTWORK_DIAGNOSTIC: '1'
           PORTICO_CI_GO_PACKAGE_JOBS: '4'
-        run: python3 ci/run.py go --index 1 --plan "$RUNNER_TEMP/original-selection/ci-plan.json"
+        run: python3 ci/run.py go --index ${{ matrix.shard }} --plan "$RUNNER_TEMP/original-selection/ci-plan.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
