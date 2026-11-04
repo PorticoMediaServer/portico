@@ -11,15 +11,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/persistence"
+	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"github.com/PorticoMediaServer/portico/server/internal/workpolicy"
 )
 
@@ -109,34 +110,70 @@ func TestBackupDuringConcurrentWrites(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	done := make(chan struct{})
+	// The live server always has a checkpoint owner. Its pressure tick also
+	// refreshes the free-space reservation ledger; a bare Service with an
+	// unlimited writer cannot keep spending an initial free-space observation.
+	checkpoints, err := dbwork.NewCheckpointSchedule(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runCtx, cancel := context.WithCancel(ctx)
+	checkpointDone := make(chan struct{})
+	go func() {
+		defer close(checkpointDone)
+		ticker := time.NewTicker(dbwork.CheckpointPollInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-runCtx.Done():
+				return
+			case <-ticker.C:
+			}
+			if !dbwork.Yield(runCtx) {
+				return
+			}
+			checkpoints.Tick(runCtx)
+		}
+	}()
+	writerDone := make(chan struct{})
+	var writerErr error
+	var join sync.Once
+	stop := func() { join.Do(func() { cancel(); <-writerDone; <-checkpointDone }) }
+	t.Cleanup(stop)
 	var maxWait atomic.Int64
 	var writes atomic.Int64
 	go func() {
+		defer close(writerDone)
 		n := 0
 		for {
 			select {
-			case <-done:
+			case <-runCtx.Done():
 				return
 			default:
 			}
 			start := time.Now()
-			_, err := dbwork.ExecWrite(ctx, db, dbwork.ClassInteractive, `UPDATE configuration SET value=? WHERE key='backup_write_probe'`, fmt.Sprint(n))
+			_, err := dbwork.ExecWrite(runCtx, db, dbwork.ClassInteractive, `UPDATE configuration SET value=? WHERE key='backup_write_probe'`, fmt.Sprint(n))
 			wait := time.Since(start)
 			if wait > time.Duration(maxWait.Load()) {
 				maxWait.Store(int64(wait))
 			}
 			if err != nil {
+				if runCtx.Err() == nil {
+					writerErr = err
+				}
 				return
 			}
 			n++
 			writes.Add(1)
 		}
 	}()
-	id, err := svc.Create(ctx, KindManual)
-	close(done)
+	id, err := svc.Create(runCtx, KindManual)
+	stop()
 	if err != nil {
 		t.Fatal(err)
+	}
+	if writerErr != nil {
+		t.Fatal("concurrent writer stopped early", writerErr)
 	}
 	if writes.Load() == 0 {
 		t.Fatal("writer loop never ran during the backup")
