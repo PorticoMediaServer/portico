@@ -55,10 +55,12 @@ export function SettingsSheet({profile, accountDescription, onProfile, query, on
   </BottomSheet>;
 }
 
-export function SettingsRow({label, help, children, dependent = false, found = false, stacked = false, id, className}: {
-  label: ReactNode; help?: ReactNode; children: ReactNode; dependent?: boolean; found?: boolean; stacked?: boolean; id?: string; className?: string;
+export function SettingsRow({label, help, children, dependent = false, found = false, stacked = false, path = false, id, className}: {
+  label: ReactNode; help?: ReactNode; children: ReactNode; dependent?: boolean; found?: boolean; stacked?: boolean;
+  /** The row shows a folder path (a mono read-only value or a folder choice); a phone stacks it from the first paint. */
+  path?: boolean; id?: string; className?: string;
 }) {
-  return <div id={id} className={[styles.row, className].filter(Boolean).join(' ')} data-dependent={dependent || undefined} data-found={found || undefined} data-stacked={stacked || undefined}><div className={styles.rowLabel}><b>{label}</b>{help && <p>{help}</p>}</div><div className={styles.rowControl}>{children}</div></div>;
+  return <div id={id} className={[styles.row, className].filter(Boolean).join(' ')} data-dependent={dependent || undefined} data-found={found || undefined} data-stacked={stacked || undefined} data-path={path || undefined}><div className={styles.rowLabel}><b>{label}</b>{help && <p>{help}</p>}</div><div className={styles.rowControl}>{children}</div></div>;
 }
 export function DefaultHint({value, effectiveSource, onReset, variant = 'default', t = tDefault}: {value: string; effectiveSource: string; onReset: () => void; variant?: 'default' | 'changed'; t?: ShellTranslate}) {
   if (effectiveSource === 'default') return null;
