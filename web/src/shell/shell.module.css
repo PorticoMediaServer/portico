@@ -96,8 +96,9 @@
 .libraryMenu [data-menu-item] > span { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
 .destinations a:hover, .more:hover, .destinations [aria-current='page'], .more[data-active='true'] { color: var(--color-text); }
 .tools { margin-left: auto; display: flex; align-items: center; gap: 6px; flex: none; }
-.icon { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--color-text-secondary); position: relative; text-decoration: none; }
-.icon:hover, .icon[aria-current='page'] { color: var(--color-text); background: color-mix(in srgb, var(--color-text) 10%, transparent); }
+.icon { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--color-text-secondary); position: relative; text-decoration: none;
+  /* The bell is a button among links: it takes no browser border or fill. */ border: 0; padding: 0; background: none; font: inherit; cursor: pointer; }
+.icon:hover, .icon[aria-current='page'], .icon[aria-expanded='true'] { color: var(--color-text); background: color-mix(in srgb, var(--color-text) 10%, transparent); }
 .icon[aria-current='page']::after { content: ''; position: absolute; width: 16px; height: 2px; bottom: -3px; left: 12px; border-radius: 2px; background: var(--color-accent); }
 .dot { position: absolute; top: 9px; right: 10px; width: 7px; height: 7px; border-radius: 50%; background: var(--color-accent-strong); box-shadow: 0 0 0 2px var(--color-ink); }
 .avatar { position: relative; background: none; border: 0; padding: 0; border-radius: 50%; margin-left: 8px; cursor: pointer; }
