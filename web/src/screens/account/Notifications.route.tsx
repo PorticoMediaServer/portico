@@ -49,9 +49,11 @@ function PhoneNotifications({captured}: {captured: Captured}) {
   const server = useMemo(() => owner ? new InboxService(context.api, undefined, {queries: context.freshness.queries}) : undefined, [owner, context]);
   useEffect(() => () => {server?.dispose();}, [server]);
   const serverState = useSyncExternalStore(server?.subscribe ?? noSubscribe, server?.getSnapshot ?? noSnapshot);
+  // Each inbox takes the press itself: a busy one (a view switch still reading, a change out) holds
+  // it until it is free rather than dropping it, and one with no page it may change refuses it.
   const readAll = () => {
     for (const [inbox, snapshot] of [[shared, sharedState], [server, serverState]] as const) {
-      if (inbox && snapshot && snapshot.phase === 'ready' && snapshot.revision > 0 && !snapshot.busy) void inbox.readAll();
+      if (inbox && snapshot && snapshot.phase !== 'idle') void inbox.readAll();
     }
   };
   const back = () => {if (!context.isCurrent()) return; if (window.history.length > 1) router.history.back(); else void router.navigate({to: '/settings'});};
@@ -181,7 +183,7 @@ function NotificationsFeed({captured, mode, limit, onDone, service: given, secti
         })}
   </>;
   const panel = <NotificationsPanel snapshot={state} pages={mode === 'page'} footer={seeAll} onAudience={audience => {if (state.audiences.includes(audience)) opening?.run(state, () => {void service.load(audience, state.view);});}}
-    onView={view => {opening?.run(state, () => {void service.load(state.audience, view);});}} onReadAll={() => {if (state.phase === 'ready' && state.revision > 0 && !state.busy) opening?.run(state, () => {void service.readAll();});}} onMore={() => {if (state.more && !state.busy) opening?.run(state, () => {void service.more();});}}>
+    onView={view => {opening?.run(state, () => {void service.load(state.audience, view);});}} onReadAll={() => {if (state.phase === 'ready' && state.revision > 0) opening?.run(state, () => {void service.readAll();});}} onMore={() => {if (state.more && !state.busy) opening?.run(state, () => {void service.more();});}}>
     {body}
   </NotificationsPanel>;
   if (!opening) return null;

@@ -142,6 +142,9 @@ export class InboxService{
  private moreFlight?:InboxMore;
  // The newest revision a `notification.changed` hint named that this view has not read yet.
  private pending?:number;
+ /** A Mark all read pressed while the inbox was busy (a first page reading, a page more, a change
+  *  out): it runs once nothing else is out, for the audience it was pressed for, never dropped. */
+ private readAllWanted?:NotificationAudience;
  constructor(api:InboxApi,operationId:()=>string=()=>randomId(),options:InboxServiceOptions={}){this.api=api;this.operationId=operationId;this.options=options;}
  getSnapshot=()=>this.state;
  subscribe=(fn:()=>void)=>{this.listeners.add(fn);return()=>{this.listeners.delete(fn);};};
@@ -168,7 +171,12 @@ export class InboxService{
  }
  /** Runs the reread a hint asked for once nothing else is out. */
  private settle(){
-  if(this.disposed||this.pending===undefined||this.reading||this.moreFlight||this.flight?.phase==='inflight')return;
+  if(this.disposed||this.reading||this.moreFlight||this.flight?.phase==='inflight')return;
+  if(this.readAllWanted!==undefined){
+   const audience=this.readAllWanted;this.readAllWanted=undefined;
+   if(audience===this.state.audience){void this.readAll();return;}
+  }
+  if(this.pending===undefined)return;
   const wanted=this.pending;this.pending=undefined;
   if(wanted<=this.state.revision)return;
   void this.read(this.state.audience,this.state.view,Math.min(MAX_PAGE,Math.max(PAGE,this.state.items.length)),true);
@@ -272,6 +280,8 @@ export class InboxService{
  }
  async readAll():Promise<void>{
   if(this.disposed)return;
+  // Busy for now, not refused: run it when the inbox is free (settle) rather than drop the press.
+  if(this.reading||this.moreFlight||this.flight?.phase==='inflight'){this.readAllWanted=this.state.audience;return;}
   const flight=this.begin([{action:'read-all'}]);
   if(!flight)return;
   const before=this.state,now=serverNow();

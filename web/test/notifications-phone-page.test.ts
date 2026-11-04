@@ -21,3 +21,10 @@ test('the Server section is its own inbox, for owners only, made on the page and
   // A section's feed follows the inbox it was given, so the change hint refreshes the Server inbox too.
   assert.match(route, /service = given \?\? context\.inbox/);
 });
+
+test('Mark all read never drops a press on a busy inbox: the inbox holds it until it is free (phone and desktop)', () => {
+  const route = readFileSync(new URL('../src/screens/account/Notifications.route.tsx', import.meta.url), 'utf8');
+  assert.match(route, /if \(inbox && snapshot && snapshot\.phase !== 'idle'\) void inbox\.readAll\(\);/);
+  assert.match(route, /onReadAll=\{\(\) => \{if \(state\.phase === 'ready' && state\.revision > 0\) opening\?\.run\(/);
+  assert.doesNotMatch(route, /!snapshot\.busy\) void inbox\.readAll|!state\.busy\) opening\?\.run\(state, \(\) => \{void service\.readAll/);
+});
