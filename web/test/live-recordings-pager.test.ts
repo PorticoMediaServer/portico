@@ -16,7 +16,7 @@ const loader = registerHooks({load(url, context, next) {
   if (url.endsWith('/screens/live/useRecordedGroupLease.ts')) return module('export const useRecordedGroupLease=()=>undefined;');
   if (url.endsWith('/screens/live/useRecordingsLease.ts')) return module('export const useRecordingsLease=()=>undefined;');
   if (url.endsWith('/screens/live/useCommittedOpening.ts')) return module('export const useCommittedOpening=()=>({});');
-  if (url.endsWith('/screens/live/SeriesRules.tsx')) return module("export const LiveRecordingTabs='tabs';");
+  if (url.endsWith('/screens/live/SeriesRules.tsx')) return module("export const LiveRecordingTabs='tabs'; export const RecordingPhoneTabs='phone-tabs';");
   if (url.endsWith('.tsx')) return module(transformTsx(url).replace(/from (['"])react\1/g, `from ${JSON.stringify(react)}`));
   return next(url, context);
 }, resolve(specifier, context, next) {
