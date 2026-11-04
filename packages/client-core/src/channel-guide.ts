@@ -241,22 +241,27 @@ export async function channelOperationId(uuid: () => Promise<string>): Promise<s
  return values.map(v => v.replace(/-/g, '').toLowerCase()).join('').slice(0, 48);
 }
 export class ChannelGuideService{
- private snapshot:GuideSnapshot={phase:'idle',guide:null,route:null,error:null,hasPrevious:false};private listeners=new Set<()=>void>();private epoch=0;private disposed=false;private request:AbortController|null=null;private pages=[''];
+ private snapshot:GuideSnapshot={phase:'idle',guide:null,route:null,error:null,hasPrevious:false};private listeners=new Set<()=>void>();private epoch=0;private disposed=false;private request:AbortController|null=null;private pages=[''];/** One re-read of the window's first page after a refused cursor, until a continuation answers. */private reread=false;
  private api:ChannelApi;private serverId:string;private timeoutMs:number;
  constructor(api:ChannelApi,serverId:string,timeoutMs=12000){this.api=api;this.serverId=serverId;this.timeoutMs=timeoutMs>0&&timeoutMs<=60000?timeoutMs:12000;}
  getSnapshot=()=>this.snapshot;subscribe=(fn:()=>void)=>{this.listeners.add(fn);return()=>this.listeners.delete(fn)};
  private publish(s:GuideSnapshot){if(this.disposed)return;this.snapshot=Object.freeze(s);for(const fn of this.listeners)fn();}
  dispose(){this.disposed=true;this.epoch++;this.request?.abort();this.listeners.clear();}
- resetAccess(){this.request?.abort();this.epoch++;this.pages=[''];this.publish({phase:'idle',guide:null,route:null,error:null,hasPrevious:false});}
-  async load(route:GuideRoute,mode:'replace'|'refresh'|'next'|'previous'='replace'):Promise<void>{
-   if(this.disposed)return;const old=this.snapshot;const same=old.route&&JSON.stringify(route)===JSON.stringify(old.route);if(mode!=='replace'&&!same)return;if(mode==='next'&&!old.guide?.nextCursor)return;if(mode==='previous'&&this.pages.length<2)return;
+ resetAccess(){this.request?.abort();this.epoch++;this.pages=[''];this.reread=false;this.publish({phase:'idle',guide:null,route:null,error:null,hasPrevious:false});}
+  async load(route:GuideRoute,mode:'replace'|'refresh'|'next'|'previous'='replace',rereading=false):Promise<void>{
+   if(this.disposed)return;if(mode==='replace'&&!rereading)this.reread=false;const old=this.snapshot;const same=old.route&&JSON.stringify(route)===JSON.stringify(old.route);if(mode!=='replace'&&!same)return;if(mode==='next'&&!old.guide?.nextCursor)return;if(mode==='previous'&&this.pages.length<2)return;
    const pages=mode==='replace'?['']:mode==='next'?[...this.pages,old.guide!.nextCursor]:mode==='previous'?this.pages.slice(0,-1):this.pages.slice();const cursor=pages.at(-1)!;const epoch=++this.epoch;this.request?.abort();const abort=new AbortController();this.request=abort;const retained=same?old.guide:null;this.publish({phase:retained?'retained-refreshing':'loading',guide:retained,route,error:null,hasPrevious:pages.length>1});
    let overall:ReturnType<typeof setTimeout>|undefined;
    try{const raw=await Promise.race([this.fetchWithRateLimitRetry(path(route,cursor),abort.signal),new Promise<never>((_,reject)=>{overall=setTimeout(()=>{abort.abort();reject(new Error())},this.timeoutMs)})]);if(this.disposed||epoch!==this.epoch)return;if(abort.signal.aborted)throw new Error();const guide=parseChannelGuide(raw,this.serverId,route);
    // A guide read under a moved viewer fence is the newer answer (the viewer's access was decided again). A later page's
    // cursor is bound to the fence it was read under, so the server refuses an old one (409 guide_refresh_required).
-   this.pages=pages;this.publish({phase:'ready',guide,route,error:null,hasPrevious:pages.length>1});}
-   catch(error){if(!this.disposed&&epoch===this.epoch){const denied=object(error)&&(error.status===401||error.status===403);this.publish({phase:'error',guide:denied?null:retained,route,error:denied?'Your channel access changed. Reopen Channels to continue.':'The guide could not be refreshed. Try again.',hasPrevious:!denied&&this.pages.length>1});}}
+   this.pages=pages;if(cursor)this.reread=false;this.publish({phase:'ready',guide,route,error:null,hasPrevious:pages.length>1});}
+   catch(error){if(!this.disposed&&epoch===this.epoch){const denied=object(error)&&(error.status===401||error.status===403);
+    // A cursor the server refuses (the window changed, or the viewer's access was decided again): the window's first page,
+    // once, in place of what is shown. Refused straight after that re-read, the error shows, and Try again reads the first page.
+    const refused=!!cursor&&object(error)&&error.code==='guide_refresh_required';
+    if(refused&&!this.reread){this.reread=true;await this.load(route,'replace',true);return;}
+    if(refused){this.pages=[''];this.publish({phase:'error',guide:null,route,error:'The guide could not be refreshed. Try again.',hasPrevious:false});return;}this.publish({phase:'error',guide:denied?null:retained,route,error:denied?'Your channel access changed. Reopen Channels to continue.':'The guide could not be refreshed. Try again.',hasPrevious:!denied&&this.pages.length>1});}}
    finally{if(overall)clearTimeout(overall);if(epoch===this.epoch)this.request=null;}
   }
   /**
