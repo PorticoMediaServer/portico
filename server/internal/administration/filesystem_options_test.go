@@ -15,10 +15,23 @@ func TestFilesystemFlagsReasonsAndCursorScope(t *testing.T) {
 	s, _, _ := newService(t)
 	root := t.TempDir()
 	s.PickerRoots = []string{root}
-	for _, name := range []string{"Alpha", "alpha", "Beta", ".hidden"} {
+	for _, name := range []string{"Alpha", "Beta", ".hidden"} {
 		if err := os.Mkdir(filepath.Join(root, name), 0700); err != nil {
 			t.Fatal(err)
 		}
+	}
+	// Ask the filesystem rather than the OS: APFS can use either case policy.
+	caseSensitive := true
+	if err := os.Mkdir(filepath.Join(root, "alpha"), 0700); err != nil {
+		if !errors.Is(err, os.ErrExist) {
+			t.Fatal(err)
+		}
+		upper, upperErr := os.Stat(filepath.Join(root, "Alpha"))
+		lower, lowerErr := os.Stat(filepath.Join(root, "alpha"))
+		if upperErr != nil || lowerErr != nil || !os.SameFile(upper, lower) {
+			t.Fatalf("case alias is not the same directory: %v %v", upperErr, lowerErr)
+		}
+		caseSensitive = false
 	}
 	if err := os.WriteFile(filepath.Join(root, "movie.mkv"), []byte("not read"), 0600); err != nil {
 		t.Fatal(err)
@@ -65,8 +78,22 @@ func TestFilesystemFlagsReasonsAndCursorScope(t *testing.T) {
 		t.Fatalf("cross-filter cursor accepted: %v", err)
 	}
 	missing, err := s.Browse(context.Background(), filepath.Join(root, "ALPHA"), "", 200, false)
-	if !errors.Is(err, ErrNotFound) || missing.Reason != "missing" || missing.Path != filepath.Join(root, "ALPHA") || len(missing.Suggestions) != 2 {
-		t.Fatalf("case suggestions %+v %v", missing, err)
+	if caseSensitive {
+		if !errors.Is(err, ErrNotFound) || missing.Reason != "missing" || missing.Path != filepath.Join(root, "ALPHA") || len(missing.Suggestions) != 2 {
+			t.Fatalf("case suggestions %+v %v", missing, err)
+		}
+		want := map[string]bool{filepath.Join(root, "Alpha"): true, filepath.Join(root, "alpha"): true}
+		for _, suggestion := range missing.Suggestions {
+			if !want[suggestion] {
+				t.Fatalf("unexpected case suggestion %q", suggestion)
+			}
+			delete(want, suggestion)
+		}
+		if len(want) != 0 {
+			t.Fatalf("missing case suggestions: %v", want)
+		}
+	} else if err != nil || missing.Reason != "" || len(missing.Suggestions) != 0 || len(missing.Entries) != 0 {
+		t.Fatalf("existing case alias must browse the empty directory: %+v %v", missing, err)
 	}
 	raw, _ := json.Marshal(page)
 	for _, key := range []string{"summary", "count", "contents"} {
