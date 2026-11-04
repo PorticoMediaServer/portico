@@ -40,7 +40,7 @@ async function fixture(initialRoute: any = {kind: 'shell', destination: {kind: '
     '../../shell/chrome': {setNativeScreenChromeHidden() {}}, './Screen': {Screen: 'Screen', useScreenBack() {}, useScreenEntry() {}}, './settings-actions': {},
     '../../../../../packages/contracts/src/routes': {}, '../../../../../packages/client-core/src/settings-configuration': {}, '../../../../../packages/client-core/src/presentation/settings-bindings': {}, '../../../../../packages/client-core/src/presentation/settings-spec': {settingsSpec: [{id: 'signin', scope: 'server', title: 'signin', icon: 'settings'}]},
     './owner-libraries/OwnerLibrariesPanel': {NativeOwnerLibrariesPanel: 'Libraries'}, '../../kit/shell/ServerIdentity': {ServerBand: 'ServerBand', ServerHeader: 'ServerHeader'},
-    './LiveOwnerScreen': {NativeLiveOwnerScreen: 'LiveOwner'}, './live-owner-controller': {NativeLiveOwnerController: class {}}, './recordings-controller': {createNativeRecordingsController: () => ({})}, '../../platform/server-connections': {nativeRouteCrypto: {}},
+    './LiveOwnerScreen': {NativeLiveOwnerScreen: 'LiveOwner'}, './live-owner-controller': {NativeLiveOwnerController: class {}}, './recordings-controller': {createNativeRecordingsController: () => ({})}, '../../platform/server-connections': {nativeRouteCrypto: {}}, '../../../../../packages/client-core/src/administration': {parseUpdateReport: () => ({updateAvailable: false})},
     './server/TroubleshootingPage': {NativeServerTroubleshooting: 'Troubleshooting'}, './server/StoragePage': {NativeServerStorage: 'Storage'}, './server/IntegrationsPage': {NativeServerIntegrations: 'Integrations'}, './server/GeneralPage': {NativeServerGeneral: 'General'}, './server/RemoteAccessPage': {NativeRemoteAccessPage: 'RemoteAccess'}, './server/StreamingPage': {NativeServerStreaming: 'Streaming'}, './server/SegmentsPage': {NativeServerSegments: 'Segments'}, './server/PeoplePage': {NativeServerPeople: 'People'}, './server/SignInPage': {NativeServerSignIn: 'SignIn'}, './server/MetadataPage': {NativeServerMetadata: 'Metadata'}, './server/HistoryPage': {NativeServerHistory: 'History'},
     './server/PhoneServerPageHeader': {PhoneServerPageHeader: 'PhoneHeader'}, '../settings/remote-sources/NativeRemoteSourcesScreen': {NativeRemoteSourcesScreen: 'RemoteSources'}, './DashboardScreen': {NativeDashboardScreen: 'Dashboard'},
     '../../platform/playback/equalizer': {}, '../../tv/auth/TVHandoff': {},
@@ -210,4 +210,36 @@ test('Administrator Settings exposes People on phone and tablet without exposing
       assert.ok(f.nodes().some(node => node.type === 'People'));
     } finally {f.unmount();}
   }
+});
+
+// owner-dashboard 1b/1c (lead-approved): on a phone the Dashboard is a card above the shortcuts, tinted like the Server
+// group, and the Server group has no Dashboard row; a tablet keeps the row (the Dashboard is a Settings page there).
+const card = (f: Awaited<ReturnType<typeof fixture>>) => f.nodes().find(node => node.type?.name === 'PhoneDashboardCard');
+test('Phone owner Settings reaches the Dashboard from a card above the shortcuts, with no Server row for it', async () => {
+  const f = await fixture();
+  try {
+    const shown = card(f);
+    assert.ok(shown, 'the card');
+    assert.equal(f.find('settings-page-dashboard'), undefined, 'no Dashboard row in the Server group');
+    assert.ok(f.find('settings-page-history'), 'the other server rows stay');
+    const order = f.nodes().filter(node => node.type?.name === 'PhoneDashboardCard' || node.props?.testID === 'settings-shortcuts' || node.props?.testID === 'settings-profile-card').map(node => node.type?.name ?? node.props.testID);
+    assert.deepEqual(order, ['settings-profile-card', 'PhoneDashboardCard', 'settings-shortcuts'], 'profile, then the card, then the shortcuts');
+    shown.props.onPress();
+    assert.deepEqual(f.opens, [{kind: 'server-dashboard'}]);
+    const body = shown.type({...shown.props, update: true});
+    const texts = (node: any): string[] => Array.isArray(node) ? node.flatMap(texts) : typeof node === 'string' ? [node] : node?.props ? texts(node.props.children) : [];
+    assert.deepEqual(texts(body), ['next.shell.server', 'settings.server.dashboard', 'next.shell.dashboardSummary', 'next.dashboard.update']);
+    assert.equal(texts(shown.type({...shown.props, update: false})).includes('next.dashboard.update'), false, 'Update only while one is waiting');
+  } finally {f.unmount();}
+});
+
+// Who has server pages at all is the settings structure's call (members have none); the card follows the same pages.
+test('A tablet keeps the Dashboard row and draws no card', async () => {
+  const tablet = await fixture(undefined, 800);
+  try {assert.equal(card(tablet), undefined); assert.ok(tablet.find('settings-page-dashboard'));} finally {tablet.unmount();}
+});
+
+test('A stale card press after the route moved on opens nothing', async () => {
+  const f = await fixture();
+  try {const press = card(f).props.onPress; f.routeAway(); press(); assert.deepEqual(f.opens, []);} finally {f.unmount();}
 });

@@ -41,6 +41,7 @@ import {Screen, useScreenBack, useScreenEntry} from './Screen';
 import {registerBack} from '../../kit/navigation/back';
 import {nativeSettingsActionTarget} from './settings-actions';
 import {routePath} from '../../../../../packages/contracts/src/routes';
+import {parseUpdateReport} from '../../../../../packages/client-core/src/administration';
 import type {NativeShellRoute} from '../../shell/routes';
 import {parseSettingsConfiguration} from '../../../../../packages/client-core/src/settings-configuration';
 import {readSettingsBinding, settingsBinding, type SettingsBindingValue} from '../../../../../packages/client-core/src/presentation/settings-bindings';
@@ -271,6 +272,18 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
     : t('settings.signedInAs', {server: ports.serverName(), username: account.username});
   // The drawn sheet heads the profile, then the routes this build can really open.
   const unreadNotifications = shell.unreadNotificationCount ?? 0;
+  // owner-dashboard 1b/1c: on a phone the Dashboard is reached from a card above the shortcuts, not a Server row.
+  const dashboardCard = compact && !theme.isTV && serverPages.some(value => value.id === 'dashboard');
+  const serverGroupPages = dashboardCard ? serverPages.filter(value => value.id !== 'dashboard') : serverPages;
+  // The card's Update pill: the owner's update report, read once per showing; any failure just leaves the pill off.
+  const [updatePending, setUpdatePending] = useState(false);
+  useEffect(() => {
+    if (!dashboardCard || !managesServer) {setUpdatePending(false); return;}
+    let live = true;
+    void controller.lifetime.request(next => ports.context.api.request<unknown>(routePath('get_admin_updates'), 'GET', undefined, next))
+      .then(raw => {if (live && controller.lifetime.current()) setUpdatePending(parseUpdateReport(raw).updateAvailable);}, () => {});
+    return () => {live = false;};
+  }, [controller, dashboardCard, managesServer, ports]);
   const sheetShortcuts = shell.account.actions.filter(action => action.id !== 'settings').map(action => ({...action,
     onPress: () => {if (viewCurrent()) action.onPress();},
     ...(action.id === 'notifications' && unreadNotifications > 0 ? {trailing: <Text style={[shellType(11, 700), {color: theme.colors.ink}]}>{defaultI18n.number(unreadNotifications)}</Text>} : {}),
@@ -343,6 +356,7 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
                   </View>
                   <Icon name="i-right" size={18} color={theme.colors.lineStrong}/>
                 </Focusable>
+                {dashboardCard && <PhoneDashboardCard t={t} update={updatePending} onPress={() => {if (viewCurrent()) navigation.open({kind: 'server-dashboard'}, ports.context.authority());}}/>}
                 {sheetShortcuts.length > 0 && <ShortcutTiles testID="settings-shortcuts" actions={sheetShortcuts}/>}
               </>}
               <FocusRegion id={column} entry={orderedPages[0].id} order={orderedPages.map(value => value.id)} orientation="vertical" edges={{left: ids.rail, right: rows, up: searchField}} onLayout={enter}>
@@ -363,9 +377,9 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
               <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}><KeyCap label={t('next.controls.native.up')}/><KeyCap label={t('next.controls.native.down')}/><Text style={[shellType(20, 600, 'normal', 0, theme.textScale), {color: theme.colors.textTertiary}]}>{t('next.shell.settingsHintChoose')}</Text></View>
               <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}><KeyCap label={t('next.controls.native.right')}/><Text style={[shellType(20, 600, 'normal', 0, theme.textScale), {color: theme.colors.textTertiary}]}>{t('next.shell.settingsHintEdit')}</Text><View style={{width: 12}}/><KeyCap label={t('next.controls.native.left')}/><Text style={[shellType(20, 600, 'normal', 0, theme.textScale), {color: theme.colors.textTertiary}]}>{t('next.shell.settingsHintPages')}</Text></View>
             </View>}
-          {!theme.isTV && serverPages.length > 0 && <View style={{marginHorizontal: 16, marginTop: 20, borderRadius: 14, overflow: 'hidden', backgroundColor: theme.colors.raised, borderWidth: 1, borderColor: alpha(theme.colors.accentStrong, .28)}}>
+          {!theme.isTV && serverGroupPages.length > 0 && <View style={{marginHorizontal: 16, marginTop: 20, borderRadius: 14, overflow: 'hidden', backgroundColor: theme.colors.raised, borderWidth: 1, borderColor: alpha(theme.colors.accentStrong, .28)}}>
             <ServerHeader serverName={ports.serverName()} viewerRole={viewerRole} audience={viewerRole === 'administrator' ? 'administrators' : 'owner'} variant="phone"/>
-            {grouped(serverPages, compact ? [] : tabletServerClusters).map((group, index) => <React.Fragment key={group[0]?.id ?? index}>
+            {grouped(serverGroupPages, compact ? [] : tabletServerClusters).map((group, index) => <React.Fragment key={group[0]?.id ?? index}>
               {index > 0 && <View style={{height: 10}}/>}
               {group.map(value => <Focusable key={value.id} focusId={value.id} testID={`settings-page-${value.id}`} accessibilityRole="button" accessibilityLabel={t(value.title)} accessibilityState={{selected: value.id === page.id}} onPress={() => {if (!viewCurrent()) return; if (value.id === 'dashboard' && (dashboard === undefined || compact)) navigation.open({kind: 'server-dashboard'}, ports.context.authority()); else choose(value.id);}} focusKind="row" focusRadius={10} style={{minHeight: 48, paddingHorizontal: 14, gap: 12, flexDirection: 'row', alignItems: 'center', backgroundColor: value.id === page.id && !compact ? alpha(theme.colors.accent, .16) : 'transparent'}}>
                 <View style={{width: 30, height: 30, borderRadius: 8, backgroundColor: alpha(theme.colors.accent, .16), alignItems: 'center', justifyContent: 'center'}}><Icon name={nativeSettingsIcon(value.icon)} size={18} color={theme.colors.accentStrong}/></View>
@@ -798,4 +812,23 @@ function KeyCap({label}: {label: string}) {
   return <View style={{minWidth: 44, height: 36, paddingHorizontal: 10, borderRadius: 9, borderWidth: 1.5, borderColor: `${theme.colors.text}4D`, alignItems: 'center', justifyContent: 'center'}}>
     <Text style={[shellType(17, 800, 'normal', 0, theme.textScale), {color: theme.colors.textSecondary}]}>{label}</Text>
   </View>;
+}
+
+/** owner-dashboard 1b: the phone Settings sheet's Dashboard card, above the shortcuts and tinted like the Server group:
+ * "Server", Dashboard, one plain line (no counts), and Update while the owner's server has one waiting. */
+function PhoneDashboardCard({t, update, onPress}: {t: (key: MessageId) => string; update: boolean; onPress: () => void}) {
+  const theme = useTheme();
+  return <Focusable testID="settings-dashboard-card" accessibilityRole="button" accessibilityLabel={[t('settings.server.dashboard'), t('next.shell.dashboardSummary'), ...(update ? [t('next.dashboard.update')] : [])].join(', ')}
+    onPress={onPress} focusKind="row" focusRadius={14}
+    style={{marginHorizontal: 16, marginTop: 12, minHeight: 72, paddingVertical: 12, paddingHorizontal: 14, gap: 12, borderRadius: 14, flexDirection: 'row', alignItems: 'center',
+      backgroundColor: theme.colors.raised, borderWidth: 1, borderColor: alpha(theme.colors.accentStrong, .28)}}>
+    <View style={{width: 38, height: 38, borderRadius: 10, backgroundColor: alpha(theme.colors.accent, .16), alignItems: 'center', justifyContent: 'center'}}><Icon name="i-pulse" size={22} color={theme.colors.accentStrong}/></View>
+    <View style={{flex: 1, minWidth: 0}}>
+      <Text numberOfLines={1} style={[shellType(12, 700), {color: theme.colors.textTertiary}]}>{t('next.shell.server')}</Text>
+      <Text numberOfLines={1} style={[shellType(16.5, 800, 'normal', -.015), {color: theme.colors.text}]}>{t('settings.server.dashboard')}</Text>
+      <Text numberOfLines={1} style={[shellType(13, 400, 17), {color: theme.colors.textSecondary}]}>{t('next.shell.dashboardSummary')}</Text>
+    </View>
+    {update && <View testID="settings-dashboard-update" style={{paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: alpha(theme.colors.amber, .18)}}><Text style={[shellType(12, 700), {color: theme.colors.amber}]}>{t('next.dashboard.update')}</Text></View>}
+    <Icon name="i-right" size={18} color={theme.colors.lineStrong}/>
+  </Focusable>;
 }

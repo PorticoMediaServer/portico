@@ -20,6 +20,8 @@ export const shellMessages = {
   'next.shell.galleryTitle': 'Shell and settings',
   'next.shell.server': 'Server',
   'next.shell.serverSettings': 'Server settings',
+  /** The phone Settings sheet's Dashboard card (owner-dashboard 1b): one plain line, no counts. */
+  'next.shell.dashboardSummary': 'Now playing and health',
   'next.shell.ownerOnly': 'Owner only',
   /** A server page shared with administrators (owner-server 33, 43a; owner-people 24a). */
   'next.shell.ownerAndAdministrators': 'Owner and administrators',
