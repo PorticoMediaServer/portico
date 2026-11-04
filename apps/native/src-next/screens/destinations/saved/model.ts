@@ -1,10 +1,10 @@
+import {clearPersonalHistory} from '../../../../../../packages/client-core/src/personal-history-actions';
 import type {SavedRoute, HistoryPeriod, PlaylistListFilter, SavedListFilter, SavedListSort, SavedProjection, SavedShapeCounts} from '../../../../../../packages/client-core/src/saved';
 import {savedListSorts} from '../../../../../../packages/client-core/src/saved';
 import {SavedService, fetchSavedSummary} from '../../../../../../packages/client-core/src/saved';
 import type {PersonalResource, PersonalSavedSnapshot} from '../../../../../../packages/client-core/src/personal-saved';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
-import {routePath} from '../../../../../../packages/contracts/src/routes';
 import type {NativeSavedViewDestination} from '../../saved/view-model';
 import {NativeSavedViewDestination as SavedView} from '../../saved/view-model';
 import {nativeDestinationLifetime} from '../lifetime';
@@ -133,8 +133,7 @@ export class NativeTVSavedController {
     if (!live() || this.historyRevision() !== revision) return;
     const operationId = await this.options.requestId();
     if (!live() || this.historyRevision() !== revision) return;
-    await this.options.api.request(routePath('post_personal_history_actions'), 'POST',
-      {operationId, expectedRevision: revision, action: 'clear-history'}, signal);
+    await clearPersonalHistory(this.options.api, operationId, revision, signal);
     if (!live()) return;
     if (this.state.tab === 'history') await this.select('history', {period});
   };

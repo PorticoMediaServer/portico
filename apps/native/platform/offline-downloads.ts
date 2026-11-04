@@ -1,10 +1,11 @@
+import {refreshOfflineReadingProgress, syncOfflineReadingObservation} from '../../../packages/client-core/src/reading-offline-coordination';
 import {readOfflineDownloadBundle, readDownloadReceiptKeys, issueDownloadReceipts, revalidateDownloadReceipts, revokeRemovedDownloadReceipt, syncOfflineDownloadPlays} from '../../../packages/client-core/src/download-coordination';
 import {stepNativeSelectionActionDownloads, type NativeSelectionActionDownloadIntent} from '../src-next/screens/library/selection-action-downloads';
 import type {NativeOfflinePublicationLease} from './offline-reading-authority';
 import {serverNow} from '../../../packages/client-core/src/server-clock';
 import {publicationUTF8, openOfflineReadingSession, publicationBinding, nativePublicationReadsAvailable, type OfflineReadingSession, type PublicationBinding} from './offline-reading';
-import {decodeGetReadingSessionsSessionIdProgressResponse, decodePutReadingSessionsSessionIdProgressResponse} from '../../../packages/contracts/src';
-import {parseReadingOfflineRefresh, readingOfflineRefreshLimit, readingOfflineRefreshPath} from '../../../packages/client-core/src/reading-offline-refresh';
+import {decodeGetReadingSessionsSessionIdProgressResponse} from '../../../packages/contracts/src';
+import {readingOfflineRefreshLimit, type ReadingOfflineRefreshResult} from '../../../packages/client-core/src/reading-offline-refresh';
 import type {ReadingLocation, ReadingProgress, ReadingSavedProgress} from '../../../packages/client-core/src/reading';
 import {storedSubtitle, subtitleExtraFiles, type StoredSubtitle} from './offline-subtitle-files';
 import {receiptTime, serverReceiptFloor} from './receipt-clock';
@@ -1757,11 +1758,11 @@ export class OfflineDownloads {
         } catch { /* A copy without a usable receipt has nothing to refresh. */ }
       }
       if (!batch.length) continue;
-      let results: ReturnType<typeof parseReadingOfflineRefresh>;
+      let results: readonly ReadingOfflineRefreshResult[];
       try {
-        const raw = await api.request<unknown>(readingOfflineRefreshPath, 'POST', {receipts: batch.map(value => value.receipt)});
-        if (!current()) return;
-        results = parseReadingOfflineRefresh(raw, batch.map(value => ({receiptId: value.receipt.receiptId, itemId: value.sent.itemId, sourceId: value.sent.sourceId, sourceRevision: value.sent.revision})));
+        const refreshed = await refreshOfflineReadingProgress(api, batch.map(value => ({receipt: value.receipt, itemId: value.sent.itemId, sourceId: value.sent.sourceId, sourceRevision: value.sent.revision})), current);
+        if (!refreshed) return;
+        results = refreshed;
       } catch {return;} // A transport, authority or malformed answer ends this pass; the next one retries.
       const adopted = new Map<string, Readonly<{prior: ReadingRecord; next: ReadingRecord}>>();
       results.forEach((result, index) => {
@@ -1809,14 +1810,12 @@ export class OfflineDownloads {
           const key = this.stored.keys[decoded.receipt.keyId], originalKey = this.stored.keys[original.receipt.keyId];
           if (!key || !originalKey || !await nativeRouteCrypto.verify(base64url(key), decoded.signatureBytes, decoded.signedBytes) || !await nativeRouteCrypto.verify(base64url(originalKey), original.signatureBytes, original.signedBytes) || !current()) continue;
           if (records[id]?.syncBlocked) continue;
-          const raw = await api.request<unknown>('/v1/reading/offline/progress', 'POST', {receipt: decoded.receipt, observationReceipt: original.receipt, expectedRevision: sent.serverRevision, observedAt: sent.pending.observedAt, startedAt: sent.pending.startedAt, location: sent.pending.location});
-          if (!current() || !object(raw) || (raw.outcome !== 'applied' && raw.outcome !== 'history_paused' && raw.outcome !== 'stale_observation' && raw.outcome !== 'superseded_online')) return;
-          if (Object.keys(raw).some(key => key !== 'progress' && key !== 'saved' && key !== 'outcome') || !Object.prototype.hasOwnProperty.call(raw, 'progress') || typeof raw.saved !== 'boolean') return;
-          const result = decodePutReadingSessionsSessionIdProgressResponse({progress: raw.progress, saved: raw.saved});
-          if (result.saved !== (raw.outcome === 'applied') || result.progress && (result.progress.sourceId !== sent.sourceId || !/^[0-9a-f]{64}$/.test(result.progress.sourceRevision) || !safeInteger(result.progress.revision, 1) || !safeInteger(result.progress.observedAt, 1))) return;
+          const synced = await syncOfflineReadingObservation(api, {receipt: decoded.receipt, observationReceipt: original.receipt, expectedRevision: sent.serverRevision, observedAt: sent.pending.observedAt, startedAt: sent.pending.startedAt, location: sent.pending.location}, sent.sourceId, current);
+          if (!synced) return;
+          const {result, outcome} = synced;
           const latest = records[id]; if (!latest || latest.sourceId !== sent.sourceId || latest.documentSha256 !== sent.documentSha256 || latest.artifactSha256 !== sent.artifactSha256) continue;
-          const duplicate = raw.outcome === 'stale_observation' && result.progress?.observedAt === sent.pending.observedAt && JSON.stringify(result.progress.location) === JSON.stringify(sent.pending.location);
-          const applied = raw.outcome === 'applied' || duplicate;
+          const duplicate = outcome === 'stale_observation' && result.progress?.observedAt === sent.pending.observedAt && JSON.stringify(result.progress.location) === JSON.stringify(sent.pending.location);
+          const applied = outcome === 'applied' || duplicate;
           const ownPending = latest.pending?.id === sent.pending.id;
           let updated: ReadingRecord;
           if (applied) updated = Object.freeze({...latest, serverRevision: result.progress?.revision ?? latest.serverRevision, pending: ownPending ? undefined : latest.pending, syncBlocked: ownPending ? undefined : latest.syncBlocked});
