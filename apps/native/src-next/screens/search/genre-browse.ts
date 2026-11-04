@@ -1,7 +1,5 @@
-import {
-  BrowseQueryBuilder, browseCapabilitiesPath, browsePath, parseBrowseCapabilities, parseBrowseResult,
-  type BrowseCapabilities, type BrowseNode, type BrowseSortSelection,
-} from '../../../../../packages/client-core/src/browse';
+import {readBrowseCapabilities, readImmediateBrowsePage} from '../../../../../packages/client-core/src/query/browse-reads';
+import {BrowseQueryBuilder, type BrowseCapabilities, type BrowseNode, type BrowseSortSelection} from '../../../../../packages/client-core/src/browse';
 import {searchGenreBrowsePivot, searchGenreBrowseRequest} from '../../../../../packages/client-core/src/search-genres';
 import {createWindowedCollection, type FetchPage, type WindowedCollection} from '../../../../../packages/client-core/src/collections/windowed';
 import type {ContentEntry, LibraryContentApi} from '../../../../../packages/client-core/src/library-content';
@@ -61,7 +59,7 @@ export class NativeGenreBrowseDestination {
     const task = Promise.resolve().then(async () => {
       this.publish({...closed, phase: 'loading', capabilities: undefined, collection: undefined, revision: undefined, sort: undefined, error: undefined,
         queryRevision: this.state.queryRevision + 1});
-      const capabilities = parseBrowseCapabilities(await this.request(browseCapabilitiesPath('*', searchGenreBrowsePivot), 'GET', undefined, abort.signal));
+      const capabilities = await readBrowseCapabilities({request: this.request.bind(this)}, '*', searchGenreBrowsePivot, abort.signal);
       if (!this.current() || abort.signal.aborted) return;
       if (capabilities.library.id !== '*' || !capabilities.pivots.some(pivot => pivot.id === searchGenreBrowsePivot && pivot.browsable)
         || capabilities.resolvedPivot && capabilities.resolvedPivot.id !== searchGenreBrowsePivot) throw new Error('native_genre_browse_scope_mismatch');
@@ -85,7 +83,7 @@ export class NativeGenreBrowseDestination {
     return async (start, count, signal) => {
       if (!this.current() || this.state.phase !== 'ready' || this.state.predicates !== predicates || this.state.sort !== sort) throw retired();
       try {
-        const result = parseBrowseResult(await this.request(browsePath('*'), 'POST', this.build(capabilities, predicates, sort, start, count, revision), signal));
+        const result = await readImmediateBrowsePage({request: this.request.bind(this)}, '*', this.build(capabilities, predicates, sort, start, count, revision), signal);
         if (result.pivot !== searchGenreBrowsePivot || result.pageInfo.start !== start || result.entries.length > count || !result.pageInfo.revision
           || revision && result.pageInfo.revision !== revision || result.entries.some(entry => !entry.libraryId || !['movie', 'show'].includes(entry.kind))) {
           throw Object.assign(new Error('native_genre_browse_scope_mismatch'), {code: 'stale_continuation'});

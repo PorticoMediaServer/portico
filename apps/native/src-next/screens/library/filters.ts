@@ -1,6 +1,5 @@
-import {readReadingFacet} from '../../../../../packages/client-core/src/browse-preparation';
-import {BrowseQueryBuilder, browseContextFacetsPath, browseCountsPath, browseCountsRequest, parseBrowseCounts, parseBrowseFacets,
-  type BrowseCapabilities, type BrowseCount, type BrowseFacetPage, type BrowseNode, type BrowseSortSelection} from '../../../../../packages/client-core/src/browse';
+import {readBrowseCounts, readContextualBrowseFacet} from '../../../../../packages/client-core/src/query/browse-reads';
+import {BrowseQueryBuilder, type BrowseCapabilities, type BrowseCount, type BrowseFacetPage, type BrowseNode, type BrowseSortSelection} from '../../../../../packages/client-core/src/browse';
 import {filterControlOf, filterValuesField} from '../../../../../packages/client-core/src/presentation/browse-toolbar';
 import type {LibraryContentApi} from '../../../../../packages/client-core/src/library-content';
 
@@ -69,10 +68,10 @@ export class NativeLibraryFilterDraft {
     this.countRead?.abort(); const controller = new AbortController(), revision = this.revision; this.countRead = controller;
     this.publish({count: {phase: 'loading'}});
     try {
-      const body = browseCountsRequest(this.options.pivot, [{id: 'draft', query: this.query() ?? null}]);
-      const raw = await this.options.api.request<unknown>(browseCountsPath(this.options.capabilities.library.id), 'POST', body, controller.signal);
+      const counts = await readBrowseCounts(this.options.api, this.options.capabilities.library.id, this.options.pivot,
+        [{id: 'draft', query: this.query() ?? null}], controller.signal);
       if (!this.current() || revision !== this.revision || controller.signal.aborted) return;
-      this.publish({count: {phase: 'ready', value: parseBrowseCounts(raw, ['draft'])[0]!}});
+      this.publish({count: {phase: 'ready', value: counts[0]!}});
     } catch (error) {if (this.current() && revision === this.revision && !controller.signal.aborted) this.publish({count: {phase: 'error', error}});}
   }
   setOpenFields = (ids: readonly string[]) => {
@@ -96,11 +95,8 @@ export class NativeLibraryFilterDraft {
     const previous = this.state.facets[id]?.value;
     publish({phase: 'loading', search, value: previous});
     try {
-      const path = browseContextFacetsPath(this.options.capabilities.library.id, facet, this.options.pivot, this.query(), search, 200);
-      const reading = this.options.capabilities.library.kind === 'book' || this.options.capabilities.library.kind === 'comic';
-      const page = reading ? await readReadingFacet(this.options.api, this.options.capabilities.library.id, path, facet,
-        {signal: controller.signal, isCurrent: () => this.current() && revision === this.revision})
-        : parseBrowseFacets(await this.options.api.request<unknown>(path, 'GET', undefined, controller.signal), facet);
+      const page = await readContextualBrowseFacet(this.options.api, this.options.capabilities.library, facet, this.options.pivot, this.query(), search,
+        {signal: controller.signal, isCurrent: () => this.current() && revision === this.revision});
       if (!this.current() || revision !== this.revision || controller.signal.aborted) return;
       publish({phase: 'ready', search, value: page});
     } catch (error) {if (this.current() && revision === this.revision && !controller.signal.aborted) publish({phase: 'error', search, error, value: previous});}
