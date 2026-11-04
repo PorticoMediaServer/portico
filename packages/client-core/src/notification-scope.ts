@@ -21,13 +21,15 @@ const ended = () => Object.assign(new Error('Notification scope retired.'), {nam
 const audience = (value: unknown): value is string => value === 'profile' || value === 'account-admin' || value === 'all';
 
 /** One original API/server/viewer lifetime for the existing notification routes.
- * Its fence belongs only to notification envelopes; it is never compared with
- * a Home/catalogue fence and never grants an action or another audience. */
+ * An envelope's viewer fence is checked for shape only and never compared with
+ * another read's: a fence is the server's, and the server re-authorizes every
+ * request (CLIENT-DATA-REVIEW §4.4). A refused credential or another server
+ * retires the scope; who the viewer is, and their role, is the shell's to follow. */
 export function createNotificationScope(api: InboxApi, lifetime: NotificationScopeLifetime): ScopedNotifications {
  const serverId = lifetime.serverId, signal = lifetime.signal, current = lifetime.isCurrent, onRetired = lifetime.onRetired;
  if (typeof serverId !== 'string' || !serverId || serverId.length > 160 || /[\u0000-\u001f\u007f-\u009f]/u.test(serverId)) throw invalid();
  const originalRequest = api.request.bind(api);
- let closed = false, fence: string | undefined;
+ let closed = false;
  const requests = new Set<AbortController>();
  const live = () => {try {return !closed && !signal.aborted && current();} catch {return false;}};
  const dispose = () => {
@@ -88,11 +90,9 @@ export function createNotificationScope(api: InboxApi, lifetime: NotificationSco
    const scope = raw.scope;
    if (scope.serverId !== serverId) throw retire();
    if (typeof scope.viewerFence !== 'string' || !/^[a-f0-9]{64}$/.test(scope.viewerFence)) throw invalid();
-   if (fence !== undefined && fence !== scope.viewerFence) throw retire();
    if (requestedAudience !== undefined && raw.data.audience !== requestedAudience) throw invalid();
-   // A malformed first payload cannot admit its viewer fence. Keep each
-   // canonical parser's tolerant-item/strict-document policy, then return the
-   // original envelope for the service's normal adoption.
+   // Keep each canonical parser's tolerant-item/strict-document policy, then
+   // return the original envelope for the service's normal adoption.
    try {
     if(inbox)parseNotificationInbox(raw.data);
     else if(unread)parseNotificationSummary(raw.data);
@@ -106,7 +106,6 @@ export function createNotificationScope(api: InboxApi, lifetime: NotificationSco
     if(error instanceof Error && error.constructor===Error && error.message==='Invalid notification response.') throw invalid();
     throw error;
    }
-   fence = scope.viewerFence;
    check();throwIfAborted(owned.signal);
    return raw as T;
   } finally {

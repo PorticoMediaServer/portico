@@ -16,6 +16,10 @@ export const queryKeys = Object.freeze({
   content: (libraryId: string, query: string) => ['library', libraryId, 'content', query] as const,
   /** A library tab's grid: its windowed pages and their session (the value is the live grid, not a document). `query` is the address's filters and order. */
   libraryBrowse: (libraryId: string, pivot: string, query: string) => ['library', libraryId, 'browse', pivot, query] as const,
+  /** A notification view's first page (`GET /v1/notifications/inbox?audience=…&state=…`, one page); later pages are its continuation, never cached. */
+  notificationsInbox: (audience: string, view: string) => ['notifications', 'inbox', audience, view] as const,
+  /** The viewer's unread notifications in one audience (`GET /v1/notifications/unread-count?audience=…`). */
+  notificationsUnread: (audience: string) => ['notifications', 'unread', audience] as const,
   /** A Home row's See all grid, as `libraryBrowse`. */
   homeRowBrowse: (rowId: string, query: string) => ['home', 'row', rowId, 'browse', query] as const,
 });
