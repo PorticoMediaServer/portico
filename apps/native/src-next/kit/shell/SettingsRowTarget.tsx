@@ -1,4 +1,4 @@
-import React, {createContext, useEffect, useRef} from 'react';
+import React, {createContext, useEffect, useLayoutEffect, useRef} from 'react';
 import type {View} from 'react-native';
 import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import {useMotion, useReducedMotion} from '../useMotion';
@@ -32,6 +32,9 @@ export function SettingsRowFlash({serial, reveal}: Readonly<{serial: number; rev
     if (revealed.current === serial || !box.current) return;
     revealed.current = serial; reveal(box.current);
   };
+  // Each opening (serial) reveals once, as soon as its row is committed: a row that is already laid out sends no new
+  // layout event when it is opened again. A later layout of the same opening measures nothing more.
+  useLayoutEffect(place, [serial]); // eslint-disable-line react-hooks/exhaustive-deps
   return <Animated.View ref={box} collapsable={false} pointerEvents="none" onLayout={place}
     style={[{position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: alpha(theme.colors.accent, .34)}, style]}/>;
 }
