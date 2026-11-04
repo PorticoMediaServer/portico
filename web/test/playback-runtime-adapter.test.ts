@@ -2347,13 +2347,13 @@ test('the drawn automatic Up next progress uses the real policy clock and reject
 
 // Controlled room wire contracts exercise the actual canonical service, follower and media
 // runtime together. This is source qualification, never a real cohort/frame/receiver claim.
-async function runtimeRoom(t: TestContext, playing = false, canControl = true, markers = false) {
-  const f = setup(t, markers ? {skipModes: () => ({intro: 'auto'})} : {}), at = '2026-10-23T20:00:00Z';let roomId = 'room_first', revision = 1, state = playing ? 'playing' : 'paused', positionUs = '10000000';
+async function runtimeRoom(t: TestContext, playing = false, canControl = true, markers = false, firstItem = 'movie') {
+  const f = setup(t, markers ? {skipModes: () => ({intro: 'auto'})} : {}), at = '2026-10-23T20:00:00Z';let roomId = 'room_first', revision = 1, state = playing ? 'playing' : 'paused', positionUs = '10000000', itemId = firstItem, entryId = 'group_entry', step = 0;
   const group = () => ({id: roomId, name: 'Actual room', state, hostAuthority: 'host-only', hostMemberId: 'member', revision: String(revision), playbackRevision: String(revision),
     settingsRevision: '1', governanceRevision: '1', queueRevision: '1', reconnectGeneration: '1', lastCommand: state === 'playing' ? 'play' : 'pause', lastCommandId: 'command', endedReason: '',
     eventOrdinal: String(revision), createdAt: at, updatedAt: at, permissions: {isHost: canControl, canControl, canManageQueue: canControl},
     authority: {deviceId: 'device', playbackId: null, state: 'fresh'}, host: {presence: 'connected', lastSeenAt: at, pauseAt: null, endAt: null},
-    timeline: {itemId: 'movie', currentEntryId: 'group_entry', state, anchorPositionUs: positionUs, anchorAt: at, rate: {numerator: '1', denominator: '1'}, queuePosition: 0, waitUntil: null},
+    timeline: {itemId, currentEntryId: entryId, state, anchorPositionUs: positionUs, anchorAt: at, rate: {numerator: '1', denominator: '1'}, queuePosition: 0, waitUntil: null},
     settings: {shuffleEnabled: false, repeatMode: 'none'}, sync: {noCorrectionUnderMs: 750, rateCorrectionMinimum: '0.90', rateCorrectionMaximum: '1.10', rateCorrectionMaxMs: 4000, seekAtOrOverMs: 3000},
     readiness: {aggregate: 'ready', ready: 1, buffering: 0, lagging: 0, stale: 0, memberCount: 1},
     members: [{id: 'member', displayName: 'Actual member', private: false, role: canControl ? 'host' : 'member', state: 'joined', readiness: 'ready', positionUs: '10000000', reportedAt: at, presence: 'connected', joinedAt: at}], queue: null, viewerMemberId: 'member'});
@@ -2362,12 +2362,13 @@ async function runtimeRoom(t: TestContext, playing = false, canControl = true, m
     if (!request.path.startsWith('/v1/groups/')) return response;
     const ok = (body: unknown) => ({status: 200, headers: {}, body});
     if (request.path.endsWith('/transport')) {
-      const command = (request.body as {command: string}).command;if (command === 'play') state = 'playing';else if (command === 'pause') state = 'paused';else if (command === 'seek') positionUs = (request.body as {positionUs: string}).positionUs;revision++;
+      const command = (request.body as {command: string}).command;if (command === 'play') state = 'playing';else if (command === 'pause') state = 'paused';else if (command === 'seek') positionUs = (request.body as {positionUs: string}).positionUs;
+      else if (command === 'next') {step++;itemId = `${firstItem}_${step}`;entryId = `group_entry_${step}`;positionUs = '0';}revision++;
       return ok({protocolVersion: SOCIAL_PROTOCOL, groupId: roomId, idempotencyKey: (request.body as {idempotencyKey: string}).idempotencyKey,
         disposition: 'accepted', groupState: state, command, revision: String(revision), playbackRevision: String(revision), queueRevision: '1', serverTime: at, recordedAt: at, timeline: group().timeline, settings: group().settings, override: null});
     }
     if (request.path.endsWith('/queue')) return ok({protocolVersion: SOCIAL_PROTOCOL, serverTime: at, groupId: roomId,
-      queue: {revision: '1', position: 0, entries: [{entryId: 'group_entry', position: 0, itemId: 'movie', unavailable: false, addedBy: 'member'}], eligibility: null}});
+      queue: {revision: '1', position: step, entries: [{entryId, position: step, itemId, unavailable: false, addedBy: 'member'}], eligibility: null}});
     return ok({protocolVersion: SOCIAL_PROTOCOL, serverTime: at, group: group()});
   });
   const service = new GroupSessionService({api: f.api, now: () => Date.parse(at), heartbeatMs: 100000, stream: (_path, _last, signal) => new Promise((_resolve, reject) => {
@@ -2376,8 +2377,32 @@ async function runtimeRoom(t: TestContext, playing = false, canControl = true, m
   const errors: unknown[] = [], unbind = f.runtime.bindGroup(service, () => true, error => errors.push(error));
   t.after(() => {unbind();service.dispose();});
   assert.equal(await service.open(roomId), true);await settle();await f.arrive();f.video.land();await settle();
-  return {...f, service, errors, nextRoom: async () => {roomId = 'room_second';await service.open(roomId);await settle();await f.arrive();}};
+  return {...f, service, errors, nextRoom: async () => {roomId = 'room_second';await service.open(roomId);await settle();await f.arrive();},
+    nextItem: async () => {assert.equal(await service.transport('next'), true);await settle();await f.arrive();f.video.land();await settle();}};
 }
+
+test('Together: music starts docked once per room, and each next song keeps Now playing as the follower left it', async t => {
+  const f = await runtimeRoom(t, true, true, false, 'song_room');
+  assert.deepEqual(f.errors, []);
+  const first = f.runtime.getSnapshot();
+  assert.equal(first.presentation?.kind, 'music');
+  assert.equal(first.presentation?.expanded, false, 'the room\'s first song sits in the dock');
+  f.runtime.open(first.fence!);
+  assert.equal(f.runtime.getSnapshot().presentation?.expanded, true);
+  await f.nextItem();
+  const second = f.runtime.getSnapshot();
+  assert.deepEqual(f.errors, []);
+  assert.equal(second.session?.itemId, 'song_room_1', 'the room moved to its next song');
+  assert.notEqual(second.fence!.sessionId, first.fence!.sessionId, 'a new stack for the room item');
+  assert.equal(second.presentation?.expanded, true, 'Now playing stays open (used to re-dock on every room song)');
+  f.runtime.collapse(second.fence!);
+  await f.nextItem();
+  assert.equal(f.runtime.getSnapshot().session?.itemId, 'song_room_2');
+  assert.equal(f.runtime.getSnapshot().presentation?.expanded, false, 'closed by the follower, it stays closed');
+  f.runtime.open(f.runtime.getSnapshot().fence!);
+  await f.nextRoom();
+  assert.equal(f.runtime.getSnapshot().presentation?.expanded, false, 'another room starts docked again');
+});
 
 test('Together loads a paused room paused before the first picture and sends user controls through the real room revision', async t => {
   const f = await runtimeRoom(t);
@@ -2480,6 +2505,18 @@ test('a complete opaque local queue uses the same media owner and real local rec
   assert.deepEqual(port.loads.map(source => source.entryId), ['download_1', 'download_2', 'download_3']);
   assert.equal(f.log.some(request => request.method === 'POST' && (request.path === '/v1/queues' || request.path === '/v1/playback/sessions')), false);
   await f.runtime.stop(f.runtime.getSnapshot().fence!);await settle();assert.equal(releases, 1);assert.equal(f.runtime.getSnapshot().presentation, undefined);
+});
+
+test('a downloaded music queue starts in the dock, opens Now playing, and keeps it open on the next song', async t => {
+  const port = new ControlledLocalMedia(), f = setup(t, {}, {createPlayer: () => port, createRender: null}, localScope);
+  await f.runtime.playLocalQueue({preparation: localPreparation(), release: async () => {}}, {signal: new AbortController().signal, isCurrent: () => true});
+  const first = f.runtime.getSnapshot().fence!;
+  assert.equal(f.runtime.getSnapshot().presentation!.expanded, false, 'music starts in the dock');
+  f.runtime.open(first);
+  assert.equal(f.runtime.getSnapshot().presentation!.expanded, true, 'Now playing opens (every sync used to fold it back)');
+  await f.runtime.next(first);
+  assert.notEqual(f.runtime.getSnapshot().fence!.sessionId, first.sessionId);
+  assert.equal(f.runtime.getSnapshot().presentation!.expanded, true, 'and stays open on the next song');
 });
 
 test('local audio bookmarks keep their own verified preparation and restore paused through a fresh native acknowledgement', async t => {
@@ -3333,6 +3370,25 @@ test('P2-74 E-web-14: one 503 on the item facts is read again and the real facts
   assert.equal(s.presentation?.kind, 'music');
   assert.equal(s.dock.local?.expanded, false);
   assert.ok(!s.problem, 'recovered, nothing to report');
+});
+
+test('desktop-listen Now playing: an open Now playing stays open when the next song starts; only the first song sits in the dock', async t => {
+  const f = setup(t, {}, {}, undefined, undefined, {homeFence: false}), life = new AbortController();
+  await f.runtime.playFromQueue({container: {kind: 'album', id: 'song_album'}}, {signal: life.signal, isCurrent: () => true}); await f.arrive();
+  const first = f.runtime.getSnapshot();
+  assert.equal(first.dock.local?.expanded, false, 'music starts in the dock');
+  f.runtime.open(first.fence!);
+  assert.equal(f.runtime.getSnapshot().presentation?.expanded, true);
+  await f.runtime.next(first.fence!); await f.arrive(); await f.arrive();
+  const next = f.runtime.getSnapshot();
+  assert.notEqual(next.session?.itemId, first.session?.itemId, 'the next song plays');
+  assert.equal(next.presentation?.expanded, true, 'Now playing stays open');
+  assert.equal(next.dock.local?.expanded, true);
+  // A song that simply ends moves on in the same player, and Now playing stays open there too.
+  f.video.finish(); await settle(); f.clock.advance(5000); await f.arrive(); await f.arrive();
+  const third = f.runtime.getSnapshot();
+  assert.notEqual(third.session?.itemId, next.session?.itemId, 'the song after it plays');
+  assert.equal(third.presentation?.expanded, true, 'still open after a natural end');
 });
 
 test('P2-74 E-web-17: a playback start the server never answers is reported after the deadline, never a silent stall', async t => {

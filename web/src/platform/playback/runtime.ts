@@ -126,6 +126,12 @@ type Stack = {
   offerBinding?: OfferBinding;
   itemId?: string; metadataItemId?: string; libraryId?: string; subject?: PlaybackSubject; showId?: string; seasonId?: string;
   posterUrl?: string; backdropUrl?: string; expanded: boolean; retired: boolean;
+  /** Music starts in the dock, decided once for the start's first song. After that, Now playing
+   * stays open or closed as the listener left it while the queue moves on (desktop-listen). */
+  placed?: true;
+  /** The room this stack follows (Watch Together). Each room item is its own stack, so the next item
+   * in the same room carries the listener's placement forward instead of docking again. */
+  groupRoom?: string;
   channel?: ChannelTarget;
   channelStarts?: WebStartRegistration;
   confirmedEnd?: Readonly<{sessionId: string; generation: number; intentId: number; view: ReturnType<V1QueuePlayer['getSnapshot']>['view']}>;
@@ -757,7 +763,12 @@ export class WebShellPlaybackRuntime {
       const raw = await this.source.api.request<ItemResponse>(encodedRoutePath('get_items_id', {id: encodeURIComponent(itemId)}), 'GET', undefined, AbortSignal.any([context.signal, previous.life.signal, this.life.signal]));
       if (!this.current(previous) || serial !== this.operation || context.signal.aborted || !context.isCurrent()) problem('stale_selection_context');
       const item = parseMediaItem(raw);if (item.id !== itemId || !item.available || raw.missing) problem('invalid_playback_target');
-      const stack = this.replace();stack.itemId = item.id;stack.libraryId = item.libraryId;stack.subject = itemSubject(raw);stack.posterUrl = item.posterUrl;stack.backdropUrl = item.backdropUrl;stack.expanded = stack.subject.kind !== 'music';
+      // Music starts docked once per room; after that each song keeps Now playing as the listener left it.
+      const room = this.group?.active()?.id, carried = room !== undefined && previous.groupRoom === room && previous.placed && !previous.retired ? previous.expanded : undefined;
+      const stack = this.replace();stack.itemId = item.id;stack.libraryId = item.libraryId;stack.subject = itemSubject(raw);stack.posterUrl = item.posterUrl;stack.backdropUrl = item.backdropUrl;
+      if (room !== undefined) stack.groupRoom = room;
+      if (carried === undefined) stack.expanded = stack.subject.kind !== 'music';
+      else {stack.expanded = carried;stack.placed = true;}
       const signal = AbortSignal.any([context.signal, stack.life.signal, this.life.signal]);
       const current = () => !signal.aborted && this.current(stack) && serial === this.operation && context.isCurrent();
       const cancel = () => {if (this.current(stack) && serial === this.operation) stack.service.leave();};
@@ -1253,7 +1264,8 @@ export class WebShellPlaybackRuntime {
     if (title && member) {
       const subject = localMemberSubject(member);
       stack.subject = subject;
-      if (subject.kind === 'music') stack.expanded = false;
+      if (subject.kind === 'music' && !stack.placed) stack.expanded = false;
+      stack.placed = true;
       if (fence && observed && !['idle', 'loading'].includes(observed.state)) {
         this.choices.begin(fence.playback);this.choices.bindSource(fence);
         const positionSeconds = Math.min(member.durationMs, observed.positionMs) / 1000, finished = state.phase === 'ended', active = !finished && state.phase !== 'error';
@@ -1457,7 +1469,8 @@ export class WebShellPlaybackRuntime {
           stack.subject = itemSubject(raw); stack.itemId = itemId; stack.metadataItemId = itemId; stack.libraryId = item.libraryId;
           stack.posterUrl = item.posterUrl; stack.backdropUrl = item.backdropUrl;
           stack.showId = raw.episode?.showId; stack.seasonId = raw.episode?.seasonId;
-          if (stack.subject.kind === 'music') stack.expanded = false;
+          if (stack.subject.kind === 'music' && !stack.placed) stack.expanded = false;
+          stack.placed = true;
         }
       }
       if (!current()) return;
@@ -1513,7 +1526,8 @@ export class WebShellPlaybackRuntime {
     const entry = this.currentQueueEntry(stack, itemId), fallback = entry && queueEntrySubject(entry);
     if (!entry || !fallback) throw error;
     stack.subject = fallback; stack.itemId = itemId; stack.libraryId = entry.libraryId; stack.posterUrl = entry.posterUrl; stack.backdropUrl = undefined;
-    if (fallback.kind === 'music') stack.expanded = false;
+    if (fallback.kind === 'music' && !stack.placed) stack.expanded = false;
+    stack.placed = true;
     return undefined;
   }
   /** A start the server never answers must not stall Play silently (P2-74 E-web-17): after
