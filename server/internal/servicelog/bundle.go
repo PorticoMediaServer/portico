@@ -2,6 +2,7 @@ package servicelog
 
 import (
 	"archive/zip"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -73,7 +74,15 @@ func WriteBundle(w io.Writer, in BundleInputs) (truncated bool, err error) {
 		return e == nil
 	}
 	document := func(name string, v any) bool {
-		body, e := json.MarshalIndent(v, "", "  ")
+		body, e := json.Marshal(v)
+		if e == nil {
+			var value any
+			decoder := json.NewDecoder(bytes.NewReader(body))
+			decoder.UseNumber()
+			if e = decoder.Decode(&value); e == nil {
+				body, e = json.MarshalIndent(redactDocumentValue(value), "", "  ")
+			}
+		}
 		if e != nil {
 			body = []byte("{}")
 		}
@@ -111,6 +120,24 @@ func WriteBundle(w io.Writer, in BundleInputs) (truncated bool, err error) {
 		return true, nil
 	}
 	return counter.truncated, nil
+}
+
+// Work on a decoded copy so neither sanitising a nested URL nor exporting a
+// document can change the effective settings used by the running server.
+func redactDocumentValue(value any) any {
+	switch v := value.(type) {
+	case string:
+		return redactCredentials(v)
+	case []any:
+		for i := range v {
+			v[i] = redactDocumentValue(v[i])
+		}
+	case map[string]any:
+		for key, child := range v {
+			v[key] = redactDocumentValue(child)
+		}
+	}
+	return value
 }
 
 func baseName(path string) string {

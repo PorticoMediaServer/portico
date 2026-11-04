@@ -42,7 +42,9 @@ func redactProviderURL(raw string) string {
 	case "player_api.php", "xmltv.php", "get.php":
 		xtream = true
 	}
-	if hasQuery && (xtream || metadata) {
+	// Generic credential names are secret on any host, including private update
+	// feeds. Provider-specific usernames/client keys stay scoped to their format.
+	if hasQuery {
 		fields := strings.Split(query, "&")
 		for i, field := range fields {
 			key, _, hasValue := strings.Cut(field, "=")
