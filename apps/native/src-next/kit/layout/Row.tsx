@@ -52,6 +52,8 @@ export type RowProps<T> = {
   scrollMemory?: {offset: number};
   focus?: Omit<FocusRegionProps, 'children' | 'order' | 'orientation'>;
   paging?: RowPage<T>;
+  /** As `paging.refocus`, for a row with no page model of its own (an index-keyed window whose slots stay and go inert). */
+  refocus?: RowPage<T>['refocus'];
 };
 
 function ArrowBackdrop({back}: {back: boolean}) {
@@ -67,7 +69,7 @@ export function Row<T>(props: RowProps<T>) {
   return <FocusProvider><RowContent {...props} /></FocusProvider>;
 }
 
-function RowContent<T>({title, showHeading = true, headingStyle, subtitle, items, getKey, getFocusId = getKey, isFocusable, renderItem, itemWidth, itemHeight: authoredItemHeight, captionHeight = 0, gap, gutter, rightGutter, onSeeAll, selection, onVisibleRange, onVisibleKeys, onItemFocus, onRepeatingChange, style, testID, focus, paging, initialViewportWidth = 0, scrollMemory}: RowProps<T>) {
+function RowContent<T>({title, showHeading = true, headingStyle, subtitle, items, getKey, getFocusId = getKey, isFocusable, renderItem, itemWidth, itemHeight: authoredItemHeight, captionHeight = 0, gap, gutter, rightGutter, onSeeAll, selection, onVisibleRange, onVisibleKeys, onItemFocus, onRepeatingChange, style, testID, focus, paging, refocus: ownRefocus, initialViewportWidth = 0, scrollMemory}: RowProps<T>) {
   const theme = useTheme();
   const itemHeight = captionItemHeight(authoredItemHeight, captionHeight, theme.fontScale);
   const initialOffset = useRef(scrollMemory?.offset ?? 0);
@@ -90,30 +92,22 @@ function RowContent<T>({title, showHeading = true, headingStyle, subtitle, items
   }, [failed, fulfilledId, fulfilledItem, getFocusId, getKey, hasMore, items, owned, regionId, theme.isTV, waitingId, waitingItem]);
   useLayoutEffect(() => {previous.current = {regionId, index: rowIndex};}, [regionId, rowIndex]);
   // paging.refocus: read while the old slots are still on screen, so whether this row held focus on a slot the
-  // replacement removes is known before the platform recovers it elsewhere (tvOS leaves the row).
-  const refocus = theme.isTV ? paging?.refocus : undefined, refocusSerial = refocus?.serial, refocusId = refocus?.focusId;
+  // replacement removes is known before the platform recovers it elsewhere (tvOS leaves the row). A slot that stays but
+  // is no longer actionable (an index-keyed window whose new pages have not arrived) has lost focus just the same.
+  const refocus = theme.isTV ? ownRefocus ?? paging?.refocus : undefined, refocusSerial = refocus?.serial, refocusId = refocus?.focusId;
   // Only the top layer takes focus: a covered row (for example inside a cover-claim's wait) never asks for it, at the
   // effect or when its queued request runs. Uncovering later does not ask either: the layer's own claim owns focus then.
   const coveredNow = useRef(false);
   coveredNow.current = useCovered();
   // Decided once per replacement (its serial), on the render that brings it: a later re-render (focus moving, the
   // region's ownership changing) neither re-decides it nor cancels the request below. Unmounting does.
-  const rowIndexNow = useRef(rowIndex);
-  rowIndexNow.current = rowIndex;
-  const held = useRef<{serial?: number; lost: boolean}>({lost: false});
+  const held = useRef<{serial?: number; lost: boolean; asked?: number}>({lost: false});
   if (refocusSerial !== undefined && held.current.serial !== refocusSerial) {
-    const active = regionId && registry ? registry.capture() : undefined;
-    held.current = {serial: refocusSerial, lost: !!active && active.regionId === regionId && !rowIndex.byFocus.has(active.childId)};
+    const active = regionId && registry ? registry.capture() : undefined, slot = active ? rowIndex.byFocus.get(active.childId) : undefined;
+    const inert = !slot || !!isFocusable && !slot.waiting && !isFocusable(slot.item);
+    held.current = {serial: refocusSerial, lost: !!active && active.regionId === regionId && inert};
   }
   const lostFocus = held.current.lost ? held.current.serial : undefined;
-  useEffect(() => {
-    if (coveredNow.current || lostFocus === undefined || !regionId || !registry || !refocusId || !rowIndexNow.current.byFocus.has(refocusId)) return;
-    // The registry's own recovery of the removed slot was queued as a microtask when that slot left (registry.recover);
-    // queue behind it so the row's named target is the last word, whatever the platform or that recovery chose.
-    let live = true;
-    queueMicrotask(() => {if (live && !coveredNow.current && registry.order(regionId).includes(refocusId)) registry.focus({regionId, childId: refocusId});});
-    return () => {live = false;};
-  }, [lostFocus, refocusId, regionId, registry]);
   // The native boundary is the actionable part of the same painted order: every slot keeps its
   // identity, and an inert one simply is not a destination the region hands the platform.
   const activeOrder = useMemo(() => {
@@ -124,6 +118,20 @@ function RowContent<T>({title, showHeading = true, headingStyle, subtitle, items
   // Only an opted-in predicate filters the declared entry. Without one, the entry is passed on
   // exactly as before, including an entry that the order does not contain.
   const activeEntry = !isFocusable || (focus?.entry && activeOrder.includes(focus.entry)) ? focus?.entry : undefined;
+  // The named target may become actionable a render or two later (its page arriving); the request waits for it, and
+  // goes out once per replacement.
+  const targetReady = !!refocusId && activeOrder.includes(refocusId);
+  useEffect(() => {
+    if (coveredNow.current || lostFocus === undefined || held.current.asked === lostFocus || !targetReady || !regionId || !registry || !refocusId) return;
+    // The registry's own recovery of the removed slot was queued as a microtask when that slot left (registry.recover);
+    // queue behind it so the row's named target is the last word, whatever the platform or that recovery chose.
+    let live = true;
+    queueMicrotask(() => {
+      if (!live || coveredNow.current || held.current.asked === lostFocus || !registry.order(regionId).includes(refocusId)) return;
+      held.current.asked = lostFocus; registry.focus({regionId, childId: refocusId});
+    });
+    return () => {live = false;};
+  }, [lostFocus, refocusId, regionId, registry, targetReady]);
   const focusedSlot = focused ? rowIndex.byFocus.get(focused) : undefined;
   const remembered = focus ? registry?.remembered(focus.id) : focused;
   const [arrowFocus, setArrowFocus] = useState<'back' | 'forward' | 'all'>();
