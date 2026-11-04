@@ -38,6 +38,7 @@ import {LibraryGroup, LibraryRow, SectionTitle} from './controls';
 import {LibrarySettingsRows} from './LibrarySettingsRows';
 import {libraryListState} from './library-settings-model';
 import {NativeOwnerLibrariesController, sonicPageLease, type NativeOwnerLibrariesSnapshot, type SonicPageLease} from './controller';
+import {viewerQueriesFor} from '../../../shell/freshness';
 import {ownerFolderLocation, ownerFolderState, ownerIssueReason, ownerLibraryAudience, ownerLibraryCounts, ownerLibraryInterval, ownerLibraryKind, ownerLibraryScan, ownerLibrarySquare, ownerLibraryState, ownerSkippedFiles} from './presentation';
 import {registerBack} from '../../../kit/navigation/back';
 
@@ -75,7 +76,7 @@ export function NativeOwnerLibrariesPanel({ports, runtime, initialLibraryId, lif
   const api = transport.api;
   useLayoutEffect(() => transport.retire, [transport]);
   const scope = useMemo(() => ({serverId: authority.serverId, viewerId: JSON.stringify([authority.epoch, authority.accountId, authority.profileId])}), [authority]);
-  const controller = useMemo(() => new NativeOwnerLibrariesController(api, scope, ports.requestId), [api, scope, ports]);
+  const controller = useMemo(() => new NativeOwnerLibrariesController(api, scope, ports.requestId, viewerQueriesFor(context.api, {serverId: authority.serverId})), [api, scope, ports, context, authority]);
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const viewerRole: ViewerRole = context.account.account.role === 'owner' ? 'owner' : context.account.canManage ? 'administrator' : 'member';
   const parentCurrent = useCallback(() => context.current() && context.authority() === authority, [context, authority]);

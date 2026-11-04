@@ -308,7 +308,7 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
     publish();
   };
   const scopeForServices = {serverId: scope.serverId, viewerId: JSON.stringify([scope.authority, scope.accountId, scope.profileId])};
-  const management = context.account.account.role === 'owner' ? new LibraryManagementService({api: context.api, scope: scopeForServices}) : undefined;
+  const management = context.account.account.role === 'owner' ? new LibraryManagementService({api: context.api, scope: scopeForServices, queries: viewerQueriesFor(context.api, {serverId: scope.serverId})}) : undefined;
   const cleanups = [context.home.subscribe(onDocument), controller.subscribe(() => {if (capturedMenu?.menu !== controller.getSnapshot().menu) capturedMenu = undefined; publish();}), context.navigation.subscribe(() => {
     closeQueryAction(); controller.clear();
     if (!currentHome()) homeTopPending = false;

@@ -4,6 +4,7 @@ import type {ExpectedRemoteSource} from '../../../../../../packages/client-core/
 import {LibraryManagementService, type LibraryManagementSnapshot, type ManagedLibrary} from '../../../../../../packages/client-core/src/library-management';
 import {fetchEpisodeIssues, type EpisodeIssue} from '../../../../../../packages/client-core/src/library-management';
 import {LibraryInventoryService, type InventoryConfig, type SourceSettings} from '../../../../../../packages/client-core/src/library-inventory';
+import type {ViewerQueries} from '../../../../../../packages/client-core/src/query/viewer-queries';
 import {readLibrarySettings, reorderLibraries, saveLibrarySettings} from '../../../../../../packages/client-core/src/server-admin/libraries';
 import {readScanIssues, type ScanIssues} from '../../../../../../packages/client-core/src/scan-issues';
 import {removeLibrary} from '../../../../../../packages/client-core/src/title-identity';
@@ -85,9 +86,10 @@ export class NativeOwnerLibrariesController {
   private lyricsFlight = false;
   private requestId: () => string;
 
-  constructor(api: LibraryContentApi, scope: ContentScope, requestId: () => string) {
+  /** `queries`: the viewer's cache; a library's own document and its inventory's first page are read through it. */
+  constructor(api: LibraryContentApi, scope: ContentScope, requestId: () => string, private readonly queries?: ViewerQueries) {
     this.api = api; this.scope = scope; this.requestId = requestId;
-    this.management = new LibraryManagementService({api, scope});
+    this.management = new LibraryManagementService({api, scope, queries});
     this.remotePolicy = new RemoteSourceService(api, scope, async () => `${Date.now()}-${requestId()}`, () => !this.disposed);
     this.unsubscribe = this.management.subscribe(() => this.accept());
   }
@@ -135,13 +137,13 @@ export class NativeOwnerLibrariesController {
     const generation = ++this.generation;
     this.inventory?.dispose(); this.unsubscribeInventory?.();
     this.sonicRequest?.abort(); this.sonicRequest = undefined;
-    const inventory = new LibraryInventoryService({api: this.api, scope: this.scope, libraryId});
+    const inventory = new LibraryInventoryService({api: this.api, scope: this.scope, libraryId, queries: this.queries});
     this.inventory = inventory; this.unsubscribeInventory = inventory.subscribe(() => this.acceptInventory(generation));
     this.publish({inventory: undefined, inventoryLoading: true, inventoryError: undefined, document: undefined, lyricsJob: undefined, lyricsError: undefined, lyricsBusy: false, selectedId: libraryId, strm: undefined, strmError: undefined, detail: 'loading', detailError: undefined, skipped: undefined, skippedError: undefined, unmatched: Object.freeze([]), unmatchedCursor: '', sonic: undefined, sonicError: undefined, sonicErrorOperation: undefined, sonicNeedsReload: false, sonicBusy: false, sonicRetryUnavailable: false});
     try {
       await this.management.selectLibrary(libraryId);
       if (this.disposed || generation !== this.generation) return;
-      const [document, , , metadata] = await Promise.all([readLibrarySettings(this.api, libraryId), inventory.refresh(), this.loadUnmatched(libraryId, '', generation),
+      const [document, , , metadata] = await Promise.all([readLibrarySettings(this.api, libraryId), inventory.refresh(false), this.loadUnmatched(libraryId, '', generation),
         this.api.request<unknown>(metadataAgentPath(libraryId)).then(parseMetadataAgent, () => undefined)]);
       if (this.disposed || generation !== this.generation) return;
       this.publish({document, metadata, detail: 'ready'});

@@ -7,6 +7,12 @@ import type {ContentScope, LibraryContentApi} from './library-content.ts';
 import {firstOfEach,keepReadable,noteSkipped} from './tolerant.ts';
 import {durationIntent,wireDurations} from './wire-units.ts';
 import type {ServerEvent} from './playback-v1/types.ts';
+import {dependsOn,type FreshnessDependency} from './freshness-hub.ts';
+import {queryKeys} from './query/keys.ts';
+import {linkAbortSignals} from './abort-lifetime.ts';
+import {until} from './query/until.ts';
+import type {ViewerQueries} from './query/viewer-queries.ts';
+import type {ViewerQueryOptions} from './query/react.ts';
 
 export type ScanTier='file_list_only'|'basic'|'complete'|'custom';
 export const scanOperations=['probe','local_metadata','subtitles','checksum','chapter_images','trickplay','waveform','loudness','fingerprint'] as const;
@@ -45,11 +51,37 @@ function parseObjects(raw:unknown,bound:ContentScope,libraryId:string,filter:Inv
  return Object.freeze({scope:scope(raw.scope,bound),libraryId,sourceId:raw.sourceId as string,revision:raw.revision,items:Object.freeze(items),nextCursor:raw.nextCursor});
 }
 
+/** What an owner's documents about one library are built from: its scans, the server's settings, and the list of libraries (a rename or removal). */
+export function libraryAdminDependencies(libraryId:string):readonly FreshnessDependency[]{return [dependsOn.event('library.scan.updated',libraryId),dependsOn.settings('server'),dependsOn.libraries];}
+/** A request that gives up after 15 seconds, or when `signal` aborts. */
+async function timedRequest(api:LibraryContentApi,path:string,method:string,body:unknown,signal:AbortSignal):Promise<unknown>{
+ const linked=linkAbortSignals([signal]),c=new AbortController();let timer:ReturnType<typeof setTimeout>|undefined;const stop=()=>c.abort();linked.signal.addEventListener('abort',stop,{once:true});
+ try{return await Promise.race([api.request<unknown>(path,method,body,c.signal),new Promise<never>((_,reject)=>{timer=setTimeout(()=>{c.abort();reject(new Error('Inventory response interrupted. Check current state before issuing the command again.'));},15000);})]);}
+ finally{if(timer)clearTimeout(timer);linked.signal.removeEventListener('abort',stop);linked.dispose();}
+}
+function inventoryParams(filter:InventoryFilter,cursor:string){const params=new URLSearchParams({limit:'40'});if(cursor)params.set('cursor',cursor);if(filter.sourceId)params.set('sourceId',filter.sourceId);if(filter.state)params.set('state',filter.state);return params;}
+export type InventoryFirstPage=Readonly<{config:InventoryConfig;objects:InventoryObjects}>;
+function parseInventory(a:unknown,b:unknown,bound:ContentScope,libraryId:string,filter:InventoryFilter):InventoryFirstPage{
+ const config=parseConfig(a,bound,libraryId),objects=parseObjects(b,bound,libraryId,filter);
+ // The two documents are read apart: one revision of the library's inventory, or neither is shown.
+ assert(config.revision===objects.revision);
+ return Object.freeze({config,objects});
+}
+/** A library's inventory settings and its first page of files, in the viewer's cache. `api` is the owner's checked requester. */
+export function libraryInventoryQuery(api:LibraryContentApi,bound:ContentScope,libraryId:string,filter:InventoryFilter):ViewerQueryOptions<InventoryFirstPage>{
+ return {queryKey:queryKeys.adminLibraryInventory(libraryId,filter.sourceId??'',filter.state??''),
+  queryFn:async({signal})=>{const base=encodedRoutePath("get_admin_libraries_id", {"id": encodeURIComponent(libraryId)});
+   const [a,b]=await Promise.all([timedRequest(api,base+'/inventory-config','GET',undefined,signal),timedRequest(api,base+'/inventory?'+inventoryParams(filter,''),'GET',undefined,signal)]);
+   return parseInventory(a,b,bound,libraryId,filter);},
+  meta:{dependencies:libraryAdminDependencies(libraryId)}};
+}
+
 export class LibraryInventoryService {
  private state:LibraryInventorySnapshot=Object.freeze({config:null,objects:null,loading:false,error:null,filter:Object.freeze({}),cursor:'',canPrevious:false,mutation:'idle'});
- private listeners=new Set<()=>void>();private disposed=false;private epoch=0;private reads=0;private controllers=new Set<AbortController>();private history:string[]=[];private fences:{config?:string;objects?:string}={};private commandBusy=false;
- private readonly api:LibraryContentApi;private readonly bound:ContentScope;readonly libraryId:string;
- constructor(input:{api:LibraryContentApi;scope:ContentScope;libraryId:string}){assert(id(input.libraryId)&&id(input.scope.serverId)&&text(input.scope.viewerId,1024)&&input.scope.viewerId);this.api=input.api;this.bound=Object.freeze({...input.scope});this.libraryId=input.libraryId;}
+ private listeners=new Set<()=>void>();private disposed=false;private epoch=0;private reads=0;private controllers=new Set<AbortController>();private history:string[]=[];private commandBusy=false;
+ private readonly api:LibraryContentApi;private readonly bound:ContentScope;readonly libraryId:string;private readonly queries?:ViewerQueries;
+ /** `queries`: the viewer's cache; the first page of a library's inventory is read through it, shared with every other view of it. */
+ constructor(input:{api:LibraryContentApi;scope:ContentScope;libraryId:string;queries?:ViewerQueries}){assert(id(input.libraryId)&&id(input.scope.serverId)&&text(input.scope.viewerId,1024)&&input.scope.viewerId);assert(!input.queries||input.queries.scope.serverId===input.scope.serverId);this.queries=input.queries;this.api=input.api;this.bound=Object.freeze({...input.scope});this.libraryId=input.libraryId;}
  subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>this.listeners.delete(listener);};getSnapshot=()=>this.state;
  private publish(update:Partial<LibraryInventorySnapshot>){if(this.disposed)return;this.state=Object.freeze({...this.state,...update});for(const listener of this.listeners)listener();}
  dispose(){this.epoch++;this.disposed=true;for(const c of this.controllers)c.abort();this.controllers.clear();this.listeners.clear();this.state=Object.freeze({...this.state,config:null,objects:null});}
@@ -57,26 +89,50 @@ export class LibraryInventoryService {
  private async request(path:string,method='GET',body?:unknown){if(this.disposed)throw new Error('Inventory view is closed.');const c=new AbortController();this.controllers.add(c);let timer:ReturnType<typeof setTimeout>|undefined;
   try{return await Promise.race([this.api.request<unknown>(path,method,body,c.signal),new Promise<never>((_,reject)=>{timer=setTimeout(()=>{c.abort();reject(new Error('Inventory response interrupted. Check current state before issuing the command again.'));},15000);})]);}finally{if(timer)clearTimeout(timer);this.controllers.delete(c);}
  }
- private acceptFence(kind:'config'|'objects',value:string){const held=this.fences[kind];if(held&&held!==value){this.publish({config:null,objects:null});throw new Error('Owner session changed. Reopen library management.');}this.fences[kind]=value;}
- async refresh(){if(this.disposed)return;const epoch=this.epoch,seq=++this.reads;this.publish({loading:true,error:null});const filter=this.state.filter,cursor=this.state.cursor;
-  try {const params=new URLSearchParams({limit:'40'});if(cursor)params.set('cursor',cursor);if(filter.sourceId)params.set('sourceId',filter.sourceId);if(filter.state)params.set('state',filter.state);
-   const [a,b]=await Promise.all([this.request(this.base()+'/inventory-config'),this.request(this.base()+'/inventory?'+params)]);
+ /** A server that refuses the owner: nothing read for them is kept, here or in the viewer's cache. */
+ private forget(){this.epoch++;for(const c of this.controllers)c.abort();this.queries?.client.removeQueries({queryKey:queryKeys.adminLibraries()});}
+ /** The cached first page of this view, when nothing it was built from has moved since it was read. */
+ private cached(filter:InventoryFilter):InventoryFirstPage|undefined{
+  const queries=this.queries;if(!queries)return undefined;
+  const key=queryKeys.adminLibraryInventory(this.libraryId,filter.sourceId??'',filter.state??''),state=queries.client.getQueryState<InventoryFirstPage>(key);
+  return state&&state.data!==undefined&&state.status==='success'&&!state.isInvalidated&&queries.documentFor(key)?.getState().stale!==true?state.data:undefined;
+ }
+ private async readPage(filter:InventoryFilter,cursor:string,fresh:boolean):Promise<InventoryFirstPage>{
+  const queries=this.queries;
+  if(queries&&!cursor){
+   // The first page is the viewer's shared document; this view stops waiting for it when it is closed.
+   const c=new AbortController();this.controllers.add(c);
+   try{const options=libraryInventoryQuery(this.api,this.bound,this.libraryId,filter);return await until(queries.client.fetchQuery(fresh?{...options,staleTime:0}:options),c.signal);}
+   finally{this.controllers.delete(c);}
+  }
+  const [a,b]=await Promise.all([this.request(this.base()+'/inventory-config'),this.request(this.base()+'/inventory?'+inventoryParams(filter,cursor))]);
+  return parseInventory(a,b,this.bound,this.libraryId,filter);
+ }
+ /** `fresh: false`: a first page the cache holds and nothing has moved since is shown at once, with no request. */
+ async refresh(fresh=true):Promise<void>{if(this.disposed)return;const epoch=this.epoch,seq=++this.reads;const filter=this.state.filter,cursor=this.state.cursor;
+  const held=!fresh&&!cursor?this.cached(filter):undefined;
+  if(held){this.publish({config:held.config,objects:held.objects,loading:false,error:null,mutation:this.commandBusy?'pending':'idle'});return;}
+  this.publish({loading:true,error:null});
+  try {
+   const {config,objects}=await this.readPage(filter,cursor,fresh);
    if(this.disposed||epoch!==this.epoch||seq!==this.reads)return;
-   const config=parseConfig(a,this.bound,this.libraryId),objects=parseObjects(b,this.bound,this.libraryId,filter);// The config read carries the plain admin fence; the objects list hashes a library administrator's
-   // allowed libraries into its own, so each is guarded on its own and never compared with the other.
-   assert(config.revision===objects.revision);this.acceptFence('config',config.scope.viewerFence);this.acceptFence('objects',objects.scope.viewerFence);
    if(objects.nextCursor&&(objects.nextCursor===cursor||this.history.includes(objects.nextCursor)))throw new Error('Invalid inventory continuation.');
    this.publish({config,objects,loading:false,error:null,mutation:this.commandBusy?'pending':'idle'});
-  }catch(e){if(this.disposed||epoch!==this.epoch||seq!==this.reads)return;const error=errorOf(e);if(['unauthorized','forbidden'].includes(error.code)){this.epoch++;for(const c of this.controllers)c.abort();this.publish({config:null,objects:null});}this.publish({loading:false,error});}
+  }catch(e){if(this.disposed||epoch!==this.epoch||seq!==this.reads)return;const error=errorOf(e);
+   // A page the server no longer continues from: this list starts again at its first page.
+   if(cursor&&['stale_continuation','invalid_cursor'].includes(error.code)){this.history=[];this.publish({cursor:'',canPrevious:false});return this.refresh(true);}
+   if(['unauthorized','forbidden'].includes(error.code)){this.forget();this.publish({config:null,objects:null});}this.publish({loading:false,error});}
  }
- async loadObjects(filter:InventoryFilter={}){assert(!filter.sourceId||id(filter.sourceId));assert(!filter.state||['available','missing','unsupported'].includes(filter.state));this.history=[];this.publish({filter:Object.freeze({...filter}),cursor:'',canPrevious:false,objects:null});await this.refresh();}
+ async loadObjects(filter:InventoryFilter={}){assert(!filter.sourceId||id(filter.sourceId));assert(!filter.state||['available','missing','unsupported'].includes(filter.state));this.history=[];this.publish({filter:Object.freeze({...filter}),cursor:'',canPrevious:false,objects:null});await this.refresh(false);}
  async next(){if(this.state.loading||!this.state.objects?.nextCursor)return;this.history.push(this.state.cursor);if(this.history.length>64)this.history.shift();this.publish({cursor:this.state.objects.nextCursor,canPrevious:true});await this.refresh();}
- async previous(){if(this.state.loading||!this.history.length)return;this.publish({cursor:this.history.pop()!,canPrevious:this.history.length>0});await this.refresh();}
+ async previous(){if(this.state.loading||!this.history.length)return;const back=this.history.pop()!;this.publish({cursor:back,canPrevious:this.history.length>0});await this.refresh(false);}
  async reconcile(){this.history=[];this.publish({cursor:'',canPrevious:false});await this.refresh();}
  private config(){if(!this.state.config||this.state.loading)throw new Error('Load current library configuration first.');return this.state.config;}
  private async command(path:string,method:string,body?:unknown):Promise<boolean>{this.config();if(this.commandBusy||this.state.mutation==='ambiguous')throw new Error('Check the current state before issuing another command.');this.commandBusy=true;const epoch=this.epoch;this.publish({mutation:'pending',error:null});
-  try{await this.request(this.base()+path,method,body);if(this.disposed||epoch!==this.epoch)return false;await this.reconcile();if(this.disposed||epoch!==this.epoch)return false;this.publish({mutation:'complete'});return true;
-  }catch(e){if(this.disposed||epoch!==this.epoch)return false;const error=errorOf(e);const definite=['invalid_request','source_busy','source_changed','source_already_configured','library_configuration_conflict','stale_continuation','not_found','forbidden','unauthorized'].includes(error.code);if(['unauthorized','forbidden'].includes(error.code)){this.epoch++;for(const c of this.controllers)c.abort();this.publish({config:null,objects:null,loading:false});}this.publish({error,mutation:definite?'error':'ambiguous'});return false;}finally{this.commandBusy=false;}
+  try{await this.request(this.base()+path,method,body);if(this.disposed||epoch!==this.epoch)return false;
+  // Every owner document about this library, here and in other views, is read again when next asked for.
+  this.queries?.moved(libraryAdminDependencies(this.libraryId));await this.reconcile();if(this.disposed||epoch!==this.epoch)return false;this.publish({mutation:'complete'});return true;
+  }catch(e){if(this.disposed||epoch!==this.epoch)return false;const error=errorOf(e);const definite=['invalid_request','source_busy','source_changed','source_already_configured','library_configuration_conflict','stale_continuation','not_found','forbidden','unauthorized'].includes(error.code);if(['unauthorized','forbidden'].includes(error.code)){this.forget();this.publish({config:null,objects:null,loading:false});}this.publish({error,mutation:definite?'error':'ambiguous'});return false;}finally{this.commandBusy=false;}
  }
  saveSource(sourceId:string|undefined,input:SourceSettings){assert(!sourceId||id(sourceId));assert(text(input.name,100)&&text(input.path)&&input.path&&integer(input.expectedRevision)&&input.expectedRevision>0&&integer(input.intervalSeconds));return this.command('/sources'+(sourceId?'/'+encodeURIComponent(sourceId):''),sourceId?'PATCH':'POST',durationIntent(input,{intervalSeconds:'intervalMs'}));}
  removeSource(sourceId:string,expectedRevision:number){assert(id(sourceId)&&integer(expectedRevision));return this.command('/sources/'+encodeURIComponent(sourceId),'DELETE',{expectedRevision});}

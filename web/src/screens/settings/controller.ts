@@ -1,3 +1,4 @@
+import type {ViewerQueries} from '@core/query/viewer-queries.ts';
 import type {QuietRefreshOutcome} from '@core/freshness-actions.ts';
 import type {QuietInput} from './quiet-refresh';
 import {LOG_DETAIL_MINUTES, type LogDetailMinutes} from '@core/server-administration.ts';
@@ -66,6 +67,8 @@ export type ReadingSettingsAdapter = Readonly<{
 }>;
 export type SettingsControllerOptions = Readonly<{
   api: Pick<HttpLocalApi, 'request'>; serverId: string; viewerId: string;
+  /** The viewer's cache of server documents, for the owner documents the Libraries pages read. */
+  queries?: ViewerQueries;
   role: 'owner' | 'admin' | 'member'; mainProfile: boolean;
   capabilities: Readonly<{manageServer: boolean; managePeople: boolean; manageSignIn: boolean}>;
   preferences: PreferenceSnapshot; reader: PreferencesReader; readConfiguration?: (signal: AbortSignal) => Promise<SettingsConfiguration>; isCurrent: () => boolean; reportError: (error: unknown) => void;
@@ -123,7 +126,7 @@ export class SettingsController {
     this.options = options; this.preferences = options.preferences;
     this.sectionReads = new SettingsSectionReads(this.current, () => {for (const listener of this.listeners) listener();});
     const libraryCurrent = () => this.current() && options.mainProfile && options.capabilities.manageServer && options.role !== 'member';
-    this.library = new SettingsLibrarySource(options.api, libraryCurrent, () => this.publish({}), options.reportError, {serverId: options.serverId, viewerId: options.viewerId});
+    this.library = new SettingsLibrarySource(options.api, libraryCurrent, () => this.publish({}), options.reportError, {serverId: options.serverId, viewerId: options.viewerId}, options.queries);
     const scope = {serverId: options.serverId, viewerId: options.viewerId};
     // A folder read is tab-scoped: its headless port carries the error, so it never fails the whole section.
     this.folders = new SettingsLibraryFoldersSource(options.api, scope, libraryCurrent, () => this.publish({}), () => {});

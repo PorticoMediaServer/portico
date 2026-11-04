@@ -45,7 +45,6 @@
   "packages/client-core/src/home-service.ts": 7,
   "packages/client-core/src/home.ts": 2,
   "packages/client-core/src/library-content.ts": 3,
-  "packages/client-core/src/library-management.ts": 2,
   "packages/client-core/src/lyrics.ts": 2,
   "packages/client-core/src/media-analysis.ts": 2,
   "packages/client-core/src/metadata-editor.ts": 2,
