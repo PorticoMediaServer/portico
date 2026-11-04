@@ -219,3 +219,19 @@ test('J-14: a closed page ends a started personal write without a toast', async 
   assert.deepEqual(run.seen, [true, false]);
   assert.deepEqual(f.notices, []);
 });
+
+test('a page kept current is held while its selection is open, and let go when it ends or the page is covered', async () => {
+  const f = await fixture();
+  let holds = 0, releases = 0;
+  const selection = f.createNativeSelection(f.context, {...f.source, hold: () => {holds++; return () => {releases++;};}}, {area: 'search', aggregates: true});
+  try {
+    assert.equal(holds, 0, 'an offered selection nobody started holds nothing');
+    selection.start!(); assert.equal(holds, 1);
+    selection.item(movie, 'known')!.onEnter(); await tick();
+    assert.equal(holds, 1, 'one hold for the whole selection');
+    selection.clear(); assert.equal(releases, 1, 'Cancel lets the page be read again');
+    selection.start!(); assert.equal(holds, 2);
+    f.cover(); assert.equal(releases, 2, 'a covered page ends its selection and its hold');
+    selection.dispose(); assert.equal(releases, 2, 'released exactly once');
+  } finally {selection.dispose(); f.close();}
+});

@@ -49,6 +49,9 @@ export type NativeSelectionSource = Readonly<{
   /** The page is the visible, current one. */
   current: () => boolean;
   getSnapshot: () => NativeSelectionSnapshot;
+  /** Keep the page as it is while a selection is open over it (a page kept current would otherwise
+   *  be read again under it, which ends the selection). Returns the release. */
+  hold?: () => () => void;
 }>;
 export type NativeSelectionOptions = Readonly<{
   /** Error copy and the dialogs' test IDs. */
@@ -146,7 +149,13 @@ export function createNativeSelection(context: NativeShellBootstrapContext, sour
     bulkController?.abort(); bulkController = undefined; stopBulk?.(); stopBulk = undefined; bulk?.dispose(); bulk = undefined;};
   const closeDestinations = () => {destinationController?.abort(); destinationController = undefined; stopDestinations?.(); stopDestinations = undefined;
     destinations?.dispose(); destinations = undefined; destinationKind = undefined;};
-  const emit = () => {revision++; for (const listener of [...listeners]) listener();};
+  let releaseHold: (() => void) | undefined;
+  const syncHold = () => {
+    const open = !disposed && (started || !!model?.getSnapshot().active);
+    if (open && !releaseHold && source.hold) releaseHold = source.hold();
+    else if (!open && releaseHold) {releaseHold(); releaseHold = undefined;}
+  };
+  const emit = () => {revision++; syncHold(); for (const listener of [...listeners]) listener();};
   const keyFor = (snapshot: NativeSelectionSnapshot) => snapshot.context ? JSON.stringify([snapshot.key ?? null, snapshot.context]) : '';
   const visible = () => !disposed && authority.current() && source.current();
   const selectable = (entry: SearchEntry): entry is ContentEntry => leaf(entry) || options.aggregates === true && aggregate(entry);

@@ -212,8 +212,9 @@ export function searchPath(q:SearchQuery,limit:number,cursor?:string|null):strin
  if(cursor)params.set('cursor',cursor);
  return routePath("search") + "?" + (params);
 }
-/** What a search's results move with: titles, the libraries, this profile's state and preferences. */
-const searchDependencies=()=>[dependsOn.libraries,...titlesWithPersonalState(),dependsOn.settings('preferences'),dependsOn.event('stream.resync')];
+/** What a search's results move with: titles, the libraries, this profile's state and preferences.
+ * The cached first pages and a Search screen kept current while open (web and native) declare the same. */
+export const searchDependencies=()=>[dependsOn.libraries,...titlesWithPersonalState(),dependsOn.settings('preferences'),dependsOn.event('stream.resync')];
 /** A search's first page in this viewer's cache. The answer is the server's document as it came;
  * the service that shows it validates it for the query it asked. */
 export function searchResultsQuery(queries:ViewerQueries,q:SearchQuery,limit=40):ViewerQueryOptions<unknown>{

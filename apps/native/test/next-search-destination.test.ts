@@ -31,7 +31,7 @@ function setup(request: LibraryContentApi['request']) {
   const destination = new NativeSearchDestination({api, scope, current: () => current,
     rememberHistory: () => remember, reportError: error => errors.push(error)});
   // Retiring a viewer ends its cache too, as the shell does on any viewer or fence change; that aborts the cache's reads.
-  return {destination, errors, retire: () => {current = false; destination.dispose(); viewerQueriesFor(api, scope).dispose();}, historyOff: () => {remember = false;}};
+  return {destination, errors, api, retire: () => {current = false; destination.dispose(); viewerQueriesFor(api, scope).dispose();}, historyOff: () => {remember = false;}};
 }
 
 test('the actual search service appends cursor pages and keeps real result identities', async () => {
@@ -223,4 +223,83 @@ test('a query already read is shown again from the viewer cache, and Recent sear
     assert.equal(searches().length, 1, 'no second search read'); assert.equal(histories().length, 2, 'no second recents read');
     assert.deepEqual(back.getSnapshot().recent, history.entries);
   } finally {first.dispose(); back.dispose(); viewerQueriesFor(api, scope).dispose();}
+});
+
+// N-A5: the search on screen stays current while it is shown.
+async function shownSearch(options: {renamed?: () => boolean; failing?: () => boolean; nextCursor?: string} = {}) {
+  const {dependsOn} = await import('../../../packages/client-core/src/freshness-hub.ts');
+  const reads: string[] = [];
+  const f = setup(async <T>(path: string) => {
+    if (path.includes('/history')) return history as T;
+    reads.push(path);
+    if (options.failing?.()) throw Object.assign(new Error('down'), {status: 503});
+    const answer = result(path, path.includes('cursor=') ? ['movie-c'] : ['movie-a', 'movie-b'], path.includes('cursor=') ? '' : options.nextCursor ?? '');
+    if (options.renamed?.()) answer.groups[0]!.items[0]!.title = 'Renamed';
+    return answer as T;
+  });
+  f.destination.setText('matrix'); f.destination.selectGroup('movies');
+  for (let i = 0; i < 20 && f.destination.getSnapshot().search.phase !== 'ready'; i++) await tick();
+  assert.equal(f.destination.getSnapshot().search.phase, 'ready');
+  return {...f, reads, move: () => viewerQueriesFor(f.api, scope).moved([dependsOn.personal()])};
+}
+const gathered = () => new Promise(resolve => setTimeout(resolve, 900));
+const firstTitle = (destination: NativeSearchDestination) => destination.getSnapshot().groups[0]?.items[0]?.title;
+
+test('a shown search is read again in place when a title it shows moves, and a failed read leaves it as it was', async () => {
+  let renamed = false;
+  const shown = await shownSearch({renamed: () => renamed});
+  try {
+    const before = shown.reads.length;
+    renamed = true; shown.move(); await gathered();
+    assert.equal(shown.reads.length, before + 1, 'one read answers the move');
+    assert.equal(firstTitle(shown.destination), 'Renamed', 'replaced in place');
+    assert.equal(shown.destination.getSnapshot().search.phase, 'ready');
+    assert.equal(shown.destination.getSnapshot().text, 'matrix');
+  } finally {shown.destination.dispose();}
+  let failing = false;
+  const failed = await shownSearch({failing: () => failing});
+  try {
+    failing = true; failed.move(); await gathered();
+    assert.deepEqual(failed.destination.getSnapshot().groups[0]?.items.map(entry => entry.id), ['movie-a', 'movie-b']);
+    assert.equal(failed.destination.getSnapshot().search.phase, 'ready');
+    assert.deepEqual(failed.errors, [], 'a quiet read that failed says nothing');
+  } finally {failed.destination.dispose();}
+});
+
+test('a hidden search reads nothing until it is shown again; an open selection holds it until it closes', async () => {
+  let renamed = false;
+  const shown = await shownSearch({renamed: () => renamed});
+  try {
+    const before = shown.reads.length;
+    shown.destination.pause(); renamed = true; shown.move(); await gathered();
+    assert.equal(shown.reads.length, before, 'hidden: no read');
+    shown.destination.resume(); await gathered();
+    assert.equal(firstTitle(shown.destination), 'Renamed', 'shown again: what moved is read');
+  } finally {shown.destination.dispose();}
+  renamed = false;
+  const held = await shownSearch({renamed: () => renamed});
+  try {
+    const release = held.destination.hold(), before = held.reads.length;
+    renamed = true; held.move(); await gathered();
+    assert.equal(held.reads.length, before, 'the open selection keeps its results');
+    release(); await gathered();
+    assert.equal(firstTitle(held.destination), 'Renamed', 'read once the selection closed');
+  } finally {held.destination.dispose();}
+});
+
+test('results paged past their first page are held as they are; the next search answers what moved', async () => {
+  let renamed = false;
+  const paged = await shownSearch({renamed: () => renamed, nextCursor: 'next-page'});
+  try {
+    await paged.destination.next('movies');
+    assert.deepEqual(paged.destination.getSnapshot().groups[0]?.items.map(entry => entry.id), ['movie-a', 'movie-b', 'movie-c']);
+    const before = paged.reads.length;
+    renamed = true; paged.move(); await gathered();
+    assert.equal(paged.reads.length, before, 'a first-page read cannot say which later cards still stand');
+    assert.deepEqual(paged.destination.getSnapshot().groups[0]?.items.map(entry => entry.id), ['movie-a', 'movie-b', 'movie-c']);
+    paged.destination.setText('matrix 2'); await new Promise(resolve => setTimeout(resolve, 300));
+    for (let i = 0; i < 20 && paged.destination.getSnapshot().search.phase !== 'ready'; i++) await tick();
+    const after = paged.reads.length; await gathered();
+    assert.equal(paged.reads.length, after, 'the new search\'s own read answered the move: no second read');
+  } finally {paged.destination.dispose();}
 });

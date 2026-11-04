@@ -1,9 +1,10 @@
 import {
-  SearchService, clearSearchHistory, recordSearch, searchFirstPages, searchHistoryQuery, searchQueryProblem,
+  SearchService, clearSearchHistory, recordSearch, searchDependencies, searchFirstPages, searchHistoryQuery, searchQueryProblem,
   type SearchEntry, type SearchGroup, type SearchGroupResult, type SearchHistoryEntry, type SearchHistoryPage, type SearchSnapshot,
 } from '../../../../../packages/client-core/src/search';
 import {queryKeys} from '../../../../../packages/client-core/src/query/keys';
 import type {ViewerQueries} from '../../../../../packages/client-core/src/query/viewer-queries';
+import type {FreshDocument} from '../../../../../packages/client-core/src/freshness-hub';
 import {viewerQueriesFor} from '../../shell/freshness';
 import {searchReadingOffered, searchRequestGroups} from '../../../../../packages/client-core/src/presentation/search-model';
 import type {ContentScope, LibraryContentApi} from '../../../../../packages/client-core/src/library-content';
@@ -36,7 +37,11 @@ export type NativeSearchSnapshot = Readonly<{
  * First pages and Recent searches come from this viewer's cache (`['search','results',…]` and
  * `['search','history']`, as web): a query already read is shown again with no request, a recording
  * read fills the plain read's entry, and Recent searches are read again only when the server says it
- * recorded one. Continuations and recording reads are the server's. */
+ * recorded one. Continuations and recording reads are the server's.
+ * While shown, the search on screen stays current: when a title it shows, the libraries, this profile's
+ * state or its preferences move, its first pages are read again and replaced in place (a failed read
+ * leaves them as they were). An open selection, or rows paged past their first page, hold the shown
+ * results as they are; a move meanwhile is read once the hold ends or with the next search. */
 export class NativeSearchDestination {
   readonly service: SearchService;
   private readonly queries: ViewerQueries;
@@ -60,6 +65,8 @@ export class NativeSearchDestination {
   private capabilityQuery = '';
   private pages = new Map<SearchGroup, SearchGroupResult>();
   private groupReads = new Map<SearchGroup, {service: SearchService; unsubscribe: () => void; revision: number; base: NonNullable<SearchSnapshot['data']>}>();
+  private readonly freshness: FreshDocument;
+  private holds = 0;
 
   constructor(options: NativeSearchDestination['options']) {
     this.options = options;
@@ -68,7 +75,22 @@ export class NativeSearchDestination {
     const text = options.initialQuery ?? '';
     this.state = Object.freeze({text, group: 'all', ...(text.trim() ? {problem: searchQueryProblem(text)} : {}), search: this.service.getSnapshot(), groups: [], recent: [], clearing: false});
     this.unsubscribe = this.service.subscribe(this.changed);
+    this.freshness = this.queries.keepCurrent({
+      dependencies: searchDependencies(),
+      // Only first pages are read again: a re-read of page one cannot say which later cards still stand.
+      hasContent: () => !this.disposed && !this.paused && this.holds === 0 && this.groupReads.size === 0
+        && this.service.getSnapshot().phase === 'ready' && this.service.getSnapshot().pagination.cursor === null,
+      revalidate: context => this.service.revalidate(context),
+    });
+    this.freshness.setOpen(true);
   }
+  /** Keep the shown results as they are while a selection is open over them (an answer read again
+   *  starts a new revision, which ends it). Returns the release; a move meanwhile is read then. */
+  hold = (): (() => void) => {
+    this.holds++;
+    let held = true;
+    return () => {if (!held) return; held = false; if (--this.holds === 0 && !this.disposed) this.freshness.check();};
+  };
   getSnapshot = (): NativeSearchSnapshot => {this.current(); return this.state;};
   subscribe = (listener: () => void): (() => void) => {this.listeners.add(listener); return () => {this.listeners.delete(listener);};};
   private current(): boolean {
@@ -102,6 +124,8 @@ export class NativeSearchDestination {
     if (search.data && !denied) this.capabilityQuery = search.data.query.q;
     else if (!capabilities) this.capabilityQuery = '';
     this.publish({search, capabilities, groups: Object.freeze([...this.pages.values()]), ...(reset ? {paging: {}} : {})});
+    // Something to keep now: a move during the first load is read.
+    if (search.phase === 'ready') this.freshness.check();
   };
   private stopGroupReads(): void {
     for (const read of this.groupReads.values()) {read.unsubscribe(); read.service.dispose();}
@@ -124,6 +148,8 @@ export class NativeSearchDestination {
   private async select(record: boolean): Promise<void> {
     if (!this.current() || this.paused || !this.state.text.trim() || this.state.problem) return;
     const revision = ++this.selectionRevision; this.stopGroupReads(); this.publish({paging: {}});
+    // This read answers whatever moved before it (the cache's own first page is current too).
+    this.freshness.markCurrent();
     // SR-6: the All view asks for the drawn groups only, as web does, so no section arrives
     // that this app cannot name (Collections and Authors were drawn under "All").
     const selected = this.state.group, all = selected === 'all', readingOffered = searchReadingOffered(this.state.capabilities);
@@ -226,6 +252,7 @@ export class NativeSearchDestination {
   pause = (): void => {
     if (!this.current() || this.paused) return;
     this.paused = true; this.selectionRevision++; this.stopTimer(); this.historyRevision++; this.history?.abort(); this.history = undefined;
+    this.freshness.setOpen(false);
     this.service.pause();
     for (const [group, read] of this.groupReads) {read.service.pause();
       if (read.service.getSnapshot().phase === 'idle') {read.unsubscribe(); read.service.dispose(); this.groupReads.delete(group);}}
@@ -238,6 +265,8 @@ export class NativeSearchDestination {
     if (!this.current() || !this.paused) return;
     this.paused = false;
     for (const read of this.groupReads.values()) read.revision = this.selectionRevision;
+    // Shown again: what moved while hidden is read now.
+    this.freshness.setOpen(true);
     if (this.state.search.phase === 'idle') void this.select(false);
   };
   refreshHistory = async (): Promise<void> => {
@@ -273,7 +302,7 @@ export class NativeSearchDestination {
   dispose = (): void => {
     if (this.disposed) return;
     this.disposed = true; this.selectionRevision++; this.stopTimer(); this.history?.abort(); this.historyRevision++;
-    this.recording?.abort(); this.recording = undefined;
+    this.recording?.abort(); this.recording = undefined; this.freshness.dispose();
     this.unsubscribe(); this.stopGroupReads(); this.service.cancel(); this.service.dispose(); this.pages.clear(); this.listeners.clear();
     this.state = Object.freeze({...this.state, text: '', search: this.service.getSnapshot(), capabilities: undefined, paging: {}, groups: [], recent: [], clearing: false});
   };

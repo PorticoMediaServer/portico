@@ -10,6 +10,8 @@ export function createNativeSearchSelection(context: NativeShellBootstrapContext
   return createNativeSelection(context, {
     subscribe: listener => {const stops = [source.subscribe(listener), activation.subscribe(listener)]; return () => stops.forEach(stop => stop());},
     current: () => activation.getSnapshot().visible,
+    // The results kept current while shown stay as they are under an open selection.
+    hold: source.hold,
     getSnapshot: () => {
       const snapshot = source.getSnapshot(), page = snapshot.search.data, viewer = context.session()?.viewer;
       const viewId = JSON.stringify(['native-search', snapshot.search.generation, page?.query]);
