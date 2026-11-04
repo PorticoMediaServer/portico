@@ -68,7 +68,7 @@ class Selection(unittest.TestCase):
         self.assertEqual(set(sr.select(['packages/i18n/src/catalog/en-US/settings.ts'], DATA)), {'server/cmd/server'})
         self.assertIn('server/internal/disc', sr.select(['fixtures/discs/manifest.json'], DATA))
         self.assertIn('server/internal/operations', sr.select(['packages/client-core/src/preference-effects.ts'], DATA))
-        self.assertEqual(sr.select(['packages/client-core/src/other.mjs'], DATA), {})
+        self.assertEqual(set(sr.select(['packages/client-core/src/other.mjs'], DATA)), {'server/internal/httpapi'})
 
     def test_malformed_entries_are_refused(self):
         with tempfile.TemporaryDirectory() as d:
