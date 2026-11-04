@@ -1275,11 +1275,13 @@ export class V1QueuePlayer implements QueueController {
     const invalidate = () => {resident.length = 0; navigation = undefined; history.length = 0;};
     const retire = () => {live = false; invalidate(); readerLife.abort();};
     const retired = () => new DOMException('Queue edit reader retired', 'AbortError');
+    // The window stays readable after the queue's last title ends (the end of a book or album): same
+    // session, run and anchor, so Up next still draws its rows instead of a refusal.
     const stable = () => {
       const p = this.playback.getSnapshot(), session = this.session, header = this.header;
       return live && !this.disposed && generation === this.generation && epoch === this.epoch && changes === this.changeSequence
         && sequence === this.policySequence && !lifetime.signal?.aborted && !this.nativeOwns() && !this.playback.hasNativeOwner()
-        && ['starting', 'ready'].includes(p.phase) && !p.channel && !p.nativeListening && p.intentId === initialPlayback.intentId
+        && ['starting', 'ready', 'ended'].includes(p.phase) && !p.channel && !p.nativeListening && p.intentId === initialPlayback.intentId
         && p.playbackRun === target.playbackRun && p.itemId === target.itemId && p.session?.id === target.sessionId && p.session.generation === target.generation
         && session?.role === 'local' && session.id === target.sessionId && session.presentation.generation === target.generation
         && session.itemId === target.itemId && session.versionId === target.versionId && session.queue?.queueId === target.queueId && session.queue.entryId === target.entryId
