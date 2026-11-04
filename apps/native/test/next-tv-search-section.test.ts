@@ -16,7 +16,7 @@ async function fixture() {
   const {TVSearchSection} = await screenModule(new URL('../src-next/screens/search/TVSearchSection.tsx', import.meta.url), {
     react: host.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n},
     '../../../../../packages/client-core/src/presentation/search-model': {searchGroupLabel},
-    '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useFocusRegistry: () => registry},
+    '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useCovered: () => false, useFocusRegistry: () => registry},
     '../../kit/focus/replacement-refocus': {useReplacementRefocus: (...args: any[]) => {refocused = args;}}, '../../kit/focus/page-boundary': {useRowPageBoundary: (...args: any[]) => {boundary = args;}},
     '../../kit/states': {LoadingPaint: 'LoadingPaint', SkeletonBlock: 'SkeletonBlock', StateView: 'StateView'},
     '../../kit/browse/presentation': {browseType}, '../../kit/theme': {useTheme: () => theme}, '../../kit/layout/Row': {Row: 'Row'}, '../../tv/layout/TVLoadedGrid': {TVLoadedGrid: 'TVLoadedGrid'},
@@ -116,7 +116,8 @@ test('step 7: a row read again from its first page hands its named entry to Row,
   assert.equal(row.props.refocus, undefined);
   // Drawn as a grid (songs), the same replacement goes to the region's hook with the cells it now holds.
   f.props.singleRow = false; f.props.paging = {loading: false, error: null, replaced: {entryId: 'served-entry', serial: 5}}; f.render();
-  const [, regionId, refocus, cells] = f.refocused();
-  assert.equal(regionId, 'movies'); assert.deepEqual(refocus, {focusId: 'served-entry', serial: 5});
-  assert.equal(cells.length, 12); assert.equal(cells[0], nativeSearchEntryKey('movies', f.props.group.items[0]));
+  const [, regionId, refocus, covered, lostChild] = f.refocused();
+  assert.equal(regionId, 'movies'); assert.deepEqual(refocus, {focusId: 'served-entry', serial: 5}); assert.equal(covered, false);
+  assert.equal(lostChild(nativeSearchEntryKey('movies', f.props.group.items[0])), false, 'a cell the row still holds');
+  assert.equal(lostChild('gone'), true, 'a cell the replacement took away');
 });

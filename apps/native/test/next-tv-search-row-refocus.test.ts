@@ -30,7 +30,7 @@ async function scene(platform: 'android' | 'tvos') {
     './row-state': rowState, '../focus/page-boundary': {useRowPageBoundary() {}},
     './FocusAnchor': {useFocusAnchor: () => ({anchor() {}, repeating: false, offset: {value: 0}, scrollRef: {current: null}, stop() {}, move() {}})},
     './model': layoutModel, './MotionItem': {MotionItem: ({style, children}: any) => e(native.View, {style}, children)}, './types': layoutTypes, './TVRow': {TVRow}});
-  const {useReplacementRefocus} = await screenModule(new URL('../src-next/kit/focus/replacement-refocus.ts', import.meta.url), {react, './CoveredLayer': focus});
+  const {replacementRefocusHook} = await import('../src-next/kit/focus/replacement-refocus-hook.ts'), useReplacementRefocus = replacementRefocusHook(react as never);
   const registry = focus.createFocusRegistry();
   const requests: {regionId: string; childId: string}[] = [], focusOf = registry.focus;
   registry.focus = ((address: {regionId: string; childId: string}, options?: unknown) => {requests.push({...address}); return focusOf(address, options as never);}) as typeof registry.focus;
@@ -40,7 +40,7 @@ async function scene(platform: 'android' | 'tvos') {
     itemWidth: 196, itemHeight: 290, gap: 28, selection: unselected, initialViewportWidth: 1920, focus: {id: 'search.movies', edges: {up: 'search.keyboard'}}, refocus,
     renderItem: (id: string, slot: any) => e(Focusable, {testID: id, focusId: slot.focusId, onFocus: slot.onFocus, onBlur: slot.onBlur, style: {width: 196, height: 290}}, () => null)});
   const SongsGrid = ({ids, refocus, targeted}: {ids: readonly string[]; refocus?: {focusId: string; serial: number}; targeted: boolean}) => {
-    useReplacementRefocus(registry, 'search.songs', targeted ? refocus : undefined, ids);
+    useReplacementRefocus(registry, 'search.songs', targeted ? refocus : undefined, focus.useCovered(), (id: string) => !ids.includes(id));
     return e(focus.FocusRegion, {id: 'search.songs', orientation: 'free', grid: {columns: 1, count: ids.length}, entry: ids[0], edges: {up: 'search.keyboard'}, style: {width: 900}},
       ids.map((id, index) => e(focus.FocusItem, {key: id, focusId: id, cell: {index}}, e(Stop, {id, w: 900, h: 84}))));
   };

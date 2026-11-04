@@ -130,7 +130,7 @@ test('TV Search song results use full-width track rows and channels use factual 
   const {TVSearchSection} = await screenModule(new URL('../src-next/screens/search/TVSearchSection.tsx', import.meta.url), {
     react: gridHost.react, 'react-native': native, '../../../../../packages/i18n/src': i18n,
     '../../../../../packages/client-core/src/presentation/search-model': {searchGroupLabel: (group: string) => group},
-    '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useFocusRegistry: () => ({})},
+    '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useCovered: () => false, useFocusRegistry: () => ({})},
     '../../kit/focus/replacement-refocus': {useReplacementRefocus() {}}, '../../kit/focus/page-boundary': {useRowPageBoundary() {}}, '../../kit/states': {}, '../../kit/browse/presentation': type, '../../kit/theme': {useTheme: () => theme},
     '../../kit/layout/Row': {Row: 'Row'}, '../../tv/layout/TVLoadedGrid': {TVLoadedGrid: 'TVLoadedGrid'},
     './model': {nativeSearchEntryKey: key, nativeSearchTailKey: () => ''}, './SearchGridCard': {SearchGridCard: 'SearchGridCard'},
