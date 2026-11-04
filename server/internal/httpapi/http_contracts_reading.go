@@ -135,6 +135,7 @@ func registerReadingHTTPContracts(registry *apikit.Registry) error {
 		}
 	}
 	m = metadata("get_reading_sessions_sessionId_assets", "GET", "/v1/reading/sessions/{sessionId}/assets", "Read one enumerated original EPUB asset", apikit.ScopePlayback)
+	m.Errors = append(append([]string{}, m.Errors...), "reading_member_unreadable")
 	m.Lane, m.Admission, m.Cost = apikit.Media, laneMediaBody, apikit.Constant
 	m.Query, m.Headers, m.ResponseContentType = []string{"path"}, []string{"If-Match", "If-None-Match"}, "application/octet-stream"
 	m.ResponseStatuses = []int{304}
@@ -142,6 +143,7 @@ func registerReadingHTTPContracts(registry *apikit.Registry) error {
 		return err
 	}
 	m = metadata("get_reading_sessions_sessionId_pages_pageIndex", "GET", "/v1/reading/sessions/{sessionId}/pages/{pageIndex}", "Read one bounded comic page image", apikit.ScopePlayback)
+	m.Errors = append(append([]string{}, m.Errors...), "reading_member_unreadable")
 	m.Lane, m.Admission, m.Cost = apikit.Media, laneMediaBody, apikit.Constant
 	m.Query, m.Headers, m.ResponseContentType = []string{"width"}, []string{"If-Match", "If-None-Match"}, "application/octet-stream"
 	m.ResponseStatuses = []int{304}

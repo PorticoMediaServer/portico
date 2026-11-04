@@ -83,6 +83,8 @@ func readingFailure(w http.ResponseWriter, err error) {
 		return
 	}
 	switch {
+	case errors.Is(err, reading.ErrMemberUnreadable):
+		policyError(w, "reading_member_unreadable")
 	case errors.Is(err, reading.ErrChanged), errors.Is(err, reading.ErrConflict), errors.Is(err, storage.ErrObservedSourceLost), errors.Is(err, storage.ErrRemoteChanged):
 		policyError(w, "revision_mismatch")
 	case errors.Is(err, reading.ErrUnavailable):
@@ -338,7 +340,7 @@ func (d Dependencies) serveReadingAsset(w http.ResponseWriter, r *http.Request) 
 	}
 	b, mime, err := e.Asset(f.Context(), path)
 	if err != nil {
-		readingFailure(w, f.StopAndRecheck(err))
+		readingMemberFailure(w, f, err)
 		return
 	}
 	serveReadingBlob(w, r, f, mime, b)
@@ -382,10 +384,19 @@ func (d Dependencies) serveReadingPage(w http.ResponseWriter, r *http.Request) {
 	}
 	p, err := c.Page(f.Context(), index, width)
 	if err != nil {
-		readingFailure(w, f.StopAndRecheck(err))
+		readingMemberFailure(w, f, err)
 		return
 	}
 	serveReadingBlob(w, r, f, p.Image.MIME, p.Bytes)
+}
+
+// Content rejected after the member was read does not invalidate its siblings.
+// Source, archive I/O and currentness failures retain the normal retirement.
+func readingMemberFailure(w http.ResponseWriter, f *reading.Source, err error) {
+	if !errors.Is(err, reading.ErrMemberUnreadable) {
+		err = f.StopAndRecheck(err)
+	}
+	readingFailure(w, err)
 }
 
 func serveReadingBlob(w http.ResponseWriter, r *http.Request, f *reading.Source, mime string, b []byte) {

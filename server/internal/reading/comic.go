@@ -165,11 +165,11 @@ func (c *Comic) Page(ctx context.Context, index, width int) (Page, error) {
 	// opened as an admitted image folder; otherwise the archive path applies.
 	b, err := c.readMember(ctx, name, MaxMember)
 	if err != nil {
-		return Page{}, err
+		return Page{}, memberReadError(err)
 	}
 	info, err := inspectImage(b)
 	if err != nil {
-		return Page{}, err
+		return Page{}, unreadableMember(err)
 	}
 	if width != 0 && width < info.Width {
 		select {
@@ -180,7 +180,7 @@ func (c *Comic) Page(ctx context.Context, index, width int) (Page, error) {
 		}
 		img, _, err := image.Decode(bytes.NewReader(b))
 		if err != nil {
-			return Page{}, ErrInvalid
+			return Page{}, unreadableMember(ErrInvalid)
 		}
 		if err = ctx.Err(); err != nil {
 			return Page{}, err
@@ -199,7 +199,7 @@ func (c *Comic) Page(ctx context.Context, index, width int) (Page, error) {
 		return Page{}, err
 	}
 	if width != 0 && len(b) > 16<<20 {
-		return Page{}, ErrLimit
+		return Page{}, unreadableMember(ErrLimit)
 	}
 	return Page{index, name, b, info}, nil
 }

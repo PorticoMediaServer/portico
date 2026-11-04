@@ -21,3 +21,11 @@ func TestReadingSessionsBusyIsRetryable503(t *testing.T) {
 		t.Fatalf("Retry-After = %q, want 2", retry)
 	}
 }
+
+func TestReadingArchiveLimitStillTooLarge(t *testing.T) {
+	w := httptest.NewRecorder()
+	readingFailure(w, reading.ErrLimit)
+	if w.Code != http.StatusRequestEntityTooLarge || v1Code(w) != "body_too_large" {
+		t.Fatalf("archive safety limit: %d %s", w.Code, w.Body.String())
+	}
+}

@@ -26603,6 +26603,7 @@ export const routes = [
       "body_too_large",
       "comic_archive_unsupported",
       "internal",
+      "reading_member_unreadable",
       "database_busy"
     ],
     "status": 200,
@@ -26642,6 +26643,7 @@ export const routes = [
       "body_too_large",
       "comic_archive_unsupported",
       "internal",
+      "reading_member_unreadable",
       "database_busy"
     ],
     "status": 200,

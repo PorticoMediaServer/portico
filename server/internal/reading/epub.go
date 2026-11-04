@@ -438,7 +438,7 @@ func (e *EPUB) Asset(ctx context.Context, name string) ([]byte, string, error) {
 	}
 	b, err := e.archive.read(ctx, name, MaxMember)
 	if err != nil {
-		return nil, "", err
+		return nil, "", memberReadError(err)
 	}
 	switch mime {
 	case "application/xhtml+xml":
@@ -453,7 +453,7 @@ func (e *EPUB) Asset(ctx context.Context, name string) ([]byte, string, error) {
 		}
 	}
 	if err != nil {
-		return nil, "", err
+		return nil, "", unreadableMember(err)
 	}
 	return b, mime, nil
 }
