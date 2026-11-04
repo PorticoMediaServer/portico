@@ -65,6 +65,8 @@ const bindings:Readonly<Record<string,SettingsBinding>>={
  'streaming.downloadQuality':{form:'runtime',key:'downloadMaxQuality',codec:'video-quality-choice'},
  'streaming.uploadSpeed':{form:'connectivity',key:'uploadCapacityKbps',scale:1000},
  'streaming.awayQuality':{form:'connectivity',key:'remoteBitrateLimitKbps',codec:'away-quality'},
+ // ST-7: the owner sees that same server limit on their own Quality page; it is changed only on Streaming.
+ 'quality.awayLimit':{form:'connectivity',key:'remoteBitrateLimitKbps',codec:'away-quality',readOnly:true},
  'streaming.awayExact':{form:'connectivity',key:'remoteBitrateLimitKbps',scale:1000},
  // The drawn Device selector needs the checked opaque device-ID producer.
  // hardwareBackend names a method and cannot represent this decision; the
@@ -210,6 +212,9 @@ const source69PreferenceBindings:Readonly<Record<string,SettingsBinding>>={
  'appearance.notificationDot':{form:'preferences',key:'notifications.badges',scope:'profile-server'},
  'quality.home':{form:'preferences',key:'quality.home',scope:'profile-device-class',codec:'video-quality-choice'},
  'quality.remote':{form:'preferences',key:'quality.remote',scope:'profile-device-class',codec:'video-quality-choice'},
+ // The saved Download quality the server applies when a download names none (downloads/music.go
+ // videoDownloadQuality). `ask` is offered only once the registry publishes it.
+ 'quality.downloadQuality':{form:'preferences',key:'quality.downloads',scope:'profile-device-class',codec:'video-quality-choice'},
  'quality.directPlay':{form:'preferences',key:'delivery.directPlay',scope:'profile-device-class'},
  'quality.directStream':{form:'preferences',key:'delivery.directStream',scope:'profile-device-class'},
  'quality.transcode':{form:'preferences',key:'delivery.transcode',scope:'profile-device-class'},
@@ -261,12 +266,14 @@ function windowMode(binding:SettingsBinding,w:Readonly<Record<string,unknown>>):
  if(binding.window==='heavy')return w.startMinute===60&&w.durationMinutes===300&&Array.isArray(w.days)&&w.days.length===7&&days.every(d=>(w.days as unknown[]).includes(d))&&!w.timezone?'overnight':'custom';
  return Object.entries(cadences).find(([,wanted])=>Array.isArray(w.days)&&w.days.length===wanted.length&&wanted.every(d=>(w.days as unknown[]).includes(d)))?.[0]??'custom';
 }
+/** A download is made once at a chosen quality, so Automatic is never a download quality. */
+const downloadQualityKey=(key:string)=>key==='downloadMaxQuality'||key==='quality.downloads';
 const historyRetentionDays:Readonly<Record<string,number>>={forever:0,'3y':1095,'1y':365,'180d':180,'90d':90,'30d':30};
 function presented(binding:SettingsBinding,v:unknown,sources:SettingsBindingSources):unknown{
  if(v===undefined)return undefined;
  if(binding.codec==='history-retention')return typeof v==='number'&&Number.isSafeInteger(v)&&v>=0&&v<=36500?Object.entries(historyRetentionDays).find(([,days])=>days===v)?.[0]??String(v):undefined;
  if(binding.codec==='music-quality-choice')return typeof v==='string'&&canonicalMusicQualityLadder.some(q=>q.id===v)?(v==='cd-quality'?'cd':v):undefined;
- if(binding.codec==='video-quality-choice')return typeof v==='string'&&canonicalQualityLadder.some(q=>q.id===v)&&(binding.key!=='downloadMaxQuality'||v!=='automatic')?(v==='2160p'?'4k':v):undefined;
+ if(binding.codec==='video-quality-choice')return binding.key==='quality.downloads'&&v==='ask'?'ask':typeof v==='string'&&canonicalQualityLadder.some(q=>q.id===v)&&(!downloadQualityKey(binding.key)||v!=='automatic')?(v==='2160p'?'4k':v):undefined;
  if(binding.codec==='artwork-size')return v===1280?'small':v===1920?'standard':v===2560?'large':undefined;
  if(binding.codec==='notice-audience')return validNoticeAudience(v)?v:undefined;
  if(binding.codec==='hardware-selection')return validHardwareSelection(v)?v:undefined;
@@ -356,6 +363,15 @@ function preferenceBindingPatch(binding:SettingsBinding,values:Readonly<Record<s
  if(!scope||scope==='profile-device'&&!snapshot.deviceBound||!snapshot.documents.some(d=>d.scope===scope)||fields.some(f=>!f||!f.scopes.includes(scope)))throw new Error('Invalid setting value.');
  return {form:'preferences',values:checkedPreferencePatch(snapshot,scope,values)};
 }
+/** The drawn choices a row's store can take: a select offers only values its binding can save
+ * (a registry that doesn't publish a value, such as Download quality's Ask each time before the
+ * server stores it, never shows it). When no choice can be saved here the row's own state says so,
+ * so the drawn list is kept. */
+export function settingsStorableChoices<T extends Readonly<{value?:unknown}>>(binding:SettingsBinding|undefined,options:readonly T[],sources:SettingsBindingSources):readonly T[]{
+ if(!binding||binding.form!=='preferences')return options;
+ const storable=options.filter(option=>{try{settingsBindingPatch(binding,option.value,sources);return true;}catch{return false;}});
+ return storable.length?storable:options;
+}
 /** A write always targets an existing producer; Advanced values are not rounded to a preset. */
 export function settingsBindingPatch(binding:SettingsBinding,value:unknown,sources:SettingsBindingSources={}):SettingsBindingPatch{
  if(binding.readOnly||binding.form==='connectivityStatus')throw new Error('This setting is read-only.');
@@ -388,7 +404,7 @@ export function settingsBindingPatch(binding:SettingsBinding,value:unknown,sourc
   raw=value==='cd'?'cd-quality':value;
  }
  if(binding.codec==='video-quality-choice'){
-  if(typeof value!=='string'||value==='2160p'||!canonicalQualityLadder.some(q=>(q.id==='2160p'?'4k':q.id)===value)||binding.key==='downloadMaxQuality'&&value==='automatic')throw new Error('Invalid setting value.');
+  if(!(binding.key==='quality.downloads'&&value==='ask')&&(typeof value!=='string'||value==='2160p'||!canonicalQualityLadder.some(q=>(q.id==='2160p'?'4k':q.id)===value)||downloadQualityKey(binding.key)&&value==='automatic'))throw new Error('Invalid setting value.');
   raw=value==='4k'?'2160p':value;
  }
  if(binding.codec==='boolean'&&typeof value!=='boolean')throw new Error('Invalid setting value.');

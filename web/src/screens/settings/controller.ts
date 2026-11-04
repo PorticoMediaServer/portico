@@ -5,8 +5,8 @@ import {ConsoleClient, type Measurement} from '@core/console.ts';
 import {PreferencesReader} from '@core/preferences-reader.ts';
 import {validatePreferencePatch, type PreferencePatch, type PreferenceScope, type PreferenceSnapshot} from '@core/preferences.ts';
 import {searchConfiguration, type SettingsConfiguration} from '@core/settings-configuration.ts';
-import {applySettingsBindingPatch, changedFromDefault, exactPresetValue, presetPatch, readSettingsBinding, settingsBinding, settingsBindingPatch, type SettingsBindingForm, type SettingsBindingSources, type SettingsBindingValue} from '@core/presentation/settings-bindings.ts';
-import {settingsRowIndex, settingsSpec, type SettingsRow, type SettingsSection, type SettingsValue} from '@core/presentation/settings-spec.ts';
+import {applySettingsBindingPatch, changedFromDefault, exactPresetValue, presetPatch, readSettingsBinding, settingsBinding, settingsBindingPatch, settingsStorableChoices, type SettingsBindingForm, type SettingsBindingSources, type SettingsBindingValue} from '@core/presentation/settings-bindings.ts';
+import {settingsRowIndex, settingsSpec, type SettingsOption, type SettingsRow, type SettingsSection, type SettingsValue} from '@core/presentation/settings-spec.ts';
 import {runtimeForm, connectivityForm, maintenanceForm, alertsForm, logsForm, type ServerFormDeps} from '@core/server-admin/server-forms.ts';
 import type {DraftForm} from '@core/server-admin/draft-form.ts';
 import {randomId} from '@core/random-id.ts';
@@ -240,7 +240,10 @@ export class SettingsController {
     if (!value || value.configOnly) return {present: false};
     const current = value.current as SettingsValue;
     const option = row.control.options?.find(option => option.value === current);
-    const choices = row.control.options?.some(option => option.sets) ? settingsPresetOptions(row.control.options, {...this.options.environment, role: this.options.role}).map(option => ({...option, label: defaultI18n.t(option.label), hint: option.hint && defaultI18n.t(option.hint)})) : undefined;
+    const translated = (options: readonly SettingsOption[]) => options.map(option => ({...option, label: defaultI18n.t(option.label), hint: option.hint && defaultI18n.t(option.hint)}));
+    const storable = row.control.options && !row.control.options.some(option => option.sets) ? settingsStorableChoices(settingsBinding(row.id), row.control.options, this.sources()) : undefined;
+    const choices = row.control.options?.some(option => option.sets) ? translated(settingsPresetOptions(row.control.options, {...this.options.environment, role: this.options.role}))
+      : storable && storable.length !== row.control.options!.length ? translated(storable) : undefined;
     return {present: true, value: current, defaultValue: value.default as SettingsValue | undefined,
       choices,
       changed: value.default !== undefined && changedFromDefault(value.effective, value.default),

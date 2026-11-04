@@ -26,6 +26,9 @@ const backed = {
   'audioSubtitles.subtitleBackground': 'playback.subtitleBackground',
   'audioSubtitles.subtitlePosition': 'playback.subtitlePosition',
 };
+// ST-2: Advanced, every row with a server or web-player consumer.
+const advanced = ['playback.audioDescription', 'playback.audioTrackChoice', 'playback.preferSdhSubtitles', 'playback.forcedSubtitleFallback',
+  'playback.useUntaggedForced', 'playback.subtitleFont', 'playback.keepSubtitleStyling', 'playback.useSystemCaptionStyle'];
 
 test('every Account Audio & subtitles value row is exposed through its real registry binding', () => {
   for (const [rowId, key] of Object.entries(backed)) {
@@ -37,8 +40,10 @@ test('every Account Audio & subtitles value row is exposed through its real regi
   }
 });
 
-test('the section draws exactly its seven value rows; the preview stays a synthetic row', () => {
-  assert.deepEqual(audioRows().filter(entry => hasWebPreferenceEffect(entry)).map(entry => entry.id), Object.keys(backed));
+test('the section draws its seven value rows and its Advanced rows; the preview stays a synthetic row', () => {
+  const drawn = audioRows().filter(entry => hasWebPreferenceEffect(entry));
+  assert.deepEqual(drawn.filter(entry => Object.hasOwn(backed, entry.id)).map(entry => entry.id), Object.keys(backed));
+  assert.deepEqual(drawn.filter(entry => !Object.hasOwn(backed, entry.id)).map(entry => settingsBinding(entry.id)?.key).sort(), [...advanced].sort());
   assert.equal(audioRows().some(entry => entry.id === 'audioSubtitles.subtitlePreview'), true);
   assert.equal(settingsBinding('audioSubtitles.subtitlePreview'), undefined);
 });

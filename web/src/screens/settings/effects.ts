@@ -28,6 +28,12 @@ const preferenceEffects = new Set([
      values to its own cue surface (preference-effects.ts -> subtitle-surface.ts). */
   'playback.preferredAudioLanguages', 'playback.preferredSubtitleLanguages', 'playback.subtitleMode',
   'playback.subtitleSize', 'playback.subtitleColor', 'playback.subtitleBackground', 'playback.subtitlePosition',
+  /* ST-2, Audio & subtitles › Advanced: the server picks tracks by audio description, the
+     audio-track rule, SDH, forced fallback and untagged forced tracks (playback/service.go,
+     delivery_context.go); the web cue surface applies the font, kept styling and the system
+     caption style (preference-effects.ts -> subtitle-surface.ts, kit/media/caption-style.ts). */
+  'playback.audioDescription', 'playback.audioTrackChoice', 'playback.preferSdhSubtitles', 'playback.forcedSubtitleFallback',
+  'playback.useUntaggedForced', 'playback.subtitleFont', 'playback.keepSubtitleStyling', 'playback.useSystemCaptionStyle',
   // The server selects home/remote by reach and mobile by actual cellular transport.
   // These are saved defaults; a plain start supplies no client quality authority.
   'quality.home', 'quality.remote', 'quality.mobile',
@@ -44,6 +50,11 @@ const preferenceEffects = new Set([
      away network class, and music.dsdGainDb is the server's audio-conversion gain. */
   'music.audioNormalization', 'music.crossfadeMs', 'music.gapless',
   'music.smoothTransitions', 'music.neverBoost', 'music.qualityAway', 'music.dsdGainDb',
+  // ST-5: the web Lyrics opening follows this switch (shell/settings.ts, WatchPlayback.tsx).
+  'playback.showSyncedLyrics',
+  // ST-8, Pause when idle: the listening engine pauses after this many quiet minutes
+  // (client-core listening.ts passoutMinutes, served by catalog/listening_preferences.go).
+  'playback.sleepTimerMinutes',
   'quality.downloads',
 ]);
 function preferenceEffect(binding: SettingsBinding): boolean {
