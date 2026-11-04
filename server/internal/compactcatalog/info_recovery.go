@@ -23,6 +23,36 @@ func AbandonInfoInputTx(ctx context.Context, tx *sql.Tx, ref InfoInputRef) (bool
 	return n == 1, e
 }
 
+// AbandonInfoSourceTx re-proves an immutable producer's own phase-0 prefix
+// when a retry is refused before it can reacquire an InfoInputRef. It only
+// searches this asset's two slots. Accepted receipts, another witness/frame,
+// and recovery-owned prefixes are never changed or adopted by the caller.
+func AbandonInfoSourceTx(ctx context.Context, tx *sql.Tx, asset int64, token string, witness InfoWitness, fingerprint [32]byte) (bool, error) {
+	if asset <= 0 || token == "" || fingerprint == ([32]byte{}) {
+		return false, ErrInfoInvariant
+	}
+	if err := witness.validate(); err != nil {
+		return false, err
+	}
+	for slot := 0; slot < 2; slot++ {
+		h, err := infoInputHeaderBySlot(ctx, tx, asset, token, slot)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return false, err
+		}
+		if h.phase != 0 || !bytes.Equal(h.fingerprint, fingerprint[:]) {
+			continue
+		}
+		abandoned, err := abandonInfoWitnessTx(ctx, tx, h.ref(), witness, fingerprint)
+		if err != nil || abandoned {
+			return abandoned, err
+		}
+	}
+	return false, nil
+}
+
 // Raw scalar ingress can advance input_revision while retaining this exact
 // producer's immutable witness. Prove that ownership again before refreshing
 // only the CAS revision; a new witness, fingerprint, slot or phase is never
