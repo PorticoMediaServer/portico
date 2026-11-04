@@ -132,7 +132,9 @@ function LiveReadingLibrary({captured, library, search, onMarked, context, life}
   const appearance = useScreenAppearance(captured.context)!, width = useShellWidth();
   const markAll = useReadingMarkAll(context, library.id, useLocation({select: libraryAddressKey}), onMarked);
   // The same ⋯ as the grid pivot (survey A 3): Copy link, Mark all as read, and the owner's Library settings and Scan.
-  const scan = useLibraryScan(context, library, life);
+  // The grid pivot mounts BoundLibrary, whose CommittedLibrary owns the scan offer there; this one stays off so the
+  // owner's library is read once (one get_admin_jobs read), not twice.
+  const scan = useLibraryScan(context, library, life, !(search.view === 'browse' || search.query));
   const [linkToast, setLinkToast, copyLibraryLink] = useCopyLibraryLink(library.id);
   type Attempt = {context: ProtectedLibraryScreen['context']; screen: ScreenContext; life: typeof life; libraryId: string; kind: string; controller: AbortController; active: boolean; phase: 'loading' | 'error' | 'ready'};
   const [retry, setRetry] = useState(0), attempt = useRef<Attempt | null>(null);
@@ -234,8 +236,8 @@ function managesServer(context: ScreenContext): boolean {
   return viewer?.role === 'owner' && viewer.authority === 'local' && identity?.capabilities?.manageServer === true;
 }
 /** Scan for new files, offered to the owner when the server lists `scan` for this library. Every library kind's ⋯ uses it. */
-function useLibraryScan(context: ScreenContext, library: Library, life: ScanLease['life']): (() => void) | undefined {
-  const manageServer = managesServer(context);
+function useLibraryScan(context: ScreenContext, library: Library, life: ScanLease['life'], enabled = true): (() => void) | undefined {
+  const manageServer = enabled && managesServer(context);
   const [scanOffer, setScanOffer] = useState<Readonly<{lease: ScanLease; allowed: boolean}>>();
   useLayoutEffect(() => {
     if (!manageServer) {setScanOffer(undefined); return;}
