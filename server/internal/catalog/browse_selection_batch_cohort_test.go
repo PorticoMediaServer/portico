@@ -137,7 +137,34 @@ func TestSelectionBatchLargeScalarIsTransient(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, oracle, witness := selectionBatchFixture(t, s, v, BrowseRequest{Library: "m", Profile: "p", ViewerFence: "f", Pivot: "movies", Query: node, Limit: 1}, HomeActionAuthority{})
+	// This test exercises a legal scalar larger than a reduction quantum. Do
+	// not first evaluate that scalar through BrowseEntities and the legacy
+	// whole-view SQL oracle in one interactive snapshot. Production captures
+	// the normalized query and constructs the reducer in its background
+	// factory, without either census (SubmitBrowseSelectionPreparation).
+	witness := func(read *Service) (string, error) {
+		return read.browseExactWitness("m", v.Profile, v.Restrictions)
+	}
+	var state *BrowseSelectionBatchState
+	ctx, statements := dbwork.TraceStatements(dbwork.WithClass(context.Background(), dbwork.ClassBackgroundMedia))
+	if err := dbwork.WithReadSnapshot(ctx, s.db, func(inner context.Context) error {
+		read := s.WithContext(inner)
+		basis, err := witness(read)
+		if err != nil {
+			return err
+		}
+		bound := BoundBrowseQuery{Library: "m", Pivot: "movies", Query: node, snapshot: dbwork.Snapshot(inner)}
+		state, err = read.NewBrowseSelectionBatch(BrowseRequest{}, v, bound, basis)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, statement := range statements() {
+		upper := strings.ToUpper(statement)
+		if strings.Contains(upper, "COUNT(") || strings.Contains(upper, "GROUP BY") || strings.Contains(upper, "CATALOG_ATTRIBUTE_VALUES") {
+			t.Fatalf("capture evaluated the selection before its bounded reduction: %s", statement)
+		}
+	}
 	peak := 0
 	for !state.Complete() {
 		next, work, err := s.StepBrowseSelectionBatch(context.Background(), state, witness, SelectionBatchLimits{Rows: 20})
@@ -154,8 +181,9 @@ func TestSelectionBatchLargeScalarIsTransient(t *testing.T) {
 		t.Fatalf("transient byte accounting=%d want=%d", peak, len(value))
 	}
 	got := finishSelectionBatch(t, s, state, witness, HomeActionAuthority{}, 1)
-	if !reflect.DeepEqual(got, oracle) {
-		t.Fatalf("got %+v want %+v", got, oracle)
+	if got.Total != 1 || len(got.Types) != 1 || got.Types[0].Kind != "movie" || got.Types[0].Count != 1 ||
+		!reflect.DeepEqual(got.Types[0].Libraries, []BrowseSelectionLibrary{{LibraryID: "m", Count: 1}}) {
+		t.Fatalf("large scalar changed selection membership: %+v", got)
 	}
 }
 
