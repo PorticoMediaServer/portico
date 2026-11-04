@@ -21,18 +21,23 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with: {persist-credentials: false, fetch-depth: 3}
+        with: {persist-credentials: false, fetch-depth: 4}
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with: {go-version-file: server/go.mod, cache-dependency-path: '**/go.sum'}
       - name: Install the sandbox and allow unprivileged user namespaces
         run: |
-          sudo apt-get update -q && sudo apt-get install -yq bubblewrap
+          sudo apt-get update -q && sudo apt-get install -yq bubblewrap strace
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Fetch the qualified development engine
         run: python3 scripts/development-engine.py fetch --target linux-x64 --output "$RUNNER_TEMP/engine"
+      - name: Validate measurement helpers and generate observation overlay
+        run: |
+          python3 -m unittest discover -s scripts/scanner-evidence -p 'test_*.py' -v
+          (cd scripts/scanner-evidence && GOWORK=off go test -count=1 ./...)
+          python3 scripts/scanner-evidence/build-overlay.py --output "$RUNNER_TEMP/scanner-overlay"
       - name: Build the server
         working-directory: server
-        run: go build -tags devtrust -o "$RUNNER_TEMP/portico-server" ./cmd/server
+        run: GOWORK=off go build -mod=mod -modfile "$RUNNER_TEMP/scanner-overlay/evidence.mod" -overlay "$RUNNER_TEMP/scanner-overlay/overlay.json" -tags devtrust -o "$RUNNER_TEMP/portico-server" ./cmd/server
       - name: First import and immediate rescan
         env:
           FILES: ${{ inputs.files }}
@@ -54,7 +59,7 @@ jobs:
           end=report['firstImportProfileEndSeconds']
           files=[str(root/'cpu-profiles'/w['file']) for w in report['cpuProfile']['windows'] if w['endSeconds']<=end]
           if not files or report.get('profileIncomplete'): raise SystemExit('CPU profiling incomplete')
-          for name,args in [('cpu-top.txt',['-top','-nodecount=60']),('cpu-cumulative.txt',['-top','-cum','-nodecount=60']),('cpu-first-import.pb.gz',['-proto'])]:
+          for name,args in [('cpu-top.txt',['-top','-nodecount=60']),('cpu-cumulative.txt',['-top','-cum','-nodecount=60']),('cpu-first-import.pb.gz',['-proto']),('cpu-sql-families.txt',['-tags'])]:
               with (root/name).open('wb') as out:
                   subprocess.run(['go','tool','pprof',*args,*files],stdout=out,check=True)
           PYCPU
@@ -67,5 +72,7 @@ jobs:
             ${{ runner.temp }}/scanner-probe/cpu-top.txt
             ${{ runner.temp }}/scanner-probe/cpu-cumulative.txt
             ${{ runner.temp }}/scanner-probe/cpu-first-import.pb.gz
+            ${{ runner.temp }}/scanner-probe/cpu-sql-families.txt
+            ${{ runner.temp }}/scanner-overlay/overlay-witness.json
           if-no-files-found: error
           retention-days: 14

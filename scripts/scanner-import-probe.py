@@ -15,6 +15,7 @@ import secrets
 import shutil
 import signal
 import struct
+import sys
 import subprocess
 import tempfile
 import threading
@@ -22,6 +23,8 @@ import time
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT / "scripts/scanner-evidence"))
+import census
 
 
 def write_report(path, value):
@@ -172,15 +175,6 @@ class CPUProfile:
                                 'Profiles crossing first-import completion are excluded from first-import CPU attribution.']}
 
 
-def process_cpu(pid):
-    # Linux reports this process and already-waited child CPU separately. This
-    # is not a native-probe invocation census and is not used as wall time.
-    fields = Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()
-    ticks = os.sysconf('SC_CLK_TCK')
-    return {name: int(fields[index])/ticks for name, index in
-            [('userSeconds', 11), ('systemSeconds', 12), ('waitedChildUserSeconds', 13), ('waitedChildSystemSeconds', 14)]}
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', type=Path, required=True)
@@ -202,6 +196,7 @@ def main():
     spec.loader.exec_module(e2e)
     report = {'head': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
               'state': 'running', 'policy': 'basic', 'scans': [],
+              'instrumentation': 'observation-only-go-overlay-and-process-only-strace',
               'runtimeBase': runtime_base(args.runtime_base)}
     output = args.scratch / 'scanner-import.json'
     try:
@@ -212,11 +207,18 @@ def main():
             pending_media = root / 'pending-media'
             media.rename(pending_media)
             media.mkdir()
-            exercise = e2e.Exercise(root, args.binary.resolve())
+            evidence_dir=root/'evidence'
+            evidence_dir.mkdir(mode=0o700)
+            native_trace=root/'process-private.trace'
+            os.environ.update(SCANNER_EVIDENCE_DIR=str(evidence_dir), SCANNER_PROCESS_TRACE=str(native_trace), SCANNER_REAL_BINARY=str(args.binary.resolve()))
+            exercise = e2e.Exercise(root, ROOT/'scripts/scanner-evidence/wrapped-server.py')
             profiler = None
             try:
                 exercise.start()
                 api = exercise.api
+                worker=census.control(evidence_dir,'identity')['pid']
+                identity=census.worker_identity(exercise.process.pid,worker,args.binary)
+                report['workerIdentity']={'pid':worker,'startTicks':identity['startTicks'],'verifiedOwnedDescendant':True,'verifiedExecutable':True,'verifiedSupervisedWorker':True}
                 bootstrap = api.post('/v1/setup/browser', {}, headers={'Origin': exercise.base})
                 password = secrets.token_urlsafe(24)
                 api.post('/v1/setup', {'setupToken': bootstrap['setupToken'], 'username': 'owner',
@@ -244,7 +246,9 @@ def main():
                 for phase in ('first-import', 'immediate-rescan'):
                     before = api.get('/v1/admin/diagnostics/concurrency')
                     phase_samples = []
-                    cpu_before = process_cpu(exercise.process.pid)
+                    cpu_before = census.tree_cpu(worker)
+                    census.control(evidence_dir,'start')
+                    native_begin=time.time()
                     started = time.monotonic()
                     queued = api.post('/v1/libraries/' + library + '/scans', {}, expected=(202,))
                     if queued['id'] == previous_job:
@@ -257,9 +261,18 @@ def main():
                         raise AssertionError('first import did not analyse every real file')
                     if phase == 'immediate-rescan' and (state['analyzed'] or work['processStarts']):
                         raise AssertionError('unchanged rescan probed files or started helpers')
-                    cpu_after = process_cpu(exercise.process.pid)
+                    native_end=time.time()
+                    spans=census.control(evidence_dir,'stop')
+                    cpu_after=census.tree_cpu(worker)
+                    assert cpu_before['worker']['startTicks']==cpu_after['worker']['startTicks']==identity['startTicks'], 'worker generation changed'
+                    attribution={'spanReceipt':spans,'wallPartitionSeconds':census.partition(spans),
+                                 'native':census.native_census(native_trace,native_begin,native_end),
+                                 'workerCPUSeconds':sum(cpu_after['worker'][k]-cpu_before['worker'][k] for k in ['userSeconds','systemSeconds']),
+                                 'treeAccountedCPUSeconds':cpu_after['treeAccountedCPUSeconds']-cpu_before['treeAccountedCPUSeconds'],
+                                 'cpuLimitations':cpu_after['limitations']}
+                    assert attribution['workerCPUSeconds']>0 or phase=='immediate-rescan', 'worker CPU attribution missing'
                     report['scans'].append({'phase': phase, 'seconds': round(elapsed, 3), 'job': state, 'helpers': work,
-                                            'phaseSamples': phase_samples, 'cpuDelta': {k: round(cpu_after[k]-cpu_before[k], 3) for k in cpu_before}})
+                                            'phaseSamples': phase_samples, 'attribution':attribution})
                     if phase == 'first-import':
                         report['firstImportProfileEndSeconds'] = round(time.monotonic()-profiler.begin, 3)
                         profiler.stop.set()
