@@ -79,7 +79,7 @@ export function activityView(document: OwnerActivitySummary, time: TimeEnvironme
         : undefined,
       onOpen: () => actions.onDashboard('activity')})),
     update: {...document.update, onOpen: actions.openUpdate},
-    ...(document.lastScanFinishedAt ? {lastScan: defaultI18n.relativeTime(document.lastScanFinishedAt, Date.parse(document.observedAt))} : {}),
+    ...(document.lastScanFinishedAt ? {lastScan: defaultI18n.relativeTime(document.lastScanFinishedAt, Date.parse(document.observedAt), {inSentence: true})} : {}),
     phase: 'ready', onRetry: actions.onRetry, onDashboard: actions.onDashboard,
   };
 }

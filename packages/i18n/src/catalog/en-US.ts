@@ -441,6 +441,8 @@ export const enUS = {
   'relative.hoursAgo': '{count, plural, one {# hour ago} other {# hours ago}}',
   'relative.daysAgo': '{count, plural, one {# day ago} other {# days ago}}',
   'relative.yesterday': 'Yesterday',
+  'relative.justNowInSentence': 'just now',
+  'relative.yesterdayInSentence': 'yesterday',
   'list.and': '{first} and {second}',
 
   // ── Saved ────────────────────────────────────────────────────────

@@ -98,7 +98,7 @@ export function NativeLiveOwnerScreen({controller, recordings, ports, runtime, o
           <View style={{gap: 10}}>
             <View style={{flexDirection: 'row', alignItems: 'baseline'}}>
               <Text style={[shellType(13, 700), {color: theme.colors.textTertiary, flex: 1}]}>{t('web.liveTv.sources')}</Text>
-              {state.checkedAt !== undefined && <Text style={[shellType(12.5), {color: theme.colors.textTertiary}]}>{t('web.servers.checked', {when: defaultI18n.relativeTime(state.checkedAt)})}</Text>}
+              {state.checkedAt !== undefined && <Text style={[shellType(12.5), {color: theme.colors.textTertiary}]}>{t('web.servers.checked', {when: defaultI18n.relativeTime(state.checkedAt, undefined, {inSentence: true})})}</Text>}
             </View>
             {state.loading && !state.list && <Quiet><StateView title={t('web.librarySettings.loading')}/></Quiet>}
             {state.error !== undefined && <StateView testID="live-owner-error" {...runtime.error(state.error, () => {void controller.load();})}/>}

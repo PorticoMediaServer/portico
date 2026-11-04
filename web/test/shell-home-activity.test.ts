@@ -46,7 +46,17 @@ test('unknown totals stay unknown and server work counts and identifiers survive
   assert.equal(view.scans[0].discovered, 40); assert.equal(view.scans[0].processed, 12); assert.equal(view.scans[0].total, undefined);
   assert.equal(view.tasks[0].processed, 5); assert.equal(view.tasks[0].total, undefined);
   assert.equal(view.update.available, true); assert.equal(view.update.current, '1.0'); assert.equal(view.update.latest, '1.1');
-  assert.equal(view.lastScan, defaultI18n.relativeTime('2026-10-22T11:55:00Z', Date.parse('2026-10-22T12:00:00Z')));
+  assert.equal(view.lastScan, defaultI18n.relativeTime('2026-10-22T11:55:00Z', Date.parse('2026-10-22T12:00:00Z'), {inSentence: true}));
+});
+test('the last scan reads mid-sentence: "finished just now", "finished yesterday", never a capital in the middle', () => {
+  const now = Date.parse('2026-10-22T12:00:00Z');
+  const sentence = (at: string) => defaultI18n.t('next.shell.lastScan', {when: defaultI18n.relativeTime(at, now, {inSentence: true})});
+  assert.equal(sentence('2026-10-22T11:59:50Z'), 'The last library scan finished just now.');
+  assert.equal(sentence('2026-10-21T12:00:00Z'), 'The last library scan finished yesterday.');
+  assert.equal(sentence('2026-10-22T09:00:00Z'), 'The last library scan finished 3 hours ago.');
+  // Standalone labels keep their capital.
+  assert.equal(defaultI18n.relativeTime('2026-10-22T11:59:50Z', now), 'Just now');
+  assert.equal(defaultI18n.relativeTime('2026-10-21T12:00:00Z', now), 'Yesterday');
 });
 test('an absent or unrecognized media projection never becomes an invented title', () => {
   assert.equal(activitySubject({...stream(), item: undefined}), undefined);
