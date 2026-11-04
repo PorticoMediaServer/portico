@@ -259,7 +259,7 @@ type Page=Readonly<{query:SearchQuery;cursor:string|null}>;
 type Operation=Page&{history:readonly Page[];fence?:SearchData};
 const sameReadQuery=(left:SearchQuery|null,right:SearchQuery)=>!!left&&JSON.stringify({...left,record:undefined})===JSON.stringify({...right,record:undefined});
 export class SearchService{
- private api:LibraryContentApi;private scope:ContentScope;private readonly pageSize:number;private readonly timeoutMs:number;private generation=0;private disposed=false;private controller?:AbortController;private pending?:Promise<void>;private key='';private operation?:Operation;private displayedOperation?:Operation;private revalidations=new Set<AbortController>();private listeners=new Set<()=>void>();private state:SearchSnapshot;private readonly firstPages?:SearchFirstPages;
+ private api:LibraryContentApi;private scope:ContentScope;private readonly pageSize:number;private readonly timeoutMs:number;private generation=0;private disposed=false;private controller?:AbortController;private pending?:Promise<void>;private key='';private operation?:Operation;private displayedOperation?:Operation;private revalidations=new Set<AbortController>();/** A continuation fork (one row of an All answer): see fetch's refusal handling. */private row=false;private reread=false;private listeners=new Set<()=>void>();private state:SearchSnapshot;private readonly firstPages?:SearchFirstPages;
  constructor(options:{api:LibraryContentApi;scope:ContentScope;pageSize?:number;timeoutMs?:number;firstPages?:SearchFirstPages}){this.api=options.api;this.firstPages=options.firstPages;this.scope=bound(options.scope);this.pageSize=options.pageSize??40;this.timeoutMs=options.timeoutMs??15000;if(!Number.isInteger(this.pageSize)||this.pageSize<1||this.pageSize>40||!Number.isFinite(this.timeoutMs)||this.timeoutMs<1||this.timeoutMs>60000)throw new Error('Invalid search bounds.');this.state=this.empty();}
  getSnapshot=():SearchSnapshot=>this.state;
  /** A first page comes from the first-page reader when there is one; a recording read, and every later page, is the server's. */
@@ -285,7 +285,7 @@ export class SearchService{
   const child=new SearchService({api:this.api,scope:this.scope,pageSize:this.pageSize,timeoutMs:this.timeoutMs});
   // Continuing an offered read is never another explicit history-recording intent.
   const seed={...this.displayedOperation,query:{...this.displayedOperation.query,record:false}};
-  child.state=this.state;child.operation=seed;child.displayedOperation=seed;
+  child.state=this.state;child.operation=seed;child.displayedOperation=seed;child.row=true;
   return child;
  }
  previous():Promise<void>{this.active();const op=this.operation;if(this.state.phase!=='ready'||!op?.history.length||!this.state.data)return Promise.resolve();return this.load({...op.history.at(-1)!,history:op.history.slice(0,-1),fence:this.state.data});}
@@ -340,9 +340,14 @@ export class SearchService{
    const repeats=(c:string)=>c===op.cursor||op.history.some(p=>p.cursor===c);
    const groups=data.groups.some(g=>g.nextCursor&&repeats(g.nextCursor))?Object.freeze(data.groups.map(g=>g.nextCursor&&repeats(g.nextCursor)?Object.freeze({...g,nextCursor:''}):g)):data.groups;
    this.displayedOperation=op;this.publish({query:op.query,phase:'ready',data:groups===data.groups?data:Object.freeze({...data,groups}),groups,pagination:Object.freeze({cursor:op.cursor,canPrevious:op.history.length>0})});
+   // A row's continuation answered: a later refused cursor is a new access change, read again once more.
+   if(this.row&&op.cursor)this.reread=false;
   }catch(error){if(this.disposed||generation!==this.generation)return;const e=error as {code?:unknown;retryable?:unknown;status?:number};const code=e?.status===401?'unauthorized':e?.status===403?'forbidden':id(e?.code)?e.code:'request_failed';
    // A continuation the server no longer honours: run the search again from its first page, keeping what is shown until it arrives.
-   if(['stale_continuation','invalid_cursor'].includes(code)&&op.cursor){this.invalidateRead();await this.load({query:op.query,cursor:null,history:[]});return;}const transient=!['unauthorized','forbidden','invalid_search','stale_continuation','invalid_cursor'].includes(code)&&(error instanceof TypeError||e?.retryable===true||code==='timeout'||!!e?.status&&(e.status>=500||[408,429].includes(e.status)));if(!transient)this.displayedOperation=undefined;this.publish({phase:['stale_continuation','invalid_cursor'].includes(code)?'refresh-required':'error',...(transient?{}:{data:null,groups:Object.freeze([])}),error:Object.freeze({code,message:['unauthorized','forbidden'].includes(code)?'Your access changed. Sign in again to search.':['stale_continuation','invalid_cursor'].includes(code)?'The library changed. Refresh these results.':'Search could not connect to this server. Try again.',retryable:transient})});}
+   // A row (continuation fork) does so once, and only for a refused cursor (the viewer's access was decided again), until a
+   // continuation answers; a moved revision (stale_continuation), or a refusal straight after its re-read, ends its paging.
+   const restart=['stale_continuation','invalid_cursor'].includes(code)&&!!op.cursor&&(!this.row||code==='invalid_cursor'&&!this.reread);
+   if(restart){if(this.row)this.reread=true;this.invalidateRead();await this.load({query:op.query,cursor:null,history:[]});return;}const transient=!['unauthorized','forbidden','invalid_search','stale_continuation','invalid_cursor'].includes(code)&&(error instanceof TypeError||e?.retryable===true||code==='timeout'||!!e?.status&&(e.status>=500||[408,429].includes(e.status)));if(!transient)this.displayedOperation=undefined;this.publish({phase:['stale_continuation','invalid_cursor'].includes(code)?'refresh-required':'error',...(transient?{}:{data:null,groups:Object.freeze([])}),error:Object.freeze({code,message:['unauthorized','forbidden'].includes(code)?'Your access changed. Sign in again to search.':['stale_continuation','invalid_cursor'].includes(code)?'The library changed. Refresh these results.':'Search could not connect to this server. Try again.',retryable:transient})});}
   finally{if(timer)clearTimeout(timer);controller.signal.removeEventListener('abort',abort);if(generation===this.generation){this.pending=undefined;this.key='';}}
  }
 }

@@ -397,3 +397,50 @@ test('continuation forks reject unoffered cursors and restart when the server re
   assert.equal(s.getSnapshot(),shown);assert.equal(child.getSnapshot().pagination.cursor,null);
  }finally{child?.dispose();s.dispose();}
 });
+
+// Step 7, lead's ruling (#674): a continuation fork is one row of the All answer. A cursor the server refuses
+// (invalid_cursor: the viewer's access was decided again) reads the row's first page once, in place of the row; a
+// continuation that answers clears that guard, so a later refusal reads it again; a refusal straight after a re-read ends.
+// A moved revision (stale_continuation) ends the row's paging with no re-read. The main search keeps restarting (#624).
+function scripted(script:string[]){
+ const paths:string[]=[];
+ const s=service(async path=>{
+  paths.push(path);const url=new URL(path,'https://fixture.invalid'),cursor=url.searchParams.get('cursor');
+  const raw=result(path);
+  if(!cursor){raw.groups=raw.groups.map((value:any)=>group(value.id,[`${value.id}-first-${paths.length}`],value.id==='movies'?'c1':''));return raw;}
+  const step=script.shift();
+  if(step==='answer'){raw.groups=raw.groups.map((value:any)=>group(value.id,[`${value.id}-after-${cursor}`],value.id==='movies'?cursor+'+':''));return raw;}
+  throw Object.assign(new Error('refused'),{code:step,status:step==='stale_continuation'?409:400});
+ });
+ return {s,paths,first:()=>paths.filter(path=>!new URL(path,'https://fixture.invalid').searchParams.has('cursor')).length};
+}
+test('step 7: a continuation fork reads its first page again once per access change, and a refusal straight after that ends',async()=>{
+ const {s,first}=scripted(['invalid_cursor','answer','invalid_cursor','invalid_cursor']);
+ let child:SearchService|undefined;
+ try{
+  await s.select('harbor');const shown=s.getSnapshot();child=s.forkContinuation('movies');assert.ok(child);
+  // first access change: the row's first page is read again, group-only, and is ready in place of the row
+  await child.next('movies');assert.equal(first(),2);assert.equal(child.getSnapshot().phase,'ready');assert.equal(child.getSnapshot().pagination.cursor,null);
+  assert.equal(child.getSnapshot().data?.query.group,'movies');assert.equal(s.getSnapshot(),shown);
+  // a continuation answers, then a second access change reads the first page again too
+  await child.next('movies');assert.equal(child.getSnapshot().pagination.cursor,'c1');assert.equal(child.getSnapshot().groups[0].items[0].id,'movies-after-c1');
+  await child.next('movies');assert.equal(first(),3);assert.equal(child.getSnapshot().phase,'ready');
+  // a refusal straight after that re-read ends the row's paging with the refusal
+  await child.next('movies');assert.equal(first(),3);
+  assert.equal(child.getSnapshot().phase,'refresh-required');assert.equal(child.getSnapshot().error?.code,'invalid_cursor');
+ }finally{child?.dispose();s.dispose();}
+});
+test('step 7: a continuation fork whose revision moved (stale_continuation) ends its paging with no re-read; the main search still restarts',async()=>{
+ const fork=scripted(['stale_continuation']);
+ let child:SearchService|undefined;
+ try{
+  await fork.s.select('harbor');child=fork.s.forkContinuation('movies');assert.ok(child);
+  await child.next('movies');assert.equal(fork.first(),1);
+  assert.equal(child.getSnapshot().phase,'refresh-required');assert.equal(child.getSnapshot().error?.code,'stale_continuation');
+ }finally{child?.dispose();fork.s.dispose();}
+ const main=scripted(['stale_continuation']);
+ try{
+  await main.s.select('harbor',{group:'movies'});await main.s.next('movies');
+  assert.equal(main.first(),2);assert.equal(main.s.getSnapshot().phase,'ready');
+ }finally{main.s.dispose();}
+});

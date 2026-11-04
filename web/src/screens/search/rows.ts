@@ -36,25 +36,28 @@ export function createSearchRows(source: Source, isCurrent: () => boolean) {
   const update = (page: Page) => {
     if (!owns(page)) return;
     const next = page.service.getSnapshot(), data = next.data;
-    // A real continuation starts with its offered cursor. Core's refused-cursor
-    // recovery starts a group-only first page instead; withdraw the old All answer
-    // at that transition, before the replacement can hang or fail transiently.
-    if (next.phase === 'loading' && !next.pagination.cursor) {invalidate(changed); return;}
+    // A real continuation starts with its offered cursor. Core's refused-cursor recovery (the viewer's access was
+    // decided again; once, until a continuation answers) reads the row's group-only first page instead: the row keeps
+    // what it shows until that answer replaces it.
     page.loading = next.phase === 'loading';
     page.error = next.error;
     if (next.phase === 'error' || next.phase === 'refresh-required') {
       if (next.phase === 'refresh-required' || !next.error?.retryable || ['unauthorized', 'forbidden'].includes(next.error.code)) {invalidate(next.error); return;}
     } else if (next.phase === 'ready' && data && data !== page.data) {
-      // Core may recover a refused cursor with a fresh group-only first page. That is
-      // not an append to this All answer, even when its revision happens to match.
-      if (!next.pagination.cursor || !base.data || data.scope.serverId !== base.data.scope.serverId
-        || data.scope.viewerFence !== base.data.scope.viewerFence || data.query.q !== base.data.query.q
+      // Core's refused-cursor recovery answers with the row's own first page (no cursor): it replaces the row, old
+      // entries and all, and is simply current. A continuation is appended when it answers the same query and the
+      // same revision of the results; the server binds its cursor to the viewer fence and refuses an old one.
+      const reread = !next.pagination.cursor;
+      if (!base.data || data.scope.serverId !== base.data.scope.serverId || data.query.q !== base.data.query.q
         || data.query.group !== page.group || data.query.sort !== base.data.query.sort || data.query.direction !== base.data.query.direction
         || JSON.stringify(data.query.libraryIds) !== JSON.stringify(base.data.query.libraryIds)
-        || data.revision.catalog !== base.data.revision.catalog || data.revision.viewer !== base.data.revision.viewer) {invalidate(changed); return;}
+        || !reread && (data.revision.catalog !== page.data!.revision.catalog || data.revision.viewer !== page.data!.revision.viewer)) {invalidate(changed); return;}
       const result = next.groups.find(group => group.id === page.group);
       if (!result || result.status !== 'success') {
         page.error = {code: result?.errorCode || 'request_failed', message: '', retryable: true};
+      } else if (reread) {
+        page.result = Object.freeze({...result, items: Object.freeze([...result.items])});
+        page.data = data;
       } else {
         const seen = new Set(page.result.items.map(entryKey)), entries = [...page.result.items];
         for (const entry of result.items) if (!seen.has(entryKey(entry))) {seen.add(entryKey(entry)); entries.push(entry);}

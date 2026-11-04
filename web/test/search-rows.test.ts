@@ -104,39 +104,78 @@ test('query replacement, same-object pause/replay and disposal retire children a
   await f.rows.next(replacement);assert.equal(f.children.length, 2);
 });
 
-test('refused-cursor recovery withdraws All immediately while the replacement loads and stays withdrawn after a transient failure', async () => {
-  const f = fixture(), original = f.source.getSnapshot(), offered = f.rows.getSnapshot().groups[0];
+test('step 7: a refused-cursor recovery keeps the row while its first page is read again, then replaces the row with it', async () => {
+  const f = fixture(), offered = f.rows.getSnapshot().groups[0];
   await f.rows.next(offered as any);
   const child = f.children[0], loading = child.getSnapshot();
   assert.equal(loading.pagination.cursor, offered.nextCursor);
-  assert.equal(f.rows.getSnapshot().phase, 'ready', 'ordinary offered-cursor loading retains admitted rows');
-  // This is core fetch()'s invalidateRead() publish, immediately before its first-page load.
+  // This is core fetch()'s invalidateRead() publish, then its group-only first-page load (the viewer's access was decided again).
   child.emit({...loading, data: null, groups: []});
-  assert.equal(f.rows.getSnapshot().phase, 'ready');
   child.emit({...loading, data: null, groups: [], pagination: {cursor: null, canPrevious: false}});
-  const withdrawn = f.rows.getSnapshot();
-  assert.equal(withdrawn.phase, 'refresh-required');
-  assert.equal(withdrawn.data, null);assert.deepEqual(withdrawn.groups, []);
-  assert.equal(child.disposed, true, 'the fallback cannot keep an independent stale lifetime alive');
-  // Even a late fallback failure/completion cannot make the old All action source ready.
+  const waiting = f.rows.getSnapshot();
+  assert.equal(waiting.phase, 'ready', 'the All answer stays'); assert.equal(waiting.groups[0].items[0].id, 'first', 'the row shows what it showed');
+  assert.equal(f.rows.page('movies' as any).loading, true); assert.equal(child.disposed, false);
+  // The row's first page answers under the moved fence and a moved revision: it is current, and replaces the row.
+  const reread = snapshot([group('movies', [entry('moved-1'), entry('moved-2')], 'moved-next')]);
+  reread.data = {...reread.data, scope: {...reread.data.scope, viewerFence: 'moved'}, revision: {catalog: 2, viewer: 3}, query: {...reread.data.query, group: 'movies'}};
+  child.emit(reread);
+  const replaced = f.rows.getSnapshot();
+  assert.equal(replaced.phase, 'ready'); assert.deepEqual(replaced.groups[0].items.map((value: any) => value.id), ['moved-1', 'moved-2']);
+  assert.equal(replaced.groups[0].nextCursor, 'moved-next'); assert.equal(f.rows.page('movies' as any).loading, false);
+  // Paging goes on from the replacement; its continuation is compared with the replacement's revision.
+  await f.rows.next(replaced.groups[0] as any); assert.equal(child.reads, 2);
+  f.answer(child, [entry('moved-3')], '', {revision: {catalog: 2, viewer: 3}, scope: {serverId: 'server', viewerFence: 'moved'}});
+  assert.deepEqual(f.rows.getSnapshot().groups[0].items.map((value: any) => value.id), ['moved-1', 'moved-2', 'moved-3']);
+  f.rows.dispose();
+});
+
+test('step 7: a transient failure of the row\'s re-read stays on the row and is retried there', async () => {
+  const f = fixture(), offered = f.rows.getSnapshot().groups[0];
+  await f.rows.next(offered as any);
+  const child = f.children[0], loading = child.getSnapshot();
+  child.emit({...loading, data: null, groups: [], pagination: {cursor: null, canPrevious: false}});
   child.emit({...child.getSnapshot(), phase: 'error', error: {code: 'timeout', message: '', retryable: true}});
-  assert.strictEqual(f.rows.getSnapshot(), withdrawn);
-  await f.rows.next(offered as any);assert.equal(f.children.length, 1);
-  await f.rows.retry();
-  assert.deepEqual(f.selections, [[original.query.q, {...original.query, record: false}]]);
+  assert.equal(f.rows.getSnapshot().phase, 'ready'); assert.equal(f.rows.page('movies' as any).error?.code, 'timeout');
+  await f.rows.retry(f.rows.getSnapshot().groups[0] as any); assert.equal(child.retries, 1);
+  f.rows.dispose();
+});
+
+test('step 7: a row whose paging ends (a moved revision, or a refusal straight after its re-read) withdraws All and asks for a fresh read', async () => {
+  for (const code of ['stale_continuation', 'invalid_cursor']) {
+    const f = fixture(), original = f.source.getSnapshot();
+    await f.rows.next(f.rows.getSnapshot().groups[0] as any);
+    const child = f.children[0];
+    // Core's fork ends the row with refresh-required (no re-read) in both cases.
+    child.emit({...child.getSnapshot(), phase: 'refresh-required', data: null, groups: [], error: {code, message: '', retryable: false}});
+    assert.equal(f.rows.getSnapshot().phase, 'refresh-required', code); assert.equal(f.rows.getSnapshot().error?.code, code);
+    assert.equal(child.disposed, true, code);
+    await f.rows.retry();
+    assert.deepEqual(f.selections, [[original.query.q, {...original.query, record: false}]], code);
+    f.rows.dispose();
+  }
+});
+
+test('step 7: a continuation answered under a moved viewer fence is the newer answer and is appended', async () => {
+  const f = fixture();
+  await f.rows.next(f.rows.getSnapshot().groups[0] as any);
+  const child = f.children[0], data = snapshot().data;
+  f.answer(child, [entry('second')], '', {scope: {...data.scope, viewerFence: 'new'}});
+  assert.equal(f.rows.getSnapshot().phase, 'ready'); assert.deepEqual(f.rows.getSnapshot().groups[0].items.map((value: any) => value.id), ['first', 'second']);
   f.rows.dispose();
 });
 
 test('changed continuation identity or revision withdraws all actions and requires a fresh unrecorded All read', async () => {
-  for (const change of ['viewer', 'catalog', 'query', 'sort', 'libraries', 'first-page']) {
+  // Step 7: a moved viewer fence on a continuation is the newer answer, and a first page is the row's re-read (above).
+  for (const change of ['catalog', 'viewer-revision', 'query', 'sort', 'libraries', 'first-page-query']) {
     const f = fixture(), original = f.source.getSnapshot();
     await f.rows.next(f.rows.getSnapshot().groups[0] as any);
     const child = f.children[0], data = snapshot().data;
-    const overrides = change === 'viewer' ? {scope: {...data.scope, viewerFence: 'new'}} : change === 'catalog' ? {revision: {...data.revision, catalog: 2}}
+    const overrides = change === 'viewer-revision' ? {revision: {...data.revision, viewer: 2}} : change === 'catalog' ? {revision: {...data.revision, catalog: 2}}
       : change === 'query' ? {query: {...data.query, group: 'movies', q: 'another'}} : change === 'sort' ? {query: {...data.query, group: 'movies', sort: 'title'}}
       : change === 'libraries' ? {query: {...data.query, group: 'movies', libraryIds: ['other']}} : {};
-    if (change === 'first-page') {
-      const answer = snapshot([group('movies', [entry('new')])]);answer.data.query.group = 'movies';child.emit(answer);
+    if (change === 'first-page-query') {
+      // A first page (the row's re-read) for another query is still not this row's.
+      const answer = snapshot([group('movies', [entry('new')])]);answer.data.query = {...answer.data.query, group: 'movies', q: 'another'};child.emit(answer);
     } else f.answer(child, [entry('new')], '', overrides);
     assert.equal(f.rows.getSnapshot().phase, 'refresh-required', change);
     assert.equal(f.rows.getSnapshot().data, null, change);
