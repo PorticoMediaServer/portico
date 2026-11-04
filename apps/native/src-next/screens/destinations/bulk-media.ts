@@ -1,9 +1,9 @@
+import {submitMetadataBulk, previewCatalogueDeletion, deleteCatalogueItems} from '../../../../../packages/client-core/src/query/catalogue-actions';
 import {deletionAllowed, parseDeletePreview, parseDeleteResult, type DeletePreview, type DeleteResult} from '../../../../../packages/client-core/src/administration';
 import {fetchBulkMetadataPreview, metadataPreviewTargets, type BulkMetadataPreview, type BulkMetadataPreviewTarget} from '../../../../../packages/client-core/src/home-selection/index';
 import type {HomeApi} from '../../../../../packages/client-core/src/home';
 import {validBulkEdit, validateBulkReceipt, type BulkEdit, type BulkReceipt} from '../../../../../packages/client-core/src/metadata-bulk';
 import type {BulkChanges, BulkFieldValue, BulkResultView} from '../../kit/selection';
-import {routePath} from '../../../../../packages/contracts/src/routes';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {CatalogueSelectionOptions} from '../../../../../packages/client-core/src/catalogue-selection';
 import type {ContentEntry, LibraryContentApi} from '../../../../../packages/client-core/src/library-content';
@@ -114,11 +114,13 @@ export class NativeBulkMedia {
   }
   private finish(epoch: number): void {if (this.live(epoch)) this.flight = false;}
   private signal(epoch: number): AbortSignal {this.assertLive(epoch); return this.controller!.signal;}
-  private async request<T>(epoch: number, path: string, method: string, body: unknown): Promise<T> {
-    this.assertLive(epoch);
-    const value = await this.options.api.request<T>(path, method, body, this.signal(epoch));
-    this.assertLive(epoch);
-    return value;
+  private commandApi(epoch: number) {
+    return {request: async (path: string, method?: string, body?: unknown): Promise<unknown> => {
+      this.assertLive(epoch);
+      const value = await this.options.api.request(path, method, body, this.signal(epoch));
+      this.assertLive(epoch);
+      return value;
+    }};
   }
   private previewApi(epoch: number): HomeApi {
     this.assertLive(epoch);
@@ -191,7 +193,7 @@ export class NativeBulkMedia {
     return id;
   }
   private async write(epoch: number, edit: BulkEdit): Promise<BulkReceipt> {
-    return validateBulkReceipt(await this.request<unknown>(epoch, routePath('post_metadata_bulk'), 'POST', edit), edit);
+    return validateBulkReceipt(await submitMetadataBulk(this.commandApi(epoch), edit), edit);
   }
   save = async (): Promise<void> => {
     const epoch = this.epoch, preview = this.state.preview, changes = this.state.changes, lockEdited = this.state.lockEdited;
@@ -254,7 +256,7 @@ export class NativeBulkMedia {
     const epoch = this.begin({phase: 'idle', deletion: {phase: 'loading', confirmation: '', removeFiles: false}});
     if (!this.claim(epoch, {deletion: {phase: 'loading', confirmation: '', removeFiles: false}})) return;
     try {
-      const result = envelope(await this.request<unknown>(epoch, routePath('post_admin_media_delete_preview'), 'POST', {itemIds: this.captured.map(entry => entry.id)}), this.options.scope.serverId);
+      const result = envelope(await previewCatalogueDeletion(this.commandApi(epoch), this.captured.map(entry => entry.id)), this.options.scope.serverId);
       const preview = parseDeletePreview(result);
       this.assertDeletePreview(preview);
       this.deletePreviewIds = preview.targets.map(target => target.itemId);
@@ -288,7 +290,7 @@ export class NativeBulkMedia {
         this.deleteBody = Object.freeze({itemIds: preview.targets.map(target => target.itemId), expectedRevision: preview.revision,
           confirmation: deletion.confirmation, deleteFiles: deletion.removeFiles, operationId});
       }
-      const result = parseDeleteResult(envelope(await this.request<unknown>(epoch, routePath('post_admin_media_delete'), 'POST', this.deleteBody), this.options.scope.serverId));
+      const result = parseDeleteResult(envelope(await deleteCatalogueItems(this.commandApi(epoch), this.deleteBody), this.options.scope.serverId));
       // One receipt per previewed target, and none for a title that was not previewed.
       const ids = result.receipts.map(receipt => receipt.itemId);
       if (ids.length !== preview.targets.length || new Set(ids).size !== ids.length || ids.some(id => !this.deletePreviewIds?.includes(id))) throw unavailable('delete-result-mismatch');

@@ -1,5 +1,5 @@
+import {previewCatalogueDeletion, deleteCatalogueItems} from '@core/query/catalogue-actions.ts';
 import {deletionAllowed, parseDeletePreview, parseDeleteResult, type DeletePreview, type DeleteResult} from '@core/administration.ts';
-import {routePath} from '../../../../packages/contracts/src/routes.ts';
 import type {EntryActionPorts, EntryActionTarget} from '../../shell/entry-actions';
 
 export type LibraryDeletePhase = 'idle' | 'loading' | 'ready' | 'confirming' | 'blocked' | 'deleting' | 'uncertain' | 'result' | 'error';
@@ -55,7 +55,7 @@ export class LibraryDeleteProducer {
     if (!ports || !target || !ports.isCurrent() || !this.live(attempt)) return;
     const controller = new AbortController(); this.controller = controller;
     try {
-      const raw = await ports.api.request(routePath('post_admin_media_delete_preview'), 'POST', {itemIds: target.map(item => item.itemId)}, controller.signal);
+      const raw = await previewCatalogueDeletion(ports.api, target.map(item => item.itemId), controller.signal);
       if (!this.live(attempt)) return;
       const preview = parseDeletePreview(envelope(raw, ports.serverId));
       if (preview.targets.length !== target.length || new Set(preview.targets.map(item => item.itemId)).size !== target.length
@@ -91,7 +91,7 @@ export class LibraryDeleteProducer {
     if (!ports || !target || !body || !this.live(attempt)) return;
     this.state = {...this.state, phase: 'deleting', errorCode: undefined}; this.emit();
     try {
-      const raw = await ports.api.request(routePath('post_admin_media_delete'), 'POST', body, this.controller?.signal);
+      const raw = await deleteCatalogueItems(ports.api, body, this.controller?.signal);
       if (!this.live(attempt)) return;
       const result = parseDeleteResult(envelope(raw, ports.serverId));
       if (result.receipts.length !== target.length || new Set(result.receipts.map(row => row.itemId)).size !== target.length

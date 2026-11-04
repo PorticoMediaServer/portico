@@ -1,3 +1,4 @@
+import {refreshCatalogueMetadata} from '../../../../../packages/client-core/src/query/catalogue-actions';
 import React, {useSyncExternalStore} from 'react';
 import {Text} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
@@ -149,7 +150,7 @@ export function createNativeTitleActions(context: NativeShellBootstrapContext): 
       const path = refreshMetadataPath(entry.kind, entry.id);
       if (!path || !owner() || !live(lifetime)) return;
       // The same call the web title page makes. Nothing is written once the opening has ended.
-      await context.api.request(path, 'POST', {}, lifetime.signal);
+      await refreshCatalogueMetadata(context.api, entry.kind, entry.id, lifetime.signal);
       if (live(lifetime)) services.notice(t('next.selection.saved'));
     },
     download: (entry, lifetime) => {

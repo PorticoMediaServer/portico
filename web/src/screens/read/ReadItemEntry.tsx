@@ -1,3 +1,4 @@
+import {readMetadataResponse} from '@core/query/catalogue-actions.ts';
 import {useReadingFavorite} from './useReadingFavorite';
 import {ReadSavedAction} from './ReadSavedAction';
 import {ReadMarkAction} from './ReadMarkAction';
@@ -8,7 +9,6 @@ import {generatedCoverTint} from '@design';
 import {ApiError} from '@core/index.ts';
 import {rereadReadingSource} from '@core/reading-reread.ts';
 import {validateRepair} from '@core/metadata-repair.ts';
-import {encodedRoutePath} from '../../../../packages/contracts/src/routes.ts';
 import {createReadingPublication, type ReaderContentsTarget} from '@portico/reader-core';
 import {stageContentsTarget, retireContentsTarget} from './contents-handoff';
 import {ReaderContents, type ReaderContentsEntry} from '../../kit/reader/ReaderPanel';
@@ -223,7 +223,7 @@ function BoundReadItem({captured, handoff, eligibility}: {captured: Captured; ha
       && original.session?.manifest === manifest && detail.manifest === manifest && !signal.aborted;
     try {
       if (!owns()) return;
-      const raw = await context.api.request<unknown>(encodedRoutePath('get_metadata_kind_id', {kind: 'item', id: encodeURIComponent(eligibility.itemId)}), 'GET', undefined, signal);
+      const raw = await readMetadataResponse(context.api, 'item', eligibility.itemId, signal);
       if (!owns()) return;
       const libraryId = (raw as {libraryId?: unknown} | null)?.libraryId;
       if (typeof libraryId !== 'string' || !libraryId || libraryId.length > 256) throw new Error('invalid_metadata_target');
