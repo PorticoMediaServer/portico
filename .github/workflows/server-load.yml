@@ -21,7 +21,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with: {persist-credentials: false}
+        with: {persist-credentials: false, fetch-depth: 3}
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with: {go-version-file: server/go.mod, cache-dependency-path: '**/go.sum'}
       - name: Install the sandbox and allow unprivileged user namespaces
@@ -37,9 +37,10 @@ jobs:
         env:
           FILES: ${{ inputs.files }}
           OBSERVE_SECONDS: ${{ inputs.observe_seconds }}
+          RUNTIME_BASE: 9d63e2f0427b50acd973c2c06cf125fd0fe9eed8
         run: |
           export PATH="$RUNNER_TEMP/engine/bin:$PATH"
-          python3 scripts/scanner-import-probe.py --binary "$RUNNER_TEMP/portico-server" --scratch "$RUNNER_TEMP/scanner-probe" --files "$FILES" --observe-seconds "$OBSERVE_SECONDS"
+          python3 scripts/scanner-import-probe.py --binary "$RUNNER_TEMP/portico-server" --scratch "$RUNNER_TEMP/scanner-probe" --files "$FILES" --observe-seconds "$OBSERVE_SECONDS" --runtime-base "$RUNTIME_BASE"
       - name: Summarize first-import CPU samples
         if: always()
         env:

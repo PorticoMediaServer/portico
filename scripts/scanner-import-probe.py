@@ -30,6 +30,16 @@ def write_report(path, value):
     temporary.replace(path)
 
 
+def runtime_base(revision):
+    base = subprocess.check_output(['git', 'rev-parse', '--verify', revision + '^{commit}'],
+                                   cwd=ROOT, text=True).strip()
+    # Evidence-only commits need not be direct children of the runtime base.
+    # Verify the server source before attributing the measurement to that base.
+    subprocess.run(['git', 'diff', '--exit-code', base, 'HEAD', '--', 'server'],
+                   cwd=ROOT, stdout=subprocess.DEVNULL, check=True)
+    return base
+
+
 def make_media(root, count):
     template = root / 'template.mp4'
     subprocess.run([shutil.which('ffmpeg'), '-nostdin', '-v', 'error',
@@ -178,6 +188,7 @@ def main():
     parser.add_argument('--files', type=int, default=2000)
     parser.add_argument('--timeout', type=int, default=1800)
     parser.add_argument('--observe-seconds', type=int, default=30)
+    parser.add_argument('--runtime-base', required=True)
     args = parser.parse_args()
     if not 1 <= args.files <= 10000 or not 1 <= args.timeout <= 3600 or not 1 <= args.observe_seconds <= 300:
         parser.error('fixture size or time bound is out of range')
@@ -191,7 +202,7 @@ def main():
     spec.loader.exec_module(e2e)
     report = {'head': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
               'state': 'running', 'policy': 'basic', 'scans': [],
-              'runtimeBase': subprocess.check_output(['git','rev-parse','HEAD^'],cwd=ROOT,text=True).strip()}
+              'runtimeBase': runtime_base(args.runtime_base)}
     output = args.scratch / 'scanner-import.json'
     try:
         with tempfile.TemporaryDirectory(prefix='scanner-import-', dir=args.scratch) as directory:
