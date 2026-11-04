@@ -543,7 +543,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
         if (me.viewer.role !== session!.viewer.role || nextAccount.account.role !== currentAccount().account.role) {rebuild(); return;}
         readOrder.identity.apply(ticket, () => {account = nextAccount; avatars = nextAvatars; publish();});
       }),
-    }, {scope: viewerQueryScope(session.viewer, scopeIdentity), api: readers, screensApi: local});
+    }, {scope: viewerQueryScope(session.viewer, scopeIdentity), api: readers, screensApi: local, writes: local.onConfirmedWrite});
     viewerCache = freshness.queries;
     const updateHomeFreshness = () => {
       if (!current()) return;

@@ -21,7 +21,8 @@ export function freshnessFor(api: HttpLocalApi, scope: {viewerId: string; server
   if (runtime && runtime.api === api && runtime.scope === key && !runtime.queries.isDisposed()) return runtime;
   const old = runtime;
   const hub = new FreshnessHub();
-  runtime = {api, scope: key, hub, queries: createViewerQueries({scope, hub, api})};
+  // Every write this API's server confirms moves what it changed, whoever made it.
+  runtime = {api, scope: key, hub, queries: createViewerQueries({scope, hub, api, writes: api.onConfirmedWrite})};
   if (old) {
     // The old viewer's documents go now; nothing may be shown or stored from them again.
     old.queries.dispose();

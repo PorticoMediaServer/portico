@@ -81,6 +81,7 @@ import {AudioSelection,emptyAudio,type AudioPlan,type AudioBinding,type AudioSel
 export type {AudioPlan,AudioBinding,AudioSelectionSnapshot} from './audio-selection.ts';
 import {UserMutationCoordinator, UserMutationError, userMutationFingerprint, userMutationSecretField, newUserMutationKey, isUserMutationKey, sameUserMutationScope, type DurableUserMutationStore, type UserMutationScope, type UserMutationEntry, type UserMutationReceipt, type UserMutationResponse} from './user-mutations.ts';
 import {userMutationRoute, type userMutationRouteIds} from './user-mutation-routes.ts';
+import {writeRoute, type ConfirmedWrite} from './query/write-dependencies.ts';
 export * from './user-mutations.ts';
 export * from './user-mutation-recovery.ts';
 /** Portable wire types and services. No renderer, native module or process globals. */
@@ -813,6 +814,31 @@ export class HttpLocalApi {
       return value as T;
     } finally {clearTimeout(timer);signal?.removeEventListener('abort',abort);}
   }
+  private writeListeners = new Set<(write: ConfirmedWrite) => void>();
+  /**
+   * Hear every write the server confirmed (a 2xx answer to anything but a GET), however it was sent
+   * (an ordinary request or the durable mutation queue) and whoever sent it, for the routes the
+   * cache's table names (query/write-dependencies.ts). The viewer's cache subscribes, so a write
+   * made anywhere reads again every page built from what it moved.
+   */
+  readonly onConfirmedWrite = (listener: (write: ConfirmedWrite) => void) => {
+    this.writeListeners.add(listener);
+    return () => { this.writeListeners.delete(listener); };
+  };
+  private announceWrite(path: string, method: string, body: unknown, response: Response) {
+    const write = writeRoute(path, method);
+    if (!write) return;
+    const tell = (answer: unknown) => {
+      const confirmed: ConfirmedWrite = Object.freeze({route: write.route, params: write.params, body, response: answer});
+      for (const listener of [...this.writeListeners]) try { listener(confirmed); } catch { /* a listener's failure is never the writer's */ }
+    };
+    // The answer is read from a copy, so the writer reads its own untouched; an unreadable one still tells.
+    let copy: Response | undefined;
+    try { copy = write.needsResponse && response.status !== 204 && typeof response.clone === 'function' ? response.clone() : undefined; } catch { copy = undefined; }
+    // Told after the writer has its answer in hand, never in the middle of its request.
+    if (!copy) { void Promise.resolve().then(() => tell(undefined)); return; }
+    copy.json().then(tell, () => tell(undefined));
+  }
   private auth?: AuthRecovery;
   /** Keep this transport's access token alive: refresh before expiry and once on a 401. */
   setAuthRecovery(auth: AuthRecovery | undefined) { this.auth = auth; }
@@ -837,6 +863,7 @@ export class HttpLocalApi {
       ...(body === undefined ? {} : { body: transportJSON(body) }),
     });
     if (token) this.sentWith.set(response, token);
+    if (this.writeListeners.size && response.ok) this.announceWrite(path, method, body, response);
     // No client-clock requirements: every answer teaches this server's clock (server-clock.ts).
     observeResponseClock(clockOrigin(this.baseUrl) || clockOrigin(response.url), response, sentAt);
     return response;
