@@ -186,6 +186,27 @@ func readingScanWithin(t *testing.T, f *v1Fixture, library string, timeout time.
 			t.Error("reading scanner did not stop")
 		}
 	})
+	dump := func() {
+		for _, query := range []string{
+			`SELECT relative_path,reason FROM inventory_scan_issues WHERE job_id=?`,
+			`SELECT kind,source_id FROM inventory_changes WHERE job_id=?`,
+		} {
+			rows, err := f.db.Query(query, job.ID)
+			if err != nil {
+				t.Logf("MAC SCAN DIAGNOSTIC %s: %v", query, err)
+				continue
+			}
+			for rows.Next() {
+				var a, b string
+				if err := rows.Scan(&a, &b); err != nil {
+					t.Log(err)
+				} else {
+					t.Logf("MAC SCAN DIAGNOSTIC %s: %s / %s", query, a, b)
+				}
+			}
+			rows.Close()
+		}
+	}
 	deadline := time.Now().Add(timeout)
 	for {
 		state, err := scan.Get(job.ID)
@@ -194,11 +215,13 @@ func readingScanWithin(t *testing.T, f *v1Fixture, library string, timeout time.
 		}
 		if state.Status == "complete" || state.Status == "complete_with_warnings" {
 			if state.Warnings != 0 {
+				dump()
 				t.Fatalf("reading scan warnings: %+v", state)
 			}
 			break
 		}
 		if state.Status == "failed" || time.Now().After(deadline) {
+			dump()
 			t.Fatalf("reading scan did not publish: %+v", state)
 		}
 		time.Sleep(10 * time.Millisecond)

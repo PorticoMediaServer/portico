@@ -139,12 +139,22 @@ func (c *Client) retainedInventoryPage(ctx context.Context, key string, r Invent
 				}
 			}
 			if len(inventoryStreams.byID) >= 32 {
+				fmt.Printf("MAC ORDER REGISTRY FULL request=%+v\n", r)
+				for _, held := range inventoryStreams.byID {
+					fmt.Printf("MAC ORDER HELD request=%+v finished=%t touched=%v\n", held.request, held.finished, held.touched)
+				}
 				inventoryStreams.Unlock()
 				return empty, ErrBusy
 			}
 			select {
 			case inventoryStreams.slots <- struct{}{}:
 			default:
+				fmt.Printf("MAC ORDER SLOTS FULL request=%+v\n", r)
+				for _, held := range inventoryStreams.byID {
+					if !held.finished {
+						fmt.Printf("MAC ORDER HELD request=%+v touched=%v\n", held.request, held.touched)
+					}
+				}
 				inventoryStreams.Unlock()
 				return empty, ErrBusy
 			}

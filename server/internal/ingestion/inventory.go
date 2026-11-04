@@ -368,6 +368,7 @@ func (s *Service) readDirectoryPage(ctx context.Context, job string, source cata
 		page, err = storage.LocalInventoryPage(req)
 	}
 	if err != nil {
+		log.Printf("MAC ORDER INVENTORY job=%s root=%s relative=%s cursor=%s error=%T %v", job, req.Root, relative, cursor, err, err)
 		return &directoryReadError{err}
 	}
 	discRoot, err := s.discRootObservation(ctx, source, relative, page)
