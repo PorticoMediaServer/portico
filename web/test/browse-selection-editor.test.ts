@@ -82,3 +82,32 @@ test('step 7: Try again after an access change previews under the moved fence, a
   const receipts = await editor.save(operation, newer, {fields: {contentRating: 'G'}, lists: {}, lockEdited: true});
   assert.equal(receipts[0]?.updated, 1); assert.equal(sent.length, 1);
 });
+
+// Previews are ordered by when they started (as the preferences reader's reads are, #720): an older preview, read under
+// the fence that moved, that answers after the newer one never takes the editing fence back, so it cannot save, and the
+// newer preview still can.
+test('step 7: an older preview that answers late never replaces the newer preview\'s fence', async () => {
+  const sent: unknown[] = [], held: {resolve: (value: unknown) => void}[] = [];
+  let fence = 'a'.repeat(64);
+  const api = {request: async (path: string, _method?: string, body?: unknown) => {
+    if (path.includes('preview')) {const answer = {...preview, viewerFence: fence};return new Promise(resolve => {held.push({resolve: () => resolve(answer)});});}
+    sent.push(body);
+    const edit = body as {operationId: string; targets: {kind: string; id: string}[]};
+    return {operationId: edit.operationId, results: edit.targets.map(target => ({kind: target.kind, id: target.id, ok: true, revision: 'c'.repeat(64)})), updated: edit.targets.length, failed: 0};
+  }};
+  const editor = createSelectionEditor({api: api as never, events: {on: () => () => {}}, requestId: async () => 'operation-1', isCurrent: () => true, serverId: 'server'});
+  const operation = {target: explicit} as never, draft = {fields: {contentRating: 'G'}, lists: {}, lockEdited: true};
+  const olderRead = editor.preview(operation);
+  await new Promise(resolve => setImmediate(resolve));
+  fence = 'e'.repeat(64);
+  const newerRead = editor.preview(operation);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(held.length, 2);
+  held[1]!.resolve(undefined);const newer = await newerRead;
+  held[0]!.resolve(undefined);const older = await olderRead;
+  assert.equal(older.viewerFence, 'a'.repeat(64));assert.equal(newer.viewerFence, 'e'.repeat(64));
+  await assert.rejects(editor.save(operation, older, draft), (error: unknown) => error instanceof SelectionEditorError && error.code === 'metadata-preview-not-current');
+  assert.equal(sent.length, 0);
+  const receipts = await editor.save(operation, newer, draft);
+  assert.equal(receipts[0]?.updated, 1);assert.equal(sent.length, 1);
+});

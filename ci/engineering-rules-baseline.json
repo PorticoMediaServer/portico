@@ -85,7 +85,6 @@
   "web/src/screens/watch/receivers.ts": 2,
   "web/src/shell/entry-metadata.tsx": 3,
   "web/src/shell/facts.ts": 2,
-  "web/src/shell/home-resources.ts": 4,
   "web/src/shell/selection.tsx": 2
  },
  "lease-layer": {
