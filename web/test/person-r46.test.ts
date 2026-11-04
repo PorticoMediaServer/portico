@@ -159,3 +159,41 @@ test('step 7: a person credit page from another revision is refused and the pers
     assert.equal(all.itemAt(40), undefined); assert.equal(binding.getSnapshot().page, header); assert.equal(f.headers(), 1);
   } finally { binding.dispose(); }
 });
+
+test('step 7: a later access change in the same visit reads the person again too, once a credit page has answered since the last re-read', async () => {
+  // Three pages of credits; the continuation answers follow a script: refused, answered, refused, refused.
+  const many = Array.from({length: 120}, (_, index) => credit(`title-${index}`, 'movie', `Title ${index}`, [{role: 'Role', department: 'Acting'}], 'cast'));
+  const script = ['refuse', 'answer', 'refuse', 'refuse'], paths: string[] = [];
+  let headers = 0;
+  const owner = setup(async path => {
+    paths.push(path);
+    const query = new URL('https://unit.invalid' + path).searchParams, limit = Number(query.get('limit') ?? '40'), cursor = query.get('cursor');
+    const base = {...page(null, null, 0), groups: [{id: 'movie', kind: 'movie', total: 120}]};
+    if (!cursor) {
+      if (limit === 1) headers++;
+      return {...base, viewerFence: `fence-${headers}`, credits: many.slice(0, limit), pageInfo: {total: 120, nextCursor: 'p40'}};
+    }
+    if (script.shift() !== 'answer') throw Object.assign(new Error('Expired'), {code: 'invalid_cursor'});
+    const start = Number(cursor.slice(1));
+    return {...base, credits: many.slice(start, start + 40), pageInfo: {total: 120, nextCursor: `p${start + 40}`}};
+  });
+  const binding = createPersonBindings(owner.context);
+  const open = async (from: number) => {
+    const all = binding.credits(binding.getSnapshot().page!);
+    for (let start = 0; start <= from; start += 40) {all.ensureRange(start, start); await settled();}
+    return all;
+  };
+  try {
+    await binding.select('rebecca'); const first = binding.getSnapshot().page!;
+    // First access change: page 1 is refused, and the person is read again.
+    await open(40); const second = binding.getSnapshot().page!;
+    assert.notEqual(second, first); assert.equal(headers, 2);
+    // Paging goes on: page 1 answers, then a second access change refuses page 2, and the person is read again.
+    await open(80); const third = binding.getSnapshot().page!;
+    assert.notEqual(third, second); assert.equal(third.viewerFence, 'fence-3'); assert.equal(headers, 3);
+    assert.equal(binding.getSnapshot().phase, 'ready');
+    // A refusal straight after that re-read, with no page answered in between, shows.
+    const last = await open(40);
+    assert.equal(last.getSnapshot().status, 'error'); assert.equal(binding.getSnapshot().page, third); assert.equal(headers, 3);
+  } finally { binding.dispose(); }
+});
