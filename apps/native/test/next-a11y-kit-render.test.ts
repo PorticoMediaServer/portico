@@ -152,7 +152,7 @@ test('Dialog provides bounded scrolling by default and honors a body-owned list 
       '../../platform/layout/tv-canvas': {}, './TVDesignCanvas': {TVDesignCanvas: 'TVDesignCanvas'},
       '../../../../../packages/i18n/src/index': {defaultI18n}, '../controls/Button': {Button: 'Button'}, '../controls/Focusable': {Focusable: 'Focusable'},
       '../Icon': {Icon: 'Icon'}, './BottomSheet': {BottomSheet: 'BottomSheet'},
-      './OverlayHost': {useOverlayLifecycle() {}, OverlayPortal: 'OverlayPortal'},
+      './OverlayHost': {useOverlayLifecycle() {}, OverlayPortal: 'OverlayPortal'}, './native-dismissal': {useNativeModalPresence: (present: boolean, shown = present) => ({mounted: present, visible: shown && present, onDismiss() {}})},
     });
     const props = {open: true, title: 'Choices', onOpenChange() {}, children: 'Long body', footer: 'Footer', scrollable};
     const outer = f.host.render(() => surface.Dialog(props));

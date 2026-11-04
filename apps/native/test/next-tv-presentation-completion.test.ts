@@ -13,7 +13,7 @@ const {TVPanelTransition} = await screenModule(new URL('../src-next/kit/overlays
     useAnimatedStyle: (run: () => unknown) => run(), cancelAnimation() {},
     withTiming: (value: number, _config: unknown, done: (complete: boolean) => void) => {animations.push(done); return value;},
     runOnJS: (run: (...args: any[]) => void) => (...args: any[]) => queued.push(() => run(...args)),
-  }, '../useMotion': {useMotion: () => motion},
+  }, '../useMotion': {useMotion: () => motion}, './native-dismissal': {useNativeModalPresence: (present: boolean, shown = present) => ({mounted: present, visible: shown && present, onDismiss() {}})},
 });
 
 test('queued old panel completions cannot admit or remove a reversed/replayed presentation', async () => {

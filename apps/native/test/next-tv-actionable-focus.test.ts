@@ -210,7 +210,8 @@ async function overlayBindings(b: Awaited<ReturnType<typeof bindings>>) {
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, left: 0, right: 0, bottom: 0})},
     '../../../../../packages/i18n/src/index': {defaultI18n}, '../controls/Button': {Button}, '../controls/Focusable': {Focusable: b.Focusable},
     '../focus': b.focus, '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => b.theme, nativeType}, '../useMotion': motion,
-    './OverlayHost': host, './OverlayPaintContext': b.paint, './TVDesignCanvas': {TVDesignCanvas: 'DesignCanvas'}};
+    './OverlayHost': host, './OverlayPaintContext': b.paint, './TVDesignCanvas': {TVDesignCanvas: 'DesignCanvas'},
+    './native-dismissal': await screenModule(new URL('../src-next/kit/overlays/native-dismissal.ts', import.meta.url), {react: b.react, 'react-native': native, '../focus/layer-stack': {LAYER_FOCUS_WAIT_MS: 1000}})};
   const surface = await screenModule(new URL('../src-next/kit/overlays/surface.tsx', import.meta.url), {...common, '../../platform/layout/tv-canvas': canvas, './BottomSheet': {BottomSheet: 'UnusedTouchSheet'}});
   const pan: any = new Proxy({}, {get: () => () => pan});
   const sheet = await screenModule(new URL('../src-next/kit/overlays/BottomSheet.tsx', import.meta.url), {'../../platform/keyboard': {FormScrollView: 'ScrollView', KeyboardProvider: ({children}: {children: unknown}) => children, useKeyboardHeight: () => 0, touchKeyboard: () => true}, ...common, './surface': surface, './geometry': geometry,

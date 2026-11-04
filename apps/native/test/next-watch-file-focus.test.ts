@@ -31,7 +31,7 @@ const {NativeWatchOverlays} = await screenModule(new URL('../src-next/screens/wa
   '../../../../../packages/client-core/src/presentation/kit-model/text': {durationText},
   './file-info': {nativeFileInfoFile, nativeSplitCandidates}, '../../shell/model': {shellLayout}, '../../kit/controls': controls, '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/states': {StateView: 'StateView'},
   '../../kit/overlays': {BottomSheet: 'BottomSheet', Dialog: 'Dialog', Menu: 'Menu'}, '../../kit/overlays/Menu': {TouchMenuHeader: 'TouchMenuHeader'},
-  '../../kit/overlays/TVPanelMotion': {TVPanelTransition: 'TVPanelTransition', TVPanelSlide: 'TVPanelSlide', TVPanelScrim: 'TVPanelScrim', useTVPanelPresence: (value: unknown) => ({value, open: value !== undefined, exited() {}}), useTVPanelInteractive: () => true},
+  '../../kit/overlays/TVPanelMotion': {TVPanelTransition: 'TVPanelTransition', TVPanelSlide: 'TVPanelSlide', TVPanelScrim: 'TVPanelScrim', useTVPanelPresence: (value: unknown) => ({value, open: value !== undefined, exited() {}}), useTVPanelInteractive: () => true, useTVPanelModal: () => ({visible: true})},
   './DiscTitlesSheet': {NativeDiscTitlesSheet: 'DiscTitlesSheet'}, '../../kit/overlays/title-menu': titleMenu, './menu-model': {nativeWatchMenuGroups},
   './VersionChooser': {NativeVersionChooser: 'VersionChooser'}, '../../kit/overlays/surface': {FocusBoundary: 'FocusBoundary', PanelBackground: 'PanelBackground'}, '../../kit/overlays/OverlayHost': {useOverlayLifecycle() {}}, '../../kit/theme': themed,
 });
