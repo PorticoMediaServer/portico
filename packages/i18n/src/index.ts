@@ -160,7 +160,8 @@ export type I18n = Readonly<{
   /** Media counter: "1:02:03" / "4:05". */
   clock: (seconds: number) => string;
   /** "Just now", "5 minutes ago", "3 hours ago", "Yesterday", "4 days ago", then a date. */
-  relativeTime: (value: Date | number | string, now?: number) => string;
+  /** `inSentence`: the words read mid-sentence ("finished just now", "finished yesterday"), not as a standalone label. */
+  relativeTime: (value: Date | number | string, now?: number, options?: Readonly<{inSentence?: boolean}>) => string;
   /** "A, B and C" in the UI locale; `'or'` gives "A, B or C". */
   list: (items: readonly string[], type?: 'and' | 'or') => string;
 }>;
@@ -239,17 +240,17 @@ export function createI18n(region: ResolvedRegion = resolveRegion(undefined, {lo
     const h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
     return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`;
   };
-  const relativeTime = (value: Date | number | string, now = Date.now()) => {
+  const relativeTime = (value: Date | number | string, now = Date.now(), options: Readonly<{inSentence?: boolean}> = {}) => {
     const d = toDate(value);
     if (!Number.isFinite(d.getTime())) return '';
     const seconds = Math.max(0, Math.round((now - d.getTime()) / 1000));
-    if (seconds < 45) return t('relative.justNow');
+    if (seconds < 45) return t(options.inSentence ? 'relative.justNowInSentence' : 'relative.justNow');
     const minutes = Math.round(seconds / 60);
     if (minutes < 60) return t('relative.minutesAgo', {count: minutes});
     const hours = Math.round(minutes / 60);
     if (hours < 24) return t('relative.hoursAgo', {count: hours});
     const days = Math.round(hours / 24);
-    if (days === 1) return t('relative.yesterday');
+    if (days === 1) return t(options.inSentence ? 'relative.yesterdayInSentence' : 'relative.yesterday');
     if (days < 7) return t('relative.daysAgo', {count: days});
     return date(d, new Date(now).getFullYear() === d.getFullYear() ? 'dayMonth' : 'medium');
   };

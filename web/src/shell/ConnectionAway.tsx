@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState, useSyncExternalStore} from 'react';
+import {useCallback, useLayoutEffect, useState, useSyncExternalStore} from 'react';
 import {Link} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
 import type {HttpLocalApi} from '@core/index.ts';
@@ -26,7 +26,9 @@ export function fullScreenSurfaceUp(doc: Pick<Document, 'querySelector' | 'query
  * while asked (the browser's line is up), and read again when the document changes. */
 export function useFullScreenSurface(active: boolean, doc: Document | undefined = typeof document === 'undefined' ? undefined : document): boolean {
   const [covered, setCovered] = useState(false);
-  useEffect(() => {
+  // Layout, not passive: the first check lands before paint, so a line that appears while a player or
+  // reader is already open never flashes over it for a frame.
+  useLayoutEffect(() => {
     if (!active || !doc) return;
     let frame = 0;
     const view = doc.defaultView;

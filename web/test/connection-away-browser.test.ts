@@ -64,6 +64,9 @@ test('the browser line hides under every full-screen surface the player\'s focus
 test('only the browser line hides; the desktop host\'s line with Downloads is unchanged', () => {
   const away = readFileSync(new URL('../src/shell/ConnectionAway.tsx', import.meta.url), 'utf8');
   assert.match(away, /const covered = useFullScreenSurface\(!downloads\);/);
+  // The first check runs before paint (review of #591): no one-frame flash over an open surface.
+  assert.match(away, /useLayoutEffect\(\(\) => \{\n    if \(!active \|\| !doc\) return;/);
+  assert.doesNotMatch(away, /\buseEffect\(/);
   assert.match(away, /hidden=\{covered \|\| undefined\}/);
   const css = readFileSync(new URL('../src/shell/shell.module.css', import.meta.url), 'utf8');
   assert.doesNotMatch(css, /:has\([^\n]*\.away/);
