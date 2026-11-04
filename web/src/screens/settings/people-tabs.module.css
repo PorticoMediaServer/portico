@@ -1,0 +1,7 @@
+/* owner-people 24a: a phone's People tabs. Each pane keeps the page's own flow (display: contents) and leaves it
+   when its tab is not chosen. */
+.phoneTabs { margin: 4px 0 14px; }
+.pane { display: contents; }
+.pane[data-hidden] { display: none; }
+.tabCount { display: inline-grid; place-items: center; min-width: 20px; height: 20px; margin-left: 8px; padding: 0 6px; border-radius: 10px;
+  background: var(--color-raised-high); color: var(--color-text-secondary); font-size: var(--type-caption-size); font-weight: var(--type-body-strong-weight); }

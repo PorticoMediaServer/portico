@@ -8,7 +8,10 @@ import {SettingsPeopleClient, type SettingsPeoplePage, type SettingsPeopleQuery,
 import {personMemberResetCodeRow, settingsRowIndex, settingsSpec, type SettingsRow, type SettingsValue} from '@core/presentation/settings-spec.ts';
 import {managesTier, type AccessMember, type AccessTier, type MemberLimits} from '@core/server-administration.ts';
 import {MemberResetCodeSheet, SettingsAction, SettingsGroup, SettingsHours, SettingsSelectionList, SettingsStringList, SettingsPanel, SettingsRows, SettingsTable, type SettingPresentation, type SettingsTableHandle, type TableQuery} from '../../kit/settings';
-import {Button, RichSelect} from '../../kit/controls';
+import {Button, RichSelect, Tabs} from '../../kit/controls';
+import {usePhone} from '../../kit/overlays/shared';
+import {PeopleDevicesAll} from './PeopleDevicesAll';
+import peopleStyles from './people-tabs.module.css';
 import {Dialog} from '../../kit/overlays/Dialog';
 import {SettingsRow as Row} from '../../kit/shell/SettingsSurfaces';
 import {SettingsPageFailure} from '../../kit/settings';
@@ -342,8 +345,22 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
     const access = command.action === 'access' ? bulkAccessWithLibraries(bulk, bulkLibraryChoice, bulkLibraryIds) : undefined;
     void run(async () => {await client.bulk(command.rows, command.action, access); setCommand(undefined); setBulk(undefined); setSelected(new Set()); if (command.action === 'remove' && command.rows.some(row => row.accountId === personId)) {admitPerson();} else if (personId) {const next = await client.person(personId); setPerson(current => current?.accountId === next.accountId ? next : current);}});
   };
+  // owner-people 24a: on a phone People is three tabs, Accounts, Invitations and Devices; wider screens keep the
+  // spec's stacked groups. The panes stay mounted so their counts are known before they are opened.
+  const phone = usePhone();
+  const [peopleTab, setPeopleTab] = useState<'accounts' | 'invitations' | 'devices'>('accounts');
+  const [tabCounts, setTabCounts] = useState<Readonly<{invitations?: number; devices?: number}>>({});
+  const onInvitationsTotal = useCallback((total: number | undefined) => setTabCounts(current => current.invitations === total ? current : {...current, invitations: total}), []);
+  const onDevicesTotal = useCallback((total: number | undefined) => setTabCounts(current => current.devices === total ? current : {...current, devices: total}), []);
   if (!live || denied) return null;
+  const counted = (label: string, count: number | undefined) => count ? <>{label}<span className={peopleStyles.tabCount}>{defaultI18n.number(count)}</span></> : label;
   return <>
+    {phone && <Tabs phone className={peopleStyles.phoneTabs} value={peopleTab} aria-label={t(section.title)}
+      onValueChange={value => {if (value === 'accounts' || value === 'invitations' || value === 'devices') setPeopleTab(value);}}
+      items={[{value: 'accounts', label: t('settings.server.accounts')},
+        ...(bindings.invitations ? [{value: 'invitations', label: counted(t('settings.server.invitations'), tabCounts.invitations)}] : []),
+        ...(bindings.devices ? [{value: 'devices', label: counted(t('settings.section.devices'), tabCounts.devices)}] : [])]}/>}
+    <div className={peopleStyles.pane} data-hidden={phone && peopleTab !== 'accounts' || undefined}>
     <SettingsGroup title={t(section.groups![0].title!)} plain actions={<Button size="small" variant="primary" icon="i-plus" iconSize={20} disabled={!bindings.invite && !bindings.invitations}
       onClick={event => { if (!bindings.authority.isCurrent()) return; if (bindings.invite) bindings.invite(event.currentTarget); else void openInvite(event.currentTarget); }}>{t(table.addLabel!)}</Button>}>
     {error && !page && !personId ? <SettingsPageFailure retry={() => setRefresh(value => value + 1)} home={bindings.openHome} /> : <SettingsTable phoneCards ref={tableRef} height={table.height}
@@ -361,8 +378,11 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
         {id: 'remove', label: t(table.select!.bulk[2].label), destructive: true, onAction: (ids, element) => ask('remove', ids, element)},
       ]} />}
     </SettingsGroup>
-    {bindings.invitations && <PeopleInvitations invitations={bindings.invitations} serverName={bindings.serverName} signIn={bindings.signIn} libraries={bindings.libraries} authority={bindings.authority}
-      version={invitationVersion} openInvite={bindings.invite ?? openInvite} openHome={bindings.openHome} reportError={bindings.reportError} />}
+    </div>
+    {bindings.invitations && <div className={peopleStyles.pane} data-hidden={phone && peopleTab !== 'invitations' || undefined}><PeopleInvitations invitations={bindings.invitations} serverName={bindings.serverName} signIn={bindings.signIn} libraries={bindings.libraries} authority={bindings.authority}
+      version={invitationVersion} openInvite={bindings.invite ?? openInvite} openHome={bindings.openHome} reportError={bindings.reportError} onTotal={onInvitationsTotal} /></div>}
+    {phone && bindings.devices && <div className={peopleStyles.pane} data-hidden={peopleTab !== 'devices' || undefined}>
+      <PeopleDevicesAll api={bindings.devices} isCurrent={bindings.authority.isCurrent} canSignOut={bindings.actor.role === 'owner'} onTotal={onDevicesTotal} onError={bindings.reportError} /></div>}
     {advancedRows}
     {personId && <SettingsPanel open onClose={() => {if (resetView && !resetView.leave()) return; admitPerson();}} title={person?.username ?? personRow?.username ?? t(section.title)} audience={t(bindings.actor.role === 'owner' ? 'next.shell.serverVisibility.ownerShared' : 'next.shell.serverVisibility.administrator')}
       returnFocusRef={opener} selectedTab={tab} onTabChange={next => {if (next === tab) return; if (resetView && !resetView.leave()) return; setTab(next);}} saveState={saving ? 'saving' : saved ? 'saved' : undefined}
