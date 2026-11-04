@@ -10,7 +10,7 @@ import {NativeTitleMemory, type NativeTitleAnchor, type NativeTitleTab} from './
 import {NativeTitlePages} from './title-pages';
 import {NativeTitleEpisodeDetails} from './title-episode';
 import {NativeTitleCredits, type NativeTitleCreditsSnapshot} from './title-credits';
-import {nativeRelatedRow, type NativeRelatedRow, type NativeRelatedRowSnapshot} from './title-related';
+import {nativeRelatedRow, nativeShowRelatedRow, nativeTitleRelatedRow, readNativeShowRows, type NativeRelatedRow, type NativeRelatedRowSnapshot, type NativeTitleRelatedRow} from './title-related';
 import {viewerQueriesFor} from '../../shell/freshness';
 
 export type NativeTitleControllerOptions = Readonly<{
@@ -48,6 +48,11 @@ export class NativeTitleController {
   private creditData?: object;
   private credits?: NativeTitleCredits;
   private related = new Map<string, NativeRelatedRow>();
+  /** N4-8: a show or season page's More like this (the show's recommendations), per show revision. */
+  private showRows: readonly NativeTitleRelatedRow[] = [];
+  private showRelated = new Map<string, NativeRelatedRow>();
+  private showRowsKey?: string;
+  private showRowsRead?: AbortController;
   private creditReadHost?: NativeTitlePageHost;
   private creditRefresh = false;
   private readonly options: NativeTitleControllerOptions;
@@ -120,11 +125,34 @@ export class NativeTitleController {
         fence: JSON.stringify([data.scope.serverId, data.scope.libraryId, data.scope.viewerFence, data.revision.catalog, data.revision.viewer]),
         episodeCursor: workspace.pagination.cursor, seasonCursor: workspace.seasonPagination.cursor, episodes: data.episodes.sections[0]?.entries ?? [], seasons: data.seasons});
     }
+    if (data && (this.entry.kind === 'show' || this.entry.kind === 'season')) this.readShowRows(data);
     const related: Record<string, NativeRelatedRowSnapshot> = {};
     for (const [id, row] of this.related) related[id] = row.getSnapshot();
+    for (const [id, row] of this.showRelated) related[id] = row.getSnapshot();
     const showId = data?.show.id, show = showId && this.showState?.showId === showId ? this.showState.state : undefined;
-    return Object.freeze({entry: this.entry, detail, credits: this.credits?.getSnapshot(), related: Object.freeze(related), workspace, ...this.pages.getSnapshot(), place: this.memory.getSnapshot(), retired: this.retired,
+    return Object.freeze({entry: this.entry, detail, credits: this.credits?.getSnapshot(), related: Object.freeze(related), showRows: this.retired ? [] : this.showRows, workspace, ...this.pages.getSnapshot(), place: this.memory.getSnapshot(), retired: this.retired,
       showState: show, showStateBusy: this.showStateBusy});
+  }
+  /** Once per show revision (a season change keeps them); a failed read leaves the page without them, as a title without related rows. */
+  private readShowRows(data: ShowWorkspaceData): void {
+    const showId = data.show.id, revision = data.revision, key = JSON.stringify([showId, revision.catalog, revision.viewer]);
+    if (this.showRowsKey === key) return;
+    this.endShowRows(); this.showRowsKey = key;
+    const controller = new AbortController(); this.showRowsRead = controller;
+    const live = () => !controller.signal.aborted && this.current() && this.showRowsKey === key;
+    const api = {request: <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal) =>
+      live() ? this.options.api.request<T>(path, method, body, signal) : Promise.reject(new DOMException('Title changed', 'AbortError'))};
+    void readNativeShowRows(api, showId, revision, controller.signal).then(rows => {
+      if (!live()) return;
+      for (const row of rows) this.showRelated.set(row.id, nativeShowRelatedRow(api, showId, revision, row, this.changed));
+      this.showRows = Object.freeze(rows.map(nativeTitleRelatedRow));
+      this.changed();
+    }).catch(() => { /* More like this is optional: the page shows none, as before. */ });
+  }
+  private endShowRows(): void {
+    this.showRowsRead?.abort(); this.showRowsRead = undefined; this.showRowsKey = undefined;
+    for (const row of this.showRelated.values()) row.dispose();
+    this.showRelated = new Map(); this.showRows = [];
   }
   getSnapshot = () => this.snapshot;
   subscribe = (listener: () => void): (() => void) => {this.listeners.add(listener); return () => {this.listeners.delete(listener);};};
@@ -229,7 +257,7 @@ export class NativeTitleController {
     await owner.next(expected);
   };
   /** A related row's page boundary, for the exact row snapshot it rendered. */
-  moreRelated = (id: string, expected: NativeRelatedRowSnapshot): void => {if (this.current()) this.related.get(id)?.next(expected);};
+  moreRelated = (id: string, expected: NativeRelatedRowSnapshot): void => {if (this.current()) (this.related.get(id) ?? this.showRelated.get(id))?.next(expected);};
   moreEpisodes = async (): Promise<void> => {if (this.current() && this.workspace.getSnapshot().phase === 'ready') await this.workspace.nextEpisodes();};
   moreSeasons = async (): Promise<void> => {if (this.current() && this.workspace.getSnapshot().phase === 'ready') await this.workspace.nextSeasons();};
   /** Owner show settings, bound to the exact page and host the sheet opened on.
@@ -274,7 +302,7 @@ export class NativeTitleController {
     for (const off of this.off) off(); this.off = [];
     this.credits?.dispose(); this.credits = undefined;
     for (const row of this.related.values()) row.dispose();
-    this.related = new Map();
+    this.related = new Map(); this.endShowRows();
     this.detail.dispose(); this.workspace.dispose(); this.pages.dispose(); this.episode.dispose(); this.snapshot = this.read();
     for (const listener of [...this.listeners]) listener(); this.listeners.clear();
   };

@@ -2,7 +2,11 @@ import type {ContentEntry, LibraryContentApi} from '../../../../../packages/clie
 import type {ListeningViewerScope} from '../../../../../packages/client-core/src/listening';
 import {listeningSimilarPager, type ListeningSimilarRead, type RelationRowPager} from '../../../../../packages/client-core/src/relation-rows';
 import {relatedRowPager, type RelatedMovieRow} from '../../../../../packages/client-core/src/related-movies';
-import type {HomeApi} from '../../../../../packages/client-core/src/home';
+import type {HomeApi, HomeRevision, HomeRow} from '../../../../../packages/client-core/src/home';
+import {fetchShowRecommendations, titleRecommendationRows} from '../../../../../packages/client-core/src/recommendations';
+import {recommendationRowPager} from '../../../../../packages/client-core/src/relation-rows';
+import {serverTextLabel} from '../../../../../packages/client-core/src/presentation/server-text';
+import {defaultI18n} from '../../../../../packages/i18n/src';
 
 export type NativeRelatedRowSnapshot = Readonly<{
   entries: readonly ContentEntry[];
@@ -52,4 +56,24 @@ export function nativeRelatedRow(api: HomeApi, source: Parameters<typeof related
 /** A listening title's similar row on its first page's basis and revision. */
 export function nativeSimilarRow(api: LibraryContentApi, scope: ListeningViewerScope, first: ListeningSimilarRead, changed: () => void): NativeRelatedRow {
   return new NativeRelatedRow(JSON.stringify(['music-similar', first.itemId, first.revision]), listeningSimilarPager(api, scope, first, {limit: 24}), changed);
+}
+
+/** A row a title page draws under More like this: a detail's related row, or a show's recommendation row. */
+export type NativeTitleRelatedRow = Readonly<{id: string; heading: string; entries: readonly ContentEntry[]}>;
+
+/** N4-8: a show page's (and its seasons') More like this, as web reads it (`GET /v1/shows/{id}/recommendations`):
+ * every row in the server's order, named by its own words. An answer from another revision than the page's is
+ * not this page's: none. */
+export async function readNativeShowRows(api: HomeApi, showId: string, revision: HomeRevision, signal: AbortSignal): Promise<readonly HomeRow[]> {
+  const value = await fetchShowRecommendations(api, showId, 12, signal);
+  if (value.revision.catalog !== revision.catalog || value.revision.viewer !== revision.viewer) return [];
+  return titleRecommendationRows(value);
+}
+
+export const nativeTitleRelatedRow = (row: HomeRow): NativeTitleRelatedRow =>
+  Object.freeze({id: row.id, heading: serverTextLabel(defaultI18n, row.titleText, row.title), entries: row.entries});
+
+/** One of a show's recommendation rows, continued to its end through the show's row route. */
+export function nativeShowRelatedRow(api: HomeApi, showId: string, revision: HomeRevision, row: HomeRow, changed: () => void): NativeRelatedRow {
+  return new NativeRelatedRow(JSON.stringify(['show-recommendations', showId, revision, row.id]), recommendationRowPager(api, {kind: 'show', id: showId}, row), changed);
 }
