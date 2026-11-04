@@ -3,11 +3,12 @@ package decoder
 import (
 	"context"
 	"encoding/json"
+	"github.com/PorticoMediaServer/portico/server/internal/decodertest"
+	"github.com/PorticoMediaServer/portico/server/internal/mediaexec"
 	"math"
 	"os"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/decodertest"
-	"github.com/PorticoMediaServer/portico/server/internal/mediaexec"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -313,6 +314,13 @@ func TestBitmapBurnPreservesGlyphShapeOnCroppedVideo(t *testing.T) {
 
 func TestSDRHardwareScaleDoesNotRequireToneMap(t *testing.T) {
 	g, err := BuildConversion(ConversionRequest{ConvertVideo: true, MaxHeight: 720, SourceVideoCodec: "h264", SourceBitDepth: 8, Probe: HardwareProbe{Backend: BackendNVENC, Available: true, ScaleFilters: true, DecodeCodecs: map[string]bool{"h264:8": true}}, Toolchain: targetFacts()})
+	if runtime.GOOS != "linux" && runtime.GOOS != "windows" {
+		filter := argValue(g.Video, "-vf")
+		if err != nil || g.Backend != BackendSoftware || !strings.Contains(filter, "scale=") || strings.Contains(filter, "scale_cuda") || argValue(g.Input, "-hwaccel") != "" {
+			t.Fatal("unsupported CUDA scales on the processor", g, err)
+		}
+		return
+	}
 	if err != nil || !strings.Contains(argValue(g.Video, "-vf"), "scale_cuda") || argValue(g.Input, "-hwaccel") != "cuda" {
 		t.Fatal(g, err)
 	}
