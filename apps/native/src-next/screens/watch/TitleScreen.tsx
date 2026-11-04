@@ -150,7 +150,7 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
   const detail = snapshot.detail?.data, workspace = snapshot.workspace?.data;
   const focusScope = JSON.stringify([props.authority, snapshot.entry.kind, snapshot.entry.libraryId, snapshot.entry.id]);
   // A title's related rows; a show or season page's are the show's recommendations (N4-8).
-  const relatedRows = [...(detail?.related?.rows ?? []), ...(snapshot.showRows ?? [])].filter(row => row.entries.length > 0);
+  const relatedRows = [...(detail?.related?.rows ?? []), ...(snapshot.recommendationRows ?? [])].filter(row => row.entries.length > 0);
   const hasPeople = !!props.person && ((snapshot.credits?.credits ?? detail?.metadata.credits ?? []).some(credit => !!credit.personId) || !!snapshot.credits?.hasMore);
   const regions = tvTitleRegionMap(focusScope, props.authority ? tvFocusIds(props.authority).rail : undefined,
     ['show', 'season', 'episode'].includes(snapshot.entry.kind) && !!workspace, relatedRows.map(row => row.id), !!detail?.collections?.[0], hasPeople);

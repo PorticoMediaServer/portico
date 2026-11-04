@@ -24,7 +24,7 @@ export function createNativeTitleSelection(context: NativeShellBootstrapContext,
       const groups: NativeSelectionGroup[] = [];
       const episodes = data?.episodes.sections.flatMap(section => section.entries).filter((entry): entry is ContentEntry => entry.kind === 'episode') ?? [];
       if (episodes.length) groups.push({id: 'title-episodes', items: episodes});
-      for (const row of [...(detail?.data?.related?.rows ?? []), ...(state.showRows ?? [])]) if (row.entries.length) groups.push({id: `title-related:${row.id}`, items: row.entries});
+      for (const row of [...(detail?.data?.related?.rows ?? []), ...(state.recommendationRows ?? [])]) if (row.entries.length) groups.push({id: `title-related:${row.id}`, items: row.entries});
       const viewId = JSON.stringify(['native-title', key, data?.show.id ?? '', revision?.catalog ?? 0, revision?.viewer ?? 0]);
       // The page's own viewer fence and revisions are the selection's only context, and the
       // selection bar's own reads re-check them; a page still loading has none.
