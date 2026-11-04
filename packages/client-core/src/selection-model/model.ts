@@ -102,11 +102,11 @@ class WindowedSelectionModel<C> {
 
   /**
    * A newer answer from the same source (step 7 item 4, ruling D: Home). The context moves as setContext moves it, but
-   * the explicit picks the caller still finds offered stay chosen, re-keyed under the new context and holding the newer
-   * item; every other pick drops. A whole-view selection still ends. An unchanged context keeps its windows and only
+   * the explicit picks the caller still finds offered (given each pick's item and the section it was picked in) stay
+   * chosen, re-keyed under the new context and holding the item the caller returns; every other pick drops. A whole-view selection still ends. An unchanged context keeps its windows and only
    * re-resolves the picks. Returns how many picks dropped.
    */
-  moveContext(input: C, offered: (item: SelectionItem) => SelectionItem | undefined): number {
+  moveContext(input: C, offered: (item: SelectionItem, sectionId: string) => SelectionItem | undefined): number {
     if (this.disposed) return 0;
     const next = this.policy.check(input), moved = !same(next, this.context);
     if (this.whole) {
@@ -115,7 +115,7 @@ class WindowedSelectionModel<C> {
     }
     const kept = new Map<string, Pick>();
     for (const pick of this.chosen.values()) {
-      const found = offered(pick.item);
+      const found = offered(pick.item, pick.position.sectionId);
       if (!found) continue;
       const item = checkedItem(found), key = this.policy.key(next, item);
       if (!kept.has(key)) kept.set(key, Object.freeze({key, item, position: pick.position}));

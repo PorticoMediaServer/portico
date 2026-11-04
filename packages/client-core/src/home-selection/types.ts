@@ -59,6 +59,8 @@ export type HomeSelectionOptions = Readonly<{
   reportError(error: unknown): void;
   /** A short confirmation (a toast) for work that finished after its selection ended. */
   notify?(message: string): void;
+  /** The libraries the viewer may see now, when the shell knows them; a pick from any other library is gone. */
+  visibleLibraries?(): readonly string[] | undefined;
   /** A genuine native download sheet/runtime, absent on other platforms. */
   download?: (entries: readonly ContentEntry[], context: SelectionContext, signal: AbortSignal) => Promise<void>;
 }>;
