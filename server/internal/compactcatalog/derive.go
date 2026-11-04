@@ -524,6 +524,12 @@ func (w *Worker) prepare(ctx context.Context) error {
 
 // Rebuild starts rebuilding one domain from facts (tests and diagnostics).
 func (w *Worker) Rebuild(ctx context.Context, domain int) error {
+	if _, ok := derivation(domain); !ok {
+		return fmt.Errorf("unknown catalogue derivation %d", domain)
+	}
+	if err := w.prepare(ctx); err != nil {
+		return err
+	}
 	return dbwork.WithWriteTx(ctx, w.db, dbwork.ClassMaintenance, func(tx *sql.Tx) error {
 		if err := beginGeneration(ctx, tx); err != nil {
 			return err
