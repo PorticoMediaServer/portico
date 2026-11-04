@@ -149,6 +149,7 @@
 .control { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 12px; min-width: 0; }
 .control[data-wide] { flex: 1 1 100%; }
 .control .settingSelect.settingSelect { min-width: 176px; max-width: 440px; }
+@media (max-width: 599px) { .control .settingSelect.settingSelect { max-width: 100%; } }
 .control > div:has(> div > input[type='text']) { width: 300px; max-width: 100%; }
 .readonly { color: var(--color-text-secondary); font-size: 15px; }
 .defaultValue { color: var(--color-text-tertiary); font-size: 13px; white-space: nowrap; }
