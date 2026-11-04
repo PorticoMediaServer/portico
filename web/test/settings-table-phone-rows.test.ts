@@ -23,7 +23,7 @@ test('the phone row height is what windowing uses, so long lists render the righ
   assert.equal(window.first, 497);
   assert.equal(window.before, 497 * 112);
   const table = readFileSync(new URL('../src/kit/settings/SettingsTable.tsx', import.meta.url), 'utf8');
-  assert.match(table, /const metrics = phone && cards \? \{row: cards\.rowHeight, header: settingsTablePhoneMetrics\.header\} : settingsTableMetrics;/);
+  assert.match(table, /const metrics = useMemo\(\(\) => cardRow === undefined \? settingsTableMetrics : \{row: cardRow, header: settingsTablePhoneMetrics\.header\}, \[cardRow\]\);/);
   assert.match(table, /style=\{cards \? \{'--phone-row-height': `\$\{cards\.rowHeight\}px`\} as CSSProperties : undefined\}/);
   assert.match(table, /const top = index \* metrics\.row, bottom = top \+ metrics\.row \+ metrics\.header;/);
 });

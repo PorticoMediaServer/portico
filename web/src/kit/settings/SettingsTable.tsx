@@ -49,7 +49,8 @@ export function SettingsTable({label, rows, columns, query, onQueryChange, phone
   const pending = useRef<{id: string; slot: number} | undefined>(undefined), before = useRef(rows.map(row => row.id));
   const restoreSearch = useRef(false), autoMore = useRef<string | undefined>(undefined);
   const phone = usePhone(), cards = phoneCards === true ? {rowHeight: settingsTablePhoneMetrics.row, actionsLine: false} : phoneCards || undefined;
-  const metrics = phone && cards ? {row: cards.rowHeight, header: settingsTablePhoneMetrics.header} : settingsTableMetrics;
+  const cardRow = phone ? cards?.rowHeight : undefined;
+  const metrics = useMemo(() => cardRow === undefined ? settingsTableMetrics : {row: cardRow, header: settingsTablePhoneMetrics.header}, [cardRow]);
   const range = settingsTableWindow(rows.length, viewport.top, viewport.height, 3, metrics), selectable = !!onSelectionChange;
   const ids = useMemo(() => rows.map(row => row.id), [rows]), selectedCount = selected?.size ?? 0;
   const selectableIds = useMemo(() => rows.filter(row => row.selectable !== false).map(row => row.id), [rows]);
