@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/PorticoMediaServer/portico/server/internal/assets"
+	"github.com/PorticoMediaServer/portico/server/internal/childprocess"
+	"github.com/PorticoMediaServer/portico/server/internal/playback/vod"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/assets"
-	"github.com/PorticoMediaServer/portico/server/internal/childprocess"
-	"github.com/PorticoMediaServer/portico/server/internal/playback/vod"
 	"regexp"
 	"strconv"
 	"strings"
@@ -921,7 +921,7 @@ func (h *HLS) renditionFile(ctx context.Context, id, name string, p *DeliveryPla
 		if isRenditionInit(name) {
 			var ordinal int
 			if _, err := fmt.Sscanf(name, "audio-%d-init.mp4", &ordinal); err != nil || ordinal < 0 || ordinal >= len(p.Renditions) || renditionPackaging(p.Renditions[ordinal]) != "fmp4_hls" {
-				return "", errors.New("unknown stream artifact")
+				return "", ErrHLSArtifactNotFound
 			}
 			if !segmentReady(path) {
 				if err := h.startRendition(ctx, id, p.Renditions[ordinal], 0); err != nil {
@@ -929,13 +929,18 @@ func (h *HLS) renditionFile(ctx context.Context, id, name string, p *DeliveryPla
 				}
 				return "", ErrSegmentPreparing
 			}
+		} else {
+			var ordinal int
+			if _, err := fmt.Sscanf(name, "audio-%d.m3u8", &ordinal); err != nil || ordinal < 0 || ordinal >= len(p.Renditions) {
+				return "", ErrHLSArtifactNotFound
+			}
 		}
 		return path, nil
 	}
 	ordinal, _ := strconv.Atoi(parts[1])
 	index, _ := strconv.Atoi(parts[2])
 	if ordinal >= len(p.Renditions) || index >= hlsSegmentCount(p.Duration) || name != renditionSegmentFile(p.Renditions[ordinal], index) {
-		return "", errors.New("unknown stream artifact")
+		return "", ErrHLSArtifactNotFound
 	}
 	key := renditionKey(id, ordinal)
 	if segmentReady(path) {

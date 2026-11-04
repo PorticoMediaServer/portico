@@ -6995,7 +6995,7 @@
       ]
     },
     "internal/httpapi/router.go": {
-      "sha256": "3a44322caedd05c6083cd11da37358d73989eb62e42b79cb9006ae4a7b2b0bd9",
+      "sha256": "d983cd439b99092dd14e03a9c89dcdd808fb2a24b4ac2e2a52d3c45b8a35995c",
       "effects": [
         {
           "table": "*",
@@ -10568,7 +10568,7 @@
       ]
     },
     "internal/playback/hls.go": {
-      "sha256": "3c2e928fe535a29a19c631d48cd6185a1067341f59e93d3be4dc7a8054d6cbd3",
+      "sha256": "919be16095c852c4cddf6f5e3fb649a5aedb471e5c52e96961dc0bd389b46809",
       "effects": [
         {
           "table": "*",
@@ -10667,7 +10667,7 @@
       ]
     },
     "internal/playback/hls_renditions.go": {
-      "sha256": "510884929061a8e2731d61efdeed9c266c4842f09a8ac7404dbb4fcf8e1e4a5a",
+      "sha256": "0dbb171cde7437572f83c2c345b434820823036d6cb0b53abd3ec77a4f34371d",
       "effects": [
         {
           "table": "*",

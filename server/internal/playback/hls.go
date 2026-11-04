@@ -5,11 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"io"
-	"math"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/apievents"
 	"github.com/PorticoMediaServer/portico/server/internal/childprocess"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
@@ -22,6 +17,11 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/subtitles"
 	"github.com/PorticoMediaServer/portico/server/internal/supervise"
 	"github.com/PorticoMediaServer/portico/server/internal/worker"
+	"io"
+	"math"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -1158,6 +1158,9 @@ func (h *HLS) Ready(ctx context.Context, id string) error {
 	}
 }
 
+// ErrHLSArtifactNotFound hides names outside this presentation's artifact set.
+var ErrHLSArtifactNotFound = errors.New("stream artifact not found")
+
 var artifactName = regexp.MustCompile(`^(master\.m3u8|video\.m3u8|text-[0-9]{1,2}\.m3u8|audio-[0-9]{1,2}\.m3u8|init\.mp4|segment-[0-9]{6}\.(?:ts|m4s)|audio-[0-9]{1,2}-init\.mp4|audio-[0-9]{1,2}-[0-9]{6}\.(?:ts|m4s))$`)
 
 func (h *HLS) File(grant, name string) (string, error) {
@@ -1171,7 +1174,7 @@ func (h *HLS) File(grant, name string) (string, error) {
 // everything in between.
 func (h *HLS) FileContext(ctx context.Context, grant, name string) (string, error) {
 	if !artifactName.MatchString(name) {
-		return "", errors.New("unknown stream artifact")
+		return "", ErrHLSArtifactNotFound
 	}
 	var id string
 	var generation int
@@ -1193,7 +1196,7 @@ func (h *HLS) FileContext(ctx context.Context, grant, name string) (string, erro
 	}
 	index, segment := hlsSegmentIndex(name)
 	if strings.HasPrefix(name, "segment-") && !segment {
-		return "", errors.New("unknown stream artifact")
+		return "", ErrHLSArtifactNotFound
 	}
 	stamp, stampErr := os.ReadFile(filepath.Join(h.outputDir(id), "generation"))
 	if stampErr != nil || string(stamp) != strconv.Itoa(generation) {
@@ -1207,7 +1210,7 @@ func (h *HLS) FileContext(ctx context.Context, grant, name string) (string, erro
 					from = 0
 				}
 				if segment && from >= hlsSegmentCount(duration) {
-					return "", errors.New("unknown stream artifact")
+					return "", ErrHLSArtifactNotFound
 				}
 				if err := h.start(ctx, id, from); err != nil {
 					return "", err
@@ -1222,7 +1225,7 @@ func (h *HLS) FileContext(ctx context.Context, grant, name string) (string, erro
 	}
 	if strings.HasPrefix(name, "audio-") {
 		if delivery == nil || len(delivery.Renditions) == 0 {
-			return "", errors.New("unknown stream artifact")
+			return "", ErrHLSArtifactNotFound
 		}
 		return h.renditionFile(ctx, id, name, delivery)
 	}
@@ -1269,7 +1272,7 @@ func (h *HLS) FileContext(ctx context.Context, grant, name string) (string, erro
 			return "", ErrGrantEnded
 		}
 		// A timeline that reports no slots is a broken plan, so it stays a fault.
-		return "", errors.New("unknown stream artifact")
+		return "", errors.New("empty stream timeline")
 	}
 	cfg := h.configuration()
 	if info, err := os.Stat(path); err == nil && info.Size() > 0 {
