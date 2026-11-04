@@ -1,10 +1,11 @@
-//go:build linux
+//go:build linux || darwin
 
 package archive7z
 
 import (
 	"os"
 	"os/exec"
+	"runtime"
 	"testing"
 )
 
@@ -22,6 +23,7 @@ func TestLimitedWorkerCanAllocateItsBudget(t *testing.T) {
 			chunk[len(chunk)-1] = 1
 			chunks = append(chunks, chunk)
 		}
+		runtime.KeepAlive(chunks)
 		if len(chunks) != 64 {
 			t.Fatal("allocation incomplete")
 		}
