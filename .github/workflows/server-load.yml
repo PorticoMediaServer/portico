@@ -8,11 +8,17 @@ on:
       ddl:
         description: 'Pinned full schema basename under research/p0-s'
         default: full-ef4b74.sql
+      profile:
+        description: 'both, standard or legacy8'
+        default: both
+      size:
+        description: 'Initial residents: 400000 or 1000000'
+        default: '1000000'
 permissions:
   contents: read
 jobs:
   scale:
-    if: ${{ inputs.mode != 'sweep' && inputs.mode != 'fanout' && inputs.mode != 'supported' && inputs.mode != 'full' && inputs.mode != 'envelope' && inputs.mode != 'envelope2' && inputs.mode != 'selected' && inputs.mode != 'fullpair' && inputs.mode != 'widthpair' && inputs.mode != 'normal' && inputs.mode != 'facets' && inputs.mode != 'frames' && inputs.mode != 'attribution' && inputs.mode != 'caps' && inputs.mode != 'primitives' && inputs.mode != 'decision' }}
+    if: ${{ inputs.mode != 'sweep' && inputs.mode != 'fanout' && inputs.mode != 'supported' && inputs.mode != 'full' && inputs.mode != 'envelope' && inputs.mode != 'envelope2' && inputs.mode != 'selected' && inputs.mode != 'fullpair' && inputs.mode != 'widthpair' && inputs.mode != 'normal' && inputs.mode != 'facets' && inputs.mode != 'frames' && inputs.mode != 'attribution' && inputs.mode != 'caps' && inputs.mode != 'primitives' && inputs.mode != 'decision' && inputs.mode != 'resource' }}
     runs-on: ubuntu-24.04
     env:
       MODE: ${{ inputs.mode || 'churn' }}
@@ -87,7 +93,7 @@ jobs:
           retention-days: 14
 
   full:
-    if: ${{ inputs.mode == 'full' || inputs.mode == 'fullpair' || inputs.mode == 'widthpair' || inputs.mode == 'normal' || inputs.mode == 'facets' || inputs.mode == 'frames' || inputs.mode == 'attribution' || inputs.mode == 'caps' || inputs.mode == 'primitives' || inputs.mode == 'decision' }}
+    if: ${{ inputs.mode == 'full' || inputs.mode == 'fullpair' || inputs.mode == 'widthpair' || inputs.mode == 'normal' || inputs.mode == 'facets' || inputs.mode == 'frames' || inputs.mode == 'attribution' || inputs.mode == 'caps' || inputs.mode == 'primitives' || inputs.mode == 'decision' || inputs.mode == 'resource' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 80
     env:
@@ -96,9 +102,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        profile: [standard, legacy8]
+        profile: ${{ fromJSON(inputs.profile == 'legacy8' && '["legacy8"]' || inputs.profile == 'standard' && '["standard"]' || '["standard","legacy8"]') }}
         repetition: ${{ fromJSON((inputs.mode == 'normal' || inputs.mode == 'frames' || inputs.mode == 'attribution' || inputs.mode == 'caps' || inputs.mode == 'primitives' || inputs.mode == 'decision') && '[1,2,3]' || '[1]') }}
-        size: ${{ fromJSON(inputs.mode == 'facets' && '[400000,1000000]' || '[1000000]') }}
+        size: ${{ fromJSON(inputs.mode == 'facets' && '[400000,1000000]' || inputs.size == '400000' && '[400000]' || '[1000000]') }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {persist-credentials: false}
