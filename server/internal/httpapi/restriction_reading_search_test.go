@@ -97,8 +97,8 @@ func readingBodySearchRestrictionCheck(t *testing.T) {
 				t.Fatal("hidden title differs from absent under the same owned session", w.Code, w.Body.String(), missing.Code, missing.Body.String())
 			}
 			unknown := readingHTTP(t, h, "GET", strings.Replace(path, manifest.SessionID, identity.Token(), 1), token, manifest.Revision, nil)
-			if unknown.Code != 403 {
-				t.Fatal("unowned session token was admitted", unknown.Code, unknown.Body.String())
+			if unknown.Code != 410 || v1Code(unknown) != "reading_session_expired" {
+				t.Fatal("unknown session did not expire", unknown.Code, unknown.Body.String())
 			}
 		}
 	}
