@@ -202,6 +202,14 @@
       "reads": ["packages/contracts/src/account-step.ts"],
       "files": ["server/internal/hosted/account_step_window_test.go"],
       "tests": ["TestClientsAndServerShareOneAccountStepWindow"]
+    },
+    {
+      "package": "server/internal/persistence",
+      "why": "Derived-table ownership scans every production Go SQL literal, pins dynamic writers, and retains source-table guards after trigger removal",
+      "reads": ["server/*.go", "server/internal/persistence/migrations/0001_baseline.sql"],
+      "ignore": ["*_test.go", "*/thirdparty/*", "*/testdata/*"],
+      "files": ["server/internal/persistence/derived_writers_test.go"],
+      "tests": ["TestDerivedTableWritersHaveDeclaredOwners"]
     }
   ],
   "reviewed": {

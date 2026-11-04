@@ -1,0 +1,1325 @@
+{
+  "tables": {
+    "access_invitations": [
+      "internal/access",
+      "internal/identity"
+    ],
+    "access_limits": [
+      "internal/access"
+    ],
+    "account_portico_links": [
+      "internal/access",
+      "internal/hosted",
+      "internal/identity"
+    ],
+    "accounts": [
+      "internal/access",
+      "internal/catalogtest",
+      "internal/hosted",
+      "internal/identity"
+    ],
+    "admin_channel_logos": [
+      "internal/administration"
+    ],
+    "admin_dvr_groups": [
+      "internal/administration"
+    ],
+    "admin_receipts": [
+      "internal/administration"
+    ],
+    "analysis_marker_history": [
+      "internal/mediaanalysis"
+    ],
+    "analysis_marker_sets": [
+      "internal/mediaanalysis"
+    ],
+    "analysis_markers": [
+      "internal/mediaanalysis"
+    ],
+    "analysis_probe_bindings": [
+      "internal/catalog"
+    ],
+    "api_credentials": [
+      "internal/access",
+      "internal/identity"
+    ],
+    "artwork_blobs": [
+      "internal/metadata"
+    ],
+    "artwork_jobs": [
+      "internal/catalog",
+      "internal/metadata"
+    ],
+    "artwork_selections": [
+      "internal/catalog",
+      "internal/metadata"
+    ],
+    "artwork_sources": [
+      "internal/metadata"
+    ],
+    "asset_subtitle_facts": [
+      "internal/compactcatalog",
+      "internal/subtitles"
+    ],
+    "asset_subtitles": [
+      "internal/compactcatalog",
+      "internal/subtitles"
+    ],
+    "audio_metadata_policies": [
+      "internal/administration",
+      "internal/metadata"
+    ],
+    "audio_source_metadata": [
+      "internal/catalog"
+    ],
+    "audio_tag_evidence": [
+      "internal/catalog"
+    ],
+    "authorization_session_families": [
+      "internal/identity",
+      "internal/testauth"
+    ],
+    "book_resume": [
+      "internal/catalog",
+      "internal/playback"
+    ],
+    "catalog_albums": [
+      "internal/catalog/scalebench"
+    ],
+    "catalog_artists": [
+      "internal/catalog/scalebench"
+    ],
+    "catalog_asset_links": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/compactcatalog"
+    ],
+    "catalog_assets": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog"
+    ],
+    "catalog_attribute_fields": [
+      "internal/catalog/scalebench",
+      "internal/compactcatalog"
+    ],
+    "catalog_attribute_terms": [
+      "internal/catalog/scalebench",
+      "internal/compactcatalog"
+    ],
+    "catalog_automatic_members": [],
+    "catalog_book_chapters": [
+      "internal/compactcatalog"
+    ],
+    "catalog_book_files": [
+      "internal/catalog"
+    ],
+    "catalog_book_group_members": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "catalog_books": [],
+    "catalog_browse_availability_counts": [],
+    "catalog_browse_blocks": [
+      "internal/compactcatalog"
+    ],
+    "catalog_browse_buckets": [
+      "internal/compactcatalog"
+    ],
+    "catalog_browse_counted_rows": [
+      "internal/compactcatalog"
+    ],
+    "catalog_browse_groups": [],
+    "catalog_browse_member_metrics": [
+      "internal/compactcatalog"
+    ],
+    "catalog_browse_memberships": [
+      "internal/compactcatalog"
+    ],
+    "catalog_browse_memberships_previous": [],
+    "catalog_browse_rows": [
+      "internal/compactcatalog"
+    ],
+    "catalog_browse_rows_previous": [],
+    "catalog_collection_members": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "catalog_collections": [],
+    "catalog_credit_labels": [
+      "internal/catalog/scalebench",
+      "internal/compactcatalog"
+    ],
+    "catalog_credits": [
+      "internal/catalog/scalebench",
+      "internal/compactcatalog"
+    ],
+    "catalog_dataset_tags": [
+      "internal/enrichment"
+    ],
+    "catalog_dataset_vocabulary": [
+      "internal/enrichment"
+    ],
+    "catalog_derivation_failures": [
+      "internal/compactcatalog"
+    ],
+    "catalog_derivations": [
+      "internal/catalog/scalebench",
+      "internal/compactcatalog"
+    ],
+    "catalog_dirty": [
+      "internal/catalog",
+      "internal/compactcatalog",
+      "internal/metadata"
+    ],
+    "catalog_entities": [
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/compactcatalog",
+      "internal/derivedtest"
+    ],
+    "catalog_entity_mutations": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "catalog_entity_terms": [
+      "internal/catalog/scalebench",
+      "internal/compactcatalog"
+    ],
+    "catalog_episodes": [
+      "internal/catalog/scalebench"
+    ],
+    "catalog_external_ids": [
+      "internal/catalog",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/metadata"
+    ],
+    "catalog_facet_base_classes": [
+      "internal/catalog"
+    ],
+    "catalog_facet_base_rows": [
+      "internal/catalog"
+    ],
+    "catalog_facet_base_show_seen": [
+      "internal/catalog"
+    ],
+    "catalog_facet_base_texts": [
+      "internal/catalog"
+    ],
+    "catalog_facet_base_values": [
+      "internal/catalog"
+    ],
+    "catalog_facet_base_work": [
+      "internal/catalog"
+    ],
+    "catalog_facet_bases": [
+      "internal/catalog"
+    ],
+    "catalog_facet_counts": [
+      "internal/compactcatalog"
+    ],
+    "catalog_facet_members": [
+      "internal/compactcatalog"
+    ],
+    "catalog_generations": [
+      "internal/compactcatalog"
+    ],
+    "catalog_home_buckets": [
+      "internal/compactcatalog"
+    ],
+    "catalog_info_changes": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "catalog_info_input_families": [
+      "internal/compactcatalog"
+    ],
+    "catalog_info_input_witnesses": [
+      "internal/compactcatalog"
+    ],
+    "catalog_info_new_chapter_facts": [],
+    "catalog_info_new_chapters": [],
+    "catalog_info_new_disc_chapters": [],
+    "catalog_info_new_disc_clips": [],
+    "catalog_info_new_disc_facts": [],
+    "catalog_info_new_disc_media_members": [],
+    "catalog_info_new_disc_streams": [],
+    "catalog_info_new_disc_title_media": [],
+    "catalog_info_new_disc_title_media_members": [],
+    "catalog_info_new_disc_title_media_streams": [],
+    "catalog_info_new_disc_titles": [],
+    "catalog_info_new_stream_breadth": [],
+    "catalog_info_new_stream_facts": [],
+    "catalog_info_new_streams": [],
+    "catalog_info_new_subtitle_facts": [],
+    "catalog_info_new_subtitle_inventory_evidence": [],
+    "catalog_info_new_subtitle_sidecars": [],
+    "catalog_info_new_subtitles": [],
+    "catalog_info_path_old": [
+      "internal/compactcatalog"
+    ],
+    "catalog_info_scalar_old": [
+      "internal/compactcatalog"
+    ],
+    "catalog_info_shapes": [
+      "internal/compactcatalog"
+    ],
+    "catalog_item_attribute_edges": [
+      "internal/catalog/scalebench",
+      "internal/compactcatalog"
+    ],
+    "catalog_item_availability": [
+      "internal/compactcatalog"
+    ],
+    "catalog_item_availability_previous": [],
+    "catalog_item_details": [
+      "internal/catalog/scalebench",
+      "internal/compactcatalog",
+      "internal/metadata"
+    ],
+    "catalog_item_version_counts": [],
+    "catalog_kinds": [],
+    "catalog_libraries": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "catalog_missing_titles": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "catalog_movie_category_members": [
+      "internal/compactcatalog"
+    ],
+    "catalog_movie_category_summaries": [
+      "internal/compactcatalog"
+    ],
+    "catalog_people": [
+      "internal/catalog/scalebench",
+      "internal/compactcatalog",
+      "internal/metadata"
+    ],
+    "catalog_personal_sort_members": [
+      "internal/compactcatalog"
+    ],
+    "catalog_personal_sort_rows": [
+      "internal/compactcatalog"
+    ],
+    "catalog_playlist_entries": [
+      "internal/catalog",
+      "internal/catalog/scalebench"
+    ],
+    "catalog_playlists": [
+      "internal/catalog",
+      "internal/identity"
+    ],
+    "catalog_rec_facets": [
+      "internal/compactcatalog"
+    ],
+    "catalog_related_facets": [
+      "internal/compactcatalog"
+    ],
+    "catalog_search_documents": [
+      "internal/compactcatalog"
+    ],
+    "catalog_search_documents_next": [],
+    "catalog_search_genre_accepted_targets": [
+      "internal/catalog"
+    ],
+    "catalog_search_genre_candidates": [
+      "internal/catalog"
+    ],
+    "catalog_search_genre_ready": [
+      "internal/catalog"
+    ],
+    "catalog_search_genre_targets": [
+      "internal/catalog"
+    ],
+    "catalog_search_prefix_rows": [
+      "internal/compactcatalog"
+    ],
+    "catalog_search_prefix_rows_next": [],
+    "catalog_search_prefix_terms": [
+      "internal/compactcatalog"
+    ],
+    "catalog_seasons": [
+      "internal/catalog/scalebench"
+    ],
+    "catalog_selection_profile_epochs": [],
+    "catalog_shows": [
+      "internal/catalog/scalebench"
+    ],
+    "catalog_similar": [
+      "internal/catalogtest",
+      "internal/enrichment",
+      "internal/metadata"
+    ],
+    "catalog_song_artists": [
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/compactcatalog"
+    ],
+    "catalog_songs": [
+      "internal/catalog",
+      "internal/catalog/scalebench"
+    ],
+    "catalog_term_sources": [
+      "internal/catalog/scalebench",
+      "internal/compactcatalog"
+    ],
+    "catalog_terms": [
+      "internal/catalog/scalebench",
+      "internal/compactcatalog"
+    ],
+    "catalog_title_tombstone_viewers": [
+      "internal/catalog"
+    ],
+    "client_log_uploads": [
+      "internal/servicelog"
+    ],
+    "compact_visibility_classes": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "compact_visibility_rows": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "configuration": [
+      "internal/audiofacts",
+      "internal/catalog",
+      "internal/catalogtest",
+      "internal/hosted",
+      "internal/identity",
+      "internal/livechannels",
+      "internal/lyrics",
+      "internal/mounts",
+      "internal/networking",
+      "internal/operations",
+      "internal/persistence"
+    ],
+    "console_audit": [
+      "internal/operations"
+    ],
+    "console_report_events": [
+      "internal/operations"
+    ],
+    "console_reports": [
+      "internal/operations"
+    ],
+    "console_settings_revision": [
+      "internal/administration",
+      "internal/backup",
+      "internal/metadata",
+      "internal/operations"
+    ],
+    "container_personal_state": [
+      "internal/catalog"
+    ],
+    "content_rating_ages": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "continue_dismissals": [
+      "internal/catalog"
+    ],
+    "credit_source_heads": [
+      "internal/compactcatalog"
+    ],
+    "credit_source_publication_members": [
+      "internal/compactcatalog"
+    ],
+    "credit_source_publications": [
+      "internal/compactcatalog"
+    ],
+    "credit_source_rows": [
+      "internal/compactcatalog"
+    ],
+    "detail_jobs": [],
+    "direct_memberships": [
+      "internal/access",
+      "internal/hosted",
+      "internal/identity"
+    ],
+    "direct_profiles": [
+      "internal/access",
+      "internal/catalogtest",
+      "internal/identity"
+    ],
+    "download_grants": [
+      "internal/catalog",
+      "internal/downloads"
+    ],
+    "download_preparations": [
+      "internal/catalog",
+      "internal/downloads",
+      "internal/identity"
+    ],
+    "download_receipt_keys": [
+      "internal/downloads"
+    ],
+    "download_receipts": [
+      "internal/catalog",
+      "internal/downloads"
+    ],
+    "download_request_items": [
+      "internal/catalog",
+      "internal/downloads"
+    ],
+    "dvr_catalog_provenance": [
+      "internal/livechannels/dvr"
+    ],
+    "dvr_catalog_retirements": [
+      "internal/livechannels/dvr"
+    ],
+    "dvr_owner_revisions": [
+      "internal/identity",
+      "internal/livechannels/dvr"
+    ],
+    "dvr_recordings": [
+      "internal/identity",
+      "internal/livechannels/dvr"
+    ],
+    "dvr_rules": [
+      "internal/identity",
+      "internal/livechannels/dvr"
+    ],
+    "dvr_storage_policy": [
+      "internal/livechannels/dvr"
+    ],
+    "episode_asset_boundaries": [
+      "internal/catalog"
+    ],
+    "hosted_claim_cleanup_receipts": [],
+    "hosted_membership_endings": [
+      "internal/identity"
+    ],
+    "hosted_membership_journal": [
+      "internal/access",
+      "internal/hosted",
+      "internal/identity"
+    ],
+    "hosted_profile_erasure_receipts": [
+      "internal/hosted"
+    ],
+    "hosted_profile_revisions": [
+      "internal/hosted"
+    ],
+    "hosted_server_events": [
+      "internal/hosted"
+    ],
+    "hosted_signing_revocations": [
+      "internal/hosted"
+    ],
+    "identity_device_families": [
+      "internal/identity",
+      "internal/testauth"
+    ],
+    "identity_devices": [
+      "internal/identity",
+      "internal/testauth"
+    ],
+    "identity_family_pin_lineages": [
+      "internal/identity"
+    ],
+    "identity_state": [
+      "internal/identity"
+    ],
+    "inventory_directory_cache": [
+      "internal/catalog",
+      "internal/ingestion"
+    ],
+    "inventory_objects": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/ingestion",
+      "internal/mediaanalysis",
+      "internal/metadata"
+    ],
+    "inventory_reading_seals": [
+      "internal/catalog",
+      "internal/ingestion"
+    ],
+    "inventory_runs": [
+      "internal/catalog",
+      "internal/compactcatalog",
+      "internal/ingestion"
+    ],
+    "inventory_scan_issues": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "inventory_video_names": [
+      "internal/catalog"
+    ],
+    "item_extras": [
+      "internal/catalog"
+    ],
+    "jobs": [
+      "internal/catalog",
+      "internal/compactcatalog",
+      "internal/ingestion"
+    ],
+    "lc_channels": [
+      "internal/livechannels/library"
+    ],
+    "lc_playback_refs": [
+      "internal/livechannels/library"
+    ],
+    "lc_receipts": [
+      "internal/livechannels/library"
+    ],
+    "libraries": [
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/httpapi/fixture",
+      "internal/livechannels/dvr"
+    ],
+    "library_configuration": [
+      "internal/catalog"
+    ],
+    "library_metadata_agents": [
+      "internal/metadata"
+    ],
+    "library_navigation_revisions": [
+      "internal/catalog"
+    ],
+    "library_preferences": [
+      "internal/catalog"
+    ],
+    "library_revisions": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/compactcatalog",
+      "internal/ingestion",
+      "internal/metadata",
+      "internal/persistence"
+    ],
+    "library_scan_policies": [
+      "internal/catalog",
+      "internal/remotesources"
+    ],
+    "library_sources": [
+      "internal/catalog",
+      "internal/derivedtest",
+      "internal/httpapi/fixture",
+      "internal/ingestion",
+      "internal/remotesources"
+    ],
+    "listening_book_groups": [
+      "internal/catalog"
+    ],
+    "listening_metadata_attention": [],
+    "live_allocations": [
+      "internal/livechannels"
+    ],
+    "live_channel_preferences": [
+      "internal/livechannels"
+    ],
+    "live_enable_receipts": [
+      "internal/livechannels"
+    ],
+    "live_preference_receipts": [
+      "internal/livechannels"
+    ],
+    "live_programme_images": [
+      "internal/administration"
+    ],
+    "live_reminders": [
+      "internal/livechannels"
+    ],
+    "live_remote_configs": [
+      "internal/livechannels"
+    ],
+    "live_remote_save_bindings": [
+      "internal/livechannels"
+    ],
+    "live_reservations": [
+      "internal/identity",
+      "internal/livechannels/dvr"
+    ],
+    "live_source_dependencies": [
+      "internal/administration",
+      "internal/identity",
+      "internal/livechannels",
+      "internal/livechannels/dvr"
+    ],
+    "live_source_identities": [
+      "internal/livechannels"
+    ],
+    "live_source_removals": [
+      "internal/livechannels"
+    ],
+    "live_sources": [
+      "internal/livechannels"
+    ],
+    "local_artwork": [
+      "internal/catalog"
+    ],
+    "lyric_fetch_runs": [
+      "internal/lyrics"
+    ],
+    "lyric_resources": [
+      "internal/catalog",
+      "internal/lyrics"
+    ],
+    "lyric_revisions": [
+      "internal/lyrics"
+    ],
+    "managed_mounts": [
+      "internal/mounts"
+    ],
+    "mb_accounting_state": [
+      "internal/mbaccounting"
+    ],
+    "mb_album_heads": [
+      "internal/compactcatalog"
+    ],
+    "mb_album_links": [
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/metadata"
+    ],
+    "mb_album_reconciliations": [
+      "internal/metadata"
+    ],
+    "mb_candidate_reasons": [
+      "internal/metadata"
+    ],
+    "mb_evidence_builds": [
+      "internal/metadata"
+    ],
+    "mb_jobs": [
+      "internal/compactcatalog",
+      "internal/metadata"
+    ],
+    "mb_provider_policies": [
+      "internal/metadata"
+    ],
+    "mb_publication_operations": [
+      "internal/metadata"
+    ],
+    "mb_recording_accounting_base": [
+      "internal/mbaccounting"
+    ],
+    "mb_recording_aliases": [
+      "internal/metadata"
+    ],
+    "mb_recording_credits": [],
+    "mb_recording_evidence": [
+      "internal/metadata"
+    ],
+    "mb_release_accounting": [],
+    "mb_release_aliases": [
+      "internal/metadata"
+    ],
+    "mb_release_credits": [],
+    "mb_release_evidence": [
+      "internal/metadata"
+    ],
+    "mb_release_group_types": [
+      "internal/metadata"
+    ],
+    "mb_release_media": [
+      "internal/metadata"
+    ],
+    "mb_release_tracks": [
+      "internal/metadata"
+    ],
+    "mb_song_links": [
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/metadata"
+    ],
+    "mb_track_credits": [
+      "internal/metadata"
+    ],
+    "metadata_details": [
+      "internal/catalogtest",
+      "internal/metadata"
+    ],
+    "metadata_discovery_items": [
+      "internal/persistence"
+    ],
+    "metadata_jobs": [],
+    "metadata_movie_candidates": [
+      "internal/metadata"
+    ],
+    "metadata_movie_selections": [
+      "internal/metadata"
+    ],
+    "metadata_owner_fields": [
+      "internal/catalog",
+      "internal/compactcatalog",
+      "internal/metadata",
+      "internal/reading"
+    ],
+    "metadata_owner_history": [
+      "internal/metadata"
+    ],
+    "metadata_provider_policies": [
+      "internal/metadata"
+    ],
+    "metadata_publication_heads": [
+      "internal/compactcatalog",
+      "internal/metadata"
+    ],
+    "metadata_ratings": [
+      "internal/catalogtest",
+      "internal/metadata"
+    ],
+    "metadata_relationship_decisions": [
+      "internal/metadata"
+    ],
+    "metadata_runtime_settings": [
+      "internal/metadata"
+    ],
+    "metadata_tags": [
+      "internal/catalogtest",
+      "internal/metadata"
+    ],
+    "mount_controls": [
+      "internal/mounts"
+    ],
+    "music_match_observations": [
+      "internal/metadata"
+    ],
+    "networking_claim_cancellations": [
+      "internal/identity",
+      "internal/networking"
+    ],
+    "networking_claim_identity": [
+      "internal/identity",
+      "internal/networking"
+    ],
+    "networking_claim_intents": [
+      "internal/identity",
+      "internal/networking"
+    ],
+    "networking_server_identities": [
+      "internal/networking"
+    ],
+    "notification_inbox": [
+      "internal/notify"
+    ],
+    "notification_records": [
+      "internal/notify",
+      "internal/operations"
+    ],
+    "owned_capture_presentation_refs": [
+      "internal/playbackdisc"
+    ],
+    "owned_capture_receipts": [
+      "internal/ownedcapture"
+    ],
+    "owned_capture_sources": [
+      "internal/ownedcapture"
+    ],
+    "personal_activity_revisions": [
+      "internal/catalog"
+    ],
+    "personal_conflicts": [
+      "internal/catalog"
+    ],
+    "personal_device_sequences": [
+      "internal/catalog"
+    ],
+    "personal_history": [
+      "internal/catalog",
+      "internal/catalogtest"
+    ],
+    "personal_items": [
+      "internal/catalog",
+      "internal/catalogtest",
+      "internal/httpapi/fixture"
+    ],
+    "personal_music_radios": [
+      "internal/catalog",
+      "internal/playbackv1"
+    ],
+    "personal_play_counts": [
+      "internal/catalog"
+    ],
+    "personal_watched_intents": [
+      "internal/catalog",
+      "internal/catalogtest",
+      "internal/personalstate"
+    ],
+    "playback_disc_capture_inputs": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_conditional_inputs": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_lifecycle": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_reader_pins": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshot_actor": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshot_chapters": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshot_clips": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshot_disc": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshot_disc_chapters": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshot_disc_streams": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshot_media": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshot_operation": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshot_source": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshot_streams": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshot_titles": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshot_tools": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshots": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_subtitle_resources": [
+      "internal/playbackdisc",
+      "internal/subtitles"
+    ],
+    "playback_legacy_replacement_requests": [
+      "internal/playback"
+    ],
+    "playback_marker_skips": [
+      "internal/playbackv1"
+    ],
+    "playback_origin_albums": [],
+    "playback_origin_assets": [],
+    "playback_origin_associations": [],
+    "playback_origin_books": [],
+    "playback_origin_items": [],
+    "playback_origin_roots": [],
+    "playback_origin_seasons": [],
+    "playback_origin_shows": [],
+    "playback_owner_policy": [
+      "internal/operations"
+    ],
+    "playback_personal_claims": [
+      "internal/playback"
+    ],
+    "playback_personal_intents": [
+      "internal/playback"
+    ],
+    "playback_personal_profile_fences": [
+      "internal/catalog",
+      "internal/identity"
+    ],
+    "playback_requests": [
+      "internal/playback"
+    ],
+    "playback_route_failures": [
+      "internal/identity",
+      "internal/playback"
+    ],
+    "playback_sessions": [
+      "internal/catalog",
+      "internal/hosted",
+      "internal/identity",
+      "internal/playback",
+      "internal/playbackv1",
+      "internal/subtitles"
+    ],
+    "playback_start_preparation_actor": [
+      "internal/identity",
+      "internal/playbackdisc"
+    ],
+    "playback_start_preparation_lifecycle": [
+      "internal/playbackdisc"
+    ],
+    "playback_start_preparation_queue": [
+      "internal/playbackdisc"
+    ],
+    "playback_start_preparation_results": [
+      "internal/playbackdisc"
+    ],
+    "playback_start_preparation_source": [
+      "internal/playbackdisc"
+    ],
+    "playback_start_preparations": [
+      "internal/identity",
+      "internal/playbackdisc"
+    ],
+    "playback_v1_sessions": [
+      "internal/playbackv1"
+    ],
+    "playlist_directory_revisions": [],
+    "playlist_shares": [
+      "internal/catalog",
+      "internal/identity"
+    ],
+    "policy": [
+      "internal/hosted"
+    ],
+    "prepared_media_jobs": [
+      "internal/catalog",
+      "internal/preparedmedia"
+    ],
+    "prepared_media_versions": [
+      "internal/catalog",
+      "internal/preparedmedia"
+    ],
+    "profile_avatars": [
+      "internal/identity"
+    ],
+    "profile_restrictions": [
+      "internal/catalogtest",
+      "internal/identity"
+    ],
+    "progress": [
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/httpapi/fixture",
+      "internal/playback"
+    ],
+    "progress_activity": [
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/httpapi/fixture",
+      "internal/playback"
+    ],
+    "provider_evidence": [
+      "internal/metadata"
+    ],
+    "queue_v1_container_counts": [
+      "internal/playbackv1"
+    ],
+    "queue_v1_sonic_windows": [
+      "internal/playbackv1"
+    ],
+    "reading_attribution_members": [
+      "internal/compactcatalog"
+    ],
+    "reading_attribution_state": [
+      "internal/compactcatalog"
+    ],
+    "reading_path_availability_pending": [
+      "internal/catalog"
+    ],
+    "reading_path_dirty_work": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "reading_path_object_keys": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "reading_path_scope": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "reading_path_scope_entities": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "reading_path_slot": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "reading_path_source_barrier": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "reading_publication_types": [
+      "internal/reading"
+    ],
+    "reading_publications": [
+      "internal/catalog",
+      "internal/derivedtest"
+    ],
+    "reading_saved_groups": [
+      "internal/catalog"
+    ],
+    "reading_source_values": [
+      "internal/reading"
+    ],
+    "reading_text_index_state": [
+      "internal/reading"
+    ],
+    "reading_text_sections": [
+      "internal/reading"
+    ],
+    "rec_data_revision": [
+      "internal/compactcatalog",
+      "internal/enrichment"
+    ],
+    "rec_profile_jobs": [
+      "internal/compactcatalog"
+    ],
+    "rec_profile_revisions": [
+      "internal/compactcatalog"
+    ],
+    "remote_analysis_status": [
+      "internal/ingestion"
+    ],
+    "remote_object_refs": [
+      "internal/remotesources"
+    ],
+    "remote_source_captures": [
+      "internal/remotesources"
+    ],
+    "remote_source_choice_definitions": [],
+    "remote_sources": [
+      "internal/mounts",
+      "internal/remotesources"
+    ],
+    "retained_title_state": [
+      "internal/catalog",
+      "internal/identity"
+    ],
+    "saved_operation_fences": [
+      "internal/catalog"
+    ],
+    "saved_pin_order_revisions": [
+      "internal/catalog"
+    ],
+    "saved_pins": [
+      "internal/catalog"
+    ],
+    "saved_resource_entries": [
+      "internal/catalog"
+    ],
+    "saved_resource_shares": [
+      "internal/catalog",
+      "internal/identity"
+    ],
+    "saved_resources": [
+      "internal/catalog",
+      "internal/identity"
+    ],
+    "screen_metadata_attention": [],
+    "screen_metadata_consent": [
+      "internal/metadata"
+    ],
+    "screen_metadata_fields": [
+      "internal/catalogtest",
+      "internal/metadata"
+    ],
+    "screen_metadata_policies": [
+      "internal/metadata"
+    ],
+    "screen_metadata_work": [
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/metadata"
+    ],
+    "segment_files": [
+      "internal/mediaanalysis"
+    ],
+    "social_cast_bootstraps": [
+      "internal/identity",
+      "internal/social"
+    ],
+    "social_cast_devices": [
+      "internal/identity",
+      "internal/social"
+    ],
+    "social_group_invites": [
+      "internal/social"
+    ],
+    "social_group_members": [
+      "internal/social"
+    ],
+    "social_groups": [
+      "internal/social"
+    ],
+    "social_handoffs": [
+      "internal/social"
+    ],
+    "social_rate": [
+      "internal/social"
+    ],
+    "social_receiver_grants": [
+      "internal/social"
+    ],
+    "social_receivers": [
+      "internal/social"
+    ],
+    "subtitle_operations": [
+      "internal/subtitles"
+    ],
+    "subtitle_original_files": [
+      "internal/subtitles"
+    ],
+    "subtitle_original_revisions": [
+      "internal/subtitles"
+    ],
+    "subtitle_render_revisions": [
+      "internal/compactcatalog",
+      "internal/subtitles"
+    ],
+    "subtitle_resources": [
+      "internal/catalog",
+      "internal/compactcatalog",
+      "internal/subtitles"
+    ],
+    "subtitle_revisions": [
+      "internal/compactcatalog",
+      "internal/subtitles"
+    ],
+    "subtitle_sidecars": [
+      "internal/compactcatalog",
+      "internal/subtitles"
+    ],
+    "tvdb_episode_credit_evidence": [
+      "internal/metadata"
+    ],
+    "tvdb_episode_credit_pending": [],
+    "tvdb_episode_evidence": [
+      "internal/metadata"
+    ],
+    "tvdb_episode_links": [
+      "internal/metadata"
+    ],
+    "tvdb_evidence_page_ownership": [
+      "internal/metadata"
+    ],
+    "tvdb_jobs": [
+      "internal/metadata"
+    ],
+    "tvdb_provider_policies": [
+      "internal/metadata"
+    ],
+    "tvdb_publication_heads": [
+      "internal/compactcatalog"
+    ],
+    "tvdb_publication_operations": [
+      "internal/metadata"
+    ],
+    "tvdb_publication_pages": [
+      "internal/metadata"
+    ],
+    "tvdb_publication_sets": [
+      "internal/metadata"
+    ],
+    "tvdb_series_candidates": [
+      "internal/metadata"
+    ],
+    "user_mutation_accounts": [
+      "internal/usermutation"
+    ],
+    "user_mutation_global": [
+      "internal/usermutation"
+    ],
+    "user_mutation_receipts": [
+      "internal/playbackv1",
+      "internal/usermutation"
+    ],
+    "user_mutation_roots": [
+      "internal/identity"
+    ],
+    "video_nfo_evidence": [
+      "internal/localmetadata"
+    ],
+    "viewer_revisions": [
+      "internal/catalog"
+    ],
+    "webhook_deliveries": [
+      "internal/webhooks"
+    ],
+    "webhook_events": [
+      "internal/webhooks"
+    ],
+    "webhooks": [
+      "internal/webhooks"
+    ]
+  },
+  "dynamic_sql_files": {
+    "cmd/server/main.go": "d0d985f3c6ae6651c17a5afbffbd0e7ec7c96c0b7b9d3a82571326655be16abf",
+    "cmd/server/webhooks.go": "a986bfac56fadc8c12191a32b75a8535ed79200170894d40d76a36c94a608377",
+    "internal/administration/maintenance.go": "8c439f004b88f50acd68c56057cd274a9b095efc977c96bb3dac8d294a467897",
+    "internal/administration/maintenance_storage.go": "ee1c9f2d3a7a713399a53141d0ca51f256e6f3b904e7c55072ed18c1791094b5",
+    "internal/administration/update_feed.go": "b78eb0531fe352a5aa6127fe19d0c64c1196d8edad1157b91aa44d9efdec2568",
+    "internal/backup/holds.go": "0bf6d8aceab6c17b3e639a768536614ae8df1927ea6a46368b8620acffa40d3e",
+    "internal/catalog/bulk_jobs.go": "69196d55c38934bc8ec09a3b5dd33bbce1f7960c6b1a843de354f70ffe13f46f",
+    "internal/catalog/library_removal.go": "e3d9e9d73cfff3415dfecba7c057658d2afe64319fe3a2d48231230638253acd",
+    "internal/catalog/personal.go": "192b5fcd6d4bd0caea7c942a13dd6beb93136cf04732d339818654d66c802af8",
+    "internal/catalog/personal_activity.go": "a8e507e0e22b3c0229d9817230c7c645fb1139731d9ee1b0d986ca6c20e34276",
+    "internal/catalog/scalebench/bulk_reference.go": "765bda51f92ceb2afbbe08cd18a0b2fc33a316c1762eb7aecae8f493321606c7",
+    "internal/catalog/scalebench/copy_facts.go": "a5a7e8c76a778c666f881178502a027df0b706f76095b17d0e8e39359179f402",
+    "internal/catalog/visibility_classes.go": "34718af0477b08d42819f193a7d7cad53be6525f81a810f1b4b0fa95e11f3232",
+    "internal/compactcatalog/info_input.go": "614eae9cabf9489c6ceaf106b92fc50096ccc6de15da32c4d482bac48d9c8476",
+    "internal/compactcatalog/info_materialize.go": "7c7599d5714445ca565ada379dd6fbe6a984d8b12b1f1555ca3216f4fc1b70c8",
+    "internal/compactcatalog/info_publication.go": "fbe1fecd74f7617ffbd0079c92b56659f1b0fb482e0a4a2cb7117425c3048e8c",
+    "internal/compactcatalog/info_recovery.go": "8356393eadddcf91002790beeb0d7e4e06e6af21b2b924966b8da42c1c7c137d",
+    "internal/compactcatalog/reading_path.go": "1a581adb30ac0afec93459278a0ace9d58dcae980ab32d1c9bed9e53487ef95d",
+    "internal/compactcatalog/rec_profile.go": "f88637ccb58cac1551acc68212e4ecec45ea8ea537180194ac72b14b68c3c5a2",
+    "internal/compactcatalog/retention.go": "68f12bf6a956a1f9fdc88ada799649a1122430a6ad10a96968f28a3f21652693",
+    "internal/compactcatalog/write.go": "470173c20ff311da412d041ee4e57be2e8625dcedd1cf44a01a143d0019c7f9e",
+    "internal/dbwork/authority_registry.go": "1869d2f0fa71cea930c96e34f5b9005b8ab1ebaaa6ee940952f329a0b0ac1b3e",
+    "internal/dbwork/change_wakes.go": "0d21628e8d03d72f06a72c0d1d794edc7c880d635122825dde2b5c3fc43ea4d8",
+    "internal/dbwork/waketest/waketest.go": "ff2961ce866d6c052c8e3594b73064e84befa2e799e8783ae34f0c85ca0bff8e",
+    "internal/dbwork/writer_discipline.go": "1cbc4749d735462dfbadbfe942d048d3989cc4b629c69da9954f48badb27eca6",
+    "internal/enrichment/enrichment.go": "da67690e9a10546b2f1faa19d2d951c001865b7c39bc2a3bd98e74f068884c20",
+    "internal/httpapi/remote_gate.go": "5545eec7c72e5ed0ea95a8ad086b719ccad1247352f6249cb033b506b54b7024",
+    "internal/identity/account_moves.go": "50ea095fd2ab2db69a09a43fa3010874be33adf8d1e06830f2310fdcff03a783",
+    "internal/identity/direct_profiles.go": "58b63e5187a9ac8e08efa9ab9db8d30db66bbd0271239c8e5bac75bd86b9728c",
+    "internal/identity/owner_reset_file.go": "7097f7e7031ed2c73344c3c6f714c1a0802e9b3ab11432c8430064dbf7e92349",
+    "internal/identity/profile_erasure.go": "61b157ecfab5195001fdded44197402a72b9c5f988bf6b255f01b35fb8ee14d1",
+    "internal/identity/profile_purge.go": "b07d241107d7120a3bcd5b59aa12e917a6373296c628924d37f216637e19c7c9",
+    "internal/identity/restore.go": "6a3773212c56f585ca0b7de68e0fc5edffa58e750e5da9eeb2c53c8ab07b6150",
+    "internal/identity/sign_in_policy.go": "7a2e4c143aec9cb22de60a06c560d21de908ceca0ed93681d6923c4a6a635da5",
+    "internal/ingestion/retention.go": "0f8cc5eee2bd3602564e71dbcfbb4dbee5f5808d879f2ce0aebb064be3ea5cd9",
+    "internal/livechannels/generation_retention.go": "123e8ba62d629939e84e171e5ffe43f72cbb067817618b5e1a2f489bef305473",
+    "internal/livechannels/library/prune.go": "7efbef31dea463057b5b978843a9ffabb7edc9f234089630c16d6fe070cb3509",
+    "internal/livechannels/migrate_sealed.go": "c3cb5bcceb97d7d8d8a2ad02fb4f188bc199e919d15bac39467382010f019dbd",
+    "internal/metadata/mb_evidence_store.go": "7bca704c7bf38ffcb3c48fdd5a0e576f5d6667b8318d27d339a69d6595736171",
+    "internal/metadata/mb_retire.go": "53c002469c74a48a91ce51c104bf785ef77e820cb5f1ef9a64a35b5340f41507",
+    "internal/metadata/mb_staging.go": "bcca95bc7406e44540fa24ff5383c8df891b55c691514ef384da752673e0b6b1",
+    "internal/metadata/musicbrainz.go": "4023255ddabf9069cb2468b343f29650efb77cbe627076311ce4142a3ed419f3",
+    "internal/metadata/repair_retry.go": "8635850eb178556b54be46f309afcc08ac7fc56acb578d0215948d8bb9fa4c21",
+    "internal/metadata/screen_publish.go": "095dcfcafbf8541b7b7bd2dfeeb280f2d6cad28dd92f20c49925c5324245c614",
+    "internal/metadata/screen_repair.go": "457d28e4a3057beefa265b1ef80c992e461099c3a7ca9c4d0ef95c6394589337",
+    "internal/metadata/tvdb_publication.go": "6d1689ccbf5936566fe3b14351475f9dc87cbce65f06ddd20d53cc36469d3a3f",
+    "internal/metadata/tvdb_selection.go": "ac8b7f17cad033463c4d6735cc68b7370d70e11f0019e9b4017388217effd80c",
+    "internal/operations/evidence.go": "188f79e92a22c985eb9974bc1e1f2715cdd21b7a508220986df9a8af8c5778f0",
+    "internal/operations/feedback.go": "949f32dcc4537350d05826e788585c4c536597cb4cca8a0a6b095abdfac9fbf8",
+    "internal/operations/settings.go": "4b53fa95360d4194a81a760dc1b532ddb0cb7150c77e35e416f05d84961f9d27",
+    "internal/operations/settings_storage.go": "ab7ae7ba05d5185c4d2744c7244fa524a92a0b53db676fc3e4f5a4bc0c0d497a",
+    "internal/persistence/integrity.go": "263b5cbd880c423b1377182361f5877577547968bc7e7dfa4c02f5a186da48ff",
+    "internal/persistence/maintenance.go": "d7eb81273b8fd3533dee737eb15ad3214653f3565f8c46a57ae0b73fbf73b908",
+    "internal/persistence/metadata_discovery.go": "dc5711f2d781230f70ba7f0dcf5b1ab56173c4ccb50d3cc04dab344e6393fb62",
+    "internal/persistence/rebase.go": "c514d7d5f812ee7119faca89cf03375b1f63d2b322cbbffdea90a15d33ae1b96",
+    "internal/persistence/restored_state.go": "721f03548b4dd247a6742741194ca00d222656f4b2c61fac632ff81b82d15563",
+    "internal/persistence/salvage.go": "c8531055d5575aa51316117711f7896fd8c37a2b518586dd7a00546d415e86d0",
+    "internal/playback/hls.go": "64ef476c3d73f852b76ef4a46e0ad5117538cbb3d4d78a894214a1f2cbf6b4a8",
+    "internal/playbackdisc/lifecycle.go": "3aaf444355dc0f25383375521636054a8dfae3775ca9caf26dfdcb4f99dcf31b",
+    "internal/playbackv1/errors.go": "e51fb5c0ed838237c54efd7223dcb52c2b8db67f6696f16d624186b01aac16c5",
+    "internal/selectionactions/journal.go": "1c9c012ff3dcc40e07b715b4cf714696bd0a401333ad3a8cf1cc0f5827781369",
+    "internal/tableretention/retention.go": "7108e7183fed4fd361d32ddb322d3507a5571aff71feef30958cfa386c807200",
+    "internal/webhooks/webhooks.go": "fd039dce41c7edcb29c7a1796bcace82b8cb21c406d78588051594d32a4ec4a7",
+    "internal/workpolicy/policy.go": "9537209a061143c2229606fbfe461460957b41ef23b515de1cf85f8e19670152"
+  },
+  "migrated_owners": {},
+  "reviewed_dynamic_targets": {}
+}
