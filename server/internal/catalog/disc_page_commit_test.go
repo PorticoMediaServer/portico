@@ -59,7 +59,7 @@ func TestDiscObservationCommitsWithSingleAndBatchedPages(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					pages = append(pages, InventoryPageWrite{Relative: relative, Page: page, DiscRoot: &v})
+					pages = append(pages, InventoryPageWrite{Relative: relative, Cursor: req.Cursor, Page: page, DiscRoot: &v})
 					if page.Complete {
 						break
 					}
