@@ -8,7 +8,7 @@ import {Menu, MenuRow} from '../overlays';
 import {Icon, type IconName} from '../Icon';
 import type {AppliedChip, BrowseLabels, BrowsePlatform, BrowseView, CardSizeControl, SaveViewControl} from './types';
 import styles from './browse.module.css';
-import {nextBrowseSort} from './model';
+import {nextBrowseSort, surfaceSortLabels} from './model';
 import {useAcceptedArrival, useAppearanceFade, type AcceptedAnswer} from './use-arrival';
 
 const t = defaultI18n.t;
@@ -102,7 +102,7 @@ export type BrowseToolbarProps = Readonly<{
   onJump?: () => void; selection?: ReactNode; actions?: ReactNode; className?: string;
   /** Actual selection mode; a mounted host may render no pixels while retaining keyboard/dialog ownership. */
   selectionActive?: boolean;
-  /** A surface that names its one sort itself (a row's own order reads "Best match"). */
+  /** The name a surface gives the row's own order (`groupOrder`; See all reads "Best match"). The other sorts keep theirs. */
   sortLabel?: string;
   /** The quick filters this surface draws, in the model's order; absent draws all offered. */
   quickIds?: readonly string[];
@@ -117,7 +117,7 @@ function ResultCount({children, accepted, source, className}: {children: ReactNo
 }
 export function BrowseToolbar({model, labels, resultCount, platform = 'desktop', sticky = false, topInset = 76, onQuickChange, onFilters, filtersOpen,
   onSortChange, onReshuffle, view, cardSize, save, applied = [], onRemoveFilter, onClearFilters, onJump, selection, actions, className, sortLabel, quickIds, accepted, acceptedSource, selectionActive}: BrowseToolbarProps) {
-  const sortLabels: BrowseLabels = sortLabel === undefined ? labels : {...labels, sort: (value: BrowseSortCapability) => value.id === model.sort.field ? sortLabel : labels.sort(value)};
+  const sortLabels = surfaceSortLabels(labels, sortLabel);
   const quick = quickIds === undefined ? model.quick : model.quick.filter(item => quickIds.includes(item.id));
   const sort = <SortMenu sorts={model.sorts} value={model.sort} onValueChange={onSortChange} label={sortLabels.sort} onReshuffle={onReshuffle} showOrder={sortLabel === undefined}/>;
   const filters = <FiltersButton count={applied.length} open={filtersOpen} onClick={onFilters}/>;

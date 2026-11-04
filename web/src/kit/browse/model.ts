@@ -1,5 +1,6 @@
 import type {BrowseSortCapability, BrowseSortSelection} from '@core/browse';
-import type {FacetSelection} from './types';
+import {groupOrderSort} from '@core/presentation/browse-groups';
+import type {BrowseLabels, FacetSelection} from './types';
 
 export function nextFacetSelection(included: boolean, excluded: boolean, cycleExclusion: boolean): FacetSelection {
   return included ? cycleExclusion ? 'exclude' : 'clear' : excluded ? 'clear' : 'include';
@@ -17,4 +18,10 @@ export function trackWindow(scrollTop: number, height: number, rowHeight: number
   if (![scrollTop, height, rowHeight, total, overscan].every(Number.isFinite) || height < 0 || rowHeight <= 0 || total < 0 || overscan < 0) throw new Error('Invalid track viewport');
   const count = Math.floor(total), extra = Math.floor(overscan), top = Math.max(0, scrollTop);
   return {start: Math.min(count, Math.max(0, Math.floor(top / rowHeight) - extra)), end: Math.min(count, Math.ceil((top + height) / rowHeight) + extra)};
+}
+
+/** CDATA-A2: a surface's own name for the row's order (`groupOrder`; See all reads "Best match") replaces only that
+ * sort's label, wherever it is listed. Every other sort, chosen or not, keeps its own name. */
+export function surfaceSortLabels(labels: BrowseLabels, sortLabel: string | undefined): BrowseLabels {
+  return sortLabel === undefined ? labels : {...labels, sort: (value: BrowseSortCapability) => value.id === groupOrderSort ? sortLabel : labels.sort(value)};
 }
