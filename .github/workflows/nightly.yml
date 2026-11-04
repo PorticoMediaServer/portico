@@ -1,11 +1,11 @@
-name: Pinned main red phase diagnostic
+name: Pinned admitted finite read diagnostic
 on:
   workflow_dispatch:
 permissions:
   contents: read
   actions: read
 concurrency:
-  group: main-reds-phase-r2-${{ github.ref }}
+  group: main-reds-fixed-r2-${{ github.ref }}
   cancel-in-progress: false
 jobs:
   diagnostic:
@@ -15,10 +15,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {replay: access-a, shard: 8}
-          - {replay: access-b, shard: 8}
-          - {replay: backup-a, shard: 2}
-          - {replay: backup-b, shard: 2}
+          - {replay: access-fixed-a, shard: 8}
+          - {replay: access-fixed-b, shard: 8}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {persist-credentials: false}
@@ -35,6 +33,6 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: main-reds-phase-r2-${{ matrix.replay }}
+          name: main-reds-fixed-r2-${{ matrix.replay }}
           path: ci-results
           retention-days: 7
