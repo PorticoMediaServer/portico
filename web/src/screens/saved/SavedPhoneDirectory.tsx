@@ -11,6 +11,7 @@ import {savedCardModel} from '../home/model';
 import {shapeFor} from '@core/presentation/card-shape.ts';
 import type {ContentEntry} from '@core/library-content.ts';
 import type {SavedRuntime, SavedScreenRoute} from './runtime.ts';
+import type {PinnedResource} from '@core/library-pins.ts';
 import styles from './saved.module.css';
 import directory from './saved-phone-directory.module.css';
 
@@ -18,12 +19,14 @@ const t = defaultI18n.t;
 /** phone-web frame 6: Saved is a list of rows on a phone, each opening its own
  * pushed page. Counts are the summary's published fields only; no row is offered
  * that the runtime cannot open, and there is no selection or write here. */
-export function SavedPhoneDirectory({runtime, downloadsOffered, artwork, select, openEntry}: {
+export function SavedPhoneDirectory({runtime, downloadsOffered, artwork, select, openEntry, pins}: {
   runtime: SavedRuntime;
   downloadsOffered: boolean;
   artwork: ShellArtwork;
   select(route: SavedScreenRoute): void;
   openEntry(entry: ContentEntry): void;
+  /** phone-app Saved: "Pinned" with Edit pins, then each pinned collection, view and playlist in the server's order. */
+  pins?: Readonly<{list: readonly PinnedResource[]; edit: () => void}>;
 }) {
   const summary = useSyncExternalStore(runtime.summary.subscribe, runtime.summary.getSnapshot, runtime.summary.getSnapshot);
   const posters = useSyncExternalStore(runtime.posters.subscribe, runtime.posters.getSnapshot, runtime.posters.getSnapshot);
@@ -75,5 +78,17 @@ export function SavedPhoneDirectory({runtime, downloadsOffered, artwork, select,
         </button>
       </div>)}
     </div>
+    {pins && <>
+      <div className={directory.sectionHead}><h2>{t('pins.heading')}</h2><button type="button" className={directory.edit} onClick={pins.edit}>{t('pins.edit')}</button></div>
+      {pins.list.length > 0 && <div className={directory.rows} role="list" aria-label={t('pins.heading')}>
+        {pins.list.map(pin => <div key={JSON.stringify([pin.kind, pin.id])} role="listitem">
+          <button type="button" className={directory.row} onClick={() => select(pin.kind === 'playlist' ? {view: 'playlist', playlistId: pin.id} : {view: 'resource', resourceId: pin.id})}>
+            <span className={directory.icon}><Icon name={pin.kind === 'playlist' ? 'i-queue' : pin.kind === 'collection' ? 'i-stack' : 'i-filter'} size={18} /></span>
+            <span className={directory.label}>{pin.name}<small className={directory.caption}>{pin.kind === 'view' ? t('title.savedView') : t('title.kind', {kind: pin.kind})}</small></span>
+            <Icon name="i-right" size={18} className={directory.chevron} />
+          </button>
+        </div>)}
+      </div>}
+    </>}
   </div>;
 }

@@ -60,10 +60,11 @@ function Rows({rows, busy}: Readonly<{rows: readonly Row[]; busy: boolean}>) {
 }
 
 /** A library screen's Edit pins (phone-app 4c ⋯): open() from the menu, and the editor element to mount. */
-export function usePinEditor(context: Readonly<{api: PinsApi; isCurrent: () => boolean; scope: {serverId: string}; identity?: {libraries: readonly Library[]}}>): Readonly<{open: () => void; element: ReactNode}> {
+/** `onClosed` runs when the editor closes, so a screen showing pins reads them again. */
+export function usePinEditor(context: Readonly<{api: PinsApi; isCurrent: () => boolean; scope: {serverId: string}; identity?: {libraries: readonly Library[]}}>, onClosed?: () => void): Readonly<{open: () => void; element: ReactNode}> {
   const [open, setOpen] = useState(false), trigger = useRef<HTMLElement | null>(null);
   const libraries = context.identity?.libraries ?? noLibraries;
   return {open: () => {if (!context.isCurrent()) return; trigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setOpen(true);},
-    element: <PinEditor open={open} onClose={() => setOpen(false)} api={context.api} serverId={context.scope.serverId} libraries={libraries} isCurrent={context.isCurrent} returnFocusRef={trigger}/>};
+    element: <PinEditor open={open} onClose={() => {setOpen(false); onClosed?.();}} api={context.api} serverId={context.scope.serverId} libraries={libraries} isCurrent={context.isCurrent} returnFocusRef={trigger}/>};
 }
 const noLibraries: readonly Library[] = Object.freeze([]);
