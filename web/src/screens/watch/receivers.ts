@@ -7,7 +7,7 @@ import type {PlayOnLinkPort, PlayOnLinkPreview, PlayOnReceiversPort, PlayOnRecei
 import type {PlaybackFence} from '../../../../packages/player-core/src/index.ts';
 import {installationIdentity} from '@core/installation.ts';
 import {castDisplayName} from '../../platform/cast';
-import {routeBody, routePath} from '../../../../packages/contracts/src/routes.ts';
+import {receiverLinkOperations} from '@core/query/receiver.ts';
 
 const DIRECTORY_PATH = '/v1/receivers';
 const ROLLBACK = /\/v1\/handoffs\/[^/]+\/rollback$/;
@@ -137,19 +137,5 @@ export class WatchReceivers implements PlayOnReceiversPort {
 /** Signing a television in with the code it shows. The phone only reads the pending
  * request and records its own decision; the TV collects its session in its own request. */
 export function watchLinkTv(api: WatchReceiverApi): PlayOnLinkPort {
-  const text = (value: unknown, max: number): string | undefined => typeof value === 'string' && value.length > 0 && value.length <= max ? value : undefined;
-  return {
-    async preview(code: string, life?: Readonly<{signal: AbortSignal}>): Promise<PlayOnLinkPreview> {
-      const raw = await api.request<{requestId?: unknown; userCode?: unknown; deviceName?: unknown; platform?: unknown}>(
-        routePath('post_quick_connect_review'), 'POST', routeBody('post_quick_connect_review', {userCode: code.trim().toUpperCase()}), life?.signal);
-      const requestId = text(raw?.requestId, 128), userCode = text(raw?.userCode, 32), deviceName = text(raw?.deviceName, 64);
-      if (!requestId || !userCode || !deviceName) throw new Error('quick_connect_unreadable');
-      const platform = text(raw?.platform, 32);
-      return Object.freeze({requestId, userCode, deviceName, ...(platform ? {platform} : {})});
-    },
-    async decide(requestId: string, code: string, decision: 'approve' | 'deny', life?: Readonly<{signal: AbortSignal}>): Promise<void> {
-      await api.request(routePath('post_quick_connect_decision'), 'POST',
-        routeBody('post_quick_connect_decision', {requestId, userCode: code.trim().toUpperCase(), decision}), life?.signal);
-    },
-  };
+  return receiverLinkOperations(api);
 }

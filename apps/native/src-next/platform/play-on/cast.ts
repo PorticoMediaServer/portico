@@ -1,3 +1,4 @@
+import {readReceiverItem, readCastConfiguration} from '../../../../../packages/client-core/src/query/receiver';
 import {castOrigin} from '../../../../../packages/client-core/src/connection-policy';
 import type {RouteConnection} from '../../../../../packages/client-core/src/route-connection';
 import {NativeEventEmitter, NativeModules, Platform} from 'react-native';
@@ -83,7 +84,7 @@ export class NativeCastCaller {
       ...(original.serverIdentity&&original.deviceId?{controllerContext:{origin,publicKey:original.serverIdentity.publicKey,serverId:original.viewer.serverId,
         authority:original.viewer.authority,accountId:original.viewer.accountId,profileId:original.viewer.profileId,senderDeviceId:original.deviceId,senderFamilyId:original.sessionFamilyId}}:{}),
       describe:async itemId=>{
-        const item=await this.request<{id?:unknown;title?:unknown;posterUrl?:unknown;kind?:unknown}>(`/v1/items/${encodeURIComponent(itemId)}`,'GET');
+        const item=await readReceiverItem<{id?:unknown;title?:unknown;posterUrl?:unknown;kind?:unknown}>({request: (path, method, body, signal) => this.request(path, method, body, signal)}, itemId, 'GET');
         if(item.id!==itemId||typeof item.title!=='string'||!item.title)return;
         const title=item.title.slice(0,300),kind=item.kind==='song'?'music':item.kind==='audiobook_file'?'audiobook':['movie','episode','extra'].includes(String(item.kind))?'video':undefined;
         this.descriptions.set(itemId,Object.freeze({title,...(kind?{kind}:{}),...(typeof item.posterUrl==='string'&&item.posterUrl.startsWith('/v1/')?{posterUrl:item.posterUrl}:{})}));
@@ -113,7 +114,7 @@ export class NativeCastCaller {
       const generation=this.acceptAttachment(device,order);
       if(generation!==undefined&&!this.cancelChooser)void this.resume(device,generation);
     },()=>{/* Missing SDK session/proof leaves explicit pairing available. */});
-    void Promise.all([this.bridge.available(), this.request<{applicationId?: unknown}>('/v1/cast/configuration')]).then(
+    void Promise.all([this.bridge.available(), readCastConfiguration({request: (path, method, body, signal) => this.request(path, method, body, signal)})]).then(
       ([available, config]) => {if (this.viewerCurrent()) controller.setAvailable(castOffered(available, config.applicationId, this.bridge?.applicationId));},
       () => {if (this.viewerCurrent()) controller.setAvailable(false);});
   }
@@ -305,7 +306,7 @@ export class NativeCastCaller {
     const item = this.receiver?.itemId || cast.itemId || source.fence.itemId;
     if (item !== this.metadataItem) {
       this.metadataItem = item; this.emit({title: undefined, posterUrl: undefined});
-      void this.request<{id?: string; title?: string; posterUrl?: string}>(`/v1/items/${encodeURIComponent(item)}`, 'GET').then(value => {
+      void readReceiverItem<{id?: string; title?: string; posterUrl?: string}>({request: (path, method, body, signal) => this.request(path, method, body, signal)}, item, 'GET').then(value => {
         if (this.source === source && this.metadataItem === item && value.id === item && typeof value.title === 'string')
           this.emit({title: value.title.slice(0, 300), posterUrl: typeof value.posterUrl === 'string' && value.posterUrl.startsWith('/v1/') ? value.posterUrl : undefined});
       }, error => {if (this.viewerCurrent()) this.options.reportError(error);});
@@ -379,7 +380,7 @@ export class NativeCastCaller {
         (originalLocal.fence?!!now.fence&&sameFence(now.fence,originalLocal.fence):!now.fence);};
       const actual=await this.bridge?.current();
       if(!actual||actual.attachmentId!==expected.attachmentId||!current())return;
-      const item=await this.request<{id?:string;kind?:string;title?:string;libraryId?:string;posterUrl?:string}>(`/v1/items/${encodeURIComponent(report.itemId)}`,'GET');
+      const item=await readReceiverItem<{id?:string;kind?:string;title?:string;libraryId?:string;posterUrl?:string}>({request: (path, method, body, signal) => this.request(path, method, body, signal)}, report.itemId, 'GET');
       if(!current()||!localUnchanged()||item.id!==report.itemId||typeof item.title!=='string'||!['song','audiobook_file','movie','episode','extra'].includes(item.kind??''))return;
       const entry:ContentEntry=Object.freeze({id:item.id,kind:item.kind as ContentEntry['kind'],title:item.title,
         ...(typeof item.libraryId==='string'?{libraryId:item.libraryId}:{}),...(typeof item.posterUrl==='string'&&item.posterUrl.startsWith('/v1/')?{posterUrl:item.posterUrl}:{}),
@@ -396,7 +397,7 @@ export class NativeCastCaller {
     const current=()=>this.source===source&&this.viewerCurrent()&&(!expected||this.viewIsCurrent(expected))&&this.state.cast.phase==='off'&&this.receiver===report&&
       source.adapter.getSnapshot().dock.remote?.id===source.id&&source.adapter.getSnapshot().dock.remote?.phase==='stopped'&&(!source.adapter.getSnapshot().dock.local||sameFence(source.adapter.getSnapshot().dock.local!.fence,source.fence));
     if(!current())return;
-    const item=await this.request<{id?:string;kind?:string;title?:string;libraryId?:string;posterUrl?:string}>(`/v1/items/${encodeURIComponent(report.itemId)}`,'GET');
+    const item=await readReceiverItem<{id?:string;kind?:string;title?:string;libraryId?:string;posterUrl?:string}>({request: (path, method, body, signal) => this.request(path, method, body, signal)}, report.itemId, 'GET');
     if(!current()||item.id!==report.itemId||typeof item.title!=='string'||!['song','audiobook_file','movie','episode','extra'].includes(item.kind??''))return;
     const entry:ContentEntry=Object.freeze({id:item.id,kind:item.kind as ContentEntry['kind'],title:item.title,
       ...(typeof item.libraryId==='string'?{libraryId:item.libraryId}:{}),...(typeof item.posterUrl==='string'&&item.posterUrl.startsWith('/v1/')?{posterUrl:item.posterUrl}:{}),

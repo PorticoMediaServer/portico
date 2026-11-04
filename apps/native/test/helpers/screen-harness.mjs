@@ -1,6 +1,7 @@
 import {readFile} from 'node:fs/promises';
 import {compileFunction} from 'node:vm';
 import {parseSync, transformSync} from 'rolldown/utils';
+import * as receiverQueries from '../../../../packages/client-core/src/query/receiver.ts';
 import * as serverClock from '../../../../packages/client-core/src/server-clock.ts';
 import * as failureWords from '../../src-next/screens/watch/failure-words.ts';
 import * as tvPlayPause from '../../src-next/platform/tv-play-pause.ts';
@@ -43,7 +44,8 @@ function railHoldLeaf(react) {
   if (!hooks) {hooks = railHoldHooks(react); railHolds.set(react, hooks);}
   return hooks;
 }
-const leaf = (source, react, native) => /(^|\/)server-clock(\.ts)?$/.test(source) && /client-core\/src\/server-clock|^\.\/server-clock/.test(source) ? serverClock
+const leaf = (source, react, native) => /client-core\/src\/query\/receiver(\.ts)?$/.test(source) ? receiverQueries
+  : /(^|\/)server-clock(\.ts)?$/.test(source) && /client-core\/src\/server-clock|^\.\/server-clock/.test(source) ? serverClock
   : /(^|\/)failure-words$/.test(source) ? failureWords
   : /(^|\/)platform\/tv-play-pause$/.test(source) ? tvPlayPause
   // The Play/Pause owner hook over the fixture's own React (TV focus step 6).
