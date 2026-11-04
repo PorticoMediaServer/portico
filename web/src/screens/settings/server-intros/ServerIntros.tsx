@@ -47,7 +47,8 @@ type DetectOpening = Readonly<{title: SegmentTitleReview; source: SegmentIntrosS
  * source, title, library or season refuses before creating a successor. */
 type ReviewAdmission = Readonly<{source: SegmentIntrosSource; title: SegmentTitleReview; libraryId: string; titleId: string; season: number | undefined}>;
 
-export function ServerIntros({source, modeRows, onPreview}: {source: SegmentIntrosSource; modeRows: ReactNode; onPreview: (libraryId: string, itemId: string, start: number) => void}) {
+/** desktop-settings 8: Find, then the stats strip, then Review, with Advanced last (as every settings page ends). */
+export function ServerIntros({source, modeRows, advancedRows, onPreview}: {source: SegmentIntrosSource; modeRows: ReactNode; advancedRows?: ReactNode; onPreview: (libraryId: string, itemId: string, start: number) => void}) {
   const snapshot = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot);
   const opening = useRef(0);
   const committed = useRef<EditOpening | undefined>(undefined);
@@ -111,12 +112,12 @@ export function ServerIntros({source, modeRows, onPreview}: {source: SegmentIntr
     {modeRows}
     {snapshot.phase === 'error' && !status
       ? <ReviewNotice tone="bad" onRetry={() => {void source.load();}}>{t('web.segments.error')}</ReviewNotice>
-      : status ? <StatTiles variant="segments" items={[
+      : status ? <div className={styles.stats}><StatTiles variant="segments" items={[
         {id: 'measured', label: t('web.segments.measured'), value: defaultI18n.number(status.files.complete)},
         {id: 'waiting', label: t('web.segments.waiting'), value: defaultI18n.number(status.files.pending)},
         {id: 'unreadable', label: t('web.segments.unreadable'), value: defaultI18n.number(status.files.failed + status.files.unsupported)},
         {id: 'status', label: t('web.segments.status'), value: stateText},
-      ]}/> : <p className={styles.loading} role="status">{t('web.segments.loading')}</p>}
+      ]}/></div> : <p className={styles.loading} role="status">{t('web.segments.loading')}</p>}
 
     <section className={styles.review} id="segments.review" aria-labelledby="segments-review-title">
       <header className={styles.reviewHead}>
@@ -198,6 +199,7 @@ export function ServerIntros({source, modeRows, onPreview}: {source: SegmentIntr
         if (!Number.isFinite(start) || duration <= 0 || start < 0 || start > duration) return;
         onPreview(open.libraryId, open.entry.itemId, start);
       }} /> : null}
+    {advancedRows && <div className={styles.advanced}>{advancedRows}</div>}
   </>;
 }
 

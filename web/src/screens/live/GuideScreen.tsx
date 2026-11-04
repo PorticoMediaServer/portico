@@ -279,7 +279,7 @@ export function GuideScreen({title, switcher, summary, conflicts, onTabChange, c
     <Tabs className={styles.guideTabs} data-guide-tabs listClassName={styles.guideTabList} value="guide" aria-label={t('next.home.shell.live')}
       onValueChange={value => {if (value === 'recordings') onTabChange?.(value);}}
       items={[{value: 'guide', label: t('channels.title')},
-        {value: 'recordings', label: <>{t('recordings.title')}{conflicts !== undefined && <span className={styles.guideTabNote}>{t('next.live.conflicts', {count: conflicts})}</span>}</>}]}/>
+        {value: 'recordings', label: <>{t('recordings.title')}{conflicts !== undefined && conflicts > 0 && <span className={styles.guideTabNote}>{t('next.live.conflicts', {count: conflicts})}</span>}</>}]}/>
     <div className={styles.guideChips} data-guide-chips role="group" aria-label={t('channels.filters')}>
       {compactHeader && switcher && <Select className={styles.guideSourceChip} aria-label={t('channels.source')} value={switcher.value} options={switcher.options} onValueChange={switcher.onChange}/>}
       {chips.map(chip => <Chip className={styles.guideChip} key={chip.id} selected={chip.selected} count={chip.count} icon={chip.favorites ? 'i-star' : undefined} onClick={chip.onSelect}>{chip.label}</Chip>)}

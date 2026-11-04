@@ -59,3 +59,5 @@
   .episodeHead { gap: 8px; align-items: center; }
   .state { margin-left: 0; }
 }
+.advanced { margin-top: 34px; }
+.stats { margin-top: 18px; }
