@@ -13,6 +13,34 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 )
 
+func radioScorerSeeksPublicID(t *testing.T, db *sql.DB, statement string) bool {
+	t.Helper()
+	plans, err := db.Query("EXPLAIN QUERY PLAN "+statement, make([]any, strings.Count(statement, "?"))...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer plans.Close()
+	seek := false
+	for plans.Next() {
+		var id, parent, unused int
+		var detail string
+		if err := plans.Scan(&id, &parent, &unused, &detail); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(detail, "SCAN item") {
+			return false
+		}
+		if strings.Contains(detail, "SEARCH item USING INDEX") {
+			t.Log("scorer entity lookup:", detail)
+			seek = strings.Contains(detail, "(public_id=?)")
+		}
+	}
+	if err := plans.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return seek
+}
+
 func TestMusicRadioRankingUsesCurrentProfileHistoryVisibilityAndArtists(t *testing.T) {
 	c := catalogtest.Open(t)
 	lib := c.Library("music", "Music", "music", "/music")
@@ -58,27 +86,17 @@ func TestMusicRadioRankingUsesCurrentProfileHistoryVisibilityAndArtists(t *testi
 				t.Error("radio scorer read the whole catalogue rather than selected candidate keys")
 				continue
 			}
-			plans, e := c.DB.Query("EXPLAIN QUERY PLAN "+statement, make([]any, strings.Count(statement, "?"))...)
-			if e != nil {
-				t.Fatal(e)
+			if !radioScorerSeeksPublicID(t, c.DB, statement) {
+				t.Fatal("scorer lost public-ID equality seek")
 			}
-			seek := false
-			for plans.Next() {
-				var id, parent, unused int
-				var detail string
-				if e = plans.Scan(&id, &parent, &unused, &detail); e != nil {
-					plans.Close()
-					t.Fatal(e)
-				}
-				if strings.Contains(detail, "SCAN item") {
-					t.Error("scorer scanned song entities", detail)
-				}
-				seek = seek || strings.Contains(detail, "SEARCH item USING INDEX")
+			// Unary plus preserves results but prevents the public-ID equality
+			// seek, walking the song-kind index for every candidate instead.
+			mutation := strings.Replace(statement, "item.public_id=pid_blob(candidate.value)", "+item.public_id=pid_blob(candidate.value)", 1)
+			if mutation == statement {
+				t.Fatal("candidate-join mutation was not applied")
 			}
-			e = plans.Err()
-			plans.Close()
-			if e != nil || !seek {
-				t.Fatal("scorer lost keyed entity seek", e)
+			if radioScorerSeeksPublicID(t, c.DB, mutation) {
+				t.Fatal("plan guard accepted the unary-plus song-kind walk mutation")
 			}
 		}
 
