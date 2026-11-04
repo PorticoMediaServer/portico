@@ -57,6 +57,14 @@ export class PinsController {
     if (this.pending) return this.pending;
     return this.run(async () => {this.publish({phase: 'loading'}); await this.read();});
   };
+  /** A read that starts after whatever is already out. `load` joins a read in flight, which may have been
+   * asked before a change made elsewhere (the pin editor's own controller); this waits for it, then reads
+   * again, so the answer it settles on is never older than the request. */
+  refresh = (): Promise<void> => {
+    if (!this.current()) return Promise.resolve();
+    const held = this.pending;
+    return held ? held.catch(() => undefined).then(() => this.load()) : this.load();
+  };
   private run(work: () => Promise<void>): Promise<void> {
     if (!this.current()) return Promise.resolve();
     if (this.pending) return this.pending;
