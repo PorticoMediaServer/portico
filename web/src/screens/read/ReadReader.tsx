@@ -1,5 +1,5 @@
 import {useCallback, useMemo, useSyncExternalStore, type ReactNode} from 'react';
-import {readerErrorCode, type ReaderController, type ReaderSnapshot} from '@portico/reader-core';
+import {isReaderComicFormat, readerErrorCode, type ReaderController, type ReaderSnapshot} from '@portico/reader-core';
 import {ReaderChrome, type ReaderChromeProps} from './ReaderChrome';
 import {ReaderSurface, type ReaderSurfaceProps} from './ReaderSurface';
 import styles from '../../kit/reader/surface.module.css';
@@ -60,7 +60,7 @@ export function ReadReader<P extends object>({controller, source, format, initia
   const publicationReady = currentPublication && snapshot.status === 'ready';
   return <ReaderChrome {...chrome} title={metadata ? metadata.title : snapshot.metadata?.title} subtitle={metadata ? metadata.author : snapshot.metadata?.author}
     progression={snapshot.location?.progression} pageTurnsEnabled={publicationReady && snapshot.canTurnAtFit}
-    fixedPage={format !== 'epub'} comic={format === 'cbz' || format === 'cbr'} holdOpen={chrome.holdOpen || !publicationReady || snapshot.selection !== null}
+    fixedPage={format !== 'epub'} comic={isReaderComicFormat(format)} holdOpen={chrome.holdOpen || !publicationReady || snapshot.selection !== null}
     textSelectionActive={snapshot.selection !== null}
     subscribeSurfaceInput={controller.subscribeSurfaceInput} readActivity={readActivity} onTurn={turn} onSeek={seek} onBack={onBack}>
     <ReaderSurface controller={controller} source={source} format={format} initialLocation={initialLocation} metadata={metadata} signal={signal} authority={authority} reportError={reportError} crease={crease} turnClearance={turnClearance(chrome.showPageArrows)} />

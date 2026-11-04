@@ -38,7 +38,7 @@ export function compactLandscape(viewport: ReaderViewport): boolean {
   return viewport.width < 1024 && viewport.height < 600 && viewport.width > viewport.height;
 }
 export type FixedLayoutInput = Readonly<{
-  format: 'pdf' | 'cbz' | 'cbr'; viewport: ReaderViewport; page: number; pageCount: number;
+  format: 'pdf' | 'cbz' | 'cbr' | 'cb7'; viewport: ReaderViewport; page: number; pageCount: number;
   twoPages: boolean; firstPageAlone: boolean; direction: 'ltr' | 'rtl' | 'vertical'; fit: ReaderFit | 'auto';
 }>;
 /** Logical order never reverses: RTL changes presentation and input direction,

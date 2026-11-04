@@ -32,7 +32,9 @@ export interface ReaderResources {
   readonly entries: readonly ReaderResource[];
   read(path: string, signal: AbortSignal): Promise<Uint8Array>;
 }
-export type ReaderComicFormat = 'cbz' | 'cbr';
+export type ReaderComicFormat = 'cbz' | 'cbr' | 'cb7';
+/** RD-10: every archive comic the server enumerates pages for: CBZ, CBR and CB7. */
+export const isReaderComicFormat = (format: unknown): format is ReaderComicFormat => format === 'cbz' || format === 'cbr' || format === 'cb7';
 export type ReaderFormat = 'epub' | 'pdf' | ReaderComicFormat;
 export type ReaderCrease = Readonly<{left: number; right: number}>;
 /** Window-local vertical hinge band reported by the platform, when there is one. */

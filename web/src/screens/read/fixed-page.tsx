@@ -3,7 +3,7 @@ import {defaultI18n} from '@i18n';
 import type {ReadingPreferences} from '@portico/client-core';
 import {createWindowedCollection, type WindowedCollection} from '@core/collections/index.ts';
 import {WindowedGrid} from '../../kit/layout/WindowedGrid';
-import {readerErrorCode, type ReadingController, type ReaderCrease, type ReaderErrorCode, type ReaderFit, type ReaderFixedViewport, type ReaderFormat, type ReaderLocation, type ReaderViewport, type ReaderZoom, type ReaderZoomState} from '@portico/reader-core';
+import {isReaderComicFormat, readerErrorCode, type ReadingController, type ReaderCrease, type ReaderErrorCode, type ReaderFit, type ReaderFixedViewport, type ReaderFormat, type ReaderComicFormat, type ReaderLocation, type ReaderViewport, type ReaderZoom, type ReaderZoomState} from '@portico/reader-core';
 import {Menu, MenuItem, MenuSeparator} from '../../kit/overlays';
 import {Icon} from '../../kit/Icon';
 import {ReaderZoomMap} from '../../kit/reader/ReaderZoomMap';
@@ -18,6 +18,9 @@ const {t} = defaultI18n;
 type Fixed = Readonly<{controller: ReadingController; authority: ReaderMountAuthority; format: ReaderFormat;
   reportError: (code: ReaderErrorCode) => void}>;
 
+/** A page location in this book's own format: a CBR or CB7 page is never a CBZ location, which
+ * the controller would refuse (RD-10 sweep). */
+export const pageFormat = (format: ReaderFormat): 'pdf' | ReaderComicFormat => isReaderComicFormat(format) ? format : 'pdf';
 const fitLabel = (fit: ReaderFit): string => t(fit === 'page' ? 'next.reader.fitPage' : fit === 'width' ? 'next.reader.fitWidth'
   : fit === 'height' ? 'next.reader.fitHeight' : 'next.reader.fitSpread');
 
@@ -72,7 +75,7 @@ export function FixedPageStrip({controller, authority, reportError, format}: Fix
     {Array.from({length: last - first}, (_, offset) => first + offset).map(index => <PageThumb key={index} controller={controller} authority={authority} reportError={reportError}
       format={format} index={index} count={count} current={index === current} pageLabel={t('next.reader.pageLabel', {page: defaultI18n.number(index + 1)})}
       onSelect={() => {
-        const location: ReaderLocation = {format: format === 'pdf' ? 'pdf' : 'cbz', page: index, progression: count === 1 ? 0 : index / (count - 1)};
+        const location: ReaderLocation = {format: pageFormat(format), page: index, progression: count === 1 ? 0 : index / (count - 1)};
         void controller.navigate({kind: 'location', location}).catch(error => {
           if (authority.isCurrent()) reportError(readerErrorCode(error));
         });
@@ -123,7 +126,7 @@ export function ComicPageFooter({controller, authority, reportError, format, cre
   const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   const root = useRef<HTMLDivElement>(null), [viewport, setViewport] = useState<ReaderViewport>();
   const count = snapshot.metadata?.pageCount, location = snapshot.location;
-  const comicFormat = format === 'cbz' || format === 'cbr' ? format : undefined;
+  const comicFormat = isReaderComicFormat(format) ? format : undefined;
   const direction = snapshot.preferences.comicDirection === 'file' ? snapshot.metadata?.direction ?? 'ltr' : snapshot.preferences.comicDirection;
   useLayoutEffect(() => {
     const surface = root.current?.closest('[data-reader-root]')?.querySelector<HTMLElement>('[data-reader-surface]');
@@ -222,7 +225,7 @@ function FixedPagesWindow({controller, authority, reportError, format, count, cu
   }, []);
   const navigate = (index: number) => {
     if (!life || lifeRef.current !== life || life.signal.aborted || !currentSource() || !Number.isSafeInteger(index) || index < 0 || index >= count) return;
-    const target: ReaderLocation = {format: format === 'pdf' ? 'pdf' : 'cbz', page: index, progression: count === 1 ? 0 : index / (count - 1)};
+    const target: ReaderLocation = {format: pageFormat(format), page: index, progression: count === 1 ? 0 : index / (count - 1)};
     void controller.navigate({kind: 'location', location: target}, life.signal).then(() => {if (lifeRef.current === life && !life.signal.aborted && currentSource()) onNavigate?.();}).catch(error => {
       if (lifeRef.current === life && !life.signal.aborted && currentSource()) reportError(readerErrorCode(error));
     });

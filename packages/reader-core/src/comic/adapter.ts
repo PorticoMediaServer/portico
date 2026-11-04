@@ -1,4 +1,4 @@
-import type {ReaderAdapter,ReaderDocument,ReaderComicFormat} from '../ports.ts';
+import {isReaderComicFormat,type ReaderAdapter,type ReaderDocument,type ReaderComicFormat} from '../ports.ts';
 import {releaseQuietly} from '@portico/client-core';
 import {mountFixed,type FixedPreferences} from '../pdf/fixed-view.ts';
 import {openComicArchive,type ComicPageProvider,type ComicPage} from './archive.ts';
@@ -28,7 +28,7 @@ async function bitmapFor(page:ComicPage,signal:AbortSignal):Promise<ImageBitmap>
 }
 export function createComicAdapter<P extends FixedPreferences>(options:ComicAdapterOptions={}):ReaderAdapter<P>{
   const format=options.format??'cbz';
-  if(format!=='cbz'&&format!=='cbr')throw new ComicInputError('archive_invalid');
+  if(!isReaderComicFormat(format))throw new ComicInputError('archive_invalid');
   return {format,async open({source,signal}):Promise<ReaderDocument<P>>{
     checkAbort(signal);
     if(!options.pages&&(format!=='cbz'||!options.localArchive))throw new Error('comic_provider_required');

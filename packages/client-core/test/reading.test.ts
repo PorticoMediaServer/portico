@@ -9,10 +9,10 @@ const chapter = new TextEncoder().encode('<html xmlns="http://www.w3.org/1999/xh
 const png = Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=', 'base64'));
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), {status, headers: {'Content-Type': 'application/json', ETag: '"' + rev + '"'}});
 type Call = {url: URL; init: RequestInit; headers: Headers};
-function setup(format: 'pdf' | 'epub' | 'cbz' | 'cbr' = 'pdf') {
+function setup(format: 'pdf' | 'epub' | 'cbz' | 'cbr' | 'cb7' = 'pdf') {
   const manifest: PostReadingSessionsResponse = {itemId: 'book', sourceId: 'asset', sessionId: 'session', revision: rev, format, size: 131072, metadata: {title: 'Stored title'}};
   if (format === 'epub') { manifest.resources = [{path: 'EPUB/chapter.xhtml', mime: 'application/xhtml+xml', size: chapter.length}]; manifest.spine = ['EPUB/chapter.xhtml']; }
-  if (format === 'cbz' || format === 'cbr') manifest.pageNames = ['page2.png', 'page10.png'];
+  if (format === 'cbz' || format === 'cbr' || format === 'cb7') manifest.pageNames = ['page2.png', 'page10.png'];
   const calls: Call[] = [];
   let hook: ((call: Call) => Promise<Response> | Response | undefined) | undefined;
   let current = true;
@@ -314,11 +314,11 @@ test('constructor-absent stream rejects false EOF and excess bytes without autom
 });
 
 // Source vectors for the next ordinary CBR-containing generated cohort; UNRUN.
-test('CBR keeps its real format and uses only the original session raster endpoint', async () => {
-  const f = setup('cbr'), session = await f.client.open({itemId: 'book', sourceId: 'asset'});
+for (const format of ['cbr', 'cb7'] as const) test(`${format.toUpperCase()} keeps its real format and uses only the original session raster endpoint (RD-10: CB7 as CBR)`, async () => {
+  const f = setup(format), session = await f.client.open({itemId: 'book', sourceId: 'asset'});
   try {
     const page = await session.page(1, {width: 320});
-    assert.equal(session.manifest.format, 'cbr');
+    assert.equal(session.manifest.format, format);
     assert.equal(page.name, 'page10.png');
     assert.deepEqual(page.bytes, png);
     const count = f.calls.length;
@@ -326,12 +326,12 @@ test('CBR keeps its real format and uses only the original session raster endpoi
     await assert.rejects(session.readRange({start: 0, endExclusive: 10}), coded('invalid_format'));
     await assert.rejects(session.readAsset('page10.png'), coded('invalid_format'));
     assert.equal(f.calls.length, count, 'no archive, range or EPUB asset fallback');
-    await session.saveProgress({expectedRevision: 0, location: {format: 'cbr', pageIndex: 1, progression: .5}});
+    await session.saveProgress({expectedRevision: 0, location: {format, pageIndex: 1, progression: .5}});
     const sent = JSON.parse(String(f.calls.at(-1)!.init.body));
-    assert.equal(sent.location.format, 'cbr');
+    assert.equal(sent.location.format, format);
     assert.equal(sent.location.pageIndex, 1);
     const after = f.calls.length;
-    await assert.rejects(session.saveProgress({expectedRevision: 0, location: {format: 'cbr', pageIndex: 2, progression: 1}}), coded('invalid_location'));
+    await assert.rejects(session.saveProgress({expectedRevision: 0, location: {format, pageIndex: 2, progression: 1}}), coded('invalid_location'));
     assert.equal(f.calls.length, after);
     f.retire();
     await assert.rejects(session.page(0, {width: 320}), coded('cancelled'));

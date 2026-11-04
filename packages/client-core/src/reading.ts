@@ -270,7 +270,7 @@ function readingSeriesOverview(value: unknown, series: string, pageLength: numbe
   return Object.freeze({id: series, title: value.name, total: value.count, completed: value.readCount, ...(author ? {author: Object.freeze(author)} : {})});
 }
 
-const comicFormat = (s: string) => s === 'cbz' || s === 'cbr';
+const comicFormat = (s: string) => s === 'cbz' || s === 'cbr' || s === 'cb7';
 const engineFormat = (s: string) => s === 'epub' || s === 'pdf' || comicFormat(s);
 const convertedSource = (s:string) => s==='mobi'||s==='azw3';
 const sourceFormat = (s:string) => engineFormat(s)||convertedSource(s);

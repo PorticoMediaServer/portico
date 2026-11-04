@@ -38,7 +38,7 @@ export function fixedPageViewport(input:FixedPageViewportInput):ReaderFixedViewp
 }
 
 /** Both fixed formats use the common spread planner and their own real page renderer. */
-export async function mountFixed<P extends FixedPreferences>(format:'pdf'|'cbz'|'cbr',pageCount:number,fileDirection:'ltr'|'rtl'|'vertical',load:FixedPageLoader,options:Parameters<ReaderDocument<P>['mount']>[0]):Promise<ReaderView<P>>{
+export async function mountFixed<P extends FixedPreferences>(format:'pdf'|'cbz'|'cbr'|'cb7',pageCount:number,fileDirection:'ltr'|'rtl'|'vertical',load:FixedPageLoader,options:Parameters<ReaderDocument<P>['mount']>[0]):Promise<ReaderView<P>>{
   const document=options.container.ownerDocument,host=document.createElement('div');
   const paneStyle=document.createElement('style');paneStyle.textContent='[data-reader-fixed] [data-reader-page]{scrollbar-width:none}[data-reader-fixed] [data-reader-page]::-webkit-scrollbar{display:none}';document.head.append(paneStyle);
   host.tabIndex=0;host.setAttribute('role','document');

@@ -5,11 +5,11 @@ import type {ReaderSessionInput} from '../src/index.ts';
 import type {ReadingManifest,ReadingProgress} from '@portico/client-core';
 const png=new Uint8Array(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNgAAIAAAUAAarVyFEAAAAASUVORK5CYII=','base64'));
 const active=()=>new AbortController().signal;
-function fixture(format:'epub'|'pdf'|'cbz'|'cbr') {
+function fixture(format:'epub'|'pdf'|'cbz'|'cbr'|'cb7') {
   const lifetime=new AbortController(),calls:string[]=[],revision='a'.repeat(64);
   let manifest:ReadingManifest=Object.freeze({sessionId:'session-one',itemId:'item',sourceId:'asset',revision,format,size:100000,metadata:Object.freeze({title:'Catalogue title'}),
     ...format==='epub'?{resources:Object.freeze([{path:'chapter.xhtml',mime:'application/xhtml+xml',size:1}]),spine:Object.freeze(['chapter.xhtml'])}:{},
-    ...(format==='cbz'||format==='cbr')?{pageNames:Object.freeze(['page.png'])}:{}});
+    ...(format==='cbz'||format==='cbr'||format==='cb7')?{pageNames:Object.freeze(['page.png'])}:{}});
   const session:ReaderSessionInput={get manifest(){return manifest;},signal:lifetime.signal,async headPDF(){calls.push('head');},async readRange(range){calls.push('range');return new Uint8Array(range.endExclusive-range.start);},
     async openSequential(){calls.push('sequential');return new ReadableStream<Uint8Array>();},async readAsset(){calls.push('asset');return new Uint8Array([1]);},async page(index){calls.push('page');return {index,name:'page.png',bytes:png,mime:'image/png'};}};
   return {session,lifetime,calls,replaceManifest(change:Partial<ReadingManifest>){manifest=Object.freeze({...manifest,...change});}};
@@ -144,16 +144,16 @@ test('a comic session without enumerated page names is refused, never read as a 
 });
 
 // CBR is opaque archive identity plus original server-rendered page bytes, UNRUN.
-test('CBR publication preserves format, bounded locations and exact raster-page ownership', async()=>{
-  const f=fixture('cbr'),publication=await createReadingPublication(f.session);
+for(const format of ['cbr','cb7'] as const)test(`${format.toUpperCase()} publication preserves format, bounded locations and exact raster-page ownership (RD-10)`, async()=>{
+  const f=fixture(format),publication=await createReadingPublication(f.session);
   try {
-    assert.equal(publication.format,'cbr');assert.equal(publication.metadata.pageCount,1);
+    assert.equal(publication.format,format);assert.equal(publication.metadata.pageCount,1);
     assert.equal(publication.source.read,undefined);assert.equal(publication.source.resources,undefined);
     const provider=await publication.comicPages!(publication.source,active());
     assert.equal((await provider.page(0,{width:320,signal:active()})).name,'page.png');
     assert.deepEqual(f.calls,['page']);
-    assert.deepEqual(readerLocationFromReading({format:'cbr',pageIndex:0,progression:0}),{format:'cbr',page:0,progression:0});
-    assert.deepEqual(readingLocationFromReader({format:'cbr',page:0,progression:0}),{format:'cbr',pageIndex:0,progression:0});
+    assert.deepEqual(readerLocationFromReading({format:format,pageIndex:0,progression:0}),{format:format,page:0,progression:0});
+    assert.deepEqual(readingLocationFromReader({format:format,page:0,progression:0}),{format:format,pageIndex:0,progression:0});
     await assert.rejects(publication.comicPages!({...publication.source},active()),{code:'invalid_source'});
     await assert.rejects(provider.page(1,{width:320,signal:active()}),{code:'invalid_location'});
     f.replaceManifest({revision:'b'.repeat(64)});
