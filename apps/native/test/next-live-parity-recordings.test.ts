@@ -164,15 +164,19 @@ test('a server that cannot record shows its unavailable state inside Recordings'
   } finally {await f.close();}
 });
 
-for (const isTV of [false, true]) test(`${isTV ? 'TV' : 'phone'} Recorded draws its header and Sort, and Sort opens the sheet`, async () => {
+// phone-app's Recordings frame draws no Sort and no per-row ⋯ (the lead's call: undrawn web parity is left out).
+// TV keeps its drawn header, Sort and hold-OK menu; touch rows keep tap (details) and long press (the same menu).
+for (const isTV of [false, true]) test(`${isTV ? 'TV' : 'phone'} Recorded: ${isTV ? 'the header and Sort open its side sheet' : 'no header Sort, as the frame draws'}`, async () => {
   const f = await fixture({isTV, role: 'member', canManage: false}); try {
     const group = {key: 'show', title: 'Show', recordings: 2, unwatched: 1, kept: 0, exceptions: 0, recording: row()};
     f.recordingState.query = {view: 'recorded'}; f.recordingState.summary = summary; f.recordingState.page = {recordings: [], rules: [], captureAvailable: true};
     f.recordingState.viewerWindow = {...windowOf([]), items: [{kind: 'group', value: group}]};
     await f.recordings();
-    const sort = f.all().find(node => node.type === 'Chip' && node.props.testID === 'recordings-sort'); assert.ok(sort, 'Sort chip');
+    const sort = f.all().find(node => node.type === 'Chip' && node.props.testID === 'recordings-sort');
+    if (!isTV) {assert.equal(sort, undefined); return;}
+    assert.ok(sort, 'Sort chip');
     const sheet = () => f.all().find(node => node.type === 'Menu' && node.props.testID === 'recordings-sort')!;
-    assert.equal(sheet().props.open, false); assert.equal(sheet().props.presentation, isTV ? 'sideSheet' : undefined);
+    assert.equal(sheet().props.open, false); assert.equal(sheet().props.presentation, 'sideSheet');
     sort.props.onPress(); await f.host.settle(); assert.equal(sheet().props.open, true);
     assert.deepEqual(sheet().props.items.map((item: any) => item.id), ['recent', 'title', 'oldest']);
     sheet().props.items[1].onSelect(); await f.host.settle();
@@ -180,19 +184,17 @@ for (const isTV of [false, true]) test(`${isTV ? 'TV' : 'phone'} Recorded draws 
   } finally {await f.close();}
 });
 
-test('phone rows have a visible More that opens the same menu; TV rows have none', async () => {
+test('recording rows draw no ⋯ on any platform; touch keeps tap for details and long press for the menu', async () => {
   for (const isTV of [false, true]) {
     const f = await fixture({isTV, role: 'member', canManage: false}); try {
       const recording = row(); f.recordingState.page = {recordings: [recording], rules: [], captureAvailable: true, deletionAvailable: true}; f.recordingState.viewerWindow = windowOf([recording]);
       await f.recordings(); const list = f.all().find(node => node.type === 'FlatList')!;
       const rendered = list.props.renderItem({item: {kind: 'recording', recording}, index: 0});
-      const more = elements(rendered.type({...rendered.props, runtime: f.runtime})).find(node => node.props.testID === 'recordings-more-recording');
-      if (isTV) {assert.equal(more, undefined); continue;}
-      assert.ok(more); assert.equal(more.props.icon, 'i-more'); assert.equal(more.props.accessibilityLabel, defaultI18n.t('card.more', {title: 'Programme'}));
-      assert.equal(more.props.onPress, rendered.props.onMenu);
-      more.props.onPress(); await f.host.settle();
-      const menu = f.find('recordings-menu'); assert.ok(menu); assert.equal(menu.props.open, true);
-      assert.deepEqual(menu.props.items.map((item: any) => item.id), ['play', 'keep', 'separator', 'delete']);
+      const tree = elements(rendered.type({...rendered.props, runtime: f.runtime}));
+      assert.equal(tree.find(node => node.props.testID === 'recordings-more-recording'), undefined);
+      const rowNode = tree.find(node => node.props.testID === 'recordings-row-recording')!;
+      assert.equal(rowNode.props.onLongPressAction, rendered.props.onMenu, 'long press (hold OK on TV) opens the menu');
+      assert.equal(rowNode.props.onPress, rendered.props.onOpen, 'a press opens the details');
     } finally {await f.close();}
   }
 });
@@ -209,7 +211,7 @@ test('a show’s recordings say Kept or Unwatched; other lists do not', async ()
     const show = {view: 'recorded', group: 'show'};
     assert.ok((await draw(show, row({keep: true, watched: false}))).includes('Kept'));
     assert.ok((await draw(show, row({watched: false}))).includes('Unwatched'));
-    assert.ok((await draw(show, row({watched: true}))).includes('Watched'));
+    const watched = await draw(show, row({watched: true})); assert.ok(!watched.includes('Watched') && !watched.includes('Unwatched'), 'frame 22 draws Kept or Unwatched only');
     const unknown = await draw(show, row({watched: null})); assert.ok(!unknown.includes('Unwatched') && !unknown.includes('Kept'));
     const plain = await draw({view: 'history'}, row({keep: true, watched: false})); assert.ok(!plain.includes('Kept') && !plain.includes('Unwatched'));
   } finally {await f.close();}
