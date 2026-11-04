@@ -36,8 +36,14 @@ type ReaderLifetimeStats struct {
 }
 
 type readerScope struct {
-	wal                      *walLedger // shared while any pool/overlapping OpenHandle remains alive
-	plannerGeneration        atomic.Uint64
+	wal               *walLedger // shared while any pool/overlapping OpenHandle remains alive
+	plannerGeneration atomic.Uint64
+	// opening serialises opening physical connections to this file. Each
+	// open parses the whole schema, allocation-heavy work that the SQLite
+	// translation runs under one process-wide allocator lock: fifteen opens
+	// in parallel made the first connection wait ~1.6 s for all of them,
+	// where one at a time had it after ~90 ms and all of them sooner too.
+	opening                  sync.Mutex
 	mu                       sync.Mutex
 	key                      string
 	connections              int // guarded by readerScopes.mu
