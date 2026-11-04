@@ -517,3 +517,43 @@ test('a failed obsolete audience refresh still follows up for the newly discover
  const pending=service.refreshUnread();await service.load();reject(new Error('offline'));
  assert.equal(await pending,5);assert.equal(calls,3);service.dispose();
 });
+
+test('Mark all read pressed while the inbox is busy runs once it is free, never dropped (a view switch, then a change out)',async()=>{
+ const s=flightServer();const service=new InboxService(s.api,()=>'op');
+ await service.load();
+ const actions=()=>s.calls.filter(c=>c.method==='POST'&&c.path.startsWith('/v1/notifications/inbox/actions'));
+ // Right after a view switch the new first page is still reading: the press waits for it.
+ s.setHoldRead(true);
+ const switching=service.load('profile','all');
+ await service.readAll();
+ assert.equal(actions().length,0,'nothing is sent against a page still being read');
+ s.setHoldRead(false);
+ s.reads.splice(0).forEach(read=>read.resolve(s.page()));
+ await switching;for(let i=0;i<10;i++)await Promise.resolve();
+ assert.equal(actions().length,1,'the held press is sent once the page is in');
+ assert.deepEqual(actions()[0]!.body.operations,[{action:'read-all'}]);
+ // While a change is out, a second press waits for its answer, then runs.
+ s.setDefer(true);
+ void service.apply('read',['n-1']);for(let i=0;i<5;i++)await Promise.resolve();
+ assert.equal(actions().length,2,'the change is out');
+ await service.readAll();
+ assert.equal(actions().length,2,'the press waits for it');
+ s.setDefer(false);
+ s.posts.splice(0).forEach(post=>post.resolve({data:{revision:20,audience:'profile',applied:1,receipts:[],counts:{total:2,unread:1,read:1,archived:0}}}));
+ for(let i=0;i<20;i++)await Promise.resolve();
+ assert.equal(actions().length,3,'then it is sent');
+ assert.deepEqual(actions()[2]!.body.operations,[{action:'read-all'}]);
+ service.dispose();
+});
+
+test('a Mark all read held when the service closes is sent nowhere',async()=>{
+ const s=flightServer();const service=new InboxService(s.api,()=>'op');
+ await service.load();
+ s.setHoldRead(true);
+ const switching=service.load('profile','archived');
+ await service.readAll();
+ service.dispose();
+ s.reads.splice(0).forEach(read=>read.resolve(s.page()));
+ await switching.catch(()=>{});for(let i=0;i<10;i++)await Promise.resolve();
+ assert.equal(s.calls.filter(c=>c.method==='POST').length,0);
+});
