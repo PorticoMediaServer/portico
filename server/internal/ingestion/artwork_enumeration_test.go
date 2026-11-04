@@ -55,11 +55,21 @@ func TestArtworkEnumerationUsesActualNamesStampsAndConfinedReads(t *testing.T) {
 	source := catalog.LibrarySource{ID: "source", ResolvedPath: root, RootIdentity: rootPage.RootIdentity}
 	capture := func(relative string) {
 		t.Helper()
-		page, err := storage.LocalInventoryPage(storage.InventoryRequest{Root: root, RootIdentity: source.RootIdentity, RelativePath: relative, Limit: 128})
-		if err != nil {
-			t.Fatal(err)
+		cursor := ""
+		for {
+			page, err := storage.LocalInventoryPage(storage.InventoryRequest{Root: root, RootIdentity: source.RootIdentity, RelativePath: relative, Cursor: cursor, Limit: 128})
+			if err != nil {
+				t.Fatal(err)
+			}
+			scanner.noteDirectoryPage("job", relative, cursor, page)
+			if page.Complete {
+				break
+			}
+			if page.NextCursor == "" || page.NextCursor == cursor {
+				t.Fatal("inventory page made no progress", page)
+			}
+			cursor = page.NextCursor
 		}
-		scanner.noteDirectoryPage("job", relative, "", page)
 	}
 	for _, dir := range []string{"Film", "Heroes", "Heroes/Season 01"} {
 		capture(dir)
