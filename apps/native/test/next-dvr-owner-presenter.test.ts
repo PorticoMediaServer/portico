@@ -25,7 +25,7 @@ async function loadPresenter(passive?: Array<()=>void>) {
     '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Select: 'Select', Switch: 'Switch', TextField: 'TextField'},
     '../../kit/overlays': {Dialog: 'Dialog', Menu: 'Menu'}, '../../kit/states': {StateView: 'StateView'},
     '../../kit/shell/visual': {shellType: () => ({})}, '../../kit/theme': {useTheme: () => createTheme({isTV: true, width: 1280})},
-    './recording-owner-model': model, './server/AdvancedSection': {NativeAdvancedSection: 'Advanced'},
+    './recording-owner-model': model, './server/AdvancedSection': {NativeAdvancedSection: 'Advanced'}, './RecordingFolder': {RecordingFolder: 'RecordingFolder'},
   });
 }
 
@@ -63,7 +63,7 @@ test('owner and rule presenters follow their own three-page cursors and retry th
   const controller = {current:()=>true,lifetime: {current: () => true,signal:new AbortController().signal}, tuners: async () => ({sources: [], upcomingWindowHours: 0}),
     policy: async (cursor = '') => {calls.push(`o:${cursor}`); if (refreshed && cursor === '') return {owners: [owner('new')], grants: [{owner: owner('new').owner, enabled: false, revision: 2}], nextCursor: 'fresh-owner'}; if (cursor === 'o2' && fail) {fail = false; throw Error('temporary');} return {owners: Array.from({length:cursor==='o2'?1:200},(_,i)=>owner(`p${(cursor===''?0:cursor==='o1'?200:400)+i+1}`)), grants: [], nextCursor: cursor === '' ? 'o1' : cursor === 'o1' ? 'o2' : ''};},
     rules: async (cursor = '') => {calls.push(`r:${cursor}`); if (refreshed && cursor === '') return {items: [rules(10)], nextCursor: 'fresh-rule'}; return {items: Array.from({length:cursor==='r2'?1:100},(_,i)=>rules((cursor===''?0:cursor==='r1'?100:200)+i+1)), nextCursor: cursor === '' ? 'r1' : cursor === 'r1' ? 'r2' : ''};},
-    dvrSettings: async () => ({revision: 1, settings: {}, enumerations: {}})};
+    dvrSettings: async () => ({revision: 1, settings: {}, folderTokens: [], enumerations: {}})};
   const recordings = {storage: async () => ({policy: {}, measurement: {usedBytes: 0, freeBytes: 0, reservedBytes: 0, writeHealthy: true}, forecastHours: 0})};
   const runtime = {navigation: {getSnapshot: () => ({revision: 7})}, getSnapshot: () => ({contentVisible: true}), text: {t: (key: string) => key}, error: () => ({})};
   let tree: any; const host = createFabricHookHost(() => {tree = NativeRecordingOwner({controller, recordings, runtime, sources: []});});
@@ -157,7 +157,7 @@ test('old page handler cannot send its cursor through a replacement controller',
   const {NativeRecordingOwner} = await loadPresenter(); const calls: string[] = [];
   const make = (name: string) => ({current:()=>true,lifetime: {current: () => true,signal:new AbortController().signal}, tuners: async () => ({sources: [], upcomingWindowHours: 0}),
     policy: async (cursor = '') => {calls.push(`${name}:${cursor}`); return {owners: [owner(name)], grants: [], nextCursor: `${name}-cursor`};},
-    rules: async () => ({items: [], nextCursor: ''}), dvrSettings: async () => ({revision: 1, settings: {}, enumerations: {}})});
+    rules: async () => ({items: [], nextCursor: ''}), dvrSettings: async () => ({revision: 1, settings: {}, folderTokens: [], enumerations: {}})});
   let controller = make('a'); const replacement = make('b');
   const recordings = {storage: async () => ({policy: {}, measurement: {usedBytes: 0, freeBytes: 0, reservedBytes: 0, writeHealthy: true}, forecastHours: 0})};
   const runtime = {navigation: {getSnapshot: () => ({revision: 7})}, getSnapshot: () => ({contentVisible: true}), text: {t: (key: string) => key}, error: () => ({})};
@@ -182,7 +182,7 @@ async function pageFixture(){
  let controller={current:()=>live&&!life.signal.aborted,lifetime:{current:()=>live,signal:life.signal},tuners:async()=>({sources:[],upcomingWindowHours:0}),
   policy:async(cursor='')=>{const k=key('owners',cursor);calls.push(k);return holds.get(k)?.promise??owners(cursor);},
   rules:async(cursor='')=>{const k=key('rules',cursor);calls.push(k);if(cursor&&failRule){failRule=false;throw Error('retry original rule cursor');}return holds.get(k)?.promise??rules(cursor);},
-  dvrSettings:async()=>({revision:1,settings:{prePaddingMs:0,postPaddingMs:0},enumerations:{}}),load:async()=>{},getSnapshot:()=>({list:{sources:[]}})};
+  dvrSettings:async()=>({revision:1,settings:{prePaddingMs:0,postPaddingMs:0},folderTokens:[],enumerations:{}}),load:async()=>{},getSnapshot:()=>({list:{sources:[]}})};
  let recordings={storage:async()=>({policy:{reserveBytes:0},measurement:{usedBytes:0,freeBytes:0,reservedBytes:0,writeHealthy:true},forecastHours:0})};
  const runtime={navigation:{getSnapshot:()=>({revision})},getSnapshot:()=>({contentVisible:visible}),text:{t:(k:string)=>k},error:(_e:unknown,retry:()=>void)=>({primaryAction:{onPress:retry}})};
  let tree:any;const host=createFabricHookHost(()=>{tree=NativeRecordingOwner({controller,recordings,runtime,sources:[]});});await act(()=>host.mount());
@@ -322,7 +322,7 @@ async function actualControllerGuardFixture(sheet: boolean) {
   // Only read data is supplied here. The controller's real current/dispose,
   // borrowed lifetime and DELETE command remain in use.
   Object.assign(controller, {tuners: async () => ({sources: [], upcomingWindowHours: 0}), policy: async () => offeredPolicy,
-    rules: async () => ({items: [ruleRow(1)], nextCursor: ''}), dvrSettings: async () => ({revision: 1, settings: {}, enumerations: {}}),
+    rules: async () => ({items: [ruleRow(1)], nextCursor: ''}), dvrSettings: async () => ({revision: 1, settings: {}, folderTokens: [], enumerations: {}}),
     load: async () => {}, getSnapshot: () => ({list: {sources: []}}), guideSeries: async () => []});
   let disposeOnNavigation = false, refuseReads = false, navigationReads = 0, runtimeReads = 0, closes = 0;
   const runtime = {navigation: {getSnapshot: () => {navigationReads++; if (refuseReads) throw Error('retired navigation read'); if (disposeOnNavigation) controller.dispose(); return {revision: 7};}},

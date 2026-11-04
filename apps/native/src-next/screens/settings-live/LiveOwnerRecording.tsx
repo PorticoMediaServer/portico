@@ -18,6 +18,7 @@ import type {AdminRule, DVRDefaults, DVRDocument, TunerAllocation, TunerView} fr
 import type {LiveSource} from './live-owner-model';
 import type {KeepPolicy} from './recording-owner-model';
 import {NativeAdvancedSection} from './server/AdvancedSection';
+import {RecordingFolder} from './RecordingFolder';
 
 const paddingChoices = [0, 60, 120, 300, 600, 900];
 const keepModes: readonly DVRDefaults['keepPolicy']['mode'][] = ['keep-all', 'keep-count', 'keep-days'];
@@ -198,7 +199,7 @@ export function NativeRecordingOwner({controller, recordings, runtime, sources}:
       {rules && !rules.length && <Text style={[shellType(13), {color: theme.colors.textSecondary}]}>{t('web.recordingRules.noRules')} {t('web.recordingRules.noRulesHelp')}</Text>}
     </Section>
     {settings && defaultsDraft && <Defaults document={settings} draft={defaultsDraft} runtime={runtime} onChange={value => {if (publicationCurrent() && !pageFlight.current) setDefaultsDraft(value);}}/>}
-    {storage && storageDraft && <Storage storage={storage} draft={storageDraft} runtime={runtime} onChange={value => {if (publicationCurrent() && !pageFlight.current) setStorageDraft(value);}}/>}
+    {storage && storageDraft && <Storage storage={storage} draft={storageDraft} runtime={runtime} folder={<RecordingFolder controller={controller} runtime={runtime}/>} onChange={value => {if (publicationCurrent() && !pageFlight.current) setStorageDraft(value);}}/>}
     {settings && storage && <PendingBar count={Object.keys(permissionDraft).length + (JSON.stringify(defaultsDraft) !== JSON.stringify(settings.settings) ? 1 : 0) + (JSON.stringify(storageDraft) !== JSON.stringify(storage.policy) ? 1 : 0)}
       busy={busy === 'save' || pageBusy} onDiscard={() => {if(!publicationCurrent())return;setPermissionDraft({}); setDefaultsDraft(settings.settings); setStorageDraft(storage.policy);}}
       onSave={() => void saveAll()} runtime={runtime}/>}
@@ -287,10 +288,12 @@ function Permissions({policy, draft, runtime, onChange}: {policy: Readonly<{owne
   </Section>;
 }
 
-function Defaults({draft, runtime, onChange}: {document: DVRDocument; draft: DVRDefaults; runtime: NativeShellRuntime; onChange: (value: DVRDefaults) => void}) {
+function Defaults({document, draft, runtime, onChange}: {document: DVRDocument; draft: DVRDefaults; runtime: NativeShellRuntime; onChange: (value: DVRDefaults) => void}) {
   const theme = useTheme(), t = runtime.text.t, [advanced, setAdvanced] = useState(false);
   const patch = (value: Partial<DVRDefaults>) => onChange({...draft, ...value});
   const minutes = (ms: number | null) => String(Math.round((ms ?? 0) / 60000));
+  // Frame 10: the folder tokens the server sends with the defaults, under the layouts.
+  const tokens = document.folderTokens.map(token => `{${token.token}}`).join(', ');
   return <Section title={t('web.dvrSettings.defaults')}>
     <View style={{gap: 12, backgroundColor: theme.colors.raised, borderRadius: 14, padding: 14}}>
       <Select testID="live-owner-padding-before" label={t('web.dvrSettings.startEarly')} description={t('web.dvrSettings.startEarlyHelp')} value={minutes(draft.prePaddingMs)} options={paddingChoices.map(value => ({value: minutes(value), label: value ? t('recordings.minutes', {count: value / 60}) : t('recordings.none')}))} onValueChange={value => patch({prePaddingMs: Number(value) * 60000})}/>
@@ -304,13 +307,13 @@ function Defaults({draft, runtime, onChange}: {document: DVRDocument; draft: DVR
     <NativeAdvancedSection testID="live-owner-recording-advanced" open={advanced} onOpenChange={setAdvanced}>
       <View style={{gap: 12, backgroundColor: theme.colors.raised, borderRadius: 14, padding: 14}}>
         <TextField testID="live-owner-folder-shows" label={t('web.dvrSettings.folderShows')} value={draft.folderTemplate} maxLength={400} autoCapitalize="none" autoCorrect={false} onChangeText={folderTemplate => patch({folderTemplate})}/>
-        <TextField testID="live-owner-folder-movies" label={t('web.dvrSettings.folderMovies')} value={draft.movieFolderTemplate} maxLength={400} autoCapitalize="none" autoCorrect={false} onChangeText={movieFolderTemplate => patch({movieFolderTemplate})}/>
+        <TextField testID="live-owner-folder-movies" label={t('web.dvrSettings.folderMovies')} description={tokens || undefined} value={draft.movieFolderTemplate} maxLength={400} autoCapitalize="none" autoCorrect={false} onChangeText={movieFolderTemplate => patch({movieFolderTemplate})}/>
       </View>
     </NativeAdvancedSection>
   </Section>;
 }
 
-function Storage({storage, draft, runtime, onChange}: {storage: RecordingStorage; draft: StoragePolicy; runtime: NativeShellRuntime; onChange: (value: StoragePolicy) => void}) {
+function Storage({storage, draft, runtime, folder, onChange}: {storage: RecordingStorage; draft: StoragePolicy; runtime: NativeShellRuntime; folder: React.ReactNode; onChange: (value: StoragePolicy) => void}) {
   const theme = useTheme(), t = runtime.text.t;
   const gb = (bytes: number) => Math.round(bytes / 1e9);
   const total = storage.measurement.usedBytes + storage.measurement.freeBytes;
@@ -329,6 +332,7 @@ function Storage({storage, draft, runtime, onChange}: {storage: RecordingStorage
       {!storage.measurement.writeHealthy && <Text style={[shellType(12.5), {color: theme.colors.amber}]}>{t('web.liveTv.notWritable')}</Text>}
     </View>
     <View style={{gap: 12, backgroundColor: theme.colors.raised, borderRadius: 14, padding: 14}}>
+      {folder}
       <Select testID="live-owner-storage-retention" label={t('web.liveTv.keepRecordings')} description={t('web.liveTv.keepRecordingsHelp')} value={String(draft.retentionDays)} options={[0, 7, 14, 30, 60, 90, 365].map(value => ({value: String(value), label: String(value)}))} onValueChange={value => onChange({...draft, retentionDays: Number(value)})}/>
       <Select testID="live-owner-storage-episodes" label={t('web.liveTv.episodesPerSeries')} description={t('web.liveTv.episodesPerSeriesHelp')} value={String(draft.episodeLimit)} options={[0, 1, 3, 5, 10, 20, 50].map(value => ({value: String(value), label: String(value)}))} onValueChange={value => onChange({...draft, episodeLimit: Number(value)})}/>
       <Select testID="live-owner-storage-floor" label={t('web.liveTv.leaveFree')} description={t('web.liveTv.leaveFreeHelp')} value={String(gb(draft.floorBytes))} options={[0, 10, 20, 50, 100, 200].map(value => ({value: String(value), label: `${value} ${t('web.liveTv.gbUnit')}`}))} onValueChange={value => onChange({...draft, floorBytes: Number(value) * 1e9})}/>

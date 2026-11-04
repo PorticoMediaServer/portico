@@ -13,6 +13,9 @@ import {
 import {needsRuleOwner, parseAdminRulePage, parseDVRDocument, parseRecordingPolicy, parseTunerView, type AdminRule, type DVRDefaults, type DVRDocument, type RecordingPolicy, type TunerView} from './recording-owner-model';
 import {recordingGuideRoute, recordingOwnerKey, recordingRulePayload, recordingSeries, type RecordingGrant, type RecordingOwner, type RecordingSeries} from '../../../../../packages/client-core/src/server-admin/recording-policy';
 import {parseChannelGuide} from '../../../../../packages/client-core/src/channel-guide';
+import {readRecordingRoot, saveRecordingRoot, type RecordingRootIntent} from '../../../../../packages/client-core/src/server-admin/recording-root';
+import {routePath} from '../../../../../packages/contracts/src/route-paths';
+import type {LibraryContentApi} from '../../../../../packages/client-core/src/library-content';
 
 export type LiveOwnerSnapshot = Readonly<{
   list?: LiveSources; loading: boolean; busy: boolean; checkedAt?: number; error?: unknown; notice?: string;
@@ -236,6 +239,19 @@ export class NativeLiveOwnerController extends NativeScreenStore<LiveOwnerSnapsh
   createRule = (draft: Parameters<typeof recordingRulePayload>[0], grants: readonly RecordingGrant[], caller?: NativeRecordingCommandLifetime) => this.recordingMutation(draft, grants, caller);
   dvrSettings = async (): Promise<DVRDocument> => parseDVRDocument(await this.request<unknown>('/v1/admin/dvr/settings'), this.lifetime.authority.serverId);
   saveDvrSettings = async (revision: number, value: DVRDefaults) => parseDVRDocument(await this.request<unknown>('/v1/admin/dvr/settings', 'PUT', {expectedRevision: revision, operationId: this.operationId(), settings: value}), this.lifetime.authority.serverId);
+  /** live-owner 10/16c: the recordings folder (a bare registered outcome, not the console envelope). */
+  recordingRoot = (signal?: AbortSignal) => this.lifetime.request(next => readRecordingRoot(this.api, next), signal);
+  saveRecordingRoot = (intent: RecordingRootIntent, signal?: AbortSignal) => this.lifetime.request(next => saveRecordingRoot(this.api, intent, next), signal);
+  /** The folder explorer's listings for one opening: GET filesystem reads only, within this
+   * owner's lifetime and retired with the opening's signal. */
+  folderBrowser = (opening: AbortSignal): LibraryContentApi => ({request: <T,>(path: string, method?: string, _body?: unknown, caller?: AbortSignal): Promise<T> => {
+    if (opening.aborted || path.split('?')[0] !== routePath('get_admin_filesystem') || method && method !== 'GET') return Promise.reject(screenScopeEnded());
+    const round = new AbortController(), stop = () => round.abort();
+    opening.addEventListener('abort', stop, {once: true}); caller?.addEventListener('abort', stop, {once: true});
+    if (caller?.aborted) stop();
+    return this.lifetime.request(next => this.api.request<T>(path, 'GET', undefined, next), round.signal) // query-read: kept (folder explorer listings of the server's disks for one opening, not a viewer document)
+      .finally(() => {opening.removeEventListener('abort', stop); caller?.removeEventListener('abort', stop);});
+  }});
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true; this.loadTicket++;
