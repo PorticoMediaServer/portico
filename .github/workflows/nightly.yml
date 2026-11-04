@@ -1,4 +1,4 @@
-name: Backup natural phase sampling with original neighbours
+name: Native backup WAL pressure checkpoint-owner control
 on:
   workflow_dispatch:
 permissions:
@@ -7,7 +7,7 @@ permissions:
 jobs:
   diagnostic:
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {persist-credentials: false, fetch-depth: 0}
@@ -20,13 +20,13 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: {node-version-file: .node-version, cache: npm, cache-dependency-path: package-lock.json}
       - run: npm ci --no-audit --no-fund
-      - name: Same VM original then checkpoint-owner fixture, twenty natural backup attempts each
+      - name: Same VM actual WAL pressure, original then production-owner fixture
         env:
           RECORDED_PLAN: '${{ runner.temp }}/original-selection/ci-plan.json'
-        run: python3 ci/backup_natural_phases_diag.py
+        run: python3 ci/backup_native_pressure_diag.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: backup-natural-phase-samples
-          path: backup-natural-*/
+          name: backup-native-pressure
+          path: backup-native-*/
           retention-days: 7
