@@ -80,6 +80,37 @@ class EngineeringRuleTests(unittest.TestCase):
         # It spares its own line only, wherever the compares sit in the file.
         self.assertEqual(self.found('if (fence === held.fence) a(); // fence-compare: kept (same answer)\nif (fence === other.fence) b();'), one)
 
+    def test_query_read_counts_gets_and_services_outside_the_query_cache(self):
+        one = {'query-read': {'web/src/x.ts': 1}}
+        for counted in ["const raw = await api.request(routePath('get_home'), 'GET', undefined, signal);",
+                        "const raw = await api.request<RouteResponse<'get_me'>>(routePath('get_me'),'GET',undefined,signal);",
+                        "const raw = await this.api.request<unknown>(`/v1/items/${encodeURIComponent(id)}/detail`);",
+                        "const raw = await api.request(encodedRoutePath('get_libraries_id', {id: encodeURIComponent(id)}) + '?limit=5');",
+                        "const raw = await api.requestRaw('/v1/events?waitMs=0', 'GET');",
+                        "const raw = await api.request(\n  routePath('get_libraries'),\n  'GET',\n  undefined, signal);",
+                        'const home = new HomeService(api, {observation});',
+                        'const saved = new PersonalSavedService(\n  api);']:
+            self.assertEqual(self.found(counted), one, counted)
+        for spared in ["await api.request(routePath('patch_preferences'), 'PATCH', body, signal);",
+                       "await api.request(path, 'POST');",
+                       'await api.request(path, method, body);',
+                       "await navigator.locks.request('portico-lock', async () => work());",
+                       'const service = createHomeService(api);',
+                       'const s = new Set(ids); const m = new Map();',
+                       "const raw = await api.request(routePath('get_me'), 'GET', undefined, signal); // query-read: kept (sign-in proves who the viewer is before any cache exists)"]:
+            self.assertEqual(self.found(spared), {}, spared)
+        # The marker is held to the same rules as fence-compare's: a reason, a real comment, one read per marker.
+        self.assertEqual(self.found("api.request(routePath('get_me')); // query-read: kept"), one)
+        self.assertEqual(self.found("api.request(a); api.request(b); // query-read: kept (first only)"), one)
+        self.assertEqual(self.found("api.request(a); // fence-compare: kept (another rule's marker)"), one)
+
+    def test_query_read_is_at_home_in_the_query_cache_only(self):
+        read = "const raw = await api.request(routePath('get_home'), 'GET', undefined, signal);"
+        self.assertEqual(self.found(read, 'packages/client-core/src/query/viewer-queries.ts'), {})
+        self.assertEqual(self.found(read, 'packages/client-core/src/query/keys.ts'), {})
+        self.assertEqual(self.found(read, 'packages/client-core/src/query-helpers.ts'), {'query-read': {'packages/client-core/src/query-helpers.ts': 1}})
+        self.assertEqual(self.found(read, 'packages/client-core/src/home-service.ts'), {'query-read': {'packages/client-core/src/home-service.ts': 1}})
+
     def test_authorized_home_is_kept_on_purpose_and_only_by_its_marker(self):
         path = 'apps/native/src-next/screens/home/model.ts'
         source = (BASELINE.parent.parent / path).read_text(encoding='utf-8')
