@@ -139842,6 +139842,25 @@
           "itemId": {
             "type": "string"
           },
+          "limits": {
+            "properties": {
+              "memberBytes": {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              },
+              "totalBytes": {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "memberBytes",
+              "totalBytes"
+            ],
+            "type": "object"
+          },
           "metadata": {
             "properties": {
               "author": {
@@ -494858,6 +494877,25 @@
                     "itemId": {
                       "type": "string"
                     },
+                    "limits": {
+                      "properties": {
+                        "memberBytes": {
+                          "maximum": 9007199254740991,
+                          "minimum": -9007199254740991,
+                          "type": "integer"
+                        },
+                        "totalBytes": {
+                          "maximum": 9007199254740991,
+                          "minimum": -9007199254740991,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "memberBytes",
+                        "totalBytes"
+                      ],
+                      "type": "object"
+                    },
                     "metadata": {
                       "properties": {
                         "author": {
@@ -495088,6 +495126,7 @@
           "comic_archive_unsupported",
           "internal",
           "reading_sessions_busy",
+          "reading_publication_too_large",
           "database_busy",
           "writer_capacity"
         ],

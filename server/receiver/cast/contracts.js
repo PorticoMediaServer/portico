@@ -180749,6 +180749,22 @@ var PorticoCastContracts = (function(exports) {
 					"type": "string"
 				},
 				"itemId": { "type": "string" },
+				"limits": {
+					"properties": {
+						"memberBytes": {
+							"maximum": 9007199254740991,
+							"minimum": -9007199254740991,
+							"type": "integer"
+						},
+						"totalBytes": {
+							"maximum": 9007199254740991,
+							"minimum": -9007199254740991,
+							"type": "integer"
+						}
+					},
+					"required": ["memberBytes", "totalBytes"],
+					"type": "object"
+				},
 				"metadata": {
 					"properties": {
 						"author": { "type": "string" },

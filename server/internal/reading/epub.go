@@ -307,14 +307,14 @@ func epubSeries(p packageXML) (string, string) {
 }
 
 func OpenEPUB(ctx context.Context, r io.ReaderAt, size int64) (*EPUB, error) {
-	a, err := openArchive(r, size)
+	a, err := openArchiveWithLimits(r, size, publicationArchiveLimits)
 	if err != nil {
 		return nil, err
 	}
 	return openEPUBArchive(ctx, a)
 }
 func OpenSequentialEPUB(ctx context.Context, source SequentialSource) (*EPUB, error) {
-	a, err := openSequentialArchive(ctx, source)
+	a, err := openSequentialArchiveWithLimits(ctx, source, publicationArchiveLimits)
 	if err != nil {
 		return nil, err
 	}

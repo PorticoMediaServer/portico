@@ -83,6 +83,8 @@ func readingFailure(w http.ResponseWriter, err error) {
 		return
 	}
 	switch {
+	case errors.Is(err, reading.ErrPublicationTooLarge):
+		policyError(w, "reading_publication_too_large")
 	case errors.Is(err, reading.ErrChanged), errors.Is(err, reading.ErrConflict), errors.Is(err, storage.ErrObservedSourceLost), errors.Is(err, storage.ErrRemoteChanged):
 		policyError(w, "revision_mismatch")
 	case errors.Is(err, reading.ErrUnavailable):

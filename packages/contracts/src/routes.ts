@@ -34838,6 +34838,7 @@ export const routes = [
       "comic_archive_unsupported",
       "internal",
       "reading_sessions_busy",
+      "reading_publication_too_large",
       "database_busy",
       "writer_capacity"
     ],
