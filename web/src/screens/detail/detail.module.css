@@ -131,6 +131,10 @@
 
 .compactHeader h1 { font-size: var(--type-initials-size); margin: 0; }
 
+/* phone-player 4: the episode playing stays on one line and ends in an ellipsis. */
+.episodeLine { margin: 5px 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: var(--type-body-strong-size); font-weight: var(--type-row-heading-weight); }
+.episodeLine > span + span { margin-left: 10px; }
+
 .page[data-compact] .sticky { top: 0; min-height: 64px; }
 .page[data-compact] .tabStrip { margin-bottom: 0; }
 
