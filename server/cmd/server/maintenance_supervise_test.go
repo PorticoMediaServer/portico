@@ -36,6 +36,31 @@ func openMaintenanceDB(t *testing.T) *sql.DB {
 	return db
 }
 
+// Start only after the test has set its seams, and join both loops before
+// restoreMaintenanceSeams runs. The parent returning does not join its
+// independently supervised retention child, which may still read retentionRun.
+func startTestHousekeeping(t *testing.T, ctx context.Context, cancel context.CancelFunc, db *sql.DB) <-chan struct{} {
+	t.Helper()
+	retention := retentionRun
+	started, stopped := make(chan struct{}), make(chan struct{})
+	retentionRun = func(ctx context.Context, db *sql.DB) {
+		close(started)
+		defer close(stopped)
+		retention(ctx, db)
+	}
+	done := make(chan struct{})
+	go func() { defer close(done); runDatabaseHousekeeping(ctx, db) }()
+	t.Cleanup(func() {
+		cancel()
+		waitFor(t, done, "housekeeping cleanup")
+		waitFor(t, stopped, "retention cleanup")
+	})
+	// Keep the context live until the supervised child has actually started;
+	// cancellation before that could make Supervise exit without calling it.
+	waitFor(t, started, "retention child start")
+	return done
+}
+
 // Retention owns a never-ending timer loop. Before the fix it ran inline, so the
 // goroutine below never reached its ticker, planner refresh or checkpoints. This
 // test blocks retention and proves the housekeeping body still advances first.
@@ -72,11 +97,7 @@ func TestHousekeepingAdvancesWhileRetentionIsBlocked(t *testing.T) {
 		return nil
 	}
 
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		runDatabaseHousekeeping(ctx, db)
-	}()
+	done := startTestHousekeeping(t, ctx, cancel, db)
 
 	waitFor(t, retentionStarted, "retention child start")
 	waitFor(t, ticked, "housekeeping checkpoint tick")
@@ -105,11 +126,7 @@ func TestHousekeepingCancellationStopsRetention(t *testing.T) {
 	housekeepingAncillaryInterval = time.Hour
 	plannerRefresh = func(ctx context.Context, db *sql.DB) error { return nil }
 
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		runDatabaseHousekeeping(ctx, db)
-	}()
+	done := startTestHousekeeping(t, ctx, cancel, db)
 	waitFor(t, retentionStarted, "retention child start")
 
 	cancel()
@@ -160,11 +177,7 @@ func TestHousekeepingRefreshesGrownTableWithoutRestart(t *testing.T) {
 		}
 		return err
 	}
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		runDatabaseHousekeeping(ctx, db)
-	}()
+	done := startTestHousekeeping(t, ctx, cancel, db)
 	select {
 	case err := <-refreshed:
 		if err != nil {
@@ -215,9 +228,7 @@ func TestARequestedPlannerRefreshRunsAtTheNextPoll(t *testing.T) {
 		default:
 		}
 	}
-	done := make(chan struct{})
-	go func() { defer close(done); runDatabaseHousekeeping(ctx, db) }()
-	defer func() { cancel(); <-done }()
+	startTestHousekeeping(t, ctx, cancel, db)
 	// The startup pass may refresh once; drain it before asking.
 	<-ticked
 	<-ticked
