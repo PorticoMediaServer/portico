@@ -8,6 +8,7 @@ import {defaultI18n} from '../../../packages/i18n/src/index.ts';
 import {nativeWatchMenuGroups} from '../src-next/screens/watch/menu-model.ts';
 import {titleMenuItems} from '../src-next/kit/overlays/title-menu.ts';
 import {createWindowedCollection} from '../../../packages/client-core/src/collections/windowed.ts';
+import * as kitModel from '../../../packages/client-core/src/presentation/kit-model/index.ts';
 
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
 const t = defaultI18n.t;
@@ -54,7 +55,7 @@ async function collectionScreen(isTV: boolean) {
     react: {...React, default: React},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
     '../../kit/cards/primitives': {CardFrame: 'CardFrame'}, '../../kit/selection': {SelectionCircle: 'SelectionCircle'},
-    '../saved/presentation': {savedDuration: (value: number) => String(value)},
+    '../../../../../packages/client-core/src/presentation/kit-model': kitModel, '../saved/presentation': {savedDuration: (value: number) => String(value)},
     'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 1920, height: 1080})},
     '../../../../../packages/i18n/src': {defaultI18n},
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', AmbientArt: 'Ambient', Artwork: 'Artwork'}, '../../kit/cards': {PosterCard: 'Poster'},
@@ -104,7 +105,7 @@ test('TV collection draws More beside Play all and Shuffle, focusable, with the 
   } finally {await f.host.unmount();}
 });
 
-test('TV collection hero adds the lede from the collection read, and no studio it does not carry', async () => {
+test('TV collection hero: the overview is the lede when there is one, else one composed from the titles; no studio it does not carry', async () => {
   const overview = 'Four films on your server, from 1995 to Toy Story 5.';
   const f = await mountCollection(true, {...base(), projection: {entity: {id: 'c1', kind: 'collection', title: 'Toy Story', overview, studio: 'Pixar'}}});
   try {
@@ -113,7 +114,10 @@ test('TV collection hero adds the lede from the collection read, and no studio i
     assert.equal(text(f.tree).includes('Pixar'), false, 'no studio field exists on the read, so none is drawn');
   } finally {await f.host.unmount();}
   const bare = await mountCollection(true, base());
-  try {assert.equal(nodes(bare.tree).some(node => node.props.testID === 'collection-lede'), false, 'no overview, no lede');} finally {await bare.host.unmount();}
+  try {
+    const composed = nodes(bare.tree).find(node => node.props.testID === 'collection-lede');
+    assert.match(composed?.props.children ?? '', /^Four films on your server, from 1995 to /, 'no overview: the lede is composed from the titles (f10)');
+  } finally {await bare.host.unmount();}
 });
 
 test('TV collection toolbar says how many are watched, and never claims collection order the catalogue view cannot give', async () => {
@@ -183,4 +187,17 @@ test('the real TV Watch overlay puts Select before Details, then Play a differen
   const items = nodes(h.render(() => NativeWatchOverlays({presenters, runtime: {artwork: () => undefined}, common: {}} as any))).find(node => node.type === 'Menu').props.items;
   const order = ids(items);
   assert.deepEqual(order.slice(order.indexOf('addToCollection')), ['addToCollection', 'select', 'details', 'different-version', 'file-info']);
+});
+
+// #754 review: with no provider overview the TV collection lede is composed from the titles as Home's banner does
+// (tv-detail f10: "Four films on your server, from 1995 to Toy Story 5."); the overview replaces it when there is one.
+test('the collection lede is composed from its titles when there is no overview', async () => {
+  const mod = await collectionScreen(true) as any;
+  const env = {t: defaultI18n.t as never, locale: 'en-US'};
+  const film = (title: string, year: number) => ({id: title, kind: 'movie', title, year}) as any;
+  const all = [film('Toy Story', 1995), film('Toy Story 2', 1999), film('Toy Story 3', 2010), film('Toy Story 5', 2026)];
+  assert.equal(mod.composedCollectionLede({totalCount: 4, complete: all}, env), 'Four films on your server, from 1995 to Toy Story 5.');
+  assert.equal(mod.composedCollectionLede({totalCount: 4, first: all[0]}, env), 'Four films on your server.', 'only part in memory: the count alone');
+  assert.equal(mod.composedCollectionLede({totalCount: 2, complete: [film('A', 2001), {id: 'show', kind: 'show', title: 'S', year: 2003}]}, env), undefined, 'not all films: no lede');
+  assert.equal(mod.composedCollectionLede({totalCount: 0}, env), undefined);
 });

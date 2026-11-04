@@ -18,6 +18,7 @@ import type {NativeShellRuntime} from '../../shell/runtime';
 import type {NativeEntryMenuState} from '../destinations/entry-actions';
 import type {NativeSavedSelectionPort} from '../saved/SavedScreen';
 import {savedDuration} from '../saved/presentation';
+import {collectionCaptionParts} from '../../../../../packages/client-core/src/presentation/kit-model';
 import type {NativeCollectionSort, NativeCollectionState} from './controller';
 import {usePageWidth} from '../../kit/layout/page-inset';
 
@@ -49,6 +50,22 @@ const years = (state: NativeCollectionState) => {
   return min === max ? String(min) : `${min} – ${max}`;
 };
 
+/** tv-detail frame 11 (`f10`): with no provider overview, the lede is composed from the collection's titles as Home's
+ * banner composes it ("Four films on your server, from 1995 to Toy Story 5."): the count, the first year and the newest
+ * title, only when every member is in memory (else the count alone). A collection that is not all films has no lede:
+ * the drawn sentence has no other noun. */
+export function composedCollectionLede(state: Pick<NativeCollectionState, 'totalCount' | 'complete' | 'first'>, env: Parameters<typeof collectionCaptionParts>[1]): string | undefined {
+  if (!state.totalCount) return undefined;
+  const complete = state.complete, films = complete ? complete.every(entry => entry.kind === 'movie') : state.first?.kind === 'movie';
+  const dated = complete?.filter(entry => Number.isFinite(entry.year)) ?? [];
+  // The newest member by year; between equal years, the later one in the collection's own order.
+  const newest = dated.reduce<ContentEntry | undefined>((best, entry) => !best || (entry.year as number) >= (best.year as number) ? entry : best, undefined);
+  const parts = collectionCaptionParts({mediaKind: films ? 'movie' : undefined, itemCount: state.totalCount,
+    ...(dated.length ? {firstYear: Math.min(...dated.map(entry => entry.year as number))} : {}),
+    ...(newest ? {lastTitle: newest.displayTitle || newest.title} : {})}, env);
+  return parts[0]?.text;
+}
+
 /** tv-detail#11 / phone-detail#8: the collection's own member order and progress.
  * Members render from a bounded window (LR05): only the cards in view are mounted,
  * and the focused card's page stays in memory. */
@@ -66,8 +83,9 @@ export function NativeCollectionScreen(props: NativeCollectionScreenProps) {
   const ambient = runtime.ambient(backdrop), foreground = runtime.artwork(backdrop);
   const facts = [t('next.browse.filmCount', {count: state.totalCount}), years(state)].filter((value): value is string => !!value);
   const sort = state.sorts.find(value => value.id === state.sort);
-  /** tv-detail#10: the lede and watched tally from the collection read. A fact the read does not carry is not drawn: it has no studio, and the catalogue collection view offers only the title, added and year sorts, so "In collection order" would not be true. */
-  const lede = state.projection?.entity?.overview?.trim() || undefined;
+  /** tv-detail#10: the lede and watched tally from the collection read. A fact the read does not carry is not drawn: it has no studio, and the catalogue collection view offers only the title, added and year sorts, so "In collection order" would not be true.
+   * The lede is the provider overview when there is one, else composed from the titles as on Home's banner. */
+  const lede = state.projection?.entity?.overview?.trim() || composedCollectionLede(state, {t});
   const watchedCount = state.complete ? state.complete.filter(entry => entry.watched).length : state.projection?.entity?.watchedCount;
   const watchedSummary = watchedCount && state.totalCount ? t('next.browse.watchedOf', {watched: watchedCount, count: state.totalCount}) : undefined;
   const sortItems: MenuEntry[] = state.sorts.map(value => ({id: value.id, label: sortLabel(value), selected: value.id === state.sort,

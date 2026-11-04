@@ -18,6 +18,7 @@ import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {screenModule, stackSlotFixture} from './helpers/screen-harness.mjs';
 import * as selectionUnavailableActions from '../src-next/screens/library/selection-unavailable-actions.ts';
 import * as wholeQueryUnavailable from '../src-next/screens/library/whole-query-unavailable.ts';
+import * as kitModel from '../../../packages/client-core/src/presentation/kit-model/index.ts';
 
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
 const flush = async () => {await act(() => {});};
@@ -348,7 +349,7 @@ for (const kind of ['person', 'collection'] as const) test(`${kind} actual entit
   const modules = {'../share/share-actions': {shareLinkActions: () => []}, react: b.react, 'react-native': b.native, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', PersonCircle: 'Person', AmbientArt: 'Ambient', Artwork: 'Artwork'},
     '../../kit/cards': {PosterCard: 'Poster'}, '../../kit/cards/primitives': {CardFrame: 'CardFrame'},
-    '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, '../saved/presentation': {savedDuration: (value: number) => String(value)}, '../../kit/controls': {Button: o.Button, Chip: 'Chip', Focusable: b.Focusable},
+    '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, '../../../../../packages/client-core/src/presentation/kit-model': kitModel, '../saved/presentation': {savedDuration: (value: number) => String(value)}, '../../kit/controls': {Button: o.Button, Chip: 'Chip', Focusable: b.Focusable},
     '../../kit/overlays': o.menu, '../../tv/layout/TVShelf': {TVShelf: 'Shelf'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/states': {StateView: 'State'}, '../../kit/browse/presentation': presentation, '../../kit/theme': {useTheme: () => b.theme},
     '../../kit/layout': {WindowedGrid: 'WindowedGrid', WindowedRow: 'WindowedRow'},
