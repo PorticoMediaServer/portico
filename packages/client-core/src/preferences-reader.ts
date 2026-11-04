@@ -9,8 +9,10 @@ import {parsePreferenceSnapshot,currentPreferenceSnapshot,type DeviceClass,type 
  * download at startup to read a few settings.
  *
  * Contract mirror of `ConsoleClient.preferences`/`applyPreferences`: the
- * server wraps data in `{scope: {serverId, viewerFence}, data}`, the fence
- * pins the selected viewer (a changed fence ends this scope), and a PATCH
+ * server wraps data in `{scope: {serverId, viewerFence}, data}`, another
+ * server's answer ends this scope, a read under a moved viewer fence is the
+ * newer answer (the viewer's access was decided again; it never ends the
+ * shell), a write answer under a moved fence is refused, and a PATCH
  * carries an idempotency key. The mounted transport owns durable custody;
  * manual retries reconnect to that intent rather than authoring another one.
  */
@@ -22,6 +24,8 @@ export type PreferenceObservation=
   | Readonly<{kind:'unreadable';error:unknown}>;
 
 class PreferenceScopeChanged extends Error {}
+/** A read that started before the read that taught the current fence answered under another fence: it is older. */
+class PreferenceReadSuperseded extends Error {}
 
 const object=(v:unknown):v is Record<string,unknown>=>typeof v==='object'&&v!==null&&!Array.isArray(v);
 
@@ -29,7 +33,7 @@ const object=(v:unknown):v is Record<string,unknown>=>typeof v==='object'&&v!==n
 export function preferencesOperationId():string{return globalThis.crypto?.randomUUID?.()??`op-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,16)}`;}
 
 export class PreferencesReader {
-  private disposed=false;private fence?:string;private requests=new Set<AbortController>();
+  private disposed=false;private fence?:string;private requests=new Set<AbortController>();/** Reads started, and the start of the latest read whose answer the current fence came from. */private reads=0;private fenceRead=0;
   private snapshots=new Map<DeviceClass,PreferenceSnapshot>();private listeners=new Set<()=>void>();
   private pending?:{body:string;key:string;binding?:UserMutationScope;ack?:Promise<void>};
   getSnapshot=(deviceClass:DeviceClass='web')=>this.snapshots.get(deviceClass);
@@ -38,8 +42,21 @@ export class PreferencesReader {
   private api:PreferencesApi;readonly scope:PreferencesScope;
   constructor(api:PreferencesApi,scope:PreferencesScope){if(!scope.serverId||!scope.viewerId)throw new Error('A selected viewer is required.');this.api=api;this.scope={...scope};}
   dispose(){this.disposed=true;for(const c of this.requests)c.abort();this.requests.clear();this.snapshots.clear();this.listeners.clear();}
+  /** The fence an answer names. Another server's answer is refused by the caller. A write's answer under a moved fence
+   * is refused; a read's is the newer answer (step 7: the viewer's access was decided again), taking the place of every
+   * snapshot read under the old fence, unless that read started before the read that taught the current fence. */
+  private admitFence(viewerFence:string,read:number|undefined){
+    if(this.fence!==undefined&&this.fence!==viewerFence){
+      if(read===undefined)throw new Error('The selected viewer changed. Reopen this server.');
+      if(read<this.fenceRead)throw new PreferenceReadSuperseded('An older preferences read.');
+      this.snapshots.clear();
+    }
+    if(read!==undefined)this.fenceRead=Math.max(this.fenceRead,read);
+    this.fence=viewerFence;
+  }
   private async call<T>(path:string,method:string,body:unknown,parse:(v:unknown)=>T,custody?:{ack?:Promise<void>},observation?:{signal?:AbortSignal}):Promise<T>{
     if(this.disposed)throw new Error('This preferences scope is closed.');
+    const read=method==='GET'?++this.reads:undefined;
     if(observation?.signal?.aborted)throw observation.signal.reason??new Error('Preferences request ended.');
     const c=new AbortController();this.requests.add(c);const timer=setTimeout(()=>c.abort(),10000);
     const stop=()=>c.abort(observation?.signal?.reason);
@@ -52,21 +69,26 @@ export class PreferencesReader {
         // establish that the selected viewer changed.
         if(!object(raw)||!object(raw.scope)||typeof raw.scope.serverId!=='string'||!raw.scope.serverId||typeof raw.scope.viewerFence!=='string'||!/^[a-f0-9]{64}$/.test(raw.scope.viewerFence))throw new Error('Unreadable preferences response.');
         const out=parse(raw.data);
-        if(raw.scope.serverId!==this.scope.serverId||this.fence!==undefined&&this.fence!==raw.scope.viewerFence)throw new PreferenceScopeChanged('The selected viewer changed. Reopen this server.');
-        this.fence=raw.scope.viewerFence;return out;
+        if(raw.scope.serverId!==this.scope.serverId)throw new PreferenceScopeChanged('The selected viewer changed. Reopen this server.');
+        this.admitFence(raw.scope.viewerFence,read);return out;
       }
-      if(!object(raw)||!object(raw.scope)||raw.scope.serverId!==this.scope.serverId||typeof raw.scope.viewerFence!=='string'||!/^[a-f0-9]{64}$/.test(raw.scope.viewerFence)||this.fence!==undefined&&this.fence!==raw.scope.viewerFence)throw new Error('The selected viewer changed. Reopen this server.');
-      const out=parse(raw.data);this.fence=raw.scope.viewerFence;const intent=body&&typeof body==='object'?(body as Record<string,unknown>).idempotencyKey:undefined;if(typeof intent==='string'){if(custody)await(custody.ack??=(this.api.acknowledgeUserMutation?.(intent)??Promise.resolve()).catch(error=>{custody.ack=undefined;throw error;}));else await this.api.acknowledgeUserMutation?.(intent);}return out;
+      if(!object(raw)||!object(raw.scope)||raw.scope.serverId!==this.scope.serverId||typeof raw.scope.viewerFence!=='string'||!/^[a-f0-9]{64}$/.test(raw.scope.viewerFence))throw new Error('The selected viewer changed. Reopen this server.');
+      const out=parse(raw.data);this.admitFence(raw.scope.viewerFence,read);const intent=body&&typeof body==='object'?(body as Record<string,unknown>).idempotencyKey:undefined;if(typeof intent==='string'){if(custody)await(custody.ack??=(this.api.acknowledgeUserMutation?.(intent)??Promise.resolve()).catch(error=>{custody.ack=undefined;throw error;}));else await this.api.acknowledgeUserMutation?.(intent);}return out;
     }finally{clearTimeout(timer);this.requests.delete(c);observation?.signal?.removeEventListener('abort',stop);}
   }
-  preferences(deviceClass:DeviceClass){return this.call(routePath("get_preferences") + "?deviceClass=" + (deviceClass),'GET',undefined,parsePreferenceSnapshot).then(snapshot=>this.adopt(snapshot));}
+  preferences(deviceClass:DeviceClass){return this.call(routePath("get_preferences") + "?deviceClass=" + (deviceClass),'GET',undefined,parsePreferenceSnapshot).then(snapshot=>this.adopt(snapshot),error=>{
+    // An older read's answer: the snapshot a newer read gave stands.
+    const held=error instanceof PreferenceReadSuperseded?this.snapshots.get(deviceClass):undefined;if(held)return held;throw error;});}
   /** Cancellable observation on this reader's existing parser/store; defaults stay independent. */
   async observePreferences(deviceClass:DeviceClass,signal?:AbortSignal):Promise<PreferenceObservation>{
     try{
       const snapshot=await this.call(routePath("get_preferences")+"?deviceClass="+deviceClass,'GET',undefined,raw=>{const parsed=parsePreferenceSnapshot(raw);if(parsed.deviceClass!==deviceClass)throw new Error('Unreadable preferences response.');return parsed;},undefined,{signal});
       if(this.disposed||signal?.aborted)throw signal?.reason??new Error('Preferences request ended.');
       return {kind:'ok',value:this.adopt(snapshot)};
-    }catch(error){return error instanceof PreferenceScopeChanged?{kind:'scope-changed'}:{kind:'unreadable',error};}
+    }catch(error){
+      const held=error instanceof PreferenceReadSuperseded?this.snapshots.get(deviceClass):undefined;if(held)return {kind:'ok',value:held};
+      return error instanceof PreferenceScopeChanged?{kind:'scope-changed'}:{kind:'unreadable',error};
+    }
   }
   /** Consume the original result separately from a new edit after restart. */
   async reconcilePending(){

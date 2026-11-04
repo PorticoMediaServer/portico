@@ -42,19 +42,54 @@ test('the plain request transport works when requestConsole is absent', async ()
   r.dispose();
 });
 
-test('a changed server or fence ends the scope instead of mixing viewers', async () => {
+test('a changed server ends the scope instead of mixing viewers; a moved fence on a read is the newer answer', async () => {
   let foreign = false;
   const r = reader(async () => envelope(snapshot(), foreign ? 'server-two' : 'server-one'));
   await r.preferences('web');
   foreign = true;
   await assert.rejects(r.preferences('web'), /selected viewer changed/);
   r.dispose();
+  // Step 7 (lead, 4 Nov): a moved preferences fence reads again and never ends the shell.
   let changed = false;
-  const fenced = reader(async () => envelope(snapshot(), 'server-one', changed ? 'b'.repeat(64) : fence));
+  const fenced = reader(async () => envelope(snapshot(changed ? 7 : 1), 'server-one', changed ? 'b'.repeat(64) : fence));
   await fenced.preferences('web');
   changed = true;
-  await assert.rejects(fenced.preferences('web'), /selected viewer changed/);
+  assert.equal((await fenced.preferences('web')).documents[0]?.revision, 7);
   fenced.dispose();
+});
+
+test('step 7: a moved fence replaces every snapshot read under the old one, even one of a newer revision', async () => {
+  let viewerFence = fence, revision = 5;
+  const r = reader(async path => envelope({...snapshot(revision), deviceClass: path.endsWith('tablet') ? 'tablet' : 'web'}, 'server-one', viewerFence));
+  await r.preferences('web'); await r.preferences('tablet');
+  viewerFence = 'b'.repeat(64); revision = 2;
+  const observed = await r.observePreferences('web');
+  assert.equal(observed.kind, 'ok'); assert.equal(observed.kind === 'ok' && observed.value.documents[0]?.revision, 2, 'the newer answer, though its revision is lower');
+  assert.equal(r.getSnapshot('tablet'), undefined, 'read under the old fence: read again when asked');
+  r.dispose();
+});
+
+test('step 7: an answer to a read that started before the one that moved the fence is older, and is not adopted', async () => {
+  const held: ((value: unknown) => void)[] = [];
+  const r = reader(async () => new Promise(resolve => {held.push(resolve);}));
+  const first = r.preferences('web'); held.shift()!(envelope(snapshot(1))); await first;
+  const early = r.preferences('web'), late = r.observePreferences('web');
+  await new Promise(resolve => setImmediate(resolve));
+  const [answerEarly, answerLate] = held.splice(0);
+  answerLate!(envelope(snapshot(4), 'server-one', 'b'.repeat(64)));
+  assert.equal((await late).kind, 'ok');
+  answerEarly!(envelope(snapshot(9), 'server-one', fence));
+  assert.equal((await early).documents[0]?.revision, 4, 'the old fence\'s late answer is not adopted');
+  assert.equal(r.getSnapshot()?.documents[0]?.revision, 4);
+  r.dispose();
+});
+
+test('step 7: a write answer under a moved fence is still refused', async () => {
+  let viewerFence = fence;
+  const r = reader(async (_path, method) => envelope(snapshot(method === 'PATCH' ? 2 : 1), 'server-one', viewerFence));
+  await r.preferences('web'); viewerFence = 'b'.repeat(64);
+  await assert.rejects(r.applyPreferences('profile-server' as never, 'web', 1, {'search.rememberHistory': true}), /selected viewer changed/);
+  r.dispose();
 });
 
 test('a patch carries scope, revision, values and an idempotency key', async () => {
@@ -117,9 +152,11 @@ test('typed observation distinguishes validated scope changes from malformed for
   assert.equal(malformed.kind, 'unreadable');
   body = envelope(snapshot(), 'server-two');
   assert.deepEqual(await r.observePreferences('web'), {kind: 'scope-changed'});
-  body = envelope(snapshot(), 'server-one', 'b'.repeat(64));
-  assert.deepEqual(await r.observePreferences('web'), {kind: 'scope-changed'});
-  assert.equal(r.getSnapshot()?.documents[0]?.revision, 1); r.dispose();
+  assert.equal(r.getSnapshot()?.documents[0]?.revision, 1);
+  // Step 7: a moved fence on the same server is the newer answer, not a changed scope.
+  body = envelope(snapshot(3), 'server-one', 'b'.repeat(64));
+  const moved = await r.observePreferences('web');
+  assert.equal(moved.kind, 'ok'); assert.equal(r.getSnapshot()?.documents[0]?.revision, 3); r.dispose();
 });
 
 test('typed observations forward cancellation, refuse pre-abort and preserve original transport errors', async () => {
