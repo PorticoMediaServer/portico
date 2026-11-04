@@ -215,6 +215,26 @@ test('desktop-listen 4: "Now playing" heads the playing row, which still says so
   assert.equal(spoken.props.className, 'srOnly', 'the row keeps the words for a screen reader, not as a visible subline');
 });
 
+test('desktop-listen 8: the chapter clock reads "12:04 of 31:40"; on a phone the book\'s time left sits between the bar\'s times (phone-app 15)', () => {
+  const row = (id: string, itemId: string, number: number, title: string, start: number, end: number) => ({id, itemId, index: Number(id.split(':')[1]), number, title, startSeconds: start, endSeconds: end});
+  const view = {bookId: 'book', itemId: 'part-b', phase: 'ready' as const, current: 2,
+    chapters: [row('part-a:1', 'part-a', 1, 'One', 0, 600), row('part-a:2', 'part-a', 2, 'Two', 600, 1200), row('part-b:1', 'part-b', 3, 'Three', 0, 500)]};
+  const desktop = elements(AudiobookListening(book({snapshot: {...playback, bookChapters: view}})));
+  assert.ok(desktop.some(e => e.type === 'span' && e.props.children === '0:12 of 8:20'), 'position of length, in words');
+  assert.equal(desktop.find(e => e.type === ListeningSeek).props.middle, undefined, 'desktop says the book\'s time left under Speed instead');
+  const phone = elements(AudiobookListening(book({snapshot: {...playback, bookChapters: view}, phone: true})));
+  assert.equal(phone.find(e => e.type === ListeningSeek).props.middle, '8 min left in the book');
+  const seek = elements(ListeningSeek({position: 12, duration: 500, phone: true, middle: '8 min left in the book', onSeek: noop}));
+  assert.ok(seek.some(e => e.props.className === 'middle' && e.props.children === '8 min left in the book'));
+  assert.equal(elements(ListeningSeek({position: 12, duration: 500, middle: 'ignored off a phone', onSeek: noop})).some(e => e.props.className === 'middle'), false);
+});
+
+test('desktop-listen 8: the audiobook side tabs carry their drawn icons', () => {
+  const host: any = {owner: {lyricsOffered: () => false, chaptersOffered: () => true, queueOffered: () => true, show: noop}, state: {panel: 'chapters'}};
+  const buttons = elements(ListeningTabs({host, audiobook: true})).filter(element => element.props.onClick);
+  assert.deepEqual(buttons.map(button => button.props.icon), ['i-chapters', 'i-queue']);
+});
+
 test('desktop-listen 4: the music side tabs carry their drawn icons', () => {
   const host: any = {owner: {lyricsOffered: () => true, chaptersOffered: () => false, queueOffered: () => true, show: noop}, state: {panel: 'queue'}};
   const buttons = elements(ListeningTabs({host})).filter(element => element.props.onClick);

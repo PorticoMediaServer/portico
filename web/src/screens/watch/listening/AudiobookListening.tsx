@@ -63,9 +63,11 @@ export function AudiobookListening({snapshot, title, subtitle, cover, ambient, c
     </header>
     <div className={styles.main}>
       <div className={styles.bookTop}><div className={styles.cover}><Artwork source={cover} alt={title}/></div><div className={styles.identity}><h1>{title}</h1><p>{subtitle}</p></div></div>
-      {active && <div className={styles.chapter}><b>{active.title}</b><span>{watchClock(p.positionSeconds - active.startSeconds)} / {watchClock(active.endSeconds - active.startSeconds)}</span></div>}
+      {/* desktop-listen 8: "Chapter 15 · 12:04 of 31:40". */}
+      {active && <div className={styles.chapter}><b>{active.title}</b><span>{t('player.clockOf', {position: watchClock(Math.max(0, p.positionSeconds - active.startSeconds)), duration: watchClock(active.endSeconds - active.startSeconds)})}</span></div>}
+      {/* phone-app 15: on a phone, the whole book's time left sits between the bar's times. */}
       <ListeningSeek className={styles.scrub} position={p.positionSeconds} duration={p.durationSeconds} bounds={bounds}
-        chapters={ticks} disabled={!can('seek')} phone={phone} onSeek={seek}/>
+        chapters={ticks} disabled={!can('seek')} phone={phone} middle={phone && bookLeft !== undefined && bookLeft >= 60 ? t('web.player.bookLeft', {time: durationText(bookLeft, t) ?? ''}) : undefined} onSeek={seek}/>
       <div className={styles.transport}>
         <Button variant="ghost" className={styles.control} iconOnly iconSize={phone ? 28 : 24} icon="i-prev" aria-label={t(book ? 'next.dock.previousChapter' : 'next.dock.previous')} disabled={!can('previous')} onClick={() => onIntent(snapshot, {kind: 'previous'})}/>
         <button type="button" className={styles.skip} aria-label={t('next.dock.back', {seconds: skips.back})} disabled={!can('seek') || !bounds} onClick={() => seek(p.positionSeconds - skips.back)}><Icon name="i-back" size={phone ? 38 : 34}/><span>{skips.back}</span></button>

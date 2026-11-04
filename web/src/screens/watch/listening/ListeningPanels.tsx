@@ -48,11 +48,11 @@ export function ListeningPanels({host, snapshot, reportError, artwork, policyInT
 }
 export function ListeningTabs({host, audiobook = false}: {host: ListeningHost; audiobook?: boolean}) {
   const {owner, state} = host;
-  // desktop-listen, audiobook player: the side panel's tabs are Chapters and Up next. Music's tabs
-  // carry their icons (desktop-listen 4: Up next, Lyrics).
+  // desktop-listen, audiobook player (8): the side panel's tabs are Chapters and Up next; music's are
+  // Up next and Lyrics (4). Each carries its drawn icon.
   if (audiobook) return <nav className={styles.tabs} aria-label={t('player.opt.chapters')}>
-    {owner.chaptersOffered() && <Button size="small" variant="ghost" aria-pressed={state.panel !== 'queue'} onClick={event => owner.show(state, 'chapters', event.currentTarget)}>{t('player.opt.chapters')}</Button>}
-    {owner.queueOffered() && <Button size="small" variant="ghost" aria-pressed={state.panel === 'queue'} onClick={event => owner.show(state, 'queue', event.currentTarget)}>{t('next.music.upNext')}</Button>}
+    {owner.chaptersOffered() && <Button size="small" variant="ghost" icon="i-chapters" aria-pressed={state.panel !== 'queue'} onClick={event => owner.show(state, 'chapters', event.currentTarget)}>{t('player.opt.chapters')}</Button>}
+    {owner.queueOffered() && <Button size="small" variant="ghost" icon="i-queue" aria-pressed={state.panel === 'queue'} onClick={event => owner.show(state, 'queue', event.currentTarget)}>{t('next.music.upNext')}</Button>}
   </nav>;
   return <nav className={styles.tabs} aria-label={t('next.music.upNext')}>
     <Button size="small" variant="ghost" icon="i-queue" aria-pressed={state.panel === 'queue'} onClick={event => owner.show(state, 'queue',event.currentTarget)}>{t('next.music.upNext')}</Button>
