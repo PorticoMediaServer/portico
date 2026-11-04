@@ -185,12 +185,12 @@ func (s *Service) discoveryPermission(feed discoveryFeed) persistence.SnapshotPe
 // discoveryStillPermitted reads the same fence rule inside a read snapshot:
 // immediately before a feed's request, with the exact provider/kind pair.
 func (s *Service) discoveryStillPermitted(ctx context.Context, feed discoveryFeed) (bool, error) {
-	gated, err := dbwork.BeginSnapshot(ctx, s.db)
-	if err != nil {
-		return false, err
-	}
-	defer gated.Rollback()
-	return s.discoveryPermission(feed)(ctx, gated.Tx(), feed.Provider, feed.MediaKind)
+	return metadataReadValue(ctx, s, func(ctx context.Context) (bool, error) { return s.discoveryStillPermittedRead(ctx, feed) })
+}
+
+func (s *Service) discoveryStillPermittedRead(ctx context.Context, feed discoveryFeed) (bool, error) {
+	gated := dbwork.Snapshot(ctx)
+	return s.discoveryPermission(feed)(ctx, gated, feed.Provider, feed.MediaKind)
 }
 
 // DiscoveryStep is one bounded discovery pass. It never opens a network

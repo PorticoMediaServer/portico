@@ -13,12 +13,12 @@ import (
 )
 
 func (s *Service) musicCheckCurrent(ctx context.Context, j mbJob) error {
-	gated, e := dbwork.BeginSnapshot(ctx, s.db)
-	if e != nil {
-		return e
-	}
-	tx := gated.Tx()
-	defer gated.Rollback()
+	return s.readWithSnapshot(ctx, func(ctx context.Context) error { return s.musicCheckCurrentRead(ctx, j) })
+}
+
+func (s *Service) musicCheckCurrentRead(ctx context.Context, j mbJob) error {
+	gated := dbwork.Snapshot(ctx)
+	tx := gated
 	return s.activeMB(ctx, tx, j)
 }
 func (s *Service) musicSongSearch(ctx context.Context, j mbJob) error {

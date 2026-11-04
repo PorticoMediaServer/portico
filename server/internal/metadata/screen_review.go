@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/text/language"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/metadataprovider"
+	"golang.org/x/text/language"
 )
 
 const ScreenDisclosureVersion = "screen-metadata-v1"
@@ -157,12 +157,12 @@ func defaultScreenProviders(string) []string {
 }
 
 func (s *Service) ScreenPolicy(ctx context.Context, library string) (ScreenPolicy, error) {
-	gated, err := dbwork.BeginSnapshot(ctx, s.db)
-	if err != nil {
-		return ScreenPolicy{}, err
-	}
-	tx := gated.Tx()
-	defer gated.Rollback()
+	return metadataReadValue(ctx, s, func(ctx context.Context) (ScreenPolicy, error) { return s.screenPolicy(ctx, library) })
+}
+
+func (s *Service) screenPolicy(ctx context.Context, library string) (ScreenPolicy, error) {
+	gated := dbwork.Snapshot(ctx)
+	tx := gated
 	return readScreenPolicy(ctx, tx, library)
 }
 func (s *Service) UpdateScreenPolicy(ctx context.Context, library string, body ScreenPolicyUpdate, authorize func(*sql.Tx) error) error {
@@ -271,13 +271,13 @@ func (s *Service) UpdateScreenPolicy(ctx context.Context, library string, body S
 	return gated2.Commit()
 }
 func (s *Service) ScreenState(ctx context.Context, kind, id string) (ScreenState, error) {
+	return metadataReadValue(ctx, s, func(ctx context.Context) (ScreenState, error) { return s.screenState(ctx, kind, id) })
+}
+
+func (s *Service) screenState(ctx context.Context, kind, id string) (ScreenState, error) {
 	out := ScreenState{EntityID: id, Kind: kind, Candidates: []ScreenReviewCandidate{}, Actions: []string{"policy"}, Fields: []ScreenField{}, LocalIssues: []string{}, Seasons: []ScreenSeasonMapping{}}
-	gated3, err := dbwork.BeginSnapshot(ctx, s.db)
-	if err != nil {
-		return out, err
-	}
-	tx := gated3.Tx()
-	defer gated3.Rollback()
+	tx := dbwork.Snapshot(ctx)
+	var err error
 	entity, err := resolveEntity(ctx, tx, id)
 	if err != nil {
 		return out, err

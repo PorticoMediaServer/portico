@@ -183,13 +183,12 @@ func validSubtitleAccount(v *string) bool {
 	return true
 }
 func (s *Service) MetadataSettings(ctx context.Context) (MetadataSettings, error) {
-	read, e := dbwork.BeginSnapshot(ctx, s.db)
-	if e != nil {
-		return MetadataSettings{}, e
-	}
-	defer read.Rollback()
-	out, _, _, e := readMetadataSettings(ctx, read.Tx())
-	read.Rollback()
+	var out MetadataSettings
+	e := s.readWithSnapshot(ctx, func(ctx context.Context) error {
+		var e error
+		out, _, _, e = readMetadataSettings(ctx, dbwork.Snapshot(ctx))
+		return e
+	})
 	if e == nil && s.LocalArtworkUsage != nil {
 		out.LocalArtworkUsedBytes, e = s.LocalArtworkUsage(ctx)
 	}
@@ -280,12 +279,14 @@ func (s *Service) loadProviderSettings(ctx context.Context) error {
 	// Serialize key installation so an older settings read cannot undo a newer save.
 	s.settingsMu.Lock()
 	defer s.settingsMu.Unlock()
-	read, e := dbwork.BeginSnapshot(ctx, s.db)
-	if e != nil {
+	var out MetadataSettings
+	var tmdb, tvdb string
+	var subs subtitleCredentials
+	e := s.readWithSnapshot(ctx, func(ctx context.Context) error {
+		var e error
+		out, tmdb, tvdb, subs, e = readMetadataSettingsWithSubtitles(ctx, dbwork.Snapshot(ctx))
 		return e
-	}
-	out, tmdb, tvdb, subs, e := readMetadataSettingsWithSubtitles(ctx, read.Tx())
-	read.Rollback()
+	})
 	if e != nil {
 		return e
 	}

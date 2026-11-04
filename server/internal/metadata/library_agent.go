@@ -160,12 +160,11 @@ func readLibraryAgent(ctx context.Context, tx *sql.Tx, library string) (LibraryA
 
 // LibraryAgent reads a library's metadata source.
 func (s *Service) LibraryAgent(ctx context.Context, library string) (LibraryAgent, error) {
-	read, err := dbwork.BeginSnapshot(ctx, s.db)
-	if err != nil {
-		return LibraryAgent{}, err
-	}
-	defer read.Rollback()
-	return readLibraryAgent(ctx, read.Tx(), library)
+	return metadataReadValue(ctx, s, func(ctx context.Context) (LibraryAgent, error) { return s.libraryAgent(ctx, library) })
+}
+
+func (s *Service) libraryAgent(ctx context.Context, library string) (LibraryAgent, error) {
+	return readLibraryAgent(ctx, dbwork.Snapshot(ctx), library)
 }
 
 // SetLibraryAgent changes a library's metadata source under an optimistic

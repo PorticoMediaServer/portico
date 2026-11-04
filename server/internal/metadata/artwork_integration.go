@@ -153,16 +153,23 @@ func (s *Service) artworkRequestContext(parent context.Context, t RepairTarget, 
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				gated, err := dbwork.BeginSnapshot(ctx, s.db)
+				err := s.readWithSnapshot(ctx, func(ctx context.Context) error {
+					gated := dbwork.Snapshot(ctx)
+					var err error
+					current, err := artworkFence(ctx, gated, t)
+					if err != nil {
+						return err
+					}
+					enabled, err := s.artworkProviderEnabled(ctx, gated, t, provider)
+					if err != nil {
+						return err
+					}
+					if !enabled || current != fence {
+						return ErrRepairConflict
+					}
+					return nil
+				})
 				if err != nil {
-					cancel()
-					return
-				}
-				tx := gated.Tx()
-				current, e := artworkFence(ctx, tx, t)
-				enabled, p := s.artworkProviderEnabled(ctx, tx, t, provider)
-				_ = gated.Rollback()
-				if e != nil || p != nil || !enabled || current != fence {
 					cancel()
 					return
 				}

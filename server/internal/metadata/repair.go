@@ -302,12 +302,12 @@ func repairRevision(ctx context.Context, tx *sql.Tx, t RepairTarget, snap Repair
 	return publicationDigest([]any{t, ent.library, ent.stamp, snap, last, creditFence}), nil
 }
 func (s *Service) RepairState(ctx context.Context, t RepairTarget, authorize func(*sql.Tx) error) (RepairState, error) {
-	gated, err := dbwork.BeginSnapshot(ctx, s.db)
-	if err != nil {
-		return RepairState{}, err
-	}
-	tx := gated.Tx()
-	defer gated.Rollback()
+	return metadataReadValue(ctx, s, func(ctx context.Context) (RepairState, error) { return s.repairState(ctx, t, authorize) })
+}
+
+func (s *Service) repairState(ctx context.Context, t RepairTarget, authorize func(*sql.Tx) error) (RepairState, error) {
+	tx := dbwork.Snapshot(ctx)
+	var err error
 	if authorize == nil {
 		return RepairState{}, ErrRepairInput
 	}
@@ -318,7 +318,7 @@ func (s *Service) RepairState(ctx context.Context, t RepairTarget, authorize fun
 	if err != nil {
 		return out, err
 	}
-	return out, gated.Commit()
+	return out, nil
 }
 
 // readRepairState adds the current explicit thumbnail capability without changing

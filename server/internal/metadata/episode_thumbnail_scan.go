@@ -19,12 +19,41 @@ const episodeThumbnailAlgorithm = "portico-episode-thumbnail-1"
 // video can own several logical episodes; at most one picture is decoded in a
 // quantum. Actual selected art makes successful publication restart-safe.
 func (s *Service) ScanEpisodeThumbnails(ctx context.Context, job, sourceID, object, revision string, policyRevision int64) (bool, string, error) {
-	g, err := dbwork.BeginSnapshot(ctx, s.db)
+	var out episodeThumbnailScanRead
+	var done bool
+	var warning string
+	caller := ctx
+	err := s.readWithSnapshot(ctx, func(ctx context.Context) error {
+		var err error
+		done, warning, err = s.readEpisodeThumbnailScan(ctx, caller, job, sourceID, object, revision, policyRevision, &out)
+		return err
+	})
 	if err != nil {
+		if out.input != nil {
+			out.input.Close()
+		}
 		return false, "", err
 	}
-	defer g.Rollback()
-	tx := g.Tx()
+	if out.finish {
+		return s.finishEpisodeThumbnailScan(ctx, job, sourceID, object, revision, policyRevision, warning)
+	}
+	if out.input == nil {
+		return done, warning, nil
+	}
+	defer out.input.Close()
+	_, err = s.generateEpisodeThumbnail(ctx, out.captured, out.mode, false, out.input, MBActor{}, nil)
+	if err == nil {
+		return false, "", nil
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, storage.ErrBusy) || errors.Is(err, ErrRepairConflict) {
+		return false, "", nil
+	}
+	return s.episodeThumbnailScanFailure(ctx, job, sourceID, object, revision, policyRevision, err)
+}
+
+func (s *Service) readEpisodeThumbnailScan(ctx, caller context.Context, job, sourceID, object, revision string, policyRevision int64, out *episodeThumbnailScanRead) (bool, string, error) {
+	tx := dbwork.Snapshot(ctx)
+	var err error
 	source, err := catalog.InventoryFenceTx(ctx, tx, job)
 	if err != nil {
 		return false, "", err
@@ -106,10 +135,8 @@ func (s *Service) ScanEpisodeThumbnails(ctx context.Context, job, sourceID, obje
 		}
 	}
 	if captured == nil {
-		if err = g.Commit(); err != nil {
-			return false, "", err
-		}
-		return s.finishEpisodeThumbnailScan(ctx, job, sourceID, object, revision, policyRevision, "")
+		out.finish = true
+		return false, "", nil
 	}
 	if basic != revision {
 		return false, "", ErrRepairConflict
@@ -127,12 +154,10 @@ func (s *Service) ScanEpisodeThumbnails(ctx context.Context, job, sourceID, obje
 		return false, "", err
 	}
 	if !supported {
-		if err = g.Commit(); err != nil {
-			return false, "", err
-		}
-		return s.finishEpisodeThumbnailScan(ctx, job, sourceID, object, revision, policyRevision, "decoder_or_stream_unsupported")
+		out.finish = true
+		return false, "decoder_or_stream_unsupported", nil
 	}
-	input, err := runtime.Sources.ResolveEpisodeThumbnailTx(ctx, tx, EpisodeThumbnailInvocation{Target: captured.sourceTarget(), Purpose: EpisodeThumbnailAutomatic, Operation: catalog.EpisodeThumbnailOperation, CostClass: mediaanalysis.EpisodeThumbnailCostClass, JobID: job})
+	input, err := runtime.Sources.ResolveEpisodeThumbnailTx(caller, tx, EpisodeThumbnailInvocation{Target: captured.sourceTarget(), Purpose: EpisodeThumbnailAutomatic, Operation: catalog.EpisodeThumbnailOperation, CostClass: mediaanalysis.EpisodeThumbnailCostClass, JobID: job})
 	if err != nil {
 		if errors.Is(err, storage.ErrBusy) {
 			return false, "", nil
@@ -142,23 +167,18 @@ func (s *Service) ScanEpisodeThumbnails(ctx context.Context, job, sourceID, obje
 	if input == nil {
 		// The adapter may return this only for the owned typed positive
 		// automatic source-tier exclusion. It can never authorize a decode.
-		if err = g.Commit(); err != nil {
-			return false, "", err
-		}
-		return s.finishEpisodeThumbnailScan(ctx, job, sourceID, object, revision, policyRevision, "")
-	}
-	defer input.Close()
-	if err = g.Commit(); err != nil {
-		return false, "", err
-	}
-	_, err = s.generateEpisodeThumbnail(ctx, *captured, mode.Mode, false, input, MBActor{}, nil)
-	if err == nil {
+		out.finish = true
 		return false, "", nil
 	}
-	if errors.Is(err, context.Canceled) || errors.Is(err, storage.ErrBusy) || errors.Is(err, ErrRepairConflict) {
-		return false, "", nil
-	}
-	return s.episodeThumbnailScanFailure(ctx, job, sourceID, object, revision, policyRevision, err)
+	out.input, out.captured, out.mode = input, *captured, mode.Mode
+	return false, "", nil
+}
+
+type episodeThumbnailScanRead struct {
+	finish   bool
+	captured episodeThumbnailCapture
+	mode     string
+	input    EpisodeThumbnailSource
 }
 
 func (s *Service) finishEpisodeThumbnailScan(ctx context.Context, job, sourceID, object, revision string, policyRevision int64, warning string) (bool, string, error) {

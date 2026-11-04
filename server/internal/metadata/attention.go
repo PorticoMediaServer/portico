@@ -9,9 +9,9 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/thirdparty/sqlite"
 	"net/url"
 	"os"
-	"github.com/PorticoMediaServer/portico/server/internal/thirdparty/sqlite"
 	"strconv"
 	"strings"
 	"time"
@@ -59,6 +59,12 @@ func (s *Service) Attention(ctx context.Context, library, cursor string, limit i
 }
 
 func (s *Service) AttentionFiltered(ctx context.Context, library, cursor string, limit int, includeInProgress bool) (AttentionPage, error) {
+	return metadataReadValue(ctx, s, func(ctx context.Context) (AttentionPage, error) {
+		return s.attentionFiltered(ctx, library, cursor, limit, includeInProgress)
+	})
+}
+
+func (s *Service) attentionFiltered(ctx context.Context, library, cursor string, limit int, includeInProgress bool) (AttentionPage, error) {
 	out := AttentionPage{LibraryID: library, Entries: []AttentionEntry{}}
 	var after int64
 	if cursor != "" {
@@ -74,12 +80,8 @@ func (s *Service) AttentionFiltered(ctx context.Context, library, cursor string,
 	if limit < 1 || limit > 50 {
 		return out, ErrRepairInput
 	}
-	read, err := dbwork.BeginSnapshot(ctx, s.db)
-	if err != nil {
-		return out, err
-	}
-	defer read.Rollback()
-	tx := read.Tx()
+	tx := dbwork.Snapshot(ctx)
+	var err error
 	var exists bool
 	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM libraries WHERE id=?)`, library).Scan(&exists); err != nil {
 		return out, err
@@ -298,15 +300,16 @@ func (s *Service) AttentionAction(ctx context.Context, library string, in Attent
 	// Bind all commands to the listed library, even when a caller supplies another ID.
 	var found string
 	// Resolve through the public-id codec inside a snapshot, never compare public text to an integer.
-	read, e := dbwork.BeginSnapshot(ctx, s.db)
-	if e != nil {
+	var entity int64
+	e := s.readWithSnapshot(ctx, func(ctx context.Context) error {
+		read := dbwork.Snapshot(ctx)
+		var e error
+		entity, e = resolveEntity(ctx, read, in.EntityID)
+		if e == nil {
+			e = read.QueryRowContext(ctx, `SELECT library_id FROM screen_metadata_work WHERE target_kind=? AND target_id=?`, in.Kind, entity).Scan(&found)
+		}
 		return e
-	}
-	entity, e := resolveEntity(ctx, read.Tx(), in.EntityID)
-	if e == nil {
-		e = read.Tx().QueryRowContext(ctx, `SELECT library_id FROM screen_metadata_work WHERE target_kind=? AND target_id=?`, in.Kind, entity).Scan(&found)
-	}
-	read.Rollback()
+	})
 	if e != nil {
 		return e
 	}
@@ -416,12 +419,9 @@ func (s *Service) AttentionAction(ctx context.Context, library string, in Attent
 // reject a choice whose evidence or authority really changed.
 func (s *Service) attentionObservedAction(ctx context.Context, library string, in AttentionCommand, actor MBActor, authorize func(*sql.Tx) error) error {
 	for attempt := 0; attempt < 3; attempt++ {
-		read, e := dbwork.BeginSnapshot(ctx, s.db)
-		if e != nil {
-			return e
-		}
-		b, e := readScreenBase(ctx, read.Tx(), in.Kind, in.EntityID)
-		read.Rollback()
+		b, e := metadataReadValue(ctx, s, func(ctx context.Context) (screenBase, error) {
+			return readScreenBase(ctx, dbwork.Snapshot(ctx), in.Kind, in.EntityID)
+		})
 		if e != nil {
 			return e
 		}
