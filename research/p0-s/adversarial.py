@@ -133,9 +133,15 @@ def fanout(out):
     db.exec("INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,playback_origin_incarnation,playback_origin_revision) VALUES(152,CAST(printf('%016d',152) AS BLOB),2,2,'Cross-library show','cross','c','cross','c',152,zeroblob(16),zeroblob(16),zeroblob(16),1)")
     db.exec(f"UPDATE catalog_entities SET kind=4,parent_id=161,show_id=151,season_id=161,numbering='seasonal',episode_number=id WHERE id BETWEEN {lo+255} AND {hi-1}")
     db.exec(f"UPDATE catalog_entities SET library_id=2,kind=4,parent_id=152,show_id=152,season_id=NULL,numbering='seasonal',episode_number=id WHERE id>{hi-1}")
+  if os.getenv('CUE_RANGE'):db.exec("CREATE TABLE admin_receipts(scope TEXT NOT NULL,operation_id TEXT NOT NULL,digest TEXT NOT NULL,result TEXT NOT NULL,created_ms INTEGER NOT NULL,PRIMARY KEY(scope,operation_id)) STRICT")
+  cue=(f'((id-{lo})%256)>0' if n==1024 else f'id<{lo+768} AND ((id-{lo})%256)>0' if n==777 else '0' if n in [8,36] else 'kind=7')
+  affected=(f'id={hi}' if n in [255,4096] else f'((id-{lo})%256) IN(0,255)' if n==1024 else f'(id<{lo+768} AND ((id-{lo})%256) IN(0,255)) OR id>={lo+768}' if n==777 else '1')
   for case in ((['asset-change','asset-delete','cue-size-resolution-change','cue-size-resolution-delete','cue-range-change','cue-range-delete'] if os.getenv('CUE_RANGE') else ['asset-change','asset-delete','cue-size-resolution-change','cue-size-resolution-delete']) if os.getenv('SUPPORTED') else ['asset-change','asset-delete']):
    xs=[]
    for rep in range(101 if os.getenv('SUPPORTED') else 5):
+    if os.getenv('CUE_RANGE'):
+     base_duration='123' if case in ['asset-change','asset-delete'] else f'CASE WHEN ({cue}) THEN CASE WHEN ({affected}) THEN 3 ELSE 180 END ELSE 123 END'
+     db.exec(f'BEGIN;UPDATE catalog_assets SET duration=123,size=1,height=1080 WHERE id=10000000;UPDATE catalog_entities SET duration_key={base_duration},file_size_key=1,resolution_key=1080 WHERE id BETWEEN {lo} AND {hi};COMMIT;')
     if case in ['asset-change','cue-size-resolution-change']:
      change='UPDATE catalog_assets SET duration=456 WHERE id=10000000;'
      compute='UPDATE catalog_entities SET duration_key=(SELECT COALESCE(max(a.duration),0) FROM catalog_asset_links l JOIN catalog_assets a ON a.id=l.asset_id WHERE l.entity_id=catalog_entities.id AND l.available=1 AND a.available=1),revision=revision+1 WHERE id IN(SELECT entity_id FROM catalog_asset_links WHERE asset_id=10000000) RETURNING id'
@@ -150,9 +156,6 @@ def fanout(out):
     if case.startswith('cue-size-resolution'):
      newsize,newres,newdur=(999999,2160,456) if case.endswith('change') else (0,0,0)
      if case.endswith('change'):change='UPDATE catalog_assets SET duration=456,size=999999,height=2160 WHERE id=10000000;'
-     cue="kind=7"
-     if os.getenv('ENVELOPE'):
-      cue=(f'((id-{lo})%256)>0' if n==1024 else f'id<{lo+768} AND ((id-{lo})%256)>0' if n==777 else '0')
      change+=f'UPDATE catalog_entities SET file_size_key={newsize},resolution_key={newres},revision=revision+1 WHERE id BETWEEN {lo} AND {hi} AND ({cue});'
      compute=f'UPDATE catalog_entities SET duration_key={newdur},file_size_key={newsize},resolution_key={newres},revision=revision+1 WHERE id BETWEEN {lo} AND {hi} AND NOT ({cue}) RETURNING id'
     if case.startswith('cue-range'):
@@ -163,7 +166,9 @@ def fanout(out):
      else:affected='1'
      change=('UPDATE catalog_assets SET duration=456,size=999999,height=2160 WHERE id=10000000;' if case.endswith('change') else 'DELETE FROM catalog_asset_links WHERE asset_id=10000000;DELETE FROM catalog_assets WHERE id=10000000;')
      change+=f'UPDATE catalog_entities SET file_size_key={newsize},resolution_key={newres},revision=revision+1 WHERE id BETWEEN {lo} AND {hi};'
-     compute=f'UPDATE catalog_entities SET duration_key={newdur},revision=revision+1 WHERE id BETWEEN {lo} AND {hi} AND ({affected}) RETURNING id'
+     durvalue=f'CASE WHEN ({cue}) THEN {newdur} ELSE {456 if case.endswith("change") else 0} END'
+     compute=f'UPDATE catalog_entities SET duration_key={durvalue},revision=revision+1 WHERE id BETWEEN {lo} AND {hi} AND ({affected}) RETURNING id'
+    if os.getenv('CUE_RANGE'):change+=f"INSERT INTO admin_receipts VALUES('asset','{n}-{case}-{rep}','{'0'*64}','applied',1);"
     rec=timed(db,change,compute);rec['rows_read_lower_bound']=n;xs.append(rec)
     if case.endswith('delete'):db.exec(f"INSERT INTO catalog_assets VALUES(10000000,'shared','/shared',1,1,'mkv','h264','aac',1920,1080,123,1); INSERT INTO catalog_asset_links SELECT id,10000000,0,1 FROM catalog_entities WHERE id BETWEEN {lo} AND {hi};")
    summary=summarize(xs);summary.update(case=case,parents=n,max_ms=max(x['ms'] for x in xs),max_changes=max(x['changes'] for x in xs),strict=summary['p99_ms']<=10 and max(x['ms'] for x in xs)<=25,max50=max(x['ms'] for x in xs)<=50)
