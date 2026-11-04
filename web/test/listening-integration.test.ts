@@ -300,8 +300,9 @@ test('actual ListeningPanels callbacks consume retired save/editor failures whil
 /** Actual persistent WatchPlayback + actual committed host hook + audiobook
  * composition, using supplied runtime/core transports and inert DOM/media ports.
  * This establishes wiring and original lifetimes, never browser rendering. */
-async function mountedPlayback(kind:'music'|'audiobook'='audiobook',settings?:{role?:'owner'|'admin'|'member';primary?:boolean;manage?:boolean;library?:boolean;facts?:boolean;enabled?:boolean;lyrics?:'lrc'|'text'|'404'|'error'|'empty';liveFacts?:boolean;width?:number}){
-  const f=harness({kind,expanded:false}),events=new EventTarget(),navigations:unknown[]=[];
+async function mountedPlayback(kind:'music'|'audiobook'='audiobook',settings?:{role?:'owner'|'admin'|'member';primary?:boolean;manage?:boolean;library?:boolean;facts?:boolean;enabled?:boolean;lyrics?:'lrc'|'text'|'404'|'error'|'empty';liveFacts?:boolean;width?:number;lyricsSource?:'files'|'lrclib'|'refused'}){
+  const f=harness({kind,expanded:false}),events=new EventTarget(),navigations:unknown[]=[],settingsReads:string[]=[];
+  const settingsApi={request:async<T,>(path:string,method?:string)=>{settingsReads.push(`${method??'GET'} ${path}`);if(settings?.lyricsSource==='refused')throw Object.assign(new Error('forbidden'),{status:403});return libraryDocument(settings?.lyricsSource??'files') as T;}};
   if(settings?.lyrics)f.lyricsMode(settings.lyrics);
   const oldDocument=globalThis.document,oldHTMLElement=globalThis.HTMLElement;globalThis.HTMLElement=class {} as typeof HTMLElement;
   const document:any=Object.assign(events,{fullscreenElement:null,fullscreenEnabled:false,pictureInPictureEnabled:false,activeElement:null});globalThis.document=document;
@@ -339,7 +340,7 @@ async function mountedPlayback(kind:'music'|'audiobook'='audiobook',settings?:{r
   let session:any={viewer,sessionFamilyId:'family',deviceId:'device'};
   const identity:any={viewer,primaryProfile:settings?.primary??true,capabilities:{manageServer:settings?.manage??true},libraries:settings?.library===false?[]:[{id:'library',kind:'music',name:'Music'}]};
   let predicate:(()=>void)|undefined,sessionRead:(()=>void)|undefined,contextCurrent=true;
-  const makeContext=():any=>({isCurrent:()=>{predicate?.();return contextCurrent;},session:()=>{sessionRead?.();return session;},api:{},epoch:1,preferences:{subscribe:()=>()=>{},getSnapshot:()=>preferences},
+  const makeContext=():any=>({isCurrent:()=>{predicate?.();return contextCurrent;},session:()=>{sessionRead?.();return session;},api:settingsApi,epoch:1,preferences:{subscribe:()=>()=>{},getSnapshot:()=>preferences},
     ...(settings&&settings.facts!==false?{facts:{identity,preferences,serverName:'Server'}}:{})});
   let context=makeContext();
   const factListeners=new Set<()=>void>();
@@ -347,7 +348,7 @@ async function mountedPlayback(kind:'music'|'audiobook'='audiobook',settings?:{r
   const errors:unknown[]=[];
   const binding:any={runtime:f.runtime,artwork:{foreground:()=>undefined,ambient:()=>undefined},environment:defaultI18n,skips:{back:15,forward:30},reportError:(e:unknown)=>errors.push(e)};
   const show=()=>{let result:any;for(let i=0;i<5;i++)result=tree(h.render(()=>playback.WatchPlayback({binding,context})));return result;};
-  return{f,show,errors,navigations,publishFacts(value:any){context.facts=value;for(const listener of [...factListeners])listener();},factSubscriptions:()=>factListeners.size,retireContext(){contextCurrent=false;},holdNavigation(){return navigationWait=deferred<void>();},get context(){return context;},set onCurrent(value:(()=>void)|undefined){predicate=value;},set onSessionRead(value:(()=>void)|undefined){sessionRead=value;},setSession(value:any){session=value;},replaceContext(){context=makeContext();},close(){f.retire();globalThis.document=oldDocument;globalThis.HTMLElement=oldHTMLElement;}};
+  return{f,show,errors,navigations,settingsReads,publishFacts(value:any){context.facts=value;for(const listener of [...factListeners])listener();},factSubscriptions:()=>factListeners.size,retireContext(){contextCurrent=false;},holdNavigation(){return navigationWait=deferred<void>();},get context(){return context;},set onCurrent(value:(()=>void)|undefined){predicate=value;},set onSessionRead(value:(()=>void)|undefined){sessionRead=value;},setSession(value:any){session=value;},replaceContext(){context=makeContext();},close(){f.retire();globalThis.document=oldDocument;globalThis.HTMLElement=oldHTMLElement;}};
 }
 
 test('actual persistent host mounts an audiobook and collapses to its retained dock with one media attachment and no extra capture',async()=>{
@@ -372,6 +373,40 @@ test('actual music dock Lyrics opens the same owned panel, seeks once, and close
   }finally{h.close();}
 });
 
+
+// The owner's library document, as GET /v1/admin/libraries/{id}/settings returns it.
+function libraryDocument(lyricsSource:'files'|'lrclib'){
+  const settings={scanDepth:'basic',groupCollections:true,localTags:'prefer',lyricsSource,titleSource:'tags',episodeNumbering:'season',findExtras:true,sortIgnoreArticles:true,refreshMode:'replace_unlocked',acoustidEnabled:false,
+    continueWatching:{weeks:16,maximumItems:40,includeSeasonPremieres:true,videoPlayedThreshold:95,videoCompletion:'earliest'},allowMediaDeletion:false,monitorChanges:true,providers:[],analysis:['probe'],
+    navigation:{trickplayIntervalMs:10000,trickplayTileWidth:320,trickplayMaxTiles:1080,chapterThumbnailMode:'embedded',videoPreviewEnabled:false,videoPreviewMs:30000},segmentDetection:'server'};
+  return {libraryId:'library',libraryName:'Music',libraryKind:'music',revision:7,digest:'document',eligibleControls:[],audience:{everyone:true,accounts:0},actions:['scan'],settings,defaults:settings,analysisMatrix:{costClasses:[],operations:[]},availableProviders:[],enumerations:{},sources:[]};
+}
+const lyricsNote=(ui:any[])=>all(ui,'span').some((node:any)=>JSON.stringify(node.props.children??'').includes(defaultI18n.t('player.lyricsNotFetched')));
+test('the owner of a library that only reads lyrics from the song files is told so beside Library settings, read once for the tab',async()=>{
+  const h=await mountedPlayback('music',{lyrics:'404',lyricsSource:'files'});try{
+    let ui=await openEmptyHost(h);await tick();ui=h.show();
+    assert.ok(librarySettingsButton(ui)); assert.equal(lyricsNote(ui),true,'Owner: This library doesn’t fetch missing lyrics.');
+    assert.deepEqual(h.settingsReads,['GET /v1/admin/libraries/library/settings']);
+    for(let i=0;i<3;i++){h.show();await tick();} assert.equal(h.settingsReads.length,1,'cached for the tab’s life');
+  }finally{h.close();}
+});
+test('with an online lyrics source, or a settings read that fails, the owner keeps only the Library settings button',async()=>{
+  for(const lyricsSource of ['lrclib','refused'] as const){
+    const h=await mountedPlayback('music',{lyrics:'404',lyricsSource});try{
+      await openEmptyHost(h);await tick();const ui=h.show();
+      assert.ok(librarySettingsButton(ui),lyricsSource); assert.equal(lyricsNote(ui),false,lyricsSource); assert.equal(h.settingsReads.length,1,lyricsSource);
+    }finally{h.close();}
+  }
+});
+test('nobody but a server-managing owner ever reads the library settings, so the Lyrics tab never 403s',async()=>{
+  for(const denied of [{role:'member'},{role:'admin'},{primary:false},{manage:false}] as const){
+    const h=await mountedPlayback('music',{lyrics:'404',...denied});try{
+      const ui=await openEmptyHost(h);await tick();assert.equal(lyricsNote(h.show()),false);assert.equal(librarySettingsButton(ui),undefined);
+      assert.deepEqual(h.settingsReads,[],JSON.stringify(denied));
+    }finally{h.close();}
+  }
+  const shown=await mountedPlayback('music',{lyrics:'lrc'});try{await openEmptyHost(shown);await tick();assert.deepEqual(shown.settingsReads,[],'lyrics present: nothing to explain');}finally{shown.close();}
+});
 
 // FX228 original empty-state Settings leaf. SOURCE controls only, no execution.
 const librarySettingsButton=(ui:any[])=>all(ui,'Button').find((node:any)=>node.props.children?.includes?.(defaultI18n.t('next.browse.librarySettings')));
