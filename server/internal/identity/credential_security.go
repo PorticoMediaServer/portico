@@ -122,14 +122,12 @@ func (s *Service) unknownSubject(user string) string {
 // digest prevents the ledger from becoming a list of guessed usernames.
 func (s *Service) unknownCooloff(ctx context.Context, user string) error {
 	subject := s.unknownSubject(user)
-	read, err := dbwork.BeginSnapshot(ctx, s.db)
-	if err != nil {
+	var until int64
+	err := dbwork.WithReadSnapshot(ctx, s.db, func(snapshot context.Context) error {
+		var err error
+		until, err = unknownLockedUntilTx(snapshot, dbwork.Snapshot(snapshot), subject)
 		return err
-	}
-	until, err := unknownLockedUntilTx(ctx, read.Tx(), subject)
-	if closeErr := read.Commit(); err == nil {
-		err = closeErr
-	}
+	})
 	if err != nil {
 		return err
 	}
