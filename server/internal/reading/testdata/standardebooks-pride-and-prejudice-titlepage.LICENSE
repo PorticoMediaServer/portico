@@ -1,0 +1,14 @@
+SPDX-License-Identifier: CC0-1.0
+
+Unmodified titlepage SVG from the Standard Ebooks edition of
+Pride and Prejudice, by Jane Austen.
+
+Source commit: ed94a32be3e875c0814568050c7544e03aad3ef5
+Source:
+https://github.com/standardebooks/jane-austen_pride-and-prejudice/blob/ed94a32be3e875c0814568050c7544e03aad3ef5/src/epub/images/titlepage.svg
+SHA-256: 7260ee39d5081af8087d68cb6d4b7b89968d36ad9a7586b78d3dbdd91993fe8d
+
+The edition's contributors dedicate their contributions, expressly including
+the titlepage, to the worldwide public domain under CC0 1.0:
+https://github.com/standardebooks/jane-austen_pride-and-prejudice/blob/ed94a32be3e875c0814568050c7544e03aad3ef5/src/epub/text/uncopyright.xhtml
+https://creativecommons.org/publicdomain/zero/1.0/
