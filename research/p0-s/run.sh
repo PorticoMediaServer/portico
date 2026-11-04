@@ -13,6 +13,12 @@ cg=$(awk -F: '$1=="0" {print $3}' /proc/self/cgroup)
    echo "$field"; cat "/sys/fs/cgroup$cg/$field"
  done
 } > "$out/host-$stage.txt"
+if [ "$stage" = supported ]; then
+  export TARGET_ENTITY=1 SUPPORTED=1
+  python3 research/p0-s/adversarial.py --out "$out" --mode fanout
+  python3 research/p0-s/contribution.py "$out"
+  exit
+fi
 if [ "$stage" = sweep ] || [ "$stage" = fanout ]; then
   python3 research/p0-s/adversarial.py --out "$out" --mode "$stage"
   exit

@@ -77,7 +77,7 @@ SORTS={
 CONTAINERS=['show','season','artist','album','author','book','collection']
 
 def create(db):
- db.exec((ROOT/'schema.sql').read_text())
+ db.exec((ROOT/('schema-t1-entity.sql' if os.getenv('TARGET_ENTITY') else 'schema.sql')).read_text())
 
 def seed(db,start,end,evict=None):
  if end>10000 and not os.getenv("GITHUB_RUN_ID"):raise RuntimeError("Local smoke hard limit: 10k IDs; scale runs require hosted run ID")

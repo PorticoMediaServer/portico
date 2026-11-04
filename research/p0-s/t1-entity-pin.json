@@ -1,0 +1,7 @@
+{
+  "source": "/home/justin/projects/Portico/portico-internal/planning/v3/schema-v1/phase0/T1-target.sql",
+  "sha256": "1b0676e6ca60084fae3ab019079e0f1eec1346101e688b6f02a34af371e078ba",
+  "entity_sha256": "aa756344e63f73b6afde5c792b397cfca680be88af55d81baf2b35b065fcbd21",
+  "entity_indexes": 37,
+  "boundary": "Exact T1 entity and its indexes; remaining fixture relations are reduced core, NOT complete INT DDL"
+}
