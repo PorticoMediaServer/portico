@@ -113,19 +113,19 @@ func TestEvictedSessionReadsFailAsClosed(t *testing.T) {
 	if !evicted.closed {
 		t.Fatal("oldest session was not closed")
 	}
-	if _, err := s.findSession(p, evicted.ID); !errors.Is(err, identity.ErrForbidden) {
-		t.Fatalf("evicted session lookup = %v, want forbidden", err)
+	if _, err := s.findSession(p, evicted.ID); !errors.Is(err, ErrSessionExpired) {
+		t.Fatalf("evicted session lookup = %v, want session expired", err)
 	}
-	if _, err := s.OpenSession(context.Background(), p, evicted.ID); !errors.Is(err, identity.ErrForbidden) {
-		t.Fatalf("evicted session open = %v, want forbidden", err)
+	if _, err := s.OpenSession(context.Background(), p, evicted.ID); !errors.Is(err, ErrSessionExpired) {
+		t.Fatalf("evicted session open = %v, want session expired", err)
 	}
 	// An explicit close answers exactly the same way.
 	explicit := sessions[1]
 	if err := s.CloseSession(p, explicit.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.findSession(p, explicit.ID); !errors.Is(err, identity.ErrForbidden) {
-		t.Fatalf("closed session lookup = %v, want forbidden", err)
+	if _, err := s.findSession(p, explicit.ID); !errors.Is(err, ErrSessionExpired) {
+		t.Fatalf("closed session lookup = %v, want session expired", err)
 	}
 }
 
@@ -152,6 +152,40 @@ func TestGlobalSessionCapReturnsBusy(t *testing.T) {
 	for id, session := range s.sessions {
 		if session.closed {
 			t.Fatalf("session %s was closed for a refused open", id)
+		}
+	}
+}
+
+func TestIdleClosedSessionExpiresOnlyForItsOwner(t *testing.T) {
+	p, other := sessionTestPrincipal("reader"), sessionTestPrincipal("other")
+	s := newSessionTestService(t, p, other)
+	t.Cleanup(func() { _ = s.Close() })
+	session := openSessionForTest(t, s, p, "item")
+	// The idle timer uses close; no wall-clock wait is needed to exercise it.
+	session.close()
+	if _, err := s.findSession(other, session.ID); !errors.Is(err, ErrSessionExpired) {
+		t.Fatalf("other profile's closed session = %v, want expired", err)
+	}
+	if _, err := s.findSession(p, session.ID); !errors.Is(err, ErrSessionExpired) {
+		t.Fatalf("owned idle-closed session = %v, want session expired", err)
+	}
+}
+
+func TestForeignSessionMatchesUnknownForSameOrDifferentToken(t *testing.T) {
+	p := sessionTestPrincipal("reader")
+	s := newSessionTestService(t, p)
+	t.Cleanup(func() { _ = s.Close() })
+	session := openSessionForTest(t, s, p, "item")
+	for _, other := range []identity.Principal{sessionTestPrincipal("other"), p} {
+		if other.Viewer.ProfileID == p.Viewer.ProfileID {
+			other.Hash = "another-token"
+		} else {
+			other.Hash = p.Hash
+		}
+		_, unknown := s.findSession(other, "missing-session")
+		_, foreign := s.findSession(other, session.ID)
+		if !errors.Is(unknown, ErrSessionExpired) || foreign != unknown {
+			t.Fatalf("foreign = %v, unknown = %v", foreign, unknown)
 		}
 	}
 }

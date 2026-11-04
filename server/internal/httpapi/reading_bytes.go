@@ -87,6 +87,8 @@ func readingFailure(w http.ResponseWriter, err error) {
 		policyError(w, "reading_member_unreadable")
 	case errors.Is(err, reading.ErrPublicationTooLarge):
 		policyError(w, "reading_publication_too_large")
+	case errors.Is(err, reading.ErrSessionExpired):
+		policyError(w, "reading_session_expired")
 	case errors.Is(err, reading.ErrChanged), errors.Is(err, reading.ErrConflict), errors.Is(err, storage.ErrObservedSourceLost), errors.Is(err, storage.ErrRemoteChanged):
 		policyError(w, "revision_mismatch")
 	case errors.Is(err, reading.ErrUnavailable):

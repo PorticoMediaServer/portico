@@ -16,6 +16,8 @@ import (
 
 const sessionIdle = 30 * time.Minute
 
+var ErrSessionExpired = errors.New("reading session expired")
+
 // Session is an ephemeral reader lifecycle, never a bearer grant. Current
 // durable identity/library/title authority is checked for every acquisition and
 // extent. It captures exactly one publication version and cannot be retargeted.
@@ -358,8 +360,13 @@ func (s *Service) findSession(p identity.Principal, id string) (*Session, error)
 		return nil, ErrUnavailable
 	}
 	session := s.sessions[id]
-	if session == nil || session.actor != p.Hash || session.owner != identity.PersonalKey(p.Viewer) || !session.touch() {
-		return nil, identity.ErrForbidden
+	// An ID outside this caller's captured profile/token binding is exactly
+	// as absent as an unknown ID. Never reveal another reader's retained state.
+	if session == nil || session.actor != p.Hash || session.owner != identity.PersonalKey(p.Viewer) {
+		return nil, ErrSessionExpired
+	}
+	if !session.touch() {
+		return nil, ErrSessionExpired
 	}
 	return session, nil
 }
@@ -374,7 +381,7 @@ func (s *Service) OpenSession(ctx context.Context, p identity.Principal, id stri
 	}
 	release, ok := session.claim()
 	if !ok {
-		return nil, identity.ErrForbidden
+		return nil, ErrSessionExpired
 	}
 	request, cancel := context.WithCancel(ctx)
 	stop := context.AfterFunc(session.life, cancel)
