@@ -2,7 +2,8 @@
 // compiler API (typescript/unstable/sync, the repository's own TypeScript) instead of a pattern.
 //
 // Input on stdin: {"root": dir, "configs": [tsconfig, ...], "files": [path relative to root, ...]}.
-// Output on stdout: {"<file>": [line, ...]}, one 1-based line per server read found in that file.
+// Output on stdout: {"reads": {"<file>": [line, ...]}, "loaded": [file, ...]}: one 1-based line per server read
+// found in each file, and every source file the TypeScript programs loaded (for the caller's cache).
 //
 // A server read is a call the type checker resolves to an HTTP requester, whose method is a read:
 // - The requester: global `fetch`, or a call whose resolved signature has a `path` or `method`
@@ -34,6 +35,7 @@ const api = new API({cwd: root});
 const snapshot = api.updateSnapshot({openProjects: input.configs.map(config => resolve(root, config))});
 const found = {};
 const done = new Set();
+const loaded = new Set();
 
 const literal = node => node && (node.kind === SyntaxKind.StringLiteral || node.kind === SyntaxKind.NoSubstitutionTemplateLiteral) ? node.text : undefined;
 const calleeName = call => {
@@ -61,6 +63,7 @@ for (const project of snapshot.getProjects()) {
   const checker = project.checker;
   const names = new Map();
   for (const fileName of project.program.getSourceFileNames()) {
+    loaded.add(fileName);
     const path = relative(root, fileName);
     if (wanted.has(path) && !done.has(path)) names.set(path, fileName);
   }
@@ -140,4 +143,4 @@ if (missing.length) {
   process.stderr.write(`query-read: ${missing.length} file(s) belong to no TypeScript project, e.g. ${missing.slice(0, 3).join(', ')}\n`);
   process.exit(2);
 }
-process.stdout.write(JSON.stringify(found));
+process.stdout.write(JSON.stringify({reads: found, loaded: [...loaded].sort()}));
