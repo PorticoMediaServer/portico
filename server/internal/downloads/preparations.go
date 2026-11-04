@@ -53,25 +53,9 @@ func (s *Service) submit(ctx context.Context, p identity.Principal, r Request, g
 	now := s.millis()
 	key := operations.ViewerKey(p)
 	scope := "downloads-prepare:" + key
-	// Preserve the existing video omission/original receipt identity. Music
-	// omission is distinct because it resolves through its own saved default.
-	if r.Quality == "" {
-		targets, _, err := expandTargets(ctx, tx, r)
-		if err != nil {
-			return out, err
-		}
-		music := false
-		for _, id := range targets {
-			var song bool
-			if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM catalog_entities WHERE public_id=pid_blob(?) AND kind=7)`, id).Scan(&song); err != nil {
-				return out, err
-			}
-			music = music || song
-		}
-		if !music {
-			r.Quality = QualityOriginal
-		}
-	}
+	// Omission resolves through a saved preference and is distinct from an
+	// explicit choice. Replays keep their first result even if that preference
+	// changes before the request is repeated.
 	raw, digest, e := operations.Receipt(tx, scope, r.OperationID, r, now)
 	if e != nil {
 		return out, e
