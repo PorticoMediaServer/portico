@@ -37,3 +37,16 @@ test('a taken username (409 conflict) is told apart from every other refusal', (
   assert.equal(directMemberCreateFailure(Object.assign(new Error('x'), {code: 'conflict'})), 'taken');
   for (const code of ['invalid_request', 'not_permitted', 'writer_capacity', undefined]) assert.equal(directMemberCreateFailure(Object.assign(new Error('x'), {code})), 'failed');
 });
+
+// Sol 8 on #817: the server measures in UTF-8 bytes and checks the profile name too.
+test('the username counts UTF-8 bytes after trimming and lower-casing, as the server does', () => {
+  assert.equal(directMemberUsername('é'.repeat(32)), 'é'.repeat(32), '64 bytes is the most');
+  assert.equal(directMemberUsername('é'.repeat(33)), undefined, '66 bytes is over');
+  assert.equal(directMemberUsername('éa'), 'éa', '3 bytes is the least');
+});
+
+test('the profile name is at most 120 UTF-8 bytes with no control characters, as the server checks it', () => {
+  assert.equal(directMemberInputReady({...input, name: '界'.repeat(40)}), true, '120 bytes');
+  assert.equal(directMemberInputReady({...input, name: '界'.repeat(41)}), false, '123 bytes');
+  for (const name of ['a\u0007b', 'a\u007fb', 'a\tb']) assert.equal(directMemberInputReady({...input, name}), false, JSON.stringify(name));
+});
