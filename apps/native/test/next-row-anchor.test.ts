@@ -96,7 +96,7 @@ async function rig({count = 3, tv = true, reduced = false, initialWidth = 1920}:
   };
   const nativeKeys = {useTVEventHandler(callback: any) {React.useEffect(() => {listeners.add(callback); return () => {listeners.delete(callback);};}, [callback]);}};
   const keyModule = await screenModule(new URL('../src-next/platform/tv-keys.ts', import.meta.url), {react, 'react-native': nativeKeys,
-    './tv-key-adapter': {createTVKeyAdapter}, './tv-key-source': {tvKeySource: 'native'}});
+    './tv-key-adapter': {createTVKeyAdapter}, './tv-key-source': {tvKeySource: 'native'}, '../kit/navigation/back': {registerBack: () => () => {}}});
   const anchorModule = await anchorCode(source('FocusAnchor.ts'), {react,
     'react-native': nativeKeys, '../../platform/tv-keys': keyModule,
     'react-native-reanimated': animated, '../theme': {useTheme: () => theme}, '../useMotion': {useMotion: motion}, './model': layoutModel,

@@ -81,7 +81,7 @@ async function guideFixture(width = 1180, screenReader = false, facts: Readonly<
   const adjustments: number[] = []; let panOptions: any;
   const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch'};
   const lifetime = {authority, current: () => true, signal: new AbortController().signal};
-  const source = {id: 'source', name: 'Source', guideDays: 2, groups: [], provenance: 'live-source', channelCount: 1, unavailableReasons: {}, refreshState: 'ready', ...facts.source};
+  const source = {id: 'source', name: 'Source', guideDays: 2, groups: [], groupCounts: [], favoriteCount: 0, provenance: 'live-source', channelCount: 1, unavailableReasons: {}, refreshState: 'ready', ...facts.source};
   const channel = {id: 'channel', sourceId: 'source', kind: 'live', name: 'Channel', number: '1', favorite: false, provenance: 'live-source', hidden: false, tuneAvailable: true, ...facts.channel};
   const programme = {id: 'programme', title: 'Programme', start: Date.now() - 60_000, end: Date.now() + 60_000};
   const data = {total: 1, version: 0}, state = {sources: [source], options: {}, revision: 0, view: 'guide', mutating: false};
@@ -102,10 +102,10 @@ async function guideFixture(width = 1180, screenReader = false, facts: Readonly<
     '../../../../../packages/client-core/src/guide': {legacyChannel: (value: any) => value, floorTo: (value: number) => value, localDayStart: () => 0, SLOT_MS: 1_800_000, pxPerMsFor: () => 1 / 15_000, rulerTicks: () => [], nowNext: () => ({now: programme}), layoutRow: () => [{kind: 'programme', program: programme, start: programme.start, end: programme.end, x: 0, width: 200}]},
     '../../../../../packages/client-core/src/guide/directory': {GuideFeatureClient: class {}},
     '../../kit/controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable', Segmented: 'Segmented', Select: 'Select'},
-    '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useFocusRegistry: () => ({})},
+    '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useCovered: () => false, useFocusRegistry: () => ({attachedFocus: () => undefined})},
     '../../kit/overlays': {Banner: 'Banner', Dialog: 'Dialog', Menu: 'Menu', ToastHost: 'ToastHost'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork', ChannelMark: 'ChannelMark'}, '../../kit/Icon': {Icon: 'Icon'},
     './GuideLoadingMarker': {GuideLoadingMarker: 'GuideLoadingMarker'}, '../../kit/states/usePullRefresh': {usePullRefresh: () => undefined}, '../../kit/dock/DockClearance': {useDockClearance: () => 0}, '../../kit/states': {StateView: 'StateView'}, '../../kit/shell/visual': visual, '../../kit/theme': {useTheme: () => viewTheme, fontFamilies: {700: 'Manrope-Bold'}},
-    '../../kit/useScreenReader': {useScreenReader: () => screenReader}, '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})},
+    '../../kit/useScreenReader': {useScreenReader: () => screenReader}, '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, '../../platform/tv-keys': {useTVRemoteActivity() {}},
     '../../shell/model': {sameAuthority: () => true, shellLayout: () => ({kind: width < 600 ? 'phone' : 'expanded'})}, '../../shell/tv-focus': {tvFocusIds: () => ({surface: (id: string) => id, rail: 'rail'})},
     './Screen': {Screen: 'Screen', ScreenText: 'ScreenText', useScreenBack() {}, useScreenEntry() {}}, './RecordingsScreen': {NativeRecordingsScreen: 'Recordings'},
     '../../tv/layout/guide-focus': {}, '../destinations/useTVPageBack': {useTVPageBack() {}}, '../destinations/useEntryFocus': {useDestinationEntryFocus() {}},
