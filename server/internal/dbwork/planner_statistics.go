@@ -2,10 +2,11 @@ package dbwork
 
 import "database/sql"
 
-// PlannerStatisticsChanged retires pooled connections holding old SQLite
-// statistics, including their cached statement plans, on their next checkout.
-// Call only after the statistics transaction commits. In-use readers are never
-// interrupted, and new connections load the committed statistics normally.
+// PlannerStatisticsChanged makes every pooled connection reload the committed
+// SQLite statistics, and drop its cached statement plans, on its next
+// checkout (observedConn.ResetSession). Call only after the statistics
+// transaction commits. In-use readers are never interrupted, and no
+// connection is reopened.
 func PlannerStatisticsChanged(db *sql.DB) {
 	if db == nil {
 		return

@@ -324,8 +324,10 @@ type observedDriver struct{ inner driver.Driver }
 func (d observedDriver) Open(name string) (driver.Conn, error) {
 	name, role := connRoleOf(name)
 	readers := acquireReaderScope(name)
+	readers.opening.Lock()
 	generation := readers.plannerGeneration.Load()
 	inner, err := d.inner.Open(name)
+	readers.opening.Unlock()
 	if err != nil {
 		releaseReaderScope(readers)
 		return nil, err
@@ -515,15 +517,37 @@ func (c *observedConn) ResetSession(ctx context.Context) error {
 	c.testTx = false
 	c.authorityDirty = false
 	// SQLite caches statistics and prepared plans per physical connection.
-	// Retire an idle connection only when it is borrowed again; a snapshot
-	// already using it keeps its original transaction until it finishes.
-	if c.readers != nil && c.plannerGeneration != c.readers.plannerGeneration.Load() {
-		return driver.ErrBadConn
+	// When they change, an idle connection reloads them as it is borrowed
+	// again, in place: a snapshot already using it keeps its transaction
+	// until it finishes, and the pool is not reopened. Reopening re-parses
+	// the whole schema on every connection, which a request borrowing right
+	// after a refresh paid for. Only a connection that can't reload retires.
+	if c.readers != nil {
+		if generation := c.readers.plannerGeneration.Load(); c.plannerGeneration != generation {
+			if err := c.reloadPlannerStatistics(ctx); err != nil {
+				return driver.ErrBadConn
+			}
+			c.plannerGeneration = generation
+		}
 	}
 	if resetter, ok := c.inner.(driver.SessionResetter); ok {
 		return resetter.ResetSession(ctx)
 	}
 	return nil
+}
+
+// reloadPlannerStatistics drops this connection's prepared statements and
+// reloads the committed sqlite_stat tables into its schema ("ANALYZE
+// sqlite_schema" reads them; it analyses nothing), so the next statements
+// are planned with the new statistics.
+func (c *observedConn) reloadPlannerStatistics(ctx context.Context) error {
+	c.statements.invalidate()
+	execer, ok := c.inner.(driver.ExecerContext)
+	if !ok {
+		return driver.ErrBadConn
+	}
+	_, err := execer.ExecContext(ctx, `ANALYZE sqlite_schema`, nil)
+	return err
 }
 
 func (c *observedConn) IsValid() bool {
