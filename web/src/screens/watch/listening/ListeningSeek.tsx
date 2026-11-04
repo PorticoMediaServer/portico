@@ -5,9 +5,10 @@ import styles from './listening-seek.module.css';
 const t = defaultI18n.t;
 
 /** Native keyboard/assistive input over the authored rail, fill, chapter ticks and thumb. */
-export function ListeningSeek({position, duration, bounds, chapters, disabled, phone, className, onSeek}: Readonly<{
+/** `middle` (phone only) sits between the two times: phone-app 15's "4 h 32 min left in the book". */
+export function ListeningSeek({position, duration, bounds, chapters, disabled, phone, className, middle, onSeek}: Readonly<{
   position: number; duration: number; bounds?: ListeningSeekBounds | null; chapters?: readonly ListeningSeekChapter[];
-  disabled?: boolean; phone?: boolean; className?: string; onSeek(seconds: number): void;
+  disabled?: boolean; phone?: boolean; className?: string; middle?: string; onSeek(seconds: number): void;
 }>) {
   const model = listeningSeekModel(position, duration, bounds, chapters);
   return <div className={`${styles.seek}${className ? ` ${className}` : ''}`} data-phone={phone || undefined}>
@@ -23,6 +24,7 @@ export function ListeningSeek({position, duration, bounds, chapters, disabled, p
         aria-label={t('player.position')} aria-valuetext={t('player.clockOf', {position: watchClock(model.at), duration: watchClock(duration)})}
         onChange={event => {const value = event.currentTarget.valueAsNumber;if (model.valid && !disabled && Number.isFinite(value)) onSeek(Math.max(model.start, Math.min(model.end, value)));}}/>
     </div>
+    {phone && middle && <span className={styles.middle}>{middle}</span>}
     <span className={styles.remaining}>{model.remaining === undefined ? null : `−${watchClock(model.remaining)}`}</span>
   </div>;
 }

@@ -14,4 +14,6 @@
 .seek[data-phone] .track { height: 5px; }
 .seek[data-phone] .elapsed, .seek[data-phone] .remaining { grid-row: 2; font-size: var(--type-fixed-size-12px); }
 .remaining { text-align: right; }
+.seek[data-phone]:has(.middle) { grid-template-columns: auto minmax(0,1fr) auto; }
+.seek[data-phone] .middle { grid-row: 2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: var(--type-fixed-size-12px); }
 @media (hover: hover) and (pointer: fine) { .rail:hover .track { height: 8px; } }

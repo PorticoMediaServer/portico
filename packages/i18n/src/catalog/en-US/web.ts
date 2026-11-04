@@ -933,6 +933,7 @@ export const webMessages = {
   'web.player.speedLeft': '{time} left at {rate}×',
   'web.player.sleepStops': 'Stops in {time}',
   'web.player.queueSummary': '{count}, {duration}',
+  'web.player.bookLeft': '{time} left in the book',
   'web.player.keys.playPause': 'Play or pause',
   'web.player.keys.back': 'Back {seconds} seconds',
   'web.player.keys.forward': 'Forward {seconds} seconds',
