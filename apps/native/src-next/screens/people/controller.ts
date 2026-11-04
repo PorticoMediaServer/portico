@@ -22,7 +22,8 @@ export function createNativePersonController(context: NativeShellBootstrapContex
   const retained = () => context.navigation.getSnapshot().route === target || context.navigation.retainedRoutes().includes(target);
   if (!target.personId || !retained()) throw new Error('native_person_route_required');
   let disposed = false, sequence = 0, request: AbortController | undefined;
-  // One quiet re-read after the server refuses a credit cursor (access was decided again); a first-page read resets it.
+  // One quiet re-read after the server refuses a credit cursor (access was decided again). A first-page read, or a credit
+  // continuation that answers (paged), resets it, so a later access change in the same visit is read again too.
   let rereadDone = false;
   let snapshot: NativePersonSnapshot = Object.freeze({phase: 'idle', group: Object.freeze({role: 'all'})});
   const listeners = new Set<() => void>(), cleanups: (() => void)[] = [];
@@ -73,6 +74,7 @@ export function createNativePersonController(context: NativeShellBootstrapContex
       if (prior && (page.revision.catalog !== prior.revision.catalog || page.revision.viewer !== prior.revision.viewer)) {
         throw Object.assign(new Error('native_person_page_changed'), {code: 'stale_data'});
       }
+      if (cursor !== undefined) rereadDone = false;
       publish({phase: 'ready', group, page, pageOrigin: cursor === undefined ? 'initial' : 'continuation'});
     } catch (error) {
       if (!live()) return;
@@ -109,6 +111,8 @@ export function createNativePersonController(context: NativeShellBootstrapContex
     select: (group: NativePersonGroup): Promise<void> => read(Object.freeze({...group})),
     /** After the server refuses a credit cursor: the first page once more (see reread). */
     reread,
+    /** A credit continuation answered: a later refusal is a new access change (see reread). */
+    paged: (): void => {rereadDone = false;},
     next: (): Promise<void> => snapshot.phase === 'ready' && snapshot.page?.pageInfo.nextCursor ? read(snapshot.group, snapshot.page.pageInfo.nextCursor, snapshot.page) : Promise.resolve(),
     contains: (entry: ContentEntry): boolean => visible() && snapshot.phase === 'ready' && !!snapshot.page &&
       (snapshot.page.person.knownFor.includes(entry) || snapshot.page.credits.some(credit => credit.media === entry)),
