@@ -2482,6 +2482,18 @@ test('a complete opaque local queue uses the same media owner and real local rec
   await f.runtime.stop(f.runtime.getSnapshot().fence!);await settle();assert.equal(releases, 1);assert.equal(f.runtime.getSnapshot().presentation, undefined);
 });
 
+test('a downloaded music queue starts in the dock, opens Now playing, and keeps it open on the next song', async t => {
+  const port = new ControlledLocalMedia(), f = setup(t, {}, {createPlayer: () => port, createRender: null}, localScope);
+  await f.runtime.playLocalQueue({preparation: localPreparation(), release: async () => {}}, {signal: new AbortController().signal, isCurrent: () => true});
+  const first = f.runtime.getSnapshot().fence!;
+  assert.equal(f.runtime.getSnapshot().presentation!.expanded, false, 'music starts in the dock');
+  f.runtime.open(first);
+  assert.equal(f.runtime.getSnapshot().presentation!.expanded, true, 'Now playing opens (every sync used to fold it back)');
+  await f.runtime.next(first);
+  assert.notEqual(f.runtime.getSnapshot().fence!.sessionId, first.sessionId);
+  assert.equal(f.runtime.getSnapshot().presentation!.expanded, true, 'and stays open on the next song');
+});
+
 test('local audio bookmarks keep their own verified preparation and restore paused through a fresh native acknowledgement', async t => {
   const port = new ControlledLocalMedia(), f = setup(t, {}, {createPlayer: () => port, createRender: null}, localScope);
   let audioReleases = 0, videoReleases = 0, actionCurrent = true;
@@ -3333,6 +3345,25 @@ test('P2-74 E-web-14: one 503 on the item facts is read again and the real facts
   assert.equal(s.presentation?.kind, 'music');
   assert.equal(s.dock.local?.expanded, false);
   assert.ok(!s.problem, 'recovered, nothing to report');
+});
+
+test('desktop-listen Now playing: an open Now playing stays open when the next song starts; only the first song sits in the dock', async t => {
+  const f = setup(t, {}, {}, undefined, undefined, {homeFence: false}), life = new AbortController();
+  await f.runtime.playFromQueue({container: {kind: 'album', id: 'song_album'}}, {signal: life.signal, isCurrent: () => true}); await f.arrive();
+  const first = f.runtime.getSnapshot();
+  assert.equal(first.dock.local?.expanded, false, 'music starts in the dock');
+  f.runtime.open(first.fence!);
+  assert.equal(f.runtime.getSnapshot().presentation?.expanded, true);
+  await f.runtime.next(first.fence!); await f.arrive(); await f.arrive();
+  const next = f.runtime.getSnapshot();
+  assert.notEqual(next.session?.itemId, first.session?.itemId, 'the next song plays');
+  assert.equal(next.presentation?.expanded, true, 'Now playing stays open');
+  assert.equal(next.dock.local?.expanded, true);
+  // A song that simply ends moves on in the same player, and Now playing stays open there too.
+  f.video.finish(); await settle(); f.clock.advance(5000); await f.arrive(); await f.arrive();
+  const third = f.runtime.getSnapshot();
+  assert.notEqual(third.session?.itemId, next.session?.itemId, 'the song after it plays');
+  assert.equal(third.presentation?.expanded, true, 'still open after a natural end');
 });
 
 test('P2-74 E-web-17: a playback start the server never answers is reported after the deadline, never a silent stall', async t => {

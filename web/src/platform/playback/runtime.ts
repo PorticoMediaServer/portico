@@ -126,6 +126,9 @@ type Stack = {
   offerBinding?: OfferBinding;
   itemId?: string; metadataItemId?: string; libraryId?: string; subject?: PlaybackSubject; showId?: string; seasonId?: string;
   posterUrl?: string; backdropUrl?: string; expanded: boolean; retired: boolean;
+  /** Music starts in the dock, decided once for the start's first song. After that, Now playing
+   * stays open or closed as the listener left it while the queue moves on (desktop-listen). */
+  placed?: true;
   channel?: ChannelTarget;
   channelStarts?: WebStartRegistration;
   confirmedEnd?: Readonly<{sessionId: string; generation: number; intentId: number; view: ReturnType<V1QueuePlayer['getSnapshot']>['view']}>;
@@ -1253,7 +1256,8 @@ export class WebShellPlaybackRuntime {
     if (title && member) {
       const subject = localMemberSubject(member);
       stack.subject = subject;
-      if (subject.kind === 'music') stack.expanded = false;
+      if (subject.kind === 'music' && !stack.placed) stack.expanded = false;
+      stack.placed = true;
       if (fence && observed && !['idle', 'loading'].includes(observed.state)) {
         this.choices.begin(fence.playback);this.choices.bindSource(fence);
         const positionSeconds = Math.min(member.durationMs, observed.positionMs) / 1000, finished = state.phase === 'ended', active = !finished && state.phase !== 'error';
@@ -1457,7 +1461,8 @@ export class WebShellPlaybackRuntime {
           stack.subject = itemSubject(raw); stack.itemId = itemId; stack.metadataItemId = itemId; stack.libraryId = item.libraryId;
           stack.posterUrl = item.posterUrl; stack.backdropUrl = item.backdropUrl;
           stack.showId = raw.episode?.showId; stack.seasonId = raw.episode?.seasonId;
-          if (stack.subject.kind === 'music') stack.expanded = false;
+          if (stack.subject.kind === 'music' && !stack.placed) stack.expanded = false;
+          stack.placed = true;
         }
       }
       if (!current()) return;
@@ -1513,7 +1518,8 @@ export class WebShellPlaybackRuntime {
     const entry = this.currentQueueEntry(stack, itemId), fallback = entry && queueEntrySubject(entry);
     if (!entry || !fallback) throw error;
     stack.subject = fallback; stack.itemId = itemId; stack.libraryId = entry.libraryId; stack.posterUrl = entry.posterUrl; stack.backdropUrl = undefined;
-    if (fallback.kind === 'music') stack.expanded = false;
+    if (fallback.kind === 'music' && !stack.placed) stack.expanded = false;
+    stack.placed = true;
     return undefined;
   }
   /** A start the server never answers must not stall Play silently (P2-74 E-web-17): after
