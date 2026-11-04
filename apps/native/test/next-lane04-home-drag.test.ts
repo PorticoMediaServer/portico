@@ -86,7 +86,7 @@ test('touch grip waits for a short press and blocks the scroll gesture before pi
   const {HomeDragHandle} = await screenModule(new URL('../src-next/screens/home/HomeCustomize.tsx', import.meta.url), {'../../platform/tv-key-source': {tvKeySource: 'native'}, '../../platform/tv-key-adapter': tvKeyAdapter, 
     react: ui.react, 'react-native': {View: 'View'}, 'react-native-gesture-handler': {Gesture: {Pan: () => pan}, GestureDetector: 'GestureDetector'},
     '../../../../../packages/i18n/src': {}, '../../../../../packages/client-core/src/presentation/server-text': {},
-    '../../kit/controls': {}, '../../kit/focus': {}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/browse/presentation': {},
+    '../../kit/controls': {}, '../../kit/focus': {useCovered: () => false}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/browse/presentation': {},
     '../../kit/overlays': {}, '../../kit/overlays/OverlayHost': {}, '../../kit/theme': {useTheme: () => ({colors: {}})},
     './customize-controller': {}, './customize-drag': {createHomeRowDrag},
   });

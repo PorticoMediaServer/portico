@@ -81,7 +81,7 @@ for (const isTV of [false, true]) test(`actual ${isTV ? 'TV' : 'phone'} Home cho
     '../../platform/tv-key-adapter': {createTVKeyAdapter}, '../../platform/tv-key-source': {tvKeySource: 'native'},
     react: {...h.react, useLayoutEffect: h.react.useEffect},
     'react-native': {ScrollView: 'Scroll', Text: 'Text', View: 'View'}, 'react-native-gesture-handler': {Gesture: {Native: () => ({})}, GestureDetector: 'GestureDetector'}, '../../../../../packages/i18n/src': {defaultI18n},
-    '../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel}, '../../kit/controls': {Focusable: 'Row', Button: 'Button', Switch: 'Switch'}, '../../kit/focus': {useFocusRegistry: () => ({})}, '../../kit/Icon': {Icon: 'Icon'},
+    '../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel}, '../../kit/controls': {Focusable: 'Row', Button: 'Button', Switch: 'Switch'}, '../../kit/focus': {useCovered: () => false, useFocusRegistry: () => ({})}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/browse/presentation': {alpha},
     '../../kit/overlays': {BottomSheet: 'Sheet', SidePanel: 'Panel', Dialog: 'Dialog'}, '../../kit/overlays/OverlayHost': {}, '../../kit/theme': {nativeType, useTheme: () => theme}, './customize-controller': {}, './customize-drag': {createHomeRowDrag},
   });
