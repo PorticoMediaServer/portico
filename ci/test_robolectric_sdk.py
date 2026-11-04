@@ -6,9 +6,16 @@ import unittest
 from unittest.mock import patch
 
 from robolectric_sdk import provision
+from plan import android_selected
 
 
 class RobolectricSdk(unittest.TestCase):
+    def test_sdk_and_workflow_changes_run_the_real_android_job(self):
+        for path in ['.github/workflows/android-tests.yml', 'ci/robolectric_sdk.py',
+                     'ci/robolectric-sdk.json', 'ci/robolectric-offline.gradle']:
+            with self.subTest(path=path):
+                self.assertTrue(android_selected([path]))
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)

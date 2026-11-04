@@ -122,7 +122,9 @@ def components(paths, full=False):
     return sorted(chosen), go
 
 def android_selected(paths, full=False):
-    return full or any(p.startswith(('apps/native/android/','apps/native/modules/','scripts/run-android-harnesses')) or
+    return full or any(p in ('.github/workflows/android-tests.yml', 'ci/robolectric_sdk.py',
+        'ci/robolectric-sdk.json', 'ci/robolectric-offline.gradle') or
+        p.startswith(('apps/native/android/','apps/native/modules/','scripts/run-android-harnesses')) or
         (p.startswith('apps/native/') and (p.endswith(('.kt','.kts','.gradle')) or 'AndroidManifest' in p or 'transport' in p.lower())) for p in paths)
 
 def go_seeds(packages, paths, full=False, diagnostics=None):
