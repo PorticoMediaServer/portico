@@ -39,6 +39,12 @@ var (
 )
 
 func redactClientLog(body string) string {
+	return longSecret.ReplaceAllString(redactCredentials(body), "[REDACTED]")
+}
+
+// Structured diagnostics carry public digests too. Match credential syntax in
+// their string values; reserve the generic token-length heuristic for raw logs.
+func redactCredentials(body string) string {
 	body = providerLogURL.ReplaceAllStringFunc(body, redactProviderURL)
 	body = secretHeader.ReplaceAllString(body, "${1}[REDACTED]")
 	body = bearerSecret.ReplaceAllString(body, "Bearer [REDACTED]")
@@ -55,8 +61,7 @@ func redactClientLog(body string) string {
 	body = urlCredentials.ReplaceAllString(body, "${1}[REDACTED]@")
 	body = bearerSecret.ReplaceAllString(body, "Bearer [REDACTED]")
 	body = mediaGrant.ReplaceAllString(body, "/v1/media/[REDACTED]")
-	body = querySecret.ReplaceAllString(body, "${1}[REDACTED]")
-	return longSecret.ReplaceAllString(body, "[REDACTED]")
+	return querySecret.ReplaceAllString(body, "${1}[REDACTED]")
 }
 
 // ClientLogStore holds client log uploads. They are stored per device and
