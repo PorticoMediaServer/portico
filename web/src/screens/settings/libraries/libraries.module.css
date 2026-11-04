@@ -31,6 +31,7 @@
 .counts { display: flex; flex-wrap: wrap; gap: 0 12px; font-size: var(--type-caption-size); color: var(--color-text-secondary); }
 .state { display: inline-flex; align-items: center; gap: 8px; font-size: var(--type-caption-size); color: var(--color-text-secondary); white-space: nowrap; }
 .state > i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--color-healthy); }
+.stateNarrow { display: none; }
 .state[data-state='scanning'] { color: var(--color-accent-strong); font-weight: var(--type-body-strong-weight); }
 .state[data-state='scanning'] > i { background: var(--color-accent-strong); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent-strong) 25%, transparent); }
 
@@ -179,4 +180,12 @@
   .covers > span { width: 36px; height: 54px; } .covers > span + span { margin-right: -18px; }
   .covers > span:nth-last-child(2) { height: 50px; margin-top: 2px; } .covers > span:nth-last-child(3) { height: 46px; margin-top: 4px; }
   .covers[data-square] { height: 54px; } .covers[data-square] > span { width: 44px; height: 44px; margin-top: 5px; } .covers[data-square] > span + span { margin-right: -30px; }
+}
+/* Phone width follows 24a: no grip (the ⋯ menu's Move up / Move down reorder), no dot beside an idle state (the
+   accent dot marks Scanning only), and the short wording ("Scanned today", no time). */
+@media (max-width: 599px) {
+  .row { padding-left: 14px; }
+  .grip { display: none; }
+  .state[data-state='idle'] > i { display: none; }
+  .stateWide { display: none; } .stateNarrow { display: inline; }
 }

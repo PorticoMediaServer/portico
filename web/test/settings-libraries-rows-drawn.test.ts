@@ -23,3 +23,16 @@ test('a library row is its covers, name, counts and one state line, with one ⋯
   assert.match(css, /container-type: inline-size;/);
   assert.match(css, /\.identity > \.state \{ grid-column: 2;/);
 });
+
+test('at phone width a row follows 24a: no grip, a dot only while scanning, and the state without a time', () => {
+  assert.match(panel, /narrow: t\('next\.ownerLibraries\.scannedTodayShort'\)/);
+  assert.match(panel, /narrow: t\('next\.ownerLibraries\.scannedYesterdayShort'\)/);
+  assert.match(panel, /<span className=\{styles\.stateWide\}>\{label\.wide\}<\/span><span className=\{styles\.stateNarrow\}>\{label\.narrow\}<\/span>/);
+  const phone = css.slice(css.indexOf('@media (max-width: 599px) {'));
+  assert.ok(phone.length < css.length, 'a phone-width block');
+  assert.match(phone, /\.grip \{ display: none; \}/);
+  assert.match(phone, /\.state\[data-state='idle'\] > i \{ display: none; \}/);
+  assert.match(phone, /\.stateWide \{ display: none; \} \.stateNarrow \{ display: inline; \}/);
+  // The wide wording is the default everywhere else.
+  assert.match(css.slice(0, css.indexOf('@container')), /\.stateNarrow \{ display: none; \}/);
+});
