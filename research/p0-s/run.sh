@@ -13,6 +13,19 @@ cg=$(awk -F: '$1=="0" {print $3}' /proc/self/cgroup)
    echo "$field"; cat "/sys/fs/cgroup$cg/$field"
  done
 } > "$out/host-$stage.txt"
+if [ "$stage" = widthpair ]; then
+  for ddl in full-280f03.sql full-09a972.sql; do
+    sub="$out/${ddl%.sql}"
+    mkdir -p "$sub"
+    "$RUNNER_TEMP/p0-s-full" --ddl "research/p0-s/$ddl" --db "$sub/full.db" --out "$sub" --seed 1000000
+    python3 - "$sub" <<'PYCODE'
+import pathlib,sys
+p=pathlib.Path(sys.argv[1])
+for name in ['full.db','full.db-wal','full.db-shm']:(p/name).unlink(missing_ok=True)
+PYCODE
+  done
+  exit
+fi
 if [ "$stage" = fullpair ]; then
   for ddl in full-d07d13.sql full-280f03.sql; do
     sub="$out/${ddl%.sql}"

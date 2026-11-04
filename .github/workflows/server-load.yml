@@ -12,7 +12,7 @@ permissions:
   contents: read
 jobs:
   scale:
-    if: ${{ inputs.mode != 'sweep' && inputs.mode != 'fanout' && inputs.mode != 'supported' && inputs.mode != 'full' && inputs.mode != 'envelope' && inputs.mode != 'envelope2' && inputs.mode != 'selected' && inputs.mode != 'fullpair' }}
+    if: ${{ inputs.mode != 'sweep' && inputs.mode != 'fanout' && inputs.mode != 'supported' && inputs.mode != 'full' && inputs.mode != 'envelope' && inputs.mode != 'envelope2' && inputs.mode != 'selected' && inputs.mode != 'fullpair' && inputs.mode != 'widthpair' }}
     runs-on: ubuntu-24.04
     env:
       MODE: ${{ inputs.mode || 'churn' }}
@@ -85,7 +85,7 @@ jobs:
           retention-days: 14
 
   full:
-    if: ${{ inputs.mode == 'full' || inputs.mode == 'fullpair' }}
+    if: ${{ inputs.mode == 'full' || inputs.mode == 'fullpair' || inputs.mode == 'widthpair' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 80
     env:
@@ -105,7 +105,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/p0-s"
           git rev-parse HEAD > "$RUNNER_TEMP/p0-s/source.txt"
           git archive HEAD | sha256sum >> "$RUNNER_TEMP/p0-s/source.txt"
-          sha256sum "research/p0-s/$TARGET_DDL" >> "$RUNNER_TEMP/p0-s/source.txt"
+          sha256sum research/p0-s/full-*.sql >> "$RUNNER_TEMP/p0-s/source.txt"
           python3 - <<'PY'
           import json,os,pathlib
           p=pathlib.Path(os.environ['RUNNER_TEMP'])/'full-overlay.json'

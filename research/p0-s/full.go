@@ -87,9 +87,13 @@ func pct(a []float64, q float64) float64 {
 	sort.Float64s(b)
 	return b[int(math.Ceil(float64(len(b))*q))-1]
 }
+
+var foldedTitles bool
+var ddlPathForChildren, dbPathForChildren string
+
 func acceptanceSQL(start, count int) string {
 	end := start + count - 1
-	return fmt.Sprintf(`WITH RECURSIVE n(id) AS(VALUES(%d) UNION ALL SELECT id+1 FROM n WHERE id<%d)
+	q := fmt.Sprintf(`WITH RECURSIVE n(id) AS(VALUES(%d) UNION ALL SELECT id+1 FROM n WHERE id<%d)
  INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,added_at,duration_key,file_size_key,resolution_key,metadata_incarnation,artwork_incarnation,playback_origin_incarnation,playback_origin_revision)
  SELECT id,CAST(printf('%%016d',id) AS BLOB),1,1,'Word'||char(97+id%%26),'word'||char(97+id%%26),'w','word'||char(97+id%%26),'w',(id*2654435761)%%4294967296,printf('2026-11-04T00:00:00.%%09dZ',id),7200+id%%1000,1000000+id,1080,randomblob(16),randomblob(16),randomblob(16),1 FROM n;
  INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration)
@@ -99,12 +103,30 @@ func acceptanceSQL(start, count int) string {
  INSERT INTO search_own_prefix(rowid,title_prefix_tokens,initial_prefix_tokens) SELECT entity_id,title_prefix_tokens,initial_prefix_tokens FROM search_own WHERE entity_id BETWEEN %d AND %d;
  UPDATE libraries SET data_revision=data_revision+1,data_order_revision=data_order_revision+1 WHERE id='full-library';
  INSERT INTO api_events(audience,type,resource_kind,resource_id,at_ms) VALUES('library:full-library','changed','library','full-library',1);`, start, end, start, end, start, end, start, end, start, end)
+	if foldedTitles {
+		q = strings.Replace(q, "playback_origin_incarnation,playback_origin_revision)", "playback_origin_incarnation,playback_origin_revision,title_fold,title_prefix_tokens,initial_prefix_tokens)", 1)
+		q = strings.Replace(q, "randomblob(16),randomblob(16),randomblob(16),1 FROM n;", "randomblob(16),randomblob(16),randomblob(16),1,'word'||char(97+id%26),'00007700006f000072000064'||printf('%06x',97+id%26),'00007700006f000072000064'||printf('%06x',97+id%26) FROM n;", 1)
+		q = strings.Replace(q, "audio_codec,width,height,duration)", "audio_codec,width,height,duration,library_id)", 1)
+		q = strings.Replace(q, "1920,1080,duration_key FROM catalog_entities", "1920,1080,duration_key,1 FROM catalog_entities", 1)
+		q = strings.Replace(q, "catalog_asset_links(entity_id,asset_id,info_duration) SELECT id,id,duration_key", "catalog_asset_links(entity_id,asset_id,info_duration,library_id) SELECT id,id,duration_key,1", 1)
+		a := strings.Index(q, " INSERT INTO search_own(entity_id")
+		b := a + strings.Index(q[a:], " UPDATE libraries")
+		q = q[:a] + fmt.Sprintf(" INSERT INTO search_own_prefix(rowid,title_prefix_tokens,initial_prefix_tokens) SELECT id,title_prefix_tokens,initial_prefix_tokens FROM catalog_entities WHERE id BETWEEN %d AND %d;\n", start, end) + q[b:]
+	}
+	return q
 }
 func seedAndSweep(c *sql.Conn, target int, out, hash string) {
 	var n int
+	var legacyOwn int
+	must(c.QueryRowContext(context.Background(), "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='search_own'").Scan(&legacyOwn))
+	foldedTitles = legacyOwn == 0
 	must(c.QueryRowContext(context.Background(), "SELECT count(*) FROM catalog_entities").Scan(&n))
 	if n == 0 {
-		_, e := c.ExecContext(context.Background(), `INSERT INTO libraries(id,name,kind,root) VALUES('full-library','Full fixture','movie','/synthetic/full');INSERT INTO catalog_libraries(id,library_id,root,name,kind) VALUES(1,'full-library','/synthetic/full','Full fixture',1); INSERT OR IGNORE INTO catalog_kinds VALUES(1,'movie',1,0,1,1,0);`)
+		q := `INSERT INTO libraries(id,name,kind,root) VALUES('full-library','Full fixture','movie','/synthetic/full');INSERT INTO catalog_libraries(id,library_id,root,name,kind) VALUES(1,'full-library','/synthetic/full','Full fixture',1); INSERT OR IGNORE INTO catalog_kinds VALUES(1,'movie',1,0,1,1,0);`
+		if foldedTitles {
+			q = strings.Replace(q, "catalog_libraries(id,library_id,root,name,kind) VALUES(1,'full-library','/synthetic/full','Full fixture',1)", "catalog_libraries(id,library_id,root) VALUES(1,'full-library','/synthetic/full')", 1)
+		}
+		_, e := c.ExecContext(context.Background(), q)
 		must(e)
 	}
 	if target > 10000 && os.Getenv("GITHUB_RUN_ID") == "" {
@@ -127,6 +149,12 @@ func seedAndSweep(c *sql.Conn, target int, out, hash string) {
 		}
 	}
 	save(filepath.Join(out, "full-seed.json"), map[string]any{"ddl_sha256": hash, "entities": n, "batches": batches, "shape": "Basic movie acceptance: entity+asset+link+encoded own-title FTS+library revision/event. No provider metadata, staging, scanner IO, prepared-media or full production typed command."})
+	for rep := 0; rep < 3; rep++ {
+		cmd := exec.Command(os.Args[0], "--ddl", ddlPathForChildren, "--db", dbPathForChildren, "--out", out, "--browse-child")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		must(cmd.Run())
+	}
 	rows := []any{}
 	sizes := []int{16, 32, 64, 128, 256, 1000}
 	runs := 128
@@ -159,14 +187,99 @@ func seedAndSweep(c *sql.Conn, target int, out, hash string) {
 	_, e := c.ExecContext(context.Background(), "PRAGMA wal_checkpoint(TRUNCATE)")
 	must(e)
 }
+func browse(c *sql.Conn, out, hash string) {
+	results := []any{}
+	var resident int
+	must(c.QueryRowContext(context.Background(), "SELECT count(*) FROM catalog_entities").Scan(&resident))
+	sorts := []string{"sort_key COLLATE NOCASE", "sort_key_keep_articles COLLATE NOCASE", "added_at", "year", "duration_key", "community_rating_key", "critic_rating_key", "file_size_key", "resolution_key", "release_key", "random_key"}
+	samples := 500
+	if os.Getenv("GITHUB_RUN_ID") == "" {
+		samples = 2
+	}
+	for _, col := range sorts {
+		for _, direction := range []string{"ASC", "DESC"} {
+			for _, projection := range []string{"id", "id,title,overview,original_title,content_rating,added_at,duration_key,file_size_key,resolution_key,year"} {
+				for _, page := range []string{"first", "random-keyset"} {
+					if resident < 4096 && page == "random-keyset" {
+						continue
+					}
+					xs := []float64{}
+					var plan []any
+					var lastSQL string
+					for j := -20; j < samples; j++ {
+						where := "library_id=1 AND kind=1 AND retired=0"
+						if page == "random-keyset" {
+							anchor := 2048 + ((j+21)*104729)%(resident-4096)
+							op := ">"
+							if direction == "DESC" {
+								op = "<"
+							}
+							where += fmt.Sprintf(" AND (%s,id)%s(SELECT %s,id FROM catalog_entities WHERE id=%d)", col, op, col, anchor)
+						}
+						q := "SELECT " + projection + " FROM catalog_entities WHERE " + where + " ORDER BY " + col + " " + direction + ",id " + direction + " LIMIT 40"
+						lastSQL = q
+						start := time.Now()
+						rows, e := c.QueryContext(context.Background(), q)
+						must(e)
+						columns, e := rows.Columns()
+						must(e)
+						count := 0
+						for rows.Next() {
+							v := make([]any, len(columns))
+							ptr := make([]any, len(columns))
+							for k := range v {
+								ptr[k] = &v[k]
+							}
+							must(rows.Scan(ptr...))
+							count++
+						}
+						must(rows.Err())
+						must(rows.Close())
+						ms := float64(time.Since(start).Nanoseconds()) / 1e6
+						if count != 40 {
+							panic(fmt.Sprintf("incomplete browse rows %d", count))
+						}
+						if j >= 0 {
+							xs = append(xs, ms)
+						}
+					}
+					rows, e := c.QueryContext(context.Background(), "EXPLAIN QUERY PLAN "+lastSQL)
+					must(e)
+					for rows.Next() {
+						var a, b, d int
+						var detail string
+						must(rows.Scan(&a, &b, &d, &detail))
+						plan = append(plan, detail)
+					}
+					must(rows.Close())
+					results = append(results, map[string]any{"sort": col, "direction": direction, "projection": projection, "page": page, "n": len(xs), "p50_ms": pct(xs, .5), "p95_ms": pct(xs, .95), "p99_ms": pct(xs, .99), "max_ms": pct(xs, 1), "samples_ms": xs, "last_sql": lastSQL, "plan": plan})
+				}
+			}
+		}
+	}
+	save(filepath.Join(out, fmt.Sprintf("bundled-browse-%d.json", os.Getpid())), map[string]any{"ddl_sha256": hash, "entities": resident, "results": results, "boundary": "Movie entity SQL pages; ID-only vs card columns, first vs changing tuple anchors, complete40rows,500samples after20warmups; no authority/HTTP, OS warm"})
+}
 func main() {
 	ddl := flag.String("ddl", "", "exact integrated DDL")
 	dbpath := flag.String("db", "", "disposable db")
 	out := flag.String("out", "", "receipts")
 	child := flag.Bool("child", false, "100 physical opens")
+	browseChild := flag.Bool("browse-child", false, "500 samples per entity sort/page")
 	target := flag.Int("seed", 1000000, "resident Basic movie facts")
 	flag.Parse()
+	ddlPathForChildren = *ddl
+	dbPathForChildren = *dbpath
 	must(os.MkdirAll(*out, 0700))
+	if *browseChild {
+		b, e := os.ReadFile(*ddl)
+		must(e)
+		sum := sha256.Sum256(b)
+		d, c := open(*dbpath)
+		browse(c, *out, hex.EncodeToString(sum[:]))
+		must(c.Close())
+		must(d.Close())
+		return
+	}
 	if *child {
 		xs := []float64{}
 		for j := 0; j < 100; j++ {
