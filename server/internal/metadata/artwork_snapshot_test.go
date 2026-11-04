@@ -65,23 +65,32 @@ func TestArtworkReadsUseSnapshotAdmission(t *testing.T) {
 }
 
 func TestArtworkSnapshotClosesFileWhenFinishingFails(t *testing.T) {
-	s, _, _ := repairFixture(t)
-	file, err := os.CreateTemp(t.TempDir(), "artwork")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer file.Close()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	got, _, err := s.withArtworkSnapshot(ctx, func(context.Context) (*os.File, string, error) {
-		cancel()
-		return file, "image/png", nil
-	})
-	if got != nil || !errors.Is(err, context.Canceled) {
-		t.Fatalf("cancelled snapshot returned artwork: file=%v err=%v", got, err)
-	}
-	if _, err := file.Stat(); !errors.Is(err, os.ErrClosed) {
-		t.Fatalf("snapshot failure leaked its opened artwork: %v", err)
+	for _, request := range []bool{false, true} {
+		t.Run(map[bool]string{false: "private", true: "request"}[request], func(t *testing.T) {
+			s, _, _ := repairFixture(t)
+			file, err := os.CreateTemp(t.TempDir(), "artwork")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer file.Close()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			if request {
+				var end func()
+				ctx, end = dbwork.WithRequestSnapshot(ctx)
+				defer end()
+			}
+			got, _, err := s.withArtworkSnapshot(ctx, func(context.Context) (*os.File, string, error) {
+				cancel()
+				return file, "image/png", nil
+			})
+			if got != nil || !errors.Is(err, context.Canceled) {
+				t.Fatalf("cancelled snapshot returned artwork: file=%v err=%v", got, err)
+			}
+			if _, err := file.Stat(); !errors.Is(err, os.ErrClosed) {
+				t.Fatalf("snapshot failure leaked its opened artwork: %v", err)
+			}
+		})
 	}
 }
 
