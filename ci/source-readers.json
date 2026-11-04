@@ -15,7 +15,7 @@
       "reads": ["*.go", "*/go.mod", "*/go.sum", "go.work*"],
       "ignore": ["*_test.go"],
       "files": ["server/internal/dbwork/direct_snapshot_census_test.go"],
-      "tests": ["TestDirectBeginSnapshotCensus", "TestDirectSnapshotBaselineCanOnlyShrink", "TestDirectSnapshotCensusFollowsProductionImports", "TestDirectSnapshotCensusFollowsWorkspaceImports", "TestDirectSnapshotCensusIgnoresUnimportedFixtures", "TestDirectSnapshotCensusRejectsReviewerWitnesses", "TestDirectSnapshotReferenceCensusUsesImports", "TestDirectSnapshotUpdateRequiresPreviousBaseline"]
+      "tests": ["TestDirectBeginSnapshotCensus", "TestDirectSnapshotBaselineCanOnlyShrink", "TestDirectSnapshotCensusAccountsForLocalModules", "TestDirectSnapshotCensusFollowsProductionImports", "TestDirectSnapshotCensusFollowsWorkspaceImports", "TestDirectSnapshotCensusIgnoresUnimportedFixtures", "TestDirectSnapshotCensusIncludesUnusedRepositoryBuildListModules", "TestDirectSnapshotCensusRefusesExternalSourceLink", "TestDirectSnapshotCensusRejectsReviewerWitnesses", "TestDirectSnapshotReferenceCensusUsesImports", "TestDirectSnapshotUpdateRequiresPreviousBaseline"]
     },
     {
       "package": "server/internal/supervise",
