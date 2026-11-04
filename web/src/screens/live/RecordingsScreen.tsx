@@ -13,7 +13,7 @@ import {Banner, Dialog, Menu, SidePanel, type MenuEntry} from '../../kit/overlay
 import {StateView} from '../../kit/states';
 import {RecordingsLayout, RecordingStorage} from '../../kit/dvr/RecordingsLayout';
 import {RuleGap} from '../../kit/dvr/RuleCard';
-import {LiveRecordingTabs} from './SeriesRules';
+import {LiveRecordingTabs, RecordingPhoneTabs} from './SeriesRules';
 import type {RecordingsController, RecordingsSort, RecordingsView} from './recordings-controller';
 import {readRecordingDetail} from './recording-detail';
 import {useCommittedLibraryScreenContext, type ProtectedLibraryScreen} from '../browse/screen-context';
@@ -372,6 +372,7 @@ function Boundary({context, view, routeCurrent, onView, onGuide}: {context: Scre
   return <RecordingsLayout key={lease.id} title={t('next.home.shell.live')} sourceLabel={t('channels.source')} allChannels={t('channels.all')}
     sourceName={context.identity?.serverName ?? ''} navigation={undefined} back={{label: t('next.home.shell.live'), title: t('recordings.title'), onBack: goGuide}}>
     <LiveRecordingTabs view="recordings" conflicts={summary?.conflicts} onChange={value => {if (value === 'guide') goGuide();}}/>
+    <RecordingPhoneTabs views={views} value={view} onChange={goView}/>
     <div className={styles.recordingsBar}>
       <div className={styles.recordingsChips} role="group" aria-label={t('recordings.title')}>
         {views.map(item => <Chip className={styles.recordingsChip} key={item.id} selected={item.id === view} count={item.count} onClick={() => goView(item.id)}>{item.label}</Chip>)}
