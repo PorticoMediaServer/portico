@@ -9,16 +9,19 @@ import {alpha} from './visual';
  * - `open`: TV search results (tv-more 34). OK on a match opens that row's page instead of acting on the row.
  * - `highlight`: TV, the page a match opened. That row is drawn highlighted.
  * - `flash`: phone and tablet (settings.html). The row a result opened scrolls to the middle (`reveal`) and flashes once. */
+/** Asks the page to reveal this opening's row. True once it is revealed (now or earlier); false while the page is not yet
+ * ready to measure it (Fabric commits the row before its page), in which case the row asks again at its next layout. */
+export type SettingsRowReveal = (row: View, serial: number) => boolean;
 export type SettingsRowTargeting = Readonly<{
   open?: (rowId: string) => void;
   highlight?: string;
-  flash?: Readonly<{rowId: string; serial: number; reveal: (row: View) => void}>;
+  flash?: Readonly<{rowId: string; serial: number; reveal: SettingsRowReveal}>;
 }>;
 export const SettingsRowTargetContext = createContext<SettingsRowTargeting>({});
 
 /** settings.html `.r.pulse`: the row's background goes from the accent at 34% to clear over 1.6 s, once. With reduced motion
  * there is no flash. Its box is the row's box, so it is also what `reveal` measures, once per opening (`serial`). */
-export function SettingsRowFlash({serial, reveal}: Readonly<{serial: number; reveal: (row: View) => void}>) {
+export function SettingsRowFlash({serial, reveal}: Readonly<{serial: number; reveal: SettingsRowReveal}>) {
   const theme = useTheme(), motion = useMotion(), reduce = useReducedMotion();
   const box = useRef<View>(null), revealed = useRef<number | undefined>(undefined);
   const opacity = useSharedValue(reduce ? 0 : 1);
@@ -30,10 +33,11 @@ export function SettingsRowFlash({serial, reveal}: Readonly<{serial: number; rev
   const style = useAnimatedStyle(() => ({opacity: opacity.value}));
   const place = () => {
     if (revealed.current === serial || !box.current) return;
-    revealed.current = serial; reveal(box.current);
+    if (reveal(box.current, serial)) revealed.current = serial;
   };
-  // Each opening (serial) reveals once, as soon as its row is committed: a row that is already laid out sends no new
-  // layout event when it is opened again. A later layout of the same opening measures nothing more.
+  // Each opening (serial) reveals once, asked as soon as its row is committed: a row that is already laid out sends no new
+  // layout event when it is opened again. Until the page has taken the ask, each layout asks again; after, a later layout
+  // of the same opening measures nothing more.
   useLayoutEffect(place, [serial]); // eslint-disable-line react-hooks/exhaustive-deps
   return <Animated.View ref={box} collapsable={false} pointerEvents="none" onLayout={place}
     style={[{position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: alpha(theme.colors.accent, .34)}, style]}/>;

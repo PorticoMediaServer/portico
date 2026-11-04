@@ -308,7 +308,7 @@ test('Sol 8 on #823: a late touch measurement never scrolls the next page',async
   const reveal=providers(f)[0].flash.reveal;let complete:any;const firstScrolls:any[]=[],secondScrolls:any[]=[];
   const scroll=()=>f.nodes().find((node:any)=>node.type==='ScrollView'&&node.props.ref&&node.props.onLayout);
   const a={getNativeScrollRef:()=> 'host-A',scrollTo:(value:any)=>firstScrolls.push(value)};scroll().props.ref.current=a;scroll().props.onLayout({nativeEvent:{layout:{height:400}}});
-  reveal({measureLayout:(host:any,callback:any)=>{assert.equal(host,'host-A');complete=callback}});
+  reveal({measureLayout:(host:any,callback:any)=>{assert.equal(host,'host-A');complete=callback}},providers(f)[0].flash.serial);
   f.find('settings-search').props.onChangeText('');f.render();f.find('settings-page-region').props.onPress();f.render();
   const b={getNativeScrollRef:()=> 'host-B',scrollTo:(value:any)=>secondScrolls.push(value)};scroll().props.ref.current=b;scroll().props.onLayout({nativeEvent:{layout:{height:500}}});
   complete(0,900,500,60);

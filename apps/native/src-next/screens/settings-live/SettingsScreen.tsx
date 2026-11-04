@@ -254,17 +254,28 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
   const aimedHere = !!target && target.opening === opening && target.page === page?.id;
   if (target && !aimedHere) setTarget(undefined);
   const aimed = aimedHere ? target : undefined;
-  // The aim as committed: a measurement answers only for the aim, opening and scroll host it was asked for.
-  const committedAim = useRef<typeof target>(undefined);
-  useLayoutEffect(() => {committedAim.current = aimed;}, [aimed]);
-  const reveal = useCallback((row: View) => {
+  // The aim as committed: a measurement answers only for the aim, opening and scroll host it was asked for. Each opening
+  // (serial) is revealed once. Fabric commits the row's layout effects before this page's, so a row that asks before its
+  // aim and scroll host are committed waits here and is revealed at this page's commit; it answers false, so its next
+  // native layout asks again if the scroll host is still missing.
+  const committedAim = useRef<typeof target>(undefined), revealedSerial = useRef<number | undefined>(undefined);
+  const waitingRow = useRef<Readonly<{row: View; serial: number}> | undefined>(undefined);
+  const reveal = useCallback((row: View, serial: number) => {
+    if (revealedSerial.current === serial) return true;
     const aim = committedAim.current, scroll = pageScroll.current, host = scroll?.getNativeScrollRef?.();
-    if (!aim || !scroll || !host) return;
+    if (aim?.serial !== serial || !scroll || !host) {waitingRow.current = {row, serial}; return false;}
+    revealedSerial.current = serial; waitingRow.current = undefined;
     row.measureLayout(host, (_x, y, _width, height) => {
       if (committedAim.current !== aim || aim.opening !== openingRef.current || pageScroll.current !== scroll) return;
       scroll.scrollTo({y: Math.max(0, y - (pageScrollHeight.current - height) / 2), animated: false});
     });
+    return true;
   }, []);
+  useLayoutEffect(() => {
+    committedAim.current = aimed;
+    const waiting = waitingRow.current;
+    if (waiting && waiting.serial === aimed?.serial) reveal(waiting.row, waiting.serial); else waitingRow.current = undefined;
+  }, [aimed, reveal]);
   const rowTargeting = useMemo<SettingsRowTargeting>(() => !aimed ? {} : theme.isTV ? {highlight: aimed.rowId}
     : {flash: {rowId: aimed.rowId, serial: aimed.serial, reveal}}, [aimed, theme.isTV, reveal]);
   const ids = useMemo(() => tvFocusIds(controller.lifetime.authority), [controller]);
