@@ -148,6 +148,13 @@ func main() {
 		}
 		return
 	}
+	if handled, err := catalogCommand(context.Background(), os.Args[1:], os.Stdout); handled {
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if handled, err := serviceCommand(); handled {
 		if err != nil {
 			log.Print(err)
