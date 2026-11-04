@@ -133,7 +133,7 @@ test('a restored shelf seeds the anchor offset once and preserves later native s
     'react-native-reanimated': {default: {ScrollView: 'ScrollView'}, runOnJS: (fn: unknown) => fn,
       useAnimatedScrollHandler: (fn: unknown) => fn, useSharedValue: (value: unknown) => react.useRef({value}).current},
     '../../../../../packages/i18n/src': {}, '../Icon': {}, '../theme': {useTheme: () => theme},
-    '../focus': {FocusProvider: 'FocusProvider', FocusItem: 'FocusItem', useOptionalFocusRegistry: () => undefined},
+    '../focus': {FocusProvider: 'FocusProvider', FocusItem: 'FocusItem', useCovered: () => false, useOptionalFocusRegistry: () => undefined},
     './row-state': rowState, '../focus/page-boundary': {useRowPageBoundary() {}},
     './FocusAnchor': {useFocusAnchor: () => anchor}, './MotionItem': {MotionItem: 'MotionItem'}, './types': {itemSelection: () => ({})},
   });
