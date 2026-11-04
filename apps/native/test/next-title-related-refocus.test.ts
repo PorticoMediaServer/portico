@@ -144,3 +144,43 @@ for (const platform of ['android', 'tvos'] as const) {
     assert.ok(result.held > 0); assert.deepEqual(result.requests, []);
   });
 }
+
+// #697: Row also counts a slot that stays but went inert as lost (an index-keyed window). A title row has no isFocusable,
+// so none of its slots is ever inert: what it does is unchanged. A focused title that survives the re-read keeps focus
+// and the row asks for nothing; one that is gone still moves to the row's target, once.
+for (const platform of ['android', 'tvos'] as const) {
+  test(`${platform}: a related row read again that keeps the focused title asks for nothing (unchanged by #697)`, async () => {
+    const s = await scene(platform);
+    const pager = new RelationRowPager({entries: ['m1', 'm2', 'm3'].map(entry), nextCursor: 'c1'}, async cursor => {
+      if (cursor === '') return {entries: ['m9', 'm2', 'm3'].map(entry)};
+      throw Object.assign(new Error('Expired'), {code: 'invalid_cursor'});
+    });
+    const related = new NativeRelatedRow('title', pager, () => {});
+    try {
+      await s.engine.render(s.e(s.Scene, {pages: related.getSnapshot()}));
+      await s.engine.focus('m2');
+      related.next(related.getSnapshot()); await tick();
+      await s.engine.render(s.e(s.Scene, {pages: related.getSnapshot()}));
+      await s.engine.settle(); await tick(); await s.engine.settle();
+      // Later renders of the same replacement (its page settling) do not ask again either.
+      await s.engine.render(s.e(s.Scene, {pages: related.getSnapshot()})); await s.engine.settle(); await tick();
+      assert.deepEqual(s.requests, []); assert.equal(s.engine.focused, 'm2');
+    } finally {related.dispose(); await s.engine.unmount();}
+  });
+
+  test(`${platform}: a related row whose focused title is gone asks for its target once, across later renders (unchanged by #697)`, async () => {
+    const s = await scene(platform);
+    const pager = new RelationRowPager({entries: ['m1', 'm2', 'm3'].map(entry), nextCursor: 'c1'}, async cursor => {
+      if (cursor === '') return {entries: ['m9', 'm1', 'm2'].map(entry)};
+      throw Object.assign(new Error('Expired'), {code: 'invalid_cursor'});
+    });
+    const related = new NativeRelatedRow('title', pager, () => {});
+    try {
+      await s.engine.render(s.e(s.Scene, {pages: related.getSnapshot()}));
+      await s.engine.focus('m3');
+      related.next(related.getSnapshot()); await tick();
+      for (let render = 0; render < 3; render++) {await s.engine.render(s.e(s.Scene, {pages: related.getSnapshot()})); await s.engine.settle(); await tick();}
+      assert.deepEqual(s.requests, [{regionId: 'title.related', childId: 'm2'}]); assert.equal(s.engine.focused, 'm2');
+    } finally {related.dispose(); await s.engine.unmount();}
+  });
+}

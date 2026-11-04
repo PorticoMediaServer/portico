@@ -32,6 +32,8 @@ type Entry = {
 export function createNativePersonRenderer(context: NativeShellBootstrapContext): NativeRouteRenderer {
   const sources = new Map<PersonRoute, Entry>();
   let disposed = false, sequence = 0;
+  // A new source snapshot releases the window with its selection and entry actions: after a re-read (access decided
+  // again) a multi-select in progress or an open credit ⋯ is dropped with the page it was made on, by design.
   const releaseWindow = (entry: Entry) => {entry.selection?.dispose(); entry.selection = undefined; entry.actions?.dispose(); entry.actions = undefined; entry.window?.dispose(); entry.window = undefined;};
   const release = (entry: Entry) => {entry.stop(); releaseWindow(entry); entry.source.dispose();};
   const reconcile = () => {
