@@ -5,8 +5,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/decoder"
 	"github.com/PorticoMediaServer/portico/server/internal/decodertest"
@@ -32,14 +35,30 @@ func TestSubtitleReplanRoutesHoldToTheMembersCurrentCeiling(t *testing.T) {
 	if !facts.Encoders["libx264"] || !facts.Encoders["aac"] || !facts.Muxers["hls"] || !facts.Muxers["mp4"] {
 		decodertest.Unavailable(t, "burn-in planning needs the H.264/AAC HLS toolchain capability")
 	}
-	// The burn is planned, never encoded.
-	facts.Filters["ass"] = true
+	if !facts.Filters["ass"] {
+		t.Fatal("subtitle replan runtime requires the ASS filter")
+	}
 	previous := decoder.CurrentToolchain()
 	decoder.ConfigureToolchain(facts)
 	defer decoder.RestoreToolchain(previous)
 
 	f := memberLimitsFixture(t, 1)
-	member, film := memberWithSettledCatalogue(t, f)
+	member, film := f.memberWithSource(func(path string) float64 {
+		// Each burn produces real bytes before the next selection. A planning
+		// placeholder can fail asynchronously and make that selection return 404.
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		out, err := exec.CommandContext(ctx, ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
+			"-f", "lavfi", "-i", "color=black:size=1920x1080:rate=24:duration=6",
+			"-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", "6",
+			"-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p", "-g", "48",
+			"-c:a", "aac", "-movflags", "+faststart", path).CombinedOutput()
+		if err != nil {
+			t.Fatalf("member burn source: %v %s", err, out)
+		}
+		return 6
+	})
+	settleCompactCatalogue(t, f.db)
 	binary, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
@@ -60,6 +79,13 @@ func TestSubtitleReplanRoutesHoldToTheMembersCurrentCeiling(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create HLS producer: %v", err)
 	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := hls.Shutdown(ctx); err != nil {
+			t.Errorf("shutdown member burn producer: %v", err)
+		}
+	})
 	player := playback.New(f.db)
 	cfg := playback.DefaultDeliveryConfiguration()
 	cfg.MaxConversions = 1
@@ -105,6 +131,7 @@ func TestSubtitleReplanRoutesHoldToTheMembersCurrentCeiling(t *testing.T) {
 		return media, bitrate, action
 	}
 	revision := s.Revision
+	currentURL := s.Presentation.URL
 	patch := func(peer string, headers map[string]string, track any) {
 		t.Helper()
 		all := map[string]string{"If-Match": revision}
@@ -117,12 +144,23 @@ func TestSubtitleReplanRoutesHoldToTheMembersCurrentCeiling(t *testing.T) {
 			t.Fatalf("PATCH subtitles %v from %s: %d %s", track, peer, w.Code, w.Body.String())
 		}
 		revision = view.Revision
+		currentURL = view.Presentation.URL
 	}
 	held := func(what string, ceiling int, burned bool) {
 		t.Helper()
 		_, bitrate, action := planned()
 		if bitrate > ceiling || burned && (action != "convert" || bitrate < 1) {
 			t.Fatalf("%s: planned %s at %d bit/s under a member cap of %d", what, action, bitrate, ceiling)
+		}
+		if burned {
+			media, _, _ := planned()
+			if err := player.Ready(context.Background(), playback.Session{ID: media, Mode: "hls"}); err != nil {
+				t.Fatal("member burn publication", err)
+			}
+			grant := strings.TrimSuffix(strings.TrimPrefix(currentURL, "/v1/media/"), "/master.m3u8")
+			if _, err := player.HLSFileContext(context.Background(), grant, "segment-000000.ts"); err != nil {
+				t.Fatal("member burn segment", err)
+			}
 		}
 	}
 	setMemberLimits(t, f, `{"remoteBitrateKbps":3000}`)

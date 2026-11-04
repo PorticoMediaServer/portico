@@ -5,17 +5,22 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/playback"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/apikit/contract"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
+	"github.com/PorticoMediaServer/portico/server/internal/playback"
 	"github.com/PorticoMediaServer/portico/server/internal/playbackv1"
 )
 
 // member adds a member account whose only library is a second one ("Kids"),
 // with one film, and returns the member's token and that film.
 func (f *v1Fixture) member() (string, string) {
+	f.t.Helper()
+	return f.memberWithSource(nil)
+}
+
+func (f *v1Fixture) memberWithSource(writeSource func(string) float64) (string, string) {
 	f.t.Helper()
 	folder := filepath.Join(f.root, "kids")
 	if err := os.MkdirAll(folder, 0700); err != nil {
@@ -27,10 +32,13 @@ func (f *v1Fixture) member() (string, string) {
 	}
 	kidsHandle := f.catalogTest.Handle(kids.ID)
 	path := filepath.Join(folder, "Kids Film.mp4")
-	if err = os.WriteFile(path, []byte("0123456789"), 0600); err != nil {
+	duration := 600.0
+	if writeSource != nil {
+		duration = writeSource(path)
+	} else if err = os.WriteFile(path, []byte("0123456789"), 0600); err != nil {
 		f.t.Fatal(err)
 	}
-	film := createPlaybackMovie(f.t, f.catalogTest, kidsHandle, path, "Kids Film", 2000, 600, "mp4", "h264", "aac")
+	film := createPlaybackMovie(f.t, f.catalogTest, kidsHandle, path, "Kids Film", 2000, duration, "mp4", "h264", "aac")
 	f.names["member-film"] = film
 	f.catalogTest.Drain()
 	if _, err = f.db.Exec(`INSERT INTO accounts(id,username,password_hash,profile_id,epoch) VALUES('member','member',X'00','member-profile',1)`); err != nil {
