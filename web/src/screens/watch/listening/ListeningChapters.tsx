@@ -14,7 +14,7 @@ export function ListeningChapters({host, snapshot, reportError}: {host: Listenin
   // MU-2: the whole book's chapters when known; the playing part's own list otherwise.
   const book = snapshot.bookChapters?.phase === 'ready' ? snapshot.bookChapters : null;
   if (book) return <section aria-label={t('player.opt.chapters')}>
-    <BookChapterList book={book} playing={!!snapshot.presentation?.playing} disabled={!snapshot.presentation?.controls.includes('seek')}
+    <BookChapterList book={book} playing={!!snapshot.presentation?.playing} positionSeconds={snapshot.presentation?.positionSeconds} disabled={!snapshot.presentation?.controls.includes('seek')}
       onPick={chapter => run(() => owner.dispatch(state, snapshot, {kind: 'book-chapter', chapterId: chapter.id}))}/>
   </section>;
   if (!chapters || chapters.data?.status === 'unavailable') return <StateView title={t('player.opt.chaptersUnavailable')}/>;

@@ -43,6 +43,16 @@ test('audiobook view uses actual part-local chapters and only offered pages/rate
   assert.equal(elements(AudiobookListening(book({snapshot: {...playback, dock: {remote: {phase: 'playing'}}}}))).length, 0);
 });
 
+test('desktop-listen, audiobook player: Playing from, then Play on and More at the right; sleep choices read as drawn', () => {
+  const tree = elements(AudiobookListening(book({sourceLabel: 'Audiobooks', canPlayOn: true, onShowPanel: noop})));
+  assert.ok(tree.some(e => e.type === 'span' && String(e.props.children).includes('Audiobooks')), 'Playing from its source');
+  const end = tree.find(e => e.type === 'span' && e.props.className === 'topEnd');
+  assert.ok(end, 'the right-hand group');
+  assert.deepEqual(elements(end.props.children).filter(e => e.type === 'button').map(e => e.props.icon), ['i-cast', 'i-more']);
+  const sleep = tree.find(e => e.type === 'segmented' && e.props['aria-label'] === defaultI18n.t('player.opt.sleepTimer'));
+  assert.deepEqual(sleep.props.items.map((item: {label: string}) => item.label).slice(1), ['15 min', '30 min']);
+});
+
 test('chapter unavailable/none/error remain distinct, and paging never invents totals or requests', () => {
   for (const status of ['none', 'unavailable']) {
     const tree = elements(AudiobookListening(book({chapters: {...chapters, data: {...chapters.data, status, totalCount: 0, nextCursor: '', chapters: []}}})));
@@ -127,8 +137,13 @@ test('MU-2: with the whole book known, the player lists every part\'s chapters n
   assert.ok(tree.some(e => e.type === 'b' && e.props.children === 'Three'), 'the playing chapter is named');
   list.props.onPick(view.chapters[0]);
   assert.deepEqual(intents, [{kind: 'book-chapter', chapterId: 'part-a:1'}]);
-  const rows = elements(BookChapterList({book: view, playing: true, disabled: false, onPick: noop}));
+  const rows = elements(BookChapterList({book: {...view, current: 0}, playing: true, disabled: false, onPick: noop}));
   assert.ok(rows.some(e => e.type === 'span' && e.props.children === 2), 'numbers count through the book');
+  // desktop-listen, audiobook player: chapters already passed carry a check, and the list is headed by its count.
+  const passed = elements(BookChapterList({book: view, playing: true, disabled: false, onPick: noop, positionSeconds: 30}));
+  assert.equal(passed.filter(e => e.props?.['data-passed']).length, 2);
+  assert.ok(passed.some(e => e.type === 'span' && e.props.children === '3 chapters'));
+  assert.ok(passed.some(e => e.type === 'small' && /left$/.test(String(e.props.children))), 'the playing chapter says how long is left in it');
   assert.equal(rows.filter(e => e.props['aria-current'] === 'true').length, 1);
 });
 

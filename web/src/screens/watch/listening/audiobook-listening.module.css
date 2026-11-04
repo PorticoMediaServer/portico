@@ -35,7 +35,7 @@
 .skip:disabled { opacity: .4; cursor: default; }
 .skip:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 3px; }
 .segments { flex-wrap: wrap; width: 100%; min-width: 0; }
-.segments > button { flex: 1; min-width: 42px; min-height: 34px; height: auto; padding: 4px 8px; }
+.segments > button { flex: 1 0 auto; min-width: 42px; min-height: 34px; height: auto; padding: 4px 8px; }
 
 /* phone-app f15: same facts, one-tap panels and device volume keys. */
 .phoneOptions { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; margin-top: 22px; margin-bottom: 42px; }
@@ -57,3 +57,13 @@
 .notice { align-self: center; margin-top: 20px; }
 @media (prefers-reduced-transparency: reduce) { .side { background: var(--color-ink); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 [data-reduce-transparency="true"] .side { background: var(--color-ink); -webkit-backdrop-filter: none; backdrop-filter: none; }
+/* desktop-listen: the top bar's Play on and More keep to the right edge. */
+.topEnd { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+/* desktop-listen, audiobook player: the list's head, passed chapters and the playing row's progress. */
+.chapterHead { display: flex; justify-content: space-between; gap: 12px; padding: 4px 8px 10px; color: var(--color-text-secondary); font-size: var(--type-fixed-size-13px); font-variant-numeric: tabular-nums; }
+.chapterRow[data-passed] b { color: var(--color-text-secondary); font-weight: var(--type-fixed-weight-600); }
+.chapterRow[data-passed] > button > span:first-child { color: var(--color-text-tertiary); }
+.chapterRow button { position: relative; flex-wrap: wrap; }
+.chapterProgress { flex-basis: 100%; height: 3px; margin: 2px 0 0 28px; border-radius: 2px; background: color-mix(in srgb, var(--color-text) 18%, transparent); overflow: hidden; }
+.chapterProgress i { display: block; height: 100%; background: var(--color-accent-strong); }
+.option > b small { display: block; margin-top: 3px; color: var(--color-text-tertiary); font-size: var(--type-fixed-size-12px); font-weight: var(--type-fixed-weight-500); }
