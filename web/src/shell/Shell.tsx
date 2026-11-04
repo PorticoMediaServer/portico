@@ -181,7 +181,7 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, reachabil
     </MenuItem> : undefined;
   const account = <AccountMenu open={accountOpen} onOpenChange={setAccountOpen} current={current} primary={identity.primaryProfile === true}
     notificationCount={desktop ? undefined : identity.unread} notificationDot={!desktop && identity.showNotificationDot && identity.unread > 0}
-    serverChoices={!desktop&&onSwitchServer?savedServers?.map(server=>({...server,onSelect:()=>{void onSwitchServer(server.id);}})):undefined} signOutLabel={identity.serverName?t('accounts.signOut.namedServer',{server:identity.serverName}):undefined} profiles={identity.profiles} accountFacts={identity.accountFacts} serverAction={serverAction} actions={{
+    serverChoices={!desktop&&onSwitchServer?savedServers?.map(server=>({...server,onSelect:()=>{void onSwitchServer(server.id);}})):undefined} profiles={identity.profiles} accountFacts={identity.accountFacts} serverAction={serverAction} actions={{
       ...(identity.canManageProfiles ? {manageProfiles: () => { void navigate({to: '/settings'}); }} : {}),
       ...(identity.canManageProfiles ? {addProfile: () => { void navigate({to: '/settings'}); }} : {}),
       switchProfile: profile => {if(onSwitchProfile){offerProfile(profile);if(!profile.pinRequired)void chooseProfile(profile);}else{void navigate({to: '/profiles', search: {profileId: profile.id}});}},
