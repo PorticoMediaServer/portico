@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        replay: [one, two, three]
+        replay: [cpu-two]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {persist-credentials: false}
@@ -30,7 +30,8 @@ jobs:
         env:
           PORTICO_ARTWORK_DIAGNOSTIC: '1'
           PORTICO_CI_GO_PACKAGE_JOBS: '4'
-        run: python3 ci/run.py go --index 3 --plan "$RUNNER_TEMP/original-selection/ci-plan.json"
+          GOMAXPROCS: '4'
+        run: python3 ci/artwork_cpu_contention.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
