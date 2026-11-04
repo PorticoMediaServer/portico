@@ -1,16 +1,13 @@
+import {readReadingMarkAll, commitReadingMarkAll, readingMarkAllNeedsReview} from '@core/query/reading-commands.ts';
 import {useLayoutEffect, useRef, useState} from 'react';
 import {randomId} from '@core/random-id.ts';
-import {isUserMutationKey, parseUserMutationReceipt, UserMutationError} from '@core/user-mutations.ts';
-import {createReadingMarkAllCommand, parseReadingMarkAllProjection, parseReadingMarkAllReceipt, readingMarkAllPath,
+import {createReadingMarkAllCommand, readingMarkAllPath,
   type ReadingMarkAllCommand, type ReadingMarkAllProjection} from '@core/reading-mark-all.ts';
 import {screenLifetime, type ScreenContext} from '../detail/context';
 
 type Opening = {context: ScreenContext; libraryId: string; routeKey: string; life: ReturnType<typeof screenLifetime>; live: boolean; busy: boolean; review?: boolean;
   proof?: ReadingMarkAllProjection; command?: ReadingMarkAllCommand; onCommitted: () => void};
 type View = Readonly<{opening?: Opening; proof?: ReadingMarkAllProjection; busy?: boolean}>;
-const reviewCodes = new Set(['personal_state_conflict', 'personal_needs_resolution', 'operation_expired', 'idempotency_key_reused',
-  'stale_continuation', 'invalid_request', 'not_found', 'not_permitted', 'unauthorized', 'receipt_expired', 'idempotency_conflict', 'mutation_needs_review', 'revision_mismatch']);
-const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 /** A whole-library explicit Reading intent, captured to this original opening.
  * A projection is only a CAS witness; POST always re-admits its original actor.
@@ -32,8 +29,7 @@ export function useReadingMarkAll(context: ScreenContext, libraryId: string, rou
       || !['owner', 'admin', 'member'].includes(viewer.role) || !readPath || !writePath) {publish({}); return;}
     const held: Opening = {context, libraryId, routeKey, life: screenLifetime(context), live: true, busy: true, onCommitted};
     opening.current = held; publish({opening: held, busy: true});
-    void held.life.api.request(readPath, 'GET').then(raw => {
-      const proof = parseReadingMarkAllProjection(raw, context.scope.serverId, libraryId);
+    void readReadingMarkAll(held.life.api, context.scope.serverId, libraryId).then(proof => {
       if (!current(held)) return;
       held.proof = proof; held.busy = false; publish({opening: held, proof});
     }).catch(error => {if (current(held)) {held.busy = false; publish({opening: held}); context.effects.reportError(error);}});
@@ -50,33 +46,19 @@ export function useReadingMarkAll(context: ScreenContext, libraryId: string, rou
     if (!path) return;
     const operation = command ?? createReadingMarkAllCommand(proof, randomId());
     held.command = operation; held.busy = true; publish({opening: held, proof, busy: true});
-    void held.life.api.request(path, 'POST', operation).then(async raw => {
-      if (!current(held) || held.command !== operation) return;
-      if (object(raw) && raw.mutationReceipt !== undefined) {
-        const marker = raw.mutationReceipt;
-        if (!object(marker) || typeof marker.key !== 'string' || !isUserMutationKey(marker.key)) throw new Error('invalid_reading_mark_all');
-        const receipt = parseUserMutationReceipt(marker, {key: marker.key, operation: 'post_libraries_libraryId_reading_mark_all'});
-        if (receipt.targetId !== held.libraryId) throw new Error('invalid_reading_mark_all');
-        if (receipt.status !== 'applied') throw new UserMutationError('mutation_needs_review', receipt.key, receipt);
-        const readPath = readingMarkAllPath('GET', held.libraryId);
-        if (!readPath) throw new Error('invalid_reading_mark_all');
-        const rawCurrent = await held.life.api.request(readPath, 'GET');
-        if (!current(held) || held.command !== operation) return;
-        const fresh = parseReadingMarkAllProjection(rawCurrent, held.context.scope.serverId, held.libraryId);
-        if (fresh.viewerFence !== proof.viewerFence || fresh.revision.catalog < proof.revision.catalog || receipt.revision === undefined || fresh.revision.viewer < receipt.revision) throw new Error('invalid_reading_mark_all');
-        // Current counts belong to this read. No historical changed/count result is reconstructed.
-      } else parseReadingMarkAllReceipt(raw, proof, operation);
-      if (!current(held) || held.command !== operation) return;
-      await held.context.api.acknowledgeUserMutation?.(operation.operationId);
-      if (!current(held) || held.command !== operation) return;
-      held.command = undefined;
-      // The receipt describes the old operation. Remount actual collections,
-      // summary and action proof rather than presenting its count as new state.
-      held.onCommitted();
+    void commitReadingMarkAll(held.life.api, held.context.scope.serverId, held.libraryId, proof, operation, {
+      isCurrent: () => current(held) && held.command === operation,
+      acknowledge: id => held.context.api.acknowledgeUserMutation?.(id) ?? Promise.resolve(),
+      onCommitted: () => {
+        held.command = undefined;
+        // Publish at the original guarded acknowledgement point, before another
+        // Promise continuation can retire this opening.
+        held.onCommitted();
+      },
     }).catch(error => {
       if (!current(held) || held.command !== operation) return;
       held.context.effects.reportError(error);
-      if (object(error) && typeof error.code === 'string' && reviewCodes.has(error.code)) held.review = true;
+      if (readingMarkAllNeedsReview(error)) held.review = true;
       // Keep the original proof and command through conflicts and ambiguous failures.
       // A fresh projection is not permission to author a replacement operation.
       held.busy = false; publish({opening: held, proof});
