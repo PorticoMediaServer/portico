@@ -271,3 +271,19 @@ test('Dashboard role-change abort fanout retires both old windows without aborti
     finally {if (timer) clearTimeout(timer);}
   }
 });
+
+test('a moved viewer fence between session pages answers and retires nothing; another server still ends the read', async () => {
+  const lifetime = new NativeScreenLifetime({authority: () => authority, current: () => true, subscribeAuthority: () => () => {}});
+  const moved = (cursor?: string) => cursor ? {...page('b', 1), scope: {serverId: 'server', viewerFence: 'moved'}} : page('a', 1, 'p2');
+  let foreign = false;
+  const readers: NativeDashboardReaders = {
+    sessions: {list: async cursor => foreign ? {...page('x', 1), scope: {serverId: 'other', viewerFence: 'fence'}} : moved(cursor)},
+    console: {measurement: async name => ({name, observedAt: 1, freshUntil: 30001, facts: {}}), alerts: async () => [], jobs: async () => ({items: [], nextCursor: ''}), dispose() {}},
+  };
+  const controller = new NativeDashboardController(lifetime, () => 'administrator', readers);
+  await controller.refresh(); await controller.nextSessions(controller.getSnapshot().sessionWindow!);
+  assert.deepEqual(controller.getSnapshot().sessions.map(row => row.id), ['a0', 'b0']); assert.equal(controller.getSnapshot().sessionWindow?.refreshRequired, false);
+  foreign = true; await controller.refresh();
+  assert.equal(controller.getSnapshot().sessions.some(row => row.id === 'x0'), false);
+  controller.dispose(); lifetime.dispose();
+});

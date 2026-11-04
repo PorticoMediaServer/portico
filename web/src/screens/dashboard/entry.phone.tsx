@@ -31,7 +31,7 @@ export function DashboardPhoneEntry() {
     const language = shellLanguage(preferences), timeZone = language.region.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
     const openHome = () => {if (current()) void router.navigate({to: '/'});};
     const openSettings = (section: string) => {if (current()) void router.navigate({to: '/settings', search: () => ({scope: 'server', section})});};
-    const dashboard = createDashboardBindings({api: context.api, events: context.events, scope: {serverId: context.session().viewer.serverId, viewerId: JSON.stringify([context.session().viewer.authority, context.session().viewer.accountId, context.session().viewer.profileId])},
+    const dashboard = createDashboardBindings({api: context.api, queries: context.freshness?.queries, events: context.events, scope: {serverId: context.session().viewer.serverId, viewerId: JSON.stringify([context.session().viewer.authority, context.session().viewer.accountId, context.session().viewer.profileId])},
       context: captureReportContext(timeZone), role: permittedRole, isCurrent: current, isMainProfile: () => current() && context.facts.identity.primaryProfile === true,
       artwork: (id, kind, revision) => revision ? context.artwork.foreground(encodedRoutePath('get_items_id_art_kind', {id: encodeURIComponent(id), kind}) + '?' + new URLSearchParams({v: revision}), kind === 'backdrop' ? 800 : 400, kind === 'poster' ? 2 / 3 : kind === 'backdrop' ? 16 / 9 : 1) : undefined,
       effects: {openHome, openSettings, reportError: error => {if (current()) setFailure({error});}, openHistory: () => openSettings('history')}});

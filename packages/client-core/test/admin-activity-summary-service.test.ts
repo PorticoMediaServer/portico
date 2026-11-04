@@ -102,11 +102,11 @@ test('denial never retains private owner body or error current payload and block
     h.source.set({http: h.http, scope: {...scope, authorizationEpoch: '2'}}); assert.equal(h.service.getSnapshot().document, undefined); h.service.dispose();
   }
 });
-test('wrong server or changed viewer authority fence erases the body without accepting the new scope', async () => {
-  for (const changed of [{serverId: 'other-server', viewerFence: 'a'.repeat(64)}, {serverId: 'server', viewerFence: 'b'.repeat(64)}]) {
-    const h = harness((_r, n) => ok(n === 1 ? wire() : wire({scope: changed}))); h.activate(); await h.service.load(); await h.service.load();
-    assert.deepEqual(h.service.getSnapshot(), {phase: 'error', error: {code: 'permission_changed'}}); h.service.dispose();
-  }
+test('another server erases the body without accepting the new scope; a moved viewer fence answers and retires nothing', async () => {
+  const h = harness((_r, n) => ok(n === 1 ? wire() : wire({scope: {serverId: 'other-server', viewerFence: 'a'.repeat(64)}}))); h.activate(); await h.service.load(); await h.service.load();
+  assert.deepEqual(h.service.getSnapshot(), {phase: 'error', error: {code: 'permission_changed'}}); h.service.dispose();
+  const moved = harness((_r, n) => ok(wire({scope: {serverId: 'server', viewerFence: (n === 1 ? 'a' : 'b').repeat(64)}, serverName: n === 1 ? 'First' : 'Second'}))); moved.activate(); await moved.service.load(); await moved.service.load();
+  const snapshot = moved.service.getSnapshot(); assert.equal(snapshot.phase, 'ready'); assert.equal(snapshot.document?.serverName, 'Second'); assert.equal(moved.requests.length, 2); moved.service.dispose();
 });
 test('observation revisions compare all nanoseconds and never replace a newer summary with an older completion', async () => {
   const h = harness((_r, n) => ok(wire({observedAt: n === 1 ? '2026-10-22T07:00:00.000000002Z' : '2026-10-22T07:00:00.000000001Z'})));
@@ -229,11 +229,11 @@ test('Dashboard read deadline and listener-triggered sign-out release no private
  assert.deepEqual(h.service.getSnapshot(),{phase:'error',error:{code:'request_timeout'}});pending.resolve(ok(dashboardWire()));await flush();assert.equal(h.service.getSnapshot().document,undefined);h.service.dispose();assert.equal(h.clock.tasks.size,0);
  const signedOut=dashboardHarness();signedOut.service.subscribe(()=>{if(signedOut.service.getSnapshot().phase==='loading')signedOut.source.set(null);});await signedOut.service.load();assert.equal(signedOut.requests.length,0);assert.equal(signedOut.service.getSnapshot().document,undefined);signedOut.service.dispose();
 });
-test('Dashboard rejects owner-only payload additions, inconsistent totals, wrong server and fence replacement',async()=>{
+test('Dashboard rejects owner-only payload additions, inconsistent totals and a wrong server, and a moved viewer fence answers',async()=>{
  for(const body of [dashboardWire({serverName:'private'}),dashboardWire({totals:{streams:59,paused:0,converting:0,bandwidthKbps:0,people:1,atHome:0,away:0}}),dashboardWire({scope:{serverId:'other-server',viewerFence:'a'.repeat(64)}})]){
   const h=dashboardHarness(()=>ok(body));await h.service.load();assert.equal(h.service.getSnapshot().phase,'error');assert.equal(h.service.getSnapshot().document,undefined);h.service.dispose();
  }
- const h=dashboardHarness((_,n)=>ok(dashboardWire(n?{scope:{serverId:'server',viewerFence:'b'.repeat(64)}}:{})));await h.service.load();await h.service.load();assert.equal(h.service.getSnapshot().error?.code,'permission_changed');assert.equal(h.service.getSnapshot().document,undefined);h.service.dispose();
+ const h=dashboardHarness((_,n)=>ok(dashboardWire(n?{scope:{serverId:'server',viewerFence:'b'.repeat(64)}}:{})));await h.service.load();await h.service.load();assert.equal(h.service.getSnapshot().phase,'ready');assert.ok(h.service.getSnapshot().document);assert.equal(h.requests.length,2);h.service.dispose();
 });
 
 test('actual Activity resync owner shares feed admission and recover after permits release', async () => {

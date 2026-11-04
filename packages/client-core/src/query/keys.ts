@@ -20,6 +20,14 @@ export const queryKeys = Object.freeze({
   notificationsInbox: (audience: string, view: string) => ['notifications', 'inbox', audience, view] as const,
   /** The viewer's unread notifications in one audience (`GET /v1/notifications/unread-count?audience=…`). */
   notificationsUnread: (audience: string) => ['notifications', 'unread', audience] as const,
+  /** The owner's activity summary (`GET /v1/admin/activity`): the shell's activity popover. */
+  adminActivity: () => ['admin', 'activity'] as const,
+  /** The Dashboard's status (alerts and tasks). */
+  adminDashboardStatus: () => ['admin', 'dashboard', 'status'] as const,
+  /** The Dashboard's report for one range: its query and the interval it was captured for. */
+  adminDashboardReport: (range: unknown) => ['admin', 'dashboard', 'report', range] as const,
+  /** The first page of the play history for one set of filters and one sort (later pages are its continuation, never cached). */
+  adminPlayHistory: (filter: unknown, sort: unknown) => ['admin', 'play-history', filter, sort] as const,
   /** A Home row's See all grid, as `libraryBrowse`. */
   homeRowBrowse: (rowId: string, query: string) => ['home', 'row', rowId, 'browse', query] as const,
 });

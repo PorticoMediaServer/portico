@@ -2,7 +2,7 @@ import type {EventsClient} from '@core/playback-v1/events.ts';
 import type {SessionControls} from '@core/playback-controls.ts';
 import type {HttpLocalApi} from '@core/index.ts';
 import {ConsoleClient, type ConsoleScope} from '@core/console.ts';
-import {DashboardDataClient, type DashboardReport as WireDashboardReport, type DashboardReportFilters, type DashboardPeople, type DashboardStatus} from '@core/admin/dashboard.ts';
+import {DashboardDataClient, dashboardReportQuery, dashboardStatusQuery, type DashboardReport as WireDashboardReport, type DashboardReportFilters, type DashboardPeople, type DashboardStatus} from '@core/admin/dashboard.ts';
 import {parseReportContext, type ReportContext} from '@core/report-context.ts';
 import {parseDashboardSessions} from '@core/admin/activity-summary/parser.ts';
 import type {DashboardSessionsPage} from '@core/admin/activity-summary/types.ts';
@@ -13,8 +13,11 @@ import {AdminSessionsClient} from '@core/playback-v1/admin-sessions.ts';
 import {localV1Http} from '@core/playback-v1/local-http.ts';
 import {playbackControlsService} from '@core/playback-controls.ts';
 import {sendSeekTo, sendTransport} from '@core/server-admin/now-playing.ts';
-import {fetchPlayHistory, type PlayHistoryApi, type PlayHistoryFilters, type PlayHistoryPage} from '@core/play-history.ts';
+import {fetchPlayHistory, playHistoryFirstPageQuery, type PlayHistoryApi, type PlayHistoryFilters, type PlayHistoryPage} from '@core/play-history.ts';
 import {parseTelemetryReading, type TelemetryReading} from '@core/telemetry.ts';
+import {dependsOn} from '@core/freshness-hub.ts';
+import {readDocument} from '@core/query/admin-documents.ts';
+import type {ViewerQueries} from '@core/query/viewer-queries.ts';
 import {retryCertificate, type CertificateAction, type CertificateApi} from '@core/certificates.ts';
 import type {FactPart} from '@core/presentation/kit-model/index.ts';
 import {settingsServerHeader} from '../settings/server-header';
@@ -38,14 +41,15 @@ export type DashboardBindings = Readonly<{
   subscribeAuthority?: (listener: () => void) => () => void;
   read: Readonly<{
     sessions: (cursor?: string, signal?: AbortSignal) => Promise<DashboardSessions>;
-    status: (signal?: AbortSignal) => Promise<DashboardStatus>;
+    /** `fresh` (the default): ask the server; `false`: the viewer's held copy answers while nothing it was built from has moved. */
+    status: (signal?: AbortSignal, fresh?: boolean) => Promise<DashboardStatus>;
     /** Canonical session-specific permission/revision receipt, read only while its menu is open. */
     controls?: (id: string, signal: AbortSignal) => Promise<SessionControls>;
     /** Live desktop load or the phone Health panel's canonical finite windows. */
     telemetry: (range: 'live' | '10m' | '1h' | '24h', signal?: AbortSignal) => Promise<TelemetryReading>;
-    report: (filters: DashboardReportQuery, signal?: AbortSignal) => Promise<DashboardReport>;
+    report: (filters: DashboardReportQuery, signal?: AbortSignal, fresh?: boolean) => Promise<DashboardReport>;
     people: (filters: DashboardFilters, cursor?: string, signal?: AbortSignal) => Promise<DashboardPeople>;
-    plays: (filters: DashboardFilters, cursor?: string, signal?: AbortSignal) => Promise<PlayHistoryPage>;
+    plays: (filters: DashboardFilters, cursor?: string, signal?: AbortSignal, fresh?: boolean) => Promise<PlayHistoryPage>;
     /** Owner-only server health and facts for the page header. */
     server: (signal?: AbortSignal) => Promise<DashboardServerHeader>;
   }>;
@@ -64,6 +68,8 @@ export type DashboardBindings = Readonly<{
 }>;
 export type DashboardBindingOptions = Pick<DashboardBindings, 'scope' | 'role' | 'context' | 'isCurrent' | 'isMainProfile' | 'events' | 'artwork' | 'subscribeAuthority'> & {
   api: Pick<HttpLocalApi, 'request' | 'requestRaw'>;
+  /** The viewer's cache: the status, the report and the first page of the play history are read through it. */
+  queries?: ViewerQueries;
   effects: Pick<DashboardBindings['effects'], 'openSettings' | 'openHome' | 'reportError'> & {openHistory: (context: ReportContext) => void};
 };
 
@@ -114,7 +120,6 @@ export function createDashboardBindings(options: DashboardBindingOptions): Dashb
       return value;
     }};
   };
-  let fence: string | undefined;
   let observed: string | undefined;
   const ownerRead = async <T>(work: () => Promise<T>) => {assert(true); const value = await work(); assert(true); return value;};
   return {
@@ -123,16 +128,16 @@ export function createDashboardBindings(options: DashboardBindingOptions): Dashb
       sessions: async (cursor, signal) => {
         assert(); const query = new URLSearchParams({limit: String(DASHBOARD_SESSION_PAGE_SIZE)}); if (cursor) query.set('cursor', cursor);
         const raw = parseDashboardSessions((await call(http, {method: 'GET', path: routePath('list_admin_sessions') + '?' + query, signal})).body); assert();
-        if (raw.scope.serverId !== options.scope.serverId || fence !== undefined && fence !== raw.scope.viewerFence || observed !== undefined && Date.parse(raw.observedAt) < Date.parse(observed)) {close(); throw new DOMException('Dashboard authority changed', 'AbortError');}
-        fence = raw.scope.viewerFence; observed = raw.observedAt;
+        if (raw.scope.serverId !== options.scope.serverId || observed !== undefined && Date.parse(raw.observedAt) < Date.parse(observed)) {close(); throw new DOMException('Dashboard authority changed', 'AbortError');}
+        observed = raw.observedAt;
         return {items: raw.items.map(item => ({...parseAdminSession(item), channel: item.channel, programme: item.programme})), nextCursor: raw.page.nextCursor ?? '', scope: raw.scope, totals: raw.totals};
       },
-      status: signal => ownerRead(() => data.status(signal)),
+      status: (signal, fresh = true) => ownerRead(() => options.queries ? readDocument(options.queries, dashboardStatusQuery(data), {fresh, signal}) : data.status(signal)),
       controls: async (id, signal) => {assert(); signal.throwIfAborted(); const value = await operationControls(signal).readAdmin(id); assert(); signal.throwIfAborted(); return value;},
       telemetry: (range, signal) => ownerRead(async () => {if (signal?.aborted) throw signal.reason; const value = await consoleClient.telemetry(range, context); if (signal?.aborted) throw signal.reason; return value;}),
-      report: (filters, signal) => ownerRead(async () => {const value = await data.report({...filters, ...context}, signal); return {...value, load: parseTelemetryReading(value.load)};}),
+      report: (filters, signal, fresh = true) => ownerRead(async () => {const wanted = {...filters, ...context}; const value = await (options.queries ? readDocument(options.queries, dashboardReportQuery(data, wanted), {fresh, signal}) : data.report(wanted, signal)); return {...value, load: parseTelemetryReading(value.load)};}),
       people: (filters, cursor, signal) => ownerRead(() => data.people({...filters, ...context}, cursor, 100, signal)),
-      plays: (filters, cursor, signal) => ownerRead(() => fetchPlayHistory(api, {...filters, ...context}, cursor, signal)),
+      plays: (filters, cursor, signal, fresh = true) => ownerRead(() => options.queries && !cursor ? readDocument(options.queries, playHistoryFirstPageQuery(api, {...filters, ...context}), {fresh, signal}) : fetchPlayHistory(api, {...filters, ...context}, cursor, signal)),
       server: signal => ownerRead(async () => {
         const [health, storage] = await Promise.allSettled([consoleClient.measurement('health'), consoleClient.measurement('storage')]);
         if (signal?.aborted) throw signal.reason;
@@ -144,7 +149,7 @@ export function createDashboardBindings(options: DashboardBindingOptions): Dashb
       openHome: () => {assert(); options.effects.openHome();},
       transport: async (id, command) => {assert(); await sendTransport(controls, id, command); assert();},
       seek: async (id, positionMs, signal) => {assert(); signal.throwIfAborted(); await sendSeekTo(operationControls(signal), id, positionMs); assert(); signal.throwIfAborted();},
-      stop: async (id, message) => {assert(true); await sessions.terminate(id, message); assert(true);},
+      stop: async (id, message) => {assert(true); await sessions.terminate(id, message); assert(true); options.queries?.moved([dependsOn.event('admin.sessions')]);},
       retryCertificate: async () => {assert(true); await retryCertificate(certificates, AbortSignal.timeout(15000)); assert(true);},
     },
     dispose: () => {close(); offAuthority?.(); consoleClient.dispose(); listeners.clear();},

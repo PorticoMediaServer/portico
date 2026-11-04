@@ -129,7 +129,7 @@ let sequence=0;
 /** Operation keys are uniqueness tokens, not credentials or authorization. */
 export function consoleOperationId():string{return globalThis.crypto?.randomUUID?.()??`op-${Date.now().toString(36)}-${(++sequence).toString(36)}-${Math.random().toString(36).slice(2,16)}`;}
 export class ConsoleClient {
- private disposed=false;private fence?:string;private requests=new Set<AbortController>();private intents=new Map<string,{body:string;key:string;method:string;parse:(v:unknown)=>unknown;binding?:UserMutationScope;ack?:Promise<void>}>();private reconciled=new Set<()=>void>();private listeners=new Set<()=>void>();
+ private disposed=false;private requests=new Set<AbortController>();private intents=new Map<string,{body:string;key:string;method:string;parse:(v:unknown)=>unknown;binding?:UserMutationScope;ack?:Promise<void>}>();private reconciled=new Set<()=>void>();private listeners=new Set<()=>void>();
  private drafts=new Map<string,unknown>();private denied=false;private refusal?:unknown;private recoveredExport?:SupportExport;
  private settingsRead = new Map<number,RuntimeSettings>();
  private pendingSettings?:{expectedRevision:number;baseline:RuntimeSettings;patch:string};
@@ -174,8 +174,8 @@ export class ConsoleClient {
  private async call<T>(path:string,method:string,body:unknown,parse:(v:unknown)=>T,custody?:{ack?:Promise<void>}):Promise<T>{
   if(this.disposed||this.denied)throw this.ended(new Error('This server scope is closed.'));const c=new AbortController();this.requests.add(c);const timer=setTimeout(()=>c.abort(),10000);
   try{const raw=await (this.api.requestConsole?this.api.requestConsole<unknown>(path,method,body,c.signal):this.api.request<unknown>(path,method,body,c.signal));if(this.disposed||this.denied||c.signal.aborted)throw this.ended(new Error('Console request ended.'));
-   if(!obj(raw)||!obj(raw.scope)||raw.scope.serverId!==this.scope.serverId||typeof raw.scope.viewerFence!=='string'||!/^[a-f0-9]{64}$/.test(raw.scope.viewerFence)||this.fence!==undefined&&this.fence!==raw.scope.viewerFence){this.revoke();throw new Error('The selected viewer changed. Reopen this server.');}
-   const out=parse(raw.data);this.fence=raw.scope.viewerFence;const intent=body&&typeof body==='object'?(body as Record<string,unknown>).idempotencyKey:undefined;if(typeof intent==='string'){if(custody)await(custody.ack??=(this.api.acknowledgeUserMutation?.(intent)??Promise.resolve()).catch(error=>{custody.ack=undefined;throw error;}));else await this.api.acknowledgeUserMutation?.(intent);}return out;
+   if(!obj(raw)||!obj(raw.scope)||raw.scope.serverId!==this.scope.serverId||typeof raw.scope.viewerFence!=='string'||!/^[a-f0-9]{64}$/.test(raw.scope.viewerFence)){this.revoke();throw new Error('The selected viewer changed. Reopen this server.');}
+   const out=parse(raw.data);const intent=body&&typeof body==='object'?(body as Record<string,unknown>).idempotencyKey:undefined;if(typeof intent==='string'){if(custody)await(custody.ack??=(this.api.acknowledgeUserMutation?.(intent)??Promise.resolve()).catch(error=>{custody.ack=undefined;throw error;}));else await this.api.acknowledgeUserMutation?.(intent);}return out;
   }catch(e){if(obj(e)&&(e.status===401||e.status===403)&&e.code!=='profile_pin_manage')this.revoke(e);throw this.ended(e);}finally{clearTimeout(timer);this.requests.delete(c);}
  }
  private ended(error:unknown){return !this.disposed&&this.denied&&this.refusal!==undefined?this.refusal:error;}
@@ -214,7 +214,7 @@ export class ConsoleClient {
 
  }
  registry(){return this.call(routePath("get_console_registry"),'GET',undefined,base);}
- /** Uses the same selected-server and viewer fence as every console read. */
+ /** Like every console read, answered only for this server; a moved viewer fence only means it was read again. */
  configuration(){return this.call(routePath("get_settings_configuration"),'GET',undefined,parseSettingsConfiguration);}
  async settings(){const doc=await this.call(routePath("get_console_settings"),'GET',undefined,parseSettings);this.rememberSettings(doc);return doc;}
  private rememberSettings(doc:SettingsDocument){this.settingsRead.set(doc.revision,JSON.parse(JSON.stringify(doc.requested)) as RuntimeSettings);if(this.settingsRead.size>8)this.settingsRead.delete(this.settingsRead.keys().next().value!);}

@@ -8,7 +8,7 @@ const initialQuery: DashboardReportQuery = {period: '30d', window: 'live', peopl
 /** All aggregate panels consume one checked producer response. The shell owns capture/refresh. */
 export function useDashboardReport(bindings: DashboardBindings, enabled = true) {
   const [query, setQuery] = useState(initialQuery);
-  const load = useCallback((signal: AbortSignal) => bindings.read.report(query, signal), [bindings, query]);
+  const load = useCallback((signal: AbortSignal, fresh: boolean) => bindings.read.report(query, signal, fresh), [bindings, query]);
   const state = useDashboardRead(bindings, load, enabled, 0, reportChanges);
   const change = useCallback((patch: Partial<DashboardReportQuery>) => setQuery(previous => ({...previous, ...patch})), []);
   return {query, change, state};

@@ -93,8 +93,12 @@ test('authority failures clear drafts and late responses after disposal never pu
  const c=client(async()=>{throw new ConsoleTransportError(401,'unauthorized');});c.setDraft('private',true);await assert.rejects(c.settings());assert.equal(c.hasDrafts(),false);c.dispose();
  let resolve!:(v:unknown)=>void;const d=client(async()=>new Promise(r=>resolve=r));const request=d.settings();d.dispose();resolve(envelope(settings()));await assert.rejects(request,/ended/);
 });
-test('viewer-fence rotation is detected independently of server identity',async()=>{
- let changed=false;const c=client(async()=>envelope(settings(),'server-one',changed?'b'.repeat(64):fence));await c.settings();changed=true;await assert.rejects(c.settings(),/selected viewer changed/);c.dispose();
+test('a moved viewer fence answers and retires nothing; a malformed fence, another server or a refusal still ends the scope',async()=>{
+ let changed=false,denied=0;const c=client(async()=>envelope(settings(),'server-one',changed?'b'.repeat(64):fence));c.onDenied(()=>denied++);
+ await c.settings();c.setDraft('kept',true);changed=true;
+ assert.equal((await c.settings()).revision,1);assert.equal(c.hasDrafts(),true);assert.equal(denied,0);assert.equal((await c.settings()).revision,1);c.dispose();
+ const bad=client(async()=>envelope(settings(),'server-one','not-a-fence'));bad.setDraft('private',true);
+ await assert.rejects(bad.settings(),/selected viewer changed/);assert.equal(bad.hasDrafts(),false);bad.dispose();
 });
 test('schedule writes exclude server-owned revision and admission history',async()=>{
  let sent:any;const schedule:Schedule={id:'schedule-one',revision:7,kind:'retention-cleanup',resource:'',enabled:true,timezone:'America/Toronto',startMinute:60,windowMinutes:90,catchUp:true,lastSlot:'2026-09-06',createdAt:20};
