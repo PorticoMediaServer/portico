@@ -20,7 +20,7 @@ async function scene(platform: 'android' | 'tvos', options?: {wait: number}) {
   const Panel = ({close}: {close: () => void}) => {
     const modal = o.useTVPanelModal();
     o.useOverlayLifecycle(true, true, close, undefined, undefined, 0, 'panel');
-    return e(n.Modal, {transparent: true, visible: modal.visible, onDismiss: modal.onDismiss, onRequestClose: close},
+    return e(n.Modal, {key: modal.key, transparent: true, visible: modal.visible, onDismiss: modal.onDismiss, onRequestClose: close},
       e(o.FocusBoundary, {modal: true, testID: 'panel'}, e(Stop, {id: 'panel-ok', onPress: close})));
   };
   const overlay = (kind: Kind, open: boolean, close: () => void, anchor: any): any => {
@@ -162,10 +162,12 @@ test('Apple TV: a popover reopened while its early hide is still dismissing is s
 
 async function probe(platform: 'android' | 'tvos', wait: number) {
   const kit = await tvFocusKit({platform}), o: any = await tvKitOverlays(kit, {wait});
-  let seen: {mounted: boolean; visible: boolean; onDismiss: () => void} = undefined as any;
-  const Probe = ({present, shown}: {present: boolean; shown: boolean}) => {seen = o.useNativeModalPresence(present, shown); return null;};
-  const at = async (present: boolean, shown: boolean) => {await kit.engine.render(kit.e(Probe, {present, shown})); return seen;};
-  const report = async () => {seen.onDismiss(); await kit.engine.settle(); return seen;};
+  let seen: {mounted: boolean; visible: boolean; onDismiss: () => void; key: number} = undefined as any;
+  const Probe = ({present, shown, fallback}: {present: boolean; shown: boolean; fallback?: number}) => {seen = o.useNativeModalPresence(present, shown, fallback); return null;};
+  /** `fallback`: this step's dismissal fallback (the harness's `wait` when omitted). */
+  const at = async (present: boolean, shown: boolean, fallback?: number) => {await kit.engine.render(kit.e(Probe, {present, shown, fallback})); return seen;};
+  /** The report of the presentation now on screen (its Modal's own onDismiss), or of one saved earlier. */
+  const report = async (onDismiss = seen.onDismiss) => {onDismiss(); await kit.engine.settle(); return seen;};
   return {at, report, engine: kit.engine};
 }
 
@@ -185,21 +187,42 @@ test('a dismissal report from an earlier presentation never ends a later close (
   await engine.unmount();
 });
 
-test('a dismissal the fallback gave up on (D15) does not end a later close when its report comes late', async () => {
+// Sol 8's second P2 on #844 (comment 6638689806): a report is bound to its own presentation, never to whichever close
+// is outstanding when it arrives. Here A is retired by the fallback, B opens and starts closing (B's own fallback is far
+// off), and only then does A's late report come.
+test('a late report from a presentation the fallback retired never ends a later close, even one already under way', async () => {
+  const {at, report, engine} = await probe('tvos', 60);
+  let now = await at(true, true);
+  const reportA = now.onDismiss, keyA = now.key;
+  now = await at(false, false);
+  assert.equal(now.mounted, true, 'A waits for its dismissal');
+  await new Promise(resolve => setTimeout(resolve, 120)); await engine.settle();
+  now = await at(false, false);
+  assert.equal(now.mounted, false, 'A is retired by the fallback');
+  now = await at(true, true, 60_000);
+  assert.equal(now.visible, true, 'B is shown');
+  const keyB = now.key;
+  now = await at(false, false, 60_000); // B's fallback is a minute off: only a report can end its close here
+  assert.equal(now.mounted, true, 'B is closing');
+  now = await report(reportA); // A's late report arrives while B is closing
+  assert.equal(now.mounted, true, 'A\'s report does not end B\'s close');
+  now = await report(); // B's own report
+  assert.equal(now.mounted, false, 'B goes on its own report');
+  assert.notEqual(keyB, keyA, 'B was its own native host, so A\'s host could never report for it');
+  await engine.unmount();
+});
+
+test('a presentation that never reports blocks nothing once retired, and never swallows a later report', async () => {
   const {at, report, engine} = await probe('tvos', 60);
   await at(true, true);
-  let now = await at(false, false);
-  assert.equal(now.mounted, true, 'waiting for the dismissal');
-  await pause(120); await engine.settle();
+  await at(false, false);
+  await new Promise(resolve => setTimeout(resolve, 120)); await engine.settle(); // A is never reported; the fallback retires it
+  let now = await at(true, true);
+  assert.equal(now.visible, true, 'B is shown at once: A blocks nothing');
   now = await at(false, false);
-  assert.equal(now.mounted, false, 'gone on the fallback');
-  now = await at(true, true);
-  assert.equal(now.visible, true, 'opened again');
-  now = await report(); // the lost dismissal reports late
-  now = await at(false, false);
-  assert.equal(now.mounted, true, 'the late report belongs to the lost dismissal: this close still waits');
-  now = await report();
-  assert.equal(now.mounted, false);
+  assert.equal(now.mounted, true, 'B is closing');
+  now = await report(); // B's own report
+  assert.equal(now.mounted, false, 'B goes on its own report, not on the fallback');
   await engine.unmount();
 });
 

@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {Platform} from 'react-native';
 import {LAYER_FOCUS_WAIT_MS} from '../focus/layer-stack';
 
@@ -42,47 +42,49 @@ export function useNativeDismissal(onGone: () => void, wait = LAYER_FOCUS_WAIT_M
  * overlay lifecycle gives focus back only once it has fully gone. On Android and Vega the dialog window goes with the
  * element, so `mounted` follows `present`.
  *
- * - `present`: the overlay's own presence (true through its exit). Render the `Modal` while `mounted`, with `visible`
- *   and `onDismiss` from here, and keep the overlay lifecycle open while `mounted`.
+ * - `present`: the overlay's own presence (true through its exit). Render the `Modal` while `mounted`, with `key`,
+ *   `visible` and `onDismiss` from here, and keep the overlay lifecycle open while `mounted`.
  * - `shown`: when the `Modal` asks to be visible while present (a menu that hides at once when it closes); it defaults
  *   to `present`.
  *
- * Each report belongs to its own presentation. Every time the `Modal` is hidden (whether `shown` or `present` ended it)
- * one dismissal starts, and reports are matched to those dismissals oldest first, so an old report never ends a later
- * close. The `Modal` is shown again only once no dismissal is outstanding: UIKit can't present a view controller that
- * is still being dismissed, and flipping `visible` back does not cancel the dismissal. A report while the `Modal` is
- * shown, with none outstanding, is UIKit's own Menu dismissal of that presentation (D16): its close then has nothing
- * left to wait for. Dismissals the fallback gave up on are remembered, so their late reports are ignored too.
+ * Each presentation has its own identity (a token, taken when it is shown). Its `Modal` is its own native host (`key`),
+ * and its `onDismiss` carries that token, so a report retires only its own presentation's close: a report from an
+ * earlier presentation, however late, never ends a later close. The `Modal` is shown again only once the presentation
+ * before it has finished leaving: UIKit can't present a view controller that is still being dismissed, and flipping
+ * `visible` back does not cancel the dismissal. A report while its presentation is shown is UIKit's own Menu dismissal
+ * of it (D16): its close then has nothing left to wait for. A presentation whose dismissal is never reported is
+ * retired by the fallback; it then blocks nothing, and its report, if it ever comes, is ignored.
  */
 type Presentation = Readonly<{
-  /** What the `Modal` was last asked for. */
+  /** The current presentation (0 before the first). */
+  token: number;
+  /** Whether it is shown. */
   shown: boolean;
-  /** Dismissals started (iOS) and not yet reported, oldest first. */
-  outstanding: number;
-  /** Dismissals the fallback gave up on; their reports, if they ever come, are ignored. */
-  lost: number;
-  /** UIKit dismissed the presentation shown now by itself (D16). */
+  /** Hidden, and its dismissal not yet reported or given up on (iOS). */
+  leaving: boolean;
+  /** UIKit dismissed it by itself while shown (D16). */
   gone: boolean;
 }>;
-export function useNativeModalPresence(present: boolean, shown = present, wait = LAYER_FOCUS_WAIT_MS): Readonly<{mounted: boolean; visible: boolean; onDismiss: () => void}> {
+export function useNativeModalPresence(present: boolean, shown = present, wait = LAYER_FOCUS_WAIT_MS): Readonly<{mounted: boolean; visible: boolean; onDismiss: () => void; key: number}> {
   const ios = Platform.OS === 'ios';
-  const [state, setState] = useState<Presentation>({shown: false, outstanding: 0, lost: 0, gone: false});
+  const [state, setState] = useState<Presentation>({token: 0, shown: false, leaving: false, gone: false});
   let now = state;
   // The Modal's own edge, decided in render so that `mounted` holds on the same commit that hides it.
-  const ask = shown && present && state.outstanding === 0;
+  const ask = shown && present && !state.leaving;
   if (ask !== state.shown) {
-    now = ask ? {...state, shown: true, gone: false} // a new presentation
-      : {...state, shown: false, gone: false, outstanding: state.outstanding + (ios && !state.gone ? 1 : 0)}; // its dismissal starts
+    now = ask ? {token: state.token + 1, shown: true, leaving: false, gone: false} // a new presentation
+      : {...state, shown: false, leaving: ios && !state.gone, gone: false}; // its dismissal starts
     setState(now);
   }
-  const onDismiss = useCallback(() => setState(current =>
-    current.outstanding > 0 ? {...current, outstanding: current.outstanding - 1}
-      : current.lost > 0 ? {...current, lost: current.lost - 1}
-      : current.shown && !current.gone ? {...current, gone: true} : current), []);
+  const report = useCallback((token: number) => setState(current => current.token !== token ? current // an earlier presentation's
+    : current.leaving ? {...current, leaving: false}
+    : current.shown && !current.gone ? {...current, gone: true} : current), []);
+  const token = now.token, onDismiss = useMemo(() => () => report(token), [report, token]);
   useEffect(() => {
-    if (state.outstanding === 0) return;
-    const timer = setTimeout(() => setState(current => ({...current, lost: current.lost + current.outstanding, outstanding: 0})), wait);
+    if (!state.leaving) return;
+    const leaving = state.token;
+    const timer = setTimeout(() => setState(current => current.token === leaving && current.leaving ? {...current, leaving: false} : current), wait);
     return () => clearTimeout(timer);
-  }, [state.outstanding, wait]);
-  return {mounted: present || now.outstanding > 0, visible: now.shown, onDismiss};
+  }, [state.leaving, state.token, wait]);
+  return {mounted: present || now.leaving, visible: now.shown, onDismiss, key: token};
 }

@@ -109,7 +109,7 @@ function MiniGuideSurface(props: NativeMiniGuideProps & {open: boolean; onExited
     return <View style={{width: 60, height: 60, borderRadius: 14, marginRight: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: '#edf5fa14'}}>
       <Text numberOfLines={1} adjustsFontSizeToFit style={[nativeType({size: 20, weight: 800, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textSecondary}]}>{row.channel.number}</Text></View>;
   };
-  return <Modal transparent visible={native.visible} onDismiss={native.onDismiss} animationType="none" onRequestClose={props.onClose} statusBarTranslucent navigationBarTranslucent>
+  return <Modal key={native.key} transparent visible={native.visible} onDismiss={native.onDismiss} animationType="none" onRequestClose={props.onClose} statusBarTranslucent navigationBarTranslucent>
     <Animated.View pointerEvents={props.open ? 'auto' : 'none'} accessibilityElementsHidden={!props.open} importantForAccessibility={props.open ? 'auto' : 'no-hide-descendants'} style={[StyleSheet.absoluteFill, fade]} accessibilityViewIsModal>
       <View pointerEvents="box-none" testID="tv-mini-guide-canvas" style={{position: 'absolute', left: canvas.left, top: canvas.top, width: canvas.width, height: canvas.height, transformOrigin: 'top left', transform: [{scale: canvas.scale}]}}>
         {/* The drawn shell keeps its shadow outside the clipped glass layer. */}

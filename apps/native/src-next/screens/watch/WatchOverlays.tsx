@@ -44,7 +44,7 @@ function FileInfoSurface({value, presenters}: {value: NativeWatchOverlay; presen
   const action = <Button ref={done} testID="watch-file-info-done" variant={theme.isTV ? 'primary' : 'glass'} size={theme.isTV ? 'hero' : 'small'} preferredFocus={interactive} onPress={presenters.close}>{t('next.overlays.done')}</Button>;
   if (theme.isTV) {
     const canvas = shellLayout(window.width, window.height, true);
-    return <Modal transparent visible={modal.visible} onDismiss={modal.onDismiss} animationType="none" onRequestClose={presenters.close} statusBarTranslucent navigationBarTranslucent>
+    return <Modal key={modal.key} transparent visible={modal.visible} onDismiss={modal.onDismiss} animationType="none" onRequestClose={presenters.close} statusBarTranslucent navigationBarTranslucent>
       <View style={StyleSheet.absoluteFill} accessibilityViewIsModal><TVPanelScrim color="#04090d9e"/>
         <View pointerEvents="box-none" style={{position: 'absolute', left: canvas.left, top: canvas.top, width: canvas.width, height: canvas.height, transformOrigin: 'top left', transform: [{scale: canvas.scale}]}}>
           <TVPanelSlide width={900} style={StyleSheet.absoluteFill}><FocusBoundary modal testID="watch-file-info-tv" style={{position: 'absolute', right: 0, top: 0, bottom: 0, width: 900, paddingTop: 64, paddingLeft: 56, paddingRight: 96, paddingBottom: 56}}>
