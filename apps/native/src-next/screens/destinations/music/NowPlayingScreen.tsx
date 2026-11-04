@@ -190,7 +190,9 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
   const chapterData = bookFacts?.chapters.data;
   // MU-2: the whole book's chapters when known (every part, numbered through the book); the
   // playing part's own chapter pages otherwise.
-  const bookList = book && audiobook?.playBookChapter ? audiobook.bookChapters?.(playback.fence) : null, wholeBook = bookList?.phase === 'ready' ? bookList : null;
+  const bookView = book ? audiobook?.bookChapters?.(playback.fence) : null, bookList = audiobook?.playBookChapter ? bookView : null, wholeBook = bookList?.phase === 'ready' ? bookList : null;
+  // Previous and Next move by chapter only when the book's list covers this part; else by part, as for a track.
+  const byChapter = bookView?.phase === 'ready';
   // The playing chapter belongs to this part (before its first chapter, the last one is the part before's).
   const playingRow = wholeBook ? wholeBook.chapters[wholeBook.current] : undefined, playingChapter = playingRow && playingRow.itemId === wholeBook?.itemId ? playingRow : undefined;
   const chapter = wholeBook ? playingChapter && {id: playingChapter.id, index: playingChapter.number, title: playingChapter.title, startSeconds: playingChapter.startSeconds, endSeconds: playingChapter.endSeconds}
@@ -402,7 +404,7 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
     </View>
     <MusicFocusRegion id={`${focus}.transport`} entry="toggle" orientation="horizontal" style={{width: '100%', maxWidth: book ? 600 : 520, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: book ? 14 : 18}}>
       {book ? <Button testID={`${testID}-previous-chapter`} variant="text" iconOnly icon="i-prev" iconColor={theme.colors.text} iconSize={28} style={outerTransport}
-        accessibilityLabel={t('next.dock.previousChapter')} disabled={!p.capabilities.previous} onPress={() => act('previous')}/>
+        accessibilityLabel={t(byChapter ? 'next.dock.previousChapter' : 'player.previous')} disabled={!p.capabilities.previous} onPress={() => act('previous')}/>
         : policyReady && !drawnQueue?.radio ? <Button testID={`${testID}-shuffle`} variant="text" iconOnly icon="i-shuffle" iconColor={shuffled ? theme.colors.accentStrong : theme.colors.textSecondary} iconSize={22} style={outerTransport}
           accessibilityLabel={t('next.dock.shuffle')} accessibilityState={{selected: shuffled}} onPress={() => changePolicy({action: 'shuffle', shuffled: !shuffled})}/> : null}
       {book ? <Focusable testID={`${testID}-skip-back`} accessibilityRole="button" accessibilityLabel={t('player.skipBackSeconds', {seconds: skipBack})} disabled={!p.capabilities.seek || !bookReader}
@@ -419,7 +421,7 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
       </Focusable> : <Button testID={`${testID}-next`} variant="text" iconOnly icon="i-next" iconColor={theme.colors.text} iconSize={wide ? 26 : 34} style={outerTransport}
         accessibilityLabel={t('player.next')} disabled={!p.capabilities.next} onPress={() => act('next')}/>}
       {book ? <Button testID={`${testID}-next-chapter`} variant="text" iconOnly icon="i-next" iconColor={theme.colors.text} iconSize={28} style={outerTransport}
-        accessibilityLabel={t('next.dock.nextChapter')} disabled={!p.capabilities.next} onPress={() => act('next')}/>
+        accessibilityLabel={t(byChapter ? 'next.dock.nextChapter' : 'player.next')} disabled={!p.capabilities.next} onPress={() => act('next')}/>
         : policyReady ? <Button testID={`${testID}-repeat`} variant="text" iconOnly icon="i-repeat" iconColor={repeat === 'off' ? theme.colors.textSecondary : theme.colors.accentStrong} iconSize={22} style={outerTransport}
           accessibilityLabel={t(repeat === 'off' ? 'next.dock.repeatOff' : repeat === 'all' ? 'next.dock.repeatAll' : 'next.dock.repeatOne')}
           accessibilityState={{selected: repeat !== 'off'}} onPress={() => changePolicy({action: 'repeat', repeat: repeat === 'off' ? 'all' : repeat === 'all' ? 'one' : 'off'})}/> : null}

@@ -32,7 +32,7 @@ export function playbackPresentation(snapshot: WebPlaybackRuntimeSnapshot, envir
   if (!current) return undefined;
   const audio = current.kind !== 'video';
   return {fence: current.fence, identity: playbackIdentity(current.subject, 'dock', environment), durationSeconds: current.durationSeconds,
-    controls: current.controls, finished: current.finished, rate: current.rate, volume: current.volume, muted: current.muted,
+    controls: current.controls, finished: current.finished, ...(current.kind === 'audiobook' && snapshot.bookChapters?.phase === 'ready' ? {byChapter: true} : {}), rate: current.rate, volume: current.volume, muted: current.muted,
     skipBackSeconds: skips.back, skipForwardSeconds: skips.forward,
     artwork: artwork.foreground(current.posterUrl ?? current.backdropUrl, (audio ? 64 : 98) * (globalThis.devicePixelRatio || 1), audio ? 1 : 16 / 9, {group: 'playback', priority: 'high'}),
     ambient: artwork.ambient(current.backdropUrl ?? current.posterUrl, {group: 'playback', priority: 'high'}),

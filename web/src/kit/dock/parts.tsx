@@ -48,9 +48,9 @@ export function Identity({view, binding, t = dockText, artSlotRef, identityRef, 
 export function Transport({view, binding, t = dockText, phone = false}: DockRendererProps & {phone?: boolean}) {
   const send = useDockActions({view, binding}), model = view.presentation, can = (key: typeof model.controls[number]) => model.controls.includes(key) && remoteReady(view.remote);
   const skip = (delta: number) => { const seconds = seekTarget(view, positionOf(view) + delta); if (seconds !== null) send({kind: 'seek', seconds}); };
-  const book = view.mode === 'audiobook', video = view.mode === 'video' || view.mode === 'live';
-  const previous = model.previousLabel ?? t(book ? 'next.dock.previousChapter' : video && model.identity.subtitle.some(p => p.id === 'episode-label') ? 'next.dock.previousEpisode' : 'next.dock.previous');
-  const next = model.nextLabel ?? t(book ? 'next.dock.nextChapter' : video && model.identity.subtitle.some(p => p.id === 'episode-label') ? 'next.dock.nextEpisode' : 'next.dock.next');
+  const byChapter = view.mode === 'audiobook' && !!model.byChapter, video = view.mode === 'video' || view.mode === 'live';
+  const previous = model.previousLabel ?? t(byChapter ? 'next.dock.previousChapter' : video && model.identity.subtitle.some(p => p.id === 'episode-label') ? 'next.dock.previousEpisode' : 'next.dock.previous');
+  const next = model.nextLabel ?? t(byChapter ? 'next.dock.nextChapter' : video && model.identity.subtitle.some(p => p.id === 'episode-label') ? 'next.dock.nextEpisode' : 'next.dock.next');
   const playing = playbackAction(view), main = <Control primary={!phone} icon={playbackIcon(view)} iconSize={phone ? 24 : 22} label={playbackLabel(view, t)} disabled={!can(playing)} onClick={() => send({kind: playing})} />;
   if (phone) return <div className={styles.transport} data-dock-expansion-copy>
     {video || view.remote ? <Control icon="i-rew" iconSize={27} label={t('next.dock.back', {seconds: model.skipBackSeconds})} skip={model.skipBackSeconds} disabled={!can('seek')} onClick={() => skip(-model.skipBackSeconds)} /> : <Control icon="i-prev" iconSize={22} label={previous} disabled={!can('previous')} onClick={() => send({kind: 'previous'})} />}
