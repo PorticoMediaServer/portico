@@ -143,6 +143,19 @@ class NightlyCoverage(unittest.TestCase):
                 '\n'.join(json.dumps(event) for event in events), '')
             with patch('run.ROOT', root), patch('run.validate_tags'), patch('run.subprocess.run', return_value=result):
                 go(plan, 0)
+    def test_million_object_benchmark_is_scheduled_and_required(self):
+        text = (ROOT / '.github/workflows/nightly.yml').read_text()
+        benchmark = re.search(r'^  inventory_benchmark:\n(.*?)(?=^  [\w-]+:\n|\Z)', text, re.M | re.S)
+        self.assertIsNotNone(benchmark)
+        job = benchmark[1]
+        self.assertIn("-run '^$' -bench '^BenchmarkInventoryUnchangedDatabasePage$' -benchtime=1x -count=1", job)
+        self.assertNotIn('continue-on-error', job)
+        self.assertNotIn('if:', job.split('steps:', 1)[0])
+        self.assertIn('if-no-files-found: error', job)
+        self.assertIn('python3 ci/inventory_benchmark.py', job)
+        aggregate = text.split('  merge:', 1)[1]
+        self.assertRegex(aggregate, r'needs: \[[^\]]*\binventory_benchmark\b[^\]]*\]')
+        self.assertIn('["inventory_benchmark"]["result"] == "success"', aggregate)
 
 
 if __name__ == '__main__':
