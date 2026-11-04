@@ -246,7 +246,7 @@ func browse(c *sql.Conn, out, hash string) {
 		for _, direction := range []string{"ASC", "DESC"} {
 			for _, projection := range []string{"id", "id,title,overview,original_title,content_rating,added_at,duration_key,file_size_key,resolution_key,year"} {
 				for _, page := range []string{"first", "random-keyset"} {
-					if resident < 4096 && page == "random-keyset" {
+					if resident < 128 && page == "random-keyset" {
 						continue
 					}
 					xs := []float64{}
@@ -260,15 +260,26 @@ func browse(c *sql.Conn, out, hash string) {
 						if col == "resolution_key" {
 							where += " AND kind IN(1,2,3,4,10)"
 						}
+						q := "SELECT " + projection + " FROM catalog_entities WHERE " + where + " ORDER BY " + col + " " + direction + ",id " + direction + " LIMIT 40"
 						if page == "random-keyset" {
 							anchor := resident/5 + ((j+21)*104729)%(resident*3/5)
-							op := ">"
-							if direction == "DESC" {
-								op = "<"
+							var value any
+							must(c.QueryRowContext(context.Background(), fmt.Sprintf("SELECT %s FROM catalog_entities WHERE id=%d", col, anchor)).Scan(&value))
+							// Cursor already carries the scalar and id; this fixture lookup is outside page timing.
+							q = seekPage(where, col, direction, projection, anchor, value)
+							if os.Getenv("GITHUB_RUN_ID") == "" && value != nil {
+								op := ">"
+								if direction == "DESC" {
+									op = "<"
+								}
+								ref := fmt.Sprintf("SELECT %s FROM catalog_entities WHERE %s AND (%s,id)%s(%s,%d) ORDER BY %s %s,id %s LIMIT 40", projection, where, col, op, sqlLiteral(value), anchor, col, direction, direction)
+								_, rn, rh, re := readSample(c, ref, time.Second)
+								_, qn, qh, qe := readSample(c, q, time.Second)
+								if re != "" || qe != "" || rn != qn || rh != qh {
+									panic("bounded keyset equivalence failure")
+								}
 							}
-							where += fmt.Sprintf(" AND (%s,id)%s(SELECT %s,id FROM catalog_entities WHERE id=%d)", col, op, col, anchor)
 						}
-						q := "SELECT " + projection + " FROM catalog_entities WHERE " + where + " ORDER BY " + col + " " + direction + ",id " + direction + " LIMIT 40"
 						lastSQL = q
 						ms, n, _, err := readSample(c, q, 200*time.Millisecond)
 						if err != "" {
@@ -977,9 +988,10 @@ func quantizedFacet(c *sql.Conn, field string, ceiling int, exclude string) map[
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 			t := time.Now()
-			q := fmt.Sprintf("WITH raw AS MATERIALIZED(SELECT id,sort_key FROM catalog_entities INDEXED BY %s WHERE library_id=1 AND kind=1 AND retired=0 AND %s=%d AND (sort_key,id)>(?,?) ORDER BY sort_key,id LIMIT128) SELECT r.id,r.sort_key,CASE WHEN %s THEN1 ELSE0 END,t.term_id FROM raw r CROSS JOIN catalog_entities e ON e.id=r.id LEFT JOIN catalog_entity_terms t ON t.entity_id=r.id ORDER BY r.sort_key,r.id,t.term_id", ageIndex(field, "sort_key"), field, band, exclude)
+			base := fmt.Sprintf("FROM catalog_entities INDEXED BY %s WHERE library_id=1 AND kind=1 AND retired=0 AND %s=%d", ageIndex(field, "sort_key"), field, band)
+			q := fmt.Sprintf("WITH raw AS MATERIALIZED(SELECT * FROM(SELECT id,sort_key %s AND sort_key=? AND id>? ORDER BY id LIMIT128) UNION ALL SELECT * FROM(SELECT id,sort_key %s AND sort_key>? ORDER BY sort_key,id LIMIT128) ORDER BY sort_key,id LIMIT128) SELECT r.id,r.sort_key,CASE WHEN %s THEN1 ELSE0 END,t.term_id FROM raw r CROSS JOIN catalog_entities e ON e.id=r.id LEFT JOIN catalog_entity_terms t ON t.entity_id=r.id ORDER BY r.sort_key,r.id,t.term_id", base, base, exclude)
 			q = strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(q, "LIMIT128", "LIMIT 128"), "THEN1", "THEN 1"), "ELSE0", "ELSE 0")
-			rows, err := c.QueryContext(ctx, q, key, after)
+			rows, err := c.QueryContext(ctx, q, key, after, key)
 			n := 0
 			nRaw := 0
 			lastID := after
@@ -1381,4 +1393,45 @@ func capsProduct(c *sql.Conn, out, hash string) {
 	candidate := measure(true, reps)
 	oh := sha256.Sum256([]byte(overlay))
 	save(filepath.Join(out, "caps-product.json"), map[string]any{"ddl_sha256": hash, "cue_children": children, "shared_collections": parents, "baseline_contribution_rows": children * parents, "collapsed_rows": parents, "baseline_single_inline": baseline, "candidate": candidate, "overlay": overlay, "overlay_sha256": hex.EncodeToString(oh[:]), "boundary": "All children share same100authored collections; per(collection,asset) stores size only, other child metrics remain per-child. Current-source asset+owner/CUE entity keys+parentkeys+libraryrevision/event/receipt/NORMAL COMMIT included. Candidate does NOT advance25500unaffected child-tuple revision witnesses: INT must select field-scoped revision semantics, otherwise broad contributor_revision rewrites erase collapse benefit. Focused collection propagation; album/artist hierarchy publication is not charged. No claim this overlay is canonical, complete typed writer or arbitrary disjoint-collection collapse. No budget sweep, chunking or local qualification."})
+}
+
+func sqlLiteral(v any) string {
+	if v == nil {
+		return "NULL"
+	}
+	switch x := v.(type) {
+	case string:
+		return "'" + strings.ReplaceAll(x, "'", "''") + "'"
+	case []byte:
+		return "X'" + hex.EncodeToString(x) + "'"
+	case int64:
+		return fmt.Sprint(x)
+	case float64:
+		return strconv.FormatFloat(x, 'g', -1, 64)
+	}
+	panic(fmt.Sprintf("unsupported cursor type%T", v))
+}
+func seekPage(where, col, direction, projection string, anchor int, value any) string {
+	op := ">"
+	if direction == "DESC" {
+		op = "<"
+	}
+	conditions := []string{}
+	if value == nil {
+		conditions = append(conditions, fmt.Sprintf("%s IS NULL AND id%s%d", col, op, anchor))
+		if direction == "ASC" {
+			conditions = append(conditions, col+" IS NOT NULL")
+		}
+	} else {
+		v := sqlLiteral(value)
+		conditions = append(conditions, fmt.Sprintf("%s=%s AND id%s%d", col, v, op, anchor), fmt.Sprintf("%s%s%s", col, op, v))
+		if direction == "DESC" {
+			conditions = append(conditions, col+" IS NULL")
+		}
+	}
+	parts := []string{}
+	for _, condition := range conditions {
+		parts = append(parts, "SELECT * FROM(SELECT "+projection+","+col+" AS page_key FROM catalog_entities WHERE "+where+" AND "+condition+" ORDER BY "+col+" "+direction+",id "+direction+" LIMIT 40)")
+	}
+	return "SELECT " + projection + " FROM(" + strings.Join(parts, " UNION ALL ") + ") ORDER BY page_key " + direction + ",id " + direction + " LIMIT 40"
 }
