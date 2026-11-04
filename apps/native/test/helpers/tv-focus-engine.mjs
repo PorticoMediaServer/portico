@@ -32,6 +32,13 @@
 //                  and only then RN fires `onDismiss`.
 //   D15 (tvOS):    a Modal presented at cold start reaches the window and reports its dismissal. The page's bounded
 //                  fallback (`useNativeDismissal`) covers the case where it never does.
+//   D16 (tvOS):    Menu in a Modal is UIKit's own dismissal (RCTModalHostViewComponentView.mm:149-160): the window starts
+//                  dismissing at once, and its completion (`finishDismissals()`) restores the presenting focus as in
+//                  D14, then emits `onDismiss` and `onRequestClose`. They reach JS here as two batches (the worst case:
+//                  the dismissal commits before the request). The view keeps `_isPresented`, so a later
+//                  `visible={false}` has nothing left to dismiss and reports nothing.
+// The top window is the one shown last (presentation order, not its place in the tree). An explicit nextFocus* that
+// names a host in another window is ignored and the geometric search runs inside the top window.
 import {readFile} from 'node:fs/promises';
 import {createRequire} from 'node:module';
 import {compileFunction} from 'node:vm';
@@ -55,8 +62,9 @@ export async function tvFocusEngine({platform = 'android', width = 1920, height 
   const nativeOf = tag => {let value = state.get(tag); if (!value) state.set(tag, value = {destinations: [], last: undefined, guide: false, rect: undefined}); return value;};
   let root = [], nodes = new Map(), parents = new Map(), order = [], focused, rootPreferred, commands = [], events = [], scheduled = false;
   /** D12-D14: per Modal window, the focus it was opened over; per window (BASE for the app's own), its focused view;
-   *  the tvOS dismissals in progress. */
-  const BASE = 'app-window', presenting = new Map(), windowFocus = new Map(), dismissals = [];
+   *  the tvOS dismissals in progress; the windows in the order they were shown (D12); tvOS windows Menu is dismissing or
+   *  has dismissed natively while their Modal is still mounted (D16). */
+  const BASE = 'app-window', presenting = new Map(), windowFocus = new Map(), dismissals = [], presentedOrder = [], menuDismissing = new Set(), menuGone = new Set();
 
   // ---------- host tree, layout ----------
   const rebuild = () => {
@@ -85,20 +93,21 @@ export async function tvFocusEngine({platform = 'android', width = 1920, height 
     if (closed.length && (focused === undefined || !nodes.has(focused))) closeWindows(closed);
     else if (focused !== undefined && !nodes.has(focused)) recoverRemoved(previous);
     else if (focused !== undefined && !reachable(focused)) recoverBlocked();
-    for (const tag of closed) {presenting.delete(tag); windowFocus.delete(tag);}
-    for (const tag of windows()) if (!previous.has(tag)) openWindow(tag);
+    for (const tag of closed) {presenting.delete(tag); windowFocus.delete(tag); menuDismissing.delete(tag); menuGone.delete(tag); const at = presentedOrder.indexOf(tag); if (at >= 0) presentedOrder.splice(at, 1);}
+    for (const tag of order.filter(isWindow)) if (!previous.has(tag)) openWindow(tag);
   };
   // ---------- windows (D12-D15) ----------
   const MODAL = 'RCTModalHostView';
   const isWindow = tag => nodes.get(tag)?.type === MODAL;
   const windowOf = tag => tag === undefined ? undefined : [tag, ...ancestors(tag)].find(isWindow);
-  const windows = () => order.filter(isWindow);
+  const windows = () => presentedOrder.filter(tag => nodes.has(tag) && !menuGone.has(tag));
   const topWindow = () => windows().at(-1);
-  const dismissing = () => {const top = topWindow(); return top !== undefined && props(top).__dismissing === true;};
+  const isDismissing = tag => props(tag).__dismissing === true || menuDismissing.has(tag);
+  const dismissing = () => {const top = topWindow(); return top !== undefined && isDismissing(top);};
   const firstInTop = () => {const top = topWindow(); return top === undefined ? firstInTree() : firstFocusable(top);};
   const openWindow = tag => {
     // The window takes focus: its first focusable (a preferred control inside asks for itself as well).
-    presenting.set(tag, focused);
+    presenting.set(tag, focused); presentedOrder.push(tag);
     const first = firstFocusable(tag);
     if (first !== undefined) setFocus(first, 'window-open');
   };
@@ -306,7 +315,7 @@ export async function tvFocusEngine({platform = 'android', width = 1920, height 
     const user = props(focused)[NEXT[direction]];
     if (user !== undefined && user !== null && nodes.has(user) && (scope === undefined || ancestors(user).includes(scope) || user === scope)) {
       const landed = resolve(user);
-      if (landed !== undefined) return landed;
+      if (landed !== undefined && windowOf(landed) === topWindow()) return landed; // never across a window
     }
     const candidates = [];
     const within = scope ?? topWindow();
@@ -405,18 +414,18 @@ export async function tvFocusEngine({platform = 'android', width = 1920, height 
   /** react-native Modal.js with the native side above (D12-D14): a visible Modal is one RCTModalHostView window; on
    *  tvOS `visible={false}` keeps it on screen, dismissing, until `finishDismissals()`. */
   const Modal = function Modal({visible = true, onDismiss, onRequestClose, onShow: _onShow, children, ...rest}) {
-    const [shown, setShown] = React.useState(visible), latest = React.useRef(onDismiss);
+    const [shown, setShown] = React.useState(visible), latest = React.useRef(onDismiss), host = React.useRef(null);
     latest.current = onDismiss;
     if (visible && !shown) setShown(true);
     const leaving = !android && shown && !visible;
     React.useEffect(() => {
-      if (!leaving) return;
+      if (!leaving || menuGone.has(host.current?.tag)) return; // D16: Menu already dismissed it; nothing is reported
       const entry = {finish: () => setShown(false), onDismiss: () => latest.current?.()};
       dismissals.push(entry);
       return () => {const index = dismissals.indexOf(entry); if (index >= 0) dismissals.splice(index, 1);};
     }, [leaving]);
     if (!shown || android && !visible) return null;
-    return e(MODAL, {...rest, onDismiss, __dismissing: leaving, onRequestClose, style: {position: 'absolute', inset: 0}}, children);
+    return e(MODAL, {...rest, ref: host, onDismiss, __dismissing: leaving, onRequestClose, style: {position: 'absolute', inset: 0}}, children);
   };
   const BackHandler = {addEventListener: (name, handler) => {
     if (name !== 'hardwareBackPress') return {remove() {}};
@@ -480,17 +489,20 @@ export async function tvFocusEngine({platform = 'android', width = 1920, height 
     /** Whether a host could take focus from the D-pad right now. */
     focusable: testID => {const tag = byTestID(testID); return tag !== undefined && reachable(tag) && windowOf(tag) === topWindow() && !dismissing();},
     /** The Modal windows bottom first (D12): each one's testID and whether it is dismissing (tvOS). */
-    windows: () => windows().map(tag => ({testID: props(tag).testID, dismissing: props(tag).__dismissing === true})),
+    windows: () => windows().map(tag => ({testID: props(tag).testID, dismissing: isDismissing(tag)})),
     /** Each Modal window's props as the app passed them (transparent, animationType, ...). */
     windowProps: () => windows().map(tag => props(tag)),
     /** Android (D13): the focused view a window keeps, by the testID of the Modal (undefined: the app's window). */
     windowFocus: testID => {const tag = windowFocus.get(testID === undefined ? BASE : byTestID(testID)); return tag === undefined ? undefined : props(tag).testID ?? `#${tag}`;},
-    /** tvOS (D14): UIKit finishes every dismissal in progress, then RN fires each Modal's onDismiss. */
+    /** tvOS (D14, D16): UIKit finishes every dismissal in progress, then RN fires each Modal's onDismiss (and, for
+     *  Menu, onRequestClose in a later batch). */
     async finishDismissals() {
       const batch = dismissals.splice(0);
       for (const entry of batch) entry.finish();
       await settle();
       for (const entry of batch) entry.onDismiss();
+      await settle();
+      for (const entry of batch) entry.then?.();
       await settle();
     },
     /** Put focus on a host as a user would have left it there (a starting state for a sequence). */
@@ -503,8 +515,18 @@ export async function tvFocusEngine({platform = 'android', width = 1920, height 
         if (DIRECTIONS.includes(key)) {const next = search(key); if (next !== undefined) setFocus(next, key);}
         else if (key === 'select') {if (focused !== undefined) fire(focused, 'onPress', {nativeEvent: {}});}
         else if (key === 'longSelect') {if (focused !== undefined) fire(focused, 'onLongPress', {nativeEvent: {}});}
-        else if (top !== undefined && (key === 'back' || key === 'menu' && !android)) {
-          // D12: the Modal's window takes Back / Menu; BackHandler never sees it.
+        else if (top !== undefined && key === 'menu' && !android) {
+          // D16: UIKit dismisses the window itself; onDismiss then onRequestClose come from its completion.
+          menuDismissing.add(top);
+          dismissals.push({
+            finish: () => {menuDismissing.delete(top); menuGone.add(top); closeWindows([top]);},
+            onDismiss: () => {if (nodes.has(top)) fire(top, 'onDismiss');},
+            then: () => {if (nodes.has(top)) fire(top, 'onRequestClose');},
+          });
+          log.push({why: 'back', handled: true, window: true, native: true});
+        }
+        else if (top !== undefined && key === 'back') {
+          // D12: the Modal's window takes Back; BackHandler never sees it.
           fire(top, 'onRequestClose');
           log.push({why: 'back', handled: true, window: true});
         }
