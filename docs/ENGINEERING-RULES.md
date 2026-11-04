@@ -38,7 +38,7 @@ Short rules that keep Portico from repeating old bugs. Each one says how it's en
     - **How the method decides:** it's read from the `method` argument (`fetch`: `init.method`). Missing, `undefined` or `'GET'` in any case is a read. A literal, or a literal-typed value, naming another verb is a write and doesn't count. Anything not statically known counts as a read.
     - **Wrappers:** a wrapper counts once, at its own call to the requester, for all its callers. That's enough for a ratchet, which only has to stop new reads.
     - **Marker:** a read that must stay outside the cache (sign-in proving who the viewer is, the event feed, the cache's own transport) carries `// query-read: kept (reason)`, held to the same rules as the fence marker.
-    - **Baseline:** the ratchet started at 887 reads in 366 files (step 7 slice 3), and each move into the cache lowers it.
+    - **Baseline:** the ratchet started at 888 reads in 367 files (step 7 slice 3), and each move into the cache lowers it.
   - Checks: no new fence comparisons (ratchet `fence-compare`), reads outside the query cache (ratchet `query-read`), page memory (ratchet `page-memory`) or per-screen lease hooks (ratchet `lease-layer`), and the privacy tests in `packages/client-core/test/viewer-queries.test.ts`, `web/test/viewer-queries-privacy.test.ts` and `apps/native/test/next-shell-freshness.test.ts`.
 
 ## API contracts
