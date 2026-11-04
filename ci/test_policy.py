@@ -122,5 +122,8 @@ class TierTests(unittest.TestCase):
         from plan import make_plan
         with patch('plan.components',return_value=([],False)), patch('plan.command',return_value='portico_rar7z,portico_cb7'):
             self.assertEqual(len(make_plan([],tier='merge')['tier_exclusions']),6)
-            self.assertEqual(len(make_plan([],tier='nightly')['tier_exclusions']),7)
+            from test_playback_compatibility import EXPECTED_DIAGNOSTIC_OWNERS
+            exclusions=make_plan([],tier='nightly')['tier_exclusions']
+            self.assertCountEqual([(test['package'],test['name']) for test in exclusions],
+                                  EXPECTED_DIAGNOSTIC_OWNERS)
             self.assertEqual(len(make_plan([],tier='short')['tier_exclusions']),6)

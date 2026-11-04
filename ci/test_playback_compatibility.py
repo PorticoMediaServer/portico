@@ -41,6 +41,19 @@ GOLDEN = {
     ],
 }
 
+# Explicit reviewed membership, including the seven pre-existing diagnostics.
+# The planner's exclusion list must match these exact owners once each.
+EXPECTED_DIAGNOSTIC_OWNERS = {
+    (PREFIX+'catalog','TestP252bOnePinCompleteWriterHold'),
+    (PREFIX+'catalog','TestReadingLibraryRemovalCostIsLinear'),
+    (PREFIX+'catalog','TestFacetRuntimeColdCompletesUnderContinuousTaggedIngest'),
+    (PREFIX+'compactcatalog','TestDerivedWorkerCompletesWithForegroundPressure'),
+    (PREFIX+'metadata','TestMBStagingTenThousandCompleteFinalWriterHold'),
+    (PREFIX+'httpapi','TestReadPathGoldenEquivalence'),
+    (PREFIX+'ingestion','TestScannerTenThousandInventoryAndNames'),
+    (PREFIX+'httpapi','TestMixedViewerLoadUnderBackgroundWork'),
+} | {(PREFIX+package,name) for package,names in GOLDEN.items() for name in names}
+
 class PlaybackCompatibility(unittest.TestCase):
     def test_cutover_oracles_are_mandatory_nightly_parents(self):
         tiers = json.loads((ROOT/'ci/tiers.json').read_text())
