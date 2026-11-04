@@ -78,9 +78,12 @@ export function createReadBindings(context: ReadBindingContext): ReadBindings {
     return opened.close(cleanup.signal).then(() => forgetHeld(opened.manifest.sessionId)).catch(() => {}).finally(() => {clearTimeout(deadline); releasing--;});
   };
   let opening: Promise<void> = Promise.resolve();
+  // RD-8: the busy wait between a refused open and its one retry holds no session, so leaving stops it
+  // (the timer and the retry it would send). An open already on the wire is still released on arrival.
+  let pendingWait: AbortController | undefined;
   const close = () => {
     // A pending open is not aborted: its session may already exist on the server. It is released on arrival.
-    pending = undefined;
+    pending = undefined; pendingWait?.abort(); pendingWait = undefined;
     const previous = session; session = undefined;
     const task = previous ? release(previous) : Promise.resolve();
     closing = Promise.all([closing.catch(() => {}), task, opening]).then(() => {});
@@ -88,12 +91,12 @@ export function createReadBindings(context: ReadBindingContext): ReadBindings {
   };
   const open: ReadBindings['open'] = async request => {
     if (!current()) throw new ReadingError('cancelled');
-    const before = close(), operation = new AbortController(); pending = operation;
+    const before = close(), operation = new AbortController(), busyWait = new AbortController(); pending = operation;
     await before;
     if (!current() || pending !== operation) throw new ReadingError('cancelled');
     sweepHeld();
-    inFlight++;
-    const attempt = owner.open(request, operation.signal).finally(() => {inFlight--;});
+    inFlight++; pendingWait = busyWait;
+    const attempt = owner.open(request, operation.signal, {busyWait: busyWait.signal}).finally(() => {inFlight--; if (pendingWait === busyWait) pendingWait = undefined;});
     opening = attempt.then(opened => {if (pending !== operation || !current()) return release(opened);}, () => {});
     const opened = await attempt;
     if (!current() || pending !== operation) throw new ReadingError('cancelled');

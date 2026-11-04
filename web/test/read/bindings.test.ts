@@ -6,13 +6,16 @@ import {routePath} from '../../../packages/contracts/src/index.ts';
 import {createReadBindings} from '../../src/screens/read/bindings.ts';
 
 const preferences = parsePreferenceSnapshot(JSON.parse(readFileSync(new URL('../../../server/testdata/contracts/get-bootstrap.json', import.meta.url), 'utf8')).response.preferences);
-function fixture(options: {hold?: Promise<void>; route?: AbortSignal} = {}) {
+function fixture(options: {hold?: Promise<void>; route?: AbortSignal; busy?: number} = {}) {
+  let busy = options.busy ?? 0;
   let routeCurrent = true;
   let selected = {sessionFamilyId: 'unit-family', viewer: {serverId: 'unit-server', accountId: 'unit-account', profileId: 'unit-profile', authority: 'local', role: 'member'}};
   const calls: {path: string; method: string}[] = [];
   let sequence = 0;
   const api = new HttpLocalApi('http://127.0.0.1:39117', 'unit-captured-token', async (input, init = {}) => {
     const path = new URL(String(input)).pathname; calls.push({path, method: init.method ?? 'GET'});
+    if (path === routePath('post_reading_sessions') && busy > 0) { busy--; return new Response(JSON.stringify({error: {code: 'reading_sessions_busy', message: 'Busy', retry: 'same_request'}}),
+      {status: 503, headers: {'Content-Type': 'application/json', 'Retry-After': '3'}}); }
     if (path === routePath('post_reading_sessions')) { if (options.hold) await options.hold; return new Response(JSON.stringify({itemId: 'unit-book', sourceId: 'unit-source', sessionId: `unit-session-${++sequence}`,
       revision: 'a'.repeat(64), format: 'pdf', size: 1024, metadata: {title: 'Stored unit title'}}), {headers: {'Content-Type': 'application/json', ETag: '"' + 'a'.repeat(64) + '"'}}); }
     if (init.method === 'DELETE') {if (init.keepalive) calls.push({path, method: 'DELETE keepalive'}); return new Response(null, {status: 204});}
@@ -137,4 +140,22 @@ test('W-19: a new page closes the session a gone page left behind before it open
     await next.bound.dispose();
     assert.equal(store.size, 0, 'a released session is forgotten');
   } finally {Object.defineProperty(globalThis, 'sessionStorage', {configurable: true, value: before});}
+});
+
+test('RD-8 (#693 review): leaving the reader during a busy wait cancels it: no second POST, and dispose is not held', async t => {
+  t.mock.timers.enable({apis: ['setTimeout']});
+  const f = fixture({busy: 1});
+  const posts = () => f.calls.filter(call => call.method === 'POST').length;
+  const opening = f.bound.open({itemId: 'unit-book', sourceId: 'unit-source'}).then(() => 'opened', (error: unknown) => error instanceof ReadingError ? error.code : String(error));
+  for (let i = 0; i < 20000 && posts() < 1; i++) await new Promise(setImmediate);
+  for (let i = 0; i < 200; i++) await new Promise(setImmediate);   // the busy answer is read and the wait is armed
+  assert.equal(posts(), 1, 'the first open was refused as busy');
+  let disposed = false; const disposal = f.bound.dispose().then(() => {disposed = true;});
+  for (let i = 0; i < 2000 && !disposed; i++) await new Promise(setImmediate);
+  assert.equal(disposed, true, 'dispose finishes at once, without waiting out Retry-After');
+  assert.equal(await opening, 'cancelled');
+  t.mock.timers.tick(5000); for (let i = 0; i < 200; i++) await new Promise(setImmediate);
+  assert.equal(posts(), 1, 'no second POST after the reader has gone');
+  assert.equal(f.calls.filter(call => call.method === 'DELETE').length, 0, 'nothing was opened, so nothing to delete');
+  await disposal;
 });
