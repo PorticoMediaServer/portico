@@ -14,8 +14,7 @@ def title(i):
     return f'{WORDS[i%32]} {WORDS[i//32%32]} {WORDS[i//1024%32]} {i}'
 def parent(i):
     r,b=i%100,i-i%100
-    if 16<=r<=18:return b+15
-    if 19<=r<60:return b+16+(r-19)%3
+    if 19<=r<60:return b+15
     if r in (61,62):return b+60
     if 63<=r<90:return b+61+(r-63)%2
     return None
@@ -38,7 +37,7 @@ def run(n,variant):
             x=i
             for depth in range(3):
                 if depth and any(w.startswith(t) for w in words(titles[x])): tier=max(tier,0)
-                if variant=='A' or len(t)>=3:
+                if depth==0 and (variant=='A' or len(t)>=3):
                     if any(any(w.startswith(t) for w in words(names[e])) for e in edges[x]):tier=max(tier,0)
                 x=parent(x)
                 if x is None:break

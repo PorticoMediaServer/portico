@@ -11,7 +11,8 @@ does not expand <3 context matches. Native FTS itself would still find those sho
 matches by a vocabulary range scan: B's missing matches come from dispatch.
 
 Corpus: deterministic 15% movie, 45% TV, 30% music, 10% books. TV/music include
-container items. Two shared credits per entity, one collection membership; a few
+container items. Episodes inherit show titles; albums/songs inherit artist/album
+titles. Credits and collections remain scoped to their direct entity. Two shared credits per entity, one collection membership; a few
 explicit quality witnesses add one bounded edge. Shared people are N/50 (minimum
 128); collections N/500. Titles contain three dictionary words and a unique
 number. 1/47 are CJK and 1/37 start with 1984. This is synthetic cost evidence,

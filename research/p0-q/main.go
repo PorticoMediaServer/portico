@@ -203,9 +203,9 @@ func shape(i int) (int, int) {
 	case r == 15:
 		return 2, -1
 	case r >= 16 && r <= 18:
-		return 3, b + 15
+		return 3, -1
 	case r >= 19 && r < 60:
-		return 4, b + 16 + (r-19)%3
+		return 4, b + 15
 	case r == 60:
 		return 5, -1
 	case r == 61 || r == 62:
@@ -443,7 +443,7 @@ func termSQL(term, variant string, fallback bool) (string, []any) {
 		q += " UNION ALL " + fragq
 		args = append(args, a...)
 	}
-	return `WITH seeds AS MATERIALIZED (` + q + `), expanded AS (SELECT entity,tier,score FROM seeds UNION ALL SELECT r.child,0,CASE WHEN s.tier=1 THEN s.score/4 ELSE s.score END FROM seeds s JOIN rel r ON r.parent=s.entity UNION ALL SELECT r2.child,0,CASE WHEN s.tier=1 THEN s.score/4 ELSE s.score END FROM seeds s JOIN rel r1 ON r1.parent=s.entity JOIN rel r2 ON r2.parent=r1.child) SELECT entity,max(tier),max(score) FROM expanded CROSS JOIN own ON own.id=expanded.entity WHERE own.library BETWEEN 0 AND 7 GROUP BY entity`, args
+	return `WITH seeds AS MATERIALIZED (` + q + `), expanded AS (SELECT entity,tier,score FROM seeds UNION ALL SELECT r.child,0,CASE WHEN s.tier=1 THEN s.score/4 ELSE s.score END FROM seeds s JOIN rel r ON r.parent=s.entity WHERE s.tier>0 UNION ALL SELECT r2.child,0,CASE WHEN s.tier=1 THEN s.score/4 ELSE s.score END FROM seeds s JOIN rel r1 ON r1.parent=s.entity JOIN rel r2 ON r2.parent=r1.child WHERE s.tier>0) SELECT entity,max(tier),max(score) FROM expanded CROSS JOIN own ON own.id=expanded.entity WHERE own.library BETWEEN 0 AND 7 GROUP BY entity`, args
 }
 func fallbackQuery(q string) bool {
 	for _, t := range facettext.SearchTerms(q) {
