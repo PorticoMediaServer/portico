@@ -4,7 +4,7 @@ import {defaultI18n} from '../../../../../packages/i18n/src';
 import {searchGroupLabel} from '../../../../../packages/client-core/src/presentation/search-model';
 import type {SearchEntry, SearchGroupResult} from '../../../../../packages/client-core/src/search';
 import {Focusable} from '../../kit/controls';
-import {FocusItem, FocusRegion, useFocusRegistry, type FocusAddress} from '../../kit/focus';
+import {FocusItem, FocusRegion, useCovered, useFocusRegistry, type FocusAddress} from '../../kit/focus';
 import {useRowPageBoundary} from '../../kit/focus/page-boundary';
 import {useReplacementRefocus} from '../../kit/focus/replacement-refocus';
 import {LoadingPaint, SkeletonBlock, StateView} from '../../kit/states';
@@ -40,9 +40,9 @@ export function TVSearchSection({group, destination, runtime, actions, selection
   const replacedId = paging?.replaced?.entryId, replacedSerial = paging?.replaced?.serial;
   const refocus = useMemo(() => replacedId !== undefined && replacedSerial !== undefined ? {focusId: replacedId, serial: replacedSerial} : undefined, [replacedId, replacedSerial]);
   const drawnAsRow = singleRow && !songs && group.items.length > 0;
-  const cellKeys = useMemo(() => items.map(getKey), [getKey, items]);
-  // The grid's own (a Row keeps its focus by its `refocus`, below).
-  useReplacementRefocus(registry, drawnAsRow ? undefined : regionId, refocus, cellKeys);
+  const cellKeys = useMemo(() => new Set(items.map(getKey)), [getKey, items]);
+  // The grid's own (a Row keeps its focus by its `refocus`, below): a cell the replacement took away has lost focus.
+  useReplacementRefocus(registry, drawnAsRow ? undefined : regionId, refocus, useCovered(), id => !cellKeys.has(id));
   const canRetry = paging?.error?.retryable !== false;
   const retry = useCallback(() => {if (enabled && canRetry) void destination.retryGroup(group.id).catch(runtime.reportError);}, [canRetry, destination, enabled, group.id, runtime]);
   useRowPageBoundary(enabled && (!singleRow || songs), registry, regionId, tailId, tailId ? {hasMore: true, waitingId: tailId,
