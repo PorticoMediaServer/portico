@@ -366,6 +366,9 @@ func main() {
 		if facetMode {
 			facetExperiment(c, *out, hash)
 		}
+		if frameMode {
+			frameExperiment(c, *out, hash)
+		}
 		if stop != nil {
 			close(stop)
 			wg.Wait()
@@ -626,4 +629,128 @@ func bandDeltaSQL(item, old, next int) string {
 		q += fmt.Sprintf("INSERT INTO rating_band_facet_counts SELECT1,1,term_id,%d,%d,1 FROM catalog_entity_terms WHERE entity_id=%d ON CONFLICT(library_id,kind,term_id,mode,rating_band) DO UPDATE SET total=total+1;", mode, next, item)
 	}
 	return strings.ReplaceAll(q, "SELECT1", "SELECT 1")
+}
+
+func sourceRows(streams, chapters, book int, tag string) string {
+	var q strings.Builder
+	for j := 0; j < streams; j++ {
+		typ, codec, channels := "audio", "aac", 2
+		if j >= 255 && j < 510 {
+			typ = "video"
+			codec = "h264"
+			channels = 0
+		}
+		if j >= 510 {
+			typ = "subtitle"
+			codec = "subrip"
+			channels = 0
+		}
+		fmt.Fprintf(&q, "INSERT INTO asset_streams(asset_id,stream_index,type,codec,language,title,channels,channel_layout,is_default,is_forced,has_asset_stream_breadth) VALUES('asset-1',%d,'%s','%s','en','%s-%d',%d,'stereo',0,0,1);", j, typ, codec, tag, j, channels)
+	}
+	for j := 0; j < chapters; j++ {
+		fmt.Fprintf(&q, "INSERT INTO asset_chapters VALUES('asset-1',%d,'%s-%d',%d,%d);", j, tag, j, j*60, (j+1)*60)
+	}
+	for j := 0; j < book; j++ {
+		fmt.Fprintf(&q, "INSERT INTO catalog_book_chapters(file_id,chapter_index,title,start_seconds,end_seconds) VALUES(1,%d,'%s-%d',%d,%d);", j, tag, j, j*60, (j+1)*60)
+	}
+	return q.String()
+}
+func versionRows(n, offset int) string {
+	var q strings.Builder
+	for j := 0; j < n; j++ {
+		fmt.Fprintf(&q, "INSERT INTO catalog_asset_links(entity_id,asset_id,library_id) VALUES(1,%d,1);", 10001+offset+j)
+	}
+	return q.String()
+}
+func frameExperiment(c *sql.Conn, out, hash string) {
+	_, e := c.ExecContext(context.Background(), `UPDATE catalog_entities SET kind=8,resolution_key=NULL WHERE id=2;UPDATE catalog_entities SET kind=9,parent_id=2,book_id=2,resolution_key=NULL WHERE id=1;INSERT INTO asset_stream_facts VALUES('asset-1',1,1000001,1,'old',1);INSERT INTO asset_chapter_facts VALUES('asset-1',1,1000001,1,'ready','old');`)
+	must(e)
+	for j := 0; j < 64; j++ {
+		_, e = c.ExecContext(context.Background(), fmt.Sprintf("INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id) VALUES(%d,'version-%d','/versions/%d',1,1,'mkv','h264','aac',1920,1080,7200,1)", 10001+j, j, j))
+		must(e)
+	}
+	type fcase struct {
+		name        string
+		s, ch, b, v int
+		mode        string
+	}
+	cases := []fcase{
+		{"765-streams-max-change", 765, 0, 0, 0, "change"},
+		{"512-physical-chapters-max-change", 0, 512, 0, 0, "change"},
+		{"512-book-chapters-max-change", 0, 0, 512, 0, "change"},
+		{"final-mixed-physical-max-change", 765, 512, 0, 0, "change"},
+		{"final-combined-max-change", 765, 512, 512, 0, "change"},
+		{"final-combined-new-max", 765, 512, 512, 0, "new"},
+		{"final-combined-shrink", 765, 512, 512, 0, "shrink"},
+		{"final-combined-noop", 765, 512, 512, 0, "noop"},
+		{"16-versions-max-change", 0, 0, 0, 16, "change"},
+		{"final-combined-plus-16-versions", 765, 512, 512, 16, "change"},
+		{"stress-1024-physical-chapters", 0, 1024, 0, 0, "change"},
+		{"stress-1024-book-chapters", 0, 0, 1024, 0, "change"},
+		{"stress-1024-combined-max-change", 765, 1024, 1024, 0, "change"},
+		{"stress-32-versions", 0, 0, 0, 32, "change"},
+	}
+	reps := 101
+	if os.Getenv("GITHUB_RUN_ID") == "" {
+		reps = 2
+	}
+	results := []any{}
+	for _, f := range cases {
+		times := []float64{}
+		changed := []int64{}
+		oldS, oldC, oldB, oldV := f.s, f.ch, f.b, f.v
+		newS, newC, newB, newV := f.s, f.ch, f.b, f.v
+		if f.mode == "new" {
+			oldS = 0
+			oldC = 0
+			oldB = 0
+			oldV = 0
+		}
+		if f.mode == "shrink" {
+			newS = 3
+			newC = 1
+			newB = 1
+		}
+		if f.mode == "noop" {
+			newS = 0
+			newC = 0
+			newB = 0
+			newV = 0
+		}
+		clear := `DELETE FROM asset_streams WHERE asset_id='asset-1';DELETE FROM asset_chapters WHERE asset_id='asset-1';DELETE FROM catalog_book_chapters WHERE file_id=1;DELETE FROM catalog_asset_links WHERE entity_id=1;`
+		restore := "BEGIN;" + clear + sourceRows(oldS, oldC, oldB, "old") + versionRows(oldV, 0) + "UPDATE asset_stream_facts SET fingerprint='old' WHERE asset_id='asset-1';COMMIT;"
+		body := clear + sourceRows(newS, newC, newB, "new") + versionRows(newV, 32) + `UPDATE asset_stream_facts SET revision=revision+1,fingerprint='new' WHERE asset_id='asset-1';UPDATE asset_chapter_facts SET revision=revision+1,fingerprint='new' WHERE asset_id='asset-1';UPDATE catalog_assets SET info_epoch=info_epoch+1,prepared_source_revision=prepared_source_revision+1 WHERE id=1;UPDATE catalog_entities SET revision=revision+1 WHERE id=1;UPDATE libraries SET data_revision=data_revision+1 WHERE id='full-library';`
+		if f.mode == "noop" {
+			body = ""
+		}
+		for j := 0; j < reps; j++ {
+			_, e = c.ExecContext(context.Background(), restore)
+			must(e)
+			var a, b int64
+			must(c.QueryRowContext(context.Background(), "SELECT total_changes()").Scan(&a))
+			_, e = c.ExecContext(context.Background(), "BEGIN IMMEDIATE")
+			must(e)
+			start := time.Now()
+			var fp string
+			must(c.QueryRowContext(context.Background(), "SELECT fingerprint FROM asset_stream_facts WHERE asset_id='asset-1'").Scan(&fp))
+			if fp != "old" {
+				panic("source fingerprint mismatch")
+			}
+			q := body + fmt.Sprintf("INSERT INTO admin_receipts VALUES('source-frame','%s-%d','%s','applied',1);INSERT INTO api_events(audience,type,resource_kind,resource_id,at_ms) VALUES('library:full-library','changed','asset','asset-1',1);", f.name, j, strings.Repeat("0", 64))
+			_, e = c.ExecContext(context.Background(), q)
+			must(e)
+			_, e = c.ExecContext(context.Background(), "COMMIT")
+			must(e)
+			times = append(times, float64(time.Since(start).Nanoseconds())/1e6)
+			must(c.QueryRowContext(context.Background(), "SELECT total_changes()").Scan(&b))
+			changed = append(changed, b-a)
+		}
+		effects := oldS + oldC + oldB + oldV + newS + newC + newB + newV
+		if f.mode == "noop" {
+			effects = 0
+		}
+		results = append(results, map[string]any{"case": f.name, "old_child_rows": oldS + oldC + oldB + oldV, "new_child_rows": newS + newC + newB + newV, "expected_child_mutations": effects, "samples_ms": times, "rows_changed": changed, "p99_ms": pct(times, .99), "max_ms": pct(times, 1), "strict": pct(times, .99) <= 10 && pct(times, 1) <= 25})
+		save(filepath.Join(out, "source-frame-results.json"), map[string]any{"ddl_sha256": hash, "synchronous": "NORMAL", "autocheckpoint": 0, "results": results, "boundary": "Target attempted atomic whole-set replacement with folded breadth, small bounded scalar/string payloads; source header checks/revisions/receipt/FULL set delta/NORMAL COMMIT included. Current production sealed-set materialization and later naming are separate/bounded commits; these measurements do not assert current whole replacement is one commit. Not a complete private typed command or staged-head implementation."})
+		fmt.Println("source frame", f.name, pct(times, .99), pct(times, 1))
+	}
 }
