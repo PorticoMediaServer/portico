@@ -115,6 +115,11 @@ func (c *Client) retainedInventoryPage(ctx context.Context, key string, r Invent
 		}
 		s = inventoryStreams.byID[parts[1]]
 		if s == nil || s.client != c || s.key != mapKey {
+			if s != nil {
+				fmt.Printf("MAC ORDER CONTINUATION REFUSED old=%+v new=%+v sameClient=%t sameKey=%t\n", s.request, r, s.client == c, s.key == mapKey)
+			} else {
+				fmt.Printf("MAC ORDER CONTINUATION LOST new=%+v\n", r)
+			}
 			inventoryStreams.Unlock()
 			return empty, ErrInventoryChanged
 		}
