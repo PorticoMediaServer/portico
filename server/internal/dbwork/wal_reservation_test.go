@@ -100,14 +100,18 @@ func TestWALPressureRetainsUserTicketAndNeverRunsBackgroundAhead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer holder()
 	user := &walRequest{ledger: l, bytes: 32768, qualified: true, class: ClassInteractive}
-	results := make(chan admissionResult, 2)
+	userDone := make(chan admissionResult, 1)
+	backgroundDone := make(chan admissionResult, 1)
+	acquired := make(chan admissionResult, 2)
 	go func() {
 		release, err := g.Acquire(context.WithValue(ctx, walRequestKey{}, user), ClassInteractive)
+		acquired <- admissionResult{label: "user", err: err}
 		if err == nil {
 			release()
 		}
-		results <- admissionResult{label: "user", err: err}
+		userDone <- admissionResult{label: "user", err: err}
 	}()
 	deadline := time.Now().Add(time.Second)
 	for g.Waiting()[ClassInteractive.String()] != 1 {
@@ -116,9 +120,10 @@ func TestWALPressureRetainsUserTicketAndNeverRunsBackgroundAhead(t *testing.T) {
 		}
 		time.Sleep(time.Millisecond)
 	}
-	queueTicket(t, g, ClassBackgroundMedia, "", "background", closedChannel(), results)
+	cancelBackground := queueTicketObserved(t, g, ClassBackgroundMedia, "", "background", closedChannel(), backgroundDone, acquired)
+	defer cancelBackground()
 	holder()
-	expectNoResult(t, results, 20*time.Millisecond)
+	expectNoResult(t, acquired, 20*time.Millisecond)
 	if user.ledger.snapshot().QualifiedWrites != 0 {
 		t.Fatal("blocked ticket debited before selection")
 	}
@@ -129,8 +134,15 @@ func TestWALPressureRetainsUserTicketAndNeverRunsBackgroundAhead(t *testing.T) {
 	g.grant = g.pickWinnerLocked()
 	g.signalLocked()
 	g.mu.Unlock()
-	expectResult(t, results, "user")
-	expectResult(t, results, "background")
+	// Observe admission before releasing the gate. Completion reports after
+	// release may arrive in either order even when user admission wins.
+	expectResult(t, acquired, "user")
+	expectResult(t, acquired, "background")
+	expectResult(t, userDone, "user")
+	expectResult(t, backgroundDone, "background")
+	if g.ActiveOrWaiting() {
+		t.Fatal("admitted tickets did not drain")
+	}
 }
 
 func TestWALCancelledPressureTicketHasNoDebit(t *testing.T) {
