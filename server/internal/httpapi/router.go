@@ -529,7 +529,7 @@ func failure(w http.ResponseWriter, e error) {
 	if errors.Is(e, hosted.ErrClockSkew) {
 		status, code = 401, "clock_skew"
 	}
-	if errors.Is(e, sql.ErrNoRows) {
+	if errors.Is(e, sql.ErrNoRows) || errors.Is(e, playback.ErrHLSArtifactNotFound) {
 		status, code = 404, "not_found"
 	}
 	if errors.Is(e, playback.ErrGrantEnded) {
