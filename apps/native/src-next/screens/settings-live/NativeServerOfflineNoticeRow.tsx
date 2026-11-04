@@ -57,7 +57,7 @@ export function NativeServerOfflineNoticeRow({context, runtime, lifetime}: {cont
     };
     const dispose = (notify = false) => {
       if (!active) return;
-      active = false; off(); retirement?.removeEventListener('abort', changed);
+      active = false; off(); retirement?.removeEventListener('abort', changed); lifetime.signal.removeEventListener('abort', changed);
       for (const request of requests) request.abort();
       requests.clear();
       if (openingRef.current === held) {openingRef.current = undefined; if (notify) {setOpening(undefined); setValue(undefined); setBusy(false);}}
@@ -67,6 +67,8 @@ export function NativeServerOfflineNoticeRow({context, runtime, lifetime}: {cont
     openingRef.current = held; setOpening(held);
     const off = credentials.subscribe(changed);
     retirement?.addEventListener('abort', changed, {once: true});
+    // The Settings composition ends with its lifetime: a request in flight is cancelled then, not at unmount.
+    lifetime.signal.addEventListener('abort', changed, {once: true});
     // A failed read draws nothing rather than a switch that can't say where it stands.
     void run(false, (client, signal) => client.preferences(signal)).then(preferences => {if (current()) setValue(preferences.serverOffline);}, () => {});
     return () => dispose();
