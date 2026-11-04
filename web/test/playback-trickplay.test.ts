@@ -43,7 +43,7 @@ function rig() {
 test('real authenticated analysis and descriptor reads bind an independent inventory revision and canonical sprite geometry', async () => {
   const t = rig(), selected = await t.read();
   assert.ok(selected); assert.equal(selected.isCurrent(), true);
-  assert.equal(selected.sourceRevision, 'inventory-revision'); assert.equal(selected.viewerFence, 'detail-viewer-fence');
+  assert.equal(selected.sourceRevision, 'inventory-revision');
   assert.equal(t.requests.length, 2);
   assert.equal(t.requests[0]!.pathname, '/v1/items/item/analysis');
   assert.deepEqual(Object.fromEntries(t.requests[0]!.searchParams), {sourceId: 'source', sessionId: 'session', generation: '1'});
@@ -67,11 +67,14 @@ test('stale, foreign, differently revised or differently timed sets provide no p
   assert.ok(await t.read(), 'the descriptor uses the producer’s explicit rounded integer-millisecond boundary');
 });
 
-test('analysis and descriptor viewer fences must match the actual captured offers, without coercing the Home fence', async () => {
+test('a moved viewer fence on the analysis or descriptor read is a newer answer, never a refusal (step 7)', async () => {
   for (const stage of ['analysis', 'descriptor'] as const) {
-    const t = rig(); t[stage].scope.viewerFence = 'another-viewer';
-    assert.equal(await t.read(), null); assert.equal(t.requests.length, stage === 'analysis' ? 1 : 2);
+    const t = rig(); t[stage].scope.viewerFence = 'newer-viewer';
+    assert.ok(await t.read(), `${stage}: the newer answer still selects the set`); assert.equal(t.requests.length, 2);
   }
+});
+
+test('a probe-needing source and a prepared derivative still give no preview clock', async () => {
   const t = rig(); t.analysis.source.needsProbe = true;
   assert.equal(await t.read(), null); assert.equal(t.requests.length, 1);
   const prepared = rig(); prepared.replace({offers: {...prepared.snapshot().offers!, current: {...prepared.snapshot().offers!.current!, preparedVersionId: 'prepared-version'}}});
@@ -94,8 +97,7 @@ test('source, occurrence, generation, authority and abort changes fence reads an
     assert.equal(await t.read(), null); assert.equal(t.requests.length, stage === 'analysis' ? 1 : 2);
   }
   const t = rig(), selected = await t.read(); assert.ok(selected);
-  t.replace({offers: {...t.snapshot().offers!, scope: {...t.snapshot().offers!.scope, viewerFence: 'changed'}}});
-  assert.equal(selected.isCurrent(), false);
-  assert.equal(await t.read(), null);
-  assert.equal(t.requests.length, 3, 'a fresh read captures the new offer fence; the old-fence analysis cannot authorize a descriptor request');
+  t.replace({offers: {...t.snapshot().offers!, scope: {...t.snapshot().offers!.scope, viewerFence: 'newer'}}});
+  assert.equal(selected.isCurrent(), true, 'a moved offers fence is a newer answer for the same session, source and generation');
+  assert.ok(await t.read(), 'a fresh read still selects the set');
 });
