@@ -112,11 +112,20 @@ for (const reason of ['route', 'authority', 'fence']) test(`retained channel and
   } finally {f.dispose();}
 });
 
-for (const changed of ['neighbor', 'viewer']) test(`channel tune revalidates ${changed} before dispatch`, async () => {
+test('channel tune revalidates the neighbor before dispatch', async () => {
   const f = await fixture();try {
     await settle();const state = f.guide.getSnapshot(), errors: unknown[] = [];
-    if (changed === 'neighbor') f.changeNeighbor();else f.changeViewer();
+    f.changeNeighbor();
     await f.guide.tune(state.next, state, (error: unknown) => errors.push(error));assert.equal(f.navigations.length, 0);assert.equal(errors.length, 1);assert.ok(f.guide.getSnapshot().error);
+  } finally {f.dispose();}
+});
+
+// Step 7: the tune's revalidation is a read, so a moved viewer fence on it is a newer answer and the tune goes on.
+test('channel tune treats a moved viewer fence on its revalidation read as a newer answer', async () => {
+  const f = await fixture();try {
+    await settle();const state = f.guide.getSnapshot(), errors: unknown[] = [];
+    f.changeViewer();
+    await f.guide.tune(state.next, state, (error: unknown) => errors.push(error));assert.equal(f.navigations.length, 1);assert.equal(errors.length, 0);
   } finally {f.dispose();}
 });
 
