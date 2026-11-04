@@ -130,6 +130,10 @@ func planFor(ctx context.Context, class Class) WritePlan {
 // writeMeter is one transaction's VM and page counters at BEGIN and at its
 // end, filled in by the observed driver on the writer connection.
 type writeMeter struct {
+	// active follows the driver transaction lifetime, even when its owner has
+	// not retired the Write yet (for example after context rollback). It is
+	// protected by database/sql's connection lock in begin, end and Conn.Raw.
+	active                          bool
 	vmStart, pagesStart             int64
 	vmEnd, pagesEnd                 int64
 	started, ended                  bool
@@ -166,6 +170,7 @@ func (m *writeMeter) begin(inner any) {
 	if m == nil {
 		return
 	}
+	m.active = true
 	m.vmStart, m.pagesStart, m.started = connCounters(inner)
 	if c, ok := inner.(*observedConn); ok {
 		inner = c.inner
@@ -179,7 +184,11 @@ func (m *writeMeter) begin(inner any) {
 }
 
 func (m *writeMeter) end(inner any) {
-	if m == nil || !m.started || m.ended {
+	if m == nil {
+		return
+	}
+	m.active = false
+	if !m.started || m.ended {
 		return
 	}
 	m.vmEnd, m.pagesEnd, m.ended = connCounters(inner)
