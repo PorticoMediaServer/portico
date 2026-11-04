@@ -20,22 +20,49 @@ import (
 
 var updateDirectSnapshots = flag.Bool("update-direct-snapshot-census", false, "remove migrated sites from the direct snapshot baseline; never add sites")
 
+type directSnapshotModule struct {
+	Path, Dir, Version string
+	Main               bool
+	Replace            *directSnapshotModule
+}
+
 type directSnapshotPackage struct {
 	Dir, ImportPath                                   string
 	GoFiles, CgoFiles, IgnoredGoFiles, InvalidGoFiles []string
-	Module                                            *struct {
-		Main    bool
-		Replace *struct{ Dir, Version string }
-	}
+	Module                                            *directSnapshotModule
 }
 
-// Directory names choose initial package roots only. Go resolves every actual
-// production import, including imports into testdata, node_modules, hidden
-// directories, vendored code and locally replaced modules. Imports in inactive
-// platform/tag files are followed too, so the host's build tags cannot hide one.
-func directSnapshotProductionFiles(root string) ([]string, error) {
-	seeds := map[string]bool{}
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+func directSnapshotGo(root string, args ...string) ([]byte, error) {
+	cmd := exec.Command("go", args...)
+	cmd.Dir = root
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("resolve production imports: %w\n%s", err, stderr.String())
+	}
+	return out, nil
+}
+
+func directSnapshotRepository(root string) (string, error) {
+	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
+	cmd.Dir = root
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("cannot establish census repository boundary: %w", err)
+	}
+	return filepath.EvalSymlinks(strings.TrimSpace(string(out)))
+}
+
+func directSnapshotInside(root, path string) bool {
+	relative, err := filepath.Rel(root, path)
+	return err == nil && filepath.IsLocal(relative)
+}
+
+// These names only choose wildcard roots. Real production imports are always
+// followed, including into hidden/fixture trees and separate modules.
+func directSnapshotModuleSeeds(root, module string, seeds map[string]bool) error {
+	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -57,10 +84,90 @@ func directSnapshotProductionFiles(root string) ([]string, error) {
 			if err != nil {
 				return err
 			}
-			seeds["./"+filepath.ToSlash(relative)] = true
+			importPath := module
+			if relative != "." {
+				importPath += "/" + filepath.ToSlash(relative)
+			}
+			seeds[importPath] = true
 		}
 		return nil
 	})
+}
+
+// Include every build-list module whose resolved source is in the repository.
+// Vendor mode has no module-directory list: modules.txt names the actual copied
+// package sources, rather than the unused original replacement directories.
+func directSnapshotModuleInventory(root, repository string) (map[string]bool, []string, error) {
+	out, err := directSnapshotGo(root, "list", "-m", "-e", "-json", "all")
+	vendor := err != nil && strings.Contains(err.Error(), "using the vendor directory")
+	if vendor {
+		out, err = directSnapshotGo(root, "list", "-m", "-e", "-json")
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	seeds := map[string]bool{}
+	var namespaces []string
+	decoder := json.NewDecoder(bytes.NewReader(out))
+	for {
+		var module directSnapshotModule
+		if err := decoder.Decode(&module); err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, nil, err
+		}
+		dir := module.Dir
+		if dir == "" && module.Replace != nil {
+			dir = module.Replace.Dir
+		}
+		if dir == "" {
+			continue // An unused, versioned dependency may not be downloaded.
+		}
+		dir, err := filepath.EvalSymlinks(dir)
+		if err != nil {
+			return nil, nil, err
+		}
+		if !directSnapshotInside(repository, dir) {
+			continue // A production import of local external source is refused below.
+		}
+		namespaces = append(namespaces, module.Path)
+		if relative, err := filepath.Rel(repository, dir); err == nil && relative != "." {
+			if suffix := "/" + filepath.ToSlash(relative); strings.HasSuffix(module.Path, suffix) {
+				namespaces = append(namespaces, strings.TrimSuffix(module.Path, suffix))
+			}
+		}
+		if err := directSnapshotModuleSeeds(dir, module.Path, seeds); err != nil {
+			return nil, nil, err
+		}
+	}
+	if vendor {
+		var data []byte
+		for _, dir := range []string{root, repository} {
+			data, err = os.ReadFile(filepath.Join(dir, "vendor", "modules.txt"))
+			if err == nil {
+				break
+			} else if !os.IsNotExist(err) {
+				return nil, nil, err
+			}
+		}
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot account for vendored production modules: %w", err)
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			if line = strings.TrimSpace(line); line != "" && !strings.HasPrefix(line, "#") {
+				seeds[line] = true
+			}
+		}
+	}
+	return seeds, namespaces, nil
+}
+
+func directSnapshotProductionFiles(root string) ([]string, error) {
+	repository, err := directSnapshotRepository(root)
+	if err != nil {
+		return nil, err
+	}
+	seeds, namespaces, err := directSnapshotModuleInventory(root, repository)
 	if err != nil {
 		return nil, err
 	}
@@ -71,13 +178,9 @@ func directSnapshotProductionFiles(root string) ([]string, error) {
 	listed, scanned, files := map[string]bool{}, map[string]bool{}, map[string]bool{}
 	for len(queue) != 0 {
 		sort.Strings(queue)
-		cmd := exec.Command("go", append([]string{"list", "-deps", "-e", "-json"}, queue...)...)
-		cmd.Dir = root
-		var stderr bytes.Buffer
-		cmd.Stderr = &stderr
-		output, err := cmd.Output()
+		output, err := directSnapshotGo(root, append([]string{"list", "-deps", "-e", "-json"}, queue...)...)
 		if err != nil {
-			return nil, fmt.Errorf("resolve production imports: %w\n%s", err, stderr.String())
+			return nil, err
 		}
 		var packages []directSnapshotPackage
 		decoder := json.NewDecoder(bytes.NewReader(output))
@@ -96,24 +199,42 @@ func directSnapshotProductionFiles(root string) ([]string, error) {
 		}
 		pending := map[string]bool{}
 		for _, pkg := range packages {
-			relative, err := filepath.Rel(root, pkg.Dir)
-			owned := err == nil && filepath.IsLocal(relative)
-			localDependency := pkg.Module != nil && (pkg.Module.Main ||
-				pkg.Module.Replace != nil && pkg.Module.Replace.Dir != "" && pkg.Module.Replace.Version == "")
-			if (!owned && !localDependency) || scanned[pkg.Dir] {
+			dir, err := filepath.EvalSymlinks(pkg.Dir)
+			if err != nil {
+				return nil, err
+			}
+			if !directSnapshotInside(repository, dir) {
+				// Standard library and pinned third-party cache sources are not
+				// repository code. Local/workspace sources, vendored copies and
+				// modules in a repository-owned namespace cannot escape the fence.
+				local := pkg.Module != nil && (pkg.Module.Main || pkg.Module.Dir == "" ||
+					pkg.Module.Replace != nil && pkg.Module.Replace.Version == "")
+				for _, namespace := range namespaces {
+					local = local || pkg.ImportPath == namespace || strings.HasPrefix(pkg.ImportPath, namespace+"/")
+				}
+				if local {
+					return nil, fmt.Errorf("production import %q resolves outside repository: %s", pkg.ImportPath, dir)
+				}
 				continue
 			}
-			scanned[pkg.Dir] = true
+			if scanned[dir] {
+				continue
+			}
+			scanned[dir] = true
 			names := append(append(append([]string{}, pkg.GoFiles...), pkg.CgoFiles...), pkg.IgnoredGoFiles...)
 			names = append(names, pkg.InvalidGoFiles...)
 			for _, name := range names {
 				if strings.HasSuffix(name, "_test.go") {
 					continue
 				}
-				path := filepath.Join(pkg.Dir, name)
-				if owned {
-					files[path] = true
+				path, err := filepath.EvalSymlinks(filepath.Join(dir, name))
+				if err != nil {
+					return nil, err
 				}
+				if !directSnapshotInside(repository, path) {
+					return nil, fmt.Errorf("production source for %q resolves outside repository: %s", pkg.ImportPath, path)
+				}
+				files[path] = true
 				file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
 				if err != nil {
 					return nil, err
@@ -344,7 +465,12 @@ func TestDirectSnapshotBaselineCanOnlyShrink(t *testing.T) {
 func directSnapshotCensusFixture(t *testing.T) (root, baseline string) {
 	t.Helper()
 	t.Setenv("GOWORK", "off")
-	root = t.TempDir()
+	repository := t.TempDir()
+	cmd := exec.Command("git", "init", "--quiet", repository)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("initialize fixture repository: %v\n%s", err, output)
+	}
+	root = filepath.Join(repository, "server")
 	for _, dir := range []string{"internal/legacy", "internal/dbwork", "cmd"} {
 		if err := os.MkdirAll(filepath.Join(root, dir), 0700); err != nil {
 			t.Fatal(err)
@@ -512,11 +638,11 @@ func TestDirectSnapshotCensusIgnoresUnimportedFixtures(t *testing.T) {
 
 func TestDirectSnapshotCensusFollowsWorkspaceImports(t *testing.T) {
 	root, baseline := directSnapshotCensusFixture(t)
-	helper := t.TempDir()
+	helper := filepath.Join(filepath.Dir(root), "workspace-helper")
 	work := filepath.Join(t.TempDir(), "go.work")
 	bridgeDir := filepath.Join(root, ".hidden", "bridge")
 	consumerDir := filepath.Join(root, "internal", "consumer")
-	for _, dir := range []string{bridgeDir, consumerDir} {
+	for _, dir := range []string{bridgeDir, consumerDir, helper} {
 		if err := os.MkdirAll(dir, 0700); err != nil {
 			t.Fatal(err)
 		}
@@ -547,6 +673,149 @@ var Open = bridge.Open
 	for _, update := range []bool{false, true} {
 		if _, _, err := directSnapshotCensus(root, baseline, update); err == nil {
 			t.Errorf("inactive workspace import escaped the census: update=%t", update)
+		}
+	}
+}
+
+func TestDirectSnapshotCensusAccountsForLocalModules(t *testing.T) {
+	const module = "github.com/PorticoMediaServer/portico/server"
+	const bridgeModule = module + "/review755bridge"
+	for _, route := range []string{"vendor", "replace", "workspace", "replace-symlink"} {
+		for _, outside := range []bool{false, true} {
+			if route == "vendor" && outside || route == "replace-symlink" && !outside {
+				continue
+			}
+			t.Run(fmt.Sprintf("%s/outside-repository=%t", route, outside), func(t *testing.T) {
+				root, baseline := directSnapshotCensusFixture(t)
+				bridgeDir := filepath.Join(filepath.Dir(root), "bridge")
+				if outside {
+					outsideDir := t.TempDir()
+					if route == "replace-symlink" {
+						if err := os.Symlink(outsideDir, bridgeDir); err != nil {
+							t.Skipf("symlink unavailable: %v", err)
+						}
+					} else {
+						bridgeDir = outsideDir
+					}
+				} else if route == "vendor" {
+					bridgeDir = filepath.Join(root, "vendor", filepath.FromSlash(bridgeModule))
+				}
+				consumer := filepath.Join(root, "consumer")
+				for _, dir := range []string{bridgeDir, consumer} {
+					if err := os.MkdirAll(dir, 0700); err != nil {
+						t.Fatal(err)
+					}
+				}
+				mainMod := "module " + module + "\ngo 1.26.10\n"
+				if route == "replace" || route == "replace-symlink" {
+					mainMod += "require " + bridgeModule + " v0.0.0\nreplace " + bridgeModule + " => " + strconv.Quote(filepath.ToSlash(bridgeDir)) + "\n"
+				} else if route == "vendor" {
+					mainMod += "require " + bridgeModule + " v0.0.0\n"
+					if err := os.WriteFile(filepath.Join(root, "vendor", "modules.txt"), []byte("# "+bridgeModule+" v0.0.0\n## explicit; go 1.26.10\n"+bridgeModule+"\n"), 0600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				for path, source := range map[string]string{
+					filepath.Join(root, "go.mod"):          mainMod,
+					filepath.Join(bridgeDir, "go.mod"):     "module " + bridgeModule + "\ngo 1.26.10\n",
+					filepath.Join(bridgeDir, "bridge.go"):  `package bridge; import work "github.com/PorticoMediaServer/portico/server/internal/dbwork"; var Open = work.BeginSnapshot`,
+					filepath.Join(consumer, "consumer.go"): `package consumer; import bridge "github.com/PorticoMediaServer/portico/server/review755bridge"; var Open = bridge.Open`,
+				} {
+					if route == "vendor" && path == filepath.Join(bridgeDir, "go.mod") {
+						continue
+					}
+					if err := os.WriteFile(path, []byte(source), 0600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if route == "workspace" {
+					work := filepath.Join(t.TempDir(), "go.work")
+					if err := os.WriteFile(work, []byte(fmt.Sprintf("go 1.26.10\nuse (\n%q\n%q\n)\n", root, bridgeDir)), 0600); err != nil {
+						t.Fatal(err)
+					}
+					t.Setenv("GOWORK", work)
+				}
+				cmd := exec.Command("go", "test", "-p", "1", "-run", "^$", "./consumer")
+				cmd.Dir = root
+				if output, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("local-module witness does not compile: %v\n%s", err, output)
+				}
+				before, err := os.ReadFile(baseline)
+				if err != nil {
+					t.Fatal(err)
+				}
+				expectedPath := "../bridge/bridge.go"
+				if route == "vendor" {
+					expectedPath = "vendor/" + bridgeModule + "/bridge.go"
+				}
+				for _, update := range []bool{false, true} {
+					_, _, err := directSnapshotCensus(root, baseline, update)
+					if err == nil {
+						t.Errorf("production module escaped census: update=%t", update)
+					} else if outside && !strings.Contains(err.Error(), "outside repository") {
+						t.Errorf("external production source was not explicitly refused: %v", err)
+					} else if !outside && !strings.Contains(err.Error(), expectedPath) {
+						t.Errorf("repository module reference was not counted: %v", err)
+					}
+					after, readErr := os.ReadFile(baseline)
+					if readErr != nil || string(after) != string(before) {
+						t.Fatal("refused module changed baseline", readErr)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestDirectSnapshotCensusIncludesUnusedRepositoryBuildListModules(t *testing.T) {
+	root, baseline := directSnapshotCensusFixture(t)
+	bridgeDir := filepath.Join(filepath.Dir(root), "unused-bridge")
+	if err := os.MkdirAll(bridgeDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	const module = "github.com/PorticoMediaServer/portico/server"
+	const bridgeModule = module + "/review755bridge"
+	for path, source := range map[string]string{
+		filepath.Join(root, "go.mod"):         "module " + module + "\ngo 1.26.10\nrequire " + bridgeModule + " v0.0.0\nreplace " + bridgeModule + " => " + strconv.Quote(filepath.ToSlash(bridgeDir)) + "\n",
+		filepath.Join(bridgeDir, "go.mod"):    "module " + bridgeModule + "\ngo 1.26.10\n",
+		filepath.Join(bridgeDir, "bridge.go"): `package bridge; import work "github.com/PorticoMediaServer/portico/server/internal/dbwork"; var Open = work.BeginSnapshot`,
+	} {
+		if err := os.WriteFile(path, []byte(source), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, update := range []bool{false, true} {
+		if _, _, err := directSnapshotCensus(root, baseline, update); err == nil || !strings.Contains(err.Error(), "../unused-bridge/bridge.go") {
+			t.Errorf("repository build-list source was omitted: update=%t err=%v", update, err)
+		}
+	}
+}
+
+func TestDirectSnapshotCensusRefusesExternalSourceLink(t *testing.T) {
+	root, baseline := directSnapshotCensusFixture(t)
+	path := filepath.Join(root, "internal", "legacy", "legacy.go")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	external := filepath.Join(t.TempDir(), "legacy.go")
+	if err := os.WriteFile(external, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(external, path); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+	cmd := exec.Command("go", "test", "-p", "1", "-run", "^$", "./internal/legacy")
+	cmd.Dir = root
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("source-link witness does not compile: %v\n%s", err, output)
+	}
+	for _, update := range []bool{false, true} {
+		if _, _, err := directSnapshotCensus(root, baseline, update); err == nil || !strings.Contains(err.Error(), "outside repository") {
+			t.Errorf("external production source link was not refused: update=%t err=%v", update, err)
 		}
 	}
 }
