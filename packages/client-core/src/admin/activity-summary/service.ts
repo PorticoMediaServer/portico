@@ -4,9 +4,20 @@ import {call} from '../../playback-v1/http.ts';
 import type {EventsClient} from '../../playback-v1/events.ts';
 type ActivityEvents = Pick<EventsClient, 'on' | 'onResync'> & Partial<Pick<EventsClient, 'resyncReads' | 'onResyncRead'>>;
 import {parseActivitySummary,parseDashboardSessions} from './parser.ts';
+import {dependsOn} from '../../freshness-hub.ts';
+import {queryKeys} from '../../query/keys.ts';
+import {heldDocument,readDocument} from '../../query/admin-documents.ts';
+import type {ViewerQueries} from '../../query/viewer-queries.ts';
+import type {ViewerQueryOptions} from '../../query/react.ts';
 import type {DashboardSessionsSnapshot, ActivitySummaryErrorCode, ActivitySummaryScope, ActivitySummarySnapshot, ActivitySummarySource, ActivitySummarySourceStore, ActivitySummaryTimers, OwnerActivitySummary} from './types.ts';
 
 const hintTypes = ['admin.sessions', 'library.scan.updated', 'job.updated', 'operation.updated', 'server.updated', 'list.changed'] as const;
+/** What the owner's summary is built from: the same hints that make the service read it again. */
+const summaryMoved = hintTypes.map(type => dependsOn.event(type));
+/** The owner's activity summary in the viewer's cache, read with the shell's checked transport. */
+export function activitySummaryQuery(read: (signal: AbortSignal) => Promise<OwnerActivitySummary>): ViewerQueryOptions<OwnerActivitySummary> {
+  return {queryKey: queryKeys.adminActivity(), queryFn: ({signal}) => read(signal), meta: {dependencies: summaryMoved}};
+}
 const scopeKeys = ['serverId', 'accountId', 'profileId', 'authority', 'role', 'sessionFamilyId', 'authorizationEpoch'] as const;
 const unavailable = Object.freeze({phase: 'unavailable'} as const);
 const defaults: ActivitySummaryTimers = {
@@ -34,6 +45,7 @@ export class ActivitySummaryService {
   private readonly source: ActivitySummarySourceStore;
   private readonly timers: ActivitySummaryTimers;
   private readonly timeoutMs: number;
+  private readonly queries?: ViewerQueries;
   private releaseSource: () => void;
   private listeners = new Set<() => void>();
   private state: ActivitySummarySnapshot = unavailable;
@@ -41,7 +53,6 @@ export class ActivitySummaryService {
   private active = false;
   private disposed = false;
   private epoch = 0;
-  private fence?: string;
   private observed?: string;
   private blocked = false;
   private reading?: {controller: AbortController; promise: Promise<void>};
@@ -52,8 +63,8 @@ export class ActivitySummaryService {
   private releases: (() => void)[] = [];
   private readEvents?: ActivityEvents;
 
-  constructor(options: {source: ActivitySummarySourceStore; timers?: ActivitySummaryTimers; timeoutMs?: number}) {
-    this.source = options.source;
+  constructor(options: {source: ActivitySummarySourceStore; timers?: ActivitySummaryTimers; timeoutMs?: number; /** The viewer's cache: the summary is read through it, so every owner shares one read and a reopened popover shows at once. */ queries?: ViewerQueries}) {
+    this.source = options.source; this.queries = options.queries;
     this.timers = options.timers ?? defaults;
     this.timeoutMs = options.timeoutMs ?? 10_000;
     if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 1 || this.timeoutMs > 60_000) throw new Error('invalid_activity_timeout');
@@ -83,7 +94,7 @@ export class ActivitySummaryService {
     if (same(this.current, next)) return false;
     this.stopRead(); this.releaseFeed();
     this.current = next ? Object.freeze({http: next.http, scope: Object.freeze({...next.scope})}) : undefined;
-    this.fence = undefined; this.observed = undefined; this.blocked = false;
+    this.observed = undefined; this.blocked = false;
     this.lastStart = -Infinity; this.retryAt = -Infinity;
     this.publish(this.active && this.current ? {phase: 'idle'} : unavailable);
     return true;
@@ -123,15 +134,17 @@ export class ActivitySummaryService {
   private schedule(): void {
     if (!this.pending || this.reading || this.timer !== undefined || !this.eligible()) return;
     const delay = Math.max(0, this.lastStart + 1000 - this.timers.now(), this.retryAt - this.timers.now());
-    this.timer = this.timers.setTimer(() => { this.timer = undefined; if (this.pending) void this.load(); }, delay);
+    this.timer = this.timers.setTimer(() => { this.timer = undefined; if (this.pending) void this.read(undefined, true); }, delay);
   }
-  /** One explicit read. Concurrent callers share it. Hints during the read schedule one trailing read. */
-  load = (): Promise<void> => this.read();
-  retry = (): Promise<void> => this.read();
+  /** One explicit read: the viewer's cached summary when nothing it was built from has moved, else the server's. Concurrent callers share it. Hints during the read schedule one trailing read. */
+  load = (): Promise<void> => this.read(undefined, false);
+  /** Always asks the server. */
+  retry = (): Promise<void> => this.read(undefined, true);
   /** Compatible with the existing freshness document protocol; no content is retained after refusal. */
-  revalidate = (context?: {signal?: AbortSignal; settle?: () => Promise<void>; admission?: object}): Promise<void> => this.read(context);
+  revalidate = (context?: {signal?: AbortSignal; settle?: () => Promise<void>; admission?: object}): Promise<void> => this.read(context, true);
 
-  private read(context?: {signal?: AbortSignal; settle?: () => Promise<void>; admission?: object}): Promise<void> {
+  /** `fresh`: something moved (a hint, a retry, a recovery), so a held summary cannot answer. */
+  private read(context?: {signal?: AbortSignal; settle?: () => Promise<void>; admission?: object}, fresh = true): Promise<void> {
     if (!this.eligible()) return Promise.resolve();
     if (context?.signal?.aborted) { this.cancel(); return Promise.resolve(); }
     if (this.reading) return this.reading.promise;
@@ -152,20 +165,22 @@ export class ActivitySummaryService {
         // lands; only a cold read with nothing to keep shows the loading state. Publishing
         // 'loading' over a shown document replaced every row with the skeleton on each feed
         // hint, so the panel collapsed and grew back on every update.
-        if (!this.state.document) this.publish({phase: 'loading'});
+        const held = !fresh && this.queries ? heldDocument<OwnerActivitySummary>(this.queries, queryKeys.adminActivity()) : undefined;
+        if (!this.state.document && !held) this.publish({phase: 'loading'});
         if (!isCurrent()) return;
         const interrupted = new Promise<never>((_, reject) => {
           abort = () => reject(failure('request_failed'));
           controller.signal.addEventListener('abort', abort, {once: true});
           timer = this.timers.setTimer(() => { reject(failure('request_timeout')); controller.abort(); }, this.timeoutMs);
         });
+        const fetchSummary = async (signal: AbortSignal): Promise<OwnerActivitySummary> => {
+          const request = () => call(source.http, {method: 'GET', path: routePath('get_admin_activity'), headers: {'Cache-Control': 'no-cache, no-store'}, signal}, [200]);
+          const admission = this.readEvents?.resyncReads;
+          const response = await (admission && context?.admission !== admission ? admission.run(signal, request) : request());
+          return parseActivitySummary(response.body);
+        };
         const document = await Promise.race([
-          (async () => {
-            const request = () => call(source.http, {method: 'GET', path: routePath('get_admin_activity'), headers: {'Cache-Control': 'no-cache, no-store'}, signal: controller.signal}, [200]);
-            const admission = this.readEvents?.resyncReads;
-            const response = await (admission && context?.admission !== admission ? admission.run(controller.signal, request) : request());
-            return parseActivitySummary(response.body);
-          })(),
+          held ?? (this.queries ? readDocument(this.queries, activitySummaryQuery(fetchSummary), {fresh: true, signal: controller.signal}) : fetchSummary(controller.signal)),
           interrupted,
         ]);
         if (!isCurrent()) return;
@@ -195,10 +210,10 @@ export class ActivitySummaryService {
     return promise;
   }
   private admit(document: OwnerActivitySummary, scope: ActivitySummaryScope): void {
-    if (document.scope.serverId !== scope.serverId || this.fence !== undefined && document.scope.viewerFence !== this.fence) throw failure('permission_changed');
+    if (document.scope.serverId !== scope.serverId) throw failure('permission_changed');
     const observed = utcOrderKey(document.observedAt);
     if (this.observed !== undefined && observed < this.observed) throw failure('invalid_activity_summary');
-    this.fence = document.scope.viewerFence; this.observed = observed;
+    this.observed = observed;
   }
   /** Cancel and erase; an ignored AbortSignal can never release its late private answer. */
   cancel(): void {
@@ -209,7 +224,7 @@ export class ActivitySummaryService {
   dispose(): void {
     if (this.disposed) return;
     this.stopRead(); this.releaseFeed(); this.releaseSource();
-    this.current = undefined; this.fence = undefined; this.observed = undefined;
+    this.current = undefined; this.observed = undefined;
     this.disposed = true; this.publish(unavailable); this.listeners.clear();
   }
 }
@@ -231,7 +246,6 @@ export class DashboardSessionsService {
  private controller?:AbortController;
  private timer?:unknown;
  private last=-Infinity;
- private fence?:string;
  private observed?:string;
  private blocked=false;
  private retryAt=-Infinity;
@@ -248,7 +262,7 @@ export class DashboardSessionsService {
   if(same(this.current,next))return false;
   this.stop();for(const fn of this.feed)fn();this.feed=[];
   this.current=next?Object.freeze({http:next.http,scope:Object.freeze({...next.scope})}):undefined;
-  this.fence=undefined;this.observed=undefined;this.blocked=false;this.last=-Infinity;this.retryAt=-Infinity;
+  this.observed=undefined;this.blocked=false;this.last=-Infinity;this.retryAt=-Infinity;
   this.publish(this.active && this.current?{phase:'idle'}:unavailable);return true;
  }
  getSnapshot=():DashboardSessionsSnapshot=>{this.sync();return this.state;};
@@ -282,8 +296,8 @@ export class DashboardSessionsService {
    const response=await Promise.race([this.readEvents?.resyncReads?this.readEvents.resyncReads.run(controller.signal,request):request(),timedOut]);
    this.sync();if(epoch!==this.epoch || serial!==this.serial || !same(source,this.current))return;
    const document=parseDashboardSessions(response.body);
-   if(document.scope.serverId!==source.scope.serverId || this.fence && this.fence!==document.scope.viewerFence || this.observed && utcOrderKey(document.observedAt)<utcOrderKey(this.observed))throw failure('permission_changed');
-   this.fence=document.scope.viewerFence;this.observed=document.observedAt;this.publish({phase:'ready',document});
+   if(document.scope.serverId!==source.scope.serverId || this.observed && utcOrderKey(document.observedAt)<utcOrderKey(this.observed))throw failure('permission_changed');
+   this.observed=document.observedAt;this.publish({phase:'ready',document});
   } catch(error) {
    this.sync();if(epoch!==this.epoch || serial!==this.serial || !same(source,this.current))return;
    const safe=safeError(controller.signal.aborted?failure('request_timeout'):error);

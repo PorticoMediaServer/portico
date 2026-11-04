@@ -1,8 +1,10 @@
 import React, {useEffect, useLayoutEffect, useState, useSyncExternalStore} from 'react';
 import {FlatList, Text, View} from 'react-native';
 import type {RuntimeSettings} from '../../../../../../packages/client-core/src/console';
-import {fetchPlayHistory, playHistoryPlatform, playHistoryTitle, type PlayHistoryEntry} from '../../../../../../packages/client-core/src/play-history';
+import {fetchPlayHistory, playHistoryFirstPageQuery, playHistoryPlatform, playHistoryTitle, type PlayHistoryEntry} from '../../../../../../packages/client-core/src/play-history';
 import {DashboardDataClient} from '../../../../../../packages/client-core/src/admin/dashboard';
+import {readDocument} from '../../../../../../packages/client-core/src/query/admin-documents';
+import {viewerQueriesFor} from '../../../shell/freshness';
 import {captureReportContext} from '../../../../../../packages/client-core/src/report-context';
 import {applySettingsBindingPatch, readSettingsBinding, settingsBinding, settingsBindingPatch} from '../../../../../../packages/client-core/src/presentation/settings-bindings';
 import {settingsRowIndex} from '../../../../../../packages/client-core/src/presentation/settings-spec';
@@ -35,7 +37,9 @@ function createHistory(context: NativeShellBootstrapContext, reportError: Native
   const api = {request: <T,>(path: string, method?: string, body?: unknown, caller?: AbortSignal): Promise<T> => current()
     ? lifetime.request(signal => context.api.request<T>(path, method, body, signal), caller) : Promise.reject(screenScopeEnded())};
   const dashboard = new DashboardDataClient(api);
-  const source = new NativeHistorySource({page: (filters, cursor, signal) => fetchPlayHistory(api, filters, cursor, signal), people: (filters, cursor, signal) => dashboard.people(filters, cursor, 100, signal)}, current, () => historyReportContext(reportError), reportError);
+  // The first page is the viewer's cached document (the role is part of the cache's scope); later pages are direct reads.
+  const queries = viewerQueriesFor(context.api, {serverId: lifetime.authority.serverId, viewerId: lifetime.authority.profileId});
+  const source = new NativeHistorySource({page: (filters, cursor, signal, fresh = true) => cursor ? fetchPlayHistory(api, filters, cursor, signal) : readDocument(queries, playHistoryFirstPageQuery(api, filters), {fresh, signal}), people: (filters, cursor, signal) => dashboard.people(filters, cursor, 100, signal)}, current, () => historyReportContext(reportError), reportError);
   const retire = () => source.dispose();lifetime.signal.addEventListener('abort', retire, {once: true});
   return {context, source, current, dispose: () => {source.dispose();lifetime.signal.removeEventListener('abort', retire);lifetime.dispose();}};
 }

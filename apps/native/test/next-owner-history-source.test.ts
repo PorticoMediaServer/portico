@@ -49,3 +49,13 @@ test('retiring a History owner aborts reads and prevents late data or new reques
 test('unknown location text never exposes an address', () => {
   assert.equal(historyLocation('remote'), 'away');assert.equal(historyLocation('local'), 'home');assert.equal(historyLocation('192.0.2.5'), undefined);assert.equal(historyLocation(undefined), undefined);
 });
+
+test('only a refresh or a retry asks the server: opening and changing filters may take the viewer\'s held first page', async () => {
+  const asked: boolean[] = [];let fail = false;
+  const source = new NativeHistorySource({page: async (_filters, _cursor, _signal, fresh) => {asked.push(fresh === true);if (fail) throw new Error('offline');return page([entry('one')]);}, people: async () => ({items: [], nextCursor: ''})}, () => true, () => report, error => {throw error;});
+  source.start();await settle();
+  source.change({period: '7d', sort: 'played', direction: 'desc'});await settle();
+  source.refresh();await settle();
+  fail = true;source.refresh();await settle();fail = false;source.retry();await settle();
+  assert.deepEqual(asked, [false, false, true, true, true]);source.dispose();
+});

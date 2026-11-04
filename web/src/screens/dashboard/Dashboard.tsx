@@ -43,7 +43,7 @@ export function DashboardScreen(props: DashboardScreenProps) {
 function DashboardView({bindings: b, embedded = false, initialSection, phone = false, chrome}: DashboardScreenProps) {
   const current = useDashboardAuthority(b);
   const ref = useRef<HTMLDivElement>(null), allowed = current && b.isMainProfile() && (b.role === 'owner' || b.role === 'admin');
-  const statusLoad = useCallback((signal: AbortSignal) => b.read.status(signal), [b]);
+  const statusLoad = useCallback((signal: AbortSignal, fresh: boolean) => b.read.status(signal, fresh), [b]);
   const status = useDashboardRead(b, statusLoad, allowed && b.role === 'owner', 10000);
   const sessionsLoad = useCallback((signal: AbortSignal) => readNowPlaying(b, signal), [b]);
   const sessions = useDashboardRead(b, sessionsLoad, allowed, 10000);

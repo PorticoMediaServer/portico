@@ -27,7 +27,7 @@ export function createOwnerActivity(context: ShellAssemblyContext, time: TimeEnv
   };
   function OwnerActivity({presentation = 'topbar', className}: OwnerActivityProps) {
     useShellFacts(context);
-    const service = useMemo(() => new ActivitySummaryService({source}), []);
+    const service = useMemo(() => new ActivitySummaryService({source, queries: context.freshness?.queries}), []);
     const snapshot = useSyncExternalStore(service.subscribe, service.getSnapshot, service.getSnapshot);
     const [open, setOpen] = useState(false);
     useEffect(() => {

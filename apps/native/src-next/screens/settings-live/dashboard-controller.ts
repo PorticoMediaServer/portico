@@ -33,7 +33,6 @@ export class NativeDashboardController extends NativeScreenStore<NativeDashboard
   private cleaned = false;
   private generation = 0;
   private role: NativeDashboardAdmission;
-  private sessionFence?: string;
   private sessionRevision?: string;
   private sessions: DashboardCursorWindow<AdminSession, SessionMeta>;
   private jobs?: DashboardCursorWindow<Job, undefined>;
@@ -57,8 +56,8 @@ export class NativeDashboardController extends NativeScreenStore<NativeDashboard
       if (!current()) throw new Error('native_screen_scope_ended');
       const page = await this.readers.sessions.list(cursor || undefined, 10, signal);
       if (!current() || signal.aborted) throw new Error('native_screen_scope_ended');
-      if (page.scope.serverId !== this.lifetime.authority.serverId || this.sessionFence && this.sessionFence !== page.scope.viewerFence || this.sessionRevision && this.sessionRevision !== page.revision) throw new Error('dashboard_refresh_required');
-      this.sessionFence = page.scope.viewerFence; if (page.revision) this.sessionRevision = page.revision;
+      if (page.scope.serverId !== this.lifetime.authority.serverId || this.sessionRevision && this.sessionRevision !== page.revision) throw new Error('dashboard_refresh_required');
+      if (page.revision) this.sessionRevision = page.revision;
       return {items: page.items, nextCursor: page.nextCursor, metadata: {totals: page.totals, scope: page.scope, revision: page.revision}};
     }, row => row.id, () => current(), snapshot => {
       if (current()) this.publish({...this.getSnapshot(), sessionWindow: snapshot, sessions: snapshot.items, nextCursor: snapshot.nextCursor, totals: snapshot.metadata?.totals ?? this.getSnapshot().totals});
@@ -95,7 +94,7 @@ export class NativeDashboardController extends NativeScreenStore<NativeDashboard
     const generation = ++this.generation;
     if (role !== this.role) {
       const oldSessions = this.sessions, oldJobs = this.jobs;
-      this.role = role; this.sessionFence = undefined; this.sessionRevision = undefined;
+      this.role = role; this.sessionRevision = undefined;
       this.sessions = this.sessionWindow(); this.jobs = role === 'owner' ? this.jobWindow() : undefined;
       const replacement = this.sessions, replacementJobs = this.jobs;
       const own = () => !this.disposed && this.generation === generation && this.role === role && this.sessions === replacement && this.jobs === replacementJobs;
@@ -113,7 +112,7 @@ export class NativeDashboardController extends NativeScreenStore<NativeDashboard
     if (!admitted()) return Promise.resolve();
     const alreadyRefreshing = sessionsWindow.refreshing();
     if (!admitted()) return Promise.resolve();
-    if (!alreadyRefreshing) {this.sessionFence = undefined; this.sessionRevision = undefined;}
+    if (!alreadyRefreshing) {this.sessionRevision = undefined;}
     this.publish({...this.getSnapshot(), loading: true, error: undefined});
     if (!admitted()) return Promise.resolve();
     const started: Promise<unknown>[] = [];
@@ -138,7 +137,7 @@ export class NativeDashboardController extends NativeScreenStore<NativeDashboard
       return finishEarly();
     }
   }
-  restartSessions = (expected: DashboardCursorSnapshot<AdminSession, SessionMeta>): Promise<void> => {const window = this.sessions, role = this.role; if (window.snapshot() !== expected || !expected.refreshRequired || !this.valid(role) || this.sessions !== window || window.snapshot() !== expected) return Promise.resolve(); this.sessionFence = undefined; this.sessionRevision = undefined; return window.restart(expected);};
+  restartSessions = (expected: DashboardCursorSnapshot<AdminSession, SessionMeta>): Promise<void> => {const window = this.sessions, role = this.role; if (window.snapshot() !== expected || !expected.refreshRequired || !this.valid(role) || this.sessions !== window || window.snapshot() !== expected) return Promise.resolve(); this.sessionRevision = undefined; return window.restart(expected);};
   restartJobs = (expected: DashboardCursorSnapshot<Job, undefined>): Promise<void> => {const window = this.jobs; return window && this.valid('owner') ? window.restart(expected) : Promise.resolve();};
   nextSessions = (expected: DashboardCursorSnapshot<AdminSession, SessionMeta>) => this.sessions.next(expected);
   previousSessions = (expected: DashboardCursorSnapshot<AdminSession, SessionMeta>) => this.sessions.previous(expected);

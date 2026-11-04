@@ -20,9 +20,12 @@ test('configuration loader reads genuine producer values with the existing selec
 });
 
 test('configuration cannot publish a foreign viewer or late result and never guesses missing facts',async()=>{
- let foreign=false;
- const client=new ConsoleClient({request:async()=>({scope:{serverId:scope.serverId,viewerFence:foreign?'b'.repeat(64):fence},data:document}) as any},scope);
- try{await client.configuration();client.setDraft('private','kept only in this scope');foreign=true;await assert.rejects(client.configuration(),/selected viewer changed/);assert.equal(client.hasDrafts(),false);}finally{client.dispose();}
+ let foreign=false,moved=false;
+ const client=new ConsoleClient({request:async()=>({scope:{serverId:foreign?'another-server':scope.serverId,viewerFence:moved?'b'.repeat(64):fence},data:document}) as any},scope);
+ try{await client.configuration();client.setDraft('private','kept only in this scope');
+  // A moved viewer fence only means it was read again: the answer is taken and nothing is retired.
+  moved=true;await client.configuration();assert.equal(client.hasDrafts(),true);
+  foreign=true;await assert.rejects(client.configuration(),/selected viewer changed/);assert.equal(client.hasDrafts(),false);}finally{client.dispose();}
  let resolve!:(value:unknown)=>void;
  const late=new ConsoleClient({request:async()=>new Promise(r=>resolve=r) as any},scope);
  const pending=late.configuration();late.dispose();resolve({scope:{serverId:scope.serverId,viewerFence:fence},data:document});await assert.rejects(pending,/ended/);

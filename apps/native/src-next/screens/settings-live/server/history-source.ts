@@ -4,7 +4,8 @@ import type {ReportContext} from '../../../../../../packages/client-core/src/rep
 export type HistoryPerson = Readonly<{accountId: string; username: string}>;
 export type HistoryPeoplePage = Readonly<{items: readonly HistoryPerson[]; nextCursor: string}>;
 export type HistoryReader = Readonly<{
-  page: (filters: PlayHistoryFilters, cursor: string, signal: AbortSignal) => Promise<PlayHistoryPage>;
+  /** `fresh`: a refresh or a retry, which asks the server; otherwise the viewer's held first page may answer. */
+  page: (filters: PlayHistoryFilters, cursor: string, signal: AbortSignal, fresh?: boolean) => Promise<PlayHistoryPage>;
   people: (filters: PlayHistoryFilters, cursor: string, signal: AbortSignal) => Promise<HistoryPeoplePage>;
 }>;
 export type HistoryQuery = Readonly<{period: 'today' | '7d' | '30d' | 'all'; media?: string; accountId?: string; search?: string; sort: string; direction: 'asc' | 'desc'}>;
@@ -49,19 +50,19 @@ export class NativeHistorySource {
     if (!this.active() || this.pageFlight) return;
     this.seenPages.clear();this.peopleFlight?.abort();this.peopleFlight = undefined;this.seenPeople.clear();
     this.publish({...this.state, report: this.capture(), nextCursor: '', pages: 0, error: undefined, peopleCursor: '', peopleError: undefined, peopleLoading: false});
-    void this.loadPage(false);void this.loadPeople(false);
+    void this.loadPage(false, true);void this.loadPeople(false);
   }
-  retry() {if (this.active()) void this.loadPage(this.state.entries.length > 0 && !!this.state.nextCursor);}
+  retry() {if (this.active()) void this.loadPage(this.state.entries.length > 0 && !!this.state.nextCursor, true);}
   more() {if (this.active() && this.state.phase === 'ready' && this.state.nextCursor) void this.loadPage(true);}
   morePeople() {if (this.active() && this.state.peopleCursor) void this.loadPeople(true);}
   retryPeople() {if (this.active()) void this.loadPeople(this.state.people.length > 0 && !!this.state.peopleCursor);}
-  private async loadPage(append: boolean) {
+  private async loadPage(append: boolean, fresh = false) {
     if (!this.active() || this.pageFlight) return;
     const before = this.state, cursor = append ? before.nextCursor : '', request = new AbortController();this.pageFlight = request;
     const owned = () => this.active() && this.pageFlight === request && !request.signal.aborted;
     this.publish({...before, phase: 'loading', error: undefined});
     try {
-      const page = await this.reader.page({...before.report, ...before.query}, cursor, request.signal);
+      const page = await this.reader.page({...before.report, ...before.query}, cursor, request.signal, fresh);
       if (!owned()) return;
       if (cursor) this.seenPages.add(cursor);
       const entries = append ? [...before.entries] : [], ids = new Set(entries.map(row => row.id));

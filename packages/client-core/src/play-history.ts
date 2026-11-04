@@ -5,6 +5,9 @@ import {wireDurations} from './wire-units.ts';
 import {unreadableServerResponse} from './server-messages.ts';
 import {firstOfEach, keepReadable, noteSkipped} from './tolerant.ts';
 import type {I18n, MessageId} from '../../i18n/src/index.ts';
+import {dependsOn} from './freshness-hub.ts';
+import {queryKeys} from './query/keys.ts';
+import type {ViewerQueryOptions} from './query/react.ts';
 
 /**
  * The server's play history (`GET /v1/admin/play-history`): every play on the server, newest
@@ -94,6 +97,14 @@ export async function fetchPlayHistory(api: PlayHistoryApi, filters: PlayHistory
   query.set('period', filters.period);
   if (cursor) query.set('cursor', cursor);
   const out=parsePlayHistory(await api.request<RouteResponse<"get_admin_play_history">>(routePath("get_admin_play_history") + "?" + (query.toString()), 'GET', undefined, signal));verifyReportInterval(out,filters,filters.period);return out;
+}
+
+/** What the play history is built from. */
+const historyMoved=['playback.history','session.updated'].map(type=>dependsOn.event(type));
+/** The first page of the play history for these filters and this sort, in the viewer's cache (later pages are its continuation, never cached). */
+export function playHistoryFirstPageQuery(api:PlayHistoryApi,filters:PlayHistoryFilters):ViewerQueryOptions<PlayHistoryPage>{
+ const {sort,direction,...rest}=filters;
+ return {queryKey:queryKeys.adminPlayHistory(rest,{sort:sort??'',direction:direction??''}),queryFn:({signal})=>fetchPlayHistory(api,filters,'',signal),meta:{dependencies:historyMoved}};
 }
 
 // ── Viewing statistics ──────────────────────────────────────────────────────────────────────

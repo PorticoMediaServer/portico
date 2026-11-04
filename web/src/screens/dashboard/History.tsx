@@ -24,7 +24,7 @@ function HistoryTable({bindings: b}: {bindings: DashboardBindings}) {
   const seen = useRef<unknown>(undefined);
   useEffect(() => {if (query === settledQuery) return; const timer = setTimeout(() => settle(query), query.search === settledQuery.search ? 0 : 250); return () => clearTimeout(timer);}, [query, settledQuery]);
   const filters: DashboardFilters = useMemo(() => ({period: settledQuery.filters.range as PlayHistoryPeriod, ...(settledQuery.filters.media === 'all' ? {} : {media: settledQuery.filters.media}), ...(settledQuery.filters.person === 'all' ? {} : {accountId: settledQuery.filters.person}), search: settledQuery.search, sort: ({played: 'started', for: 'watched', where: 'location'} as Record<string,string>)[settledQuery.sort.by] ?? settledQuery.sort.by, direction: settledQuery.sort.direction}), [settledQuery]);
-  const load = useCallback((signal: AbortSignal) => b.read.plays(filters, cursor, signal), [b, filters, cursor]);
+  const load = useCallback((signal: AbortSignal, fresh: boolean) => b.read.plays(filters, cursor, signal, fresh), [b, filters, cursor]);
   const state = useDashboardRead(b, load, true, cursor ? 0 : 30000);
   useEffect(() => {
     const page = state.value; if (!page || page === seen.current) return; seen.current = page;
