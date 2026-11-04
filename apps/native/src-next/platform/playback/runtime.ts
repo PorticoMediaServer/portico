@@ -1,3 +1,4 @@
+import {readCatalogueItemResponse} from '../../../../../packages/client-core/src/query/catalogue-reads';
 import {downloadTrickplaySet, preferredTrickplaySet, readItemTrickplay, type TrickplaySet} from '../../../../../packages/client-core/src/trickplay';
 import {AppState, NativeModules, type View} from 'react-native';
 import type {RefObject} from 'react';
@@ -1274,7 +1275,7 @@ export class NativePlaybackRuntime {
       });
     };
     readOptions(false);
-    void this.request<unknown>(encodedRoutePath('get_items_id', {id: encodeURIComponent(itemId)}), 'GET', undefined, controller.signal).then(raw => {
+    void readCatalogueItemResponse({request: this.request.bind(this)}, itemId, controller.signal).then(raw => {
       if (!valid()) return;
       const item = parseMediaItem(raw);
       if (item.id !== itemId) return;

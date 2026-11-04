@@ -1,3 +1,4 @@
+import {readCatalogueItemResponse} from '../../../../../packages/client-core/src/query/catalogue-reads';
 import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {FlatList, ScrollView, Text, View} from 'react-native';
@@ -8,7 +9,6 @@ import {titleTintHue} from '../../../../../packages/client-core/src/presentation
 import {programmeTimeRange} from '../../../../../packages/client-core/src/presentation/kit-model';
 import {parseMediaItem} from '../../../../../packages/client-core/src/media-item';
 import {validateContentEntry} from '../../../../../packages/client-core/src/library-content';
-import {encodedRoutePath} from '../../../../../packages/contracts/src/routes';
 import {Artwork, GeneratedArt} from '../../kit/artwork';
 import {Button, Chip, Focusable, Select, Switch} from '../../kit/controls';
 import {FocusRegion, useFocusRegistry} from '../../kit/focus';
@@ -161,7 +161,7 @@ export function NativeRecordingsScreen({controller, ports, runtime, onGuide, own
     const operation = nativeHomeEntryLifetime(current, [controller.subscribe, navigation.subscribe, runtime.subscribe], abort.signal);
     try {
       if (!operation.lifetime.isCurrent()) return;
-      const item = await controller.lifetime.request(signal => ports.context.api.request(encodedRoutePath('get_items_id', {id: recording.itemId}), 'GET', undefined, signal).then(parseMediaItem), operation.lifetime.signal);
+      const item = await controller.lifetime.request(signal => readCatalogueItemResponse(ports.context.api, recording.itemId, signal).then(parseMediaItem), operation.lifetime.signal);
       if (!operation.lifetime.isCurrent() || !item.available || item.id !== recording.itemId || item.libraryId !== recording.libraryId) return;
       const display = validateContentEntry({id: item.id, libraryId: item.libraryId, kind: item.kind, title: item.title, available: item.available, year: item.year, posterUrl: item.posterUrl, backdropUrl: item.backdropUrl, overview: item.overview});
       const target = {itemId: item.id, startSeconds: item.progressSeconds};
