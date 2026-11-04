@@ -17,7 +17,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 )
 
@@ -524,6 +523,92 @@ type Acceptance struct {
 var invitationAcceptPlan = dbwork.WritePlan{Name: "invitation-accept", Rows: 160, Pages: 128, VMOps: 250_000,
 	Why: "joining creates the account, its membership, primary profile and limits and spends the invitation together, so nobody is ever half-joined"}
 
+func acceptanceNames(q Acceptance) (username, name string, err error) {
+	if q.ShortCode != "" && q.Code != "" {
+		return "", "", invalid("code", "shortCode")
+	}
+	if q.ShortCode == "" && (len(strings.TrimSpace(q.Code)) < 32 || len(strings.TrimSpace(q.Code)) > 128) {
+		return "", "", invalid("code")
+	}
+
+	username = strings.ToLower(strings.TrimSpace(q.Username))
+	if len(username) < 3 || len(username) > 64 || !safeText(username, 64) || strings.ContainsAny(username, " \t\r\n@") {
+		return "", "", invalid("username")
+	}
+	name = strings.TrimSpace(q.Name)
+	if name == "" {
+		name = username
+	}
+	if !safeText(name, 120) {
+		return "", "", invalid("name")
+	}
+	return username, name, nil
+}
+
+type localInvitation struct {
+	id, role, libraries string
+	notes               *string
+	now                 int64
+}
+
+func (s *Store) localInvitationTx(ctx context.Context, tx *sql.Tx, q Acceptance) (v localInvitation, err error) {
+	if err := identity.RequireSignInKindTx(ctx, tx, identity.SignInLocal); err != nil {
+		return v, err
+	}
+	selected, e := s.invitationCapabilityTx(ctx, tx, q.Code, q.ShortCode)
+	if errors.Is(e, ErrInvitationNotFound) {
+		return v, ErrExpired
+	}
+	if e != nil {
+		return v, e
+	}
+
+	var bound string
+	var expires int64
+	e = tx.QueryRowContext(ctx, `SELECT id,notes,role,allowed_libraries,expires_ms,bound_username FROM access_invitations WHERE id=? AND state='pending'`, selected).Scan(&v.id, &v.notes, &v.role, &v.libraries, &expires, &bound)
+	if errors.Is(e, sql.ErrNoRows) {
+		return v, ErrExpired
+	}
+	if e != nil {
+		return v, e
+	}
+	v.now = s.now()
+	if expires <= v.now {
+		return v, ErrExpired
+	}
+	// An invitation made for one Portico Account cannot become a password
+	// account for whoever happens to hold the code.
+	if bound != "" {
+		return v, ErrInvitationRecipient
+	}
+	return v, nil
+}
+
+// AcceptWithPassword checks the capability without consuming it, closes the
+// snapshot, then uses the caller's bounded hasher before the final accepting
+// transaction repeats all capability checks and atomically spends the code.
+func (s *Store) AcceptWithPassword(ctx context.Context, q Acceptance, hashPassword func(context.Context, string) ([]byte, error)) (AcceptanceResult, error) {
+	if !identity.ValidDirectPassword(q.Password) {
+		return AcceptanceResult{}, invalid("password")
+	}
+	if _, _, err := acceptanceNames(q); err != nil {
+		return AcceptanceResult{}, err
+	}
+	// This snapshot is closed before bcrypt or slot admission. It neither
+	// reserves nor consumes the code; Accept repeats these checks in its writer.
+	if err := s.snapshot(ctx, nil, func(tx *sql.Tx) error {
+		_, err := s.localInvitationTx(ctx, tx, q)
+		return err
+	}); err != nil {
+		return AcceptanceResult{}, err
+	}
+	hash, err := hashPassword(ctx, q.Password)
+	if err != nil {
+		return AcceptanceResult{}, err
+	}
+	return s.Accept(ctx, q, hash)
+}
+
 // Accept redeems an invitation code and creates the account it describes. It is
 // unauthenticated by design — the invitee has no account yet — so the code is
 // the whole authority and the caller rate-limits the route.
@@ -531,55 +616,18 @@ var invitationAcceptPlan = dbwork.WritePlan{Name: "invitation-accept", Rows: 160
 // hash is supplied by the caller so the password cost is paid outside the
 // database transaction, which holds the single SQLite writer.
 func (s *Store) Accept(ctx context.Context, q Acceptance, hash []byte) (out AcceptanceResult, err error) {
-	if q.ShortCode != "" && q.Code != "" {
-		return out, invalid("code", "shortCode")
-	}
-	if q.ShortCode == "" && (len(strings.TrimSpace(q.Code)) < 32 || len(strings.TrimSpace(q.Code)) > 128) {
-		return out, invalid("code")
+	username, name, err := acceptanceNames(q)
+	if err != nil {
+		return out, err
 	}
 
-	username := strings.ToLower(strings.TrimSpace(q.Username))
-	if len(username) < 3 || len(username) > 64 || !safeText(username, 64) || strings.ContainsAny(username, " \t\r\n@") {
-		return out, invalid("username")
-	}
-	name := strings.TrimSpace(q.Name)
-	if name == "" {
-		name = username
-	}
-	if !safeText(name, 120) {
-		return out, invalid("name")
-	}
 	err = s.transaction(dbwork.WithPlan(ctx, invitationAcceptPlan), nil, func(tx *sql.Tx) error {
-		if err := identity.RequireSignInKindTx(ctx, tx, identity.SignInLocal); err != nil {
-			return err
-		}
-		selected, e := s.invitationCapabilityTx(ctx, tx, q.Code, q.ShortCode)
-		if errors.Is(e, ErrInvitationNotFound) {
-			return ErrExpired
-		}
+		invite, e := s.localInvitationTx(ctx, tx, q)
 		if e != nil {
 			return e
 		}
+		id, role, libraries, notes, now := invite.id, invite.role, invite.libraries, invite.notes, invite.now
 
-		var id, role, libraries, bound string
-		var notes *string
-		var expires int64
-		e = tx.QueryRowContext(ctx, `SELECT id,notes,role,allowed_libraries,expires_ms,bound_username FROM access_invitations WHERE id=? AND state='pending'`, selected).Scan(&id, &notes, &role, &libraries, &expires, &bound)
-		if errors.Is(e, sql.ErrNoRows) {
-			return ErrExpired
-		}
-		if e != nil {
-			return e
-		}
-		now := s.now()
-		if expires <= now {
-			return ErrExpired
-		}
-		// An invitation made for one Portico Account cannot become a password
-		// account for whoever happens to hold the code.
-		if bound != "" {
-			return ErrInvitationRecipient
-		}
 		var taken bool
 		if e = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM accounts WHERE username=?)`, username).Scan(&taken); e != nil {
 			return e
@@ -775,16 +823,6 @@ func (s *Store) AcceptPortico(ctx context.Context, q PorticoAcceptance, signIn f
 		return e
 	})
 	return
-}
-
-// HashPassword applies the same cost and policy the direct identity service uses
-// for a member password, so an invited account is indistinguishable from one the
-// owner created by hand.
-func HashPassword(password string) ([]byte, error) {
-	if !identity.ValidDirectPassword(password) {
-		return nil, invalid("password")
-	}
-	return bcrypt.GenerateFromPassword([]byte(password), identity.PasswordCost)
 }
 
 // RedeemForRegistrationTx spends a member invitation for an account that

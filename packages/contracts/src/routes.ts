@@ -30735,6 +30735,7 @@ export const routes = [
     "cost": "constant",
     "bodyLimit": 65536,
     "errors": [
+      "authentication_busy",
       "invalid_request",
       "unauthorized",
       "not_permitted",

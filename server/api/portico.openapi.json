@@ -265476,6 +265476,7 @@
         "x-audience": "Clients",
         "x-cost": "constant",
         "x-error-codes": [
+          "authentication_busy",
           "invalid_request",
           "unauthorized",
           "not_permitted",
