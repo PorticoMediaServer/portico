@@ -125,4 +125,5 @@ export const browseMessages = {
   'next.browse.emptyCase': 'No titles match',
   'next.browse.tracksCase': 'Track table',
   'next.browse.songCase': 'Compact songs',
+  'next.browse.continueListening': 'Continue listening',
 } as const satisfies Record<`next.browse.${string}`, string>;

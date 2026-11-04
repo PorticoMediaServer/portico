@@ -317,7 +317,7 @@ export const enUS = {
 
   // ── Home ─────────────────────────────────────────────────────────
   'home.row.continueWatching': 'Continue Watching',
-  'home.row.continueListening': 'Continue listening',
+  'home.row.continueListening': 'Continue Listening',
   'home.row.upNext': 'Up Next',
   'home.row.recommended': 'Recommended for you',
   'home.row.trending': 'Trending now',
