@@ -6,7 +6,7 @@ import type {PlaybackSnapshot} from './index.ts';
 import {firstOfEach,keepReadable,oneOfOr} from './tolerant.ts';
 import {wireDurations} from './wire-units.ts';
 
-export const analysisOperations = ['checksum','chapter_images','trickplay','waveform','loudness','fingerprint'] as const;
+export const analysisOperations = ['playback_frames','checksum','chapter_images','trickplay','waveform','loudness','fingerprint','sonic','episode_thumbnail'] as const;
 export type AnalysisOperation = typeof analysisOperations[number];
 export type AnalysisTarget = Readonly<{libraryId:string;itemId:string;sourceId?:string;sessionId?:string;generation?:number}>;
 export type AnalysisScope = Readonly<{serverId:string;libraryId:string;itemId:string;viewerFence:string;sessionId:string;sessionGeneration:number}>;
@@ -128,7 +128,7 @@ export function analysisInputUS(seconds:string):string {
  if(!analysisMicroseconds(value))throw new Error('Time is outside the supported range.');return value;
 }
 export function analysisInputSeconds(us:string):string {if(!analysisMicroseconds(us))throw new Error('Invalid time.');const value=us.padStart(7,'0');return `${value.slice(0,-6)}.${value.slice(-6)}`;}
-export const analysisLabels:Record<string,string>={probe:'Technical probe',local_metadata:'Local metadata',subtitles:'Local subtitles',checksum:'SHA-256 checksum',chapter_images:'Chapter images',trickplay:'Seek previews',waveform:'Waveform',loudness:'Loudness (measurement only)',fingerprint:'Audio fingerprint'};
+export const analysisLabels:Record<string,string>={probe:'Technical probe',local_metadata:'Local metadata',subtitles:'Local subtitles',playback_frames:'Playback frames',checksum:'SHA-256 checksum',chapter_images:'Chapter images',trickplay:'Seek previews',waveform:'Waveform',loudness:'Loudness (measurement only)',fingerprint:'Audio fingerprint'};
 export const analysisGroups:readonly {label:string;operations:readonly string[]}[]=[
  {label:'Bounded metadata reads',operations:['probe','local_metadata','subtitles']},
  {label:'Preview images · repeated or full video reads',operations:['chapter_images','trickplay']},

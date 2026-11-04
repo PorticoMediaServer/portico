@@ -59,3 +59,13 @@ test('equal duration is not permission to seek an original marker in prepared me
  assert.equal(analysisSeekPosition(v,'1000000',p),null);
  assert.equal(markerSkipPosition(v,v.markers[0],p),null);
 });
+
+// #757: playback_frames is a public analysis stage (as are sonic and episode_thumbnail); its result is read like any
+// other, and a policy holding it keeps it as given.
+test('a playback_frames, sonic or episode_thumbnail result is kept, and the policy keeps playback_frames',()=>{
+ const d=data();d.policy.operations=['probe','playback_frames'];
+ d.results=[{stage:'playback_frames',algorithm:'frames-1',originAssurance:'observed_acquisition',createdMS:11,summary:{}},{stage:'sonic',algorithm:'sonic-1',originAssurance:'observed_acquisition',createdMS:12,summary:{}},{stage:'episode_thumbnail',algorithm:'thumb-1',originAssurance:'observed_acquisition',createdMS:13,summary:{}}];
+ const parsed=parseAnalysis(d,scope,target);
+ assert.deepEqual(parsed.results.map(r=>r.stage),['playback_frames','sonic','episode_thumbnail']);
+ assert.deepEqual(parsed.policy.operations,['probe','playback_frames']);
+});
