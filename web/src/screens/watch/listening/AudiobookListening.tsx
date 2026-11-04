@@ -70,7 +70,7 @@ export function AudiobookListening({snapshot, title, subtitle, cover, ambient, c
     <div className={styles.main}>
       <div className={styles.bookTop}><div className={styles.cover}><Artwork source={cover} alt={title}/></div><div className={styles.identity}><h1>{title}</h1><p>{subtitle}</p></div></div>
       {/* desktop-listen 8: "Chapter 15 · 12:04 of 31:40". phone-app 15: "≡ Chapter 8 … of 19". */}
-      {active && (phone ? <div className={styles.chapter}><b><Icon name="i-chapters" size={16}/>{active.title}</b>{chapterTotal !== undefined && <span>{t('web.player.chapterTotal', {total: chapterTotal})}</span>}</div>
+      {active && (phone ? <div className={styles.chapter}><b><Icon name="i-chapters" size={16}/>{active.title}</b>{chapterTotal !== undefined && <span>{t('player.chapterTotal', {total: chapterTotal})}</span>}</div>
         : <div className={styles.chapter}><b>{active.title}</b><span>{t('player.clockOf', {position: watchClock(Math.max(0, p.positionSeconds - active.startSeconds)), duration: watchClock(active.endSeconds - active.startSeconds)})}</span></div>)}
       {/* phone-app 15: on a phone the bar is the playing chapter's ("14:02 … −17:43"), with the whole
           book's time left between its times. Desktop keeps frame 8's bar over the playing part. */}

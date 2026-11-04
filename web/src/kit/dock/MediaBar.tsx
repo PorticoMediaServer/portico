@@ -101,7 +101,10 @@ export function MediaBar(props: DockRendererProps) {
     <span ref={menuAnchor} className={styles.menuAnchor} style={style} aria-hidden="true" />
     {held && <div className={styles.phoneScrim} onClick={() => setHeld(false)} />}
     <section ref={root} className={[styles.phoneBar, held && styles.held, className].filter(Boolean).join(' ')} data-mode={view.mode} data-holding={holding || undefined} aria-label={t('next.dock.nowPlaying')} style={{...style, ...(props.videoGesture ? {touchAction: 'none'} : {})}}
-      onPointerDown={down} onPointerMove={move} onPointerUp={event => release(event)} onPointerCancel={event => release(event, true)} onLostPointerCapture={event => {const g = gesture.current;if (g?.id === event.pointerId) {g.vertical?.cancel();gesture.current = null;clearHold();}}}
+      onPointerDown={down} onPointerMove={move} onPointerUp={event => release(event)} onPointerCancel={event => release(event, true)}
+      // A press that leaves before it moves holds no capture, so its release lands outside the bar:
+      // end it here, or the 500 ms hold would open the hold menu by itself.
+      onPointerLeave={event => {if (gesture.current?.id === event.pointerId && !event.currentTarget.hasPointerCapture(event.pointerId)) release(event, true);}} onLostPointerCapture={event => {const g = gesture.current;if (g?.id === event.pointerId) {g.vertical?.cancel();gesture.current = null;clearHold();}}}
       onClickCapture={event => { if (suppressClick.current) { event.preventDefault(); event.stopPropagation(); suppressClick.current = false; } }}
       onContextMenu={event => { event.preventDefault(); clearHold(); if (!view.starting) setHeld(true); }}>
       <span className={styles.phoneIdentity} data-dock-identity inert={props.videoGestureActive || undefined}><Identity {...props} identityRef={anchor} phone /></span>

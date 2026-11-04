@@ -34,7 +34,7 @@ async function fixture(book = false, width = 390) {
     '../../../platform/overlay-keys': {registerOverlayKeys: () => () => {}}, '../../watch/Equalizer': {NativeWatchEqualizer: 'Equalizer'},
     './MusicSignal': {MusicSignalLine: 'Signal', MusicSignalSheet: 'SignalSheet'},
     '../../../../../../packages/i18n/src': {defaultI18n: {t: (key: string, values?: any) => key === 'player.opt.minutes' ? `${values.count} min`
-      : key === 'player.clockOf' || key === 'web.player.chapterTotal' ? realI18n.t(key, values) : key}},
+      : key === 'player.clockOf' || key === 'player.chapterTotal' ? realI18n.t(key, values) : key}},
     '../../../../../../packages/client-core/src/presentation/kit-model/text': {durationText, clockText: (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`},
     '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', AmbientArt: 'AmbientArt', Artwork: 'Artwork'}, '../../../kit/controls': {Button: 'Button', Focusable: 'Focusable'},
     '../../../kit/controls/gesture-commit': {GestureCommitScope}, '../../../kit/Icon': {Icon: 'Icon'}, '../../../kit/theme': {useTheme: () => theme},
