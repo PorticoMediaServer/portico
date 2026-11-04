@@ -936,7 +936,10 @@ export class HttpLocalApi {
     path: string,
     method = "GET",
     body?: unknown,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    /** `manageGate: false`: an optional read whose refusal its caller simply leaves out; a
+     * profile_pin_manage answer to it doesn't ask for the PIN (#574's away-limit row). */
+    options: Readonly<{manageGate?: false}> = {},
   ): Promise<T> {
     if (this.mutationCoordinator && userMutationRoute(path, method)) {
       const response = await withinDeadline(requestDeadlineMs(path,method), signal, bounded => this.coordinatedMutation(path, method, body, undefined, bounded));
@@ -952,7 +955,7 @@ export class HttpLocalApi {
     // Ordinary requests time out; the paged owner preview belongs to caller cancellation (see `requestDeadlineMs`).
     // A change the writer refused before it began is sent again, not dropped (`writer-capacity.ts`).
     return retryWriterCapacity(
-      () => withinDeadline(requestDeadlineMs(path, method), signal, bounded => this.answered<T>(path, method, body, bounded)),
+      () => withinDeadline(requestDeadlineMs(path, method), signal, bounded => this.answered<T>(path, method, body, bounded, options.manageGate !== false)),
       writerRefusal,
       signal,
     );
@@ -961,12 +964,12 @@ export class HttpLocalApi {
     try {return await this.readAnswered<T>(new Response(response.body === undefined ? null : JSON.stringify(response.body), {status: response.status, headers: response.headers}));}
     catch (error) {const key=response.headers['portico-mutation-key'];if(error instanceof Error&&key&&isUserMutationKey(key))Object.assign(error,{mutationKey:key});throw error;}
   }
-  private async answered<T>(path: string, method: string, body: unknown, signal: AbortSignal): Promise<T> {
+  private async answered<T>(path: string, method: string, body: unknown, signal: AbortSignal, announce = true): Promise<T> {
     // A 401 means the server did not act on the request, so one retry with a renewed token is safe for any method.
     const response = await this.exchange(path, method, body, signal);
-    return this.readAnswered<T>(response, signal);
+    return this.readAnswered<T>(response, signal, announce);
   }
-  private async readAnswered<T>(response: Response, signal?: AbortSignal): Promise<T> {
+  private async readAnswered<T>(response: Response, signal?: AbortSignal, announce = true): Promise<T> {
     if (!response.ok) {
       let data: any;
       try {
@@ -993,7 +996,7 @@ export class HttpLocalApi {
         if(version)error.version=version;
         if(minimum)error.minimumVersion=minimum;
       }
-      this.announceGate(error, response);
+      if (announce || error.code !== 'profile_pin_manage') this.announceGate(error, response);
       throw error;
     }
     return response.status === 204 ? (undefined as T) : response.json();

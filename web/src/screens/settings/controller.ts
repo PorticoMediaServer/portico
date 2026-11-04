@@ -79,6 +79,7 @@ export class SettingsController {
   private readonly console: ConsoleClient;
   private readonly preferencesReader: PreferencesReader;
   private readonly forms: Partial<Record<SettingsBindingForm, DocumentForm>> = {};
+  private awayLimit?: DocumentForm;
   private preferences: PreferenceSnapshot;
   private configuration?: SettingsConfiguration;
   private readonly sectionReads: SettingsSectionReads;
@@ -136,10 +137,15 @@ export class SettingsController {
       const deps: ServerFormDeps = {api: options.api, console: this.console, serverId: options.serverId, operationId: randomId};
       this.forms.runtime = documentForm(runtimeForm(deps));
       this.forms.connectivity = documentForm(connectivityForm(deps));
+      // ST-7: the owner Quality page's away-limit row reads the same value through its own form, quietly:
+      // a refusal (a remembered owner past the management hour) leaves that row out, never asks for the
+      // PIN and never fails the page (FB-10 regression).
+      this.awayLimit = documentForm(connectivityForm({...deps, api: {request: (path, method, body, signal) => options.api.request(path, method, body, signal, {manageGate: false})}}));
       this.forms.maintenance = documentForm(maintenanceForm(deps));
       this.forms.alerts = documentForm(alertsForm(deps));
       this.forms.logs = documentForm(logsForm(deps));
       for (const form of Object.values(this.forms)) this.offForms.push(form.subscribe(() => this.publish({})));
+      this.offForms.push(this.awayLimit.subscribe(() => this.publish({})));
     }
   }
   private current = () => !this.closed && this.options.isCurrent();
@@ -195,7 +201,7 @@ export class SettingsController {
     return {configuration: this.configuration, preferences: this.preferences,
       device: this.options.device?.getSnapshot().document?.values, deviceDefaults: this.options.device?.getSnapshot().document?.defaults,
       forms: {...Object.fromEntries(Object.entries(this.forms).map(([name, form]) => [name, form.value()])),
-        connectivityStatus: this.forms.connectivity?.status()}};
+        connectivityStatus: this.forms.connectivity?.status(), awayLimit: this.awayLimit?.value()}};
   }
   private read(row: SettingsRow, context?: SettingsContext): SettingsBindingValue | undefined {
     if (!this.eligible(row, context)) return undefined;
@@ -267,6 +273,10 @@ export class SettingsController {
       .map(id => id === 'connectivityStatus' ? 'connectivity' : id)
       .filter((id): id is NonNullable<typeof id> => id !== undefined && !!this.forms[id]));
     const reads = [...formIds].map(id => ({id: `form/${id}`, load: async () => {const form = this.forms[id]!;await form.load();if (form.error()) throw form.error();}}));
+    // ST-7: optional, so a refused or failed read omits its one row and the section still loads.
+    const awayLimit = this.awayLimit;
+    if (awayLimit && [...settingsRowIndex.values()].some(location => location.section === section && settingsBinding(location.row.id)?.form === 'awayLimit' && this.eligible(location.row)))
+      reads.push({id: 'form/awayLimit', load: () => awayLimit.load().catch(() => {})});
     if (section.scope === 'server' && this.forms.runtime) reads.push({id: 'configuration', load: this.readConfiguration});
     if (section.scope === 'server' && section.id === 'storage' && this.forms.runtime) reads.push({id: 'backups', load: this.backups.load});
     return this.sectionReads.load(`${section.scope}/${section.id}`, reads);
@@ -378,6 +388,7 @@ export class SettingsController {
     this.closed = true;for(const id of this.quietClients.keys())this.cancelQuietRead(id); this.backups.dispose(); this.library.dispose(); this.folders.dispose(); this.sectionReads.dispose(); this.lifetime.abort(); this.offDevice?.(); this.console.dispose(); this.offPreferences();
     for (const off of this.offForms) off();
     for (const form of Object.values(this.forms)) form.dispose();
+    this.awayLimit?.dispose();
     this.configuration = undefined; this.header = {facts: []}; this.rowErrors.clear(); this.listeners.clear();
   };
 }

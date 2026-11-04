@@ -78,6 +78,17 @@ test('a request refused with profile_pin_manage reaches the manage gate, not the
   assert.equal(manage.length, 1, 'not heard after unsubscribing');
 });
 
+test('an optional read marked manageGate: false never asks for the PIN, but still fails for its caller', async () => {
+  const api = new HttpLocalApi('http://127.0.0.1:19447', 'token-a', reply(403, 'profile_pin_manage'));
+  const manage: ProfileGateRefusal[] = [];
+  api.subscribeManageGate(value => manage.push(value));
+  const failed = await api.request('/v1/admin/connectivity/status', 'GET', undefined, undefined, {manageGate: false}).catch(error => error);
+  assert.equal(failed.code, 'profile_pin_manage', 'the caller still sees the refusal');
+  assert.equal(manage.length, 0, 'no PIN prompt');
+  await api.request('/v1/admin/connectivity/status').catch(() => {});
+  assert.equal(manage.length, 1, 'an ordinary read still reaches the gate');
+});
+
 test('a playback v1 read refused with profile_pin_manage still reaches the manage gate', async () => {
   const api = new HttpLocalApi('http://127.0.0.1:19447', 'token-a', reply(403, 'profile_pin_manage'));
   const manage: ProfileGateRefusal[] = [];
