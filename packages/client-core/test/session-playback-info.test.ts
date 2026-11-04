@@ -47,3 +47,11 @@ test('explicit negative RPU/base observations remain negative and missing ones r
  assert.equal(negative?.source.video?.dolbyVisionBaseLayer,false);
  assert.equal(parsePlaybackInfo({...raw,source:{video:{codec:'hevc',dolbyVisionProfile:7}}})?.source.video?.dolbyVisionRpu,undefined);
 });
+
+test('#682: a source picture with null frame observations parses, and they stay unknown rather than negative', () => {
+ const raw = info();
+ const parsed = parsePlaybackInfo({...raw, source: {video: {codec: 'hevc', dynamicRange: 'hdr10', hdr10Plus: null, dolbyVisionRpu: null, dolbyVisionBaseLayer: null}}});
+ assert.ok(parsed, 'one unobserved flag never poisons the comparison');
+ assert.equal(parsed.source.video?.dynamicRange, 'hdr10');
+ for (const key of ['hdr10Plus', 'dolbyVisionRpu', 'dolbyVisionBaseLayer'] as const) assert.equal(parsed.source.video?.[key], undefined, key);
+});

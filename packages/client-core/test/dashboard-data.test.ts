@@ -67,3 +67,12 @@ test('DTS profile and explicit object facts survive the safe projection independ
  assert.deepEqual((parseDashboardSessionFacts({media:{audio}}).media as {audio:typeof audio}).audio,audio);
  assert.throws(()=>parseDashboardSessionFacts({media:{audio:{...audio,profile:42}}}));
 });
+
+test('#682: admin session video with null frame observations still parses, the observations unknown rather than "no"', () => {
+ const video = {id: 'v0', codec: 'hevc', height: 2160, hdr: 'hdr10', hdr10Plus: null, dolbyVisionRpu: null, dolbyVisionBaseLayer: null};
+ const out = parseDashboardSessionFacts({media: {video}, currentBitrateKbps: 0, rateWindowMs: 5000, live: false}).media as {video: Record<string, unknown>};
+ assert.equal(out.video.hdr, 'hdr10');
+ for (const key of ['hdr10Plus', 'dolbyVisionRpu', 'dolbyVisionBaseLayer']) assert.equal(Object.hasOwn(out.video, key), false, `${key}: unobserved is left out, never false`);
+ const observed = parseDashboardSessionFacts({media: {video: {...video, hdr10Plus: false, dolbyVisionRpu: true, dolbyVisionBaseLayer: false}}, currentBitrateKbps: 0, rateWindowMs: 5000, live: false}).media as {video: Record<string, unknown>};
+ assert.equal(observed.video.hdr10Plus, false); assert.equal(observed.video.dolbyVisionRpu, true);
+});

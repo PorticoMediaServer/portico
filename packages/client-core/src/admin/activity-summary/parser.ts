@@ -15,6 +15,8 @@ const id = text(512, true), label = text(256, true), words = text(4096);
 const integer = (max = Number.MAX_SAFE_INTEGER, min = 0): Reader => v => typeof v === 'number' && Number.isSafeInteger(v) && v >= min && v <= max ? v : invalid();
 const count = integer();
 const bool: Reader = v => typeof v === 'boolean' ? v : invalid();
+/** #682: a frame observation not yet made is `null`; it is left out (unknown), never read as false. */
+const observed: Reader = v => v === null ? undefined : bool(v);
 const timestamp: Reader = v => currentUTCTimestamp(v) ? v : invalid();
 /** Reject accidental capability/private additions rather than carrying opaque server objects. */
 function record(required: Record<string, Reader>, optional: Record<string, Reader> = {}): Reader {
@@ -25,7 +27,7 @@ function record(required: Record<string, Reader>, optional: Record<string, Reade
       if (!Object.hasOwn(value, key)) invalid();
       out[key] = read(value[key]);
     }
-    for (const [key, read] of Object.entries(optional)) if (Object.hasOwn(value, key)) out[key] = read(value[key]);
+    for (const [key, read] of Object.entries(optional)) if (Object.hasOwn(value, key)) {const read_ = read(value[key]); if (read_ !== undefined) out[key] = read_;}
     return Object.freeze(out);
   };
 }
@@ -151,7 +153,7 @@ function freshSession(item:ObjectValue,observedAt:string):void {
  if (item.transcode) {const stamp=Date.parse((item.transcode as {observedAt:string}).observedAt);if(stamp>at || at-stamp>5000)invalid();}
  if (item.problem==='buffering' && at-Date.parse(item.bufferingSince as string)<10000)invalid();
 }
-const sourceVideo=record({id,codec:label},{interlaced:bool,profile:label,level:count,bitDepth:count,width:count,height:count,fps:finite,hdr:label,bitrateKbps:count,chromaSubsampling:label,frameRateNumerator:count,frameRateDenominator:count,frameRateMode:label,dolbyVisionProfile:count,dolbyVisionCompatibility:count,dolbyVisionRpu:bool,dolbyVisionBaseLayer:bool,dolbyVisionEnhancementType:label,dolbyVisionCmVersion:label,hdr10Plus:bool,masterDisplay:text(1024),maxCll:text(128)});
+const sourceVideo=record({id,codec:label},{interlaced:bool,profile:label,level:count,bitDepth:count,width:count,height:count,fps:finite,hdr:label,bitrateKbps:count,chromaSubsampling:label,frameRateNumerator:count,frameRateDenominator:count,frameRateMode:label,dolbyVisionProfile:count,dolbyVisionCompatibility:count,dolbyVisionRpu:observed,dolbyVisionBaseLayer:observed,dolbyVisionEnhancementType:label,dolbyVisionCmVersion:label,hdr10Plus:observed,masterDisplay:text(1024),maxCll:text(128)});
 const sourceAudio=record({id,codec:label,atmos:bool,default:bool,commentary:bool,visualImpaired:bool},{profile:label,channels:count,layout:label,language:label,title:words,bitDepth:count,sampleRate:count,variant:label,objectAudio:label,dtsx:bool});
 const sourceSubtitles=record({id,format:label},{language:label});
 const media=record({},{video:sourceVideo,audio:sourceAudio,subtitles:sourceSubtitles,videoHardware:bool});
