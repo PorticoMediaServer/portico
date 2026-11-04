@@ -16,6 +16,7 @@ import {HomeSelectionDestinations} from './destinations.ts';
 import {explicitIdentities, runSelectionJobs, selectionExecutionError, selectionJobTasks, type HomeJobTask} from './execution.ts';
 import type {HomeMenuOutcome, HomeSelectionActionState, HomeSelectionMember, HomeSelectionMenu, HomeSelectionOptions, HomeSelectionPlaybackItem, HomeSelectionSnapshot, HomeSelectionWindowInput} from './types.ts';
 import {serverNow} from '../server-clock.ts';
+import {defaultI18n} from '../../../i18n/src/index.ts';
 import {setContinueDismissed} from '../continue-watching.ts';
 
 /** Removing a window is cleanup and must never throw: a cleanup that throws reaches the app's error boundary
@@ -24,10 +25,12 @@ const releaseWindow = (unregister: () => void) => {try {unregister();} catch { /
 
 const idle = (): HomeSelectionActionState => ({phase: 'idle', action: null, progress: null, results: [], error: null, jobIds: []});
 const errorInfo = (error: unknown) => ({code: String((error as {code?: unknown})?.code ?? 'home-action-failed'), retryable: (error as {retryable?: unknown})?.retryable === true});
+/** The selection's identity: server, viewer and view. The viewer fence is not part of it: a moved fence (the viewer's
+ * access decided again) is a newer answer that re-resolves the picks (step 7 item 4, ruling D). */
 const sameScope = (a: SelectionContext, b: SelectionContext) =>
-  a.scope.serverId === b.scope.serverId && a.scope.authority === b.scope.authority && a.scope.accountId === b.scope.accountId && a.scope.profileId === b.scope.profileId && a.scope.viewId === b.scope.viewId && a.scope.privacyFence === b.scope.privacyFence;
+  a.scope.serverId === b.scope.serverId && a.scope.authority === b.scope.authority && a.scope.accountId === b.scope.accountId && a.scope.profileId === b.scope.profileId && a.scope.viewId === b.scope.viewId;
 const sameContext = (a: SelectionContext, b: SelectionContext) =>
-  sameScope(a, b) && a.revision.catalogRevision === b.revision.catalogRevision && a.revision.viewerRevision === b.revision.viewerRevision;
+  sameScope(a, b) && a.scope.privacyFence === b.scope.privacyFence && a.revision.catalogRevision === b.revision.catalogRevision && a.revision.viewerRevision === b.revision.viewerRevision;
 const sameEnvironment = (a: SelectionEnvironment, b: SelectionEnvironment) => a.platform === b.platform && a.isOwner === b.isOwner && a.canEditMetadata === b.canEditMetadata;
 export function homeSelectionContext(scope: Omit<SelectionContext['scope'], 'privacyFence'>, document: HomeDocument): SelectionContext {
   if (scope.serverId !== document.serverId) throw selectionExecutionError('home-source-mismatch');
@@ -111,12 +114,29 @@ export class HomeSelectionController {
   private platform(): HomeActionPlatform {return {platform: this.environment.platform === 'phone-app' ? 'phone-app' : this.environment.platform === 'tv' ? 'tv' : 'web', playbackAvailable: true, queueAvailable: true, nativeDownloadsAvailable: !!this.options.download};}
   private homeChanged() {
     const document = this.options.home.getSnapshot().document;
-    if (!document || document.serverId !== this.state.context.scope.serverId || document.viewerFence !== this.state.context.scope.privacyFence) {this.invalidate(); return;}
+    if (!document || document.serverId !== this.state.context.scope.serverId) {this.invalidate(); return;}
     const next = homeSelectionContext(this.state.context.scope, document);
     if (!this.options.isCurrent(next)) {this.invalidate(); return;}
     if (document !== this.document || !sameContext(next, this.state.context)) this.reconcile(next, this.environment);
   }
-  private invalidate(keep?: ReadonlySet<string>) {this.cancelAction(); this.selection.clear(); for (const [id, window] of this.windows) if (!keep?.has(id)) {releaseWindow(window.unregister); this.windows.delete(id);} this.menuWindow = undefined; this.menuSource = undefined; this.held.clear(); this.editorEdits = []; this.editorReceipts = []; this.editorOriginalTargets = []; this.editorRetryTargets = undefined; this.deleteBody = undefined; this.jobs = []; this.personalCommands = []; this.publish({menu: null, picker: null, editor: null, deletion: null, rating: null, mixedEdit: false, editExplanation: null, action: idle()});}
+  private invalidate(keep?: ReadonlySet<string>, picks: 'clear' | 'keep' = 'clear') {this.cancelAction(); if (picks === 'clear') this.selection.clear(); for (const [id, window] of this.windows) if (!keep?.has(id)) {releaseWindow(window.unregister); this.windows.delete(id);} this.menuWindow = undefined; this.menuSource = undefined; if (picks === 'clear') this.held.clear(); this.editorEdits = []; this.editorReceipts = []; this.editorOriginalTargets = []; this.editorRetryTargets = undefined; this.deleteBody = undefined; this.jobs = []; this.personalCommands = []; this.publish({menu: null, picker: null, editor: null, deletion: null, rating: null, mixedEdit: false, editExplanation: null, action: idle()});}
+  /** Every member the current Home document offers for selection, keyed under `context`: what registerWindow and
+   * registerSpotlight would admit (a Live row only while it is current). */
+  private offeredMembers(context: SelectionContext) {
+    const platform = this.platform(), offered = new Map<string, HomeSelectionMember>();
+    const put = (member: HomeSelectionMember) => {const key = selectionKey(context.scope, member.item); if (!offered.has(key)) offered.set(key, member);};
+    const entry = (value: HomeEntry, target: HomeSelectionMember['playbackTarget'] = value) => {const item = homeEntrySelection(value, platform); if (item) put({item, entry: value, playbackTarget: target});};
+    for (const spotlight of this.options.home.getSnapshot().document?.spotlight ?? []) entry(spotlight.entry, spotlight.resumeTarget ?? spotlight.entry);
+    for (const row of this.rows()) {
+      if (row.live) {
+        if (Number.isFinite(Date.parse(row.live.expiresAt)) && Date.parse(row.live.expiresAt) > serverNow()) for (const channel of row.live.channels) put({item: homeChannelSelection(channel, platform), channel});
+        continue;
+      }
+      if (row.collection) put({item: homeCollectionSelection(row.collection, platform), collection: row.collection});
+      for (const value of row.collection?.members ?? row.entries) entry(value as HomeEntry, row.resumes?.find(resume => resume.entryId === value.id)?.target ?? value);
+    }
+    return offered;
+  }
   /** Revision changes may retain a menu's semantic opener, never its old grants or in-flight work. */
   private reconcile(context: SelectionContext, environment: SelectionEnvironment) {
     const previous = this.state.context, menu = this.state.menu, source = this.menuSource, window = menu && this.windows.get(menu.windowId), menuWindow = this.menuWindow;
@@ -133,10 +153,21 @@ export class HomeSelectionController {
       }
     }
     const retainedMenuWindow = menu && keep.has(menu.windowId) ? menuWindow : undefined;
+    // Ruling D (step 7 item 4): a newer Home answer from the same viewer (a moved fence, a catalog write such as new
+    // artwork or a scan, a viewer revision) keeps the picks it still offers; the rest drop, with a notice. Once an action
+    // or dialog has acted on the selection (it holds a ticket), its own write's Home answer ends the selection as before.
+    const survive = !this.ticket;
+    let dropped = 0;
     this.changing = true;
     try {
-      this.invalidate(keep);
-      this.environment = {...environment}; this.selection.setContext(context);
+      this.invalidate(keep, survive ? 'keep' : 'clear');
+      this.environment = {...environment};
+      if (survive) {
+        const offered = this.offeredMembers(context);
+        dropped = this.selection.moveContext(context, item => offered.get(selectionKey(context.scope, item))?.item);
+        this.held.clear();
+        for (const key of this.selection.getSnapshot().selectedKeys) {const member = offered.get(key); if (member) this.held.set(key, member);}
+      } else this.selection.setContext(context);
       this.document = this.options.home.getSnapshot().document;
       this.publish({context: this.selection.getSnapshot().context, selection: this.selection.getSnapshot(), actions: selectionActions(this.selection.getSnapshot().summary, this.environment), action: idle()});
       if (!menu || !window || !source || !sameSource(source, window.source) || !sameScope(previous, context) || !this.isHomeCurrent(context)) {retainedMenuWindow?.(); return;}
@@ -154,6 +185,7 @@ export class HomeSelectionController {
     } finally {
       this.changing = false;
       for (const listener of this.listeners) listener();
+      if (dropped > 0 && !this.disposed) this.options.notify?.(defaultI18n.t('next.selection.noLongerAvailable', {count: dropped}));
     }
   }
   setContext(context: SelectionContext, environment = this.environment) {
@@ -586,8 +618,9 @@ export class HomeSelectionController {
     try {
       this.editorOriginalTargets = metadataPreviewTargets(explicitIdentities(ticket.target));
       const request: BulkMetadataPreviewRequest = {targets: this.editorOriginalTargets};
+      // Ruling A: the preview is compared only with previews (the editor holds the newest one). The ticket's Home fence gates
+      // every write: check(ticket) refuses once the Home answer it began on is no longer current.
       const preview = await fetchBulkMetadataPreview(this.options.api, request, ticket.context.scope.serverId, ticket.controller.signal); this.check(ticket);
-      if (preview.viewerFence !== ticket.context.scope.privacyFence) throw selectionExecutionError('metadata-authority-changed');
       this.publish({editor: {...this.state.editor!, phase: 'ready', preview}});
     } catch (error) {if (this.current(ticket)) this.publish({editor: {...this.state.editor!, phase: 'error', error: errorInfo(error)}});}
   }
@@ -631,7 +664,6 @@ export class HomeSelectionController {
     this.publish({editor: {...editor, phase: 'loading', draft, error: null}});
     try {
       const preview = await fetchBulkMetadataPreview(this.options.api, {targets}, ticket.context.scope.serverId, ticket.controller.signal); this.check(ticket);
-      if (preview.viewerFence !== ticket.context.scope.privacyFence) throw selectionExecutionError('metadata-authority-changed');
       this.editorEdits = [];
       this.editorRetryTargets = undefined;
       this.publish({editor: {...this.state.editor!, phase: 'ready', preview, draft}});

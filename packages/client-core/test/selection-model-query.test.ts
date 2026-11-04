@@ -259,3 +259,33 @@ test('query work reads bounded facts equally at 50,000 and 50,000,000 results', 
   const smaller = run(50_000), larger = run(50_000_000);
   assert.equal(larger, smaller); assert(smaller < 40);
 });
+
+// Step 7 item 4, ruling D: moveContext keeps the explicit picks the caller still finds offered, re-keyed under the
+// newer context and holding the newer item; a whole-view (query) selection still ends, as setContext ends it.
+test('D: moveContext ends a whole-view query selection, as a context change always has', () => {
+  const model = new SelectionModel(context);
+  registerQuery(model, query([fact('movie', 50_000)]));
+  registerWindow(model, [item('one'), item('two')]);
+  model.selectWholeQuery('query');
+  assert.equal(model.getSnapshot().target?.mode, 'query');
+  const moved = {...context, scope: {...context.scope, privacyFence: 'moved'}, revision: {catalogRevision: '11', viewerRevision: '20'}};
+  assert.equal(model.moveContext(moved, value => value), 0);
+  assert.equal(model.getSnapshot().target, null); assert.equal(model.getSnapshot().active, false);
+  assert.deepEqual(model.getSnapshot().context, moved); assert.equal(model.getSnapshot().registeredWindowCount, 0);
+  model.dispose();
+});
+test('D: moveContext re-keys the picks still offered under the newer context, with the newer item, and drops the rest', () => {
+  const model = new SelectionModel(context);
+  registerWindow(model, [item('one'), item('two'), item('three')], {queryId: undefined});
+  model.selectLoaded();
+  const before = model.captureOperation();assert.ok(before);
+  const moved = {...context, scope: {...context.scope, privacyFence: 'moved'}};
+  const newer = item('two', 'movie', 'library', selectionCapabilities('movie', {...offers, delete: false}));
+  assert.equal(model.moveContext(moved, value => value.kind !== 'channel' && value.kind !== 'person' && value.id === 'two' ? newer : value.kind !== 'channel' && value.kind !== 'person' && value.id === 'three' ? value : undefined), 1);
+  const snapshot = model.getSnapshot();
+  assert.deepEqual(snapshot.selectedKeys, [selectionKey(moved.scope, newer), selectionKey(moved.scope, item('three'))]);
+  assert.deepEqual(snapshot.target?.mode === 'explicit' ? snapshot.target.items.map(pick => pick.item.capabilities.delete) : [], [false, true]);
+  assert.equal(model.isOperationCurrent(before), false, 'an operation captured before the move is no longer current');
+  assert.equal(model.isContextCurrent(model.captureContext()), true);
+  model.dispose();
+});

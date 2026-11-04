@@ -100,6 +100,39 @@ class WindowedSelectionModel<C> {
     return true;
   }
 
+  /**
+   * A newer answer from the same source (step 7 item 4, ruling D: Home). The context moves as setContext moves it, but
+   * the explicit picks the caller still finds offered stay chosen, re-keyed under the new context and holding the newer
+   * item; every other pick drops. A whole-view selection still ends. An unchanged context keeps its windows and only
+   * re-resolves the picks. Returns how many picks dropped.
+   */
+  moveContext(input: C, offered: (item: SelectionItem) => SelectionItem | undefined): number {
+    if (this.disposed) return 0;
+    const next = this.policy.check(input), moved = !same(next, this.context);
+    if (this.whole) {
+      if (moved) this.setContext(next);
+      return 0;
+    }
+    const kept = new Map<string, Pick>();
+    for (const pick of this.chosen.values()) {
+      const found = offered(pick.item);
+      if (!found) continue;
+      const item = checkedItem(found), key = this.policy.key(next, item);
+      if (!kept.has(key)) kept.set(key, Object.freeze({key, item, position: pick.position}));
+    }
+    const dropped = this.chosen.size - kept.size;
+    if (!moved && !dropped && [...kept].every(([key, pick]) => same(this.chosen.get(key)?.item, pick.item))) return 0;
+    if (moved) {
+      this.context = next; this.readGeneration++;
+      this.windows.clear(); this.queries.clear(); this.registry = emptyRegistry();
+    }
+    const lastSectionId = this.lastSectionId;
+    this.resetPicks(); this.chosen = kept;
+    if (kept.size) this.lastSectionId = lastSectionId;
+    this.operationGeneration++; this.reconcilePicks(); this.publish();
+    return dropped;
+  }
+
   registerWindow(ticket: SelectionReadTicket<C>, input: SelectionWindow): SelectionRegistration {
     if (this.disposed) return fail('disposed');
     if (!this.isContextCurrent(ticket)) return fail('stale-context');

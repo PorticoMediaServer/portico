@@ -523,7 +523,7 @@ for (const withMenu of [false, true]) test(`reconcile F1: real HomeService B pag
   await h.home.more('other');
   const after = h.home.getSnapshot().document!;
   assert.notEqual(after, before); assert.equal(after.rows[0], a); assert.notEqual(after.rows[1], before.rows[1]); assert.deepEqual(after.revision, before.revision);
-  assert.equal(h.controller.getSnapshot().selection.summary.count, 0, 'a new document still clears bulk picks');
+  assert.equal(h.controller.getSnapshot().selection.summary.count, 1, 'a newer document keeps the picks it still offers (ruling D)');
   assert.equal(h.controller.getSnapshot().selection.registeredItemCount, 1);
   if (withMenu) assert.equal(h.controller.getSnapshot().menu?.key, key);
   else h.controller.openMenu('mounted-a', key);
@@ -741,4 +741,62 @@ test('a Continue Watching card offers Remove, dismisses at its own revision and 
   assert.notEqual(calls[0]!.body.operationId, calls[1]!.body.operationId);
   assert.equal(h.errors.length, 0); h.controller.dispose();
   await assert.rejects(outcome.undo(), /stale-home-context/, 'never after the controller retired');
+});
+
+// Step 7 item 4, ruling D (lead, 5 Nov): a newer Home answer from the same viewer re-resolves the picks. A catalog write
+// (new artwork, a scan) used to clear a Home selection; an access change used to close it. Picks still offered stay,
+// the rest drop with one notice. Once an action has acted on the selection, its own write's Home answer still ends it.
+test('D: a catalog write such as new artwork keeps every pick, and they act on the newer answer', async () => {
+  const h = harness(), notices: string[] = []; h.options.notify = message => notices.push(message);
+  pickAll(h); const before = h.controller.getSnapshot().selection.selectedKeys; assert.equal(before.length, 2);
+  const art = h.entries.map(value => ({...value, title: value.title + ' (new artwork)'}));
+  h.replace({...h.document, rows: [{...h.document.rows[0], entries: art, revision: {catalog: 2, viewer: 1}}], revision: {catalog: 2, viewer: 1}});
+  assert.deepEqual(h.controller.getSnapshot().selection.selectedKeys, before);
+  assert.equal(h.controller.getSnapshot().context.revision.catalogRevision, '2');
+  assert.deepEqual(notices, []);
+  await h.controller.execute('play');
+  assert.deepEqual(h.played[0].items.map(value => 'entry' in value ? value.entry : undefined), art, 'the picks act on the newer answer\'s titles');
+  assert.equal(h.errors.length, 0); h.controller.dispose();
+});
+test('D: an access change keeps the picks still offered, drops the rest, and says so once with the count', async () => {
+  const {defaultI18n} = await import('../../i18n/src/index.ts');
+  const h = harness([entry('a'), entry('b'), entry('c')]), notices: string[] = []; h.options.notify = message => notices.push(message);
+  pickAll(h); assert.equal(h.controller.getSnapshot().selection.summary.count, 3);
+  const moved = 'c'.repeat(64), kept = entry('b');
+  const next = {...h.document, viewerFence: moved, rows: [{...row([kept]), viewerFence: moved}], revision: {catalog: 2, viewer: 2}};
+  h.replace(next);
+  const context = h.controller.getSnapshot().context;
+  assert.equal(context.scope.privacyFence, moved);
+  assert.deepEqual(h.controller.getSnapshot().selection.selectedKeys, [h.controller.key(homeEntrySelection(kept, {platform: 'web', playbackAvailable: true, queueAvailable: true})!)]);
+  assert.deepEqual(notices, [defaultI18n.t('next.selection.noLongerAvailable', {count: 2})]);
+  assert.equal(notices[0], '2 titles are no longer available.');
+  h.replace({...next});
+  assert.equal(notices.length, 1, 'a later answer that drops nothing says nothing');
+  assert.equal(h.controller.registerWindow({id: 'window', row: next.rows[0]!, sectionOrder: 0}).ok, true);
+  assert.equal(h.controller.getSnapshot().selection.summary.count, 1);
+  h.controller.dispose();
+});
+test('D: once an action has acted on the selection, its own write\'s Home answer still ends the selection', async () => {
+  const h = harness(); pickAll(h);
+  await h.controller.execute('play');
+  h.replace({...h.document, revision: {catalog: 2, viewer: 1}});
+  assert.equal(h.controller.getSnapshot().selection.summary.count, 0);
+  h.controller.dispose();
+});
+// Ruling A: the bulk preview is compared only with previews; the ticket's Home answer gates the write.
+test('A: a preview under another fence than Home opens the editor, and a save after Home moves is refused before any write', async () => {
+  const writes: unknown[] = [];
+  const api: HomeSelectionOptions['api']['request'] = async (path, _method, raw) => {
+    const body = raw as {targets: {kind: string; contentKind: string; id: string; libraryId: string}[]};
+    if (path === routePath('post_metadata_bulk_preview')) return {...preview(body.targets), viewerFence: 'd'.repeat(64)} as never;
+    writes.push(raw); throw new Error('no write may be sent');
+  };
+  const h = harness(undefined, api); pickAll(h);
+  await h.controller.openEditor();
+  assert.equal(h.controller.getSnapshot().editor?.phase, 'ready', 'a preview under a newer fence than Home is not refused');
+  h.controller.setEditorDraft({fields: {year: '2026'}, lists: {}, lockEdited: true} as never);
+  let save: Promise<unknown> | undefined;
+  h.replace({...h.document, viewerFence: 'd'.repeat(64), rows: [{...h.document.rows[0], viewerFence: 'd'.repeat(64)}]}, () => {save = h.controller.saveEditor();});
+  await assert.rejects(save!, /cancelled/);
+  assert.deepEqual(writes, []); h.controller.dispose();
 });

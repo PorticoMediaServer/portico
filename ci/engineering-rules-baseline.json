@@ -32,7 +32,7 @@
   "apps/native/src-next/shell/listening-song-detail.ts": 9,
   "packages/client-core/src/console.ts": 1,
   "packages/client-core/src/detail.ts": 1,
-  "packages/client-core/src/home-selection/controller.ts": 8,
+  "packages/client-core/src/home-selection/controller.ts": 5,
   "packages/client-core/src/home-selection/destination-picker.ts": 2,
   "packages/client-core/src/home-selection/destination-receipt.ts": 1,
   "packages/client-core/src/home-service.ts": 6,
@@ -85,7 +85,7 @@
   "web/src/screens/watch/receivers.ts": 2,
   "web/src/shell/entry-metadata.tsx": 3,
   "web/src/shell/facts.ts": 2,
-  "web/src/shell/selection.tsx": 2
+  "web/src/shell/selection.tsx": 1
  },
  "lease-layer": {
   "web/src/screens/browse/useBrowseLease.ts": 1,
