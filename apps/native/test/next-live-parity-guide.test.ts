@@ -168,14 +168,15 @@ test('All keeps the whole count while a filter is active, and no count is drawn 
 // Item 1
 for (const [name, options] of [['phone', {width: 390, height: 844}], ['tablet', {width: 1180, height: 820}], ['TV', {isTV: true}]] as const) {
   for (const [filter, chipId, label] of [['group', 'live-filter-News', 'News'], ['Favorites', 'live-filter-favorites', 'Favorites']] as const) {
-    test(`${name} ${filter} with no matching channels draws web's filtered-empty state and Show all returns to All`, async () => {
+    test(`${name} ${filter} with no matching channels says so, and Show all returns to All${name === 'TV' ? ' with the guide asking for its entry' : ''}`, async () => {
       const f = await fixture({...options, filteredTotal: 0}); try {
         await f.until(() => f.controller.guide.getSnapshot().total === 14);
         assert.equal(f.find('live-filter-empty'), undefined);
         await f.press(chipId);
         await f.until(() => f.find('live-filter-empty') !== undefined);
         const state = f.find('live-filter-empty').props;
-        assert.equal(state.title, defaultI18n.t('channels.filterEmptyTitle', {filter: label}));
+        assert.equal(state.title, defaultI18n.t('guide.filterEmpty', {filter: label}));
+        assert.equal(state.title, `Nothing in ${label}. Try all channels.`);
         assert.equal(state.primaryAction.label, defaultI18n.t('channels.showAll'));
         assert.equal(f.list(), undefined, 'no empty virtual list is left behind');
         if (name === 'TV') {
@@ -187,6 +188,10 @@ for (const [name, options] of [['phone', {width: 390, height: 844}], ['tablet', 
         assert.equal(f.controller.getSnapshot().options.group, undefined);
         assert.equal(f.controller.getSnapshot().options.favorites, false);
         await f.until(() => f.list() !== undefined);
+        // tv-focus 24: the guide starts on the programme on now on the first channel. Show all unmounted the focused
+        // button, so on TV the new first row asks for that entry (not native recovery); touch has no focus to place.
+        const firstRow = f.list().props.renderItem({item: 0});
+        assert.equal(firstRow.props.entryEnabled, name === 'TV', name === 'TV' ? 'TV: the first row asks for the guide entry' : 'touch: no entry ask');
       } finally {await f.close();}
     });
   }
@@ -200,13 +205,13 @@ test('a filter that matches channels draws no filtered-empty state', async () =>
 
 // Item 3
 for (const [name, options] of [['phone', {width: 390, height: 844}], ['TV', {isTV: true}]] as const) {
-  test(`${name} programme sheet says "No description." when the listing has none, and prints the description when it has one`, async () => {
+  test(`${name} programme sheet says it has no description when the listing has none, and prints the description when it has one`, async () => {
     const f = await fixture(options); try {
       await f.open(rawChannel(), rawProgramme('p1', -10, 20));
-      assert.match(textOf(f.sheet()), new RegExp(defaultI18n.t('guide.noDescription')));
+      assert.match(textOf(f.sheet()), new RegExp(defaultI18n.t('guide.programNoDescription')));
       await f.open(rawChannel(), rawProgramme('p2', -10, 20, {description: 'A real description.'}));
       assert.match(textOf(f.sheet()), /A real description\./);
-      assert.doesNotMatch(textOf(f.sheet()), new RegExp(defaultI18n.t('guide.noDescription')));
+      assert.doesNotMatch(textOf(f.sheet()), new RegExp(defaultI18n.t('guide.programNoDescription')));
     } finally {await f.close();}
   });
 }
@@ -214,13 +219,10 @@ for (const [name, options] of [['phone', {width: 390, height: 844}], ['TV', {isT
 // Item 4
 const stale = [source('src-a', {channelCount: 10, refreshState: 'degraded'})];
 for (const [name, options] of [['phone', {width: 390, height: 844}], ['tablet', {width: 1180, height: 820}], ['TV', {isTV: true}]] as const) {
-  test(`${name} owner's stale banner offers Open source settings, which opens the Live TV management page`, async () => {
+  test(`${name} owner's stale banner is the quiet line the frames draw, with no action`, async () => {
     const f = await fixture({...options, sources: stale}); try {
-      assert.ok(f.find('live-guide-stale'));
-      const action = chip(f, 'live-guide-stale-source');
-      assert.equal(textOf(action), defaultI18n.t('guide.openSource'));
-      if (name === 'TV') assert.ok(f.all().some(node => node.type === 'Region' && node.props.id === f.ids.surface('live.notices') && nodes(node).includes(action)), 'a focusable stop in its own region');
-      else {action.props.onPress(); await f.host.settle(); assert.deepEqual(f.editors, ['owner:undefined']);}
+      assert.ok(f.find('live-guide-stale')); assert.equal(f.find('live-guide-stale-source'), undefined);
+      assert.equal(f.all().some(node => node.type === 'Region' && node.props.id === f.ids.surface('live.notices')), false, 'no focus stop on TV');
     } finally {await f.close();}
   });
   test(`${name} member's stale banner stays a quiet line with no action`, async () => {

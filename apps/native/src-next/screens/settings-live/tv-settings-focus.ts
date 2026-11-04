@@ -16,3 +16,10 @@ export function tvProgrammeGroups(value: Readonly<{watch: boolean; record: boole
     ...(value.remind ? ['remind'] : []), ...(value.laterFirst ? [] : later),
     ...(value.recordError ? ['record-error'] : []), ...(value.preferenceError ? ['preference-error'] : [])];
 }
+
+/** Whether the guide's first row asks for TV entry focus: on the first draw of the page (not after a return from
+ *  Recordings or the source page, which restore their own control), or once after Show all replaced the
+ *  filtered-empty state, on the first revision after the one it was pressed at. */
+export function liveGuideEntry(revision: number, recordingsReturn: number, managementReturn: number, reentryFrom?: number): boolean {
+  return revision === 0 && recordingsReturn === 0 && managementReturn === 0 || reentryFrom !== undefined && revision !== reentryFrom;
+}

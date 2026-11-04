@@ -90,6 +90,8 @@ export const channelMessages = {
   'guide.watchChannel': 'Watch channel',
   'guide.record': 'Record',
   'guide.recordAiring': 'Record {title} at {time}',
+  'guide.filterEmpty': 'Nothing in {filter}. Try all channels.',
+  'guide.programNoDescription': 'This program has no description.',
   'guide.recordSeries': 'Record series…',
   'guide.recordSeriesTitle': 'Record series',
   'guide.newOnly': 'New episodes only',
