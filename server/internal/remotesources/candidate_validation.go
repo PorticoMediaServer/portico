@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net"
 	"os/exec"
 	"strconv"
 	"sync"
@@ -299,11 +300,7 @@ func (s *Service) runCandidateServe(ctx context.Context, source, generation stri
 		}
 		return ctx.Err()
 	}
-	port, err := privateServePort()
-	if err != nil {
-		return err
-	}
-	metadata, err := privateServePort()
+	port, metadata, err := privateServePorts(net.Listen)
 	if err != nil {
 		return err
 	}

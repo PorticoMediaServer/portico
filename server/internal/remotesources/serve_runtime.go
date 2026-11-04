@@ -402,16 +402,9 @@ func (s *Service) ensureSourceServe(ctx context.Context, binding SourceReadBindi
 		return nil, err
 	}
 	slot.egress = egress
-	endpoint, err := privateServePort()
+	endpoint, metadata, err := privateServePorts(net.Listen)
 	if err != nil {
 		return nil, err
-	}
-	metadata, err := privateServePort()
-	if err != nil {
-		return nil, err
-	}
-	if metadata == endpoint {
-		return nil, storage.ErrBusy
 	}
 	// The serve process shares this source's one operation budget with direct
 	// reads, folder lists and existing-source tests. StartServe requires the
@@ -474,13 +467,21 @@ func (s *Service) ensureSourceServe(ctx context.Context, binding SourceReadBindi
 	}
 	return process, nil
 }
-func privateServePort() (int, error) {
-	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+
+// Reserve both loopback listeners together so the OS cannot recycle the first
+// port for the metadata endpoint. Release the reservations before rclone binds.
+func privateServePorts(listen func(string, string) (net.Listener, error)) (int, int, error) {
+	endpoint, err := listen("tcp4", "127.0.0.1:0")
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	defer listener.Close()
-	return listener.Addr().(*net.TCPAddr).Port, nil
+	defer endpoint.Close()
+	metadata, err := listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		return 0, 0, err
+	}
+	defer metadata.Close()
+	return endpoint.Addr().(*net.TCPAddr).Port, metadata.Addr().(*net.TCPAddr).Port, nil
 }
 
 type serveMaterial struct {
