@@ -46,6 +46,10 @@ export function AudiobookListening({snapshot, title, subtitle, cover, ambient, c
   const seek = (position: number) => {const seconds = watchSeek(snapshot, position);if (seconds !== null) onIntent(snapshot, {kind: 'seek', seconds});};
   // desktop-listen, audiobook player: under Speed, the whole book's time left at this speed; under
   // Sleep timer, when it stops. Each is drawn only from facts the player has.
+  // phone-app 15: the chapter count (the whole book's, else this part's), and the bar over the playing chapter.
+  const chapterTotal = book ? book.chapters.length : chapters?.data?.status === 'available' ? chapters.data.totalCount : undefined;
+  const chapterBar = phone && active && active.endSeconds > active.startSeconds ? {offset: active.startSeconds, duration: active.endSeconds, chapters: [],
+    bounds: bounds && Math.min(bounds.end, active.endSeconds) > Math.max(bounds.start, active.startSeconds) ? {start: Math.max(bounds.start, active.startSeconds), end: Math.min(bounds.end, active.endSeconds)} : null} : undefined;
   const bookLeft = book && active && 'number' in active ? book.chapters.slice(book.current + 1).reduce((sum, chapter) => sum + (chapter.endSeconds - chapter.startSeconds), Math.max(0, active.endSeconds - p.positionSeconds)) : undefined;
   const speedLeft = bookLeft !== undefined && p.rate > 0 ? t('web.player.speedLeft', {time: durationText(bookLeft / p.rate, t) ?? '', rate: new Intl.NumberFormat(defaultI18n.region.formatLocale).format(p.rate)}) : undefined;
   const sleepAt = snapshot.playback?.listeningDeadlines?.sleepAtMs, sleepLeft = typeof sleepAt === 'number' ? Math.max(0, (sleepAt - Date.now()) / 1000) : undefined;
@@ -53,21 +57,26 @@ export function AudiobookListening({snapshot, title, subtitle, cover, ambient, c
   return <section className={styles.frame} aria-label={t('player.nowPlayingTitle', {title})} tabIndex={-1} data-watch-audiobook data-phone={phone || undefined}>
     <AmbientArt source={ambient} className={`${ambientStyles.ambient}${phone ? ` ${ambientStyles.phone}` : ''}`}/>
     <header className={styles.top}>
-      <Button variant="glass" icon="i-down" aria-label={t('player.minimize')} onClick={onCollapse}/>
-      {sourceLabel && <span>{t('next.music.playingFrom', {source: sourceLabel})}</span>}{!phone && notice}
+      <Button variant={phone ? 'ghost' : 'glass'} icon="i-down" aria-label={t('player.minimize')} onClick={onCollapse}/>
+      {/* phone-app 15: on a phone "Playing from" sits centred over its source, on two lines. */}
+      {sourceLabel && (phone ? <span className={styles.from}><small>{t('web.player.playingFromLabel')}</small><b>{sourceLabel}</b></span>
+        : <span>{t('next.music.playingFrom', {source: sourceLabel})}</span>)}{!phone && notice}
       {/* desktop-listen, audiobook player: Play on and More sit at the right, as in the music player. */}
       <span className={styles.topEnd}>
         {!phone && onShowPanel && canPlayOn === true && <Button variant="glass" icon="i-cast" aria-label={t('next.dock.playOn')} onClick={() => onShowPanel(snapshot, 'play-on')}/>}
-        {onShowPanel && <Button variant="glass" icon="i-more" aria-label={t('player.opt.menu')} onClick={() => onShowPanel(snapshot, 'options')}/>}
+        {onShowPanel && <Button variant={phone ? 'ghost' : 'glass'} icon="i-more" aria-label={t('player.opt.menu')} onClick={() => onShowPanel(snapshot, 'options')}/>}
       </span>
     </header>
     <div className={styles.main}>
       <div className={styles.bookTop}><div className={styles.cover}><Artwork source={cover} alt={title}/></div><div className={styles.identity}><h1>{title}</h1><p>{subtitle}</p></div></div>
-      {/* desktop-listen 8: "Chapter 15 · 12:04 of 31:40". */}
-      {active && <div className={styles.chapter}><b>{active.title}</b><span>{t('player.clockOf', {position: watchClock(Math.max(0, p.positionSeconds - active.startSeconds)), duration: watchClock(active.endSeconds - active.startSeconds)})}</span></div>}
-      {/* phone-app 15: on a phone, the whole book's time left sits between the bar's times. */}
-      <ListeningSeek className={styles.scrub} position={p.positionSeconds} duration={p.durationSeconds} bounds={bounds}
-        chapters={ticks} disabled={!can('seek')} phone={phone} middle={phone && bookLeft !== undefined && bookLeft >= 60 ? t('web.player.bookLeft', {time: durationText(bookLeft, t) ?? ''}) : undefined} onSeek={seek}/>
+      {/* desktop-listen 8: "Chapter 15 · 12:04 of 31:40". phone-app 15: "≡ Chapter 8 … of 19". */}
+      {active && (phone ? <div className={styles.chapter}><b><Icon name="i-chapters" size={16}/>{active.title}</b>{chapterTotal !== undefined && <span>{t('web.player.chapterTotal', {total: chapterTotal})}</span>}</div>
+        : <div className={styles.chapter}><b>{active.title}</b><span>{t('player.clockOf', {position: watchClock(Math.max(0, p.positionSeconds - active.startSeconds)), duration: watchClock(active.endSeconds - active.startSeconds)})}</span></div>)}
+      {/* phone-app 15: on a phone the bar is the playing chapter's ("14:02 … −17:43"), with the whole
+          book's time left between its times. Desktop keeps frame 8's bar over the playing part. */}
+      <ListeningSeek className={styles.scrub} position={p.positionSeconds} disabled={!can('seek')} phone={phone} onSeek={seek}
+        {...(chapterBar ? chapterBar : {duration: p.durationSeconds, bounds, chapters: ticks})}
+        middle={phone && bookLeft !== undefined && bookLeft >= 60 ? t('web.player.bookLeft', {time: durationText(bookLeft, t) ?? ''}) : undefined}/>
       <div className={styles.transport}>
         <Button variant="ghost" className={styles.control} iconOnly iconSize={phone ? 28 : 24} icon="i-prev" aria-label={t(book ? 'next.dock.previousChapter' : 'next.dock.previous')} disabled={!can('previous')} onClick={() => onIntent(snapshot, {kind: 'previous'})}/>
         <button type="button" className={styles.skip} aria-label={t('next.dock.back', {seconds: skips.back})} disabled={!can('seek') || !bounds} onClick={() => seek(p.positionSeconds - skips.back)}><Icon name="i-back" size={phone ? 38 : 34}/><span>{skips.back}</span></button>

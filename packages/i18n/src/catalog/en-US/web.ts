@@ -934,6 +934,8 @@ export const webMessages = {
   'web.player.sleepStops': 'Stops in {time}',
   'web.player.queueSummary': '{count}, {duration}',
   'web.player.bookLeft': '{time} left in the book',
+  'web.player.playingFromLabel': 'Playing from',
+  'web.player.chapterTotal': 'of {total, number, ::group-off}',
   'web.player.keys.playPause': 'Play or pause',
   'web.player.keys.back': 'Back {seconds} seconds',
   'web.player.keys.forward': 'Forward {seconds} seconds',

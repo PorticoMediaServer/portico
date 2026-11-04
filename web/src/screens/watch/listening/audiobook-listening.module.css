@@ -45,6 +45,14 @@
 .frame[data-phone] .identity h1 { font-size: calc(var(--type-fixed-size-22px) * 23 / 22); letter-spacing: var(--type-fixed-tracking-minus-point-025em); }
 .frame[data-phone] .identity p { font-size: var(--type-fixed-size-16px); font-weight: var(--type-fixed-weight-600); }
 .frame[data-phone] .top { justify-content: space-between; }
+/* phone-app 15: "Playing from" centred over its source between bare ⌄ and …; the chapter line leads with its icon. */
+.frame[data-phone] .top { display: grid; grid-template-columns: 48px minmax(0,1fr) 48px; }
+.frame[data-phone] .topEnd { grid-column: 3; margin-left: 0; justify-content: flex-end; }
+.from { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; text-align: center; }
+.from small { font-size: var(--type-fixed-size-12px); color: var(--color-text-secondary); }
+.from b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-fixed-size-14px); font-weight: var(--type-fixed-weight-700); color: var(--color-text); }
+.frame[data-phone] .chapter { align-items: center; }
+.frame[data-phone] .chapter b { display: inline-flex; align-items: center; gap: 8px; }
 
 /* Local authored transport beats the shared control's variant/size geometry. */
 .frame .transport .control { width: 50px; height: 50px; padding: 0; border-radius: 50%; }
