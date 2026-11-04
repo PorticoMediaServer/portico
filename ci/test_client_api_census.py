@@ -55,7 +55,7 @@ let sessionTask = session.dataTask(with: request)
 
     def test_platform_transport_pins_require_unchanged_request_arguments(self):
         e={'web/src/guard.ts':{'category':'platform-transport','reason':'Reviewed exact core-built request guard','sites':['x']}}
-        site={'file':'web/src/guard.ts','id':'x'}
+        site={'file':'web/src/guard.ts','id':'x','line':1}
         with self.assertRaises(ValueError): classify([site],e)
         self.assertEqual(len(classify([dict(site,forwardedRequest=True)],e)[1]),1)
 
