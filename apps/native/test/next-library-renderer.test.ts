@@ -25,6 +25,7 @@ test('the Library descriptor requires the actual authorized ID and never supplie
     '../native-screen-services': {nativeScreenServices: () => {throw new Error('a renderer must not construct an uninjected selection binding');}},
   });
   const {createNativeLibraryRenderer, createNativeLibraryPlaySelection: exportedPlay} = await screenModule(new URL('../src-next/screens/library/index.tsx', import.meta.url), {
+    './first-scan': {observeFirstScan: () => () => {}},
     react: {default: React}, 'react-native': {Platform: platform}, './LibraryScreen': {LibraryScreen: 'LibraryScreen'}, './model': {NativeLibraryDestination}, './directory': {NativeLibraryDirectory},
     '../../shell/model': {sameAuthority},
     '../read/platform': readPlatform,

@@ -36,6 +36,7 @@ import {createDestinationEntryFocus, nativeDestinationFocusIds, type NativeDesti
 import {useTVPageBack} from '../destinations/useTVPageBack';
 import {useDestinationEntryFocus} from '../destinations/useEntryFocus';
 import {NativeLibraryDestination, nativeLibraryEntryKey, nativeLibraryCanSave, type NativeLibrarySnapshot, type NativeLibraryViewDraft} from './model';
+import type {NativeLibraryFirstScanPort} from './first-scan';
 import type {NativeSelection} from '../selection/native-selection';
 import {LibraryToolbar} from './LibraryToolbar';
 import {LibraryListRow} from './LibraryListRow';
@@ -85,6 +86,8 @@ export type NativeLibraryScreenProps = Readonly<{
   /** The Discover tab's own multi-select over the shelves it draws. */
   shelfSelection?: NativeSelection;
   owner: boolean;
+  /** The owner's first-scan check and way to server activity (states.html #15). Absent for members. */
+  firstScan?: NativeLibraryFirstScanPort;
   /** Home's Mixes More opens this library's Discover and lands on the Mixes row. */
   mixAnchor?: boolean;
 }>;
@@ -332,6 +335,8 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
     else if (empty) setEmptyHeld(true);
   }, [empty, scope]);
   const emptyShown = empty || emptyHeld;
+  // states.html #15: an owner's library on its first scan. Read only while the empty page shows; the titles page only.
+  const firstScanning = useFirstScanning(props.firstScan, state.library.id, emptyShown && state.tab.shows !== 'genres' && state.tab.shows !== 'playlists');
   const firstCard = state.collection?.itemAt(0), firstCardRegion = firstCard ? theme.isTV ? ids.libraryGrid(state.library.id, state.tab.id) : ids.libraryCard(state.library.id, nativeLibraryEntryKey(firstCard)) : undefined;
   // E-tv-27: Try again unmounts the error page while the load runs, so focus falls to the header, and the
   // entry request was spent on the first failure. A failure that follows a Try again press is a fresh entry.
@@ -343,7 +348,7 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
   const retryPage = useCallback(() => {retryPressed.current = true; destination.retry();}, [destination]);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- a new epoch is a new request, by design
   const stateEntry = useMemo(() => createDestinationEntryFocus(registry), [registry, retryEpoch]);
-  useDestinationEntryFocus(active, !theme.isTV ? undefined : emptyShown ? {regionId: emptyRegion, childId: 'browse-home'} : pageFailed ? {regionId: errorRegion, childId: 'retry'} : undefined, undefined, stateEntry);
+  useDestinationEntryFocus(active, !theme.isTV ? undefined : emptyShown ? {regionId: emptyRegion, childId: firstScanning ? 'view-activity' : 'browse-home'} : pageFailed ? {regionId: errorRegion, childId: 'retry'} : undefined, undefined, stateEntry);
   const pivots: Readonly<Record<string, string>> = {movie: 'movies', show: 'shows', episode: 'episodes', artist: 'artists', album: 'albums', song: 'songs', book: 'books', author: 'authors', series: 'series', ebook: 'books', comic: 'titles'};
   const choices = libraries.filter(library => !theme.isTV || !hiddenReadingLibraryOnTV(library.kind)).map(library => {
     const summary = summaries.libraries.find(value => value.id === library.id)?.summary;
@@ -441,12 +446,13 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
               entryRequest={entryRequest} onEntered={onEntered} entryCovered={emptyShown}/>
             {emptyShown && <View testID="library-empty-page" style={{position: 'absolute', inset: 0}}><StandardBackdrop/>
               <LibraryEmpty runtime={runtime} regionId={emptyRegion} upRegionId={ids.libraryTabs(state.library.id)} firstCardRegion={firstCardRegion}
-                surface={state.tab.shows}
+                surface={state.tab.shows} libraryName={state.library.name} firstScanning={firstScanning} onActivity={props.firstScan?.openActivity}
                 onLeave={() => {if (!empty) setEmptyHeld(false);}}/>
             </View>}
           </View>
           : loading ? <LibraryLoading theme={theme} width={theme.isTV ? dimensions.width : contentWidth} height={dimensions.height} tablet={tabletLayout} expanded={expanded} elapsedMs={loadingElapsed}/>
-          : emptyShown ? <LibraryEmpty runtime={runtime} regionId={emptyRegion} upRegionId={ids.libraryTabs(state.library.id)} surface={state.tab.shows}/>
+          : emptyShown ? <LibraryEmpty runtime={runtime} regionId={emptyRegion} upRegionId={ids.libraryTabs(state.library.id)} surface={state.tab.shows}
+            libraryName={state.library.name} firstScanning={firstScanning} onActivity={props.firstScan?.openActivity}/>
           : theme.isTV && state.library.kind === 'music' && state.tab.id === 'discover' ? <TVMusicDiscover
             destination={destination} state={state} runtime={runtime} active={active} anchor={props.mixAnchor} onEntered={onEntered}
             renderEntry={(entry, width, context) => <LibraryCard entry={entry} width={width} runtime={runtime} actions={actions} focusId={context.focusId} disabled={!active.visible} onFocus={context.onFocus} onBlur={context.onBlur}
@@ -503,18 +509,37 @@ function LibraryLoading({theme, width, height, tablet, expanded, elapsedMs}: {th
   </View>;
 }
 
+/** The owner's first-scan check for this library's empty page: false until it is known, and while it is not asked. */
+export function useFirstScanning(port: NativeLibraryFirstScanPort | undefined, libraryId: string, enabled: boolean): boolean {
+  const [scanning, setScanning] = useState(false);
+  useEffect(() => {
+    setScanning(false);
+    return port && enabled ? port.observe(libraryId, setScanning) : undefined;
+  }, [port, libraryId, enabled]);
+  return enabled && scanning;
+}
+
 /** tv-focus 46: the composed empty-library page. Header and pivot strip stay
- * above it; the one action enters first and leads Home. */
-function LibraryEmpty({runtime, regionId, upRegionId, firstCardRegion, onLeave, surface}: {runtime: NativeShellRuntime; regionId: string; upRegionId: string; firstCardRegion?: string; onLeave?: () => void; surface?: NativeLibrarySnapshot['tab']['shows']}) {
+ * above it; the one action enters first and leads Home. An owner's library that is
+ * still on its first scan says titles appear as they're found and draws its one action,
+ * View activity (states.html #15, which has no other action and no TV variant), instead. */
+export function LibraryEmpty({runtime, regionId, upRegionId, firstCardRegion, onLeave, surface, libraryName, firstScanning, onActivity}: {runtime: NativeShellRuntime; regionId: string; upRegionId: string; firstCardRegion?: string; onLeave?: () => void; surface?: NativeLibrarySnapshot['tab']['shows']; libraryName: string; firstScanning?: boolean; onActivity?: () => void}) {
   const ids = nativeDestinationFocusIds(runtime.getSnapshot().authority);
-  return <FocusRegion id={regionId} entry="browse-home" order={['browse-home']} edges={{up: upRegionId, left: ids.rail,
+  const first = !!firstScanning && !!onActivity;
+  const entry = first ? 'view-activity' : 'browse-home';
+  return <FocusRegion id={regionId} entry={entry} order={[entry]} edges={{up: upRegionId, left: ids.rail,
     ...(firstCardRegion ? {down: firstCardRegion, right: firstCardRegion} : {})}} style={{flex: 1, justifyContent: 'center'}}>
-    <StateView testID="library-empty" variant="centered"
+    {first ? <StateView testID="library-empty" variant="centered" title={defaultI18n.t('next.states.firstScan')}
+      body={defaultI18n.t('next.states.firstScanBody', {library: libraryName})}>
+      <Button focusId="view-activity" testID="library-empty-view-activity" variant="glass" size="hero" onBlur={onLeave}
+        onPress={() => onActivity?.()}>{defaultI18n.t('next.states.viewActivity')}</Button>
+    </StateView>
+    : <StateView testID="library-empty" variant="centered"
       title={defaultI18n.t(surface === 'genres' ? 'library.genres.empty' : surface === 'playlists' ? 'next.selection.native.empty.playlist' : 'library.emptyLibrary')}
       body={defaultI18n.t(surface === 'genres' ? 'library.genres.emptyBody' : surface === 'playlists' ? 'web.saved.playlistEmptyBody' : 'library.emptyLibraryBody')}>
       <Button focusId="browse-home" testID="library-empty-browse-home" variant="primary" size="hero" onBlur={onLeave}
         onPress={() => runtime.onDestination({kind: 'home'})}>{defaultI18n.t('saved.browseHome')}</Button>
-    </StateView>
+    </StateView>}
   </FocusRegion>;
 }
 

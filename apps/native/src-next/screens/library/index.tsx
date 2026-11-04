@@ -19,6 +19,8 @@ import {createNativeTVLibraryNamingStore, nativeTVLibraryActions, nativeTVNaming
 import type {NativeTVLibraryNamingStore} from './tv-library';
 import {nativeLibraryOpening, nativeLibraryOpeningRoute} from './opening';
 import {takeLibrarySavedView} from './saved-view-intent';
+import {observeFirstScan, type NativeLibraryFirstScanPort} from './first-scan';
+import {viewerQueriesFor} from '../../shell/freshness';
 
 export type NativeLibraryRendererPorts = Readonly<{
   activation: (libraryId: string) => NativeDestinationActivationPort;
@@ -78,6 +80,13 @@ export function createNativeLibraryRenderer(context: NativeShellBootstrapContext
   };
   const current = () => !disposed && lifetime.current();
   const directory = new NativeLibraryDirectory({api: context.api, current});
+  // An owner's empty library reads its own scan history (as web does) and can open server activity:
+  // the Dashboard, or Server settings on TV. Members never get the port.
+  let firstScan: NativeLibraryFirstScanPort | undefined;
+  const ownerFirstScan = (): NativeLibraryFirstScanPort => firstScan ??= {
+    observe: (libraryId, onChange) => observeFirstScan({api: context.api, scope: lifetime.scope, queries: viewerQueriesFor(context.api, {serverId: lifetime.scope.serverId})}, libraryId, onChange),
+    openActivity: () => {if (current()) context.navigation.open(Platform.isTV ? {kind: 'server-settings'} : {kind: 'server-dashboard'}, context.authority());},
+  };
   return {
     render(route, runtime) {
       if (!current() || route.kind !== 'shell' || route.destination.kind !== 'library') return null;
@@ -118,7 +127,7 @@ export function createNativeLibraryRenderer(context: NativeShellBootstrapContext
       }
       const page = <LibraryScreen key={id} destination={selected.destination} runtime={runtime} directory={directory} libraries={context.libraries()}
         activation={ports.activation(id)} labels={ports.labels} actions={selected.actions} selection={selected.selection} shelfSelection={selected.shelfSelection}
-        owner={context.session()?.viewer.role === 'owner'} mixAnchor={route.destination.anchor === 'mixes'}/>;
+        owner={context.session()?.viewer.role === 'owner'} firstScan={context.session()?.viewer.role === 'owner' ? ownerFirstScan() : undefined} mixAnchor={route.destination.anchor === 'mixes'}/>;
       return tvNaming ? <NativeTVLibrarySurface key={id} library={page} naming={tvNaming} panelId={nativeTVNamingPanelId(context.authority(), id)}/> : page;
     },
     dispose() {if (disposed) return; disposed = true; retireSelected(); pivots.clear(); tvNaming?.dispose(); tvNaming = undefined; directory.dispose();},
