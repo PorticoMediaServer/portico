@@ -133,7 +133,7 @@ func (s *Service) MakeEpisodeThumbnail(ctx context.Context, target RepairTarget,
 	var source EpisodeThumbnailSource
 	runtime := s.EpisodeThumbnails
 	caller := ctx
-	err := s.readWithSnapshot(ctx, func(ctx context.Context) error {
+	err := s.readBeforeMedia(ctx, func(ctx context.Context) error {
 		tx := dbwork.Snapshot(ctx)
 		var err error
 		if err = authorize(tx); err != nil {

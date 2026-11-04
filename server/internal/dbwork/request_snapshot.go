@@ -115,7 +115,8 @@ func (h *requestSnapshot) reuse(ctx context.Context, db *sql.DB, fn func(context
 	}
 	err = fn(withSnapshot(runCtx, tx))
 	cancel()
-	h.release(err != nil)
+	closeAfterRead, _ := ctx.Value(snapshotOnceKey{}).(bool)
+	h.release(err != nil || closeAfterRead)
 	if err != nil {
 		return true, snapshotError(snapshotCtx, snapshotError(runCtx, err))
 	}
@@ -154,16 +155,16 @@ func (h *requestSnapshot) open(ctx context.Context, db *sql.DB) (*sql.Tx, contex
 	return tx, snapshotCtx, nil
 }
 
-// release ends one call's use. A failed call's snapshot is not reused: the
-// failure may have been the snapshot's own deadline.
-func (h *requestSnapshot) release(failed bool) {
+// release ends one call's use. Failed reads and one-shot preparations discard
+// the request snapshot before another call can borrow it.
+func (h *requestSnapshot) release(discard bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.busy = false
 	if h.tx == nil {
 		return
 	}
-	if failed || h.ended {
+	if discard || h.ended {
 		h.closeLocked()
 		return
 	}
