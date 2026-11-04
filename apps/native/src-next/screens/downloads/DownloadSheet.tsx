@@ -22,8 +22,12 @@ import {createNativeDownloadOpening, type NativeDownloadOpening} from './downloa
 import {linkNativeAbortSignals} from '../../platform/abort-signals';
 import {containerDownloadBytes, downloadSheetMeaning, type ContainerDownloadOption} from './download-sheet-facts';
 import {downloadRequestLines} from './presentation';
+import {createDownloadAttempts, isDownloadQualityRequired, type DownloadAttempts} from './download-attempt';
+import {nativeRouteCrypto} from '../../platform/server-connections';
 
-type SheetOpening = NativeDownloadOpening & Readonly<{lease: ReturnType<typeof createNativeDownloadsDevice>; deviceId?: string}>;
+/** `attempts`: this opening's submits; the same choice retried keeps its operation id (identical body), a changed one gets a new id. */
+type SheetOpening = NativeDownloadOpening & Readonly<{lease: ReturnType<typeof createNativeDownloadsDevice>; deviceId?: string; attempts: DownloadAttempts}>;
+const newOperationId = () => 'download_' + Array.from(nativeRouteCrypto.random(16), byte => byte.toString(16).padStart(2, '0')).join('');
 const noSubscribe = (_listener: () => void) => () => {};
 
 /** The phone's drawn download sheet (collections 31a/32a-c): the server's real
@@ -43,7 +47,7 @@ function NativeDownloadSheetBody({context, request}: {context: NativeShellBootst
     const original = createNativeDownloadOpening(context, request);
     if (!original.current()) {original.close(); return;}
     const lease = createNativeDownloadsDevice(context), deviceId = context.session()?.deviceId;
-    const value: SheetOpening = Object.freeze({...original, lease, deviceId});
+    const value: SheetOpening = Object.freeze({...original, lease, deviceId, attempts: createDownloadAttempts(newOperationId)});
     const retire = () => {if (!original.current()) original.close();};
     const closeOnAbort = () => original.close();
     const offs = [context.navigation.subscribe(retire), context.subscribeAuthority(retire), subscribeNativeDownload(retire)];
@@ -55,6 +59,8 @@ function NativeDownloadSheetBody({context, request}: {context: NativeShellBootst
   const [view, setView] = useState<DownloadOptionsView>(), [choices, setChoices] = useState<readonly ContainerDownloadOption[]>(), [policy, setPolicy] = useState<DownloadEpisodes>('all'), [keepNext, setKeepNext] = useState(1);
   const [busy, setBusy] = useState(''), [done, setDone] = useState(''), [error, setError] = useState<unknown>();
   const [acceptedSingle, setAcceptedSingle] = useState(false);
+  // The server asked for a quality (saved as Ask each time): the menu is read again and stays open, never an error.
+  const [menuRead, setMenuRead] = useState(0);
   useSyncExternalStore(opening?.current() ? opening.lease.device.subscribe : noSubscribe,
     () => opening?.current() ? opening.lease.device.getSnapshot() : undefined);
   useEffect(() => {
@@ -75,12 +81,12 @@ function NativeDownloadSheetBody({context, request}: {context: NativeShellBootst
     }
     return () => {abort.abort(); linked.dispose();};
     // The whole-request size follows the chosen policy, so each change reads it again.
-  }, [opening, request, container, deviceId, policy, keepNext]);
+  }, [opening, request, container, deviceId, policy, keepNext, menuRead]);
   const close = () => opening ? opening.close() : closeNativeDownload(request);
   const choose = async (quality: string) => {
     const ticket = opening?.claim();
     if (!opening || !ticket) return;
-    const download = opening.lease, service = download.service;
+    const download = opening.lease, service = download.service, attempts = opening.attempts;
     setBusy(quality); setError(undefined); setAcceptedSingle(false);
     try {
       // Capture this opening before any asynchronous device or server work.
@@ -88,8 +94,10 @@ function NativeDownloadSheetBody({context, request}: {context: NativeShellBootst
       if (!opening.owns(ticket)) return;
       if (container) {
         if (!deviceId) throw Object.assign(new Error('downloads.noDevice'), {code: 'noDevice'});
-        const followed = await service.requestContainer({target: {kind: container.kind, id: container.id, title: request.title}, deviceId, quality,
-          policy: policy === 'next' ? {episodes: policy, keepNext} : {episodes: policy}});
+        const wanted: ContainerDownloadPolicy = policy === 'next' ? {episodes: policy, keepNext} : {episodes: policy};
+        const operationId = attempts.operationFor(JSON.stringify(['container', container.kind, container.id, deviceId, quality, wanted]));
+        const followed = await service.requestContainer({target: {kind: container.kind, id: container.id, title: request.title}, deviceId, quality, policy: wanted, operationId});
+        attempts.settle();
         // A captured membership total is not an accepted-title count. Reuse the
         // request's real preparation progress, including any failed members.
         if (opening.owns(ticket)) setDone(downloadRequestLines(followed).map(line =>
@@ -98,7 +106,8 @@ function NativeDownloadSheetBody({context, request}: {context: NativeShellBootst
         return;
       }
       if (!request.itemId) return;
-      const batch = await service.request({mediaId: request.itemId}, quality);
+      const batch = await service.request({mediaId: request.itemId}, quality, attempts.operationFor(JSON.stringify(['item', request.itemId, quality])));
+      attempts.settle();
       if (!opening.owns(ticket)) return;
       await download.want(batch.items, batch.items[0] ? download.display(batch.items[0]) : undefined, service);
       if (!opening.owns(ticket)) return;
@@ -106,7 +115,14 @@ function NativeDownloadSheetBody({context, request}: {context: NativeShellBootst
       setDone(batch.rejected.length
         ? batch.accepted ? t('downloads.addedMixed', {accepted: batch.accepted, rejected: batch.rejected.length, reason: downloadReasonMessage(batch.rejected[0].code)}) : downloadReasonMessage(batch.rejected[0].code) || t('downloads.nothingAdded')
         : !batch.accepted || batch.duplicate ? batch.items.length ? t('downloads.already') : t('downloads.nothingAdded') : t('downloads.willArrive'));
-    } catch (failure) {if (opening.owns(ticket)) setError(failure);}
+    } catch (failure) {
+      // A refusal that settles the intent retires its id; anything else (no answer, a server error) keeps it, so trying
+      // the same choice again resends the identical body and gets the first answer if it was admitted.
+      const code = (failure as {code?: unknown} | undefined)?.code;
+      if (isDownloadQualityRequired(failure) || code === 'idempotency_key_reused') attempts.settle();
+      if (!opening.owns(ticket)) return;
+      if (isDownloadQualityRequired(failure)) setMenuRead(value => value + 1); else setError(failure);
+    }
     finally {if (opening.owns(ticket)) setBusy(''); opening.release(ticket);}
   };
   const policyRow = (id: DownloadEpisodes, label: string) => <Focusable key={id} testID={`download-policy-${id}`} accessibilityRole="button" accessibilityState={{selected: policy === id}} onPress={() => {if (opening?.current() && !busy) setPolicy(id);}} focusRadius={12}

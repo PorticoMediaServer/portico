@@ -6,6 +6,7 @@ import type {ReadingClient} from '../../../../../packages/client-core/src/readin
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import {nativePublicationReadsAvailable} from '../../../platform/offline-reading';
 import {nativeRouteCrypto} from '../../platform/server-connections';
+import {createDownloadAttempts, type DownloadAttempts} from './download-attempt';
 import {Button, Focusable} from '../../kit/controls';
 import {BottomSheet, Popover, SidePanel} from '../../kit/overlays';
 import {overlayPaintKey, overlayPaintPermit, RetainedOverlay} from '../../kit/overlays/SurfacePaintHost';
@@ -20,7 +21,7 @@ import {linkNativeAbortSignals} from '../../platform/abort-signals';
 import {captureNativeDownloadPaintCurrent} from './download-opening';
 
 type Version = Readonly<{sourceId: string; format: string; size: number; inventoryAvailable: boolean; policy: DownloadOptionsView}>;
-type Opening = {current: () => boolean; paintCurrent: () => boolean; retire: () => void; dispose: () => void; pending: boolean; lease: ReturnType<typeof createNativeDownloadsDevice>; versions: readonly Version[]; abort: AbortController; signal: AbortSignal};
+type Opening = {current: () => boolean; paintCurrent: () => boolean; retire: () => void; dispose: () => void; pending: boolean; attempts: DownloadAttempts; lease: ReturnType<typeof createNativeDownloadsDevice>; versions: readonly Version[]; abort: AbortController; signal: AbortSignal};
 type Family = {retired: boolean; active?: Opening;
   /** Private: the exact context and request this family was constructed for. Reading them here
    * keeps the memo's original keys honest without publishing or comparing them anywhere else. */
@@ -57,7 +58,7 @@ export function NativeReadingDownloadSheet({context, request}: {context: NativeS
     const closeOnRetire = () => {if (getNativeDownloadSnapshot() === request) closeNativeDownload(request);};
     requestLifetime?.signal.addEventListener('abort', closeOnRetire);
     const offAuthority = context.subscribeAuthority(stop), offRoute = context.navigation.subscribe(stop);
-    const opening: Opening = {current, paintCurrent, pending: false, lease, versions: Object.freeze([]), abort, signal,
+    const opening: Opening = {current, paintCurrent, pending: false, attempts: createDownloadAttempts(() => 'reading_' + Array.from(nativeRouteCrypto.random(16), byte => byte.toString(16).padStart(2, '0')).join('')), lease, versions: Object.freeze([]), abort, signal,
       retire: () => {if (!alive) return; alive = false; abort.abort(); linked?.dispose(); requestLifetime?.signal.removeEventListener('abort', closeOnRetire);},
       dispose: () => {opening.retire(); if (disposed) return; disposed = true; offAuthority(); offRoute(); offDevice(); client?.dispose(); lease.dispose();}};
     family.active = opening;
@@ -93,16 +94,21 @@ export function NativeReadingDownloadSheet({context, request}: {context: NativeS
     if (!device.ready || opening.lease.device.admission?.(version.size) || version.size > device.freeBytes || policy.storage.remainingBytes !== null && policy.storage.remainingBytes !== undefined && version.size > policy.storage.remainingBytes) return;
     opening.pending = true; setState(value => value.opening === opening && opening.current() ? {...value, busy: version.sourceId, error: undefined} : value);
     try {
-      const operationId = 'reading_' + Array.from(nativeRouteCrypto.random(16), byte => byte.toString(16).padStart(2, '0')).join('');
+      // The same version tried again resends the identical body under the same id (download-attempt).
+      const operationId = opening.attempts.operationFor(JSON.stringify([request.itemId, version.sourceId, 'original']));
       if (!opening.current()) return;
       const raw = await context.api.request<unknown>('/v1/downloads/preparations', 'POST', {operationId, mediaId: request.itemId, versionId: version.sourceId, quality: 'original'}, opening.signal);
+      opening.attempts.settle();
       if (!opening.current()) return;
       const result = parseDownloadBatch(raw);
       const preparation = result.items.find(value => value.itemId === request.itemId && value.versionId === version.sourceId && value.quality === 'original');
       if (!preparation) throw new Error(result.rejected[0]?.code ?? 'reading_unavailable');
       await opening.lease.wantPublication(preparation, opening.lease.service);
       if (opening.current()) close(opening);
-    } catch (error) {if (opening.current()) setState(value => value.opening === opening && opening.current() ? {...value, error} : value);}
+    } catch (error) {
+      if ((error as {code?: unknown} | undefined)?.code === 'idempotency_key_reused') opening.attempts.settle();
+      if (opening.current()) setState(value => value.opening === opening && opening.current() ? {...value, error} : value);
+    }
     finally {opening.pending = false; if (opening.current()) setState(value => value.opening === opening && opening.current() ? {...value, busy: undefined} : value);}
   };
   const shown: State = state.opening?.current() ? state : {};
