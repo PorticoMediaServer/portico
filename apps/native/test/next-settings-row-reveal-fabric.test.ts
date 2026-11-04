@@ -56,12 +56,15 @@ async function fixture() {
     nodes(h.root).find((n: any)=>n.type==='SettingsSearchResults').props.onNavigate('playback','subtitles'); await h.settle();
   };
   const flash = () => nodes(h.root).find((n: any)=>n.type==='AnimatedView');
-  return {open, flash, settle: () => h.settle(), unmount: () => h.unmount(), get measures() {return measures;}, scrolls};
+  /** The page scroller's native layout (its viewport height). */
+  const viewport = async (height: number) => {nodes(h.root).find((n: any)=>n.type==='ScrollView'&&n.props.onLayout).props.onLayout({nativeEvent:{layout:{x:0,y:0,width:390,height}}}); await h.settle();};
+  return {open, flash, viewport, settle: () => h.settle(), unmount: () => h.unmount(), get measures() {return measures;}, scrolls};
 }
 
 test('the first aimed row is revealed once the page has committed its aim, and a later native layout measures nothing more', async () => {
   const f = await fixture();
   try {
+    await f.viewport(400);
     await f.open(); assert.ok(f.flash());
     f.flash().props.onLayout(); await f.settle();
     assert.equal(f.measures, 1, 'the aimed row is measured once'); assert.equal(f.scrolls.length, 1, 'and scrolled to');
@@ -73,9 +76,26 @@ test('the first aimed row is revealed once the page has committed its aim, and a
 test('a second opening of an already laid-out row is revealed at commit, with no new layout event', async () => {
   const f = await fixture();
   try {
+    await f.viewport(400);
     await f.open(); f.flash().props.onLayout(); await f.settle();
     assert.equal(f.scrolls.length, 1);
     await f.open();
     assert.equal(f.measures, 2, 'the new opening measures its row once its aim is committed'); assert.equal(f.scrolls.length, 2);
+  } finally {await f.unmount();}
+});
+
+// Sol 8 on #823 (r3): on a phone's first opening the page's scroller has just mounted and has no height yet, and Fabric's
+// measureLayout answers at once. The reveal waits for the scroller's first real layout, then centres once.
+test('a first opening waits for the page scroller\'s first measured height, then centres the row once', async () => {
+  const f = await fixture();
+  try {
+    await f.open(); f.flash().props.onLayout(); await f.settle();
+    assert.equal(f.scrolls.length, 0, 'no reveal against a viewport of height zero');
+    await f.viewport(0);
+    assert.equal(f.scrolls.length, 0, 'a zero-height layout is not a viewport yet');
+    await f.viewport(400);
+    assert.deepEqual(f.scrolls, [{y: 820, animated: false}], 'centred in the 400 pt viewport: 1000 - (400 - 40) / 2');
+    await f.viewport(400); f.flash().props.onLayout(); await f.settle();
+    assert.equal(f.measures, 1, 'decided once for the opening'); assert.equal(f.scrolls.length, 1);
   } finally {await f.unmount();}
 });
