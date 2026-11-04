@@ -26,14 +26,79 @@ RULES = [
     # (step 7 item 5): a fence tested against a literal, null or undefined (`typeof raw.viewerFence !== 'string'`), a
     # shape or presence check; a property read through an object named fence (`playback.fence.sessionId`); and a line
     # that keeps its compare on purpose, marked `fence-compare: kept` with the reason (KEPT below).
-    ('fence-compare', set(), re.compile(r'''\b\w*[Ff]ence\b\s*[!=]==(?!\s*(?:['"`]|undefined\b|null\b))|[!=]==\s*[\w.!?]*[Ff]ence\b(?!\??\.)''')),
+    # A template literal with a substitution is not a literal, and a method or optional call on a fence
+    # (`doc.viewerFence.trim()`) is still the fence: only a plain field read through it is spared.
+    ('fence-compare', set(), re.compile(r'''\b\w*[Ff]ence\b\s*[!=]==(?!\s*(?:['"]|`[^`$]*`|undefined\b|null\b))'''
+                                        r'''|[!=]==\s*[\w.!?]*[Ff]ence\b(?!\??\.\w+\b(?!\s*(?:\?\.)?\())''')),
     # §4.1: a screen's document lives in the viewer's query cache, not a per-route memory or seed.
     ('page-memory', set(), re.compile(r'\busePageMemory\(|\bpages\.(?:remember|recall)\(')),
     # §4.7: currency is the cache's to own; no new per-screen lease hooks re-checking it.
     ('lease-layer', set(), re.compile(r'\bfunction\s+use\w*Lease\b')),
 ]
-# A line holding this marker is left out of its rule's count. It must say why on the same line or the line above.
-KEPT = {'fence-compare': 'fence-compare: kept'}
+# A compare kept on purpose carries `// fence-compare: kept (reason)` as a real line comment on its own line, with a
+# non-empty reason. The marker spares exactly one match on that line: a second compare there still counts. The text
+# inside a string or template, or without a reason, spares nothing, and neither does a marker on the line above.
+KEPT = {'fence-compare': re.compile(r'^//\s*fence-compare: kept \(\S[^)]*\)')}
+
+
+def line_comments(text):
+    """The line numbers (0-based) whose `//` comment, outside any string, template or block comment, is returned
+    with it: {line: comment text}. A rough scanner: enough for the marker, not a JavaScript parser."""
+    found, line, i, n = {}, 0, 0, len(text)
+    stack = []  # open quotes: "'", '"', '`', or '{' for a `${` substitution inside a template
+    while i < n:
+        c = text[i]
+        if c == '\n':
+            line += 1
+        top = stack[-1] if stack else None
+        if top in ("'", '"'):
+            if c == '\\':
+                i += 2
+                continue
+            if c == top or c == '\n':
+                stack.pop()
+        elif top == '`':
+            if c == '\\':
+                i += 2
+                continue
+            if c == '`':
+                stack.pop()
+            elif text.startswith('${', i):
+                stack.append('{')
+                i += 2
+                continue
+        else:
+            if text.startswith('//', i):
+                end = text.find('\n', i)
+                end = n if end < 0 else end
+                found[line] = text[i:end]
+                i = end
+                continue
+            if text.startswith('/*', i):
+                end = text.find('*/', i + 2)
+                end = n if end < 0 else end + 2
+                line += text.count('\n', i, end)
+                i = end
+                continue
+            if c in ('"', "'", '`'):
+                stack.append(c)
+            elif c == '{' and top == '{':
+                stack.append('{')
+            elif c == '}' and top == '{':
+                stack.pop()
+        i += 1
+    return found
+
+
+def count(pattern, text, marker=None):
+    matches = [text.count('\n', 0, m.start()) for m in pattern.finditer(text)]
+    if marker is None or not matches:
+        return len(matches)
+    spared = {line for line, comment in line_comments(text).items() if marker.match(comment)}
+    for line in spared:
+        if line in matches:
+            matches.remove(line)
+    return len(matches)
 GUIDE = {
     'token-compare': 'compare sign-ins with compareSessionAuthority (packages/client-core/src/session-authority.ts)',
     'set-interval': 'poll with repeat() from packages/client-core/src/timer.ts',
@@ -58,8 +123,7 @@ def counts(paths, read=lambda p: (ROOT / p).read_text(encoding='utf-8', errors='
         for rule, allowed, pattern in RULES:
             if path in allowed:
                 continue
-            marker = KEPT.get(rule)
-            n = len(pattern.findall(text if marker is None else '\n'.join(line for line in text.splitlines() if marker not in line)))
+            n = count(pattern, text, KEPT.get(rule))
             if n:
                 found.setdefault(rule, {})[path] = n
     return found

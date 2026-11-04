@@ -45,6 +45,41 @@ class EngineeringRuleTests(unittest.TestCase):
                         '// fence-compare: kept (a reason on another line exempts nothing)\nif (fence === held.fence) return;']:
             self.assertEqual(self.found(counted), {'fence-compare': {'web/src/x.ts': 1}}, counted)
 
+    def test_fence_compare_narrowing_keeps_a_call_or_a_template_on_a_fence(self):
+        # A method or optional call on a fence, or a template built from one, is still a fence compare.
+        for counted in ['if (current !== doc.viewerFence.trim()) return;',
+                        'if (current !== doc.viewerFence?.toString()) return;',
+                        'if (current !== doc.viewerFence?.toString?.()) return;',
+                        'if (viewerFence !== `${held.viewerFence}`) return;']:
+            self.assertEqual(self.found(counted), {'fence-compare': {'web/src/x.ts': 1}}, counted)
+        # A field read through a playback fence and a template with no substitution stay spared.
+        for spared in ['if (id === previous.fence.playback.scope.serverId) return;',
+                       'if (fence === `none`) return;']:
+            self.assertEqual(self.found(spared), {}, spared)
+
+    def test_the_kept_marker_is_a_line_comment_with_a_reason_that_spares_one_compare(self):
+        one = {'fence-compare': {'web/src/x.ts': 1}}
+        # No reason, an empty reason, or no parentheses: nothing is spared.
+        for unreasoned in ['if (fence === held.fence) return; // fence-compare: kept',
+                           'if (fence === held.fence) return; // fence-compare: kept ()',
+                           'if (fence === held.fence) return; // fence-compare: kept ( )',
+                           'if (fence === held.fence) return; // fence-compare: kept because same answer']:
+            self.assertEqual(self.found(unreasoned), one, unreasoned)
+        # The marker text inside a string, a template or a block comment is not a marker.
+        for quoted in ["const tag = 'fence-compare: kept (x)'; if (fence === held.fence) return;",
+                       'const tag = "// fence-compare: kept (x)"; if (fence === held.fence) return;',
+                       'const tag = `// fence-compare: kept (x)`; if (fence === held.fence) return;',
+                       'const tag = `a\n// fence-compare: kept (x)`; if (fence === held.fence) return;',
+                       'if (fence === held.fence) return; /* fence-compare: kept (x) */',
+                       "if (fence === held.fence) return; const s = 'it\\'s // fence-compare: kept (x)';"]:
+            self.assertEqual(self.found(quoted), one, quoted)
+        # A real comment after a string that holds quotes and a template substitution still counts as the marker.
+        self.assertEqual(self.found("const s = `${a['b']}`; if (fence === held.fence) return; // fence-compare: kept (same answer)"), {})
+        # One marker spares one compare: the second on its line still counts.
+        self.assertEqual(self.found('a.viewerFence === b.viewerFence && c.viewerFence !== d.viewerFence // fence-compare: kept (first one only)'), one)
+        # It spares its own line only, wherever the compares sit in the file.
+        self.assertEqual(self.found('if (fence === held.fence) a(); // fence-compare: kept (same answer)\nif (fence === other.fence) b();'), one)
+
     def test_authorized_home_is_kept_on_purpose_and_only_by_its_marker(self):
         path = 'apps/native/src-next/screens/home/model.ts'
         source = (BASELINE.parent.parent / path).read_text(encoding='utf-8')
