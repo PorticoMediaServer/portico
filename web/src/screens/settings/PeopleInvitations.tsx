@@ -184,7 +184,7 @@ function InvitationTable({view, invitations, serverName, signIn, libraries, auth
     <SettingsGroup title={t(group.title!)} plain actions={openInvite && <Button size="small" variant="primary" icon="i-plus" iconSize={20}
       onClick={event => {if (view.scopeCurrent(scope)) openInvite(event.currentTarget);}}>{t(model.addLabel!)}</Button>}>
     {error && !page ? <SettingsPageFailure retry={() => {if (view.scopeCurrent(scope)) {view.retireScope(scope);setRefresh(value => value + 1);}}}
-      home={() => {if (view.scopeCurrent(scope)) openHome();}} /> : <SettingsTable height={model.height}
+      home={() => {if (view.scopeCurrent(scope)) openHome();}} /> : <SettingsTable phoneCards={{rowHeight: 156, actionsLine: true}} height={model.height}
       label={t(group.title!)} rows={rows}
       columns={model.columns!.map(column => ({id: column.id!, label: t(column.label), kind: column.kind as 'main' | 'text' | 'muted' | 'badge' | 'num' | undefined, sortable: column.sort && (column.id === 'sent' || column.id === 'status'), width: column.width}))}
       query={query} onQueryChange={next => {if (view.scopeCurrent(scope)) {view.retireScope(scope);setQuery(Object.freeze({search: next.search, filters: Object.freeze({...next.filters}), sort: Object.freeze({...next.sort})}));}}}
