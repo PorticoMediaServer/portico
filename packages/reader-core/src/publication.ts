@@ -130,7 +130,8 @@ export async function createReadingPublication(session:ReaderSessionInput,caller
           hits:Object.freeze(page.hits.map(hit=>Object.freeze({sectionPath:hit.sectionPath,sectionIndex:hit.sectionIndex,utf16Offset:hit.utf16Offset,excerpt:hit.excerpt,matchStart:hit.matchStart,matchLength:hit.matchLength}))),
           ...(page.next===undefined?{}:{next:page.next})});
       }:undefined;
-      source=Object.freeze({id,revision,size,contents,
+      // RD-5: the server's EPUB size bounds travel with the source so every reader check uses them.
+      source=Object.freeze({id,revision,size,contents,...(manifest.limits?{limits:Object.freeze({memberBytes:manifest.limits.memberBytes,totalBytes:manifest.limits.totalBytes})}:{}),
         ...(indexed?{spine,indexedSearch}:{}),
         resources:Object.freeze({entries,async read(path:string,taskSignal:AbortSignal) {
         const entry=entries.find(entry=>entry.path===path);if(!entry)throw new ReaderError('invalid_source');

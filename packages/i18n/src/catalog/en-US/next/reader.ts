@@ -1,6 +1,8 @@
 /** Reader controls from desktop-read 6/7, phone-read 6 and tablet-read 6b. */
 export const readerMessages = {
   'next.reader.exportHighlights': 'Export highlights',
+  'next.reader.publicationTooLargeTitle': 'This book is too large to open',
+  'next.reader.publicationTooLargeBody': 'The reader can’t open a book this size. It’s still in your library.',
   'next.reader.saveFile': 'Save file',
   'next.reader.addToCollection': 'Add to a collection',
   'next.reader.markRead': 'Mark as read',

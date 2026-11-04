@@ -4,6 +4,7 @@ import type {ReaderSource} from '../ports.ts';
 import {readRange} from '../source.ts';
 import {ReaderError, throwIfAborted} from '../errors.ts';
 import {abortScope} from '../abort.ts';
+import {epubLimits} from './limits.ts';
 
 export type EpubAsset = Readonly<{path: string; size: number; mime?: string}>;
 export interface EpubAssets {
@@ -11,7 +12,7 @@ export interface EpubAssets {
   read(path: string, signal: AbortSignal): Promise<Uint8Array>;
   dispose(): void | Promise<void>;
 }
-const MAX_ENTRIES = 4096, MAX_ENTRY = 16 * 1024 * 1024, MAX_TOTAL = 256 * 1024 * 1024;
+const MAX_ENTRIES = 4096;
 export function safeArchivePath(path: string): string {
   if (!path || path.length > 1024 || /[\\\x00-\x1f%?#:]/.test(path) || path.startsWith('/')
     || path.split('/').some(part => part === '.' || part === '..' || !part)) throw new ReaderError('invalid_book');
@@ -42,6 +43,7 @@ async function checkDirectory(source: ReaderSource, signal: AbortSignal) {
   throw new ReaderError('invalid_book');
 }
 export async function openEpubArchive(source: ReaderSource, parent: AbortSignal): Promise<EpubAssets> {
+  const limits = epubLimits(source.limits);
   const abort = new AbortController(), scope=abortScope([parent, abort.signal]), signal=scope.signal;
   try{await checkDirectory(source, signal);}catch(error){releaseQuietly('epub archive scope dispose',()=>scope.dispose());throw error;}
   const reader=new RangeReader(source,signal);
@@ -55,8 +57,8 @@ export async function openEpubArchive(source: ReaderSource, parent: AbortSignal)
       const attributes = entry.externalFileAttributes >>> 16;
       if (entries.has(name) || (attributes & 0xf000) === 0xa000) throw new ReaderError('invalid_book');
       if (entry.encrypted) throw new ReaderError('protected');
-      if (entry.uncompressedSize > MAX_ENTRY || entry.compressedSize > MAX_ENTRY || entry.uncompressedSize > Math.max(1,entry.compressedSize)*200
-        || (total += entry.uncompressedSize) > MAX_TOTAL || entries.size >= MAX_ENTRIES) throw new ReaderError('limit_exceeded');
+      if (entry.uncompressedSize > limits.memberBytes || entry.compressedSize > limits.memberBytes || entry.uncompressedSize > Math.max(1,entry.compressedSize)*200
+        || (total += entry.uncompressedSize) > limits.totalBytes || entries.size >= MAX_ENTRIES) throw new ReaderError('limit_exceeded');
       entries.set(name, entry as FileEntry);
     }
     if (!entries.has('mimetype') || !entries.has('META-INF/container.xml')) throw new ReaderError('invalid_book');
@@ -79,7 +81,7 @@ export async function openEpubArchive(source: ReaderSource, parent: AbortSignal)
           const chunks: Uint8Array[] = []; let size = 0;
           const sink = new WritableStream<Uint8Array>({write(chunk) {
             throwIfAborted(readSignal); size += chunk.length;
-            if (size > MAX_ENTRY || size > entry.uncompressedSize) throw new ReaderError('limit_exceeded');
+            if (size > limits.memberBytes || size > entry.uncompressedSize) throw new ReaderError('limit_exceeded');
             chunks.push(chunk.slice());
           }});
           reader.setSignal(readSignal);

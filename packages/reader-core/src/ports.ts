@@ -14,6 +14,8 @@ export interface ReaderSource {
   readonly revision: string;
   readonly size: number;
   readonly resources?: ReaderResources;
+  /** RD-5: the server's EPUB size bounds from this source's manifest; local files have none. */
+  readonly limits?: Readonly<{memberBytes: number; totalBytes: number}>;
   /** Captured manifest entries for this source, never caller-supplied URLs. */
   readonly contents?: readonly ReaderContentsEntry[];
   /** Captured manifest spine order, required only for optional indexed search. */

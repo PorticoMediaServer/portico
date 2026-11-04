@@ -1,4 +1,5 @@
 import DOMPurify from 'dompurify';
+import {EPUB_LIMITS} from './limits.ts';
 import {ReaderError} from '../errors.ts';
 
 // A blob inherits the app's origin. Foliate requires same-origin DOM access,
@@ -51,8 +52,8 @@ function localImports(raw:string,transformed:boolean):string[] {
  * (including escape normalization), then retain only non-network declarations.
  * Local imports are retained separately for the bounded publication rewriter.
  * CSP independently blocks resources if a future CSS feature is introduced. */
-export function secureCss(raw:string,transformed=false):string {
-  if(raw.length>16*1024*1024)throw new ReaderError('limit_exceeded');
+export function secureCss(raw:string,transformed=false,maxLength=EPUB_LIMITS.memberBytes):string {
+  if(raw.length>maxLength)throw new ReaderError('limit_exceeded');
   const sheet=new CSSStyleSheet();sheet.replaceSync(raw);
   function clean(rules:CSSRuleList) {
     for(const rule of Array.from(rules)) {
@@ -62,8 +63,8 @@ export function secureCss(raw:string,transformed=false):string {
   }
   clean(sheet.cssRules);return [...localImports(raw,transformed),...Array.from(sheet.cssRules,r=>r.cssText)].join('\n');
 }
-export function secureMarkup(raw: string, mime: 'application/xhtml+xml' | 'text/html' | 'image/svg+xml', transformed = false): string {
-  if (raw.length > 16*1024*1024 || /<!\s*(?:DOCTYPE|ENTITY)\b/i.test(raw.replace(/<!DOCTYPE\s+html\s*>/i,''))) throw new ReaderError('invalid_book');
+export function secureMarkup(raw: string, mime: 'application/xhtml+xml' | 'text/html' | 'image/svg+xml', transformed = false, maxLength = EPUB_LIMITS.memberBytes): string {
+  if (raw.length > maxLength || /<!\s*(?:DOCTYPE|ENTITY)\b/i.test(raw.replace(/<!DOCTYPE\s+html\s*>/i,''))) throw new ReaderError('invalid_book');
   // Always parse XML first: unlike text/html, inert XML parsing cannot initiate
   // img/iframe loads. DOMPurify then handles namespaces and mutation-XSS.
   const doc = new DOMParser().parseFromString(raw, mime === 'text/html' ? 'application/xhtml+xml' : mime);
