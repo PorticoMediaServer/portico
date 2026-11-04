@@ -1,6 +1,8 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createDashboardBindings, type DashboardBindingOptions} from '../src/screens/dashboard/bindings.ts';
+import {FreshnessHub} from '../../packages/client-core/src/freshness-hub.ts';
+import {createViewerQueries, type ViewerQueries} from '../../packages/client-core/src/query/viewer-queries.ts';
 import {captureReportContext} from '../../packages/client-core/src/report-context.ts';
 import {METRIC_NAMES} from '../../packages/client-core/src/telemetry.ts';
 const context = captureReportContext('UTC', Date.UTC(2026, 9, 22, 12, 17, 31));
@@ -147,4 +149,62 @@ test('Dashboard actual session/history GETs share resync admission and queued re
     assert.equal(requests, 0);
     release(); await Promise.all(occupied); await pending; assert.equal(requests, 1);
   } finally {release(); b.dispose(); events.resyncReads.dispose();}
+});
+test('a moved viewer fence on a later session read answers and retires nothing; another server still ends the lifetime', async () => {
+  let reads = 0, changed = 0;
+  const b = createDashboardBindings(options({api: {...options().api, requestRaw: async () => ({status: 200, headers: {}, body: {...page(), scope: {serverId: 'server', viewerFence: (reads++ ? 'b' : 'a').repeat(64)}}})}}));
+  b.subscribeAuthority!(() => changed++);
+  await b.read.sessions(); const moved = await b.read.sessions();
+  assert.equal(moved.scope.viewerFence, 'b'.repeat(64)); assert.equal(b.isCurrent(), true); assert.equal(changed, 0); b.dispose();
+  let n = 0; const other = createDashboardBindings(options({api: {...options().api, requestRaw: async () => ({status: 200, headers: {}, body: {...page(), scope: {serverId: n++ ? 'wrong' : 'server', viewerFence: 'a'.repeat(64)}}})}}));
+  await other.read.sessions(); await assert.rejects(other.read.sessions()); assert.equal(other.isCurrent(), false); other.dispose();
+});
+
+// Client data step 6: the Dashboard's status, report and first page of plays are read through the viewer's cache.
+const status = () => ({alerts: [], observedAt: '2026-10-22T12:00:00Z', scans: [], tasks: {count: 0, items: []}});
+function cached() {
+  const paths: string[] = []; let body: unknown = emptyHistory(), fail: unknown;
+  const hub = new FreshnessHub({settleMs: 0});
+  const queries: ViewerQueries = createViewerQueries({scope: {serverId: 'server', viewerId: 'viewer'}, hub, api: {request: async () => { throw new Error('unused'); }}, gcTimeMs: Infinity});
+  const open = () => createDashboardBindings(options({queries, api: {...options().api, request: async path => {paths.push(path); if (fail) throw fail; return (path.includes('/status') ? status() : path.includes('/report') ? report() : body) as never;}}}));
+  return {paths, hub, queries, open, set: (next: unknown) => {body = next;}, refuse: (error: unknown) => {fail = error;}};
+}
+test('a Dashboard opened again shows its status, report and first page of plays at once; a later read, a hint or a write here asks the server', async () => {
+  const c = cached(); const first = c.open();
+  await first.read.status(undefined, false); await first.read.report(reportQuery, undefined, false); await first.read.plays({period: 'all'}, undefined, undefined, false);
+  assert.equal(c.paths.length, 3); first.dispose();
+  const again = c.open();
+  await again.read.status(undefined, false); await again.read.report(reportQuery, undefined, false); await again.read.plays({period: 'all'}, undefined, undefined, false);
+  assert.equal(c.paths.length, 3, 'a reopened Dashboard reads nothing while the copies are current');
+  await again.read.status(); assert.equal(c.paths.length, 4, 'a poll or an event asks the server');
+  c.hub.accept({id: 'e1', type: 'playback.history', revision: '1'} as never);
+  await again.read.plays({period: 'all'}, undefined, undefined, false); assert.equal(c.paths.length, 5, 'a hint makes the held page owed');
+  await again.read.plays({period: 'all'}, undefined, undefined, false); assert.equal(c.paths.length, 5);
+  await again.read.plays({period: 'all'}, 'cursor', undefined, false); assert.equal(c.paths.length, 6, 'a later page is a direct read');
+  await again.read.plays({period: 'all'}, 'cursor', undefined, false); assert.equal(c.paths.length, 7, 'and never held');
+  c.queries.moved([]); again.dispose();
+});
+test('two Dashboards of one viewer share one read; another range or sort is its own document', async () => {
+  const c = cached(); const a = c.open(), b = c.open();
+  await Promise.all([a.read.plays({period: 'all'}, undefined, undefined, false), b.read.plays({period: 'all'}, undefined, undefined, false)]);
+  assert.equal(c.paths.length, 1);
+  await a.read.plays({period: 'all', sort: 'watched', direction: 'asc'}, undefined, undefined, false); assert.equal(c.paths.length, 2);
+  await a.read.plays({period: '7d'} as never, undefined, undefined, false).catch(() => undefined); assert.equal(c.paths.length, 3);
+  a.dispose(); b.dispose();
+});
+test('a refused read shows no held copy: the 403 still ends the Dashboard and reaches the page', async () => {
+  const c = cached(); const reported: unknown[] = [];
+  const first = c.open(); await first.read.status(undefined, false); first.dispose();
+  c.refuse({status: 403, code: 'forbidden'});
+  const refused = createDashboardBindings({...options(), queries: c.queries, effects: {...options().effects, reportError: error => {reported.push(error);}}, api: {...options().api, request: async () => {throw {status: 403, code: 'forbidden'};}}});
+  await assert.rejects(refused.read.status());
+  assert.equal(refused.isCurrent(), false); assert.deepEqual(reported, [{status: 403, code: 'forbidden'}]);
+  refused.dispose();
+});
+test('stopping a session here marks what the Dashboard was built from owed', async () => {
+  const c = cached(); const b = createDashboardBindings(options({queries: c.queries, api: {...options().api, request: async path => {c.paths.push(path); return status() as never;}, requestRaw: async () => ({status: 204, headers: {}, body: undefined})}}));
+  await b.read.status(undefined, false); await b.read.status(undefined, false); assert.equal(c.paths.length, 1);
+  await b.effects.stop('session');
+  await b.read.status(undefined, false); assert.equal(c.paths.length, 2, 'the held status is read again');
+  b.dispose();
 });

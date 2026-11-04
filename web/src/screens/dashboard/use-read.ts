@@ -7,12 +7,12 @@ const accountChanges = ['playback.history', 'stream.resync'];
 /** One read in flight, cancellation and identity fence on every completion. Events coalesce.
  * Layout cleanup withdraws the original loader before a new range/owner commits;
  * a held old response cannot publish or report through the passive-cleanup gap. */
-export function useDashboardRead<T>(bindings: DashboardBindings, load: (signal: AbortSignal) => Promise<T>, enabled: boolean, everyMs = 0, changes: readonly string[] = defaultChanges) {
+export function useDashboardRead<T>(bindings: DashboardBindings, load: (signal: AbortSignal, fresh: boolean) => Promise<T>, enabled: boolean, everyMs = 0, changes: readonly string[] = defaultChanges) {
   const [version, setVersion] = useState(0), [state, setState] = useState<ReadState<T> & {loader?: typeof load}>({loading: true, failed: false});
   const refresh = useCallback(() => setVersion(v => v + 1), []);
   useLayoutEffect(() => {
     if (!enabled || !bindings.isCurrent()) return;
-    const controller = new AbortController(); let flight: Promise<void> | undefined, queued = false, lastError: unknown;
+    const controller = new AbortController(); let flight: Promise<void> | undefined, queued = false, lastError: unknown, first = true;
     setState(previous => previous.loader === load ? {...previous, loading: true, failed: false} : {loader: load, loading: true, failed: false});
     const read = (): Promise<void> => {
       if (flight) {queued = true; return flight;}
@@ -21,7 +21,9 @@ export function useDashboardRead<T>(bindings: DashboardBindings, load: (signal: 
         do {
           queued = false; lastError = undefined;
           if (controller.signal.aborted || !bindings.isCurrent() || document.hidden) return;
-          try {const value = await load(controller.signal); if (!controller.signal.aborted && bindings.isCurrent()) setState({loader: load, value, loading: false, failed: false});}
+          // The first read of a mount may be answered by the viewer's held copy; every later one (an event, a poll, a retry) asks the server.
+          const fresh = !first; first = false;
+          try {const value = await load(controller.signal, fresh); if (!controller.signal.aborted && bindings.isCurrent()) setState({loader: load, value, loading: false, failed: false});}
           catch (error) {lastError = error; if (!controller.signal.aborted && bindings.isCurrent()) {setState({loader: load, loading: false, failed: true}); bindings.effects.reportError(error);}}
         } while (queued);
       }).finally(() => {flight = undefined;});

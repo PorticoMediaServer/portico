@@ -40,3 +40,10 @@ test('a quiet re-read shows a mount that changed by itself without clearing the 
  // Nothing is read while a command's outcome is unknown, or before the first load.
  fail=false;const idle=service(async()=>{throw new Error('must not be read');});await idle.revalidate();assert.equal(idle.getSnapshot().phase,'idle');idle.dispose();s.dispose();
 });
+test('a moved viewer fence on a list or a receipt answers and retires nothing; another server still ends it',async()=>{
+ let fence='fence';const s=service(async(_p,m)=>m==='POST'?receipt({scope:{...wire,viewerFence:fence}}):{...list(),scope:{...wire,viewerFence:fence}});
+ await s.load();fence='moved';await s.load();assert.equal(s.getSnapshot().phase,'ready');assert.equal(s.getSnapshot().data!.mounts.length,1);
+ await s.act('mount','start',1);assert.equal(s.getSnapshot().mutation.phase,'accepted');assert.equal(s.getSnapshot().phase,'ready');
+ const other=service(async()=>({...list(),scope:{serverId:'other',viewerFence:'fence'}}));await other.load();assert.equal(other.getSnapshot().phase,'error');assert.equal(other.getSnapshot().data,null);
+ s.dispose();other.dispose();
+});

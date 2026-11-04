@@ -7,6 +7,9 @@ import {decodeGetAdminDashboardStatusResponse,decodeGetAdminPlayHistoryDashboard
 import type {GetAdminDashboardStatusResponse,GetAdminPlayHistoryDashboardResponse,GetAdminPlayHistoryPeopleResponse} from '../../../contracts/src/types.ts';
 import {routePath} from '../../../contracts/src/route-paths.ts';
 import type {PlayHistoryApi,PlayHistoryFilters} from '../play-history.ts';
+import {dependsOn} from '../freshness-hub.ts';
+import {queryKeys} from '../query/keys.ts';
+import type {ViewerQueryOptions} from '../query/react.ts';
 
 /** Owner analytics are separate from administrator People management. */
 export type DashboardStatus=GetAdminDashboardStatusResponse;
@@ -115,4 +118,16 @@ export class DashboardDataClient {
   const q=query(filters);q.set('topKind',topKind);
   const out=parseDashboardHistory(await this.api.request(routePath('get_admin_play_history_dashboard')+'?'+q,'GET',undefined,signal));verifyReportInterval(out,filters,filters.period);return out;
  }
+}
+
+/** What the Dashboard's status and report are built from: sessions, jobs, scans and history the server hints about. */
+const statusMoved=['admin.sessions','job.updated','library.scan.updated','operation.updated','server.updated'].map(type=>dependsOn.event(type));
+const reportMoved=['playback.history','session.updated'].map(type=>dependsOn.event(type));
+/** The Dashboard's status (alerts and tasks) in the viewer's cache. */
+export function dashboardStatusQuery(client:Pick<DashboardDataClient,'status'>):ViewerQueryOptions<DashboardStatus>{
+ return {queryKey:queryKeys.adminDashboardStatus(),queryFn:({signal})=>client.status(signal),meta:{dependencies:statusMoved}};
+}
+/** The Dashboard's report for one set of filters, which carry the interval (time zone and end) it was captured for. */
+export function dashboardReportQuery(client:Pick<DashboardDataClient,'report'>,filters:DashboardReportFilters):ViewerQueryOptions<DashboardReport>{
+ return {queryKey:queryKeys.adminDashboardReport(filters),queryFn:({signal})=>client.report(filters,signal),meta:{dependencies:reportMoved}};
 }
