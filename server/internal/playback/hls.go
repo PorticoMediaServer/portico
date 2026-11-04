@@ -309,6 +309,7 @@ func (h *HLS) startGeneration(ctx context.Context, id string, from, expected int
 			return nil
 		}
 		window.relocating = true
+		h.retireOccurrenceWritesLocked(id, window.run)
 		window.cancel()
 		h.cancelOccurrenceRenditionsLocked(id, window.run)
 		h.mu.Unlock()

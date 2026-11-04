@@ -39,6 +39,7 @@ type occurrenceIntent struct {
 }
 type occurrenceRun struct {
 	spillCancelled bool // guarded by HLS.mu; only this run was cancelled for spill
+	writesRetired  bool // guarded by occurrenceRegistry.mu; physical ownership may remain
 	generation     int
 	requestID      string
 	itemID         int64
@@ -135,6 +136,24 @@ func (r *occurrenceRegistry) ownsRun(id string, entry *occurrenceEntry, run *occ
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.entries[id] != entry || entry.committed {
+		return false
+	}
+	_, owned := entry.runs[run]
+	return owned
+}
+
+// Retiring write admission does not discard registered IO or its physical join.
+// Writes already accepted by SQL finish before the old producer is joined.
+func (r *occurrenceRegistry) retireWrites(run *occurrenceRun) {
+	r.mu.Lock()
+	run.writesRetired = true
+	r.mu.Unlock()
+}
+
+func (r *occurrenceRegistry) canWrite(id string, entry *occurrenceEntry, run *occurrenceRun) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if entry == nil || run == nil || r.entries[id] != entry || entry.committed || run.writesRetired {
 		return false
 	}
 	_, owned := entry.runs[run]

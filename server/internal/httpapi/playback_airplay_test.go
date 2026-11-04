@@ -85,6 +85,15 @@ func TestAirPlayReceiverPreparesExactCurrentChoicesBeforeHandoff(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping measured slow test in short mode")
 	}
+	airPlayReceiverChoicesBeforeHandoff(t, false)
+}
+
+func TestAirPlayReceiverSeekToStartDuringBurnHandoff(t *testing.T) {
+	airPlayReceiverChoicesBeforeHandoff(t, true)
+}
+
+func airPlayReceiverChoicesBeforeHandoff(t *testing.T, seekStart bool) {
+	t.Helper()
 	f, drawn := airPlayRuntimeFixture(t)
 	if _, err := f.db.Exec(`UPDATE playback_owner_policy SET transcoding_enabled=1`); err != nil {
 		t.Fatal(err)
@@ -134,6 +143,16 @@ func TestAirPlayReceiverPreparesExactCurrentChoicesBeforeHandoff(t *testing.T) {
 		endpoint := "/v1/playback/sessions/" + local.ID + "/receivers/airplay"
 		body := playbackv1.AirPlayPrepare{Generation: local.Presentation.Generation, ChoiceRevision: local.Presentation.ChoiceRevision, PositionMs: 17000}
 		f.call("POST", endpoint, nil, body, 200, &prepared)
+		if seekStart && track == drawn {
+			// A receiver can request the beginning while its 17-second burn
+			// window is still opening. This is real HTTP demand, not Ready(0).
+			t.Logf("handoff seek starts with %d active conversions", f.v1.Playback.Conversions().Active)
+			firstURL := strings.TrimSuffix(prepared.Presentation.URL, "master.m3u8") + "segment-000000.ts"
+			first := airPlayReceiverFile(f, firstURL)
+			if first.Code != 200 || first.Body.Len() == 0 {
+				t.Fatalf("receiver seek to start: %d %s", first.Code, first.Body.String())
+			}
+		}
 		if prepared.Presentation.AudioTrackID != local.Presentation.AudioTrackID {
 			t.Fatalf("receiver changed audio: %s -> %s", local.Presentation.AudioTrackID, prepared.Presentation.AudioTrackID)
 		}

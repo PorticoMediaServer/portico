@@ -72,7 +72,7 @@ func (h *HLS) producerWrite(ctx context.Context, id string, class dbwork.Class, 
 	if owner.id != id {
 		return nil, errOccurrenceClaimed
 	}
-	if !owner.registry.ownsRun(id, owner.entry, owner.run) {
+	if !owner.registry.canWrite(id, owner.entry, owner.run) {
 		return nil, errOccurrenceClaimed
 	}
 	var result sql.Result
@@ -82,7 +82,7 @@ func (h *HLS) producerWrite(ctx context.Context, id string, class dbwork.Class, 
 		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM playback_sessions WHERE id=? AND generation=? AND request_id=? AND item_id=? AND asset_id=? AND state NOT IN ('stopped','ended'))`, id, run.generation, run.requestID, run.itemID, run.assetID).Scan(&live); err != nil {
 			return err
 		}
-		if !live {
+		if !live || !owner.registry.canWrite(id, owner.entry, run) {
 			return errOccurrenceClaimed
 		}
 		var err error
@@ -90,6 +90,20 @@ func (h *HLS) producerWrite(ctx context.Context, id string, class dbwork.Class, 
 		return err
 	})
 	return result, err
+}
+
+// Caller holds h.mu. Retire the exact primary and its child writers before
+// cancellation; their registered IO remains owned until each run is Done.
+func (h *HLS) retireOccurrenceWritesLocked(id string, parent *occurrenceRun) {
+	if parent == nil || h.activeRuns[id] != parent {
+		return
+	}
+	for key, run := range h.activeRuns {
+		if producerSession(key) == id && run != nil && run.generation == parent.generation &&
+			run.requestID == parent.requestID && run.itemID == parent.itemID && run.assetID == parent.assetID {
+			h.occurrences.retireWrites(run)
+		}
+	}
 }
 
 // Called only under h.mu; a late old defer may remove only its exact slot.
