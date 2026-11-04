@@ -14,22 +14,22 @@ cg=$(awk -F: '$1=="0" {print $3}' /proc/self/cgroup)
  done
 } > "$out/host-$stage.txt"
 if [ "$stage" = frames ]; then
-  "$RUNNER_TEMP/p0-s-full" --ddl research/p0-s/full-09a972.sql --db "$out/full.db" --out "$out" --seed 1000 --normal --write-only --frames
+  "$RUNNER_TEMP/p0-s-full" --ddl research/p0-s/full-42605a.sql --db "$out/full.db" --out "$out" --seed 1000 --normal --write-only --frames
   exit
 fi
 if [ "$stage" = facets ]; then
-  "$RUNNER_TEMP/p0-s-full" --ddl research/p0-s/full-09a972.sql --db "$out/full.db" --out "$out" --seed "$size" --normal --write-only --facets
+  "$RUNNER_TEMP/p0-s-full" --ddl research/p0-s/full-42605a.sql --db "$out/full.db" --out "$out" --seed "$size" --normal --write-only --facets
   exit
 fi
 if [ "$stage" = normal ]; then
-  "$RUNNER_TEMP/p0-s-full" --ddl research/p0-s/full-09a972.sql --db "$out/full.db" --out "$out" --seed 1000000 --normal --write-only
+  "$RUNNER_TEMP/p0-s-full" --ddl research/p0-s/full-42605a.sql --db "$out/full.db" --out "$out" --seed 1000000 --normal --write-only
   exit
 fi
 if [ "$stage" = widthpair ]; then
-  for ddl in full-280f03.sql full-09a972.sql; do
+  for ddl in full-09a972.sql full-42605a.sql; do
     sub="$out/${ddl%.sql}"
     mkdir -p "$sub"
-    "$RUNNER_TEMP/p0-s-full" --ddl "research/p0-s/$ddl" --db "$sub/full.db" --out "$sub" --seed 1000000
+    "$RUNNER_TEMP/p0-s-full" --ddl "research/p0-s/$ddl" --db "$sub/full.db" --out "$sub" --seed 1000000 --normal --browse-only
     python3 - "$sub" <<'PYCODE'
 import pathlib,sys
 p=pathlib.Path(sys.argv[1])
@@ -52,7 +52,7 @@ PYCODE
   exit
 fi
 if [ "$stage" = full ]; then
-  "$RUNNER_TEMP/p0-s-full" --ddl "research/p0-s/$TARGET_DDL" --db "$out/full.db" --out "$out" --seed 1000000
+  "$RUNNER_TEMP/p0-s-full" --ddl "research/p0-s/$TARGET_DDL" --db "$out/full.db" --out "$out" --seed 1000 --normal --gates
   exit
 fi
 if [ "$stage" = selected ]; then
