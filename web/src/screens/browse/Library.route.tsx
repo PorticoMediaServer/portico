@@ -6,7 +6,6 @@ import {subscribeFacts} from '../../shell/fact-source';
 import {useGuardedLibraryContext, useLibraryRouteGuard} from './library-route-guard';
 import {useRouteLibrary} from './route-library';
 import {useShellFacts} from '../../shell/fact-hooks';
-import {LibraryMetadataMenu} from '../metadata/LibraryMetadataMenu';
 import {ReadSeriesEntry} from '../read/ReadSeriesEntry';
 import {ReadPeriodicalEntry} from '../read/ReadPeriodicalEntry';
 import type {ReadingPeriodicalType} from '@portico/client-core';
@@ -209,21 +208,20 @@ function LibraryShow({captured, libraryId, search}: {captured: ProtectedLibraryS
   return owned ? <ShowBody binding={owned.binding} selection={owned.selection}/> : <DetailLoading/>;
 }
 type ScanLease = Readonly<{context: ScreenContext; libraryId: string; life: {api: {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>}; current: () => boolean}; signal: AbortSignal; service: LibraryManagementService; pending: {current: boolean}}>;
-/** The reading library's ⋯ keeps the owner's online unmatched entry, and adds only the rows
- *  whose ports this screen really holds: saving the current view, and the owner's library
- *  settings page. Mark all read uses the original ready personal projection; Scan is offered from its
- *  own lease. */
+/** Every library's ⋯ (desktop-browse #grid, desktop-listen #music, phone-app 4c) draws only the rows whose ports this
+ *  screen really holds: saving the current view, copying its link, and for the owner the library settings page, Scan for
+ *  new files (from its own lease) and Unmatched items (an online library). Mark all read is the reading libraries'. */
 /** A library ⋯ menu with its own Copy link confirmation beside it. */
 function withLinkToast(menu: ReactNode, toast: ToastData | null, dismiss: () => void): ReactNode {
   return menu === undefined ? undefined : <>{menu}<ToastHost toast={toast} onDismiss={dismiss}/></>;
 }
-function readingLibraryMenu(resources: {life: {current: () => boolean}; controller?: {canSaveView: () => boolean}}, context: ScreenContext, library: Library, onlineAttention: boolean, save: () => void, scan?: () => void, markAll?: () => void, copy?: () => void) {
+function libraryMenu(resources: {life: {current: () => boolean}; controller?: {canSaveView: () => boolean}}, context: ScreenContext, library: Library, onlineAttention: boolean, save: () => void, scan?: () => void, markAll?: () => void, copy?: () => void) {
   const owner = context.identity?.viewer.role === 'owner' && context.identity.viewer.authority === 'local' && context.identity.capabilities?.manageServer === true;
   const unmatched = onlineAttention && context.effects.editMetadata ? () => {if (resources.life.current() && context.isCurrent()) void router.navigate({to: '/library/$libraryId', params: {libraryId: library.id}, search: {unmatched: true}}).catch(context.effects.reportError);} : undefined;
   const settings = owner ? () => {if (resources.life.current() && context.isCurrent()) void router.navigate({to: '/settings', search: {scope: 'server', section: 'libraries'}}).catch(context.effects.reportError);} : undefined;
   const canSave = resources.life.current() && context.isCurrent() && !!resources.controller?.canSaveView();
   if (!canSave && !unmatched && !settings && !scan && !markAll && !copy) return undefined;
-  return <LibraryMenu owner={!!owner} read {...(copy ? {onCopyLink: copy} : {})} {...(markAll ? {onMarkAll: markAll} : {})} {...(canSave ? {onSaveView: save} : {})} {...(unmatched ? {onUnmatched: unmatched} : {})}
+  return <LibraryMenu owner={!!owner} read={isReadingLibrary(library.kind)} {...(copy ? {onCopyLink: copy} : {})} {...(markAll ? {onMarkAll: markAll} : {})} {...(canSave ? {onSaveView: save} : {})} {...(unmatched ? {onUnmatched: unmatched} : {})}
     {...(settings ? {onLibrarySettings: settings} : {})} {...(scan ? {onScan: scan} : {})}/>;
 }
 type BoundLibraryProps = {captured: ProtectedLibraryScreen; library: Library; search: LibraryScreenSearch; tabs?: readonly ReadingTab[]; musicLookup?: ReturnType<typeof useMusicLibrarySummary>; readingMarkAll?: () => void};
@@ -470,7 +468,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
   const manageServer = context.identity?.viewer.authority === 'local' && context.identity.viewer.role === 'owner' && context.identity.capabilities?.manageServer === true;
   const [scanOffer, setScanOffer] = useState<Readonly<{lease: ScanLease; allowed: boolean}>>();
   useLayoutEffect(() => {
-    if (!manageServer || !isReadingLibrary(library.kind)) {setScanOffer(undefined); return;}
+    if (!manageServer) {setScanOffer(undefined); return;}
     const controller = new AbortController(), life = resources.life;
     const lease: ScanLease = {context, libraryId: library.id, life, signal: controller.signal, pending: {current: false},
       service: new LibraryManagementService({queries: context.queries, scope: {serverId: context.scope.serverId, viewerId: context.scope.viewerId},
@@ -518,8 +516,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
     // A Reading library's ⋯ draws only the rows this surface can really perform: saving the
     // current view, the owner's Unmatched entry, the owner's Library settings page, and Scan
     // from its own lease, plus the ready original-profile Mark all read action.
-    libraryMenu: withLinkToast(isReadingLibrary(library.kind) ? readingLibraryMenu({life: resources.life, controller}, context, library, onlineAttention, save, scan, readingMarkAll, copyLibraryLink)
-      : context.effects.editMetadata && onlineAttention ? <LibraryMetadataMenu key={agentKey} onCopyLink={copyLibraryLink} onUnmatched={() => {if (resources.life.current()) navigate({unmatched: true});}}/> : undefined, linkToast, () => setLinkToast(null)),
+    libraryMenu: withLinkToast(libraryMenu({life: resources.life, controller}, context, library, onlineAttention, save, scan, isReadingLibrary(library.kind) ? readingMarkAll : undefined, copyLibraryLink), linkToast, () => setLinkToast(null)),
     onLibrary: (id: string) => navigate({}, id), onLibraries: () => {if (resources.life.current()) void router.navigate({to: '/libraries'}).catch(context.effects.reportError);},
     onPivot: (id: string) => {if (!resources.life.current()) return;const tab = tabs.find(tab => tab.id === id);if (!tab) return;
       if (tab.shows === 'periodicals') {navigate({view: 'series', pivot: tab.id});return;}
