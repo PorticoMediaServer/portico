@@ -233,7 +233,10 @@ func experiment(db *sql.DB, path string, n, samples, rounds int, mode string) {
 				emit("concurrent_hybrid", map[string]any{"query": q.Text, "first_ms": first, "deferred_ms": deferred, "proof": proof})
 			} else {
 				if boundedReaders {
-					func() { _, _, e := shortSuggestion(context.Background(), rd, q.Text, false); must(e) }()
+					_, snapshot, e := shortSuggestion(context.Background(), rd, q.Text, false)
+					if e != nil {
+						emit("concurrent_read_error", map[string]any{"query": q.Text, "error": e.Error(), "ms": float64(time.Since(t).Microseconds()) / 1000, "snapshots": snapshot, "checkpoint_overlap": cpActive || cpRunning.Load() || cpSeq != cpSequence.Load()})
+					}
 				} else {
 					search(rd, "A", q)
 				}

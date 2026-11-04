@@ -24,12 +24,37 @@ type policyReader struct {
 	snapshots []float64
 	rows      int
 	stmts     map[string]*sql.Stmt
+	timings   map[string]float64
+	calls     map[string]int
 }
 
 func (p *policyReader) read(ctx context.Context, q string, args []any, scan func(*sql.Rows) error) error {
 	c, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
 	defer cancel()
 	start := time.Now()
+	defer func() {
+		ms := float64(time.Since(start).Microseconds()) / 1000
+		p.snapshots = append(p.snapshots, ms)
+		if p.timings == nil {
+			p.timings = map[string]float64{}
+			p.calls = map[string]int{}
+		}
+		group := "other"
+		switch {
+		case strings.Contains(q, "FROM rel"):
+			group = "parent_expansion"
+		case strings.Contains(q, "FROM edges"):
+			group = "context_edges"
+		case strings.Contains(q, "search_fragment_prefix"):
+			group = "fragment_fts"
+		case strings.Contains(q, "search_own_prefix"):
+			group = "title_fts"
+		case strings.Contains(q, "search_fragment_lexical"):
+			group = "lexical"
+		}
+		p.timings[group] += ms
+		p.calls[group]++
+	}()
 	if p.stmts == nil {
 		p.stmts = map[string]*sql.Stmt{}
 	}
@@ -55,7 +80,6 @@ func (p *policyReader) read(ctx context.Context, q string, args []any, scan func
 	}
 	e = rows.Err()
 	ce := rows.Close()
-	p.snapshots = append(p.snapshots, float64(time.Since(start).Microseconds())/1000)
 	if e != nil {
 		return e
 	}
@@ -76,11 +100,12 @@ type rankedHit struct {
 	score    float64
 }
 type preparedPolicy struct {
-	query    string
-	lead     int
-	items    []rankedHit
-	fallback bool
-	reader   *policyReader
+	query     string
+	lead      int
+	items     []rankedHit
+	fallback  bool
+	reader    *policyReader
+	diagnosis map[string]any
 }
 
 func put(m map[int]hit, id, tier int, score float64) {
@@ -303,6 +328,7 @@ func preparePolicy(ctx context.Context, db *sql.DB, q string, restricted bool) (
 	}()
 	terms := policyTerms(q)
 	fallback := fallbackQuery(q)
+	prepareStart := time.Now()
 	titles := map[int]string{}
 	sets := make([]map[int]hit, len(terms))
 	lead := 0
@@ -316,6 +342,7 @@ func preparePolicy(ctx context.Context, db *sql.DB, q string, restricted bool) (
 			lead = i
 		}
 	}
+	expandedAt := time.Now()
 	items := make([]rankedHit, 0, len(sets[lead]))
 	reduceN := 0
 	for id, h := range sets[lead] {
@@ -352,6 +379,7 @@ func preparePolicy(ctx context.Context, db *sql.DB, q string, restricted bool) (
 	if e := ctxerr(ctx); e != nil {
 		return nil, e
 	}
+	rankAt := time.Now()
 	comparisons := 0
 	func() {
 		defer func() {
@@ -379,7 +407,7 @@ func preparePolicy(ctx context.Context, db *sql.DB, q string, restricted bool) (
 		return nil, e
 	}
 	ok = true
-	return &preparedPolicy{query: q, lead: lead, items: items, fallback: fallback, reader: p}, nil
+	return &preparedPolicy{query: q, lead: lead, items: items, fallback: fallback, reader: p, diagnosis: map[string]any{"expansion_ms": float64(expandedAt.Sub(prepareStart).Microseconds()) / 1000, "intersection_ms": float64(rankAt.Sub(expandedAt).Microseconds()) / 1000, "ranking_ms": float64(time.Since(rankAt).Microseconds()) / 1000, "sql_ms": p.timings, "sql_calls": p.calls, "sql_rows": p.rows, "verified_lead_population": len(sets[lead]), "ranked_population": len(items)}}, nil
 }
 
 // The cursor is a stable rank/id key; real server cursors must additionally sign
@@ -448,7 +476,7 @@ func shortSuggestion(ctx context.Context, db *sql.DB, q string, restricted bool)
 			return nil
 		})
 		if e != nil {
-			return nil, Stat{}, e
+			return nil, stats(p.snapshots), e
 		}
 		if n < 64 {
 			break
@@ -494,6 +522,7 @@ func policyBench(db *sql.DB, n, samples int) {
 		var digest string
 		var witnesses map[string]bool
 		failures := []string{}
+		diagnoses := []map[string]any{}
 		for rep := 0; rep < samples; rep++ {
 			t := time.Now()
 			p, e := preparePolicy(ctx, db, q, false)
@@ -501,6 +530,7 @@ func policyBench(db *sql.DB, n, samples int) {
 				failures = append(failures, e.Error())
 				continue
 			}
+			diagnoses = append(diagnoses, p.diagnosis)
 			prepSnaps = append(prepSnaps, p.reader.snapshots...)
 			p.reader.snapshots = nil
 			c := policyCursor{}
@@ -549,7 +579,7 @@ func policyBench(db *sql.DB, n, samples int) {
 		for i, a := range pages {
 			pageStats[i] = stats(a)
 		}
-		emit("policy_full", map[string]any{"query": q, "explicit_short_action": shortInput(q), "samples": samples, "query_terms": policyTerms(q), "first_ready": stats(readyTimes), "raw_first_ready_ms": readyTimes, "per_page": pageStats, "page_raw_ms": pages, "prepare_snapshots": stats(prepSnaps), "page_snapshots": stats(pageSnaps), "result_count": count, "membership_digest": digest, "witnesses": witnesses, "failures": failures, "snapshot_deadline_ms": 250, "snapshot_scope": "each LIMIT64/128 read or20-item hydrate; Go reducer outside snapshots"})
+		emit("policy_full", map[string]any{"query": q, "explicit_short_action": shortInput(q), "samples": samples, "query_terms": policyTerms(q), "diagnosis": diagnoses, "first_ready": stats(readyTimes), "raw_first_ready_ms": readyTimes, "per_page": pageStats, "page_raw_ms": pages, "prepare_snapshots": stats(prepSnaps), "page_snapshots": stats(pageSnaps), "result_count": count, "membership_digest": digest, "witnesses": witnesses, "failures": failures, "snapshot_deadline_ms": 250, "snapshot_scope": "each LIMIT64/128 read or20-item hydrate; Go reducer outside snapshots"})
 	}
 	emit("completed", map[string]any{"mode": "final_policy", "items": n, "schema": "A", "client_debounce_ms": 350, "full_query_freshness": "static accepted corpus; production publication/fence lease remains build gate"})
 }

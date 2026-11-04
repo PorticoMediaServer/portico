@@ -207,3 +207,42 @@ Japanese and Korean title/name vocabulary is a synthetic selectivity stress,
 not sampled real-user hit rates. Legacy1k remains an independent regression
 fixture(al653,jo710,harbor-ad306 across ALL pages). Client350ms debounce and
 same-session cancellation/generation rejection are measurement/build rules.
+
+## O-02 / O-07 and bounded first-ready
+
+All Q timed Go harness runs, including original A/B, use the bundled
+modernc.org/sqlite v1.58.0 / SQLite3.53.4. The term "native" in old notes means
+engine FTS/COMMIT operations, not a C SQLite executable. There are no Q native-C
+performance cells. The Python oracle only reconstructs sets, without SQLite.
+New harnesses assert the driver module and engine version and retain source ID.
+Imported C-engine performance is directional only.
+
+`first-page` avoids full entity-population expansion/counting/ranking for a
+single known lead token. Exact/title-start/title-word/context streams are visited
+in primary tier/internal-ID order. Title streams seek64 postings at a time;
+context checks walk64 entity IDs and their direct reverse edges, then fixed-depth
+parent titles. FTS point probes are constrained by rowid (`=M1` in EQP). Each
+context page has a4096candidate work ceiling; an overrun is an explicit failure,
+not a successful truncated or empty result. No precomputed matched sets are used
+by this algorithm. The historical complete-set implementation supplies an
+independent access-path/rank comparison outside timed calls.
+
+First-ready working target is p95<=50ms. Existing DESIGN1M Search formal target
+remains p95<=200ms and600ms/group timeout.128 first-page repetitions record p95/p99;
+three complete traversals retain each ordinal page's raw samples and p95 (with
+three samples, p95=max). First-page includes new statement preparation and all
+actual matching work; builds/old-path diagnostic warm the OS cache, so these are
+warm DB tests, not cold-storage qualification. No wire total is computed.
+Every full traversal compares exact ordered IDs, not just counts. Multiword
+rarest-lead and long/numeric fallback remain separately labelled full-preparation
+controls; no estimated/first-token lead is silently substituted for F06.
+
+`-cpu-profile` records diagnostic Go CPU samples with native_sql labels around
+COMMIT and merge steps. pprof exposes FTS flush/vtab sync stacks separately from
+WAL frames/checksum/page-cache stacks; sampled CPU is not individual wall-time
+attribution. Instrumented cohorts never replace untraced p99/max hold results.
+
+Publisher/generation contract awaits INT's published exact SHA. It will use
+NORMAL, writer autocheckpoint0, separate PASSIVE, automerge0, crisismerge16 and
+explicit governed merge1 with debt admission. Acceptance, staged publication,
+head flip, native reclaim and generation flip are separate measured phases.

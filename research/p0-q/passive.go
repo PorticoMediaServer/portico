@@ -316,7 +316,7 @@ func cpuNative(db interface {
 	cpu := threadClock()
 	t := time.Now()
 	active, seq := cpRunning.Load(), cpSequence.Load()
-	exec(db, q, a...)
+	profiledExec(db, tag, q, a...)
 	elapsed := float64(time.Since(t).Microseconds()) / 1000
 	cpuMs := float64(threadClock()-cpu) / 1e6
 	waitMs := float64(threadWait()-wait) / 1e6

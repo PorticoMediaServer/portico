@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
@@ -658,6 +659,7 @@ func main() {
 	dir := flag.String("dir", "", "scratch output")
 	samples := flag.Int("samples", 16, "query samples excluding warmup")
 	rounds := flag.Int("rounds", 2048, "churn transactions")
+	cpuPath := flag.String("cpu-profile", "", "labeled diagnostic CPU profile")
 	share := flag.Int("cjk-share", -1, "percent CJK titles/people/collections, -1 legacy witness fixture")
 	oldRecipe := flag.Bool("old-cjk-recipe", false, "historical skip-CJK prefix control")
 	pinCap := flag.Duration("snapshot-cap", 0, "controlled preparation snapshot lifetime")
@@ -672,6 +674,8 @@ func main() {
 	mixedEnabled = *mixed
 	mixedDuration = *minimum
 	configure(*config)
+	startCPUProfile(*cpuPath)
+	defer stopCPUProfile()
 	must(os.MkdirAll(*dir, 0755))
 	path := filepath.Join(*dir, "search.sqlite")
 	databasePath = path
@@ -679,7 +683,26 @@ func main() {
 	defer db.Close()
 	var version string
 	must(db.QueryRow("SELECT sqlite_version()").Scan(&version))
-	emit("environment", map[string]any{"sqlite": version, "go": runtime.Version(), "cpus": runtime.NumCPU(), "profile": *profile, "variant": *v, "items": *n, "pid": os.Getpid(), "mode": *mode, "config": *config, "automerge": autoMerge, "crisismerge": crisisMerge, "batch": buildBatch, "merge_pages": mergePages, "synchronous": durability, "candidate_sha256": candidateSHA(), "candidate_fk_checks": false, "cjk_share_percent": cjkShare, "old_cjk_recipe": oldCJKRecipe, "token_recipe": "CJK-NGRAM-RECIPE", "previous_candidate_sha256": "42605a7641e8e99bb359739fae6a380e1306665b72a46e1d7c8341dc747a5411"})
+	if version != "3.53.4" {
+		panic("qualifying measurements require bundled SQLite 3.53.4, got " + version)
+	}
+	driverVersion := ""
+	if bi, ok := debug.ReadBuildInfo(); ok {
+		for _, dep := range bi.Deps {
+			if dep.Path == "modernc.org/sqlite" {
+				driverVersion = dep.Version
+				if dep.Replace != nil {
+					panic("unqualified modernc replacement")
+				}
+			}
+		}
+	}
+	if driverVersion != "v1.58.0" {
+		panic("qualifying measurements require bundled modernc v1.58.0, got " + driverVersion)
+	}
+	var sqliteSourceID string
+	must(db.QueryRow("SELECT sqlite_source_id()").Scan(&sqliteSourceID))
+	emit("environment", map[string]any{"sqlite": version, "engine": "bundled-modernc", "driver_module": "modernc.org/sqlite", "driver_version": driverVersion, "sqlite_source_id": sqliteSourceID, "go": runtime.Version(), "cpus": runtime.NumCPU(), "profile": *profile, "variant": *v, "items": *n, "pid": os.Getpid(), "mode": *mode, "config": *config, "automerge": autoMerge, "crisismerge": crisisMerge, "batch": buildBatch, "merge_pages": mergePages, "synchronous": durability, "candidate_sha256": candidateSHA(), "candidate_fk_checks": false, "cjk_share_percent": cjkShare, "old_cjk_recipe": oldCJKRecipe, "token_recipe": "CJK-NGRAM-RECIPE", "previous_candidate_sha256": "42605a7641e8e99bb359739fae6a380e1306665b72a46e1d7c8341dc747a5411"})
 	create(db, *v)
 	setupExperiment(db, path)
 	defer stopExperiment()
@@ -687,6 +710,11 @@ func main() {
 	build(db, *n)
 	emit("allocation_base", allocation(db, path))
 	emit("debt_base", debt(db))
+	if *mode == "first-page" {
+		firstPageBench(db, *n, *samples)
+		emit("first_completed", map[string]any{"items": *n, "samples": *samples, "single_term_known_lead": true})
+		return
+	}
 	if *mode == "policy" {
 		policyHygiene(db)
 		policyBench(db, *n, *samples)
