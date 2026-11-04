@@ -205,6 +205,17 @@ jobs:
         with:
           name: selection
       - run: python3 ci/run.py download
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        if: matrix.reading_client == true
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install real reading-client integration dependencies
+        if: matrix.reading_client == true
+        run: |
+          npm ci --no-audit --no-fund
+          (cd packages/contracts && npm run build)
       - name: FFmpeg package cache key
         id: aptkey
         run: echo "key=apt-ffmpeg-${ImageOS:-ubuntu}-${ImageVersion:-0}-$(date -u +%G-%V)-v1" >> "$GITHUB_OUTPUT"
@@ -249,6 +260,17 @@ jobs:
         with:
           name: selection
       - run: python3 ci/run.py download
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        if: matrix.reading_client == true
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install real reading-client integration dependencies
+        if: matrix.reading_client == true
+        run: |
+          npm ci --no-audit --no-fund
+          (cd packages/contracts && npm run build)
       - name: FFmpeg package cache key
         id: aptkey
         run: echo "key=apt-ffmpeg-${ImageOS:-ubuntu}-${ImageVersion:-0}-$(date -u +%G-%V)-v1" >> "$GITHUB_OUTPUT"
