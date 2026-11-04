@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createFocusRegistry} from '../src-next/kit/focus/registry.ts';
-import {createTVLayerStack, tvLayerSpecs, tvRouteLayerKeys} from '../src-next/kit/focus/layer-stack.ts';
+import {createTVLayerStack, presentTVLayer, tvLayerSpecs, tvRouteLayerKeys} from '../src-next/kit/focus/layer-stack.ts';
 import {tvFocusKit} from './helpers/tv-focus-kit.mjs';
 
 // TV-FOCUS-REVIEW §5 step 2: one stack owns which full-screen TV layer is on top, what it covers, and where
@@ -164,27 +164,52 @@ async function layered(platform: 'android' | 'tvos' = 'android') {
   const registry = focus.createFocusRegistry();
   const pageHost: {current: any} = React.createRef(), routeHost: {current: any} = React.createRef();
   const stack = focus.createTVLayerStack(registry);
+  // Which layer hosts the stack asked to take focus (its claim into a layer that is owed nothing of its own).
+  const claims: string[] = [];
+  const claimed = (name: string, ref: {current: any}) => () => ref.current && {requestTVFocus() {claims.push(name); focus.requestNativeFocus(ref.current);}};
+  const pageClaim = claimed('page', pageHost), routeClaim = claimed('route', routeHost);
   const card = {w: 300, h: 170};
-  const Scene = ({routes = [], titles = ['Alien', 'Arrival', 'Blade Runner', 'Brazil'], player = false}: {routes?: string[]; titles?: string[]; player?: boolean}) => {
-    const specs = tvLayerSpecs(routes.map(route => `route:${route}`), player, false, () => pageHost.current, () => routeHost.current);
+  // A presented state (the refused-link page) drawn outside the shell layers, as RestoredShell draws it.
+  const Refused = () => {
+    React.useLayoutEffect(() => presentTVLayer('content-link-unavailable', () => registry.focusRegion('content-link-unavailable')), []);
+    return e(n.View, {style: {position: 'absolute', inset: 0}},
+      e(focus.FocusRegion, {id: 'content-link-unavailable', orientation: 'horizontal', hold: true, style: {flexDirection: 'row', gap: 20, marginTop: 400}},
+        e(Stop, {id: 'refused-home', w: 240, h: 80}), e(Stop, {id: 'refused-back', w: 240, h: 80})));
+  };
+  const Scene = ({routes = [], titles = ['Alien', 'Arrival', 'Blade Runner', 'Brazil'], player = false, presented = false, page = 'page', pageStart, routeStart, dock = false}: {routes?: string[]; titles?: string[]; player?: boolean;
+    /** Something else uncovered first in the window's focus order (a docked control), covered only while a state is
+     *  presented. When the refused page goes, the engine's native recovery (Android: the window's first focusable;
+     *  tvOS: the root's preferred view, else the first in the tree) lands on it, so only the stack's claim can put
+     *  focus on the page or route. An ordinary CoveredLayer, so it is selectable again in the same commit on tvOS. */ dock?: boolean;
+    /** The refused-link page over everything. */ presented?: boolean;
+    /** The page's own identity: a new value remounts it (a profile switch under a PIN pad or the refused page). */ page?: string;
+    /** The control the page or the route says it opens on (`preferredFocus`). */ pageStart?: string; routeStart?: string}) => {
+    const specs = tvLayerSpecs(routes.map(route => `route:${route}`), player, false, pageClaim, routeClaim, presented ? ['content-link-unavailable'] : []);
     const top = specs.at(-1)!.key;
     React.useLayoutEffect(() => {stack.sync(specs);});
     const route = routes.at(-1);
     return e(focus.FocusProvider, {registry}, e(n.View, {style: {flex: 1}},
+      dock ? e(focus.CoveredLayer, {covered: top.startsWith('presented:'), testID: 'scene-dock', style: {position: 'absolute', left: 0, top: 0, width: 400, height: 90}},
+        e(Stop, {id: 'dock-play', w: 120, h: 80})) : null,
       e(focus.CoveredLayer, {covered: top !== 'page', autoFocus: true, hostRef: pageHost, testID: 'native-shell-base', style: {position: 'absolute', inset: 0}},
-        e(focus.FocusRegion, {id: 'library.toolbar', orientation: 'horizontal', edges: {down: 'library.grid'}, style: {flexDirection: 'row', gap: 20}},
-          e(Stop, {id: 'switch-library', w: 360, h: 60}), e(Stop, {id: 'sort', w: 200, h: 60})),
-        e(focus.FocusRegion, {id: 'library.grid', orientation: 'horizontal', edges: {up: 'library.toolbar'}, style: {flexDirection: 'row', gap: 24, marginTop: 40}},
-          titles.map((title, slot) => e(focus.FocusItem, {key: `slot-${slot}`, focusId: `slot-${slot}`, entityId: title}, e(Stop, {id: `slot-${slot}`, focusId: `slot-${slot}`, ...card}))))),
+        e(n.View, {key: page, style: {flex: 1}},
+          e(focus.FocusRegion, {id: 'library.toolbar', orientation: 'horizontal', edges: {down: 'library.grid'}, style: {flexDirection: 'row', gap: 20}},
+            e(Stop, {id: 'switch-library', w: 360, h: 60, preferredFocus: pageStart === 'switch-library'}), e(Stop, {id: 'sort', w: 200, h: 60})),
+          e(focus.FocusRegion, {id: 'library.grid', orientation: 'horizontal', edges: {up: 'library.toolbar'}, style: {flexDirection: 'row', gap: 24, marginTop: 40}},
+            titles.map((title, slot) => e(focus.FocusItem, {key: `slot-${slot}`, focusId: `slot-${slot}`, entityId: title}, e(Stop, {id: `slot-${slot}`, focusId: `slot-${slot}`, preferredFocus: pageStart === `slot-${slot}`, ...card})))))),
       e(focus.CoveredLayer, {covered: !top.startsWith('route:'), autoFocus: true, hostRef: routeHost, testID: 'native-shell-routes', style: {position: 'absolute', inset: 0}},
         route ? e(n.View, {key: route, style: {position: 'absolute', left: 0, top: 500, width: 1920, height: 580}},
           e(focus.FocusRegion, {id: `${route}.actions`, orientation: 'horizontal', style: {flexDirection: 'row', gap: 20}},
-            e(Stop, {id: `${route}-play`, w: 240, h: 80}), e(Stop, {id: `${route}-more`, w: 240, h: 80}))) : null),
+            e(Stop, {id: `${route}-play`, w: 240, h: 80, preferredFocus: routeStart === `${route}-play`}), e(Stop, {id: `${route}-more`, w: 240, h: 80, preferredFocus: routeStart === `${route}-more`}))) : null),
+      presented ? e(Refused, {}) : null,
       player ? e(n.View, {style: {position: 'absolute', left: 0, top: 900, width: 1920, height: 180}},
         e(focus.FocusRegion, {id: 'player.controls', orientation: 'horizontal', hold: true, style: {flexDirection: 'row', gap: 20}},
           e(Stop, {id: 'player-pause', w: 120, h: 80, preferredFocus: true}), e(Stop, {id: 'player-next', w: 120, h: 80}))) : null));
   };
-  return {...kit, Scene, stack};
+  /** The step that put focus where it is now: 'request' for a JS request (the stack's claim or a control's own
+   *  preferred ask), 'recover*' when the fake engine's native recovery picked it. */
+  const landing = () => engine.log.filter((step: any) => step.to !== undefined).at(-1)?.why;
+  return {...kit, Scene, stack, claims, landing};
 }
 
 test('W-9 through the stack: a route opened from a card takes focus; nothing under it is reachable; Back returns to the card', async () => {
@@ -277,4 +302,72 @@ test('a refused content link on TV: a presented state covers the shell, takes fo
     stack.sync(specs());
     assert.equal(registry.capture()?.childId, 'film', 'closing returns to where focus was');
   } finally {release(); off(); stack.dispose();}
+});
+
+// Prior art (Plezy covered_route_focus_boundary case 3, lead's TV-FOCUS-PRIOR-ART note): a screen that mounts while
+// covered has no focus of its own to be given back. When the cover goes it must get its entry focus (the control it
+// opens on, else its first), at once, on both platforms; never nothing, never a stale element from before it mounted.
+test('mounted while covered: a route opened under the refused-link page gets its entry focus when the page closes', async () => {
+  for (const platform of ['android', 'tvos'] as const) {
+    for (const routeStart of [undefined, 'title-more'] as const) {
+      const s = await layered(platform), {engine, e, Scene} = s, label = `${platform}, ${routeStart ?? 'no declared start'}`;
+      await engine.render(e(Scene, {dock: true}));
+      await engine.focus('slot-2');
+      await engine.render(e(Scene, {dock: true, presented: true}));
+      assert.equal(engine.focused, 'refused-home', `${label}: the refused page takes focus`);
+      // A deep link navigates under it: the route mounts covered.
+      await engine.render(e(Scene, {dock: true, presented: true, routes: ['title'], routeStart}));
+      assert.equal(engine.focused, 'refused-home', `${label}: nothing under the page takes focus, not even the route's declared start`);
+      assert.equal(engine.focusable('title-play'), false, label);
+      assert.equal(engine.focusable('dock-play'), false, `${label}: the dock is covered too`);
+      s.claims.length = 0;
+      await engine.render(e(Scene, {dock: true, routes: ['title'], routeStart}));
+      assert.equal(engine.focused, routeStart ?? 'title-play', `${label}: the route's entry focus`);
+      // The engine's own recovery (the page's guide, the window's first focusable, the root's preferred view) lands
+      // on the same controls, so the test names the step: the stack claimed into the route, and a request landed.
+      assert.deepEqual([...new Set(s.claims)], ['route'], `${label}: the stack claims into the route it never gave focus to`);
+      assert.equal(s.landing(), 'request', `${label}: focus came from a request, not the engine's recovery`);
+      await engine.render(e(Scene, {dock: true}));
+      assert.equal(engine.focused, 'slot-2', `${label}: Back from the route still returns to the card`);
+    }
+  }
+});
+
+test('mounted while covered: a page that remounts under the refused-link page opens on its own start, not the old page\'s focus', async () => {
+  for (const platform of ['android', 'tvos'] as const) {
+    const s = await layered(platform), {engine, e, Scene} = s;
+    await engine.render(e(Scene, {dock: true, page: 'profile-a'}));
+    await engine.focus('slot-2');
+    await engine.render(e(Scene, {dock: true, page: 'profile-a', presented: true}));
+    // The profile changes under it: a new page with other titles, which says it opens on its first card.
+    const titles = ['Heat', 'Ran', 'Up', 'Zodiac'];
+    await engine.render(e(Scene, {dock: true, page: 'profile-b', presented: true, titles, pageStart: 'slot-0'}));
+    assert.equal(engine.focused, 'refused-home', `${platform}: still on the refused page`);
+    await engine.render(e(Scene, {dock: true, page: 'profile-b', titles, pageStart: 'slot-0'}));
+    assert.equal(engine.focused, 'slot-0', `${platform}: the new page's declared start, not slot-2 of the old one`);
+    // The page is owed the old card, so the stack restores (not claims); the new page's own preferred ask, held while
+    // covered, is what lands, and the restore yields to it instead of moving focus onto the old position.
+    assert.equal(s.landing(), 'request', `${platform}: a request, not the engine's recovery`);
+    assert.deepEqual(s.claims, [], `${platform}: no claim: the page was owed focus, and its own start won`);
+  }
+});
+
+test('covered before it took focus: a page with no declared start under the refused-link page is never left without focus', async () => {
+  for (const platform of ['android', 'tvos'] as const) {
+    const s = await layered(platform), {engine, e, Scene} = s;
+    // Cold start from a refused link: the shell is up but nothing on the page has taken focus yet when the link's
+    // check refuses it (NativeContentLinks presents in a later commit than the shell's first), so the page is owed
+    // nothing of its own.
+    await engine.render(e(Scene, {dock: true}));
+    const before = engine.focused;
+    assert.notEqual(before?.startsWith('slot-') || before === 'switch-library' || before === 'sort', true, `${platform}: nothing on the page has focus yet (got ${before})`);
+    await engine.render(e(Scene, {dock: true, presented: true}));
+    assert.equal(engine.focused, 'refused-home', `${platform} (page focus before: ${before})`);
+    s.claims.length = 0;
+    await engine.render(e(Scene, {dock: true}));
+    assert.ok(engine.focused && !engine.focused.startsWith('refused-'), `${platform}: focus is on the page (got ${engine.focused})`);
+    assert.match(engine.focused ?? '', /^(switch-library|sort|slot-\d)$/, platform);
+    assert.deepEqual([...new Set(s.claims)], ['page'], `${platform}: the stack claims into the page it never gave focus to`);
+    assert.equal(s.landing(), 'request', `${platform}: focus came from that request, not the engine's recovery`);
+  }
 });
