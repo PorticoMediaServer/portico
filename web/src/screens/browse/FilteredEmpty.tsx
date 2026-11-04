@@ -18,6 +18,24 @@ export type BrowseFilteredEmptyProps = Readonly<{
 /** One applied filter, named the way the chip names it, and how its absence reads. */
 type Part = Readonly<{id: string; at: number; field: string; phrase: string; display: string; relaxed: string}>;
 const lower = (value: unknown) => String(value).toLocaleLowerCase();
+/** A filter's values as the empty sentence names them (survey A20; lead review on #737). Several values read as the filter
+ * means them: any of them ("documentary or animation"), all of them ("… and …"), none of them ("anything but documentary
+ * or animation"), a range ("from 1990 to 2000"). A decade carries its own "the": "from the 1990s or 2000s", "anything but
+ * the 1990s or 2000s", "from the 1990s to the 2000s". */
+export function emptyFilterValues(field: string, operator: string, values: readonly unknown[]): string {
+  const none = operator === 'not-in' || operator === 'not-equals', range = operator === 'between' && values.length === 2;
+  if (field === 'decade') {
+    const decades = values.map(value => t('next.kit.filter.decade', {year: String(value)}));
+    return range ? t('next.browse.emptyFromRange', {start: decades[0]!, end: decades[1]!})
+      : none ? t('next.browse.emptyNotFrom', {decade: defaultI18n.list(decades, 'or')})
+      : t('next.browse.emptyFrom', {decade: defaultI18n.list(decades, operator === 'contains-all' ? 'and' : 'or')});
+  }
+  const items = values.map(value => String(value));
+  return range ? t('next.browse.emptyRange', {start: items[0]!, end: items[1]!})
+    : operator === 'contains-all' ? defaultI18n.list(items, 'and')
+    : none ? t('next.browse.emptyNot', {values: defaultI18n.list(items, 'or')})
+    : defaultI18n.list(items, 'or');
+}
 /**
  * Nothing matches: the frame names the filters that emptied the page ("Nothing in Movies is both
  * horror and from the 2010s") and offers one way out per filter, each counted over the real
@@ -32,15 +50,7 @@ export function BrowseFilteredEmpty({controller, model, labels, predicates, libr
     const name = field ? labels.field(field) : node.field;
     const values = (Array.isArray(node.value) ? node.value : [node.value]).filter(value => value !== null && value !== undefined);
     if (!values.length) return [{id: String(index), at: index, field: node.field, phrase: name.toLocaleLowerCase(), display: name, relaxed: t('next.browse.emptyAnything')}];
-    const decades = values.map(value => t('next.kit.filter.decade', {year: String(value)}));
-    // The sentence names a value in running text; a suggestion keeps the drawn name ("Horror").
-    // Several values read as the filter means them: a range ("from 1990 to 2000"), all of them ("… and …"), none of them
-    // ("anything but documentary or animation"), or any of them ("documentary or animation").
-    const joined = (items: readonly string[]) => node.operator === 'between' && items.length === 2 ? t('next.browse.emptyRange', {start: items[0]!, end: items[1]!})
-      : node.operator === 'contains-all' ? defaultI18n.list(items, 'and')
-      : node.operator === 'not-in' || node.operator === 'not-equals' ? t('next.browse.emptyNot', {values: defaultI18n.list(items, 'or')})
-      : defaultI18n.list(items, 'or');
-    const display = node.field === 'decade' ? t('next.browse.emptyFrom', {decade: joined(decades)}) : joined(values.map(value => String(value)));
+    const display = emptyFilterValues(node.field, node.operator, values);
     const phrase = node.field === 'decade' ? display : lower(display);
     const relaxed = node.field === 'decade' || node.field === 'year' ? t('next.browse.emptyAnyYear') : t('next.browse.emptyAnything');
     return [{id: String(index), at: index, field: node.field, phrase, display, relaxed}];
