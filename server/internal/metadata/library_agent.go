@@ -266,7 +266,7 @@ func ApplyLibraryAgentTx(ctx context.Context, tx *sql.Tx, library, agent string)
 			}
 		}
 	}
-	return nil
+	return hintLibraryAgentChangedTx(ctx, tx)
 }
 
 // syncLibraryAgentTx records what an older per-provider switch implies about
@@ -278,7 +278,22 @@ func syncLibraryAgentTx(ctx context.Context, tx *sql.Tx, library string, online 
 	if online {
 		agent = AgentOnline
 	}
-	_, err := tx.ExecContext(ctx, `UPDATE library_metadata_agents SET agent=?,revision=revision+1 WHERE library_id=? AND agent<>?`, agent, library, agent)
+	result, err := tx.ExecContext(ctx, `UPDATE library_metadata_agents SET agent=?,revision=revision+1 WHERE library_id=? AND agent<>?`, agent, library, agent)
+	if err != nil {
+		return err
+	}
+	changed, err := result.RowsAffected()
+	if err != nil || changed == 0 {
+		return err
+	}
+	return hintLibraryAgentChangedTx(ctx, tx)
+}
+
+// A held browse vocabulary depends on server settings for the match filter.
+// Use the existing settings outbox in this transaction, including provider
+// choices that change the same agent through the older per-library controls.
+func hintLibraryAgentChangedTx(ctx context.Context, tx *sql.Tx) error {
+	_, err := tx.ExecContext(ctx, `UPDATE console_settings_revision SET revision=revision+1 WHERE singleton=1`)
 	return err
 }
 
