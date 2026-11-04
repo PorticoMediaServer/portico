@@ -22,6 +22,8 @@ import {ReaderBook} from './ReaderBook';
 import {readSearch} from './route-search';
 import {indexedReadingOpeningMarker, indexedReadingOpeningVersion, receiveIndexedReadingTarget, retireIndexedReadingOpening, subscribeIndexedReadingOpenings, type IndexedReadingReceiver} from '../search/reading-open-handoff';
 
+import {readingServerBusy} from './open-failure';
+
 const {t} = defaultI18n;
 type Captured = NonNullable<ReturnType<typeof useProtectedWebScreenContext>>;
 type OpenBook = Readonly<{session: ReadingSession; publication: ReadingPublication; controller: ReadingController;
@@ -96,7 +98,7 @@ export function ReadEntry(props: ReadEntryProps) {
     : <div className={styles.loading} aria-busy="true"><span className={styles.escape}><Button variant="glass" icon="i-left" iconOnly aria-label={t('next.reader.back')} onClick={leave}/></span><span className={styles.loadingRing} aria-hidden="true"/></div>;
 }
 function ReadEntryBody({captured, itemId, sourceId, active = true, onClose, receiver}: ReadEntryProps & {receiver: ReceiverOpening}) {
-  const [state, setState] = useState<Readonly<{book?: OpenBook; failed?: boolean}>>({});
+  const [state, setState] = useState<Readonly<{book?: OpenBook; failed?: boolean; busy?: boolean}>>({});
   const [stagedContents] = useState(() => takeContentsTarget(captured.context, itemId, sourceId));
   const contentsTarget = receiver.received.kind === 'ordinary' ? stagedContents : undefined;
   const [retry, setRetry] = useState(0);
@@ -168,7 +170,8 @@ function ReadEntryBody({captured, itemId, sourceId, active = true, onClose, rece
       // A rejected bootstrap must never leave the reader on its loading skeleton. This attempt is
       // still the live one unless it was retired, so show the failure state; report only while the
       // captured authority still holds, since a retired capture owns no error surface.
-      if (alive && !life.signal.aborted && currentReading()) {if (bindings.authority.isCurrent()) reportError(error); setState({failed: true});}
+      const busy = readingServerBusy(error);
+      if (alive && !life.signal.aborted && currentReading()) {if (!busy && bindings.authority.isCurrent()) reportError(error); setState({failed: true, ...(busy ? {busy} : {})});}
       void dispose().catch(() => {});
     });
     return () => {void dispose().catch(() => {});};
@@ -176,7 +179,7 @@ function ReadEntryBody({captured, itemId, sourceId, active = true, onClose, rece
   if (state.book) return <ReaderBook key={state.book.session.manifest.sessionId} book={state.book} active={active} reportError={reportError} onSearchAll={query => {if (!active || !currentReading()) return; void router.navigate({to: '/search/reading', search: {q: query}}).catch(error => {if (currentReading()) reportError(error);});}} onOpenSettings={() => {if (!currentReading()) return;void router.navigate({to: '/settings', search: {scope: 'account', section: 'reading'}}).catch(reportError);}} onBack={() => {if (currentReading()) (onClose ?? (() => router.history.back()))();}}/>;
   /** The drawn way back stays available while a book is opening and when it cannot open. */
   const leave = () => {if (currentReading()) (onClose ?? (() => router.history.back()))();};
-  if (state.failed) return <StateView variant="page" title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')}
+  if (state.failed) return <StateView variant="page" title={t('next.states.pageFailed')} body={t(state.busy ? 'error.busy' : 'next.states.pageFailedBody')}
     primary={{id: 'retry', label: t('next.states.tryAgain'), onPress: () => {if (currentReading()) setRetry(value => value + 1);}}}
     secondary={{id: 'back', label: t('next.reader.back'), onPress: leave}}/>;
   return <div className={styles.loading} aria-busy="true"><span className={styles.escape}><Button variant="glass" icon="i-left" iconOnly aria-label={t('next.reader.back')} onClick={leave}/></span><span className={styles.loadingRing} aria-hidden="true"/></div>;

@@ -747,7 +747,9 @@ export class ReadingClient {
     if (out.chosenSourceId !== undefined && !out.versions.some(v => v.sourceId === out.chosenSourceId) || out.chosenSourceId === undefined && out.versions.length) fail('invalid_document');
     return out;
   }
-  async open(request: PostReadingSessionsRequest, signal?: AbortSignal): Promise<ReadingSession> {
+  /** `options.busyWait` cancels only the RD-8 busy wait (and the retry it would send): during that wait no
+   * session exists, so a reader that leaves may stop it outright. An open already on the wire is not cut. */
+  async open(request: PostReadingSessionsRequest, signal?: AbortSignal, options?: Readonly<{busyWait?: AbortSignal}>): Promise<ReadingSession> {
     if (!id(request.itemId) || !id(request.sourceId)) fail('invalid_request');
     const captured = Object.freeze({itemId: request.itemId, sourceId: request.sourceId});
     const attempt = () => this.json(routePath('post_reading_sessions'), 'POST', captured, signal, parseReadingManifest, 8 << 20, undefined, undefined, m => m.revision);
@@ -757,8 +759,10 @@ export class ReadingClient {
       // W-19: a profile's own sessions never refuse an open; only the server-wide cap is busy. Wait
       // as Retry-After asks (at most ten seconds), then try once more; a second busy answer is shown.
       if (!(error instanceof ReadingError) || error.code !== 'reading_sessions_busy') throw error;
-      await waitFor(Math.min(BUSY_WAIT_MAX_S, error.retryAfterSeconds ?? BUSY_WAIT_DEFAULT_S) * 1000, signal);
+      const waitSignal = options?.busyWait ? (signal ? AbortSignal.any([signal, options.busyWait]) : options.busyWait) : signal;
+      await waitFor(Math.min(BUSY_WAIT_MAX_S, error.retryAfterSeconds ?? BUSY_WAIT_DEFAULT_S) * 1000, waitSignal);
       this.check(signal);
+      if (options?.busyWait?.aborted) throw new ReadingError('cancelled');
       manifest = await attempt();
     }
     validateManifest(manifest, captured); this.check(signal);
