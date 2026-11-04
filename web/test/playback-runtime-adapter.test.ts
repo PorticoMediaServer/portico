@@ -1838,6 +1838,28 @@ test('runtime rejects a late parked queue header after a competing Play', async 
   assert.equal(f.log.slice(before).some(request => request.method === 'POST' && request.path === '/v1/playback/sessions'), false);
 });
 
+test('PB-5: a failed options read after the start is tried again, then said with Try again, and the panels come back', async t => {
+  const held: (() => void)[] = [];
+  const timers = {setTimer: (fn: () => void, ms: number) => ms === 2000 ? (held.push(fn), -held.length) : setTimeout(fn, ms),
+    clearTimer: (timer: unknown) => { if (typeof timer !== 'number' || timer >= 0) clearTimeout(timer as ReturnType<typeof setTimeout>); }};
+  const f = setup(t, {}, {timers} as never);
+  let failures = 2;
+  f.intercept(async (request, response) => request.path === '/v1/items/movie/playback-options?versionId=v1' && failures-- > 0
+    ? {...response, status: 503, body: {error: {code: 'unavailable', message: 'busy', retry: 'same_request'}}} : response);
+  await f.runtime.play('movie', 20); await f.arrive(); await settle();
+  const fence = f.runtime.getSnapshot().fence; assert.ok(fence);
+  assert.equal(f.runtime.getSnapshot().options, null);
+  assert.equal(f.runtime.getSnapshot().problem, undefined, 'nothing is said while the read is tried again');
+  assert.equal(held.length, 1, 'one more try, after a moment');
+  held[0]!(); await settle();
+  assert.equal(f.runtime.getSnapshot().problem, 'playback_metadata_failed', 'the second failure is said');
+  assert.equal(held.length, 1, 'and not tried again on its own');
+  assert.equal(f.runtime.getSnapshot().playback.phase, 'ready', 'the picture plays on');
+  f.runtime.retryMetadata(fence); await settle();
+  assert.equal(f.runtime.getSnapshot().problem, undefined);
+  assert.ok(f.runtime.getSnapshot().options, 'Try again reads the options, so the panels come back');
+});
+
 test('runtime quality changes require current options and an enabled rung on the actual source', async t => {
   const f = setup(t), gate = deferred();
   f.intercept(async (request, response) => { if (request.path === '/v1/items/movie/playback-options?versionId=v1') await gate.hold(); return response; });

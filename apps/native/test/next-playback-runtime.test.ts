@@ -1154,6 +1154,23 @@ test('Home selection handover retains the exact audio fence and restores its ori
   } finally { d.runtime.dispose(); }
 });
 
+test('PB-5: a failed options read after the start is tried once more after a moment, never in a loop', async () => {
+  const d = fixture();
+  try {
+    d.runtime.connect();
+    let failures = 2;
+    const refreshes = () => d.requests.filter(request => request.path.includes('/playback-options?versionId=')).length;
+    d.respond(request => request.path.includes('/playback-options?versionId=') && failures-- > 0 ? {status: 503, headers: {}, body: {error: {code: 'unavailable', message: 'busy'}}} : undefined);
+    await d.start('movie-1'); await settle();
+    assert.equal(refreshes(), 1);
+    assert.equal(d.pendingTimers(2000).length, 1, 'one more try is scheduled');
+    await d.advance(2000);
+    assert.equal(refreshes(), 2);
+    assert.equal(d.pendingTimers(2000).length, 0, 'and no third on its own');
+    assert.ok(d.runtime.getSnapshot().options, 'the options from the start stay shown');
+  } finally { d.runtime.dispose(); }
+});
+
 test('MU-7: on a book part with chapters, Previous and Next move by chapter, into another part at the chapter start', async () => {
   const d = fixture();
   try {

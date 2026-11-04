@@ -901,6 +901,7 @@ export const webMessages = {
   'web.player.error.versionGone': 'The version you chose isn’t available any more. Play the title again to use the one that is.',
   'web.player.error.streamLimit': 'Your account is already playing as many streams as it is allowed. Stop one and try again.',
   'web.player.error.report': 'Report a problem',
+  'web.player.optionsFailed': 'Playback options couldn’t load.',
   'web.player.error.turnOnConverting': 'Turn on converting',
   'web.player.error.conversionBusyTitle': 'The server is busy converting',
   'web.player.error.tryAgainNow': 'Try again now',

@@ -68,6 +68,8 @@ import type {WebPlaybackInfoRead, WebPlaybackAction, WebPlaybackAuthority, WebPl
 
 /** How long a Play may wait for its playback to start before it is a reported failure. */
 const START_DEADLINE_MS = 20_000;
+/** A failed options/offers read after the start is tried once more after this long (PB-5). */
+const METADATA_RETRY_MS = 2_000;
 /** How often a deadline waiting behind a drawn held failure checks whether it is still drawn. */
 const START_HELD_POLL_MS = 500;
 const startDeadlineError = () => Object.assign(new Error('playback_start_timeout'), {code: 'playback_start_timeout'});
@@ -118,6 +120,8 @@ type Stack = {
   /** Belongs to the playback run: the queue moving on to its next track or part keeps it (MU-3). */
   sleepTimer?: Readonly<{minutes: number; endsAt: number; timer: unknown; run: number; token: object}>;
   sessionKey?: string; metadataAbort?: AbortController; options: PlaybackOptions | null;
+  /** Reads this session's options and offers again after both tries failed (PB-5). */
+  metadataRetry?: () => void;
   offerBinding?: OfferBinding;
   itemId?: string; metadataItemId?: string; libraryId?: string; subject?: PlaybackSubject; showId?: string; seasonId?: string;
   posterUrl?: string; backdropUrl?: string; expanded: boolean; retired: boolean;
@@ -1474,7 +1478,30 @@ export class WebShellPlaybackRuntime {
       stack.options = options;
       this.sync();
     };
-    void read().catch(() => { if (current()) { this.runtimeProblem = 'playback_metadata_failed'; this.sync(); } });
+    // PB-5: a failed read is tried once more after a moment; if that fails too, the player says so
+    // with Try again (`retryMetadata`) instead of silently going without its panels.
+    const attempt = (retried: boolean): void => {
+      void read().then(() => { if (current() && this.runtimeProblem === 'playback_metadata_failed') { this.runtimeProblem = undefined; this.sync(); } }, () => {
+        if (!current()) return;
+        if (!retried) {
+          const timer = this.setTimer(() => { abort.signal.removeEventListener('abort', cancel); if (current()) attempt(true); }, METADATA_RETRY_MS);
+          const cancel = () => this.clearTimer(timer);
+          abort.signal.addEventListener('abort', cancel, {once: true});
+          return;
+        }
+        stack.metadataRetry = () => { stack.metadataRetry = undefined; attempt(false); };
+        this.runtimeProblem = 'playback_metadata_failed'; this.sync();
+      });
+    };
+    attempt(false);
+  }
+
+  /** Try again after the player's options and offers couldn't be read (PB-5). */
+  retryMetadata(fence: PlaybackFence): void {
+    const stack = this.stack;
+    if (!this.current(stack) || !this.matches(fence) || this.runtimeProblem !== 'playback_metadata_failed' || !stack.metadataRetry) return;
+    this.runtimeProblem = undefined; this.sync();
+    stack.metadataRetry();
   }
 
   /** The item's own facts did not answer. An audio queue entry carries its real kind, title,
@@ -1629,7 +1656,7 @@ export class WebShellPlaybackRuntime {
     stack.documentAbort?.abort(); stack.documentAbort = undefined;
     this.clearTimer(stack.documentTimer); stack.documentTimer = undefined;
     stack.offSubtitles?.(); stack.offSubtitles = undefined; stack.subtitles?.stop(); stack.subtitles = undefined;
-    stack.sessionKey = undefined; stack.offerBinding = undefined; stack.subtitleKey = undefined; stack.documentKey = undefined; stack.options = null;
+    stack.sessionKey = undefined; stack.metadataRetry = undefined; stack.offerBinding = undefined; stack.subtitleKey = undefined; stack.documentKey = undefined; stack.options = null;
     if (!stack.retired) stack.offers.cancel();
     this.clearDrawnSubtitles(stack);
     this.surface?.guard(false); this.surface?.clear();

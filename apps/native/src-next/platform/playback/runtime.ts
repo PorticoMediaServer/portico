@@ -1262,9 +1262,19 @@ export class NativePlaybackRuntime {
         && !current.channel && current.intentId === state.intentId && current.itemId === itemId
         && current.session?.id === state.session?.id && current.session?.generation === state.session?.generation;
     };
-    void this.optionsClient.options(itemId, session?.versionId ? {versionId: session.versionId, ...(session.discTitle ? {discTitle: session.discTitle} : {})} : {}, controller.signal).then(value => {
-      if (!valid() || value.itemId !== itemId) return; this.options = value; this.applyOptions(); this.publish();
-    }).catch(() => {});
+    // PB-5: a failed read keeps the options already shown and is tried once more after a moment.
+    const readOptions = (retried: boolean): void => {
+      void this.optionsClient.options(itemId, session?.versionId ? {versionId: session.versionId, ...(session.discTitle ? {discTitle: session.discTitle} : {})} : {}, controller.signal).then(value => {
+        if (!valid() || value.itemId !== itemId) return; this.options = value; this.applyOptions(); this.publish();
+      }, () => {
+        if (retried || !valid()) return;
+        const setTimer = this.o.timers?.setTimer ?? ((run: () => void, ms: number) => setTimeout(run, ms));
+        const timer = setTimer(() => { controller.signal.removeEventListener('abort', cancel); if (valid()) readOptions(true); }, 2000);
+        const cancel = () => { if (this.o.timers?.clearTimer) this.o.timers.clearTimer(timer); else clearTimeout(timer as ReturnType<typeof setTimeout>); };
+        controller.signal.addEventListener('abort', cancel, {once: true});
+      });
+    };
+    readOptions(false);
     void this.request<unknown>(encodedRoutePath('get_items_id', {id: encodeURIComponent(itemId)}), 'GET', undefined, controller.signal).then(raw => {
       if (!valid()) return;
       const item = parseMediaItem(raw);
