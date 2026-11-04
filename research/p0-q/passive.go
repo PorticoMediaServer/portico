@@ -277,7 +277,7 @@ func insertEntity(db *sql.DB, i, kind, parent int, t, p, init string) {
 	if kind <= 4 {
 		resolution = 1080
 	}
-	exec(db, `INSERT INTO catalog_entities(id,public_id,library_id,kind,parent_id,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,title_fold,title_prefix_tokens,initial_prefix_tokens,show_id,season_number,numbering,episode_number,artist_id,album_id,resolution_key,overview) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, i, id, (i/100)%8, kind, par, t, facettext.SearchFold(t), string([]rune(t)[0]), facettext.SearchFold(t), string([]rune(t)[0]), i, id, id, facettext.SearchFold(t), p, init, show, season, numbering, episode, artist, album, resolution, strings.Repeat("Synthetic synopsis for physical row width. ", 16))
+	exec(db, `INSERT INTO catalog_entities(id,public_id,library_id,kind,parent_id,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,title_fold,title_prefix_tokens,initial_prefix_tokens,show_id,season_number,numbering,episode_number,artist_id,album_id,resolution_key,overview,added_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, i, id, (i/100)%8, kind, par, t, facettext.SearchFold(t), string([]rune(t)[0]), facettext.SearchFold(t), string([]rune(t)[0]), i, id, id, facettext.SearchFold(t), p, init, show, season, numbering, episode, artist, album, resolution, strings.Repeat("Synthetic synopsis for physical row width. ", 16), time.Date(2026, 11, 4, 0, 0, 0, 0, time.UTC).Add(time.Duration(i)*time.Millisecond).Format("2006-01-02T15:04:05.000000000Z"))
 }
 func readProcStat() string {
 	b, _ := os.ReadFile("/proc/stat")

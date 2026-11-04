@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	_ "embed"
@@ -199,6 +200,9 @@ func dumpOperations() {
 }
 func experiment(db *sql.DB, path string, n, samples, rounds int, mode string) {
 	bench := func(phase string) {
+		if mode == "recipe" {
+			return
+		}
 		if mode == "hybrid" {
 			hybridBench(db, samples, phase)
 		} else {
@@ -229,7 +233,7 @@ func experiment(db *sql.DB, path string, n, samples, rounds int, mode string) {
 				emit("concurrent_hybrid", map[string]any{"query": q.Text, "first_ms": first, "deferred_ms": deferred, "proof": proof})
 			} else {
 				if boundedReaders {
-					fastTitlePage(rd, q)
+					func() { _, _, e := shortSuggestion(context.Background(), rd, q.Text, false); must(e) }()
 				} else {
 					search(rd, "A", q)
 				}
@@ -252,8 +256,8 @@ func experiment(db *sql.DB, path string, n, samples, rounds int, mode string) {
 			if i < rounds {
 				insertItem(db, n+i, shared)
 			}
-			renameTitle(db, (i*7919)%n, fmt.Sprintf("Harbor Churn %d", i))
-			renameFragment(db, 1+i%shared, fmt.Sprintf("Ada Churn Common %d", i))
+			renameTitle(db, (i*7919)%n, renamedTitle((i*7919)%n, i))
+			renameFragment(db, 1+i%shared, renamedPerson(1+i%shared, i))
 			native(db, "churn.commit", "COMMIT")
 		})
 		churnOps++

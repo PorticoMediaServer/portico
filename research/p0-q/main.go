@@ -112,7 +112,16 @@ func prefix(s string) string {
 			num = num && unicode.IsNumber(c)
 		}
 		if cjk {
-			continue
+			if oldCJKRecipe {
+				continue
+			}
+			all := true
+			for _, x := range r {
+				all = all && facettext.CJK(x)
+			}
+			if !all || len(r) > 2 {
+				continue
+			}
 		}
 		cap := 12
 		if num {
@@ -130,7 +139,22 @@ func initial(s string) string {
 	if len(w) == 0 {
 		return ""
 	}
-	return prefix(w[0])
+	if oldCJKRecipe {
+		return prefix(w[0])
+	}
+	r := []rune(w[0])
+	cap := 12
+	num := true
+	for _, x := range r {
+		num = num && unicode.IsNumber(x)
+	}
+	if num {
+		cap = 6
+	}
+	if len(r) > cap {
+		r = r[:cap]
+	}
+	return encode(string(r))
 }
 
 var autoMerge, crisisMerge, buildBatch, mergePages = 2, 16, 8, 1
@@ -206,7 +230,10 @@ func title(i int) string {
 	if i < 9 {
 		return []string{"Harbor Lights", "Northern Road", "Blue River", "1984", "東京夜話", "1234567", "Nebuchadnezzar Chronicle", "Spider-Man", "Amélie"}[i]
 	}
-	if i%47 == 0 {
+	if cjkShare >= 0 && scriptShare(i) {
+		return fmt.Sprintf("%s %d", cjkTitleNames[i%len(cjkTitleNames)], i)
+	}
+	if cjkShare < 0 && i%47 == 0 {
 		return fmt.Sprintf("東京夜話 %d", i)
 	}
 	if i%37 == 0 {
@@ -241,6 +268,9 @@ func shape(i int) (int, int) {
 }
 func insertItem(db *sql.DB, i, shared int) {
 	t := title(i)
+	if strings.ContainsFunc(t, facettext.CJK) {
+		cjkTitlesBuilt++
+	}
 	p, init := prefix(t), initial(t)
 	kind, parent := shape(i)
 	exec(db, "INSERT INTO q_items VALUES(?,?)", i, i%100)
@@ -286,11 +316,11 @@ func build(db *sql.DB, n int) {
 			exec(db, "BEGIN IMMEDIATE")
 			for end := min(shared+max(1, shared/10)+1, i+buildBatch); i < end; i++ {
 				if i <= shared {
-					name := fmt.Sprintf("%s %s %d", []string{"Ada", "John", "Jo", "Al", "Alice", "Nolan", "Akira", "Lee"}[i%8], []string{"Lovelace", "Smith", "Williams", "Li", "Cooper", "Johnson"}[i%6], i)
+					name := personName(i)
 					fragment(db, i, -i, 2, name)
 				} else {
 					j := i - shared
-					fragment(db, i, -i, 3, fmt.Sprintf("%s Collection %d", []string{"Night", "Criterion", "Al", "Studio"}[j%4], j))
+					fragment(db, i, -i, 3, collectionName(j))
 				}
 			}
 			native(db, "build.shared.commit", "COMMIT")
@@ -318,7 +348,7 @@ func build(db *sql.DB, n int) {
 		}
 	}
 	checkpoint(db)
-	emit("build_done", map[string]any{"items": n, "elapsed_s": time.Since(start).Seconds()})
+	emit("build_done", map[string]any{"items": n, "cjk_titles": cjkTitlesBuilt, "actual_cjk_title_percent": 100 * float64(cjkTitlesBuilt) / float64(n), "elapsed_s": time.Since(start).Seconds()})
 }
 func allocation(db *sql.DB, path string) map[string]any {
 	rows, e := db.Query("SELECT name,sum(pgsize),sum(payload) FROM dbstat GROUP BY name ORDER BY name")
@@ -497,9 +527,7 @@ func fallbackQuery(q string) bool {
 		r := []rune(t)
 		numeric := true
 		for _, x := range r {
-			if facettext.CJK(x) {
-				return true
-			}
+
 			numeric = numeric && unicode.IsNumber(x)
 		}
 		if len(r) > 12 || (numeric && len(r) > 6) {
@@ -630,11 +658,15 @@ func main() {
 	dir := flag.String("dir", "", "scratch output")
 	samples := flag.Int("samples", 16, "query samples excluding warmup")
 	rounds := flag.Int("rounds", 2048, "churn transactions")
+	share := flag.Int("cjk-share", -1, "percent CJK titles/people/collections, -1 legacy witness fixture")
+	oldRecipe := flag.Bool("old-cjk-recipe", false, "historical skip-CJK prefix control")
 	pinCap := flag.Duration("snapshot-cap", 0, "controlled preparation snapshot lifetime")
 	bounded := flag.Bool("bounded-readers", false, "20Hz bounded title-page read control")
 	mixed := flag.Bool("mixed", false, "mixed security/progress traffic")
 	minimum := flag.Duration("mixed-duration", 600*time.Second, "minimum mixed observation")
 	flag.Parse()
+	cjkShare = *share
+	oldCJKRecipe = *oldRecipe
 	snapshotCap = *pinCap
 	boundedReaders = *bounded
 	mixedEnabled = *mixed
@@ -647,7 +679,7 @@ func main() {
 	defer db.Close()
 	var version string
 	must(db.QueryRow("SELECT sqlite_version()").Scan(&version))
-	emit("environment", map[string]any{"sqlite": version, "go": runtime.Version(), "cpus": runtime.NumCPU(), "profile": *profile, "variant": *v, "items": *n, "pid": os.Getpid(), "mode": *mode, "config": *config, "automerge": autoMerge, "crisismerge": crisisMerge, "batch": buildBatch, "merge_pages": mergePages, "synchronous": durability, "candidate_sha256": candidateSHA(), "candidate_fk_checks": false, "previous_candidate_sha256": "d07d13b0146246d28e5122c85b0880f48f9d95addded5bab19c3ffe91f18a2f0"})
+	emit("environment", map[string]any{"sqlite": version, "go": runtime.Version(), "cpus": runtime.NumCPU(), "profile": *profile, "variant": *v, "items": *n, "pid": os.Getpid(), "mode": *mode, "config": *config, "automerge": autoMerge, "crisismerge": crisisMerge, "batch": buildBatch, "merge_pages": mergePages, "synchronous": durability, "candidate_sha256": candidateSHA(), "candidate_fk_checks": false, "cjk_share_percent": cjkShare, "old_cjk_recipe": oldCJKRecipe, "token_recipe": "CJK-NGRAM-RECIPE", "previous_candidate_sha256": "42605a7641e8e99bb359739fae6a380e1306665b72a46e1d7c8341dc747a5411"})
 	create(db, *v)
 	setupExperiment(db, path)
 	defer stopExperiment()
@@ -655,6 +687,12 @@ func main() {
 	build(db, *n)
 	emit("allocation_base", allocation(db, path))
 	emit("debt_base", debt(db))
+	if *mode == "policy" {
+		policyHygiene(db)
+		policyBench(db, *n, *samples)
+		experiment(db, path, *n, *samples, *rounds, "recipe")
+		return
+	}
 	if *mode != "baseline" {
 		experiment(db, path, *n, *samples, *rounds, *mode)
 		return
@@ -704,8 +742,8 @@ func main() {
 		measured("churn.tx", func() {
 			exec(db, "BEGIN IMMEDIATE")
 			insertItem(db, *n+i, shared)
-			renameTitle(db, (i*7919)%*n, fmt.Sprintf("Harbor Churn %d", i))
-			renameFragment(db, 1+i%shared, fmt.Sprintf("Ada Churn Common %d", i))
+			renameTitle(db, (i*7919)%*n, renamedTitle((i*7919)%*n, i))
+			renameFragment(db, 1+i%shared, renamedPerson(1+i%shared, i))
 			tombstones += 2
 			native(db, "churn.commit", "COMMIT")
 		})

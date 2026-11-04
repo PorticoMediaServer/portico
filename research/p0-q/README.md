@@ -166,3 +166,44 @@ record this known durability-debt estimate as well as committed/uncheckpointed
 prefix sizes. In-flight sync is conservatively outstanding; this is not a claim
 about the OS dirty-byte cache. Epoch/salt changes record WAL resets. Long mixed
 runs report actual rename/tombstone-operation counts, not just the2048 insert cap.
+
+## Final binding dispatch and CJK-NGRAM-RECIPE
+
+Remaining measurement source is exact dabf442e6aab647b693e59ebc509f703050e742f96eb5aac344e4e39ea45224f.
+Search-family/entity declarations are byte-identical to42605a76; the complete new
+candidate is still executed. Source426 added admission fields and explicit typeof
+checks versus09, so09 native timings remain historical controls.
+
+Short Latin/other input(1–2Unicode scalars) and one-CJK-scalar input use only own
+-title prefix postings, return up to20, and rank catalogue insertion sequence
+DESC(entity ID DESC). The fixture gives added_at the same monotonic order. The
+production allocator must retain this insertion-sequence contract. Up to256 raw
+postings are inspected in64-row snapshots before visibility filtering; sparse
+viewers may get fewer suggestions, with full search still available on request.
+No people/credit/collection expansion occurs on this path. Client scalar counts
+must agree with server runes rather than UTF16 code units.
+
+Latin>=3 or CJK>=2 uses full A search. Explicit short-context actions use the same
+complete set and20-result keyset pages. Preparation streams native postings64 at
+a time and direct edges128 at a time, then computes the verified fixture term
+populations/lead/intersection in ephemeral Go reducers outside read snapshots.
+Per-page times include first-page preparation separately; per-ordinal page p95
+and p99 plus all read snapshot times are emitted. This is a static accepted
+corpus cost probe; production publication/freshness leases remain a build gate.
+
+Frozen token recipe: existing facettext.SearchDocument normalization and65536-byte
+cap; non-CJK words use the existing six-hex-digit scalar encoding clipped12runes
+(numeric6). CJK-containing words contribute their CJK unigrams and adjacent-CJK
+bigrams, each encoded identically, to ALL title/person/collection/credit prefix
+fields. Whole CJK words longer2 are verified as actual folded substrings after an
+indexed unigram/bigram seed; bags of unrelated grams do not establish membership.
+The initial-title column encodes the clipped first folded word, preserving starts.
+CJK lexical dispatch is retired. Long/numeric and selector-cap exceptions remain.
+Control old-cjk-recipe skips the CJK prefix tokens on the identical corpus.
+
+CJK shares5% and30% use deterministic mixed64-bit selection across all media
+kinds, people and collections, with recorded actual title share. Repeated Chinese,
+Japanese and Korean title/name vocabulary is a synthetic selectivity stress,
+not sampled real-user hit rates. Legacy1k remains an independent regression
+fixture(al653,jo710,harbor-ad306 across ALL pages). Client350ms debounce and
+same-session cancellation/generation rejection are measurement/build rules.

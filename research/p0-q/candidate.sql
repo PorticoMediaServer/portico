@@ -19,7 +19,7 @@ CREATE TABLE access_invitations(
  created_ms INTEGER NOT NULL, expires_ms INTEGER NOT NULL, accepted_ms INTEGER,
  created_by TEXT NOT NULL, account_id TEXT, revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0),
  bound_username TEXT NOT NULL DEFAULT '',
- 
+
  max_streams_mode TEXT NOT NULL DEFAULT 'inherit' CHECK(max_streams_mode IN('inherit','unlimited','limit')),
  max_streams INTEGER NOT NULL DEFAULT 0 CHECK(max_streams_mode='limit' AND max_streams BETWEEN 1 AND 1000 OR max_streams_mode<>'limit' AND max_streams=0),
  allow_remote INTEGER NOT NULL DEFAULT 1 CHECK(allow_remote IN(0,1)),
@@ -90,7 +90,7 @@ CREATE TABLE analysis_artifacts (
 
 CREATE TABLE analysis_audio_envelope(
  result_id TEXT NOT NULL REFERENCES analysis_results(id) ON DELETE CASCADE,
- edge TEXT NOT NULL CHECK(edge IN('start','end')),ordinal INTEGER NOT NULL CHECK(ordinal BETWEEN 0 AND 29),lufs REAL NOT NULL CHECK(lufs BETWEEN -120 AND 10),PRIMARY KEY(result_id,edge,ordinal)
+ edge TEXT NOT NULL CHECK(edge IN('start','end')),ordinal INTEGER NOT NULL CHECK(ordinal >=0),lufs REAL NOT NULL CHECK(lufs >=-120),PRIMARY KEY(result_id,edge,ordinal)
 ) WITHOUT ROWID, STRICT;
 
 CREATE TABLE analysis_heads (
@@ -141,7 +141,7 @@ CREATE TABLE analysis_results (
  created_ms INTEGER NOT NULL,
  retired_ms INTEGER NOT NULL DEFAULT 0,
  has_analysis_audio_loudness INTEGER NOT NULL DEFAULT 0 CHECK(has_analysis_audio_loudness IN(0,1)),
- loudness_integrated_lufs REAL CHECK(loudness_integrated_lufs BETWEEN -120 AND 10),
+ loudness_integrated_lufs REAL CHECK(loudness_integrated_lufs >=-120),
  loudness_true_peak REAL CHECK(loudness_true_peak>=0),
  loudness_loudness_range REAL CHECK(loudness_loudness_range>=0),
  CHECK(has_analysis_audio_loudness=0 OR (loudness_integrated_lufs IS NOT NULL AND loudness_true_peak IS NOT NULL AND loudness_loudness_range IS NOT NULL))
@@ -220,19 +220,13 @@ CREATE TABLE artwork_blobs(
  width INTEGER NOT NULL CHECK(width>0),height INTEGER NOT NULL CHECK(height>0),bytes INTEGER NOT NULL CHECK(bytes>0),
  created_at TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'ready' CHECK(status IN('ready','deleting'))) STRICT;
 
-CREATE TABLE artwork_candidates(
- id TEXT PRIMARY KEY,kind TEXT NOT NULL,entity_id INTEGER NOT NULL,role TEXT NOT NULL,subject TEXT NOT NULL DEFAULT '',
- provider TEXT NOT NULL,image_id TEXT NOT NULL,origin TEXT NOT NULL,locale TEXT NOT NULL DEFAULT '',rank REAL NOT NULL DEFAULT 0,
- attribution TEXT NOT NULL,source_fence TEXT NOT NULL,observed_at TEXT NOT NULL, votes INTEGER CHECK(votes IS NULL OR votes>=0),
- UNIQUE(kind,entity_id,role,subject,provider,image_id)) STRICT;
-
 CREATE TABLE artwork_compaction_failures(
  digest TEXT PRIMARY KEY REFERENCES artwork_sources(digest) ON DELETE CASCADE,
  reason TEXT NOT NULL,
  failed_at TEXT NOT NULL) WITHOUT ROWID, STRICT;
 
 CREATE TABLE artwork_discovery(
- kind TEXT NOT NULL,
+ kind TEXT NOT NULL CHECK(kind IN('entity','person')),
  entity_id INTEGER NOT NULL,
  provider TEXT NOT NULL,
  identity TEXT NOT NULL,
@@ -258,11 +252,13 @@ CREATE TABLE artwork_encoding_counters(
 
 CREATE TABLE artwork_jobs(
  id TEXT PRIMARY KEY,
- kind TEXT NOT NULL,
+ kind TEXT NOT NULL CHECK(kind IN('entity','person')),
  entity_id INTEGER NOT NULL,
- role TEXT NOT NULL,
- subject TEXT NOT NULL DEFAULT '',
- candidate_id TEXT NOT NULL DEFAULT '',
+ role TEXT NOT NULL CHECK(length(role)>0 AND role=lower(trim(role)) AND role NOT IN('thumb','thumbnail')),
+ choice TEXT NOT NULL CHECK(choice IN('matched','locked')),
+ image_id TEXT NOT NULL,attribution TEXT NOT NULL,
+ locale TEXT NOT NULL DEFAULT '',effective_language TEXT NOT NULL DEFAULT '',
+ source_object_id TEXT,source_object_revision TEXT,
  origin TEXT NOT NULL DEFAULT '',
  provider TEXT NOT NULL DEFAULT '',
  source_fence TEXT NOT NULL DEFAULT '',
@@ -270,9 +266,7 @@ CREATE TABLE artwork_jobs(
  status TEXT NOT NULL DEFAULT 'pending',
  error TEXT NOT NULL DEFAULT '',
  actor TEXT NOT NULL DEFAULT '',
- locked INTEGER NOT NULL DEFAULT 0,
  created_at TEXT NOT NULL,
- preview INTEGER NOT NULL DEFAULT 0,
  size_refresh INTEGER NOT NULL DEFAULT 0 CHECK(size_refresh IN(0,1)),
  job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
  job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
@@ -281,23 +275,27 @@ CREATE TABLE artwork_jobs(
  job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms>=0),
  job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED,
  job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0),
- UNIQUE(kind,entity_id,role,subject,preview)
+ CHECK((source_object_id IS NULL)=(source_object_revision IS NULL)),
+ UNIQUE(kind,entity_id,role,choice)
 ) STRICT;
 
-CREATE TABLE artwork_previews(candidate_id TEXT PRIMARY KEY REFERENCES artwork_candidates(id) ON DELETE CASCADE,digest TEXT NOT NULL REFERENCES artwork_sources(digest),source_fence TEXT NOT NULL,created_at TEXT NOT NULL) STRICT;
-
 CREATE TABLE artwork_selections(
- kind TEXT NOT NULL,entity_id INTEGER NOT NULL,role TEXT NOT NULL,subject TEXT NOT NULL DEFAULT '',
- candidate_id TEXT NOT NULL REFERENCES artwork_candidates(id),digest TEXT NOT NULL REFERENCES artwork_sources(digest),
- locked INTEGER NOT NULL DEFAULT 0,
- revision INTEGER NOT NULL DEFAULT 1,actor TEXT NOT NULL,observed_at TEXT NOT NULL,
- PRIMARY KEY(kind,entity_id,role,subject)) STRICT;
+ kind TEXT NOT NULL CHECK(kind IN('entity','person')),entity_id INTEGER NOT NULL,role TEXT NOT NULL CHECK(length(role)>0 AND role=lower(trim(role)) AND role NOT IN('thumb','thumbnail')),
+ choice TEXT NOT NULL CHECK(choice IN('matched','locked')),
+ digest TEXT NOT NULL REFERENCES artwork_sources(digest),
+ provider TEXT NOT NULL,image_id TEXT NOT NULL,origin TEXT NOT NULL,attribution TEXT NOT NULL,
+ locale TEXT NOT NULL DEFAULT '',effective_language TEXT NOT NULL DEFAULT '',source_fence TEXT NOT NULL,
+ source_object_id TEXT,source_object_revision TEXT,
+ revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0),actor TEXT NOT NULL,observed_at TEXT NOT NULL,
+ PRIMARY KEY(kind,entity_id,role,choice),
+ CHECK((source_object_id IS NULL)=(source_object_revision IS NULL))
+) WITHOUT ROWID, STRICT;
 
 CREATE TABLE artwork_sources(
  digest TEXT PRIMARY KEY CHECK(length(digest)=64 AND digest NOT GLOB '*[^0-9a-f]*'),
  accepted_mime TEXT NOT NULL CHECK(accepted_mime IN('image/jpeg','image/png','image/webp')),
- accepted_width INTEGER NOT NULL CHECK(accepted_width BETWEEN 1 AND 10000),
- accepted_height INTEGER NOT NULL CHECK(accepted_height BETWEEN 1 AND 10000),
+ accepted_width INTEGER NOT NULL CHECK(accepted_width>0),
+ accepted_height INTEGER NOT NULL CHECK(accepted_height>0),
  small_blob TEXT NOT NULL REFERENCES artwork_blobs(digest),
  large_blob TEXT NOT NULL REFERENCES artwork_blobs(digest),
  ambient_blob TEXT NOT NULL REFERENCES artwork_blobs(digest),
@@ -306,12 +304,6 @@ CREATE TABLE artwork_sources(
  large_outlier INTEGER NOT NULL CHECK(large_outlier IN(0,1)),
  encoder_revision INTEGER NOT NULL CHECK(encoder_revision>0),
  created_at TEXT NOT NULL) STRICT;
-
-CREATE TABLE artwork_uploads(
- candidate_id TEXT PRIMARY KEY REFERENCES artwork_candidates(id) ON DELETE CASCADE,
- kind TEXT NOT NULL,entity_id INTEGER NOT NULL,role TEXT NOT NULL,subject TEXT NOT NULL DEFAULT '',
- digest TEXT NOT NULL,mime TEXT NOT NULL,bytes INTEGER NOT NULL,
- width INTEGER NOT NULL,height INTEGER NOT NULL,actor TEXT NOT NULL,observed_at TEXT NOT NULL) STRICT;
 
 CREATE TABLE asset_chapter_facts(asset_id TEXT PRIMARY KEY REFERENCES catalog_assets(token) ON DELETE CASCADE,revision INTEGER NOT NULL,size INTEGER NOT NULL,modified_ns INTEGER NOT NULL,status TEXT NOT NULL,fingerprint TEXT NOT NULL) STRICT;
 
@@ -378,13 +370,13 @@ CREATE TABLE asset_subtitles(id TEXT PRIMARY KEY,asset_id TEXT NOT NULL REFERENC
 CREATE TABLE audio_file_chapters(
  asset_id TEXT NOT NULL REFERENCES audio_file_metadata(asset_id) ON DELETE CASCADE,
  kind TEXT NOT NULL CHECK(kind IN('chapter','cue')),
- ordinal INTEGER NOT NULL CHECK(ordinal>=0 AND ordinal<4096),title TEXT NOT NULL,
+ ordinal INTEGER NOT NULL CHECK(ordinal>=0),title TEXT NOT NULL,
  start_seconds REAL NOT NULL,end_seconds REAL NOT NULL,PRIMARY KEY(asset_id,kind,ordinal)) STRICT;
 
 CREATE TABLE audio_file_metadata(
  asset_id TEXT PRIMARY KEY REFERENCES catalog_assets(token) ON DELETE CASCADE,
  source_revision TEXT NOT NULL,size INTEGER NOT NULL,modified_ns INTEGER NOT NULL,
- chapter_status TEXT NOT NULL,artwork_key TEXT NOT NULL,issue TEXT NOT NULL,artwork_issue TEXT NOT NULL) STRICT;
+ chapter_status TEXT NOT NULL,issue TEXT NOT NULL,artwork_issue TEXT NOT NULL) STRICT;
 
 CREATE TABLE audio_file_tags(
  asset_id TEXT NOT NULL REFERENCES audio_file_metadata(asset_id) ON DELETE CASCADE,
@@ -407,7 +399,7 @@ CREATE TABLE audio_genre_projection(
 CREATE TABLE audio_local_evidence(
   library_id TEXT NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
   asset_id TEXT NOT NULL REFERENCES catalog_assets(token) ON DELETE CASCADE,
-  ordinal INTEGER NOT NULL CHECK(ordinal>=0 AND ordinal<512),
+  ordinal INTEGER NOT NULL CHECK(ordinal>=0),
   field TEXT NOT NULL,source TEXT NOT NULL,value TEXT NOT NULL,
   source_revision TEXT NOT NULL,size INTEGER NOT NULL,modified_ns INTEGER NOT NULL,observed_at TEXT NOT NULL,
   PRIMARY KEY(library_id,asset_id,ordinal)) STRICT;
@@ -458,7 +450,7 @@ CREATE TABLE audio_seek_index(
  asset_id TEXT PRIMARY KEY REFERENCES catalog_assets(token) ON DELETE CASCADE,
  size INTEGER NOT NULL,
  modified_ns INTEGER NOT NULL,
- entries BLOB NOT NULL CHECK(length(entries) BETWEEN 2 AND 131072)
+ entries BLOB NOT NULL CHECK(length(entries) >=2)
 ) STRICT;
 
 CREATE TABLE audio_source_metadata(library_id TEXT NOT NULL REFERENCES libraries(id),asset_id TEXT NOT NULL REFERENCES catalog_assets(token),issue TEXT NOT NULL DEFAULT '',PRIMARY KEY(library_id,asset_id)) STRICT;
@@ -494,19 +486,24 @@ CREATE TABLE authorization_family_tokens(
 CREATE TABLE authorization_session_families(
  id TEXT PRIMARY KEY,
  server_id TEXT NOT NULL CHECK(length(server_id)>0),
- account_id TEXT NOT NULL, profile_id TEXT NOT NULL,
+ account_id TEXT NOT NULL,
+ profile_id TEXT NOT NULL,
  authority TEXT NOT NULL CHECK(authority='local'),
- role TEXT NOT NULL, epoch INTEGER NOT NULL,
+ role TEXT NOT NULL,
+ epoch INTEGER NOT NULL,
  authorization_horizon TEXT NOT NULL,
  current_generation INTEGER NOT NULL CHECK(current_generation>0),
- revoked INTEGER NOT NULL DEFAULT 0 CHECK(revoked IN (0,1))
-, revoked_reason TEXT NOT NULL DEFAULT ''
- CHECK(revoked_reason IN ('','refresh_reuse','explicit_signout','admin_revoke','membership_removed','password_change','signing_key_revoked','restored')), revoked_at TEXT NOT NULL DEFAULT '',
+ revoked INTEGER NOT NULL DEFAULT 0 CHECK(revoked IN (0,1)),
+ revoked_reason TEXT NOT NULL DEFAULT ''
+ CHECK(revoked_reason IN ('','refresh_reuse','explicit_signout','admin_revoke','membership_removed','password_change','signing_key_revoked','restored')),
+ revoked_at TEXT NOT NULL DEFAULT '',
  remember_until TEXT NOT NULL DEFAULT '',
  manage_until TEXT NOT NULL DEFAULT '',
  pin_gate INTEGER NOT NULL DEFAULT 0 CHECK(pin_gate IN (0,1)),
  device_id TEXT REFERENCES identity_devices(id) ON DELETE SET NULL,
- pin_lineage_id TEXT REFERENCES identity_pin_lineages(id) ON DELETE SET NULL
+ pin_lineage_id TEXT REFERENCES identity_pin_lineages(id) ON DELETE SET NULL,
+ remember_generation INTEGER NOT NULL DEFAULT 1 CHECK(remember_generation>0),
+ authority_generation INTEGER NOT NULL DEFAULT 1 CHECK(authority_generation>0)
 ) STRICT;
 
 CREATE TABLE backup_blob_holds(
@@ -526,8 +523,6 @@ CREATE TABLE backup_settings(
  CHECK((passphrase_protected=0 AND passphrase_sealed IS NULL) OR (passphrase_protected=1 AND passphrase_sealed IS NOT NULL AND length(passphrase_sealed)>=40))
 ) STRICT;
 
-CREATE TABLE book_resume(profile_id TEXT NOT NULL,book_id INTEGER NOT NULL REFERENCES catalog_entities(id),item_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,playback_id TEXT NOT NULL,position INTEGER NOT NULL,unit INTEGER NOT NULL DEFAULT 0 CHECK(unit BETWEEN 0 AND 99),completed INTEGER NOT NULL DEFAULT 0 CHECK(completed IN(0,1)),PRIMARY KEY(profile_id,book_id)) STRICT;
-
 CREATE TABLE catalog_asset_issues(
  library_id INTEGER NOT NULL REFERENCES catalog_libraries(id),
  asset_id INTEGER NOT NULL REFERENCES catalog_assets(id),
@@ -535,8 +530,7 @@ CREATE TABLE catalog_asset_issues(
  PRIMARY KEY(library_id,asset_id)) WITHOUT ROWID, STRICT;
 
 CREATE TABLE catalog_asset_links(
- cue_ordinal INTEGER CHECK(cue_ordinal BETWEEN 1 AND 255),
- cue_slot INTEGER CHECK(cue_slot BETWEEN 1 AND 255),
+ cue_ordinal INTEGER CHECK(cue_ordinal>0),
  entity_id INTEGER NOT NULL,
  asset_id INTEGER NOT NULL,
  part_index INTEGER NOT NULL DEFAULT 0,
@@ -551,11 +545,24 @@ CREATE TABLE catalog_asset_links(
  playback_origin_revision INTEGER NOT NULL DEFAULT 1 CHECK(playback_origin_revision>0),
  library_id INTEGER NOT NULL,
  PRIMARY KEY(entity_id,asset_id),
- CHECK((cue_ordinal IS NULL)=(cue_slot IS NULL)),
- CHECK(cue_slot IS NULL OR (start_seconds>=0 AND (end_seconds IS NULL OR end_seconds>start_seconds))),
+ CHECK(cue_ordinal IS NULL OR (start_seconds>=0 AND (end_seconds IS NULL OR end_seconds>start_seconds))),
  FOREIGN KEY(library_id,entity_id) REFERENCES catalog_entities(library_id,id) ON DELETE CASCADE,
- FOREIGN KEY(library_id,asset_id) REFERENCES catalog_assets(library_id,id) ON DELETE CASCADE
-) WITHOUT ROWID, STRICT;
+ FOREIGN KEY(library_id,asset_id) REFERENCES catalog_assets(library_id,id) ON DELETE CASCADE,
+ CHECK("cue_ordinal" IS NULL OR typeof("cue_ordinal")='integer'),
+ CHECK("entity_id" IS NULL OR typeof("entity_id")='integer'),
+ CHECK("asset_id" IS NULL OR typeof("asset_id")='integer'),
+ CHECK("part_index" IS NULL OR typeof("part_index")='integer'),
+ CHECK("available" IS NULL OR typeof("available")='integer'),
+ CHECK("start_seconds" IS NULL OR typeof("start_seconds")IN('integer','real')),
+ CHECK("end_seconds" IS NULL OR typeof("end_seconds")IN('integer','real')),
+ CHECK("edition" IS NULL OR typeof("edition")='text'),
+ CHECK("info_duration" IS NULL OR typeof("info_duration")IN('integer','real')),
+ CHECK("info_pending_change" IS NULL OR typeof("info_pending_change")='integer'),
+ CHECK("info_shape_id" IS NULL OR typeof("info_shape_id")='integer'),
+ CHECK("playback_origin_incarnation" IS NULL OR typeof("playback_origin_incarnation")='blob'),
+ CHECK("playback_origin_revision" IS NULL OR typeof("playback_origin_revision")='integer'),
+ CHECK("library_id" IS NULL OR typeof("library_id")='integer')
+) WITHOUT ROWID;
 
 CREATE TABLE catalog_assets(
  id INTEGER PRIMARY KEY,
@@ -577,8 +584,8 @@ CREATE TABLE catalog_assets(
  info_invalidation_revision INTEGER NOT NULL DEFAULT 1 CHECK(info_invalidation_revision>0),
  info_publication_pending INTEGER NOT NULL DEFAULT 0 CHECK(info_publication_pending IN(0,1)),
  music_sample_rate INTEGER CHECK(music_sample_rate>0),
- music_bit_depth INTEGER CHECK(music_bit_depth BETWEEN 0 AND 64),
- music_channels INTEGER CHECK(music_channels BETWEEN 1 AND 64),
+ music_bit_depth INTEGER CHECK(music_bit_depth>=0),
+ music_channels INTEGER CHECK(music_channels>=1),
  music_lossless INTEGER CHECK(music_lossless IN(0,1)),
  music_technical_source_revision TEXT,
  playback_origin_incarnation BLOB NOT NULL DEFAULT(randomblob(16)) CHECK(length(playback_origin_incarnation)=16),
@@ -593,8 +600,40 @@ CREATE TABLE catalog_assets(
  CHECK((info_owner_object IS NULL)=(info_owner_revision IS NULL)),
  CHECK(has_download_source_digests=0 OR (download_hash_size IS NOT NULL AND download_hash_modified_ns IS NOT NULL AND download_hash_sha256 IS NOT NULL AND download_hash_hashed_ms IS NOT NULL)),
  UNIQUE(library_id,id),
- UNIQUE(library_id,path)
-) STRICT;
+ UNIQUE(library_id,path),
+ CHECK("id" IS NULL OR typeof("id")='integer'),
+ CHECK("token" IS NULL OR typeof("token")='text'),
+ CHECK("path" IS NULL OR typeof("path")='text'),
+ CHECK("size" IS NULL OR typeof("size")='integer'),
+ CHECK("modified_ns" IS NULL OR typeof("modified_ns")='integer'),
+ CHECK("container" IS NULL OR typeof("container")='text'),
+ CHECK("video_codec" IS NULL OR typeof("video_codec")='text'),
+ CHECK("audio_codec" IS NULL OR typeof("audio_codec")='text'),
+ CHECK("width" IS NULL OR typeof("width")='integer'),
+ CHECK("height" IS NULL OR typeof("height")='integer'),
+ CHECK("duration" IS NULL OR typeof("duration")IN('integer','real')),
+ CHECK("available" IS NULL OR typeof("available")='integer'),
+ CHECK("info_epoch" IS NULL OR typeof("info_epoch")='integer'),
+ CHECK("info_order_available" IS NULL OR typeof("info_order_available")='integer'),
+ CHECK("info_owner_object" IS NULL OR typeof("info_owner_object")='text'),
+ CHECK("info_owner_revision" IS NULL OR typeof("info_owner_revision")='text'),
+ CHECK("info_invalidation_revision" IS NULL OR typeof("info_invalidation_revision")='integer'),
+ CHECK("info_publication_pending" IS NULL OR typeof("info_publication_pending")='integer'),
+ CHECK("music_sample_rate" IS NULL OR typeof("music_sample_rate")='integer'),
+ CHECK("music_bit_depth" IS NULL OR typeof("music_bit_depth")='integer'),
+ CHECK("music_channels" IS NULL OR typeof("music_channels")='integer'),
+ CHECK("music_lossless" IS NULL OR typeof("music_lossless")='integer'),
+ CHECK("music_technical_source_revision" IS NULL OR typeof("music_technical_source_revision")='text'),
+ CHECK("playback_origin_incarnation" IS NULL OR typeof("playback_origin_incarnation")='blob'),
+ CHECK("playback_origin_revision" IS NULL OR typeof("playback_origin_revision")='integer'),
+ CHECK("prepared_source_revision" IS NULL OR typeof("prepared_source_revision")='integer'),
+ CHECK("has_download_source_digests" IS NULL OR typeof("has_download_source_digests")='integer'),
+ CHECK("download_hash_size" IS NULL OR typeof("download_hash_size")='integer'),
+ CHECK("download_hash_modified_ns" IS NULL OR typeof("download_hash_modified_ns")='integer'),
+ CHECK("download_hash_sha256" IS NULL OR typeof("download_hash_sha256")='text'),
+ CHECK("download_hash_hashed_ms" IS NULL OR typeof("download_hash_hashed_ms")='integer'),
+ CHECK("library_id" IS NULL OR typeof("library_id")='integer')
+);
 
 CREATE TABLE catalog_attribute_fields(
  id INTEGER PRIMARY KEY,
@@ -608,12 +647,13 @@ CREATE TABLE catalog_attribute_terms(
 
 CREATE TABLE catalog_automatic_collections(
  library_id INTEGER NOT NULL REFERENCES catalog_libraries(id) ON DELETE CASCADE,
- provider TEXT NOT NULL,provider_id TEXT NOT NULL,name TEXT NOT NULL,
+ provider TEXT NOT NULL,
+ provider_id TEXT NOT NULL,
  entity_id INTEGER REFERENCES catalog_entities(id) ON DELETE SET NULL,
  removed INTEGER NOT NULL DEFAULT 0 CHECK(removed IN(0,1)),
- dirty INTEGER NOT NULL DEFAULT 1 CHECK(dirty IN(0,1)),
  owner_edited INTEGER NOT NULL DEFAULT 0 CHECK(owner_edited IN(0,1)),
- PRIMARY KEY(library_id,provider,provider_id)) WITHOUT ROWID, STRICT;
+ PRIMARY KEY(library_id,provider,provider_id)
+) WITHOUT ROWID, STRICT;
 
 CREATE TABLE catalog_automatic_member_overrides(
  collection_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
@@ -654,7 +694,21 @@ CREATE TABLE catalog_credits(
  source_status TEXT NOT NULL DEFAULT 'current' CHECK(source_status IN('current','missing','replaced')),
  FOREIGN KEY(source_row_id,entity_id) REFERENCES credit_source_rows(source_row_id,entity_id),
  FOREIGN KEY(owner_entry_id,entity_id) REFERENCES credit_owner_entries(entry_id,entity_id),
- PRIMARY KEY(entity_id,ord)) WITHOUT ROWID, STRICT;
+ PRIMARY KEY(entity_id,ord),
+ CHECK("entity_id" IS NULL OR typeof("entity_id")='integer'),
+ CHECK("ord" IS NULL OR typeof("ord")='integer'),
+ CHECK("person_id" IS NULL OR typeof("person_id")='integer'),
+ CHECK("role_id" IS NULL OR typeof("role_id")='integer'),
+ CHECK("department_id" IS NULL OR typeof("department_id")='integer'),
+ CHECK("credited_name" IS NULL OR typeof("credited_name")='text'),
+ CHECK("provider" IS NULL OR typeof("provider")='text'),
+ CHECK("credit_id" IS NULL OR typeof("credit_id")='text'),
+ CHECK("provider_person_id" IS NULL OR typeof("provider_person_id")='text'),
+ CHECK("source_ordinal" IS NULL OR typeof("source_ordinal")='integer'),
+ CHECK("source_row_id" IS NULL OR typeof("source_row_id")='text'),
+ CHECK("owner_entry_id" IS NULL OR typeof("owner_entry_id")='text'),
+ CHECK("source_status" IS NULL OR typeof("source_status")='text')
+) WITHOUT ROWID;
 
 CREATE TABLE catalog_dataset_tags(
  entity_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
@@ -799,6 +853,13 @@ CREATE TABLE catalog_entities(
  title_fold TEXT NOT NULL DEFAULT '',
  title_prefix_tokens TEXT NOT NULL DEFAULT '',
  initial_prefix_tokens TEXT NOT NULL DEFAULT '',
+ admission_own_age INTEGER CHECK(admission_own_age>=0),
+ admission_member_count INTEGER NOT NULL DEFAULT 0 CHECK(admission_member_count>=0),
+ admission_unrated_members INTEGER NOT NULL DEFAULT 0 CHECK(admission_unrated_members>=0),
+ admission_min_known_age INTEGER CHECK(admission_min_known_age>=0),
+ admission_allow_age INTEGER CHECK(admission_allow_age>=-1),
+ admission_known_age INTEGER CHECK(admission_known_age>=-1),
+ admission_revision INTEGER NOT NULL DEFAULT 1 CHECK(admission_revision>0),
  CHECK((playback_origin_incarnation IS NULL)=(playback_origin_revision IS NULL)),
  FOREIGN KEY(library_id,parent_id) REFERENCES catalog_entities(library_id,id),
  FOREIGN KEY(library_id,show_id) REFERENCES catalog_entities(library_id,id),
@@ -818,8 +879,145 @@ CREATE TABLE catalog_entities(
  CHECK((reading_series_value IS NULL AND reading_series_key IS NULL AND reading_series_id IS NULL AND reading_series_source IS NULL) OR (reading_series_value IS NOT NULL AND reading_series_key IS NOT NULL AND reading_series_id IS NOT NULL AND reading_series_source IS NOT NULL)),
  CHECK(reading_numbered_order=0 OR reading_number_value=0),
  CHECK(has_reading_attribution_members=0 OR (reading_numbered_order IS NOT NULL AND reading_number_value IS NOT NULL)),
- CHECK(kind IN(1,2,3,4,10) OR resolution_key IS NULL)
-) STRICT;
+ CHECK(kind IN(1,2,3,4,10) OR resolution_key IS NULL),
+ FOREIGN KEY(id,public_id,library_id,kind) REFERENCES catalog_subjects(id,public_id,library_id,kind),
+ CHECK(admission_unrated_members<=admission_member_count),
+ CHECK("id" IS NULL OR typeof("id")='integer'),
+ CHECK("public_id" IS NULL OR typeof("public_id")='blob'),
+ CHECK("library_id" IS NULL OR typeof("library_id")='integer'),
+ CHECK("kind" IS NULL OR typeof("kind")='integer'),
+ CHECK("parent_id" IS NULL OR typeof("parent_id")='integer'),
+ CHECK("title" IS NULL OR typeof("title")='text'),
+ CHECK("sort_title" IS NULL OR typeof("sort_title")='text'),
+ CHECK("metadata_language" IS NULL OR typeof("metadata_language")='text'),
+ CHECK("sort_key" IS NULL OR typeof("sort_key")='text'),
+ CHECK("sort_head" IS NULL OR typeof("sort_head")='text'),
+ CHECK("sort_key_keep_articles" IS NULL OR typeof("sort_key_keep_articles")='text'),
+ CHECK("sort_head_keep_articles" IS NULL OR typeof("sort_head_keep_articles")='text'),
+ CHECK("random_key" IS NULL OR typeof("random_key")='integer'),
+ CHECK("year" IS NULL OR typeof("year")='integer'),
+ CHECK("added_at" IS NULL OR typeof("added_at")='text'),
+ CHECK("last_content_added_at" IS NULL OR typeof("last_content_added_at")='text'),
+ CHECK("retired" IS NULL OR typeof("retired")='integer'),
+ CHECK("revision" IS NULL OR typeof("revision")='integer'),
+ CHECK("overview" IS NULL OR typeof("overview")='text'),
+ CHECK("original_title" IS NULL OR typeof("original_title")='text'),
+ CHECK("edition" IS NULL OR typeof("edition")='text'),
+ CHECK("tagline" IS NULL OR typeof("tagline")='text'),
+ CHECK("release_date" IS NULL OR typeof("release_date")='text'),
+ CHECK("content_rating" IS NULL OR typeof("content_rating")='text'),
+ CHECK("studio" IS NULL OR typeof("studio")='text'),
+ CHECK("network" IS NULL OR typeof("network")='text'),
+ CHECK("country" IS NULL OR typeof("country")='text'),
+ CHECK("duration_key" IS NULL OR typeof("duration_key")IN('integer','real')),
+ CHECK("community_rating_key" IS NULL OR typeof("community_rating_key")IN('integer','real')),
+ CHECK("critic_rating_key" IS NULL OR typeof("critic_rating_key")IN('integer','real')),
+ CHECK("file_size_key" IS NULL OR typeof("file_size_key")='integer'),
+ CHECK("resolution_key" IS NULL OR typeof("resolution_key")='integer'),
+ CHECK("release_key" IS NULL OR typeof("release_key")='text'),
+ CHECK("episode_count" IS NULL OR typeof("episode_count")='integer'),
+ CHECK("latest_aired_key" IS NULL OR typeof("latest_aired_key")='text'),
+ CHECK("track_key" IS NULL OR typeof("track_key")='integer'),
+ CHECK("local_key" IS NULL OR typeof("local_key")='text'),
+ CHECK("source_edition" IS NULL OR typeof("source_edition")='text'),
+ CHECK("edition_key" IS NULL OR typeof("edition_key")='text'),
+ CHECK("show_id" IS NULL OR typeof("show_id")='integer'),
+ CHECK("season_id" IS NULL OR typeof("season_id")='integer'),
+ CHECK("season_number" IS NULL OR typeof("season_number")='integer'),
+ CHECK("numbering" IS NULL OR typeof("numbering")='text'),
+ CHECK("episode_number" IS NULL OR typeof("episode_number")='integer'),
+ CHECK("local_identity_status" IS NULL OR typeof("local_identity_status")='text'),
+ CHECK("ordering_basis" IS NULL OR typeof("ordering_basis")='text'),
+ CHECK("air_date" IS NULL OR typeof("air_date")='integer'),
+ CHECK("artist_id" IS NULL OR typeof("artist_id")='integer'),
+ CHECK("album_id" IS NULL OR typeof("album_id")='integer'),
+ CHECK("book_id" IS NULL OR typeof("book_id")='integer'),
+ CHECK("disc_number" IS NULL OR typeof("disc_number")='integer'),
+ CHECK("track_number" IS NULL OR typeof("track_number")='integer'),
+ CHECK("part_number" IS NULL OR typeof("part_number")='integer'),
+ CHECK("author" IS NULL OR typeof("author")='text'),
+ CHECK("narrator" IS NULL OR typeof("narrator")='text'),
+ CHECK("series" IS NULL OR typeof("series")='text'),
+ CHECK("series_position" IS NULL OR typeof("series_position")='text'),
+ CHECK("record_label" IS NULL OR typeof("record_label")='text'),
+ CHECK("release_country" IS NULL OR typeof("release_country")='text'),
+ CHECK("collection_name_key" IS NULL OR typeof("collection_name_key")='text'),
+ CHECK("collection_revision" IS NULL OR typeof("collection_revision")='integer'),
+ CHECK("hide_seasons" IS NULL OR typeof("hide_seasons")='integer'),
+ CHECK("absolute_numbering" IS NULL OR typeof("absolute_numbering")='integer'),
+ CHECK("show_ranges" IS NULL OR typeof("show_ranges")='text'),
+ CHECK("newest_first" IS NULL OR typeof("newest_first")='integer'),
+ CHECK("show_settings_revision" IS NULL OR typeof("show_settings_revision")='integer'),
+ CHECK("kept_apart" IS NULL OR typeof("kept_apart")='integer'),
+ CHECK("missing_since_ms" IS NULL OR typeof("missing_since_ms")='integer'),
+ CHECK("enrichment_domain" IS NULL OR typeof("enrichment_domain")='text'),
+ CHECK("enrichment_qid" IS NULL OR typeof("enrichment_qid")='integer'),
+ CHECK("metadata_incarnation" IS NULL OR typeof("metadata_incarnation")='blob'),
+ CHECK("source_revision" IS NULL OR typeof("source_revision")='integer'),
+ CHECK("identity_revision" IS NULL OR typeof("identity_revision")='integer'),
+ CHECK("metadata_revision" IS NULL OR typeof("metadata_revision")='integer'),
+ CHECK("tv_incarnation" IS NULL OR typeof("tv_incarnation")='blob'),
+ CHECK("tv_source_revision" IS NULL OR typeof("tv_source_revision")='integer'),
+ CHECK("tv_hierarchy_revision" IS NULL OR typeof("tv_hierarchy_revision")='integer'),
+ CHECK("tv_selection_revision" IS NULL OR typeof("tv_selection_revision")='integer'),
+ CHECK("tv_descriptive_revision" IS NULL OR typeof("tv_descriptive_revision")='integer'),
+ CHECK("music_incarnation" IS NULL OR typeof("music_incarnation")='blob'),
+ CHECK("music_revision" IS NULL OR typeof("music_revision")='integer'),
+ CHECK("music_membership_revision" IS NULL OR typeof("music_membership_revision")='integer'),
+ CHECK("artwork_incarnation" IS NULL OR typeof("artwork_incarnation")='blob'),
+ CHECK("artwork_revision" IS NULL OR typeof("artwork_revision")='integer'),
+ CHECK("artwork_dirty" IS NULL OR typeof("artwork_dirty")='integer'),
+ CHECK("artwork_job_revision" IS NULL OR typeof("artwork_job_revision")='integer'),
+ CHECK("artwork_lease_owner" IS NULL OR typeof("artwork_lease_owner")='text'),
+ CHECK("artwork_lease_generation" IS NULL OR typeof("artwork_lease_generation")='integer'),
+ CHECK("artwork_lease_expires_ms" IS NULL OR typeof("artwork_lease_expires_ms")='integer'),
+ CHECK("artwork_attempts" IS NULL OR typeof("artwork_attempts")='integer'),
+ CHECK("artwork_next_attempt_ms" IS NULL OR typeof("artwork_next_attempt_ms")='integer'),
+ CHECK("artwork_claim_source_revision" IS NULL OR typeof("artwork_claim_source_revision")='integer'),
+ CHECK("artwork_claim_artwork_revision" IS NULL OR typeof("artwork_claim_artwork_revision")='integer'),
+ CHECK("artwork_claim_incarnation" IS NULL OR typeof("artwork_claim_incarnation")='blob'),
+ CHECK("artwork_after_provider" IS NULL OR typeof("artwork_after_provider")='text'),
+ CHECK("artwork_error_code" IS NULL OR typeof("artwork_error_code")='text'),
+ CHECK("credit_owner_revision" IS NULL OR typeof("credit_owner_revision")='integer'),
+ CHECK("credit_owner_locked" IS NULL OR typeof("credit_owner_locked")='integer'),
+ CHECK("credit_owner_actor" IS NULL OR typeof("credit_owner_actor")='text'),
+ CHECK("credit_owner_observed_at" IS NULL OR typeof("credit_owner_observed_at")='text'),
+ CHECK("screen_attention_reason" IS NULL OR typeof("screen_attention_reason")='text'),
+ CHECK("screen_attention_confidence" IS NULL OR typeof("screen_attention_confidence")IN('integer','real')),
+ CHECK("screen_attention_generation" IS NULL OR typeof("screen_attention_generation")='integer'),
+ CHECK("screen_attention_dismissed_generation" IS NULL OR typeof("screen_attention_dismissed_generation")='integer'),
+ CHECK("listening_attention_reason" IS NULL OR typeof("listening_attention_reason")='text'),
+ CHECK("listening_attention_confidence" IS NULL OR typeof("listening_attention_confidence")IN('integer','real')),
+ CHECK("listening_attention_generation" IS NULL OR typeof("listening_attention_generation")='integer'),
+ CHECK("listening_attention_dismissed_generation" IS NULL OR typeof("listening_attention_dismissed_generation")='integer'),
+ CHECK("playback_origin_incarnation" IS NULL OR typeof("playback_origin_incarnation")='blob'),
+ CHECK("playback_origin_revision" IS NULL OR typeof("playback_origin_revision")='integer'),
+ CHECK("subtitle_collection_revision" IS NULL OR typeof("subtitle_collection_revision")='integer'),
+ CHECK("has_reading_attribution_members" IS NULL OR typeof("has_reading_attribution_members")='integer'),
+ CHECK("reading_publication_type" IS NULL OR typeof("reading_publication_type")='text'),
+ CHECK("reading_publication_type_source" IS NULL OR typeof("reading_publication_type_source")='text'),
+ CHECK("reading_issue_date" IS NULL OR typeof("reading_issue_date")='text'),
+ CHECK("reading_issue_date_source" IS NULL OR typeof("reading_issue_date_source")='text'),
+ CHECK("reading_author_value" IS NULL OR typeof("reading_author_value")='text'),
+ CHECK("reading_author_key" IS NULL OR typeof("reading_author_key")='text'),
+ CHECK("reading_author_source" IS NULL OR typeof("reading_author_source")='text'),
+ CHECK("reading_series_value" IS NULL OR typeof("reading_series_value")='text'),
+ CHECK("reading_series_key" IS NULL OR typeof("reading_series_key")='text'),
+ CHECK("reading_series_id" IS NULL OR typeof("reading_series_id")='text'),
+ CHECK("reading_series_source" IS NULL OR typeof("reading_series_source")='text'),
+ CHECK("reading_numbered_order" IS NULL OR typeof("reading_numbered_order")='integer'),
+ CHECK("reading_number_value" IS NULL OR typeof("reading_number_value")IN('integer','real')),
+ CHECK("title_fold" IS NULL OR typeof("title_fold")='text'),
+ CHECK("title_prefix_tokens" IS NULL OR typeof("title_prefix_tokens")='text'),
+ CHECK("initial_prefix_tokens" IS NULL OR typeof("initial_prefix_tokens")='text'),
+ CHECK("admission_own_age" IS NULL OR typeof("admission_own_age")='integer'),
+ CHECK("admission_member_count" IS NULL OR typeof("admission_member_count")='integer'),
+ CHECK("admission_unrated_members" IS NULL OR typeof("admission_unrated_members")='integer'),
+ CHECK("admission_min_known_age" IS NULL OR typeof("admission_min_known_age")='integer'),
+ CHECK("admission_allow_age" IS NULL OR typeof("admission_allow_age")='integer'),
+ CHECK("admission_known_age" IS NULL OR typeof("admission_known_age")='integer'),
+ CHECK("admission_revision" IS NULL OR typeof("admission_revision")='integer')
+);
 
 CREATE TABLE catalog_entity_mutations(
  mutation_id TEXT PRIMARY KEY,
@@ -868,13 +1066,6 @@ CREATE TABLE catalog_entity_mutations(
  split_object_revision TEXT NOT NULL DEFAULT '',
  acknowledged INTEGER NOT NULL DEFAULT 0 CHECK(acknowledged IN(0,1)),
  child_count INTEGER NOT NULL DEFAULT 0 CHECK(child_count>=0),
- job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
- job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
- job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
- job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts BETWEEN 0 AND 4294967295),
- job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms>=0),
- job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED,
- job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0),
  CHECK((mode='separate' AND split_source_id<>'' AND split_object_id<>'' AND split_object_revision<>'') OR (mode<>'separate' AND split_source_id='' AND split_directory='' AND split_object_id='' AND split_object_revision='')),
  CHECK(owner_kind<>'empty-parent' OR (entity_kind=2 AND mode='members' AND parent_mutation_id IS NULL AND target_id IS NULL AND target_subject_id=0 AND target_public_id='' AND target_incarnation='' AND target_publication_incarnation='' AND current_child IS NULL AND cause_operation='empty-show' AND provider='' AND provider_kind='' AND provider_id='' AND accepted_revision='' AND owner_id=public_id AND public_id<>'' AND phase IN('admitted','finalize','terminal') AND status IN('active','terminal'))),
  CHECK(status<>'waiting' OR (owner_kind='mb-adoption' AND mode='adopt' AND phase='artist-identity' AND entity_kind=6 AND parent_mutation_id IS NULL AND target_id IS NULL AND current_child IS NULL AND provider='musicbrainz' AND provider_kind='release' AND accepted_revision<>'' AND cause_operation<>'' AND public_id<>'' AND entity_incarnation<>'' AND subject_ancestor_1 IS NOT NULL)),
@@ -885,14 +1076,21 @@ CREATE TABLE catalog_entity_mutations(
 CREATE TABLE catalog_entity_terms(
  entity_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
  term_id INTEGER NOT NULL REFERENCES catalog_terms(id),
- PRIMARY KEY(entity_id,term_id)) WITHOUT ROWID, STRICT;
+ PRIMARY KEY(entity_id,term_id),
+ CHECK("entity_id" IS NULL OR typeof("entity_id")='integer'),
+ CHECK("term_id" IS NULL OR typeof("term_id")='integer')
+) WITHOUT ROWID;
 
 CREATE TABLE catalog_identities(
- root TEXT NOT NULL,
+ library_id INTEGER NOT NULL,
  source_key TEXT NOT NULL,
- public_id BLOB NOT NULL CHECK(length(public_id)=16),
- kind INTEGER NOT NULL,
- PRIMARY KEY(root,source_key)) WITHOUT ROWID, STRICT;
+ subject_id INTEGER NOT NULL,
+ PRIMARY KEY(library_id,source_key),
+ FOREIGN KEY(library_id,subject_id) REFERENCES catalog_subjects(library_id,id),
+ CHECK("library_id" IS NULL OR typeof("library_id")='integer'),
+ CHECK("source_key" IS NULL OR typeof("source_key")='text'),
+ CHECK("subject_id" IS NULL OR typeof("subject_id")='integer')
+) WITHOUT ROWID;
 
 CREATE TABLE catalog_info_changes(
  id INTEGER PRIMARY KEY,
@@ -1085,7 +1283,7 @@ CREATE TABLE catalog_info_new_disc_titles(
  object_id TEXT NOT NULL,
  title_key TEXT NOT NULL, selection_token TEXT NOT NULL,
  title_number INTEGER NOT NULL CHECK(title_number>0), disc_order INTEGER NOT NULL CHECK(disc_order>=0),
- duration_ms INTEGER NOT NULL CHECK(duration_ms>=60000), angle_count INTEGER NOT NULL CHECK(angle_count BETWEEN 1 AND 255),
+ duration_ms INTEGER NOT NULL CHECK(duration_ms>=60000), angle_count INTEGER NOT NULL CHECK(angle_count>=1),
  playlist INTEGER CHECK(playlist IS NULL OR playlist BETWEEN 0 AND 99999),
  dvd_title INTEGER NOT NULL DEFAULT 0, vts INTEGER NOT NULL DEFAULT 0, pgc INTEGER NOT NULL DEFAULT 0,
  PRIMARY KEY(change_id,object_id,title_key), UNIQUE(change_id,object_id,title_number),
@@ -1174,7 +1372,7 @@ CREATE TABLE catalog_info_new_subtitles(
 CREATE TABLE catalog_info_scalar_old(
  change_id INTEGER NOT NULL REFERENCES catalog_info_changes(id),
  field INTEGER NOT NULL CHECK(field BETWEEN 1 AND 9),
- 
+
  kind INTEGER NOT NULL CHECK(kind IN(1,2,3)),
  old_integer INTEGER,
  old_real REAL,
@@ -1213,14 +1411,10 @@ CREATE TABLE catalog_kinds(
 
 CREATE TABLE catalog_libraries(
  id INTEGER PRIMARY KEY AUTOINCREMENT,
- library_id TEXT NOT NULL UNIQUE REFERENCES libraries(id) ON DELETE CASCADE,
+ library_id TEXT NOT NULL UNIQUE,
  root TEXT NOT NULL,
  retired INTEGER NOT NULL DEFAULT 0 CHECK(retired IN(0,1))
 ) STRICT;
-
-CREATE TABLE catalog_merged_ids(
- public_id BLOB PRIMARY KEY CHECK(length(public_id)=16),
- entity_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE) WITHOUT ROWID, STRICT;
 
 CREATE TABLE catalog_people(
  id INTEGER PRIMARY KEY,
@@ -1234,16 +1428,48 @@ CREATE TABLE catalog_people(
  birth_date TEXT NOT NULL DEFAULT '',
  death_date TEXT NOT NULL DEFAULT '',
  revision INTEGER NOT NULL DEFAULT 1,
- artwork_incarnation BLOB NOT NULL CHECK(length(artwork_incarnation)=16),artwork_revision INTEGER NOT NULL DEFAULT 1 CHECK(artwork_revision>0),
+ artwork_incarnation BLOB NOT NULL CHECK(length(artwork_incarnation)=16),
+ artwork_revision INTEGER NOT NULL DEFAULT 1 CHECK(artwork_revision>0),
  artwork_dirty INTEGER NOT NULL DEFAULT 0 CHECK(artwork_dirty IN(0,1)),
  artwork_job_revision INTEGER NOT NULL DEFAULT 1 CHECK(artwork_job_revision>0),
- artwork_lease_owner TEXT NOT NULL DEFAULT '',artwork_lease_generation INTEGER NOT NULL DEFAULT 0,
- artwork_lease_expires_ms INTEGER NOT NULL DEFAULT 0,artwork_attempts INTEGER NOT NULL DEFAULT 0,
- artwork_next_attempt_ms INTEGER,artwork_due_ms INTEGER GENERATED ALWAYS AS
+ artwork_lease_owner TEXT NOT NULL DEFAULT '',
+ artwork_lease_generation INTEGER NOT NULL DEFAULT 0,
+ artwork_lease_expires_ms INTEGER NOT NULL DEFAULT 0,
+ artwork_attempts INTEGER NOT NULL DEFAULT 0,
+ artwork_next_attempt_ms INTEGER,
+ artwork_due_ms INTEGER GENERATED ALWAYS AS
  (CASE WHEN artwork_next_attempt_ms IS NULL THEN NULL ELSE max(artwork_next_attempt_ms,artwork_lease_expires_ms) END) VIRTUAL,
- artwork_claim_source_revision INTEGER,artwork_claim_artwork_revision INTEGER,artwork_claim_incarnation BLOB,
- artwork_after_provider TEXT NOT NULL DEFAULT '',artwork_error_code TEXT NOT NULL DEFAULT ''
-) STRICT;
+ artwork_claim_source_revision INTEGER,
+ artwork_claim_artwork_revision INTEGER,
+ artwork_claim_incarnation BLOB,
+ artwork_after_provider TEXT NOT NULL DEFAULT '',
+ artwork_error_code TEXT NOT NULL DEFAULT '',
+ CHECK("id" IS NULL OR typeof("id")='integer'),
+ CHECK("token" IS NULL OR typeof("token")='text'),
+ CHECK("identity_key" IS NULL OR typeof("identity_key")='text'),
+ CHECK("name" IS NULL OR typeof("name")='text'),
+ CHECK("sort_name" IS NULL OR typeof("sort_name")='text'),
+ CHECK("biography" IS NULL OR typeof("biography")='text'),
+ CHECK("birth_place" IS NULL OR typeof("birth_place")='text'),
+ CHECK("biography_source" IS NULL OR typeof("biography_source")='text'),
+ CHECK("birth_date" IS NULL OR typeof("birth_date")='text'),
+ CHECK("death_date" IS NULL OR typeof("death_date")='text'),
+ CHECK("revision" IS NULL OR typeof("revision")='integer'),
+ CHECK("artwork_incarnation" IS NULL OR typeof("artwork_incarnation")='blob'),
+ CHECK("artwork_revision" IS NULL OR typeof("artwork_revision")='integer'),
+ CHECK("artwork_dirty" IS NULL OR typeof("artwork_dirty")='integer'),
+ CHECK("artwork_job_revision" IS NULL OR typeof("artwork_job_revision")='integer'),
+ CHECK("artwork_lease_owner" IS NULL OR typeof("artwork_lease_owner")='text'),
+ CHECK("artwork_lease_generation" IS NULL OR typeof("artwork_lease_generation")='integer'),
+ CHECK("artwork_lease_expires_ms" IS NULL OR typeof("artwork_lease_expires_ms")='integer'),
+ CHECK("artwork_attempts" IS NULL OR typeof("artwork_attempts")='integer'),
+ CHECK("artwork_next_attempt_ms" IS NULL OR typeof("artwork_next_attempt_ms")='integer'),
+ CHECK("artwork_claim_source_revision" IS NULL OR typeof("artwork_claim_source_revision")='integer'),
+ CHECK("artwork_claim_artwork_revision" IS NULL OR typeof("artwork_claim_artwork_revision")='integer'),
+ CHECK("artwork_claim_incarnation" IS NULL OR typeof("artwork_claim_incarnation")='blob'),
+ CHECK("artwork_after_provider" IS NULL OR typeof("artwork_after_provider")='text'),
+ CHECK("artwork_error_code" IS NULL OR typeof("artwork_error_code")='text')
+);
 
 CREATE TABLE catalog_people_aliases(
  alias TEXT PRIMARY KEY,
@@ -1256,9 +1482,14 @@ CREATE TABLE catalog_playlist_entries(
  token TEXT NOT NULL UNIQUE,
  playlist_id INTEGER NOT NULL REFERENCES catalog_playlists(id) ON DELETE CASCADE,
  item_id INTEGER REFERENCES catalog_entities(id) ON DELETE SET NULL,
- position INTEGER NOT NULL,
- order_key TEXT NOT NULL DEFAULT '',
- UNIQUE(playlist_id,position)) STRICT;
+ order_key TEXT NOT NULL COLLATE BINARY,
+ UNIQUE(playlist_id,order_key),
+ CHECK("id" IS NULL OR typeof("id")='integer'),
+ CHECK("token" IS NULL OR typeof("token")='text'),
+ CHECK("playlist_id" IS NULL OR typeof("playlist_id")='integer'),
+ CHECK("item_id" IS NULL OR typeof("item_id")='integer'),
+ CHECK("order_key" IS NULL OR typeof("order_key")='text')
+);
 
 CREATE TABLE catalog_playlists(
  id INTEGER PRIMARY KEY,
@@ -1281,7 +1512,7 @@ CREATE TABLE catalog_purge_jobs(
  mutation_id TEXT PRIMARY KEY REFERENCES catalog_entity_mutations(mutation_id) ON DELETE RESTRICT,
  generation INTEGER NOT NULL CHECK(generation>0),
  plan_digest TEXT NOT NULL CHECK(length(plan_digest)=64),
- cursor TEXT NOT NULL DEFAULT '' CHECK(length(CAST(cursor AS BLOB))<=512),
+ cursor TEXT NOT NULL DEFAULT '',
  state TEXT NOT NULL DEFAULT 'pending' CHECK(state IN('pending','running','blocked')),
  job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
  job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
@@ -1315,15 +1546,7 @@ CREATE TABLE catalog_retention_cursors(
  name TEXT PRIMARY KEY,
  after_id INTEGER NOT NULL,
  after_root TEXT NOT NULL DEFAULT '',
- after_key TEXT NOT NULL DEFAULT '',
- job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
- job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
- job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
- job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts BETWEEN 0 AND 4294967295),
- job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms>=0),
- job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED,
- job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0)
-) STRICT;
+ after_key TEXT NOT NULL DEFAULT '') STRICT;
 
 CREATE TABLE catalog_selection_predicate_epoch(
  singleton INTEGER PRIMARY KEY CHECK(singleton=1),
@@ -1370,16 +1593,17 @@ CREATE TABLE catalog_terms(
  vocab INTEGER NOT NULL,
  key TEXT NOT NULL,
  label TEXT NOT NULL,
- UNIQUE(vocab,key)) STRICT;
+ UNIQUE(vocab,key),
+ CHECK("id" IS NULL OR typeof("id")='integer'),
+ CHECK("vocab" IS NULL OR typeof("vocab")='integer'),
+ CHECK("key" IS NULL OR typeof("key")='text'),
+ CHECK("label" IS NULL OR typeof("label")='text')
+);
 
 CREATE TABLE catalog_title_tombstone_attributes(
  public_id TEXT NOT NULL REFERENCES catalog_title_tombstones(public_id) ON DELETE CASCADE,
  field_id INTEGER NOT NULL,value_key TEXT NOT NULL,source_value TEXT NOT NULL,
  PRIMARY KEY(public_id,field_id,value_key)) WITHOUT ROWID, STRICT;
-
-CREATE TABLE catalog_title_tombstone_viewers(
- public_id TEXT NOT NULL REFERENCES catalog_title_tombstones(public_id) ON DELETE CASCADE,
- profile_id TEXT NOT NULL,activity_at TEXT NOT NULL,continuing INTEGER NOT NULL CHECK(continuing IN(0,1)),PRIMARY KEY(public_id,profile_id)) WITHOUT ROWID, STRICT;
 
 CREATE TABLE catalog_title_tombstones(
  public_id TEXT PRIMARY KEY,library_id TEXT NOT NULL,title TEXT NOT NULL,kind INTEGER NOT NULL,
@@ -1436,10 +1660,6 @@ CREATE TABLE console_schedules(id TEXT PRIMARY KEY,revision INTEGER NOT NULL,kin
 
 CREATE TABLE console_settings_revision(singleton INTEGER PRIMARY KEY CHECK(singleton=1),revision INTEGER NOT NULL) STRICT;
 
-CREATE TABLE container_personal_state(profile_id TEXT NOT NULL,kind TEXT NOT NULL,container_id INTEGER NOT NULL,
- watched INTEGER NOT NULL CHECK(watched IN(0,1)),watermark TEXT NOT NULL,revision INTEGER NOT NULL,cleared_through TEXT NOT NULL DEFAULT '',
- PRIMARY KEY(profile_id,kind,container_id)) STRICT;
-
 CREATE TABLE container_personal_undo(
  token TEXT PRIMARY KEY,profile_id TEXT NOT NULL,kind TEXT NOT NULL,container_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
  revision INTEGER NOT NULL,previous_watched INTEGER NOT NULL,previous_watermark TEXT NOT NULL,previous_clear TEXT NOT NULL,
@@ -1463,35 +1683,17 @@ CREATE TABLE content_rating_ages(
 
 CREATE TABLE content_rating_pending(
  value_key TEXT PRIMARY KEY,
- value TEXT NOT NULL,
- job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
- job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
- job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
- job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts BETWEEN 0 AND 4294967295),
- job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms>=0),
- job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED,
- job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0)
-) WITHOUT ROWID, STRICT;
-
-CREATE TABLE continue_dismissals(profile_id TEXT NOT NULL,item_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,playback_id TEXT NOT NULL,PRIMARY KEY(profile_id,item_id)) STRICT;
-
-CREATE TABLE continue_show_dismissals(
- profile_id TEXT NOT NULL,
- show_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
- item_id INTEGER NOT NULL,
- playback_id TEXT NOT NULL,
- last_activity TEXT NOT NULL,
- PRIMARY KEY(profile_id,show_id)) STRICT;
+ value TEXT NOT NULL) WITHOUT ROWID, STRICT;
 
 CREATE TABLE credit_owner_entries(
  entry_id TEXT PRIMARY KEY CHECK(length(entry_id)=32 AND entry_id NOT GLOB '*[^0-9a-f]*'),
  entity_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
- position INTEGER NOT NULL CHECK(position>=0 AND position<2048),
+ position INTEGER NOT NULL CHECK(position>=0),
  operation TEXT NOT NULL CHECK(operation IN('retain','edit','exclude','add')),
  source_row_id TEXT,
- credited_name TEXT NOT NULL CHECK(length(CAST(credited_name AS BLOB)) BETWEEN 1 AND 1200),
- role TEXT NOT NULL CHECK(length(CAST(role AS BLOB))<=2000),
- department TEXT NOT NULL CHECK(length(CAST(department AS BLOB))<=800),
+ credited_name TEXT NOT NULL CHECK(length(CAST(credited_name AS BLOB))>0),
+ role TEXT NOT NULL,
+ department TEXT NOT NULL,
  UNIQUE(entity_id,position),
  FOREIGN KEY(source_row_id,entity_id) REFERENCES credit_source_rows(source_row_id,entity_id),
  CHECK((operation='add' AND source_row_id IS NULL) OR(operation<>'add' AND source_row_id IS NOT NULL))
@@ -1499,7 +1701,7 @@ CREATE TABLE credit_owner_entries(
 
 CREATE TABLE credit_source_heads(
  entity_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
- provider TEXT NOT NULL CHECK(length(CAST(provider AS BLOB)) BETWEEN 1 AND 64),
+ provider TEXT NOT NULL CHECK(length(CAST(provider AS BLOB))>0),
  publication_id TEXT NOT NULL,
  revision INTEGER NOT NULL CHECK(revision>0),
  PRIMARY KEY(entity_id,provider),
@@ -1510,7 +1712,7 @@ CREATE TABLE credit_source_publication_members(
  publication_id TEXT NOT NULL,
  entity_id INTEGER NOT NULL,
  provider TEXT NOT NULL,
- position INTEGER NOT NULL CHECK(position>=0 AND position<128),
+ position INTEGER NOT NULL CHECK(position>=0),
  source_row_id TEXT NOT NULL,
  reference_status TEXT NOT NULL CHECK(reference_status IN('new','exact','ambiguous')),
  PRIMARY KEY(publication_id,position),
@@ -1522,10 +1724,10 @@ CREATE TABLE credit_source_publication_members(
 CREATE TABLE credit_source_publications(
  publication_id TEXT PRIMARY KEY CHECK(length(publication_id)=32 AND publication_id NOT GLOB '*[^0-9a-f]*'),
  entity_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
- provider TEXT NOT NULL CHECK(length(CAST(provider AS BLOB)) BETWEEN 1 AND 64),
- accepted_record_reference TEXT NOT NULL CHECK(length(CAST(accepted_record_reference AS BLOB)) BETWEEN 1 AND 4096 AND length(trim(accepted_record_reference))>0),
- observed_at TEXT NOT NULL CHECK(length(CAST(observed_at AS BLOB)) BETWEEN 1 AND 64),
- member_count INTEGER NOT NULL CHECK(member_count BETWEEN 0 AND 128),
+ provider TEXT NOT NULL CHECK(length(CAST(provider AS BLOB))>0),
+ accepted_record_reference TEXT NOT NULL CHECK(length(trim(accepted_record_reference))>0),
+ observed_at TEXT NOT NULL CHECK(length(CAST(observed_at AS BLOB))>0),
+ member_count INTEGER NOT NULL CHECK(member_count>=0),
  sealed INTEGER NOT NULL DEFAULT 0 CHECK(sealed IN(0,1)),
  UNIQUE(publication_id,entity_id,provider)
 ) STRICT;
@@ -1533,18 +1735,19 @@ CREATE TABLE credit_source_publications(
 CREATE TABLE credit_source_rows(
  source_row_id TEXT PRIMARY KEY CHECK(length(source_row_id)=32 AND source_row_id NOT GLOB '*[^0-9a-f]*'),
  entity_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
- provider TEXT NOT NULL CHECK(length(CAST(provider AS BLOB)) BETWEEN 1 AND 64),
+ provider TEXT NOT NULL CHECK(length(CAST(provider AS BLOB))>0),
  tuple_digest TEXT NOT NULL CHECK(length(tuple_digest)=64 AND tuple_digest NOT GLOB '*[^0-9a-f]*'),
- original_record_reference TEXT NOT NULL CHECK(length(CAST(original_record_reference AS BLOB))<=4096 AND length(trim(original_record_reference))>0),
- original_credit_id TEXT NOT NULL CHECK(length(CAST(original_credit_id AS BLOB))<=256),
- original_provider_person_id TEXT NOT NULL CHECK(length(CAST(original_provider_person_id AS BLOB))<=256),
- original_person_identity_key TEXT NOT NULL CHECK(length(CAST(original_person_identity_key AS BLOB))<=512),
- original_person_token TEXT NOT NULL CHECK(length(CAST(original_person_token AS BLOB))<=256),
- original_target_kind TEXT NOT NULL CHECK(length(CAST(original_target_kind AS BLOB))<=64),
- original_target_id TEXT NOT NULL CHECK(length(CAST(original_target_id AS BLOB))<=256),
- original_credited_name TEXT NOT NULL CHECK(length(CAST(original_credited_name AS BLOB))<=1200),
- original_role TEXT NOT NULL CHECK(length(CAST(original_role AS BLOB))<=2000),
- original_department TEXT NOT NULL CHECK(length(CAST(original_department AS BLOB))<=800),
+ original_record_reference TEXT NOT NULL CHECK(length(trim(original_record_reference))>0),
+ original_credit_id TEXT NOT NULL,
+ original_provider_person_id TEXT NOT NULL,
+ original_person_identity_key TEXT NOT NULL,
+ original_person_token TEXT NOT NULL,
+ original_target_kind TEXT NOT NULL,
+ original_target_id TEXT NOT NULL,
+ original_credited_name TEXT NOT NULL,
+ original_role TEXT NOT NULL,
+ original_department TEXT NOT NULL,
+ original_credit_class TEXT NOT NULL DEFAULT 'artist' CHECK(original_credit_class IN('cast','crew','artist')),
  original_source_ordinal INTEGER NOT NULL CHECK(original_source_ordinal>=0),
  UNIQUE(source_row_id,entity_id,provider),
  UNIQUE(source_row_id,entity_id)
@@ -1605,8 +1808,8 @@ CREATE TABLE download_action_claims(
 CREATE TABLE download_action_transfers(
  id INTEGER PRIMARY KEY,
  profile_key TEXT NOT NULL CHECK(length(profile_key)>0),
- device_id TEXT NOT NULL CHECK(length(device_id) BETWEEN 1 AND 160),
- operation_id TEXT NOT NULL CHECK(length(operation_id) BETWEEN 1 AND 160),
+ device_id TEXT NOT NULL CHECK(length(device_id) >=1),
+ operation_id TEXT NOT NULL CHECK(length(operation_id) >=1),
  closed INTEGER NOT NULL DEFAULT 0 CHECK(closed IN(0,1)),
  created_ms INTEGER NOT NULL CHECK(created_ms>0),
  closed_ms INTEGER NOT NULL DEFAULT 0 CHECK(closed_ms>=0),
@@ -1627,17 +1830,17 @@ CREATE TABLE download_preparations(
  separate_retired INTEGER NOT NULL DEFAULT 0 CHECK(separate_retired IN(0,1)),
  id TEXT PRIMARY KEY,
  publication_json TEXT NOT NULL DEFAULT '' CHECK(publication_json='' OR CASE WHEN json_valid(publication_json) THEN COALESCE(
- length(CAST(publication_json AS BLOB))<=2097152 AND json_type(publication_json)='object'
- AND json_type(publication_json,'$.itemId')='text' AND length(json_extract(publication_json,'$.itemId')) BETWEEN 1 AND 128
- AND json_type(publication_json,'$.sourceId')='text' AND length(json_extract(publication_json,'$.sourceId')) BETWEEN 1 AND 128
+ json_type(publication_json)='object'
+ AND json_type(publication_json,'$.itemId')='text' AND length(json_extract(publication_json,'$.itemId'))>=1
+ AND json_type(publication_json,'$.sourceId')='text' AND length(json_extract(publication_json,'$.sourceId'))>=1
  AND json_type(publication_json,'$.revision')='text' AND length(json_extract(publication_json,'$.revision'))=64 AND json_extract(publication_json,'$.revision') NOT GLOB '*[^0-9a-f]*'
  AND json_extract(publication_json,'$.format') IN('epub','pdf','cbz')
- AND json_type(publication_json,'$.size')='integer' AND json_extract(publication_json,'$.size') BETWEEN 1 AND 2147483648
+ AND json_type(publication_json,'$.size')='integer' AND json_extract(publication_json,'$.size')>=1
  AND json_type(publication_json,'$.metadata')='object'
- AND json_type(publication_json,'$.resources')='array' AND json_array_length(publication_json,'$.resources')<=4096
- AND json_type(publication_json,'$.spine')='array' AND json_array_length(publication_json,'$.spine')<=4096
- AND json_type(publication_json,'$.pageNames')='array' AND json_array_length(publication_json,'$.pageNames')<=4096
- AND json_type(publication_json,'$.contents')='array' AND json_array_length(publication_json,'$.contents')<=512
+ AND json_type(publication_json,'$.resources')='array'
+ AND json_type(publication_json,'$.spine')='array'
+ AND json_type(publication_json,'$.pageNames')='array'
+ AND json_type(publication_json,'$.contents')='array'
  AND json_type(publication_json,'$.progress') IN('null','object'),0) ELSE 0 END),
  profile_key TEXT NOT NULL,
  authority TEXT NOT NULL,
@@ -1721,7 +1924,7 @@ CREATE TABLE download_requests(
 CREATE TABLE download_settings(
  singleton INTEGER PRIMARY KEY CHECK(singleton=1),
  max_prepared_bytes INTEGER NOT NULL DEFAULT 0 CHECK(max_prepared_bytes>=0),
- retention_days INTEGER NOT NULL DEFAULT 30 CHECK(retention_days>=1 AND retention_days<=365),
+ retention_days INTEGER NOT NULL DEFAULT 30 CHECK(retention_days>=1 ),
  revision INTEGER NOT NULL DEFAULT 1) STRICT;
 
 CREATE TABLE dvr_catalog_provenance(
@@ -1763,15 +1966,7 @@ CREATE TABLE dvr_delete_work(
 
 CREATE TABLE dvr_maintenance_cursors(
  kind TEXT PRIMARY KEY,
- cursor TEXT NOT NULL,
- job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
- job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
- job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
- job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts BETWEEN 0 AND 4294967295),
- job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms>=0),
- job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED,
- job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0)
-) STRICT;
+ cursor TEXT NOT NULL) STRICT;
 
 CREATE TABLE dvr_owner_revisions(owner_key TEXT PRIMARY KEY,revision INTEGER NOT NULL) STRICT;
 
@@ -1974,11 +2169,15 @@ CREATE TABLE identity_account_factors(
 ) STRICT;
 
 CREATE TABLE identity_browser_accounts(
- installation_id TEXT NOT NULL, account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
- username TEXT NOT NULL, display_name TEXT NOT NULL,
+ installation_id TEXT NOT NULL,
+ account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+ username TEXT NOT NULL,
+ display_name TEXT NOT NULL,
  avatar_version INTEGER NOT NULL DEFAULT 0 CHECK(avatar_version>=0),
  automatic_sign_in INTEGER NOT NULL DEFAULT 0 CHECK(automatic_sign_in IN(0,1)),
- last_used TEXT NOT NULL, PRIMARY KEY(installation_id,account_id)
+ last_used TEXT NOT NULL,
+ remember_generation INTEGER NOT NULL DEFAULT 1 CHECK(remember_generation>0),
+ PRIMARY KEY(installation_id,account_id)
 ) STRICT;
 
 CREATE TABLE identity_credential_attempts(
@@ -2026,7 +2225,7 @@ CREATE TABLE identity_move_link_tickets(token_hash TEXT PRIMARY KEY,account_id T
 
 CREATE TABLE identity_move_waiting(account_id TEXT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,move_id TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN('waiting','linked','did_not_move')),old_password_hash BLOB,old_password_until_ms INTEGER NOT NULL DEFAULT 0,created_ms INTEGER NOT NULL) STRICT;
 
-CREATE TABLE identity_moves(id TEXT PRIMARY KEY,owner_id TEXT NOT NULL,owner_revision INTEGER NOT NULL,from_kind TEXT NOT NULL CHECK(from_kind IN('portico','local')),to_kind TEXT NOT NULL CHECK(to_kind IN('portico','local')),start_over INTEGER NOT NULL CHECK(start_over IN(0,1)),stage TEXT NOT NULL CHECK(stage IN('preview','moving_to_portico','moving_to_local','complete','cancelled')),revision INTEGER NOT NULL CHECK(revision>0),people INTEGER NOT NULL,other_people_count INTEGER NULL CHECK(other_people_count BETWEEN 0 AND 10000),devices INTEGER NOT NULL,profiles INTEGER NOT NULL,retained_profiles INTEGER NULL,removed_profiles INTEGER NULL,server_name TEXT NOT NULL,created_ms INTEGER NOT NULL,confirmed_ms INTEGER NOT NULL DEFAULT 0,confirmation TEXT NOT NULL DEFAULT '',invitations INTEGER NOT NULL DEFAULT 0,owner_confirmed INTEGER NOT NULL DEFAULT 0 CHECK(owner_confirmed IN(0,1)),CHECK(from_kind<>to_kind),CHECK((retained_profiles IS NULL AND removed_profiles IS NULL) OR (start_over=1 AND retained_profiles IS NOT NULL AND removed_profiles IS NOT NULL AND retained_profiles BETWEEN 0 AND 9007199254740991 AND removed_profiles BETWEEN 0 AND 9007199254740991 AND retained_profiles<=9007199254740991-removed_profiles AND retained_profiles+removed_profiles=profiles))) STRICT;
+CREATE TABLE identity_moves(id TEXT PRIMARY KEY,owner_id TEXT NOT NULL,owner_revision INTEGER NOT NULL,from_kind TEXT NOT NULL CHECK(from_kind IN('portico','local')),to_kind TEXT NOT NULL CHECK(to_kind IN('portico','local')),start_over INTEGER NOT NULL CHECK(start_over IN(0,1)),stage TEXT NOT NULL CHECK(stage IN('preview','moving_to_portico','moving_to_local','complete','cancelled')),revision INTEGER NOT NULL CHECK(revision>0),people INTEGER NOT NULL,other_people_count INTEGER NULL CHECK(other_people_count IS NULL OR (typeof(other_people_count)='integer' AND other_people_count>=0)),devices INTEGER NOT NULL,profiles INTEGER NOT NULL,retained_profiles INTEGER NULL,removed_profiles INTEGER NULL,server_name TEXT NOT NULL,created_ms INTEGER NOT NULL,confirmed_ms INTEGER NOT NULL DEFAULT 0,confirmation TEXT NOT NULL DEFAULT '',invitations INTEGER NOT NULL DEFAULT 0,owner_confirmed INTEGER NOT NULL DEFAULT 0 CHECK(owner_confirmed IN(0,1)),CHECK(from_kind<>to_kind),CHECK((retained_profiles IS NULL AND removed_profiles IS NULL) OR (start_over=1 AND retained_profiles IS NOT NULL AND removed_profiles IS NOT NULL AND retained_profiles BETWEEN 0 AND 9007199254740991 AND removed_profiles BETWEEN 0 AND 9007199254740991 AND retained_profiles<=9007199254740991-removed_profiles AND retained_profiles+removed_profiles=profiles))) STRICT;
 
 CREATE TABLE identity_owner_completions(
  operation_id TEXT PRIMARY KEY REFERENCES networking_claim_intents(operation_id),
@@ -2130,7 +2329,8 @@ CREATE TABLE identity_setup_completions(
 CREATE TABLE identity_setup_outside_admissions(token_hash TEXT PRIMARY KEY CHECK(length(token_hash)=43),peer_hash TEXT NOT NULL CHECK(length(peer_hash)=43),origin_hash TEXT NOT NULL CHECK(length(origin_hash)=43),expires_ms INTEGER NOT NULL) STRICT;
 
 CREATE TABLE identity_sign_in_policy(
- singleton INTEGER PRIMARY KEY CHECK(singleton=1), revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>=1),
+ singleton INTEGER PRIMARY KEY CHECK(singleton=1),
+ revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>=1),
  stay_signed_in_days INTEGER NOT NULL DEFAULT 90 CHECK(stay_signed_in_days IN(7,30,90,365)),
  pin_remember_days INTEGER NOT NULL DEFAULT 30 CHECK(pin_remember_days IN(0,7,30,90)),
  password_attempts TEXT NOT NULL DEFAULT 'standard' CHECK(password_attempts IN('relaxed','standard','strict')),
@@ -2139,7 +2339,9 @@ CREATE TABLE identity_sign_in_policy(
  member_reset_code_minutes INTEGER NOT NULL DEFAULT 60 CHECK(member_reset_code_minutes IN(15,60,1440)),
  require_two_step TEXT NOT NULL DEFAULT 'nobody' CHECK(require_two_step IN('nobody','administrators','everyone')),
  remember_accounts INTEGER NOT NULL DEFAULT 1 CHECK(remember_accounts IN(0,1)),
- ended_sessions_days INTEGER NOT NULL DEFAULT 90 CHECK(ended_sessions_days IN(30,90,365)), updated_ms INTEGER NOT NULL DEFAULT 0
+ ended_sessions_days INTEGER NOT NULL DEFAULT 90 CHECK(ended_sessions_days IN(30,90,365)),
+ updated_ms INTEGER NOT NULL DEFAULT 0,
+ remember_generation INTEGER NOT NULL DEFAULT 1 CHECK(remember_generation>0)
 ) STRICT;
 
 CREATE TABLE identity_source_attempts(
@@ -2152,7 +2354,15 @@ CREATE TABLE identity_source_attempts(
  last_block INTEGER NOT NULL DEFAULT 0
 ) STRICT;
 
-CREATE TABLE identity_state(singleton INTEGER PRIMARY KEY CHECK(singleton=1),sign_in_kind TEXT NOT NULL CHECK(sign_in_kind IN('portico','local')),revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)) STRICT;
+CREATE TABLE identity_state(
+ singleton INTEGER PRIMARY KEY CHECK(singleton=1),
+ sign_in_kind TEXT NOT NULL CHECK(sign_in_kind IN('portico','local')),
+ revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0),
+ authority_generation INTEGER NOT NULL DEFAULT 1 CHECK(authority_generation>0),
+ transition_id TEXT REFERENCES identity_moves(id),
+ transition_after_account TEXT NOT NULL DEFAULT '',
+ transition_owner_revision INTEGER
+) STRICT;
 
 CREATE TABLE identity_unknown_attempts(
  subject_hash TEXT NOT NULL,
@@ -2184,25 +2394,6 @@ CREATE TABLE inventory_analysis_queue (
  PRIMARY KEY(job_id,object_id)
 ) STRICT;
 
-CREATE TABLE inventory_artwork_candidates (
- object_id TEXT NOT NULL REFERENCES inventory_objects(id) ON DELETE CASCADE,
- source_revision TEXT NOT NULL CHECK(length(source_revision)>0),
- asset_id TEXT NOT NULL REFERENCES catalog_assets(token) ON DELETE CASCADE,
- kind TEXT NOT NULL CHECK(kind IN('item','show','season')),
- entity_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
- role TEXT NOT NULL CHECK(role IN('poster','backdrop','logo')),
- art_key TEXT NOT NULL CHECK(length(art_key)>0),
- source_name TEXT NOT NULL DEFAULT '' CHECK(length(CAST(source_name AS BLOB))<=16384 AND source_name NOT IN('.','..') AND instr(source_name,'/')=0 AND instr(source_name,char(92))=0 AND instr(source_name,char(0))=0),
- source_rank INTEGER NOT NULL DEFAULT 9223372036854775807 CHECK(source_rank>=0 AND (source_name<>'' OR source_rank=9223372036854775807)),
- PRIMARY KEY(object_id,kind,entity_id,role,art_key)
-) WITHOUT ROWID, STRICT;
-
-CREATE TABLE inventory_artwork_sources (
- asset_id TEXT NOT NULL REFERENCES catalog_assets(token) ON DELETE CASCADE,kind TEXT NOT NULL,
- entity_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,role TEXT NOT NULL,art_key TEXT NOT NULL,
- PRIMARY KEY(asset_id,kind,entity_id,role)
-) STRICT;
-
 CREATE TABLE inventory_changes (
  sequence INTEGER PRIMARY KEY AUTOINCREMENT, source_id TEXT NOT NULL, job_id TEXT NOT NULL,
  object_id TEXT NOT NULL DEFAULT '', asset_id TEXT NOT NULL DEFAULT '', revision TEXT NOT NULL DEFAULT '',
@@ -2232,13 +2423,6 @@ CREATE TABLE inventory_directory_prune(
  cursor_parent_revision TEXT NOT NULL DEFAULT '',
  cursor_relative_path TEXT NOT NULL DEFAULT '',
  saw_protected INTEGER NOT NULL DEFAULT 0 CHECK(saw_protected IN(0,1)),
- job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
- job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
- job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
- job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts BETWEEN 0 AND 4294967295),
- job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms>=0),
- job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED,
- job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0),
  PRIMARY KEY(source_id,incarnation,parent_path)
 ) STRICT;
 
@@ -2319,13 +2503,6 @@ CREATE TABLE inventory_disc_title_requests(
  title_key TEXT NOT NULL,
  source_revision TEXT NOT NULL,
  fingerprint TEXT NOT NULL,
- job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
- job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
- job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
- job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts BETWEEN 0 AND 4294967295),
- job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms>=0),
- job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED,
- job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0),
  PRIMARY KEY(job_id,object_id),
  FOREIGN KEY(object_id,title_key) REFERENCES inventory_disc_titles(object_id,title_key) ON DELETE CASCADE
 ) WITHOUT ROWID, STRICT;
@@ -2334,7 +2511,7 @@ CREATE TABLE inventory_disc_titles(
  object_id TEXT NOT NULL REFERENCES inventory_disc_facts(object_id) ON DELETE CASCADE,
  title_key TEXT NOT NULL, selection_token TEXT NOT NULL UNIQUE,
  title_number INTEGER NOT NULL CHECK(title_number>0), disc_order INTEGER NOT NULL CHECK(disc_order>=0),
- duration_ms INTEGER NOT NULL CHECK(duration_ms>=60000), angle_count INTEGER NOT NULL CHECK(angle_count BETWEEN 1 AND 255),
+ duration_ms INTEGER NOT NULL CHECK(duration_ms>=60000), angle_count INTEGER NOT NULL CHECK(angle_count>=1),
  playlist INTEGER CHECK(playlist IS NULL OR playlist BETWEEN 0 AND 99999),
  dvd_title INTEGER NOT NULL DEFAULT 0, vts INTEGER NOT NULL DEFAULT 0, pgc INTEGER NOT NULL DEFAULT 0,
  PRIMARY KEY(object_id,title_key), UNIQUE(object_id,title_number)
@@ -2369,19 +2546,40 @@ CREATE TABLE inventory_objects (
  has_analysis_probe_bindings INTEGER NOT NULL DEFAULT 0 CHECK(has_analysis_probe_bindings IN(0,1)),
  probe_binding_source_revision TEXT,
  probe_binding_evidence TEXT,
- CHECK(has_analysis_probe_bindings=0 OR (probe_binding_source_revision IS NOT NULL AND probe_binding_evidence IS NOT NULL))
-) STRICT;
+ CHECK(has_analysis_probe_bindings=0 OR (probe_binding_source_revision IS NOT NULL AND probe_binding_evidence IS NOT NULL)),
+ CHECK("id" IS NULL OR typeof("id")='text'),
+ CHECK("source_id" IS NULL OR typeof("source_id")='text'),
+ CHECK("asset_id" IS NULL OR typeof("asset_id")='text'),
+ CHECK("root_incarnation" IS NULL OR typeof("root_incarnation")='text'),
+ CHECK("relative_path" IS NULL OR typeof("relative_path")='text'),
+ CHECK("object_identity" IS NULL OR typeof("object_identity")='text'),
+ CHECK("revision" IS NULL OR typeof("revision")='text'),
+ CHECK("evidence_json" IS NULL OR typeof("evidence_json")='text'),
+ CHECK("size" IS NULL OR typeof("size")='integer'),
+ CHECK("modified_ns" IS NULL OR typeof("modified_ns")='integer'),
+ CHECK("seen_job" IS NULL OR typeof("seen_job")='text'),
+ CHECK("state" IS NULL OR typeof("state")='text'),
+ CHECK("retired" IS NULL OR typeof("retired")='integer'),
+ CHECK("missing_since" IS NULL OR typeof("missing_since")='text'),
+ CHECK("missing_observations" IS NULL OR typeof("missing_observations")='integer'),
+ CHECK("last_missing_job" IS NULL OR typeof("last_missing_job")='text'),
+ CHECK("unsupported_reason" IS NULL OR typeof("unsupported_reason")='text'),
+ CHECK("analysis_revision" IS NULL OR typeof("analysis_revision")='text'),
+ CHECK("analysis_policy" IS NULL OR typeof("analysis_policy")='integer'),
+ CHECK("analysis_operations_json" IS NULL OR typeof("analysis_operations_json")='text'),
+ CHECK("analysis_state" IS NULL OR typeof("analysis_state")='text'),
+ CHECK("analysis_error" IS NULL OR typeof("analysis_error")='text'),
+ CHECK("analysis_algorithm" IS NULL OR typeof("analysis_algorithm")='text'),
+ CHECK("analysis_generation" IS NULL OR typeof("analysis_generation")='integer'),
+ CHECK("directory_path" IS NULL OR typeof("directory_path")='text'),
+ CHECK("has_analysis_probe_bindings" IS NULL OR typeof("has_analysis_probe_bindings")='integer'),
+ CHECK("probe_binding_source_revision" IS NULL OR typeof("probe_binding_source_revision")='text'),
+ CHECK("probe_binding_evidence" IS NULL OR typeof("probe_binding_evidence")='text')
+);
 
 CREATE TABLE inventory_operation_jobs (
  operation_id TEXT NOT NULL,
  job_id TEXT NOT NULL REFERENCES jobs(id),
- job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
- job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
- job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
- job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts BETWEEN 0 AND 4294967295),
- job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms>=0),
- job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED,
- job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0),
  PRIMARY KEY(operation_id,job_id)
 ) STRICT;
 
@@ -2389,26 +2587,12 @@ CREATE TABLE inventory_path_notices(
  source_id TEXT NOT NULL REFERENCES library_sources(id) ON DELETE CASCADE,
  relative_path TEXT NOT NULL,
  created_ms INTEGER NOT NULL,
- job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
- job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
- job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
- job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts BETWEEN 0 AND 4294967295),
- job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms>=0),
- job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED,
- job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0),
  PRIMARY KEY(source_id,relative_path)
 ) WITHOUT ROWID, STRICT;
 
 CREATE TABLE inventory_policy_pending (
  library_id TEXT PRIMARY KEY REFERENCES libraries(id),
- revision INTEGER NOT NULL,
- job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
- job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
- job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
- job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts BETWEEN 0 AND 4294967295),
- job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms>=0),
- job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED
-) STRICT;
+ revision INTEGER NOT NULL) STRICT;
 
 CREATE TABLE inventory_reading_directories(
  job_id TEXT NOT NULL REFERENCES inventory_reading_jobs(job_id),relative_path TEXT NOT NULL,parent_path TEXT NOT NULL,top_level TEXT NOT NULL,
@@ -2433,15 +2617,7 @@ CREATE TABLE inventory_reading_jobs(
  renewing INTEGER NOT NULL DEFAULT 0 CHECK(renewing IN(0,1)),
  renew_after TEXT NOT NULL DEFAULT '',
  renew_fence TEXT NOT NULL DEFAULT '',
- last_seal INTEGER NOT NULL DEFAULT 0 CHECK(last_seal>=0),
- job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
- job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
- job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
- job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts BETWEEN 0 AND 4294967295),
- job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms>=0),
- job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED,
- job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0)
-) WITHOUT ROWID, STRICT;
+ last_seal INTEGER NOT NULL DEFAULT 0 CHECK(last_seal>=0)) WITHOUT ROWID, STRICT;
 
 CREATE TABLE inventory_reading_seals(
  id INTEGER PRIMARY KEY AUTOINCREMENT,job_id TEXT NOT NULL REFERENCES inventory_reading_jobs(job_id),top_level TEXT NOT NULL,
@@ -2494,13 +2670,6 @@ CREATE TABLE inventory_sidecar_changes (
  job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
  relative_path TEXT NOT NULL,
  cursor TEXT NOT NULL DEFAULT '',
- job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
- job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
- job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
- job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts BETWEEN 0 AND 4294967295),
- job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms>=0),
- job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED,
- job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0),
  PRIMARY KEY(job_id,relative_path)
 ) STRICT;
 
@@ -2516,7 +2685,7 @@ CREATE TABLE inventory_source_active (
 
 CREATE TABLE inventory_strict_intents(
  source_id TEXT NOT NULL REFERENCES library_sources(id) ON DELETE CASCADE,
- relative_path TEXT NOT NULL CHECK(length(relative_path) BETWEEN 1 AND 4096),
+ relative_path TEXT NOT NULL CHECK(length(relative_path)>0),
  library_id TEXT NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
  source_generation INTEGER NOT NULL,
  root_incarnation TEXT NOT NULL,
@@ -2569,15 +2738,7 @@ CREATE TABLE lc_generations(id TEXT PRIMARY KEY,channel_id TEXT NOT NULL REFEREN
 CREATE TABLE lc_maintenance_cursor(
  singleton INTEGER PRIMARY KEY CHECK(singleton=1),
  position INTEGER NOT NULL DEFAULT -1,
- channel_id TEXT NOT NULL DEFAULT '',
- job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
- job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
- job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
- job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts BETWEEN 0 AND 4294967295),
- job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms>=0),
- job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED,
- job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0)
-) STRICT;
+ channel_id TEXT NOT NULL DEFAULT '') STRICT;
 
 CREATE TABLE lc_play_events(event_id INTEGER PRIMARY KEY AUTOINCREMENT,channel_id TEXT NOT NULL REFERENCES lc_channels(id) ON DELETE CASCADE,occurrence_start_ms INTEGER NOT NULL CHECK(occurrence_start_ms>=0),item_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,UNIQUE(channel_id,occurrence_start_ms,item_id)) STRICT;
 
@@ -2615,6 +2776,7 @@ CREATE TABLE libraries(
  data_metadata_revision INTEGER NOT NULL DEFAULT 1 CHECK(data_metadata_revision>0),
  playback_origin_incarnation BLOB NOT NULL DEFAULT(randomblob(16)) CHECK(length(playback_origin_incarnation)=16),
  playback_origin_revision INTEGER NOT NULL DEFAULT 1 CHECK(playback_origin_revision>0),
+ metadata_language TEXT NOT NULL DEFAULT 'en-US',
  CHECK((sonic_present=0 AND sonic_enabled IS NULL AND sonic_revision IS NULL) OR (sonic_present=1 AND sonic_enabled IS NOT NULL AND sonic_revision IS NOT NULL)),
  CHECK((preference_present=0 AND preference_revision IS NULL AND preference_group_collections IS NULL AND preference_local_tags IS NULL AND preference_lyrics_source IS NULL AND preference_title_source IS NULL AND preference_episode_numbering IS NULL AND preference_find_extras IS NULL AND preference_sort_ignore_articles IS NULL) OR (preference_present=1 AND preference_revision IS NOT NULL AND preference_group_collections IS NOT NULL AND preference_local_tags IS NOT NULL AND preference_lyrics_source IS NOT NULL AND preference_title_source IS NOT NULL AND preference_episode_numbering IS NOT NULL AND preference_find_extras IS NOT NULL AND preference_sort_ignore_articles IS NOT NULL)),
  CHECK((configuration_present=0 AND configuration_revision IS NULL AND configuration_metadata_revision IS NULL) OR (configuration_present=1 AND configuration_revision IS NOT NULL AND configuration_metadata_revision IS NOT NULL))
@@ -2660,15 +2822,7 @@ CREATE TABLE library_sources (
 
 CREATE TABLE live_allocation_reconcile_cursor(
  singleton INTEGER PRIMARY KEY CHECK(singleton=1),
- cursor TEXT NOT NULL,
- job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
- job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
- job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
- job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts BETWEEN 0 AND 4294967295),
- job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms>=0),
- job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED,
- job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0)
-) STRICT;
+ cursor TEXT NOT NULL) STRICT;
 
 CREATE TABLE live_allocations(id TEXT PRIMARY KEY,source_id TEXT NOT NULL REFERENCES live_source_identities(id),channel_id TEXT NOT NULL,resource_id TEXT NOT NULL,kind TEXT NOT NULL CHECK(kind IN ('live','recording')),authority TEXT NOT NULL,account_id TEXT NOT NULL,profile_id TEXT NOT NULL,token TEXT NOT NULL,generation INTEGER NOT NULL CHECK(generation>0),state TEXT NOT NULL CHECK(state IN ('active','preempting','released')),lease_until_ms INTEGER NOT NULL,created_ms INTEGER NOT NULL,preempt_at_ms INTEGER NOT NULL DEFAULT 0,UNIQUE(kind,resource_id)) STRICT;
 
@@ -2767,15 +2921,7 @@ CREATE TABLE live_operations(
  status TEXT NOT NULL CHECK(status IN ('staging','published','superseded')),
  result_revision INTEGER NOT NULL DEFAULT 0,
  result_state TEXT NOT NULL DEFAULT '',
- published_at TEXT NOT NULL DEFAULT '',
- job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
- job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
- job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
- job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts BETWEEN 0 AND 4294967295),
- job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms>=0),
- job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED,
- job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0)
-) STRICT;
+ published_at TEXT NOT NULL DEFAULT '') STRICT;
 
 CREATE TABLE live_preference_receipts(authority TEXT NOT NULL,account_id TEXT NOT NULL,profile_id TEXT NOT NULL,request_id TEXT NOT NULL,digest TEXT NOT NULL,revision INTEGER NOT NULL,PRIMARY KEY(authority,account_id,profile_id,request_id)) STRICT;
 
@@ -2844,16 +2990,6 @@ CREATE TABLE live_source_identities(
 
 CREATE TABLE live_sources(id TEXT PRIMARY KEY REFERENCES live_source_identities(id),name TEXT NOT NULL,revision INTEGER NOT NULL CHECK(revision>0),state TEXT NOT NULL CHECK(state IN ('active','disabled')),tuner_count INTEGER NOT NULL CHECK(tuner_count>=0),active_generation TEXT NOT NULL,published_at TEXT NOT NULL) STRICT;
 
-CREATE TABLE local_artwork(
- library_id TEXT NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
- kind TEXT NOT NULL CHECK(kind IN('show','season','artist','item')),
- entity_id INTEGER NOT NULL,
- role TEXT NOT NULL CHECK(role IN('poster','backdrop','logo','portrait','still')),
- art_key TEXT NOT NULL,
- observed_at TEXT NOT NULL,
- PRIMARY KEY(library_id,kind,entity_id,role)
-) STRICT;
-
 CREATE TABLE lyric_candidates (
  id TEXT PRIMARY KEY, item_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
  asset_id TEXT NOT NULL REFERENCES catalog_assets(token), source_version TEXT NOT NULL,
@@ -2895,7 +3031,7 @@ CREATE TABLE lyric_resources (
 CREATE TABLE lyric_revisions (
  resource_id TEXT NOT NULL REFERENCES lyric_resources(id) ON DELETE CASCADE,
  revision INTEGER NOT NULL, document TEXT NOT NULL, digest TEXT NOT NULL,
- language TEXT NOT NULL, offset_ms INTEGER NOT NULL CHECK(offset_ms BETWEEN -600000 AND 600000),
+ language TEXT NOT NULL, offset_ms INTEGER NOT NULL CHECK(offset_ms >=-600000),
  provenance TEXT NOT NULL, actor TEXT NOT NULL, created_at TEXT NOT NULL,
  deleted INTEGER NOT NULL DEFAULT 0 CHECK(deleted IN(0,1)),
  PRIMARY KEY(resource_id,revision)
@@ -2912,16 +3048,7 @@ CREATE TABLE maintenance_policy(singleton INTEGER PRIMARY KEY CHECK(singleton=1)
 
 CREATE TABLE maintenance_retention(category TEXT PRIMARY KEY CHECK(category IN('trickplay','prepared','conversions','subtitles','downloads','logs')),days INTEGER NOT NULL CHECK(days BETWEEN 0 AND 3650)) STRICT;
 
-CREATE TABLE maintenance_retention_rows(table_name TEXT NOT NULL,record_key TEXT NOT NULL,created_ms INTEGER NOT NULL,
- job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
- job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
- job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
- job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts BETWEEN 0 AND 4294967295),
- job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms>=0),
- job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED
-,
- job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0)
-,PRIMARY KEY(table_name,record_key)) WITHOUT ROWID, STRICT;
+CREATE TABLE maintenance_retention_rows(table_name TEXT NOT NULL,record_key TEXT NOT NULL,created_ms INTEGER NOT NULL,PRIMARY KEY(table_name,record_key)) WITHOUT ROWID, STRICT;
 
 CREATE TABLE maintenance_settings(singleton INTEGER PRIMARY KEY CHECK(singleton=1),revision INTEGER NOT NULL DEFAULT 1,backup_keep_count INTEGER NOT NULL DEFAULT 7 CHECK(backup_keep_count BETWEEN 1 AND 365),background_speed TEXT NOT NULL DEFAULT 'normal' CHECK(background_speed IN('gentle','normal','fast')),updated_ms INTEGER NOT NULL DEFAULT 0) STRICT;
 
@@ -2995,13 +3122,8 @@ CREATE TABLE metadata_artwork_size_requests(
  digest TEXT NOT NULL,
  selection_revision INTEGER NOT NULL,
  edge INTEGER NOT NULL CHECK(edge IN(1280,1920,2560)),
- job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
- job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
- job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
- job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts BETWEEN 0 AND 4294967295),
- job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms>=0),
- job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED,
- job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0),
+next_attempt TEXT NOT NULL DEFAULT ''
+,
  PRIMARY KEY(kind,entity_id,role,subject)
 ) STRICT;
 
@@ -3011,7 +3133,7 @@ CREATE TABLE metadata_artwork_size_sweep(
  cursor_kind TEXT NOT NULL DEFAULT '',
  cursor_id INTEGER NOT NULL DEFAULT 0,
  cursor_role TEXT NOT NULL DEFAULT '',
- cursor_subject TEXT NOT NULL DEFAULT '',
+ cursor_choice TEXT NOT NULL DEFAULT '',
  job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
  job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
  job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
@@ -3139,33 +3261,33 @@ CREATE TABLE metadata_runtime_settings(
  default_language TEXT NOT NULL DEFAULT 'en' CHECK(default_language IN('en','ja','fr','de','es','it','pt','nl','sv','no','da','fi','pl','cs','sk','hu','ro','el','tr','ru','uk','ar','he','hi','th','vi','ko','zh')),
  default_region TEXT NOT NULL DEFAULT 'US' CHECK(length(default_region)=2 AND default_region GLOB '[A-Z][A-Z]'),
  singleton INTEGER PRIMARY KEY CHECK(singleton=1),revision INTEGER NOT NULL DEFAULT 1,
- 
- 
- 
- 
+
+
+
+
  locale_revision INTEGER NOT NULL DEFAULT 1 CHECK(locale_revision>0),
  artwork_max_edge INTEGER NOT NULL DEFAULT 1920 CHECK(artwork_max_edge IN(1280,1920,2560)),
  local_artwork_limit_bytes INTEGER NOT NULL DEFAULT 2147483648 CHECK(local_artwork_limit_bytes>0),
  include_adult INTEGER NOT NULL DEFAULT 0 CHECK(include_adult IN(0,1)),
  tmdb_read_token TEXT NOT NULL DEFAULT '',tvdb_project_key TEXT NOT NULL DEFAULT '',
  opensubtitles_api_key TEXT NOT NULL DEFAULT '',opensubtitles_username TEXT NOT NULL DEFAULT '',opensubtitles_password TEXT NOT NULL DEFAULT '',
- 
- 
- 
- 
- 
+
+
+
+
+
  refresh_policy TEXT NOT NULL DEFAULT 'regular' CHECK(refresh_policy IN('regular','recent','never')),
  fallback_language TEXT NOT NULL DEFAULT 'en' CHECK(fallback_language IN('en','original','blank')),
  anime_titles TEXT NOT NULL DEFAULT 'language' CHECK(anime_titles IN('language','english','romaji','native')),
  cast_photos INTEGER NOT NULL DEFAULT 1 CHECK(cast_photos IN(0,1)),
  acoustid_key TEXT NOT NULL DEFAULT '',
- 
- 
- 
+
+
+
  refresh_all_epoch INTEGER NOT NULL DEFAULT 0 CHECK(refresh_all_epoch>=0),
  refresh_all_running INTEGER NOT NULL DEFAULT 0 CHECK(refresh_all_running IN(0,1)),
  refresh_all_cursor_kind TEXT NOT NULL DEFAULT '',refresh_all_cursor_id INTEGER NOT NULL DEFAULT 0,
- 
+
  refresh_all_page_kind TEXT NOT NULL DEFAULT '',refresh_all_page_id INTEGER NOT NULL DEFAULT 0) STRICT;
 
 CREATE TABLE mount_allocations(
@@ -3347,7 +3469,7 @@ CREATE TABLE notice_broadcast_work(
 
 CREATE TABLE notification_inbox(
  scope TEXT NOT NULL,
- audience TEXT NOT NULL CHECK(audience IN('profile','account-admin')),
+ audience TEXT NOT NULL CHECK(audience IN('profile','account-admin','server-admin')),
  revision INTEGER NOT NULL,
  updated_ms INTEGER NOT NULL,
  PRIMARY KEY(scope,audience)) STRICT;
@@ -3356,7 +3478,7 @@ CREATE TABLE notification_records(
  sequence INTEGER PRIMARY KEY AUTOINCREMENT,
  id TEXT NOT NULL UNIQUE,
  scope TEXT NOT NULL,
- audience TEXT NOT NULL CHECK(audience IN('profile','account-admin')),
+ audience TEXT NOT NULL CHECK(audience IN('profile','account-admin','server-admin')),
  severity TEXT NOT NULL CHECK(severity IN('info','warning','critical')),
  source TEXT NOT NULL,
  category TEXT NOT NULL,
@@ -3368,11 +3490,30 @@ CREATE TABLE notification_records(
  revision INTEGER NOT NULL,
  created_ms INTEGER NOT NULL,
  updated_ms INTEGER NOT NULL,
- read_ms INTEGER,
- archived_ms INTEGER,
  expires_ms INTEGER NOT NULL,
+ withdrawn_ms INTEGER,
+ authority_revision INTEGER NOT NULL DEFAULT 1 CHECK(authority_revision>0),
  UNIQUE(scope,audience,source,dedupe_key),
- FOREIGN KEY(scope,audience) REFERENCES notification_inbox(scope,audience) ON DELETE CASCADE) STRICT;
+ FOREIGN KEY(scope,audience) REFERENCES notification_inbox(scope,audience) ON DELETE CASCADE,
+ CHECK("sequence" IS NULL OR typeof("sequence")='integer'),
+ CHECK("id" IS NULL OR typeof("id")='text'),
+ CHECK("scope" IS NULL OR typeof("scope")='text'),
+ CHECK("audience" IS NULL OR typeof("audience")='text'),
+ CHECK("severity" IS NULL OR typeof("severity")='text'),
+ CHECK("source" IS NULL OR typeof("source")='text'),
+ CHECK("category" IS NULL OR typeof("category")='text'),
+ CHECK("title" IS NULL OR typeof("title")='text'),
+ CHECK("body" IS NULL OR typeof("body")='text'),
+ CHECK("arguments" IS NULL OR typeof("arguments")='text'),
+ CHECK("actions" IS NULL OR typeof("actions")='text'),
+ CHECK("dedupe_key" IS NULL OR typeof("dedupe_key")='text'),
+ CHECK("revision" IS NULL OR typeof("revision")='integer'),
+ CHECK("created_ms" IS NULL OR typeof("created_ms")='integer'),
+ CHECK("updated_ms" IS NULL OR typeof("updated_ms")='integer'),
+ CHECK("expires_ms" IS NULL OR typeof("expires_ms")='integer'),
+ CHECK("withdrawn_ms" IS NULL OR typeof("withdrawn_ms")='integer'),
+ CHECK("authority_revision" IS NULL OR typeof("authority_revision")='integer')
+);
 
 CREATE TABLE notification_revision(singleton INTEGER PRIMARY KEY CHECK(singleton=1),value INTEGER NOT NULL) STRICT;
 
@@ -3417,39 +3558,203 @@ CREATE TABLE owner_reset_file(singleton INTEGER PRIMARY KEY CHECK(singleton=1),a
 
 CREATE TABLE personal_activity_receipts(profile_id TEXT NOT NULL,operation_id TEXT NOT NULL,request_hash TEXT NOT NULL,response TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(profile_id,operation_id)) STRICT;
 
-CREATE TABLE personal_activity_revisions(profile_id TEXT PRIMARY KEY,revision INTEGER NOT NULL DEFAULT 0) STRICT;
+CREATE TABLE personal_activity_revisions(
+ profile_id TEXT PRIMARY KEY,
+ revision INTEGER NOT NULL DEFAULT 0,
+ activity_generation INTEGER NOT NULL DEFAULT 1 CHECK(activity_generation>0),
+ recommendation_generation INTEGER NOT NULL DEFAULT 1 CHECK(recommendation_generation>0),
+ history_visible_from_id INTEGER NOT NULL DEFAULT 0 CHECK(history_visible_from_id>=0),
+ action_sequence INTEGER NOT NULL DEFAULT 0 CHECK(action_sequence>=0)
+) STRICT;
 
 CREATE TABLE personal_batch_receipts(profile_id TEXT NOT NULL,operation_id TEXT NOT NULL,request_hash TEXT NOT NULL,response TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(profile_id,operation_id)) STRICT;
-
-CREATE TABLE personal_chapter_completions(
- profile_id TEXT NOT NULL,
- file_entity_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
- chapter_index INTEGER NOT NULL CHECK(chapter_index>=0),
- start_ms INTEGER NOT NULL CHECK(start_ms>=0),
- end_ms INTEGER NOT NULL CHECK(end_ms>start_ms),
- asset_revision INTEGER NOT NULL CHECK(asset_revision>0),
- asset_id INTEGER NOT NULL REFERENCES catalog_assets(id) ON DELETE CASCADE,
- asset_size INTEGER NOT NULL,
- asset_modified_ns INTEGER NOT NULL,
- completed_at TEXT NOT NULL,
- PRIMARY KEY(profile_id,file_entity_id,chapter_index)) STRICT;
-
-CREATE TABLE personal_completed_plays(
- profile_id TEXT NOT NULL,playback_id TEXT NOT NULL,
- item_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
- PRIMARY KEY(profile_id,playback_id)) WITHOUT ROWID, STRICT;
 
 CREATE TABLE personal_conflicts(id TEXT PRIMARY KEY,profile_id TEXT NOT NULL,item_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,field TEXT NOT NULL,base_revision INTEGER NOT NULL,base_value TEXT NOT NULL,resolved INTEGER NOT NULL DEFAULT 0) STRICT;
 
 CREATE TABLE personal_device_sequences(profile_id TEXT NOT NULL,device_id TEXT NOT NULL,sequence INTEGER NOT NULL,PRIMARY KEY(profile_id,device_id)) STRICT;
 
-CREATE TABLE personal_evidence_fences(profile_id TEXT NOT NULL,item_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,playback_id TEXT NOT NULL,PRIMARY KEY(profile_id,item_id)) STRICT;
-
 CREATE TABLE personal_explicit_events(profile_id TEXT NOT NULL,item_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,operation_id TEXT NOT NULL,field TEXT NOT NULL,base_revision INTEGER NOT NULL,base_value TEXT NOT NULL,value TEXT NOT NULL,device_id TEXT NOT NULL,device_mutation_id TEXT NOT NULL,sequence INTEGER NOT NULL,authored_at TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(profile_id,operation_id),UNIQUE(profile_id,device_id,device_mutation_id)) STRICT;
 
-CREATE TABLE personal_history(id TEXT NOT NULL,profile_id TEXT NOT NULL,item_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,started_at TEXT NOT NULL,updated_at TEXT NOT NULL,sequence INTEGER NOT NULL,position INTEGER NOT NULL,unit INTEGER NOT NULL DEFAULT 0 CHECK(unit BETWEEN 0 AND 99),completed INTEGER NOT NULL,PRIMARY KEY(profile_id,id)) STRICT;
-
-CREATE TABLE personal_items(profile_id TEXT NOT NULL,item_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,watchlisted INTEGER NOT NULL DEFAULT 0 CHECK(watchlisted IN(0,1)),favorite INTEGER NOT NULL DEFAULT 0 CHECK(favorite IN(0,1)),rating INTEGER CHECK(rating IS NULL OR (rating>=0 AND rating<=10)),revision INTEGER NOT NULL, watched INTEGER NOT NULL DEFAULT 0 CHECK(watched IN(0,1)), last_played_at TEXT NOT NULL DEFAULT '', not_interested INTEGER NOT NULL DEFAULT 0 CHECK(not_interested IN(0,1)),PRIMARY KEY(profile_id,item_id)) STRICT;
+CREATE TABLE personal_items(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ profile_id TEXT NOT NULL CHECK(typeof(profile_id)='text'),
+ item_public_id BLOB NOT NULL CHECK(typeof(item_public_id)='blob' AND length(item_public_id)=16),
+ item_id INTEGER NOT NULL,
+ library_id INTEGER REFERENCES catalog_libraries(id),
+ revision INTEGER NOT NULL DEFAULT 1 CHECK(typeof(revision)='integer' AND revision>0),
+ watchlisted INTEGER NOT NULL DEFAULT 0 CHECK(watchlisted IN(0,1)),
+ favorite INTEGER NOT NULL DEFAULT 0 CHECK(favorite IN(0,1)),
+ not_interested INTEGER NOT NULL DEFAULT 0 CHECK(not_interested IN(0,1)),
+ rating INTEGER CHECK(rating IS NULL OR (typeof(rating)='integer' AND rating BETWEEN 0 AND 10)),
+ watched INTEGER NOT NULL DEFAULT 0 CHECK(watched IN(0,1)),
+ watched_at TEXT,
+ play_count INTEGER NOT NULL DEFAULT 0 CHECK(typeof(play_count)='integer' AND play_count>=0),
+ started_count INTEGER NOT NULL DEFAULT 0 CHECK(typeof(started_count)='integer' AND started_count>=0),
+ played_ms INTEGER NOT NULL DEFAULT 0 CHECK(typeof(played_ms)='integer' AND played_ms>=0),
+ shared_play_count INTEGER NOT NULL DEFAULT 0 CHECK(typeof(shared_play_count)='integer' AND shared_play_count>=0),
+ shared_last_played_at TEXT,
+ last_played_at TEXT,
+ last_started_at TEXT,
+ last_completed_at TEXT,
+ resume_position INTEGER NOT NULL DEFAULT 0 CHECK(typeof(resume_position)='integer' AND resume_position>=0),
+ resume_unit INTEGER NOT NULL DEFAULT 0 CHECK(typeof(resume_unit)='integer'),
+ resume_completed INTEGER NOT NULL DEFAULT 0 CHECK(resume_completed IN(0,1)),
+ resume_playback_id TEXT,
+ resume_source_revision TEXT,
+ resume_asset_id INTEGER,
+ resume_item_public_id BLOB CHECK(resume_item_public_id IS NULL OR (typeof(resume_item_public_id)='blob' AND length(resume_item_public_id)=16)),
+ activity_at TEXT,
+ activity_state TEXT,
+ activity_visible INTEGER NOT NULL DEFAULT 1 CHECK(activity_visible IN(0,1)),
+ evidence_fence_playback_id TEXT,
+ dismissed_playback_id TEXT,
+ dismissed_child_public_id BLOB CHECK(dismissed_child_public_id IS NULL OR length(dismissed_child_public_id)=16),
+ dismissed_activity_at TEXT,
+ container_watermark TEXT,
+ container_cleared_through TEXT,
+ container_revision INTEGER NOT NULL DEFAULT 0 CHECK(typeof(container_revision)='integer' AND container_revision>=0),
+ radio_last_started_at TEXT,
+ radio_last_session_id TEXT,
+ reading_format TEXT CHECK(reading_format IS NULL OR reading_format IN('epub','pdf','cbz','cb7','cbr')),
+ reading_cfi TEXT,
+ reading_section TEXT,
+ reading_page_index INTEGER,
+ reading_progression REAL CHECK(reading_progression IS NULL OR (typeof(reading_progression) IN('real','integer') AND reading_progression BETWEEN 0 AND 1)),
+ reading_revision INTEGER,
+ reading_observed_ms INTEGER,
+ chapter_manifest_digest BLOB CHECK(chapter_manifest_digest IS NULL OR (typeof(chapter_manifest_digest)='blob' AND length(chapter_manifest_digest)=32)),
+ chapter_asset_id INTEGER,
+ chapter_asset_revision INTEGER,
+ chapter_asset_size INTEGER,
+ chapter_asset_modified_ns INTEGER,
+ chapter_completed_bits BLOB CHECK(chapter_completed_bits IS NULL OR typeof(chapter_completed_bits)='blob'),
+ retained_kind INTEGER,
+ retained_title TEXT,
+ retained_at_ms INTEGER,
+ activity_generation INTEGER NOT NULL DEFAULT 1 CHECK(activity_generation>0),
+ recommendation_generation INTEGER NOT NULL DEFAULT 1 CHECK(recommendation_generation>0),
+ action_sequence INTEGER NOT NULL DEFAULT 0 CHECK(action_sequence>=0),
+ container_membership_sequence INTEGER CHECK(container_membership_sequence>=0),
+ container_intent_sequence INTEGER CHECK(container_intent_sequence>=0),
+ CHECK(id IS NULL OR typeof(id)='integer'),
+ CHECK(profile_id IS NULL OR typeof(profile_id)='text'),
+ CHECK(item_public_id IS NULL OR typeof(item_public_id)='blob'),
+ CHECK(item_id IS NULL OR typeof(item_id)='integer'),
+ CHECK(library_id IS NULL OR typeof(library_id)='integer'),
+ CHECK(revision IS NULL OR typeof(revision)='integer'),
+ CHECK(watchlisted IS NULL OR typeof(watchlisted)='integer'),
+ CHECK(favorite IS NULL OR typeof(favorite)='integer'),
+ CHECK(not_interested IS NULL OR typeof(not_interested)='integer'),
+ CHECK(rating IS NULL OR typeof(rating)='integer'),
+ CHECK(watched IS NULL OR typeof(watched)='integer'),
+ CHECK(watched_at IS NULL OR typeof(watched_at)='text'),
+ CHECK(play_count IS NULL OR typeof(play_count)='integer'),
+ CHECK(started_count IS NULL OR typeof(started_count)='integer'),
+ CHECK(played_ms IS NULL OR typeof(played_ms)='integer'),
+ CHECK(shared_play_count IS NULL OR typeof(shared_play_count)='integer'),
+ CHECK(shared_last_played_at IS NULL OR typeof(shared_last_played_at)='text'),
+ CHECK(last_played_at IS NULL OR typeof(last_played_at)='text'),
+ CHECK(last_started_at IS NULL OR typeof(last_started_at)='text'),
+ CHECK(last_completed_at IS NULL OR typeof(last_completed_at)='text'),
+ CHECK(resume_position IS NULL OR typeof(resume_position)='integer'),
+ CHECK(resume_unit IS NULL OR typeof(resume_unit)='integer'),
+ CHECK(resume_completed IS NULL OR typeof(resume_completed)='integer'),
+ CHECK(resume_playback_id IS NULL OR typeof(resume_playback_id)='text'),
+ CHECK(resume_source_revision IS NULL OR typeof(resume_source_revision)='text'),
+ CHECK(resume_asset_id IS NULL OR typeof(resume_asset_id)='integer'),
+ CHECK(resume_item_public_id IS NULL OR typeof(resume_item_public_id)='blob'),
+ CHECK(activity_at IS NULL OR typeof(activity_at)='text'),
+ CHECK(activity_state IS NULL OR typeof(activity_state)='text'),
+ CHECK(activity_visible IS NULL OR typeof(activity_visible)='integer'),
+ CHECK(evidence_fence_playback_id IS NULL OR typeof(evidence_fence_playback_id)='text'),
+ CHECK(dismissed_playback_id IS NULL OR typeof(dismissed_playback_id)='text'),
+ CHECK(dismissed_child_public_id IS NULL OR typeof(dismissed_child_public_id)='blob'),
+ CHECK(dismissed_activity_at IS NULL OR typeof(dismissed_activity_at)='text'),
+ CHECK(container_watermark IS NULL OR typeof(container_watermark)='text'),
+ CHECK(container_cleared_through IS NULL OR typeof(container_cleared_through)='text'),
+ CHECK(container_revision IS NULL OR typeof(container_revision)='integer'),
+ CHECK(radio_last_started_at IS NULL OR typeof(radio_last_started_at)='text'),
+ CHECK(radio_last_session_id IS NULL OR typeof(radio_last_session_id)='text'),
+ CHECK(reading_format IS NULL OR typeof(reading_format)='text'),
+ CHECK(reading_cfi IS NULL OR typeof(reading_cfi)='text'),
+ CHECK(reading_section IS NULL OR typeof(reading_section)='text'),
+ CHECK(reading_page_index IS NULL OR typeof(reading_page_index)='integer'),
+ CHECK(reading_progression IS NULL OR typeof(reading_progression)IN('real','integer')),
+ CHECK(reading_revision IS NULL OR typeof(reading_revision)='integer'),
+ CHECK(reading_observed_ms IS NULL OR typeof(reading_observed_ms)='integer'),
+ CHECK(chapter_manifest_digest IS NULL OR typeof(chapter_manifest_digest)='blob'),
+ CHECK(chapter_asset_id IS NULL OR typeof(chapter_asset_id)='integer'),
+ CHECK(chapter_asset_revision IS NULL OR typeof(chapter_asset_revision)='integer'),
+ CHECK(chapter_asset_size IS NULL OR typeof(chapter_asset_size)='integer'),
+ CHECK(chapter_asset_modified_ns IS NULL OR typeof(chapter_asset_modified_ns)='integer'),
+ CHECK(chapter_completed_bits IS NULL OR typeof(chapter_completed_bits)='blob'),
+ CHECK(retained_kind IS NULL OR typeof(retained_kind)='integer'),
+ CHECK(retained_title IS NULL OR typeof(retained_title)='text'),
+ CHECK(retained_at_ms IS NULL OR typeof(retained_at_ms)='integer'),
+ UNIQUE(profile_id,item_public_id),
+ CHECK(reading_format IS NULL OR (reading_format='epub' AND reading_page_index IS NULL) OR (reading_format IN('pdf','cbz','cb7','cbr') AND reading_page_index IS NOT NULL AND reading_cfi IS NULL AND reading_section IS NULL)),
+ FOREIGN KEY(item_id,item_public_id) REFERENCES catalog_subjects(id,public_id),
+ CHECK("id" IS NULL OR typeof("id")='integer'),
+ CHECK("profile_id" IS NULL OR typeof("profile_id")='text'),
+ CHECK("item_public_id" IS NULL OR typeof("item_public_id")='blob'),
+ CHECK("item_id" IS NULL OR typeof("item_id")='integer'),
+ CHECK("library_id" IS NULL OR typeof("library_id")='integer'),
+ CHECK("revision" IS NULL OR typeof("revision")='integer'),
+ CHECK("watchlisted" IS NULL OR typeof("watchlisted")='integer'),
+ CHECK("favorite" IS NULL OR typeof("favorite")='integer'),
+ CHECK("not_interested" IS NULL OR typeof("not_interested")='integer'),
+ CHECK("rating" IS NULL OR typeof("rating")='integer'),
+ CHECK("watched" IS NULL OR typeof("watched")='integer'),
+ CHECK("watched_at" IS NULL OR typeof("watched_at")='text'),
+ CHECK("play_count" IS NULL OR typeof("play_count")='integer'),
+ CHECK("started_count" IS NULL OR typeof("started_count")='integer'),
+ CHECK("played_ms" IS NULL OR typeof("played_ms")='integer'),
+ CHECK("shared_play_count" IS NULL OR typeof("shared_play_count")='integer'),
+ CHECK("shared_last_played_at" IS NULL OR typeof("shared_last_played_at")='text'),
+ CHECK("last_played_at" IS NULL OR typeof("last_played_at")='text'),
+ CHECK("last_started_at" IS NULL OR typeof("last_started_at")='text'),
+ CHECK("last_completed_at" IS NULL OR typeof("last_completed_at")='text'),
+ CHECK("resume_position" IS NULL OR typeof("resume_position")='integer'),
+ CHECK("resume_unit" IS NULL OR typeof("resume_unit")='integer'),
+ CHECK("resume_completed" IS NULL OR typeof("resume_completed")='integer'),
+ CHECK("resume_playback_id" IS NULL OR typeof("resume_playback_id")='text'),
+ CHECK("resume_source_revision" IS NULL OR typeof("resume_source_revision")='text'),
+ CHECK("resume_asset_id" IS NULL OR typeof("resume_asset_id")='integer'),
+ CHECK("resume_item_public_id" IS NULL OR typeof("resume_item_public_id")='blob'),
+ CHECK("activity_at" IS NULL OR typeof("activity_at")='text'),
+ CHECK("activity_state" IS NULL OR typeof("activity_state")='text'),
+ CHECK("activity_visible" IS NULL OR typeof("activity_visible")='integer'),
+ CHECK("evidence_fence_playback_id" IS NULL OR typeof("evidence_fence_playback_id")='text'),
+ CHECK("dismissed_playback_id" IS NULL OR typeof("dismissed_playback_id")='text'),
+ CHECK("dismissed_child_public_id" IS NULL OR typeof("dismissed_child_public_id")='blob'),
+ CHECK("dismissed_activity_at" IS NULL OR typeof("dismissed_activity_at")='text'),
+ CHECK("container_watermark" IS NULL OR typeof("container_watermark")='text'),
+ CHECK("container_cleared_through" IS NULL OR typeof("container_cleared_through")='text'),
+ CHECK("container_revision" IS NULL OR typeof("container_revision")='integer'),
+ CHECK("radio_last_started_at" IS NULL OR typeof("radio_last_started_at")='text'),
+ CHECK("radio_last_session_id" IS NULL OR typeof("radio_last_session_id")='text'),
+ CHECK("reading_format" IS NULL OR typeof("reading_format")='text'),
+ CHECK("reading_cfi" IS NULL OR typeof("reading_cfi")='text'),
+ CHECK("reading_section" IS NULL OR typeof("reading_section")='text'),
+ CHECK("reading_page_index" IS NULL OR typeof("reading_page_index")='integer'),
+ CHECK("reading_progression" IS NULL OR typeof("reading_progression")IN('integer','real')),
+ CHECK("reading_revision" IS NULL OR typeof("reading_revision")='integer'),
+ CHECK("reading_observed_ms" IS NULL OR typeof("reading_observed_ms")='integer'),
+ CHECK("chapter_manifest_digest" IS NULL OR typeof("chapter_manifest_digest")='blob'),
+ CHECK("chapter_asset_id" IS NULL OR typeof("chapter_asset_id")='integer'),
+ CHECK("chapter_asset_revision" IS NULL OR typeof("chapter_asset_revision")='integer'),
+ CHECK("chapter_asset_size" IS NULL OR typeof("chapter_asset_size")='integer'),
+ CHECK("chapter_asset_modified_ns" IS NULL OR typeof("chapter_asset_modified_ns")='integer'),
+ CHECK("chapter_completed_bits" IS NULL OR typeof("chapter_completed_bits")='blob'),
+ CHECK("retained_kind" IS NULL OR typeof("retained_kind")='integer'),
+ CHECK("retained_title" IS NULL OR typeof("retained_title")='text'),
+ CHECK("retained_at_ms" IS NULL OR typeof("retained_at_ms")='integer'),
+ CHECK("activity_generation" IS NULL OR typeof("activity_generation")='integer'),
+ CHECK("recommendation_generation" IS NULL OR typeof("recommendation_generation")='integer'),
+ CHECK("action_sequence" IS NULL OR typeof("action_sequence")='integer'),
+ CHECK("container_membership_sequence" IS NULL OR typeof("container_membership_sequence")='integer'),
+ CHECK("container_intent_sequence" IS NULL OR typeof("container_intent_sequence")='integer')
+);
 
 CREATE TABLE personal_job_failures(job_id TEXT NOT NULL REFERENCES personal_jobs(id) ON DELETE CASCADE,
  ordinal INTEGER NOT NULL,item_id INTEGER NOT NULL,code TEXT NOT NULL,PRIMARY KEY(job_id,ordinal)) STRICT;
@@ -3490,83 +3795,117 @@ CREATE TABLE personal_jobs(
 , UNIQUE(profile_id,operation_id)
 ) STRICT;
 
-CREATE TABLE personal_music_radios(
- profile_id TEXT NOT NULL,
- seed_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
- last_started_ms INTEGER NOT NULL CHECK(last_started_ms>=0),
- last_session_id TEXT NOT NULL,
- PRIMARY KEY(profile_id,seed_id)) STRICT;
-
-CREATE TABLE personal_play_counts(
- profile_id TEXT NOT NULL,
- item_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
- plays INTEGER NOT NULL,
- PRIMARY KEY(profile_id,item_id)) STRICT, WITHOUT ROWID;
-
-CREATE TABLE personal_playback_runs(
- profile_id TEXT NOT NULL,
- playback_id TEXT NOT NULL,
- item_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
- sequence INTEGER NOT NULL,
- position_ms INTEGER NOT NULL,
- playing INTEGER NOT NULL CHECK(playing IN(0,1)),
- rate_milli INTEGER NOT NULL,
- seeked INTEGER NOT NULL CHECK(seeked IN(0,1)),
- generation INTEGER NOT NULL,
- preference_revision INTEGER NOT NULL,
- asset_revision INTEGER NOT NULL,
- asset_id INTEGER NOT NULL,
- asset_size INTEGER NOT NULL,
- asset_modified_ns INTEGER NOT NULL,
- reported_at TEXT NOT NULL,
- PRIMARY KEY(profile_id,playback_id)) STRICT;
-
 CREATE TABLE personal_receipts(account_id TEXT NOT NULL,profile_id TEXT NOT NULL,item_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,operation_id TEXT NOT NULL,request_hash TEXT NOT NULL,response TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT '',PRIMARY KEY(account_id,profile_id,item_id,operation_id)) STRICT;
 
 CREATE TABLE personal_snapshots(profile_id TEXT NOT NULL,item_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,revision INTEGER NOT NULL,state TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(profile_id,item_id,revision)) STRICT;
 
-CREATE TABLE personal_watched_intents(profile_id TEXT NOT NULL,item_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
- watched INTEGER NOT NULL CHECK(watched IN(0,1)),authored_at TEXT NOT NULL,PRIMARY KEY(profile_id,item_id)) STRICT;
-
-CREATE TABLE play_counts(
- item_id INTEGER PRIMARY KEY REFERENCES catalog_entities(id) ON DELETE CASCADE,
- plays INTEGER NOT NULL,
- last_played_ms INTEGER NOT NULL) STRICT;
-
 CREATE TABLE play_history(
  id INTEGER PRIMARY KEY AUTOINCREMENT,
- playback_id TEXT NOT NULL UNIQUE,
- authority TEXT NOT NULL,
- account_id TEXT NOT NULL,
- profile_id TEXT NOT NULL,
- user_name TEXT NOT NULL,
- profile_name TEXT NOT NULL DEFAULT '',
- item_id INTEGER NOT NULL,
- library_id TEXT NOT NULL,
- kind INTEGER NOT NULL,
- title TEXT NOT NULL,
- parent_title TEXT NOT NULL DEFAULT '',
- season INTEGER,
- episode INTEGER,
- device_id TEXT NOT NULL DEFAULT '',
- device_name TEXT NOT NULL DEFAULT '',
- platform TEXT NOT NULL DEFAULT '',
- started_ms INTEGER NOT NULL,
- updated_ms INTEGER NOT NULL,
- position_ms INTEGER NOT NULL DEFAULT 0,
- duration_ms INTEGER NOT NULL DEFAULT 0,
- watched_ms INTEGER NOT NULL DEFAULT 0 CHECK(watched_ms>=0),
- last_position_ms INTEGER NOT NULL DEFAULT 0,
- last_state TEXT NOT NULL DEFAULT 'playing',
- location TEXT NOT NULL DEFAULT '',
- completed INTEGER NOT NULL DEFAULT 0 CHECK(completed IN(0,1)), converted INTEGER NOT NULL DEFAULT 0 CHECK(converted IN(0,1))) STRICT;
-
-CREATE TABLE play_history_time(
- history_id INTEGER NOT NULL REFERENCES play_history(id) ON DELETE CASCADE,
- bucket_ms INTEGER NOT NULL CHECK(bucket_ms%900000=0),
- watched_ms INTEGER NOT NULL CHECK(watched_ms>=0),
- PRIMARY KEY(history_id,bucket_ms)
-) STRICT, WITHOUT ROWID;
+ occurred_at TEXT NOT NULL CHECK(typeof(occurred_at)='text'),
+ event_kind TEXT NOT NULL CHECK(typeof(event_kind)='text'),
+ account_key TEXT NOT NULL CHECK(typeof(account_key)='text'),
+ profile_id TEXT NOT NULL CHECK(typeof(profile_id)='text'),
+ playback_id TEXT NOT NULL CHECK(typeof(playback_id)='text'),
+ occurrence_generation INTEGER NOT NULL CHECK(typeof(occurrence_generation)='integer' AND occurrence_generation>=0),
+ accepted_sequence INTEGER NOT NULL CHECK(typeof(accepted_sequence)='integer' AND accepted_sequence>=0),
+ item_public_id BLOB CHECK(item_public_id IS NULL OR (typeof(item_public_id)='blob' AND length(item_public_id)=16)),
+ library_public_id TEXT,
+ item_kind INTEGER,
+ item_title TEXT,
+ parent_title TEXT,
+ season_number INTEGER,
+ episode_number INTEGER,
+ item_year INTEGER,
+ app TEXT,
+ location TEXT,
+ live_channel_key TEXT,
+ device_key TEXT,
+ platform TEXT,
+ delivery_kind TEXT,
+ position INTEGER NOT NULL DEFAULT 0 CHECK(typeof(position)='integer' AND position>=0),
+ unit INTEGER NOT NULL DEFAULT 0 CHECK(typeof(unit)='integer'),
+ played_ms INTEGER NOT NULL DEFAULT 0 CHECK(typeof(played_ms)='integer' AND played_ms>=0),
+ duration_ms INTEGER CHECK(duration_ms IS NULL OR (typeof(duration_ms)='integer' AND duration_ms>=0)),
+ completed INTEGER NOT NULL DEFAULT 0 CHECK(completed IN(0,1)),
+ converted INTEGER NOT NULL DEFAULT 0 CHECK(converted IN(0,1)),
+ chapter_index INTEGER,
+ chapter_start_ms INTEGER,
+ chapter_end_ms INTEGER,
+ source_revision TEXT,
+ cause TEXT,
+ subject_id INTEGER,
+ activity_generation INTEGER NOT NULL DEFAULT 1 CHECK(activity_generation>0),
+ CHECK(id IS NULL OR typeof(id)='integer'),
+ CHECK(occurred_at IS NULL OR typeof(occurred_at)='text'),
+ CHECK(event_kind IS NULL OR typeof(event_kind)='text'),
+ CHECK(account_key IS NULL OR typeof(account_key)='text'),
+ CHECK(profile_id IS NULL OR typeof(profile_id)='text'),
+ CHECK(playback_id IS NULL OR typeof(playback_id)='text'),
+ CHECK(occurrence_generation IS NULL OR typeof(occurrence_generation)='integer'),
+ CHECK(accepted_sequence IS NULL OR typeof(accepted_sequence)='integer'),
+ CHECK(item_public_id IS NULL OR typeof(item_public_id)='blob'),
+ CHECK(library_public_id IS NULL OR typeof(library_public_id)='text'),
+ CHECK(item_kind IS NULL OR typeof(item_kind)='integer'),
+ CHECK(item_title IS NULL OR typeof(item_title)='text'),
+ CHECK(parent_title IS NULL OR typeof(parent_title)='text'),
+ CHECK(season_number IS NULL OR typeof(season_number)='integer'),
+ CHECK(episode_number IS NULL OR typeof(episode_number)='integer'),
+ CHECK(item_year IS NULL OR typeof(item_year)='integer'),
+ CHECK(app IS NULL OR typeof(app)='text'),
+ CHECK(location IS NULL OR typeof(location)='text'),
+ CHECK(live_channel_key IS NULL OR typeof(live_channel_key)='text'),
+ CHECK(device_key IS NULL OR typeof(device_key)='text'),
+ CHECK(platform IS NULL OR typeof(platform)='text'),
+ CHECK(delivery_kind IS NULL OR typeof(delivery_kind)='text'),
+ CHECK(position IS NULL OR typeof(position)='integer'),
+ CHECK(unit IS NULL OR typeof(unit)='integer'),
+ CHECK(played_ms IS NULL OR typeof(played_ms)='integer'),
+ CHECK(duration_ms IS NULL OR typeof(duration_ms)='integer'),
+ CHECK(completed IS NULL OR typeof(completed)='integer'),
+ CHECK(converted IS NULL OR typeof(converted)='integer'),
+ CHECK(chapter_index IS NULL OR typeof(chapter_index)='integer'),
+ CHECK(chapter_start_ms IS NULL OR typeof(chapter_start_ms)='integer'),
+ CHECK(chapter_end_ms IS NULL OR typeof(chapter_end_ms)='integer'),
+ CHECK(source_revision IS NULL OR typeof(source_revision)='text'),
+ CHECK(cause IS NULL OR typeof(cause)='text'),
+ FOREIGN KEY(subject_id,item_public_id) REFERENCES catalog_subjects(id,public_id),
+ CHECK(subject_id IS NULL OR item_public_id IS NOT NULL),
+ CHECK("id" IS NULL OR typeof("id")='integer'),
+ CHECK("occurred_at" IS NULL OR typeof("occurred_at")='text'),
+ CHECK("event_kind" IS NULL OR typeof("event_kind")='text'),
+ CHECK("account_key" IS NULL OR typeof("account_key")='text'),
+ CHECK("profile_id" IS NULL OR typeof("profile_id")='text'),
+ CHECK("playback_id" IS NULL OR typeof("playback_id")='text'),
+ CHECK("occurrence_generation" IS NULL OR typeof("occurrence_generation")='integer'),
+ CHECK("accepted_sequence" IS NULL OR typeof("accepted_sequence")='integer'),
+ CHECK("item_public_id" IS NULL OR typeof("item_public_id")='blob'),
+ CHECK("library_public_id" IS NULL OR typeof("library_public_id")='text'),
+ CHECK("item_kind" IS NULL OR typeof("item_kind")='integer'),
+ CHECK("item_title" IS NULL OR typeof("item_title")='text'),
+ CHECK("parent_title" IS NULL OR typeof("parent_title")='text'),
+ CHECK("season_number" IS NULL OR typeof("season_number")='integer'),
+ CHECK("episode_number" IS NULL OR typeof("episode_number")='integer'),
+ CHECK("item_year" IS NULL OR typeof("item_year")='integer'),
+ CHECK("app" IS NULL OR typeof("app")='text'),
+ CHECK("location" IS NULL OR typeof("location")='text'),
+ CHECK("live_channel_key" IS NULL OR typeof("live_channel_key")='text'),
+ CHECK("device_key" IS NULL OR typeof("device_key")='text'),
+ CHECK("platform" IS NULL OR typeof("platform")='text'),
+ CHECK("delivery_kind" IS NULL OR typeof("delivery_kind")='text'),
+ CHECK("position" IS NULL OR typeof("position")='integer'),
+ CHECK("unit" IS NULL OR typeof("unit")='integer'),
+ CHECK("played_ms" IS NULL OR typeof("played_ms")='integer'),
+ CHECK("duration_ms" IS NULL OR typeof("duration_ms")='integer'),
+ CHECK("completed" IS NULL OR typeof("completed")='integer'),
+ CHECK("converted" IS NULL OR typeof("converted")='integer'),
+ CHECK("chapter_index" IS NULL OR typeof("chapter_index")='integer'),
+ CHECK("chapter_start_ms" IS NULL OR typeof("chapter_start_ms")='integer'),
+ CHECK("chapter_end_ms" IS NULL OR typeof("chapter_end_ms")='integer'),
+ CHECK("source_revision" IS NULL OR typeof("source_revision")='text'),
+ CHECK("cause" IS NULL OR typeof("cause")='text'),
+ CHECK("subject_id" IS NULL OR typeof("subject_id")='integer'),
+ CHECK("activity_generation" IS NULL OR typeof("activity_generation")='integer')
+);
 
 CREATE TABLE playback_admin_operations(operation_id TEXT PRIMARY KEY,actor TEXT NOT NULL,fingerprint TEXT NOT NULL,response TEXT NOT NULL,created_at INTEGER NOT NULL) STRICT;
 
@@ -3625,7 +3964,7 @@ CREATE TABLE playback_conversion_failures (
  session_id TEXT NOT NULL,
  recorded_ms INTEGER NOT NULL,
  failure_code TEXT NOT NULL,
- diagnostic TEXT NOT NULL CHECK(length(diagnostic)<=2000),
+ diagnostic TEXT NOT NULL,
  strategy TEXT NOT NULL,
  backend TEXT NOT NULL,
  video TEXT NOT NULL,
@@ -3644,14 +3983,14 @@ CREATE TABLE playback_conversion_observations(
 CREATE TABLE playback_conversion_targets (
  session_id TEXT PRIMARY KEY REFERENCES playback_delivery_plans(session_id) ON DELETE CASCADE,
  generation INTEGER NOT NULL CHECK(generation>0),
- target_json TEXT NOT NULL CHECK(length(target_json)<=8192),
- hardware_json TEXT NOT NULL DEFAULT '' CHECK(length(hardware_json)<=8192)
+ target_json TEXT NOT NULL,
+ hardware_json TEXT NOT NULL DEFAULT ''
 ) STRICT;
 
 CREATE TABLE playback_copy_timelines(
  asset_id TEXT PRIMARY KEY REFERENCES catalog_assets(token) ON DELETE CASCADE,
  size INTEGER NOT NULL,modified_ns INTEGER NOT NULL,
- boundaries TEXT NOT NULL CHECK(length(boundaries)<=1048576),
+ boundaries TEXT NOT NULL,
  created_at_ms INTEGER NOT NULL
  ) STRICT;
 
@@ -3664,8 +4003,8 @@ CREATE TABLE playback_delivery_plans(
  reason TEXT NOT NULL,output_container TEXT NOT NULL,video_action TEXT NOT NULL,audio_action TEXT NOT NULL,output_video TEXT NOT NULL,output_audio TEXT NOT NULL,audio_channels INTEGER NOT NULL,
  reason_codes TEXT NOT NULL DEFAULT '',
  quality_id TEXT NOT NULL DEFAULT 'auto',
- target_width INTEGER NOT NULL DEFAULT 0 CHECK(target_width>=0 AND target_width<=32768),
- target_height INTEGER NOT NULL DEFAULT 0 CHECK(target_height>=0 AND target_height<=4320),
+ target_width INTEGER NOT NULL DEFAULT 0 CHECK(target_width>=0 ),
+ target_height INTEGER NOT NULL DEFAULT 0 CHECK(target_height>=0 ),
  video_bitrate INTEGER NOT NULL DEFAULT 0 CHECK(video_bitrate>=0),
  audio_bitrate INTEGER NOT NULL DEFAULT 0 CHECK(audio_bitrate>=0),
  tone_map INTEGER NOT NULL DEFAULT 0 CHECK(tone_map IN (0,1)),
@@ -3682,7 +4021,7 @@ CREATE TABLE playback_device_capabilities(
  account_id TEXT NOT NULL,
  profile_id TEXT NOT NULL,
  revision INTEGER NOT NULL,
- document TEXT NOT NULL CHECK(length(document)<=131072),
+ document TEXT NOT NULL,
  updated_at_ms INTEGER NOT NULL
  ) STRICT;
 
@@ -3917,7 +4256,7 @@ CREATE TABLE playback_hls_demand(
  throttled INTEGER NOT NULL DEFAULT 0 CHECK(throttled IN (0,1))
  ) STRICT;
 
-CREATE TABLE playback_hls_reservations(session_id TEXT PRIMARY KEY,bytes INTEGER NOT NULL CHECK(bytes=4294967296)) STRICT;
+CREATE TABLE playback_hls_reservations(session_id TEXT PRIMARY KEY,bytes INTEGER NOT NULL CHECK(bytes>0)) STRICT;
 
 CREATE TABLE playback_hls_stages(
  session_id TEXT PRIMARY KEY REFERENCES playback_sessions(id) ON DELETE CASCADE,
@@ -3940,13 +4279,6 @@ CREATE TABLE playback_legacy_replacement_requests(
  request_id TEXT NOT NULL,
  old_session_id TEXT NOT NULL,
  old_generation INTEGER NOT NULL,
- job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
- job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
- job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
- job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts BETWEEN 0 AND 4294967295),
- job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms>=0),
- job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED,
- job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0),
  PRIMARY KEY(account_id,profile_id,request_id)
 ) STRICT;
 
@@ -3975,25 +4307,25 @@ CREATE TABLE playback_observed_output(
  seq INTEGER NOT NULL CHECK(seq>=0),
  observed_ms INTEGER NOT NULL CHECK(observed_ms>=0),
  video_known INTEGER NOT NULL CHECK(video_known IN(0,1)),
- video_width INTEGER NOT NULL CHECK(video_width BETWEEN 0 AND 32768),
- video_height INTEGER NOT NULL CHECK(video_height BETWEEN 0 AND 32768),
- video_fps REAL NOT NULL CHECK(video_fps BETWEEN 0 AND 1000),
+ video_width INTEGER NOT NULL CHECK(video_width >=0),
+ video_height INTEGER NOT NULL CHECK(video_height >=0),
+ video_fps REAL NOT NULL CHECK(video_fps >=0),
  video_bit_depth INTEGER NOT NULL CHECK(video_bit_depth IN(0,8,10,12,16)),
  video_range TEXT NOT NULL,
  screen_known INTEGER NOT NULL CHECK(screen_known IN(0,1)),
  dynamic_range TEXT NOT NULL,
- refresh_hz REAL NOT NULL CHECK(refresh_hz BETWEEN 0 AND 1000),
+ refresh_hz REAL NOT NULL CHECK(refresh_hz >=0),
  audio_known INTEGER NOT NULL CHECK(audio_known IN(0,1)),
  audio_handling TEXT NOT NULL,
  audio_codec TEXT NOT NULL,
  object_audio TEXT NOT NULL,
- channels INTEGER NOT NULL CHECK(channels BETWEEN 0 AND 64),
+ channels INTEGER NOT NULL CHECK(channels >=0),
  channel_layout TEXT NOT NULL,
- sample_rate INTEGER NOT NULL CHECK(sample_rate BETWEEN 0 AND 1536000),
+ sample_rate INTEGER NOT NULL CHECK(sample_rate >=0),
  bit_depth INTEGER NOT NULL CHECK(bit_depth IN(0,16,20,24,32)),
  subtitles_known INTEGER NOT NULL CHECK(subtitles_known IN(0,1)),
  subtitle_rendering TEXT NOT NULL,
- delivered_kbps INTEGER NOT NULL CHECK(delivered_kbps BETWEEN 0 AND 1000000)
+ delivered_kbps INTEGER NOT NULL CHECK(delivered_kbps >=0)
 ) STRICT;
 
 CREATE TABLE playback_owner_policy(
@@ -4006,7 +4338,12 @@ CREATE TABLE playback_owner_policy(
 CREATE TABLE playback_personal_claims(
   playback_id TEXT PRIMARY KEY, profile_key TEXT NOT NULL, item_id INTEGER NOT NULL,
   accepted_ordinal INTEGER NOT NULL CHECK(accepted_ordinal>=0)
- ) STRICT;
+ ,
+start_counted INTEGER NOT NULL DEFAULT 0 CHECK(start_counted IN(0,1)),
+ completion_counted INTEGER NOT NULL DEFAULT 0 CHECK(completion_counted IN(0,1)),
+ history_terminal_written INTEGER NOT NULL DEFAULT 0 CHECK(history_terminal_written IN(0,1)),
+ last_accepted_sequence INTEGER NOT NULL DEFAULT -1 CHECK(typeof(last_accepted_sequence)='integer' AND last_accepted_sequence>=-1)
+) STRICT;
 
 CREATE TABLE playback_personal_fences(
   profile_key TEXT NOT NULL,item_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
@@ -4089,13 +4426,6 @@ CREATE TABLE playback_start_preparation_queue(
  queue_owner_id TEXT NOT NULL,
  queue_revision INTEGER NOT NULL,
  queue_custody_generation INTEGER NOT NULL,
- job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
- job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
- job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
- job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts BETWEEN 0 AND 4294967295),
- job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms>=0),
- job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED,
- job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0),
  CHECK((queue_id='' AND queue_entry_id='' AND queue_owner_kind='' AND queue_owner_id='' AND queue_revision=0 AND queue_custody_generation=0)
  OR (queue_id<>'' AND queue_entry_id<>'' AND queue_owner_kind<>'' AND queue_owner_id<>'' AND queue_revision>0 AND queue_custody_generation>=0))
 ) STRICT;
@@ -4140,7 +4470,7 @@ CREATE TABLE playback_start_preparations(
  replaces_generation INTEGER NOT NULL,
  token_expires_ms INTEGER NOT NULL,
  created_ms INTEGER NOT NULL CHECK(created_ms>0),
- deadline_ms INTEGER NOT NULL CHECK(deadline_ms>created_ms AND deadline_ms-created_ms<=120000 AND deadline_ms<=token_expires_ms),
+ deadline_ms INTEGER NOT NULL CHECK(deadline_ms>created_ms  AND deadline_ms<=token_expires_ms),
  UNIQUE(device_id,start_key_digest),
  CHECK((replaces_session_id='' AND replaces_generation=0) OR (replaces_session_id<>'' AND replaces_generation>0))
 ) STRICT;
@@ -4344,19 +4674,12 @@ CREATE TABLE profile_restrictions(
  blocked_labels TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(blocked_labels)),
  allow_downloads INTEGER NOT NULL DEFAULT 1 CHECK(allow_downloads IN(0,1)),
  allow_live_tv INTEGER NOT NULL DEFAULT 1 CHECK(allow_live_tv IN(0,1)),
- 
- 
+
+
  allow_dvr INTEGER NOT NULL DEFAULT 0 CHECK(allow_dvr IN(0,1)),
  allow_watch_together INTEGER NOT NULL DEFAULT 1 CHECK(allow_watch_together IN(0,1)),
  revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)
 ) STRICT;
-
-CREATE TABLE progress(profile_id TEXT NOT NULL,item_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,position INTEGER NOT NULL,unit INTEGER NOT NULL DEFAULT 0 CHECK(unit BETWEEN 0 AND 99),completed INTEGER NOT NULL DEFAULT 0 CHECK(completed IN(0,1)),playback_id TEXT NOT NULL,
- activity_present INTEGER NOT NULL DEFAULT 0 CHECK(activity_present IN(0,1)),
- activity_library_id TEXT REFERENCES libraries(id), activity_updated_at TEXT, activity_state TEXT,
- CHECK((activity_present=0 AND activity_library_id IS NULL AND activity_updated_at IS NULL AND activity_state IS NULL)
- OR (activity_present=1 AND activity_library_id IS NOT NULL AND activity_updated_at IS NOT NULL AND activity_state IS NOT NULL))
-,PRIMARY KEY(profile_id,item_id)) STRICT;
 
 CREATE TABLE queue_v1_chunks(
  snapshot_id TEXT NOT NULL REFERENCES queue_v1_snapshots(id) ON DELETE CASCADE,
@@ -4435,15 +4758,14 @@ CREATE TABLE queue_v1_sonic_windows(
  model_id TEXT NOT NULL DEFAULT '',
  model_version TEXT NOT NULL DEFAULT '',
  model_sha256 TEXT NOT NULL DEFAULT '',
- count INTEGER NOT NULL CHECK(count BETWEEN 1 AND 256),
+ count INTEGER NOT NULL CHECK(count >=1),
  ordinals BLOB NOT NULL CHECK(length(ordinals)=count*8),
  PRIMARY KEY(queue_id,seed,lap,window_index,contents),
- CHECK((model_id='' AND model_version='' AND model_sha256='') OR
-       (length(model_id) BETWEEN 1 AND 128 AND length(model_version) BETWEEN 1 AND 128 AND length(model_sha256)=64))
+ CHECK((model_id='' AND model_version='' AND model_sha256='') OR (length(model_id)>=1 AND length(model_version)>=1 AND length(model_sha256)=64))
 ) WITHOUT ROWID, STRICT;
 
 CREATE TABLE queues_v1(
- automatic_advances INTEGER NOT NULL DEFAULT 0 CHECK(automatic_advances BETWEEN 0 AND 1000000),
+ automatic_advances INTEGER NOT NULL DEFAULT 0 CHECK(automatic_advances >=0),
  custody_generation INTEGER NOT NULL DEFAULT 0 CHECK(custody_generation>=0),
  current_entry_id TEXT NOT NULL DEFAULT '',
  id TEXT PRIMARY KEY,
@@ -4478,7 +4800,7 @@ CREATE TABLE reading_annotation_rects(
  asset_id INTEGER NOT NULL,
  source_revision TEXT NOT NULL,
  annotation_id TEXT NOT NULL,
- ordinal INTEGER NOT NULL CHECK(ordinal BETWEEN 0 AND 127),
+ ordinal INTEGER NOT NULL CHECK(ordinal >=0),
  x REAL NOT NULL CHECK(x>=0 AND x<=1),
  y REAL NOT NULL CHECK(y>=0 AND y<=1),
  width REAL NOT NULL CHECK(width>0 AND width<=1 AND x+width<=1),
@@ -4491,7 +4813,7 @@ CREATE TABLE reading_annotation_sets(
  owner_key TEXT NOT NULL,
  item_id INTEGER NOT NULL,
  asset_id INTEGER NOT NULL,
- source_revision TEXT NOT NULL CHECK(length(source_revision) BETWEEN 1 AND 256),
+ source_revision TEXT NOT NULL CHECK(length(source_revision) >=1),
  revision INTEGER NOT NULL CHECK(revision BETWEEN 1 AND 9007199254740991),
  PRIMARY KEY(owner_key,item_id,asset_id,source_revision),
  FOREIGN KEY(item_id,asset_id) REFERENCES reading_publications(item_id,asset_id) ON DELETE CASCADE) WITHOUT ROWID, STRICT;
@@ -4500,23 +4822,23 @@ CREATE TABLE reading_annotations(
  owner_key TEXT NOT NULL,
  item_id INTEGER NOT NULL,
  asset_id INTEGER NOT NULL,
- source_revision TEXT NOT NULL CHECK(length(source_revision) BETWEEN 1 AND 256),
- id TEXT NOT NULL CHECK(length(id) BETWEEN 1 AND 64),
+ source_revision TEXT NOT NULL CHECK(length(source_revision) >=1),
+ id TEXT NOT NULL CHECK(length(id) >=1),
  kind TEXT NOT NULL CHECK(kind IN('bookmark','highlight')),
  format TEXT NOT NULL CHECK(format IN('epub','pdf','cbz','cb7','cbr')),
- cfi TEXT CHECK(cfi IS NULL OR length(cfi)<=4096),
- section TEXT CHECK(section IS NULL OR length(section)<=1024),
+ cfi TEXT,
+ section TEXT,
  page_index INTEGER,
  progression REAL NOT NULL CHECK(progression>=0 AND progression<=1),
- quote TEXT NOT NULL CHECK(length(quote)<=8192),
- note TEXT NOT NULL CHECK(length(note)<=4096),
+ quote TEXT NOT NULL,
+ note TEXT NOT NULL,
  colour TEXT NOT NULL,
  created_at INTEGER NOT NULL CHECK(created_at BETWEEN 0 AND 9007199254740991),
  updated_at INTEGER NOT NULL CHECK(updated_at BETWEEN created_at AND 9007199254740991),
  PRIMARY KEY(owner_key,item_id,asset_id,source_revision,id),
  FOREIGN KEY(owner_key,item_id,asset_id,source_revision) REFERENCES reading_annotation_sets(owner_key,item_id,asset_id,source_revision) ON DELETE CASCADE,
  CHECK((kind='bookmark' AND quote='' AND colour='') OR (kind='highlight' AND length(quote)>0 AND colour IN('yellow','green','blue','pink'))),
- CHECK((format='epub' AND cfi IS NOT NULL AND page_index IS NULL) OR (format IN('pdf','cbz','cb7','cbr') AND cfi IS NULL AND section IS NULL AND page_index IS NOT NULL AND page_index BETWEEN 0 AND 1000000))) WITHOUT ROWID, STRICT;
+ CHECK((format='epub' AND cfi IS NOT NULL AND page_index IS NULL) OR (format IN('pdf','cbz','cb7','cbr') AND cfi IS NULL AND section IS NULL AND page_index IS NOT NULL AND page_index >=0))) WITHOUT ROWID, STRICT;
 
 CREATE TABLE reading_cover_inspections(
  item_id INTEGER NOT NULL,
@@ -4559,29 +4881,13 @@ CREATE TABLE reading_path_dirty_work(
 
 CREATE TABLE reading_path_source_barrier(source_id TEXT PRIMARY KEY,job_id TEXT NOT NULL,incarnation TEXT NOT NULL,source_generation INTEGER NOT NULL,root_identity TEXT NOT NULL,root TEXT NOT NULL,coverage_revision INTEGER NOT NULL DEFAULT 0,after_issue INTEGER NOT NULL DEFAULT 0,phase TEXT NOT NULL CHECK(phase IN('open','sealed','cancelled')),reason TEXT NOT NULL DEFAULT '') WITHOUT ROWID, STRICT;
 
-CREATE TABLE reading_progress(
- owner_key TEXT NOT NULL,
- item_id INTEGER NOT NULL,
- asset_id INTEGER NOT NULL,
- source_revision TEXT NOT NULL CHECK(length(source_revision) BETWEEN 1 AND 256),
- format TEXT NOT NULL CHECK(format IN('epub','pdf','cbz','cb7','cbr')),
- cfi TEXT CHECK(cfi IS NULL OR length(cfi)<=8192),
- section TEXT CHECK(section IS NULL OR length(section)<=4096),
- page_index INTEGER,
- progression REAL NOT NULL CHECK(progression>=0 AND progression<=1),
- revision INTEGER NOT NULL CHECK(revision BETWEEN 1 AND 9007199254740991),
- observed_at INTEGER NOT NULL CHECK(observed_at BETWEEN 0 AND 9007199254740991),
- PRIMARY KEY(owner_key,item_id,asset_id),
- FOREIGN KEY(item_id,asset_id) REFERENCES reading_publications(item_id,asset_id) ON DELETE CASCADE,
- CHECK((format='epub' AND page_index IS NULL) OR (format IN('pdf','cbz','cb7','cbr') AND page_index IS NOT NULL AND page_index BETWEEN 0 AND 9007199254740991 AND cfi IS NULL AND section IS NULL))) WITHOUT ROWID, STRICT;
-
 CREATE TABLE reading_publication_types(
  item_id INTEGER NOT NULL,
  asset_id INTEGER NOT NULL,
  publication_type TEXT CHECK(publication_type IS NULL OR publication_type IN('book','magazine','newspaper')),
  source_format TEXT NOT NULL CHECK(source_format IN('epub','cbz')),
- source_field TEXT NOT NULL CHECK(length(source_field) BETWEEN 1 AND 256),
- source_raw_json TEXT NOT NULL CHECK(json_valid(source_raw_json) AND json_type(source_raw_json)='array' AND json_array_length(source_raw_json)<=64 AND length(source_raw_json)<=262144),
+ source_field TEXT NOT NULL CHECK(length(source_field) >=1),
+ source_raw_json TEXT NOT NULL CHECK(json_valid(source_raw_json) AND json_type(source_raw_json)='array'  ),
  evidence_complete INTEGER NOT NULL CHECK(evidence_complete IN(0,1)),
  inventory_object_id TEXT NOT NULL REFERENCES inventory_objects(id) ON DELETE CASCADE,
  source_revision TEXT NOT NULL CHECK(length(source_revision)>0),
@@ -4598,10 +4904,10 @@ CREATE TABLE reading_publications(
  path_publisher_sequence INTEGER CHECK(path_publisher_sequence>0),
  path_object_id TEXT CHECK(path_object_id<>''),
  path_source_revision TEXT CHECK(path_source_revision<>''),
- path_author TEXT CHECK(path_author IS NULL OR (length(path_author) BETWEEN 1 AND 4096 AND length(CAST(path_author AS BLOB))<=4096 AND instr(path_author,char(0))=0 AND instr(path_author,char(10))=0 AND instr(path_author,char(13))=0)),
+ path_author TEXT CHECK(path_author IS NULL OR (length(path_author)>=1 AND instr(path_author,char(0))=0 AND instr(path_author,char(10))=0 AND instr(path_author,char(13))=0)),
  path_author_source TEXT CHECK(path_author_source IN('file-name','folder')),
  path_issue_date TEXT CHECK(path_issue_date IS NULL OR (length(path_issue_date) IN(7,10) AND substr(path_issue_date,1,4) BETWEEN '0001' AND '9999' AND path_issue_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]*' AND substr(path_issue_date,6,2) BETWEEN '01' AND '12' AND (length(path_issue_date)=7 OR (substr(path_issue_date,8,1)='-' AND substr(path_issue_date,9,2) GLOB '[0-9][0-9]' AND COALESCE(date(path_issue_date,'+0 days')=path_issue_date,0))))),
- path_series TEXT CHECK(path_series IS NULL OR (length(path_series) BETWEEN 1 AND 4096 AND length(CAST(path_series AS BLOB))<=4096 AND instr(path_series,char(0))=0 AND instr(path_series,char(10))=0 AND instr(path_series,char(13))=0)),
+ path_series TEXT CHECK(path_series IS NULL OR (length(path_series)>=1 AND instr(path_series,char(0))=0 AND instr(path_series,char(10))=0 AND instr(path_series,char(13))=0)),
  path_series_source TEXT CHECK(path_series_source IN('file-name','folder')),
  path_series_number REAL CHECK(path_series_number>=0 AND path_series_number<=1.7976931348623157e308),
  PRIMARY KEY(item_id,asset_id),
@@ -4609,8 +4915,21 @@ CREATE TABLE reading_publications(
  CHECK((path_author IS NULL)=(path_author_source IS NULL)),
  CHECK((path_series IS NULL)=(path_series_source IS NULL)),
  CHECK(has_reading_path_head=0 OR (path_publisher_sequence IS NOT NULL AND path_object_id IS NOT NULL AND path_source_revision IS NOT NULL)),
- FOREIGN KEY(item_id,asset_id) REFERENCES reading_publications(item_id,asset_id) ON DELETE CASCADE
-) WITHOUT ROWID, STRICT;
+ FOREIGN KEY(item_id,asset_id) REFERENCES reading_publications(item_id,asset_id) ON DELETE CASCADE,
+ CHECK("item_id" IS NULL OR typeof("item_id")='integer'),
+ CHECK("asset_id" IS NULL OR typeof("asset_id")='integer'),
+ CHECK("format" IS NULL OR typeof("format")='text'),
+ CHECK("has_reading_path_head" IS NULL OR typeof("has_reading_path_head")='integer'),
+ CHECK("path_publisher_sequence" IS NULL OR typeof("path_publisher_sequence")='integer'),
+ CHECK("path_object_id" IS NULL OR typeof("path_object_id")='text'),
+ CHECK("path_source_revision" IS NULL OR typeof("path_source_revision")='text'),
+ CHECK("path_author" IS NULL OR typeof("path_author")='text'),
+ CHECK("path_author_source" IS NULL OR typeof("path_author_source")='text'),
+ CHECK("path_issue_date" IS NULL OR typeof("path_issue_date")='text'),
+ CHECK("path_series" IS NULL OR typeof("path_series")='text'),
+ CHECK("path_series_source" IS NULL OR typeof("path_series_source")='text'),
+ CHECK("path_series_number" IS NULL OR typeof("path_series_number")IN('integer','real'))
+) WITHOUT ROWID;
 
 CREATE TABLE reading_saved_group_owners (
  owner_key TEXT NOT NULL, server_id TEXT NOT NULL,
@@ -4625,11 +4944,11 @@ CREATE TABLE reading_saved_group_receipts (
 ) STRICT;
 
 CREATE TABLE reading_saved_groups (
- reference_id TEXT PRIMARY KEY CHECK(length(reference_id) BETWEEN 1 AND 128),
+ reference_id TEXT PRIMARY KEY CHECK(length(reference_id) >=1),
  owner_key TEXT NOT NULL CHECK(length(owner_key)>0), server_id TEXT NOT NULL CHECK(length(server_id)>0),
- library_id TEXT NOT NULL CHECK(length(library_id) BETWEEN 1 AND 128),
+ library_id TEXT NOT NULL CHECK(length(library_id) >=1),
  group_kind TEXT NOT NULL CHECK(group_kind IN('series','magazine','newspaper')),
- series_key TEXT COLLATE BINARY NOT NULL CHECK(length(CAST(series_key AS BLOB)) BETWEEN 1 AND 1048576),
+ series_key TEXT COLLATE BINARY NOT NULL CHECK(length(CAST(series_key AS BLOB)) >=1),
  listed INTEGER NOT NULL CHECK(listed IN(0,1)), revision INTEGER NOT NULL CHECK(revision BETWEEN 1 AND 9007199254740991),
  UNIQUE(owner_key,server_id,library_id,group_kind,series_key)
 ) STRICT;
@@ -4646,16 +4965,15 @@ CREATE TABLE reading_source_values(
  PRIMARY KEY(item_id,asset_id,field,source),
  FOREIGN KEY(item_id,asset_id) REFERENCES reading_publications(item_id,asset_id) ON DELETE CASCADE,
  CHECK(field<>'issueDate' OR (source='file-name' AND length(text_value) IN(7,10))),
- CHECK((field IN('author','series','issueDate') AND text_value IS NOT NULL AND length(text_value) BETWEEN 1 AND 4096 AND number_value IS NULL)
-    OR (field='seriesNumber' AND text_value IS NULL AND number_value IS NOT NULL AND number_value>=0 AND number_value<=1.7976931348623157e308))) WITHOUT ROWID, STRICT;
+ CHECK((field IN('author','series','issueDate') AND text_value IS NOT NULL AND length(text_value)>=1 AND number_value IS NULL) OR (field='seriesNumber' AND text_value IS NULL AND number_value IS NOT NULL AND number_value>=0 AND number_value<=1.7976931348623157e308))) WITHOUT ROWID, STRICT;
 
 CREATE TABLE reading_text_counts(
  item_id INTEGER NOT NULL,
  asset_id INTEGER NOT NULL,
- word_count INTEGER CHECK(word_count IS NULL OR word_count BETWEEN 0 AND 67108864),
- opening_lines TEXT CHECK(opening_lines IS NULL OR length(opening_lines)<=4096),
+ word_count INTEGER CHECK(word_count IS NULL OR word_count >=0),
+ opening_lines TEXT,
  opening_rule_version INTEGER NOT NULL DEFAULT 0 CHECK(opening_rule_version IN(0,1)),
- page_count INTEGER CHECK(page_count IS NULL OR page_count BETWEEN 1 AND 4096),
+ page_count INTEGER CHECK(page_count IS NULL OR page_count >=1),
  page_rule_version INTEGER NOT NULL DEFAULT 0 CHECK(page_rule_version IN(0,1)),
  inventory_object_id TEXT NOT NULL REFERENCES inventory_objects(id) ON DELETE CASCADE,
  source_revision TEXT NOT NULL CHECK(length(source_revision)>0),
@@ -4667,7 +4985,7 @@ CREATE VIRTUAL TABLE reading_text_fts USING fts5(text,content='reading_text_sect
 
 CREATE TABLE reading_text_index_budget(
  singleton INTEGER PRIMARY KEY CHECK(singleton=1),
- payload_bytes INTEGER NOT NULL CHECK(payload_bytes BETWEEN 0 AND 1073741824)) STRICT;
+ payload_bytes INTEGER NOT NULL CHECK(payload_bytes >=0)) STRICT;
 
 CREATE TABLE reading_text_index_epoch(
  singleton INTEGER PRIMARY KEY CHECK(singleton=1),
@@ -4680,23 +4998,40 @@ CREATE TABLE reading_text_index_state(
  source_revision TEXT NOT NULL CHECK(length(source_revision)>0),
  index_rule_version INTEGER NOT NULL CHECK(index_rule_version>0),
  outcome TEXT NOT NULL CHECK(outcome IN('indexed','evicted','excluded','unsupported')),
- reason TEXT NOT NULL CHECK(length(reason)<=64),
- text_bytes INTEGER NOT NULL CHECK(text_bytes BETWEEN 0 AND 8388608),
- section_count INTEGER NOT NULL CHECK(section_count BETWEEN 0 AND 4096),
+ reason TEXT NOT NULL,
+ text_bytes INTEGER NOT NULL CHECK(text_bytes >=0),
+ section_count INTEGER NOT NULL CHECK(section_count >=0),
  indexed_at INTEGER NOT NULL CHECK(indexed_at>0),
+ active_publication_id INTEGER REFERENCES reading_text_publications(id),
+ publication_revision INTEGER NOT NULL DEFAULT 1 CHECK(publication_revision>0),
  PRIMARY KEY(item_id,asset_id),
- FOREIGN KEY(item_id,asset_id) REFERENCES reading_publications(item_id,asset_id) ON DELETE CASCADE) WITHOUT ROWID, STRICT;
+ FOREIGN KEY(item_id,asset_id) REFERENCES reading_publications(item_id,asset_id) ON DELETE CASCADE
+) WITHOUT ROWID, STRICT;
 
 CREATE TABLE reading_text_sections(
  id INTEGER PRIMARY KEY AUTOINCREMENT,
+ publication_id INTEGER NOT NULL REFERENCES reading_text_publications(id),
  item_id INTEGER NOT NULL,
  asset_id INTEGER NOT NULL,
- section_index INTEGER NOT NULL CHECK(section_index BETWEEN 0 AND 4095),
- section_path TEXT NOT NULL CHECK(length(section_path) BETWEEN 1 AND 1024),
- text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) BETWEEN 1 AND 8388608),
- utf16_length INTEGER NOT NULL CHECK(utf16_length BETWEEN 1 AND 8388608),
- UNIQUE(item_id,asset_id,section_index),
- FOREIGN KEY(item_id,asset_id) REFERENCES reading_text_index_state(item_id,asset_id) ON DELETE CASCADE) STRICT;
+ section_index INTEGER NOT NULL CHECK(section_index>=0),
+ fragment_index INTEGER NOT NULL CHECK(fragment_index>=0),
+ section_path TEXT NOT NULL CHECK(length(section_path)>0),
+ utf16_start INTEGER NOT NULL CHECK(utf16_start>=0),
+ utf16_length INTEGER NOT NULL CHECK(utf16_length>0),
+ text TEXT NOT NULL CHECK(length(text)>0),
+ UNIQUE(publication_id,section_index,fragment_index),
+ FOREIGN KEY(publication_id,item_id,asset_id) REFERENCES reading_text_publications(id,item_id,asset_id),
+ CHECK("id" IS NULL OR typeof("id")='integer'),
+ CHECK("publication_id" IS NULL OR typeof("publication_id")='integer'),
+ CHECK("item_id" IS NULL OR typeof("item_id")='integer'),
+ CHECK("asset_id" IS NULL OR typeof("asset_id")='integer'),
+ CHECK("section_index" IS NULL OR typeof("section_index")='integer'),
+ CHECK("fragment_index" IS NULL OR typeof("fragment_index")='integer'),
+ CHECK("section_path" IS NULL OR typeof("section_path")='text'),
+ CHECK("utf16_start" IS NULL OR typeof("utf16_start")='integer'),
+ CHECK("utf16_length" IS NULL OR typeof("utf16_length")='integer'),
+ CHECK("text" IS NULL OR typeof("text")='text')
+);
 
 CREATE TABLE rec_data_revision(
  id INTEGER PRIMARY KEY CHECK(id=1),
@@ -4746,16 +5081,7 @@ CREATE TABLE remote_listing_sessions(id TEXT PRIMARY KEY,job_id TEXT NOT NULL,so
  job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0)
 ,UNIQUE(job_id,directory)) STRICT;
 
-CREATE TABLE remote_native_listings(listing_id TEXT PRIMARY KEY REFERENCES remote_listing_sessions(id) ON DELETE CASCADE,owner TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN('running','complete','failed')),error_code TEXT NOT NULL DEFAULT '',entries INTEGER NOT NULL DEFAULT 0,bytes INTEGER NOT NULL DEFAULT 0,updated_at INTEGER NOT NULL,
- job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
- job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
- job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
- job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts BETWEEN 0 AND 4294967295),
- job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms>=0),
- job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED
-,
- job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0)
-) STRICT;
+CREATE TABLE remote_native_listings(listing_id TEXT PRIMARY KEY REFERENCES remote_listing_sessions(id) ON DELETE CASCADE,owner TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN('running','complete','failed')),error_code TEXT NOT NULL DEFAULT '',entries INTEGER NOT NULL DEFAULT 0,bytes INTEGER NOT NULL DEFAULT 0,updated_at INTEGER NOT NULL) STRICT;
 
 CREATE TABLE remote_object_refs(path TEXT PRIMARY KEY,revision TEXT NOT NULL) STRICT;
 
@@ -4769,16 +5095,7 @@ CREATE TABLE remote_refused_names(
  count INTEGER NOT NULL
 ) STRICT;
 
-CREATE TABLE remote_scan_cursors(job_id TEXT NOT NULL,path TEXT NOT NULL,listing_id TEXT NOT NULL,cursor TEXT NOT NULL DEFAULT '',
- job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
- job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
- job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
- job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts BETWEEN 0 AND 4294967295),
- job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms>=0),
- job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED
-,
- job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0)
-,PRIMARY KEY(job_id,path)) STRICT;
+CREATE TABLE remote_scan_cursors(job_id TEXT NOT NULL,path TEXT NOT NULL,listing_id TEXT NOT NULL,cursor TEXT NOT NULL DEFAULT '',PRIMARY KEY(job_id,path)) STRICT;
 
 CREATE TABLE remote_scan_generations(job_id TEXT NOT NULL,source_id TEXT NOT NULL,generation TEXT NOT NULL,PRIMARY KEY(job_id,source_id)) STRICT;
 
@@ -4996,47 +5313,11 @@ CREATE TABLE reset_file_sessions(family_id TEXT PRIMARY KEY REFERENCES authoriza
 
 CREATE TABLE restrictions(profile_id TEXT PRIMARY KEY,revision INTEGER NOT NULL,revoked INTEGER NOT NULL DEFAULT 0,allowed_libraries TEXT NOT NULL DEFAULT '[]') STRICT;
 
-CREATE TABLE retained_reading_progress(
- state_id INTEGER NOT NULL REFERENCES retained_title_state(id) ON DELETE CASCADE,
- source_id TEXT NOT NULL CHECK(length(source_id)>0),
- source_revision TEXT NOT NULL CHECK(length(source_revision) BETWEEN 1 AND 256),
- format TEXT NOT NULL CHECK(format IN('epub','pdf','cbz','cb7','cbr')),
- cfi TEXT CHECK(cfi IS NULL OR length(cfi)<=8192),
- section TEXT CHECK(section IS NULL OR length(section)<=4096),
- page_index INTEGER,
- progression REAL NOT NULL CHECK(progression>=0 AND progression<=1),
- revision INTEGER NOT NULL CHECK(revision BETWEEN 1 AND 9007199254740991),
- observed_at INTEGER NOT NULL CHECK(observed_at BETWEEN 0 AND 9007199254740991),
- PRIMARY KEY(state_id,source_id),
- CHECK((format='epub' AND page_index IS NULL) OR (format IN('pdf','cbz','cb7','cbr') AND page_index IS NOT NULL AND page_index BETWEEN 0 AND 9007199254740991 AND cfi IS NULL AND section IS NULL))) WITHOUT ROWID, STRICT;
-
 CREATE TABLE retained_title_identities(
  identity TEXT NOT NULL,
  profile_id TEXT NOT NULL,
- state_id INTEGER NOT NULL REFERENCES retained_title_state(id) ON DELETE CASCADE,
+ state_id INTEGER NOT NULL REFERENCES personal_items(id) ON DELETE CASCADE,
  PRIMARY KEY(identity,profile_id)) WITHOUT ROWID, STRICT;
-
-CREATE TABLE retained_title_state(
- id INTEGER PRIMARY KEY,
- profile_id TEXT NOT NULL,
- kind INTEGER NOT NULL,
- title TEXT NOT NULL DEFAULT '',
- watched INTEGER NOT NULL DEFAULT 0 CHECK(watched IN(0,1)),
- watchlisted INTEGER NOT NULL DEFAULT 0 CHECK(watchlisted IN(0,1)),
- favorite INTEGER NOT NULL DEFAULT 0 CHECK(favorite IN(0,1)),
- not_interested INTEGER NOT NULL DEFAULT 0 CHECK(not_interested IN(0,1)),
- rating REAL,
- last_played_at TEXT NOT NULL DEFAULT '',
- plays INTEGER NOT NULL DEFAULT 0,
- position INTEGER NOT NULL DEFAULT 0,
- unit INTEGER NOT NULL DEFAULT 0,
- completed INTEGER NOT NULL DEFAULT 0 CHECK(completed IN(0,1)),
- progress_at TEXT NOT NULL DEFAULT '',
- retained_ms INTEGER NOT NULL) STRICT;
-
-CREATE TABLE retained_title_state_counts(
- profile_id TEXT PRIMARY KEY,
- title_count INTEGER NOT NULL CHECK(title_count>=0)) WITHOUT ROWID, STRICT;
 
 CREATE TABLE saved_entry_undo(token TEXT NOT NULL,owner_key TEXT NOT NULL,kind TEXT NOT NULL CHECK(kind IN('playlist','collection')),resource_id TEXT NOT NULL,entry_id TEXT NOT NULL,item_id INTEGER REFERENCES catalog_entities(id) ON DELETE CASCADE,order_key TEXT NOT NULL DEFAULT '',expires_ms INTEGER NOT NULL,PRIMARY KEY(token,entry_id)) STRICT;
 
@@ -5059,7 +5340,7 @@ CREATE TABLE saved_resource_shares(resource_id TEXT NOT NULL REFERENCES saved_re
 CREATE TABLE saved_resources(id TEXT PRIMARY KEY,kind TEXT NOT NULL CHECK(kind IN('collection','view')),owner_key TEXT NOT NULL,owner_authority TEXT NOT NULL,owner_account TEXT NOT NULL,owner_profile TEXT NOT NULL,name TEXT NOT NULL,summary TEXT NOT NULL DEFAULT '',definition TEXT NOT NULL DEFAULT '{}',revision INTEGER NOT NULL DEFAULT 1,deleted INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL, visibility TEXT NOT NULL DEFAULT 'private' CHECK(visibility IN('private','server'))) STRICT;
 
 CREATE TABLE screen_anime_seasons(
- show_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,season_number INTEGER NOT NULL CHECK(season_number BETWEEN 0 AND 99),
+ show_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,season_number INTEGER NOT NULL CHECK(season_number>=0),
  anilist_id TEXT NOT NULL,revision INTEGER NOT NULL DEFAULT 1,source_publication TEXT NOT NULL,
  PRIMARY KEY(show_id,season_number)) STRICT;
 
@@ -5213,14 +5494,7 @@ CREATE TABLE selection_action_targets (
  PRIMARY KEY(group_id,entity_id), UNIQUE(group_id,seq)
 ) STRICT;
 
-CREATE TABLE server_configuration_pending(field TEXT PRIMARY KEY,revision INTEGER NOT NULL CHECK(revision>0),
- job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
- job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
- job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
- job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts BETWEEN 0 AND 4294967295),
- job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms>=0),
- job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED
-) STRICT;
+CREATE TABLE server_configuration_pending(field TEXT PRIMARY KEY,revision INTEGER NOT NULL CHECK(revision>0)) STRICT;
 
 CREATE TABLE server_log_retention(category TEXT PRIMARY KEY,days INTEGER NOT NULL CHECK(days BETWEEN 1 AND 90)) STRICT;
 
@@ -5259,7 +5533,6 @@ CREATE TABLE server_settings(singleton INTEGER PRIMARY KEY CHECK(singleton=1), u
  "diagnosticDays" INTEGER,
  "notificationDays" INTEGER,
  "jobDays" INTEGER,
- "playHistoryDays" INTEGER,
  "apiRequestsPerMinute" INTEGER,
  "integrations.compatibilityEnabled" INTEGER CHECK("integrations.compatibilityEnabled" IN(0,1)),
  "recommendations.titleDataset" INTEGER CHECK("recommendations.titleDataset" IN(0,1)),
@@ -5733,7 +6006,7 @@ CREATE TABLE user_mutation_roots(
 CREATE TABLE video_nfo_evidence(
  library_id TEXT NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,asset_id TEXT NOT NULL REFERENCES catalog_assets(token) ON DELETE CASCADE,
  locator TEXT NOT NULL,kind TEXT NOT NULL CHECK(kind IN('movie','show','episode')),coordinate TEXT NOT NULL,
- digest TEXT NOT NULL,payload TEXT NOT NULL CHECK(length(CAST(payload AS BLOB))<=524288),
+ digest TEXT NOT NULL,payload TEXT NOT NULL,
  source_size INTEGER NOT NULL,source_modified INTEGER NOT NULL,observed_at TEXT NOT NULL,
  PRIMARY KEY(library_id,asset_id,locator,kind,coordinate)) STRICT;
 
@@ -5780,22 +6053,22 @@ CREATE TABLE webhooks(
  owner_reviewed INTEGER NOT NULL DEFAULT 0 CHECK(owner_reviewed IN(0,1)),
  owner_secret_replaced INTEGER NOT NULL DEFAULT 0 CHECK(owner_secret_replaced IN(0,1)),
  retired_secret_digest TEXT NOT NULL DEFAULT '' CHECK(retired_secret_digest='' OR (length(retired_secret_digest)=64 AND retired_secret_digest NOT GLOB '*[^0-9a-f]*')),
- 
- 
- 
- 
- 
+
+
+
+
+
  create_actor TEXT NOT NULL DEFAULT '', create_operation TEXT NOT NULL DEFAULT '',
  create_digest TEXT NOT NULL DEFAULT '',
- 
- 
+
+
  CHECK(owner_review_required=0 OR enabled=0),
  CHECK ((create_actor='' AND create_operation='' AND create_digest='')
      OR (create_actor<>'' AND length(create_operation) BETWEEN 8 AND 128
          AND length(create_digest)=64 AND create_digest NOT GLOB '*[^0-9a-f]*'))) STRICT;
 
 CREATE TABLE metadata_providers(
- code TEXT PRIMARY KEY CHECK(length(code) BETWEEN 1 AND 64),
+ code TEXT PRIMARY KEY CHECK(length(code)>0),
  adapter TEXT NOT NULL, enabled INTEGER NOT NULL CHECK(enabled IN(0,1)),
  next_attempt_ms INTEGER NOT NULL DEFAULT 0 CHECK(next_attempt_ms>=0)
 ) WITHOUT ROWID, STRICT;
@@ -5805,8 +6078,8 @@ CREATE TABLE metadata_provider_policy(
  provider TEXT NOT NULL REFERENCES metadata_providers(code),
  incarnation BLOB NOT NULL CHECK(length(incarnation)=16), revision INTEGER NOT NULL CHECK(revision>0),
  enabled INTEGER NOT NULL CHECK(enabled IN(0,1)), priority INTEGER NOT NULL,
- language TEXT NOT NULL,region TEXT NOT NULL,
- algorithm TEXT NOT NULL CHECK(length(algorithm) BETWEEN 1 AND 128),
+ region TEXT NOT NULL,
+ algorithm TEXT NOT NULL CHECK(length(algorithm)>0),
  refresh_mode TEXT NOT NULL CHECK(refresh_mode IN('fill_missing','replace_unlocked')),
  credit_enabled INTEGER NOT NULL DEFAULT 1 CHECK(credit_enabled IN(0,1)),
  credit_after_item INTEGER,credit_after_provider TEXT,
@@ -5814,30 +6087,92 @@ CREATE TABLE metadata_provider_policy(
 ) WITHOUT ROWID, STRICT;
 
 CREATE TABLE metadata_evidence(
- id TEXT PRIMARY KEY,subject_id INTEGER NOT NULL REFERENCES metadata_provider_subjects(id),parser_version TEXT NOT NULL,
+ id TEXT PRIMARY KEY,
+ subject_id INTEGER NOT NULL REFERENCES metadata_provider_subjects(id),
+ parser_version TEXT NOT NULL,
  provider TEXT NOT NULL REFERENCES metadata_providers(code),
- subject_kind TEXT NOT NULL,provider_id TEXT NOT NULL,
- language TEXT NOT NULL,region TEXT NOT NULL,request_shape TEXT NOT NULL,
- digest TEXT NOT NULL CHECK(length(digest)=64),observed_at TEXT NOT NULL,
- source_url TEXT NOT NULL,etag TEXT NOT NULL DEFAULT '',last_modified TEXT NOT NULL DEFAULT '',
- title TEXT NOT NULL DEFAULT '',original_title TEXT NOT NULL DEFAULT '',
- overview TEXT NOT NULL DEFAULT '',tagline TEXT NOT NULL DEFAULT '',
- content_rating TEXT NOT NULL DEFAULT '',studio TEXT NOT NULL DEFAULT '',network TEXT NOT NULL DEFAULT '',
- country TEXT NOT NULL DEFAULT '',release_date TEXT NOT NULL DEFAULT '',year INTEGER NOT NULL DEFAULT 0,
- artist TEXT NOT NULL DEFAULT '',length_millis INTEGER CHECK(length_millis>=0),
- artist_type TEXT,begin_year INTEGER,end_year INTEGER,wikidata_id TEXT NOT NULL DEFAULT '',
- biography TEXT NOT NULL DEFAULT '',biography_source TEXT NOT NULL DEFAULT '',biography_source_url TEXT NOT NULL DEFAULT '',
- image_url TEXT NOT NULL DEFAULT '',image_licence TEXT NOT NULL DEFAULT '',
- disambiguation TEXT NOT NULL DEFAULT '',release_group_id TEXT NOT NULL DEFAULT '',
- group_title TEXT NOT NULL DEFAULT '',primary_type TEXT NOT NULL DEFAULT '',barcode TEXT NOT NULL DEFAULT '',
+ subject_kind TEXT NOT NULL,
+ provider_id TEXT NOT NULL,
+ language TEXT NOT NULL,
+ region TEXT NOT NULL,
+ request_shape TEXT NOT NULL,
+ digest TEXT NOT NULL CHECK(length(digest)=64),
+ observed_at TEXT NOT NULL,
+ source_url TEXT NOT NULL,
+ etag TEXT NOT NULL DEFAULT '',
+ last_modified TEXT NOT NULL DEFAULT '',
+ title TEXT NOT NULL DEFAULT '',
+ original_title TEXT NOT NULL DEFAULT '',
+ overview TEXT NOT NULL DEFAULT '',
+ tagline TEXT NOT NULL DEFAULT '',
+ content_rating TEXT NOT NULL DEFAULT '',
+ studio TEXT NOT NULL DEFAULT '',
+ network TEXT NOT NULL DEFAULT '',
+ country TEXT NOT NULL DEFAULT '',
+ release_date TEXT NOT NULL DEFAULT '',
+ year INTEGER NOT NULL DEFAULT 0,
+ artist TEXT NOT NULL DEFAULT '',
+ length_millis INTEGER CHECK(length_millis>=0),
+ artist_type TEXT,
+ begin_year INTEGER,
+ end_year INTEGER,
+ wikidata_id TEXT NOT NULL DEFAULT '',
+ biography TEXT NOT NULL DEFAULT '',
+ biography_source TEXT NOT NULL DEFAULT '',
+ biography_source_url TEXT NOT NULL DEFAULT '',
+ disambiguation TEXT NOT NULL DEFAULT '',
+ release_group_id TEXT NOT NULL DEFAULT '',
+ group_title TEXT NOT NULL DEFAULT '',
+ primary_type TEXT NOT NULL DEFAULT '',
+ barcode TEXT NOT NULL DEFAULT '',
  sealed INTEGER NOT NULL DEFAULT 0 CHECK(sealed IN(0,1)),
  UNIQUE(provider,subject_kind,provider_id,language,region,request_shape,digest),
- UNIQUE(id,provider,subject_kind,provider_id),UNIQUE(id,subject_id),
+ UNIQUE(id,provider,subject_kind,provider_id),
+ UNIQUE(id,subject_id),
  FOREIGN KEY(subject_id,provider,subject_kind,provider_id,language,region,request_shape)
  REFERENCES metadata_provider_subjects(id,provider,subject_kind,provider_id,language,region,request_shape),
  UNIQUE(provider,subject_kind,id),
- UNIQUE(id,provider_id)
-) STRICT;
+ UNIQUE(id,provider_id),
+ CHECK("id" IS NULL OR typeof("id")='text'),
+ CHECK("subject_id" IS NULL OR typeof("subject_id")='integer'),
+ CHECK("parser_version" IS NULL OR typeof("parser_version")='text'),
+ CHECK("provider" IS NULL OR typeof("provider")='text'),
+ CHECK("subject_kind" IS NULL OR typeof("subject_kind")='text'),
+ CHECK("provider_id" IS NULL OR typeof("provider_id")='text'),
+ CHECK("language" IS NULL OR typeof("language")='text'),
+ CHECK("region" IS NULL OR typeof("region")='text'),
+ CHECK("request_shape" IS NULL OR typeof("request_shape")='text'),
+ CHECK("digest" IS NULL OR typeof("digest")='text'),
+ CHECK("observed_at" IS NULL OR typeof("observed_at")='text'),
+ CHECK("source_url" IS NULL OR typeof("source_url")='text'),
+ CHECK("etag" IS NULL OR typeof("etag")='text'),
+ CHECK("last_modified" IS NULL OR typeof("last_modified")='text'),
+ CHECK("title" IS NULL OR typeof("title")='text'),
+ CHECK("original_title" IS NULL OR typeof("original_title")='text'),
+ CHECK("overview" IS NULL OR typeof("overview")='text'),
+ CHECK("tagline" IS NULL OR typeof("tagline")='text'),
+ CHECK("content_rating" IS NULL OR typeof("content_rating")='text'),
+ CHECK("studio" IS NULL OR typeof("studio")='text'),
+ CHECK("network" IS NULL OR typeof("network")='text'),
+ CHECK("country" IS NULL OR typeof("country")='text'),
+ CHECK("release_date" IS NULL OR typeof("release_date")='text'),
+ CHECK("year" IS NULL OR typeof("year")='integer'),
+ CHECK("artist" IS NULL OR typeof("artist")='text'),
+ CHECK("length_millis" IS NULL OR typeof("length_millis")='integer'),
+ CHECK("artist_type" IS NULL OR typeof("artist_type")='text'),
+ CHECK("begin_year" IS NULL OR typeof("begin_year")='integer'),
+ CHECK("end_year" IS NULL OR typeof("end_year")='integer'),
+ CHECK("wikidata_id" IS NULL OR typeof("wikidata_id")='text'),
+ CHECK("biography" IS NULL OR typeof("biography")='text'),
+ CHECK("biography_source" IS NULL OR typeof("biography_source")='text'),
+ CHECK("biography_source_url" IS NULL OR typeof("biography_source_url")='text'),
+ CHECK("disambiguation" IS NULL OR typeof("disambiguation")='text'),
+ CHECK("release_group_id" IS NULL OR typeof("release_group_id")='text'),
+ CHECK("group_title" IS NULL OR typeof("group_title")='text'),
+ CHECK("primary_type" IS NULL OR typeof("primary_type")='text'),
+ CHECK("barcode" IS NULL OR typeof("barcode")='text'),
+ CHECK("sealed" IS NULL OR typeof("sealed")='integer')
+);
 
 CREATE TABLE metadata_evidence_builds(
  id TEXT PRIMARY KEY,evidence_id TEXT NOT NULL UNIQUE REFERENCES metadata_evidence(id),
@@ -5870,17 +6205,42 @@ CREATE TABLE metadata_evidence_terms(
 ) WITHOUT ROWID, STRICT;
 
 CREATE TABLE metadata_evidence_credits(
- provider TEXT NOT NULL,evidence_kind TEXT NOT NULL,
+ provider TEXT NOT NULL,
+ evidence_kind TEXT NOT NULL,
  track_id TEXT GENERATED ALWAYS AS (NULLIF(scope,'')) VIRTUAL,
- evidence_id TEXT NOT NULL REFERENCES metadata_evidence(id),scope TEXT NOT NULL DEFAULT '',ordinal INTEGER NOT NULL,
- provider_person_id TEXT NOT NULL,name TEXT NOT NULL,artist_name TEXT NOT NULL DEFAULT '',
- sort_name TEXT NOT NULL DEFAULT '',disambiguation TEXT NOT NULL DEFAULT '',join_phrase TEXT NOT NULL DEFAULT '',
- role TEXT NOT NULL DEFAULT '',department TEXT NOT NULL DEFAULT '',credit_id TEXT NOT NULL DEFAULT '',
+ credit_class TEXT NOT NULL DEFAULT 'artist' CHECK(credit_class IN('cast','crew','artist')),
+ evidence_id TEXT NOT NULL REFERENCES metadata_evidence(id),
+ scope TEXT NOT NULL DEFAULT '',
+ ordinal INTEGER NOT NULL,
+ provider_person_id TEXT NOT NULL,
+ name TEXT NOT NULL,
+ artist_name TEXT NOT NULL DEFAULT '',
+ sort_name TEXT NOT NULL DEFAULT '',
+ disambiguation TEXT NOT NULL DEFAULT '',
+ join_phrase TEXT NOT NULL DEFAULT '',
+ role TEXT NOT NULL DEFAULT '',
+ department TEXT NOT NULL DEFAULT '',
+ credit_id TEXT NOT NULL DEFAULT '',
  PRIMARY KEY(evidence_id,scope,ordinal),
  FOREIGN KEY(provider,evidence_kind,evidence_id) REFERENCES metadata_evidence(provider,subject_kind,id),
  FOREIGN KEY(provider,evidence_kind,evidence_id,track_id) REFERENCES metadata_evidence_tracks(provider,evidence_kind,evidence_id,track_id),
- CHECK(scope='' OR evidence_kind='release')
-) WITHOUT ROWID, STRICT;
+ CHECK(scope='' OR evidence_kind='release'),
+ CHECK("provider" IS NULL OR typeof("provider")='text'),
+ CHECK("evidence_kind" IS NULL OR typeof("evidence_kind")='text'),
+ CHECK("credit_class" IS NULL OR typeof("credit_class")='text'),
+ CHECK("evidence_id" IS NULL OR typeof("evidence_id")='text'),
+ CHECK("scope" IS NULL OR typeof("scope")='text'),
+ CHECK("ordinal" IS NULL OR typeof("ordinal")='integer'),
+ CHECK("provider_person_id" IS NULL OR typeof("provider_person_id")='text'),
+ CHECK("name" IS NULL OR typeof("name")='text'),
+ CHECK("artist_name" IS NULL OR typeof("artist_name")='text'),
+ CHECK("sort_name" IS NULL OR typeof("sort_name")='text'),
+ CHECK("disambiguation" IS NULL OR typeof("disambiguation")='text'),
+ CHECK("join_phrase" IS NULL OR typeof("join_phrase")='text'),
+ CHECK("role" IS NULL OR typeof("role")='text'),
+ CHECK("department" IS NULL OR typeof("department")='text'),
+ CHECK("credit_id" IS NULL OR typeof("credit_id")='text')
+) WITHOUT ROWID;
 
 CREATE TABLE metadata_evidence_ratings(
  evidence_id TEXT NOT NULL REFERENCES metadata_evidence(id),provider TEXT NOT NULL,role TEXT NOT NULL,
@@ -5913,15 +6273,34 @@ CREATE TABLE metadata_evidence_tracks(
  provider TEXT NOT NULL,
  evidence_kind TEXT NOT NULL DEFAULT 'release' CHECK(evidence_kind='release'),
  recording_kind TEXT NOT NULL DEFAULT 'recording' CHECK(recording_kind='recording'),
- evidence_id TEXT NOT NULL,track_id TEXT NOT NULL,medium_position INTEGER NOT NULL,
- position INTEGER NOT NULL CHECK(position>0),number TEXT NOT NULL,title TEXT NOT NULL,artist TEXT NOT NULL,
- length_millis INTEGER CHECK(length_millis>=0),recording_evidence_id TEXT NOT NULL REFERENCES metadata_evidence(id),
- PRIMARY KEY(evidence_id,track_id),UNIQUE(evidence_id,medium_position,position),
+ evidence_id TEXT NOT NULL,
+ track_id TEXT NOT NULL,
+ medium_position INTEGER NOT NULL,
+ position INTEGER NOT NULL CHECK(position>0),
+ number TEXT NOT NULL,
+ title TEXT NOT NULL,
+ artist TEXT NOT NULL,
+ length_millis INTEGER CHECK(length_millis>=0),
+ recording_evidence_id TEXT NOT NULL REFERENCES metadata_evidence(id),
+ PRIMARY KEY(evidence_id,track_id),
+ UNIQUE(evidence_id,medium_position,position),
  FOREIGN KEY(evidence_id,medium_position) REFERENCES metadata_evidence_media(evidence_id,position),
  UNIQUE(provider,evidence_kind,evidence_id,track_id),
  FOREIGN KEY(provider,evidence_kind,evidence_id,medium_position) REFERENCES metadata_evidence_media(provider,evidence_kind,evidence_id,position),
- FOREIGN KEY(provider,recording_kind,recording_evidence_id) REFERENCES metadata_evidence(provider,subject_kind,id)
-) WITHOUT ROWID, STRICT;
+ FOREIGN KEY(provider,recording_kind,recording_evidence_id) REFERENCES metadata_evidence(provider,subject_kind,id),
+ CHECK("provider" IS NULL OR typeof("provider")='text'),
+ CHECK("evidence_kind" IS NULL OR typeof("evidence_kind")='text'),
+ CHECK("recording_kind" IS NULL OR typeof("recording_kind")='text'),
+ CHECK("evidence_id" IS NULL OR typeof("evidence_id")='text'),
+ CHECK("track_id" IS NULL OR typeof("track_id")='text'),
+ CHECK("medium_position" IS NULL OR typeof("medium_position")='integer'),
+ CHECK("position" IS NULL OR typeof("position")='integer'),
+ CHECK("number" IS NULL OR typeof("number")='text'),
+ CHECK("title" IS NULL OR typeof("title")='text'),
+ CHECK("artist" IS NULL OR typeof("artist")='text'),
+ CHECK("length_millis" IS NULL OR typeof("length_millis")='integer'),
+ CHECK("recording_evidence_id" IS NULL OR typeof("recording_evidence_id")='text')
+) WITHOUT ROWID;
 
 CREATE TABLE metadata_evidence_attachments(
  evidence_id TEXT NOT NULL REFERENCES metadata_evidence(id),role TEXT NOT NULL,ordinal INTEGER NOT NULL,
@@ -6209,30 +6588,25 @@ CREATE TABLE catalog_scalar_contributions(
  file_size INTEGER NOT NULL DEFAULT 0,
  resolution INTEGER NOT NULL DEFAULT 0,
  latest_aired_key TEXT NOT NULL DEFAULT '',
+ membership_sequence INTEGER NOT NULL CHECK(membership_sequence>0),
+ admission_age INTEGER CHECK(admission_age>=0),
  PRIMARY KEY(parent_id,contributor_id,source),
  FOREIGN KEY(library_id,parent_id) REFERENCES catalog_entities(library_id,id),
- FOREIGN KEY(library_id,contributor_id) REFERENCES catalog_entities(library_id,id)
-) WITHOUT ROWID, STRICT;
-
-CREATE TABLE access_schedule_windows(
- account_id TEXT NOT NULL REFERENCES access_limits(account_id) ON DELETE CASCADE,
- ordinal INTEGER NOT NULL CHECK(ordinal BETWEEN 0 AND 63), day_mask INTEGER NOT NULL CHECK(day_mask BETWEEN 1 AND 127),
- start_minute INTEGER NOT NULL CHECK(start_minute BETWEEN 0 AND 1439),
- end_minute INTEGER NOT NULL CHECK(end_minute BETWEEN 0 AND 1440 AND end_minute<>start_minute),
- PRIMARY KEY(account_id,ordinal)
-) WITHOUT ROWID, STRICT;
-
-CREATE TABLE access_channel_rules(
- account_id TEXT NOT NULL REFERENCES access_limits(account_id) ON DELETE CASCADE,
- ordinal INTEGER NOT NULL CHECK(ordinal BETWEEN 0 AND 511), channel_id TEXT NOT NULL CHECK(length(channel_id) BETWEEN 1 AND 200),
- PRIMARY KEY(account_id,ordinal)
-) WITHOUT ROWID, STRICT;
-
-CREATE TABLE access_denied_labels(
- account_id TEXT NOT NULL REFERENCES access_limits(account_id) ON DELETE CASCADE,
- ordinal INTEGER NOT NULL CHECK(ordinal BETWEEN 0 AND 255), label TEXT NOT NULL CHECK(length(label) BETWEEN 1 AND 120),
- PRIMARY KEY(account_id,ordinal)
-) WITHOUT ROWID, STRICT;
+ FOREIGN KEY(library_id,contributor_id) REFERENCES catalog_entities(library_id,id),
+ CHECK("library_id" IS NULL OR typeof("library_id")='integer'),
+ CHECK("parent_id" IS NULL OR typeof("parent_id")='integer'),
+ CHECK("contributor_id" IS NULL OR typeof("contributor_id")='integer'),
+ CHECK("source" IS NULL OR typeof("source")='integer'),
+ CHECK("contributor_revision" IS NULL OR typeof("contributor_revision")='integer'),
+ CHECK("duration" IS NULL OR typeof("duration")IN('integer','real')),
+ CHECK("community_rating" IS NULL OR typeof("community_rating")IN('integer','real')),
+ CHECK("critic_rating" IS NULL OR typeof("critic_rating")IN('integer','real')),
+ CHECK("file_size" IS NULL OR typeof("file_size")='integer'),
+ CHECK("resolution" IS NULL OR typeof("resolution")='integer'),
+ CHECK("latest_aired_key" IS NULL OR typeof("latest_aired_key")='text'),
+ CHECK("membership_sequence" IS NULL OR typeof("membership_sequence")='integer'),
+ CHECK("admission_age" IS NULL OR typeof("admission_age")='integer')
+) WITHOUT ROWID;
 
 CREATE TABLE search_fragments(
  id INTEGER PRIMARY KEY,
@@ -6244,10 +6618,39 @@ CREATE TABLE search_fragments(
  prefix_tokens TEXT NOT NULL,
  lexical_tokens TEXT NOT NULL,
  normalized TEXT NOT NULL,
- CHECK((owner_entity IS NULL)<>(owner_person IS NULL))
-) STRICT;
+ CHECK((owner_entity IS NULL)<>(owner_person IS NULL)),
+ CHECK("id" IS NULL OR typeof("id")='integer'),
+ CHECK("owner_entity" IS NULL OR typeof("owner_entity")='integer'),
+ CHECK("owner_person" IS NULL OR typeof("owner_person")='integer'),
+ CHECK("field" IS NULL OR typeof("field")='integer'),
+ CHECK("ordinal" IS NULL OR typeof("ordinal")='integer'),
+ CHECK("source_revision" IS NULL OR typeof("source_revision")='text'),
+ CHECK("prefix_tokens" IS NULL OR typeof("prefix_tokens")='text'),
+ CHECK("lexical_tokens" IS NULL OR typeof("lexical_tokens")='text'),
+ CHECK("normalized" IS NULL OR typeof("normalized")='text')
+);
 
 CREATE TABLE search_revision(singleton INTEGER PRIMARY KEY CHECK(singleton=1),revision INTEGER NOT NULL CHECK(revision>0)) STRICT;
+
+CREATE TABLE playback_personal_observation_evidence(
+ profile_id TEXT NOT NULL,
+ playback_id TEXT NOT NULL,
+ item_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
+ sequence INTEGER NOT NULL,
+ position_ms INTEGER NOT NULL,
+ playing INTEGER NOT NULL CHECK(playing IN(0,1)),
+ rate_milli INTEGER NOT NULL,
+ seeked INTEGER NOT NULL CHECK(seeked IN(0,1)),
+ generation INTEGER NOT NULL,
+ preference_revision INTEGER NOT NULL,
+ asset_revision INTEGER NOT NULL,
+ asset_id INTEGER NOT NULL,
+ asset_size INTEGER NOT NULL,
+ asset_modified_ns INTEGER NOT NULL,
+ reported_at TEXT NOT NULL,
+played_ms INTEGER NOT NULL DEFAULT 0 CHECK(typeof(played_ms)='integer' AND played_ms>=0), started_at TEXT
+,
+ PRIMARY KEY(profile_id,playback_id)) STRICT;
 
 CREATE VIRTUAL TABLE search_own_prefix USING fts5(
  title_prefix_tokens,initial_prefix_tokens,content='catalog_entities',content_rowid='id',
@@ -6270,6 +6673,153 @@ CREATE TABLE data_format(
  required_capabilities TEXT NOT NULL,
  database_incarnation BLOB NOT NULL CHECK(length(database_incarnation)=16)
 ) STRICT;
+
+CREATE TABLE catalog_subjects(
+ id INTEGER PRIMARY KEY,
+ public_id BLOB NOT NULL UNIQUE CHECK(length(public_id)=16),
+ library_id INTEGER NOT NULL REFERENCES catalog_libraries(id),
+ kind INTEGER NOT NULL REFERENCES catalog_kinds(id),
+ UNIQUE(id,public_id),
+ UNIQUE(id,public_id,library_id,kind),
+ UNIQUE(library_id,id),
+ CHECK("id" IS NULL OR typeof("id")='integer'),
+ CHECK("public_id" IS NULL OR typeof("public_id")='blob'),
+ CHECK("library_id" IS NULL OR typeof("library_id")='integer'),
+ CHECK("kind" IS NULL OR typeof("kind")='integer')
+);
+
+CREATE TABLE catalog_subject_merges(
+ from_subject_id INTEGER PRIMARY KEY REFERENCES catalog_subjects(id),
+ to_subject_id INTEGER NOT NULL REFERENCES catalog_subjects(id),
+ mutation_id TEXT NOT NULL REFERENCES catalog_entity_mutations(mutation_id),
+ revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0),
+ CHECK(from_subject_id<>to_subject_id),
+ CHECK("from_subject_id" IS NULL OR typeof("from_subject_id")='integer'),
+ CHECK("to_subject_id" IS NULL OR typeof("to_subject_id")='integer'),
+ CHECK("mutation_id" IS NULL OR typeof("mutation_id")='text'),
+ CHECK("revision" IS NULL OR typeof("revision")='integer')
+);
+
+CREATE TABLE catalog_person_merges(
+ from_person_id INTEGER PRIMARY KEY REFERENCES catalog_people(id),
+ to_person_id INTEGER NOT NULL REFERENCES catalog_people(id),
+ mutation_id TEXT NOT NULL,
+ revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0),
+ CHECK(from_person_id<>to_person_id),
+ CHECK("from_person_id" IS NULL OR typeof("from_person_id")='integer'),
+ CHECK("to_person_id" IS NULL OR typeof("to_person_id")='integer'),
+ CHECK("mutation_id" IS NULL OR typeof("mutation_id")='text'),
+ CHECK("revision" IS NULL OR typeof("revision")='integer')
+);
+
+CREATE TABLE catalog_person_merge_work(
+ mutation_id TEXT PRIMARY KEY,
+ from_person_id INTEGER NOT NULL REFERENCES catalog_people(id),
+ to_person_id INTEGER NOT NULL REFERENCES catalog_people(id),
+ source_revision INTEGER NOT NULL,
+ target_revision INTEGER NOT NULL,
+ after_person_id INTEGER NOT NULL DEFAULT 0,
+ phase TEXT NOT NULL CHECK(phase IN('admitted','flatten','complete')),
+ job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0),
+ job_lease_owner TEXT NOT NULL DEFAULT '',
+ job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
+ job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
+ job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts>=0),
+ job_next_attempt_ms INTEGER,
+ job_due_ms INTEGER GENERATED ALWAYS AS(CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) VIRTUAL
+) STRICT;
+
+CREATE TABLE catalog_membership_clock(
+ singleton INTEGER PRIMARY KEY CHECK(singleton=1),
+ sequence INTEGER NOT NULL DEFAULT 0 CHECK(sequence>=0)
+) STRICT;
+
+CREATE TABLE catalog_age_item_counts(
+ library_id INTEGER NOT NULL REFERENCES catalog_libraries(id),
+ kind INTEGER NOT NULL REFERENCES catalog_kinds(id),
+ block_unrated INTEGER NOT NULL CHECK(block_unrated IN(0,1)),
+ admission_age INTEGER NOT NULL CHECK(admission_age>=-1),
+ total INTEGER NOT NULL CHECK(total>=0),
+ PRIMARY KEY(library_id,kind,block_unrated,admission_age)
+) WITHOUT ROWID, STRICT;
+
+CREATE TABLE catalog_age_facet_counts(
+ library_id INTEGER NOT NULL REFERENCES catalog_libraries(id),
+ kind INTEGER NOT NULL REFERENCES catalog_kinds(id),
+ block_unrated INTEGER NOT NULL CHECK(block_unrated IN(0,1)),
+ admission_age INTEGER NOT NULL CHECK(admission_age>=-1),
+ term_id INTEGER NOT NULL REFERENCES catalog_terms(id),
+ total INTEGER NOT NULL CHECK(total>=0),
+ PRIMARY KEY(library_id,kind,block_unrated,admission_age,term_id)
+) WITHOUT ROWID, STRICT;
+
+CREATE TABLE notification_acknowledgments(
+ notice_sequence INTEGER NOT NULL REFERENCES notification_records(sequence),
+ principal_key TEXT NOT NULL,
+ read_ms INTEGER,
+ archived_ms INTEGER,
+ revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0),
+ PRIMARY KEY(principal_key,notice_sequence),
+ CHECK("notice_sequence" IS NULL OR typeof("notice_sequence")='integer'),
+ CHECK("principal_key" IS NULL OR typeof("principal_key")='text'),
+ CHECK("read_ms" IS NULL OR typeof("read_ms")='integer'),
+ CHECK("archived_ms" IS NULL OR typeof("archived_ms")='integer'),
+ CHECK("revision" IS NULL OR typeof("revision")='integer')
+) WITHOUT ROWID;
+
+CREATE TABLE notification_ack_heads(
+ principal_key TEXT PRIMARY KEY,
+ read_through_sequence INTEGER NOT NULL DEFAULT 0 CHECK(read_through_sequence>=0),
+ archive_through_sequence INTEGER NOT NULL DEFAULT 0 CHECK(archive_through_sequence>=0),
+ revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)
+) STRICT;
+
+CREATE TABLE reading_text_publications(
+ id INTEGER PRIMARY KEY,
+ item_id INTEGER NOT NULL,
+ asset_id INTEGER NOT NULL,
+ inventory_object_id TEXT NOT NULL REFERENCES inventory_objects(id),
+ source_revision TEXT NOT NULL,
+ index_rule_version INTEGER NOT NULL CHECK(index_rule_version>0),
+ generation INTEGER NOT NULL CHECK(generation>0),
+ state TEXT NOT NULL CHECK(state IN('building','sealed','published','retired')),
+ fragment_count INTEGER NOT NULL DEFAULT 0 CHECK(fragment_count>=0),
+ text_bytes INTEGER NOT NULL DEFAULT 0 CHECK(text_bytes>=0),
+ content_digest TEXT NOT NULL DEFAULT '',
+ reclaim_after_id INTEGER NOT NULL DEFAULT 0,
+ UNIQUE(item_id,asset_id,generation),
+ UNIQUE(id,item_id,asset_id),
+ FOREIGN KEY(item_id,asset_id) REFERENCES reading_publications(item_id,asset_id),
+ CHECK("id" IS NULL OR typeof("id")='integer'),
+ CHECK("item_id" IS NULL OR typeof("item_id")='integer'),
+ CHECK("asset_id" IS NULL OR typeof("asset_id")='integer'),
+ CHECK("inventory_object_id" IS NULL OR typeof("inventory_object_id")='text'),
+ CHECK("source_revision" IS NULL OR typeof("source_revision")='text'),
+ CHECK("index_rule_version" IS NULL OR typeof("index_rule_version")='integer'),
+ CHECK("generation" IS NULL OR typeof("generation")='integer'),
+ CHECK("state" IS NULL OR typeof("state")='text'),
+ CHECK("fragment_count" IS NULL OR typeof("fragment_count")='integer'),
+ CHECK("text_bytes" IS NULL OR typeof("text_bytes")='integer'),
+ CHECK("content_digest" IS NULL OR typeof("content_digest")='text'),
+ CHECK("reclaim_after_id" IS NULL OR typeof("reclaim_after_id")='integer')
+);
+
+CREATE TABLE metadata_evidence_collections(
+ evidence_id TEXT NOT NULL,
+ provider TEXT NOT NULL,
+ evidence_kind TEXT NOT NULL,
+ collection_kind TEXT NOT NULL,
+ collection_id TEXT NOT NULL,
+ name TEXT NOT NULL,
+ PRIMARY KEY(evidence_id,collection_kind,collection_id),
+ FOREIGN KEY(provider,evidence_kind,evidence_id) REFERENCES metadata_evidence(provider,subject_kind,id),
+ CHECK("evidence_id" IS NULL OR typeof("evidence_id")='text'),
+ CHECK("provider" IS NULL OR typeof("provider")='text'),
+ CHECK("evidence_kind" IS NULL OR typeof("evidence_kind")='text'),
+ CHECK("collection_kind" IS NULL OR typeof("collection_kind")='text'),
+ CHECK("collection_id" IS NULL OR typeof("collection_id")='text'),
+ CHECK("name" IS NULL OR typeof("name")='text')
+) WITHOUT ROWID;
 
 CREATE INDEX access_invitation_page ON access_invitations(created_ms DESC,id DESC);
 
@@ -6321,13 +6871,7 @@ CREATE INDEX app_reports_recipient ON app_reports(recipient_account_id,created_m
 
 CREATE INDEX artwork_blobs_created ON artwork_blobs(created_at,digest);
 
-CREATE INDEX artwork_candidates_source ON artwork_candidates(provider,origin,id);
-
 CREATE INDEX artwork_jobs_claim ON artwork_jobs(status,(CASE WHEN role IN('poster','cover','backdrop') THEN 0 ELSE 1 END),created_at,id);
-
-CREATE INDEX artwork_previews_digest ON artwork_previews(digest);
-
-CREATE INDEX artwork_selections_candidate ON artwork_selections(candidate_id);
 
 CREATE INDEX artwork_selections_digest ON artwork_selections(digest);
 
@@ -6341,17 +6885,11 @@ CREATE INDEX artwork_sources_large_edge ON artwork_sources(large_edge,digest);
 
 CREATE INDEX artwork_sources_small ON artwork_sources(small_blob);
 
-CREATE INDEX artwork_uploads_digest ON artwork_uploads(digest);
-
-CREATE INDEX artwork_uploads_entity ON artwork_uploads(kind,entity_id,role);
-
 CREATE INDEX asset_subtitles_asset ON asset_subtitles(asset_id,id);
 
 CREATE INDEX asset_subtitles_language ON asset_subtitles(language,asset_id);
 
 CREATE INDEX asset_subtitles_sidecar_id_fk ON asset_subtitles(sidecar_id);
-
-CREATE INDEX audio_file_metadata_artwork_key ON audio_file_metadata(artwork_key,asset_id) WHERE artwork_key<>'';
 
 CREATE INDEX audio_local_evidence_asset_id_fk ON audio_local_evidence(asset_id);
 
@@ -6374,10 +6912,6 @@ CREATE INDEX authorization_families_owner_history ON authorization_session_famil
 CREATE INDEX authorization_families_retention ON authorization_session_families(revoked,authorization_horizon,id);
 
 CREATE INDEX authorization_renewals_expiry ON authorization_family_renewals(expires_at);
-
-CREATE INDEX book_resume_book_id_fk ON book_resume(book_id);
-
-CREATE INDEX book_resume_item_id_fk ON book_resume(item_id);
 
 CREATE INDEX catalog_asset_issues_asset ON catalog_asset_issues(asset_id);
 
@@ -6483,8 +7017,6 @@ CREATE INDEX catalog_entity_mutations_target_fk ON catalog_entity_mutations(targ
 
 CREATE INDEX catalog_facet_active_scans ON jobs(id) WHERE status IN('queued','running');
 
-CREATE INDEX catalog_identities_public ON catalog_identities(public_id);
-
 CREATE INDEX catalog_info_changes_shape ON catalog_info_changes(target_shape_id);
 
 CREATE INDEX catalog_info_duration ON catalog_asset_links(entity_id,info_duration DESC);
@@ -6505,8 +7037,6 @@ CREATE INDEX catalog_info_target_owner_object ON catalog_info_changes(target_own
 CREATE INDEX catalog_item_attribute_edges_first ON catalog_item_attribute_edges(item_id,source_rowid,term_id);
 
 CREATE INDEX catalog_item_attribute_edges_term ON catalog_item_attribute_edges(term_id,item_id);
-
-CREATE INDEX catalog_merged_ids_entity ON catalog_merged_ids(entity_id);
 
 CREATE INDEX catalog_people_aliases_person ON catalog_people_aliases(person_id);
 
@@ -6569,10 +7099,6 @@ CREATE INDEX container_personal_undo_expiry ON container_personal_undo(expires_m
 CREATE INDEX container_personal_undo_items_item ON container_personal_undo_items(item_id,token);
 
 CREATE INDEX content_rating_age_lookup ON content_rating_ages(minimum_age);
-
-CREATE INDEX continue_dismissals_item_id_fk ON continue_dismissals(item_id);
-
-CREATE INDEX continue_show_dismissals_show_id_fk ON continue_show_dismissals(show_id);
 
 CREATE UNIQUE INDEX credit_owner_entries_entity_id ON credit_owner_entries(entry_id,entity_id);
 
@@ -6741,16 +7267,6 @@ CREATE INDEX integration_ids_expiry ON integration_ids(expires_ms) WHERE expires
 CREATE INDEX inventory_analysis_object ON inventory_analysis_queue(object_id);
 
 CREATE INDEX inventory_analysis_pending ON inventory_analysis_queue(job_id,state,object_id);
-
-CREATE INDEX inventory_artwork_candidates_asset ON inventory_artwork_candidates(asset_id);
-
-CREATE INDEX inventory_artwork_candidates_entity ON inventory_artwork_candidates(entity_id,kind,role,object_id,art_key);
-
-CREATE INDEX inventory_artwork_candidates_order ON inventory_artwork_candidates(entity_id,kind,role,source_rank,source_name,art_key,object_id);
-
-CREATE INDEX inventory_artwork_sources_entity ON inventory_artwork_sources(entity_id);
-
-CREATE INDEX inventory_artwork_sources_role ON inventory_artwork_sources(kind,entity_id,role,art_key);
 
 CREATE INDEX inventory_changes_source ON inventory_changes(source_id,sequence);
 
@@ -6966,7 +7482,7 @@ CREATE INDEX notice_broadcast_work_expiry ON notice_broadcast_work(expires_ms);
 
 CREATE INDEX notification_records_expiry ON notification_records(expires_ms);
 
-CREATE INDEX notification_records_live ON notification_records(scope,audience,archived_ms,read_ms,expires_ms);
+CREATE INDEX notification_records_live ON notification_records(scope,audience,withdrawn_ms,sequence DESC);
 
 CREATE INDEX notification_records_page ON notification_records(scope,audience,sequence DESC);
 
@@ -7019,19 +7535,11 @@ CREATE INDEX p2_62_purge_remote_capture_actor ON remote_source_capture_actor(pro
 
 CREATE INDEX p2_62_purge_start_prep_actor ON playback_start_preparation_actor(profile_id,operation_id);
 
-CREATE INDEX p2_62_purge_tombstone_viewers ON catalog_title_tombstone_viewers(profile_id,public_id);
-
 CREATE INDEX p2_62_purge_topshelf_tokens ON topshelf_tokens(authority,account_id,profile_id,token_hash);
 
 CREATE INDEX personal_activity_receipts_expiry ON personal_activity_receipts(created_at);
 
 CREATE INDEX personal_batch_receipts_expiry ON personal_batch_receipts(created_at);
-
-CREATE INDEX personal_chapter_completions_asset_id_fk ON personal_chapter_completions(asset_id);
-
-CREATE INDEX personal_chapter_completions_file_entity_id_fk ON personal_chapter_completions(file_entity_id);
-
-CREATE INDEX personal_completed_plays_item ON personal_completed_plays(item_id);
 
 CREATE UNIQUE INDEX personal_conflict_open ON personal_conflicts(profile_id,item_id,field) WHERE resolved=0;
 
@@ -7041,43 +7549,15 @@ CREATE INDEX personal_conflicts_profile ON personal_conflicts(profile_id,id);
 
 CREATE INDEX personal_event_ancestor ON personal_explicit_events(profile_id,item_id,field,base_revision);
 
-CREATE INDEX personal_evidence_fences_item_id_fk ON personal_evidence_fences(item_id);
-
 CREATE INDEX personal_explicit_events_expiry ON personal_explicit_events(created_at);
 
 CREATE INDEX personal_explicit_events_item_id_fk ON personal_explicit_events(item_id);
-
-CREATE INDEX personal_favorites ON personal_items(profile_id,favorite,item_id);
-
-CREATE INDEX personal_history_item_id_fk ON personal_history(item_id);
-
-CREATE INDEX personal_history_page ON personal_history(profile_id,updated_at DESC,id DESC);
-
-CREATE INDEX personal_history_recent ON personal_history(updated_at,item_id,profile_id);
-
-CREATE INDEX personal_home_watched ON personal_items(profile_id,watched,last_played_at DESC,item_id DESC);
-
-CREATE INDEX personal_items_item_id_fk ON personal_items(item_id);
 
 CREATE INDEX personal_jobs_active ON personal_jobs(profile_id) WHERE state IN('building','queued','running');
 
 CREATE INDEX personal_jobs_age ON personal_jobs(profile_id,created_ms);
 
 CREATE INDEX personal_jobs_state ON personal_jobs(state,updated_ms);
-
-CREATE INDEX personal_last_played ON personal_items(profile_id,last_played_at,item_id);
-
-CREATE INDEX personal_music_radios_recent ON personal_music_radios(profile_id,last_started_ms DESC,seed_id DESC);
-
-CREATE INDEX personal_music_radios_seed ON personal_music_radios(seed_id);
-
-CREATE INDEX personal_play_counts_item ON personal_play_counts(item_id);
-
-CREATE INDEX personal_play_state ON personal_items(profile_id,watched,item_id);
-
-CREATE INDEX personal_playback_runs_item_id_fk ON personal_playback_runs(item_id);
-
-CREATE INDEX personal_rating_range ON personal_items(profile_id,rating,item_id);
 
 CREATE INDEX personal_receipts_expiry ON personal_receipts(created_at);
 
@@ -7088,20 +7568,6 @@ CREATE INDEX personal_receipts_profile ON personal_receipts(profile_id);
 CREATE INDEX personal_snapshots_expiry ON personal_snapshots(created_at);
 
 CREATE INDEX personal_snapshots_item_id_fk ON personal_snapshots(item_id);
-
-CREATE INDEX personal_watched_intents_item_id_fk ON personal_watched_intents(item_id);
-
-CREATE INDEX personal_watchlist ON personal_items(profile_id,watchlisted,item_id);
-
-CREATE INDEX play_history_account ON play_history(account_id,started_ms DESC,id DESC);
-
-CREATE INDEX play_history_library ON play_history(library_id,started_ms DESC,id DESC);
-
-CREATE INDEX play_history_listen_profile ON play_history(authority,account_id,profile_id,started_ms DESC,id DESC);
-
-CREATE INDEX play_history_recent ON play_history(started_ms DESC,id DESC);
-
-CREATE INDEX play_history_time_bucket ON play_history_time(bucket_ms,history_id);
 
 CREATE INDEX playback_admin_retention ON playback_admin_operations(created_at);
 
@@ -7185,8 +7651,6 @@ CREATE INDEX prepared_media_versions_job_id_fk ON prepared_media_versions(job_id
 
 CREATE INDEX prepared_media_work ON prepared_media_jobs(state,created_ms,id);
 
-CREATE INDEX progress_item_state ON progress(item_id,profile_id);
-
 CREATE INDEX queue_v1_create_receipts_age ON queue_v1_create_receipts(created_ms);
 
 CREATE INDEX queue_v1_saves_state ON queue_v1_saves(state,updated_ms);
@@ -7217,10 +7681,6 @@ CREATE INDEX reading_path_work_key ON reading_path_dirty_work(kind,work_key,libr
 
 CREATE INDEX reading_path_work_turn ON reading_path_dirty_work(served,kind,work_key);
 
-CREATE INDEX reading_progress_publication ON reading_progress(item_id,asset_id);
-
-CREATE INDEX reading_progress_recent ON reading_progress(owner_key,observed_at DESC,item_id DESC,asset_id DESC);
-
 CREATE INDEX reading_publication_types_inventory_object ON reading_publication_types(inventory_object_id);
 
 CREATE INDEX reading_saved_group_receipts_expiry ON reading_saved_group_receipts(created_at);
@@ -7248,8 +7708,6 @@ CREATE INDEX remote_source_cache_lru ON remote_source_cache_entries(source_id,ac
 CREATE INDEX remote_source_captures_pending ON remote_source_captures(state,capture_id);
 
 CREATE INDEX retained_title_identities_state ON retained_title_identities(state_id);
-
-CREATE INDEX retained_title_state_profile ON retained_title_state(profile_id,retained_ms,id);
 
 CREATE INDEX saved_entry_undo_expiry ON saved_entry_undo(expires_ms);
 
@@ -7391,25 +7849,11 @@ CREATE INDEX identity_family_pin_lineages_lineage ON authorization_session_famil
 
 CREATE INDEX profile_avatars_digest ON direct_profiles(avatar_digest,id);
 
-CREATE INDEX progress_activity_library_id_fk ON progress(activity_library_id);
-
-CREATE INDEX progress_home_active ON progress(profile_id,activity_library_id,activity_updated_at DESC,item_id DESC) WHERE activity_state!='ended';
-
-CREATE INDEX progress_home_profile_recent
- ON progress(profile_id,activity_updated_at DESC,item_id DESC)
- WHERE activity_state!='ended';
-
-CREATE INDEX progress_recent ON progress(profile_id,activity_library_id,activity_updated_at DESC,item_id DESC);
-
 CREATE INDEX remote_sources_choice_definition ON remote_sources(choice_name,choice_definition_revision);
 
 CREATE INDEX auth_family_device ON authorization_session_families(device_id,id);
 
 CREATE INDEX auth_family_pin_lineage ON authorization_session_families(pin_lineage_id,id);
-
-CREATE INDEX access_channel_rules_lookup ON access_channel_rules(account_id,channel_id);
-
-CREATE INDEX access_denied_labels_lookup ON access_denied_labels(account_id,label);
 
 CREATE INDEX artwork_discovery_governor_due ON artwork_discovery(job_due_ms) WHERE job_due_ms IS NOT NULL;
 
@@ -7419,25 +7863,17 @@ CREATE INDEX audio_genre_projection_governor_due ON audio_genre_projection(job_d
 
 CREATE INDEX audio_render_fact_requests_governor_due ON audio_render_fact_requests(job_due_ms) WHERE job_due_ms IS NOT NULL;
 
-CREATE INDEX catalog_entity_mutations_governor_due ON catalog_entity_mutations(job_due_ms) WHERE job_due_ms IS NOT NULL;
-
 CREATE INDEX catalog_info_changes_governor_due ON catalog_info_changes(job_due_ms) WHERE job_due_ms IS NOT NULL;
 
 CREATE INDEX catalog_purge_jobs_governor_due ON catalog_purge_jobs(job_due_ms) WHERE job_due_ms IS NOT NULL;
 
 CREATE INDEX catalog_removal_progress_governor_due ON catalog_removal_progress(job_due_ms) WHERE job_due_ms IS NOT NULL;
 
-CREATE INDEX catalog_retention_cursors_governor_due ON catalog_retention_cursors(job_due_ms) WHERE job_due_ms IS NOT NULL;
-
 CREATE INDEX catalog_source_verification_governor_due ON catalog_source_verification(job_due_ms) WHERE job_due_ms IS NOT NULL;
-
-CREATE INDEX content_rating_pending_governor_due ON content_rating_pending(job_due_ms) WHERE job_due_ms IS NOT NULL;
 
 CREATE INDEX dvr_cleanup_work_governor_due ON dvr_cleanup_work(job_due_ms) WHERE job_due_ms IS NOT NULL;
 
 CREATE INDEX dvr_delete_work_governor_due ON dvr_delete_work(job_due_ms) WHERE job_due_ms IS NOT NULL;
-
-CREATE INDEX dvr_maintenance_cursors_governor_due ON dvr_maintenance_cursors(job_due_ms) WHERE job_due_ms IS NOT NULL;
 
 CREATE INDEX dvr_retention_retry_governor_due ON dvr_retention_retry(job_due_ms) WHERE job_due_ms IS NOT NULL;
 
@@ -7449,35 +7885,11 @@ CREATE INDEX identity_service_outbox_governor_due ON identity_service_outbox(job
 
 CREATE INDEX inventory_analysis_queue_governor_due ON inventory_analysis_queue(job_due_ms) WHERE job_due_ms IS NOT NULL;
 
-CREATE INDEX inventory_directory_prune_governor_due ON inventory_directory_prune(job_due_ms) WHERE job_due_ms IS NOT NULL;
-
-CREATE INDEX inventory_disc_title_requests_governor_due ON inventory_disc_title_requests(job_due_ms) WHERE job_due_ms IS NOT NULL;
-
-CREATE INDEX inventory_operation_jobs_governor_due ON inventory_operation_jobs(job_due_ms) WHERE job_due_ms IS NOT NULL;
-
-CREATE INDEX inventory_path_notices_governor_due ON inventory_path_notices(job_due_ms) WHERE job_due_ms IS NOT NULL;
-
-CREATE INDEX inventory_policy_pending_governor_due ON inventory_policy_pending(job_due_ms) WHERE job_due_ms IS NOT NULL;
-
-CREATE INDEX inventory_reading_jobs_governor_due ON inventory_reading_jobs(job_due_ms) WHERE job_due_ms IS NOT NULL;
-
 CREATE INDEX inventory_runs_governor_due ON inventory_runs(job_due_ms) WHERE job_due_ms IS NOT NULL;
-
-CREATE INDEX inventory_sidecar_changes_governor_due ON inventory_sidecar_changes(job_due_ms) WHERE job_due_ms IS NOT NULL;
-
-CREATE INDEX lc_maintenance_cursor_governor_due ON lc_maintenance_cursor(job_due_ms) WHERE job_due_ms IS NOT NULL;
-
-CREATE INDEX live_allocation_reconcile_cursor_governor_due ON live_allocation_reconcile_cursor(job_due_ms) WHERE job_due_ms IS NOT NULL;
 
 CREATE INDEX live_icon_jobs_governor_due ON live_icon_jobs(job_due_ms) WHERE job_due_ms IS NOT NULL;
 
 CREATE INDEX live_logo_jobs_governor_due ON live_logo_jobs(job_due_ms) WHERE job_due_ms IS NOT NULL;
-
-CREATE INDEX live_operations_governor_due ON live_operations(job_due_ms) WHERE job_due_ms IS NOT NULL;
-
-CREATE INDEX maintenance_retention_rows_governor_due ON maintenance_retention_rows(job_due_ms) WHERE job_due_ms IS NOT NULL;
-
-CREATE INDEX metadata_artwork_size_requests_governor_due ON metadata_artwork_size_requests(job_due_ms) WHERE job_due_ms IS NOT NULL;
 
 CREATE INDEX metadata_artwork_size_sweep_governor_due ON metadata_artwork_size_sweep(job_due_ms) WHERE job_due_ms IS NOT NULL;
 
@@ -7491,10 +7903,6 @@ CREATE INDEX notice_broadcast_work_governor_due ON notice_broadcast_work(job_due
 
 CREATE INDEX personal_jobs_governor_due ON personal_jobs(job_due_ms) WHERE job_due_ms IS NOT NULL;
 
-CREATE INDEX playback_legacy_replacement_requests_governor_due ON playback_legacy_replacement_requests(job_due_ms) WHERE job_due_ms IS NOT NULL;
-
-CREATE INDEX playback_start_preparation_queue_governor_due ON playback_start_preparation_queue(job_due_ms) WHERE job_due_ms IS NOT NULL;
-
 CREATE INDEX prepared_media_jobs_governor_due ON prepared_media_jobs(job_due_ms) WHERE job_due_ms IS NOT NULL;
 
 CREATE INDEX reading_path_dirty_work_governor_due ON reading_path_dirty_work(job_due_ms) WHERE job_due_ms IS NOT NULL;
@@ -7503,109 +7911,141 @@ CREATE INDEX recording_root_request_governor_due ON recording_root_request(job_d
 
 CREATE INDEX remote_listing_sessions_governor_due ON remote_listing_sessions(job_due_ms) WHERE job_due_ms IS NOT NULL;
 
-CREATE INDEX remote_native_listings_governor_due ON remote_native_listings(job_due_ms) WHERE job_due_ms IS NOT NULL;
-
-CREATE INDEX remote_scan_cursors_governor_due ON remote_scan_cursors(job_due_ms) WHERE job_due_ms IS NOT NULL;
-
 CREATE INDEX screen_metadata_fanout_governor_due ON screen_metadata_fanout(job_due_ms) WHERE job_due_ms IS NOT NULL;
 
 CREATE INDEX security_purge_jobs_governor_due ON security_purge_jobs(job_due_ms) WHERE job_due_ms IS NOT NULL;
 
 CREATE INDEX segment_catchup_governor_due ON segment_catchup(job_due_ms) WHERE job_due_ms IS NOT NULL;
 
-CREATE INDEX server_configuration_pending_governor_due ON server_configuration_pending(job_due_ms) WHERE job_due_ms IS NOT NULL;
-
 CREATE INDEX state_rebase_jobs_governor_due ON state_rebase_jobs(job_due_ms) WHERE job_due_ms IS NOT NULL;
 
 CREATE INDEX webhook_deliveries_governor_due ON webhook_deliveries(job_due_ms) WHERE job_due_ms IS NOT NULL;
 
-CREATE INDEX catalog_entities_title_keep_articles ON catalog_entities(library_id,kind,sort_key_keep_articles,id);
+CREATE UNIQUE INDEX personal_current_live ON personal_items(profile_id,item_id);
 
-CREATE INDEX catalog_entities_year ON catalog_entities(library_id,kind,year,id);
+CREATE INDEX personal_current_item ON personal_items(item_public_id,profile_id);
 
-CREATE INDEX catalog_entities_random ON catalog_entities(library_id,kind,random_key,id);
+CREATE INDEX personal_current_live_item ON personal_items(item_id,profile_id);
+
+CREATE INDEX personal_current_library ON personal_items(library_id,profile_id,item_public_id);
+
+CREATE INDEX personal_current_recent ON personal_items(profile_id,activity_visible,last_played_at DESC,item_public_id);
+
+CREATE INDEX personal_current_completed ON personal_items(profile_id,activity_visible,last_completed_at DESC,item_public_id);
+
+CREATE INDEX personal_current_activity ON personal_items(profile_id,activity_visible,activity_at DESC,item_public_id);
+
+CREATE INDEX personal_current_rating ON personal_items(profile_id,rating,item_public_id);
+
+CREATE INDEX personal_current_plays ON personal_items(profile_id,play_count DESC,item_public_id);
+
+CREATE INDEX personal_current_radio ON personal_items(profile_id,radio_last_started_at DESC,item_public_id) WHERE radio_last_started_at IS NOT NULL;
+
+CREATE INDEX personal_current_retained ON personal_items(profile_id,retained_at_ms,id) WHERE retained_at_ms IS NOT NULL;
+
+CREATE INDEX play_history_admin_time ON play_history(occurred_at DESC,id DESC);
+
+CREATE INDEX play_history_admin_user ON play_history(account_key,occurred_at DESC,id DESC);
+
+CREATE INDEX play_history_admin_item ON play_history(subject_id,occurred_at DESC,id DESC);
+
+CREATE INDEX playback_personal_evidence_item ON playback_personal_observation_evidence(item_id,profile_id,playback_id);
+
+CREATE UNIQUE INDEX catalog_asset_links_cue_ordinal ON catalog_asset_links(asset_id,cue_ordinal) WHERE cue_ordinal IS NOT NULL;
+
+CREATE INDEX catalog_asset_links_library_asset ON catalog_asset_links(library_id,asset_id,entity_id);
+
+CREATE INDEX catalog_asset_links_library_entity ON catalog_asset_links(library_id,entity_id,asset_id);
 
 CREATE INDEX catalog_entities_added_v1 ON catalog_entities(library_id,kind,added_at,id);
 
-CREATE INDEX catalog_entities_content_added ON catalog_entities(library_id,kind,last_content_added_at,id);
-
-CREATE INDEX catalog_entities_duration ON catalog_entities(library_id,kind,duration_key,id);
-
-CREATE INDEX catalog_entities_rating ON catalog_entities(library_id,kind,community_rating_key,id);
-
-CREATE INDEX catalog_entities_critic ON catalog_entities(library_id,kind,critic_rating_key,id);
-
-CREATE INDEX catalog_entities_file_size ON catalog_entities(library_id,kind,file_size_key,id);
-
-CREATE INDEX catalog_entities_resolution ON catalog_entities(library_id,kind,resolution_key,id) WHERE kind IN(1,2,3,4,10);
-
-CREATE INDEX catalog_entities_release ON catalog_entities(library_id,kind,release_key,id);
-
-CREATE INDEX catalog_entities_episode_count ON catalog_entities(library_id,kind,episode_count,id);
-
-CREATE INDEX catalog_entities_latest_aired ON catalog_entities(library_id,kind,latest_aired_key,id);
-
-CREATE INDEX catalog_entities_track ON catalog_entities(library_id,kind,track_key,id);
-
-CREATE INDEX catalog_entities_show ON catalog_entities(show_id,season_id,episode_number,id) WHERE show_id IS NOT NULL;
-
-CREATE INDEX catalog_entities_show_fk ON catalog_entities(show_id,id) WHERE show_id IS NOT NULL;
-
-CREATE UNIQUE INDEX catalog_entities_season_number ON catalog_entities(show_id,season_number) WHERE kind=3;
-
-CREATE UNIQUE INDEX catalog_entities_episode_position ON catalog_entities(show_id,COALESCE(season_id,0),numbering,episode_number) WHERE kind=4;
-
-CREATE INDEX catalog_entities_season ON catalog_entities(season_id,episode_number,id) WHERE season_id IS NOT NULL;
+CREATE INDEX catalog_entities_album ON catalog_entities(album_id,COALESCE(disc_number,1),COALESCE(track_number,0),id) WHERE album_id IS NOT NULL;
 
 CREATE INDEX catalog_entities_artist ON catalog_entities(artist_id,id) WHERE artist_id IS NOT NULL;
 
-CREATE INDEX catalog_entities_album ON catalog_entities(album_id,COALESCE(disc_number,1),COALESCE(track_number,0),id) WHERE album_id IS NOT NULL;
+CREATE INDEX catalog_entities_artwork_due ON catalog_entities(artwork_due_ms,id) WHERE artwork_dirty=1 AND artwork_next_attempt_ms IS NOT NULL;
 
 CREATE INDEX catalog_entities_book ON catalog_entities(book_id,COALESCE(disc_number,1),COALESCE(part_number,0),id) WHERE book_id IS NOT NULL;
 
+CREATE INDEX catalog_entities_book_author ON catalog_entities(library_id,kind,author COLLATE NOCASE,id) WHERE kind=8;
+
 CREATE UNIQUE INDEX catalog_entities_collection_name ON catalog_entities(library_id,collection_name_key) WHERE kind=10;
+
+CREATE INDEX catalog_entities_content_added ON catalog_entities(library_id,kind,last_content_added_at,id);
+
+CREATE INDEX catalog_entities_critic ON catalog_entities(library_id,kind,critic_rating_key,id);
+
+CREATE INDEX catalog_entities_duration ON catalog_entities(library_id,kind,duration_key,id);
+
+CREATE INDEX catalog_entities_episode_count ON catalog_entities(library_id,kind,episode_count,id);
+
+CREATE UNIQUE INDEX catalog_entities_episode_position ON catalog_entities(show_id,COALESCE(season_id,0),numbering,episode_number) WHERE kind=4;
+
+CREATE INDEX catalog_entities_file_size ON catalog_entities(library_id,kind,file_size_key,id);
+
+CREATE INDEX catalog_entities_latest_aired ON catalog_entities(library_id,kind,latest_aired_key,id);
 
 CREATE INDEX catalog_entities_local ON catalog_entities(kind,local_key,id);
 
-CREATE INDEX catalog_entities_book_author ON catalog_entities(library_id,kind,author COLLATE NOCASE,id) WHERE kind=8;
-
 CREATE INDEX catalog_entities_missing ON catalog_entities(library_id,kind,missing_since_ms,id) WHERE missing_since_ms IS NOT NULL;
-
-CREATE INDEX catalog_entities_artwork_due ON catalog_entities(artwork_due_ms,id) WHERE artwork_dirty=1 AND artwork_next_attempt_ms IS NOT NULL;
-
-CREATE INDEX catalog_entities_parent_duration_key ON catalog_entities(parent_id,kind,duration_key,id) WHERE parent_id IS NOT NULL;
 
 CREATE INDEX catalog_entities_parent_community_rating_key ON catalog_entities(parent_id,kind,community_rating_key,id) WHERE parent_id IS NOT NULL;
 
 CREATE INDEX catalog_entities_parent_critic_rating_key ON catalog_entities(parent_id,kind,critic_rating_key,id) WHERE parent_id IS NOT NULL;
 
-CREATE INDEX catalog_entities_parent_file_size_key ON catalog_entities(parent_id,kind,file_size_key,id) WHERE parent_id IS NOT NULL;
+CREATE INDEX catalog_entities_parent_duration_key ON catalog_entities(parent_id,kind,duration_key,id) WHERE parent_id IS NOT NULL;
 
-CREATE INDEX catalog_entities_parent_resolution_key ON catalog_entities(parent_id,kind,resolution_key,id) WHERE parent_id IS NOT NULL AND kind IN(1,2,3,4,10);
+CREATE INDEX catalog_entities_parent_file_size_key ON catalog_entities(parent_id,kind,file_size_key,id) WHERE parent_id IS NOT NULL;
 
 CREATE INDEX catalog_entities_parent_latest_aired_key ON catalog_entities(parent_id,kind,latest_aired_key,id) WHERE parent_id IS NOT NULL;
 
+CREATE INDEX catalog_entities_parent_resolution_key ON catalog_entities(parent_id,kind,resolution_key,id) WHERE parent_id IS NOT NULL AND kind IN(1,2,3,4,10);
+
+CREATE INDEX catalog_entities_random ON catalog_entities(library_id,kind,random_key,id);
+
+CREATE INDEX catalog_entities_rating ON catalog_entities(library_id,kind,community_rating_key,id);
+
+CREATE INDEX catalog_entities_release ON catalog_entities(library_id,kind,release_key,id);
+
+CREATE INDEX catalog_entities_resolution ON catalog_entities(library_id,kind,resolution_key,id) WHERE kind IN(1,2,3,4,10);
+
+CREATE INDEX catalog_entities_search_exact ON catalog_entities(library_id,kind,title_fold,id);
+
+CREATE INDEX catalog_entities_season ON catalog_entities(season_id,episode_number,id) WHERE season_id IS NOT NULL;
+
+CREATE UNIQUE INDEX catalog_entities_season_number ON catalog_entities(show_id,season_number) WHERE kind=3;
+
+CREATE INDEX catalog_entities_show ON catalog_entities(show_id,season_id,episode_number,id) WHERE show_id IS NOT NULL;
+
+CREATE INDEX catalog_entities_show_fk ON catalog_entities(show_id,id) WHERE show_id IS NOT NULL;
+
+CREATE INDEX catalog_entities_title_keep_articles ON catalog_entities(library_id,kind,sort_key_keep_articles,id);
+
+CREATE INDEX catalog_entities_track ON catalog_entities(library_id,kind,track_key,id);
+
+CREATE INDEX catalog_entities_year ON catalog_entities(library_id,kind,year,id);
+
 CREATE INDEX dvr_recordings_capture ON dvr_recordings(share_capture_recording_id,id);
-
-CREATE INDEX reading_entity_series ON catalog_entities(library_id,kind,reading_series_key,reading_numbered_order,reading_number_value,id) WHERE has_reading_attribution_members=1 AND reading_series_key IS NOT NULL;
-
-CREATE INDEX inventory_objects_probe_binding ON inventory_objects(probe_binding_source_revision,id) WHERE has_analysis_probe_bindings=1;
 
 CREATE INDEX dvr_recordings_programme_image ON dvr_recordings(programme_image_url);
 
+CREATE INDEX inventory_objects_probe_binding ON inventory_objects(probe_binding_source_revision,id) WHERE has_analysis_probe_bindings=1;
+
 CREATE INDEX live_programmes_icon ON live_programmes(icon_url) WHERE has_live_programme_icons=1;
+
+CREATE INDEX reading_entity_author_facet ON catalog_entities(library_id,kind,reading_author_key COLLATE BINARY,reading_author_value COLLATE BINARY,id) WHERE has_reading_attribution_members=1;
+
+CREATE INDEX reading_entity_issue_date ON catalog_entities(library_id,kind,reading_publication_type,reading_series_id,reading_issue_date,id) WHERE has_reading_attribution_members=1;
+
+CREATE INDEX reading_entity_series ON catalog_entities(library_id,kind,reading_series_key,reading_numbered_order,reading_number_value,id) WHERE has_reading_attribution_members=1 AND reading_series_key IS NOT NULL;
+
+CREATE INDEX reading_entity_series_facet ON catalog_entities(library_id,kind,reading_series_key COLLATE BINARY,reading_series_value COLLATE BINARY,id) WHERE has_reading_attribution_members=1;
+
+CREATE INDEX reading_entity_series_seek ON catalog_entities(library_id,kind,reading_series_id,reading_numbered_order,reading_number_value,sort_key COLLATE BINARY,id) WHERE has_reading_attribution_members=1;
 
 CREATE INDEX subtitle_resources_disc_title ON subtitle_resources(disc_object_id,disc_title_key,disc_title_facts_revision,id) WHERE has_subtitle_disc_resources=1;
 
 CREATE INDEX subtitle_revisions_original_object ON subtitle_revisions(original_object_digest) WHERE has_subtitle_original_revisions=1;
-
-CREATE INDEX reading_entity_author_facet ON catalog_entities(library_id,kind,reading_author_key COLLATE BINARY,reading_author_value COLLATE BINARY,id) WHERE has_reading_attribution_members=1;
-
-CREATE INDEX reading_entity_series_facet ON catalog_entities(library_id,kind,reading_series_key COLLATE BINARY,reading_series_value COLLATE BINARY,id) WHERE has_reading_attribution_members=1;
-
-CREATE INDEX reading_entity_issue_date ON catalog_entities(library_id,kind,reading_publication_type,reading_series_id,reading_issue_date,id) WHERE has_reading_attribution_members=1;
-
-CREATE INDEX reading_entity_series_seek ON catalog_entities(library_id,kind,reading_series_id,reading_numbered_order,reading_number_value,sort_key COLLATE BINARY,id) WHERE has_reading_attribution_members=1;
 
 CREATE INDEX metadata_evidence_episode_position ON metadata_evidence_episodes(evidence_id,episode_order,season_number,episode_number);
 
@@ -7733,17 +8173,43 @@ CREATE UNIQUE INDEX search_fragment_entity ON search_fragments(owner_entity,fiel
 
 CREATE UNIQUE INDEX search_fragment_person ON search_fragments(owner_person,field,ordinal) WHERE owner_person IS NOT NULL;
 
-CREATE UNIQUE INDEX catalog_asset_links_cue_slot ON catalog_asset_links(asset_id,cue_slot) WHERE cue_slot IS NOT NULL;
-
-CREATE INDEX catalog_asset_links_cue_ordinal ON catalog_asset_links(asset_id,cue_ordinal,entity_id) WHERE cue_ordinal IS NOT NULL;
-
 CREATE UNIQUE INDEX metadata_accounting_one_published ON metadata_accounting_transitions(provider) WHERE published_next=1;
 
-CREATE INDEX catalog_entities_search_exact ON catalog_entities(library_id,kind,title_fold,id);
+CREATE INDEX artwork_selections_source ON artwork_selections(provider,origin,digest);
 
-CREATE INDEX catalog_asset_links_library_entity ON catalog_asset_links(library_id,entity_id,asset_id);
+CREATE INDEX metadata_artwork_size_requests_due ON metadata_artwork_size_requests(next_attempt,kind,entity_id,role,subject);
 
-CREATE INDEX catalog_asset_links_library_asset ON catalog_asset_links(library_id,asset_id,entity_id);
+CREATE INDEX catalog_identities_subject ON catalog_identities(subject_id,library_id,source_key);
+
+CREATE INDEX catalog_subject_merges_target ON catalog_subject_merges(to_subject_id,from_subject_id);
+
+CREATE INDEX catalog_subject_merges_mutation ON catalog_subject_merges(mutation_id,from_subject_id);
+
+CREATE INDEX catalog_person_merges_target ON catalog_person_merges(to_person_id,from_person_id);
+
+CREATE INDEX catalog_person_merge_due ON catalog_person_merge_work(job_due_ms,mutation_id) WHERE job_due_ms IS NOT NULL;
+
+CREATE INDEX catalog_scalar_admission ON catalog_scalar_contributions(parent_id,admission_age,contributor_id,source) WHERE admission_age IS NOT NULL;
+
+CREATE INDEX catalog_scalar_membership ON catalog_scalar_contributions(parent_id,membership_sequence,contributor_id,source);
+
+CREATE INDEX catalog_age_facet_term ON catalog_age_facet_counts(term_id,library_id,kind,block_unrated,admission_age);
+
+CREATE INDEX catalog_entities_age_title ON catalog_entities(library_id,kind,admission_allow_age,sort_key,id);
+
+CREATE INDEX catalog_entities_known_age_title ON catalog_entities(library_id,kind,admission_known_age,sort_key,id);
+
+CREATE INDEX catalog_entities_age_added ON catalog_entities(library_id,kind,admission_allow_age,added_at,id);
+
+CREATE INDEX catalog_entities_known_age_added ON catalog_entities(library_id,kind,admission_known_age,added_at,id);
+
+CREATE INDEX notification_ack_notice ON notification_acknowledgments(notice_sequence,principal_key);
+
+CREATE INDEX reading_text_publications_reclaim ON reading_text_publications(state,id);
+
+CREATE INDEX reading_text_sections_publication ON reading_text_sections(publication_id,id);
+
+CREATE INDEX metadata_evidence_collection_members ON metadata_evidence_collections(provider,collection_kind,collection_id,evidence_id);
 
 CREATE VIEW authorization_access AS
  SELECT t.token_hash AS hash,f.account_id,f.profile_id,f.authority,f.role,f.epoch,t.expires_at,
