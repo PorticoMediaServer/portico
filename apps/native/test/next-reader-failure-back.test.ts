@@ -40,7 +40,7 @@ const find = (tree: unknown, match: (node: Node) => boolean): Node | undefined =
 const byTestID = (tree: unknown, testID: string) => find(tree, node => node.props?.testID === testID);
 const byType = (tree: unknown, type: string) => find(tree, node => node.type === type);
 
-type Failure = 'none' | 'pending' | 'versions' | 'open' | 'progress' | 'assets';
+type Failure = 'none' | 'pending' | 'versions' | 'open' | 'busy' | 'progress' | 'assets';
 type Fixture = Readonly<{at: Failure; width?: number}>;
 
 async function harness(fixture: Fixture) {
@@ -53,7 +53,10 @@ async function harness(fixture: Fixture) {
     close: async () => {disposals.push('session');}};
   const client = {
     versions: () => {versionCalls++; return at === 'pending' ? new Promise(() => {}) : at === 'versions' ? Promise.reject(new Error('versions_rejected')) : Promise.resolve({chosenSourceId: 'source', versions: [{sourceId: 'source', inventoryAvailable: true}]});},
-    open: async () => {if (at === 'open') throw new Error('open_rejected'); return session;},
+    open: async () => {if (at === 'open') throw new Error('open_rejected');
+      // The reading client already waited Retry-After once (RD-8); a second busy answer reaches the host.
+      if (at === 'busy') throw Object.assign(new Error('reading_sessions_busy'), {name: 'ReadingError', code: 'reading_sessions_busy', status: 503, retryAfterSeconds: 2});
+      return session;},
     dispose() {},
   };
   const context = {
@@ -405,4 +408,17 @@ test('a covered acquisition failure cannot Retry until its same original render 
     await act(async () => {retry(); await new Promise<void>(resolve => setImmediate(resolve));});
     assert.equal(fixture.versionCalls, 2); assert.ok(byType(view.tree, 'NativeReadingGuestHost'));
   } finally {await view.host.unmount();}
+});
+
+test('RD-8 (W-19): a busy server says so in the catalogue\'s words and keeps Retry; any other open failure keeps the generic page failure', async () => {
+  for (const at of ['busy', 'open'] as const) {
+    const fixture = await harness({at});
+    const view = mount(fixture.ReadNativeHost, propsFor(fixture.context, {onBack: () => {}}));
+    await act(async () => {await view.host.mount(); await new Promise<void>(resolve => setImmediate(resolve));});
+    const state = byType(view.tree, 'StateView');
+    assert.ok(state, at);
+    assert.equal(state!.props.body, defaultI18n.t(at === 'busy' ? 'error.busy' : 'next.states.pageFailedBody'), at);
+    assert.equal(state!.props.primaryAction.id, 'retry'); assert.equal(state!.props.primaryAction.disabled, false, 'a busy open may be tried again');
+    await view.host.unmount();
+  }
 });
