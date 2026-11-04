@@ -1,10 +1,10 @@
+import {readCatalogueItemResponse} from '../../../../../../packages/client-core/src/query/catalogue-reads';
 import React, {useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {Text, View} from 'react-native';
 import {parseSegmentClock, segmentClock, segmentKinds, type SegmentKind, type SegmentReviewEntry, type SegmentReviewMarker} from '../../../../../../packages/client-core/src/segment-review';
 import {repeat} from '../../../../../../packages/client-core/src/timer';
 import {parseMediaItem} from '../../../../../../packages/client-core/src/media-item';
 import {validateContentEntry} from '../../../../../../packages/client-core/src/library-content';
-import {encodedRoutePath} from '../../../../../../packages/contracts/src/routes';
 import {Artwork} from '../../../kit/artwork';
 import {Button, Select, TextField} from '../../../kit/controls';
 import {BottomSheet, Dialog} from '../../../kit/overlays';
@@ -46,7 +46,7 @@ export function IntroCreditsReview({context, lifetime, t, runtime}: NativeSettin
   }, {scope: 'surface'}); return () => listener();}, [controller, state.busy, state.libraryId, state.titleId]);
   const run = (work: () => Promise<unknown>) => {void work().catch(error => {if (alive.current && lifetime.current()) runtime.reportError(error);});};
   const watch = async (entry: SegmentReviewEntry, _marker: SegmentReviewMarker, fromUS: string) => {
-    const item = await lifetime.request(signal => context.api.request(encodedRoutePath('get_items_id', {id: entry.itemId}), 'GET', undefined, signal).then(parseMediaItem));
+    const item = await lifetime.request(signal => readCatalogueItemResponse(context.api, entry.itemId, signal).then(parseMediaItem));
     lifetime.assert();
     if (!alive.current || controller.getSnapshot().review !== state.review || item.id !== entry.itemId || item.libraryId !== state.libraryId || !item.available) return;
     const display = validateContentEntry({id: item.id, libraryId: item.libraryId, kind: item.kind, title: item.title, available: item.available, year: item.year, posterUrl: item.posterUrl, backdropUrl: item.backdropUrl, overview: item.overview});
@@ -101,7 +101,7 @@ function SegmentPoster({id, libraryId, context, lifetime, runtime}: Pick<NativeS
   const [path, setPath] = useState<string>();
   useEffect(() => {
     const read = new AbortController();
-    void lifetime.request(signal => context.api.request(encodedRoutePath('get_items_id', {id}), 'GET', undefined, signal).then(parseMediaItem), read.signal).then(item => {
+    void lifetime.request(signal => readCatalogueItemResponse(context.api, id, signal).then(parseMediaItem), read.signal).then(item => {
       if (!read.signal.aborted && item.id === id && item.libraryId === libraryId) setPath(item.posterUrl);
     }, () => { /* Missing artwork retains the kit's honest empty surface. */ });
     return () => read.abort();

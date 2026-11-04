@@ -1,5 +1,5 @@
+import {readCatalogueItemResponse} from '@core/query/catalogue-reads.ts';
 import type {ItemResponse} from '@core/media-item.ts';
-import {encodedRoutePath} from '../../../../packages/contracts/src/routes.ts';
 import {parseMediaItem} from '@core/media-item.ts';
 import type {CastApi, CastMetadata} from '@core/cast/index.ts';
 import {castCoverPath, castCoverTarget} from './cast-cover';
@@ -11,7 +11,7 @@ export async function readWatchCastMetadata(api: CastApi, itemId: string, assert
   item: ItemResponse; metadata: CastMetadata;
 }>> {
   assertCurrent();
-  const raw = await api.request<ItemResponse>(encodedRoutePath('get_items_id', {id: encodeURIComponent(itemId)}));
+  const raw = await readCatalogueItemResponse(api, itemId);
   assertCurrent();
   const item = parseMediaItem(raw);
   if (item.id !== itemId) throw new Error('cast_item_mismatch');
@@ -21,7 +21,7 @@ export async function readWatchCastMetadata(api: CastApi, itemId: string, assert
   if (target) {
     try {
       assertCurrent();
-      const related = await api.request<ItemResponse>(encodedRoutePath('get_items_id', {id: encodeURIComponent(target.id)}));
+      const related = await readCatalogueItemResponse(api, target.id);
       assertCurrent();
       artworkPath = castCoverPath(target, related);
     } catch {

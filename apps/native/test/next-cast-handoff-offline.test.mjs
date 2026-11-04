@@ -1,3 +1,4 @@
+import * as catalogueReads from '../../../packages/client-core/src/query/catalogue-reads.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {sourceModule} from './helpers/offline-source-module.mjs';
@@ -42,7 +43,8 @@ async function fixture(storage = Promise.resolve()) {
     beginRemote: async () => {}, updateRemote: async () => {}, dismissRemote: async () => {}};
   const {NativeCastCaller} = await sourceModule(new URL('../src-next/platform/play-on/cast.ts', import.meta.url), {
     'react-native': {NativeEventEmitter: Emitter, NativeModules: {PorticoCast: bridge}, Platform: {isTV: false}},
-    '../../../../../packages/client-core/src/connection-policy': {castOrigin},
+    '../../../../../packages/client-core/src/query/catalogue-reads': catalogueReads,
+  '../../../../../packages/client-core/src/connection-policy': {castOrigin},
     '../../../../../packages/client-core/src/cast': {CastController: Controller, sameCastRemote: (a, b) => a === b, parseCastEvent: value => value},
     '../../../../../packages/player-core/src': {sameFence},
     './cast-transport': {castTransport: {}, validCastAttachment: value => value === attachmentId},
