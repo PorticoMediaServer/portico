@@ -71,7 +71,10 @@ export function createNativePersonCreditWindow(context: NativeShellBootstrapCont
       return page;
     } finally {signal.removeEventListener('abort', abort); pending.delete(controller);}
   };
+  // Page zero is the arrived seed, resident from the first render: a window built again after a re-read paints the credits
+  // it has at once, so a focused card that the new first page still holds never turns into a placeholder.
   const collection = createWindowedCollection<PersonCredit>({pageSize: 40, maxResidentPages: 5, maxConcurrent: 1, prefetchPages: 0,
+    initialPage: {items: first.credits, total: first.pageInfo.total},
     keyOf: credit => JSON.stringify([credit.media.libraryId, credit.media.kind, credit.media.id, credit.creditKind, credit.role, credit.character]),
     fetchPage: async (start, count, signal) => {
       if (!visible() || signal.aborted) throw cancelled();

@@ -71,7 +71,7 @@ test('Person sparse credits borrow one arrived page and follow only real continu
   try {
     f.reply(async path => credits(path)); await f.source.load();
     window = createNativePersonCreditWindow(f.context, f.route, f.source);
-    assert.equal(f.reads.length, 1); assert.equal(window.collection.resident().items, 0);
+    assert.equal(f.reads.length, 1); assert.equal(window.collection.resident().items, 40, 'the arrived page is resident at once');
     await ready(window, 0); assert.equal(f.reads.length, 1, 'seed does not reread page zero');
     const old = window.collection.itemAt(0)!.media;
     assert.equal(window.contains(old), true); assert.equal(window.contains({...old}), false);
@@ -198,5 +198,18 @@ test('step 7: a later access change in the same visit reads the person again too
     const before = f.reads.length;
     await ready(window, 40, 40, true);
     assert.equal(window.collection.getSnapshot().status, 'error'); assert.equal(f.source.getSnapshot(), third); assert.equal(f.reads.length, before + 1);
+  } finally {window?.dispose(); await f.close();}
+});
+
+test('a window built from an arrived page has that first page at once, with no request, so a re-read paints no placeholders', async () => {
+  const f = await fixture(); let window: ReturnType<typeof createNativePersonCreditWindow> | undefined;
+  try {
+    f.reply(async path => credits(path)); await f.source.load();
+    const before = f.reads.length;
+    window = createNativePersonCreditWindow(f.context, f.route, f.source);
+    assert.equal(window.collection.itemAt(0)?.media.id, 'credit-0'); assert.equal(window.collection.itemAt(39)?.media.id, 'credit-39');
+    assert.equal(window.collection.itemAt(40), undefined); assert.equal(window.collection.getSnapshot().total, 320);
+    window.collection.ensureRange(0, 39); await tick();
+    assert.equal(f.reads.length, before, 'page 0 is the arrived page: not read again');
   } finally {window?.dispose(); await f.close();}
 });
