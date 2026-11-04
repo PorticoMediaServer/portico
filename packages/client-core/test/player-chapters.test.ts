@@ -29,3 +29,19 @@ test('chapter thumbnails are optional and must be this item\'s own image path',a
   bad.dispose();
  }
 });
+
+// Step 7 (CLIENT-DATA-REVIEW 4.4): on a read a moved viewer fence is a newer answer. The server binds
+// each chapter cursor to the projection's revision and re-authorises every page through the session.
+test('a moved viewer fence on a chapters refresh or a next page is a newer answer, never permission_changed',async()=>{
+  let fence='fence';const s=service(async p=>{const d=data(new URL('http://local'+p).searchParams.has('cursor')?1:0);d.scope.viewerFence=fence;return d;});
+  await s.select(target);fence='newer';await s.next();
+  assert.equal(s.getSnapshot().phase,'ready');assert.equal(s.getSnapshot().error,null);assert.equal(s.getSnapshot().data!.chapters[0].index,2,'the next page is shown');
+  fence='newest';await s.refresh();assert.equal(s.getSnapshot().phase,'ready');assert.equal(s.getSnapshot().data!.scope.viewerFence,'newest');
+  s.dispose();
+});
+test('a next page from a different chapter projection (revision) still refuses: same-entity revision checks stay',async()=>{
+  const s=service(async p=>{const next=new URL('http://local'+p).searchParams.has('cursor');const d=data(next?1:0);if(next)d.revision='other-revision';return d;});
+  await s.select(target);await s.next();
+  assert.equal(s.getSnapshot().phase,'refresh-required');assert.equal(s.getSnapshot().error!.code,'stale_chapter_projection');
+  s.dispose();
+});
