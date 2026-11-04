@@ -48,7 +48,10 @@ test('the real shell mounts one persistent player and a separate box-none watch 
     assert.equal(player.length, 1);
     assert.strictEqual(player[0].props.adapter, runtime.playback);
     assert.equal(rendered.filter(node => node.type === 'WatchChrome').length, 1);
-    const chrome = rendered.find(node => node.type === 'View' && node.props.children?.type === 'WatchChrome');
+    // TV: the outlet's wrapper holds a CoveredLayer around the chrome, uncovered while nothing is presented over it.
+    const chrome = rendered.find(node => node.type === 'View' && (node.props.children?.type === 'WatchChrome' || node.props.children?.props?.testID === 'native-shell-watch'));
+    const covered = rendered.find(node => node.props?.testID === 'native-shell-watch');
+    if (covered) assert.equal(covered.props.covered, false);
     assert.equal(chrome.props.pointerEvents, 'box-none');
     assert.equal(chrome.props.style.zIndex, theme.layers.player + 1);
     assert.ok(chrome.props.style.zIndex < theme.layers.menu);
@@ -63,7 +66,7 @@ test('the real shell mounts one persistent player and a separate box-none watch 
     snapshot.contentVisible = true; snapshot.mediaExpanded = true;
     await act(async () => {await sessionHost!.rerender();});
     assert.equal(base().props.accessibilityElementsHidden, true);
-    const watch = nodes(tree).find(node => node.type === 'View' && node.props.children?.type === 'WatchChrome');
+    const watch = nodes(tree).find(node => node.type === 'View' && (node.props.children?.type === 'WatchChrome' || node.props.children?.props?.testID === 'native-shell-watch'));
     assert.notEqual(watch.props.importantForAccessibility, 'no-hide-descendants', 'visible split watch panes stay exposed in their separate outlet');
     snapshot.mediaExpanded = false;
     await act(async () => {await sessionHost!.rerender();});
