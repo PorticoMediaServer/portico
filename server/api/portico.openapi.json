@@ -83473,7 +83473,14 @@
                         "type": "string"
                       },
                       "dolbyVisionBaseLayer": {
-                        "type": "boolean"
+                        "anyOf": [
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       },
                       "dolbyVisionCmVersion": {
                         "type": "string"
@@ -83492,7 +83499,14 @@
                         "type": "integer"
                       },
                       "dolbyVisionRpu": {
-                        "type": "boolean"
+                        "anyOf": [
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       },
                       "fps": {
                         "type": "number"
@@ -83514,7 +83528,14 @@
                         "type": "string"
                       },
                       "hdr10Plus": {
-                        "type": "boolean"
+                        "anyOf": [
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       },
                       "height": {
                         "maximum": 9007199254740991,
@@ -111428,7 +111449,14 @@
                           "type": "string"
                         },
                         "dolbyVisionBaseLayer": {
-                          "type": "boolean"
+                          "anyOf": [
+                            {
+                              "type": "boolean"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "dolbyVisionCmVersion": {
                           "type": "string"
@@ -111447,7 +111475,14 @@
                           "type": "integer"
                         },
                         "dolbyVisionRpu": {
-                          "type": "boolean"
+                          "anyOf": [
+                            {
+                              "type": "boolean"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "fps": {
                           "type": "number"
@@ -111469,7 +111504,14 @@
                           "type": "string"
                         },
                         "hdr10Plus": {
-                          "type": "boolean"
+                          "anyOf": [
+                            {
+                              "type": "boolean"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "height": {
                           "maximum": 9007199254740991,
@@ -313784,7 +313826,14 @@
                                     "type": "string"
                                   },
                                   "dolbyVisionBaseLayer": {
-                                    "type": "boolean"
+                                    "anyOf": [
+                                      {
+                                        "type": "boolean"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
                                   },
                                   "dolbyVisionCmVersion": {
                                     "type": "string"
@@ -313803,7 +313852,14 @@
                                     "type": "integer"
                                   },
                                   "dolbyVisionRpu": {
-                                    "type": "boolean"
+                                    "anyOf": [
+                                      {
+                                        "type": "boolean"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
                                   },
                                   "fps": {
                                     "type": "number"
@@ -313825,7 +313881,14 @@
                                     "type": "string"
                                   },
                                   "hdr10Plus": {
-                                    "type": "boolean"
+                                    "anyOf": [
+                                      {
+                                        "type": "boolean"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
                                   },
                                   "height": {
                                     "maximum": 9007199254740991,
@@ -421133,7 +421196,14 @@
                                   "type": "string"
                                 },
                                 "dolbyVisionBaseLayer": {
-                                  "type": "boolean"
+                                  "anyOf": [
+                                    {
+                                      "type": "boolean"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "dolbyVisionCmVersion": {
                                   "type": "string"
@@ -421152,7 +421222,14 @@
                                   "type": "integer"
                                 },
                                 "dolbyVisionRpu": {
-                                  "type": "boolean"
+                                  "anyOf": [
+                                    {
+                                      "type": "boolean"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "fps": {
                                   "type": "number"
@@ -421174,7 +421251,14 @@
                                   "type": "string"
                                 },
                                 "hdr10Plus": {
-                                  "type": "boolean"
+                                  "anyOf": [
+                                    {
+                                      "type": "boolean"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "height": {
                                   "maximum": 9007199254740991,

@@ -159684,6 +159684,7 @@ export const schemas = {
                     "type": "string"
                   },
                   "dolbyVisionBaseLayer": {
+                    "nullable": true,
                     "type": "boolean"
                   },
                   "dolbyVisionCmVersion": {
@@ -159703,6 +159704,7 @@ export const schemas = {
                     "type": "integer"
                   },
                   "dolbyVisionRpu": {
+                    "nullable": true,
                     "type": "boolean"
                   },
                   "fps": {
@@ -159725,6 +159727,7 @@ export const schemas = {
                     "type": "string"
                   },
                   "hdr10Plus": {
+                    "nullable": true,
                     "type": "boolean"
                   },
                   "height": {
@@ -217987,6 +217990,7 @@ export const schemas = {
                       "type": "string"
                     },
                     "dolbyVisionBaseLayer": {
+                      "nullable": true,
                       "type": "boolean"
                     },
                     "dolbyVisionCmVersion": {
@@ -218006,6 +218010,7 @@ export const schemas = {
                       "type": "integer"
                     },
                     "dolbyVisionRpu": {
+                      "nullable": true,
                       "type": "boolean"
                     },
                     "fps": {
@@ -218028,6 +218033,7 @@ export const schemas = {
                       "type": "string"
                     },
                     "hdr10Plus": {
+                      "nullable": true,
                       "type": "boolean"
                     },
                     "height": {

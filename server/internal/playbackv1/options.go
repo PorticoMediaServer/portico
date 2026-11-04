@@ -115,11 +115,11 @@ type VideoStream struct {
 	FrameRateMode              string  `json:"frameRateMode,omitempty"`
 	DolbyVisionProfile         int     `json:"dolbyVisionProfile,omitempty"`
 	DolbyVisionCompatibility   int     `json:"dolbyVisionCompatibility,omitempty"`
-	DolbyVisionRPU             bool    `json:"dolbyVisionRpu"`
-	DolbyVisionBaseLayer       bool    `json:"dolbyVisionBaseLayer"`
+	DolbyVisionRPU             *bool   `json:"dolbyVisionRpu"`
+	DolbyVisionBaseLayer       *bool   `json:"dolbyVisionBaseLayer"`
 	DolbyVisionEnhancementType string  `json:"dolbyVisionEnhancementType,omitempty"`
 	DolbyVisionCMVersion       string  `json:"dolbyVisionCmVersion,omitempty"`
-	HDR10Plus                  bool    `json:"hdr10Plus"`
+	HDR10Plus                  *bool   `json:"hdr10Plus"`
 	MasterDisplay              string  `json:"masterDisplay,omitempty"`
 	MaxCLL                     string  `json:"maxCll,omitempty"`
 	ID                         string  `json:"id"`
@@ -545,7 +545,7 @@ func (s *Service) appendStream(v *Version, st assets.Stream) {
 	lower := strings.ToLower(title)
 	switch kind {
 	case "video":
-		v.Video = append(v.Video, VideoStream{Interlaced: facts.ObservedInterlaced(), ChromaSubsampling: facts.ChromaSubsampling, FrameRateNumerator: facts.FrameRateNumerator, FrameRateDenominator: facts.FrameRateDenominator, FrameRateMode: facts.FrameRateMode, DolbyVisionProfile: facts.DolbyVisionProfile, DolbyVisionCompatibility: facts.DolbyVisionCompatibility, DolbyVisionRPU: facts.DolbyVisionRPU, DolbyVisionBaseLayer: facts.DolbyVisionBaseLayer, DolbyVisionEnhancementType: facts.DolbyVisionEnhancementType, DolbyVisionCMVersion: facts.DolbyVisionCMVersion, HDR10Plus: facts.HDR10Plus, MasterDisplay: facts.MasterDisplay, MaxCLL: facts.MaxCLL, ID: streamID("v", index), Codec: codec, Profile: strings.ToLower(facts.Profile), Level: facts.Level, BitDepth: facts.BitDepth, Width: facts.Width, Height: facts.Height, Fps: facts.FrameRate, HDR: hdrName(transfer, detail), BitrateKbps: int(facts.BitRate / 1000)})
+		v.Video = append(v.Video, VideoStream{Interlaced: facts.ObservedInterlaced(), ChromaSubsampling: facts.ChromaSubsampling, FrameRateNumerator: facts.FrameRateNumerator, FrameRateDenominator: facts.FrameRateDenominator, FrameRateMode: facts.FrameRateMode, DolbyVisionProfile: facts.DolbyVisionProfile, DolbyVisionCompatibility: facts.DolbyVisionCompatibility, DolbyVisionRPU: observedVideoFlag(facts.DolbyVisionRPU, facts.DolbyVisionMetadataKnown), DolbyVisionBaseLayer: observedVideoFlag(facts.DolbyVisionBaseLayer, facts.DolbyVisionMetadataKnown), DolbyVisionEnhancementType: facts.DolbyVisionEnhancementType, DolbyVisionCMVersion: facts.DolbyVisionCMVersion, HDR10Plus: observedVideoFlag(facts.HDR10Plus, false), MasterDisplay: facts.MasterDisplay, MaxCLL: facts.MaxCLL, ID: streamID("v", index), Codec: codec, Profile: strings.ToLower(facts.Profile), Level: facts.Level, BitDepth: facts.BitDepth, Width: facts.Width, Height: facts.Height, Fps: facts.FrameRate, HDR: hdrName(transfer, detail), BitrateKbps: int(facts.BitRate / 1000)})
 	case "audio":
 		v.Audio = append(v.Audio, AudioStream{Profile: facts.Profile, Variant: facts.AudioVariant, ObjectAudio: facts.ObjectAudio, SampleRate: facts.SampleRate, BitDepth: facts.BitsPerSample, DTSX: facts.ObjectAudio == "dtsx", ID: streamID("a", index), Codec: codec, Channels: channels, Layout: layout, Atmos: facts.ObjectAudio == "atmos", Language: language, Title: title, Default: isDefault, Commentary: strings.Contains(lower, "commentary"), VisualImpaired: facts.AudioDescription})
 	case "subtitle":
@@ -553,6 +553,16 @@ func (s *Service) appendStream(v *Version, st assets.Stream) {
 			v.Subtitles = append(v.Subtitles, SubStream{ID: streamID("s", index), Format: codec, Source: "embedded", Language: language, Title: title, Forced: forced, SDH: strings.Contains(lower, "sdh") || strings.Contains(lower, "hearing"), Default: isDefault})
 		}
 	}
+}
+
+// A missing frame tag is unobserved, not proof of absence. Positive evidence
+// can stand alone; false requires the parser's independent known witness.
+// HDR10+ currently has only a positive observation, so its false stays null.
+func observedVideoFlag(value, known bool) *bool {
+	if !known && !value {
+		return nil
+	}
+	return &value
 }
 
 func subtitleSource(origin string) string {
