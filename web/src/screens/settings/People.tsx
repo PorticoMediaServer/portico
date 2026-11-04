@@ -23,6 +23,7 @@ import {PeopleMemberProfiles} from './PeopleMemberProfiles';
 import type {PeopleMemberProfilesApi} from './people-member-profiles-api';
 import {InviteAttempts, defaultInviteChoices, inviteBody, inviteChoicesOf, type InviteAttempt, type InviteChoices} from './people-invite';
 import {PeopleInviteForm} from './people-invite-form';
+import {AddAccountDialog, type AddAccount} from './people-add-account';
 import {PeopleInvitations} from './PeopleInvitations';
 import type {ServerInvitation} from '@core/direct-account.ts';
 import type {MemberResetCodeSource} from './member-reset-code';
@@ -77,6 +78,8 @@ export type PeopleBindings = Readonly<{
   /** Another person's profiles for the Profiles tab's Manage. */
   memberProfiles?: PeopleMemberProfilesApi;
   streamLimits?: PeopleStreamLimits; invitations?: SettingsInvitations; invite?: (opener: HTMLElement) => void; signIn?: 'local' | 'portico'; openHome: () => void; reportError: (error: unknown) => void;
+  /** owner-people 6/25: the owner of a local-sign-in server adds an account here; absent elsewhere (Portico Account members join by invitation). */
+  addAccount?: AddAccount;
 }>;
 
 /** The table query, detail revision and bulk transaction stay bound to one real session. */
@@ -348,6 +351,7 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
   // page, and the tabs carry no counts, as the spec says); wider screens keep the spec's stacked groups.
   const phone = usePhone();
   const [peopleTab, setPeopleTab] = useState<'accounts' | 'invitations'>('accounts');
+  const [addOpen, setAddOpen] = useState(false), addOpener = useRef<HTMLElement | null>(null);
   if (!live || denied) return null;
   return <>
     {phone && <Tabs phone className={peopleStyles.phoneTabs} value={peopleTab} aria-label={t(section.title)}
@@ -355,8 +359,9 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
       items={[{value: 'accounts', label: t('settings.server.accounts')},
         ...(bindings.invitations ? [{value: 'invitations', label: t('settings.server.invitations')}] : [])]}/>}
     <div className={peopleStyles.pane} data-hidden={phone && peopleTab !== 'accounts' || undefined}>
-    <SettingsGroup title={t(section.groups![0].title!)} plain actions={<Button size="small" variant="primary" icon="i-plus" iconSize={20} disabled={!bindings.invite && !bindings.invitations}
-      onClick={event => { if (!bindings.authority.isCurrent()) return; if (bindings.invite) bindings.invite(event.currentTarget); else void openInvite(event.currentTarget); }}>{t(table.addLabel!)}</Button>}>
+    <SettingsGroup title={t(section.groups![0].title!)} plain actions={<>{bindings.addAccount && <Button size="small" variant="glass"
+      onClick={event => {if (!bindings.authority.isCurrent()) return; addOpener.current = event.currentTarget; setAddOpen(true);}}>{t('web.people.addAccount')}</Button>}<Button size="small" variant="primary" icon="i-plus" iconSize={20} disabled={!bindings.invite && !bindings.invitations}
+      onClick={event => { if (!bindings.authority.isCurrent()) return; if (bindings.invite) bindings.invite(event.currentTarget); else void openInvite(event.currentTarget); }}>{t(table.addLabel!)}</Button></>}>
     {error && !page && !personId ? <SettingsPageFailure retry={() => setRefresh(value => value + 1)} home={bindings.openHome} /> : <SettingsTable phoneCards ref={tableRef} height={table.height}
       label={t(section.title)} rows={(page?.items ?? []).map(row => peopleTableRow(row, bindings.actor))} columns={table.columns!.map(column => ({id: column.id!, label: t(column.label), kind: column.kind as 'main', sortable: column.sort, width: column.width}))}
       query={query} onQueryChange={admitQuery} filters={table.filters!.map(filter => ({id: filter.id, label: t(filter.label), showAllValue: false,
@@ -400,6 +405,9 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
       returnFocusRef={confirmOpener} footer={<><Button disabled={saving} onClick={() => {setCommand(undefined); setBulk(undefined);}}>{t('next.settings.cancel')}</Button><Button variant="primary" loading={saving} onClick={applyCommand}>{t('next.settings.apply')}</Button></>}>
       <p>{t(command.action === 'remove' ? table.select!.bulk[2].confirm! : table.select!.bulk[1].confirm!)}</p>
     </Dialog>}
+    {bindings.addAccount && <AddAccountDialog open={addOpen} onOpenChange={setAddOpen} libraries={bindings.libraries} returnFocusRef={addOpener}
+      add={(input, signal) => {if (!bindings.authority.isCurrent()) return Promise.reject(new DOMException('The settings scope ended.', 'AbortError')); return bindings.addAccount!(input, signal);}}
+      onAdded={() => {if (mounted.current && bindings.authority.isCurrent()) setRefresh(value => value + 1);}} />}
     <PeopleInviteForm open={formOpen} onOpenChange={open => { if (formSession.current !== formToken || !formActive.current || attempts.current?.busy) return; if (!open) { formActive.current = false; ++formSession.current; setFormError(undefined); } setFormOpen(open); }}
       choices={choices} onChoices={next => { if (formActive.current && formSession.current === formToken && !attempts.current?.busy) setChoices(next); }} libraries={bindings.libraries} signIn={bindings.signIn}
       busy={formBusy} error={formError} retained={retained} audience={t(bindings.actor.role === 'owner' ? 'next.shell.serverVisibility.ownerShared' : 'next.shell.serverVisibility.administrator')}
