@@ -46,7 +46,7 @@ if [ "$stage" = decision ]; then
   exit
 fi
 if [ "$stage" = primitives ]; then
-  "$RUNNER_TEMP/p0-s-full" --ddl "research/p0-s/${TARGET_DDL:-full-dabf44.sql}" --db "$out/full.db" --out "$out" --seed 1000000 --normal --write-only --scalar-primitives --qualification --cpu-profile
+  "$RUNNER_TEMP/p0-s-full" --ddl "research/p0-s/${TARGET_DDL:-full-dabf44.sql}" --db "$out/full.db" --out "$out" --seed "$size" --normal --write-only --scalar-primitives --qualification --bounded-wal --checkpoint-ms 50 --cpu-profile
   exit
 fi
 if [ "$stage" = caps ]; then

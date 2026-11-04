@@ -1621,6 +1621,7 @@ func recordPrimitive(c *sql.Conn, out, hash, name string, reps int, build func(i
 		phases := build(j)
 		var before, after int64
 		must(c.QueryRowContext(context.Background(), "SELECT total_changes()").Scan(&before))
+		admitWAL()
 		hostBefore := hostSnapshot()
 		_, e := c.ExecContext(context.Background(), "BEGIN IMMEDIATE")
 		must(e)
@@ -1637,13 +1638,16 @@ func recordPrimitive(c *sql.Conn, out, hash, name string, reps int, build func(i
 		must(e)
 		end := time.Now()
 		ms := float64(end.Sub(start).Nanoseconds()) / 1e6
+		observeWALCommit()
 		details = append(details, map[string]any{"phase": "commit", "start_ns": t.UnixNano(), "ms": float64(end.Sub(t).Nanoseconds()) / 1e6})
 		times = append(times, ms)
 		must(c.QueryRowContext(context.Background(), "SELECT total_changes()").Scan(&after))
 		effects = append(effects, after-before)
 		samples = append(samples, map[string]any{"sample": j, "start_ns": start.UnixNano(), "end_ns": end.UnixNano(), "hold_ms": ms, "rows_changed": after - before, "phases": details, "host_before": hostBefore, "host_after": hostSnapshot()})
 		if restore != nil {
+			admitWAL()
 			restore(j)
+			observeWALCommit()
 		}
 	}
 	upper, rank := quantileUpper(times, .99, .95)
@@ -1698,6 +1702,12 @@ func assetFromEntity(parent int, where string) string {
 func sharedReceipt(name string, j int) string {
 	return fmt.Sprintf("UPDATE libraries SET data_revision=data_revision+1,data_order_revision=data_order_revision+1 WHERE id='full-library';INSERT INTO api_events(audience,type,resource_kind,resource_id,at_ms) VALUES('library:full-library','changed','library','full-library',1);INSERT INTO admin_receipts VALUES('%s','%d','%s','applied',1);", name, j, strings.Repeat("0", 64))
 }
+func fixtureTx(c *sql.Conn, q string) {
+	admitWAL()
+	_, e := c.ExecContext(context.Background(), "BEGIN IMMEDIATE;"+q+"COMMIT;")
+	must(e)
+	observeWALCommit()
+}
 func updateScalarSource(parent, size, duration int) string {
 	q := fmt.Sprintf("UPDATE catalog_assets SET duration=%d,size=%d,file_size_revision=file_size_revision+1,info_epoch=info_epoch+1,playback_origin_revision=playback_origin_revision+1 WHERE id=1;", duration, size)
 	q += fmt.Sprintf("UPDATE catalog_asset_links SET info_duration=%d WHERE entity_id=1;UPDATE catalog_entities SET duration_key=%d,file_size_key=%d,revision=revision+1,scalar_source_revision=scalar_source_revision+1 WHERE id=1;", duration, duration, size)
@@ -1718,21 +1728,28 @@ func scalarPrimitives(c *sql.Conn, out, hash string) {
 		members = 500
 	}
 	extra, parent, revLo, revHi := n+1, n+1001, n+1002, n+1101
-	_, e := c.ExecContext(context.Background(), "BEGIN;"+acceptanceSQL(n+1, 1104)+"COMMIT;")
-	must(e)
-	setup := fmt.Sprintf("INSERT OR IGNORE INTO catalog_kinds VALUES(10,'collection',0,1,1,1,0);BEGIN;PRAGMA defer_foreign_keys=ON;UPDATE catalog_subjects SET kind=10 WHERE id BETWEEN %d AND %d;UPDATE catalog_entities SET kind=10,collection_name_key=printf('scalar-%%d',id) WHERE id BETWEEN %d AND %d;INSERT INTO catalog_collection_members SELECT %d,id,printf('%%010d',id) FROM catalog_entities WHERE id<=%d;", parent, revHi, parent, revHi, parent, members)
-	setup += scalarInsert + scalarFromEntity(parent, fmt.Sprintf("id<=%d", members)) + assetFromEntity(parent, fmt.Sprintf("e.id<=%d", members)) + scalarKeys(fmt.Sprintf("id=%d", parent)) + fmt.Sprintf("UPDATE catalog_entities SET admission_member_count=%d,admission_unrated_members=%d WHERE id=%d;COMMIT;", members, members, parent)
-	_, e = c.ExecContext(context.Background(), setup)
-	must(e)
-	_, e = c.ExecContext(context.Background(), ageCountsFill())
-	must(e)
+	fixtureTx(c, acceptanceSQL(n+1, 1000))
+	fixtureTx(c, acceptanceSQL(n+1001, 104))
+	fixtureTx(c, fmt.Sprintf("INSERT OR IGNORE INTO catalog_kinds VALUES(10,'collection',0,1,1,1,0);PRAGMA defer_foreign_keys=ON;UPDATE catalog_subjects SET kind=10 WHERE id BETWEEN %d AND %d;UPDATE catalog_entities SET kind=10,collection_name_key=printf('scalar-%%d',id) WHERE id BETWEEN %d AND %d;", parent, revHi, parent, revHi))
+	for lo := 1; lo <= members; lo += 1000 {
+		hi := lo + 999
+		if hi > members {
+			hi = members
+		}
+		where := fmt.Sprintf("id BETWEEN %d AND %d", lo, hi)
+		q := fmt.Sprintf("INSERT INTO catalog_collection_members SELECT %d,id,printf('%%010d',id) FROM catalog_entities WHERE %s;", parent, where) + scalarInsert + scalarFromEntity(parent, where) + assetFromEntity(parent, "e."+where)
+		fixtureTx(c, q)
+	}
+	fixtureTx(c, scalarKeys(fmt.Sprintf("id=%d", parent))+fmt.Sprintf("UPDATE catalog_entities SET admission_member_count=%d,admission_unrated_members=%d WHERE id=%d;", members, members, parent))
+	fixtureTx(c, ageCountsFill())
+	var e error
 	plans := []any{}
 	for _, f := range []struct{ col, pred string }{{"duration", "duration IS NOT NULL"}, {"community_rating", "community_rating IS NOT NULL"}, {"critic_rating", "critic_rating IS NOT NULL"}, {"resolution", "resolution IS NOT NULL"}, {"latest_aired_key", "latest_aired_key IS NOT NULL"}} {
 		q := fmt.Sprintf("SELECT %s FROM catalog_scalar_contributions WHERE parent_id=%d AND %s ORDER BY %s DESC,contributor_id,source LIMIT 1", f.col, parent, f.pred, f.col)
 		plans = append(plans, readCohort(c, q, 1, time.Second))
 	}
 	plans = append(plans, readCohort(c, fmt.Sprintf("SELECT file_size FROM catalog_asset_contributions WHERE parent_id=%d ORDER BY file_size DESC,asset_id LIMIT 1", parent), 1, time.Second))
-	save(filepath.Join(out, "scalar-fixture.json"), map[string]any{"ddl_sha256": hash, "members": members, "collection": parent, "plans": plans, "boundary": "Exact ef4b74 split scalar/asset contributions and indexes; base inline branch with aggregate_publication_id=NULL. Synthetic populated scalar keys, unknown age, one asset/member. Five scalar seeks+one asset-size seek; no active overlay debt or production typed/authority oracle."})
+	save(filepath.Join(out, "scalar-fixture.json"), map[string]any{"ddl_sha256": hash, "members": members, "collection": parent, "plans": plans, "boundary": "Exact pinned scalar/asset contributions and indexes; base inline branch with aggregate_publication_id=NULL. Fixture built in bounded1k setup transactions outside measurement. Synthetic populated scalar keys, unknown age, one asset/member. Five scalar seeks+one asset-size seek; no active overlay debt or production typed/authority oracle."})
 	reps := 1000
 	if os.Getenv("GITHUB_RUN_ID") == "" {
 		reps = 2
@@ -1748,6 +1765,13 @@ func scalarPrimitives(c *sql.Conn, out, hash string) {
 				q = fmt.Sprintf("INSERT INTO catalog_collection_members VALUES(%d,%d,'%010d');", parent, currentExtra, currentExtra) + scalarInsert + scalarFromEntity(parent, fmt.Sprintf("id=%d", currentExtra)) + assetFromEntity(parent, fmt.Sprintf("e.id=%d", currentExtra)) + fmt.Sprintf("UPDATE catalog_entities SET admission_member_count=admission_member_count+1,admission_unrated_members=admission_unrated_members+1,last_content_added_at='2026-11-04T00:00:01.%09dZ' WHERE id=%d;", j, parent)
 			case "update":
 				q = updateScalarSource(parent, 3*members, 2*members)
+			}
+			if name != "update" {
+				child := members
+				if name == "add" {
+					child = currentExtra
+				}
+				q += fmt.Sprintf("SELECT count(*) FROM catalog_asset_contributions WHERE asset_id=%d AND authored_refs>0;UPDATE catalog_assets SET authored_membership_revision=authored_membership_revision+1 WHERE id=%d;UPDATE search_publish_jobs SET input_generation=input_generation+1,job_revision=job_revision+1,phase='capture',job_next_attempt_ms=0 WHERE entity_id=%d;UPDATE search_generations SET captured_input_sequence=captured_input_sequence+1 WHERE id=1;", child, child, child)
 			}
 			return []sqlPhase{{"contribution-delta", q}, {"six-extrema-entity", scalarKeys(fmt.Sprintf("id=%d", parent))}, {"revision-receipt", sharedReceipt("scalar-"+name, j)}}
 		}, func(j int) {
