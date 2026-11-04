@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {observedProgress, readKeyTurn, readTapTurn, readingDirection} from '../../src/kit/reader/interaction.ts';
+import {observedProgress, readKeyTurn, readTapTurn, readerToolbarOrder, readingDirection} from '../../src/kit/reader/interaction.ts';
 
 test('the same physical arrow reverses between Western comics and manga', () => {
   assert.equal(readKeyTurn('ArrowLeft', 'ltr'), 'previous');
@@ -49,4 +49,15 @@ test('RD-9: a comic keeps its chosen direction, vertical included; other books f
   assert.equal(readKeyTurn('ArrowDown', 'vertical'), 'next');
   assert.equal(readKeyTurn('ArrowUp', 'vertical'), 'previous');
   assert.equal(readKeyTurn('ArrowDown', 'ltr'), undefined, 'only a vertical strip turns with up and down');
+});
+
+test('desktop-read 6, 9 and 10: each reader\'s toolbar runs in its frame\'s order', () => {
+  const ids = (list: string[], kind?: 'epub' | 'pdf' | 'comic') => readerToolbarOrder(list.map(id => ({id})), kind).map(action => action.id);
+  assert.deepEqual(ids(['bookmark', 'contents', 'search', 'display', 'fullscreen']), ['contents', 'search', 'bookmark', 'display', 'fullscreen'], 'EPUB (frame 6)');
+  assert.deepEqual(ids(['bookmark', 'contents', 'search', 'pages', 'zoom-out', 'zoom-in', 'layout', 'zoom', 'fullscreen'], 'pdf'),
+    ['zoom-out', 'zoom', 'zoom-in', 'pages', 'layout', 'contents', 'search', 'bookmark', 'fullscreen'], 'PDF (frame 10)');
+  assert.deepEqual(ids(['bookmark', 'contents', 'layout', 'zoom', 'direction', 'fullscreen'], 'comic'), ['zoom', 'layout', 'direction', 'contents', 'bookmark', 'fullscreen'], 'comic (frame 9)');
+  assert.deepEqual(ids(['search', 'bookmark', 'more'], 'pdf'), ['search', 'bookmark', 'more'], 'a compact document keeps More last');
+  const pdf = readerToolbarOrder([{id: 'zoom'}, {id: 'pages'}, {id: 'fullscreen', separatorBefore: true}], 'pdf');
+  assert.deepEqual(pdf.map(action => !!action.separatorBefore), [false, true, true], 'a rule after the PDF zoom group');
 });
