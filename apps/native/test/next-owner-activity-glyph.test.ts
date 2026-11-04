@@ -116,3 +116,19 @@ test('The glyph draws grey idle, blue with the count and its tint, and the bell\
   assert.equal(tree.find(node => node.props.testID === 'activity-glyph-count'), undefined, 'a scan alone is blue without a count');
   assert.equal(tree[0].props.style.backgroundColor, 'transparent');
 });
+
+test('Disposing the store while a glyph still holds it (bootstrap order) erases the indicator and tells the glyph', async () => {
+  const {createNativeOwnerActivity} = await ownerActivity();
+  FakeService.made = [];
+  const owner = context('owner'), activity = createNativeOwnerActivity(owner, false)!, service = FakeService.made[0]!;
+  const release = activity.hold();
+  service.publish({phase: 'ready', document: document(1, {update: true})});
+  assert.deepEqual({...activity.getSnapshot()}, {known: true, count: 1, busy: true, update: true});
+  let changes = 0; activity.subscribe(() => changes++);
+  // bootstrap.ts: the context ends, the viewer cache and the bindings (this store) are disposed, then authority listeners run.
+  owner.current = () => false; activity.dispose(); owner.retire();
+  assert.deepEqual({...activity.getSnapshot()}, {known: false, count: 0, busy: false, update: false}, 'no previous owner\'s activity stays drawn');
+  assert.equal(changes, 1, 'a mounted glyph is told once');
+  service.publish({phase: 'ready', document: document(3)}); release(); activity.dispose();
+  assert.equal(activity.getSnapshot().known, false); assert.equal(changes, 1, 'nothing after disposal reaches it');
+});
