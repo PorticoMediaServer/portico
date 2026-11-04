@@ -94,3 +94,19 @@ test('filter preview counts the real draft while leaving the retained grid uncha
     await assert.rejects(f.controller.previewCounts(draft, cancelled.signal), {name: 'AbortError'});
   } finally {f.controller.dispose();}
 });
+
+test('parity: malformed capabilities wait for the paired row and preserve its transport error', async () => {
+  let resolveCapabilities!: (value: unknown) => void, rejectRow!: (error: unknown) => void;
+  const capabilityReply = new Promise<unknown>(resolve => {resolveCapabilities = resolve;});
+  const rowReply = new Promise<unknown>((_, reject) => {rejectRow = reject;});
+  const rowFailure = Object.assign(new Error('row unavailable'), {code: 'row_unavailable'});
+  const controller = new NativeHomeRowController({api: {request: <T>(path: string) => (path.startsWith('/v1/browse-capabilities') ? capabilityReply : rowReply) as Promise<T>},
+    rowId: 'continue', current: () => true, kinds: []});
+  const pending = controller.load();
+  try {
+    resolveCapabilities(null); await settle();
+    assert.equal(controller.getSnapshot().phase, 'loading');
+    rejectRow(rowFailure); await pending;
+    assert.equal(controller.getSnapshot().error, rowFailure);
+  } finally {rejectRow(rowFailure); await pending; controller.dispose();}
+});

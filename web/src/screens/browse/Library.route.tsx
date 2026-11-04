@@ -1,3 +1,4 @@
+import {readBrowseCapabilities} from '@core/query/browse-reads.ts';
 import {createBrowserQueryActions, type BrowserQueryActionHost} from './selection-action-host';
 import {entryStartDisplay} from '../../platform/playback/subject';
 import {createSelectionActionHostBridge} from './selection-action-lifetime';
@@ -18,7 +19,7 @@ import type {Library} from '@core/index.ts';
 import type {ContentEntry, ContentRoute, ContentSection, ContentView} from '@core/library-content.ts';
 import {LibraryManagementService} from '@core/library-management.ts';
 import {libraryTabs, readingTabModel, type LibraryTab} from '@core/presentation/library-tabs.ts';
-import {browseCapabilitiesPath, parseBrowseCapabilities, type BrowseCapabilities} from '@core/browse.ts';
+import type {BrowseCapabilities} from '@core/browse.ts';
 import {metadataAgentPath, parseMetadataAgent} from '@core/server-admin/metadata-agent.ts';
 import type {SavedDefinition} from '@core/personal-saved.ts';
 import {randomId} from '@core/random-id.ts';
@@ -160,9 +161,9 @@ function LiveReadingLibrary({captured, library, search, onMarked, context, life}
     const retire = () => {original.active = false; if (attempt.current === original) attempt.current = null; original.controller.abort();};
     setCapabilities({attempt: original, phase: 'loading'});
     void (async () => {
-      const raw = await life.api.request(browseCapabilitiesPath(original.libraryId, original.kind === 'comic' ? 'comics' : 'books'), 'GET', undefined, original.controller.signal);
-      if (!current()) return;
-      const data = parseBrowseCapabilities(raw);
+      const capabilities = await readBrowseCapabilities(life.api, original.libraryId, original.kind === 'comic' ? 'comics' : 'books', original.controller.signal, current);
+      if (!capabilities || !current()) return;
+      const data = capabilities;
       if (data.library.id !== original.libraryId || data.library.kind !== original.kind) throw new Error('Reading capability library mismatch');
       if (!current()) return;
       original.phase = 'ready'; setCapabilities({attempt: original, phase: 'ready', data});

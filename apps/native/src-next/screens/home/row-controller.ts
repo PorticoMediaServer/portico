@@ -1,7 +1,7 @@
-import {BrowseQueryBuilder, browseCapabilitiesPath, browseContextFacetsPath, browseCountsPath, browseCountsRequest, browseMembershipId, browsePath, parseBrowseCapabilities,
-  parseBrowseCounts, parseBrowseFacets, parseBrowseResult, type BrowseCapabilities, type BrowseCount, type BrowseNode, type BrowseSortSelection} from '../../../../../packages/client-core/src/browse';
+import {readHomeRowBrowseBootstrap, readImmediateBrowsePage, readBrowseFacet, readBrowseCounts} from '../../../../../packages/client-core/src/query/browse-reads';
+import {BrowseQueryBuilder, browseMembershipId, type BrowseCapabilities, type BrowseCount, type BrowseNode, type BrowseSortSelection} from '../../../../../packages/client-core/src/browse';
 import {createWindowedCollection, type WindowedCollection} from '../../../../../packages/client-core/src/collections/windowed';
-import {fetchHomeRow, type HomeApi, type HomeRow} from '../../../../../packages/client-core/src/home';
+import {type HomeApi, type HomeRow} from '../../../../../packages/client-core/src/home';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import {acrossCondition, acrossPivot, groupSort, homeRowQuery, type WholeGroupQuery} from '../../../../../packages/client-core/src/presentation/browse-groups';
 
@@ -58,11 +58,11 @@ export class NativeHomeRowController {
     this.abort.abort(); this.abort = new AbortController(); const generation = ++this.generation;
     this.publish({phase: 'loading', error: undefined});
     try {
-      const [raw, row] = await Promise.all([this.request(browseCapabilitiesPath('*', acrossPivot('homeRow'))), fetchHomeRow(this.api, this.rowId, {limit: 60}, this.abort.signal)]);
-      if (!this.valid(generation)) return;
-      // The row read now is the server's answer for the viewer now; a moved fence is newer, not stale (a refusal is a 401/403).
-      if (row.id !== this.rowId) throw stale();
-      const capabilities = parseBrowseCapabilities(raw), pivot = capabilities.pivots.find(value => value.id === acrossPivot('homeRow'));
+      const joined = await readHomeRowBrowseBootstrap({request: this.request.bind(this)}, this.api,
+        this.rowId, acrossPivot('homeRow'), this.abort.signal, {isCurrent: () => this.valid(generation), rowMismatch: stale});
+      if (!joined || !this.valid(generation)) return;
+      const {capabilities, row} = joined;
+      const pivot = capabilities.pivots.find(value => value.id === acrossPivot('homeRow'));
       if (!pivot?.defaultSort[0]) throw stale();
       const sort = groupSort(this.state.sort, true, capabilities.sorts, pivot.defaultSort[0]);
       // A library-scoped row belongs to that one library: offering every other
@@ -90,7 +90,7 @@ export class NativeHomeRowController {
       if (!this.valid(generation) || count > 60) throw cancelled();
       const body = new BrowseQueryBuilder(capabilities, acrossPivot('homeRow')).add(query).sort(sort.field, sort.direction, sort.seed)
         .limit(Math.min(60, count)).displayHomeRow(this.rowId).range({start, ...(revision ? {revision} : {})}).build();
-      const page = parseBrowseResult(await this.request(browsePath('*'), 'POST', body, signal));
+      const page = await readImmediateBrowsePage({request: this.request.bind(this)}, '*', body, signal);
       if (!this.valid(generation) || page.pageInfo.start !== start || page.pivot !== acrossPivot('homeRow') || page.entries.length > 0 && !page.displayTargets || revision && revision !== page.pageInfo.revision) throw stale();
       revision = page.pageInfo.revision;
       return {items: page.entries.map((entry, index) => {
@@ -105,9 +105,10 @@ export class NativeHomeRowController {
     const offered = this.state.capabilities?.fields.some(value => value.id === field || value.facetSource?.field === field || field === 'decade' && value.id === 'year');
     if (!offered || this.state.phase !== 'ready') throw cancelled();
     const query = this.query(true, filters), stamp = JSON.stringify(this.query());
-    const raw = await this.request(browseContextFacetsPath('*', field, acrossPivot('homeRow'), query, search, 200));
+    const page = await readBrowseFacet({request: this.request.bind(this)}, '*', field, acrossPivot('homeRow'), query, search, 200, this.abort.signal,
+      () => {if (stamp !== JSON.stringify(this.query())) throw cancelled();});
     if (stamp !== JSON.stringify(this.query())) throw cancelled();
-    return parseBrowseFacets(raw, field);
+    return page;
   };
   /** Draft previews never change the retained grid or its committed filters. */
   previewCounts = async (filters: readonly BrowseNode[], signal = this.abort.signal): Promise<readonly BrowseCount[]> => {
@@ -118,9 +119,10 @@ export class NativeHomeRowController {
     const counts: BrowseCount[] = [];
     for (let start = 0; start < queries.length; start += 8) {
       const batch = queries.slice(start, start + 8);
-      const raw = await this.request(browseCountsPath('*'), 'POST', browseCountsRequest(acrossPivot('homeRow'), batch), signal);
+      const page = await readBrowseCounts({request: this.request.bind(this)}, '*', acrossPivot('homeRow'), batch, signal,
+        () => {if (!this.valid(generation) || stamp !== JSON.stringify(this.query())) throw cancelled();});
       if (!this.valid(generation) || stamp !== JSON.stringify(this.query())) throw cancelled();
-      counts.push(...parseBrowseCounts(raw, batch.map(query => query.id)));
+      counts.push(...page);
     }
     return Object.freeze(counts);
   };
@@ -146,9 +148,9 @@ export class NativeHomeRowController {
       const counts: BrowseCount[] = [];
       for (let start = 0; start < queries.length; start += 8) {
         const batch = queries.slice(start, start + 8);
-        const raw = await this.request(browseCountsPath('*'), 'POST', browseCountsRequest(acrossPivot('homeRow'), batch));
-        if (!this.valid(generation) || ticket !== this.countTicket) return;
-        counts.push(...parseBrowseCounts(raw, batch.map(query => query.id)));
+        const page = await readBrowseCounts({request: this.request.bind(this)}, '*', acrossPivot('homeRow'), batch, this.abort.signal, () => this.valid(generation) && ticket === this.countTicket);
+        if (!page || !this.valid(generation) || ticket !== this.countTicket) return;
+        counts.push(...page);
       }
       this.publish({counts: Object.freeze(counts)});
     } catch (error) {if (this.valid(generation) && ticket === this.countTicket) this.publish({error});}
