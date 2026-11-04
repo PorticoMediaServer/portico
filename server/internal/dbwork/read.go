@@ -75,12 +75,12 @@ func WithReadSnapshot(ctx context.Context, db *sql.DB, fn func(context.Context) 
 	}
 	ctx, cancel := snapshotContext(ctx)
 	defer cancel()
-	tx, err := ReadHandle(ctx, db).BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, retire, err := beginReadConnection(ctx, db)
 	if err != nil {
 		return err
 	}
 	defer registerReadSnapshot(tx)()
-	defer tx.Rollback()
+	defer retire()
 	if err = fn(withSnapshot(ctx, tx)); err != nil {
 		return snapshotError(ctx, err)
 	}
@@ -141,7 +141,7 @@ func BeginRead(ctx context.Context, db *sql.DB) (*sql.Tx, func(), error) {
 	// The snapshot lifetime bounds this read even when the caller's deadline
 	// is later, or absent.
 	ctx, cancel := snapshotContext(ctx)
-	tx, err := ReadHandle(ctx, db).BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, retire, err := beginReadConnection(ctx, db)
 	if err != nil {
 		cancel()
 		return nil, nil, err
@@ -150,11 +150,28 @@ func BeginRead(ctx context.Context, db *sql.DB) (*sql.Tx, func(), error) {
 	var once sync.Once
 	return tx, func() {
 		once.Do(func() {
+			retire()
 			forget()
-			_ = tx.Rollback()
 			cancel()
 		})
 	}, nil
+}
+
+// beginReadConnection retains the sql.Conn until the physical driver rollback
+// has returned. Tx.Rollback alone can report ErrTxDone while the cancellation
+// watchdog still owns that rollback; Conn.Close joins its outstanding operation.
+func beginReadConnection(ctx context.Context, db *sql.DB) (*sql.Tx, func(), error) {
+	conn, err := ReadHandle(ctx, db).Conn(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	tx, err := conn.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		conn.Close()
+		return nil, nil, err
+	}
+	var once sync.Once
+	return tx, func() { once.Do(func() { tx.Rollback(); conn.Close() }) }, nil
 }
 
 // RawConn unwraps an instrumented driver connection. `sql.Conn.Raw` hands out

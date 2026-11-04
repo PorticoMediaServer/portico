@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"net/http"
+	"time"
 )
 
 // FlushPlaybackObservations saves one bounded pass over the router's pending
@@ -19,6 +20,15 @@ func FlushPlaybackObservations(ctx context.Context, handler http.Handler) error 
 func ShutdownPlayback(ctx context.Context, handler http.Handler) error {
 	if h, ok := handler.(*credentialUsageHandler); ok && h.playback != nil {
 		return h.playback.Shutdown(ctx)
+	}
+	return nil
+}
+
+// ShutdownPlaybackAfterHTTPDrain uses the same ordering for signal shutdown and
+// an unexpected Serve failure. Waiting for HTTP does not consume playback's budget.
+func ShutdownPlaybackAfterHTTPDrain(ctx context.Context, handler http.Handler, drained <-chan struct{}, budget time.Duration) error {
+	if h, ok := handler.(*credentialUsageHandler); ok && h.playback != nil {
+		return h.playback.ShutdownAfterHTTPDrain(ctx, drained, budget)
 	}
 	return nil
 }
