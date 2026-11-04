@@ -12,7 +12,9 @@ import {fenceKey} from '../../shell/playback-model';
 import {sameFence} from '../../../../packages/player-core/src/index.ts';
 import {playbackFailure} from '@core/presentation/playback-failure.ts';
 import {WatchStreamLimitSessions} from './StreamLimitSessions';
-import type {WatchBindings,WatchSurfaces,WatchPanel} from './types';
+import type {WatchBindings,WatchSurfaces,WatchPanel,WatchTrickplay} from './types';
+import type {PlaybackTrickplaySelection} from '../../platform/playback';
+import {trickplayFrameAt} from '@core/trickplay.ts';
 import {watchPanelModel} from './panel-model';
 import {WatchOptions} from './WatchOptions';
 import {WatchRoomPill} from './WatchRoomPill';
@@ -45,6 +47,33 @@ function useQueueSelectionLife(context:ShellAssemblyContext|undefined,runtime:We
  },[context,runtime,location]);
  return held&&held.context===context&&held.runtime===runtime&&held.location===location&&held.life.isCurrent()?held.life:undefined;
 }
+/** W1-A2 (PB-2 on TV): the playing video's preview sheets. The set is read when the screen first asks for a frame,
+ * never at start, and kept for that session; none, or a failed read, leaves the time bubble alone. */
+function useWatchTrickplay(binding:WatchBindings|undefined,snapshot:WebPlaybackRuntimeSnapshot|undefined):WatchTrickplay|undefined {
+ const fence=snapshot&&!snapshot.disposed&&snapshot.presentation?.kind==='video'&&snapshot.fence?.kind==='queue'?snapshot.fence:undefined;
+ const key=fence?JSON.stringify([fence.itemId,fence.sessionId,fence.generation,fence.sourceId]):'';
+ const [held,setHeld]=useState<Readonly<{key:string;selection:PlaybackTrickplaySelection|null}>>();
+ const asked=useRef<{key:string;controller:AbortController}>(undefined);
+ useEffect(()=>()=>{asked.current?.controller.abort();asked.current=undefined;},[key,binding]);
+ const selection=held?.key===key?held.selection:undefined;
+ return useMemo(()=>{
+  if(!binding||!fence)return undefined;
+  const runtime=binding.runtime;
+  return {fence,
+   isCurrent:()=>{const live=runtime.getSnapshot();return !live.disposed&&!!live.fence&&sameFence(live.fence,fence);},
+   prepare:()=>{
+    if(asked.current?.key===key)return;
+    const controller=new AbortController();asked.current={key,controller};
+    const settle=(value:PlaybackTrickplaySelection|null)=>{if(!controller.signal.aborted)setHeld({key,selection:value});};
+    runtime.trickplay(fence,controller.signal).then(settle,()=>settle(null));
+   },
+   frameAt:seconds=>{
+    if(!selection?.isCurrent())return null;
+    const frame=trickplayFrameAt(selection.set,seconds),source=frame?binding.artwork.trickplayTile(selection.set,frame.tileIndex):undefined;
+    return frame&&source?{frame,source}:null;
+   }};
+ },[binding,fence,key,selection]);
+}
 /** One adapter in the persistent parent; components borrow the existing runtime and stores. */
 export function useWatchPanels(binding:WatchBindings|undefined,snapshot:WebPlaybackRuntimeSnapshot|undefined,context:ShellAssemblyContext|undefined):WatchSurfaces|undefined {
  useShellFacts(context);
@@ -54,6 +83,7 @@ export function useWatchPanels(binding:WatchBindings|undefined,snapshot:WebPlayb
  const deviceDocument=settingsPlatform()?.device?.getSnapshot().document;
  const together=useTogetherBindings(context),model=useMemo(()=>binding&&snapshot?watchPanelModel(binding.runtime,snapshot,i18n):null,[binding,snapshot,i18n]);
  const [startRoom,setStartRoom]=useState(false),room=together?.getSnapshot().room;
+ const trickplay=useWatchTrickplay(binding,snapshot);
  // f1q: one port per captured queue run, so a replacement fence never inherits an old list.
  const selectionLife=useQueueSelectionLife(context,binding?.runtime);
  const ports=useRef<{key?:string;life?:WebQueueListLifetime;port?:WebQueueListPort}>({});
@@ -117,6 +147,7 @@ export function useWatchPanels(binding:WatchBindings|undefined,snapshot:WebPlayb
   },
   quality:model?.qualityLabel&&model.qualityAccessibleLabel&&available.includes('quality')?{fence:model.fence,automatic:model.automatic,label:model.qualityLabel,accessibleLabel:model.qualityAccessibleLabel}:undefined,
   tracks:model?{fence:model.fence,audio:model.audioLabel,subtitles:model.subtitleLabel}:undefined,
+  ...(trickplay?{trickplay}:{}),
   ...(queue?{queue}:{}),
   ...(convertingOwnerAction?{convertingOwnerAction}:{}),
   ...(failureBody==='web.player.error.streamLimit'

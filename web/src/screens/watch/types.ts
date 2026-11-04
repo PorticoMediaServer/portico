@@ -41,6 +41,8 @@ export type WatchTrickplay = Readonly<{
   fence: QueuePlaybackFence;
   frameAt: (seconds: number) => Readonly<{frame: TrickplayFrame; source: ArtworkSource}> | null;
   isCurrent: () => boolean;
+  /** Read this session's preview set if it hasn't been; the screen calls it when a scrub or hover first wants a frame. */
+  prepare?: () => void;
 }>;
 /** The parent composes the media owner's checked panels. A missing port is no capability. */
 export type WatchSurfaces = Readonly<{

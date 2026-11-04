@@ -290,6 +290,9 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
   const buffered = bufferedSegments(fence ? binding.runtime.bufferedRanges(fence) : [], bounds);
   const hoverPercent = bounds && previewSeconds !== null ? Math.min(100, Math.max(0, (previewSeconds - bounds.start) / (bounds.end - bounds.start) * 100)) : null;
   const trickplay = surfaces?.trickplay;
+  // W1-A2: the preview sheets are read when a scrub or hover first asks for a frame, never at start.
+  const asking = previewSeconds !== null && open && chromeVisible;
+  useEffect(() => {if (asking) trickplay?.prepare?.();}, [asking, trickplay]);
   const preview = open && chromeVisible && !panel && !more && !shortcuts ? watchPreviewFrame(snapshot, trickplay, previewSeconds) : null;
   const endsAt = presentation?.playing && duration > position && presentation.rate > 0
     ? endClock(binding.environment.locale ?? 'en-US').format(new Date(Date.now() + (duration - position) / presentation.rate * 1000)) : undefined;
