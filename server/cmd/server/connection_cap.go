@@ -249,7 +249,7 @@ func (l *cappedListener) protectConsole(next http.Handler) http.Handler {
 		// Route authorization still runs normally. The reserve also carries the
 		// console shell and sign-in, so an owner without a warm session can enter.
 		console := !strings.HasPrefix(r.URL.Path, "/v1/") || strings.HasPrefix(r.URL.Path, "/v1/admin/") || strings.HasPrefix(r.URL.Path, "/v1/auth/") || strings.HasPrefix(r.URL.Path, "/v1/direct/") || r.URL.Path == "/v1/server" || r.URL.Path == "/v1/system" || r.URL.Path == "/v1/capabilities" || r.URL.Path == "/v1/readiness" || strings.HasPrefix(r.URL.Path, "/v1/sessions") || r.URL.Path == "/v1/networking/connection" || strings.HasPrefix(r.URL.Path, "/v1/setup")
-		if owner := l.ownerRequest.Load(); !console && owner != nil && r.Method == http.MethodGet && (r.URL.Path == "/v1/bootstrap" || r.URL.Path == "/v1/preferences" || r.URL.Path == "/v1/console/registry") {
+		if owner := l.ownerRequest.Load(); !console && owner != nil && r.Method == http.MethodGet && (r.URL.Path == "/v1/preferences" || r.URL.Path == "/v1/console/registry") {
 			console = (*owner)(r)
 		}
 		// The reserve is for a person at the console. A script with an API key

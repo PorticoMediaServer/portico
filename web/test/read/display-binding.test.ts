@@ -7,7 +7,7 @@ import {defaultI18n} from '@i18n';
 import {readingDisplayControls, type ReadingDisplayCopy} from '../../src/screens/read/display.ts';
 import {readingDisplayCopy} from '../../src/screens/read/display-copy.ts';
 
-const recorded = JSON.parse(readFileSync(new URL('../../../server/testdata/contracts/get-bootstrap.json', import.meta.url), 'utf8')).response.preferences;
+const recorded = JSON.parse(readFileSync(new URL('../../../server/testdata/contracts/get-preferences.json', import.meta.url), 'utf8')).response.data;
 const copy: ReadingDisplayCopy = {
   themes: {label: 'Page', options: {dark: 'Dark', black: 'Black', sepia: 'Sepia', light: 'Light'}},
   fonts: {label: 'Font', options: {publisher: {label: 'Publisher’s', compactLabel: 'Publisher’s'}, literata: {label: 'Literata', compactLabel: 'Literata'}, manrope: {label: 'Manrope', compactLabel: 'Manrope'}}},

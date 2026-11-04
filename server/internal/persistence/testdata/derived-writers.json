@@ -1253,7 +1253,7 @@
       ]
     },
     "cmd/server/connection_cap.go": {
-      "sha256": "b7cfa19f4bd97087a6818889e1bd0bbfe5c2b7f1dce1094212de79cb989d8388",
+      "sha256": "b1684e0a1662361dae08057e9758ecf1b8598714e2619c25eb4cb4738ac07e8d",
       "effects": [
         {
           "table": "*",
@@ -6122,7 +6122,7 @@
       ]
     },
     "internal/httpapi/foundation.go": {
-      "sha256": "786ef6b81a06760d38e5e81b1a9addedbe80df1a41ef48cba35d1886a20b7559",
+      "sha256": "9db424914a575d71651e14d8e98540c0ee23106abfab1fab009791907c7b35b3",
       "effects": [
         {
           "table": "*",

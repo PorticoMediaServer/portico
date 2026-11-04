@@ -8,7 +8,7 @@ import {ReaderController, createComicAdapter, createPdfAdapter, rasterInfo,
 
 // The committed server registry supplies every default and domain. This is
 // typed preference wiring, not a live preference transport or renderer proof.
-const raw=JSON.parse(readFileSync(new URL('../../../server/testdata/contracts/get-bootstrap.json',import.meta.url),'utf8')).response.preferences;
+const raw=JSON.parse(readFileSync(new URL('../../../server/testdata/contracts/get-preferences.json',import.meta.url),'utf8')).response.data;
 const account=parsePreferenceSnapshot(raw);
 const initial:ReadingPreferences=readingPreferences(account);
 

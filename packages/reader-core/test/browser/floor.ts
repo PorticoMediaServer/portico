@@ -1,7 +1,7 @@
 import {createPdfAdapter,createComicAdapter,sourceFromBlob} from '@portico/reader-core';
 import type {ReaderDocument,ReaderSource,ReaderView} from '@portico/reader-core';
 import {parsePreferenceSnapshot,readingPreferences,type ReadingPreferences} from '@portico/client-core';
-import bootstrap from '../../../../server/testdata/contracts/get-bootstrap.json';
+import bootstrap from '../../../../server/testdata/contracts/get-preferences.json';
 import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.mjs?url';
 import {sha256} from '@noble/hashes/sha2.js';
 
@@ -10,7 +10,7 @@ type Fixture=Readonly<{bytes:number;sha256:string;mime:string}>;
 type Manifest=Readonly<{pdf:Fixture;comic:Fixture;worker:Fixture;pdfjsVersion:string}>;
 const host=window as unknown as {readerFloorErrors:unknown[];readerFloorFinish(result:unknown):void;readerCleanup:unknown};
 const surface=document.querySelector<HTMLElement>('#surface')!;
-const preferences=readingPreferences(parsePreferenceSnapshot(bootstrap.response.preferences));
+const preferences=readingPreferences(parsePreferenceSnapshot(bootstrap.response.data));
 const digest=(bytes:Uint8Array)=>Array.from(sha256(bytes),b=>b.toString(16).padStart(2,'0')).join('');
 function assert(value:unknown,message:string):asserts value {if(!value)throw Error(message);}
 function failure(error:unknown):unknown {

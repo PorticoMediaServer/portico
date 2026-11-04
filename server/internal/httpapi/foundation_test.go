@@ -158,31 +158,21 @@ func TestFoundationContractAndReplay(t *testing.T) {
 	if err := json.Unmarshal(ratings.Body.Bytes(), &ratingDocument); err != nil || len(ratingDocument.Items) == 0 {
 		t.Fatalf("rating systems document: %+v %v", ratingDocument, err)
 	}
-	bootstrapRequest := httptest.NewRequest("GET", "/v1/bootstrap", nil)
-	bootstrapRequest.Header.Set("Authorization", "Bearer "+viewer.AccessToken)
-	bootstrap := httptest.NewRecorder()
-	h.ServeHTTP(bootstrap, bootstrapRequest)
-	if bootstrap.Code != 200 {
-		t.Fatalf("viewer bootstrap: %d %s", bootstrap.Code, bootstrap.Body.String())
+	for _, path := range []string{"/v1/me", "/v1/libraries", "/v1/preferences?deviceClass=web", "/v1/home/layout"} {
+		response := logoutHTTPRequest(h, "GET", path, viewer.AccessToken)
+		if response.Code != 200 {
+			t.Fatalf("current startup %s: %d %s", path, response.Code, response.Body)
+		}
+		if anonymous := logoutHTTPRequest(h, "GET", path, ""); anonymous.Code != 401 {
+			t.Fatalf("anonymous startup %s: %d", path, anonymous.Code)
+		}
 	}
-	var startup BootstrapDocument
-	if err := json.Unmarshal(bootstrap.Body.Bytes(), &startup); err != nil || startup.Server.ID != d.Identity.ID() || startup.Me.Viewer.ProfileID != viewer.Viewer.ProfileID || startup.Preferences.DeviceClass != "web" || startup.HomeLayout.Revision < 1 {
-		t.Fatalf("bootstrap document: %+v %v", startup, err)
+	if invalid := logoutHTTPRequest(h, "GET", "/v1/preferences?deviceClass=watch", viewer.AccessToken); invalid.Code != 400 {
+		t.Fatalf("invalid current preference device class: %d", invalid.Code)
 	}
-	conditionalBootstrap := httptest.NewRequest("GET", "/v1/bootstrap", nil)
-	conditionalBootstrap.Header.Set("Authorization", "Bearer "+viewer.AccessToken)
-	conditionalBootstrap.Header.Set("If-None-Match", bootstrap.Header().Get("ETag"))
-	conditionalBootstrapResponse := httptest.NewRecorder()
-	h.ServeHTTP(conditionalBootstrapResponse, conditionalBootstrap)
-	if conditionalBootstrapResponse.Code != 304 {
-		t.Fatalf("conditional bootstrap: %d", conditionalBootstrapResponse.Code)
-	}
-	invalidClass := httptest.NewRequest("GET", "/v1/bootstrap?deviceClass=watch", nil)
-	invalidClass.Header.Set("Authorization", "Bearer "+viewer.AccessToken)
-	invalidClassResponse := httptest.NewRecorder()
-	h.ServeHTTP(invalidClassResponse, invalidClass)
-	if invalidClassResponse.Code != 400 {
-		t.Fatalf("invalid device class: %d", invalidClassResponse.Code)
+	retired := logoutHTTPRequest(h, "GET", "/v1/bootstrap", viewer.AccessToken)
+	if retired.Code != 404 {
+		t.Fatalf("retired bootstrap: %d", retired.Code)
 	}
 	var document CapabilitiesDocument
 	if err := json.Unmarshal(capabilities.Body.Bytes(), &document); err != nil || document.API.Level != 1 || document.Features["feedback"] != "enabled" || document.Limits["selectorIdsMax"] != 500 || document.Limits["pageSizeMax"] != catalog.BrowseMaximumLimit {
@@ -195,11 +185,6 @@ func TestFoundationContractAndReplay(t *testing.T) {
 	}
 	if anonymousRatings := logoutHTTPRequest(h, "GET", "/v1/rating-systems", ""); anonymousRatings.Code != 401 {
 		t.Fatalf("anonymous rating systems: %d", anonymousRatings.Code)
-	}
-	anonymousBootstrap := httptest.NewRecorder()
-	h.ServeHTTP(anonymousBootstrap, httptest.NewRequest("GET", "/v1/bootstrap", nil))
-	if anonymousBootstrap.Code != 401 {
-		t.Fatalf("anonymous bootstrap: %d", anonymousBootstrap.Code)
 	}
 	eventsRequest := httptest.NewRequest("GET", "/v1/events?waitMs=0", nil)
 	eventsRequest.Header.Set("Authorization", "Bearer "+viewer.AccessToken)
@@ -270,9 +255,7 @@ func TestFoundationContractAndReplay(t *testing.T) {
 		}
 	}
 	if value := os.Getenv("PORTICO_CONTRACT_UPDATE"); value == "1" || value == "get-bootstrap" {
-		if err := contract.Record("../../testdata/contracts/get-bootstrap.json", "GetBootstrapResponse", "GET", "/v1/bootstrap", nil, bootstrap, "viewer"); err != nil {
-			t.Fatal(err)
-		}
+
 	}
 	if value := os.Getenv("PORTICO_CONTRACT_UPDATE"); value == "1" || value == "get-direct-account" {
 		if err := contract.Record("../../testdata/contracts/get-direct-account.json", "GetDirectAccountResponse", "GET", "/v1/direct", nil, direct, "owner"); err != nil {

@@ -17,7 +17,7 @@ import {defaultI18n} from '@i18n';
 import {withQueries} from '../../packages/client-core/test/fixtures/viewer-queries.ts';
 import {testQueries} from '../../packages/client-core/test/fixtures/viewer-queries.ts';
 
-const preferences = parsePreferenceSnapshot(JSON.parse(readFileSync(new URL('../../server/testdata/contracts/get-bootstrap.json', import.meta.url), 'utf8')).response.preferences);
+const preferences = parsePreferenceSnapshot(JSON.parse(readFileSync(new URL('../../server/testdata/contracts/get-preferences.json', import.meta.url), 'utf8')).response.data);
 const viewer = {serverId: 'server', authority: 'local' as const, accountId: 'account', profileId: 'profile', role: 'owner'};
 function fixture() {
   let current = true, session = {viewer, sessionFamilyId: 'family', deviceId: 'device'}, calls = 0;
