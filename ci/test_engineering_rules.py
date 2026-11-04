@@ -7,6 +7,9 @@ from engineering_rules import BASELINE, compare, counts, query_reads, tracked
 
 QUERY_FIXTURE = """\
 import {HttpLocalApi} from './client';
+import type {ViewerQueries} from '../packages/client-core/src/query/viewer-queries';
+declare const queries: ViewerQueries;
+declare const lookalike: {api: HttpLocalApi};
 declare const api: HttpLocalApi;
 declare const loose: any;
 declare const signal: AbortSignal;
@@ -54,6 +57,12 @@ export async function cases(this: {send(path: string, method?: string): Promise<
   const ids = new Set<string>(); const byId = new Map<string, string>(); /*not*/
   const get = (path: string) => api.request(path); /*read*/ // a wrapper counts once, here
   await get('/v1/a'); await get('/v1/b'); /*not*/ // and never at its callers
+  const detail = {queryKey: ['item', id], queryFn: async () => api.request('/v1/items/1/detail')}; /*not*/ // a query function
+  const method = {queryFn({signal: s}: {signal: AbortSignal}) { return api.request('/v1/x', 'GET', undefined, s); }}; /*not*/
+  await queries.api.request('/v1/home'); /*not*/ // the viewer cache's own requester
+  await lookalike.api.request('/v1/home'); /*read*/ // another object's api
+  const other = {read: () => api.request('/v1/x')}; /*read*/ // not a query function
+  void [detail, method, other];
   return [home, ids, byId];
 }
 class HomeService { constructor(readonly api: HttpLocalApi) {} }
@@ -72,7 +81,10 @@ def query_read_fixture():
     root = tempfile.mkdtemp(prefix='query-read-')
     (Path(root) / 'src').mkdir()
     (Path(root) / 'tsconfig.json').write_text(json.dumps({'compilerOptions': {'target': 'ES2022', 'lib': ['ES2022', 'DOM'], 'module': 'ESNext',
-        'moduleResolution': 'bundler', 'strict': True, 'noEmit': True, 'skipLibCheck': True, 'types': []}, 'include': ['src/**/*.ts']}))
+        'moduleResolution': 'bundler', 'strict': True, 'noEmit': True, 'skipLibCheck': True, 'types': []}, 'include': ['src/**/*.ts', 'packages/**/*.ts']}))
+    home = Path(root) / 'packages' / 'client-core' / 'src' / 'query'
+    home.mkdir(parents=True)
+    (home / 'viewer-queries.ts').write_text('export type ViewerQueries = {api: {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>}};\n')
     (Path(root) / 'src' / 'fixture.ts').write_text(QUERY_FIXTURE)
     (Path(root) / 'src' / 'client.ts').write_text(QUERY_CLIENT)
     try:

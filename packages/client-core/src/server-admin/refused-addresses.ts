@@ -43,7 +43,7 @@ export class RefusedAddressesSource {
     this.publish({allowing: name, failed: false});
     try {
       // The settings revision the change is made against: read now, so it's current.
-      const policy = await this.api.request<{revision?: unknown}>(routePath('get_connectivity_policy'), 'GET');
+      const policy = await this.api.request<{revision?: unknown}>(routePath('get_connectivity_policy'), 'GET'); // query-read: kept (write precondition: the revision the allow pins, read fresh)
       const revision = typeof policy?.revision === 'number' ? policy.revision : Number(policy?.revision);
       if (!Number.isInteger(revision) || !this.isCurrent()) throw new Error('No settings revision');
       const raw = await this.api.request<unknown>(routePath('allow_refused_address'), 'POST',
