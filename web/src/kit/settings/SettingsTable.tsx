@@ -18,6 +18,11 @@ export type SettingsTableAction = Readonly<{id: string; label: string; destructi
 export type SettingsTableHandle = {focusRow: (id: string) => void};
 export type SettingsTableProps = Readonly<{
   label: string; rows: readonly SettingsTableRow[]; columns: readonly SettingsTableColumn[]; query: TableQuery; onQueryChange: (query: TableQuery) => void;
+  /** At phone width draw each row as a card (owner-people 24a, 33a). Other tables keep the desktop table, scrolled. */
+  phoneCards?: boolean | Readonly<{
+    /** A taller card for more lines (Invitations: 33a draws its buttons on a line of their own under the text). */
+    rowHeight: number; actionsLine?: boolean;
+  }>;
   filters?: readonly SettingsTableFilter[]; searchLabel: string; countLabel?: string; emptyLabel: string; loading?: boolean; height?: number;
   matchedCount?: number; offset?: number; hasMore?: boolean; onLoadMore?: () => void;
   selected?: ReadonlySet<string>; onSelectionChange?: (selected: ReadonlySet<string>) => void; bulkActions?: readonly SettingsTableAction[];
@@ -37,13 +42,14 @@ function Cell({value, kind}: {value?: SettingsTableCell; kind?: SettingsTableCol
 }
 
 /** Real paged data in, bounded DOM out. It never sorts a partial server page locally. */
-export function SettingsTable({label, rows, columns, query, onQueryChange, filters = [], searchLabel, countLabel, emptyLabel, loading = false, height = 560,
+export function SettingsTable({label, rows, columns, query, onQueryChange, phoneCards = false, filters = [], searchLabel, countLabel, emptyLabel, loading = false, height = 560,
   matchedCount, offset = 0, hasMore, onLoadMore, selected, onSelectionChange, bulkActions = [], rowAction, rowActions, actions, ref}: SettingsTableProps) {
   const id = useId(), root = useRef<HTMLDivElement>(null), search = useRef<HTMLInputElement>(null), all = useRef<HTMLInputElement>(null);
   const [viewport, setViewport] = useState({top: 0, height}), [focused, setFocused] = useState<string | undefined>();
   const pending = useRef<{id: string; slot: number} | undefined>(undefined), before = useRef(rows.map(row => row.id));
   const restoreSearch = useRef(false), autoMore = useRef<string | undefined>(undefined);
-  const metrics = usePhone() ? settingsTablePhoneMetrics : settingsTableMetrics;
+  const phone = usePhone(), cards = phoneCards === true ? {rowHeight: settingsTablePhoneMetrics.row, actionsLine: false} : phoneCards || undefined;
+  const metrics = phone && cards ? {row: cards.rowHeight, header: settingsTablePhoneMetrics.header} : settingsTableMetrics;
   const range = settingsTableWindow(rows.length, viewport.top, viewport.height, 3, metrics), selectable = !!onSelectionChange;
   const ids = useMemo(() => rows.map(row => row.id), [rows]), selectedCount = selected?.size ?? 0;
   const selectableIds = useMemo(() => rows.filter(row => row.selectable !== false).map(row => row.id), [rows]);
@@ -95,7 +101,8 @@ export function SettingsTable({label, rows, columns, query, onQueryChange, filte
     if (hasMore && !loading && range.last >= rows.length - 8 && autoMore.current !== key) {autoMore.current = key; onLoadMore?.();}
   }, [range.last, rows, offset, query, hasMore, loading, onLoadMore]);
   const rendered = rows.slice(range.first, range.last + 1);
-  return <section className={styles.tableSection} aria-label={label}>
+  return <section className={styles.tableSection} aria-label={label} data-phone-cards={cards ? '' : undefined} data-phone-actions={cards?.actionsLine ? 'line' : undefined}
+    style={cards ? {'--phone-row-height': `${cards.rowHeight}px`} as CSSProperties : undefined}>
     <div className={styles.tableToolbar}>
       {selectedCount ? <><span role="status" className={styles.selectionCount}>{t('next.settings.selected', {count: selectedCount})}</span>{bulkActions.map(action => <Button size="xs" key={action.id} className={action.destructive ? styles.danger : undefined} onClick={event => action.onAction([...(selected ?? [])], event.currentTarget)}>{action.label}</Button>)}<Button size="xs" variant="text" onClick={() => {restoreSearch.current = true; onSelectionChange?.(new Set());}}>{t('next.settings.clear')}</Button></> : <>
         <TextField ref={search} containerClassName={styles.tableSearch} type="search" variant="search" value={query.search} placeholder={searchLabel} aria-label={searchLabel} onChange={event => changeQuery({...query, search: event.currentTarget.value})}

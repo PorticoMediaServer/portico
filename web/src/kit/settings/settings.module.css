@@ -184,6 +184,7 @@
   .pageHeading + .group { margin-top: 0; }
 }
 @media (max-width: 599px) {
+  .table { min-width: 720px; }
   .tableToolbar { padding: 12px; }
   .tableToolbar > div:first-child { width: 100%; }
   .tableCount { margin-left: 0; }
@@ -379,20 +380,24 @@
 /* Phone width (owner-people 24a, 33a): a table draws each row as a card, the main cell and its badge on the first
    line (the badge right after the name), every other cell on its own line under the name, and the row's action at the right. Rows keep one height
    (table-model settingsTablePhoneRowHeight) so the window of rendered rows stays exact. Selection is a desktop
-   affordance; a phone opens the row. (.tableScroll leads each rule to outrank the desktop column paddings.) */
+   affordance; a phone opens the row. Only tables that opt in (phoneCards: People, Invitations) draw cards; Play
+   history and the settings grids keep the desktop table, scrolled sideways. (.tableScroll leads each rule to outrank the desktop column paddings.) */
 @media (max-width: 599px) {
-  .tableScroll .table, .tableScroll .table tbody { display: block; width: 100%; min-width: 0; }
-  .tableScroll .table colgroup { display: none; }
-  .tableScroll .table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  .tableScroll .table tr[data-table-row] { display: grid; grid-template-columns: minmax(0, max-content) auto minmax(0, 1fr) auto; align-content: center; column-gap: 10px; row-gap: 3px; box-sizing: border-box; height: 112px; padding: 0 12px 0 16px; overflow: hidden; border-bottom: 1px solid var(--color-line-soft); }
-  .tableScroll .table tr[data-table-row] > td { display: block; height: auto; min-width: 0; padding: 0; border: 0; grid-column: 1 / 4; }
-  .tableScroll .table tr[data-table-row] > td:has(> input[type='checkbox']) { display: none; }
-  .tableScroll .table tr[data-table-row] > td[data-kind='main'] { grid-column: 1; grid-row: 1; }
-  .tableScroll .table tr[data-table-row] > td[data-kind='badge'] { grid-column: 2; grid-row: 1; align-self: center; justify-self: start; }
-  .tableScroll .table tr[data-table-row] > td:not([data-kind='main'], [data-kind='badge'], .actionCell) { padding-left: 46px; font-size: var(--type-caption-size); line-height: 1.35; color: var(--color-text-secondary); text-align: left; }
-  .tableScroll .table tr[data-table-row] > td:not([data-kind='main']) .cellText { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .tableScroll .table tr[data-table-row] > td:not([data-kind='main']) .cellText > :is(span, b) { display: inline; font-size: inherit; font-weight: inherit; }
-  .tableScroll .table tr[data-table-row] > td:not([data-kind='main']) .cellText small { display: inline; margin: 0 0 0 10px; font-size: inherit; }
-  .tableScroll .table tr[data-table-row] > td.actionCell { grid-column: 4; grid-row: 1 / span 4; align-self: center; }
-  .tableScroll .table td.tableEmpty { display: block; height: auto; padding: 22px 16px; border: 0; }
+  [data-phone-cards] .tableScroll .table, [data-phone-cards] .tableScroll .table tbody { display: block; width: 100%; min-width: 0; }
+  [data-phone-cards] .tableScroll .table colgroup { display: none; }
+  [data-phone-cards] .tableScroll .table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  [data-phone-cards] .tableScroll .table tr[data-table-row] { display: grid; grid-template-columns: minmax(0, max-content) auto minmax(0, 1fr) auto; align-content: center; column-gap: 10px; row-gap: 3px; box-sizing: border-box; height: var(--phone-row-height, 112px); padding: 0 12px 0 16px; overflow: hidden; border-bottom: 1px solid var(--color-line-soft); }
+  [data-phone-cards] .tableScroll .table tr[data-table-row] > td { display: block; height: auto; min-width: 0; padding: 0; border: 0; grid-column: 1 / 4; }
+  [data-phone-cards] .tableScroll .table tr[data-table-row] > td:has(> input[type='checkbox']) { display: none; }
+  [data-phone-cards] .tableScroll .table tr[data-table-row] > td[data-kind='main']:not(td[data-kind='main'] ~ td) { grid-column: 1; grid-row: 1; }
+  [data-phone-cards] .tableScroll .table tr[data-table-row] > td[data-kind='badge']:not(td[data-kind='badge'] ~ td) { grid-column: 2; grid-row: 1; align-self: center; justify-self: start; }
+  /* Only the first main cell and the first badge share the top line; a second of either (Invitations' status) takes a line of its own. */
+  [data-phone-cards] .tableScroll .table tr[data-table-row] > td:not([data-kind='main']:not(td[data-kind='main'] ~ td), [data-kind='badge']:not(td[data-kind='badge'] ~ td), .actionCell) { padding-left: 46px; font-size: var(--type-caption-size); line-height: 1.35; color: var(--color-text-secondary); text-align: left; }
+  [data-phone-cards] .tableScroll .table tr[data-table-row] > td:not([data-kind='main']:not(td[data-kind='main'] ~ td)) .cellText { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  [data-phone-cards] .tableScroll .table tr[data-table-row] > td:not([data-kind='main']:not(td[data-kind='main'] ~ td)) .cellText > :is(span, b) { display: inline; font-size: inherit; font-weight: inherit; }
+  [data-phone-cards] .tableScroll .table tr[data-table-row] > td:not([data-kind='main']:not(td[data-kind='main'] ~ td)) .cellText small { display: inline; margin: 0 0 0 10px; font-size: inherit; }
+  [data-phone-cards] .tableScroll .table tr[data-table-row] > td.actionCell { grid-column: 4; grid-row: 1 / span 4; align-self: center; }
+  [data-phone-cards] .tableScroll .table td.tableEmpty { display: block; height: auto; padding: 22px 16px; border: 0; }
+  /* Invitations (33a): Copy link, Edit notes and Revoke sit on their own line under the text, not squeezed beside it. */
+  [data-phone-actions='line'] .tableScroll .table tr[data-table-row] > td.actionCell { grid-column: 1 / -1; grid-row: auto; justify-content: flex-start; flex-wrap: wrap; padding-left: 46px; margin-top: 6px; }
 }
