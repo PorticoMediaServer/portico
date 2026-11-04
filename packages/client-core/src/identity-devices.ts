@@ -1,7 +1,6 @@
-import {routePrefix} from "../../contracts/src/routes.ts";
 import {unreadableServerResponse} from './server-messages.ts';
-import {serverNow} from './server-clock.ts';
-/** Device records, remembered browser accounts and the tvOS Top Shelf feed.
+/** Device records, remembered browser accounts and the tvOS Top Shelf token. (The feed itself is read and
+ * checked by the tvOS extension and the Android TV module, natively; nothing in JS parses it.)
  *
  * An installation id is generated once per install and kept. It is not a
  * fingerprint and it grants nothing, but it is the only thing standing between a
@@ -13,9 +12,6 @@ import {serverNow} from './server-clock.ts';
  * descriptors and which one was used last. */
 export type Device=Readonly<{id:string;installationId:string;name:string;platform:string;app:string;appVersion:string;ip:string;firstSeen:string;lastSeen:string;lastProfileId:string;rememberAccount:boolean;current:boolean;sessions:number}>;
 export type RememberedAccount=Readonly<{accountId:string;username:string;displayName:string;avatarVersion:number;automaticSignIn:boolean;lastUsed:string}>;
-export type TopShelfEntry=Readonly<{id:string;title:string;subtitle:string;imageUrl:string;displayUrl:string;playUrl:string;progressPercent:number}>;
-export type TopShelfSection=Readonly<{id:string;title:string;shape:'poster'|'landscape'|'square';entries:readonly TopShelfEntry[]}>;
-export type TopShelfFeed=Readonly<{serverId:string;profileId:string;expiresAt:string;sections:readonly TopShelfSection[]}>;
 
 const obj=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const text=(v:unknown,max=256):v is string=>typeof v==='string'&&v.length<=max&&!/[\x00-\x1f\x7f]/.test(v);
@@ -88,7 +84,6 @@ export function parseRememberedAccounts(raw:unknown):readonly RememberedAccount[
  return Object.freeze(accounts);
 }
 
-const shapes=['poster','landscape','square'] as const;
 
 /** What `POST /v1/topshelf/token` returns to the signed-in tvOS app: the feed
  * token it hands the shelf extension, valid for thirty days (the app renews it
@@ -102,40 +97,3 @@ export function parseTopShelfToken(raw:unknown):TopShelfToken{
  return Object.freeze({token:raw.token as string,expiresAt:raw.expiresAt as string,feedUrl:raw.feedUrl as string});
 }
 
-/** The Top Shelf feed is read by the tvOS extension with a token valid for thirty
- * days. Artwork URLs carry that token, so they expire with the feed; a client
- * must refetch rather than caching an image URL past `expiresAt`. */
-export function parseTopShelfFeed(raw:unknown):TopShelfFeed{
- if(!obj(raw))fail('feed');only(raw,['serverId','profileId','expiresAt','sections']);
- if(!id(raw.serverId)||!id(raw.profileId)||!instant(raw.expiresAt))fail('feed identity');
- if(!Array.isArray(raw.sections)||raw.sections.length>4)fail('sections');
- const sections=raw.sections.map(section=>{
-  if(!obj(section))fail('section');only(section,['id','title','shape','entries']);
-  if(!id(section.id)||!text(section.title,120))fail('section fields');
-  if(typeof section.shape!=='string'||!shapes.includes(section.shape as TopShelfSection['shape']))fail('shape');
-  if(!Array.isArray(section.entries)||section.entries.length>10)fail('entries');
-  const entries=section.entries.map(entry=>{
-   if(!obj(entry))fail('entry');only(entry,['id','title','subtitle','imageUrl','displayUrl','playUrl','progressPercent']);
-   if(!id(entry.id)||!text(entry.title,256))fail('entry fields');
-   if(entry.subtitle!==undefined&&!text(entry.subtitle,256))fail('subtitle');
-   // Image URLs are server-relative; deep links use the app scheme. Neither may
-   // be an arbitrary URL, or a feed row could send a viewer anywhere.
-   if(entry.imageUrl!==undefined&&entry.imageUrl!==''&&(typeof entry.imageUrl!=='string'||!entry.imageUrl.startsWith(routePrefix("get_topshelf_art_id", 3))||entry.imageUrl.length>1024))fail('imageUrl');
-   for(const field of ['displayUrl','playUrl']){
-    const value=entry[field];
-    if(field==='displayUrl'?typeof value!=='string':value!==undefined&&value!==''){
-     if(typeof value!=='string')fail(field);
-    }
-    if(typeof value==='string'&&value!==''&&(!value.startsWith('portico://')||value.length>512))fail(field);
-   }
-   if(entry.progressPercent!==undefined&&!count(entry.progressPercent,1,99))fail('progressPercent');
-   return Object.freeze({id:entry.id as string,title:entry.title as string,subtitle:(entry.subtitle as string|undefined)??'',imageUrl:(entry.imageUrl as string|undefined)??'',displayUrl:entry.displayUrl as string,playUrl:(entry.playUrl as string|undefined)??'',progressPercent:(entry.progressPercent as number|undefined)??0});
-  });
-  if(new Set(entries.map(e=>e.id)).size!==entries.length)fail('duplicate entries in a section');
-  return Object.freeze({id:section.id as string,title:section.title as string,shape:section.shape as TopShelfSection['shape'],entries:Object.freeze(entries)});
- });
- if(new Set(sections.map(s=>s.id)).size!==sections.length)fail('duplicate sections');
- return Object.freeze({serverId:raw.serverId as string,profileId:raw.profileId as string,expiresAt:raw.expiresAt as string,sections:Object.freeze(sections)});
-}
-
-export const topShelfExpired=(feed:TopShelfFeed,now=serverNow()):boolean=>Date.parse(feed.expiresAt)<=now;

@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {parseRatingSystems,parseProfileRestrictions,restrictionEdit,parsePINRecoveryMethods,parseProfileAvatar,parseTwoFactorState,parseAuthCapabilities} from '../src/identity-restrictions.ts';
-import {parseDevice,parseDevices,parseRememberedAccounts,parseTopShelfFeed,topShelfExpired,newInstallationId,validInstallationId} from '../src/identity-devices.ts';
+import {parseDevice,parseDevices,parseRememberedAccounts,newInstallationId,validInstallationId} from '../src/identity-devices.ts';
 
 const installation='a'.repeat(43);
 const restrictions={profileId:'child',ratingSystem:'mpaa',maximumAgeRating:'PG-13',maximumAge:13,allowUnrated:false,blockedLabels:['Halloween'],allowDownloads:true,allowLiveTv:false,allowDvr:false,allowWatchTogether:true,revision:4};
@@ -125,19 +125,3 @@ test('remembered accounts hold descriptors and at most one automatic sign-in',()
  assert.throws(()=>parseRememberedAccounts({items:[{accountId:'one',username:'a',displayName:'A',avatarVersion:0,automaticSignIn:false,lastUsed:new Date().toISOString(),accessToken:'secret'}]}),{code:'invalid_device_document'});
 });
 
-test('the Top Shelf feed bounds its shelves and refuses a link that leaves the app',()=>{
- const feed=parseTopShelfFeed({serverId:'server',profileId:'child',expiresAt:new Date(Date.now()+86400000).toISOString(),sections:[{id:'continue',title:'Continue Watching',shape:'poster',entries:[{id:'m1',title:'Alpha',subtitle:'2020',imageUrl:'/v1/topshelf/art/m1?token=abc',displayUrl:'portico://item/m1',playUrl:'portico://play/m1',progressPercent:42}]}]});
- assert.equal(feed.sections[0].entries[0].progressPercent,42);
- assert.equal(topShelfExpired(feed),false);
- assert.equal(topShelfExpired(feed,Date.now()+2*86400000),true);
- const base={serverId:'server',profileId:'child',expiresAt:new Date().toISOString()};
- for(const sections of [
-  [{id:'x',title:'X',shape:'circle',entries:[]}],
-  [{id:'x',title:'X',shape:'poster',entries:new Array(11).fill({id:'m',title:'t',displayUrl:'portico://item/m'})}],
-  [{id:'x',title:'X',shape:'poster',entries:[{id:'m',title:'t',displayUrl:'https://elsewhere.example/m'}]}],
-  [{id:'x',title:'X',shape:'poster',entries:[{id:'m',title:'t',displayUrl:'portico://item/m',imageUrl:'https://tracker.example/pixel.gif'}]}],
-  [{id:'x',title:'X',shape:'poster',entries:[{id:'m',title:'t',displayUrl:'portico://item/m',progressPercent:100}]}],
-  [{id:'x',title:'X',shape:'poster',entries:[{id:'m',title:'t',displayUrl:'portico://item/m'},{id:'m',title:'t',displayUrl:'portico://item/m'}]}],
-  new Array(5).fill({id:'x',title:'X',shape:'poster',entries:[]}),
- ] as any[])assert.throws(()=>parseTopShelfFeed({...base,sections}),{code:'invalid_device_document'});
-});
