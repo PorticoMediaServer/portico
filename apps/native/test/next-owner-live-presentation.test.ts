@@ -88,10 +88,11 @@ async function guideFixture(width = 1180, screenReader = false, facts: Readonly<
   const data = {total: 1, version: 0}, state = {sources: [source], options: {}, revision: 0, view: 'guide', mutating: false};
   const guide = {subscribe: () => () => {}, getSnapshot: () => data, channelAt: () => channel, programsFor: () => ({programs: [programme], complete: true, failed: false}), subscribePage: () => () => {}, pageOf: () => 0};
   const controller = {subscribe: () => () => {}, getSnapshot: () => state, guide, lifetime, clearMutationError() {}};
-  const shell = {authority, destination: {kind: 'live'}, contentVisible: true};
+  const shell: any = {authority, destination: {kind: 'live'}, contentVisible: true, mediaExpanded: false};
+  let top: any = {kind: 'shell', destination: {kind: 'live'}};
   const runtime = {text: {t}, subscribe: () => () => {}, getSnapshot: () => shell, artwork: () => undefined, error: () => ({title: 'Error'})};
   const context = {account: {account: {role: facts.role ?? 'owner', primaryProfileId: 'profile'}, canManage: true}, api: {baseUrl: 'https://example.invalid'}, current: () => true, authority: () => authority,
-    navigation: {subscribe: () => () => {}, getSnapshot: () => ({revision: 1, destination: {kind: 'live'}}), isCurrent: () => true}};
+    navigation: {subscribe: () => () => {}, getSnapshot: () => ({revision: 1, route: top, destination: {kind: 'live'}}), isCurrent: () => true}};
   const {NativeLiveScreen} = await screenModule(new URL('../src-next/screens/settings-live/LiveScreen.tsx', import.meta.url), {...liveTabsFixture(host.react), ...ownerTagFixture, '../../kit/navigation/rail-hold': {useRailHold: (active: boolean) => {holds.push(active);}}, './tv-settings-focus': tvSettingsFocus,
     react, 'react-native': {...native, BackHandler: {}, FlatList: 'FlatList', ScrollView: 'ScrollView', VirtualizedList: 'VirtualizedList', Platform: {OS: 'web'}, useWindowDimensions: () => ({width, height: 900})},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, left: 0, right: 0, bottom: 0})},
@@ -116,7 +117,7 @@ async function guideFixture(width = 1180, screenReader = false, facts: Readonly<
     '../../tv/auth': {TVManagementHandoff: 'Handoff'}, '../../tv/auth/TVHandoff': {publicTVHandoffAddress: (url: string) => ({url})}, './recording-rule-presentation': {}, './server/tv-server-reader': {nativeServerAdmission: () => 'owner'},
   });
   const render = () => host.render(() => NativeLiveScreen({controller, recordings: {}, owner: {}, ports: {context}, runtime}));
-  return {render, adjustments, holds, channel, programme, renderRow: (row: any) => {activeHost = fixture(); try {return activeHost.render(() => row.type(row.props));} finally {activeHost = host;}}, get panOptions() {return panOptions;}};
+  return {render, adjustments, holds, shell, push: (route: any) => {top = route;}, channel, programme, renderRow: (row: any) => {activeHost = fixture(); try {return activeHost.render(() => row.type(row.props));} finally {activeHost = host;}}, get panOptions() {return panOptions;}};
 }
 
 test('Expanded and screen-reader guides expose independent two-hour navigation without grouping programme cells', async () => {
@@ -151,6 +152,23 @@ test('A docked programme keeps guide panning active and marks only its matching 
   assert.equal(paint.props.selected, true);
   const otherTree = f.renderRow({...row, props: {...row.props, selected: {channel: {...f.channel, sourceId: 'other-source'}, program: f.programme}}});
   assert.equal(find(otherTree, 'live-programme-channel-programme').props.selected, false);
+});
+
+test('the folded rail is released while any page is pushed over Live or the player is expanded, and folds again on return', async () => {
+  const f = await guideFixture(); let tree = f.render();
+  const content = nodes(tree).find(node => node.props?.ref && node.props?.onLayout && node.type === 'View');
+  content.props.ref.current = {measureInWindow: (done: any) => done(0, 0, 1100)};
+  content.props.onLayout({nativeEvent: {layout: {width: 1100}}}); tree = f.render();
+  nodes(tree).find(node => node.type === 'VirtualizedList').props.renderItem({item: 0}).props.onOpen(f.channel, f.programme, null); tree = f.render();
+  assert.ok(find(tree, 'live-programme-pane')); assert.equal(f.holds.at(-1), true);
+  f.push({kind: 'title', entry: {id: 'm1', kind: 'movie', title: 'Film'}}); tree = f.render();
+  assert.equal(f.holds.at(-1), false, 'a page pushed within Live releases the rail');
+  f.push({kind: 'shell', destination: {kind: 'live'}}); tree = f.render();
+  assert.equal(f.holds.at(-1), true, 'back on the guide with the panel open, it folds again');
+  f.shell.mediaExpanded = true; tree = f.render();
+  assert.equal(f.holds.at(-1), false, 'the expanded player is not the guide');
+  f.shell.mediaExpanded = false; f.shell.contentVisible = false; tree = f.render();
+  assert.equal(f.holds.at(-1), false, 'nor is a hidden page');
 });
 
 test('the native guide says once that it is stale or that the server cannot play Live TV, and a sheet says why its channel cannot play (W2-A10)', async () => {

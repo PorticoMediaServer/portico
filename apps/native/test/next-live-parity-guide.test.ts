@@ -370,7 +370,10 @@ test('an expanded tablet draws Live TV with the Guide / Recordings pair over the
   const f = await fixture({width: 1180, height: 820}); try {
     const header = f.find('live-header'); assert.ok(header); assert.equal(header.props.value, 'guide');
     const inHeader = nodes(header).map(node => node.props?.testID);
-    for (const id of ['live-recordings', 'live-view', 'live-owner-open']) assert.ok(inHeader.includes(id), id);
+    for (const id of ['live-recordings', 'live-view']) assert.ok(inHeader.includes(id), id);
+    assert.ok(!inHeader.includes('live-owner-open'), 'tablet-play6 draws no owner button in the title row');
+    assert.equal(f.find('live-owner-open'), undefined, 'and none elsewhere on the expanded guide');
+    assert.deepEqual(f.find('live-view').props.items.map((item: any) => item.value), ['guide', 'list'], 'the icon-only Grid / List pair, Grid first');
     assert.deepEqual(order(f.host.root, ['live-header', 'live-filter-all', 'live-time']), ['live-header', 'live-filter-all', 'live-time']);
     assert.deepEqual(order(f.find('live-time'), ['live-day', 'live-earlier', 'live-now', 'live-later', 'live-sort']), ['live-day', 'live-earlier', 'live-now', 'live-later', 'live-sort']);
     assert.equal(f.all().filter(node => node.props?.testID === 'live-now').length, 1, 'one Now');
