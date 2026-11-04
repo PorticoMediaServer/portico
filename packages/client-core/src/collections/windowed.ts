@@ -52,6 +52,9 @@ export type WindowedCollectionOptions<T> = Readonly<{
   /** A failed page is retried by ensureRange after this long (default 5 s). */
   retryAfterMs?: number;
   now?: () => number;
+  /** Page 0 already in hand (a page the caller has just read): resident and current from the first render, so nothing
+   * waits on a request that would only return it. It is the first generation's; invalidate and revalidate read again. */
+  initialPage?: Readonly<{items: readonly T[]; total: number; totalIsLowerBound?: boolean}>;
 }>;
 
 export type Slot<T> =
@@ -348,6 +351,13 @@ export function createWindowedCollection<T>(options: WindowedCollectionOptions<T
   function itemAt(index: number): T | undefined {
     if (!Number.isInteger(index) || index < 0) return undefined;
     return readyItems(pageOfIndex(index))?.[index % pageSize];
+  }
+
+  const seed = options.initialPage;
+  if (seed && Array.isArray(seed.items) && Number.isFinite(seed.total) && seed.total >= 0) {
+    current.total = Math.floor(seed.total); current.totalIsLowerBound = !!seed.totalIsLowerBound;
+    current.pages.set(0, {status: 'ready', items: seed.items.slice(0, pageSize), version: 1, used: ++tick});
+    publish();
   }
 
   return {
