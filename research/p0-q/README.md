@@ -34,7 +34,7 @@ same-level segments reach 4, stopping further production while repaying. This
 post-transaction observation does not prove prospective reserved headroom.
 Churn: 2,048 one-item ingest + one own-title rename + one shared-person rename
 transactions, with maintenance and a concurrent reader; 256 merge(1) calls per
-index drain afterward. 16 maximum-size subject updates then stress native hold;
+index drain afterward. 16 maximum-size subject updates (tokens prepared before writer entry) then stress native hold;
 one merge+rollback per index is recorded. No optimize/rebuild/VACUUM is used.
 
 Debt evidence includes all-level segments/in-progress merges/pages, operation

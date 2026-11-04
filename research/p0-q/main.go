@@ -168,6 +168,9 @@ func fragment(db *sql.DB, id, owner, field int, text string) {
 	}
 	lex := facettext.SearchDocument(text)
 	norm := facettext.SearchFold(text)
+	fragmentValues(db, id, owner, field, p, lex, norm)
+}
+func fragmentValues(db *sql.DB, id, owner, field int, p, lex, norm string) {
 	exec(db, "INSERT INTO fragments VALUES(?,?,?,?,?,?)", id, owner, field, p, lex, norm)
 	for _, x := range []struct{ idx, col, v string }{{"fragment_prefix", "prefix_tokens", p}, {"fragment_lexical", "lexical_tokens", lex}, {"fragment_grams", "normalized", norm}} {
 		native(db, "fts.insert."+x.idx, "INSERT INTO "+x.idx+"(rowid,"+x.col+") VALUES(?,?)", id, x.v)
@@ -240,15 +243,22 @@ func insertItem(db *sql.DB, i, shared int) {
 func checkpoint(db *sql.DB) { native(db, "checkpoint", "PRAGMA wal_checkpoint(TRUNCATE)") }
 func build(db *sql.DB, n int) {
 	shared := max(128, n/50)
-	exec(db, "BEGIN IMMEDIATE")
-	for i := 1; i <= shared; i++ {
-		name := fmt.Sprintf("%s %s %d", []string{"Ada", "John", "Jo", "Al", "Alice", "Nolan", "Akira", "Lee"}[i%8], []string{"Lovelace", "Smith", "Williams", "Li", "Cooper", "Johnson"}[i%6], i)
-		fragment(db, i, -i, 2, name)
+	for i := 1; i <= shared+max(1, shared/10); {
+		measured("build.shared.tx", func() {
+			exec(db, "BEGIN IMMEDIATE")
+			for end := min(shared+max(1, shared/10)+1, i+8); i < end; i++ {
+				if i <= shared {
+					name := fmt.Sprintf("%s %s %d", []string{"Ada", "John", "Jo", "Al", "Alice", "Nolan", "Akira", "Lee"}[i%8], []string{"Lovelace", "Smith", "Williams", "Li", "Cooper", "Johnson"}[i%6], i)
+					fragment(db, i, -i, 2, name)
+				} else {
+					j := i - shared
+					fragment(db, i, -i, 3, fmt.Sprintf("%s Collection %d", []string{"Night", "Criterion", "Al", "Studio"}[j%4], j))
+				}
+			}
+			native(db, "build.shared.commit", "COMMIT")
+		})
+		maintain(db, "build.shared.merge")
 	}
-	for i := 1; i <= max(1, shared/10); i++ {
-		fragment(db, shared+i, -shared-i, 3, fmt.Sprintf("%s Collection %d", []string{"Night", "Criterion", "Al", "Studio"}[i%4], i))
-	}
-	exec(db, "COMMIT")
 	checkpoint(db)
 	start := time.Now()
 	for i := 0; i < n; {
@@ -390,6 +400,9 @@ func merge(db *sql.DB, tag string) {
 	}
 }
 func renameFragment(db *sql.DB, id int, s string) {
+	renameFragmentValues(db, id, prefix(s), facettext.SearchDocument(s), facettext.SearchFold(s))
+}
+func renameFragmentValues(db *sql.DB, id int, pNew, lNew, nNew string) {
 	var owner, field int
 	var p, l, n string
 	must(db.QueryRow("SELECT owner,field,prefix_tokens,lexical_tokens,normalized FROM fragments WHERE id=?", id).Scan(&owner, &field, &p, &l, &n))
@@ -397,7 +410,10 @@ func renameFragment(db *sql.DB, id int, s string) {
 		native(db, "fts.delete."+x.idx, "INSERT INTO "+x.idx+"("+x.idx+",rowid,"+x.col+") VALUES('delete',?,?)", id, x.v)
 	}
 	exec(db, "DELETE FROM fragments WHERE id=?", id)
-	fragment(db, id, owner, field, s)
+	if field == 1 {
+		pNew = ""
+	}
+	fragmentValues(db, id, owner, field, pNew, lNew, nNew)
 }
 func renameTitle(db *sql.DB, id int, s string) {
 	var p, in string
@@ -427,7 +443,7 @@ func termSQL(term, variant string, fallback bool) (string, []any) {
 		q += " UNION ALL " + fragq
 		args = append(args, a...)
 	}
-	return `WITH seeds AS (` + q + `), expanded AS (SELECT entity,tier,score FROM seeds UNION ALL SELECT r.child,0,CASE WHEN s.tier=1 THEN s.score/4 ELSE s.score END FROM seeds s JOIN rel r ON r.parent=s.entity UNION ALL SELECT r2.child,0,CASE WHEN s.tier=1 THEN s.score/4 ELSE s.score END FROM seeds s JOIN rel r1 ON r1.parent=s.entity JOIN rel r2 ON r2.parent=r1.child) SELECT entity,max(tier),max(score) FROM expanded JOIN own ON own.id=expanded.entity WHERE own.library BETWEEN 0 AND 7 GROUP BY entity`, args
+	return `WITH seeds AS MATERIALIZED (` + q + `), expanded AS (SELECT entity,tier,score FROM seeds UNION ALL SELECT r.child,0,CASE WHEN s.tier=1 THEN s.score/4 ELSE s.score END FROM seeds s JOIN rel r ON r.parent=s.entity UNION ALL SELECT r2.child,0,CASE WHEN s.tier=1 THEN s.score/4 ELSE s.score END FROM seeds s JOIN rel r1 ON r1.parent=s.entity JOIN rel r2 ON r2.parent=r1.child) SELECT entity,max(tier),max(score) FROM expanded CROSS JOIN own ON own.id=expanded.entity WHERE own.library BETWEEN 0 AND 7 GROUP BY entity`, args
 }
 func fallbackQuery(q string) bool {
 	for _, t := range facettext.SearchTerms(q) {
@@ -463,7 +479,7 @@ func search(db *sql.DB, v string, query Query) (int, []int) {
 		if fallbackQuery(query.Text) {
 			exec(db, "CREATE TEMP TABLE IF NOT EXISTS fallback_scores(id INTEGER PRIMARY KEY, score REAL NOT NULL)")
 			exec(db, "DELETE FROM fallback_scores")
-			exec(db, "INSERT INTO fallback_scores SELECT rowid,-bm25(fragment_lexical) FROM fragment_lexical WHERE fragment_lexical MATCH ?", `"`+t+`"`)
+			exec(db, "INSERT INTO fallback_scores SELECT rowid,-bm25(fragment_lexical) FROM fragment_lexical WHERE fragment_lexical MATCH ?", `"`+t+`"*`)
 		}
 		s, args := termSQL(t, v, fallbackQuery(query.Text))
 		exec(db, "INSERT INTO "+tbl+" "+s, args...)
@@ -473,10 +489,10 @@ func search(db *sql.DB, v string, query Query) (int, []int) {
 			lead, count = i, n
 		}
 	}
-	sqlq := fmt.Sprintf("SELECT o.id FROM vt%d v JOIN own o ON o.id=v.entity ", lead)
+	sqlq := fmt.Sprintf("SELECT o.id FROM vt%d v CROSS JOIN own o ON o.id=v.entity ", lead)
 	for i := range terms {
 		if i != lead {
-			sqlq += fmt.Sprintf("JOIN vt%d t%d ON t%d.entity=v.entity ", i, i, i)
+			sqlq += fmt.Sprintf("CROSS JOIN vt%d t%d ON t%d.entity=v.entity ", i, i, i)
 		}
 	}
 	sqlq += "WHERE 1=1 "
@@ -650,9 +666,11 @@ func main() {
 	}
 	big := body.String()[:65536]
 	for i := 0; i < 16; i++ {
+		text := fmt.Sprintf("%04d", i) + big[4:]
+		p, l, n := prefix(text), facettext.SearchDocument(text), facettext.SearchFold(text)
 		measured("max_subject.tx", func() {
 			exec(db, "BEGIN IMMEDIATE")
-			renameFragment(db, 1, big+fmt.Sprint(i))
+			renameFragmentValues(db, 1, p, l, n)
 			native(db, "max_subject.commit", "COMMIT")
 		})
 		merge(db, "max_subject.merge")
