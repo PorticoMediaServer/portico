@@ -47,7 +47,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        source: [916ff869, 1d6cf261]
+        source: [916ff8690c2216acf1a7d4ac819bbb373a9e3e13, 1d6cf26130b942a4df2362d2cccc7ff9cd8b8165]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -74,5 +74,41 @@ jobs:
         if: always()
         with:
           name: apfs-${{ matrix.source }}
+          path: evidence
+          retention-days: 3
+
+  product:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: 86c3e98fa0149a22c09051f6aa18b2dd1e7557ef
+          persist-credentials: false
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: |
+            server/go.sum
+            apikit/go.sum
+      - name: Require native acceptance and memory refusal
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TMPDIR="$(python3 -c 'import os; print(os.path.realpath(os.environ["RUNNER_TEMP"]))')"
+          export CGO_ENABLED=0
+          mkdir evidence
+          git rev-parse HEAD > evidence/source-sha.txt
+          cd server
+          set +e
+          go test -json -p 1 -count=1 -run '^Test(Darwin|LimitedWorkerCanAllocateItsBudget|WorkerReads)' ./internal/archive7z > ../evidence/limit.jsonl 2> ../evidence/limit.stderr
+          limit_result=$?
+          go test -json -tags=portico_rar7z,portico_cb7 -p 1 -count=1 -run '^Test(CB7WorkerReadsAdmittedPages|OpenClassicComic(Compressed|Solid)RAR4Worker)$' ./internal/reading > ../evidence/worker.jsonl 2> ../evidence/worker.stderr
+          worker_result=$?
+          test "$limit_result" -eq 0 && test "$worker_result" -eq 0
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: darwin-product-bound
           path: evidence
           retention-days: 3

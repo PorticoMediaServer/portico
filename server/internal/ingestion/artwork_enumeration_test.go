@@ -59,6 +59,7 @@ func TestArtworkEnumerationUsesActualNamesStampsAndConfinedReads(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		t.Logf("page %s %+v", relative, page)
 		scanner.noteDirectoryPage("job", relative, "", page)
 	}
 	for _, dir := range []string{"Film", "Heroes", "Heroes/Season 01"} {
