@@ -115,8 +115,8 @@ func (s *Service) linkSave(ctx context.Context, p identity.Principal, key string
 }
 
 // nextSave is a save the builder can continue, or false.
-func (s *Service) nextSave() (profile, key string, ok bool) {
-	err := s.DB.QueryRow(`SELECT profile_id,key FROM queue_v1_saves WHERE state='building' AND playlist_id<>'' ORDER BY updated_ms LIMIT 1`).Scan(&profile, &key)
+func (s *Service) nextSave(ctx context.Context) (profile, key string, ok bool) {
+	err := s.DB.QueryRowContext(ctx, `SELECT profile_id,key FROM queue_v1_saves WHERE state='building' AND playlist_id<>'' ORDER BY updated_ms LIMIT 1`).Scan(&profile, &key)
 	return profile, key, err == nil
 }
 

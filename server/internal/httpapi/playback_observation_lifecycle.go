@@ -14,11 +14,11 @@ func FlushPlaybackObservations(ctx context.Context, handler http.Handler) error 
 	return nil
 }
 
-// ClosePlaybackObservations joins the router's observation worker and flushes
-// its pending samples after HTTP drain, before the database closes.
-func ClosePlaybackObservations(ctx context.Context, handler http.Handler) error {
+// ShutdownPlayback cancels and joins the router's background database work and
+// flushes pending observations after HTTP drain, before the database closes.
+func ShutdownPlayback(ctx context.Context, handler http.Handler) error {
 	if h, ok := handler.(*credentialUsageHandler); ok && h.playback != nil {
-		return h.playback.CloseObservations(ctx)
+		return h.playback.Shutdown(ctx)
 	}
 	return nil
 }

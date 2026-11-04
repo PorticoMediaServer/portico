@@ -1452,6 +1452,23 @@ func runWithInstanceLock(takeLock func(string) (*instanceLock, error)) (runErr e
 	remoteGate := remotegate.New()
 	apiDependencies.RemoteGate = remoteGate
 	handler := httpapi.New(apiDependencies)
+	// Normal HTTP drain and an early Serve failure share one bounded join.
+	// The barrier is deferred before db.Close, including non-signal returns.
+	var playbackShutdown sync.Once
+	playbackShutdownDone := make(chan struct{})
+	stopPlayback := func() {
+		playbackShutdown.Do(func() {
+			supervise.Go("cmd.playback-shutdown", func() {
+				defer close(playbackShutdownDone)
+				stop, finish := context.WithTimeout(context.Background(), 10*time.Second)
+				defer finish()
+				if err := httpapi.ShutdownPlayback(stop, handler); err != nil {
+					log.Printf("Playback shutdown incomplete: %v", err)
+				}
+			})
+		})
+	}
+	drain.add("playback-v1", stopPlayback, playbackShutdownDone)
 	direct.UseGate(remoteGate)
 	supervise.Go("remotegate.run", func() { httpapi.RunRemoteGate(ctx, db, remoteGate) })
 	backupService.SetBeforeSnapshot(func(ctx context.Context) error {
@@ -1555,11 +1572,8 @@ func runWithInstanceLock(takeLock func(string) (*instanceLock, error)) (runErr e
 			log.Printf("Backup shutdown incomplete: %v", err)
 		}
 		finishBackup()
-		observationStop, finishObservations := context.WithTimeout(context.Background(), 10*time.Second)
-		if err := httpapi.ClosePlaybackObservations(observationStop, handler); err != nil {
-			log.Printf("Playback observations could not be saved before shutdown: %v", err)
-		}
-		finishObservations()
+		stopPlayback()
+		<-playbackShutdownDone
 		<-notified
 	})
 	certificates := claimHandler.Certificates()
