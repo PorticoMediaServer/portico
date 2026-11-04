@@ -25,11 +25,21 @@ jobs:
       - id: native-deps
         run: npm ci --no-audit --no-fund --legacy-peer-deps --workspaces=false
         working-directory: apps/native
+      - name: Restore checksum-pinned Robolectric SDKs
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ${{ runner.temp }}/robolectric-sdk
+          key: robolectric-sdk-${{ runner.os }}-${{ hashFiles('ci/robolectric-sdk.json') }}
+      - name: Provision Robolectric SDKs before tests start
+        id: robolectric-sdk
+        run: python3 ci/robolectric_sdk.py --directory "$RUNNER_TEMP/robolectric-sdk"
       - name: JVM tests for Android and Fire OS
-        if: ${{ !cancelled() && steps.native-deps.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.native-deps.outcome == 'success' && steps.robolectric-sdk.outcome == 'success' }}
         # A unit-test JVM never links or packages libmpv. Keep production media
         # checks unchanged and omit only its asset-staging prerequisite here.
-        run: ./gradlew --no-daemon --continue :app:testGoogleDebugUnitTest :app:testFiretvDebugUnitTest -x :portico-mpv:stageMediaEngine
+        env:
+          PORTICO_ROBOLECTRIC_SDK_DIR: ${{ runner.temp }}/robolectric-sdk
+        run: ./gradlew --no-daemon --continue --init-script "$GITHUB_WORKSPACE/ci/robolectric-offline.gradle" :app:testGoogleDebugUnitTest :app:testFiretvDebugUnitTest -x :portico-mpv:stageMediaEngine
         working-directory: apps/native/android
       - name: Production Android transport, layout and URL-route harnesses
         if: ${{ !cancelled() && steps.native-deps.outcome == 'success' }}

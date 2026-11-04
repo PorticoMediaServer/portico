@@ -1,0 +1,9 @@
+// Runtime SDK fetching is disabled; CI provisions checksum-pinned jars first.
+def sdkDirectory = System.getenv('PORTICO_ROBOLECTRIC_SDK_DIR')
+if (!sdkDirectory) throw new GradleException('PORTICO_ROBOLECTRIC_SDK_DIR is required')
+allprojects {
+    tasks.withType(Test).configureEach {
+        systemProperty 'robolectric.offline', 'true'
+        systemProperty 'robolectric.dependency.dir', sdkDirectory
+    }
+}
