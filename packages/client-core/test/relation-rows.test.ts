@@ -19,7 +19,7 @@ const api = (handler: (path: string) => unknown) => {
   return {paths, request: async <T>(path: string) => { paths.push(path); const value = handler(path); if (value instanceof Error) throw value; return value as T; }};
 };
 
-test('a title row continues through its row route under its id and fence', async () => {
+test('a title row continues through its row route under its id', async () => {
   const first = validateHomeRow(row());
   const server = api(path => path.includes('cursor=c1') ? row({entries: [movie('m2'), movie('m3'), movie('m4')], start: 2, nextCursor: 'c2'}) : row({entries: [movie('m5')], start: 5, hasMore: false, nextCursor: ''}));
   const pager = recommendationRowPager(server, {kind: 'item', id: 't1'}, first, 3);
@@ -36,9 +36,10 @@ test('a title row continues through its row route under its id and fence', async
   const show = api(() => row({hasMore: false, nextCursor: ''}));
   await readRecommendationRowPage(show, {kind: 'show', id: 's1'}, first, {cursor: 'c1'});
   assert.equal(show.paths[0], '/v1/shows/s1/recommendations/rows/genre%3Atmdb%3A18?limit=37&cursor=c1');
-  // Another row, or another viewer's page, is refused.
+  // Another row is refused. A page answered under a moved fence is the newer answer (step 7): a cursor from before
+  // the move is the server's to refuse (invalid_cursor), and that refusal ends the row (next test).
   await assert.rejects(readRecommendationRowPage(api(() => row({id: 'genre:tmdb:99'})), {kind: 'item', id: 't1'}, first));
-  await assert.rejects(readRecommendationRowPage(api(() => row({viewerFence: 'other'})), {kind: 'item', id: 't1'}, first));
+  assert.equal((await readRecommendationRowPage(api(() => row({viewerFence: 'moved'})), {kind: 'item', id: 't1'}, first)).viewerFence, 'moved');
 });
 
 test('a failed page keeps the continuation, and a stale one ends the row', async () => {
@@ -51,6 +52,11 @@ test('a failed page keeps the continuation, and a stale one ends the row', async
   await pager.more();
   assert.equal(pager.getSnapshot().cursor, undefined);
   assert.equal(pager.getSnapshot().error?.stale, true);
+  // A cursor the server no longer honours ends the row too, instead of failing again on every more().
+  let reads = 0;
+  const refused = recommendationRowPager(api(() => { reads++; return Object.assign(new Error('Expired'), {code: 'invalid_cursor'}); }), {kind: 'item', id: 't1'}, validateHomeRow(row()));
+  await refused.more(); await refused.more();
+  assert.equal(reads, 1); assert.equal(refused.getSnapshot().cursor, undefined); assert.deepEqual(refused.getSnapshot().error, {code: 'invalid_cursor', stale: true});
   // A moved revision is a stale continuation too.
   const moved = recommendationRowPager(api(() => row({revision: {catalog: 2, viewer: 1}})), {kind: 'item', id: 't1'}, validateHomeRow(row()));
   await moved.more();

@@ -233,6 +233,8 @@ test('detail recommendation and credit pages preserve all 537 loaded entries and
  assert.deepEqual(row.entries.map(entry=>entry.id),ids);assert.deepEqual(credits.credits.map(credit=>credit.id),ids);
  assert.deepEqual(row.entries.slice(0,37),firstRows);assert.deepEqual(credits.credits.slice(0,37),firstCredits);
  assert.throws(()=>appendDetailRecommendationPage(row,{...row,revision:{catalog:4,viewer:1}}),{code:'stale_continuation'});
+ // A page answered under a moved fence is the newer answer: the server refuses an old cursor itself (step 7).
+ assert.equal(appendDetailRecommendationPage(row,{...row,viewerFence:'moved',entries:[]}).entries.length,537);
  assert.throws(()=>appendCreditPage(credits,{...credits,revision:{catalog:4,viewer:1}}),{code:'stale_continuation'});
  assert.ok(paths.includes('/v1/items/item/credits?group=cast&limit=37&cursor=37'));
  assert.ok(paths.includes('/v1/items/item/recommendations/rows/more_like?limit=37&cursor=37'));
