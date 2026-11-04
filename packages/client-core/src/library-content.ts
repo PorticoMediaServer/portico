@@ -707,7 +707,7 @@ export class LibraryContentService {
   }
   /** A page's answer, checked against the operation that asked for it and published as ready; the route's first page is then watched. */
   private commit(op: Operation, result: ContentProjection, flight: ContentFlight, checkpoint: ContentCheckpoint, check: () => boolean): void {
-    if (op.page.cursor && op.fence && result.scope.viewerFence !== op.fence.scope.viewerFence) throw new ContentFailure('stale_continuation', 'The library changed. Refresh to continue.', true);
+    // A next page under another viewer fence is the server's to refuse: its cursor is bound to the fence it was read under, and `invalid_cursor` restarts like `stale_continuation` (fetch).
     if (op.page.sectionId && (result.sections.length !== 1 || result.sections[0].id !== op.page.sectionId)) invalid();
     const repeats = (c: string) => c === op.page.cursor || op.history.some(p => p.cursor === c);
     const sections = result.sections.some(s2 => s2.nextCursor && repeats(s2.nextCursor)) ? Object.freeze(result.sections.map(s2 => (s2.nextCursor && repeats(s2.nextCursor) ? Object.freeze({ ...s2, nextCursor: '' }) : s2))) : result.sections;
