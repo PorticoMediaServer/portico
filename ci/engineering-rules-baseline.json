@@ -198,7 +198,7 @@
   "packages/client-core/src/claim-onboarding.ts": 1,
   "packages/client-core/src/claim-web.ts": 1,
   "packages/client-core/src/client-reports.ts": 2,
-  "packages/client-core/src/console.ts": 23,
+  "packages/client-core/src/console.ts": 22,
   "packages/client-core/src/container-state.ts": 1,
   "packages/client-core/src/continue-watching.ts": 2,
   "packages/client-core/src/detail.ts": 2,

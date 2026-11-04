@@ -153058,89 +153058,6 @@ export const schemas = {
     ],
     "type": "object"
   },
-  "GetNotificationsRequest": {
-    "properties": {},
-    "required": [],
-    "type": "object"
-  },
-  "GetNotificationsResponse": {
-    "properties": {
-      "data": {
-        "properties": {
-          "items": {
-            "items": {
-              "properties": {
-                "code": {
-                  "type": "string"
-                },
-                "createdAt": {
-                  "description": "RFC 3339 UTC instant; empty when absent.",
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                },
-                "readAt": {
-                  "description": "RFC 3339 UTC instant; empty when absent.",
-                  "nullable": true,
-                  "type": "string"
-                },
-                "targetId": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "createdAt",
-                "readAt",
-                "code",
-                "message"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "nextCursor": {
-            "type": "string"
-          },
-          "unread": {
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "items",
-          "nextCursor",
-          "unread"
-        ],
-        "type": "object"
-      },
-      "scope": {
-        "properties": {
-          "serverId": {
-            "type": "string"
-          },
-          "viewerFence": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "serverId",
-          "viewerFence"
-        ],
-        "type": "object"
-      }
-    },
-    "required": [
-      "scope",
-      "data"
-    ],
-    "type": "object"
-  },
   "GetNotificationsUnreadCountRequest": {
     "properties": {},
     "required": [],
@@ -249501,41 +249418,6 @@ export const schemas = {
       "topology",
       "candidates",
       "mappings"
-    ],
-    "type": "object"
-  },
-  "PostNotificationsIdReadRequest": {
-    "properties": {},
-    "required": [],
-    "type": "object"
-  },
-  "PostNotificationsIdReadResponse": {
-    "properties": {
-      "data": {
-        "additionalProperties": {
-          "type": "boolean"
-        },
-        "type": "object"
-      },
-      "scope": {
-        "properties": {
-          "serverId": {
-            "type": "string"
-          },
-          "viewerFence": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "serverId",
-          "viewerFence"
-        ],
-        "type": "object"
-      }
-    },
-    "required": [
-      "scope",
-      "data"
     ],
     "type": "object"
   },

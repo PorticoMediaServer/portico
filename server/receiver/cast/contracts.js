@@ -110240,69 +110240,6 @@ var PorticoCastContracts = (function(exports) {
 			"required": ["scope", "data"],
 			"type": "object"
 		},
-		"GetNotificationsRequest": {
-			"properties": {},
-			"required": [],
-			"type": "object"
-		},
-		"GetNotificationsResponse": {
-			"properties": {
-				"data": {
-					"properties": {
-						"items": {
-							"items": {
-								"properties": {
-									"code": { "type": "string" },
-									"createdAt": {
-										"description": "RFC 3339 UTC instant; empty when absent.",
-										"type": "string"
-									},
-									"id": { "type": "string" },
-									"message": { "type": "string" },
-									"readAt": {
-										"description": "RFC 3339 UTC instant; empty when absent.",
-										"nullable": true,
-										"type": "string"
-									},
-									"targetId": { "type": "string" }
-								},
-								"required": [
-									"id",
-									"createdAt",
-									"readAt",
-									"code",
-									"message"
-								],
-								"type": "object"
-							},
-							"type": "array"
-						},
-						"nextCursor": { "type": "string" },
-						"unread": {
-							"maximum": 9007199254740991,
-							"minimum": -9007199254740991,
-							"type": "integer"
-						}
-					},
-					"required": [
-						"items",
-						"nextCursor",
-						"unread"
-					],
-					"type": "object"
-				},
-				"scope": {
-					"properties": {
-						"serverId": { "type": "string" },
-						"viewerFence": { "type": "string" }
-					},
-					"required": ["serverId", "viewerFence"],
-					"type": "object"
-				}
-			},
-			"required": ["scope", "data"],
-			"type": "object"
-		},
 		"GetNotificationsUnreadCountRequest": {
 			"properties": {},
 			"required": [],
@@ -179019,29 +178956,6 @@ var PorticoCastContracts = (function(exports) {
 			],
 			"type": "object"
 		},
-		"PostNotificationsIdReadRequest": {
-			"properties": {},
-			"required": [],
-			"type": "object"
-		},
-		"PostNotificationsIdReadResponse": {
-			"properties": {
-				"data": {
-					"additionalProperties": { "type": "boolean" },
-					"type": "object"
-				},
-				"scope": {
-					"properties": {
-						"serverId": { "type": "string" },
-						"viewerFence": { "type": "string" }
-					},
-					"required": ["serverId", "viewerFence"],
-					"type": "object"
-				}
-			},
-			"required": ["scope", "data"],
-			"type": "object"
-		},
 		"PostNotificationsInboxActionsRequest": {
 			"properties": {
 				"audience": { "type": "string" },
@@ -211233,7 +211147,6 @@ var PorticoCastContracts = (function(exports) {
 		"get_networking_certificate": "/v1/networking/certificate",
 		"get_networking_claim": "/v1/networking/claim",
 		"get_networking_remote": "/v1/networking/remote",
-		"get_notifications": "/v1/notifications",
 		"get_notifications_capabilities": "/v1/notifications/capabilities",
 		"get_notifications_inbox": "/v1/notifications/inbox",
 		"get_notifications_unread_count": "/v1/notifications/unread-count",
@@ -211537,7 +211450,6 @@ var PorticoCastContracts = (function(exports) {
 		"post_networking_endpoint_proof": "/v1/networking/endpoint-proof",
 		"post_networking_remote_check": "/v1/networking/remote/check",
 		"post_networking_remote_config": "/v1/networking/remote/config",
-		"post_notifications_id_read": "/v1/notifications/{id}/read",
 		"post_notifications_inbox_actions": "/v1/notifications/inbox/actions",
 		"post_optimization_jobs_id_cancel": "/v1/optimization-jobs/{id}/cancel",
 		"post_optimization_jobs_id_retry": "/v1/optimization-jobs/{id}/retry",

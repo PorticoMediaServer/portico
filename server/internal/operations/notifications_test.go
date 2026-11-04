@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -593,5 +594,131 @@ func TestRetentionClearsABacklogInBoundedBatches(t *testing.T) {
 	}
 	if plans := dbwork.Plans(); plans.Overruns != 0 || plans.Largest.Rows > retentionBatch*10 {
 		t.Fatalf("a retention batch was not bounded: %+v", plans)
+	}
+}
+
+func TestConsoleFeedbackSeamUsesCurrentStoreAndRollsBack(t *testing.T) {
+	s, owner, member, auth := noticeFixture(t)
+	for _, commit := range []bool{false, true} {
+		tx, err := s.DB.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, code := range []string{"feedback-updated", "feedback-received"} {
+			for i := 0; i < 2; i++ {
+				if err = Notify(tx, s.now(), member, code, "old-report", strings.Repeat("x", 200)); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		if commit {
+			err = tx.Commit()
+		} else {
+			err = tx.Rollback()
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		inbox, err := s.Notices(context.Background(), member, auth, NoticeQuery{})
+		want := 0
+		if commit {
+			want = 1
+		}
+		if err != nil || len(inbox.Items) != want {
+			t.Fatalf("commit=%v inbox=%+v err=%v", commit, inbox, err)
+		}
+		if commit && (inbox.Revision == 0 || inbox.Counts.Unread != 1) {
+			t.Fatalf("missing current revision/counts: %+v", inbox)
+		}
+		for _, n := range inbox.Items {
+			if len(n.Actions) != 0 {
+				t.Fatalf("old report id routed to new reader: %+v", n)
+			}
+		}
+	}
+	inbox, err := s.Notices(context.Background(), owner, auth, NoticeQuery{})
+	if err != nil || len(inbox.Items) != 0 {
+		t.Fatalf("cross-viewer feedback: %+v %v", inbox, err)
+	}
+	var old int
+	if err = s.DB.QueryRow(`SELECT count(*) FROM console_notifications`).Scan(&old); err != nil || old != 0 {
+		t.Fatalf("legacy writes: %d %v", old, err)
+	}
+}
+
+func TestConsoleFeedbackRetryPreservesReadArchiveAndRetention(t *testing.T) {
+	s, _, member, auth := noticeFixture(t)
+	publish := func() {
+		t.Helper()
+		tx, err := s.DB.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Rollback()
+		if err = Notify(tx, s.now(), member, "feedback-updated", "report-one", "same-event"); err != nil {
+			t.Fatal(err)
+		}
+		if err = tx.Commit(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	publish()
+	inbox, err := s.Notices(context.Background(), member, auth, NoticeQuery{})
+	if err != nil || len(inbox.Items) != 1 {
+		t.Fatal(inbox, err)
+	}
+	id := inbox.Items[0].ID
+	_, err = s.ApplyNotices(context.Background(), member, auth, NoticeBatch{OperationID: "feedback-read-archive", ExpectedRevision: inbox.Revision, Audience: notify.AudienceProfile, Operations: []NoticeOperation{{Action: "read", IDs: []string{id}}, {Action: "archive", IDs: []string{id}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := s.Notices(context.Background(), member, auth, NoticeQuery{State: "all"})
+	if err != nil || !before.Items[0].Read || !before.Items[0].Archived {
+		t.Fatal(before, err)
+	}
+	now := s.Now()
+	s.Now = func() time.Time { return now.Add(24 * time.Hour) }
+	publish()
+	after, err := s.Notices(context.Background(), member, auth, NoticeQuery{State: "all"})
+	if err != nil || !reflect.DeepEqual(before.Items, after.Items) || before.Revision != after.Revision {
+		t.Fatalf("retry changed receipt/retention/revision: before=%+v after=%+v err=%v", before, after, err)
+	}
+}
+
+func TestConsoleFeedbackDedupeUsesOnlySuppliedKeyAndViewerScope(t *testing.T) {
+	s, owner, member, auth := noticeFixture(t)
+	publish := func(p identity.Principal, code, target, key string) {
+		t.Helper()
+		tx, err := s.DB.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Rollback()
+		if err = Notify(tx, s.now(), p, code, target, key); err != nil {
+			t.Fatal(err)
+		}
+		if err = tx.Commit(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	publish(member, "feedback-updated", "report-one", "same-event")
+	first, err := s.Notices(context.Background(), member, auth, NoticeQuery{})
+	if err != nil || len(first.Items) != 1 {
+		t.Fatal(first, err)
+	}
+	publish(member, "feedback-received", "report-two", "same-event")
+	duplicate, err := s.Notices(context.Background(), member, auth, NoticeQuery{})
+	if err != nil || !reflect.DeepEqual(first.Items, duplicate.Items) || first.Revision != duplicate.Revision {
+		t.Fatalf("code/target changed dedupe identity: %+v %+v %v", first, duplicate, err)
+	}
+	publish(owner, "feedback-received", "report-two", "same-event")
+	separate, err := s.Notices(context.Background(), owner, auth, NoticeQuery{})
+	if err != nil || len(separate.Items) != 1 || separate.Items[0].ID == first.Items[0].ID {
+		t.Fatalf("viewer dedupe isolation: %+v %v", separate, err)
+	}
+	publish(member, "feedback-updated", "report-one", "different-event")
+	distinct, err := s.Notices(context.Background(), member, auth, NoticeQuery{})
+	if err != nil || len(distinct.Items) != 2 {
+		t.Fatalf("different supplied key deduped: %+v %v", distinct, err)
 	}
 }

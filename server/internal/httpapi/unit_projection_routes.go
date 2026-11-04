@@ -1,9 +1,9 @@
 package httpapi
 
 import (
-	"net/http"
 	"github.com/PorticoMediaServer/portico/apikit"
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
+	"net/http"
 
 	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"strings"
@@ -56,7 +56,6 @@ var projectedPatterns = map[string]bool{
 	"GET /v1/feedback/reports/{id}":               true,
 	"GET /v1/admin/feedback/reports":              true,
 	"GET /v1/admin/feedback/reports/{id}":         true,
-	"GET /v1/notifications":                       true,
 	"GET /v1/admin/console/jobs":                  true,
 	"POST /v1/admin/console/jobs":                 true,
 	"POST /v1/admin/console/jobs/{id}/{action}":   true,
@@ -198,9 +197,7 @@ func registerUnitProjections(registry *apikit.Registry, d Dependencies) error {
 	if err := addProjection[noBody, projectedConsoleEnvelope[operations.FeedbackReport]](registry, mux, "GET /v1/admin/feedback/reports/{id}", apikit.Clients, apikit.ScopeAdmin, laneAdmin, nil); err != nil {
 		return err
 	}
-	if err := addProjection[noBody, projectedConsoleEnvelope[operations.Inbox]](registry, mux, "GET /v1/notifications", apikit.Clients, apikit.ScopeRead, laneDefault, []string{"cursor", "limit"}); err != nil {
-		return err
-	}
+
 	if err := addProjection[noBody, projectedConsoleEnvelope[operations.Page[operations.Job]]](registry, mux, "GET /v1/admin/console/jobs", apikit.Integrations, apikit.ScopeAdmin, laneAdmin, []string{"cursor"}); err != nil {
 		return err
 	}
