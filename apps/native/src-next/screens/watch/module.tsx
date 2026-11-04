@@ -292,6 +292,9 @@ export function createNativeWatchModule(context: NativeShellBootstrapContext, bi
   const screens = createNativeWatchScreens({...bindings, api: context.api,
     scope: detailScope,
     authority, current: context.authority, isCurrent: current, subscribeCurrent: context.subscribeAuthority,
+    // N5-6: the server Share and Copy link speak for: Portico Account or local, and its own address.
+    shareScope: () => {const viewer = current() ? context.session()?.viewer : undefined;
+      return viewer ? Object.freeze({serverId: viewer.serverId, hosted: viewer.authority === 'hosted', origin: context.api.baseUrl}) : undefined;},
     navigation: context.navigation, playback: context.playback, watch: context.watch, isTV: Platform.isTV, player});
   const entryMenu: NativeWatchEntryMenu = Object.freeze({
     open: (entry, entryCurrent, anchorRef, select, extraActions) => current() ? screens.menu(entry, entryCurrent, anchorRef, select, extraActions) : Promise.resolve(),

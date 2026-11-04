@@ -112,6 +112,8 @@ export interface NativeShellRuntime {
   /** Whether the server has stopped answering for a while after this viewer connected (the shell
    *  hub's reachability). It clears by itself on the next answer. */
   reachability?: Readonly<{getSnapshot: () => 'reachable' | 'unreachable'; subscribe: (listener: () => void) => () => void}>;
+  /** The server Share and Copy link speak for (N5-6): Portico Account or local, and its own address. */
+  shareScope?: () => import('../screens/share/share-actions').NativeShareScope | undefined;
   /** The drawn Switch server action, when the installed source offers that route. */
   openServers?: (initialPanel?: 'consent-kind') => void;
   /** Sanctioned, already-known connection facts for a recovery panel: the server's display
