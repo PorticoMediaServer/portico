@@ -177,3 +177,26 @@ test('Person credit window requires actual initial-request provenance and never 
     assert.equal(window.collection.itemAt(0)!.media.id, 'credit-0'); assert.equal(f.reads.length, 3);
   } finally {window?.dispose(); await f.close();}
 });
+
+test('step 7: a later access change in the same visit reads the person again too, once a credit page has answered since the last re-read', async () => {
+  const f = await fixture(); let window: ReturnType<typeof createNativePersonCreditWindow> | undefined;
+  try {
+    f.reply(async path => credits(path)); await f.source.load(); window = createNativePersonCreditWindow(f.context, f.route, f.source);
+    // Continuations follow a script: refused, answered, refused, refused. Each first page names a new fence.
+    const script = ['refuse', 'answer', 'refuse', 'refuse']; let firsts = 0;
+    f.reply(async path => hasCursor(path) ? (script.shift() === 'answer' ? credits(path, `fence-${firsts}`) : {refuse: 'invalid_cursor'}) : credits(path, `fence-${++firsts}`));
+    const replaced = async (shown: ReturnType<typeof f.source.getSnapshot>) => {for (let i = 0; i < 50 && f.source.getSnapshot() === shown; i++) await tick(); return f.source.getSnapshot();};
+    // First access change: page 1 is refused, and the person is read again.
+    let shown = f.source.getSnapshot(); window.collection.ensureRange(40, 40);
+    const second = await replaced(shown); assert.notEqual(second, shown); assert.equal(second.page?.viewerFence, 'fence-1');
+    window.dispose(); window = createNativePersonCreditWindow(f.context, f.route, f.source);
+    // Paging goes on: page 1 answers; a second access change refuses page 2, and the person is read again.
+    await ready(window, 40); shown = f.source.getSnapshot(); window.collection.ensureRange(80, 80);
+    const third = await replaced(shown); assert.notEqual(third, second); assert.equal(third.phase, 'ready'); assert.equal(third.page?.viewerFence, 'fence-2');
+    window.dispose(); window = createNativePersonCreditWindow(f.context, f.route, f.source);
+    // A refusal straight after that re-read, with no page answered in between, shows.
+    const before = f.reads.length;
+    await ready(window, 40, 40, true);
+    assert.equal(window.collection.getSnapshot().status, 'error'); assert.equal(f.source.getSnapshot(), third); assert.equal(f.reads.length, before + 1);
+  } finally {window?.dispose(); await f.close();}
+});

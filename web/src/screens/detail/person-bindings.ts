@@ -29,7 +29,8 @@ export function createPersonBindings(context: ScreenContext) {
   let generation = 0, personId = '', state: PersonSnapshot = {phase: 'idle', role: 'all'};
   let read: AbortController | undefined;
   // One quiet re-read of the person after the server refuses a credit cursor (its fence or profile no longer matches:
-  // access was decided again). A second refusal on the page that re-read brought ends the paging. select() resets it.
+  // access was decided again). A refusal before any later cursor page answers ends the paging; a cursor page that
+  // answers (or select()) resets it, so a later access change in the same visit is read again too.
   let reread = false;
   const collections = new Map<string, WindowedCollection<PersonCredit>>();
   const collectionUsers = new Map<WindowedCollection<PersonCredit>, number>();
@@ -85,6 +86,8 @@ export function createPersonBindings(context: ScreenContext) {
         // The server binds the cursor to the viewer fence and refuses an old one (above); only the person's revision is compared here.
         if (request !== generation || state.page !== header || value.revision.catalog !== header.revision.catalog || value.revision.viewer !== header.revision.viewer) throw new DOMException('Person credits changed', 'AbortError');
         if (value.pageInfo.nextCursor && [...cursors].some(([address, cursor]) => address !== page + 1 && cursor === value.pageInfo.nextCursor)) throw new Error('Repeated person cursor');
+        // A continuation answered: a later refusal is a new access change, read again once more.
+        if (cursors.get(page)) reread = false;
         total = value.pageInfo.total; cursors.set(page + 1, value.pageInfo.nextCursor);
         if (value.pageInfo.nextCursor) addressablePage = Math.max(addressablePage, page + 1);
         const exposed = value.pageInfo.nextCursor ? Math.min(total, (addressablePage + 1) * pageSize) : total;

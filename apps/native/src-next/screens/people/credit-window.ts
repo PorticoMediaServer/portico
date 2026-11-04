@@ -66,6 +66,7 @@ export function createNativePersonCreditWindow(context: NativeShellBootstrapCont
       if (page.revision.catalog !== first.revision.catalog || page.revision.viewer !== first.revision.viewer
         || page.person.revision !== first.person.revision || page.pageInfo.total !== first.pageInfo.total) throw changed();
       remember(index + 1, page.pageInfo.nextCursor || null);
+      if (cursor) source.paged();
       page.credits.forEach((credit, offset) => positions.set(credit, index * 40 + offset));
       return page;
     } finally {signal.removeEventListener('abort', abort); pending.delete(controller);}
