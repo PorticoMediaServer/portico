@@ -1,5 +1,6 @@
 package tv.getportico.portico.policy;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -86,6 +87,55 @@ public final class PorticoListeningPolicy {
     double n = number.doubleValue();
     return Double.isFinite(n) && n >= 0 ? n : null;
   }
+  /** A book part's chapter steps for the lock screen's Previous and Next (MU-7): the shape
+   * client-core's bookChapterSteps sends, `{sessionId, itemId, steps, before, after}`. */
+  public static boolean validChapterSteps(Object value) {
+    if (!(value instanceof Map<?, ?> plan) || plan.size() != 5 || !wireId(plan.get("sessionId")) || !wireId(plan.get("itemId"))
+        || !PAST.contains(plan.get("before")) || !PAST.contains(plan.get("after"))
+        || !(plan.get("steps") instanceof List<?> steps) || steps.isEmpty() || steps.size() > 4100) return false;
+    int run = 0; // 0 before the part's own steps, 1 in them, 2 after them
+    for (Object raw : steps) {
+      if (!(raw instanceof Map<?, ?> step) || step.size() != 2 || !step.containsKey("entryId")) return false;
+      Double start = nonnegative(step.get("startSeconds"));
+      Object entry = step.get("entryId");
+      if (start == null || start > 1e9 || entry != null && !wireId(entry)) return false;
+      if (entry == null) { if (run == 2) return false; run = 1; } else if (run == 1) run = 2;
+    }
+    return run > 0;
+  }
+  private static final Set<String> PAST = Set.of("end", "queue");
+  private static boolean wireId(Object value) { return value instanceof String text && text.matches("[A-Za-z0-9_-]{1,128}"); }
+
+  /** Where Previous or Next chapter goes: a seek in this part, another part's entry from a
+   * chapter start, or the queue's own move. Null: nothing that way. */
+  public static final class ChapterMove {
+    public final String kind;
+    public final double seconds;
+    public final String entryId;
+    private ChapterMove(String kind, double seconds, String entryId) { this.kind = kind; this.seconds = seconds; this.entryId = entryId; }
+  }
+  private static final ChapterMove QUEUE_MOVE = new ChapterMove("queue", 0, null);
+  /** The same rules as client-core's bookChapterMove: a chapter counts as started half a second
+   * early, and Previous more than three seconds in restarts it. */
+  public static ChapterMove chapterMove(Map<?, ?> plan, double seconds, boolean next) {
+    List<?> steps = (List<?>) plan.get("steps");
+    int first = -1;
+    for (int i = 0; i < steps.size(); i++) if (stepEntry(steps, i) == null) { first = i; break; }
+    if (first < 0 || !Double.isFinite(seconds)) return QUEUE_MOVE;
+    int current = first - 1;
+    for (int i = first; i < steps.size() && stepEntry(steps, i) == null; i++) if (stepStart(steps, i) <= seconds + 0.5) current = i;
+    if (next) return chapterGo(steps, current + 1, plan.get("after"));
+    if (current >= 0 && stepEntry(steps, current) == null && seconds - stepStart(steps, current) > 3) return chapterGo(steps, current, "end");
+    return chapterGo(steps, current - 1, plan.get("before"));
+  }
+  private static ChapterMove chapterGo(List<?> steps, int at, Object past) {
+    if (at < 0 || at >= steps.size()) return "queue".equals(past) ? QUEUE_MOVE : null;
+    String entry = stepEntry(steps, at);
+    return new ChapterMove(entry == null ? "seek" : "entry", stepStart(steps, at), entry);
+  }
+  private static String stepEntry(List<?> steps, int at) { return (String) ((Map<?, ?>) steps.get(at)).get("entryId"); }
+  private static double stepStart(List<?> steps, int at) { return ((Number) ((Map<?, ?>) steps.get(at)).get("startSeconds")).doubleValue(); }
+
   /** Safety holds (lease, interruption, timer) do not imply a failed media engine. */
   public static boolean resumeNeedsRetry(boolean ended, boolean engineFailed) { return ended || engineFailed; }
 }

@@ -103,6 +103,7 @@ function bridge() {
       return answer === 'hold' ? await new Promise<unknown>(resolve => { held.push(resolve); }) : answer;
     },
     retireListening: async (owner, stop) => { calls.push({name: 'retire', args: [owner, stop]}); return true; },
+    listeningChapters: async (owner, plan) => { calls.push({name: 'chapters', args: [owner, plan]}); return true; },
   };
   return {b, calls, policies, held, answer: (value: unknown) => { answer = value; }, push: (e: unknown) => { latest = e; sink?.(e); }, deliver: (e: unknown) => sink?.(e), subscribe: (s: (e: unknown) => void) => { sink = s; return () => { sink = undefined; }; }, next: () => ++sequence};
 }
@@ -137,6 +138,10 @@ test('the adapter hands the session over once, acknowledges snapshots and follow
   // MU-7: a chapter in another book part starts that entry at the chapter.
   await adapter.advance('entry', 'e-9', 754);
   assert.deepEqual(x.calls.filter(c => c.name === 'advance').at(-1)?.args.slice(1), ['entry', 'e-9', 754]);
+  // MU-7: the playing part's chapter steps reach the owner for the lock screen's Previous and Next.
+  const plan = {sessionId: 's3', itemId: 'item', before: 'end' as const, after: 'end' as const, steps: [{startSeconds: 0, entryId: null}, {startSeconds: 30, entryId: 'e-9'}]};
+  await adapter.chapters(plan); await adapter.chapters(null);
+  assert.deepEqual(x.calls.filter(c => c.name === 'chapters').map(c => c.args), [['owner-1', plan], ['owner-1', null]]);
   await adapter.action('pause');
   assert.deepEqual(x.calls.find(c => c.name === 'action')!.args, ['owner-1', 'pause', null, {binding: events.at(-1)!.binding, commandRevision: 2, queue: {queueId: 'q1', entryId: 'e-s3'}}]);
   await adapter.detach(true);

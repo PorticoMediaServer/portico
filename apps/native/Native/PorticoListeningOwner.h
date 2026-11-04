@@ -41,6 +41,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)deadlines:(NSDictionary *)deadlines owner:(NSString *)owner;
 - (BOOL)policy:(NSDictionary *)policy owner:(NSString *)owner;
 - (BOOL)credentials:(NSString *)token owner:(NSString *)owner;
+/** The app's chapter steps for the playing book part, or nil off a book (MU-7). */
+- (BOOL)chapters:(nullable NSDictionary *)plan owner:(NSString *)owner;
 - (NSDictionary *)snapshot:(NSString *)owner;
 - (BOOL)acknowledge:(NSString *)owner sequence:(NSNumber *)sequence;
 - (void)metadata:(NSDictionary *)metadata owner:(NSString *)owner;

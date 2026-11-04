@@ -17,6 +17,7 @@ import {PlaybackApiError} from '../src/playback-v1/http.ts';
 import {queueItemInput} from '../src/queue-controller.ts';
 import type {V1Http} from '../src/playback-v1/http.ts';
 import type {Session} from '../src/playback-v1/types.ts';
+import type {BookChapterSteps} from '../src/book-chapters.ts';
 import type {ListeningAction, ListeningDeadlines, NativeListeningPolicy, NativeListeningV1Context, NativeListeningV1Control, NativeListeningV1Event, NativeQueueAdvance} from '../src/playback/native-listening.ts';
 
 const viewer = {serverId: 'server', authority: 'local' as const, accountId: 'account', profileId: 'profile'};
@@ -124,15 +125,17 @@ class ReferenceOwner implements NativeListeningV1Control {
   async advance(reason: NativeQueueAdvance, entryId?: string) { this.advances.push({reason, entryId}); await this.move(reason, entryId); }
   async refresh() {}
   async deadlines(_value: ListeningDeadlines) {}
+  chapterPlans: (BookChapterSteps | null)[] = [];
+  async chapters(plan: BookChapterSteps | null) { this.chapterPlans.push(plan); }
   async detach(stop: boolean) { this.detached.push(stop); }
   async sessionUpdated(id: string) { this.updates.push(id); }
 }
 
-function setup(options: {nativeFor?: (kind: string) => boolean; refuse?: boolean; answered?: (r: {method: string; path: string}) => void} = {}) {
-  const server = new FakePlaybackServer();
+function setup(options: {nativeFor?: (kind: string) => boolean; refuse?: boolean; answered?: (r: {method: string; path: string}) => void; server?: FakePlaybackServer; respond?: (r: {method: string; path: string}, answer: {body?: unknown}) => unknown} = {}) {
+  const server = options.server ?? new FakePlaybackServer();
   const inner = fakeHttp(server);
   const log: {method: string; path: string}[] = [];
-  const http: V1Http = {send: async r => { log.push({method: r.method, path: r.path}); const answer = await inner.send(r as never); options.answered?.(r); return answer as never; }};
+  const http: V1Http = {send: async r => { log.push({method: r.method, path: r.path}); const answer = await inner.send(r as never); options.answered?.(r); return (options.respond?.(r, answer as {body?: unknown}) ?? answer) as never; }};
   const ownerHttp: V1Http = {send: r => inner.send(r as never) as never};
   let serial = 0;
   const api = new V1PlaybackApi(http, {timers: {setTimer: () => 0, clearTimer: () => {}}, key: () => `k${++serial}`});
@@ -491,3 +494,33 @@ test('a later resync barrier retires a held native recovery before owner reconci
     assert.deepEqual(f.owner.updates, [], 'stale barrier reconciled its owner');
   } finally {release?.(); f.stop();}
 });
+
+test('MU-7: the owner holds the playing book part\'s chapter steps, so the lock screen moves by chapter; none off a book', async () => {
+  const chapters = [
+    {id: 'part-a:1', itemId: 'part-a', index: 1, number: 1, title: 'One', startMs: 0, endMs: 600_000},
+    {id: 'part-a:2', itemId: 'part-a', index: 2, number: 2, title: 'Two', startMs: 600_000, endMs: 1_200_000},
+    {id: 'part-b:1', itemId: 'part-b', index: 1, number: 3, title: 'Three', startMs: 30_000, endMs: 900_000},
+  ];
+  const server = new FakePlaybackServer({audioItem: id => id.startsWith('part-') || id.startsWith('song-'), itemKind: id => id.startsWith('part-') ? 'audiobook_file' : undefined});
+  const {player, owner, stop} = setup({server, nativeFor: kind => kind === 'audiobook_file' || kind === 'song', respond: (r, answer) => {
+    if (r.path.startsWith('/v1/books/book/chapters')) return {status: 200, headers: {}, body: {chapters, nextCursor: ''}};
+    const data = (answer.body as {data?: Record<string, unknown>} | undefined)?.data;
+    if (/\/v1\/items\/part-[ab]\/listening$/.test(r.path) && data) data.bookId = 'book';
+    return undefined;
+  }});
+  try {
+    await player.playEntries(['part-a', 'part-b'].map(queueItemInput));
+    for (let i = 0; i < 20 && !owner.chapterPlans.at(-1); i++) await settle();
+    const entryB = player.getSnapshot().view!.items.find(item => item.itemId === 'part-b')!.entryId;
+    const plan = owner.chapterPlans.at(-1);
+    assert.deepEqual(plan, {sessionId: owner.session!.id, itemId: 'part-a', before: 'end', after: 'end',
+      steps: [{startSeconds: 0, entryId: null}, {startSeconds: 600, entryId: null}, {startSeconds: 30, entryId: entryB}]});
+    const sent = owner.chapterPlans.length;
+    await settle();
+    assert.equal(owner.chapterPlans.length, sent, 'sent once per part, not on every snapshot');
+    await player.playEntries(['song-1'].map(queueItemInput));
+    for (let i = 0; i < 20 && owner.chapterPlans.at(-1) !== null; i++) await settle();
+    assert.equal(owner.chapterPlans.at(-1), null, 'off a book the owner\'s Previous and Next move the queue');
+  } finally { stop(); }
+});
+

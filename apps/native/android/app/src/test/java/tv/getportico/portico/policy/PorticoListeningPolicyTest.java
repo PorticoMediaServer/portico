@@ -1,7 +1,12 @@
 package tv.getportico.portico.policy;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.Test;
@@ -135,5 +140,51 @@ public final class PorticoListeningPolicyTest {
     assertTrue(PorticoListeningPolicy.resumeNeedsRetry(true, false));
     assertTrue(PorticoListeningPolicy.resumeNeedsRetry(true, true));
     assertTrue(!PorticoListeningPolicy.resumeNeedsRetry(false, false));
+  }
+
+  private static Map<String, Object> step(double start, String entryId) {
+    Map<String, Object> step = new HashMap<>();
+    step.put("startSeconds", start); step.put("entryId", entryId);
+    return step;
+  }
+  private static Map<String, Object> chapters(String before, String after, List<Map<String, Object>> steps) {
+    Map<String, Object> plan = new HashMap<>();
+    plan.put("sessionId", "s1"); plan.put("itemId", "part-b"); plan.put("before", before); plan.put("after", after); plan.put("steps", steps);
+    return plan;
+  }
+  private static String move(Map<String, Object> plan, double seconds, boolean next) {
+    PorticoListeningPolicy.ChapterMove move = PorticoListeningPolicy.chapterMove(plan, seconds, next);
+    return move == null ? null : move.kind + (move.kind.equals("queue") ? "" : " " + (move.entryId == null ? "" : move.entryId + " ") + move.seconds);
+  }
+
+  // MU-7: the lock screen's Previous and Next move by book chapter as client-core's bookChapterMove does.
+  @Test
+  public void chapterStepsMoveByChapterAcrossParts() {
+    Map<String, Object> partB = chapters("end", "end", List.of(step(0, "e-a"), step(600, "e-a"), step(30, null), step(900, null)));
+    assertTrue(PorticoListeningPolicy.validChapterSteps(partB));
+    assertEquals("seek 900.0", move(partB, 40, true));
+    assertNull(move(partB, 1000, true));
+    assertEquals("seek 30.0", move(partB, 40, false));
+    assertEquals("entry e-a 600.0", move(partB, 32, false));
+    assertEquals("entry e-a 0.0", move(partB, 10, false));
+    assertNull("a seek that lands just short of a chapter counts as that chapter", move(partB, 899.6, true));
+    Map<String, Object> partA = chapters("end", "end", List.of(step(0, null), step(600, null), step(30, "e-b")));
+    assertEquals("seek 600.0", move(partA, 100, true));
+    assertEquals("entry e-b 30.0", move(partA, 700, true));
+    assertNull(move(partA, 2, false));
+    Map<String, Object> unseen = chapters("queue", "queue", List.of(step(0, null), step(600, null)));
+    assertEquals("queue", move(unseen, 700, true));
+    assertEquals("queue", move(unseen, 2, false));
+  }
+
+  @Test
+  public void brokenChapterStepsAreRefused() {
+    List<Map<String, Object>> apart = new ArrayList<>(List.of(step(0, null), step(10, "e-b"), step(20, null)));
+    assertTrue(!PorticoListeningPolicy.validChapterSteps(chapters("end", "end", apart)));
+    assertTrue(!PorticoListeningPolicy.validChapterSteps(chapters("end", "end", List.of(step(0, "e-a")))));
+    assertTrue(!PorticoListeningPolicy.validChapterSteps(chapters("later", "end", List.of(step(0, null)))));
+    assertTrue(!PorticoListeningPolicy.validChapterSteps(chapters("end", "end", List.of(step(-1, null)))));
+    assertTrue(!PorticoListeningPolicy.validChapterSteps(chapters("end", "end", List.of(step(0, "bad id")))));
+    assertTrue(!PorticoListeningPolicy.validChapterSteps(chapters("end", "end", List.of())));
   }
 }

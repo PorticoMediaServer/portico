@@ -39,7 +39,7 @@ import type {AudiobookPreferences} from '../audiobook-preferences.ts';
 import {serviceText} from '../presentation/service-text.ts';
 import {playbackUserMessage} from '../playback-messages.ts';
 import {ListeningService, loadListeningSelection, type ListeningTarget} from '../listening.ts';
-import {bookChapterIndex, bookChapterTarget, readBookChapters, type BookChapter, type BookChaptersView} from '../book-chapters.ts';
+import {bookChapterIndex, bookChapterSteps, bookChapterTarget, readBookChapters, type BookChapter, type BookChaptersView} from '../book-chapters.ts';
 import type {QueueAdvanceMode, QueuePostPlay} from '../post-play.ts';
 import type {PreparedChoice} from '../prepared-media.ts';
 import type {CompletionPolicy, HeldCompletion, QueueController, QueuePlaybackView, QueuePlaybackWindow, QueuePlayerState, QueueWorkspaceService} from '../queue-controller.ts';
@@ -200,6 +200,8 @@ export class V1QueuePlayer implements QueueController {
   /** Queue moves run one at a time: a second Next waits for the first and moves on from there. */
   private moves: Promise<unknown> = Promise.resolve();
   /** The playing book's chapters across its parts, read once per book (MU-7). */
+  private nativeChapterInputs?: readonly unknown[];
+  private nativeChapterKey?: string;
   private book?: {bookId: string; phase: 'loading' | 'ready' | 'error'; chapters: readonly BookChapter[]; attemptItem: string; abort: AbortController};
   private unlistenBook?: () => void;
   /** Rises when the viewer leaves or starts something else: a queue move still waiting its turn is then dropped. */
@@ -296,6 +298,7 @@ export class V1QueuePlayer implements QueueController {
     this.state = Object.freeze({...this.state, ...patch,
       preparation: this.preparingStart?.generation === this.generation ? this.preparingStart.notice : undefined});
     for (const fn of this.listeners) fn();
+    this.syncNativeChapters();
   }
   private publishQueue(patch: Partial<QueueState>) {
     if (this.disposed) return;
@@ -306,8 +309,8 @@ export class V1QueuePlayer implements QueueController {
   connect() {
     this.detach = this.playback.installQueue(this);
     this.listening.connect();
-    this.unlistenBook = this.listening.subscribe(() => this.followBook());
-    this.unsubscribe = this.playback.subscribe(() => this.observed());
+    this.unlistenBook = this.listening.subscribe(() => { this.followBook(); this.syncNativeChapters(); });
+    this.unsubscribe = this.playback.subscribe(() => { this.observed(); this.syncNativeChapters(); });
     this.unlisten = this.events?.on('queue.updated', event => this.queueEvent(event));
     // Rereads the queue as it is now: the header and the window around its actual current entry.
     // It never advances, commits or starts anything.
@@ -514,6 +517,24 @@ export class V1QueuePlayer implements QueueController {
     if (context?.kind !== 'audiobook_file' || !context.bookId || book?.bookId !== context.bookId || !p.itemId || p.itemId !== context.itemId || p.channel) return null;
     const current = book.phase === 'ready' ? bookChapterIndex(book.chapters, p.itemId, p.positionSeconds) : -1;
     return Object.freeze({bookId: book.bookId, itemId: p.itemId, phase: current === undefined ? 'error' : book.phase, chapters: book.chapters, current: current ?? -1});
+  }
+
+  /** The native owner answers the lock screen's, a headset's and a car's Previous and Next
+   * itself, so it holds the playing part's chapter steps (MU-7): sent when the part, the book's
+   * list or the queue window around it changes, and cleared (`null`) off a book. */
+  private syncNativeChapters() {
+    const native = this.native;
+    if (!native?.chapters) return;
+    const session = this.nativeOwns() ? this.session : undefined, book = this.book, context = this.listening.getSnapshot().context;
+    const inputs = [session, book?.chapters, book?.phase, this.window, context] as const;
+    if (this.nativeChapterInputs && inputs.every((value, i) => value === this.nativeChapterInputs![i])) return;
+    this.nativeChapterInputs = inputs;
+    const plan = session?.itemId && context?.kind === 'audiobook_file' && context.bookId && context.itemId === session.itemId && book?.bookId === context.bookId && book.phase === 'ready'
+      ? bookChapterSteps(book.chapters, session.id, session.itemId, itemId => this.window.find(e => e.itemId === itemId && e.available)?.entryId) ?? null : null;
+    const key = JSON.stringify(plan);
+    if (key === this.nativeChapterKey) return;
+    this.nativeChapterKey = key;
+    void native.chapters(plan).catch(() => { if (this.nativeChapterKey === key) this.nativeChapterKey = undefined; });
   }
 
   /** Go to a book chapter: `seek` within the playing part, else that part from the chapter's
