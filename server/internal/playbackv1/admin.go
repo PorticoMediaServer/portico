@@ -17,6 +17,7 @@ import (
 // AdminSession is one active playback on the server (spec §14, Now Playing):
 // who, on what device, what, how it's delivered and from where.
 type AdminSession struct {
+	UpdatedAt          string         `json:"updatedAt,omitempty"`
 	App                string         `json:"app,omitempty"`
 	Platform           string         `json:"platform,omitempty"`
 	Address            string         `json:"address,omitempty"`
@@ -85,7 +86,7 @@ const adminActiveV1 = `v.ended_ms=0 AND v.lease_expires_ms>?`
 const adminV1Projection = `SELECT 'v1' AS protocol,v.id AS id,v.created_ms AS created,v.account_id,COALESCE(a.username,''),v.profile_id,COALESCE(p.name,''),v.device_id,COALESCE(d.name,''),
  CASE WHEN v.kind IN ('live','channel') THEN v.channel_id ELSE COALESCE(pid(i.public_id),'') END,CASE WHEN v.kind IN ('live','channel') THEN COALESCE(json_extract(cs.selection_json,'$.name'),'') ELSE COALESCE(i.title,'') END,
  CASE WHEN v.kind IN ('live','channel') THEN 'channel' ELSE v.kind END,v.state,CASE WHEN v.kind IN ('live','channel') THEN COALESCE(cs.confirmed_position_us/1000,0) ELSE v.position_ms END,v.presentation,v.bandwidth_kbps,v.location,CASE WHEN v.kind IN ('live','channel') THEN 0 ELSE v.item_id END,v.version_id,
- (` + activityProblemCode + `),conversion.speed,conversion.observed_ms,v.buffering_since_ms,COALESCE(cs.selection_json,'')`
+ (` + activityProblemCode + `),conversion.speed,conversion.observed_ms,v.buffering_since_ms,COALESCE(cs.selection_json,''),v.updated_ms`
 
 const adminV1Joins = ` LEFT JOIN playback_channel_sessions cs ON cs.session_id=v.id
  LEFT JOIN account_portico_links hosted ON v.authority='hosted' AND hosted.hosted_account_id=v.account_id
@@ -223,12 +224,12 @@ func convertingDecision(d Decisions) bool {
 func readAdminSession(rows interface{ Scan(...any) error }) (AdminSession, durationKey, int64, error) {
 	var a AdminSession
 	var item, title, presentation, version string
-	var created, entity int64
+	var created, entity, updated int64
 	var speed *float64
 	var observed *int64
 	var buffering int64
 	var selection string
-	if err := rows.Scan(&a.Protocol, &a.ID, &created, &a.User.ID, &a.User.Name, &a.Profile.ID, &a.Profile.Name, &a.Device.ID, &a.Device.Name, &item, &title, &a.Kind, &a.State, &a.PositionMs, &presentation, &a.BandwidthKbps, &a.Location, &entity, &version, &a.Problem, &speed, &observed, &buffering, &selection); err != nil {
+	if err := rows.Scan(&a.Protocol, &a.ID, &created, &a.User.ID, &a.User.Name, &a.Profile.ID, &a.Profile.Name, &a.Device.ID, &a.Device.Name, &item, &title, &a.Kind, &a.State, &a.PositionMs, &presentation, &a.BandwidthKbps, &a.Location, &entity, &version, &a.Problem, &speed, &observed, &buffering, &selection, &updated); err != nil {
 		return a, durationKey{}, 0, err
 	}
 	if item != "" {
@@ -273,6 +274,7 @@ func readAdminSession(rows interface{ Scan(...any) error }) (AdminSession, durat
 	}
 	a.RateWindowMs = 5000
 	a.StartedAt = time.UnixMilli(created).UTC().Format(time.RFC3339Nano)
+	a.UpdatedAt = time.UnixMilli(updated).UTC().Format(time.RFC3339Nano)
 	return a, durationKey{entity, version}, created, nil
 }
 

@@ -122100,7 +122100,8 @@ var PorticoCastContracts = (function(exports) {
 							},
 							"revision": { "type": "string" },
 							"sessionId": { "type": "string" },
-							"state": { "type": "string" }
+							"state": { "type": "string" },
+							"updatedAt": { "type": "string" }
 						},
 						"required": [
 							"sessionId",
@@ -155580,6 +155581,7 @@ var PorticoCastContracts = (function(exports) {
 								"type": "array"
 							},
 							"app": { "type": "string" },
+							"appVersion": { "type": "string" },
 							"device": {
 								"properties": {
 									"id": { "type": "string" },
@@ -155656,6 +155658,7 @@ var PorticoCastContracts = (function(exports) {
 							"revision": { "type": "string" },
 							"startedAt": { "type": "string" },
 							"state": { "type": "string" },
+							"updatedAt": { "type": "string" },
 							"user": {
 								"properties": {
 									"id": { "type": "string" },
@@ -156823,6 +156826,7 @@ var PorticoCastContracts = (function(exports) {
 								],
 								"type": "object"
 							},
+							"updatedAt": { "type": "string" },
 							"user": {
 								"properties": {
 									"id": { "type": "string" },

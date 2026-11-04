@@ -89530,6 +89530,9 @@
                 },
                 "state": {
                   "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
                 }
               },
               "required": [
@@ -109577,6 +109580,9 @@
                 "app": {
                   "type": "string"
                 },
+                "appVersion": {
+                  "type": "string"
+                },
                 "device": {
                   "properties": {
                     "id": {
@@ -109706,6 +109712,9 @@
                   "type": "string"
                 },
                 "state": {
+                  "type": "string"
+                },
+                "updatedAt": {
                   "type": "string"
                 },
                 "user": {
@@ -111700,6 +111709,9 @@
                     "cadenceMs"
                   ],
                   "type": "object"
+                },
+                "updatedAt": {
+                  "type": "string"
                 },
                 "user": {
                   "properties": {
@@ -314199,6 +314211,9 @@
                             ],
                             "type": "object"
                           },
+                          "updatedAt": {
+                            "type": "string"
+                          },
                           "user": {
                             "properties": {
                               "id": {
@@ -388474,6 +388489,9 @@
                           "app": {
                             "type": "string"
                           },
+                          "appVersion": {
+                            "type": "string"
+                          },
                           "device": {
                             "properties": {
                               "id": {
@@ -388603,6 +388621,9 @@
                             "type": "string"
                           },
                           "state": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
                             "type": "string"
                           },
                           "user": {
@@ -462197,6 +462218,9 @@
                             "type": "string"
                           },
                           "state": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
                             "type": "string"
                           }
                         },

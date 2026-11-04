@@ -3,6 +3,7 @@ package playbackv1
 import (
 	"context"
 	"strconv"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
@@ -85,6 +86,7 @@ func (s *Service) AdminControl(ctx context.Context, id string, in ControlCommand
 }
 
 type RemotePlayback struct {
+	UpdatedAt string `json:"updatedAt,omitempty"`
 	SessionControls
 	Device AdminName   `json:"device"`
 	Item   *AdminItem  `json:"item,omitempty"`
@@ -153,7 +155,7 @@ func (s *Service) RemoteControls(ctx context.Context, c Caller, cursor string, l
 		if !sameProfile(c.Principal, r) {
 			controls.Actions = []string{"stop"}
 		}
-		remote := RemotePlayback{SessionControls: controls, Device: device, Item: item, Kind: r.kind}
+		remote := RemotePlayback{UpdatedAt: time.UnixMilli(r.updated).UTC().Format(time.RFC3339Nano), SessionControls: controls, Device: device, Item: item, Kind: r.kind}
 		if r.queueID != "" {
 			tx, done, e := dbwork.BeginRead(ctx, s.DB)
 			if e != nil {
