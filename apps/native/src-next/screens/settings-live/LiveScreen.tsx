@@ -23,6 +23,7 @@ import {GuideLoadingMarker} from './GuideLoadingMarker';
 import {StateView} from '../../kit/states';
 import {usePullRefresh} from '../../kit/states/usePullRefresh';
 import {alpha, shellType} from '../../kit/shell/visual';
+import {OwnerTag} from '../../kit/shell/ServerIdentity';
 import {fontFamilies, useTheme} from '../../kit/theme';
 import {useScreenReader} from '../../kit/useScreenReader';
 import {usePlatformPosture} from '../../platform/platformPosture';
@@ -43,6 +44,7 @@ import {useGuideTimePan} from './useGuideTimePan';
 import {nativeGuideCellWindow, nativeGuideElapsedWidth, nativeGuidePanRange, nativeGuidePanTarget, visibleGuideRows} from './guide-pan-model';
 import {NativeLivePhonePicker} from './LivePhonePicker';
 import {NativeLiveOwnerScreen} from './LiveOwnerScreen';
+import {NativeLiveTabs} from './LiveTabs';
 import type {NativeLiveOwnerController} from './live-owner-controller';
 import {NativeSeriesRuleSheet} from './LiveSeriesRule';
 import {TVManagementHandoff} from '../../tv/auth';
@@ -51,6 +53,7 @@ import {seriesFormDefaults, type SeriesForm} from './recording-rule-presentation
 import {nativeServerAdmission} from './server/tv-server-reader';
 import {GUIDE_RECOVERY_SETTLE_MS, guideFocusMoved, guideReentryNext, liveGuideEntry, livePageTakesFocus, tvGroupEdges, tvProgrammeGroups, type GuideReentry, type GuideReentryEvent} from './tv-settings-focus';
 import {registerBack} from '../../kit/navigation/back';
+import {useRailHold} from '../../kit/navigation/rail-hold';
 import {TVRow} from '../../kit/layout/TVRow';
 
 export function NativeLiveScreen({controller, recordings, owner, ports, runtime}: {controller: NativeLiveController; recordings: NativeRecordingsController; owner: NativeLiveOwnerController; ports: Pick<NativeSettingsLivePorts, 'context' | 'dvrRequestId' | 'requestId'>; runtime: NativeShellRuntime}) {
@@ -65,6 +68,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   // The authored phone header stack covers the medium tablet too; landscape keeps its own
   // single-row header and wide layouts keep the desktop controls row.
   const stackedHeader = phoneChrome && !landscape;
+  const expandedTouch = !theme.isTV && !phoneChrome;
   // foldable7: only a reported vertical crease for this exact window may split the page;
   // an absent posture report keeps the single-page guide and its panel.
   const posture = usePlatformPosture();
@@ -180,6 +184,8 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   const paneLeft = creaseRight ?? Math.max(0, contentWidth - panelWidth), guideEnd = creaseLeft ?? paneLeft;
   const twoPane = !!selected && !theme.isTV && !phone && view === 'guide' && contentWidth > 0
     && guideEnd >= channelWidth + 100 && contentWidth - paneLeft >= 300;
+  // tablet-play6: the sidebar folds to the rail while the programme panel is open beside the guide.
+  useRailHold(!theme.isTV && twoPane && onLive && !ownerOpen && !recordingsOpen);
   const width = Math.max(0, measuredWidth - insetLeft - (twoPane ? Math.max(0, contentWidth - guideEnd) : insetRight));
   const rowHeight = theme.isTV ? 92 : view === 'list' ? 100 : landscape ? 62 : 72, rowGap = theme.isTV ? 8 : phoneChrome ? 0 : 6, px = pxPerMsFor(halfHour), end = start + Math.max(halfHour, width - channelWidth) / px;
   useEffect(() => {void controller.loadSources(); const timer = setInterval(() => setNow(serverNow()), 30000); return () => clearInterval(timer);}, [controller]);
@@ -506,8 +512,30 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
         {recordError !== undefined && programmeGroup('record-error', <StateView testID="live-record-error" {...runtime.error(recordError, () => setRecordError(undefined), 'live')}/>, undefined, true)}
         {state.mutationError !== undefined && programmeGroup('preference-error', <StateView testID="live-channel-preference-error" {...runtime.error(state.mutationError, favorite, 'live')}/>, undefined, true)}
   </View> : null;
+  // tablet-play6: at expanded touch widths the title row carries the Guide / Recordings pair and the view switch;
+  // the day, the 2-hour steps with Now between them, and Sort sit under the chips. TV keeps its one controls row.
+  const ownerButton = managesServer && <Button testID="live-owner-open" variant="glass" size="small" icon="i-sliders" disabled={theme.isTV && !managementUrl} onPress={() => openManagement()}>{t('settings.server.live')}</Button>;
+  const controlsRow = <FocusRegion id={controls} orientation="horizontal" edges={{left: ids.rail, down: filters}} stops={{up: true}} style={{flexDirection: 'row', gap: 22, alignItems: 'center', marginBottom: 24, minHeight: 64}}>
+    <Text accessibilityRole="header" style={[shellType(44, 800, 'normal', -.03), {color: theme.colors.text, marginRight: 14}]}>{t('search.chip.liveTV')}</Text>
+    {sourcePicker}
+    {dayPicker}
+    <Button testID="live-now" variant="glass" size="small" onPress={goNow}>{t('guide.now')}</Button>
+    {hasRecordings && <Button focusId="live-recordings" testID="live-recordings" variant="glass" size="small" icon="i-rec" onPress={() => setRecordingsOpen(true)}>{t('recordings.title')}</Button>}
+    {ownerButton}
+  </FocusRegion>;
+  const timeRow = <View testID="live-time" style={{flexDirection: 'row', gap: 12, alignItems: 'center', marginBottom: 20}}>
+    {sourcePicker}
+    {dayPicker}
+    <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
+      {view === 'guide' && <Button testID="live-earlier" variant="glass" size="small" style={{height: 44}} icon="i-left" accessibilityLabel={t('guide.earlier')} disabled={!panActive} onPress={() => pan.adjust(-4 * SLOT_MS)}>2 h</Button>}
+      <Button testID="live-now" variant="glass" size="small" style={{height: 44}} onPress={goNow}>{t('guide.now')}</Button>
+      {view === 'guide' && <Button testID="live-later" variant="glass" size="small" style={{height: 44}} trailingIcon="i-right" accessibilityLabel={t('guide.later')} disabled={!panActive} onPress={() => pan.adjust(4 * SLOT_MS)}>2 h</Button>}
+    </View>
+    <View style={{flex: 1}}/>
+    {sortPicker}
+  </View>;
   const programmeFocusBody = theme.isTV && programmeBody ? <FocusRegion id={programmeRegion} entryRegion={`${programmeRegion}.${programmeGroups.find(group => !group.startsWith('later:'))}`} stops={{up: true, down: true, left: true, right: true}}>{programmeBody}</FocusRegion> : programmeBody;
-  return <Screen title={!theme.isTV && !phoneChrome ? t('search.chip.liveTV') : undefined} style={theme.isTV ? {paddingTop: 56, paddingRight: 8} : phoneChrome ? {paddingTop: insets.top + (landscape ? 0 : 14)} : undefined}>
+  return <Screen style={theme.isTV ? {paddingTop: 56, paddingRight: 8} : phoneChrome ? {paddingTop: insets.top + (landscape ? 0 : 14)} : undefined}>
     <View ref={content} onLayout={event => {setMeasuredWidth(event.nativeEvent.layout.width); measureContent();}}
       style={{flex: 1, paddingLeft: insetLeft, paddingRight: twoPane ? Math.max(insetRight, contentWidth - guideEnd) : insetRight}}>
       {stackedHeader && <View style={{flexDirection: 'row', gap: 6, alignItems: 'center', paddingHorizontal: compact ? 20 : 0, marginBottom: 12, minHeight: 38}}>
@@ -517,23 +545,19 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
         {managesServer && <Button testID="live-owner-open" variant="icon" size="small" icon="i-sliders" accessibilityLabel={t('settings.server.live')} disabled={theme.isTV && !managementUrl} onPress={() => openManagement()}/>}
       </View>}
       {landscape && <View style={{flexDirection: 'row', gap: 12, alignItems: 'center', height: 50, paddingTop: 6, marginBottom: 6}}><Text accessibilityRole="header" style={[shellType(24, 800, 'normal', -.035), {color: theme.colors.text}]}>{t('search.chip.liveTV')}</Text>{viewSwitch}{filterChips}{sortPicker}{hasRecordings && <Button testID="live-recordings" variant="icon" size="small" icon="i-rec" accessibilityLabel={t('recordings.title')} onPress={() => setRecordingsOpen(true)}/>}{managesServer && <Button testID="live-owner-open" variant="icon" size="small" icon="i-sliders" accessibilityLabel={t('settings.server.live')} disabled={theme.isTV && !managementUrl} onPress={() => openManagement()}/>}</View>}
-      {!phoneChrome && <FocusRegion id={controls} orientation="horizontal" edges={{left: ids.rail, down: filters}} stops={theme.isTV ? {up: true} : undefined} style={{flexDirection: 'row', gap: theme.isTV ? 22 : 12, alignItems: 'center', marginBottom: theme.isTV ? 24 : 20, minHeight: theme.isTV ? 64 : undefined}}>
-        {theme.isTV && <Text accessibilityRole="header" style={[shellType(44, 800, 'normal', -.03), {color: theme.colors.text, marginRight: 14}]}>{t('search.chip.liveTV')}</Text>}
-        {sourcePicker}
-        {!theme.isTV && <><Chip testID="live-view-list" selected={view === 'list'} onPress={() => setView('list')}>{t('channels.viewList')}</Chip><Chip testID="live-view-guide" selected={view === 'guide'} onPress={() => setView('guide')}>{t('channels.viewGuide')}</Chip></>}
-        {dayPicker}
-        {!theme.isTV && theme.width >= 1024 && view === 'guide' && <Button testID="live-earlier" variant="glass" size="small" style={{height: 44}} icon="i-left" accessibilityLabel={t('guide.earlier')} disabled={!panActive} onPress={() => pan.adjust(-4 * SLOT_MS)}>2 h</Button>}
-        <Button testID="live-now" variant="glass" size="small" onPress={goNow}>{t('guide.now')}</Button>
-        {!theme.isTV && theme.width >= 1024 && view === 'guide' && <Button testID="live-later" variant="glass" size="small" style={{height: 44}} trailingIcon="i-right" accessibilityLabel={t('guide.later')} disabled={!panActive} onPress={() => pan.adjust(4 * SLOT_MS)}>2 h</Button>}
-        {hasRecordings && <Button focusId="live-recordings" testID="live-recordings" variant="glass" size="small" icon="i-rec" onPress={() => setRecordingsOpen(true)}>{t('recordings.title')}</Button>}
-        {!theme.isTV && sortPicker}
-        {managesServer && <Button testID="live-owner-open" variant="glass" size="small" icon="i-sliders" disabled={theme.isTV && !managementUrl} onPress={() => openManagement()}>{t('settings.server.live')}</Button>}
-      </FocusRegion>}
-      {!landscape && <FocusRegion id={filters} orientation="horizontal" entry={state.options.favorites ? 'favorites' : state.options.group ? `group:${state.options.group}` : 'all'} edges={{left: ids.rail, up: controls, down: grid}} style={{marginBottom: theme.isTV ? 38 : stackedHeader ? 8 : 30}}>
+      {theme.isTV && controlsRow}
+      {expandedTouch && <NativeLiveTabs value="guide" t={t} onRecordings={hasRecordings ? () => setRecordingsOpen(true) : undefined}>
+        {viewSwitch}
+        {ownerButton}
+      </NativeLiveTabs>}
+      {!landscape && <FocusRegion id={filters} orientation="horizontal" entry={state.options.favorites ? 'favorites' : state.options.group ? `group:${state.options.group}` : 'all'} edges={{left: ids.rail, up: controls, down: grid}} style={{marginBottom: theme.isTV ? 38 : stackedHeader ? 8 : 14}}>
         {filterChips}
       </FocusRegion>}
+      {expandedTouch && timeRow}
       {stackedHeader && <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, paddingHorizontal: compact ? 20 : 0}}>{view === 'guide' ? dayPicker : <View style={{flexDirection: 'row', gap: 6, alignItems: 'center'}}><Text style={[shellType(13, 700), {color: theme.colors.text}]}>{t('guide.onNow')}</Text><Text style={[shellType(13), {color: theme.colors.textSecondary}]}>{clock(now)}</Text></View>}{sortPicker}</View>}
-      {state.error !== undefined ? <StateView {...runtime.error(state.error, () => {void controller.loadSources();}, 'live')}/> : empty ? <StateView testID="live-no-sources" title={t(managesServer ? 'web.live.empty.noSourcesOwnerTitle' : 'web.live.empty.noSourcesTitle')}
+      {state.error !== undefined ? <StateView {...runtime.error(state.error, () => {void controller.loadSources();}, 'live')}/> : empty ? <StateView testID="live-no-sources" variant={compact ? 'centered' : 'inline'} stackActions={compact}
+        // states 17c: the owner's state names the server it sets up, with the Owner only tag over the heading.
+        kicker={managesServer && !theme.isTV ? <OwnerTag testID="live-no-sources-owner-tag" identity={shell.serverName}/> : undefined} title={t(managesServer ? 'web.live.empty.noSourcesOwnerTitle' : 'web.live.empty.noSourcesTitle')}
         body={t(managesServer ? 'next.states.setupLiveBody' : 'web.live.empty.noSourcesMember')}
         primaryAction={managesServer ? {id: 'add-source', label: t('next.states.addTVSource'), icon: 'i-plus', disabled: theme.isTV && !managementUrl, onPress: () => openManagement('add')}
           : {id: 'home', label: t('next.states.goHome'), onPress: () => runtime.onDestination({kind: 'home'})}}
@@ -554,7 +578,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
         </FocusRegion>
         {phone && view === 'guide' && <Animated.View pointerEvents="none" style={[{position: 'absolute', left: channelWidth, top: 30, bottom: 0}, pastShade]}><Svg width="100%" height="100%" accessible={false}><Defs><LinearGradient id={`${shadeId}-past`} x1="0" y1="0" x2="1" y2="0"><Stop offset="0" stopColor={theme.colors.ink} stopOpacity={.38}/><Stop offset="1" stopColor={theme.colors.ink} stopOpacity={.12}/></LinearGradient></Defs><Rect width="100%" height="100%" fill={`url(#${shadeId}-past)`}/></Svg></Animated.View>}
         {view === 'guide' && (inNowSpan || panActive) && <View pointerEvents="none" style={{position: 'absolute', left: channelWidth, right: 0, top: 0, bottom: theme.isTV ? 60 : 0, overflow: 'hidden'}}><Animated.View style={[{position: 'absolute', left: nowX, top: 0, bottom: 0, width: theme.isTV ? 3 : 2, backgroundColor: `${theme.colors.accentStrong}88`}, nowShift]}><Animated.View style={[{position: 'absolute', top: theme.isTV ? 0 : 4, width: 60, height: theme.isTV ? 30 : 22, alignItems: 'center', justifyContent: 'center', borderRadius: theme.isTV ? 6 : 4, backgroundColor: theme.colors.accentStrong}, nowPillShift]}><Text style={[shellType(theme.isTV ? 20 : 12, 800), {color: theme.colors.ink}]}>{clock(now)}</Text></Animated.View></Animated.View></View>}
-        {phone && view === 'guide' && <>{(['earlier', 'later'] as const).map(direction => <Animated.View key={direction} style={[{position: 'absolute', top: 3, ...(direction === 'earlier' ? {left: channelWidth + 3} : {right: 3})}, direction === 'earlier' ? earlierNow : laterNow]}><Focusable testID={`live-docked-now-${direction}`} accessibilityRole="button" accessibilityLabel={t(direction === 'earlier' ? 'guide.nowEarlier' : 'guide.nowLater')} onPress={goNow} style={{height: 24, paddingHorizontal: 9, borderRadius: 12, backgroundColor: theme.colors.accentStrong, flexDirection: 'row', gap: 1, alignItems: 'center'}}>{direction === 'earlier' && <Icon name="i-left" size={14} color={theme.colors.ink}/>}<Text style={[shellType(12, 800), {color: theme.colors.ink}]}>{t('guide.now')}</Text>{direction === 'later' && <Icon name="i-right" size={14} color={theme.colors.ink}/>}</Focusable></Animated.View>)}</>}
+        {phoneChrome && view === 'guide' && <>{(['earlier', 'later'] as const).map(direction => <Animated.View key={direction} style={[{position: 'absolute', top: 3, ...(direction === 'earlier' ? {left: channelWidth + 3} : {right: 3})}, direction === 'earlier' ? earlierNow : laterNow]}><Focusable testID={`live-docked-now-${direction}`} accessibilityRole="button" accessibilityLabel={t(direction === 'earlier' ? 'guide.nowEarlier' : 'guide.nowLater')} onPress={goNow} style={{height: 24, paddingHorizontal: 9, borderRadius: 12, backgroundColor: theme.colors.accentStrong, flexDirection: 'row', gap: 1, alignItems: 'center'}}>{direction === 'earlier' && <Icon name="i-left" size={14} color={theme.colors.ink}/>}<Text style={[shellType(12, 800), {color: theme.colors.ink}]}>{t('guide.now')}</Text>{direction === 'later' && <Icon name="i-right" size={14} color={theme.colors.ink}/>}</Focusable></Animated.View>)}</>}
         </View></GestureDetector>}
         {data.channelsError && <StateView {...runtime.error(new Error('guide_channels_unavailable'), () => guide.reset(), 'live')}/>}
       </>}

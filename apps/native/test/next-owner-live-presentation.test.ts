@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
+import {liveTabsFixture, ownerTagFixture} from './helpers/live-fixtures.mjs';
 import * as tvSettingsFocus from '../src-next/screens/settings-live/tv-settings-focus.ts';
 
 const nodes = (tree: any): any[] => Array.isArray(tree) ? tree.flatMap(nodes) : tree && typeof tree === 'object' ? [tree, ...nodes(tree.props?.children)] : [];
@@ -78,7 +79,7 @@ async function guideFixture(width = 1180, screenReader = false, facts: Readonly<
   let activeHost = host;
   const react: any = {...host.react};
   for (const name of ['useState', 'useRef', 'useMemo', 'useCallback', 'useEffect', 'useSyncExternalStore'] as const) react[name] = (...args: any[]) => (activeHost.react[name] as (...values: any[]) => any)(...args);
-  const adjustments: number[] = []; let panOptions: any;
+  const adjustments: number[] = [], holds: boolean[] = []; let panOptions: any;
   const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch'};
   const lifetime = {authority, current: () => true, signal: new AbortController().signal};
   const source = {id: 'source', name: 'Source', guideDays: 2, groups: [], groupCounts: [], favoriteCount: 0, provenance: 'live-source', channelCount: 1, unavailableReasons: {}, refreshState: 'ready', ...facts.source};
@@ -91,7 +92,7 @@ async function guideFixture(width = 1180, screenReader = false, facts: Readonly<
   const runtime = {text: {t}, subscribe: () => () => {}, getSnapshot: () => shell, artwork: () => undefined, error: () => ({title: 'Error'})};
   const context = {account: {account: {role: facts.role ?? 'owner', primaryProfileId: 'profile'}, canManage: true}, api: {baseUrl: 'https://example.invalid'}, current: () => true, authority: () => authority,
     navigation: {subscribe: () => () => {}, getSnapshot: () => ({revision: 1, destination: {kind: 'live'}}), isCurrent: () => true}};
-  const {NativeLiveScreen} = await screenModule(new URL('../src-next/screens/settings-live/LiveScreen.tsx', import.meta.url), { './tv-settings-focus': tvSettingsFocus,
+  const {NativeLiveScreen} = await screenModule(new URL('../src-next/screens/settings-live/LiveScreen.tsx', import.meta.url), {...liveTabsFixture(host.react), ...ownerTagFixture, '../../kit/navigation/rail-hold': {useRailHold: (active: boolean) => {holds.push(active);}}, './tv-settings-focus': tvSettingsFocus,
     react, 'react-native': {...native, BackHandler: {}, FlatList: 'FlatList', ScrollView: 'ScrollView', VirtualizedList: 'VirtualizedList', Platform: {OS: 'web'}, useWindowDimensions: () => ({width, height: 900})},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, left: 0, right: 0, bottom: 0})},
     'react-native-gesture-handler': {GestureDetector: 'GestureDetector'}, 'react-native-reanimated': {default: {View: 'AnimatedView'}, useAnimatedStyle: () => ({})},
@@ -115,7 +116,7 @@ async function guideFixture(width = 1180, screenReader = false, facts: Readonly<
     '../../tv/auth': {TVManagementHandoff: 'Handoff'}, '../../tv/auth/TVHandoff': {publicTVHandoffAddress: (url: string) => ({url})}, './recording-rule-presentation': {}, './server/tv-server-reader': {nativeServerAdmission: () => 'owner'},
   });
   const render = () => host.render(() => NativeLiveScreen({controller, recordings: {}, owner: {}, ports: {context}, runtime}));
-  return {render, adjustments, channel, programme, renderRow: (row: any) => {activeHost = fixture(); try {return activeHost.render(() => row.type(row.props));} finally {activeHost = host;}}, get panOptions() {return panOptions;}};
+  return {render, adjustments, holds, channel, programme, renderRow: (row: any) => {activeHost = fixture(); try {return activeHost.render(() => row.type(row.props));} finally {activeHost = host;}}, get panOptions() {return panOptions;}};
 }
 
 test('Expanded and screen-reader guides expose independent two-hour navigation without grouping programme cells', async () => {
@@ -131,12 +132,18 @@ test('Expanded and screen-reader guides expose independent two-hour navigation w
 
 test('A docked programme keeps guide panning active and marks only its matching channel/programme cell', async () => {
   const f = await guideFixture(); let tree = f.render();
+  assert.equal(f.holds.at(-1), false, 'no panel: the sidebar stays as chosen');
   const content = nodes(tree).find(node => node.props?.ref && node.props?.onLayout && node.type === 'View');
   content.props.ref.current = {measureInWindow: (done: any) => done(0, 0, 1100)};
   content.props.onLayout({nativeEvent: {layout: {width: 1100}}}); tree = f.render();
   let row = nodes(tree).find(node => node.type === 'VirtualizedList').props.renderItem({item: 0});
   row.props.onOpen(f.channel, f.programme, null); tree = f.render();
   assert.ok(find(tree, 'live-programme-pane')); assert.equal(f.panOptions.enabled, true);
+  assert.equal(f.holds.at(-1), true, 'tablet-play6: the docked panel folds the sidebar to the rail');
+  find(tree, 'live-programme-close').props.onPress(); tree = f.render();
+  assert.equal(find(tree, 'live-programme-pane'), undefined); assert.equal(f.holds.at(-1), false, 'and it opens again when the panel closes');
+  row = nodes(tree).find(node => node.type === 'VirtualizedList').props.renderItem({item: 0});
+  row.props.onOpen(f.channel, f.programme, null); tree = f.render();
   row = nodes(tree).find(node => node.type === 'VirtualizedList').props.renderItem({item: 0});
   assert.equal(row.props.selected.channel, f.channel); assert.equal(row.props.selected.program, f.programme);
   const rowTree = f.renderRow(row);

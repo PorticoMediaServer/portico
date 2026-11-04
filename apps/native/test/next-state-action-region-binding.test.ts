@@ -202,3 +202,24 @@ test('the actual TVPeoplePanel failure retry registers in its region and re-read
     assert.equal(reads, 4, 'the section retry repeats only its own bounded read');
   } finally {lifetime.dispose(); await host.unmount();}
 });
+
+// states.html 17c: a phone page state may carry a kicker over its heading (the owner's server tag) and stack its actions
+// full width, as StateLayout's phone stack does; without them the actions stay side by side, as before.
+test('a state view draws its kicker above the heading and, when asked, stacks its actions full width', async () => {
+  const flat = (style: any): Record<string, any> => Array.isArray(style) ? Object.assign({}, ...style.map(flat)) : style ?? {};
+  const actions = {primaryAction: {id: 'add', label: 'Add', onPress() {}}, secondaryAction: {id: 'find', label: 'Find', onPress() {}}};
+  for (const stackActions of [true, false]) {
+    const host = await fabricHost(), registry = createFocusRegistry();
+    try {
+      await host.render(React.createElement(ThemeProvider, {width: 390}, React.createElement(FocusProvider, {registry},
+        React.createElement(StateView, {testID: 'state', title: 'Set up Live TV', stackActions, kicker: React.createElement('Kicker', {testID: 'kicker'}), ...actions}))));
+      const order = nodesOf(host.root).map(node => node.props?.testID ?? (node.type === 'Text' && node.props?.accessibilityRole === 'header' ? 'heading' : undefined)).filter(Boolean);
+      assert.ok(order.indexOf('kicker') >= 0 && order.indexOf('kicker') < order.indexOf('heading'), 'the kicker sits above the heading');
+      for (const id of ['add', 'find']) {
+        const pressable = nodesOf(host.root).find(node => node.props?.testID === focusTestID('state', JSON.stringify(['action', id])));
+        const style = pressable?.props.style, button = flat(typeof style === 'function' ? style({pressed: false, focused: false}) : style);
+        assert.equal(button.width === '100%' && button.height === 50, stackActions, `${id}: ${JSON.stringify(button)}`);
+      }
+    } finally {await host.unmount();}
+  }
+});

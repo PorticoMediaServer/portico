@@ -6,6 +6,7 @@ import * as failureWords from '../../src-next/screens/watch/failure-words.ts';
 import * as tvPlayPause from '../../src-next/platform/tv-play-pause.ts';
 import * as shellFreshness from '../../src-next/shell/freshness.ts';
 import {replacementRefocusHook} from '../../src-next/kit/focus/replacement-refocus-hook.ts';
+import {railHoldHooks} from '../../src-next/kit/navigation/rail-hold-hooks.ts';
 
 // Pure leaves a screen gets for real (or as a faithful double) unless a fixture supplies its own.
 // - The server clock has no platform dependency: the real module, whether a screen imports it by
@@ -22,6 +23,8 @@ import {replacementRefocusHook} from '../../src-next/kit/focus/replacement-refoc
 //   touches and screen readers while covered.
 // - The replacement refocus hook (kit/focus/replacement-refocus) is the real one over the fixture's own React: a
 //   component that keeps focus in a replaced row (Row, the TV search grid) needs no entry in a hand-built map.
+// - The rail hold (kit/navigation/rail-hold) is the real one over the fixture's own React, so the shell and a page with a
+//   side panel need no entry in a hand-built map; a fake `hooks()` React without context holds nothing.
 const pageInsets = new WeakMap();
 function pageInsetLeaf(react, native) {
   // The fake `hooks()` React has no context: its provider is a named element and the inset reads zero.
@@ -33,6 +36,13 @@ function pageInsetLeaf(react, native) {
     usePageWidth: () => Math.max(0, (native?.useWindowDimensions?.().width ?? 0) - usePageInset()),
     pageInsetElement: (inset, children) => react.createElement(context.Provider, {value: inset}, children)};
 }
+const railHolds = new WeakMap();
+function railHoldLeaf(react) {
+  if (!react.createContext || !react.useContext || !react.useLayoutEffect) return {RailHoldProvider: ({children}) => children, useRailHold: () => {}, useRailHeld: () => false};
+  let hooks = railHolds.get(react);
+  if (!hooks) {hooks = railHoldHooks(react); railHolds.set(react, hooks);}
+  return hooks;
+}
 const leaf = (source, react, native) => /(^|\/)server-clock(\.ts)?$/.test(source) && /client-core\/src\/server-clock|^\.\/server-clock/.test(source) ? serverClock
   : /(^|\/)failure-words$/.test(source) ? failureWords
   : /(^|\/)platform\/tv-play-pause$/.test(source) ? tvPlayPause
@@ -41,6 +51,7 @@ const leaf = (source, react, native) => /(^|\/)server-clock(\.ts)?$/.test(source
   // The shell's cache accessor (shell/freshness) is pure: a screen built over a fixture's own API reads through a cache of that API.
   : /(^|\/)shell\/freshness$|^\.\/freshness$/.test(source) ? shellFreshness
   : /(^|\/)kit\/layout\/page-inset$/.test(source) ? pageInsetLeaf(react, native)
+  : /(^|\/)navigation\/rail-hold$/.test(source) ? railHoldLeaf(react)
   : /(^|\/)focus\/replacement-refocus$/.test(source) ? {useReplacementRefocus: replacementRefocusHook(react)}
   : /(^|\/)kit\/focus\/CoveredLayer$/.test(source) ? {CoveredLayer: ({covered, children, style, testID}) => react.createElement('View',
     {style, testID, pointerEvents: covered ? 'none' : 'auto', accessibilityElementsHidden: covered, importantForAccessibility: covered ? 'no-hide-descendants' : 'auto'}, children)}
