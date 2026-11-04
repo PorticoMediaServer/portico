@@ -2,7 +2,7 @@
 set -euo pipefail
 root="$RUNNER_TEMP/p0-q-experiment"
 mkdir -p "$root/out" "$root/work"
-mixed_args=()
+mixed_args=(-rounds "${ROUNDS:-2048}")
 if [ -n "${CJK_SHARE:-}" ]; then mixed_args+=(-cjk-share "$CJK_SHARE"); fi
 if [ "${OLD_RECIPE:-0}" = 1 ]; then mixed_args+=(-old-cjk-recipe); fi
 if [ "${SNAPSHOT_CAP:-0}" != 0 ]; then mixed_args+=(-snapshot-cap "${SNAPSHOT_CAP}ms"); fi

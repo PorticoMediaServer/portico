@@ -300,6 +300,7 @@ func insertItem(db *sql.DB, i, shared int) {
 }
 
 var databasePath string
+var profileName string
 
 func checkpoint(db *sql.DB) {
 	if passiveEnabled {
@@ -670,6 +671,7 @@ func main() {
 	mixed := flag.Bool("mixed", false, "mixed security/progress traffic")
 	minimum := flag.Duration("mixed-duration", 600*time.Second, "minimum mixed observation")
 	flag.Parse()
+	profileName = *profile
 	cjkShare = *share
 	oldCJKRecipe = *oldRecipe
 	snapshotCap = *pinCap

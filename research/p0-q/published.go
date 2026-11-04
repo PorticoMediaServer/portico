@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"github.com/PorticoMediaServer/portico/server/internal/facettext"
@@ -42,6 +41,7 @@ func createPublished(db *sql.DB) {
 	exec(db, `CREATE UNIQUE INDEX q_edge_person ON q_edges(owner_person,entity) WHERE owner_person IS NOT NULL`)
 	exec(db, `CREATE UNIQUE INDEX q_edge_entity ON q_edges(owner_entity,entity) WHERE owner_entity IS NOT NULL`)
 	exec(db, `CREATE INDEX q_edge_target ON q_edges(entity,owner_entity,owner_person)`)
+	exec(db, `CREATE VIEW q_source_entities AS SELECT * FROM catalog_entities`)
 	exec(db, `CREATE VIEW q_search_entities AS SELECT e.*,p.title_fold,p.title_prefix_tokens,p.initial_prefix_tokens FROM catalog_entities e JOIN q_items q ON q.id=e.id JOIN search_publish_jobs j ON j.entity_id=e.id AND j.search_generation_id=(SELECT active_generation_id FROM search_revision WHERE singleton=1) JOIN search_publications p ON p.id=j.published_document_id`)
 	exec(db, `CREATE VIEW edges AS SELECT f.id fragment,x.entity FROM search_fragments f JOIN search_publish_jobs j ON j.person_id=f.owner_person AND j.search_generation_id=f.search_generation_id AND j.published_generation=f.generation JOIN q_edges x ON x.owner_person=f.owner_person WHERE f.owner_person IS NOT NULL AND f.search_generation_id=(SELECT active_generation_id FROM search_revision WHERE singleton=1) UNION ALL SELECT f.id fragment,x.entity FROM search_fragments f JOIN search_publish_jobs j ON j.entity_id=f.owner_entity AND j.search_generation_id=f.search_generation_id AND j.published_generation=f.generation JOIN q_edges x ON x.owner_entity=f.owner_entity WHERE f.owner_entity IS NOT NULL AND f.search_generation_id=(SELECT active_generation_id FROM search_revision WHERE singleton=1)`)
 
@@ -56,6 +56,7 @@ func createPublished(db *sql.DB) {
 }
 
 type pubDoc struct {
+	sourceVersion                                                         int
 	entity, person, job, doc, frag, version, searchGen, kind, lib, oldDoc int
 	oldFrags                                                              []int
 	title, p, init, fold, lex, fragPrefix                                 string
@@ -73,6 +74,14 @@ func subjectBytes(i int) []byte {
 }
 func witness(db *sql.DB, entity, person, gen int, at time.Time) {
 	var e, p any
+	revision := 1
+	table := "catalog_entities"
+	subject := entity
+	if person > 0 {
+		table = "catalog_people"
+		subject = person
+	}
+	must(db.QueryRow("SELECT revision FROM "+table+" WHERE id=?", subject).Scan(&revision))
 	key, col, id := "entity_id", "entity_id", entity
 	if person > 0 {
 		p = person
@@ -82,7 +91,7 @@ func witness(db *sql.DB, entity, person, gen int, at time.Time) {
 	} else {
 		e = entity
 	}
-	exec(db, `INSERT INTO search_publish_jobs(entity_id,person_id,search_generation_id,input_generation,source_incarnation,source_revision,recipe_version,phase,job_next_attempt_ms) VALUES(?,?,?,1,?,1,?,'capture',?) ON CONFLICT(`+key+`,search_generation_id) DO UPDATE SET input_generation=input_generation+1,source_revision=source_revision+1,phase='capture',job_next_attempt_ms=excluded.job_next_attempt_ms,job_revision=job_revision+1`, e, p, gen, subjectBytes(id), recipeVersion, at.UnixMilli())
+	exec(db, `INSERT INTO search_publish_jobs(entity_id,person_id,search_generation_id,input_generation,source_incarnation,source_revision,recipe_version,phase,job_next_attempt_ms) VALUES(?,?,?,1,?,?,?,'capture',?) ON CONFLICT(`+key+`,search_generation_id) DO UPDATE SET input_generation=input_generation+1,source_revision=excluded.source_revision,phase='capture',job_next_attempt_ms=excluded.job_next_attempt_ms,job_revision=job_revision+1`, e, p, gen, subjectBytes(id), revision, recipeVersion, at.UnixMilli())
 	_ = col
 }
 func capturePub(db *sql.DB, entity, person, gen int, title string, accepted time.Time) *pubDoc {
@@ -93,7 +102,7 @@ func capturePub(db *sql.DB, entity, person, gen int, title string, accepted time
 		d.fragPrefix = d.p
 	}
 	var old sql.NullInt64
-	must(db.QueryRow("SELECT id,input_generation,published_document_id FROM search_publish_jobs WHERE "+col+"=? AND search_generation_id=?", id, gen).Scan(&d.job, &d.version, &old))
+	must(db.QueryRow("SELECT id,input_generation,published_document_id,source_revision FROM search_publish_jobs WHERE "+col+"=? AND search_generation_id=?", id, gen).Scan(&d.job, &d.version, &old, &d.sourceVersion))
 	if old.Valid {
 		d.oldDoc = int(old.Int64)
 		must(db.QueryRow("SELECT title_prefix_tokens,initial_prefix_tokens FROM search_publications WHERE id=?", d.oldDoc).Scan(&d.oldP, &d.oldInit))
@@ -131,7 +140,7 @@ func stagePub(db *sql.DB, docs []*pubDoc, tag string) {
 					field = 3
 				}
 			}
-			r, err := db.Exec(`INSERT INTO search_publications(entity_id,person_id,search_generation_id,title,library_id,kind,generation,source_incarnation,source_revision,recipe_version,title_fold,title_prefix_tokens,initial_prefix_tokens) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`, e, p, d.searchGen, d.title, lib, kind, d.version, subjectBytes(max(d.entity, d.person)), d.version, recipeVersion, d.fold, d.p, d.init)
+			r, err := db.Exec(`INSERT INTO search_publications(entity_id,person_id,search_generation_id,title,library_id,kind,generation,source_incarnation,source_revision,recipe_version,title_fold,title_prefix_tokens,initial_prefix_tokens) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`, e, p, d.searchGen, d.title, lib, kind, d.version, subjectBytes(max(d.entity, d.person)), d.sourceVersion, recipeVersion, d.fold, d.p, d.init)
 			must(err)
 			id, err := r.LastInsertId()
 			must(err)
@@ -254,6 +263,7 @@ func buildPublished(db *sql.DB, n int) {
 				}
 				witness(db, i, 0, 1, accepted)
 			}
+			exec(db, "UPDATE search_revision SET input_sequence=input_sequence+1 WHERE singleton=1")
 			native(db, "accept.commit", "COMMIT")
 		})
 		accepted = time.Now()
@@ -267,10 +277,4 @@ func buildPublished(db *sql.DB, n int) {
 		}
 	}
 	emit("build_done", map[string]any{"items": n, "elapsed_s": time.Since(start).Seconds(), "model": "ef4b source+witness;stage;own-token replacement+head;native reclaim", "foreign_keys": true})
-}
-
-// Implemented below with capacity sweeps, MATCH lag and generation controls.
-func publisherBench(db *sql.DB, n, rounds int) {
-	emit("publisher_pending", map[string]any{"items": n})
-	_ = context.Background()
 }

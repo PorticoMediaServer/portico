@@ -32,6 +32,14 @@ func (p *policyReader) read(ctx context.Context, q string, args []any, scan func
 	if publishedSchema {
 		q = strings.ReplaceAll(q, "catalog_entities", "q_search_entities")
 	}
+	if currentSearchGeneration > 1 {
+		for _, base := range []string{"search_own_prefix", "search_fragment_prefix", "search_fragment_lexical", "search_fragment_grams"} {
+			target := bankName(base, currentSearchGeneration)
+			if !strings.Contains(q, target) {
+				q = strings.ReplaceAll(q, base, target)
+			}
+		}
+	}
 	c, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
 	defer cancel()
 	start := time.Now()
