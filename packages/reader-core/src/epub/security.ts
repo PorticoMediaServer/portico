@@ -71,7 +71,7 @@ export function secureMarkup(raw: string, mime: 'application/xhtml+xml' | 'text/
   if (doc.querySelector('parsererror') || !['html','svg'].includes(doc.documentElement.localName)) throw new ReaderError('invalid_book');
   for (const node of Array.from(doc.querySelectorAll('*'))) {
     if (forbidden.includes(node.localName)) {node.remove(); continue;}
-    if(node.localName.toLowerCase()==='style')node.textContent=secureCss(node.textContent??'',transformed);
+    if(node.localName.toLowerCase()==='style')node.textContent=secureCss(node.textContent??'',transformed,maxLength);
     for (const attr of Array.from(node.attributes)) {
       const name = attr.localName.toLowerCase();
       if(name==='style') {

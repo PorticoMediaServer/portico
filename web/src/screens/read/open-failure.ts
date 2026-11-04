@@ -8,3 +8,8 @@ export const readingServerBusy = (error: unknown): boolean =>
  * retry never). The reader says so plainly in its open-failure state, with no Try again and no toast. */
 export const publicationTooLarge = (error: unknown): boolean =>
   !!error && typeof error === 'object' && (error as {code?: unknown}).code === 'reading_publication_too_large';
+
+/** RD-7: the server ended this reading session (410 `reading_session_expired`) and the reading client's
+ * one transparent reopen didn't hold. The reader says so and offers Open again, with no toast. */
+export const readingSessionEnded = (error: unknown): boolean =>
+  !!error && typeof error === 'object' && (error as {code?: unknown}).code === 'reading_session_expired';

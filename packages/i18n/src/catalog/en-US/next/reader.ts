@@ -1,5 +1,8 @@
 /** Reader controls from desktop-read 6/7, phone-read 6 and tablet-read 6b. */
 export const readerMessages = {
+  'next.reader.sessionEndedTitle': 'This reading session has ended',
+  'next.reader.sessionEndedBody': 'Open the book again to continue where you left off.',
+  'next.reader.openAgain': 'Open again',
   'next.reader.exportHighlights': 'Export highlights',
   'next.reader.unreadablePage': 'This page can’t be read. The rest of the book is still here.',
   'next.reader.unreadableSection': 'This part of the book can’t be read. Turn the page to keep reading.',

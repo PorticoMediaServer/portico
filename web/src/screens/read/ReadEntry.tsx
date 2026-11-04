@@ -8,7 +8,6 @@ import {createComicAdapter, createEpubAdapter, createPdfAdapter, createReadingPu
   type ReadingController, type ReadingPublication, type ReaderLocation, type ReaderContentsTarget} from '@portico/reader-core';
 import {useProtectedWebScreenContext} from '../../route-registry-view';
 import {router} from '../../router';
-import {StateView} from '../../kit/states';
 import {Button} from '../../kit/controls';
 import {createReadBindings, type ReadBindingContext} from './bindings';
 import {bindReadPreferences} from './preferences';
@@ -22,7 +21,7 @@ import {ReaderBook} from './ReaderBook';
 import {readSearch} from './route-search';
 import {indexedReadingOpeningMarker, indexedReadingOpeningVersion, receiveIndexedReadingTarget, retireIndexedReadingOpening, subscribeIndexedReadingOpenings, type IndexedReadingReceiver} from '../search/reading-open-handoff';
 
-import {publicationTooLarge, readingServerBusy} from './open-failure';
+import {ReadOpenFailure, readFailureKind, readFailureReported, type ReadFailureKind} from './ReadOpenFailure';
 
 const {t} = defaultI18n;
 type Captured = NonNullable<ReturnType<typeof useProtectedWebScreenContext>>;
@@ -98,12 +97,12 @@ export function ReadEntry(props: ReadEntryProps) {
     : <div className={styles.loading} aria-busy="true"><span className={styles.escape}><Button variant="glass" icon="i-left" iconOnly aria-label={t('next.reader.back')} onClick={leave}/></span><span className={styles.loadingRing} aria-hidden="true"/></div>;
 }
 function ReadEntryBody({captured, itemId, sourceId, active = true, onClose, receiver}: ReadEntryProps & {receiver: ReceiverOpening}) {
-  // RD-5: `tooLarge` is the server's own refusal (422 reading_publication_too_large, retry never).
-  const [state, setState] = useState<Readonly<{book?: OpenBook; failed?: boolean; busy?: boolean; tooLarge?: boolean}>>({});
+  const [state, setState] = useState<Readonly<{book?: OpenBook; failed?: ReadFailureKind}>>({});
   const [stagedContents] = useState(() => takeContentsTarget(captured.context, itemId, sourceId));
   const contentsTarget = receiver.received.kind === 'ordinary' ? stagedContents : undefined;
   const [retry, setRetry] = useState(0);
-  const reportError = receiver.reportError;
+  // RD-7: an ended session has its own page (Open again); the reads it cut short don't also toast.
+  const reportError = useCallback((error: unknown) => {if (readFailureKind(error) !== 'ended') receiver.reportError(error);}, [receiver]);
   const guard = useLibraryRouteGuard(receiver.context, receiver, receiver.current, {itemId}, reportError,
     () => receiver.current() && router.state.location.pathname === '/read/' + encodeURIComponent(itemId));
   const readingContext = useGuardedLibraryContext(receiver.context, guard)!;
@@ -115,7 +114,7 @@ function ReadEntryBody({captured, itemId, sourceId, active = true, onClose, rece
     const life = new AbortController(), bindings = createReadBindings(bindingContext);
     let alive = true, fonts: ReadFonts | undefined, publication: ReadingPublication | undefined;
     let reader: ReturnType<typeof bindReadPreferences> | undefined, progress: ReturnType<typeof bindReadingProgress> | undefined;
-    const offRetired = bindings.authority.subscribe(() => {if (alive) setState({failed: true});});
+    const offRetired = bindings.authority.subscribe(() => {if (alive) setState({failed: 'failed'});});
     let disposal: Promise<void> | undefined;
     const dispose = () => {
       if (disposal) return disposal;
@@ -142,7 +141,7 @@ function ReadEntryBody({captured, itemId, sourceId, active = true, onClose, rece
       const selected = versions.find(version => version.sourceId === (sourceId ?? listed.chosenSourceId));
       if (!selected) {
         if (versions.length > 1 && !sourceId) await router.navigate({to: '/item/$itemId', params: {itemId}, replace: true});
-        else setState({failed: true});
+        else setState({failed: 'failed'});
         return;
       }
       const session = await bindings.open({itemId, sourceId: selected.sourceId});
@@ -166,13 +165,18 @@ function ReadEntryBody({captured, itemId, sourceId, active = true, onClose, rece
         : publication.format === 'pdf' ? [createPdfAdapter(readerPdfAdapterOptions)] : [createComicAdapter({format: publication.format, unreadable: t('next.reader.unreadablePage'), pages: publication.comicPages!})];
       reader = bindReadPreferences({adapters, preferences: bindings.preferences, authority: bindings.authority, reportError: code => reportError({code})});
       progress = bindReadingProgress({controller: reader.controller, session, initial: saved, authority: bindings.authority, reportError});
+      // RD-7: the client already reopened an ended session once, transparently; if the session ends
+      // anyway, leave the book for the ended page with Open again (which resumes at the saved place).
+      session.signal.addEventListener('abort', () => {
+        if (alive && !life.signal.aborted && currentReading() && readFailureKind(session.signal.reason) === 'ended') {setState({failed: 'ended'}); void dispose().catch(() => {});}
+      }, {once: true, signal: life.signal});
       setState({book: {session, publication, controller: reader.controller, authority: bindings.authority, location, contentsTarget, ...(session.manifest.canAnnotate === true ? {annotations:session} : {})}});
     })().catch(error => {
       // A rejected bootstrap must never leave the reader on its loading skeleton. This attempt is
       // still the live one unless it was retired, so show the failure state; report only while the
       // captured authority still holds, since a retired capture owns no error surface.
-      const busy = readingServerBusy(error), tooLarge = publicationTooLarge(error);
-      if (alive && !life.signal.aborted && currentReading()) {if (!busy && !tooLarge && bindings.authority.isCurrent()) reportError(error); setState({failed: true, ...(busy ? {busy} : {}), ...(tooLarge ? {tooLarge} : {})});}
+      const kind = readFailureKind(error);
+      if (alive && !life.signal.aborted && currentReading()) {if (readFailureReported(kind) && bindings.authority.isCurrent()) reportError(error); setState({failed: kind});}
       void dispose().catch(() => {});
     });
     return () => {void dispose().catch(() => {});};
@@ -180,11 +184,6 @@ function ReadEntryBody({captured, itemId, sourceId, active = true, onClose, rece
   if (state.book) return <ReaderBook key={state.book.session.manifest.sessionId} book={state.book} active={active} reportError={reportError} onSearchAll={query => {if (!active || !currentReading()) return; void router.navigate({to: '/search/reading', search: {q: query}}).catch(error => {if (currentReading()) reportError(error);});}} onOpenSettings={() => {if (!currentReading()) return;void router.navigate({to: '/settings', search: {scope: 'account', section: 'reading'}}).catch(reportError);}} onBack={() => {if (currentReading()) (onClose ?? (() => router.history.back()))();}}/>;
   /** The drawn way back stays available while a book is opening and when it cannot open. */
   const leave = () => {if (currentReading()) (onClose ?? (() => router.history.back()))();};
-  // RD-5: a book the server refuses as too large says so plainly, with no Try again (it would only refuse again).
-  if (state.failed && state.tooLarge) return <StateView variant="page" title={t('next.reader.publicationTooLargeTitle')} body={t('next.reader.publicationTooLargeBody')}
-    primary={{id: 'back', label: t('next.reader.back'), onPress: leave}}/>;
-  if (state.failed) return <StateView variant="page" title={t('next.states.pageFailed')} body={t(state.busy ? 'error.busy' : 'next.states.pageFailedBody')}
-    primary={{id: 'retry', label: t('next.states.tryAgain'), onPress: () => {if (currentReading()) setRetry(value => value + 1);}}}
-    secondary={{id: 'back', label: t('next.reader.back'), onPress: leave}}/>;
+  if (state.failed) return <ReadOpenFailure kind={state.failed} onRetry={() => {if (currentReading()) setRetry(value => value + 1);}} onBack={leave}/>;
   return <div className={styles.loading} aria-busy="true"><span className={styles.escape}><Button variant="glass" icon="i-left" iconOnly aria-label={t('next.reader.back')} onClick={leave}/></span><span className={styles.loadingRing} aria-hidden="true"/></div>;
 }

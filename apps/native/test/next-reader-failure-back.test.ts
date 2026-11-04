@@ -48,16 +48,18 @@ async function harness(fixture: Fixture) {
   const disposals: string[] = [], listeners = new Set<() => void>();
   const received: string[] = [];
   const reader = {dispose: () => disposals.push('host'), confirm() {}, setActive() {}, setCrease() {}, setCreaseRef() {}, receive(message: string) {received.push(message);}};
-  const session = {manifest: {format: 'pdf', revision: 'r'.repeat(64)}, signal: new AbortController().signal,
+  let sessionLife = new AbortController(), openCalls = 0;
+  const fresh = () => ({manifest: {format: 'pdf', revision: 'r'.repeat(64)}, signal: sessionLife.signal,
     progress: async () => {if (at === 'progress') throw new Error('progress_rejected'); return {progress: null};},
-    close: async () => {disposals.push('session');}};
+    close: async () => {disposals.push('session');}});
+  let session = fresh();
   const client = {
     versions: () => {versionCalls++; return at === 'pending' ? new Promise(() => {}) : at === 'versions' ? Promise.reject(new Error('versions_rejected')) : Promise.resolve({chosenSourceId: 'source', versions: [{sourceId: 'source', inventoryAvailable: true}]});},
     open: async () => {if (at === 'open') throw new Error('open_rejected');
       // The reading client already waited Retry-After once (RD-8); a second busy answer reaches the host.
       if (at === 'busy') throw Object.assign(new Error('reading_sessions_busy'), {name: 'ReadingError', code: 'reading_sessions_busy', status: 503, retryAfterSeconds: 2});
       if (at === 'tooLarge') throw Object.assign(new Error('reading_publication_too_large'), {name: 'ReadingError', code: 'reading_publication_too_large', status: 422});
-      return session;},
+      openCalls++; sessionLife = new AbortController(); session = fresh(); return session;},
     dispose() {},
   };
   const context = {
@@ -121,7 +123,9 @@ async function harness(fixture: Fixture) {
     './annotation-sync': {NativeAnnotationSync: class {flush() {return Promise.resolve();} subscribe() {return () => {};} getSnapshot() {return {};} dispose() {}}},
     './annotation-authoring': {NATIVE_OFFLINE_ANNOTATION_AUTHORING: false},
   });
-  return {ReadNativeHost, NativeReadingGuestHost, ReadingGuestView, context, reader, received, get hostCalls() {return hostCalls;}, get versionCalls() {return versionCalls;}, setFailureAt(value: Failure) {at = value;}, setCurrent(value: boolean) {current = value; for (const listener of [...listeners]) listener();}, disposals};
+  return {ReadNativeHost, NativeReadingGuestHost, ReadingGuestView, context, reader, received, get hostCalls() {return hostCalls;}, get versionCalls() {return versionCalls;}, get openCalls() {return openCalls;},
+    /** The server ended the session and the client's one transparent reopen didn't hold (RD-7). */
+    endSession(code = 'reading_session_expired') {sessionLife.abort(Object.assign(new Error(code), {name: 'ReadingError', code, status: 410}));}, setFailureAt(value: Failure) {at = value;}, setCurrent(value: boolean) {current = value; for (const listener of [...listeners]) listener();}, disposals};
 }
 
 function mount(component: (props: any) => unknown, props: any) {
@@ -435,5 +439,35 @@ test('RD-5: a book the server refuses as too large says so plainly, with no Try 
   assert.equal(state!.props.body, defaultI18n.t('next.reader.publicationTooLargeBody'));
   assert.equal(state!.props.primaryAction, undefined, 'no Try again: the server would only refuse again');
   byTestID(view.tree, 'native-read-host-back')!.props.onPress(); assert.equal(backs, 1);
+});
+
+test('RD-7: when the server ends the session mid-read, the reader says so with Open again, which opens the book anew once', async () => {
+  const fixture = await harness({at: 'none'});
+  const view = mount(fixture.ReadNativeHost, propsFor(fixture.context, {onBack: () => {}}));
+  await act(async () => {await view.host.mount(); await new Promise<void>(resolve => setImmediate(resolve));});
+  assert.ok(byType(view.tree, 'NativeReadingGuestHost'), 'reading');
+  assert.equal(fixture.openCalls, 1);
+  await act(async () => {fixture.endSession(); await new Promise<void>(resolve => setImmediate(resolve));});
+  const state = byType(view.tree, 'StateView');
+  assert.ok(state, 'the ended page replaces the guest');
+  assert.equal(state!.props.title, defaultI18n.t('next.reader.sessionEndedTitle'));
+  assert.equal(state!.props.body, defaultI18n.t('next.reader.sessionEndedBody'));
+  assert.equal(state!.props.primaryAction.label, defaultI18n.t('next.reader.openAgain')); assert.equal(state!.props.primaryAction.disabled, false);
+  assert.ok(byTestID(view.tree, 'native-read-host-back'), 'Back stays reachable');
+  const reopen = state!.props.primaryAction.onPress;
+  await act(async () => {reopen(); reopen(); await new Promise<void>(resolve => setImmediate(resolve)); await new Promise<void>(resolve => setImmediate(resolve));});
+  assert.equal(fixture.openCalls, 2, 'Open again opens once, however often it is pressed');
+  assert.ok(byType(view.tree, 'NativeReadingGuestHost'), 'reading again, at the saved place the new owner confirms');
+  await view.host.unmount();
+});
+
+test('RD-7: a session retired for any other reason keeps the plain failed page (no Open again)', async () => {
+  const fixture = await harness({at: 'none'});
+  const view = mount(fixture.ReadNativeHost, propsFor(fixture.context, {onBack: () => {}}));
+  await act(async () => {await view.host.mount(); await new Promise<void>(resolve => setImmediate(resolve));});
+  await act(async () => {fixture.endSession('forbidden'); await new Promise<void>(resolve => setImmediate(resolve));});
+  const state = byType(view.tree, 'StateView');
+  assert.ok(state); assert.equal(state!.props.title, defaultI18n.t('next.states.pageFailed'));
+  assert.equal(state!.props.primaryAction.id, 'retry'); assert.equal(state!.props.primaryAction.disabled, true, 'a retired owner is not retried');
   await view.host.unmount();
 });

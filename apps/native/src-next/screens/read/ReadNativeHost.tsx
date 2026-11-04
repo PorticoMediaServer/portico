@@ -129,6 +129,14 @@ export function ReadNativeHost({context, target, active, preferences, onBack, on
     try {if (!owner.current() || !context.current() || (binding && !binding.activeCurrent()) || !owner.current() || owner.snapshot() !== snapshot) return;} catch {return;}
     if (!same()) return; retryTicket.spent = true; setRetry(value => value + 1);
   };
+  /** RD-7: Open again after the server ended the session. The ended owner is retired, so this opens a
+   * new one (at the saved position), once per ended snapshot. */
+  const reopenEnded = () => {
+    if (!mounted.current || retryTicket.spent || rendered.current !== owner || latest.current.owner !== owner || latest.current.snapshot !== snapshot
+      || latest.current.retry !== retry || !latest.current.active || !latest.current.resident || !callbacks.current.active) return;
+    try {if (!context.current() || (binding && !binding.activeCurrent())) return;} catch {return;}
+    retryTicket.spent = true; setRetry(value => value + 1);
+  };
   useEffect(() => {void Promise.resolve().then(() => owner.ensure()).catch(() => {}); return () => {void owner.dispose().catch(() => {});};}, [owner]);
   const onSearchAll = (query: string, signal: AbortSignal, isLive: () => boolean) => {
     if (!owner.current() || signal.aborted) return false;
@@ -144,11 +152,15 @@ export function ReadNativeHost({context, target, active, preferences, onBack, on
   // RD-8 (DECISIONS W-19): only the server-wide session cap is busy, and the reading client has
   // already waited out its Retry-After once. Say so in the catalogue's words (presentError's busy copy).
   const busy = failed && (snapshot as {error?: {code?: unknown}}).error?.code === 'reading_sessions_busy';
+  // RD-7: the server ended the session and the client's one transparent reopen didn't hold.
+  const ended = snapshot.phase === 'retired' && (snapshot as {error?: {code?: unknown}}).error?.code === 'reading_session_expired';
   // RD-5: the server refuses a book too large to read (422, retry never): say so plainly, no Try again.
   const tooLarge = failed && (snapshot as {error?: {code?: unknown}}).error?.code === 'reading_publication_too_large';
   return place(<CoveredLayer covered={!active}
     style={{position: 'absolute', inset: 0, backgroundColor: theme.colors.ink, opacity: active || stacked ? 1 : 0}}>
-    {tooLarge ? <StateView variant="centered" title={defaultI18n.t('next.reader.publicationTooLargeTitle')} body={defaultI18n.t('next.reader.publicationTooLargeBody')}/>
+    {ended ? <StateView variant="centered" title={defaultI18n.t('next.reader.sessionEndedTitle')} body={defaultI18n.t('next.reader.sessionEndedBody')}
+      primaryAction={{id: 'reopen', label: defaultI18n.t('next.reader.openAgain'), disabled: !active || !context.current(), onPress: reopenEnded}}/>
+      : tooLarge ? <StateView variant="centered" title={defaultI18n.t('next.reader.publicationTooLargeTitle')} body={defaultI18n.t('next.reader.publicationTooLargeBody')}/>
       : failed ? <StateView variant="centered" title={defaultI18n.t('next.states.pageFailed')} body={defaultI18n.t(busy ? 'error.busy' : 'next.states.pageFailedBody')}
       primaryAction={{id: 'retry', label: defaultI18n.t('next.states.tryAgain'), disabled: !active || snapshot.phase === 'retired' || !!snapshot.session || !context.current(), onPress: retryOriginal}}/>
       : <LoadingPaint ready={false} skeleton={<SkeletonBlock width="100%" style={{flex: 1}}/>}/>}
