@@ -15,6 +15,7 @@ import {NativeScreenLifetime} from '../src-next/screens/settings-live/lifetime.t
 import type {Group} from '../../../packages/client-core/src/social-playback.ts';
 import type {GroupSessionSnapshot} from '../../../packages/client-core/src/group-session.ts';
 import {fabricPlayback} from './helpers/fabric-playback-harness.mjs';
+import {trickplayFrameAt} from '../../../packages/client-core/src/trickplay.ts';
 import assert from 'node:assert/strict';
 import {HttpLocalApi, type LocalSession} from '../../../packages/client-core/src/index.ts';
 import {FakePlaybackServer, type FakeRequest, type FakeResponse} from '../../../packages/client-core/src/playback-v1/testing/fake-server.ts';
@@ -276,6 +277,26 @@ function admittedDownload() {
   const device: NativeOfflinePlaybackDevice = {getSnapshot: () => snapshot, subscribe: listener => {listeners.add(listener);return () => {listeners.delete(listener);};}, localMedia: () => load(), playabilityReason: () => null, recordProgress: value => {progress.push(value);}};
   return {entry, media, progress, device, load: (next: typeof load) => {load = next;}, entries: (entries: readonly OfflineEntry[]) => {snapshot = {...snapshot, entries};for (const listener of listeners) listener();}, get subscriptions() {return listeners.size;}};
 }
+
+test('queue 6: a download scrubs over its own kept preview sheets, with no server request; a half-kept set stays dark', async () => {
+  const sheet = {path: 'trickplay/0.jpg', contentType: 'image/jpeg'};
+  const trickplay = {id: 'b'.repeat(64), tileWidth: 320, tileHeight: 180, columns: 10, rows: 10, intervalSeconds: 10, frameCount: 60, durationSeconds: 600, sourceOffsetSeconds: 0,
+    thumbnails: {path: 'trickplay/thumbnails.vtt', contentType: 'text/vtt'}, tiles: [sheet]};
+  for (const kept of [['file:///private/Downloads/copy/extras/trickplay-0'], []]) {
+    const local = admittedDownload(), d = fixture(false, undefined, nativeEngineFeatures, false, local.device);
+    local.load(async () => ({...local.media, extras: {bundle: {trickplay} as never, subtitles: [], backdropUrl: '', trickplayTiles: kept}}));
+    try {
+      await settle();
+      await d.runtime.startOffline(local.entry, {signal: new AbortController().signal, isCurrent: () => true}); await settle();
+      const fence = d.runtime.getSnapshot().fence; assert.equal(fence?.kind, 'local');
+      const before = d.requests.length, set = await d.runtime.trickplay(fence!, new AbortController().signal);
+      assert.deepEqual(d.requests.slice(before), [], 'nothing is asked of the server');
+      if (!kept.length) { assert.equal(set, null, 'a sheet missing from the device leaves the strip dark'); continue; }
+      assert.equal(trickplayFrameAt(set!, 125)?.tileUrl, kept[0], 'the frame comes from the file on this device');
+      assert.equal(trickplayFrameAt(set!, 125)?.x, 2 * 320);
+    } finally { d.runtime.dispose(); }
+  }
+});
 
 test('the genuine local maker reaches the same native engine and dock without server playback requests', async () => {
   const local = admittedDownload(), d = fixture(false, undefined, nativeEngineFeatures, false, local.device);

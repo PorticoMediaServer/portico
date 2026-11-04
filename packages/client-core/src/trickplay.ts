@@ -190,3 +190,21 @@ export function preferredTrickplaySet(view: TrickplayView, sourceId?: string): T
   );
   return ranked[0];
 }
+
+/** A download's preview set (queue 6): the geometry its bundle carried and its sheets as files on
+ * the device, in order. Null unless every sheet is here and the grid is the one it claims, so a
+ * half-kept download leaves the strip dark rather than drawing the wrong pictures. */
+export function downloadTrickplaySet(bundle: Readonly<{id: string; tileWidth: number; tileHeight: number; columns: number; rows: number; intervalSeconds: number; frameCount: number; durationSeconds: number; sourceOffsetSeconds: number; tiles: readonly unknown[]}> | undefined,
+  tiles: readonly string[] | undefined): TrickplaySet | null {
+  if (!bundle || !tiles?.length) return null;
+  const whole = (x: number, max: number) => Number.isSafeInteger(x) && x >= 1 && x <= max;
+  if (!whole(bundle.tileWidth, 4096) || !whole(bundle.tileHeight, 4096) || !whole(bundle.columns, 64) || !whole(bundle.rows, 64) || !whole(bundle.frameCount, 65536)
+    || !positive(bundle.intervalSeconds) || !positive(bundle.durationSeconds) || !(Number.isFinite(bundle.sourceOffsetSeconds) && bundle.sourceOffsetSeconds >= 0)) return null;
+  const tileCount = Math.ceil(bundle.frameCount / (bundle.columns * bundle.rows));
+  if (tiles.length !== tileCount || bundle.tiles.length !== tileCount || tiles.some(tile => !text(tile, 4096))) return null;
+  return Object.freeze({id: bundle.id, sourceId: 'download', sourceRevision: bundle.id, width: bundle.columns * bundle.tileWidth, height: bundle.rows * bundle.tileHeight,
+    tileWidth: bundle.tileWidth, tileHeight: bundle.tileHeight, columns: bundle.columns, rows: bundle.rows, intervalSeconds: bundle.intervalSeconds,
+    durationSeconds: bundle.durationSeconds, sourceOffsetSeconds: bundle.sourceOffsetSeconds, tileCount, frameCount: bundle.frameCount, stale: false,
+    revision: bundle.id, tilesUrl: '', thumbnailsUrl: '', tileUrls: Object.freeze([...tiles])});
+}
+

@@ -64,7 +64,8 @@ export function NativeWatchTimeline({source, playback, controls, compact, enable
   useEffect(() => () => repeat.stop(), [repeat]);
   // PB-2: the TV strip's pictures are this session's own preview set, read once when a scrub
   // first starts (never at start), kept for the session, and dark when there is none.
-  const sessionKey = fence?.kind === 'queue' ? JSON.stringify([fence.sessionId, fence.generation, fence.sourceId]) : '';
+  const sessionKey = fence?.kind === 'queue' ? JSON.stringify([fence.sessionId, fence.generation, fence.sourceId])
+    : fence?.kind === 'local' ? JSON.stringify(['local', fence.sessionId, fence.generation, fence.playId]) : '';
   const [previews, setPreviews] = useState<Readonly<{key: string; set: TrickplaySet | null}>>();
   const scrubbing = tv && preview !== undefined, readPreviews = useRef(playback.trickplay), drawnFence = useRef(fence);
   readPreviews.current = playback.trickplay; drawnFence.current = fence;

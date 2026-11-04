@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {parseTrickplay,trickplayFrame,trickplayFrameAt,trickplayTileUrl,trickplayThumbnailsUrl,preferredTrickplaySet} from '../src/trickplay.ts';
+import {parseTrickplay,trickplayFrame,trickplayFrameAt,trickplayTileUrl,trickplayThumbnailsUrl,preferredTrickplaySet, downloadTrickplaySet} from '../src/trickplay.ts';
 const setId='a'.repeat(64),revision='b'.repeat(64),otherId='c'.repeat(64),otherRevision='d'.repeat(64);
 const target={libraryId:'library',itemId:'item'};
 function set(overrides:Record<string,unknown>={}):any{
@@ -93,3 +93,18 @@ test('a trimmed association indexes frames by source time but reports item time'
  assert.deepEqual([last.startSeconds,last.endSeconds],[30,40]);
  assert.equal(trickplayFrameAt(s,40),null);
 });
+
+test('queue 6: a download\'s kept sheets make its preview set, and a half-kept or wrong grid makes none', () => {
+  const bundle = {id: 'c'.repeat(64), tileWidth: 160, tileHeight: 90, columns: 5, rows: 5, intervalSeconds: 4, frameCount: 30, durationSeconds: 120, sourceOffsetSeconds: 0, tiles: [{}, {}]};
+  const files = ['file:///d/extras/trickplay-0', 'file:///d/extras/trickplay-1'];
+  const set = downloadTrickplaySet(bundle, files)!;
+  assert.equal(set.tileCount, 2); assert.equal(set.width, 800); assert.equal(set.stale, false);
+  assert.equal(trickplayFrameAt(set, 0)?.tileUrl, files[0]);
+  assert.equal(trickplayFrameAt(set, 26 * 4)?.tileUrl, files[1], 'frame 26 is on the second sheet');
+  assert.equal(downloadTrickplaySet(bundle, files.slice(0, 1)), null, 'a missing sheet');
+  assert.equal(downloadTrickplaySet(bundle, []), null);
+  assert.equal(downloadTrickplaySet(undefined, files), null);
+  assert.equal(downloadTrickplaySet({...bundle, frameCount: 80}, files), null, 'a grid the sheets don\'t make');
+  assert.equal(downloadTrickplaySet({...bundle, intervalSeconds: 0}, files), null);
+});
+

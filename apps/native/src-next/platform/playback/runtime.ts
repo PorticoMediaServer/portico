@@ -1,4 +1,4 @@
-import {preferredTrickplaySet, readItemTrickplay, type TrickplaySet} from '../../../../../packages/client-core/src/trickplay';
+import {downloadTrickplaySet, preferredTrickplaySet, readItemTrickplay, type TrickplaySet} from '../../../../../packages/client-core/src/trickplay';
 import {AppState, NativeModules, type View} from 'react-native';
 import type {RefObject} from 'react';
 import {startFailureHttp, type NativePlaybackStartFailure} from './start-failure';
@@ -1781,6 +1781,13 @@ export class NativePlaybackRuntime {
       session?.discTitle ? {versionId: session.versionId, discTitle: session.discTitle} : undefined);
   };
   trickplay = async (fence: PlaybackFence, signal: AbortSignal): Promise<TrickplaySet | null> => {
+    // A download plays from its own kept sheets, with no server in reach (queue 6).
+    if (fence.kind === 'local') {
+      const source = this.offlineSource;
+      // `matches` proves this fence is the one playing now, which is the current offline source's.
+      return source && source.current() && this.matches(fence)
+        ? downloadTrickplaySet(source.media.extras?.bundle?.trickplay, source.media.extras?.trickplayTiles) : null;
+    }
     // `matches` proves this is the playing occurrence; its loaded queue entry names the library.
     if (fence.kind !== 'queue' || !this.matches(fence)) return null;
     const queue = this.queue.getSnapshot().view, entry = queue?.items.find(item => item.entryId === queue.queue.currentEntryId);

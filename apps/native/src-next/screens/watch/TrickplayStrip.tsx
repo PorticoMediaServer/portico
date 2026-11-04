@@ -27,7 +27,8 @@ const SLOTS = [-2, -1, 0, 1, 2] as const;
 
 function Tile({set, artwork, seconds, large, shadows}: {set?: TrickplaySet | null; artwork?: NativeTrickplayStripProps['artwork']; seconds: number; large: boolean; shadows: boolean}) {
   const theme = useTheme(), box = large ? LARGE : SMALL;
-  const frame = nativeTrickplayWindow(set, seconds, box), image = frame ? artwork?.(frame.tileUrl) : undefined;
+  // A download's sheets are files on this device, not server paths for the authority's resolver.
+  const frame = nativeTrickplayWindow(set, seconds, box), image = frame ? frame.tileUrl.startsWith('file://') ? {uri: frame.tileUrl, headers: undefined} : artwork?.(frame.tileUrl) : undefined;
   // The tile's shadow follows the effects tier: the strip's five deep shadows are the costliest
   // thing a low-end TV draws while scrubbing.
   return <View style={[{width: box.width, height: box.height, borderRadius: 12, overflow: 'hidden', backgroundColor: '#0b1822', opacity: large ? 1 : .78,
