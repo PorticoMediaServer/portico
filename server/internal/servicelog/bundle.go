@@ -30,7 +30,8 @@ type BundleInputs struct {
 	Connectivity any
 	// Records is the recent message log.
 	Records []Record
-	// Files are rotating log file paths to include whole, newest first.
+	// Files are rotating log file paths to include whole, newest first. Scrub
+	// them at export too: a previous run may have written unrecognised secrets.
 	Files []string
 	Now   func() time.Time
 }
@@ -101,7 +102,7 @@ func WriteBundle(w io.Writer, in BundleInputs) (truncated bool, err error) {
 		if e != nil {
 			continue
 		}
-		if !add("logs/"+baseName(path), raw) {
+		if !add("logs/"+baseName(path), []byte(redactClientLog(string(raw)))) {
 			archive.Close()
 			return true, nil
 		}
