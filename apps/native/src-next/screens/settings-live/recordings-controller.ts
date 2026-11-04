@@ -24,6 +24,7 @@ export class NativeRecordingsController extends NativeScreenStore<NativeRecordin
   private pending?: Readonly<{query: NativeRecordingQuery; epoch: number; opening?: object}>;
   private worker?: Promise<void>;
   private facts?: Promise<void>;
+  private summaryRead?: Promise<void>;
   private viewerWindow?: DashboardCursorWindow<ViewerRow, ViewerPage>;
   private viewerOpening?: object;
   private detailScope?: {dispose: () => void};
@@ -105,6 +106,16 @@ export class NativeRecordingsController extends NativeScreenStore<NativeRecordin
   focusViewerHost = (expected: DashboardCursorSnapshot<ViewerRow, ViewerPage>): void => {const window = this.viewerWindow; if (window && window.snapshot() === expected && this.current() && this.viewerWindow === window && !this.getSnapshot().accessDenied && window.snapshot() === expected) window.focus(undefined);};
   pinViewerRow = (id: string, expected: DashboardCursorSnapshot<ViewerRow, ViewerPage>): object | undefined => {const window = this.viewerWindow; if (!window || !this.current() || this.getSnapshot().accessDenied || this.viewerWindow !== window || window.snapshot() !== expected) return undefined; return window.pin(id);};
   unpinViewerRow = (token: object, scope: object): void => {const window = this.viewerWindow; if (window && window.snapshot().scope === scope) window.unpin(token);};
+  /** tablet-play6/7: the guide's Recordings entry shows a conflict dot from the aggregate summary alone (no page, no
+   * storage). A read that fails or is refused draws no dot; it never becomes the Recordings page's error. */
+  loadSummary(): Promise<void> {
+    if (!this.current() || this.getSnapshot().accessDenied) return Promise.resolve();
+    if (this.summaryRead) return this.summaryRead;
+    return this.summaryRead = (async () => {
+      const summary = await this.service.summary();
+      if (this.current() && !this.getSnapshot().accessDenied) this.publish({...this.getSnapshot(), summary});
+    })().catch(() => {}).finally(() => {this.summaryRead = undefined;});
+  }
   loadFacts(): Promise<void> {
     this.assert();
     if (this.getSnapshot().accessDenied) return Promise.resolve();

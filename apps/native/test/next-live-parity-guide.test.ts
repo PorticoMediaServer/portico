@@ -80,7 +80,10 @@ async function fixture({isTV = false, width, height, role = 'owner', sources = t
     async remind() {return undefined;}
     async dismiss() {return undefined;}
   }
-  const recordings: any = {getSnapshot: () => ({error: new Error('record_failed')}), lifetime,
+  const recordingListeners = new Set<() => void>(), summaryReads: number[] = [];
+  let recordingSnapshot: any = {error: new Error('record_failed')};
+  const recordings: any = {getSnapshot: () => recordingSnapshot, lifetime, subscribe: (fn: () => void) => {recordingListeners.add(fn); return () => {recordingListeners.delete(fn);};},
+    loadSummary: async () => {summaryReads.push(summaryReads.length);},
     schedule: async (draft: unknown, options: unknown) => {scheduled.push({draft, options}); return scheduleFails ? undefined : {value: {id: `rec-${scheduled.length}`, state: 'scheduled'}};}};
   const {NativeLiveScreen} = await screenModule(new URL('../src-next/screens/settings-live/LiveScreen.tsx', import.meta.url), {...liveTabsFixture(React), ...ownerTagFixture,
     react: {...React, default: React}, 'react-native': native,
@@ -114,7 +117,8 @@ async function fixture({isTV = false, width, height, role = 'owner', sources = t
     await host.settle();
   };
   const inSheet = (id: string) => nodes(find('live-programme')).find(node => node.props?.testID === id);
-  return {host, all, find, inSheet, until, ids, scheduled, editors, controller, open, theme,
+  return {host, all, find, inSheet, until, ids, scheduled, editors, controller, open, theme, summaryReads,
+    async conflicts(count: number) {recordingSnapshot = {...recordingSnapshot, summary: {upcoming: 0, recorded: 0, rules: 0, groups: 0, unwatched: 0, conflicts: count}}; for (const fn of [...recordingListeners]) fn(); await host.settle();},
     sheet: () => find('live-programme'),
     list: () => all().find(node => node.type === 'VirtualizedList'),
     async press(id: string) {const node = find(id); assert.ok(node, id); node.props.onPress(); await host.settle();},
@@ -385,5 +389,31 @@ test('an expanded tablet draws Live TV with the Guide / Recordings pair over the
     assert.equal(tv.find('live-header'), undefined); assert.equal(tv.find('live-time'), undefined);
     assert.deepEqual(order(tv.host.root, ['live-now', 'live-recordings', 'live-owner-open', 'live-filter-all']), ['live-now', 'live-recordings', 'live-owner-open', 'live-filter-all'], 'TV keeps its row above the chips');
   } finally {await tv.close();}
+});
+
+// tablet-play6/7: while a conflict needs a look, Recordings carries a red dot (the tab on an expanded tablet, the header
+// button on an upright tablet and a phone) and says so; the count is the DVR summary's, read when the guide shows. TV: none.
+for (const [name, options, where] of [['phone', {width: 390, height: 844}, 'button'], ['upright tablet', {width: 820, height: 1180}, 'button'], ['expanded tablet', {width: 1180, height: 820}, 'tab']] as const) {
+  test(`${name}: Recordings draws the conflict dot on its ${where} while the summary has a conflict`, async () => {
+    const f = await fixture(options); try {
+      assert.ok(f.summaryReads.length >= 1, 'the guide read the DVR summary');
+      assert.equal(f.find('live-recordings-conflict'), undefined, 'no summary yet: no dot');
+      await f.conflicts(1);
+      assert.ok(f.find('live-recordings-conflict'), 'a conflict draws the dot');
+      if (where === 'button') assert.equal(f.find('live-recordings').props.accessibilityLabel, defaultI18n.t('next.live.recordingsConflicts', {count: 1}));
+      else {
+        const header = f.find('live-header'); assert.equal(header.props.conflicts, 1);
+      }
+      await f.conflicts(0);
+      assert.equal(f.find('live-recordings-conflict'), undefined, 'cleared when the summary has none');
+    } finally {await f.close();}
+  });
+}
+test('TV reads no DVR summary for the guide and draws no conflict dot', async () => {
+  const f = await fixture({isTV: true}); try {
+    assert.equal(f.summaryReads.length, 0);
+    await f.conflicts(2);
+    assert.equal(f.find('live-recordings-conflict'), undefined);
+  } finally {await f.close();}
 });
 

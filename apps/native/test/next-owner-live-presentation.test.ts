@@ -116,7 +116,7 @@ async function guideFixture(width = 1180, screenReader = false, facts: Readonly<
     '../../../../../packages/client-core/src/presentation/live-availability': await import('../../../packages/client-core/src/presentation/live-availability.ts'), './guide-pan-model': {nativeGuidePanRange: () => ({first: 0, last: Number.MAX_SAFE_INTEGER})}, './LivePhonePicker': {NativeLivePhonePicker: 'Picker'}, './LiveOwnerScreen': {NativeLiveOwnerScreen: 'Owner'}, './LiveSeriesRule': {NativeSeriesRuleSheet: 'SeriesRule'},
     '../../tv/auth': {TVManagementHandoff: 'Handoff'}, '../../tv/auth/TVHandoff': {publicTVHandoffAddress: (url: string) => ({url})}, './recording-rule-presentation': {}, './server/tv-server-reader': {nativeServerAdmission: () => 'owner'},
   });
-  const render = () => host.render(() => NativeLiveScreen({controller, recordings: {}, owner: {}, ports: {context}, runtime}));
+  const render = () => host.render(() => NativeLiveScreen({controller, recordings: {subscribe: () => () => {}, getSnapshot: () => ({}), loadSummary: async () => {}}, owner: {}, ports: {context}, runtime}));
   return {render, adjustments, holds, shell, push: (route: any) => {top = route;}, channel, programme, renderRow: (row: any) => {activeHost = fixture(); try {return activeHost.render(() => row.type(row.props));} finally {activeHost = host;}}, get panOptions() {return panOptions;}};
 }
 

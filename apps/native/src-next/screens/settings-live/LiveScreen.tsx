@@ -44,7 +44,7 @@ import {useGuideTimePan} from './useGuideTimePan';
 import {nativeGuideCellWindow, nativeGuideElapsedWidth, nativeGuidePanRange, nativeGuidePanTarget, visibleGuideRows} from './guide-pan-model';
 import {NativeLivePhonePicker} from './LivePhonePicker';
 import {NativeLiveOwnerScreen} from './LiveOwnerScreen';
-import {NativeLiveTabs} from './LiveTabs';
+import {LiveConflictDot, NativeLiveTabs} from './LiveTabs';
 import type {NativeLiveOwnerController} from './live-owner-controller';
 import {NativeSeriesRuleSheet} from './LiveSeriesRule';
 import {TVManagementHandoff} from '../../tv/auth';
@@ -226,6 +226,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
     void recordings.schedule({channel, programme: airing.programme, series: false}, defaultRecordingOptions).then(result => {
       if (!controller.lifetime.current() || !result) {if (controller.lifetime.current()) setRecordError(recordings.getSnapshot().error); return;}
       setLaterRecordings(current => new Map(current).set(id, {id: result.value.id, state: result.value.state}));
+      if (!theme.isTV) void recordings.loadSummary();
       guide.invalidate();
     }, error => {if (controller.lifetime.current()) setRecordError(error);}).finally(() => {
       if (controller.lifetime.current()) setLaterRecording(current => {const next = new Set(current); next.delete(id); return next;});
@@ -415,6 +416,13 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   const managesServer = managementCurrent();
   // As on web: the Recordings entry is drawn unless the viewer has no sources and no way to set one up; a server that cannot record shows its own unavailable state inside.
   const hasRecordings = !(empty && !managesServer);
+  // tablet-play6/7: the Recordings entry carries a red dot while a conflict needs a look. The count is the DVR summary's own,
+  // read whenever the guide shows (again on returning from Recordings, and after a recording is scheduled here); TV draws none.
+  const recordingState = useSyncExternalStore(recordings.subscribe, recordings.getSnapshot);
+  const conflicts = !theme.isTV && hasRecordings ? recordingState.summary?.conflicts ?? 0 : 0;
+  useEffect(() => {if (!theme.isTV && hasRecordings && onLive && !recordingsOpen && !ownerOpen) void recordings.loadSummary();}, [recordings, theme.isTV, hasRecordings, onLive, recordingsOpen, ownerOpen, recordingsReturn]);
+  const recordingsLabel = conflicts > 0 ? t('next.live.recordingsConflicts', {count: conflicts}) : t('recordings.title');
+  const recordingsIcon = <View><Button testID="live-recordings" variant="icon" size="small" icon="i-rec" accessibilityLabel={recordingsLabel} onPress={() => setRecordingsOpen(true)}/>{conflicts > 0 && <LiveConflictDot style={{position: 'absolute', top: 6, right: 6}}/>}</View>;
   // The public destination must be registered by Web and admitted by the handoff's
   // exact public URL validator before a control can offer it.
   const managementUrl = useMemo(() => {
@@ -494,6 +502,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
             void recordings.schedule({channel, programme, series: false}, defaultRecordingOptions).then(result => {
               if (!controller.lifetime.current() || !result) {if (controller.lifetime.current()) setRecordError(recordings.getSnapshot().error); return;}
               const receipt = result.value;
+              if (!theme.isTV) void recordings.loadSummary();
               setSelected(current => current?.channel.id === selected.channel.id && current.program?.id === selected.program?.id ? {...current, program: {...current.program!, recording: {id: receipt.id, state: receipt.state}}} : current);
               guide.invalidate();
             }, error => {if (controller.lifetime.current()) setRecordError(error);}).finally(() => {if (controller.lifetime.current()) setRecording(false);});
@@ -548,12 +557,12 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
       {stackedHeader && <View style={{flexDirection: 'row', gap: 6, alignItems: 'center', paddingHorizontal: compact ? 20 : 0, marginBottom: 12, minHeight: 38}}>
         <Text accessibilityRole="header" style={[shellType(32, 800, 36.8, -.035), {color: theme.colors.text, flex: 1}]}>{t('search.chip.liveTV')}</Text>
         {viewSwitch}
-        {hasRecordings && <Button testID="live-recordings" variant="icon" size="small" icon="i-rec" accessibilityLabel={t('recordings.title')} onPress={() => setRecordingsOpen(true)}/>}
+        {hasRecordings && recordingsIcon}
         {managesServer && <Button testID="live-owner-open" variant="icon" size="small" icon="i-sliders" accessibilityLabel={t('settings.server.live')} disabled={theme.isTV && !managementUrl} onPress={() => openManagement()}/>}
       </View>}
-      {landscape && <View style={{flexDirection: 'row', gap: 12, alignItems: 'center', height: 50, paddingTop: 6, marginBottom: 6}}><Text accessibilityRole="header" style={[shellType(24, 800, 'normal', -.035), {color: theme.colors.text}]}>{t('search.chip.liveTV')}</Text>{viewSwitch}{filterChips}{sortPicker}{hasRecordings && <Button testID="live-recordings" variant="icon" size="small" icon="i-rec" accessibilityLabel={t('recordings.title')} onPress={() => setRecordingsOpen(true)}/>}{managesServer && <Button testID="live-owner-open" variant="icon" size="small" icon="i-sliders" accessibilityLabel={t('settings.server.live')} disabled={theme.isTV && !managementUrl} onPress={() => openManagement()}/>}</View>}
+      {landscape && <View style={{flexDirection: 'row', gap: 12, alignItems: 'center', height: 50, paddingTop: 6, marginBottom: 6}}><Text accessibilityRole="header" style={[shellType(24, 800, 'normal', -.035), {color: theme.colors.text}]}>{t('search.chip.liveTV')}</Text>{viewSwitch}{filterChips}{sortPicker}{hasRecordings && recordingsIcon}{managesServer && <Button testID="live-owner-open" variant="icon" size="small" icon="i-sliders" accessibilityLabel={t('settings.server.live')} disabled={theme.isTV && !managementUrl} onPress={() => openManagement()}/>}</View>}
       {theme.isTV && controlsRow}
-      {expandedTouch && <NativeLiveTabs value="guide" t={t} onRecordings={hasRecordings ? () => setRecordingsOpen(true) : undefined}>
+      {expandedTouch && <NativeLiveTabs value="guide" t={t} conflicts={conflicts} onRecordings={hasRecordings ? () => setRecordingsOpen(true) : undefined}>
         {viewIcons}
       </NativeLiveTabs>}
       {!landscape && <FocusRegion id={filters} orientation="horizontal" entry={state.options.favorites ? 'favorites' : state.options.group ? `group:${state.options.group}` : 'all'} edges={{left: ids.rail, up: controls, down: grid}} style={{marginBottom: theme.isTV ? 38 : stackedHeader ? 8 : 14}}>
@@ -609,7 +618,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
       ] : []}/>
     <NativeSeriesRuleSheet controller={recordings} draft={series?.draft} defaults={series?.defaults} runtime={runtime} open={series !== undefined}
       onOpenChange={value => {if (!value) setSeries(undefined);}}
-      onCreated={() => {setSelected(undefined); setSeries(undefined); guide.invalidate(); setToast({id: `series-${Date.now()}`, message: t('guide.seriesSet'), icon: 'i-rec'});}}/>
+      onCreated={() => {setSelected(undefined); setSeries(undefined); guide.invalidate(); if (!theme.isTV) void recordings.loadSummary(); setToast({id: `series-${Date.now()}`, message: t('guide.seriesSet'), icon: 'i-rec'});}}/>
     <ToastHost toast={toast} onDismiss={() => setToast(null)} bottomOffset={phone ? 96 : 0} obstructionTop={dockTop}/>
   </Screen>;
 }
