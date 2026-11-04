@@ -5,7 +5,8 @@ import {Dialog} from '../../../kit/overlays';
 import type {WebPlaybackRuntimeSnapshot} from '../../../platform/playback';
 import type {WatchBindings} from '../types';
 import {AudiobookListening} from './AudiobookListening';
-import {ListeningPanels} from './ListeningPanels';
+import {musicQueueOrigin} from '../music/queue-facts';
+import {ListeningPanels, ListeningTabs} from './ListeningPanels';
 
 import type {ListeningHost} from './use-listening-owner';
 const t = defaultI18n.t;
@@ -24,11 +25,11 @@ export function AudiobookHost({binding, snapshot, expanded, phone, host, playOn}
   const panels=<ListeningPanels host={host!} snapshot={snapshot} reportError={binding.reportError} artwork={binding.artwork}/>;
   return <>
     <AudiobookListening snapshot={snapshot} title={identity.title} subtitle={identity.subtitle.map((part,index)=><span key={`${part.id}:${index}`}>{part.text}</span>)} cover={cover} ambient={binding.artwork.ambient(p.posterUrl??p.backdropUrl)} chapters={state.chapters}
-      speedChoices={owner.speeds()} sleepChoices={owner.sleepOffered()?owner.sleepChoices():[]} sleepChoice={owner.sleepChoice()} skips={binding.skips} phone={phone} canPlayOn={!!playOn}
+      sourceLabel={musicQueueOrigin(snapshot)} speedChoices={owner.speeds()} sleepChoices={owner.sleepOffered()?owner.sleepChoices():[]} sleepChoice={owner.sleepChoice()} skips={binding.skips} phone={phone} canPlayOn={!!playOn}
       onIntent={(shown,intent)=>run(()=>owner.dispatch(state,shown,intent))} onSpeed={(shown,rate)=>run(()=>owner.setSpeed(state,shown,rate))}
       onSleep={(shown,choice)=>run(()=>owner.setSleep(state,shown,choice))} onChapter={(shown,row)=>run(()=>owner.chapter(state,shown,row))}
       onChapterPage={(shown,direction)=>run(()=>owner.chapterPage(state,shown,direction))} onChapterRetry={shown=>run(()=>owner.chapterPage(state,shown,'retry'))}
-      onCollapse={()=>owner.close(state)} aside={panels}
+      onCollapse={()=>owner.close(state)} aside={phone?panels:<><ListeningTabs host={host!} audiobook/>{panels}</>}
       onShowPanel={owner.speeds().length||owner.sleepOffered()||owner.chaptersOffered()||playOn?(shown,panel)=>{if(panel==='play-on'){if(playOn)owner.external(state,shown,playOn);}else owner.show(state,panel,document.activeElement instanceof HTMLElement?document.activeElement:undefined);}:undefined}/>
     {phone&&<Dialog open={state.panelVisible} onOpenChange={open=>{if(!open)owner.closePanel(state);}} title={title} returnFocusRef={state.focus??undefined}>{panels}</Dialog>}
   </>;

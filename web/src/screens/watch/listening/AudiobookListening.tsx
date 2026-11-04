@@ -10,6 +10,7 @@ import {StateView} from '../../../kit/states';
 import {Icon} from '../../../kit/Icon';
 import type {WatchBindings} from '../types';
 import {watchClock, watchSeek, watchSeekBounds, type WatchIntent} from '../model';
+import {durationText} from '@core/presentation/kit-model/text.ts';
 import {ListeningSeek} from './ListeningSeek';
 import {BookChapterList, playingBookChapter} from './BookChapterList';
 import ambientStyles from './listening-ambient.module.css';
@@ -43,12 +44,22 @@ export function AudiobookListening({snapshot, title, subtitle, cover, ambient, c
   const active = book ? playingBookChapter(book) : rows.find(chapter => p.positionSeconds >= chapter.startSeconds && p.positionSeconds < chapter.endSeconds);
   const ticks = book ? book.chapters.filter(chapter => chapter.itemId === book.itemId) : rows;
   const seek = (position: number) => {const seconds = watchSeek(snapshot, position);if (seconds !== null) onIntent(snapshot, {kind: 'seek', seconds});};
+  // desktop-listen, audiobook player: under Speed, the whole book's time left at this speed; under
+  // Sleep timer, when it stops. Each is drawn only from facts the player has.
+  const bookLeft = book && active && 'number' in active ? book.chapters.slice(book.current + 1).reduce((sum, chapter) => sum + (chapter.endSeconds - chapter.startSeconds), Math.max(0, active.endSeconds - p.positionSeconds)) : undefined;
+  const speedLeft = bookLeft !== undefined && p.rate > 0 ? t('web.player.speedLeft', {time: durationText(bookLeft / p.rate, t) ?? '', rate: new Intl.NumberFormat(defaultI18n.region.formatLocale).format(p.rate)}) : undefined;
+  const sleepAt = snapshot.playback?.listeningDeadlines?.sleepAtMs, sleepLeft = typeof sleepAt === 'number' ? Math.max(0, (sleepAt - Date.now()) / 1000) : undefined;
+  const sleepStops = sleepLeft !== undefined && sleepLeft >= 60 ? t('web.player.sleepStops', {time: durationText(sleepLeft, t) ?? ''}) : undefined;
   return <section className={styles.frame} aria-label={t('player.nowPlayingTitle', {title})} tabIndex={-1} data-watch-audiobook data-phone={phone || undefined}>
     <AmbientArt source={ambient} className={`${ambientStyles.ambient}${phone ? ` ${ambientStyles.phone}` : ''}`}/>
     <header className={styles.top}>
       <Button variant="glass" icon="i-down" aria-label={t('player.minimize')} onClick={onCollapse}/>
       {sourceLabel && <span>{t('next.music.playingFrom', {source: sourceLabel})}</span>}{!phone && notice}
-      {onShowPanel && <Button variant="glass" icon="i-more" aria-label={t('player.opt.menu')} onClick={() => onShowPanel(snapshot, 'options')}/>}
+      {/* desktop-listen, audiobook player: Play on and More sit at the right, as in the music player. */}
+      <span className={styles.topEnd}>
+        {!phone && onShowPanel && canPlayOn === true && <Button variant="glass" icon="i-cast" aria-label={t('next.dock.playOn')} onClick={() => onShowPanel(snapshot, 'play-on')}/>}
+        {onShowPanel && <Button variant="glass" icon="i-more" aria-label={t('player.opt.menu')} onClick={() => onShowPanel(snapshot, 'options')}/>}
+      </span>
     </header>
     <div className={styles.main}>
       <div className={styles.bookTop}><div className={styles.cover}><Artwork source={cover} alt={title}/></div><div className={styles.identity}><h1>{title}</h1><p>{subtitle}</p></div></div>
@@ -65,10 +76,10 @@ export function AudiobookListening({snapshot, title, subtitle, cover, ambient, c
       </div>
       {phone && notice && <div className={styles.notice}>{notice}</div>}
       {!phone && <div className={styles.options}>
-        {!!speedChoices.length && <div className={styles.option}><b>{t('player.opt.speed')}</b><Segmented className={styles.segments} aria-label={t('player.opt.speed')} value={String(p.rate)} items={speedChoices.map(rate => ({value: String(rate), label: `${defaultI18n.region.formatLocale ? new Intl.NumberFormat(defaultI18n.region.formatLocale).format(rate) : rate}×`}))}
+        {!!speedChoices.length && <div className={styles.option}><b>{t('player.opt.speed')}{speedLeft && <small>{speedLeft}</small>}</b><Segmented className={styles.segments} aria-label={t('player.opt.speed')} value={String(p.rate)} items={speedChoices.map(rate => ({value: String(rate), label: `${defaultI18n.region.formatLocale ? new Intl.NumberFormat(defaultI18n.region.formatLocale).format(rate) : rate}×`}))}
           onValueChange={value => {const rate = Number(value);if (speedChoices.includes(rate)) onSpeed(snapshot, rate);}}/></div>}
-        {!!sleepChoices.length && <div className={styles.option}><b>{t('player.opt.sleepTimer')}</b><Segmented className={styles.segments} aria-label={t('player.opt.sleepTimer')} value={sleepChoiceValue(sleepChoice)}
-          items={sleepChoices.map(choice => ({value: sleepChoiceValue(choice), label: typeof choice === 'number' && choice > 0 ? t('duration.minutes', {minutes: choice}) : sleepChoiceLabel(choice)}))}
+        {!!sleepChoices.length && <div className={styles.option}><b>{t('player.opt.sleepTimer')}{sleepStops && <small>{sleepStops}</small>}</b><Segmented className={styles.segments} aria-label={t('player.opt.sleepTimer')} value={sleepChoiceValue(sleepChoice)}
+          items={sleepChoices.map(choice => ({value: sleepChoiceValue(choice), label: typeof choice === 'number' && choice > 0 ? t('next.kit.duration.minutes', {minutes: choice}) : sleepChoiceLabel(choice)}))}
           onValueChange={value => {const choice = sleepChoiceFrom(value);if (sleepChoices.includes(choice)) onSleep(snapshot, choice);}}/></div>}
       </div>}
       {!phone && can('volume') && <div className={styles.volume}><Button variant="ghost" icon="i-vol" aria-label={t(p.muted ? 'player.unmute' : 'player.mute')} onClick={() => onIntent(snapshot, {kind: 'mute'})}/>
@@ -83,7 +94,7 @@ export function AudiobookListening({snapshot, title, subtitle, cover, ambient, c
     {!phone && <aside className={styles.side} aria-label={t('player.opt.chapters')}>
       {aside ?? <>
         <h2>{t('player.opt.chapters')}</h2>
-        {book ? <BookChapterList book={book} playing={p.playing} disabled={!can('seek')} onPick={chapter => onIntent(snapshot, {kind: 'book-chapter', chapterId: chapter.id})}/> : <>
+        {book ? <BookChapterList book={book} playing={p.playing} positionSeconds={p.positionSeconds} disabled={!can('seek')} onPick={chapter => onIntent(snapshot, {kind: 'book-chapter', chapterId: chapter.id})}/> : <>
         {chapters?.phase === 'loading' || chapters?.phase === 'idle' ? <p role="status">{t('player.opt.loadingChapters')}</p>
           : chapters?.phase === 'error' || chapters?.phase === 'refresh-required' ? <Banner action={{label: t('next.states.tryAgain'), onAction: () => onChapterRetry(chapters)}}>{t('player.opt.chaptersUnavailable')}</Banner>
             : !chapters || chapters.data?.status === 'unavailable' ? <StateView title={t('player.opt.chaptersUnavailable')}/>

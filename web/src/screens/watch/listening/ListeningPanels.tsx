@@ -46,8 +46,13 @@ export function ListeningPanels({host, snapshot, reportError, artwork, policyInT
       busy: state.save?.busy, error: state.save?.error,
       openDialog: shown => owner.openSave(state, shown), close: () => owner.closeSave(state), changeName: name => owner.saveName(state, name), confirm: (shown, name) => inline(() => owner.save(state, shown, name))}}/>;
 }
-export function ListeningTabs({host}: {host: ListeningHost}) {
+export function ListeningTabs({host, audiobook = false}: {host: ListeningHost; audiobook?: boolean}) {
   const {owner, state} = host;
+  // desktop-listen, audiobook player: the side panel's tabs are Chapters and Up next.
+  if (audiobook) return <nav className={styles.tabs} aria-label={t('player.opt.chapters')}>
+    {owner.chaptersOffered() && <Button size="small" variant="ghost" aria-pressed={state.panel !== 'queue'} onClick={event => owner.show(state, 'chapters', event.currentTarget)}>{t('player.opt.chapters')}</Button>}
+    {owner.queueOffered() && <Button size="small" variant="ghost" aria-pressed={state.panel === 'queue'} onClick={event => owner.show(state, 'queue', event.currentTarget)}>{t('next.music.upNext')}</Button>}
+  </nav>;
   return <nav className={styles.tabs} aria-label={t('next.music.upNext')}>
     <Button size="small" variant="ghost" aria-pressed={state.panel === 'queue'} onClick={event => owner.show(state, 'queue',event.currentTarget)}>{t('next.music.upNext')}</Button>
     {owner.lyricsOffered() && <Button size="small" variant="ghost" aria-pressed={state.panel === 'lyrics'} onClick={event => owner.show(state, 'lyrics',event.currentTarget)}>{t('player.lyrics')}</Button>}
