@@ -45,29 +45,44 @@ export function useNativeDismissal(onGone: () => void, wait = LAYER_FOCUS_WAIT_M
  * - `present`: the overlay's own presence (true through its exit). Render the `Modal` while `mounted`, with `visible`
  *   and `onDismiss` from here, and keep the overlay lifecycle open while `mounted`.
  * - `shown`: when the `Modal` asks to be visible while present (a menu that hides at once when it closes); it defaults
- *   to `present`. A dismissal it starts and that is reported before `present` ends is kept, as is UIKit's own Menu
- *   dismissal (D16), so the overlay goes as soon as its exit ends.
- * - Opened again while the old one is still dismissing, it is shown again once that dismissal ends (UIKit can't present
- *   a view controller that is still being dismissed).
+ *   to `present`.
+ *
+ * Each report belongs to its own presentation. Every time the `Modal` is hidden (whether `shown` or `present` ended it)
+ * one dismissal starts, and reports are matched to those dismissals oldest first, so an old report never ends a later
+ * close. The `Modal` is shown again only once no dismissal is outstanding: UIKit can't present a view controller that
+ * is still being dismissed, and flipping `visible` back does not cancel the dismissal. A report while the `Modal` is
+ * shown, with none outstanding, is UIKit's own Menu dismissal of that presentation (D16): its close then has nothing
+ * left to wait for. Dismissals the fallback gave up on are remembered, so their late reports are ignored too.
  */
+type Presentation = Readonly<{
+  /** What the `Modal` was last asked for. */
+  shown: boolean;
+  /** Dismissals started (iOS) and not yet reported, oldest first. */
+  outstanding: number;
+  /** Dismissals the fallback gave up on; their reports, if they ever come, are ignored. */
+  lost: number;
+  /** UIKit dismissed the presentation shown now by itself (D16). */
+  gone: boolean;
+}>;
 export function useNativeModalPresence(present: boolean, shown = present, wait = LAYER_FOCUS_WAIT_MS): Readonly<{mounted: boolean; visible: boolean; onDismiss: () => void}> {
   const ios = Platform.OS === 'ios';
-  const [waiting, setWaiting] = useState(false), [was, setWas] = useState(present);
-  // Whether the platform has reported the current showing dismissed (reset when it is shown again).
-  const dismissed = useRef(false);
-  let pending = waiting;
-  if (was !== present) {
-    setWas(present);
-    // Leaving: wait for the dismissal unless it has already been reported. Back again: a dismissal still running ends first.
-    if (!present) {pending = ios && !dismissed.current; if (pending !== waiting) setWaiting(pending);}
+  const [state, setState] = useState<Presentation>({shown: false, outstanding: 0, lost: 0, gone: false});
+  let now = state;
+  // The Modal's own edge, decided in render so that `mounted` holds on the same commit that hides it.
+  const ask = shown && present && state.outstanding === 0;
+  if (ask !== state.shown) {
+    now = ask ? {...state, shown: true, gone: false} // a new presentation
+      : {...state, shown: false, gone: false, outstanding: state.outstanding + (ios && !state.gone ? 1 : 0)}; // its dismissal starts
+    setState(now);
   }
-  const visible = shown && present && !pending;
-  useEffect(() => {if (visible) dismissed.current = false;}, [visible]);
-  const onDismiss = useCallback(() => {dismissed.current = true; setWaiting(false);}, []);
+  const onDismiss = useCallback(() => setState(current =>
+    current.outstanding > 0 ? {...current, outstanding: current.outstanding - 1}
+      : current.lost > 0 ? {...current, lost: current.lost - 1}
+      : current.shown && !current.gone ? {...current, gone: true} : current), []);
   useEffect(() => {
-    if (!waiting) return;
-    const timer = setTimeout(() => setWaiting(false), wait);
+    if (state.outstanding === 0) return;
+    const timer = setTimeout(() => setState(current => ({...current, lost: current.lost + current.outstanding, outstanding: 0})), wait);
     return () => clearTimeout(timer);
-  }, [waiting, wait]);
-  return {mounted: present || pending, visible, onDismiss};
+  }, [state.outstanding, wait]);
+  return {mounted: present || now.outstanding > 0, visible: now.shown, onDismiss};
 }

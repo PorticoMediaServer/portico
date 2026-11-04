@@ -61,7 +61,7 @@ async function scene(platform: 'android' | 'tvos', options?: {wait: number}) {
   };
   /** The overlay's exit (reduced motion) and any timers after it. */
   const exit = async () => {for (let i = 0; i < 4; i++) {await pause(60); await engine.settle();}};
-  return {engine, opened, exit, exits, ok};
+  return {engine, opened, exit, exits, ok, open: (value: boolean) => setOpen(value)};
 }
 
 test('on Android TV and Fire TV every kit Modal overlay goes with its exit, and focus returns where it was', async () => {
@@ -135,4 +135,83 @@ test('only the top layer takes focus: a dialog opened over a closing sheet keeps
     assert.equal(engine.focused, 'dialog-ok', `${platform}: the closed sheet does not pull focus under the dialog`);
     await engine.unmount();
   }
+});
+
+// Sol 8's P2 on #844 (comment 6638349337): each dismissal report belongs to its own presentation. A modal popover hides
+// its Modal as soon as it closes, while its exit keeps it present; reopened before tvOS reports that dismissal, it must
+// not ask UIKit to show a view controller that is still being dismissed, and that old report must not end a later close.
+test('Apple TV: a popover reopened while its early hide is still dismissing is shown again only once that dismissal ends', async () => {
+  const {engine, opened, exit, open} = await scene('tvos', {wait: 60_000});
+  await opened('popover');
+  open(false);
+  await engine.settle();
+  assert.deepEqual(engine.windows().map(window => window.dismissing), [true], 'hidden at once: its dismissal has started');
+  open(true);
+  await engine.settle(); await exit();
+  assert.deepEqual(engine.windows().map(window => window.dismissing), [true], 'not shown again while UIKit is still dismissing it');
+  await engine.finishDismissals(); await exit();
+  assert.deepEqual(engine.windows().map(window => window.dismissing), [false], 'shown again once the old dismissal has ended');
+  open(false);
+  await engine.settle(); await exit();
+  assert.deepEqual(engine.windows().map(window => window.dismissing), [true], 'the second close waits for its own dismissal');
+  await engine.finishDismissals(); await exit();
+  assert.equal(engine.windows().length, 0);
+  assert.equal(engine.focused, 'show', 'focus back where it was');
+  await engine.unmount();
+});
+
+async function probe(platform: 'android' | 'tvos', wait: number) {
+  const kit = await tvFocusKit({platform}), o: any = await tvKitOverlays(kit, {wait});
+  let seen: {mounted: boolean; visible: boolean; onDismiss: () => void} = undefined as any;
+  const Probe = ({present, shown}: {present: boolean; shown: boolean}) => {seen = o.useNativeModalPresence(present, shown); return null;};
+  const at = async (present: boolean, shown: boolean) => {await kit.engine.render(kit.e(Probe, {present, shown})); return seen;};
+  const report = async () => {seen.onDismiss(); await kit.engine.settle(); return seen;};
+  return {at, report, engine: kit.engine};
+}
+
+test('a dismissal report from an earlier presentation never ends a later close (Sol 8\'s second-close repro)', async () => {
+  const {at, report, engine} = await probe('tvos', 60_000);
+  let now = await at(true, true);
+  assert.deepEqual([now.mounted, now.visible], [true, true]);
+  now = await at(true, false); // the popover hides at once; its exit keeps it present
+  assert.equal(now.visible, false);
+  await at(true, true); // reopened before tvOS reports the first dismissal
+  now = await report(); // that first dismissal is reported
+  assert.equal(now.visible, true, 'shown again once the first dismissal has ended');
+  now = await at(false, false); // the reopened popover closes and its exit ends
+  assert.equal(now.mounted, true, 'the old report did not end this close: it waits for its own dismissal');
+  now = await report();
+  assert.equal(now.mounted, false, 'gone once its own dismissal is reported');
+  await engine.unmount();
+});
+
+test('a dismissal the fallback gave up on (D15) does not end a later close when its report comes late', async () => {
+  const {at, report, engine} = await probe('tvos', 60);
+  await at(true, true);
+  let now = await at(false, false);
+  assert.equal(now.mounted, true, 'waiting for the dismissal');
+  await pause(120); await engine.settle();
+  now = await at(false, false);
+  assert.equal(now.mounted, false, 'gone on the fallback');
+  now = await at(true, true);
+  assert.equal(now.visible, true, 'opened again');
+  now = await report(); // the lost dismissal reports late
+  now = await at(false, false);
+  assert.equal(now.mounted, true, 'the late report belongs to the lost dismissal: this close still waits');
+  now = await report();
+  assert.equal(now.mounted, false);
+  await engine.unmount();
+});
+
+test('Android TV: the Modal follows presence and its hide with no wait, whatever is reported', async () => {
+  const {at, report, engine} = await probe('android', 60_000);
+  assert.equal((await at(true, true)).visible, true);
+  let now = await at(true, false);
+  assert.deepEqual([now.mounted, now.visible], [true, false]);
+  now = await at(true, true);
+  assert.equal(now.visible, true, 'shown again at once');
+  await report();
+  now = await at(false, false);
+  assert.equal(now.mounted, false, 'gone with its presence');
+  await engine.unmount();
 });
