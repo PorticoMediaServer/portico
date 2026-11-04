@@ -32,7 +32,11 @@ import (
 const (
 	processesPerScan            = 2
 	firstImportProcessesPerFile = 0
-	rescanProcessesPerFile      = 0
+	// unpooledProbesPerFile is a first import's processes per film where the
+	// host has no decoder sandbox (no bubblewrap, as on CI runners): each of
+	// the two ffprobe passes then starts its own helper, as before M4.
+	unpooledProbesPerFile  = 2
+	rescanProcessesPerFile = 0
 	// sandboxesPerScan bounds probe sandboxes started per scan run (scanner
 	// M4): one per concurrent probe, never one per file.
 	sandboxesPerScan = 4
@@ -124,15 +128,23 @@ func TestScanHelperProcessBudget(t *testing.T) {
 	stats := store.Supervisor.Stats()
 	sandboxes, probes := int(firstPool.WorkersStarted-pool.WorkersStarted), int(firstPool.Jobs-pool.Jobs)
 	t.Logf("processes: first import %d (%.1f per film), %d probe sandboxes for %d probes; rescan %d; %d of %d operations in process", firstTotal, float64(firstTotal)/films, sandboxes, probes, rescanTotal, stats.InProcess, stats.Admitted)
+	perFile := firstImportProcessesPerFile
 	if mediaexec.ProbePoolAccepts(mediaexec.Job{Executable: decodertest.QualifiedFFprobe(t), Background: true}) {
 		// Scanner M4: probes run on long-lived sandboxes, at most one per
 		// concurrent probe, instead of one sandbox (and helper) per probe.
 		if probes < films || sandboxes > sandboxesPerScan {
 			t.Fatalf("a first import of %d films ran %d pooled probes on %d sandboxes; want every probe pooled on at most %d sandboxes", films, probes, sandboxes, sandboxesPerScan)
 		}
+	} else {
+		// No pool on this host: nothing may be pooled, and the probes keep
+		// their pre-M4 cost, still with no other process per film.
+		if probes != 0 || sandboxes != 0 {
+			t.Fatalf("the probe pool is unavailable here, yet ran %d probes on %d sandboxes", probes, sandboxes)
+		}
+		perFile = unpooledProbesPerFile
 	}
-	if firstTotal > processesPerScan+firstImportProcessesPerFile*films {
-		t.Fatalf("a first import of %d films started %d processes, over the budget of %d per scan plus %d per film", films, firstTotal, processesPerScan, firstImportProcessesPerFile)
+	if firstTotal > processesPerScan+perFile*films {
+		t.Fatalf("a first import of %d films started %d processes, over the budget of %d per scan plus %d per film", films, firstTotal, processesPerScan, perFile)
 	}
 	if rescanTotal > processesPerScan+rescanProcessesPerFile*films {
 		t.Fatalf("a rescan of %d unchanged films started %d processes, over the budget of %d per scan plus %d per film", films, rescanTotal, processesPerScan, rescanProcessesPerFile)
