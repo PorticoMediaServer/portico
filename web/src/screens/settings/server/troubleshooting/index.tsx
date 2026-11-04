@@ -53,6 +53,11 @@ const TABS: readonly Readonly<{id: View; label: MessageId}>[] = Object.freeze([
   {id: 'support', label: 'server.support'},
 ]);
 
+/** The parts each viewer draws: it is offered when the tier has any of them. */
+const TAB_PARTS: Readonly<Record<View, readonly TroubleshootingPart[]>> = Object.freeze({messages: ['messages'], feedback: ['feedback'], reports: ['reports', 'stuckFiles'], support: ['support']});
+/** A tier with stuck files but not app logs (an administrator: spec "Messages and stuck files") opens a viewer of stuck files alone, named for them. */
+const stuckOnly = (parts: ReadonlySet<TroubleshootingPart>) => parts.has('stuckFiles') && !parts.has('reports');
+
 /** The Settings landing opens the viewers this tier may use: all four for the owner, Messages for an administrator. */
 export type TroubleshootingPageProps = Readonly<{
   messages: SettingsMessagesSource; reports: SettingsReportsSource; feedback: SettingsFeedbackSource; support: SettingsSupportSource;
@@ -68,17 +73,18 @@ export type TroubleshootingPageProps = Readonly<{
 }>;
 
 export function TroubleshootingPage({messages, reports, feedback, support, subscribe, isCurrent, downloadBase, reportError, options, detailMinutes, problems, advancedSummary, initialView, parts = OWNER_PARTS}: TroubleshootingPageProps) {
-  const tabs = TABS.filter(tab => parts.has(tab.id));
-  const [view, setView] = useState<View | undefined>(initialView && parts.has(initialView) ? initialView : undefined), opener = useRef<View | undefined>(undefined);
+  const stuck = stuckOnly(parts);
+  const tabs = TABS.filter(tab => TAB_PARTS[tab.id].some(part => parts.has(part))).map(tab => tab.id === 'reports' && stuck ? {...tab, label: 'next.settings.troubleshootingStuckFiles' as MessageId} : tab);
+  const [view, setView] = useState<View | undefined>(initialView && tabs.some(tab => tab.id === initialView) ? initialView : undefined), opener = useRef<View | undefined>(undefined);
   const openers = useRef<Partial<Record<View, HTMLButtonElement | null>>>({});
   useEffect(() => {if (!view && opener.current) openers.current[opener.current]?.focus();}, [view]);
   if (!view) return <div className={styles.landing}>
     <SettingsGroup title={t('next.settingsSpec.server.troubleshooting.groups.0.title')}>
       {parts.has('detailWindow') && <DetailWindowRow source={messages} detailMinutes={detailMinutes} reportError={reportError}/>}
       {tabs.map(tab => {
-        const row = settingsRowIndex.get(`troubleshooting.${tab.id}`)!.row;
-        return <SettingsRow key={tab.id} label={t(row.label)} help={row.help && t(row.help)}>
-          <Button ref={element => {openers.current[tab.id] = element;}} variant="glass" size="small" icon="i-right" onClick={() => {if (isCurrent()) {opener.current = tab.id;setView(tab.id);}}}>{t(row.control.label ?? row.label)}</Button>
+        const row = settingsRowIndex.get(`troubleshooting.${tab.id}`)!.row, stuckRow = tab.id === 'reports' && stuck;
+        return <SettingsRow key={tab.id} label={stuckRow ? t('next.settings.troubleshootingStuckFiles') : t(row.label)} help={stuckRow ? t('next.settings.troubleshootingStuckFilesHelp') : row.help && t(row.help)}>
+          <Button ref={element => {openers.current[tab.id] = element;}} variant="glass" size="small" icon="i-right" onClick={() => {if (isCurrent()) {opener.current = tab.id;setView(tab.id);}}}>{stuckRow ? t('next.settings.troubleshootingOpenStuckFiles') : t(row.control.label ?? row.label)}</Button>
         </SettingsRow>;
       })}
     </SettingsGroup>
@@ -91,7 +97,7 @@ export function TroubleshootingPage({messages, reports, feedback, support, subsc
     <TabsPrimitive.Content value={view}>
     {view === 'messages' ? <MessagesPanel source={messages} detailMinutes={detailMinutes} canDetail={parts.has('detailWindow')} reportError={reportError} />
       : view === 'feedback' ? <FeedbackPanel source={feedback} subscribe={subscribe} reportError={reportError} />
-      : view === 'reports' ? <ReportsPanel source={reports} subscribe={subscribe} isCurrent={isCurrent} downloadBase={downloadBase} reportError={reportError} />
+      : view === 'reports' ? <ReportsPanel source={reports} subscribe={subscribe} isCurrent={isCurrent} downloadBase={downloadBase} reportError={reportError} appLogs={parts.has('reports')} />
         : <SupportPanel source={support} subscribe={subscribe} reportError={reportError} hideExport />}
     </TabsPrimitive.Content>
   </TabsPrimitive.Root>;
@@ -114,7 +120,8 @@ const OWNER_PARTS = troubleshootingParts('owner');
 export function createTroubleshootingSurfaces(options: TroubleshootingSurfacesOptions): TroubleshootingSurfaces {
   const parts = troubleshootingParts(options.tier);
   const messages = new SettingsMessagesSource(options.transport, options.messageConnection, options.isCurrent, options.reportError);
-  const reports = new SettingsReportsSource(options.transport, options.serverId, options.viewerId, options.isCurrent, options.reportError);
+  const reports = new SettingsReportsSource(options.transport, options.serverId, options.viewerId, options.isCurrent, options.reportError,
+    {reports: parts.has('reports'), stuckFiles: parts.has('stuckFiles')});
   const feedback = new SettingsFeedbackSource(options.transport, options.serverId, options.viewerId, options.isCurrent, options.reportError);
   const support = new SettingsSupportSource(options.transport, options.serverId, options.viewerId, options.isCurrent, options.reportError);
   const subscribe = (listener: () => void) => {

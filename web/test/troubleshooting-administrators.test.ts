@@ -54,11 +54,16 @@ test('every route a Troubleshooting part names is a published route', () => {
   for (const [part, ids] of Object.entries(troubleshootingRoutes)) for (const id of ids) assert.ok(published.has(id), `${part}: ${id}`);
 });
 
-test('an administrator gets Messages only; the owner gets every part', () => {
-  assert.deepEqual([...troubleshootingParts('admin')], ['messages']);
+test('an administrator gets Messages and stuck files (spec: "Administrators see Messages and stuck files"); the owner gets every part', () => {
+  assert.deepEqual([...troubleshootingParts('admin')].sort(), ['messages', 'stuckFiles']);
+  // Stuck files light up from routes.ts alone: its one route publishes admin_scope.
+  assert.deepEqual(troubleshootingRoutes.stuckFiles, ['get_catalogue_failures']);
+  assert.equal(serverTierMayCall('get_catalogue_failures', 'admin'), true);
+  assert.ok(!troubleshootingRoutes.reports.includes('get_catalogue_failures' as never), 'stuck files are not gated by the owner\'s app logs');
+  assert.equal(troubleshootingRowShown('troubleshooting.reports', 'admin'), true, 'the reports row opens stuck files for an administrator');
   assert.deepEqual([...troubleshootingParts('owner')].sort(), Object.keys(troubleshootingRoutes).sort());
   assert.equal(troubleshootingRowShown('troubleshooting.messages', 'admin'), true);
-  for (const row of ['troubleshooting.detailWindow', 'troubleshooting.logLevel', 'troubleshooting.keepLogs', 'troubleshooting.feedback', 'troubleshooting.reports', 'troubleshooting.support', 'troubleshooting.exportWindow', 'troubleshooting.playbackProblems', 'troubleshooting.someNewRow'])
+  for (const row of ['troubleshooting.detailWindow', 'troubleshooting.logLevel', 'troubleshooting.keepLogs', 'troubleshooting.feedback', 'troubleshooting.support', 'troubleshooting.exportWindow', 'troubleshooting.playbackProblems', 'troubleshooting.someNewRow'])
     assert.equal(troubleshootingRowShown(row, 'admin'), false, row);
   for (const row of ['troubleshooting.detailWindow', 'troubleshooting.logLevel', 'troubleshooting.someNewRow', 'storage.backups']) assert.equal(troubleshootingRowShown(row, 'owner'), true, row);
   assert.equal(troubleshootingRowShown('storage.backups', 'admin'), true, 'a row outside Troubleshooting is not this page\'s to decide');
@@ -67,15 +72,18 @@ test('an administrator gets Messages only; the owner gets every part', () => {
 const surfaces = (tier: 'owner' | 'admin') => createTroubleshootingSurfaces({tier, transport: transport as never, serverId: 'server', viewerId: 'viewer', downloadBase: 'https://server.invalid',
   isCurrent: () => true, subscribe: () => () => {}, reportError: () => {}});
 
-test('an administrator\'s landing offers Messages only, with no detail window control and no export', () => {
+test('an administrator\'s landing offers Messages and Stuck files, with no detail window control and no export', () => {
   const admin = surfaces('admin');
   const html = renderToStaticMarkup(createElement('div', null, admin.render(createElement('p', null, 'LOG SETTINGS'))));
   assert.match(html, /Messages/);
+  assert.match(html, /<b>Stuck files<\/b><p>Files Portico couldn’t prepare\.<\/p>/);
+  assert.match(html, /Open stuck files/);
   for (const absent of [/Record more detail/, /Problems people reported/, /App logs and stuck files/, /What this server can do/, /LOG SETTINGS/]) assert.doesNotMatch(html, absent);
   admin.dispose();
   const owner = surfaces('owner');
   const full = renderToStaticMarkup(createElement('div', null, owner.render(createElement('p', null, 'LOG SETTINGS'))));
   for (const present of [/Record more detail/, /Messages/, /Problems people reported/, /App logs and stuck files/, /What this server can do/, /LOG SETTINGS/]) assert.match(full, present);
+  assert.doesNotMatch(full, /Open stuck files/);
   owner.dispose();
 });
 
@@ -98,4 +106,28 @@ test('Settings builds the page for owners and administrators, and passes log set
   assert.match(controller, /if \(section\.id === 'troubleshooting'\) return this\.options\.capabilities\.manageServer && this\.options\.role !== 'member' && troubleshootingParts\(this\.options\.role\)\.size > 0;/);
   const bindings = readFileSync(new URL('../src/screens/settings/bindings.ts', import.meta.url), 'utf8');
   assert.match(bindings, /section\.id === 'troubleshooting' && troubleshootingParts\('admin'\)\.size > 0 \? 'administrators' : 'owner'/);
+});
+
+test('an administrator\'s Reports source reads only the stuck files; the owner\'s reads app logs, records and stuck files', async () => {
+  const {SettingsReportsSource} = await import('../src/screens/settings/server/troubleshooting/reports-source.ts');
+  const read = async (sections?: {reports: boolean; stuckFiles: boolean}) => {
+    const paths: string[] = [];
+    const api = {request: async <T>(path: string) => {paths.push(path.split('?')[0]!);
+      return (path.includes('catalogue/failures') ? {scope: {serverId: 'server', viewerFence: 'f'}, data: {failures: [], more: false}} : {items: [], nextCursor: ''}) as T;}};
+    const source = new SettingsReportsSource(api as never, 'server', 'viewer', () => true, () => {}, sections);
+    await source.load();source.dispose();
+    return paths;
+  };
+  assert.deepEqual(await read({reports: false, stuckFiles: true}), ['/v1/admin/catalogue/failures']);
+  const owner = await read();
+  assert.ok(owner.includes('/v1/admin/catalogue/failures') && owner.includes('/v1/admin/diagnostics/client-logs'), owner.join(' '));
+});
+
+test('a stuck-files-only Reports viewer draws stuck files alone, and says when none are stuck', async () => {
+  const {ReportsPanel} = await import('../src/screens/settings/server/troubleshooting/Reports.tsx');
+  const snapshot = {phase: 'ready', reports: [], setAside: {failures: [], more: false}};
+  const source = {getSnapshot: () => snapshot, load: async () => {}, checkSetAside: async () => {}} as never;
+  const html = renderToStaticMarkup(createElement(ReportsPanel, {source, subscribe: () => () => {}, isCurrent: () => true, downloadBase: '', reportError: () => {}, appLogs: false}));
+  assert.match(html, /No files are stuck\./);
+  assert.doesNotMatch(html, /Client reports/);
 });

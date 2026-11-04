@@ -23,6 +23,8 @@ export type ReportsPanelProps = Readonly<{
   /** The selected server's own origin, so a downloaded report comes from the server that holds it. */
   downloadBase: string;
   reportError: (error: unknown) => void;
+  /** False for a tier that may read stuck files but not app logs (an administrator): only stuck files are drawn. */
+  appLogs?: boolean;
 }>;
 
 const LANES: readonly Readonly<{id: RecordLane; label: MessageId}>[] = Object.freeze([
@@ -47,6 +49,10 @@ export function ReportsPanel(props: ReportsPanelProps) {
   useEffect(() => {void props.source.load();}, [props.source]);
   if (state.phase === 'error') return <p className={styles.failure} role="alert"><span>{t('next.states.pageFailedBody')}</span><button type="button" onClick={() => {void props.source.retry();}}>{t('next.shell.tryAgain')}</button></p>;
   if (state.phase === 'idle' || state.phase === 'loading' && !state.reports.length) return <p role="status">{t('next.settings.loading')}</p>;
+  const appLogs = props.appLogs !== false;
+  if (!appLogs) return <div className={styles.reports}>
+    <SetAside failures={state.setAside?.failures ?? []} more={state.setAside?.more ?? false} onCheck={() => {void props.source.checkSetAside();}} />
+  </div>;
   return <div className={styles.reports}>
     <section className={styles.panel}>
       <div className={styles.panelHead}><h3>{t('web.diagnostics.clientReports')}</h3></div>
@@ -138,12 +144,12 @@ function SetAside({failures, more, onCheck}: Readonly<{failures: readonly Catalo
   return <section className={styles.panel}>
     <div className={styles.panelHead}><h3>{t('server.setAside.title')} <span className={styles.tag}>{t('next.settings.administratorsSee')}</span></h3></div>
     <p className={styles.lede}>{t('server.setAside.lede')}</p>
-    <ul className={styles.rows}>{failures.map((failure, index) => <li key={`${failure.domain}-${failure.entityId ?? index}`} className={styles.setAsideRow}>
+    {failures.length === 0 ? <p className={styles.none}>{t('next.settings.stuckFilesNone')}</p> : <ul className={styles.rows}>{failures.map((failure, index) => <li key={`${failure.domain}-${failure.entityId ?? index}`} className={styles.setAsideRow}>
       <Icon name="i-alert" size={20} />
       <div className={styles.reportText}><b>{failure.title || t('server.setAside.untitled')}</b>
         <small>{t('server.setAside.tried', {count: failure.attempts, when: defaultI18n.dateTime(failure.failedAt)})}</small></div>
       <p className={styles.reason}>{failure.reason}</p>
-    </li>)}</ul>
+    </li>)}</ul>}
     {more && <p className={styles.note}>{t('server.setAside.more')}</p>}
     <div><Button variant="glass" size="small" onClick={onCheck}>{t('server.setAside.check')}</Button></div>
   </section>;
