@@ -1,0 +1,258 @@
+[
+  {
+    "body": {
+      "control": {
+        "revision": "1",
+        "state": "playing"
+      },
+      "id": "\u003csession:1\u003e",
+      "itemId": "\u003citem:1\u003e",
+      "kind": "vod",
+      "lease": {
+        "expiresAt": "\u003clease-clock\u003e",
+        "reportEveryMs": 10000
+      },
+      "presentation": {
+        "choiceRevision": 1,
+        "container": "mp4",
+        "decision": {
+          "audio": {
+            "action": "direct",
+            "reasons": []
+          },
+          "video": {
+            "action": "direct",
+            "reasons": []
+          }
+        },
+        "engine": "native",
+        "generation": 1,
+        "mode": "direct",
+        "quality": {
+          "mode": "original"
+        },
+        "startPositionMs": 0,
+        "subtitles": [],
+        "url": "/v1/media/\u003cgrant:1\u003e"
+      },
+      "revision": "1",
+      "role": "local",
+      "state": "playing",
+      "variant": "session",
+      "versionId": "\u003cversion:1\u003e"
+    },
+    "etag": "\"1\"",
+    "name": "start",
+    "status": 201
+  },
+  {
+    "body": {
+      "control": {
+        "revision": "1",
+        "state": "playing"
+      },
+      "id": "\u003csession:1\u003e",
+      "itemId": "\u003citem:1\u003e",
+      "kind": "vod",
+      "lease": {
+        "expiresAt": "\u003clease-clock\u003e",
+        "reportEveryMs": 10000
+      },
+      "presentation": {
+        "choiceRevision": 1,
+        "container": "mp4",
+        "decision": {
+          "audio": {
+            "action": "direct",
+            "reasons": []
+          },
+          "video": {
+            "action": "direct",
+            "reasons": []
+          }
+        },
+        "engine": "native",
+        "generation": 1,
+        "mode": "direct",
+        "quality": {
+          "mode": "original"
+        },
+        "startPositionMs": 0,
+        "subtitles": [],
+        "url": "/v1/media/\u003cgrant:1\u003e"
+      },
+      "revision": "1",
+      "role": "local",
+      "state": "playing",
+      "variant": "session",
+      "versionId": "\u003cversion:1\u003e"
+    },
+    "etag": "\"1\"",
+    "name": "same-body-replay",
+    "status": 201
+  },
+  {
+    "body": "MDEyMw==",
+    "name": "media-range",
+    "status": 206
+  },
+  {
+    "body": {
+      "control": {
+        "revision": "2",
+        "state": "playing"
+      },
+      "id": "\u003csession:1\u003e",
+      "itemId": "\u003citem:1\u003e",
+      "kind": "vod",
+      "lease": {
+        "expiresAt": "\u003clease-clock\u003e",
+        "reportEveryMs": 10000
+      },
+      "presentation": {
+        "choiceRevision": 1,
+        "container": "mp4",
+        "decision": {
+          "audio": {
+            "action": "direct",
+            "reasons": []
+          },
+          "video": {
+            "action": "direct",
+            "reasons": []
+          }
+        },
+        "engine": "native",
+        "generation": 1,
+        "mode": "direct",
+        "quality": {
+          "mode": "original"
+        },
+        "seekId": "compatibility-seek-0001",
+        "startPositionMs": 0,
+        "subtitles": [],
+        "url": "/v1/media/\u003cgrant:1\u003e"
+      },
+      "revision": "2",
+      "role": "local",
+      "state": "playing",
+      "versionId": "\u003cversion:1\u003e"
+    },
+    "etag": "\"2\"",
+    "name": "seek",
+    "status": 200
+  },
+  {
+    "body": {
+      "control": {
+        "revision": "3",
+        "state": "paused"
+      },
+      "id": "\u003csession:1\u003e",
+      "itemId": "\u003citem:1\u003e",
+      "kind": "vod",
+      "lease": {
+        "expiresAt": "\u003clease-clock\u003e",
+        "reportEveryMs": 30000
+      },
+      "presentation": {
+        "choiceRevision": 1,
+        "container": "mp4",
+        "decision": {
+          "audio": {
+            "action": "direct",
+            "reasons": []
+          },
+          "video": {
+            "action": "direct",
+            "reasons": []
+          }
+        },
+        "engine": "native",
+        "generation": 1,
+        "mode": "direct",
+        "quality": {
+          "mode": "original"
+        },
+        "seekId": "compatibility-seek-0001",
+        "startPositionMs": 0,
+        "subtitles": [],
+        "url": "/v1/media/\u003cgrant:1\u003e"
+      },
+      "revision": "3",
+      "role": "local",
+      "state": "paused",
+      "versionId": "\u003cversion:1\u003e"
+    },
+    "etag": "\"3\"",
+    "name": "pause",
+    "status": 200
+  },
+  {
+    "body": {
+      "error": {
+        "code": "revision_mismatch",
+        "current": {
+          "control": {
+            "revision": "3",
+            "state": "paused"
+          },
+          "id": "\u003csession:1\u003e",
+          "itemId": "\u003citem:1\u003e",
+          "kind": "vod",
+          "lease": {
+            "expiresAt": "\u003clease-clock\u003e",
+            "reportEveryMs": 30000
+          },
+          "presentation": {
+            "choiceRevision": 1,
+            "container": "mp4",
+            "decision": {
+              "audio": {
+                "action": "direct",
+                "reasons": []
+              },
+              "video": {
+                "action": "direct",
+                "reasons": []
+              }
+            },
+            "engine": "native",
+            "generation": 1,
+            "mode": "direct",
+            "quality": {
+              "mode": "original"
+            },
+            "seekId": "compatibility-seek-0001",
+            "startPositionMs": 0,
+            "subtitles": [],
+            "url": "/v1/media/\u003cgrant:1\u003e"
+          },
+          "revision": "3",
+          "role": "local",
+          "state": "paused",
+          "versionId": "\u003cversion:1\u003e"
+        },
+        "message": "This information changed. Refresh and try again.",
+        "retry": "after_refresh"
+      }
+    },
+    "name": "stale-write",
+    "status": 412
+  },
+  {
+    "name": "stop",
+    "status": 204
+  },
+  {
+    "body": {
+      "error": {
+        "code": "presentation_ended",
+        "message": "This playback has ended. Start it again.",
+        "retryable": false
+      }
+    },
+    "name": "retired-grant",
+    "status": 404
+  }
+]
