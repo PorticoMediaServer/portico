@@ -473,6 +473,9 @@ func GenerateWith(definitions []Definition, options Options) (Artifacts, error) 
 		return Artifacts{}, err
 	}
 	document = openAPISchema(document)
+	if err = referenceOpenAPIComponents(document.(map[string]any), options.Components); err != nil {
+		return Artifacts{}, err
+	}
 	openapi, err = json.MarshalIndent(document, "", "  ")
 	if err != nil {
 		return Artifacts{}, err
