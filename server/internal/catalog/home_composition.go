@@ -705,6 +705,18 @@ func (s *Service) homeAudioResume(r HomeRequest, entries []ContentEntry) ([]Home
 		}
 		resumes[parent] = resume{target.ID, position}
 	}
+	// An album continues as an album (Home decision, 2 Nov): its current song and how far
+	// through the album that song is, never a mid-song position (W2-A5).
+	current := map[string]string{}
+	for _, entry := range entries {
+		if v, ok := resumes[entry.ID]; ok && entry.Kind == "album" {
+			current[entry.ID] = v.item
+		}
+	}
+	albumProgress, err := s.homeAlbumProgress(r, current)
+	if err != nil {
+		return nil, err
+	}
 	for index := range entries {
 		entry := &entries[index]
 		v, ok := resumes[entry.ID]
@@ -712,6 +724,9 @@ func (s *Service) homeAudioResume(r HomeRequest, entries []ContentEntry) ([]Home
 			continue
 		}
 		entry.Playback = &ContentPlayback{ItemID: v.item, StartSeconds: &v.position}
+		if progress, ok := albumProgress[entry.ID]; ok {
+			entry.Duration, entry.ProgressSeconds = &progress[0], &progress[1]
+		}
 		if entry.Kind != "book" {
 			continue
 		}
