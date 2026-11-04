@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http/httptest"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -63,6 +64,20 @@ func airPlayKnownStreams(t *testing.T, f *v1Fixture) {
 	}
 	if _, err := f.db.Exec(`INSERT INTO asset_streams(asset_id,stream_index,type,codec,language,title,channels,channel_layout,is_default,is_forced,detail_json) VALUES(?,0,'video','h264','','',0,'',1,0,'{"width":1920,"height":1080,"bitDepth":8,"profile":"High","level":40,"dynamicRange":"sdr"}'),(?,1,'audio','aac','eng','Default',2,'stereo',1,0,'{"sampleRate":48000,"profile":"LC"}'),(?,2,'audio','aac','fra','Selected',2,'stereo',0,0,'{"sampleRate":48000,"profile":"LC"}')`, asset, asset, asset); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func airPlayReceiverFile(f *v1Fixture, url string) *httptest.ResponseRecorder {
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		response := f.raw("GET", url, "", nil, nil)
+		var status struct{ Error struct{ Code string } }
+		if response.Code != 503 || json.Unmarshal(response.Body.Bytes(), &status) != nil ||
+			(status.Error.Code != "segment_preparing" && status.Error.Code != "stream_not_ready") ||
+			!time.Now().Before(deadline) {
+			return response
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
@@ -157,19 +172,14 @@ func TestAirPlayReceiverPreparesExactCurrentChoicesBeforeHandoff(t *testing.T) {
 			t.Fatal(e)
 		}
 		if track == drawn {
-			// Joining publication makes an asynchronous encoder failure observable
-			// before the next choice retires this presentation.
-			if e := f.v1.Playback.Ready(context.Background(), playback.Session{ID: media, Mode: "hls"}); e != nil {
-				var code, diagnostic string
-				_ = f.db.QueryRow(`SELECT failure_code,diagnostic FROM playback_artifacts WHERE session_id=?`, media).Scan(&code, &diagnostic)
-				t.Fatalf("receiver burn publication: %v; %s: %s", e, code, diagnostic)
-			}
-			manifest := f.raw("GET", prepared.Presentation.URL, "", nil, nil)
+			// Read the receiver URL before advancing choices, so publication
+			// failure cannot hide behind a quickly retired presentation.
+			manifest := airPlayReceiverFile(f, prepared.Presentation.URL)
 			if manifest.Code != 200 || !strings.HasPrefix(manifest.Body.String(), "#EXTM3U") {
 				t.Fatalf("receiver burn manifest: %d %s", manifest.Code, manifest.Body.String())
 			}
 			segmentURL := strings.TrimSuffix(prepared.Presentation.URL, "master.m3u8") + fmt.Sprintf("segment-%06d.ts", body.PositionMs/(1000*playback.HLSSegmentSeconds))
-			segment := f.raw("GET", segmentURL, "", nil, nil)
+			segment := airPlayReceiverFile(f, segmentURL)
 			if segment.Code != 200 || segment.Body.Len() == 0 {
 				var code, diagnostic string
 				_ = f.db.QueryRow(`SELECT failure_code,diagnostic FROM playback_artifacts WHERE session_id=?`, media).Scan(&code, &diagnostic)
