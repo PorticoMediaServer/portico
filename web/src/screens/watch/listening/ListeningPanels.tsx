@@ -20,7 +20,7 @@ export function ListeningPanels({host, snapshot, reportError, artwork, policyInT
   const list = state.queue;
   if (state.panel === 'lyrics') return <LyricsPanel snapshot={state.lyrics ?? {data: null, candidates: [], warnings: [], preview: null, busy: false, error: '', generation: 0}}
     positionSeconds={snapshot.presentation?.positionSeconds ?? 0} enabled={owner.lyricsOffered()} canSeek={snapshot.presentation?.controls.includes('seek') === true}
-    librarySettings={owner.librarySettingsOffered(state,state.lyrics)&&state.lyrics?()=>{void owner.openLibrarySettings(state,state.lyrics!,reportError).catch(()=>{});}:undefined}
+    librarySettings={owner.librarySettingsOffered(state,state.lyrics)&&state.lyrics?()=>{void owner.openLibrarySettings(state,state.lyrics!,reportError).catch(()=>{});}:undefined} lyricsSource={state.lyricsSource}
     onRetry={() => run(() => owner.lyricsRetry(state))} onChoose={state.lyrics?.data?.source&&state.lyrics.data.librarySelection===undefined?(shown,resource)=>run(()=>owner.chooseLyric(state,shown,resource)):undefined} onSeek={(shown, index) => run(() => owner.lyric(state, shown, index))}/>;
   if (state.panel === 'chapters') return <ListeningChapters host={host} snapshot={snapshot} reportError={reportError}/>;
   if (state.panel === 'speed') return <Segmented aria-label={t('player.opt.speed')} value={String(snapshot.presentation?.rate ?? 1)} items={owner.speeds().map(rate => ({value: String(rate), label: `${rate}×`}))} onValueChange={value => run(() => owner.setSpeed(state, snapshot, Number(value),true))}/>;

@@ -15,7 +15,9 @@ export type ListeningState = Readonly<{
   current: boolean; dockOpening: object | null; opening: object | null; panelOpening: object | null; panel: ListeningPanel; panelVisible:boolean; focus:Readonly<{current:HTMLElement|null}>|null;
   chapters: PlayerChaptersSnapshot | null; lyrics: LyricsSnapshot | null; queue: WebQueueListSnapshot | null;
   window: WebQueueEditSnapshot | null; anchor?: number; retainedWindow: WebQueueEditPage | null; queueError: boolean;
-  settingsAvailable: boolean; policyBusy: boolean; save: Readonly<{token: object; list: WebQueueListSnapshot; name: string; busy: boolean; error: boolean; progress: QueuePlaylistSave | null}> | null;
+  settingsAvailable: boolean; policyBusy: boolean;
+  /** An owner's library's lyrics source, read once the Lyrics tab is empty (null until known). */
+  lyricsSource: 'files' | 'lrclib' | null; save: Readonly<{token: object; list: WebQueueListSnapshot; name: string; busy: boolean; error: boolean; progress: QueuePlaylistSave | null}> | null;
 }>;
 export type ListeningOwnerInput = Readonly<{
   runtime: WebShellPlaybackRuntime; snapshot: WebPlaybackRuntimeSnapshot;
@@ -88,7 +90,7 @@ export class ListeningOwner {
     this.readSleep = runtime.sleepTimer.bind(runtime);this.writeSleep = runtime.setSleepTimer.bind(runtime);
     this.commands = Object.freeze({getSnapshot: this.read, onAction: runtime.onAction.bind(runtime)});
     this.state = Object.freeze({current: true, dockOpening: null, opening: null, panelOpening: null, panel: kind === 'music' ? 'queue' : 'chapters',panelVisible:false,focus:null,
-      chapters: null, lyrics: null, queue: null, window: null, retainedWindow: null, queueError: false, settingsAvailable:false, policyBusy: false, save: null});
+      chapters: null, lyrics: null, queue: null, window: null, retainedWindow: null, queueError: false, settingsAvailable:false, lyricsSource: null, policyBusy: false, save: null});
     const identity = input.settings?.context.facts?.identity;
     this.settingsAdmitted = identity?.viewer.role === 'owner' && identity.primaryProfile === true && identity.capabilities?.manageServer === true;
     const capture = runtime.captureListening.bind(runtime);
@@ -129,6 +131,7 @@ export class ListeningOwner {
     if (!this.current()) return;
     const target = this.settingsTarget;
     this.settings = this.settingsAdmitted && this.kind === 'music' && target ? captureLibrarySettings(this.input.settings, this.authority, target.libraryId, {signal: this.life.signal, isCurrent: this.current}) : undefined;
+    if (this.state.lyricsSource !== null) this.publish({lyricsSource: null});
     this.observe(true);
   };
   private observe = (force = false) => {
@@ -147,7 +150,17 @@ export class ListeningOwner {
     const queue = this.port?.queue?.list.getSnapshot() ?? null;
     if (!this.current()) return;
     if (force || settingsAvailable!==this.state.settingsAvailable || optionsChanged || chapters !== this.state.chapters || lyrics !== this.state.lyrics || queue !== this.state.queue) this.publish({chapters, lyrics, queue,settingsAvailable});
+    this.readLyricsSource(lyrics);
   };
+  /** The owner note needs the library's lyrics source; read it (once per settings capture) only
+   * when an owner's Lyrics tab is empty. Non-owners have no capture, so nothing is read. */
+  private lyricsSourceRead: ListeningLibrarySettings | undefined;
+  private readLyricsSource(lyrics: LyricsSnapshot | null) {
+    const settings = this.settings;
+    if (!settings || !lyrics || this.lyricsSourceRead === settings || !settings.isCurrent() || !this.emptyLyrics(lyrics)) return;
+    this.lyricsSourceRead = settings;
+    void settings.lyricsSource().then(source => {if (source && this.settings === settings && this.current() && !this.dead) this.publish({lyricsSource: source});});
+  }
   /** Detach every mutable slot before invoking an original external cleanup. */
   private detachEditor() {
     const editor=this.editor,off=this.editorOff;this.editor=undefined;this.editorOff=undefined;

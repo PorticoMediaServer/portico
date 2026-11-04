@@ -283,3 +283,18 @@ test('Up next footer says the supplied canonical count and total length as drawn
   assert.ok(unknown.some(element => element.props.children === defaultI18n.t('lib.count', {count: 42, pivot: 'songs'})), 'no length known: the count alone');
   assert.equal(unknown.some(element => typeof element.props.children === 'string' && element.props.children.includes(', ')), false);
 });
+
+test('the empty Lyrics tab says how lyrics work, and an owner of a files-only library is told it doesn’t fetch them', () => {
+  const props = {snapshot: {data: null, candidates: [], warnings: [], preview: null, busy: false, error: '', generation: 1} as any, positionSeconds: 0, enabled: true, canSeek: true, onRetry: noop, onSeek: noop};
+  const text = (tree: any[]) => JSON.stringify(tree.map(e => e.props?.children ?? null));
+  const plain = elements(LyricsPanel(props)), state = plain.find(e => e.type === 'state');
+  assert.equal(state?.props.title, defaultI18n.t('player.noLyrics')); assert.equal(state?.props.body, defaultI18n.t('player.noLyricsBody'), 'everyone gets the body line');
+  assert.equal(plain.some(e => e.type === 'button'), false, 'no owner block for anyone else');
+  const files = elements(LyricsPanel({...props, librarySettings: noop, lyricsSource: 'files'}));
+  assert.ok(text(files).includes(defaultI18n.t('player.lyricsOwner'))); assert.ok(text(files).includes(defaultI18n.t('player.lyricsNotFetched')));
+  assert.ok(files.some(e => e.type === 'button'));
+  for (const lyricsSource of ['lrclib', null] as const) {
+    const other = elements(LyricsPanel({...props, librarySettings: noop, lyricsSource}));
+    assert.equal(text(other).includes(defaultI18n.t('player.lyricsNotFetched')), false, String(lyricsSource)); assert.ok(other.some(e => e.type === 'button'));
+  }
+});
