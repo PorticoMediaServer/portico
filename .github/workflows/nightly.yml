@@ -17,6 +17,9 @@ jobs:
         run: gh run download 41826315430 -R PorticoMediaServer/portico -n selection -D "$RUNNER_TEMP/original-selection"
       - run: python3 ci/run.py download --plan "$RUNNER_TEMP/original-selection/ci-plan.json"
       - run: python3 ci/run.py ffmpeg --index 7 --plan "$RUNNER_TEMP/original-selection/ci-plan.json"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version-file: .node-version, cache: npm, cache-dependency-path: package-lock.json}
+      - run: npm ci --no-audit --no-fund
       - name: Original go-7 neighbours and ten unchanged planner fixtures
         run: python3 ci/run.py go --index 7 --plan "$RUNNER_TEMP/original-selection/ci-plan.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
