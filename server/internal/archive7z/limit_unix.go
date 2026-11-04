@@ -4,6 +4,7 @@ package archive7z
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -36,7 +37,11 @@ func limitProcess() error {
 		{unix.RLIMIT_CORE, unix.Rlimit{Cur: 0, Max: 0}},
 	}
 	for _, limit := range limits {
+		var before unix.Rlimit
+		getErr := unix.Getrlimit(limit.resource, &before)
+		fmt.Fprintf(os.Stderr, "rlimit resource=%d want=%+v before=%+v geterr=%v\n", limit.resource, limit.value, before, getErr)
 		if err := unix.Setrlimit(limit.resource, &limit.value); err != nil {
+			fmt.Fprintf(os.Stderr, "setrlimit resource=%d errno=%v\n", limit.resource, err)
 			return errors.New("resource limits unavailable")
 		}
 	}

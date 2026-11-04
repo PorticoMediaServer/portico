@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -103,6 +104,8 @@ func runCB7Helper(ctx context.Context, ra io.ReaderAt, size int64, args ...strin
 	command := exec.CommandContext(deadline, path, append([]string{archive7z.Mode}, args...)...)
 	command.Env = []string{"TMPDIR=" + scratch, "HOME=" + scratch, "PATH="}
 	command.Stdin = input
+	var diagnosticStderr bytes.Buffer
+	command.Stderr = &diagnosticStderr
 	stdout, pipeErr := command.StdoutPipe()
 	if pipeErr != nil {
 		_ = input.Close()
@@ -126,6 +129,7 @@ func runCB7Helper(ctx context.Context, ra io.ReaderAt, size int64, args ...strin
 	}
 	body, readErr := io.ReadAll(io.LimitReader(stdout, limit+1))
 	waitErr := command.Wait()
+	fmt.Fprintf(os.Stderr, "archive child args=%q wait=%v stdout=%q stderr=%q\n", args, waitErr, body, diagnosticStderr.String())
 	// Owned input closes after the physical wait and before removal, on every
 	// path: an open file would keep the scratch root undeletable on Windows.
 	closeErr := input.Close()
