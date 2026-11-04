@@ -2,9 +2,9 @@ package httpapi
 
 import (
 	"context"
-	"net/http"
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
+	"net/http"
 	"strconv"
 )
 
@@ -56,19 +56,7 @@ func (d Dependencies) audioRoutes(mux *http.ServeMux) {
 		write(w, 200, map[string]any{"scope": map[string]string{"serverId": d.Identity.ID(), "authority": p.Authority, "accountId": p.AccountID, "profileId": p.ProfileID}, "data": data})
 	})
 
-	d.httpHandle(mux, "GET /v1/libraries/{id}/artists", func(w http.ResponseWriter, r *http.Request) {
-		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-		d.serveAudioPage(w, r, "library", "artists", func(cat *catalog.Service, viewer catalog.Viewer, p identity.Principal) (any, string, error) {
-			return cat.Artists(viewer, r.PathValue("id"), r.URL.Query().Get("cursor"), limit)
-		})
-	})
-	d.httpHandle(mux, "GET /v1/libraries/{id}/books", func(w http.ResponseWriter, r *http.Request) {
-		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-		d.serveAudioPage(w, r, "library", "books", func(cat *catalog.Service, viewer catalog.Viewer, p identity.Principal) (any, string, error) {
-			return cat.Books(viewer, r.PathValue("id"), r.URL.Query().Get("cursor"), limit)
-		})
-	})
-	for _, route := range []struct{ pattern, kind, collection string }{{"GET /v1/artists/{id}/albums", "artist", "albums"}, {"GET /v1/albums/{id}/songs", "album", "songs"}, {"GET /v1/books/{id}/files", "book", "files"}, {"GET /v1/books/{id}/chapters", "book", "chapters"}} {
+	for _, route := range []struct{ pattern, kind, collection string }{{"GET /v1/artists/{id}/albums", "artist", "albums"}, {"GET /v1/albums/{id}/songs", "album", "songs"}, {"GET /v1/books/{id}/chapters", "book", "chapters"}} {
 		d.httpHandle(mux, route.pattern, func(w http.ResponseWriter, r *http.Request) {
 			limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 			cursor := r.URL.Query().Get("cursor")

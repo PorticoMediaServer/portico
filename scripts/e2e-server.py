@@ -14,6 +14,7 @@ import hashlib
 import hmac
 import http.server
 import json
+import importlib.util
 import os
 from pathlib import Path
 import queue
@@ -159,6 +160,19 @@ class API:
         return self.call('POST', path, body, expected, headers)[0]
 
 
+def book_files(api, library_id, book_id):
+    # Share the fixture's strict parent/identity/total checks and section-cursor
+    # exhaustion. This API adapter preserves the recognition evidence shape.
+    spec = importlib.util.spec_from_file_location('library_verifier', ROOT / 'fixtures/test-library-v3/verify.py')
+    verifier = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(verifier)
+    class Reader:
+        def read(self, path):
+            return api.get(path)
+    return {'files': verifier.content_section(Reader(), library_id, 'book', book_id, 'files'),
+            'nextCursor': ''}
+
+
 def capabilities():
     return {'version':2, 'client':{'family':'web','form':'browser'}, 'display':{'dynamicRanges':['sdr']},
             'audioOutput':{'maxChannels':6}, 'engines':{'native':{'name':'hls.js','evidence':'declared',
@@ -302,7 +316,7 @@ class Exercise:
         assert any(e['title'] for e in episodes[2]['episodes'])
         (self.directory/'shows.json').write_text(json.dumps({'seasons':seasons,'episodes':episodes},indent=2))
         music={e['title']:a.get('/v1/albums/'+e['id']+'/songs') for e in pages['Music']['entries']}
-        books={e['title']:{'files':a.get('/v1/books/'+e['id']+'/files'),'chapters':a.get('/v1/books/'+e['id']+'/chapters')} for e in pages['Books']['entries']}
+        books={e['title']:{'files':book_files(a,self.libs['Books'],e['id']),'chapters':a.get('/v1/books/'+e['id']+'/chapters')} for e in pages['Books']['entries']}
         attention=a.get('/v1/admin/metadata/attention?limit=50')
         (self.directory/'recognition.json').write_text(json.dumps({'music':music,'books':books,'attention':attention},indent=2))
         assert len(pages['Anime']['entries'])==1
