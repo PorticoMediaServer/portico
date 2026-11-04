@@ -34,8 +34,8 @@ export function BrowseFilteredEmpty({controller, model, labels, predicates, libr
     if (!values.length) return [{id: String(index), at: index, field: node.field, phrase: name.toLocaleLowerCase(), display: name, relaxed: t('next.browse.emptyAnything')}];
     const decades = values.map(value => t('next.kit.filter.decade', {year: String(value)}));
     // The sentence names a value in running text; a suggestion keeps the drawn name ("Horror").
-    // Several values read as the filter means them: a range ("1990–2000"), all of them ("… and …"), none of them
-    // ("not documentary or animation"), or any of them ("documentary or animation").
+    // Several values read as the filter means them: a range ("from 1990 to 2000"), all of them ("… and …"), none of them
+    // ("anything but documentary or animation"), or any of them ("documentary or animation").
     const joined = (items: readonly string[]) => node.operator === 'between' && items.length === 2 ? t('next.browse.emptyRange', {start: items[0]!, end: items[1]!})
       : node.operator === 'contains-all' ? defaultI18n.list(items, 'and')
       : node.operator === 'not-in' || node.operator === 'not-equals' ? t('next.browse.emptyNot', {values: defaultI18n.list(items, 'or')})
