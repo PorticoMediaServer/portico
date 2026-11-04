@@ -1,7 +1,7 @@
 import {strict as assert} from 'node:assert';
 import {test} from 'node:test';
 import type {WebPlaybackRuntimeSnapshot} from '../src/platform/playback';
-import {musicQueueOrigin, musicQueueItem} from '../src/screens/watch/music/queue-facts.ts';
+import {musicQueueNext, musicQueueOrigin, musicQueueItem} from '../src/screens/watch/music/queue-facts.ts';
 
 const snapshot = () => ({fence: {kind: 'queue', entryId: 'now', itemId: 'track'}, queueView: {
   queue: {id: 'queue', revision: '4', currentEntryId: 'now'},
@@ -27,4 +27,16 @@ test('favorite detail uses a real current song/library target; missing or succes
     assert.equal(musicQueueItem({...original, queueView: {...view, items: [{...view.items[1], ...replacement}]}}), undefined);
   }
   assert.equal(musicQueueItem({...original, queueView: {...view, queue: {...view.queue, currentEntryId: 'before'}}}), undefined);
+});
+
+test('phone-app 14 "Next": the entry the queue says plays next, named from its rows; nothing when it says no or is stale', () => {
+  const original = snapshot(), view = original.queueView!;
+  const withNext = (next: unknown, items = [...view.items, {entryId: 'after', itemId: 'other', libraryId: 'library', kind: 'song', title: 'Scared To Live'}]) =>
+    ({...original, queueView: {...view, items, next}}) as unknown as WebPlaybackRuntimeSnapshot;
+  assert.equal(musicQueueNext(withNext({entryId: 'after', available: true, reason: 'ready'})), 'Scared To Live');
+  assert.equal(musicQueueNext(withNext({entryId: null, available: false, reason: 'end'})), undefined, 'the end of the queue');
+  assert.equal(musicQueueNext(withNext({entryId: 'after', available: false, reason: 'unavailable'})), undefined);
+  assert.equal(musicQueueNext(withNext({entryId: 'after', available: true, reason: 'ready'}, view.items)), undefined, 'not in the rows: never invented');
+  const stale = withNext({entryId: 'after', available: true, reason: 'ready'});
+  assert.equal(musicQueueNext({...stale, queueView: {...stale.queueView!, queue: {...stale.queueView!.queue, currentEntryId: 'before'}}}), undefined, 'another occurrence');
 });
