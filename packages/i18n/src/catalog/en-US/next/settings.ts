@@ -193,6 +193,8 @@ export const settingsMessages = {
   'next.settings.removeHours': 'Remove these hours',
   'next.settings.addHours': 'Add hours',
   'next.settings.configOnly.before': 'Set in the config file:',
+  /** Sign-in's config-only Password hashing strength (#713): the server doesn't publish it; the spec's value. */
+  'next.settings.signin.hashStrengthDefault': '10 (PINs use 8)',
   'next.settings.configOnly.after': '. It isn’t a setting in the app.',
   'next.settings.audioSubtitles.search': 'Search languages',
   'next.settings.audioSubtitles.addHint': 'It goes at the end of the list. You can move it afterwards.',
