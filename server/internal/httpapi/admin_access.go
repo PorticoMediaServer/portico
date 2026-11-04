@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"github.com/PorticoMediaServer/portico/apikit"
 	"reflect"
 
+	"github.com/PorticoMediaServer/portico/apikit"
 	"github.com/PorticoMediaServer/portico/server/internal/access"
 	"github.com/PorticoMediaServer/portico/server/internal/hosted"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
@@ -395,13 +395,17 @@ func (d Dependencies) accessRoutes(mux *http.ServeMux) {
 			writeAuth(w, r, 201, porticoAcceptanceBody(out))
 			return
 		}
-		hash, e := access.HashPassword(body.Password)
-		if e != nil {
-			accessFailure(w, e)
+		// Preserve the existing weak-password refusal and source-failure accounting.
+		if !identity.ValidDirectPassword(body.Password) {
+			accessFailure(w, &access.ValidationError{Fields: []string{"password"}})
 			return
 		}
-		out, e := store.Accept(r.Context(), body.Acceptance, hash)
+		out, e := store.AcceptWithPassword(r.Context(), body.Acceptance, d.Identity.HashPassword)
 		if e != nil {
+			if errors.Is(e, identity.ErrBusy) {
+				failure(w, e)
+				return
+			}
 			if errors.Is(e, access.ErrExpired) || errors.Is(e, access.ErrInvalid) {
 				_ = d.Identity.RecordSourceFailure(r.Context())
 			}
