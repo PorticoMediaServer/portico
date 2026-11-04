@@ -431,7 +431,11 @@ func (c *observedConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driv
 	if !ok {
 		return c.Begin()
 	}
+	started := time.Now()
 	lease, err := c.admitReader(ctx, true)
+	if os.Getenv("PORTICO_ARTWORK_DIAGNOSTIC") == "1" && ownerFrom(ctx) != "" {
+		log.Printf("ARTWORK-DIAG tx-admit tag=%s elapsed=%s context_error=%v result=%T:%v readers=%+v", ownerFrom(ctx), time.Since(started), ctx.Err(), err, err, c.readers.stats())
+	}
 	if err != nil {
 		return nil, err
 	}

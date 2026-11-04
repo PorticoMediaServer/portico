@@ -596,6 +596,8 @@ func BeginSnapshot(ctx context.Context, db *sql.DB) (*Write, error) {
 	w := &Write{tx: tx, ctx: withSnapshot(ctx, tx), readOnly: true, release: func() { forget(); cancel() }, changesAtStart: rowChanges(ctx, tx)}
 	if os.Getenv("PORTICO_ARTWORK_DIAGNOSTIC") == "1" && ownerFrom(caller) != "" {
 		w.diagnosticStart, w.diagnosticPool, w.diagnosticCaller = started, pool, caller
+		deadline, _ := ctx.Deadline()
+		log.Printf("ARTWORK-DIAG counter-ready tag=%s age=%s inner_left=%s inner_error=%v", ownerFrom(caller), time.Since(started), time.Until(deadline), ctx.Err())
 	}
 	return w, nil
 }
