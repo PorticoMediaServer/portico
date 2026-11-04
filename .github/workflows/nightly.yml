@@ -145,7 +145,10 @@ jobs:
           SHARD: ${{ matrix.shard }}
           SHARDS: '8'
         run: |
-          set -uo pipefail
+          set -euo pipefail
+          # macOS's default /var temp path aliases /private/var. Private-directory
+          # guards and SQLite compare canonical paths; give fixtures that same root.
+          export TMPDIR="$(python3 -c 'import os; print(os.path.realpath(os.environ["RUNNER_TEMP"]))')"
           tags="$(python3 ../scripts/release-build-tags.py --capability)"
           go build -tags "$tags" -o "$RUNNER_TEMP/portico-server" ./cmd/server
           export PORTICO_PLAYBACK_TEST_HELPER="$RUNNER_TEMP/portico-server"
