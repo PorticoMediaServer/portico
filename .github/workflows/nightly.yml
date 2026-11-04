@@ -11,6 +11,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: {node-version-file: .node-version, cache: npm, cache-dependency-path: apps/native/package-lock.json}
       - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00

@@ -9,7 +9,7 @@ import sys
 import xml.etree.ElementTree as ET
 
 root = Path(__file__).resolve().parents[1]
-source = 'd09ed827c2815993bc7ddd9e73ce8cce23eb69d7'
+source = 'd7548b244831ad8d770f4647c74061ddb2e6f37c'
 out = Path(os.environ['RUNNER_TEMP']) / 'robolectric-controls'
 out.mkdir(exist_ok=True)
 android = root / 'apps/native/android'
