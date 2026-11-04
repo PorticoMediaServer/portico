@@ -1,6 +1,6 @@
 import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import {routePath} from '../../../../../packages/contracts/src/routes';
-import {parseChannelGuide, type GuideRoute} from '../../../../../packages/client-core/src/channel-guide';
+import {parseChannelGuide, type GuideRoute, type ChannelGuide} from '../../../../../packages/client-core/src/channel-guide';
 import {legacyChannel, legacyChannelRow, legacyProgramme, legacyProgram} from '../../../../../packages/client-core/src/guide/legacy-source';
 import type {GuideChannelRow, GuideProgram} from '../../../../../packages/client-core/src/guide/types';
 import {defaultRecordingOptions, type DVRCommandLifetime, type Recording} from '../../../../../packages/client-core/src/dvr';
@@ -26,6 +26,19 @@ const retired = () => Object.assign(new Error('Live action opening retired'), {n
 
 /** An original Watch programme borrows the genuine viewer DVR controller. Reads
  * name one channel; every command carries its own source/route/occurrence scope. */
+/** The one permitted channel row and its playing programme from a guide read. Step 7: a moved viewer
+ * fence on this read is a newer answer; the channel's identity (id, source, kind, generation) and the
+ * programme's exact time still bind it, and a read the server refuses (401/403) never gets here. */
+export function liveActionOffer(guide: Pick<ChannelGuide, 'channels'>, target: Readonly<{channelId: string; sourceId: string; kind: string; generation: string}>,
+  projected: Readonly<{id: string; startMs: number; endMs: number}>) {
+  const rows = guide.channels.filter(row => row.id === target.channelId && row.sourceId === target.sourceId && row.provenance === target.kind && row.generation === target.generation);
+  if (rows.length !== 1 || guide.channels.length !== 1) throw new Error('channel_source_unavailable');
+  const channel = rows[0]!, programme = channel.programmes.find(row => row.id === projected.id
+    && Date.parse(row.start) === projected.startMs && Date.parse(row.end) === projected.endMs);
+  if (!programme || programme.channelId !== channel.id) throw new Error('channel_programme_unavailable');
+  return {channel, programme};
+}
+
 export class NativeTVLiveActions {
   private state = empty;
   private listeners = new Set<() => void>();
@@ -39,7 +52,7 @@ export class NativeTVLiveActions {
   private sheetController?: AbortController;
   private seriesEntry?: {sheet: NativeLiveActionSheet};
   private favoriteCommand?: {sheet: NativeLiveActionSheet; channel: GuideChannelRow; favorite: boolean; hidden: boolean};
-  private opening?: {source: Source; projected: ChannelProgramme; port: NativeLiveWatchPort; controller: AbortController; viewerFence?: string};
+  private opening?: {source: Source; projected: ChannelProgramme; port: NativeLiveWatchPort; controller: AbortController};
   constructor(private context: NativeShellBootstrapContext, private guide: NativeTVLiveGuide, private presented: () => boolean,
     subscribePresented: (listener: () => void) => () => void) {
     this.off = [context.playback.subscribe(this.update), guide.subscribe(this.update), context.navigation.subscribe(this.update), context.subscribeAuthority(this.update),
@@ -68,12 +81,8 @@ export class NativeTVLiveActions {
     const response = await opening.source.api.request<unknown>(`${routePath('get_guide')}?${query}`, 'GET', undefined, signal);
     if (!this.current(opening) || signal.aborted) throw retired();
     const guide = parseChannelGuide(response, opening.source.authority.serverId, route);
-    const rows = guide.channels.filter(row => row.id === target.channelId && row.sourceId === target.sourceId && row.provenance === target.kind && row.generation === target.generation);
-    if (rows.length !== 1 || guide.channels.length !== 1 || opening.viewerFence !== undefined && guide.viewerFence !== opening.viewerFence) throw new Error('channel_source_unavailable');
-    const channel = rows[0]!, programme = channel.programmes.find(row => row.id === opening.projected.id
-      && Date.parse(row.start) === opening.projected.startMs && Date.parse(row.end) === opening.projected.endMs);
-    if (!programme || programme.channelId !== channel.id) throw new Error('channel_programme_unavailable');
-    return {channel: legacyChannelRow(channel), programme: legacyProgram(programme), viewerFence: guide.viewerFence};
+    const {channel, programme} = liveActionOffer(guide, target, opening.projected);
+    return {channel: legacyChannelRow(channel), programme: legacyProgram(programme)};
   }
   private update = () => {
     if (this.disposed || this.preparingServices || this.opening && this.current(this.opening)) return;
@@ -100,7 +109,6 @@ export class NativeTVLiveActions {
     if (!this.current(opening)) return;
     void this.read(opening, opening.controller.signal).then(value => {
       if (!this.current(opening)) return;
-      opening.viewerFence = value.viewerFence;
       this.publish({fence: source.fence, offer: Object.freeze({id: ++this.sequence, channel: value.channel, programme: value.programme}), busy: false});
     }, () => {}); // No offer without the actual permitted channel/programme projection.
   };
