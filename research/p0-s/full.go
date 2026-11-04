@@ -156,7 +156,7 @@ func seedAndSweep(c *sql.Conn, target int, out, hash string) {
 	var legacyOwn int
 	must(c.QueryRowContext(context.Background(), "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='search_own'").Scan(&legacyOwn))
 	foldedTitles = legacyOwn == 0
-	must(c.QueryRowContext(context.Background(), "SELECT count(*)>0 FROM sqlite_schema WHERE type='table' AND name='catalog_identities'").Scan(&identitySchema))
+	must(c.QueryRowContext(context.Background(), "SELECT count(*)>0 FROM pragma_table_info('catalog_identities') WHERE name='library_id'").Scan(&identitySchema))
 	must(c.QueryRowContext(context.Background(), "SELECT count(*)>0 FROM pragma_table_info('catalog_entities') WHERE name='admission_allow_age'").Scan(&admissionSchema))
 	must(c.QueryRowContext(context.Background(), "SELECT count(*) FROM catalog_entities").Scan(&n))
 	if n == 0 {
