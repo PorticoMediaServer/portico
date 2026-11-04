@@ -135,3 +135,45 @@ test('privacy: an inbox of an ended viewer\'s cache shows nothing and reads noth
  assert.equal(inboxReads(s.reads),0);
  service.dispose();
 });
+
+/** A screen's own requester: everything it sends ends when the screen closes. */
+function screenApi(base:ReturnType<typeof server>['api']){
+ const life=new AbortController();
+ const api={request:<T,>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>=>new Promise<T>((resolve,reject)=>{
+  const stop=()=>reject(Object.assign(new Error('closed'),{name:'AbortError'}));
+  for(const s of [life.signal,signal])if(s){if(s.aborted)stop();else s.addEventListener('abort',stop,{once:true});}
+  (base.request as any)(path,method,body,signal).then(resolve,reject);
+ })};
+ return {api,close:()=>life.abort()};
+}
+
+test('the screen that started a shared read closes, and the other inbox waiting on it still gets the view',async()=>{
+ const s=server();let release!:()=>void;const open=new Promise<void>(r=>{release=r;});
+ const held={request:async<T,>(path:string,method?:string):Promise<T>=>{if(path.startsWith('/v1/notifications/inbox'))await open;return s.api.request<T>(path,method);}};
+ const {queries}=cache(held);
+ const screenA=screenApi(held),screenB=screenApi(held);
+ const first=new InboxService(screenA.api,()=>'op',{queries}),second=new InboxService(screenB.api,()=>'op',{queries});
+ const a=first.load('profile','unread');await tick();
+ const b=second.load('profile','unread');await tick();
+ first.dispose();screenA.close();
+ release();await Promise.allSettled([a,b]);await tick();
+ assert.equal(second.getSnapshot().phase,'ready','the second inbox is answered');
+ assert.deepEqual(second.getSnapshot().items.map(n=>n.id),['n-1','n-2']);
+ assert.equal(inboxReads(s.reads),1,'one read, shared');
+ second.dispose();
+});
+
+test('a cached notification answer for another server or another audience is refused',async()=>{
+ for(const answer of [
+  {scope:{serverId:'elsewhere',viewerFence:'a'.repeat(64)},data:{revision:1,audience:'profile',audiences:['profile'],state:'unread',counts:counts(0),items:[],nextCursor:'',observedAt:at(2),retentionDays:180}},
+  {scope:{serverId:'server',viewerFence:'a'.repeat(64)},data:{revision:1,audience:'account-admin',audiences:['profile'],state:'unread',counts:counts(0),items:[],nextCursor:'',observedAt:at(2),retentionDays:180}},
+ ]){
+  const api={request:async<T,>(path:string):Promise<T>=>(path.startsWith('/v1/notifications/unread-count')?{data:{revision:1,audience:'profile',counts:counts(0),observedAt:at(2)}}:answer) as T};
+  const {queries}=cache(api);
+  const inbox=new InboxService(api,()=>'op',{queries});
+  await inbox.load('profile','unread');await tick();
+  assert.equal(inbox.getSnapshot().phase,'error');
+  assert.equal(queries.client.getQueryData(queryKeys.notificationsInbox('profile','unread')),undefined,'nothing kept');
+  inbox.dispose();
+ }
+});

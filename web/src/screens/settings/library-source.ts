@@ -3,6 +3,7 @@ import type {LibraryAdminDocument, LibrarySettings} from '@core/administration.t
 import {defaultI18n} from '@i18n';
 import {LibraryManagementService} from '@core/library-management.ts';
 import type {ContentScope, LibraryContentApi} from '@core/library-content.ts';
+import type {ViewerQueries} from '@core/query/viewer-queries.ts';
 import {patchLibrarySettingsBinding, readLibrarySettingsBinding, patchLibrarySonicSettingsBinding, readLibrarySonicSettingsBinding} from '@core/presentation/settings-bindings.ts';
 import {randomId} from '@core/random-id.ts';
 import {readLibrarySettings, saveLibrarySettings} from '@core/server-admin/libraries.ts';
@@ -47,8 +48,8 @@ export class SettingsLibrarySource {
   refreshSettings = () => this.quiet('settings');
   refreshSonic = () => this.quiet('sonic');
   private readonly management?: LibraryManagementService;
-  constructor(private readonly api: LibraryContentApi, private readonly isCurrent: () => boolean, private readonly notify: () => void, private readonly reportError: (error: unknown) => void, scope?: ContentScope) {
-    if (scope) this.management = new LibraryManagementService({api, scope});
+  constructor(private readonly api: LibraryContentApi, private readonly isCurrent: () => boolean, private readonly notify: () => void, private readonly reportError: (error: unknown) => void, scope?: ContentScope, queries?: ViewerQueries) {
+    if (scope) this.management = new LibraryManagementService({api, scope, queries});
   }
   private current = () => !this.closed && this.isCurrent();
   getSnapshot = () => this.current() ? this.state : empty;

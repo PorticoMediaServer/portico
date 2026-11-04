@@ -442,7 +442,7 @@ export class ShellBootstrap {
       // Who the viewer is and what they may see is the library directory's privacy fence (client
       // data step 5); Home answers for this shell while it is current.
       observe: () => isCurrent() ? 'accept' : 'retire',
-    }}), inbox = new InboxService(notificationScope, undefined, {queries: freshness.queries});
+    }}), inbox = new InboxService(notificationScope, undefined, {queries: freshness.queries, cacheApi: notificationScope});
     cleanups.push(() => home.dispose(), () => inbox.dispose());
     const {facts: initialFacts, witnesses} = await readFacts(api, session, preferences, inbox, signal);
     if (!isCurrent()) return;

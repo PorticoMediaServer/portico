@@ -100,6 +100,19 @@ export function createDashboardBindings(options: DashboardBindingOptions): Dashb
     const request = () => options.api.requestRaw(path, method, {...init, signal: readSignal});
     const result = await (options.events?.resyncReads && method === 'GET' ? options.events.resyncReads.run(readSignal, request) : request()); refused(result.status, (result.body as {error?: {code?: unknown}} | undefined)?.error?.code); assert(); return result;
   }});
+  // The status, the report and the play history's first page are the viewer's shared documents: they are read
+  // with the cache's own requester, never this Dashboard's, so closing it never ends a read another view waits on.
+  // This Dashboard stops waiting when it closes, and a refusal still ends it (`cached`).
+  const queries = options.queries, cacheApi: PlayHistoryApi | undefined = queries && {request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
+    const request = () => queries.api.request<T>(path, method, body, signal);
+    return options.events?.resyncReads && signal && (!method || method === 'GET') ? options.events.resyncReads.run(signal, request) : request();
+  }};
+  const cachedData = cacheApi && new DashboardDataClient(cacheApi);
+  const cached = <T>(read: () => Promise<T>) => ownerRead(async () => {
+    try {return await read();}
+    catch (error) {if (error && typeof error === 'object') refused((error as {status?: unknown}).status, (error as {code?: unknown}).code); throw error;}
+  });
+  const waiting = (signal?: AbortSignal) => signal ? AbortSignal.any([signal, life.signal]) : life.signal;
   const data = new DashboardDataClient(api), sessions = new AdminSessionsClient(http), consoleClient = new ConsoleClient(api, options.scope);
   const controls = playbackControlsService(api.request.bind(api));
   const certificates: CertificateApi = {requestCertificate: <T>(action: CertificateAction, body: unknown, signal: AbortSignal): Promise<T> => {
@@ -132,12 +145,12 @@ export function createDashboardBindings(options: DashboardBindingOptions): Dashb
         observed = raw.observedAt;
         return {items: raw.items.map(item => ({...parseAdminSession(item), channel: item.channel, programme: item.programme})), nextCursor: raw.page.nextCursor ?? '', scope: raw.scope, totals: raw.totals};
       },
-      status: (signal, fresh = true) => ownerRead(() => options.queries ? readDocument(options.queries, dashboardStatusQuery(data), {fresh, signal}) : data.status(signal)),
+      status: (signal, fresh = true) => queries && cachedData ? cached(() => readDocument(queries, dashboardStatusQuery(cachedData), {fresh, signal: waiting(signal)})) : ownerRead(() => data.status(signal)),
       controls: async (id, signal) => {assert(); signal.throwIfAborted(); const value = await operationControls(signal).readAdmin(id); assert(); signal.throwIfAborted(); return value;},
       telemetry: (range, signal) => ownerRead(async () => {if (signal?.aborted) throw signal.reason; const value = await consoleClient.telemetry(range, context); if (signal?.aborted) throw signal.reason; return value;}),
-      report: (filters, signal, fresh = true) => ownerRead(async () => {const wanted = {...filters, ...context}; const value = await (options.queries ? readDocument(options.queries, dashboardReportQuery(data, wanted), {fresh, signal}) : data.report(wanted, signal)); return {...value, load: parseTelemetryReading(value.load)};}),
+      report: (filters, signal, fresh = true) => ownerRead(async () => {const wanted = {...filters, ...context}; const value = await (queries && cachedData ? cached(() => readDocument(queries, dashboardReportQuery(cachedData, wanted), {fresh, signal: waiting(signal)})) : data.report(wanted, signal)); return {...value, load: parseTelemetryReading(value.load)};}),
       people: (filters, cursor, signal) => ownerRead(() => data.people({...filters, ...context}, cursor, 100, signal)),
-      plays: (filters, cursor, signal, fresh = true) => ownerRead(() => options.queries && !cursor ? readDocument(options.queries, playHistoryFirstPageQuery(api, {...filters, ...context}), {fresh, signal}) : fetchPlayHistory(api, {...filters, ...context}, cursor, signal)),
+      plays: (filters, cursor, signal, fresh = true) => queries && cacheApi && !cursor ? cached(() => readDocument(queries, playHistoryFirstPageQuery(cacheApi, {...filters, ...context}), {fresh, signal: waiting(signal)})) : ownerRead(() => fetchPlayHistory(api, {...filters, ...context}, cursor, signal)),
       server: signal => ownerRead(async () => {
         const [health, storage] = await Promise.allSettled([consoleClient.measurement('health'), consoleClient.measurement('storage')]);
         if (signal?.aborted) throw signal.reason;

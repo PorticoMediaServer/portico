@@ -295,7 +295,7 @@ export function SettingsEntry() {
       if (binding.form === 'preferences') return hasWebPreferenceEffect(row);
       return binding.form !== 'library' && binding.form !== 'remote' && binding.form !== 'managedRoute';
     };
-    const options: SettingsControllerOptions = {api: api, serverId: viewer.serverId, viewerId: JSON.stringify([viewer.authority, viewer.accountId, viewer.profileId]),
+    const options: SettingsControllerOptions = {api: api, queries: context.freshness.queries, serverId: viewer.serverId, viewerId: JSON.stringify([viewer.authority, viewer.accountId, viewer.profileId]),
       role, mainProfile: identity.primaryProfile === true,
       capabilities: {manageServer: identity.capabilities?.manageServer === true, managePeople: identity.capabilities?.managePeople === true, manageSignIn: identity.capabilities?.manageSignIn === true},
       preferences: snapshot, reader, isCurrent: current, reportError, reading: readingSettingsAdapter,
@@ -461,7 +461,7 @@ export function SettingsEntry() {
     // The owner's Libraries page owns its own bounded directory read and scan
     // commands; the settings controller keeps the per-library panel only.
     const libraries = route.section === 'libraries' && identity.primaryProfile === true && identity.capabilities?.manageServer === true && (role === 'owner' || role === 'admin')
-      ? new LibraryManagementService({api: api, scope: libraryScope}) : undefined;
+      ? new LibraryManagementService({api: api, scope: libraryScope, queries: options.queries}) : undefined;
     // Storage & backups owns one bounded usage sweep shared by its drawn rows.
     const server = route.section === 'storage' && role === 'owner' && identity.primaryProfile === true && identity.capabilities?.manageServer === true ? createServerSettingsSurfaces({transport: api, serverId: viewer.serverId, isCurrent: current, openTarget: openSettingsRow,
       backups: controller.backups, subscribe: controller.subscribe, scopeKey: `${viewer.serverId}/${options.viewerId}`, reportError}) : undefined;
@@ -554,7 +554,7 @@ export function SettingsEntry() {
         if (row.id === 'libraries.skipped' && isLibraryPanelContext(rowContext) && rowContext.recordId && libraries)
           return <SkippedFiles libraryId={rowContext.recordId} api={options.api} service={libraries} isCurrent={current} label={defaultI18n.t(row.control.label ?? row.label)} />;
         if (row.id === 'libraries.folders' && isLibraryPanelContext(rowContext) && rowContext.recordId) {
-          return <LibraryFolders libraryId={rowContext.recordId} api={options.api} serverName={buildContext.facts.identity.serverName}
+          return <LibraryFolders libraryId={rowContext.recordId} api={options.api} queries={options.queries} serverName={buildContext.facts.identity.serverName}
             scope={libraryScope} isCurrent={current} onError={reportError} />;
         }
         if (row.id === 'libraries.remove' && isLibraryPanelContext(rowContext) && rowContext.recordId && libraries && role === 'owner')

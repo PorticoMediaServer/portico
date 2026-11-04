@@ -163,11 +163,13 @@ test('a moved viewer fence on a later session read answers and retires nothing; 
 // Client data step 6: the Dashboard's status, report and first page of plays are read through the viewer's cache.
 const status = () => ({alerts: [], observedAt: '2026-10-22T12:00:00Z', scans: [], tasks: {count: 0, items: []}});
 function cached() {
-  const paths: string[] = []; let body: unknown = emptyHistory(), fail: unknown;
+  const paths: string[] = []; let body: unknown = emptyHistory(), fail: unknown, gate: Promise<void> | undefined;
   const hub = new FreshnessHub({settleMs: 0});
-  const queries: ViewerQueries = createViewerQueries({scope: {serverId: 'server', viewerId: 'viewer'}, hub, api: {request: async () => { throw new Error('unused'); }}, gcTimeMs: Infinity});
-  const open = () => createDashboardBindings(options({queries, api: {...options().api, request: async path => {paths.push(path); if (fail) throw fail; return (path.includes('/status') ? status() : path.includes('/report') ? report() : body) as never;}}}));
-  return {paths, hub, queries, open, set: (next: unknown) => {body = next;}, refuse: (error: unknown) => {fail = error;}};
+  // One server behind both: the cache's own requester and each Dashboard's (which ends when that Dashboard closes).
+  const serve = async (path: string, signal?: AbortSignal) => {paths.push(path); if (gate) await gate; signal?.throwIfAborted(); if (fail) throw fail; return (path.includes('/status') ? status() : path.includes('/report') ? report() : body) as never;};
+  const queries: ViewerQueries = createViewerQueries({scope: {serverId: 'server', viewerId: 'viewer'}, hub, api: {request: async (path, _method, _body, signal) => serve(path, signal)}, gcTimeMs: Infinity});
+  const open = () => createDashboardBindings(options({queries, api: {...options().api, request: async (path, _method, _body, signal) => serve(path, signal)}}));
+  return {paths, hub, queries, open, set: (next: unknown) => {body = next;}, refuse: (error: unknown) => {fail = error;}, hold: () => {let release!: () => void; gate = new Promise(resolve => {release = resolve;}); return () => {gate = undefined; release();};}};
 }
 test('a Dashboard opened again shows its status, report and first page of plays at once; a later read, a hint or a write here asks the server', async () => {
   const c = cached(); const first = c.open();
@@ -191,6 +193,19 @@ test('two Dashboards of one viewer share one read; another range or sort is its 
   await a.read.plays({period: 'all', sort: 'watched', direction: 'asc'}, undefined, undefined, false); assert.equal(c.paths.length, 2);
   await a.read.plays({period: '7d'} as never, undefined, undefined, false).catch(() => undefined); assert.equal(c.paths.length, 3);
   a.dispose(); b.dispose();
+});
+test('the Dashboard that started a shared read closes, and another one waiting on it still gets the status, report and plays', async () => {
+  const c = cached(), release = c.hold(); const first = c.open(), second = c.open();
+  const started = [first.read.status(undefined, false), first.read.report(reportQuery, undefined, false), first.read.plays({period: 'all'}, undefined, undefined, false)];
+  await new Promise(resolve => setTimeout(resolve, 5));
+  const waiting = [second.read.status(undefined, false), second.read.report(reportQuery, undefined, false), second.read.plays({period: 'all'}, undefined, undefined, false)];
+  first.dispose(); release();
+  await Promise.allSettled(started);
+  const [status, report, plays] = await Promise.all(waiting);
+  assert.ok(status && report && plays, 'the second Dashboard is answered');
+  assert.equal(c.paths.length, 3, 'one read of each, shared');
+  assert.equal(second.isCurrent(), true);
+  second.dispose();
 });
 test('a refused read shows no held copy: the 403 still ends the Dashboard and reaches the page', async () => {
   const c = cached(); const reported: unknown[] = [];

@@ -95,7 +95,7 @@ function FirstLibraryAdd({page, opening, close}: {page: FirstLibraryLease; openi
     let live = true;
     const current = () => live && opening.live && page.current();
     const life = screenLifetime({...page.context, isCurrent: current});
-    const service = new LibraryManagementService({api: life.api, scope: page.context.scope});
+    const service = new LibraryManagementService({api: life.api, scope: page.context.scope, queries: page.context.queries});
     publish({page, opening, life, service, key: ++generation.current, current});
     return () => {live = false;life.dispose();service.dispose();};
   }, [page, opening]);
