@@ -7,3 +7,10 @@
 .label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .count { flex: none; color: var(--color-text-tertiary); font-size: var(--type-fixed-size-14point-5px); font-weight: var(--type-fixed-weight-600); font-variant-numeric: tabular-nums; }
 .chevron { flex: none; color: var(--color-line-strong); }
+/* phone-app Saved: "Pinned" with Edit pins at its end, then the pinned rows. */
+.sectionHead { display: flex; align-items: baseline; justify-content: space-between; margin: 24px 20px 6px; }
+.sectionHead h2 { margin: 0; font-size: var(--type-fixed-size-19px); font-weight: var(--type-fixed-weight-700); letter-spacing: var(--type-fixed-tracking-minus-point-015em); }
+.edit { border: 0; padding: 0; background: none; font: inherit; font-size: var(--type-fixed-size-14px); font-weight: var(--type-fixed-weight-600); color: var(--color-text-tertiary); cursor: pointer; }
+.edit:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; border-radius: 4px; }
+.sectionHead + .rows { margin-top: 0; }
+.caption { display: block; margin-top: 2px; font-size: var(--type-fixed-size-12point-5px); font-weight: var(--type-fixed-weight-500); line-height: var(--type-fixed-line-1point-4); color: var(--color-text-tertiary); }

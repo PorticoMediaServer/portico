@@ -34,6 +34,7 @@ import {ResourceFields} from './ResourceFields';
 import {ResourceRow} from './ResourceRow';
 import {SavedDialog} from './SavedDialog';
 import {SavedPhoneDirectory} from './SavedPhoneDirectory';
+import type {PinnedResource} from '@core/library-pins.ts';
 import {SavedPhoneNav} from './SavedPhoneNav';
 import type {SavedPresentation} from './presentation.ts';
 export type {SavedPresentation} from './presentation.ts';
@@ -67,12 +68,15 @@ export type SavedBindings = Readonly<{
   localDownloads?: SavedDownloadsPort;
   artwork: ShellArtwork;
   libraries?: readonly Readonly<{id: string; name: string}>[];
+  /** The phone directory's "Pinned · Edit pins" (phone-app Saved): the server's pinned list and the pin editor. */
+  pins?: SavedPins;
   preparationArtwork: Parameters<typeof ServerDownloads>[0]['artwork'];
   presentation: SavedPresentation;
   selection?: SavedSelection;
   catalogueSelection?: SavedCatalogueSelection;
   effects: SavedEffects;
 }>;
+export type SavedPins = Readonly<{list: readonly PinnedResource[]; edit: () => void}>;
 export type SavedViewBindings = SavedBindings & Readonly<{operations: SavedOperations}>;
 /** The icons the phone Saved list draws beside each tab (SavedPhoneDirectory), on each tab's empty state. */
 export const savedEmptyIcons = {watchlist: 'i-bookmark', favorites: 'i-heart', playlists: 'i-queue', collections: 'i-stack', views: 'i-filter', history: 'i-clock'} as const;
@@ -123,7 +127,7 @@ export function SavedScreen(bindings: SavedBindings) {
   // desktop and tablet keep today's tabbed page with My List active.
   if (phone && route.view === 'home') return <main className={styles.page}>
     {presentation.backdrop && <div className={styles.wash} aria-hidden="true"><AmbientArt source={presentation.backdrop} treatment="hero" /></div>}
-    <SavedPhoneDirectory runtime={runtime} downloadsOffered={bindings.downloadsOffered || localUsable} artwork={bindings.artwork} select={effects.selectRoute} openEntry={effects.openEntry} />
+    <SavedPhoneDirectory runtime={runtime} downloadsOffered={bindings.downloadsOffered || localUsable} artwork={bindings.artwork} select={effects.selectRoute} openEntry={effects.openEntry} pins={bindings.pins} />
   </main>;
   const dataBindings = readerRoute === route ? viewBindings : {...viewBindings, route: readerRoute};
   const active = readerRoute.view;

@@ -16,6 +16,8 @@ import {parseSavedScreenRoute, savedRouteKey, sameSavedRoute} from './route';
 import {SavedOperations} from './operations';
 import type {ScreenContext} from '../detail/context';
 import {savedReaderRoute, type SavedScreenRoute} from './runtime';
+import {usePinnedResources} from '../pins/usePinnedResources';
+import {usePinEditor} from '../pins/PinEditor';
 
 const networkSnapshot = () => navigator.onLine;
 const networkSubscribe = (changed: () => void) => {
@@ -98,6 +100,9 @@ function CommittedSaved({captured, lease, appearance, choice, setChoice}: {captu
   appearance: NonNullable<ReturnType<typeof useScreenAppearance>>; choice?: Readonly<{defaultView: 'grid' | 'list'; view: 'grid' | 'list'}>;
   setChoice: (choice: Readonly<{defaultView: 'grid' | 'list'; view: 'grid' | 'list'}>) => void}) {
   const {context, owner, route, selection, playback} = lease, runtime = owner.runtime;
+  // phone-app Saved: the directory's "Pinned · Edit pins", read only on the phone directory and again after editing.
+  const pinsShown = useShellWidth() < 600 && route.view === 'home';
+  const pinned = usePinnedResources(context, pinsShown), pinEditor = usePinEditor(context, pinned.reload);
   const native = useSyncExternalStore(owner.subscribe, owner.getSnapshot, owner.getSnapshot);
   const saved = useSyncExternalStore(runtime.saved.subscribe, runtime.saved.getSnapshot, runtime.saved.getSnapshot);
   const posters = useSyncExternalStore(runtime.posters.subscribe, runtime.posters.getSnapshot, runtime.posters.getSnapshot);
@@ -164,8 +169,9 @@ function CommittedSaved({captured, lease, appearance, choice, setChoice}: {captu
       }} : {}),
     };
   }, [context, lease, runtime, route, playback, saved, posters, squares, personal, downloads, native.saveReadyPreparation]);
-  return <SavedScreen catalogueSelection={selection} runtime={lease.viewRuntime} localDownloads={native.localDownloads} route={route} online={online} downloadsOffered artwork={context.artwork}
+  return <>{pinsShown && pinEditor.element}<SavedScreen catalogueSelection={selection} runtime={lease.viewRuntime} localDownloads={native.localDownloads} route={route} online={online} downloadsOffered artwork={context.artwork}
     libraries={context.identity?.libraries}
+    pins={pinsShown ? {list: pinned.pins, edit: pinEditor.open} : undefined}
     preparationArtwork={preparation => {
       if (!lease.current()) return undefined;
       // Reuse only authorized bounded Home facts, with no catalogue scan.
@@ -177,7 +183,7 @@ function CommittedSaved({captured, lease, appearance, choice, setChoice}: {captu
     presentation={{view: choice?.defaultView === appearance.libraryView ? choice.view : appearance.libraryView,
       cardWidth: (width < 600 ? 112 : 173.5) * appearance.cardSizePercent / 100, backdrops: appearance.showBackdrops, reducedMotion: appearance.reducedMotion,
       setView: view => {if (lease.current()) setChoice({defaultView: appearance.libraryView, view});}}}
-    effects={effects}/>;
+    effects={effects}/></>;
 }
 function SavedRouteScreen() {
   const captured = useProtectedWebScreenContext();
