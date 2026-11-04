@@ -23,6 +23,8 @@ async function fixture() {
     if (!request.path.startsWith('/v1/people/')) return;
     reads.push({path: request.path, signal: request.signal});
     const body = await reply(request.path);
+    // A reply may be the server's refusal: {refuse: code} answers 400 in the server's error envelope.
+    if (body && typeof body === 'object' && 'refuse' in body) return {status: 400, body: {error: {code: (body as {refuse: string}).refuse, message: 'refused'}}};
     return {status: 200, body: {...body as object, serverId: f.pin.serverId}};
   }});
   let runtime: RestoredNativeShellRuntime | undefined;
@@ -56,12 +58,13 @@ function ready(window: ReturnType<typeof createNativePersonCreditWindow>, first:
     check();
   });
 }
-const credits = (path: string, fence = 'Person-own-fence') => {
+const credits = (path: string, fence = 'Person-own-fence', catalog = 12) => {
   const cursor = new URL(path, 'https://fixture.invalid').searchParams.get('cursor');
   const start = cursor ? Number(cursor.slice('opaque-'.length)) : 0;
   const nextCursor = start + 40 < 320 ? `opaque-${start + 40}` : '';
-  return {...page(undefined, start, Math.min(40, 320 - start), nextCursor, fence), pageInfo: {total: 320, nextCursor}};
+  return {...page(undefined, start, Math.min(40, 320 - start), nextCursor, fence), revision: {catalog, viewer: 7}, pageInfo: {total: 320, nextCursor}};
 };
+const hasCursor = (path: string) => new URL(path, 'https://fixture.invalid').searchParams.has('cursor');
 
 test('Person sparse credits borrow one arrived page and follow only real continuation tokens', async () => {
   const f = await fixture(); let window: ReturnType<typeof createNativePersonCreditWindow> | undefined;
@@ -101,10 +104,47 @@ test('Person window refuses a continuation from another revision and publishes n
   const f = await fixture(); let window: ReturnType<typeof createNativePersonCreditWindow> | undefined;
   try {
     f.reply(async path => credits(path)); await f.source.load(); window = createNativePersonCreditWindow(f.context, f.route, f.source);
-    f.reply(async path => credits(path, 'Changed-person-fence'));
+    const before = f.reads.length;
+    f.reply(async path => credits(path, 'Person-own-fence', 13));
     await ready(window, 40, 40, true);
     assert.equal(window.collection.getSnapshot().status, 'error'); assert.equal(window.collection.itemAt(40), undefined);
     assert.equal(f.source.getSnapshot().phase, 'ready');
+    assert.equal(f.reads.length, before + 1, 'a moved revision is not read again: the page shows its refusal');
+  } finally {window?.dispose(); await f.close();}
+});
+
+test('step 7: a continuation answered under a moved fence is the newer answer for the same person revision', async () => {
+  const f = await fixture(); let window: ReturnType<typeof createNativePersonCreditWindow> | undefined;
+  try {
+    f.reply(async path => credits(path)); await f.source.load(); window = createNativePersonCreditWindow(f.context, f.route, f.source);
+    f.reply(async path => credits(path, 'Changed-person-fence'));
+    await ready(window, 40);
+    assert.equal(window.collection.itemAt(40)?.media.id, 'credit-40');
+  } finally {window?.dispose(); await f.close();}
+});
+
+test('step 7: a refused credit cursor reads the person again once in place of the shown page; a second refusal shows', async () => {
+  const f = await fixture(); let window: ReturnType<typeof createNativePersonCreditWindow> | undefined;
+  try {
+    f.reply(async path => credits(path)); await f.source.load(); window = createNativePersonCreditWindow(f.context, f.route, f.source);
+    const shown = f.source.getSnapshot(), phases: string[] = [];
+    const off = f.source.subscribe(() => phases.push(f.source.getSnapshot().phase));
+    f.reply(async path => hasCursor(path) ? {refuse: 'invalid_cursor'} : credits(path, 'Moved-person-fence'));
+    window.collection.ensureRange(40, 40);
+    for (let i = 0; i < 50 && f.source.getSnapshot() === shown; i++) await tick();
+    off();
+    const reread = f.source.getSnapshot();
+    assert.notEqual(reread, shown); assert.equal(reread.phase, 'ready'); assert.equal(reread.pageOrigin, 'initial');
+    assert.equal(reread.page?.viewerFence, 'Moved-person-fence');
+    assert.ok(!phases.includes('loading'), 'the shown page stays until the re-read answers');
+    assert.equal(window.collection.getSnapshot().status === 'error', false, 'the replaced window shows no error');
+    window.dispose();
+    // The renderer builds a new window from the new initial page; its cursor refused again is shown, not read again.
+    window = createNativePersonCreditWindow(f.context, f.route, f.source);
+    const before = f.reads.length;
+    await ready(window, 40, 40, true);
+    assert.equal(window.collection.getSnapshot().status, 'error'); assert.equal(f.source.getSnapshot(), reread);
+    assert.equal(f.reads.length, before + 1);
   } finally {window?.dispose(); await f.close();}
 });
 

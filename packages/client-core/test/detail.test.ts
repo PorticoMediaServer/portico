@@ -213,7 +213,7 @@ test('a page of credits keeps the credits it can read; the group asked for, the 
 });
 
 test('detail recommendation and credit pages preserve all 537 loaded entries and reject a different revision', async()=>{
- const {readCreditPage,appendCreditPage,readDetailMoreLike,appendDetailRecommendationPage}=await import('../src/detail.ts');
+ const {readCreditPage,readDetailMoreLike,appendDetailRecommendationPage}=await import('../src/detail.ts');
  const revision={catalog:3,viewer:1};
  const makePage=(start:number)=>{
   const entries=Array.from({length:Math.min(37,537-start)},(_,index)=>{const id=String(start+index);return {id,kind:'movie',title:'Title '+id,libraryId:'library',available:true,navigation:{view:'item',entityId:id},playback:{itemId:id}};});
@@ -226,14 +226,14 @@ test('detail recommendation and credit pages preserve all 537 loaded entries and
   return row as T;
  }};
  let row=await readDetailMoreLike(api,'item'),credits=await readCreditPage(api,'item','cast');
- const firstRows=row.entries,firstCredits=credits.credits;
+ const firstRows=row.entries;
  while(row.nextCursor)row=appendDetailRecommendationPage(row,await readDetailMoreLike(api,'item',{cursor:row.nextCursor}));
- while(credits.nextCursor)credits=appendCreditPage(credits,await readCreditPage(api,'item','cast',{cursor:credits.nextCursor}));
+ // Credits page by cursor: each page is read on its own (the native title controller keeps its window).
+ const later=await readCreditPage(api,'item','cast',{cursor:credits.nextCursor});
  const ids=Array.from({length:537},(_,index)=>String(index));
- assert.deepEqual(row.entries.map(entry=>entry.id),ids);assert.deepEqual(credits.credits.map(credit=>credit.id),ids);
- assert.deepEqual(row.entries.slice(0,37),firstRows);assert.deepEqual(credits.credits.slice(0,37),firstCredits);
+ assert.deepEqual(row.entries.map(entry=>entry.id),ids);assert.deepEqual(credits.credits.map(credit=>credit.id),ids.slice(0,37));
+ assert.deepEqual(row.entries.slice(0,37),firstRows);assert.deepEqual(later.credits.map(credit=>credit.id),ids.slice(37,74));assert.equal(later.nextCursor,'74');
  assert.throws(()=>appendDetailRecommendationPage(row,{...row,revision:{catalog:4,viewer:1}}),{code:'stale_continuation'});
- assert.throws(()=>appendCreditPage(credits,{...credits,revision:{catalog:4,viewer:1}}),{code:'stale_continuation'});
  assert.ok(paths.includes('/v1/items/item/credits?group=cast&limit=37&cursor=37'));
  assert.ok(paths.includes('/v1/items/item/recommendations/rows/more_like?limit=37&cursor=37'));
 });
