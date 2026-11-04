@@ -322,7 +322,6 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   const chooseSort = (sort: string) => select({sort: sort as 'number' | 'name'});
   const sortPicker = phoneChrome ? <NativeLivePhonePicker testID="live-sort" accessibilityLabel={t('channels.sort')} value={state.options.sort ?? 'number'} options={sortOptions.map(option => ({id: option.value, label: option.label}))} onChange={chooseSort} placement="bottom-end" secondary>{sortOptions.find(option => option.value === state.options.sort)?.label}</NativeLivePhonePicker>
     : <Select testID="live-sort" accessibilityLabel={t('channels.sort')} value={state.options.sort ?? 'number'} options={sortOptions} onValueChange={chooseSort}/>;
-  const hasRecordings = state.sources.some(value => value.recordAvailable);
   const controls = ids.surface('live.controls'), grid = ids.surface('live.grid'), filters = ids.surface('live.filters');
   useTVPageBack(runtime, {kind: 'live'}, theme.isTV && !managementActive, {
     registerTop: true, scope: JSON.stringify([state.revision, view]),
@@ -350,6 +349,8 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   useDestinationEntryFocus({visible: theme.isTV && !managementActive && !recordingsOpen && managementReturn > 0, intent: 'restore', revision: managementReturn}, {regionId: controls, childId: 'live-owner-open'});
   const empty = !state.loading && state.sources.length === 0;
   const managesServer = managementCurrent();
+  // As on web: the Recordings entry is drawn unless the viewer has no sources and no way to set one up; a server that cannot record shows its own unavailable state inside.
+  const hasRecordings = !(empty && !managesServer);
   // Spec §10 and states 2 (Banner): a stale guide and a server-wide reason are each said once, from the
   // server's own source summaries, as on web (LT-3, LT-4 native half, W2-A10). A quiet line; no focus on TV.
   const serverWide = liveServerWideNotice(selectedSources, managesServer), stale = liveGuideStale(selectedSources);
