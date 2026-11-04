@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -42,6 +43,7 @@ func save(p string, v any) {
 
 var normalWrites, writeOnly, facetMode, frameMode, gatesOnly, browseOnly, admissionSchema, attributionMode, localControl, identitySchema, omitFTS, ablationMode, capsMode bool
 var qualificationMode, scalarMode, diagnosticMode bool
+var traceIO bool
 var pagerCacheKiB = 16384
 var mmapBytes int64
 
@@ -352,6 +354,7 @@ func main() {
 	normalFlag := flag.Bool("normal", false, "NORMAL writer and separate PASSIVE checkpoint")
 	writeFlag := flag.Bool("write-only", false, "seed and writer quanta only")
 	facetFlag := flag.Bool("facets", false, "rating-band counts and restricted indexes")
+	traceFlag := flag.Bool("trace-io", false, "attach strace after fixture creation; diagnostics only")
 	diagnosticFlag := flag.Bool("diagnostic", false, "diagnostic-only128holds at1and16; no qualification")
 	cacheFlag := flag.Int("cache-kib", 16384, "pager cache KiB/connection")
 	mmapFlag := flag.Int64("mmap-bytes", 0, "requested mmap bytes; actual pragma recorded")
@@ -367,7 +370,11 @@ func main() {
 	browseFlag := flag.Bool("browse-only", false, "skip shaped write sweep after browse")
 	frameFlag := flag.Bool("frames", false, "max source-frame replacements")
 	flag.Parse()
+	traceIO = *traceFlag
 	diagnosticMode = *diagnosticFlag
+	if traceIO && !diagnosticMode {
+		panic("trace-io is diagnostic only")
+	}
 	pagerCacheKiB = *cacheFlag
 	mmapBytes = *mmapFlag
 	scalarMode = *scalarFlag
@@ -1156,6 +1163,10 @@ func attribution(c *sql.Conn, out, hash string) {
 		sizes = []int{8}
 		runs = 501
 	}
+	if traceIO {
+		stopTrace := attachTrace(out, hash)
+		defer stopTrace()
+	}
 	results := []any{}
 	measure := func(batch, reps int, control string) {
 		times := []float64{}
@@ -1167,6 +1178,7 @@ func attribution(c *sql.Conn, out, hash string) {
 			q := acceptanceSQL(resident+1, batch)
 			statements := strings.Split(q, ";")
 			beforeHost := hostSnapshot()
+			walBefore := walCounters(c)
 			_, e := c.ExecContext(context.Background(), "BEGIN IMMEDIATE")
 			must(e)
 			start := time.Now()
@@ -1183,6 +1195,7 @@ func attribution(c *sql.Conn, out, hash string) {
 				phaseSamples[name] = append(phaseSamples[name], ms)
 				phases = append(phases, map[string]any{"phase": name, "start_ns": t.UnixNano(), "ms": ms})
 			}
+			walPrecommit := walCounters(c)
 			t := time.Now()
 			pprof.Do(context.Background(), pprof.Labels("native_sql", fmt.Sprintf("%s-b%d.commit", control, batch)), func(ctx context.Context) { _, e = c.ExecContext(ctx, "COMMIT") })
 			must(e)
@@ -1190,7 +1203,7 @@ func attribution(c *sql.Conn, out, hash string) {
 			hold := float64(time.Since(start).Nanoseconds()) / 1e6
 			phases = append(phases, map[string]any{"phase": "commit", "start_ns": t.UnixNano(), "ms": commit})
 			phaseSamples["commit"] = append(phaseSamples["commit"], commit)
-			row := map[string]any{"rep": rep, "start_ns": start.UnixNano(), "hold_ms": hold, "phases": phases, "host_before": beforeHost, "host_after": hostSnapshot()}
+			row := map[string]any{"rep": rep, "start_ns": start.UnixNano(), "hold_ms": hold, "phases": phases, "host_before": beforeHost, "host_after": hostSnapshot(), "wal_before": walBefore, "wal_precommit": walPrecommit, "wal_after": walCounters(c)}
 			samples = append(samples, row)
 			times = append(times, hold)
 			if hold > 25 {
@@ -1766,4 +1779,63 @@ func connectionPragmas(c *sql.Conn) map[string]any {
 		out[name] = v
 	}
 	return out
+}
+
+func walCounters(c *sql.Conn) sqlite.WALIOStats {
+	var result sqlite.WALIOStats
+	must(c.Raw(func(dc any) error {
+		if w, ok := dc.(interface{ WALIO() sqlite.WALIOStats }); ok {
+			result = w.WALIO()
+		}
+		return nil
+	}))
+	return result
+}
+func attachTrace(out, hash string) func() {
+	args := []string{"-f", "-ttt", "-T", "-yy", "-s0", "-e", "trace=pwrite64,fsync,fdatasync", "-p", strconv.Itoa(os.Getpid()), "-o", filepath.Join(out, "wal-io.strace")}
+	name := "strace"
+	if os.Geteuid() != 0 {
+		args = append([]string{"-n", "strace"}, args...)
+		name = "sudo"
+	}
+	cmd := exec.Command(name, args...)
+	stderr, e := cmd.StderrPipe()
+	must(e)
+	started := time.Now()
+	e = cmd.Start()
+	if e != nil {
+		save(filepath.Join(out, "io-trace-status.json"), map[string]any{"ddl_sha256": hash, "error": e.Error()})
+		return func() {}
+	}
+	ready := make(chan bool, 1)
+	done := make(chan struct{})
+	lines := []string{}
+	go func() {
+		defer close(done)
+		s := bufio.NewScanner(stderr)
+		sent := false
+		for s.Scan() {
+			line := s.Text()
+			lines = append(lines, line)
+			if !sent && strings.Contains(line, "attached") {
+				ready <- true
+				sent = true
+			}
+		}
+		if !sent {
+			ready <- false
+		}
+	}()
+	attached := false
+	select {
+	case attached = <-ready:
+	case <-time.After(5 * time.Second):
+	}
+	save(filepath.Join(out, "io-trace-status.json"), map[string]any{"ddl_sha256": hash, "attached": attached, "attach_start_ns": started.UnixNano(), "ready_ns": time.Now().UnixNano(), "method": "strace -f -ttt -T -yy -s0 pwrite64/fsync/fdatasync; attach after seed/depth scan. Diagnostic only; wall distribution perturbed."})
+	return func() {
+		_ = cmd.Process.Signal(syscall.SIGINT)
+		_ = cmd.Wait()
+		<-done
+		save(filepath.Join(out, "io-trace-status.json"), map[string]any{"ddl_sha256": hash, "attached": attached, "attach_start_ns": started.UnixNano(), "detach_ns": time.Now().UnixNano(), "messages": lines, "method": "Diagnostic sampled CPU plus timed WAL syscalls; no primary qualification claim. Match epoch timestamps to operation intervals."})
+	}
 }

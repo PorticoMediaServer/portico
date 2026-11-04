@@ -13,6 +13,26 @@ cg=$(awk -F: '$1=="0" {print $3}' /proc/self/cgroup)
    echo "$field"; cat "/sys/fs/cgroup$cg/$field"
  done
 } > "$out/host-$stage.txt"
+if [ "$stage" = iodiag ]; then
+  if ! command -v strace >/dev/null; then sudo -n apt-get update -qq; sudo -n apt-get install -y -qq strace; fi
+  for variant in default small-cache mmap; do
+    sub="$out/$variant"
+    mkdir -p "$sub"
+    options=()
+    if [ "$variant" = small-cache ]; then options+=(--cache-kib 2048); fi
+    if [ "$variant" = mmap ]; then options+=(--mmap-bytes 268435456); fi
+    "$RUNNER_TEMP/p0-s-full" --ddl "research/p0-s/$TARGET_DDL" --db "$sub/full.db" --out "$sub" --seed "$size" --normal --write-only --attribution --diagnostic --cpu-profile "${options[@]}"
+    python3 - "$sub" <<'PYCODE'
+import pathlib,sys
+p=pathlib.Path(sys.argv[1])
+for name in ['full.db','full.db-wal','full.db-shm']:(p/name).unlink(missing_ok=True)
+PYCODE
+  done
+  sub="$out/tagged-io"
+  mkdir -p "$sub"
+  "$RUNNER_TEMP/p0-s-full" --ddl "research/p0-s/$TARGET_DDL" --db "$sub/full.db" --out "$sub" --seed "$size" --normal --write-only --attribution --diagnostic --trace-io --cpu-profile
+  exit
+fi
 if [ "$stage" = resource ]; then
   "$RUNNER_TEMP/p0-s-full" --ddl "research/p0-s/$TARGET_DDL" --db "$out/full.db" --out "$out" --seed "$size" --normal --write-only --gates
   exit

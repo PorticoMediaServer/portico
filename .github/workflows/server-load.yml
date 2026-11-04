@@ -18,7 +18,7 @@ permissions:
   contents: read
 jobs:
   scale:
-    if: ${{ inputs.mode != 'sweep' && inputs.mode != 'fanout' && inputs.mode != 'supported' && inputs.mode != 'full' && inputs.mode != 'envelope' && inputs.mode != 'envelope2' && inputs.mode != 'selected' && inputs.mode != 'fullpair' && inputs.mode != 'widthpair' && inputs.mode != 'normal' && inputs.mode != 'facets' && inputs.mode != 'frames' && inputs.mode != 'attribution' && inputs.mode != 'caps' && inputs.mode != 'primitives' && inputs.mode != 'decision' && inputs.mode != 'resource' }}
+    if: ${{ inputs.mode != 'sweep' && inputs.mode != 'fanout' && inputs.mode != 'supported' && inputs.mode != 'full' && inputs.mode != 'envelope' && inputs.mode != 'envelope2' && inputs.mode != 'selected' && inputs.mode != 'fullpair' && inputs.mode != 'widthpair' && inputs.mode != 'normal' && inputs.mode != 'facets' && inputs.mode != 'frames' && inputs.mode != 'attribution' && inputs.mode != 'caps' && inputs.mode != 'primitives' && inputs.mode != 'decision' && inputs.mode != 'resource' && inputs.mode != 'iodiag' }}
     runs-on: ubuntu-24.04
     env:
       MODE: ${{ inputs.mode || 'churn' }}
@@ -47,6 +47,7 @@ jobs:
           path: |
             ${{ runner.temp }}/p0-s/**/*.json
             ${{ runner.temp }}/p0-s/**/*.pprof
+            ${{ runner.temp }}/p0-s/**/*.strace
             ${{ runner.temp }}/p0-s/*.txt
           retention-days: 14
       - name: Browse facets search writes opens memory
@@ -89,11 +90,12 @@ jobs:
           path: |
             ${{ runner.temp }}/p0-s/**/*.json
             ${{ runner.temp }}/p0-s/**/*.pprof
+            ${{ runner.temp }}/p0-s/**/*.strace
             ${{ runner.temp }}/p0-s/*.txt
           retention-days: 14
 
   full:
-    if: ${{ inputs.mode == 'full' || inputs.mode == 'fullpair' || inputs.mode == 'widthpair' || inputs.mode == 'normal' || inputs.mode == 'facets' || inputs.mode == 'frames' || inputs.mode == 'attribution' || inputs.mode == 'caps' || inputs.mode == 'primitives' || inputs.mode == 'decision' || inputs.mode == 'resource' }}
+    if: ${{ inputs.mode == 'full' || inputs.mode == 'fullpair' || inputs.mode == 'widthpair' || inputs.mode == 'normal' || inputs.mode == 'facets' || inputs.mode == 'frames' || inputs.mode == 'attribution' || inputs.mode == 'caps' || inputs.mode == 'primitives' || inputs.mode == 'decision' || inputs.mode == 'resource' || inputs.mode == 'iodiag' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 80
     env:
@@ -132,5 +134,6 @@ jobs:
           path: |
             ${{ runner.temp }}/p0-s/**/*.json
             ${{ runner.temp }}/p0-s/**/*.pprof
+            ${{ runner.temp }}/p0-s/**/*.strace
             ${{ runner.temp }}/p0-s/*.txt
           retention-days: 14
