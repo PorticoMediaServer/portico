@@ -89,6 +89,9 @@ export const browseMessages = {
   'next.browse.emptyNothingIn': 'Nothing in {library} is {filters}.',
   'next.browse.emptyBoth': 'both {first} and {second}',
   'next.browse.emptyFrom': 'from the {decade}',
+  /** Decades by operator: none-of "anything but the 1990s or 2000s", a range "from the 1990s to the 2000s". */
+  'next.browse.emptyNotFrom': 'anything but the {decade}',
+  'next.browse.emptyFromRange': 'from the {start} to the {end}',
   /** A filter's values in the empty sentence: a range ("from 1990 to 2000"), and none-of ("anything but documentary or animation"). */
   'next.browse.emptyRange': 'from {start} to {end}',
   'next.browse.emptyNot': 'anything but {values}',

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
 import {defaultI18n} from '@i18n';
+import {emptyFilterValues} from '../src/screens/browse/FilteredEmpty.tsx';
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
@@ -14,15 +15,24 @@ test('A19: on a window shorter than 960px the sort rows tighten so the whole men
   assert.match(read('../src/kit/browse/browse.module.css'), /@media \(max-height: 960px\) \{ \.sortMenu button \{ height: 32px; \} \}/);
 });
 
-test('A20: a filter with several values reads as it means them in the empty sentence', () => {
-  const empty = read('../src/screens/browse/FilteredEmpty.tsx');
-  assert.match(empty, /node\.operator === 'between' && items\.length === 2 \? t\('next\.browse\.emptyRange', \{start: items\[0\]!, end: items\[1\]!\}\)/);
-  assert.match(empty, /: node\.operator === 'contains-all' \? defaultI18n\.list\(items, 'and'\)/);
-  assert.match(empty, /: node\.operator === 'not-in' \|\| node\.operator === 'not-equals' \? t\('next\.browse\.emptyNot', \{values: defaultI18n\.list\(items, 'or'\)\}\)/);
-  // In the sentence: "Nothing in Movies is from 1990 to 2000." and "… is anything but documentary or animation."
-  assert.equal(defaultI18n.t('next.browse.emptyNothingIn', {library: 'Movies', filters: defaultI18n.t('next.browse.emptyRange', {start: '1990', end: '2000'})}), 'Nothing in Movies is from 1990 to 2000.');
-  assert.equal(defaultI18n.t('next.browse.emptyRange', {start: '1990', end: '2000'}), 'from 1990 to 2000');
-  assert.equal(defaultI18n.t('next.browse.emptyNot', {values: defaultI18n.list(['documentary', 'animation'], 'or')}), 'anything but documentary or animation');
+test('A20: the empty sentence names a filter\'s values as each operator means them, decades with their own "the"', () => {
+  const words = (field: string, operator: string, values: readonly unknown[]) => emptyFilterValues(field, operator, values);
+  // Decades.
+  assert.equal(words('decade', 'in', [1990, 2000]), 'from the 1990s or 2000s');
+  assert.equal(words('decade', 'contains-any', [1990, 2000]), 'from the 1990s or 2000s');
+  assert.equal(words('decade', 'contains-all', [1990, 2000]), 'from the 1990s and 2000s');
+  assert.equal(words('decade', 'not-in', [1990, 2000]), 'anything but the 1990s or 2000s');
+  assert.equal(words('decade', 'not-equals', [1990]), 'anything but the 1990s');
+  assert.equal(words('decade', 'between', [1990, 2000]), 'from the 1990s to the 2000s');
+  assert.equal(words('decade', 'equals', [2010]), 'from the 2010s');
+  // Other values.
+  assert.equal(words('genre', 'contains-any', ['documentary', 'animation']), 'documentary or animation');
+  assert.equal(words('genre', 'contains-all', ['documentary', 'animation']), 'documentary and animation');
+  assert.equal(words('genre', 'not-in', ['documentary', 'animation']), 'anything but documentary or animation');
+  assert.equal(words('year', 'between', [1990, 2000]), 'from 1990 to 2000');
+  assert.equal(words('genre', 'equals', ['horror']), 'horror');
+  // In the sentence.
+  assert.equal(defaultI18n.t('next.browse.emptyNothingIn', {library: 'Movies', filters: words('decade', 'not-in', [1990, 2000])}), 'Nothing in Movies is anything but the 1990s or 2000s.');
 });
 
 test('A7: a search section counts the cards on its line against the total ("7 of 42")', () => {
