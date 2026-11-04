@@ -23,7 +23,7 @@ func (s *Service) ScanEpisodeThumbnails(ctx context.Context, job, sourceID, obje
 	var done bool
 	var warning string
 	caller := ctx
-	err := s.readWithSnapshot(ctx, func(ctx context.Context) error {
+	err := s.readBeforeMedia(ctx, func(ctx context.Context) error {
 		var err error
 		done, warning, err = s.readEpisodeThumbnailScan(ctx, caller, job, sourceID, object, revision, policyRevision, &out)
 		return err

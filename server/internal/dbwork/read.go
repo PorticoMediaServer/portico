@@ -87,6 +87,19 @@ func WithReadSnapshot(ctx context.Context, db *sql.DB, fn func(context.Context) 
 	return snapshotError(ctx, tx.Commit())
 }
 
+type snapshotOnceKey struct{}
+
+// WithReadSnapshotOnce uses normal snapshot admission, but closes a request's
+// cached view when fn returns. Preparation followed by media or provider I/O
+// must finish its transaction before that I/O starts, even with request reuse.
+// An explicitly carried snapshot or writer still belongs to its outer owner.
+func WithReadSnapshotOnce(ctx context.Context, db *sql.DB, fn func(context.Context) error) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return WithReadSnapshot(context.WithValue(ctx, snapshotOnceKey{}, true), db, fn)
+}
+
 // snapshotError reports a deadline as a deadline.
 //
 // `database/sql` rolls a transaction back from a watchdog goroutine as soon as

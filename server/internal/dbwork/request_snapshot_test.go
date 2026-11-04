@@ -3,9 +3,40 @@ package dbwork
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 	"time"
 )
+
+func TestRequestPreparationClosesItsSnapshotBeforeReturning(t *testing.T) {
+	db := readerFixture(t)
+	request, end := WithRequestSnapshot(context.Background())
+	defer end()
+	// Open the real reusable view without starting an idle timer; the control
+	// then proves that the preparation consumes an existing request snapshot.
+	first, _, err := requestSnapshotFrom(request).open(request, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WithReadSnapshotOnce(request, db, func(ctx context.Context) error {
+		if Snapshot(ctx) != first {
+			t.Fatal("preparation did not borrow the request's existing view")
+		}
+		var n int
+		return first.QueryRowContext(ctx, `SELECT 1`).Scan(&n)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := first.QueryRow(`SELECT 1`).Scan(&n); !errors.Is(err, sql.ErrTxDone) {
+		t.Fatalf("preparation returned with a live transaction: %v", err)
+	}
+	// Closing a preparation does not end the request or disable later reuse.
+	next, _ := snapshotOf(t, request, db)
+	if next == first {
+		t.Fatal("the next read reused the closed preparation")
+	}
+}
 
 // snapshotOf runs one read snapshot under ctx and returns its transaction and
 // the row count of sample it saw.

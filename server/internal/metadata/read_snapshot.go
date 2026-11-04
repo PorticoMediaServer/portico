@@ -28,6 +28,14 @@ func (s *Service) readWithSnapshot(ctx context.Context, read func(context.Contex
 	})
 }
 
+// Preparation may borrow the request's view, but must release it before media
+// opens. Request reuse's ordinary idle hold is not an I/O boundary.
+func (s *Service) readBeforeMedia(ctx context.Context, read func(context.Context) error) error {
+	return dbwork.WithReadSnapshotOnce(ctx, s.db, func(ctx context.Context) error {
+		return s.readWithSnapshot(ctx, read)
+	})
+}
+
 func metadataReadValue[T any](ctx context.Context, s *Service, read func(context.Context) (T, error)) (out T, err error) {
 	err = s.readWithSnapshot(ctx, func(ctx context.Context) error {
 		var err error

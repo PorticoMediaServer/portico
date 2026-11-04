@@ -10,6 +10,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
+	"github.com/PorticoMediaServer/portico/server/internal/mediaanalysis"
 )
 
 // These callbacks exercise the real command/storage path, not Remote's source
@@ -50,6 +51,74 @@ func (s *episodeCommandSources) EpisodeRangesSupportedTx(context.Context, *sql.T
 
 func episodeCommandOwner() identity.Principal {
 	return identity.Principal{Viewer: identity.Viewer{Authority: "local", AccountID: "owner", ProfileID: "profile", Role: "owner"}, Hash: "test-owner-session"}
+}
+
+type episodeClosedPreparationSource struct {
+	*episodeCommandSource
+	beforeOpen func()
+}
+
+func (s *episodeClosedPreparationSource) Open(ctx context.Context) (mediaanalysis.Input, error) {
+	s.beforeOpen()
+	return s.episodeCommandSource.Open(ctx)
+}
+
+type episodeClosedPreparationSources struct {
+	*episodeCommandSources
+	prepared *sql.Tx
+	source   *episodeClosedPreparationSource
+}
+
+func (s *episodeClosedPreparationSources) ResolveEpisodeThumbnailTx(ctx context.Context, tx *sql.Tx, invocation EpisodeThumbnailInvocation) (EpisodeThumbnailSource, error) {
+	s.prepared = tx
+	if _, err := s.episodeCommandSources.ResolveEpisodeThumbnailTx(ctx, tx, invocation); err != nil {
+		return nil, err
+	}
+	return s.source, nil
+}
+
+func TestEpisodeThumbnailCommandClosesPreparationBeforeMedia(t *testing.T) {
+	for _, reuse := range []bool{false, true} {
+		t.Run(map[bool]string{false: "fresh", true: "request-reuse"}[reuse], func(t *testing.T) {
+			s, _, target, _ := episodePublicationFixture(t)
+			command := RepairCommand{Action: "make_episode_thumbnail", ExpectedRevision: capturePublication(t, s, target).RepairRevision}
+			base := &episodeCommandSource{episodeRuntimeSource: episodeRuntimeSource{input: &episodeRuntimeInput{}, manual: true}}
+			sources := &episodeClosedPreparationSources{episodeCommandSources: &episodeCommandSources{source: base, supported: true}}
+			checks := 0
+			closed := func(stage string) {
+				t.Helper()
+				if sources.prepared == nil {
+					t.Fatal("media started without a captured preparation")
+				}
+				var one int
+				if err := sources.prepared.QueryRow(`SELECT 1`).Scan(&one); !errors.Is(err, sql.ErrTxDone) {
+					t.Fatalf("preparation transaction is live at %s: %v", stage, err)
+				}
+				checks++
+			}
+			sources.source = &episodeClosedPreparationSource{base, func() { closed("Source.Open") }}
+			decoded := 0
+			s.EpisodeThumbnails = thumbnailRuntime(t, s, func() { decoded++ })
+			s.EpisodeThumbnails.Sources = sources
+			factory := s.EpisodeThumbnails.Decoder
+			s.EpisodeThumbnails.Decoder = func(input mediaanalysis.Input) mediaanalysis.Decode {
+				closed("decoder factory")
+				return factory(input)
+			}
+			ctx := context.Background()
+			if reuse {
+				var end func()
+				ctx, end = dbwork.WithRequestSnapshot(ctx)
+				defer end()
+			}
+			if _, err := s.MakeEpisodeThumbnail(ctx, target, command, episodeCommandOwner(), func(*sql.Tx) error { return nil }); err != nil {
+				t.Fatal(err)
+			}
+			if checks != 2 || decoded != 1 {
+				t.Fatalf("media boundary was not exercised: checks=%d decoded=%d", checks, decoded)
+			}
+		})
+	}
 }
 
 func TestEpisodeThumbnailCommandUsesStoredModeWithoutChangingAutomaticPolicy(t *testing.T) {
