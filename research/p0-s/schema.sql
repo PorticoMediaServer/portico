@@ -1,5 +1,5 @@
 PRAGMA journal_mode=WAL;
-PRAGMA synchronous=NORMAL;
+PRAGMA synchronous=FULL;
 PRAGMA wal_autocheckpoint=1000;
 CREATE TABLE catalog_libraries(id INTEGER PRIMARY KEY,name TEXT NOT NULL) STRICT;
 INSERT INTO catalog_libraries VALUES(1,'main mixed library'),(2,'small mixed library');

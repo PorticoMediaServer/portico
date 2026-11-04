@@ -20,7 +20,7 @@ class DB:
  def __init__(self,path,ro=False):
   self.db=ptr(); rc=openv(str(path).encode(),C.byref(self.db),1 if ro else 6,None)
   if rc: raise RuntimeError('open '+str(rc))
-  self.exec('PRAGMA busy_timeout=1000; PRAGMA cache_size=-16384; PRAGMA foreign_keys=ON; PRAGMA temp_store=MEMORY;')
+  self.exec('PRAGMA busy_timeout=1000; PRAGMA cache_size=-16384; PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL; PRAGMA temp_store=MEMORY;')
   if ro:self.exec('PRAGMA query_only=ON;')
   self.deadline=0; self.cb=Callback(lambda _:int(self.deadline!=0 and time.monotonic()>self.deadline))
   progress(self.db,10000,self.cb,None)
@@ -79,7 +79,7 @@ CONTAINERS=['show','season','artist','album','author','book','collection']
 def create(db):
  db.exec((ROOT/'schema.sql').read_text())
 
-def seed(db,start,end):
+def seed(db,start,end,evict=None):
  # Each 1000 entities: 150 movies; 10 shows, 40 seasons, 400 episodes;
  # 10 artists, 30 albums, 250 songs; 4 authors, 20 books, 60 audio parts;
  # 10 collections, 10 ebooks, 6 comics. Mix sums to 1000; same per small library.
@@ -90,6 +90,12 @@ def seed(db,start,end):
  # Set library split by complete 1000-entity group, leaving 2% in small library.
  db.exec('BEGIN IMMEDIATE')
  t=time.perf_counter();before=scalar(db,'SELECT total_changes()')
+ if evict:
+  lo,hi=evict
+  db.exec(f"INSERT INTO search_own_prefix(search_own_prefix,rowid,title_fold) SELECT 'delete',entity_id,title_fold FROM search_own WHERE entity_id BETWEEN {lo} AND {hi}")
+  for table,key in [('catalog_collection_members','collection_id'),('recommendation_candidates','entity_id'),('catalog_credits','entity_id'),('catalog_entity_terms','entity_id'),('personal_items','item_id'),('catalog_asset_links','entity_id'),('search_own','entity_id'),('catalog_assets','id')]:
+   db.exec(f'DELETE FROM {table} WHERE {key} BETWEEN {lo} AND {hi}')
+  db.exec(f'DELETE FROM catalog_entities WHERE id BETWEEN {lo} AND {hi}')
  db.exec(n+f"""INSERT INTO catalog_entities(id,public_id,library_id,kind,parent_id,title,sort_key,sort_key_keep_articles,random_key,year,added_at,last_content_added_at,release_key,latest_aired_key,duration_key,community_rating_key,critic_rating_key,file_size_key,resolution_key,episode_count,track_key,content_rating)
  SELECT id,unhex(printf('%032x',id)),CASE WHEN ((id-1)/1000)%50=49 THEN 2 ELSE 1 END,{kind},{parent},
  printf('The Word %08d',id),printf('word %08d',id),printf('the word %08d',id),(id*2654435761)%4294967296,
@@ -123,7 +129,7 @@ def make_query(sort,kind,direction='asc',restricted=False,small=False,continuati
  if sort in ('personalRating','lastPlayed','playCount'):
   metric={'personalRating':'rating','lastPlayed':'last_played_at','playCount':'plays'}[sort];default="''" if sort=='lastPlayed' else '0'
   if kind in CONTAINERS:
-   filt=" AND x.content_rating IN ('G','PG')" if restricted else '' 
+   filt=" AND x.content_rating IN ('G','PG')" if restricted else ''
    col=f"COALESCE((SELECT max(p.{metric}) FROM catalog_entities x CROSS JOIN personal_items p ON p.item_id=x.id AND p.profile_id='viewer' WHERE x.id IN ({descendants()}){filt}),{default})"
   else:
    joins=" LEFT JOIN personal_items p ON p.profile_id='viewer' AND p.item_id=e.id";col=f'COALESCE(p.{metric},{default})'
@@ -180,14 +186,17 @@ def queries():
    out.append((f'search/{word}/{suffix}',f"SELECT e.id,e.sort_key FROM search_own_prefix f JOIN catalog_entities e ON e.id=f.rowid WHERE search_own_prefix MATCH '{word}' AND e.library_id=1 AND e.retired=0{w} ORDER BY e.sort_key,e.id LIMIT 40"))
  return out
 
-def writer(path,stop,output,start):
- db=DB(path);xs=[];nextid=start
+def writer(path,stop,ready,counter,output,start):
+ db=DB(path);xs=[];nextid=start;previous=None
  try:
-  while not stop.is_set():
-   xs.append(seed(db,nextid,nextid+999));nextid+=1000
-   # Continuous offered ingest with a 10s gap (100 offered items/s): writer never quiesced for reads.
-   stop.wait(10.0)
- finally:db.close();atom(output,{'batches':xs,'last_id':nextid-1})
+  with pathlib.Path(output).with_suffix('.jsonl').open('w') as log:
+   while not stop.is_set():
+    began=time.time_ns();rec=seed(db,nextid,nextid+999,previous);ended=time.time_ns()
+    rec.update(start_ns=began,end_ns=ended,first_id=nextid,evicted=1000 if previous else 0)
+    xs.append(rec);log.write(json.dumps(rec)+'\n');log.flush()
+    with counter.get_lock():counter.value+=1000
+    ready.set();previous=(nextid,nextid+999);nextid+=1000
+ finally:db.close();atom(output,{'batches':xs,'last_id':nextid-1,'mode':'continuous new ingestion with previous synthetic tail batch retired, no sleeps'})
 
 def probe(args):
  path=pathlib.Path(args.db);out=pathlib.Path(args.out);out.mkdir(parents=True,exist_ok=True)
@@ -209,18 +218,21 @@ def probe(args):
  if args.seed_only:return
  qs=queries();random.Random(1104).shuffle(qs)
  for phase in ['rest','ingest']:
-  stop=mp.Event();p=None
+  stop=mp.Event();ready=mp.Event();counter=mp.Value('q',0);p=None
   if phase=='ingest':
-   p=mp.Process(target=writer,args=(path,stop,out/'ingest-writer.json',args.size+1));p.start()
+   p=mp.Process(target=writer,args=(path,stop,ready,counter,out/'ingest-writer.json',args.size+1));p.start()
+   if not ready.wait(30):raise RuntimeError('writer did not publish initial progress')
   try:
    with (out/f'queries-{phase}.jsonl').open('w') as f:
     for j,(name,sql) in enumerate(qs):
      plan=db.query('EXPLAIN QUERY PLAN '+sql,120)[0]
-     rows,warm=db.query(sql);xs=[]
-     for _ in range(args.samples):
+     rows,warm=db.query(sql);xs=[];begin_ns=time.time_ns();begin_progress=counter.value
+     while len(xs)<args.samples or (p and counter.value==begin_progress and time.time_ns()-begin_ns<2_000_000_000):
       rows,stats=db.query(sql);xs.append(stats)
       if stats['rc']!=101 or (len(xs)>=5 and stats['ms']>2000):break
-     rec={'name':name,'phase':phase,'sql':sql,'plan':plan,'warmup':warm,'summary':summarize(xs),'samples':xs,'row_hash':hashlib.sha256(json.dumps(rows).encode()).hexdigest(),'returned_rows':rows,'memory':db.mem()}
+     end_ns=time.time_ns();end_progress=counter.value
+     overlap={'read_start_ns':begin_ns,'read_end_ns':end_ns,'accepted_start':begin_progress,'accepted_end':end_progress,'committed_during_window':end_progress-begin_progress,'label':('during-ingest' if end_progress>begin_progress else 'idle') if p else 'at-rest'}
+     rec={'overlap':overlap,'name':name,'phase':phase,'sql':sql,'plan':plan,'warmup':warm,'summary':summarize(xs),'samples':xs,'row_hash':hashlib.sha256(json.dumps(rows).encode()).hexdigest(),'returned_rows':rows,'memory':db.mem()}
      f.write(json.dumps(rec)+'\n');f.flush()
      if j%40==0:print(phase,j,len(qs),name,rec['summary'],flush=True)
   finally:
