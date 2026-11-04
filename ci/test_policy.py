@@ -65,7 +65,7 @@ class ActivePolicyTests(unittest.TestCase):
         from plan import ROOT
         tiers=json.loads((ROOT/'ci/tiers.json').read_text())
         excluded={e['name'] for e in tiers['nightly_only']}
-        self.assertEqual(len(excluded),5)
+        self.assertEqual(len(excluded),6)
         self.assertNotIn('TestReadPathGoldenEquivalence',excluded)
         self.assertNotIn('TestKeysetPagesDoNotRescanTheirPrefix',excluded)
         self.assertNotIn('TestBulkBuildDerivesWhatIncrementalBuildDoes',excluded)
@@ -121,6 +121,6 @@ class TierTests(unittest.TestCase):
         from unittest.mock import patch
         from plan import make_plan
         with patch('plan.components',return_value=([],False)), patch('plan.command',return_value='portico_rar7z,portico_cb7'):
-            self.assertEqual(len(make_plan([],tier='merge')['tier_exclusions']),5)
-            self.assertEqual(len(make_plan([],tier='nightly')['tier_exclusions']),6)
-            self.assertEqual(len(make_plan([],tier='short')['tier_exclusions']),5)
+            self.assertEqual(len(make_plan([],tier='merge')['tier_exclusions']),6)
+            self.assertEqual(len(make_plan([],tier='nightly')['tier_exclusions']),7)
+            self.assertEqual(len(make_plan([],tier='short')['tier_exclusions']),6)
