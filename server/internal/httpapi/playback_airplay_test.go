@@ -3,12 +3,57 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/assets"
+	"github.com/PorticoMediaServer/portico/server/internal/decoder"
+	"github.com/PorticoMediaServer/portico/server/internal/decodertest"
+	"github.com/PorticoMediaServer/portico/server/internal/playback"
 	"github.com/PorticoMediaServer/portico/server/internal/playbackv1"
 	"github.com/PorticoMediaServer/portico/server/internal/subtitles"
 )
+
+// This parent reads the receiver's burn output, so its source must be real
+// media, with both audio tracks and enough duration to include the handoff.
+func airPlayRuntimeFixture(t *testing.T) (*v1Fixture, string) {
+	t.Helper()
+	ffmpeg := decodertest.QualifiedFFmpeg(t)
+	facts, err := decoder.ProbeToolchain(context.Background(), ffmpeg)
+	if err != nil || !facts.Filters["ass"] {
+		t.Fatalf("AirPlay burn runtime needs the ASS filter: %v", err)
+	}
+	return v1BurnInSourceFixture(t, func() *v1Fixture {
+		f := newV1Fixture(t, 0)
+		path := filepath.Join(f.root, "Film 00.mp4")
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		out, err := exec.CommandContext(ctx, ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
+			"-f", "lavfi", "-i", "color=black:size=1920x1080:rate=2:duration=24",
+			"-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
+			"-map", "0:v", "-map", "1:a", "-map", "1:a", "-t", "24",
+			"-c:v", "libx264", "-preset", "fast", "-profile:v", "high", "-level:v", "4.0", "-pix_fmt", "yuv420p", "-g", "12",
+			"-c:a", "aac", "-metadata:s:a:0", "language=eng", "-metadata:s:a:1", "language=fra",
+			"-disposition:a:0", "default", "-disposition:a:1", "0", "-movflags", "+faststart", path).CombinedOutput()
+		if err != nil {
+			t.Fatalf("AirPlay source: %v %s", err, out)
+		}
+		media, err := (assets.Probe{}).Inspect(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		item := createPlaybackMovie(t, f.catalogTest, f.libraryHandle, path, "Film 00", 2000, media.Duration, media.Container, media.VideoCodec, media.AudioCodec)
+		f.records = append(f.records, item)
+		f.items = append(f.items, item.Public)
+		f.names["film00"] = item
+		f.catalogTest.Drain()
+		return f
+	})
+}
 
 func airPlayKnownStreams(t *testing.T, f *v1Fixture) {
 	t.Helper()
@@ -25,7 +70,7 @@ func TestAirPlayReceiverPreparesExactCurrentChoicesBeforeHandoff(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping measured slow test in short mode")
 	}
-	f, drawn := v1BurnInFixture(t)
+	f, drawn := airPlayRuntimeFixture(t)
 	if _, err := f.db.Exec(`UPDATE playback_owner_policy SET transcoding_enabled=1`); err != nil {
 		t.Fatal(err)
 	}
@@ -107,13 +152,33 @@ func TestAirPlayReceiverPreparesExactCurrentChoicesBeforeHandoff(t *testing.T) {
 			t.Fatal("preparation changed the local picture")
 		}
 		grant := strings.TrimSuffix(strings.TrimPrefix(prepared.Presentation.URL, "/v1/media/"), "/master.m3u8")
+		var media string
+		if e := f.db.QueryRow(`SELECT media_session_id FROM playback_airplay_presentations WHERE session_id=?`, local.ID).Scan(&media); e != nil {
+			t.Fatal(e)
+		}
+		if track == drawn {
+			// Joining publication makes an asynchronous encoder failure observable
+			// before the next choice retires this presentation.
+			if e := f.v1.Playback.Ready(context.Background(), playback.Session{ID: media, Mode: "hls"}); e != nil {
+				var code, diagnostic string
+				_ = f.db.QueryRow(`SELECT failure_code,diagnostic FROM playback_artifacts WHERE session_id=?`, media).Scan(&code, &diagnostic)
+				t.Fatalf("receiver burn publication: %v; %s: %s", e, code, diagnostic)
+			}
+			manifest := f.raw("GET", prepared.Presentation.URL, "", nil, nil)
+			if manifest.Code != 200 || !strings.HasPrefix(manifest.Body.String(), "#EXTM3U") {
+				t.Fatalf("receiver burn manifest: %d %s", manifest.Code, manifest.Body.String())
+			}
+			segmentURL := strings.TrimSuffix(prepared.Presentation.URL, "master.m3u8") + fmt.Sprintf("segment-%06d.ts", body.PositionMs/(1000*playback.HLSSegmentSeconds))
+			segment := f.raw("GET", segmentURL, "", nil, nil)
+			if segment.Code != 200 || segment.Body.Len() == 0 {
+				var code, diagnostic string
+				_ = f.db.QueryRow(`SELECT failure_code,diagnostic FROM playback_artifacts WHERE session_id=?`, media).Scan(&code, &diagnostic)
+				t.Fatalf("receiver burn segment: %d %s; %s: %s", segment.Code, segment.Body.String(), code, diagnostic)
+			}
+		}
 		_, _, _, e := f.v1.Playback.ResolveGrantContext(context.Background(), grant)
 		if e != nil {
 			t.Fatalf("receiver grant: %v", e)
-		}
-		var media string
-		if e = f.db.QueryRow(`SELECT media_session_id FROM playback_airplay_presentations WHERE session_id=?`, local.ID).Scan(&media); e != nil {
-			t.Fatal(e)
 		}
 		plan, e := f.v1.Playback.SessionPlan(context.Background(), media)
 		if e != nil || plan == nil || !plan.AirPlay || len(plan.Renditions) != 0 || plan.Mode != "hls" {

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/decoder"
 	"github.com/PorticoMediaServer/portico/server/internal/decodertest"
@@ -66,7 +67,11 @@ func TestPlaybackV1SubtitleSidecars(t *testing.T) {
 
 func v1SubtitleFixture(t *testing.T) (*v1Fixture, *subtitles.Service, identity.Principal, string) {
 	t.Helper()
-	f := newV1Fixture(t, 1)
+	return v1SubtitleFixtureFrom(t, newV1Fixture(t, 1))
+}
+
+func v1SubtitleFixtureFrom(t *testing.T, f *v1Fixture) (*v1Fixture, *subtitles.Service, identity.Principal, string) {
+	t.Helper()
 	binary, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
@@ -100,6 +105,11 @@ func v1SubtitleFixture(t *testing.T) (*v1Fixture, *subtitles.Service, identity.P
 // generation). The same track with delivery embeddedClient burns nothing.
 func v1BurnInFixture(t *testing.T, preferences ...playback.DeliveryPreferenceSource) (*v1Fixture, string) {
 	t.Helper()
+	return v1BurnInSourceFixture(t, nil, preferences...)
+}
+
+func v1BurnInSourceFixture(t *testing.T, makeSource func() *v1Fixture, preferences ...playback.DeliveryPreferenceSource) (*v1Fixture, string) {
+	t.Helper()
 	ffmpeg := decodertest.QualifiedFFmpeg(t)
 	facts, err := decoder.ProbeToolchain(context.Background(), ffmpeg)
 	if err != nil {
@@ -108,19 +118,29 @@ func v1BurnInFixture(t *testing.T, preferences ...playback.DeliveryPreferenceSou
 	if !facts.Encoders["libx264"] || !facts.Encoders["aac"] || !facts.Muxers["hls"] || !facts.Muxers["mp4"] {
 		decodertest.Unavailable(t, "burn-in planning needs the H.264/AAC HLS toolchain capability")
 	}
-	// This test plans the burn (the protocol and the delivery plan), it never
-	// runs the encoder, so a libass FFmpeg isn't required to exercise it; the
-	// rendering itself is covered by playback's ordinary burn-in runtime test.
+	// Planning assertions need the ASS delivery capability even on a toolchain
+	// without libass. Runtime callers check the real filter before using this
+	// fixture; playback also covers ordinary burn-in rendering separately.
 	facts.Filters["ass"] = true
 	previous := decoder.CurrentToolchain()
 	decoder.ConfigureToolchain(facts)
 	t.Cleanup(func() { decoder.RestoreToolchain(previous) })
-	f, subs, principal, source := v1SubtitleFixture(t)
+	if makeSource == nil {
+		makeSource = func() *v1Fixture { return newV1Fixture(t, 1) }
+	}
+	f, subs, principal, source := v1SubtitleFixtureFrom(t, makeSource())
 	// Burn-in is an HLS conversion: this server needs its HLS producer.
 	hls, err := playback.NewHLS(context.Background(), f.db, filepath.Join(t.TempDir(), "hls"), ffmpeg)
 	if err != nil {
 		t.Fatalf("create HLS producer: %v", err)
 	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := hls.Shutdown(ctx); err != nil {
+			t.Errorf("shutdown burn-in fixture: %v", err)
+		}
+	})
 	player := playback.New(f.db)
 	player.ConfigureSubtitleDelivery(subs)
 	player.ConfigureHLS(hls)
