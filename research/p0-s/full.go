@@ -19,6 +19,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -33,13 +34,20 @@ func save(p string, v any) {
 	must(os.WriteFile(p+".tmp", b, 0644))
 	must(os.Rename(p+".tmp", p))
 }
+
+var normalWrites, writeOnly bool
+
 func open(path string) (*sql.DB, *sql.Conn) {
 	db, e := sql.Open("sqlite", path)
 	must(e)
 	db.SetMaxOpenConns(1)
 	c, e := db.Conn(context.Background())
 	must(e)
-	_, e = c.ExecContext(context.Background(), "PRAGMA busy_timeout=1000; PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL; PRAGMA cache_size=-16384; PRAGMA temp_store=MEMORY;")
+	settings := "PRAGMA busy_timeout=1000; PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL; PRAGMA cache_size=-16384; PRAGMA temp_store=MEMORY;"
+	if normalWrites {
+		settings = strings.Replace(settings, "synchronous=FULL", "synchronous=NORMAL", 1) + "PRAGMA wal_autocheckpoint=0;"
+	}
+	_, e = c.ExecContext(context.Background(), settings)
 	must(e)
 	r, e := c.QueryContext(context.Background(), "SELECT id,title FROM catalog_entities LIMIT 40")
 	must(e)
@@ -113,6 +121,9 @@ func acceptanceSQL(start, count int) string {
 		b := a + strings.Index(q[a:], " UPDATE libraries")
 		q = q[:a] + fmt.Sprintf(" INSERT INTO search_own_prefix(rowid,title_prefix_tokens,initial_prefix_tokens) SELECT id,title_prefix_tokens,initial_prefix_tokens FROM catalog_entities WHERE id BETWEEN %d AND %d;\n", start, end) + q[b:]
 	}
+	if normalWrites {
+		q += fmt.Sprintf("INSERT INTO admin_receipts(scope,operation_id,digest,result,created_ms) VALUES('research.ingest','%d-%d','%s','applied',1);", start, count, strings.Repeat("0", 64))
+	}
 	return q
 }
 func seedAndSweep(c *sql.Conn, target int, out, hash string) {
@@ -149,11 +160,13 @@ func seedAndSweep(c *sql.Conn, target int, out, hash string) {
 		}
 	}
 	save(filepath.Join(out, "full-seed.json"), map[string]any{"ddl_sha256": hash, "entities": n, "batches": batches, "shape": "Basic movie acceptance: entity+asset+link+encoded own-title FTS+library revision/event. No provider metadata, staging, scanner IO, prepared-media or full production typed command."})
-	for rep := 0; rep < 3; rep++ {
-		cmd := exec.Command(os.Args[0], "--ddl", ddlPathForChildren, "--db", dbPathForChildren, "--out", out, "--browse-child")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		must(cmd.Run())
+	if !writeOnly {
+		for rep := 0; rep < 3; rep++ {
+			cmd := exec.Command(os.Args[0], "--ddl", ddlPathForChildren, "--db", dbPathForChildren, "--out", out, "--browse-child")
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			must(cmd.Run())
+		}
 	}
 	rows := []any{}
 	sizes := []int{16, 32, 64, 128, 256, 1000}
@@ -179,7 +192,7 @@ func seedAndSweep(c *sql.Conn, target int, out, hash string) {
 		}
 		mx := pct(xs, 1)
 		p99 := pct(xs, .99)
-		row := map[string]any{"ddl_sha256": hash, "batch": count, "n": len(xs), "samples_ms": xs, "p50_ms": pct(xs, .5), "p95_ms": pct(xs, .95), "p99_ms": p99, "max_ms": mx, "strict": p99 <= 10 && mx <= 25, "max50": mx <= 50, "entities_per_s": float64(count*runs) / time.Since(t).Seconds(), "resident_entities": n}
+		row := map[string]any{"ddl_sha256": hash, "batch": count, "synchronous": map[bool]string{true: "NORMAL", false: "FULL"}[normalWrites], "autocheckpoint": map[bool]int{true: 0, false: 1000}[normalWrites], "n": len(xs), "samples_ms": xs, "p50_ms": pct(xs, .5), "p95_ms": pct(xs, .95), "p99_ms": p99, "max_ms": mx, "strict": p99 <= 10 && mx <= 25, "max50": mx <= 50, "entities_per_s": float64(count*runs) / time.Since(t).Seconds(), "resident_entities": n}
 		rows = append(rows, row)
 		save(filepath.Join(out, "full-write-sweep.json"), rows)
 		fmt.Println("full sweep", count, "p99", p99, "max", mx)
@@ -266,7 +279,11 @@ func main() {
 	child := flag.Bool("child", false, "100 physical opens")
 	browseChild := flag.Bool("browse-child", false, "500 samples per entity sort/page")
 	target := flag.Int("seed", 1000000, "resident Basic movie facts")
+	normalFlag := flag.Bool("normal", false, "NORMAL writer and separate PASSIVE checkpoint")
+	writeFlag := flag.Bool("write-only", false, "seed and writer quanta only")
 	flag.Parse()
+	normalWrites = *normalFlag
+	writeOnly = *writeFlag
 	ddlPathForChildren = *ddl
 	dbPathForChildren = *dbpath
 	must(os.MkdirAll(*out, 0700))
@@ -308,7 +325,42 @@ func main() {
 	db, c := open(*dbpath)
 	hash := hex.EncodeToString(sum[:])
 	if *target > 0 {
+		var stop chan struct{}
+		var wg sync.WaitGroup
+		checkpoints := []any{}
+		if normalWrites {
+			stop = make(chan struct{})
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				d, cc := open(*dbpath)
+				defer d.Close()
+				defer cc.Close()
+				ticker := time.NewTicker(100 * time.Millisecond)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-stop:
+						return
+					case <-ticker.C:
+						start := time.Now()
+						var busy, log, done int
+						e := cc.QueryRowContext(context.Background(), "PRAGMA wal_checkpoint(PASSIVE)").Scan(&busy, &log, &done)
+						err := ""
+						if e != nil {
+							err = e.Error()
+						}
+						checkpoints = append(checkpoints, map[string]any{"start_ns": start.UnixNano(), "ms": float64(time.Since(start).Nanoseconds()) / 1e6, "busy": busy, "log": log, "checkpointed": done, "error": err})
+					}
+				}
+			}()
+		}
 		seedAndSweep(c, *target, *out, hash)
+		if stop != nil {
+			close(stop)
+			wg.Wait()
+			save(filepath.Join(*out, "normal-checkpoints.json"), map[string]any{"ddl_sha256": hash, "interval_ms": 100, "synchronous": "NORMAL", "writer_wal_autocheckpoint": 0, "samples": checkpoints})
+		}
 	}
 	var tables, entities int64
 	var version string
@@ -318,6 +370,9 @@ func main() {
 	save(filepath.Join(*out, "full-manifest.json"), map[string]any{"ddl_sha256": hex.EncodeToString(sum[:]), "tables": tables, "entities": entities, "sqlite_version": version, "go": runtime.Version(), "boundary": "Exact complete DDL; Basic movie-only populated fixture, no production statement cache or full private typed writer/scanner/provider paths."})
 	must(c.Close())
 	must(db.Close())
+	if writeOnly {
+		return
+	}
 	for j := 0; j < 3; j++ {
 		cmd := exec.Command(os.Args[0], "--ddl", *ddl, "--db", *dbpath, "--out", *out, "--child")
 		cmd.Stdout = os.Stdout

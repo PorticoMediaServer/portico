@@ -1,15 +1,15 @@
 import argparse,collections,gzip,hashlib,json,pathlib
 ap=argparse.ArgumentParser();ap.add_argument('root');args=ap.parse_args();root=pathlib.Path(args.root);parts=[];summary={}
-for d in sorted(root.glob('100000-*')):
- profile=d.name.split('-',1)[1];phases={}
+for d in sorted([p for p in root.iterdir() if p.name.split('-')[0] in ['100000','400000','1000000']]):
+ size,profile=d.name.split('-',1);phases={}
  for phase in ['rest','ingest']:
   p=d/f'queries-{phase}.jsonl'
   if p.exists():rs=[json.loads(x) for x in p.read_text().splitlines()]
   else:
    with gzip.open(str(p)+'.gz','rt') as f:rs=[json.loads(x) for x in f]
   phases[phase]=rs
- summary[profile]={p:[{k:r[k] for k in ['name','summary','overlap']} for r in rs] for p,rs in phases.items()}
- parts+=['\n### 100k '+profile+' query matrix','\nWorst applicable kind/direction for each cell, selected by that cohort’s p95; shown as p50 / p95 ms. These are individual cohort percentiles, never percentiles of pooled kind maxima. Native SQL cost only.','\n| Sort | Rest open | Ingest open | Rest restricted | Ingest restricted |','|---|---:|---:|---:|---:|']
+ summary[d.name]={p:[{k:r[k] for k in ['name','summary','overlap']} for r in rs] for p,rs in phases.items()}
+ parts+=['\n### '+size+' '+profile+' query matrix','\nWorst applicable kind/direction for each cell, selected by that cohort’s p95; shown as p50 / p95 ms. These are individual cohort percentiles, never percentiles of pooled kind maxima. Native SQL cost only.','\n| Sort | Rest open | Ingest open | Rest restricted | Ingest restricted |','|---|---:|---:|---:|---:|']
  sorts=[]
  for r in phases['rest']:
   sort=r['name'].split('/')[0]
@@ -26,7 +26,9 @@ for d in sorted(root.glob('100000-*')):
   if not r['name'].startswith(('facets','totals','search/word')):continue
   s=r['summary'];v=next(x['summary'] for x in phases['ingest'] if x['name']==r['name'])
   parts.append(f"| {r['name']} | {s['p50_ms']:.2f} / {s['p95_ms']:.2f} | {v['p50_ms']:.2f} / {v['p95_ms']:.2f} | {v['max_vm']:,} |")
- parts.append('\nAll 608 SQL cohorts completed in each phase. All 608 ingest cohorts have a positive committed-row overlap receipt; no idle cohort is counted. The 21 published IDs are exercised over this model’s applicable kinds, but source/wire compatibility remains an independent open gate.')
+ counts={p:{'cohorts':len(rs),'incomplete':sum(r['summary']['completed']!=r['summary']['n'] for r in rs),'idle':sum(r['overlap']['label']=='idle' for r in rs)} for p,rs in phases.items()}
+ parts.append('\nCohort accounting: '+json.dumps(counts)+'. Interrupted or idle cohorts are not passes. The 21 published IDs are exercised over this model’s applicable kinds; source/wire compatibility remains an independent open gate.')
+ if not (d/'storage.json').exists():continue
  st=json.loads((d/'storage.json').read_text());live=[x for x in st['objects'] if x['type']=='table' and not x['name'].startswith(('sqlite_','search_own_prefix'))];idx=[x for x in st['objects'] if x['type']=='index'];logical=sum(x['rows'] or 0 for x in live);entries=sum((x['dbstat'][0][2] or 0)+(x['dbstat'][0][3] or 0) for x in idx)
  parts.append(f"\nCaptured at {st['entity_count']:,} resident entities: {logical:,} logical rows excluding FTS virtual/shadow aliases ({logical/st['entity_count']:.2f}/entity); {entries:,} explicit/unique B-tree index records ({entries/st['entity_count']:.2f}/entity, excludes WITHOUT ROWID table PKs and FTS postings). Main DB {st['db_bytes']:,} bytes plus WAL {st['wal_bytes']:,} bytes. Native schema allocation {st['memory']['schema']:,} bytes, pager {st['memory']['pager']:,} bytes: **reduced-core diagnostics only**. Churn WAL is substantial and is not a steady-state or checkpoint-debt bound.")
  opens=[json.loads(p.read_text())['summary'] for p in d.glob('opens-*.json')]
@@ -50,7 +52,7 @@ if vals:
 (root/'S-measurements.json').write_text(json.dumps(summary,indent=2))
 (root/'S-RESULT-TABLES.md').write_text('\n'.join(parts)+'\n')
 # Preserve completed evidence compactly; hashes cover original and compressed bytes.
-for d in root.glob('100000-*'):
+for d in [p for p in root.iterdir() if p.name.split('-')[0] in ['100000','400000','1000000']]:
  manifest=[]
  for p in d.glob('*.jsonl'):
   original=p.read_bytes();compressed=gzip.compress(original,mtime=0);q=p.with_suffix(p.suffix+'.gz');q.write_bytes(compressed);manifest.append({'file':p.name,'sha256':hashlib.sha256(original).hexdigest(),'compressed_file':q.name,'compressed_sha256':hashlib.sha256(compressed).hexdigest(),'bytes':len(original)});p.unlink()
