@@ -30,6 +30,29 @@ class EngineeringRuleTests(unittest.TestCase):
                       'queries.moved(dependsOn.personalTitle(library, id));']:
             self.assertEqual(self.found(fixed), {}, fixed)
 
+    def test_fence_compare_narrowing(self):
+        # Step 7 item 5: shape and presence checks, and reads through an object named fence, are not fence compares.
+        for spared in ["if (!record(raw) || typeof raw.viewerFence !== 'string') bad();",
+                       'if (editingFence !== undefined && ready) save();',
+                       'if (snapshot.fence === null) return;',
+                       'if (destination.sessionId === playback.fence.sessionId) open();',
+                       'if (session?.id !== fence?.sessionId) return;',
+                       'return a.serverId === b.serverId && a.viewerFence === b.viewerFence; // fence-compare: kept (same answer)']:
+            self.assertEqual(self.found(spared), {}, spared)
+        for counted in ['if (fence === held.fence) return;',
+                        'if (preview.viewerFence !== ticket.context.scope.privacyFence) throw x;',
+                        'if (a.viewerFence !== b.fence.viewerFence) return;',
+                        '// fence-compare: kept (a reason on another line exempts nothing)\nif (fence === held.fence) return;']:
+            self.assertEqual(self.found(counted), {'fence-compare': {'web/src/x.ts': 1}}, counted)
+
+    def test_authorized_home_is_kept_on_purpose_and_only_by_its_marker(self):
+        path = 'apps/native/src-next/screens/home/model.ts'
+        source = (BASELINE.parent.parent / path).read_text(encoding='utf-8')
+        line = next(line for line in source.splitlines() if 'document.viewerFence === authority.viewerFence' in line)
+        self.assertIn('fence-compare: kept', line)
+        self.assertEqual(self.found(line, path), {})
+        self.assertEqual(self.found(line.split('//')[0], path), {'fence-compare': {path: 1}})
+
     def test_the_homes_of_the_helpers_are_exempt(self):
         self.assertEqual(self.found('a.accessToken === b.accessToken', 'packages/client-core/src/session-authority.ts'), {})
         self.assertEqual(self.found("'retry-after'", 'packages/client-core/src/timer.ts'), {})
