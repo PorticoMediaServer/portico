@@ -217,7 +217,13 @@
     "reason": "Approved device custody and linked abort: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
     "sites": [
       "apps/native/src-next/screens/downloads/device.ts#96d07b074f1306f7"
-    ]
+    ],
+    "additionalSites": {
+      "apps/native/src-next/screens/downloads/device.ts#683eb631756a9be6": {
+        "category": "platform-url",
+        "reason": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes only, and no domain JSON is constructed."
+      }
+    }
   },
   "apps/native/src-next/screens/saved/directory-commands.ts": {
     "category": "platform-transport",
@@ -252,6 +258,34 @@
     "reason": "Approved playback opening/authority and linked abort: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
     "sites": [
       "web/src/screens/watch/music/favorite-binding.ts#8b63ad0b49068bdd"
+    ]
+  },
+  "apps/desktop/src/offline.ts": {
+    "category": "platform-url",
+    "reason": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes only, and no domain JSON is constructed.",
+    "sites": [
+      "apps/desktop/src/offline.ts#cb7cad3af70c077d"
+    ],
+    "additionalSites": {
+      "apps/desktop/src/offline.ts#96e670b478a3c608": {
+        "category": "platform-url",
+        "reason": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes only, and no domain JSON is constructed."
+      }
+    }
+  },
+  "apps/native/platform/offline-downloads.ts": {
+    "category": "platform-url",
+    "reason": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes only, and no domain JSON is constructed.",
+    "sites": [
+      "apps/native/platform/offline-downloads.ts#131397bcb5eb95b2",
+      "apps/native/platform/offline-downloads.ts#aea29f47f699036a"
+    ]
+  },
+  "web/src/screens/saved/Saved.route.tsx": {
+    "category": "platform-url",
+    "reason": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes only, and no domain JSON is constructed.",
+    "sites": [
+      "web/src/screens/saved/Saved.route.tsx#816b9d4e902eb35a"
     ]
   }
 }

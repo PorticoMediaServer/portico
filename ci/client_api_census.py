@@ -177,17 +177,23 @@ def compare(actual, baseline):
     return new, stale
 
 
+def exception_pins(entry):
+    return {**{key: {'category': entry['category'], 'reason': entry['reason']} for key in entry['sites']},
+            **entry.get('additionalSites', {})}
+
+
 def classify(sites, exceptions):
     approved = {'platform-url','native-extension','native-listening','separate-product','platform-transport'}
     exempt, direct = [], []
     for path,entry in exceptions.items():
-        if entry['category'] not in approved or not entry['reason'].strip() or any(c in path for c in '*?['):
+        if any(pin['category'] not in approved or not pin['reason'].strip() for pin in exception_pins(entry).values()) or any(c in path for c in '*?['):
             raise ValueError(f'Invalid exception (exact file, approved category and reason required): {path}')
         if not entry.get('sites'): raise ValueError(f'Exception must pin its exact construction/request sites: {path}')
     for site in sites:
         entry = exceptions.get(site['file'])
-        allowed = entry and site['id'] in entry['sites']
-        if allowed and entry['category']=='platform-transport' and not site.get('forwardedRequest'):
+        pin = exception_pins(entry).get(site['id']) if entry else None
+        allowed = pin is not None
+        if allowed and pin['category']=='platform-transport' and not site.get('forwardedRequest'):
             raise ValueError(f"{site['file']}:{site['line']}: platform transport must forward path, method, body unchanged to request with only a signal argument")
         (exempt if allowed else direct).append(site)
     return direct, exempt
@@ -198,7 +204,7 @@ def base_guard(baseline, exceptions, old_baseline, old_exceptions):
     # An app slice cannot hide a new domain request by broadening an existing exception.
     for path,entry in exceptions.items():
         old=old_exceptions.get(path)
-        if not old or entry['category']!=old['category'] or entry['reason']!=old['reason'] or set(entry['sites'])-set(old['sites']):
+        if not old or any(exception_pins(old).get(key)!=pin for key,pin in exception_pins(entry).items()):
             errors.append(f'{path}: exception expanded or changed; obtain a separate approved census-policy change')
     return errors
 
@@ -226,7 +232,7 @@ def main():
         old_baseline,old_exceptions=old(BASELINE),old(ALLOWLIST)
         if old_baseline is not None:new+=base_guard(baseline,exceptions,old_baseline,old_exceptions or {})
     current_ids=set(counts(exempt))
-    stale_exceptions=[site for e in exceptions.values() for site in e['sites'] if site not in current_ids]
+    stale_exceptions=[site for e in exceptions.values() for site in exception_pins(e) if site not in current_ids]
     if stale_exceptions:new += [f'{site}: stale exception; remove its allowance' for site in stale_exceptions]
     if a.report:a.report.write_text(json.dumps({'direct':direct,'exceptions':exempt},indent=2)+'\n')
     if new:
