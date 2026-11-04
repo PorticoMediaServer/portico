@@ -272,7 +272,10 @@ export class LyricsService {
     }
     // A song with no lyrics answers 404: that is the empty state ("No lyrics"), not a failure.
     refresh = () => this.run(async (signal) => { let raw: unknown; try { raw = await this.request(this.path() + this.query(), 'GET', undefined, signal); } catch (e) { if ((e as { status?: number } | null)?.status === 404) return { data: null, preview: null, candidates: [] }; throw e; } return { data: this.check(raw) }; });
-    choose = (resource: LyricRevision | null, context?: LyricsChooseContext): Promise<void> => { if (context !== undefined) return this.chooseScoped(resource, context); const d = this.state.data; if (!d || !this.target.sessionId)
+    /** Unscoped, the choice belongs to the lyrics shown now: a row from an earlier read (say, one adopted under a
+     * moved viewer fence since) sends nothing, so it never takes a newer selection revision as its own. */
+    choose = (resource: LyricRevision | null, context?: LyricsChooseContext): Promise<void> => { if (context !== undefined) return this.chooseScoped(resource, context); const d = this.state.data; if (!d || !this.target.sessionId
+        || resource !== null && !d.resources.includes(resource))
         return Promise.resolve(); const body = { ...this.bound(), expectedSelectionRevision: d.selection.revision, resourceId: resource?.id ?? '', revision: resource?.revision ?? 0 }; return this.mutate('/selection', 'PUT', body); };
     private chooseScoped(resource: LyricRevision | null, context: LyricsChooseContext): Promise<void> {
         const generation = this.generation, shown = context.snapshot, signal = context.signal, current = context.isCurrent;

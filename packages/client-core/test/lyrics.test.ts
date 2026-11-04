@@ -370,3 +370,24 @@ test('a lyrics write whose answer arrives under a moved viewer fence still refus
     assert.notEqual(service.getSnapshot().error, '', 'the write answer under another fence is refused');
     service.dispose();
 });
+// Sol 8 on #804: adopting a moved-fence read must not let a choice made on the lyrics shown before it
+// borrow the newer read's selection revision (native's retained row callback calls unscoped choose).
+test('a retained choice from lyrics shown before a moved-fence read sends nothing; a row from the lyrics shown now still chooses', async () => {
+    let fence = 'a'.repeat(64), selectionRevision = 1;
+    const puts: Record<string, unknown>[] = [];
+    const service = new LyricsService(api(async (_path, method, body) => {
+        if (method === 'PUT') { puts.push(body as Record<string, unknown>); return { revision: selectionRevision + 1, resource: null }; }
+        const next = view(); next.scope.viewerFence = fence; next.selection = { revision: selectionRevision, resource: revision }; return next;
+    }), scope, target);
+    await service.refresh();
+    const shownBefore = service.getSnapshot().data!.resources[0]!;
+    fence = 'e'.repeat(64); selectionRevision = 2;
+    await service.refresh();
+    assert.equal(service.getSnapshot().data?.selection.revision, 2);
+    await service.choose(shownBefore);
+    assert.equal(puts.length, 0, 'the old row never takes the newer selection revision');
+    await service.choose(service.getSnapshot().data!.resources[0]!);
+    assert.equal(puts.length, 1);
+    assert.equal(puts[0]!.expectedSelectionRevision, 2);
+    service.dispose();
+});
