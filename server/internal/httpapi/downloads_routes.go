@@ -16,6 +16,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/mediaanalysis"
 	"github.com/PorticoMediaServer/portico/server/internal/metadata"
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"github.com/PorticoMediaServer/portico/server/internal/subtitles"
 )
 
@@ -28,6 +29,7 @@ import (
 
 func downloadErrorDefinitions() []apierror.Definition {
 	return []apierror.Definition{
+		{Code: "download_quality_required", Status: 400, Message: "Choose a quality for this download.", Retry: apierror.Never},
 		{Code: "download_conflict", Status: 409, Message: publicErrorMessage("download_conflict"), Retry: apierror.AfterRefresh},
 		{Code: "storage_full", Status: 409, Message: publicErrorMessage("storage_full"), Retry: apierror.Never},
 		{Code: "downloads_not_allowed", Status: 403, Message: publicErrorMessage("downloads_not_allowed"), Retry: apierror.Never},
@@ -52,7 +54,9 @@ func downloadError(e error) error {
 	}
 	code := ""
 	switch {
-	case errors.Is(e, downloads.ErrRequestConflict):
+	case errors.Is(e, downloads.ErrQualityRequired):
+		code = "download_quality_required"
+	case errors.Is(e, downloads.ErrRequestConflict), errors.Is(e, operations.ErrIdempotencyKeyReused):
 		code = "idempotency_key_reused"
 	case errors.Is(e, downloads.ErrInput), errors.Is(e, downloads.ErrReceipt):
 		code = "invalid_request"
@@ -216,6 +220,9 @@ func registerDownloads(r *apikit.Registry, d Dependencies) {
 		failures := read
 		if method != "GET" {
 			failures = write
+		}
+		if id == "create_download_preparations" {
+			failures = append(append([]string{}, failures...), "download_quality_required", "idempotency_key_reused")
 		}
 		var integers []apikit.QueryInteger
 		switch id {

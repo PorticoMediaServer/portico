@@ -39,6 +39,9 @@ func videoDownloadQuality(ctx context.Context, tx *sql.Tx, p identity.Principal)
 		return "", e
 	}
 	q := values.Text("quality.downloads")
+	if q == "ask" {
+		return q, nil
+	}
 	for _, id := range qualityladder.IDs() {
 		if q == id {
 			return q, nil
@@ -56,6 +59,19 @@ func requestedDownloadQuality(ctx context.Context, tx *sql.Tx, p identity.Princi
 	}
 	if q != "" {
 		return q, nil
+	}
+	quality, err := defaultDownloadQuality(ctx, tx, p, s)
+	if err == nil && quality == "ask" {
+		return "", ErrQualityRequired
+	}
+	return quality, err
+}
+
+// The menu must publish Ask without starting work or choosing a rung. Only
+// admission requires a concrete choice.
+func defaultDownloadQuality(ctx context.Context, tx *sql.Tx, p identity.Principal, s source) (string, error) {
+	if readingKind(s.Kind) {
+		return QualityOriginal, nil
 	}
 	if s.Kind == "song" {
 		return musicDownloadQuality(ctx, tx, p)

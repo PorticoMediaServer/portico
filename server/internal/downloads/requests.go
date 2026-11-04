@@ -92,9 +92,6 @@ func (s *Service) requestAccess(ctx context.Context, tx *sql.Tx, p identity.Prin
 	return access(ctx, tx, p, device, "i.id")
 }
 func normalizeContainerRequest(r *ContainerRequest) error {
-	if r.Quality == "" && r.Target.Kind != "album" && r.Target.Kind != "playlist" {
-		r.Quality = QualityOriginal
-	}
 	if !validID.MatchString(r.OperationID) || !validID.MatchString(r.DeviceID) || !validID.MatchString(r.Target.ID) || r.Quality != "" && preparationQuality(string(r.Quality)) != nil {
 		return ErrInput
 	}
@@ -158,6 +155,17 @@ func (s *Service) SubmitContainer(ctx context.Context, p identity.Principal, r C
 		if !anyVisible {
 			return ErrNotFound
 		}
+		// Pin the saved video choice once, after visibility and replay checks.
+		// Audio containers keep their own music/original defaults.
+		quality := string(r.Quality)
+		if quality == "" && (r.Target.Kind == "show" || r.Target.Kind == "season") {
+			quality, e = requestedDownloadQuality(ctx, tx, p, "", source{Kind: "episode"})
+			if e != nil {
+				return e
+			}
+		} else if quality == "" && r.Target.Kind == "book" {
+			quality = QualityOriginal
+		}
 		musicQuality, e := musicDownloadQuality(ctx, tx, p)
 		if e != nil {
 			return e
@@ -174,7 +182,7 @@ func (s *Service) SubmitContainer(ctx context.Context, p identity.Principal, r C
 		if e != nil {
 			return e
 		}
-		_, e = tx.ExecContext(ctx, `INSERT INTO download_requests(id,profile_key,operation_id,request_hash,principal,device_id,target_kind,target_id,quality,music_quality,episodes,keep_next,selection_fence,created_ms,updated_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, id, operations.ViewerKey(p), r.OperationID, hash, string(principal), r.DeviceID, r.Target.Kind, target, r.Quality, musicQuality, r.Policy.Episodes, r.Policy.KeepNext, fence, s.millis(), s.millis())
+		_, e = tx.ExecContext(ctx, `INSERT INTO download_requests(id,profile_key,operation_id,request_hash,principal,device_id,target_kind,target_id,quality,music_quality,episodes,keep_next,selection_fence,created_ms,updated_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, id, operations.ViewerKey(p), r.OperationID, hash, string(principal), r.DeviceID, r.Target.Kind, target, quality, musicQuality, r.Policy.Episodes, r.Policy.KeepNext, fence, s.millis(), s.millis())
 		return e
 	})
 	if e != nil {

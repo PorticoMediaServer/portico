@@ -15,7 +15,7 @@ import (
 // PreferenceRegistryRevision changes whenever a field is added, removed, or its
 // domain moves. Clients render settings from the published registry, so the
 // revision is the only thing they have to compare between releases.
-const PreferenceRegistryRevision = "settings.14a.preferences.audiobooks.3"
+const PreferenceRegistryRevision = "settings.14a.preferences.downloads.4"
 
 const (
 	HomeLayoutMaxRows        = 64
@@ -133,7 +133,7 @@ func qualityFields() []PreferenceField {
 		prefEnum("quality.remote", "original", SavedQualities, ScopeDeviceClass),
 		prefEnum("quality.mobile", "720p-high", SavedQualities, ScopeDeviceClass),
 		// The saved default for a download; the server's own download ceiling still applies.
-		prefEnum("quality.downloads", "original", SavedQualities, ScopeDeviceClass),
+		prefEnum("quality.downloads", "original", append(qualityladder.IDs(), "ask"), ScopeDeviceClass),
 	}
 }
 
