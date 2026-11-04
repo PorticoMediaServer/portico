@@ -727,6 +727,13 @@ func main() {
 		emit("seed_completed", map[string]any{"items": *n})
 		return
 	}
+	if *mode == "publisher-wal" {
+		shortOnlyBench(db, 128)
+		publisherFlow(db, *n, 8)
+		finishMixed(db)
+		emit("publisher_wal_completed", map[string]any{"items": *n})
+		return
+	}
 	if *mode == "publisher" {
 		publisherBench(db, *n, *rounds)
 		return

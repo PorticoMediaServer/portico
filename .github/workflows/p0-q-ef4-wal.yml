@@ -1,0 +1,54 @@
+name: Phase 0 ef4 publication WAL reader and mixed durability
+on:
+  push:
+    branches: ['schema-v1/p0-q-ef4-controls']
+    paths: ['research/p0-q/**', '.github/workflows/p0-q-ef4-wal.yml']
+permissions:
+  contents: read
+env:
+  GOWORK: 'off'
+jobs:
+  wal:
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [standard, old8g]
+        case:
+          - {n: 100000, cap: 0, config: normal-passive}
+          - {n: 400000, cap: 0, config: normal-passive}
+          - {n: 1000000, cap: 0, config: normal-passive}
+          - {n: 100000, cap: 250, config: normal-passive}
+          - {n: 100000, cap: 1000, config: normal-passive}
+          - {n: 100000, cap: 2000, config: normal-passive}
+          - {n: 1000000, cap: 250, config: normal-passive}
+          - {n: 1000000, cap: 1000, config: normal-passive}
+          - {n: 1000000, cap: 2000, config: normal-passive}
+          - {n: 100000, cap: 0, config: normal-passive-250}
+          - {n: 100000, cap: 0, config: normal-passive-1000}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: research/p0-q/go.mod, cache-dependency-path: research/p0-q/go.sum}
+      - name: Build bundled engine harness
+        working-directory: research/p0-q
+        run: go build -o "$RUNNER_TEMP/p0-q-bench" .
+      - name: Measure source publisher bounded readers and FULL auth
+        env:
+          MODE: publisher-wal
+          N: ${{ matrix.case.n }}
+          PROFILE: ${{ matrix.profile }}
+          CONFIG: ${{ matrix.case.config }}
+          CJK_SHARE: 5
+          BOUNDED: 1
+          MIXED: 1
+          SNAPSHOT_CAP: ${{ matrix.case.cap }}
+        run: bash research/p0-q/run-experiment.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: q-ef4-wal-${{ matrix.profile }}-${{ matrix.case.n }}-cap${{ matrix.case.cap }}-${{ matrix.case.config }}
+          path: '${{ runner.temp }}/p0-q-experiment/out'
+          retention-days: 30

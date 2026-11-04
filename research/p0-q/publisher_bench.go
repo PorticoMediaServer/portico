@@ -152,6 +152,8 @@ func publisherBench(db *sql.DB, n, rounds int) {
 	emit("publisher_completed", map[string]any{"items": n, "largest_tested_strict_pass": largest, "generation_flip": true, "empty_controls": true})
 }
 func publisherFlow(db *sql.DB, n, batch int) {
+	stopReader := startPublisherReader()
+	defer stopReader()
 	rate := 100.0
 	if strings.Contains(profileName, "old8g") {
 		rate = 40
