@@ -14,7 +14,7 @@ import {touchScrub, useSiriRemoteTouch} from '../../platform/siri-remote';
 import {Focusable} from '../../kit/controls';
 import {useTheme} from '../../kit/theme';
 import type {NativeWatchControls} from './controls';
-import {NativeTrickplayStrip} from './TrickplayStrip';
+import {NativeScrubPreview, NativeTrickplayStrip} from './TrickplayStrip';
 import type {NativePlaybackAdapter} from '../../platform/playback/types';
 import type {ArtworkSource} from '../../kit/artwork';
 import type {TrickplaySet} from '../../../../../packages/client-core/src/trickplay';
@@ -67,7 +67,8 @@ export function NativeWatchTimeline({source, playback, controls, compact, enable
   const sessionKey = fence?.kind === 'queue' ? JSON.stringify([fence.sessionId, fence.generation, fence.sourceId])
     : fence?.kind === 'local' ? JSON.stringify(['local', fence.sessionId, fence.generation, fence.playId]) : '';
   const [previews, setPreviews] = useState<Readonly<{key: string; set: TrickplaySet | null}>>();
-  const scrubbing = tv && preview !== undefined, readPreviews = useRef(playback.trickplay), drawnFence = useRef(fence);
+  // WEBFIX-A1: phones and tablets read the same set when a drag starts, for the card above the knob.
+  const scrubbing = preview !== undefined, readPreviews = useRef(playback.trickplay), drawnFence = useRef(fence);
   readPreviews.current = playback.trickplay; drawnFence.current = fence;
   useEffect(() => {
     const read = readPreviews.current, at = drawnFence.current;
@@ -229,7 +230,8 @@ export function NativeWatchTimeline({source, playback, controls, compact, enable
   </Focusable>;
   return <GestureDetector gesture={gesture}><View onLayout={event => {width.current = event.nativeEvent.layout.width; travel.value = event.nativeEvent.layout.width;}} style={{height: tv ? 40 : 44, justifyContent: 'flex-start'}}>
     {tv && preview !== undefined && <NativeTrickplayStrip set={previewSet} artwork={artwork} seconds={preview} start={start} end={end}/>}
-    {!tv && preview !== undefined && <View pointerEvents="none" style={{position: 'absolute', bottom: 44, left: `${Math.min(.9, Math.max(.1, progress)) * 100}%`, padding: 8, borderRadius: 6, backgroundColor: theme.colors.ink}}><Text style={[theme.type.caption, {color: theme.colors.text, fontVariant: ['tabular-nums']}]}>{clockText(preview)}</Text></View>}
+    {!tv && preview !== undefined && <NativeScrubPreview set={previewSet} artwork={artwork} seconds={preview} left={`${Math.min(.9, Math.max(.1, progress)) * 100}%`}
+      fallback={<View pointerEvents="none" style={{position: 'absolute', bottom: 44, left: `${Math.min(.9, Math.max(.1, progress)) * 100}%`, padding: 8, borderRadius: 6, backgroundColor: theme.colors.ink}}><Text style={[theme.type.caption, {color: theme.colors.text, fontVariant: ['tabular-nums']}]}>{clockText(preview)}</Text></View>}/>}
     {tv && <View style={{height: 40, justifyContent: 'center'}}>{seek(40)}</View>}
     {!tv && seek(44)}
   </View></GestureDetector>;

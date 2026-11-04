@@ -38,7 +38,7 @@ async function timelineFixture(vega = false) {
   const {NativeWatchTimeline} = await screenModule(new URL('../src-next/screens/watch/WatchTimeline.tsx', import.meta.url), {
     react: h.react, 'react-native': nativeAtoms, 'react-native-gesture-handler': {Gesture: {Pan: gesture}, GestureDetector: 'Gesture'}, 'react-native-reanimated': animation(h),
     '../../../../../packages/player-core/src': playerCore, '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: String, durationText: (seconds: number) => `${Math.round(seconds / 60)} min`}, '../../../../../packages/i18n/src': i18n,
-    '../../kit/controls': controlsAtoms, '../../kit/theme': themed, './TrickplayStrip': {NativeTrickplayStrip: 'Trickplay'}, './landing-store': landingStoreModule, '../../kit/useMotion': {useMotion: () => ({timing: () => ({})})},
+    '../../kit/controls': controlsAtoms, '../../kit/theme': themed, './TrickplayStrip': {NativeTrickplayStrip: 'Trickplay', NativeScrubPreview: 'ScrubPreview'}, './landing-store': landingStoreModule, '../../kit/useMotion': {useMotion: () => ({timing: () => ({})})},
     '../../platform/tv-keys': {useTVKeyEvent: (handler: typeof key) => {key = handler;}},
     '../../platform/siri-remote': {touchScrub, useSiriRemoteTouch: (enabled: boolean, handler: typeof touch) => {touchListening = enabled; touch = handler;}}, '../../platform/tv-seek-repeat': {createTVSeekRepeat: (step: any) => createTVSeekRepeat(step, clock)},
   });
@@ -419,3 +419,28 @@ test('failure bar edges follow real recovery actions and no invented alternate i
     f.change({...f.source(), entry: undefined}); assert.equal(f.draw().props.differentVersion, undefined, 'a channel or missing entry cannot invent a version target');
   } finally {f.close();}
 });
+
+test('WEBFIX-A1: while a phone or tablet drags, the card above the knob shows the picture there and its time; with no picture the time bubble stays', async () => {
+  const h = watchHooks();
+  const {NativeScrubPreview} = await screenModule(new URL('../src-next/screens/watch/TrickplayStrip.tsx', import.meta.url), {
+    react: h.react, 'react-native': {...nativeAtoms, Image: 'Image', StyleSheet: {absoluteFill: {}, create: (value: unknown) => value}}, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'},
+    '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: (seconds: number) => `t${seconds}`}, '../../kit/theme': themed, '../../kit/useMotion': {useMotion: () => ({effects: {shadows: true}})},
+    './trickplay-frame': await import('../src-next/screens/watch/trickplay-frame.ts'),
+  });
+  const set = {id: 's', sourceId: 'src', sourceRevision: 'r', width: 3200, height: 1800, tileWidth: 320, tileHeight: 180, columns: 10, rows: 10, intervalSeconds: 10, durationSeconds: 1000,
+    sourceOffsetSeconds: 0, tileCount: 1, frameCount: 100, stale: false, revision: 'r', tilesUrl: '/v1/items/i/trickplay/s/tiles', thumbnailsUrl: ''};
+  const draw = (props: Record<string, unknown>) => {h.render(() => NativeScrubPreview({seconds: 125, left: '40%', fallback: 'Bubble', ...props})); return h.flush();};
+  try {
+    const card = draw({set, artwork: (path: string) => ({uri: `https://server${path}`, cacheKey: path, headers: {Authorization: 'Bearer x'}})});
+    assert.equal(card.props.testID, 'scrub-preview');
+    assert.equal(flattenStyle(card.props.style).width, 178); assert.equal(flattenStyle(card.props.style).height, 100);
+    const image = descendants(card).find((node: any) => node.type === 'Image');
+    assert.equal(image.props.source.uri, 'https://server/v1/items/i/trickplay/s/tiles/0.jpg');
+    assert.deepEqual(image.props.source.headers, {Authorization: 'Bearer x'}, 'the sheet is read with the authority\'s own headers');
+    assert.ok(descendants(card).some((node: any) => node.type === 'Text' && node.props.children === 't125'), 'its time sits on the picture');
+    const local = draw({set: {...set, tileUrls: ['file:///d/extras/trickplay-0']}, artwork: () => assert.fail('a downloaded sheet never goes through the server resolver')});
+    assert.equal(descendants(local).find((node: any) => node.type === 'Image').props.source.uri, 'file:///d/extras/trickplay-0');
+    assert.equal(draw({set: null}), 'Bubble', 'no preview set: the plain time bubble');
+  } finally {h.unmount();}
+});
+
