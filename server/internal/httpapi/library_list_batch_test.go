@@ -100,3 +100,37 @@ func TestLibraryListBatchRechecksAuthorityOnlyAfterAChange(t *testing.T) {
 		})
 	}
 }
+
+// Client data step 5: the library directory answers who the viewer is (the privacy fence) and
+// which libraries they see (the viewer fence), with exactly Home's values, so a client never
+// reads Home to key its shell.
+func TestLibraryDirectoryAnswersHomesOwnFences(t *testing.T) {
+	d, session := completedLocalFoundationFixture(t)
+	c := catalogtest.New(t, d.DB)
+	c.Library("movies", "Movies", "movie", "/movies")
+	captured, err := d.Identity.Authenticate(session.AccessToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := httptest.NewRequest("GET", "/v1/libraries", nil)
+	r.Header.Set("Authorization", "Bearer "+session.AccessToken)
+	w := httptest.NewRecorder()
+	d.libraryList(w, r)
+	if w.Code != 200 {
+		t.Fatalf("libraries: %d %s", w.Code, w.Body.String())
+	}
+	var response struct {
+		ViewerFence  string `json:"viewerFence"`
+		PrivacyFence string `json:"privacyFence"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	_, fence, privacy, err := d.homeScopeFences(httptest.NewRequest("GET", "/v1/home", nil), captured)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.ViewerFence == "" || response.PrivacyFence == "" || response.ViewerFence != fence || response.PrivacyFence != privacy {
+		t.Fatalf("directory fences %q/%q, Home's %q/%q", response.ViewerFence, response.PrivacyFence, fence, privacy)
+	}
+}

@@ -73,7 +73,7 @@ export type HomeDocument = Readonly<{
   serverId: string; viewerFence: string;
   /** Changes only when who the viewer is or what they may see changes; a library added or
    * removed changes `viewerFence` alone. Absent from older servers. */
-  privacyFence?: string; rows: readonly HomeRow[]; spotlight:readonly HomeSpotlight[]; hero?: HomeHeroRef; layout: HomeLayout; revision: HomeRevision; generatedAt: string;
+  rows: readonly HomeRow[]; spotlight:readonly HomeSpotlight[]; hero?: HomeHeroRef; layout: HomeLayout; revision: HomeRevision; generatedAt: string;
 }>;
 export type HomeRowPage = Readonly<{limit?: number; cursor?: string; start?: number; revision?: string; anchorId?: string;group?:string;sourceId?:string}>;
 export type HomeLayoutIntent = Readonly<{expectedRevision: number; rowOrder: readonly string[]; hiddenRowIds: readonly string[]; idempotencyKey?: string}>;
@@ -363,11 +363,6 @@ export function validateHomeLayoutView(value: unknown): HomeLayoutView {
  * A row that cannot be read is left out alone, a repeated row keeps its first appearance, and a
  * row the viewer hid or an empty row that is not critical is not shown.
  */
-/** The fence a whole client shell is keyed on: the privacy fence, or on an older server the viewer
- * fence. A shell rebuilds only when this changes; a library added or removed just refreshes. */
-export function homeShellFence(document: Pick<HomeDocument, 'viewerFence' | 'privacyFence'>): string {
-  return document.privacyFence ?? document.viewerFence;
-}
 export function validateHomeDocument(value: unknown): HomeDocument {
   if (!object(value) || !id(value.serverId) || !id(value.viewerFence) || !Array.isArray(value.rows) || value.rows.length > 64 || (value.spotlight !== undefined && (!Array.isArray(value.spotlight) || value.spotlight.length>5))) invalid();
   // R-10 (O-159 two-tier parsing): spotlights are presentation, not identity or safety. One this
@@ -383,8 +378,7 @@ export function validateHomeDocument(value: unknown): HomeDocument {
   // A Home none of whose rows could be read is refused rather than shown as empty.
   if (!readable.length && value.rows.length) invalid();
   const rows = firstOfEach('home', 'rows', readable.filter(read => read.shown).map(read => read.row), row => row.id);
-  if (value.privacyFence !== undefined && !id(value.privacyFence)) invalid();
-  return Object.freeze({serverId: value.serverId, viewerFence: value.viewerFence, ...(value.privacyFence !== undefined ? {privacyFence: value.privacyFence as string} : {}), rows: Object.freeze(rows), spotlight, layout, revision: revision(value.revision), generatedAt: words(value.generatedAt, 128)});
+  return Object.freeze({serverId: value.serverId, viewerFence: value.viewerFence, rows: Object.freeze(rows), spotlight, layout, revision: revision(value.revision), generatedAt: words(value.generatedAt, 128)});
 }
 
 function pageQuery(page: HomeRowPage): string {

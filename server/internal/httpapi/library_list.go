@@ -22,6 +22,7 @@ func (d Dependencies) libraryListAfterRead(w http.ResponseWriter, r *http.Reques
 	visible := []catalog.Library{}
 	var captured identity.Principal
 	var restrictions identity.ContentRestrictions
+	var viewerFence, privacyFence string
 	err := dbwork.WithReadSnapshot(r.Context(), d.DB, func(ctx context.Context) error {
 		var err error
 		captured, err = d.principal(r.WithContext(dbwork.WithClass(ctx, dbwork.ClassSecurityFence)))
@@ -49,6 +50,13 @@ func (d Dependencies) libraryListAfterRead(w http.ResponseWriter, r *http.Reques
 		}
 		restrictions, err = contentaccess.RestrictionsTx(ctx, dbwork.Snapshot(ctx), captured.Viewer)
 		if err != nil {
+			return err
+		}
+		// The shell keys itself on these two fences, so a client learns who it is and what it may
+		// see from the directory it reads at start, never from Home (client data step 5). They are
+		// Home's own values, read in this same snapshot: the viewer fence moves when a library is
+		// added or removed, the privacy fence only when who the viewer is or what they may see changes.
+		if viewerFence, privacyFence, err = d.viewerFences(ctx, captured, visibleIDs, catalog.RestrictionFence(restrictions)); err != nil {
 			return err
 		}
 		viewer := catalog.Viewer{Profile: identity.PersonalKey(captured.Viewer), Libraries: visibleIDs, Restrictions: restrictions}
@@ -112,5 +120,5 @@ func (d Dependencies) libraryListAfterRead(w http.ResponseWriter, r *http.Reques
 		}
 		return
 	}
-	write(w, http.StatusOK, map[string]any{"items": visible})
+	write(w, http.StatusOK, map[string]any{"items": visible, "viewerFence": viewerFence, "privacyFence": privacyFence})
 }

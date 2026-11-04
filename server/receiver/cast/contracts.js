@@ -45285,7 +45285,6 @@ var PorticoCastContracts = (function(exports) {
 					],
 					"type": "object"
 				},
-				"privacyFence": { "type": "string" },
 				"revision": {
 					"properties": {
 						"catalog": {
@@ -104292,88 +104291,96 @@ var PorticoCastContracts = (function(exports) {
 			"type": "object"
 		},
 		"GetLibrariesResponse": {
-			"properties": { "items": {
+			"properties": {
 				"items": {
-					"properties": {
-						"defaultView": { "type": "string" },
-						"id": { "type": "string" },
-						"kind": { "type": "string" },
-						"name": { "type": "string" },
-						"pinned": { "type": "boolean" },
-						"summary": {
-							"properties": {
-								"counts": {
-									"items": {
-										"properties": {
-											"atLeast": { "type": "boolean" },
-											"count": {
-												"maximum": 9007199254740991,
-												"minimum": -9007199254740991,
-												"type": "integer"
+					"items": {
+						"properties": {
+							"defaultView": { "type": "string" },
+							"id": { "type": "string" },
+							"kind": { "type": "string" },
+							"name": { "type": "string" },
+							"pinned": { "type": "boolean" },
+							"summary": {
+								"properties": {
+									"counts": {
+										"items": {
+											"properties": {
+												"atLeast": { "type": "boolean" },
+												"count": {
+													"maximum": 9007199254740991,
+													"minimum": -9007199254740991,
+													"type": "integer"
+												},
+												"kind": { "type": "string" }
 											},
-											"kind": { "type": "string" }
+											"required": [
+												"kind",
+												"count",
+												"atLeast"
+											],
+											"type": "object"
 										},
-										"required": [
-											"kind",
-											"count",
-											"atLeast"
-										],
-										"type": "object"
+										"type": "array"
 									},
-									"type": "array"
-								},
-								"coverUrls": {
-									"items": { "type": "string" },
-									"type": "array"
-								},
-								"empty": { "type": "boolean" },
-								"emptyKnown": { "type": "boolean" },
-								"firstScan": { "type": "boolean" },
-								"latestArtwork": { "type": "string" },
-								"publicationCounts": {
-									"items": {
-										"properties": {
-											"atLeast": { "type": "boolean" },
-											"count": {
-												"maximum": 9007199254740991,
-												"minimum": -9007199254740991,
-												"type": "integer"
+									"coverUrls": {
+										"items": { "type": "string" },
+										"type": "array"
+									},
+									"empty": { "type": "boolean" },
+									"emptyKnown": { "type": "boolean" },
+									"firstScan": { "type": "boolean" },
+									"latestArtwork": { "type": "string" },
+									"publicationCounts": {
+										"items": {
+											"properties": {
+												"atLeast": { "type": "boolean" },
+												"count": {
+													"maximum": 9007199254740991,
+													"minimum": -9007199254740991,
+													"type": "integer"
+												},
+												"kind": { "type": "string" }
 											},
-											"kind": { "type": "string" }
+											"required": [
+												"kind",
+												"count",
+												"atLeast"
+											],
+											"type": "object"
 										},
-										"required": [
-											"kind",
-											"count",
-											"atLeast"
-										],
-										"type": "object"
-									},
-									"type": "array"
-								}
-							},
-							"required": [
-								"counts",
-								"coverUrls",
-								"latestArtwork",
-								"firstScan",
-								"emptyKnown",
-								"empty"
-							],
-							"type": "object"
-						}
+										"type": "array"
+									}
+								},
+								"required": [
+									"counts",
+									"coverUrls",
+									"latestArtwork",
+									"firstScan",
+									"emptyKnown",
+									"empty"
+								],
+								"type": "object"
+							}
+						},
+						"required": [
+							"defaultView",
+							"id",
+							"name",
+							"kind",
+							"pinned"
+						],
+						"type": "object"
 					},
-					"required": [
-						"defaultView",
-						"id",
-						"name",
-						"kind",
-						"pinned"
-					],
-					"type": "object"
+					"type": "array"
 				},
-				"type": "array"
-			} },
-			"required": ["items"],
+				"privacyFence": { "type": "string" },
+				"viewerFence": { "type": "string" }
+			},
+			"required": [
+				"items",
+				"viewerFence",
+				"privacyFence"
+			],
 			"type": "object"
 		},
 		"GetLibraryBrowseSelectionQueryRequest": {

@@ -107,16 +107,13 @@ type HomeLayout struct {
 }
 
 type HomeDocument struct {
-	ServerID    string `json:"serverId"`
-	ViewerFence string `json:"viewerFence"`
-	// PrivacyFence changes only when who the viewer is or what they may see changes;
-	// a library added or removed changes ViewerFence alone. Optional for old servers.
-	PrivacyFence string          `json:"privacyFence,omitempty"`
-	Rows         []HomeRow       `json:"rows"`
-	Spotlight    []HomeSpotlight `json:"spotlight"`
-	Layout       HomeLayout      `json:"layout"`
-	Revision     ContentRevision `json:"revision"`
-	GeneratedAt  string          `json:"generatedAt"`
+	ServerID    string          `json:"serverId"`
+	ViewerFence string          `json:"viewerFence"`
+	Rows        []HomeRow       `json:"rows"`
+	Spotlight   []HomeSpotlight `json:"spotlight"`
+	Layout      HomeLayout      `json:"layout"`
+	Revision    ContentRevision `json:"revision"`
+	GeneratedAt string          `json:"generatedAt"`
 }
 
 // HomeRowPage is the paging intent for one row. Cursor and start are exclusive;
@@ -1085,7 +1082,7 @@ func (s *Service) homeRowsFresh(r HomeRequest) (HomeDocument, error) {
 	s.recSources = map[string]homeSource{}
 	s.recComposition = newRecCompositionSources(s.Context())
 	r.Libraries = homeUnique(r.Libraries)
-	out := HomeDocument{ServerID: r.ServerID, ViewerFence: r.ViewerFence, PrivacyFence: r.PrivacyFence, Rows: []HomeRow{},
+	out := HomeDocument{ServerID: r.ServerID, ViewerFence: r.ViewerFence, Rows: []HomeRow{},
 		Layout: HomeLayout{Revision: r.LayoutRevision, RowOrder: append([]string{}, r.RowOrder...), HiddenRowIDs: append([]string{}, r.HiddenRowIDs...)}}
 	if out.Layout.RowOrder == nil {
 		out.Layout.RowOrder = []string{}

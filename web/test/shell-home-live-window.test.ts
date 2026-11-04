@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {registerHooks} from 'node:module';
 import {Children, isValidElement, type ReactNode} from 'react';
-import {HomeAuthorityRetired, HomeService} from '@core/home-service.ts';
+import {HomeService} from '@core/home-service.ts';
 import {FreshnessHub} from '@core/freshness-hub.ts';
 import {createShellHomeDocument} from '../src/shell/home-freshness.ts';
 import {quietClock} from './settings-quiet-clock.ts';
@@ -136,11 +136,13 @@ test('actual Home refresh: a competing explicit load wins and an older response 
   assert.equal(f.service.getSnapshot().document,current);assert.equal(current.viewerFence,'viewer');assert.equal(current.rows[1].live!.channels[0].channel.id,'new-document');assert.equal(old.signal?.aborted,true);
 });
 
-test('an actual changed Home fence retires the observed owner instead of adopting a successor document',async t=>{
+// Client data step 5: who the viewer is is the directory's privacy fence; Home adopts a document
+// under a new viewer fence whole, and nothing offered under the old one still acts.
+test('a Home document under another viewer fence replaces the shown one, and the old row offers nothing',async t=>{
   const f=await fixture(t);f.tree.render();const shown=f.service.getSnapshot().document!,row=shown.rows[1],oldAction=f.tree.live()[0].props.onPlay;
   f.setNext(response(start,'foreign-channel','other-viewer'));
-  await assert.rejects(f.service.load(),HomeAuthorityRetired);
-  assert.equal(f.service.getSnapshot().document,shown);assert.equal(f.facade.selection.channel(row,row.live!.channels[0]),undefined);
+  await f.service.load();
+  assert.notEqual(f.service.getSnapshot().document,shown);assert.equal(f.service.getSnapshot().document!.viewerFence,'other-viewer');assert.equal(f.facade.selection.channel(row,row.live!.channels[0]),undefined);
   await oldAction();assert.deepEqual(f.played,[]);
 });
 

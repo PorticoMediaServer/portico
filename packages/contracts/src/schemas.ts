@@ -60650,9 +60650,6 @@ export const schemas = {
         ],
         "type": "object"
       },
-      "privacyFence": {
-        "type": "string"
-      },
       "revision": {
         "properties": {
           "catalog": {
@@ -145238,10 +145235,18 @@ export const schemas = {
           "type": "object"
         },
         "type": "array"
+      },
+      "privacyFence": {
+        "type": "string"
+      },
+      "viewerFence": {
+        "type": "string"
       }
     },
     "required": [
-      "items"
+      "items",
+      "viewerFence",
+      "privacyFence"
     ],
     "type": "object"
   },

@@ -17,3 +17,11 @@ test('an answer without a list of libraries is refused', () => {
   for (const raw of [null, 'x', [], {}, {items: {}}, {items: 'none'}]) assert.throws(() => parseLibraryList(raw));
   assert.deepEqual(parseLibraryList({items: []}).items, []);
 });
+
+test('the directory carries the fences the shell is keyed on, and only both together', () => {
+  const items = [{id: 'movies', name: 'Movies', kind: 'movie'}];
+  assert.deepEqual(parseLibraryList({items, viewerFence: 'v', privacyFence: 'p'}).fences, {viewerFence: 'v', privacyFence: 'p'});
+  assert.equal(parseLibraryList({items, viewerFence: 'v'}).fences, undefined);
+  assert.equal(parseLibraryList({items, viewerFence: '', privacyFence: 'p'}).fences, undefined);
+  assert.equal(parseLibraryList({items, viewerFence: 7, privacyFence: 'p'}).fences, undefined);
+});

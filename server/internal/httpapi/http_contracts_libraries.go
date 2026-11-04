@@ -227,7 +227,9 @@ func registerLibrariesHTTPContracts(registry *apikit.Registry) error {
 	}
 	// internal/httpapi/router.go:880
 	if err := apikit.RegisterHTTP[struct{}, struct {
-		Items []catalog.Library `json:"items"`
+		Items        []catalog.Library `json:"items"`
+		ViewerFence  string            `json:"viewerFence"`
+		PrivacyFence string            `json:"privacyFence"`
 	}](registry, apikit.Metadata{Audience: apikit.Integrations, ID: "get_libraries", Method: "GET", Path: "/v1/libraries", Summary: "List visible libraries", Access: apikit.Device, Requires: apikit.ScopeRead, Lane: apikit.Browsing, Admission: laneBrowsing, Cost: apikit.Constant, BodyLimit: 0, Status: 200, Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "revision_mismatch", "internal"}}); err != nil {
 		return err
 	}

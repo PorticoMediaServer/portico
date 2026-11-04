@@ -7,7 +7,6 @@ import {parseDirectSnapshot, type DirectSnapshot} from '@core/profile-management
 import {parseServerSignIn, type ServerSignIn} from '@core/sign-in.ts';
 import {parseLibraryList} from '@core/library-list.ts';
 import {fetchGuideSourceSummaries, type GuideSourceSummaries} from '@core/guide/directory.ts';
-import type {HomeService} from '@core/home-service.ts';
 import type {EventsClient} from '@core/playback-v1/events.ts';
 import {routePath} from '../../../packages/contracts/src/routes.ts';
 import type {ShellFacts} from './bootstrap';
@@ -52,11 +51,14 @@ const answered: InterestOutcome = {kind: 'answered'};
 /** Fixed read/classification/projection adapters. The hub owns every ticket, timer and shared flight. */
 export function createShellFactOwner(o: Readonly<{
   api: HttpLocalApi; session(): LocalSession; auth: LocalSessionRefresher; preferences: PreferencesReader;
-  home: HomeService; libraryRouteProof?: LibraryRouteProofOwner; hub: FreshnessHub; initial: ShellFacts; witnesses: ShellFactWitnesses;
+  libraryRouteProof?: LibraryRouteProofOwner; hub: FreshnessHub; initial: ShellFacts; witnesses: ShellFactWitnesses;
   isCurrent(): boolean; retire(): void;
 }>) {
   const source = createShellFactsSource(o.initial), admitted = o.session(), initial = o.witnesses;
   let closed = false, retained = false, confirmedGuide = initial.guide;
+  // The shell is keyed on the directory's privacy fence (client data step 5): the first one seen
+  // is this shell's, and a different one ends it. A library added or removed moves only the viewer fence.
+  let privacy = o.initial.identity.fences?.privacyFence;
   const current = () => !closed && o.isCurrent();
   // A mounted owner can return the same strictly parsed proof without another
   // network read. Known eligibility changes still retire before its display work.
@@ -113,12 +115,17 @@ export function createShellFactOwner(o: Readonly<{
       const raw = await o.api.request(routePath('get_libraries'), 'GET', undefined, context.signal);
       const value = parseLibraryList(raw);
       if (!sameRequest(captured, context.signal)) return {kind: 'superseded'};
+      if (value.fences) {
+        if (privacy !== undefined && value.fences.privacyFence !== privacy) {o.retire(); return {kind: 'superseded'};}
+        privacy = value.fences.privacyFence;
+      }
       // Same successful body, separate strict membership witness. Tolerant loss
       // may update labels but cannot ever prove a route absent.
       if (proofTicket) o.libraryRouteProof?.directory(proofTicket, raw);
-      return await publish(context, captured, () => updateIdentity({libraries: value.items, librariesUnavailable: undefined}));
+      return await publish(context, captured, () => updateIdentity({libraries: value.items, librariesUnavailable: undefined, ...(value.fences ? {fences: value.fences} : {})}));
     } catch (error) {return failed(error);}
-  });
+    // It also proves who the viewer is (its privacy fence), so it keeps running for retained hidden media.
+  }, true);
   const serverSystem = add('server-system', [dependsOn.settings('server')], async context => {
     const captured = o.session();
     try {
@@ -176,29 +183,22 @@ export function createShellFactOwner(o: Readonly<{
       case 'failed': return {kind: 'failed', error: result.error, retryable: result.retryable};
     }
   }, true);
-  const homeAuthority = add('home-authority', [dependsOn.libraries, dependsOn.list('members'), dependsOn.settings('server'), dependsOn.settings('preferences')], async context => {
-    const proofTicket = o.libraryRouteProof?.beginHome();
-    try {
-      const kind = await o.home.authority({signal: context.signal, isCurrent: current});
-      if (kind === 'answered' && current() && proofTicket) o.libraryRouteProof?.homeAnswered(proofTicket);
-      return {kind};
-    } catch (error) {if (!current()) return {kind: 'superseded'}; return failed(error);}
-  }, true);
   const groups = {directory, server, members, liveSources, libraryChannels};
   const request = (group: ShellFactGroup) => {
     if (!current()) return;
     if (group === 'directory') o.libraryRouteProof?.invalidate();
-    if (group === 'members' || group === 'server') o.libraryRouteProof?.invalidateHome();
     if (group === 'members') {direct.invalidate(); permission.invalidate();} else groups[group].invalidate();
-    if (group === 'members' || group === 'directory' || group === 'server') homeAuthority.invalidate();
+    // Who the viewer is or what they may see can move with members or server settings: the
+    // directory answers that with its privacy fence.
+    if (group === 'members' || group === 'server') directory.invalidate();
   };
   return {
     source, request,
     observeDirect: (snapshot: DirectSnapshot) => {acceptDirect(snapshot);},
     preferences: () => o.hub.note(dependsOn.settings('preferences')),
-    authority: () => {o.libraryRouteProof?.invalidateHome(); homeAuthority.invalidate();},
-    all() {if (!current()) return; for (const group of ['directory', 'server', 'members', 'liveSources', 'libraryChannels'] as const) request(group); preferences.invalidate(); direct.invalidate(); permission.invalidate(); homeAuthority.invalidate();},
-    setRetained(value: boolean) {if (closed || retained === value) return; retained = value; for (const interest of [homeAuthority, direct, permission]) interest.setRetained(value);},
+    authority: () => {directory.invalidate();},
+    all() {if (!current()) return; for (const group of ['directory', 'server', 'members', 'liveSources', 'libraryChannels'] as const) request(group); preferences.invalidate(); direct.invalidate(); permission.invalidate();},
+    setRetained(value: boolean) {if (closed || retained === value) return; retained = value; for (const interest of [directory, direct, permission]) interest.setRetained(value);},
     dispose() {if (closed) return; closed = true; directProjection = undefined; for (const interest of interests) interest.dispose(); source.dispose();},
   };
 }

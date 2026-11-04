@@ -2987,28 +2987,28 @@ test('WEB002 EACH five same-authority hints preserve actual media owners in all 
     const localPause=local?sub.mock.method(local,'pause'):undefined;
     const original={runtime:f.runtime,source:f.source,authority:f.runtime.authority,service:stack.service,queue:stack.queue,web:stack.web,slot:stack.web.slot,player,video:f.video,dock:f.runtime.dock,session:f.runtime.getSnapshot().session,queueView:f.runtime.getSnapshot().queueView,loads:f.video.loads,plays:f.video.plays,position:f.video.currentTime,listeners:f.video.listenerCount(),fence:f.runtime.getSnapshot().fence,presentation:f.runtime.getSnapshot().presentation,dockState:f.runtime.dock.getSnapshot(),remote:remote?.controller.getSnapshot().remote,remoteCommands:remote?.sender.commands.length,local:local?.observe(),localLoads:local?.loads.length};
     const time=manualClock(),hub=new FreshnessHub({...time,random:()=>0});
-    let retired=0,homeFence=homeViewerFence,revision=1;
+    let retired=0,privacy='privacy-0',revision=1;
     const session={sessionFamilyId:'family',viewer:{...viewer,role:'owner'}} as import('@core/index.ts').LocalSession;
     const system={id:'server',name:'Study',version:'1',signIn:'local' as const,move:null,setupRequired:false,hostedConfigured:false,hostedAttached:false, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []};
     const direct=()=>({authority:'local',serverId:'server',canManage:true,capabilities:{manageAccount:true,managePeople:true,manageServer:true,manageSignIn:true},account:{id:'account',username:'viewer '+revision,primaryProfileId:'profile',role:'owner',revision,disabled:false,allowedLibraries:[]},profiles:[{id:'profile',name:'Evening '+revision,primary:true,position:0,art:'mint',revision,pinRevision:1,pinRequired:false}]});
     const witnesses={system,direct:parseDirectSnapshot(direct())};
     const preferences={effective:{},deviceClass:'web'} as import('../src/shell/bootstrap.ts').ShellFacts['preferences'];
-    const initial={serverName:'Study',preferences,identity:{viewer:session.viewer,serverName:'Study',libraries:[{id:'library',name:'Films',kind:'movies'}],...shellAccount(witnesses.direct,'profile'),liveAvailable:false,unread:0,showNotificationDot:false}} as import('../src/shell/bootstrap.ts').ShellFacts;
+    const initial={serverName:'Study',preferences,identity:{viewer:session.viewer,serverName:'Study',libraries:[{id:'library',name:'Films',kind:'movies'}],fences:{viewerFence:'directory',privacyFence:privacy},...shellAccount(witnesses.direct,'profile'),liveAvailable:false,unread:0,showNotificationDot:false}} as import('../src/shell/bootstrap.ts').ShellFacts;
     const retire=()=>{if(retired)return;retired++;f.invalidate();f.runtime.dispose();};
     const home=new HomeService(f.api,{observation:{serverId:'server',isCurrent:f.source.isCurrent,observe:observation=>observation.viewerFence===homeViewerFence?'accept':'retire',retire,mismatch:retire}});
     const reads:string[]=[];
     f.intercept(async(request,response)=>{
       const ok=(body:unknown)=>({status:200,headers:{},body});
-      if(request.path==='/v1/libraries'){reads.push('directory');return ok({items:[{id:'library',name:'Films '+revision,kind:'movies'}]});}
+      if(request.path==='/v1/libraries'){reads.push('directory');return ok({items:[{id:'library',name:'Films '+revision,kind:'movies'}],viewerFence:'directory',privacyFence:privacy});}
       if(request.path==='/v1/system'){reads.push('server');return ok({...system,name:'Study '+revision,version:String(revision)});}
       if(request.path==='/v1/direct'){reads.push('members');return ok(direct());}
       if(request.path.startsWith('/v1/guide/sources?')){reads.push('guide');return ok({protocolVersion:GUIDE_PROTOCOL,serverId:'server',viewerFence:'guide',revision:String(revision),sources:[]});}
-      if(request.path==='/v1/home'){reads.push('home');return ok({serverId:'server',viewerFence:homeFence,rows:[],spotlight:[],layout:{revision:1,rowOrder:[],hiddenRowIds:[]},revision:{catalog:revision,viewer:1},generatedAt:'2026-10-28T12:00:00Z'});}
+      if(request.path==='/v1/home'){reads.push('home');return ok({serverId:'server',viewerFence:homeViewerFence,rows:[],spotlight:[],layout:{revision:1,rowOrder:[],hiddenRowIds:[]},revision:{catalog:revision,viewer:1},generatedAt:'2026-10-28T12:00:00Z'});}
       return response;
     });
     await home.load();
     const resources=new HomeDocumentResources(home,{isCurrent:f.source.isCurrent,create:()=>({value:f.runtime,dispose:()=>f.runtime.dispose()}),changed(){},failed:assert.fail});
-    const owner=createShellFactOwner({api:f.api,session:()=>session,hub,home,initial,witnesses,isCurrent:f.source.isCurrent,retire,
+    const owner=createShellFactOwner({api:f.api,session:()=>session,hub,initial,witnesses,isCurrent:f.source.isCurrent,retire,
       auth:{reconcilePermissions:async()=>({kind:'confirmed-unchanged'})} as never,
       preferences:{observePreferences:async()=>({kind:'ok',value:preferences})} as never});
     owner.setRetained(f.runtime.retainsMedia());const off=f.runtime.onRetention(()=>owner.setRetained(f.runtime.retainsMedia()));
@@ -3036,9 +3036,9 @@ test('WEB002 EACH five same-authority hints preserve actual media owners in all 
     }
     assert.ok(factsChanged>=3,'fresh names are published through the same fact source');
     assert.equal(owner.source.getSnapshot().identity.libraries[0].name,'Films 2');assert.equal(owner.source.getSnapshot().serverName,'Study 3');assert.equal(owner.source.getSnapshot().identity.profileName,'Evening 4');
-    // A genuine authority manifest with a different visible-library/restriction
-    // fence uses the real HomeService observation/retirement boundary immediately.
-    homeFence='changed_visible_library_fence';revision++;
+    // A directory answer with a different privacy fence (another viewer, or what they may see
+    // changed) retires the shell and its media immediately (client data step 5).
+    privacy='changed_privacy_fence';revision++;
     hub.accept({id:'real-fence',type:'libraries.changed',resource:{kind:'libraries',id:'all'},revision:String(revision)});await advance();
     assert.equal(retired,1);assert.equal(f.runtime.getSnapshot().disposed,true);assert.equal(f.runtime.retainsMedia(),false);assert.equal(resources.get(),undefined);
     if(localPause)assert.ok(localPause.mock.calls.length>0);else assert.ok(pause.mock.calls.length>0);assert.ok(leave.mock.calls.length>0);assert.equal(dispose.mock.calls.length,1);assert.equal(playerDispose.mock.calls.length,1);

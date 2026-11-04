@@ -47,7 +47,6 @@ export class NativeShellBootstrapServices {
   private readonly controllers = new Set<AbortController>();
   private readonly fences = new Map<Domain, string>();
   /** H-11: the Home manifest's privacy fence (or its viewer fence on older servers) owns retirement. */
-  private homeShellFence?: string;
   private disposed = false;
   private guideDenied = false;
   private inboxLoaded = false;
@@ -132,19 +131,11 @@ export class NativeShellBootstrapServices {
     if (this.fences.has(domain) && this.fences.get(domain) !== fence || domain === 'guide' && this.guideDenied) this.retire();
     this.fences.set(domain, fence);
   }
-  /** A library added or removed moves only the viewer fence: Home re-reads, nothing retires.
-   * A row page never carries the privacy fence, so a newer viewer fence there is left to Home's
-   * own row checks; the next manifest decides. Older servers keep retiring on the viewer fence. */
+  /** Home's fences never retire the shell: who the viewer is and what they may see is the library
+   * directory's privacy fence (client data step 5). A library added or removed moves only Home's
+   * viewer fence; Home re-reads, and its own row checks follow the new fence. */
   private checkHomeFence(scope: Record<string, unknown>, fence: string): boolean {
-    const privacy = scope.privacyFence;
-    if (privacy !== undefined && (typeof privacy !== 'string' || !opaqueFence(privacy))) throw invalid();
-    if ('serverId' in scope) {
-      const shell = privacy ?? fence;
-      if (this.homeShellFence !== undefined && this.homeShellFence !== shell) this.retire();
-      this.homeShellFence = shell; this.fences.set('home', fence); return true;
-    }
-    if (this.homeShellFence === undefined || this.homeShellFence === this.fences.get('home')) return false;
-    if (!this.fences.has('home')) this.fences.set('home', fence);
+    if ('serverId' in scope || !this.fences.has('home')) this.fences.set('home', fence);
     return true;
   }
   private async call<T>(domain: Domain | undefined, path: string, method = 'GET', body?: unknown, signal?: AbortSignal, preferenceBatch?: AbortSignal): Promise<T> {
@@ -325,6 +316,6 @@ export class NativeShellBootstrapServices {
     this.unreadController?.abort(); this.guideController?.abort();
     for (const controller of this.controllers) controller.abort();
     this.controllers.clear(); this.preferences.dispose(); this.inbox.dispose(); this.home.dispose();
-    this.snapshot = undefined; this.inboxFailure = undefined; this.fences.clear(); this.homeShellFence = undefined;
+    this.snapshot = undefined; this.inboxFailure = undefined; this.fences.clear();
   };
 }

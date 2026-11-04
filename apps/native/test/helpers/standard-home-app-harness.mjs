@@ -427,8 +427,8 @@ export async function standardHomeApp({
     lease = 0,
     homeVersion = 1,
     homeFence = 'home-fence',
-    /** @type {string | undefined} H-11: absent like an older server unless a test sets it. */
-    homePrivacy = privacyFence;
+    /** H-11 / client data step 5: the library directory's privacy fence. */
+    homePrivacy = privacyFence ?? 'privacy-fence';
   const backend = new FakePlaybackServer({
     viewer,
     deviceId: installationId,
@@ -497,7 +497,6 @@ export async function standardHomeApp({
   const homeDoc = () => ({
     serverId: pin.serverId,
     viewerFence: homeFence,
-    ...(homePrivacy !== undefined ? {privacyFence: homePrivacy} : {}),
     rows: [homeRow()],
     spotlight: [],
     layout: {revision: 1, rowOrder: ['continue'], hiddenRowIds: []},
@@ -618,7 +617,7 @@ export async function standardHomeApp({
     if (path === routePath('get_libraries'))
       return {
         status: 200,
-        body: {items: [{id: 'movies', name: 'Movies', kind: 'movies'}]},
+        body: {items: [{id: 'movies', name: 'Movies', kind: 'movies'}], viewerFence: homeFence, privacyFence: homePrivacy},
       };
     if (path === routePath('get_direct_account'))
       return {
@@ -1004,15 +1003,17 @@ export async function standardHomeApp({
       button.props.onPress({nativeEvent: {}, stopPropagation() {}});
       await settle();
     },
-    /** H-11: the next Home read answers these fences (a library change, or a privacy change). */
+    /** H-11: the next Home and directory reads answer these fences (a library change, or a privacy change). */
     async changeHome(fences) {
       homeFence = fences.viewerFence ?? homeFence;
       if ('privacyFence' in fences) homePrivacy = fences.privacyFence;
       for (const listener of [...state.appState]) listener('active');
       await settle();
     },
+    /** The viewer's authority moves (another viewer, or what they may see): the directory answers a new privacy fence. */
     async retireHome() {
       homeFence = 'retired-home-fence';
+      homePrivacy = 'retired-privacy-fence';
       for (const listener of [...state.appState]) listener('active');
       await settle();
     },
