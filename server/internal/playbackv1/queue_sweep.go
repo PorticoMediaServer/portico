@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
-	"github.com/PorticoMediaServer/portico/server/internal/supervise"
 )
 
 // Queues are removed by one sweep (review P19), never inside a command's
@@ -48,12 +47,11 @@ func (s *Service) sweepQueues() {
 		return
 	}
 	s.queueSweep.running = true
-	s.queueSweep.mu.Unlock()
-	supervise.Go("playbackv1.queue-sweep", func() {
+	started := s.startWorker("playbackv1.queue-sweep", func(ctx context.Context) {
 		for {
-			s.SweepQueues(context.Background())
+			s.SweepQueues(ctx)
 			s.queueSweep.mu.Lock()
-			if !s.queueSweep.again {
+			if ctx.Err() != nil || !s.queueSweep.again {
 				s.queueSweep.running = false
 				s.queueSweep.mu.Unlock()
 				return
@@ -62,6 +60,10 @@ func (s *Service) sweepQueues() {
 			s.queueSweep.mu.Unlock()
 		}
 	})
+	if !started {
+		s.queueSweep.running = false
+	}
+	s.queueSweep.mu.Unlock()
 }
 
 // SweepQueues removes, at background priority: queues retired by a newer

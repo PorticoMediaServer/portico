@@ -314,6 +314,7 @@ type Service struct {
 	// AudioMeasureBudget bounds that measurement (default 5 s).
 	AudioMeasureBudget time.Duration
 	hub                eventHub
+	background         backgroundWorkers
 	sweep              sweeper
 	build              builder
 	admission          admissionGates

@@ -15,7 +15,6 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
-	"github.com/PorticoMediaServer/portico/server/internal/supervise"
 )
 
 // Scanning a selection in the request is bounded (P16): past scanBudgetKeys
@@ -633,7 +632,7 @@ type builder struct {
 // interrupted, in the background. An idle server does nothing (no statement
 // at boot).
 func (s *Service) resumeOnce() {
-	s.build.resume.Do(func() { supervise.Go("playbackv1.queue-resume", s.ResumeQueueBuilds) })
+	s.build.resume.Do(func() { s.startWorker("playbackv1.queue-resume", s.resumeQueueBuilds) })
 }
 
 // ResumeQueueBuilds continues any snapshot left building (e.g. by a restart),
@@ -641,8 +640,17 @@ func (s *Service) resumeOnce() {
 // also stands for the lazy resume: the first queue request after it starts
 // nothing more.
 func (s *Service) ResumeQueueBuilds() {
+	ctx, finish, ok := s.beginBackground()
+	if !ok {
+		return
+	}
+	defer finish()
+	s.resumeQueueBuilds(ctx)
+}
+
+func (s *Service) resumeQueueBuilds(ctx context.Context) {
 	s.build.resume.Do(func() {})
-	s.SweepQueues(context.Background())
+	s.SweepQueues(ctx)
 	s.build.mu.Lock()
 	s.PauseQueueBuilds = false
 	s.build.mu.Unlock()
@@ -680,64 +688,66 @@ func (b *builder) kick(s *Service) {
 		return
 	}
 	b.running = true
-	supervise.Go("playbackv1.queue-builder", func() { b.run(s) })
+	if !s.startWorker("playbackv1.queue-builder", func(ctx context.Context) { b.run(ctx, s) }) {
+		b.running = false
+	}
 }
 
-func (b *builder) run(s *Service) {
+func (b *builder) run(ctx context.Context, s *Service) {
 	for {
 		// A hold (tests) stops the builder between steps; ResumeQueueBuilds kicks it again.
 		b.mu.Lock()
-		if s.PauseQueueBuilds {
+		if ctx.Err() != nil || s.PauseQueueBuilds {
 			b.running, b.again = false, false
 			b.mu.Unlock()
 			return
 		}
 		b.mu.Unlock()
 		var id string
-		err := s.DB.QueryRow(`SELECT id FROM queue_v1_snapshots WHERE state='building' ORDER BY rowid LIMIT 1`).Scan(&id)
+		err := s.DB.QueryRowContext(ctx, `SELECT id FROM queue_v1_snapshots WHERE state='building' ORDER BY rowid LIMIT 1`).Scan(&id)
 		if err == nil {
-			err = s.continueBuild(context.Background(), id)
+			err = s.continueBuild(ctx, id)
 			if errors.Is(err, compactcatalog.ErrBuilding) {
 				// A catalogue change is still publishing: the build resumes from
 				// its seen row once it has, rather than ending the queue early.
-				time.Sleep(time.Second)
+				waitWorkerRetry(ctx, time.Second)
 				continue
 			}
 			if err != nil && !errors.Is(err, context.Canceled) {
 				// A queue replaced or deleted meanwhile took its snapshot with it.
 				var exists bool
-				if s.DB.QueryRow(`SELECT EXISTS(SELECT 1 FROM queue_v1_snapshots WHERE id=?)`, id).Scan(&exists) == nil && exists {
+				if s.DB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM queue_v1_snapshots WHERE id=?)`, id).Scan(&exists) == nil && exists {
 					log.Printf("Queue snapshot %s couldn't finish building: %v", id, err)
-					s.failBuild(id)
+					s.failBuild(ctx, id)
 				}
 			}
 			continue
 		}
 		// Queue saves (NEW-37) come after every building snapshot, a step at a
 		// time, so a long copy never delays a queue's own build.
-		if profile, key, ok := s.nextSave(); ok {
+		if profile, key, ok := s.nextSave(ctx); ok {
 			// A hold must also stop a save step whose row appeared after this
 			// iteration passed the check at the top: a test that pauses before
 			// asking for a save must see the copy untouched until it resumes.
 			b.mu.Lock()
-			if s.PauseQueueBuilds {
+			if ctx.Err() != nil || s.PauseQueueBuilds {
 				b.running, b.again = false, false
 				b.mu.Unlock()
 				return
 			}
 			b.mu.Unlock()
-			progressed, err := s.continueSave(context.Background(), profile, key)
+			progressed, err := s.continueSave(ctx, profile, key)
 			switch {
 			case err == nil && progressed:
 				continue
 			case err != nil && dbwork.Retryable(err):
-				time.Sleep(time.Second) // a busy database: the same step again shortly
+				waitWorkerRetry(ctx, time.Second) // a busy database: the same step again shortly
 				continue
 			case err != nil && !errors.Is(err, context.Canceled):
 				// Anything else would fail the same way again: stop this copy
 				// (what it saved stays) rather than leave it "saving" forever.
 				log.Printf("A queue save couldn't continue: %v", err)
-				if s.endSave(context.Background(), profile, key, "interrupted") == nil {
+				if s.endSave(ctx, profile, key, "interrupted") == nil {
 					continue
 				}
 			}
@@ -1003,8 +1013,7 @@ func (s *Service) bumpQueueTx(ctx context.Context, w *sql.Tx, q queueRow, announ
 
 // failBuild keeps what a failed build made: the segment ends at its built keys
 // and a start that waited begins with them (the queue never points past them).
-func (s *Service) failBuild(id string) {
-	ctx := context.Background()
+func (s *Service) failBuild(ctx context.Context, id string) {
 	err := dbwork.WithWriteTxContext(ctx, s.DB, dbwork.ClassBackgroundMedia, func(ctx context.Context, w *sql.Tx) error {
 		var queue, start string
 		var built int64

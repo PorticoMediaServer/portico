@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/assets"
 	"github.com/PorticoMediaServer/portico/server/internal/catalogtest"
@@ -79,6 +80,13 @@ func newCarryFixture(t *testing.T, audio bool) *carryFixture {
 	t.Cleanup(func() { subs.Close() })
 	player.ConfigureSubtitleDelivery(subs)
 	f := &carryFixture{t: t, catalog: catalog, ident: ident, service: New(catalog.DB, player, subs), caller: Caller{Principal: principal, DeviceID: principal.DeviceID, PlaybackProtocol: PlaybackProtocol}, prefs: operations.New(catalog.DB), prefRev: 1}
+	t.Cleanup(func() {
+		stop, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := f.service.Shutdown(stop); err != nil {
+			t.Error(err)
+		}
+	})
 	f.service.ReadyCheck = func(context.Context, playback.Session) (bool, error) { return true, nil }
 	root := t.TempDir()
 	library := catalog.Library("carry-library", "Carry library", "movie", root)
