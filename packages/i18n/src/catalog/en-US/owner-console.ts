@@ -186,6 +186,8 @@ export const ownerConsoleMessages = {
   'server.scan.step.probe': 'Read file details',
   'server.scan.step.local_metadata': 'Local metadata and artwork',
   'server.scan.step.subtitles': 'Subtitle discovery',
+  /** #757: the decoded-frame pass (interlace, cadence, frame rate, HDR supplements); the server's own matrix label. */
+  'server.scan.step.playback_frames': 'Playback frames',
   'server.scan.step.checksum': 'Checksums',
   'server.scan.step.chapter_images': 'Chapter images',
   'server.scan.step.trickplay': 'Preview thumbnails',

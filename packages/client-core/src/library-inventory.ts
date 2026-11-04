@@ -15,9 +15,13 @@ import type {ViewerQueries} from './query/viewer-queries.ts';
 import type {ViewerQueryOptions} from './query/react.ts';
 
 export type ScanTier='file_list_only'|'basic'|'complete'|'custom';
-export const scanOperations=['probe','local_metadata','subtitles','checksum','chapter_images','trickplay','waveform','loudness','fingerprint'] as const;
+/** The server's public scan operations this client knows by name (catalog BasicScanOperations + DeepScanOperations). */
+export const scanOperations=['probe','local_metadata','subtitles','playback_frames','checksum','chapter_images','trickplay','waveform','loudness','fingerprint','sonic','episode_thumbnail'] as const;
 export type ScanOperation=typeof scanOperations[number];
-export type ScanPolicy=Readonly<{tier:ScanTier;revision:number;operations:readonly ScanOperation[]}>;
+/** `operations` are the server's own ids, each once, in its order: one this client has no name for is kept as given,
+ * so a policy read and written back never loses an operation a newer server added. */
+export type ScanPolicy=Readonly<{tier:ScanTier;revision:number;operations:readonly string[]}>;
+const operationId=(v:unknown):v is string=>typeof v==='string'&&/^[a-z0-9_]{1,64}$/.test(v);
 export type InventorySource=Readonly<{id:string;libraryId:string;kind:string;name:string;path:string;resolvedPath:string;classification:'local'|'network';generation:number;health:string;enabled:boolean;followSymlinks:boolean;identityConfirmed:boolean;intervalSeconds:number;nextScanAt:string;lastCompleteAt:string;lastProgressAt:string}>;
 export type SourceSettings=Readonly<{expectedRemoteSource?:ExpectedRemoteSource;name:string;path:string;classification:'local'|'network';followSymlinks:boolean;intervalSeconds:number;expectedRevision:number;acceptReplacement:boolean;/** false: attach without the automatic scan. */scanAfter?:boolean}>;
 export type InventoryConfig=Readonly<{scope:Readonly<{serverId:string;viewerFence:string}>;libraryId:string;revision:number;sources:readonly InventorySource[];policy:ScanPolicy}>;
@@ -38,11 +42,12 @@ export function parseInventorySource(wire:unknown,libraryId:string):InventorySou
 function parseConfig(raw:unknown,bound:ContentScope,libraryId:string):InventoryConfig {
  assert(record(raw)&&raw.libraryId===libraryId&&integer(raw.revision)&&raw.revision>0&&record(raw.policy));
  const policy=raw.policy;assert(['file_list_only','basic','complete','custom'].includes(String(policy.tier))&&integer(policy.revision));
- // The scan policy is sent back when the owner changes it, so its tier stays exact; a step this app does not know is left out of what it shows, each known step once.
- const given=list(policy.operations,64),operations=[...new Set(given.filter(v=>scanOperations.includes(v as ScanOperation)))];if(operations.length!==given.length)noteSkipped('library-inventory','policy.operations',given.length-operations.length);
+ // The scan policy is sent back when the owner changes it, so its tier and operations stay exact: an operation this app
+ // has no name for is kept as given (a newer server's), each once; only a malformed id is left out.
+ const given=list(policy.operations,64),operations=[...new Set(given.filter(operationId))];if(operations.length!==given.length)noteSkipped('library-inventory','policy.operations',given.length-operations.length);
  // A folder that cannot be read is left out alone, and a repeated one keeps its first row.
  const sources=firstOfEach('library-inventory','sources',keepReadable('library-inventory','sources',list(raw.sources,64),wire=>parseInventorySource(wire,libraryId)),s=>s.id);
- return Object.freeze({scope:scope(raw.scope,bound),libraryId,revision:raw.revision,sources:Object.freeze(sources),policy:Object.freeze({tier:policy.tier as ScanTier,revision:policy.revision,operations:Object.freeze(operations as ScanOperation[])})});
+ return Object.freeze({scope:scope(raw.scope,bound),libraryId,revision:raw.revision,sources:Object.freeze(sources),policy:Object.freeze({tier:policy.tier as ScanTier,revision:policy.revision,operations:Object.freeze(operations)})});
 }
 function parseObjects(raw:unknown,bound:ContentScope,libraryId:string,filter:InventoryFilter):InventoryObjects {
  assert(record(raw)&&raw.libraryId===libraryId&&raw.sourceId===(filter.sourceId??'')&&integer(raw.revision)&&text(raw.nextCursor,4096));
@@ -139,7 +144,7 @@ export class LibraryInventoryService {
  removeSource(sourceId:string,expectedRevision:number){assert(id(sourceId)&&integer(expectedRevision));return this.command('/sources/'+encodeURIComponent(sourceId),'DELETE',{expectedRevision});}
  scanSource(sourceId:string){assert(id(sourceId));return this.command('/sources/'+encodeURIComponent(sourceId)+'/scans','POST');}
  checkSource(sourceId:string){assert(id(sourceId));return this.command('/sources/'+encodeURIComponent(sourceId)+'/check','POST');}
- setPolicy(policy:{tier:ScanTier;operations:readonly ScanOperation[];expectedRevision:number}){assert(integer(policy.expectedRevision)&&['file_list_only','basic','complete','custom'].includes(policy.tier));return this.command('/scan-policy','PUT',policy);}
+ setPolicy(policy:{tier:ScanTier;operations:readonly string[];expectedRevision:number}){assert(integer(policy.expectedRevision)&&['file_list_only','basic','complete','custom'].includes(policy.tier)&&policy.operations.every(operationId));return this.command('/scan-policy','PUT',policy);}
  /** `associate`: this file is another version of `itemId`. `separate`: this file is not a version of the title it was grouped with; it becomes a title of its own. Either decision is remembered across scans. */
  objectAction(object:InventoryObject,action:'associate'|'separate',itemId?:string){assert(this.state.objects?.items.some(v=>v.id===object.id&&v.revision===object.revision));assert(action!=='associate'||id(itemId));return this.command('/inventory/'+encodeURIComponent(object.id)+'/'+action,'POST',{revision:object.revision,...(itemId?{itemId}:{})});}
 }
