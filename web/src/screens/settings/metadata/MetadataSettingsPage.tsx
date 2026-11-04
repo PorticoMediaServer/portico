@@ -151,11 +151,12 @@ export function MetadataSettingsPage({api, isCurrent, onLibraries, recommendatio
   };
   return <div data-testid="server-metadata-settings">
     {problem}
-    {document.librariesComplete && !!document.libraries?.length && <MetadataLibraries libraries={document.libraries} changes={draft.libraries} busy={busy} onChange={setLibrary}/>}
     <SettingsGroup title={t('server.metadata.lookups')}>
-      {(!document.librariesComplete || !document.libraries?.length) && <SettingsRow label={t('server.metadata.perLibrary')} help={t('server.metadata.perLibraryHelp')}><Button size="small" onClick={() => {if (current()) onLibraries();}}>{t('settings.server.libraries')}</Button></SettingsRow>}
       {typeof document.onlineLookups === 'boolean' ? <SettingsRow label={t('next.settingsSpec.server.metadata.groups.0.rows.0.label')} help={t('next.settingsSpec.server.metadata.groups.0.rows.0.help')}><Switch aria-label={t('next.settingsSpec.server.metadata.groups.0.rows.0.label')} checked={draft.onlineLookups === true} disabled={busy} onCheckedChange={value => set('onlineLookups', value)}/></SettingsRow> : null}
       <SettingsRow label={t('metadata.settings.includeAdult')} help={t('server.metadata.adultHelp')}><Switch aria-label={t('metadata.settings.includeAdult')} checked={draft.adult} disabled={busy} onCheckedChange={value => set('adult', value)}/></SettingsRow>
+      {/* spec server-metadata, Lookup: online, adult, then what each library uses. */}
+      {(!document.librariesComplete || !document.libraries?.length) && <SettingsRow label={t('server.metadata.perLibrary')} help={t('server.metadata.perLibraryHelp')}><Button size="small" onClick={() => {if (current()) onLibraries();}}>{t('settings.server.libraries')}</Button></SettingsRow>}
+      {document.librariesComplete && !!document.libraries?.length && <MetadataLibraries libraries={document.libraries} changes={draft.libraries} busy={busy} onChange={setLibrary}/>}
     </SettingsGroup>
     {(document.defaultLanguage && document.defaultRegion) ? <SettingsGroup title={t('next.settingsSpec.server.metadata.groups.1.title')}>
       {(['metadata.language', 'metadata.region'] as const).map(id => {
@@ -171,14 +172,6 @@ export function MetadataSettingsPage({api, isCurrent, onLibraries, recommendatio
       {secret('tmdb', 'metadata.settings.tmdbToken', document.tmdbCredentialConfigured)}
       {secret('tvdb', 'metadata.settings.tvdbKey', document.tvdbCredentialConfigured)}
       <SettingsRow label={t('next.settingsSpec.server.metadata.groups.2.rows.2.label')} help={t('next.settingsSpec.server.metadata.groups.2.rows.2.help')}>{null}</SettingsRow>
-    </SettingsGroup>
-    <SettingsGroup title={t('server.metadata.artwork')}>
-      <SettingsRow label={t('metadata.settings.artworkLimit')} help={t('server.metadata.artworkUsed', {used: defaultI18n.bytes(document.localArtworkUsedBytes), limit: defaultI18n.bytes(document.localArtworkLimitBytes)})}>
-        <TextField aria-label={t('metadata.settings.artworkLimit')} inputMode="decimal" value={draft.limit} disabled={busy} onChange={event => set('limit', event.currentTarget.value)} trailing={t('settings.unit.gb')} error={bytes === undefined ? t('server.metadata.limitProblem') : undefined}/>
-      </SettingsRow>
-      <progress className={styles.usage} max={document.localArtworkLimitBytes} value={Math.min(document.localArtworkUsedBytes, document.localArtworkLimitBytes)} aria-label={t('metadata.settings.artworkUsage')} aria-valuetext={t('server.metadata.artworkUsed', {used: defaultI18n.bytes(document.localArtworkUsedBytes), limit: defaultI18n.bytes(document.localArtworkLimitBytes)})}/>
-      <SettingsRow label={t('next.settingsSpec.server.metadata.advanced.groups.2.rows.1.label')}><Select aria-label={t('next.settingsSpec.server.metadata.advanced.groups.2.rows.1.label')} value={String(draft.edge)} disabled={busy}
-        options={[{value: '1280', label: t('next.settingsSpec.server.metadata.advanced.groups.2.rows.1.control.options.0.label')}, {value: '1920', label: t('next.settingsSpec.server.metadata.advanced.groups.2.rows.1.control.options.1.label')}, {value: '2560', label: t('next.settingsSpec.server.metadata.advanced.groups.2.rows.1.control.options.2.label')}]} onValueChange={value => {if (value === '1280' || value === '1920' || value === '2560') set('edge', Number(value) as ArtworkMaxEdge);}}/></SettingsRow>
     </SettingsGroup>
     {(document.artworkPreference || document.artworkLanguage) ? <SettingsGroup title={t('next.settingsSpec.server.metadata.groups.3.title')}>
       {document.artworkPreference ? <SettingsRow label={t('next.settingsSpec.server.metadata.groups.3.rows.0.label')} help={t('next.settingsSpec.server.metadata.groups.3.rows.0.help')}>
@@ -200,8 +193,10 @@ export function MetadataSettingsPage({api, isCurrent, onLibraries, recommendatio
       </SettingsRow>
     </SettingsGroup>
     {recommendations}
-    {document.advanced && draft.advanced ? <SettingsAdvanced open={advancedOpen} onOpenChange={setAdvancedOpen} summary={advancedSummary(document.advanced)}>
-      <SettingsGroup title={t('next.settingsSpec.server.metadata.advanced.groups.0.title')} advanced>
+    {/* spec server-metadata Advanced: Refreshing, Languages, Artwork (the local limit and picture size always; cast photos
+        with the advanced document), Music. */}
+    <SettingsAdvanced open={advancedOpen} onOpenChange={setAdvancedOpen} summary={document.advanced ? advancedSummary(document.advanced) : []}>
+      {document.advanced && draft.advanced ? <><SettingsGroup title={t('next.settingsSpec.server.metadata.advanced.groups.0.title')} advanced>
         {specSelect('metadata.refresh', 'refreshPolicy')}
         <SettingsRow label={t('next.settingsSpec.server.metadata.advanced.groups.0.rows.1.label')} help={document.advanced.refreshAll.running ? t('server.metadata.refreshAllRunning') : t('next.settingsSpec.server.metadata.advanced.groups.0.rows.1.help')}>
           <Button ref={refreshTrigger} size="small" variant="glass" disabled={busy || dirty} onClick={() => {if (current()) setConfirmRefresh(true);}}>{t('next.settingsSpec.server.metadata.advanced.groups.0.rows.1.control.label')}</Button>
@@ -210,16 +205,22 @@ export function MetadataSettingsPage({api, isCurrent, onLibraries, recommendatio
       <SettingsGroup title={t('next.settingsSpec.server.metadata.advanced.groups.1.title')} advanced>
         {specSelect('metadata.fallbackLanguage', 'fallbackLanguage')}
         {specSelect('metadata.animeTitles', 'animeTitles')}
-      </SettingsGroup>
+      </SettingsGroup></> : null}
       <SettingsGroup title={t('next.settingsSpec.server.metadata.advanced.groups.2.title')} advanced>
-        <SettingsRow label={t('next.settingsSpec.server.metadata.advanced.groups.2.rows.2.label')} help={t('next.settingsSpec.server.metadata.advanced.groups.2.rows.2.help')}>
-          <Switch aria-label={t('next.settingsSpec.server.metadata.advanced.groups.2.rows.2.label')} checked={draft.advanced.castPhotos} disabled={busy} onCheckedChange={value => set('advanced', {...draft.advanced!, castPhotos: value})}/>
+        <SettingsRow label={t('metadata.settings.artworkLimit')} help={t('server.metadata.artworkUsed', {used: defaultI18n.bytes(document.localArtworkUsedBytes), limit: defaultI18n.bytes(document.localArtworkLimitBytes)})}>
+          <TextField aria-label={t('metadata.settings.artworkLimit')} inputMode="decimal" value={draft.limit} disabled={busy} onChange={event => set('limit', event.currentTarget.value)} trailing={t('settings.unit.gb')} error={bytes === undefined ? t('server.metadata.limitProblem') : undefined}/>
         </SettingsRow>
+        <progress className={styles.usage} max={document.localArtworkLimitBytes} value={Math.min(document.localArtworkUsedBytes, document.localArtworkLimitBytes)} aria-label={t('metadata.settings.artworkUsage')} aria-valuetext={t('server.metadata.artworkUsed', {used: defaultI18n.bytes(document.localArtworkUsedBytes), limit: defaultI18n.bytes(document.localArtworkLimitBytes)})}/>
+        <SettingsRow label={t('next.settingsSpec.server.metadata.advanced.groups.2.rows.1.label')}><Select aria-label={t('next.settingsSpec.server.metadata.advanced.groups.2.rows.1.label')} value={String(draft.edge)} disabled={busy}
+          options={[{value: '1280', label: t('next.settingsSpec.server.metadata.advanced.groups.2.rows.1.control.options.0.label')}, {value: '1920', label: t('next.settingsSpec.server.metadata.advanced.groups.2.rows.1.control.options.1.label')}, {value: '2560', label: t('next.settingsSpec.server.metadata.advanced.groups.2.rows.1.control.options.2.label')}]} onValueChange={value => {if (value === '1280' || value === '1920' || value === '2560') set('edge', Number(value) as ArtworkMaxEdge);}}/></SettingsRow>
+        {document.advanced && draft.advanced ? <SettingsRow label={t('next.settingsSpec.server.metadata.advanced.groups.2.rows.2.label')} help={t('next.settingsSpec.server.metadata.advanced.groups.2.rows.2.help')}>
+          <Switch aria-label={t('next.settingsSpec.server.metadata.advanced.groups.2.rows.2.label')} checked={draft.advanced.castPhotos} disabled={busy} onCheckedChange={value => set('advanced', {...draft.advanced!, castPhotos: value})}/>
+        </SettingsRow> : null}
       </SettingsGroup>
-      <SettingsGroup title={t('next.settingsSpec.server.metadata.advanced.groups.3.title')} advanced>
+      {document.advanced ? <SettingsGroup title={t('next.settingsSpec.server.metadata.advanced.groups.3.title')} advanced>
         {secret('acoustid', 'next.settingsSpec.server.metadata.advanced.groups.3.rows.0.label', document.advanced.acoustidKeyConfigured)}
-      </SettingsGroup>
-    </SettingsAdvanced> : null}
+      </SettingsGroup> : null}
+    </SettingsAdvanced>
     <Dialog open={confirmRefresh} size="sm" role="alertdialog" returnFocusRef={refreshTrigger} onOpenChange={open => {if (!open) setConfirmRefresh(false);}} title={t('next.settingsSpec.server.metadata.advanced.groups.0.rows.1.label')}
       description={t('next.settingsSpec.server.metadata.advanced.groups.0.rows.1.control.confirm')}
       footer={<><Button size="small" variant="text" disabled={busy} onClick={() => setConfirmRefresh(false)}>{t('action.cancel')}</Button><Button size="small" variant="primary" disabled={busy} onClick={() => {void refreshAll();}}>{t('next.settingsSpec.server.metadata.advanced.groups.0.rows.1.control.label')}</Button></>}>{null}</Dialog>
