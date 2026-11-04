@@ -69,6 +69,30 @@ test('query metadata preview and save carry the same full witness into the final
   } finally {held.model.dispose();}
 });
 
+// Step 7: the query editor's Try again could never succeed after an access change (the first preview's fence was kept
+// for its whole life). A preview under a moved fence is the newer answer; only the newest preview can start the job.
+test('step 7: a query preview under a moved fence is the newer answer, and an older preview cannot start the job', async () => {
+  const held = selected(), jobs: unknown[] = [];
+  let fence = 'd'.repeat(64);
+  const spec = {field: 'contentRating', label: 'Content rating', type: 'text', bulk: true, group: 'general', maxLength: 300};
+  const preview = () => ({variant: 'ready', serverId: 'server', viewerFence: fence, contentKind: 'movie', kind: 'item', total: 2, selectionRevision: revision,
+    schema: [spec], singleItemFields: [spec], excludedFields: [], targets: [],
+    fields: {contentRating: {state: 'shared', distinctCount: 1, value: 'G', values: [{value: 'G', count: 2}], entries: [], locked: 0, truncated: false}}});
+  const editor = createQuerySelectionEditor({api: {request: async <T>(path: string, _method?: string, body?: unknown) => {
+    if (path.includes('preview')) return preview() as T;
+    jobs.push(body); return {jobId: 'job', command: 'metadata-edit', state: 'complete', total: 2, totalKnown: true, done: 2, failed: 0} as T;
+  }}, serverId: 'server', viewerId: 'viewer', events: {on: () => () => {}}, requestId: async () => 'operation', isCurrent: () => true});
+  try {
+    const older = await editor.preview(held.operation);
+    fence = 'e'.repeat(64);
+    const newer = await editor.preview(held.operation);
+    assert.equal(newer.viewerFence, 'e'.repeat(64));
+    await assert.rejects(editor.save(held.operation, older, {fields: {contentRating: 'PG'}, lists: {}, lockEdited: true}, () => {}), /metadata-preview-not-current/);
+    assert.equal(jobs.length, 0);
+    assert.equal((await editor.save(held.operation, newer, {fields: {contentRating: 'PG'}, lists: {}, lockEdited: true}, () => {})).updated, 2);
+  } finally {held.model.dispose();}
+});
+
 test('queue-source capture validates and preserves the supplied proof losslessly', () => {
   const input = {query: {libraryId: 'lib', pivot: 'movies', selectionBasis: proof, selectionRevision: revision, sort}};
   const captured = captureQueueSource(input); input.query.selectionBasis = otherProof;
