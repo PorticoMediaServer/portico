@@ -55,6 +55,7 @@ func TestDarwinWorkerAddressMeasurementFailsClosed(t *testing.T) {
 		"oversized":       {size: 1 << 30, n: 104},
 		"overflow":        {size: ^uint64(0), n: 96},
 		"signed-overflow": {size: 1<<63 - 1, n: 96},
+		"infinite-limit":  {size: (1<<63 - 1) - workerAddressBudget, n: 96},
 	} {
 		t.Run(name, func(t *testing.T) {
 			calls := 0

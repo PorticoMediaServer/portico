@@ -22,7 +22,7 @@ func workerAddressLimit() (uint64, error) { return darwinAddressLimit(readDarwin
 func darwinAddressLimit(read func(*darwinTaskInfo) (uintptr, error)) (uint64, error) {
 	var task darwinTaskInfo
 	n, err := read(&task)
-	if err != nil || n != unsafe.Sizeof(task) || task.VirtualSize == 0 || task.VirtualSize > uint64(1<<63-1)-workerAddressBudget {
+	if err != nil || n != unsafe.Sizeof(task) || task.VirtualSize == 0 || task.VirtualSize >= uint64(1<<63-1)-workerAddressBudget {
 		return 0, errors.New("native address space measurement unavailable")
 	}
 	return task.VirtualSize + workerAddressBudget, nil
