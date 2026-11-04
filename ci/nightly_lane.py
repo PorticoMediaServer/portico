@@ -15,9 +15,9 @@ def select(plan, lane):
     return selected
 
 def configure_environment(lane):
-    # This parent otherwise skips. The nightly pressure gate must measure the
-    # mixed viewer/background workload, while explicit release tiers survive.
-    if lane == 'pressure':
+    # This parent otherwise skips. Only its dedicated job gets the smoke tier;
+    # the original pressure cohort and explicit release tiers stay unchanged.
+    if lane == 'mixed-load':
         os.environ.setdefault('PORTICO_PERFORMANCE_TIER', 'smoke')
 
 def run_receiver_contracts(lane):

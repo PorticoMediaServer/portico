@@ -59,10 +59,6 @@
       {
         "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
         "name": "TestMBStagingTenThousandCompleteFinalWriterHold"
-      },
-      {
-        "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
-        "name": "TestMixedViewerLoadUnderBackgroundWork"
       }
     ],
     "golden": [
@@ -183,6 +179,12 @@
       {
         "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
         "name": "TestScannerTenThousandInventoryAndNames"
+      }
+    ],
+    "mixed-load": [
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
+        "name": "TestMixedViewerLoadUnderBackgroundWork"
       }
     ]
   }

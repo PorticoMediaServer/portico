@@ -87,7 +87,7 @@ class NightlyCoverage(unittest.TestCase):
         self.assertIn('python3 ci/plan.py --full --tier nightly', planner)
         self.assertNotRegex(planner, r'(?m)^          ref:')  # schedule checks out the default main SHA
         diagnostic = job('diagnostic')
-        self.assertIn('lane: [pressure, golden, scanner]', diagnostic)
+        self.assertIn('lane: [pressure, golden, scanner, mixed-load]', diagnostic)
         self.assertIn('python3 ci/nightly_lane.py "$LANE"', diagnostic)
         aggregate = job('merge')
         self.assertRegex(aggregate, r'needs: \[[^\]]*\bdiagnostic\b[^\]]*\]')
