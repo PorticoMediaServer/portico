@@ -44,7 +44,7 @@ func save(p string, v any) {
 }
 
 var normalWrites, writeOnly, facetMode, frameMode, gatesOnly, browseOnly, admissionSchema, attributionMode, localControl, identitySchema, omitFTS, ablationMode, capsMode bool
-var qualificationMode, scalarMode, diagnosticMode, cueMode bool
+var qualificationMode, scalarMode, diagnosticMode, cueMode, enrichMode bool
 var traceIO, boundedWAL bool
 var checkpointEvery = 50 * time.Millisecond
 var walGovernor *walControl
@@ -218,7 +218,7 @@ func seedAndSweep(c *sql.Conn, target int, out, hash string) {
 		shape = "Basic movie source acceptance with subject+identity+entity+asset+link+search input job/generation+age count+library revision/event/receipt; NO FTS or published search image. No provider metadata/staging/scanner IO/full production typed command."
 	}
 	save(filepath.Join(out, "full-seed.json"), map[string]any{"ddl_sha256": hash, "entities": n, "batches": batches, "decoupled_search": decoupledSchema, "shape": shape})
-	if facetMode || frameMode || gatesOnly || attributionMode || capsMode || scalarMode || cueMode {
+	if facetMode || frameMode || gatesOnly || attributionMode || capsMode || scalarMode || cueMode || enrichMode {
 		return
 	}
 	if !writeOnly {
@@ -372,6 +372,7 @@ func main() {
 	mmapFlag := flag.Int64("mmap-bytes", 0, "requested mmap bytes; actual pragma recorded")
 	scalarFlag := flag.Bool("scalar-primitives", false, "bundled complete-DDL extrema and reverse10/100")
 	cueFlag := flag.Bool("cue-primitives", false, "bundled255CUE/8episode change/delete plusasset-keyed100collections")
+	enrichFlag := flag.Bool("enrichment", false, "whole150credit max-to-max enrichment replacement, existing/newpeople")
 	cpuFlag := flag.Bool("cpu-profile", false, "sampled CPU attribution with native_sql labels; diagnostic scope")
 	qualificationFlag := flag.Bool("qualification", false, "pre-registered1000holds/size, host witnesses, sizes1–128")
 	capsFlag := flag.Bool("caps-product", false, "shared100collections/255CUE size contribution collapse")
@@ -394,6 +395,7 @@ func main() {
 	mmapBytes = *mmapFlag
 	scalarMode = *scalarFlag
 	cueMode = *cueFlag
+	enrichMode = *enrichFlag
 	qualificationMode = *qualificationFlag
 	capsMode = *capsFlag
 	ablationMode = *ablationFlag
@@ -507,6 +509,9 @@ func main() {
 		}
 		if cueMode {
 			cuePrimitives(c, *out, hash)
+		}
+		if enrichMode {
+			enrichment(c, *out, hash)
 		}
 		if capsMode {
 			capsProduct(c, *out, hash)
@@ -1927,6 +1932,227 @@ func cuePrimitives(c *sql.Conn, out, hash string) {
 		}
 		save(filepath.Join(out, label+"-fixture.json"), map[string]any{"ddl_sha256": hash, "children": nchild, "owner": owner, "automatic_parents": []int{p1, p2}, "base_inline": true, "boundary": "Single-library1owner+255CUE(or8episodes),2automatic parents, asset-scoped size witnesses. Synthetic unparented movie owner deliberately adds a conservative owner row; not a music owner identity oracle. CUEduration closed=end-start/openlast=asset-start, audio resolutionNULL; oldfull propagation is a semantic negative upper bound. Delete removes physical asset/links, retains subjects/entities/hierarchy/metadata and zeroes unavailable metrics; no entity retirement/pinned-prepared custody oracle. CAPSc adds100shared authored collections,25500scalar tuples untouched onsize-only change,102per(parent,asset)size rows. No active aggregate overlay debt, no per-profile visibility."})
 	}
+}
+
+type actionPhase struct {
+	name string
+	run  func()
+}
+type enrichmentInput struct {
+	entity, people                                                            int
+	key, evidence, publication, operation, creditpub, digest, title, overview string
+	old                                                                       bool
+}
+
+func syntheticID(s string) string { v := sha256.Sum256([]byte(s)); return hex.EncodeToString(v[:16]) }
+func enrichment(c *sql.Conn, out, hash string) {
+	reps := 1000
+	if os.Getenv("GITHUB_RUN_ID") == "" {
+		reps = 2
+	}
+	var resident int
+	must(c.QueryRowContext(context.Background(), "SELECT max(id) FROM catalog_entities").Scan(&resident))
+	parent := resident + 1
+	fixtureTx(c, acceptanceSQL(parent, 1)+fmt.Sprintf("INSERT OR IGNORE INTO catalog_kinds VALUES(10,'collection',0,1,1,1,0);PRAGMA defer_foreign_keys=ON;UPDATE catalog_subjects SET kind=10 WHERE id=%d;UPDATE catalog_entities SET kind=10,collection_name_key='enrichment-parent' WHERE id=%d;INSERT OR IGNORE INTO metadata_providers VALUES('tmdb','fixture',1,0);INSERT INTO metadata_provider_policy(library_id,provider,incarnation,revision,enabled,priority,region,algorithm,refresh_mode) VALUES(1,'tmdb',randomblob(16),1,1,1,'US','fixture','replace_unlocked');INSERT INTO catalog_credit_labels VALUES(1,'Actor'),(2,'Producer'),(3,'Acting'),(4,'Production');", parent, parent))
+	prepared := map[string]*sql.Stmt{}
+	prepare := func(name, q string) { s, e := c.PrepareContext(context.Background(), q); must(e); prepared[name] = s }
+	defer func() {
+		for _, s := range prepared {
+			must(s.Close())
+		}
+	}()
+	x := func(name string, args ...any) {
+		_, e := prepared[name].ExecContext(context.Background(), args...)
+		must(e)
+	}
+	prepare("rating", "INSERT INTO metadata_evidence_ratings(evidence_id,provider,role,value,scale,votes,source_url) VALUES(?,'tmdb',?,?,?,100,'https://example.invalid/accepted')")
+	prepare("subject", "INSERT INTO metadata_provider_subjects(id,provider,subject_kind,provider_id,language,region,request_shape,incarnation,revision) VALUES(?,'tmdb','movie',?,'en-US','US','movie-v1',randomblob(16),1)")
+	prepare("evidence", "INSERT INTO metadata_evidence(id,subject_id,parser_version,provider,subject_kind,provider_id,language,region,request_shape,digest,observed_at,source_url,title,original_title,overview,tagline,content_rating,release_date,year) VALUES(?,?,'fixture','tmdb','movie',?,'en-US','US','movie-v1',?,'2026-11-04T00:00:00.000000000Z','https://example.invalid/accepted',?,?,?,'accepted tagline','PG-13','2026-11-04',2026)")
+	prepare("evidence-credit", "INSERT INTO metadata_evidence_credits(provider,evidence_kind,credit_class,evidence_id,ordinal,provider_person_id,name,role,department,credit_id) VALUES('tmdb','movie',?,?,?,?,?,?,?,?)")
+	prepare("source-credit", "INSERT INTO credit_source_rows(source_row_id,entity_id,provider,tuple_digest,original_record_reference,original_credit_id,original_provider_person_id,original_person_identity_key,original_person_token,original_target_kind,original_target_id,original_credited_name,original_role,original_department,original_credit_class,original_source_ordinal) VALUES(?,?,'tmdb',?,?,?,?,?,?,'person',?,?,?,?,?,?)")
+	prepare("credit-member", "INSERT INTO credit_source_publication_members(publication_id,entity_id,provider,position,source_row_id,reference_status) VALUES(?,?,'tmdb',?,?,'new')")
+	prepare("effective-credit", "INSERT INTO catalog_credits(entity_id,ord,person_id,role_id,department_id,credited_name,provider,credit_id,provider_person_id,source_ordinal,source_row_id) VALUES(?,?,?,?,?,?,'tmdb',?,?,?,?)")
+	prepare("people", "INSERT INTO catalog_people(id,token,identity_key,name,sort_name,artwork_incarnation) VALUES(?,?,?,?,?,randomblob(16))")
+	prepare("person-id", "INSERT INTO metadata_person_external_ids VALUES(?,'tmdb',?)")
+	prepare("origin", "INSERT INTO metadata_field_origins(entity_id,field,provider,source_kind,source_url,confidence,observed_at,language,region,selection_revision,publication_id,evidence_id,subject_kind,provider_id) VALUES(?,?,'tmdb','provider','https://example.invalid/accepted',1,'2026-11-04T00:00:00.000000000Z','en-US','US',1,?,?,'movie',?) ON CONFLICT(entity_id,field) DO UPDATE SET publication_id=excluded.publication_id,evidence_id=excluded.evidence_id,provider_id=excluded.provider_id,selection_revision=selection_revision+1")
+	prepare("art", "INSERT INTO artwork_selections(kind,entity_id,role,choice,digest,provider,image_id,origin,attribution,locale,effective_language,source_fence,actor,observed_at) VALUES('entity',?,?,'matched',?,'tmdb',?,'provider','fixture','en-US','en-US',?,'background','2026-11-04T00:00:00.000000000Z') ON CONFLICT(kind,entity_id,role,choice) DO UPDATE SET image_id=excluded.image_id,source_fence=excluded.source_fence,revision=revision+1")
+	peopleRows := func(start int) {
+		for i := 0; i < 150; i++ {
+			id := start + i
+			token := fmt.Sprintf("person-%d", id)
+			name := fmt.Sprintf("Accepted Person %d", id)
+			x("people", id, token, token, name, strings.ToLower(name))
+			x("person-id", id, strconv.Itoa(id))
+		}
+		_, e := c.ExecContext(context.Background(), fmt.Sprintf("INSERT INTO search_publish_jobs(person_id,search_generation_id,input_generation,source_incarnation,source_revision,recipe_version,phase,job_next_attempt_ms) SELECT id,1,1,artwork_incarnation,revision,'0b32cf6f04014d1d81310ff7c1ac9066998937c585b7d87d796cd6cff00e1340','capture',0 FROM catalog_people WHERE id BETWEEN %d AND %d;UPDATE search_generations SET pending_subjects=pending_subjects+150,captured_input_sequence=captured_input_sequence+150 WHERE id=1;", start, start+149))
+		must(e)
+	}
+	admitWAL()
+	_, e := c.ExecContext(context.Background(), "BEGIN IMMEDIATE")
+	must(e)
+	peopleRows(1)
+	_, e = c.ExecContext(context.Background(), "COMMIT")
+	must(e)
+	observeWALCommit()
+	artDigests := []string{}
+	for i := 0; i < 4; i++ {
+		digest := fmt.Sprintf("%064x", i+1)
+		artDigests = append(artDigests, digest)
+		fixtureTx(c, fmt.Sprintf("INSERT INTO artwork_blobs(digest,mime,width,height,bytes,created_at) VALUES('%s','image/jpeg',1280,720,100000,'2026-11-04T00:00:00Z');INSERT INTO artwork_sources(digest,accepted_mime,accepted_width,accepted_height,small_blob,large_blob,ambient_blob,large_edge,small_outlier,large_outlier,encoder_revision,created_at) VALUES('%s','image/jpeg',1280,720,'%s','%s','%s',1280,0,0,1,'2026-11-04T00:00:00Z');", digest, digest, digest, digest, digest))
+	}
+	input := func(entity int, version string, people int) enrichmentInput {
+		key := fmt.Sprintf("enrich-%d-%s", entity, version)
+		digest := sha256.Sum256([]byte(key))
+		prefix, body := "W", "m"
+		if version == "old" {
+			prefix, body = "V", "o"
+		}
+		return enrichmentInput{entity: entity, people: people, key: fmt.Sprintf("movie-%d", entity), evidence: syntheticID(key + "-evidence"), publication: syntheticID(key + "-publication"), operation: syntheticID(key + "-operation"), creditpub: syntheticID(key + "-credits"), digest: hex.EncodeToString(digest[:]), title: prefix + strings.Repeat("x", 999), overview: strings.Repeat(body, 20000), old: version == "old"}
+	}
+	operation := func(a enrichmentInput) {
+		_, e := c.ExecContext(context.Background(), fmt.Sprintf("INSERT INTO metadata_provider_operations(id,entity_id,provider,phase,status,generation,lease,lease_until,entity_incarnation,source_revision,identity_revision,metadata_revision,hierarchy_revision,selection_revision,descriptive_revision,policy_incarnation,policy_revision,consent_revision,algorithm,refresh_mode,query_title,query_artist,query_year,query_digest,input_digest,selected_id,manual,review_search,qualification,created_at) SELECT '%s',e.id,'tmdb','accept','ready',1,'fixture','2026-11-04T01:00:00Z',e.metadata_incarnation,e.source_revision,e.identity_revision,e.metadata_revision,1,1,1,p.incarnation,p.revision,1,'fixture','replace_unlocked','accepted','',2026,'%s','%s','%s',0,0,'fixture','2026-11-04T00:00:00Z' FROM catalog_entities e JOIN metadata_provider_policy p ON p.library_id=e.library_id AND p.provider='tmdb' WHERE e.id=%d;", a.operation, a.digest, a.digest, a.key, a.entity))
+		must(e)
+	}
+	credits := func(a enrichmentInput) {
+		_, e := c.ExecContext(context.Background(), fmt.Sprintf("INSERT INTO credit_source_publications(publication_id,entity_id,provider,accepted_record_reference,observed_at,member_count) VALUES('%s',%d,'tmdb','%s','2026-11-04T00:00:00Z',150);DELETE FROM catalog_credits WHERE entity_id=%d;", a.creditpub, a.entity, a.evidence, a.entity))
+		must(e)
+		for i := 0; i < 150; i++ {
+			person := a.people + i
+			name := fmt.Sprintf("Accepted Person %d", person)
+			kind, role, department, roleID, deptID := "cast", "Actor", "Acting", 1, 3
+			if i >= 100 {
+				kind, role, department, roleID, deptID = "crew", "Producer", "Production", 2, 4
+			}
+			credit := fmt.Sprintf("%s-%d", a.evidence, i)
+			row := syntheticID(credit)
+			tuple := sha256.Sum256([]byte(credit + name + role + department))
+			token := fmt.Sprintf("person-%d", person)
+			x("evidence-credit", kind, a.evidence, i, strconv.Itoa(person), name, role, department, credit)
+			x("source-credit", row, a.entity, hex.EncodeToString(tuple[:]), a.evidence, credit, strconv.Itoa(person), token, token, token, name, role, department, kind, i)
+			x("credit-member", a.creditpub, a.entity, i, row)
+			x("effective-credit", a.entity, i, person, roleID, deptID, name, credit, strconv.Itoa(person), i, row)
+		}
+		_, e = c.ExecContext(context.Background(), fmt.Sprintf("UPDATE credit_source_publications SET sealed=1 WHERE publication_id='%s';INSERT INTO credit_source_heads(entity_id,provider,publication_id,revision) VALUES(%d,'tmdb','%s',1) ON CONFLICT(entity_id,provider) DO UPDATE SET publication_id=excluded.publication_id,revision=revision+1;", a.creditpub, a.entity, a.creditpub))
+		must(e)
+	}
+	apply := func(a enrichmentInput, newPeople bool) []actionPhase {
+		rating, critic := 8, 90
+		if a.old {
+			rating, critic = 5, 50
+		}
+		return []actionPhase{{"fence", func() {
+			var current, captured int64
+			must(c.QueryRowContext(context.Background(), "SELECT e.metadata_revision,o.metadata_revision FROM catalog_entities e JOIN metadata_provider_operations o ON o.entity_id=e.id WHERE e.id=? AND o.id=? AND o.status='ready' AND o.entity_incarnation=e.metadata_incarnation", a.entity, a.operation).Scan(&current, &captured))
+			if current != captured {
+				panic("enrichment captured source fence drift")
+			}
+		}}, {"observation", func() {
+			x("evidence", a.evidence, a.entity, a.key, a.digest, a.title, a.title, a.overview)
+			x("rating", a.evidence, "community", rating, 10)
+			x("rating", a.evidence, "critic", critic, 100)
+		}}, {"people-and-search-intents", func() {
+			if newPeople {
+				peopleRows(a.people)
+			}
+		}}, {"150-four-credit-relations", func() { credits(a) }}, {"seal-publication-binding-accounting", func() {
+			q := fmt.Sprintf("UPDATE metadata_evidence SET sealed=1 WHERE id='%s';UPDATE metadata_evidence_accounting SET direct_refs=direct_refs-1,retention_refs=retention_refs+1 WHERE evidence_id=(SELECT accepted_evidence_id FROM metadata_subject_providers WHERE entity_id=%d AND provider='tmdb' AND role='primary');INSERT INTO metadata_evidence_accounting VALUES('%s',262144,'2026-11-04T00:00:00Z',0,1,0);INSERT INTO metadata_evidence_totals VALUES('tmdb',0,0,1,262144) ON CONFLICT(provider) DO UPDATE SET other_evidence=other_evidence+1,charge=charge+262144;INSERT INTO metadata_publications(id,operation_id,entity_id,provider,subject_kind,provider_id,evidence_id,selection_revision,generation,decision,observed_at) VALUES('%s','%s',%d,'tmdb','movie','%s','%s',1,1,'accepted','2026-11-04T00:00:00Z');UPDATE metadata_provider_subjects SET accepted_evidence_id='%s',revision=revision+1 WHERE id=%d;INSERT INTO metadata_subject_providers(entity_id,provider,role,incarnation,revision,subject_kind,provider_id,accepted_evidence_id,accepted_publication_id,status,observed_at) VALUES(%d,'tmdb','primary',randomblob(16),1,'movie','%s','%s','%s','accepted','2026-11-04T00:00:00Z') ON CONFLICT(entity_id,provider,role) DO UPDATE SET revision=revision+1,accepted_evidence_id=excluded.accepted_evidence_id,accepted_publication_id=excluded.accepted_publication_id;UPDATE metadata_provider_operations SET phase='complete',status='applied',finished_at='2026-11-04T00:00:00Z' WHERE id='%s';", a.evidence, a.entity, a.evidence, a.publication, a.operation, a.entity, a.key, a.evidence, a.evidence, a.entity, a.entity, a.key, a.evidence, a.publication, a.operation)
+			_, e := c.ExecContext(context.Background(), q)
+			must(e)
+		}}, {"entity-and-field-origins", func() {
+			_, e := c.ExecContext(context.Background(), "UPDATE catalog_entities SET title=?,original_title=?,overview=?,sort_key=?,sort_key_keep_articles=?,sort_head=?,sort_head_keep_articles=?,year=2026,release_date='2026-11-04',release_key='2026-11-04T00:00:00.000Z',content_rating='PG-13',admission_own_age=13,admission_allow_age=13,admission_known_age=13,community_rating_key=?,critic_rating_key=?,metadata_language='en-US',metadata_revision=metadata_revision+1,artwork_revision=artwork_revision+1,scalar_source_revision=scalar_source_revision+1,revision=revision+1 WHERE id=?", a.title, a.title, a.overview, strings.ToLower(a.title), strings.ToLower(a.title), strings.ToLower(a.title[:1]), strings.ToLower(a.title[:1]), rating, critic, a.entity)
+			must(e)
+			for _, field := range []string{"title", "original_title", "overview", "year", "release_date", "content_rating", "community_rating", "critic_rating", "metadata_language"} {
+				x("origin", a.entity, field, a.publication, a.evidence, a.key)
+			}
+		}}, {"four-selected-artwork", func() {
+			for i, role := range []string{"poster", "backdrop", "logo", "banner"} {
+				x("art", a.entity, role, artDigests[i], a.evidence+role, a.publication)
+			}
+		}}, {"parent-contribution-and-extrema", func() {
+			_, e := c.ExecContext(context.Background(), fmt.Sprintf("UPDATE catalog_scalar_contributions SET community_rating=%d,critic_rating=%d,latest_aired_key='2026-11-04T00:00:00.000Z',admission_age=13,contributor_revision=(SELECT scalar_source_revision FROM catalog_entities WHERE id=%d) WHERE parent_id=%d AND contributor_id=%d;", rating, critic, a.entity, parent, a.entity)+scalarKeys(fmt.Sprintf("id=%d", parent)))
+			must(e)
+		}}, {"search-input-and-receipt", func() {
+			_, e := c.ExecContext(context.Background(), fmt.Sprintf("UPDATE search_publish_jobs SET input_generation=input_generation+1,job_revision=job_revision+1,source_revision=(SELECT metadata_revision FROM catalog_entities WHERE id=%d),phase='capture',job_next_attempt_ms=0 WHERE entity_id=%d;UPDATE search_generations SET captured_input_sequence=captured_input_sequence+1 WHERE id=1;", a.entity, a.entity)+sharedReceipt("enrichment-"+a.evidence, 0))
+			must(e)
+		}}}
+	}
+	inputs := map[string][]enrichmentInput{"existing-people": {}, "new-people": {}}
+	for mode := 0; mode < 2; mode++ {
+		name := []string{"existing-people", "new-people"}[mode]
+		for j := 0; j < reps; j++ {
+			entity := 1 + j*997 + mode*400
+			if os.Getenv("GITHUB_RUN_ID") == "" {
+				entity = 1 + j*2 + mode
+			}
+			old := input(entity, "old", 1)
+			admitWAL()
+			_, e = c.ExecContext(context.Background(), "BEGIN IMMEDIATE")
+			must(e)
+			x("subject", entity, old.key)
+			operation(old)
+			for _, p := range apply(old, false) {
+				p.run()
+			}
+			_, e = c.ExecContext(context.Background(), fmt.Sprintf("INSERT INTO catalog_collection_members VALUES(%d,%d,'%010d');", parent, entity, entity)+scalarInsert+scalarFromEntity(parent, fmt.Sprintf("id=%d", entity))+assetFromEntity(parent, fmt.Sprintf("e.id=%d", entity))+"COMMIT;")
+			must(e)
+			observeWALCommit()
+			people := 1
+			if mode == 1 {
+				people = 151 + j*150
+			}
+			a := input(entity, "new", people)
+			admitWAL()
+			_, e = c.ExecContext(context.Background(), "BEGIN IMMEDIATE")
+			must(e)
+			operation(a)
+			_, e = c.ExecContext(context.Background(), "COMMIT")
+			must(e)
+			observeWALCommit()
+			inputs[name] = append(inputs[name], a)
+		}
+	}
+	fixtureTx(c, fmt.Sprintf("UPDATE catalog_entities SET admission_member_count=%d,admission_unrated_members=0,admission_allow_age=13,admission_known_age=13 WHERE id=%d;", 2*reps, parent)+ageCountsFill())
+	for _, name := range []string{"existing-people", "new-people"} {
+		samples := []any{}
+		times := []float64{}
+		rowsTouched := []int64{}
+		for j, a := range inputs[name] {
+			phases := apply(a, name == "new-people")
+			admitWAL()
+			var before, after int64
+			must(c.QueryRowContext(context.Background(), "SELECT total_changes()").Scan(&before))
+			hostBefore := hostSnapshot()
+			_, e = c.ExecContext(context.Background(), "BEGIN IMMEDIATE")
+			must(e)
+			start := time.Now()
+			details := []any{}
+			for _, p := range phases {
+				t := time.Now()
+				pprof.Do(context.Background(), pprof.Labels("native_sql", "enrichment-"+name+"."+p.name), func(ctx context.Context) { p.run() })
+				details = append(details, map[string]any{"phase": p.name, "start_ns": t.UnixNano(), "ms": float64(time.Since(t).Nanoseconds()) / 1e6})
+			}
+			t := time.Now()
+			pprof.Do(context.Background(), pprof.Labels("native_sql", "enrichment-"+name+".commit"), func(ctx context.Context) { _, e = c.ExecContext(ctx, "COMMIT") })
+			must(e)
+			end := time.Now()
+			ms := float64(end.Sub(start).Nanoseconds()) / 1e6
+			details = append(details, map[string]any{"phase": "commit", "start_ns": t.UnixNano(), "ms": float64(end.Sub(t).Nanoseconds()) / 1e6})
+			observeWALCommit()
+			must(c.QueryRowContext(context.Background(), "SELECT total_changes()").Scan(&after))
+			times = append(times, ms)
+			rowsTouched = append(rowsTouched, after-before)
+			samples = append(samples, map[string]any{"sample": j, "entity": a.entity, "start_ns": start.UnixNano(), "end_ns": end.UnixNano(), "hold_ms": ms, "rows_changed": after - before, "phases": details, "host_before": hostBefore, "host_after": hostSnapshot()})
+			var count int
+			must(c.QueryRowContext(context.Background(), "SELECT count(*) FROM catalog_credits WHERE entity_id=?", a.entity).Scan(&count))
+			if count != 150 {
+				panic("150credit replacement drift")
+			}
+		}
+		upper, rank := quantileUpper(times, .99, .95)
+		save(filepath.Join(out, "enrichment-"+name+".json"), map[string]any{"ddl_sha256": hash, "n": reps, "p50_ms": pct(times, .5), "p95_ms": pct(times, .95), "p99_ms": pct(times, .99), "p99_upper_95_ms": upper, "p99_upper_rank": rank, "hosted_p99_upper_95_pass": rank > 0 && upper <= 10, "hosted_max_directional_ms": pct(times, 1), "rows_changed": rowsTouched, "samples": samples})
+		fmt.Println("enrichment", name, pct(times, .99), pct(times, 1))
+	}
+	save(filepath.Join(out, "enrichment-fixture.json"), map[string]any{"ddl_sha256": hash, "initial_basic_residents": resident, "target_entities": 2 * reps, "credits_old_and_new_per_entity": 150, "retained_credit_relations": []string{"metadata_evidence_credits", "credit_source_rows", "credit_source_publication_members", "catalog_credits"}, "cast": 100, "crew": 50, "title_characters": 1000, "overview_characters": 20000, "selected_art_roles": 4, "authored_parents_per_entity": 1, "incoming_facts": "Pretrimmed accepted fixture. Provider operation/policy captured before acceptance;150oldcredits seeded. Whole newimmutableevidence+credits/current replacement/seal/publication/binding/accounting/9fieldorigins+entity+4selectedreadyart+oneparentcontribution/extrema+searchintent/revisions/event/receipt/COMMIT measured. Secondcell creates150newpeople+providerIDs+searchjobs insideacceptance. Samegenre/ratingband13, no facet/classchange; changes there are separate age gates. Existingreadyart blobs/physicalIO outside writer; noFTS. Basic1Mcorpus has no credits outside2000targettitles, so fullproductioncredit-density/referencehardware/authority/policyselection/immutablequota-transition protocols remainOPEN. Source/tokenssynthetic; exactFKgraphon. No ownereditrows created because source acceptance is not an owneredit."})
 }
 
 // Experimental WAL admission follows Q/passive.go's64MiB soft,96MiB

@@ -7,7 +7,7 @@ on:
         default: churn
       ddl:
         description: 'Pinned full schema basename under research/p0-s'
-        default: full-97dc08.sql
+        default: full-415889.sql
       profile:
         description: 'both, standard or legacy8'
         default: both
@@ -21,7 +21,7 @@ permissions:
   contents: read
 jobs:
   scale:
-    if: ${{ inputs.mode != 'sweep' && inputs.mode != 'fanout' && inputs.mode != 'supported' && inputs.mode != 'full' && inputs.mode != 'envelope' && inputs.mode != 'envelope2' && inputs.mode != 'selected' && inputs.mode != 'fullpair' && inputs.mode != 'widthpair' && inputs.mode != 'normal' && inputs.mode != 'facets' && inputs.mode != 'frames' && inputs.mode != 'attribution' && inputs.mode != 'caps' && inputs.mode != 'primitives' && inputs.mode != 'decision' && inputs.mode != 'resource' && inputs.mode != 'iodiag' && inputs.mode != 'bounded' && inputs.mode != 'cue' }}
+    if: ${{ inputs.mode != 'sweep' && inputs.mode != 'fanout' && inputs.mode != 'supported' && inputs.mode != 'full' && inputs.mode != 'envelope' && inputs.mode != 'envelope2' && inputs.mode != 'selected' && inputs.mode != 'fullpair' && inputs.mode != 'widthpair' && inputs.mode != 'normal' && inputs.mode != 'facets' && inputs.mode != 'frames' && inputs.mode != 'attribution' && inputs.mode != 'caps' && inputs.mode != 'primitives' && inputs.mode != 'decision' && inputs.mode != 'resource' && inputs.mode != 'iodiag' && inputs.mode != 'bounded' && inputs.mode != 'cue' && inputs.mode != 'enrichment' && inputs.mode != 'openpair' }}
     runs-on: ubuntu-24.04
     env:
       MODE: ${{ inputs.mode || 'churn' }}
@@ -98,11 +98,11 @@ jobs:
           retention-days: 14
 
   full:
-    if: ${{ inputs.mode == 'full' || inputs.mode == 'fullpair' || inputs.mode == 'widthpair' || inputs.mode == 'normal' || inputs.mode == 'facets' || inputs.mode == 'frames' || inputs.mode == 'attribution' || inputs.mode == 'caps' || inputs.mode == 'primitives' || inputs.mode == 'decision' || inputs.mode == 'resource' || inputs.mode == 'iodiag' || inputs.mode == 'bounded' || inputs.mode == 'cue' }}
+    if: ${{ inputs.mode == 'full' || inputs.mode == 'fullpair' || inputs.mode == 'widthpair' || inputs.mode == 'normal' || inputs.mode == 'facets' || inputs.mode == 'frames' || inputs.mode == 'attribution' || inputs.mode == 'caps' || inputs.mode == 'primitives' || inputs.mode == 'decision' || inputs.mode == 'resource' || inputs.mode == 'iodiag' || inputs.mode == 'bounded' || inputs.mode == 'cue' || inputs.mode == 'enrichment' || inputs.mode == 'openpair' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 80
     env:
-      TARGET_DDL: ${{ inputs.ddl || 'full-97dc08.sql' }}
+      TARGET_DDL: ${{ inputs.ddl || 'full-415889.sql' }}
       MODE: ${{ inputs.mode }}
       CHECKPOINT_MS: ${{ matrix.checkpoint_ms }}
     strategy:
@@ -110,7 +110,7 @@ jobs:
       matrix:
         checkpoint_ms: ${{ fromJSON(inputs.mode == 'bounded' && (inputs.checkpoint_ms == '250' && '[250]' || inputs.checkpoint_ms == '50' && '[50]' || '[50,250]') || '[100]') }}
         profile: ${{ fromJSON(inputs.profile == 'legacy8' && '["legacy8"]' || inputs.profile == 'standard' && '["standard"]' || '["standard","legacy8"]') }}
-        repetition: ${{ fromJSON((inputs.mode == 'normal' || inputs.mode == 'frames' || inputs.mode == 'attribution' || inputs.mode == 'caps' || inputs.mode == 'primitives' || inputs.mode == 'decision' || inputs.mode == 'bounded' || inputs.mode == 'cue') && '[1,2,3]' || '[1]') }}
+        repetition: ${{ fromJSON((inputs.mode == 'normal' || inputs.mode == 'frames' || inputs.mode == 'attribution' || inputs.mode == 'caps' || inputs.mode == 'primitives' || inputs.mode == 'decision' || inputs.mode == 'bounded' || inputs.mode == 'cue' || inputs.mode == 'enrichment' || inputs.mode == 'openpair') && '[1,2,3]' || '[1]') }}
         size: ${{ fromJSON((inputs.mode == 'facets' || inputs.mode == 'bounded') && '[400000,1000000]' || inputs.size == '400000' && '[400000]' || '[1000000]') }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683

@@ -13,6 +13,23 @@ cg=$(awk -F: '$1=="0" {print $3}' /proc/self/cgroup)
    echo "$field"; cat "/sys/fs/cgroup$cg/$field"
  done
 } > "$out/host-$stage.txt"
+if [ "$stage" = enrichment ]; then
+  "$RUNNER_TEMP/p0-s-full" --ddl "research/p0-s/$TARGET_DDL" --db "$out/full.db" --out "$out" --seed "$size" --normal --write-only --enrichment --bounded-wal --checkpoint-ms 50 --cpu-profile
+  exit
+fi
+if [ "$stage" = openpair ]; then
+  for ddl in full-97dc08.sql full-415889.sql; do
+    sub="$out/${ddl%.sql}"
+    mkdir -p "$sub"
+    "$RUNNER_TEMP/p0-s-full" --ddl "research/p0-s/$ddl" --db "$sub/full.db" --out "$sub" --seed 1000 --normal --gates
+    python3 - "$sub" <<'PYCODE'
+import pathlib,sys
+p=pathlib.Path(sys.argv[1])
+for name in ['full.db','full.db-wal','full.db-shm']:(p/name).unlink(missing_ok=True)
+PYCODE
+  done
+  exit
+fi
 if [ "$stage" = cue ]; then
   "$RUNNER_TEMP/p0-s-full" --ddl "research/p0-s/$TARGET_DDL" --db "$out/full.db" --out "$out" --seed "$size" --normal --write-only --cue-primitives --qualification --bounded-wal --checkpoint-ms 50 --cpu-profile
   exit
