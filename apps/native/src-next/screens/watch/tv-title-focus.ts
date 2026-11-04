@@ -18,6 +18,8 @@ export function tvTitleRegionMap(scope: string, rail: string | undefined, show: 
 }
 
 /** Seasons and tiles are native subregions; the compound section remembers either one. */
+/** `seasonId` is the selected entry of the season list: a season's id, or `tvEpisodeGroupKey` for an episode group. */
+export const tvEpisodeGroupKey = (group: string) => `group:${group}`;
 export function tvEpisodeRegionMap(section: FocusRegionConfig, seasonId: string | null, entries: readonly string[], nextUp?: string) {
   const seasons = `${section.id}.seasons`, row = `${section.id}.season.${JSON.stringify(seasonId)}`;
   return {

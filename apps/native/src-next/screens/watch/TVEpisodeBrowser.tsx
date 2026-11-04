@@ -2,13 +2,13 @@ import {TVShelf, tvItemKey} from '../../tv/layout/TVShelf';
 import React, {useEffect, useRef, useState} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
-import type {WorkspaceSeason} from '../../../../../packages/client-core/src/show-workspace';
+import type {ShowWorkspaceData, WorkspaceSeason} from '../../../../../packages/client-core/src/show-workspace';
 import {cardText, episodeLabel, type TextEnvironment} from '../../../../../packages/client-core/src/presentation/kit-model';
 import {durationText} from '../../../../../packages/client-core/src/presentation/kit-model/text';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {Focusable} from '../../kit/controls';
 import {FocusRegion, type FocusRegionConfig} from '../../kit/focus';
-import {tvEpisodeRegionMap} from './tv-title-focus';
+import {tvEpisodeGroupKey, tvEpisodeRegionMap} from './tv-title-focus';
 import {EpisodeTile} from '../../kit/cards';
 import type {ArtworkSource} from '../../kit/artwork';
 import {Menu, type MenuEntry} from '../../kit/overlays';
@@ -22,6 +22,12 @@ export type TVEpisodeBrowserProps = Readonly<{
   focus?: FocusRegionConfig;
   requestedSeasonId?: string;
   selectedSeasonId: string | null;
+  /** tv-detail f5: an owner's Ranges become groups of 100 (hidden seasons, one list), listed under the seasons as on
+   *  web. Focusing one shows its episodes, as a season does. */
+  groups?: ShowWorkspaceData['groups'];
+  selectedGroup?: string;
+  requestedGroup?: string;
+  onSelectGroup?: (id: string) => void;
   episodes: readonly ContentEntry[];
   nextUp?: ContentEntry;
   show: Readonly<{title: string; overview?: string; backdropUrl?: string}>;
@@ -43,7 +49,8 @@ export type TVEpisodeBrowserProps = Readonly<{
   renderError: (error: unknown, retry: () => void) => React.ReactNode;
 }>;
 
-type Focus = Readonly<{kind: 'empty'}> | Readonly<{kind: 'season'; season: WorkspaceSeason}> | Readonly<{kind: 'episode'; entry: ContentEntry}>;
+type Group = ShowWorkspaceData['groups'][number];
+type Focus = Readonly<{kind: 'empty'}> | Readonly<{kind: 'season'; season: WorkspaceSeason}> | Readonly<{kind: 'group'; group: Group}> | Readonly<{kind: 'episode'; entry: ContentEntry}>;
 
 const numbering = (entry: ContentEntry) => entry.absoluteNumber !== undefined ? {mode: 'absolute' as const, number: entry.absoluteNumber}
   : entry.dateBased && entry.airDate ? {mode: 'date' as const, day: entry.airDate}
@@ -53,18 +60,24 @@ const numbering = (entry: ContentEntry) => entry.absoluteNumber !== undefined ? 
  * the focus band that describes whatever holds focus. Only the visible page is
  * drawn; the list pages are the workspace's own. */
 export function TVEpisodeBrowser(props: TVEpisodeBrowserProps) {
-  const theme = useTheme(), t = defaultI18n.t, {episodes, nextUp} = props;
+  const theme = useTheme(), t = defaultI18n.t, {episodes, nextUp} = props, groups = props.onSelectGroup ? props.groups ?? [] : [];
   const fallback = nextUp && episodes.some(entry => entry.id === nextUp.id) ? nextUp : episodes[0];
-  const [focus, setFocus] = useState<Focus>(() => fallback ? {kind: 'episode', entry: fallback} : props.seasons[0] ? {kind: 'season', season: props.seasons[0]} : {kind: 'empty'});
+  const listFallback = (): Focus => props.seasons[0] ? {kind: 'season', season: props.seasons[0]} : groups[0] ? {kind: 'group', group: groups[0]} : {kind: 'empty'};
+  const [focus, setFocus] = useState<Focus>(() => fallback ? {kind: 'episode', entry: fallback} : listFallback());
   const [menu, setMenu] = useState<WorkspaceSeason>();
   useEffect(() => {
-    const current = focus.kind === 'episode' ? episodes.some(entry => entry.id === focus.entry.id) : focus.kind === 'season' && props.seasons.some(season => season.id === focus.season.id);
+    const current = focus.kind === 'episode' ? episodes.some(entry => entry.id === focus.entry.id) : focus.kind === 'season' ? props.seasons.some(season => season.id === focus.season.id)
+      : focus.kind === 'group' && groups.some(group => group.id === focus.group.id);
     if (current) return;
     const next = nextUp && episodes.some(entry => entry.id === nextUp.id) ? nextUp : episodes[0];
-    if (next) setFocus({kind: 'episode', entry: next}); else if (props.seasons[0]) setFocus({kind: 'season', season: props.seasons[0]}); else if (focus.kind !== 'empty') setFocus({kind: 'empty'});
+    const list = listFallback();
+    if (next) setFocus({kind: 'episode', entry: next}); else if (list.kind !== 'empty' || focus.kind !== 'empty') setFocus(list);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [episodes, props.seasons, nextUp]);
-  const requested = props.requestedSeasonId ?? props.selectedSeasonId;
+  }, [episodes, props.seasons, props.groups, nextUp]);
+  // The season list's selection: a season's id, or a group's key (a flat show's groups have no season).
+  const selectedKey = props.selectedSeasonId ?? (props.selectedGroup ? tvEpisodeGroupKey(props.selectedGroup) : null);
+  const requestedKey = props.requestedSeasonId ?? (props.requestedGroup ? tvEpisodeGroupKey(props.requestedGroup) : undefined);
+  const requested = requestedKey ?? selectedKey;
   const lastRequested = useRef(requested), requestWitness = useRef(requested);
   if (requestWitness.current !== requested) {requestWitness.current = requested; lastRequested.current = requested;}
   const seasonFocus = (season: WorkspaceSeason) => {
@@ -74,11 +87,16 @@ export function TVEpisodeBrowser(props: TVEpisodeBrowserProps) {
     if (season.id !== lastRequested.current) {lastRequested.current = season.id; props.onSelectSeason(season.id);}
     if (props.seasons.indexOf(season) >= props.seasons.length - 3) props.onMoreSeasons();
   };
+  const groupFocus = (group: Group) => {
+    setFocus({kind: 'group', group}); props.onSeasonFocus();
+    const key = tvEpisodeGroupKey(group.id);
+    if (key !== lastRequested.current) {lastRequested.current = key; props.onSelectGroup?.(group.id);}
+  };
   const episodeFocus = (entry: ContentEntry) => {setFocus({kind: 'episode', entry}); props.onEpisodeFocus(entry);};
   const section = props.focus ?? {id: 'tv.episodes'};
-  const regions = tvEpisodeRegionMap(section, props.selectedSeasonId, episodes.map(entry => entry.id), nextUp?.id);
-  const rowReady = (!props.requestedSeasonId || props.requestedSeasonId === props.selectedSeasonId)
-    && (focus.kind !== 'season' || focus.season.id === props.selectedSeasonId);
+  const regions = tvEpisodeRegionMap(section, selectedKey, episodes.map(entry => entry.id), nextUp?.id);
+  const rowReady = (!requestedKey || requestedKey === selectedKey)
+    && (focus.kind === 'season' ? focus.season.id === props.selectedSeasonId : focus.kind !== 'group' || focus.group.id === props.selectedGroup);
   const rowLive = useRef(rowReady); rowLive.current = rowReady;
   const selected = (season: WorkspaceSeason) => season.id === props.selectedSeasonId;
   const seasonMenu: MenuEntry[] = menu ? [
@@ -87,7 +105,7 @@ export function TVEpisodeBrowser(props: TVEpisodeBrowserProps) {
       icon: 'i-check', onSelect: () => props.onMarkSeason(menu.id, !(menu.watchedCount !== undefined && menu.episodeCount !== undefined && menu.watchedCount >= menu.episodeCount))},
   ] : [];
   return <FocusRegion {...regions.section} style={{flexDirection: 'row', gap: 70}}>
-    <FocusRegion {...regions.seasons} order={props.seasons.map(season => season.id)} style={{width: 330}}>
+    <FocusRegion {...regions.seasons} order={[...props.seasons.map(season => season.id), ...groups.map(group => tvEpisodeGroupKey(group.id))]} style={{width: 330}}>
       <ScrollView showsVerticalScrollIndicator={false} onScroll={event => {const {contentOffset, contentSize, layoutMeasurement} = event.nativeEvent;
         if (contentSize.height - contentOffset.y - layoutMeasurement.height < layoutMeasurement.height) props.onMoreSeasons();}} scrollEventThrottle={64}>
         {props.seasons.map(season => {
@@ -107,6 +125,17 @@ export function TVEpisodeBrowser(props: TVEpisodeBrowserProps) {
               <Text style={[browseType(theme, 19, 400), {color: theme.colors.textTertiary}]}>{t('title.seasonProgress', {watched, total})}</Text>
             </View>
               : total !== undefined ? <Text style={[browseType(theme, 19, 400), {color: theme.colors.textTertiary, marginTop: 3}]}>{t('count.episodes', {count: total})}</Text> : null}
+          </Focusable>;
+        })}
+        {groups.map(group => {
+          const active = group.id === props.selectedGroup || (focus.kind === 'group' && focus.group.id === group.id);
+          return <Focusable key={group.id} testID={`tv-group-${group.id}`} focusId={tvEpisodeGroupKey(group.id)} focusKind="row" focusRadius={14} accessibilityRole="button"
+            accessibilityState={{selected: group.id === props.selectedGroup}} onFocus={() => groupFocus(group)} onPress={() => groupFocus(group)}
+            style={{minHeight: 84, marginBottom: 6, paddingHorizontal: 22, paddingVertical: 10, borderRadius: 14, justifyContent: 'center',
+              backgroundColor: active ? '#409fd429' : 'transparent', overflow: 'hidden'}}>
+            {active && <View pointerEvents="none" style={{position: 'absolute', left: 0, top: 10, bottom: 10, width: 3, borderTopRightRadius: 3, borderBottomRightRadius: 3, backgroundColor: theme.colors.accent}}/>}
+            <Text numberOfLines={1} style={[browseType(theme, 24, 700), {color: theme.colors.text}]}>{group.title}</Text>
+            {group.count > 0 ? <Text style={[browseType(theme, 19, 400), {color: theme.colors.textTertiary, marginTop: 3}]}>{t('count.episodes', {count: group.count})}</Text> : null}
           </Focusable>;
         })}
       </ScrollView>
@@ -161,6 +190,12 @@ export function FocusBand({focus, open, text, onRetry, renderError}: {
       {season.overview ? <Text numberOfLines={2} style={[browseType(theme, 22, 400, 0, 31.9), {color: theme.colors.textSecondary}]}>{season.overview}</Text> : null}
     </View>;
   }
+  if (focus.kind === 'group') return <View testID="tv-episode-band" style={{marginTop: 30}}>
+    <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 24, rowGap: 8}}>
+      <Text accessibilityRole="header" style={[browseType(theme, 22, 700), {color: theme.colors.text}]}>{focus.group.title}</Text>
+      {focus.group.count > 0 ? <Text style={[browseType(theme, 22, 400), {color: theme.colors.textTertiary}]}>{t('count.episodes', {count: focus.group.count})}</Text> : null}
+    </View>
+  </View>;
   const entry = focus.entry, data = open.entry?.id === entry.id ? open.data : undefined;
   const episode = data?.item.episode;
   const code = episodeLabel(numbering(entry), 'player', text);

@@ -1,7 +1,7 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import type {WorkspaceSeason} from '../../../../../packages/client-core/src/show-workspace';
+import type {ShowWorkspaceData, WorkspaceSeason} from '../../../../../packages/client-core/src/show-workspace';
 import {Button, Focusable, Switch, TextField} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
 import {BottomSheet} from '../../kit/overlays';
@@ -14,6 +14,11 @@ export type NativeSeasonsSheetProps = Readonly<{
   total: number;
   selectedId: string | null;
   onSelect: (seasonId: string) => void;
+  /** The workspace's episode groups (tv-detail f5: an owner's Ranges become groups of 100; hidden seasons one list),
+   *  listed after the seasons as web does. Without them, episodes past the first group can't be reached. */
+  groups?: ShowWorkspaceData['groups'];
+  selectedGroup?: string;
+  onSelectGroup?: (group: string) => void;
   onMore?: () => void;
   hideWatched: boolean;
   onHideWatched: (value: boolean) => void;
@@ -25,7 +30,10 @@ export type NativeSeasonsSheetProps = Readonly<{
 export function NativeSeasonsSheet(props: NativeSeasonsSheetProps) {
   const theme = useTheme(), t = defaultI18n.t, [jump, setJump] = useState(''), viewport = useWindowDimensions();
   const scroll = useRef<ScrollView>(null), first = useRef<View>(null);
-  const initialSeason = props.seasons.find(season => season.id === props.selectedId)?.id ?? props.seasons[0]?.id;
+  const groups = props.onSelectGroup ? props.groups ?? [] : [];
+  const selectedGroup = groups.find(group => group.id === props.selectedGroup)?.id;
+  const initialSeason = selectedGroup ? undefined : props.seasons.find(season => season.id === props.selectedId)?.id ?? props.seasons[0]?.id;
+  const initialGroup = selectedGroup ?? (initialSeason ? undefined : groups[0]?.id);
   useEffect(() => {if (props.open) setJump('');}, [props.open]);
   const canJump = props.total > 30;
   const go = () => {
@@ -40,7 +48,7 @@ export function NativeSeasonsSheet(props: NativeSeasonsSheetProps) {
       <Text accessibilityRole="header" style={{color: theme.colors.text, fontSize: 21, fontWeight: '800', letterSpacing: -0.4}}>{t('title.seasons')}</Text>
       <Text style={{color: theme.colors.textTertiary, fontSize: 14, fontWeight: '600'}}>{defaultI18n.number(props.total, {useGrouping: false})}</Text>
       <View style={{flex: 1}}/>
-      <Button ref={!initialSeason ? first : undefined} focusId="watch-seasons-done" testID="watch-seasons-done" variant="text" onPress={() => props.onOpenChange(false)}>{t('action.done')}</Button>
+      <Button ref={!initialSeason && !initialGroup ? first : undefined} focusId="watch-seasons-done" testID="watch-seasons-done" variant="text" onPress={() => props.onOpenChange(false)}>{t('action.done')}</Button>
     </View>}
     contentStyle={{paddingHorizontal: 0, flex: 1}} detents={[Math.round(viewport.height * .72)]}>
     <View style={{flex: 1}}>
@@ -76,6 +84,19 @@ export function NativeSeasonsSheet(props: NativeSeasonsSheetProps) {
               {complete ? <Icon name="i-check" size={18} color={theme.colors.textTertiary}/> : null}
               {partial && total ? <View style={{width: 40, height: 4, borderRadius: 2, backgroundColor: '#edf5fa29'}}><View style={{height: 4, width: `${Math.min(1, watched! / total) * 100}%`, borderRadius: 2, backgroundColor: theme.colors.accentStrong}}/></View> : null}
             </View> : null}
+          </Focusable>;
+        })}
+        {groups.map(group => {
+          const selected = group.id === selectedGroup;
+          return <Focusable key={group.id} ref={group.id === initialGroup ? first : undefined} focusId={`watch-group-${group.id}`} testID={`watch-group-${group.id}`} focusKind="row" focusRadius={0} accessibilityRole="button"
+            accessibilityState={{selected}} onPress={() => {props.onSelectGroup?.(group.id); props.onOpenChange(false);}}
+            style={{position: 'relative', minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20,
+              backgroundColor: selected ? '#409fd424' : 'transparent', borderTopWidth: 1, borderTopColor: selected ? 'transparent' : theme.colors.line}}>
+            {selected && <View style={{position: 'absolute', left: 0, top: 10, bottom: 10, width: 3, borderTopRightRadius: 3, borderBottomRightRadius: 3, backgroundColor: theme.colors.accent}}/>}
+            <View style={{flex: 1, minWidth: 0}}>
+              <Text numberOfLines={1} style={{color: theme.colors.text, fontSize: 16, fontWeight: '700'}}>{group.title}</Text>
+              {group.count > 0 ? <Text style={{color: theme.colors.textTertiary, fontSize: 12.5, fontWeight: '600', marginTop: 1}}>{t('count.episodes', {count: group.count})}</Text> : null}
+            </View>
           </Focusable>;
         })}
       </ScrollView>
