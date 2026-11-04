@@ -7,7 +7,9 @@ import {homeCardSubject} from '../home/model';
 import {cardText} from '@portico/client-core/kit-model';
 import type {TextEnvironment} from '@portico/client-core/kit-model';
 import {GeneratedCover} from '../../kit/artwork';
-import {CircleCard, CollectionTile, CoverCard, GenreTile, PosterCard, SquareCard, type CardSelection} from '../../kit/cards';
+import {CircleCard, CollectionTile, CoverCard, GenreTile, PosterCard, ResumeCard, SquareCard, type CardSelection} from '../../kit/cards';
+import {continueBookFacts} from '@core/presentation/continue-books.ts';
+import {homeContinuationCard} from '@core/presentation/home-continuation.ts';
 import type {ShellArtwork} from '../../shell/artwork';
 import {collectionWatchedCount, collectionWatchedProgress} from './collection-card';
 
@@ -20,9 +22,11 @@ export type BrowseItemActions = Readonly<{
   selection?: CardSelection;
 }>;
 export type BrowseEntryCardProps = Readonly<{entry: ContentEntry; actions: BrowseItemActions; artwork: ShellArtwork; env: TextEnvironment;
-  width: number; family?: string; mixed?: boolean; order: number; group: string; visible: boolean; backdrops: boolean}>;
+  width: number; family?: string; mixed?: boolean; order: number; group: string; visible: boolean; backdrops: boolean;
+  /** A Continue listening card (phone-app, audiobook library): its time left stands where the author sits. */
+  continuing?: boolean}>;
 /** Display fields never stand in for a navigation target or a permission offer. */
-export function BrowseEntryCard({entry, actions, artwork, env, width, family, mixed, order, group, visible, backdrops}: BrowseEntryCardProps) {
+export function BrowseEntryCard({entry, actions, artwork, env, width, family, mixed, order, group, visible, backdrops, continuing}: BrowseEntryCardProps) {
   const title = entry.displayTitle ?? entry.title;
   const shape = shapeFor(entry.kind, 'grid');
   const ordinary = cardText({...homeCardSubject(entry), itemCount: ['collection', 'category', 'playlist'].includes(entry.kind) ? entry.count : undefined, albumCount: entry.albumCount, songCount: entry.kind === 'album' || entry.kind === 'disc' ? entry.count : undefined, countIsLowerBound: entry.countIsLowerBound}, 'ordinary', env);
@@ -34,7 +38,8 @@ export function BrowseEntryCard({entry, actions, artwork, env, width, family, mi
     detail: [...(entry.yearMin !== undefined && entry.yearMax !== undefined ? [{id: 'years', role: 'supplement' as const, text: env.t('next.kit.range', {start: String(entry.yearMin), end: String(entry.yearMax)})}] : []),
       ...(watched !== undefined && watched > 0 && entry.count !== undefined ? [{id: 'watched', role: 'supplement' as const, text: defaultI18n.t('next.browse.watchedOf', {watched, count: entry.count})}] : [])],
     ...(watchedProgress === undefined ? {} : {progress: watchedProgress})} :
-    mixed && kind ? {...ordinary, caption: [...(entry.year !== undefined ? [{id: 'year', role: 'supplement' as const, text: String(entry.year)}] : []), {id: 'kind', role: 'supplement' as const, text: defaultI18n.t(kind)}]} : ordinary;
+    mixed && kind ? {...ordinary, caption: [...(entry.year !== undefined ? [{id: 'year', role: 'supplement' as const, text: String(entry.year)}] : []), {id: 'kind', role: 'supplement' as const, text: defaultI18n.t(kind)}]} :
+    continuing ? homeContinuationCard('listen_next', ordinary, cardText(homeCardSubject(entry), 'continuation', env)) : ordinary;
   const props = {model, context: 'grid' as const, visible, watched: entry.watched, isNew: entry.new,
     onNavigate: actions.onOpen, onPlay: actions.onPlay, onMore: actions.onMore, moreExpanded: actions.moreExpanded,
     onNotInterested: actions.onNotInterested, selection: actions.selection, style: {'--cards-width': `${width}px`} as CSSProperties,
@@ -56,4 +61,22 @@ export function BrowseEntryCard({entry, actions, artwork, env, width, family, mi
     watchedLabel={entry.readingMark?.read === true ? defaultI18n.t('next.cards.finished') : undefined} kind={entry.kind === 'comic' ? 'comic' : 'book'} artwork={source}
     generated={{title, glyph: Array.from(title.trim())[0] ?? '', tint: generatedCoverTint(title)}}/>;
   return shape === 'square' ? <SquareCard {...props} artwork={source} variant={entry.kind === 'book' || entry.kind === 'audiobook_file' ? 'audiobook' : 'music'}/> : <PosterCard {...props} artwork={source}/>;
+}
+
+/**
+ * An audiobook library's Continue listening card from 600px up (desktop-listen #books): the wide
+ * resume card with the cover, title, author, the chapter you're in and the time left over the
+ * whole book's progress. A multi-part book is one card; its playback target is the current part
+ * at the saved offset, so pressing the card resumes there, as Home's Continue your books does.
+ */
+export function BrowseContinueBookCard({entry, actions, artwork, env, order, group, visible}: Pick<BrowseEntryCardProps, 'entry' | 'actions' | 'artwork' | 'env' | 'order' | 'group' | 'visible'>) {
+  const title = entry.displayTitle ?? entry.title;
+  const facts = continueBookFacts(entry, defaultI18n.t, cardText(homeCardSubject(entry), 'continuation', env));
+  const author = entry.author ?? entry.subtitle;
+  return <ResumeCard model={{title, caption: author ? [{id: 'author', text: author, role: 'identity'}] : [], ...(facts.progress === undefined ? {} : {progress: facts.progress})}}
+    {...(facts.where ? {location: {id: 'where', text: facts.where, role: 'context' as const}} : {})}
+    {...(facts.left ? {remaining: {id: 'left', text: facts.left, role: 'context' as const}} : {})}
+    visible={visible} style={{width: '100%'}} artwork={artwork.foreground(entry.posterUrl, 140 * devicePixelRatio, 1, {group, order})}
+    fallback={<GeneratedCover title={title} glyph={Array.from(title.trim())[0] ?? ''} tint={generatedCoverTint(title)}/>}
+    onNavigate={actions.onPlay ?? actions.onOpen} onMore={actions.onMore} moreExpanded={actions.moreExpanded} selection={actions.selection}/>;
 }
