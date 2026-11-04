@@ -72,6 +72,7 @@ type Write struct {
 	// connection of its own so that synchronous=FULL applies to it and to
 	// nothing else. See beginDurable.
 	conn         *sql.Conn
+	retire       func()
 	release      func()
 	parent       *carried
 	owned        *carried
@@ -128,20 +129,30 @@ func Begin(ctx context.Context, db *sql.DB, class Class) (*Write, error) {
 	meter := &writeMeter{}
 	ctx = context.WithValue(context.WithValue(ctx, changeKey{}, changes), meterKey{}, meter)
 	var (
-		tx   *sql.Tx
-		conn *sql.Conn
+		tx     *sql.Tx
+		conn   *sql.Conn
+		retire func()
 	)
 	if durable, _ := ctx.Value(durableUserKey{}).(bool); class == ClassSecurityFence || durable {
 		conn, tx, err = beginDurable(ctx, writerHandle(db))
 	} else {
-		tx, err = writerHandle(db).BeginTx(ctx, nil)
+		var ordinary *sql.Conn
+		ordinary, err = writerHandle(db).Conn(ctx)
+		if err == nil {
+			tx, err = ordinary.BeginTx(ctx, nil)
+			if err != nil {
+				ordinary.Close()
+			} else {
+				retire = func() { ordinary.Close() }
+			}
+		}
 	}
 	if err != nil {
 		release()
 		return nil, err
 	}
 	held := &carried{tx: tx, class: class}
-	w := &Write{changes: changes, tx: tx, conn: conn, ctx: context.WithValue(ctx, writeKey{}, held), release: release, owned: held, plan: planFor(ctx, class), meter: meter, site: site}
+	w := &Write{changes: changes, tx: tx, conn: conn, retire: retire, ctx: context.WithValue(ctx, writeKey{}, held), release: release, owned: held, plan: planFor(ctx, class), meter: meter, site: site}
 	liveWrites.Store(tx, w)
 	w.changesAtStart = rowChanges(ctx, tx)
 	return w, nil
@@ -361,6 +372,9 @@ func (w *Write) finish() {
 		// The connection goes back before the gate does, so the next writer never
 		// finds the pool one connection short.
 		releaseDurable(w.ctx, w.conn)
+		if w.retire != nil {
+			w.retire()
+		}
 		if w.release != nil {
 			w.release()
 		}
@@ -570,13 +584,13 @@ func BeginSnapshot(ctx context.Context, db *sql.DB) (*Write, error) {
 		return &Write{tx: tx, ctx: ctx, parent: &carried{tx: tx}}, nil
 	}
 	ctx, cancel := snapshotContext(ctx)
-	tx, err := ReadHandle(ctx, db).BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, retire, err := beginReadConnection(ctx, db)
 	if err != nil {
 		cancel()
 		return nil, err
 	}
 	forget := registerReadSnapshot(tx)
-	return &Write{tx: tx, ctx: withSnapshot(ctx, tx), readOnly: true, release: func() { forget(); cancel() }, changesAtStart: rowChanges(ctx, tx)}, nil
+	return &Write{tx: tx, ctx: withSnapshot(ctx, tx), readOnly: true, release: func() { retire(); forget(); cancel() }, changesAtStart: rowChanges(ctx, tx)}, nil
 }
 
 type writerReservationKey struct{}

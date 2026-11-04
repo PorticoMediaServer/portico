@@ -1454,15 +1454,14 @@ func runWithInstanceLock(takeLock func(string) (*instanceLock, error)) (runErr e
 	handler := httpapi.New(apiDependencies)
 	// Normal HTTP drain and an early Serve failure share one bounded join.
 	// The barrier is deferred before db.Close, including non-signal returns.
+	httpDrained := make(chan struct{})
 	var playbackShutdown sync.Once
 	playbackShutdownDone := make(chan struct{})
 	stopPlayback := func() {
 		playbackShutdown.Do(func() {
 			supervise.Go("cmd.playback-shutdown", func() {
 				defer close(playbackShutdownDone)
-				stop, finish := context.WithTimeout(context.Background(), 10*time.Second)
-				defer finish()
-				if err := httpapi.ShutdownPlayback(stop, handler); err != nil {
+				if err := httpapi.ShutdownPlaybackAfterHTTPDrain(context.Background(), handler, httpDrained, 10*time.Second); err != nil {
 					log.Printf("Playback shutdown incomplete: %v", err)
 				}
 			})
@@ -1560,6 +1559,7 @@ func runWithInstanceLock(takeLock func(string) (*instanceLock, error)) (runErr e
 		notified := make(chan struct{})
 		supervise.Go("hosted.shutdown-notice", func() { defer close(notified); _ = control.NotifyShutdown(stop) })
 		_ = server.Shutdown(stop)
+		close(httpDrained)
 		// The owner's in-flight Google sign-ins own loopback listeners and flights.
 		apiDependencies.DriveOAuth.Close()
 		flush, finishFlush := context.WithTimeout(context.Background(), 10*time.Second)
