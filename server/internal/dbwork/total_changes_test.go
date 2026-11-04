@@ -251,3 +251,74 @@ func TestTotalChangesPreservesUnderlyingTransactionLifetime(t *testing.T) {
 		})
 	}
 }
+
+// Signal entry to database/sql's transaction admission, so the borrowed-row
+// owner can release independently. No sleeps or driver-retirement assumption.
+type counterAdmissionContext struct {
+	context.Context
+	entered chan struct{}
+	once    sync.Once
+}
+
+func (c *counterAdmissionContext) Done() <-chan struct{} {
+	c.once.Do(func() { close(c.entered) })
+	return c.Context.Done()
+}
+
+func TestTotalChangesRejectsLogicalEndBeforeBorrowedRowsRetire(t *testing.T) {
+	for _, canceled := range []bool{false, true} {
+		t.Run(map[bool]string{false: "rollback", true: "canceled"}[canceled], func(t *testing.T) {
+			db := testDB(t)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			w, err := Begin(ctx, db, ClassInteractive)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer w.Rollback()
+			if _, err := w.Tx().Exec(`INSERT INTO rows(value) VALUES('borrowed')`); err != nil {
+				t.Fatal(err)
+			}
+			rows, err := w.Tx().Query(`SELECT value FROM rows`)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer rows.Close()
+			if !rows.Next() {
+				t.Fatal(rows.Err())
+			}
+			var borrowed sql.RawBytes
+			if err := rows.Scan(&borrowed); err != nil {
+				t.Fatal(err)
+			}
+			if canceled {
+				cancel()
+			}
+			stopped := make(chan error, 2)
+			go func() { stopped <- w.Tx().Rollback() }()
+			go func() { stopped <- w.Tx().Rollback() }()
+			if err := <-stopped; !errors.Is(err, sql.ErrTxDone) {
+				rows.Close()
+				<-stopped
+				t.Fatal("missing logical-end marker", err)
+			}
+			entry := &counterAdmissionContext{Context: context.Background(), entered: make(chan struct{})}
+			counted := make(chan error, 1)
+			go func() { _, err := TotalChanges(entry, w.Tx()); counted <- err }()
+			select {
+			case err = <-counted:
+				// A direct Raw getter returns here before consulting the Tx.
+				rows.Close()
+			case <-entry.entered:
+				// Like a SQL read, a correctly fenced meter can wait behind the
+				// borrowed row until its owner releases it. It must then refuse.
+				rows.Close()
+				err = <-counted
+			}
+			<-stopped
+			if !errors.Is(err, sql.ErrTxDone) {
+				t.Fatal("counter revived a logically ended transaction", err)
+			}
+		})
+	}
+}

@@ -4,7 +4,7 @@ import sqlite3 "modernc.org/sqlite/lib"
 
 // TotalChanges returns the connection's cumulative changed-row count, including
 // trigger and foreign-key effects. Like the other connection operations, it
-// must be serialized with statements: database/sql callers use Conn.Raw.
+// must be serialized with statements, as database/sql does for driver calls.
 func (c *conn) TotalChanges() (int64, bool) {
 	c.Lock()
 	defer c.Unlock()
