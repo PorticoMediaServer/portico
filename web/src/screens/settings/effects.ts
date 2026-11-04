@@ -28,6 +28,13 @@ const preferenceEffects = new Set([
      values to its own cue surface (preference-effects.ts -> subtitle-surface.ts). */
   'playback.preferredAudioLanguages', 'playback.preferredSubtitleLanguages', 'playback.subtitleMode',
   'playback.subtitleSize', 'playback.subtitleColor', 'playback.subtitleBackground', 'playback.subtitlePosition',
+  /* ST-2, Audio & subtitles › Advanced: the server's track choice reads the first five when it builds a session
+     (playback/preference_selection.go, delivery_plan.go), and the web cue surface applies font and kept styling
+     (caption-style.ts, subtitle-surface.ts). The system caption style is phone and TV only. */
+  'playback.audioDescription', 'playback.audioTrackChoice', 'playback.preferSdhSubtitles', 'playback.forcedSubtitleFallback',
+  'playback.useUntaggedForced', 'playback.subtitleFont', 'playback.keepSubtitleStyling',
+  // ST-5: the web player opens Lyrics only while this is on (WatchPlayback.tsx, listening-port.ts).
+  'playback.showSyncedLyrics',
   // The server selects home/remote by reach and mobile by actual cellular transport.
   // These are saved defaults; a plain start supplies no client quality authority.
   'quality.home', 'quality.remote', 'quality.mobile',

@@ -26,9 +26,19 @@ const backed = {
   'audioSubtitles.subtitleBackground': 'playback.subtitleBackground',
   'audioSubtitles.subtitlePosition': 'playback.subtitlePosition',
 };
+/** ST-2: the Advanced rows with a real consumer (server track choice, the web cue surface). */
+const advancedBacked = {
+  'audioSubtitles.audioDescription': 'playback.audioDescription',
+  'audioSubtitles.trackChoice': 'playback.audioTrackChoice',
+  'audioSubtitles.preferSdh': 'playback.preferSdhSubtitles',
+  'audioSubtitles.forcedFallback': 'playback.forcedSubtitleFallback',
+  'audioSubtitles.untaggedForced': 'playback.useUntaggedForced',
+  'audioSubtitles.subtitleFont': 'playback.subtitleFont',
+  'audioSubtitles.styledSubtitles': 'playback.keepSubtitleStyling',
+};
 
 test('every Account Audio & subtitles value row is exposed through its real registry binding', () => {
-  for (const [rowId, key] of Object.entries(backed)) {
+  for (const [rowId, key] of Object.entries({...backed, ...advancedBacked})) {
     const binding = settingsBinding(rowId);
     assert.equal(binding?.form, 'preferences', rowId);
     assert.equal(binding?.key, key, rowId);
@@ -37,8 +47,12 @@ test('every Account Audio & subtitles value row is exposed through its real regi
   }
 });
 
-test('the section draws exactly its seven value rows; the preview stays a synthetic row', () => {
-  assert.deepEqual(audioRows().filter(entry => hasWebPreferenceEffect(entry)).map(entry => entry.id), Object.keys(backed));
+test('the section draws its seven value rows and the seven Advanced rows with a consumer; the preview stays a synthetic row', () => {
+  const drawn = audioRows().filter(entry => hasWebPreferenceEffect(entry)).map(entry => entry.id);
+  assert.deepEqual(drawn.slice(0, 7), Object.keys(backed));
+  assert.deepEqual([...drawn.slice(7)].sort(), Object.keys(advancedBacked).sort());
+  // Phone and TV only, and device-scoped: never offered on web.
+  assert.equal(drawn.includes('audioSubtitles.systemCaptions'), false);
   assert.equal(audioRows().some(entry => entry.id === 'audioSubtitles.subtitlePreview'), true);
   assert.equal(settingsBinding('audioSubtitles.subtitlePreview'), undefined);
 });

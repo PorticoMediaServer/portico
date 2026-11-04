@@ -37,8 +37,12 @@ test('Account Music exposes only the rows with a real web or server consumer', (
   assert.equal(settingsBinding('music.qualityAway')?.scope, 'profile-device-class');
 });
 
+test('Synced lyrics is offered on web, whose player opens Lyrics only while it is on (ST-5)', () => {
+  assert.equal(hasWebPreferenceEffect(row('playback.showSyncedLyrics')), true);
+});
+
 test('rows without a web consumer stay hidden', () => {
-  for (const id of ['playback.showSyncedLyrics', 'music.qualityMobile', 'music.downloadQuality', 'music.sampleRateMatching',
+  for (const id of ['music.qualityMobile', 'music.downloadQuality', 'music.sampleRateMatching',
     'music.idlePause']) {
     assert.equal(hasWebPreferenceEffect(row(id)), false, id);
   }
