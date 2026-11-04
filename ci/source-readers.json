@@ -202,6 +202,14 @@
       "reads": ["packages/contracts/src/account-step.ts"],
       "files": ["server/internal/hosted/account_step_window_test.go"],
       "tests": ["TestClientsAndServerShareOneAccountStepWindow"]
+    },
+    {
+      "package": "server/internal/httpapi",
+      "why": "Runs the actual client-core and reader-core publication client against the HTTP server; Go imports cannot express these Node execution dependencies",
+      "reads": ["packages/client-core/", "packages/reader-core/", "packages/contracts/"],
+      "ignore": ["*.md"],
+      "files": ["server/internal/httpapi/reading_client_integration_test.go"],
+      "tests": ["TestReadingHTTPClientPublication"]
     }
   ],
   "reviewed": {
@@ -212,7 +220,6 @@
     "server/internal/httpapi/openapi_coverage_test.go": "Reads server/api/portico.openapi.json, which belongs to no Go package, so a change there already selects every Go test; its other input is its own package",
     "server/internal/httpapi/playback_diagnostics_test.go": "Records contract JSON under server/testdata/contracts, which belongs to no Go package, so a change there already selects every Go test",
     "server/internal/httpapi/playback_v1_admission_test.go": "Reads contract JSON under server/testdata/contracts, which belongs to no Go package, so a change there already selects every Go test",
-    "server/internal/httpapi/reading_client_integration_test.go": "Runs the client-core reading client against a live server; an execution dependency, not a source read, and not selected by client-core changes",
     "server/internal/storage/inventory_absence_test.go": "A ../ path is the traversal case the test refuses; nothing is read"
   }
 }

@@ -154,6 +154,8 @@ def make_plan(paths, full=False, tier="short"):
     go_owned=go; readers={} if full else source_readers.select(paths); reader_tests={}; go=go or bool(readers)
     tags=command(['python3','scripts/release-build-tags.py','--capability']).strip()
     if go:
+        # Include the real HTTP/client boundary in build-aware test discovery.
+        tags += ',reading_client_integration'
         for module in ['server','apikit']:
             raw=command(['go','list','-json','-tags',tags,'./...'], ROOT/module)
             listed=decode_stream(raw)
@@ -248,8 +250,9 @@ def event_tier(event, tier, full):
     return tier or 'short', full
 
 def go_matrix(plan):
-    return {'include':[{'index':i}
-                       for i in range(len(plan['shards']))]}
+    return {'include':[dict(index=i, **({'reading_client': True} if any(
+        t['name']=='TestReadingHTTPClientPublication' for t in shard) else {}))
+                       for i,shard in enumerate(plan['shards'])]}
 
 
 def main():
