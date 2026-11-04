@@ -1,0 +1,675 @@
+// Temporary phase-0 research harness. Never merge into product.
+package main
+
+import (
+	"database/sql"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"math"
+	"os"
+	"path/filepath"
+	"runtime"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+	"unicode"
+
+	"github.com/PorticoMediaServer/portico/server/internal/facettext"
+	_ "modernc.org/sqlite"
+)
+
+type Stat struct {
+	N   int     `json:"n"`
+	P50 float64 `json:"p50_ms"`
+	P95 float64 `json:"p95_ms"`
+	P99 float64 `json:"p99_ms"`
+	Max float64 `json:"max_ms"`
+}
+
+func stats(a []float64) Stat {
+	if len(a) == 0 {
+		return Stat{}
+	}
+	b := append([]float64{}, a...)
+	sort.Float64s(b)
+	p := func(q float64) float64 { return b[int(math.Ceil(q*float64(len(b))))-1] }
+	return Stat{len(b), p(.5), p(.95), p(.99), b[len(b)-1]}
+}
+
+var outMu sync.Mutex
+
+func emit(kind string, v any) {
+	outMu.Lock()
+	defer outMu.Unlock()
+	b, e := json.Marshal(map[string]any{"event": kind, "at": time.Now().UTC().Format(time.RFC3339Nano), "data": v})
+	if e != nil {
+		panic(e)
+	}
+	fmt.Println(string(b))
+}
+func must(e error) {
+	if e != nil {
+		panic(e)
+	}
+}
+func exec(db interface {
+	Exec(string, ...any) (sql.Result, error)
+}, q string, a ...any) {
+	_, e := db.Exec(q, a...)
+	must(e)
+}
+
+var nativeMax = struct {
+	sync.Mutex
+	values map[string][]float64
+}{values: map[string][]float64{}}
+
+func native(db interface {
+	Exec(string, ...any) (sql.Result, error)
+}, tag, q string, a ...any) {
+	t := time.Now()
+	exec(db, q, a...)
+	nativeMax.Lock()
+	nativeMax.values[tag] = append(nativeMax.values[tag], float64(time.Since(t).Microseconds())/1000)
+	nativeMax.Unlock()
+}
+func measured(tag string, f func()) {
+	t := time.Now()
+	f()
+	nativeMax.Lock()
+	nativeMax.values[tag] = append(nativeMax.values[tag], float64(time.Since(t).Microseconds())/1000)
+	nativeMax.Unlock()
+}
+func encode(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		fmt.Fprintf(&b, "%06x", r)
+	}
+	return b.String()
+}
+func prefix(s string) string {
+	out := []string{}
+	for _, w := range strings.Fields(facettext.SearchDocument(s)) {
+		r := []rune(w)
+		cjk := false
+		num := true
+		for _, c := range r {
+			cjk = cjk || facettext.CJK(c)
+			num = num && unicode.IsNumber(c)
+		}
+		if cjk {
+			continue
+		}
+		cap := 12
+		if num {
+			cap = 6
+		}
+		if len(r) > cap {
+			r = r[:cap]
+		}
+		out = append(out, encode(string(r)))
+	}
+	return strings.Join(out, " ")
+}
+func initial(s string) string {
+	w := strings.Fields(facettext.SearchFold(s))
+	if len(w) == 0 {
+		return ""
+	}
+	return prefix(w[0])
+}
+
+var indexes = []string{"own_prefix", "fragment_prefix", "fragment_lexical", "fragment_grams"}
+
+func open(path string) *sql.DB {
+	db, e := sql.Open("sqlite", path)
+	must(e)
+	db.SetMaxOpenConns(1)
+	exec(db, "PRAGMA busy_timeout=30000")
+	exec(db, "PRAGMA cache_size=-65536")
+	exec(db, "PRAGMA temp_store=FILE")
+	return db
+}
+func create(db *sql.DB, variant string) {
+	exec(db, "PRAGMA journal_mode=WAL")
+	exec(db, "PRAGMA synchronous=FULL")
+	exec(db, "PRAGMA wal_autocheckpoint=0")
+	exec(db, `CREATE TABLE own(id INTEGER PRIMARY KEY,library INTEGER NOT NULL,kind INTEGER NOT NULL,rating INTEGER NOT NULL,title TEXT NOT NULL,title_fold TEXT NOT NULL,title_prefix_tokens TEXT NOT NULL,initial_prefix_tokens TEXT NOT NULL) STRICT`)
+	exec(db, `CREATE INDEX own_exact ON own(library,kind,title_fold,id)`)
+	exec(db, `CREATE TABLE rel(parent INTEGER NOT NULL,child INTEGER NOT NULL,PRIMARY KEY(parent,child)) WITHOUT ROWID`)
+	exec(db, `CREATE INDEX rel_child ON rel(child,parent)`)
+	exec(db, `CREATE TABLE fragments(id INTEGER PRIMARY KEY,owner INTEGER NOT NULL,field INTEGER NOT NULL,prefix_tokens TEXT NOT NULL,lexical_tokens TEXT NOT NULL,normalized TEXT NOT NULL) STRICT`)
+	exec(db, `CREATE INDEX frag_owner ON fragments(owner,field,id)`)
+	exec(db, `CREATE TABLE edges(fragment INTEGER NOT NULL,entity INTEGER NOT NULL,PRIMARY KEY(fragment,entity)) WITHOUT ROWID`)
+	exec(db, `CREATE INDEX edge_entity ON edges(entity,fragment)`)
+	exec(db, `CREATE VIRTUAL TABLE own_prefix USING fts5(title_prefix_tokens,initial_prefix_tokens,content='own',content_rowid='id',tokenize='ascii',prefix='6 12 18 24 30 36 42 48 54 60 66 72')`)
+	p := "6 12 18 24 30 36 42 48 54 60 66 72"
+	if variant == "B" {
+		p = "18 24 30 36 42 48 54 60 66 72"
+	}
+	exec(db, `CREATE VIRTUAL TABLE fragment_prefix USING fts5(prefix_tokens,content='fragments',content_rowid='id',tokenize='ascii',prefix='`+p+`')`)
+	exec(db, `CREATE VIRTUAL TABLE fragment_lexical USING fts5(lexical_tokens,content='fragments',content_rowid='id',tokenize='unicode61 remove_diacritics 2',prefix='2 3 4')`)
+	exec(db, `CREATE VIRTUAL TABLE fragment_grams USING fts5(normalized,content='fragments',content_rowid='id',tokenize='trigram')`)
+	for _, x := range indexes {
+		for _, kv := range []struct {
+			k string
+			v int
+		}{{"automerge", 2}, {"crisismerge", 16}, {"usermerge", 2}} {
+			exec(db, "INSERT INTO "+x+"("+x+",rank) VALUES(?,?)", kv.k, kv.v)
+		}
+	}
+}
+func fragment(db *sql.DB, id, owner, field int, text string) {
+	p := ""
+	if field != 1 {
+		p = prefix(text)
+	}
+	lex := facettext.SearchDocument(text)
+	norm := facettext.SearchFold(text)
+	exec(db, "INSERT INTO fragments VALUES(?,?,?,?,?,?)", id, owner, field, p, lex, norm)
+	for _, x := range []struct{ idx, col, v string }{{"fragment_prefix", "prefix_tokens", p}, {"fragment_lexical", "lexical_tokens", lex}, {"fragment_grams", "normalized", norm}} {
+		native(db, "fts.insert."+x.idx, "INSERT INTO "+x.idx+"(rowid,"+x.col+") VALUES(?,?)", id, x.v)
+	}
+}
+
+var words = []string{"Harbor", "Night", "Silver", "River", "Moon", "Adventure", "Blue", "Garden", "Silent", "Echo", "Northern", "Empire", "Crimson", "Valley", "Winter", "Dream", "Star", "Ocean", "Hidden", "Road", "Golden", "Light", "Shadow", "Wild", "Castle", "Sun", "Journey", "Mountain", "Distant", "Love", "Clock", "Morning"}
+
+func title(i int) string {
+	if i < 9 {
+		return []string{"Harbor Lights", "Northern Road", "Blue River", "1984", "東京夜話", "1234567", "Nebuchadnezzar Chronicle", "Spider-Man", "Amélie"}[i]
+	}
+	if i%47 == 0 {
+		return fmt.Sprintf("東京夜話 %d", i)
+	}
+	if i%37 == 0 {
+		return fmt.Sprintf("1984 Chronicle %d", i)
+	}
+	return fmt.Sprintf("%s %s %s %d", words[i%len(words)], words[(i/32)%len(words)], words[(i/1024)%len(words)], i)
+}
+
+// Ten percent books, thirty percent music, forty-five percent TV, fifteen percent movies.
+// Within each 100 IDs, show/season and artist/album/song links are direct, never flattened.
+func shape(i int) (int, int) {
+	r := i % 100
+	b := i - r
+	switch {
+	case r < 15:
+		return 1, -1
+	case r == 15:
+		return 2, -1
+	case r >= 16 && r <= 18:
+		return 3, b + 15
+	case r >= 19 && r < 60:
+		return 4, b + 16 + (r-19)%3
+	case r == 60:
+		return 5, -1
+	case r == 61 || r == 62:
+		return 6, b + 60
+	case r >= 63 && r < 90:
+		return 7, b + 61 + (r-63)%2
+	default:
+		return 8, -1
+	}
+}
+func insertItem(db *sql.DB, i, shared int) {
+	t := title(i)
+	p, init := prefix(t), initial(t)
+	kind, parent := shape(i)
+	exec(db, "INSERT INTO own VALUES(?,?,?,?,?,?,?,?)", i, (i/100)%8, kind, i%100, t, facettext.SearchFold(t), p, init)
+	native(db, "fts.insert.own_prefix", "INSERT INTO own_prefix(rowid,title_prefix_tokens,initial_prefix_tokens) VALUES(?,?,?)", i, p, init)
+	fragment(db, 100000000+i, i, 1, t)
+	if parent >= 0 {
+		exec(db, "INSERT INTO rel VALUES(?,?)", parent, i)
+	}
+	for j := 0; j < 2; j++ {
+		exec(db, "INSERT OR IGNORE INTO edges VALUES(?,?)", 1+(i*17+j*43)%shared, i)
+	}
+	exec(db, "INSERT OR IGNORE INTO edges VALUES(?,?)", shared+1+(i/100)%max(1, shared/10), i)
+	if i == 0 {
+		exec(db, "INSERT OR IGNORE INTO edges VALUES(?,?)", 8, i)
+	}
+	if i == 1 {
+		exec(db, "INSERT OR IGNORE INTO edges VALUES(?,?)", 2, i)
+	}
+	if i == 2 {
+		exec(db, "INSERT OR IGNORE INTO edges VALUES(?,?)", shared+4, i)
+	}
+}
+func checkpoint(db *sql.DB) { native(db, "checkpoint", "PRAGMA wal_checkpoint(TRUNCATE)") }
+func build(db *sql.DB, n int) {
+	shared := max(128, n/50)
+	exec(db, "BEGIN IMMEDIATE")
+	for i := 1; i <= shared; i++ {
+		name := fmt.Sprintf("%s %s %d", []string{"Ada", "John", "Jo", "Al", "Alice", "Nolan", "Akira", "Lee"}[i%8], []string{"Lovelace", "Smith", "Williams", "Li", "Cooper", "Johnson"}[i%6], i)
+		fragment(db, i, -i, 2, name)
+	}
+	for i := 1; i <= max(1, shared/10); i++ {
+		fragment(db, shared+i, -shared-i, 3, fmt.Sprintf("%s Collection %d", []string{"Night", "Criterion", "Al", "Studio"}[i%4], i))
+	}
+	exec(db, "COMMIT")
+	checkpoint(db)
+	start := time.Now()
+	for i := 0; i < n; {
+		measured("build.tx", func() {
+			exec(db, "BEGIN IMMEDIATE")
+			for end := min(n, i+8); i < end; i++ {
+				insertItem(db, i, shared)
+			}
+			native(db, "build.commit", "COMMIT")
+		})
+		maintain(db, "build.merge")
+		if i%8192 == 0 {
+			checkpoint(db)
+		}
+		if i%100000 == 0 {
+			emit("build_progress", map[string]any{"items": i, "elapsed_s": time.Since(start).Seconds()})
+		}
+	}
+	checkpoint(db)
+	emit("build_done", map[string]any{"items": n, "elapsed_s": time.Since(start).Seconds()})
+}
+func allocation(db *sql.DB, path string) map[string]any {
+	rows, e := db.Query("SELECT name,sum(pgsize),sum(payload) FROM dbstat GROUP BY name ORDER BY name")
+	must(e)
+	defer rows.Close()
+	m := map[string]any{}
+	var fts, other int64
+	for rows.Next() {
+		var name string
+		var bytes, payload int64
+		must(rows.Scan(&name, &bytes, &payload))
+		m[name] = map[string]int64{"allocated": bytes, "payload": payload}
+		isfts := false
+		for _, x := range indexes {
+			if strings.HasPrefix(name, x+"_") {
+				isfts = true
+			}
+		}
+		if isfts {
+			fts += bytes
+		} else {
+			other += bytes
+		}
+	}
+	files := map[string]int64{}
+	for _, s := range []string{"", "-wal", "-shm"} {
+		if f, e := os.Stat(path + s); e == nil {
+			files[s] = f.Size()
+		}
+	}
+	return map[string]any{"objects": m, "fts_bytes": fts, "source_edges_indexes_bytes": other, "files": files}
+}
+func structure(db *sql.DB, idx string) map[string]any {
+	var b []byte
+	must(db.QueryRow("SELECT block FROM " + idx + "_data WHERE id=10").Scan(&b))
+	pos := 4
+	get := func() uint64 {
+		var v uint64
+		for j := 0; j < 9; j++ {
+			if pos >= len(b) {
+				panic("truncated FTS structure")
+			}
+			c := b[pos]
+			pos++
+			if j == 8 {
+				return v<<8 | uint64(c)
+			}
+			v = v<<7 | uint64(c&127)
+			if c < 128 {
+				return v
+			}
+		}
+		panic("invalid varint")
+	}
+	levels, total, writes := int(get()), int(get()), get()
+	if levels > 64 {
+		panic("unrecognized FTS structure version")
+	}
+	a := []map[string]any{}
+	maxseg := 0
+	sum := 0
+	for level := 0; level < levels; level++ {
+		merging, n := int(get()), int(get())
+		sum += n
+		maxseg = max(maxseg, n)
+		pages := uint64(0)
+		for j := 0; j < n; j++ {
+			_ = get()
+			first, last := get(), get()
+			if last >= first {
+				pages += last - first + 1
+			}
+		}
+		a = append(a, map[string]any{"level": level, "segments": n, "merging": merging, "leaf_pages": pages})
+	}
+	if sum != total || pos != len(b) {
+		panic(fmt.Sprintf("FTS structure decode mismatch %s %d %d pos %d len %d", idx, sum, total, pos, len(b)))
+	}
+	return map[string]any{"levels": a, "segments": total, "max_same_level": maxseg, "write_counter": writes}
+}
+func debt(db *sql.DB) map[string]any {
+	m := map[string]any{}
+	for _, x := range indexes {
+		m[x] = structure(db, x)
+	}
+	return m
+}
+
+var maxDebt = map[string]int{}
+
+func maintain(db *sql.DB, tag string) {
+	for _, idx := range indexes {
+		for step := 0; step < 512; step++ {
+			d := structure(db, idx)
+			n := d["max_same_level"].(int)
+			maxDebt[idx] = max(maxDebt[idx], n)
+			if n < 4 {
+				break
+			}
+			if step == 511 {
+				emit("debt_admission_blocked", map[string]any{"index": idx, "debt": d})
+				panic("cannot repay segment debt")
+			}
+			measured(tag+".tx."+idx, func() {
+				exec(db, "BEGIN IMMEDIATE")
+				native(db, tag+".step."+idx, "INSERT INTO "+idx+"("+idx+",rank) VALUES('merge',1)")
+				native(db, tag+".commit."+idx, "COMMIT")
+			})
+		}
+	}
+}
+func merge(db *sql.DB, tag string) {
+	for _, x := range indexes {
+		measured(tag+".tx."+x, func() {
+			exec(db, "BEGIN IMMEDIATE")
+			native(db, tag+".step."+x, "INSERT INTO "+x+"("+x+",rank) VALUES('merge',1)")
+			native(db, tag+".commit."+x, "COMMIT")
+		})
+	}
+}
+func renameFragment(db *sql.DB, id int, s string) {
+	var owner, field int
+	var p, l, n string
+	must(db.QueryRow("SELECT owner,field,prefix_tokens,lexical_tokens,normalized FROM fragments WHERE id=?", id).Scan(&owner, &field, &p, &l, &n))
+	for _, x := range []struct{ idx, col, v string }{{"fragment_prefix", "prefix_tokens", p}, {"fragment_lexical", "lexical_tokens", l}, {"fragment_grams", "normalized", n}} {
+		native(db, "fts.delete."+x.idx, "INSERT INTO "+x.idx+"("+x.idx+",rowid,"+x.col+") VALUES('delete',?,?)", id, x.v)
+	}
+	exec(db, "DELETE FROM fragments WHERE id=?", id)
+	fragment(db, id, owner, field, s)
+}
+func renameTitle(db *sql.DB, id int, s string) {
+	var p, in string
+	must(db.QueryRow("SELECT title_prefix_tokens,initial_prefix_tokens FROM own WHERE id=?", id).Scan(&p, &in))
+	native(db, "fts.delete.own_prefix", "INSERT INTO own_prefix(own_prefix,rowid,title_prefix_tokens,initial_prefix_tokens) VALUES('delete',?,?,?)", id, p, in)
+	exec(db, "UPDATE own SET title=?,title_fold=?,title_prefix_tokens=?,initial_prefix_tokens=? WHERE id=?", s, facettext.SearchFold(s), prefix(s), initial(s), id)
+	native(db, "fts.insert.own_prefix", "INSERT INTO own_prefix(rowid,title_prefix_tokens,initial_prefix_tokens) VALUES(?,?,?)", id, prefix(s), initial(s))
+	renameFragment(db, 100000000+id, s)
+}
+
+// Per-token exact sets are materialized before choosing the rarest lead. Synthetic recipes
+// all fit the production caps. This is not a production full-recipe implementation.
+func termSQL(term, variant string, fallback bool) (string, []any) {
+	q := `SELECT o.rowid entity,CASE WHEN o.rowid IN(SELECT rowid FROM own_prefix WHERE own_prefix MATCH ?) THEN 2 ELSE 1 END tier,0.0 score FROM own_prefix o WHERE own_prefix MATCH ?`
+	args := []any{"initial_prefix_tokens:" + encode(term) + "*", "title_prefix_tokens:" + encode(term) + "*"}
+	if fallback {
+		q = `SELECT f.owner entity,1 tier,s.score*4 score FROM fallback_scores s JOIN fragments f ON f.id=s.id WHERE f.field=1 AND instr(f.normalized,?)>0`
+		args = []any{term}
+	}
+	if fallback || variant == "A" || len([]rune(term)) >= 3 {
+		fragq := `SELECT e.entity,0 tier,0.0 score FROM fragment_prefix p JOIN edges e ON e.fragment=p.rowid WHERE fragment_prefix MATCH ?`
+		a := []any{encode(term) + "*"}
+		if fallback {
+			fragq = `SELECT e.entity,0 tier,s.score FROM fallback_scores s JOIN fragments f ON f.id=s.id JOIN edges e ON e.fragment=f.id WHERE instr(f.normalized,?)>0`
+			a = []any{term}
+		}
+		q += " UNION ALL " + fragq
+		args = append(args, a...)
+	}
+	return `WITH seeds AS (` + q + `), expanded AS (SELECT entity,tier,score FROM seeds UNION ALL SELECT r.child,0,CASE WHEN s.tier=1 THEN s.score/4 ELSE s.score END FROM seeds s JOIN rel r ON r.parent=s.entity UNION ALL SELECT r2.child,0,CASE WHEN s.tier=1 THEN s.score/4 ELSE s.score END FROM seeds s JOIN rel r1 ON r1.parent=s.entity JOIN rel r2 ON r2.parent=r1.child) SELECT entity,max(tier),max(score) FROM expanded JOIN own ON own.id=expanded.entity WHERE own.library BETWEEN 0 AND 7 GROUP BY entity`, args
+}
+func fallbackQuery(q string) bool {
+	for _, t := range facettext.SearchTerms(q) {
+		r := []rune(t)
+		numeric := true
+		for _, x := range r {
+			if facettext.CJK(x) {
+				return true
+			}
+			numeric = numeric && unicode.IsNumber(x)
+		}
+		if len(r) > 12 || (numeric && len(r) > 6) {
+			return true
+		}
+	}
+	return false
+}
+
+type Query struct {
+	Name, Text string
+	Restricted bool
+}
+
+var queries = []Query{{"prefix1", "a", false}, {"prefix2", "jo", false}, {"prefix3", "ada", false}, {"full_word", "harbor", false}, {"multi_word", "harbor ada", false}, {"numeric6", "1984", false}, {"numeric_long", "1234567", false}, {"cjk1", "東", false}, {"cjk2", "東京", false}, {"long_word", "nebuchadnezzar", false}, {"restricted", "a", true}}
+
+func search(db *sql.DB, v string, query Query) (int, []int) {
+	terms := facettext.SearchTerms(query.Text)
+	lead, count := 0, int(^uint(0)>>1)
+	for i, t := range terms {
+		tbl := fmt.Sprintf("vt%d", i)
+		exec(db, "CREATE TEMP TABLE IF NOT EXISTS "+tbl+"(entity INTEGER PRIMARY KEY,tier INTEGER NOT NULL,score REAL NOT NULL)")
+		exec(db, "DELETE FROM "+tbl)
+		if fallbackQuery(query.Text) {
+			exec(db, "CREATE TEMP TABLE IF NOT EXISTS fallback_scores(id INTEGER PRIMARY KEY, score REAL NOT NULL)")
+			exec(db, "DELETE FROM fallback_scores")
+			exec(db, "INSERT INTO fallback_scores SELECT rowid,-bm25(fragment_lexical) FROM fragment_lexical WHERE fragment_lexical MATCH ?", `"`+t+`"`)
+		}
+		s, args := termSQL(t, v, fallbackQuery(query.Text))
+		exec(db, "INSERT INTO "+tbl+" "+s, args...)
+		var n int
+		must(db.QueryRow("SELECT count(*) FROM " + tbl).Scan(&n))
+		if n < count {
+			lead, count = i, n
+		}
+	}
+	sqlq := fmt.Sprintf("SELECT o.id FROM vt%d v JOIN own o ON o.id=v.entity ", lead)
+	for i := range terms {
+		if i != lead {
+			sqlq += fmt.Sprintf("JOIN vt%d t%d ON t%d.entity=v.entity ", i, i, i)
+		}
+	}
+	sqlq += "WHERE 1=1 "
+	if query.Restricted {
+		sqlq += "AND o.rating=0 "
+	}
+	if fallbackQuery(query.Text) {
+		scores := "v.score"
+		for i := range terms {
+			if i != lead {
+				scores += fmt.Sprintf("+t%d.score", i)
+			}
+		}
+		sqlq += "ORDER BY round(" + scores + "+CASE WHEN o.title_fold=? THEN 1000 ELSE 0 END+CASE WHEN o.title_fold LIKE ? THEN 100 ELSE 0 END,6) DESC,o.id LIMIT 41"
+	} else {
+		sqlq += "ORDER BY CASE WHEN o.title_fold=? THEN 3 ELSE v.tier END DESC,o.id LIMIT 41"
+	}
+	qargs := []any{facettext.SearchFold(query.Text)}
+	if fallbackQuery(query.Text) {
+		qargs = append(qargs, facettext.SearchFold(query.Text)+"%")
+	}
+	rows, e := db.Query(sqlq, qargs...)
+	must(e)
+	defer rows.Close()
+	ids := []int{}
+	for rows.Next() {
+		var id int
+		must(rows.Scan(&id))
+		ids = append(ids, id)
+	}
+	return count, ids
+}
+func latency(db *sql.DB, v string, samples int, phase string) {
+	for _, q := range queries {
+		times := []float64{}
+		var n int
+		var ids []int
+		for i := 0; i < samples+1; i++ {
+			t := time.Now()
+			n, ids = search(db, v, q)
+			if i > 0 {
+				times = append(times, float64(time.Since(t).Microseconds())/1000)
+			}
+		}
+		emit("query", map[string]any{"phase": phase, "variant": v, "name": q.Name, "query": q.Text, "restricted": q.Restricted, "latency": stats(times), "lead_population": n, "page": ids})
+	}
+}
+func quality(db *sql.DB, v string) {
+	for _, s := range []string{"al", "jo", "harbor ad", "ada", "night", "li", "東京"} {
+		n, ids := search(db, v, Query{Text: s})
+		emit("quality", map[string]any{"variant": v, "query": s, "population": n, "page": ids})
+	}
+	var n int
+	must(db.QueryRow("SELECT count(*) FROM fragment_prefix WHERE fragment_prefix MATCH ?", encode("jo")+"*").Scan(&n))
+	emit("native_short_prefix_still_matches", n)
+}
+func controls(db *sql.DB, v string) {
+	exec(db, "BEGIN IMMEDIATE")
+	renameTitle(db, 0, "RollbackSentinel")
+	exec(db, "ROLLBACK")
+	var n int
+	must(db.QueryRow("SELECT count(*) FROM own_prefix WHERE own_prefix MATCH ?", encode("rollbacksent")+"*").Scan(&n))
+	if n != 0 {
+		panic("rollback leaked MATCH")
+	}
+	exec(db, "BEGIN IMMEDIATE")
+	renameFragment(db, 1, "UniqueRenameSentinel")
+	exec(db, "COMMIT")
+	must(db.QueryRow("SELECT count(*) FROM fragment_prefix WHERE fragment_prefix MATCH ?", encode("uniquerenam")+"*").Scan(&n))
+	if n != 1 {
+		panic("rename MATCH failed")
+	}
+	for _, idx := range indexes {
+		exec(db, "INSERT INTO "+idx+"("+idx+",rank) VALUES('integrity-check',1)")
+	}
+	emit("controls", map[string]any{"rollback_match": true, "renamed_match": true, "external_content_integrity": true})
+}
+func main() {
+	n := flag.Int("n", 1000, "base items")
+	v := flag.String("variant", "A", "A or B")
+	profile := flag.String("profile", "smoke", "hardware profile")
+	dir := flag.String("dir", "", "scratch output")
+	samples := flag.Int("samples", 16, "query samples excluding warmup")
+	rounds := flag.Int("rounds", 2048, "churn transactions")
+	flag.Parse()
+	must(os.MkdirAll(*dir, 0755))
+	path := filepath.Join(*dir, "search.sqlite")
+	db := open(path)
+	defer db.Close()
+	var version string
+	must(db.QueryRow("SELECT sqlite_version()").Scan(&version))
+	emit("environment", map[string]any{"sqlite": version, "go": runtime.Version(), "cpus": runtime.NumCPU(), "profile": *profile, "variant": *v, "items": *n, "pid": os.Getpid()})
+	create(db, *v)
+	build(db, *n)
+	emit("allocation_base", allocation(db, path))
+	emit("debt_base", debt(db))
+	for _, t := range []string{"a", "jo", "ada", "harbor", "東京"} {
+		s, args := termSQL(t, *v, false)
+		rows, e := db.Query("EXPLAIN QUERY PLAN "+s, args...)
+		must(e)
+		plan := []string{}
+		for rows.Next() {
+			var id, p, u int
+			var detail string
+			must(rows.Scan(&id, &p, &u, &detail))
+			plan = append(plan, detail)
+		}
+		rows.Close()
+		emit("plan", map[string]any{"term": t, "sql": s, "args": args, "plan": plan})
+	}
+	quality(db, *v)
+	latency(db, *v, *samples, "base")
+	// One writer with foreground readers on separate connections; reader SQL owns its temp sets.
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		rd := open(path)
+		defer rd.Close()
+		k := 0
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			q := queries[k%len(queries)]
+			t := time.Now()
+			_, _ = search(rd, *v, q)
+			emit("concurrent_query", map[string]any{"name": q.Name, "ms": float64(time.Since(t).Microseconds()) / 1000})
+			k++
+			time.Sleep(20 * time.Millisecond)
+		}
+	}()
+	shared := max(128, *n/50)
+	tombstones := 0
+	peakWal := int64(0)
+	for i := 0; i < *rounds; i++ {
+		measured("churn.tx", func() {
+			exec(db, "BEGIN IMMEDIATE")
+			insertItem(db, *n+i, shared)
+			renameTitle(db, (i*7919)%*n, fmt.Sprintf("Harbor Churn %d", i))
+			renameFragment(db, 1+i%shared, fmt.Sprintf("Ada Churn Common %d", i))
+			tombstones += 2
+			native(db, "churn.commit", "COMMIT")
+		})
+		if f, e := os.Stat(path + "-wal"); e == nil {
+			peakWal = max(peakWal, f.Size())
+		}
+		maintain(db, "merge")
+		if i%64 == 0 {
+			emit("debt_churn", map[string]any{"round": i, "tombstone_operations": tombstones, "segments": debt(db), "wal_peak_bytes": peakWal})
+			checkpoint(db)
+		}
+	}
+	close(stop)
+	<-done
+	emit("debt_before_drain", debt(db))
+	for i := 0; i < 256; i++ {
+		merge(db, "drain")
+	}
+	checkpoint(db)
+	emit("debt_after_drain", debt(db))
+	emit("allocation_churn", allocation(db, path))
+	latency(db, *v, *samples, "after_churn")
+	controls(db, *v)
+	// Maximum accepted body common-term/tombstone test and forced rollback of a merge.
+	var body strings.Builder
+	for j := 0; body.Len() < 65536; j++ {
+		fmt.Fprintf(&body, "commonprefixterm commonprefix%06d ", j)
+	}
+	big := body.String()[:65536]
+	for i := 0; i < 16; i++ {
+		measured("max_subject.tx", func() {
+			exec(db, "BEGIN IMMEDIATE")
+			renameFragment(db, 1, big+fmt.Sprint(i))
+			native(db, "max_subject.commit", "COMMIT")
+		})
+		merge(db, "max_subject.merge")
+	}
+	for _, idx := range indexes {
+		measured("merge_rollback."+idx, func() {
+			exec(db, "BEGIN IMMEDIATE")
+			exec(db, "INSERT INTO "+idx+"("+idx+",rank) VALUES('merge',1)")
+			native(db, "rollback", "ROLLBACK")
+		})
+	}
+	checkpoint(db)
+	emit("debt_final", debt(db))
+	nativeMax.Lock()
+	for tag, a := range nativeMax.values {
+		emit("operation", map[string]any{"tag": tag, "latency": stats(a)})
+	}
+	nativeMax.Unlock()
+	emit("completed", map[string]any{"wal_peak_bytes": peakWal, "tombstone_operations": tombstones, "peak_same_level": maxDebt})
+}

@@ -1,0 +1,65 @@
+name: Phase 0 search research
+on:
+  push:
+    branches: ['schema-v1/p0-q-*']
+    paths: ['research/p0-q/**', '.github/workflows/p0-q-search.yml']
+  workflow_dispatch:
+env:
+  GOWORK: "off"
+permissions:
+  contents: read
+jobs:
+  measure:
+    strategy:
+      fail-fast: false
+      matrix:
+        n: [100000, 400000, 1000000]
+        profile: [standard, old8g]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: research/p0-q/go.mod, cache-dependency-path: research/p0-q/go.sum}
+      - name: Build the pinned native SQLite harness
+        working-directory: research/p0-q
+        run: go build -o "$RUNNER_TEMP/p0-q-bench" .
+      - name: Record hardware and measure both variants
+        env:
+          N: ${{ matrix.n }}
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/p0-q/out" "$RUNNER_TEMP/p0-q/scratch"
+          lscpu > "$RUNNER_TEMP/p0-q/out/cpu.txt"
+          free -b > "$RUNNER_TEMP/p0-q/out/memory.txt"
+          lsblk -o NAME,TYPE,SIZE,ROTA,MOUNTPOINT > "$RUNNER_TEMP/p0-q/out/disks.txt"
+          go version -m "$RUNNER_TEMP/p0-q-bench" > "$RUNNER_TEMP/p0-q/out/build.txt"
+          git rev-parse HEAD > "$RUNNER_TEMP/p0-q/out/head.txt"
+          git archive HEAD | sha256sum > "$RUNNER_TEMP/p0-q/out/archive.sha256"
+          if [ "$PROFILE" = old8g ]; then
+            docker pull ubuntu:24.04
+            docker image inspect ubuntu:24.04 --format '{{json .RepoDigests}}' > "$RUNNER_TEMP/p0-q/out/container.txt"
+          fi
+          for variant in A B; do
+            mkdir -p "$RUNNER_TEMP/p0-q/scratch/$variant"
+            if [ "$PROFILE" = old8g ]; then
+              docker run --rm --network none --memory 8g --memory-swap 8g --cpus 2 --cpuset-cpus 0-3 \
+                -v "$RUNNER_TEMP/p0-q-bench:/bench:ro" -v "$RUNNER_TEMP/p0-q:/data" ubuntu:24.04 \
+                /bin/bash -c "cat /sys/fs/cgroup/memory.max /sys/fs/cgroup/cpu.max; /bench -n $N -variant $variant -profile old8g -dir /data/scratch/$variant" \
+                > "$RUNNER_TEMP/p0-q/out/$variant.jsonl" 2> "$RUNNER_TEMP/p0-q/out/$variant.stderr"
+            else
+              /usr/bin/time -v "$RUNNER_TEMP/p0-q-bench" -n "$N" -variant "$variant" -profile standard -dir "$RUNNER_TEMP/p0-q/scratch/$variant" \
+                > "$RUNNER_TEMP/p0-q/out/$variant.jsonl" 2> "$RUNNER_TEMP/p0-q/out/$variant.stderr"
+            fi
+            sudo rm -rf "$RUNNER_TEMP/p0-q/scratch/$variant"
+          done
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: p0-q-${{ matrix.profile }}-${{ matrix.n }}
+          path: '${{ runner.temp }}/p0-q/out'
+          retention-days: 30
+      - name: Clean disposable databases
+        if: always()
+        run: sudo rm -rf "$RUNNER_TEMP/p0-q/scratch"
