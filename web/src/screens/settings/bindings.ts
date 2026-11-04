@@ -18,6 +18,13 @@ export type SettingsSections = Readonly<{
 }>;
 
 /** The parent supplies actual domain adapters. This layer owns no query resolver or key map. */
+/** Sign-in draws its own page and the controller's rows (Advanced's nine policy rows, #713): its snapshot is the
+ * Sign-in page's, renewed whenever either changes, so a re-read after a save redraws the rows. */
+let signInPair: {page: unknown; rows: unknown; snapshot: unknown} | undefined;
+function signInSnapshot<T>(page: T, rows: unknown): T {
+  if (signInPair?.page !== page || signInPair.rows !== rows) signInPair = {page, rows, snapshot: page && typeof page === 'object' ? {...page} : page};
+  return signInPair.snapshot as T;
+}
 export function createSettingsBindings(controller: SettingsController, options: SettingsControllerOptions, identity: ShellIdentity, sections: SettingsSections, presentation?: Readonly<{identity: () => ShellIdentity; subscribe: (listener: () => void) => () => void; getSnapshot: () => unknown}>): SettingsBindings {
   /** A switch row belongs to the direction its server is not already in. Both
    * drawn directions have their own surface; without the captured owner switch
@@ -60,7 +67,7 @@ export function createSettingsBindings(controller: SettingsController, options: 
       const offController = controller.subscribe(listener), offSignIn = sections.signIn?.subscribe(listener);
       return () => {offController();offSignIn?.();};
     },
-    getSnapshot: section => section.scope === 'server' && section.id === 'signin' && sections.signIn ? sections.signIn.getSnapshot() : controller.getSnapshot(section),
+    getSnapshot: section => section.scope === 'server' && section.id === 'signin' && sections.signIn ? signInSnapshot(sections.signIn.getSnapshot(), controller.getSnapshot(section)) : controller.getSnapshot(section),
     sectionVisible: controller.sectionVisible,
     eligible: (row, context) => {
       const fact = signInSwitch(row.id) ?? sections.signIn?.rowState(row.id);
@@ -76,7 +83,8 @@ export function createSettingsBindings(controller: SettingsController, options: 
     special: sections.special,
     section: sections.section,
     panel: sections.panel,
-    load: section => section.scope === 'server' && section.id === 'signin' && sections.signIn && controller.sectionVisible(section) ? sections.signIn.load() : controller.load(section),
+    // Sign-in reads its own page and also the controller's: the configuration (Advanced's nine policy rows, #713) and the server band.
+    load: section => section.scope === 'server' && section.id === 'signin' && sections.signIn && controller.sectionVisible(section) ? Promise.all([sections.signIn.load(), controller.load(section)]).then(() => undefined) : controller.load(section),
     loadContext: controller.loadContext,
     openHome: sections.openHome,
   };

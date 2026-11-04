@@ -6,6 +6,7 @@ import {ConsoleClient, type Measurement} from '@core/console.ts';
 import {PreferencesReader} from '@core/preferences-reader.ts';
 import {validatePreferencePatch, type PreferencePatch, type PreferenceScope, type PreferenceSnapshot} from '@core/preferences.ts';
 import {searchConfiguration, type SettingsConfiguration} from '@core/settings-configuration.ts';
+import {isSignInPolicyRow, patchSignInPolicy, signInPolicyConflict, signInPolicyValues, signInPolicyWith} from '@core/sign-in-policy.ts';
 import {applySettingsBindingPatch, changedFromDefault, exactPresetValue, presetPatch, readSettingsBinding, settingsBinding, settingsBindingPatch, settingsStorableChoices, type SettingsBindingForm, type SettingsBindingSources, type SettingsBindingValue} from '@core/presentation/settings-bindings.ts';
 import {settingsRowIndex, settingsSpec, type SettingsOption, type SettingsRow, type SettingsSection, type SettingsValue} from '@core/presentation/settings-spec.ts';
 import {runtimeForm, connectivityForm, maintenanceForm, alertsForm, logsForm, type ServerFormDeps} from '@core/server-admin/server-forms.ts';
@@ -77,6 +78,18 @@ export type SettingsControllerOptions = Readonly<{
 }>;
 
 /** One selected session owns every document and pending write. No constructor fetches. */
+/** Sign-in's Password hashing strength is config-only and the server doesn't publish it (#713), so search shows the
+ * spec's own fact (password 10, PIN 8) when its label or key matches. */
+const signInHashKey = 'signin.password_hash_cost';
+function withSignInHashStrength(configuration: SettingsConfiguration, query: string): SettingsConfiguration {
+  if (configuration.fields.some(field => field.key === signInHashKey)) return configuration;
+  const entry = settingsSpec.flatMap(section => section.configOnly).find(item => item.key === signInHashKey);
+  const words = query.trim().toLocaleLowerCase().split(/\s+/), text = `${entry ? defaultI18n.t(entry.label) : ''} ${signInHashKey}`.toLocaleLowerCase();
+  if (!entry || query.trim().length < 2 || !words.every(word => text.includes(word))) return configuration;
+  const value = defaultI18n.t('next.settings.signin.hashStrengthDefault');
+  // searchConfiguration matches words against id and key; the id carries the label so "hashing" finds it.
+  return {...configuration, fields: [...configuration.fields, {id: `${signInHashKey} ${text}`, key: signInHashKey, current: value, effective: value, default: value, source: 'default', configOnly: true, applicationMode: 'restart'}]};
+}
 export class SettingsController {
   private readonly options: SettingsControllerOptions;
   private readonly console: ConsoleClient;
@@ -261,7 +274,7 @@ export class SettingsController {
       readOnly: row.id === 'storage.backupPassphrase' || settingsBinding(row.id)?.readOnly === true || settingsBinding(row.id)?.form === 'device' && !canWriteDeviceSettings(this.options.device) || row.id === 'device.appVersion' || row.id === 'device.name' && (!settingsBinding(row.id) || !canWriteDeviceSettings(this.options.device) || this.options.device?.getSnapshot().facts.name?.readOnly === true),
       error: this.rowErrors.has(row.id) ? defaultI18n.t('next.states.pageFailedBody') : undefined};
   };
-  configurationMatches = (query: string) => this.configuration && this.options.role === 'owner' && this.options.mainProfile ? searchConfiguration(this.configuration, query).filter(field => configurationFieldEligible(field, this.eligible) && (settingsRowIndex.has(field.id) || settingsSpec.some(section => section.configOnly.some(item => item.key === field.key)))).map(field => ({...field, label: settingsRowIndex.has(field.id) ? defaultI18n.t(settingsRowIndex.get(field.id)!.row.label) : defaultI18n.t(settingsSpec.flatMap(section => section.configOnly).find(item => item.key === field.key)!.label), path: this.configuration!.path})) : [];
+  configurationMatches = (query: string) => this.configuration && this.options.role === 'owner' && this.options.mainProfile ? searchConfiguration(withSignInHashStrength(this.configuration, query), query).filter(field => configurationFieldEligible(field, this.eligible) && (settingsRowIndex.has(field.id) || settingsSpec.some(section => section.configOnly.some(item => item.key === field.key)))).map(field => ({...field, label: settingsRowIndex.has(field.id) ? defaultI18n.t(settingsRowIndex.get(field.id)!.row.label) : defaultI18n.t(settingsSpec.flatMap(section => section.configOnly).find(item => item.key === field.key)!.label), path: this.configuration!.path})) : [];
   /** The server band's health and storage facts ("Running normally · Up for … · free · Database …"), read once for
    * every server page, including pages that own their other reads (Live TV & Channels, Remote sources). */
   loadServerHeader = (section: SettingsSection): Promise<void> => {
@@ -339,6 +352,7 @@ export class SettingsController {
     if (this.writing || !this.current() || !state.present || state.readOnly) return;
     ++this.writeSerial;this.cancelQuietRead('configuration');this.writing = true; this.rowErrors.delete(row.id); this.publish({saveState: 'saving'});
     try {
+      if (isSignInPolicyRow(row.id)) {await this.writeSignInPolicy(row, value); return;}
       if (row.id === 'storage.backupFolder' || row.id === 'storage.backupArtwork') {
         if (row.id === 'storage.backupFolder' && typeof value !== 'string' || row.id === 'storage.backupArtwork' && typeof value !== 'boolean') throw new Error('invalid_backup_setting');
         const saved = await this.backups.save(row.id === 'storage.backupFolder' ? {backupFolder: String(value)} : {includeArtwork: value === true});
@@ -391,6 +405,23 @@ export class SettingsController {
     } catch (error) {
       if (this.current()) {this.rowErrors.set(row.id, error); this.publish({saveState: undefined}); this.options.reportError(error);}
     } finally {this.writing = false; this.publish({});}
+  };
+  /** Sign-in › Advanced (#713): the complete nine-value policy with the configuration's policy revision. A revision
+   * conflict re-reads the configuration, so the rows show what is current rather than an error. */
+  private writeSignInPolicy = async (row: SettingsRow, value: SettingsValue) => {
+    const configuration = this.configuration, values = signInPolicyValues(configuration), revision = configuration?.signInPolicyRevision;
+    if (!values || !revision) throw new Error('settings_binding_unavailable');
+    try {
+      await patchSignInPolicy(this.options.api, revision, signInPolicyWith(values, row.id, value), this.lifetime.signal);
+    } catch (error) {
+      if (!signInPolicyConflict(error)) throw error;
+      await this.readConfiguration();
+      if (this.current()) this.publish({saveState: undefined});
+      return;
+    }
+    if (!this.current()) return;
+    await this.readConfiguration();
+    if (this.current()) this.publish({saveState: 'saved'});
   };
   change = (row: SettingsRow, value: SettingsValue, context?: SettingsContext) => {void this.write(row, value, false, context);};
   reset = (row: SettingsRow, context?: SettingsContext) => {const value = this.read(row, context)?.default; if (value !== undefined) void this.write(row, value as SettingsValue, true, context);};
