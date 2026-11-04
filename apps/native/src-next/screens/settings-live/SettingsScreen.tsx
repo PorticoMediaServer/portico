@@ -12,7 +12,7 @@ import {NativeSafeModeRow, nativeSafeModeAvailable, nativeSafeModeFocusId} from 
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {AppState, Dimensions, NativeModules, Platform, ScrollView, StatusBar, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {settingsStructure, settingsScopeLabel, settingsRowId, searchSettings, readComposite, compositePatch, type SettingsPage, type SettingsRow as Row} from '../../../../../packages/client-core/src/presentation/settings-structure';
+import {settingsStructure, settingsScopeLabel, settingsRowId, searchSettings, findSettingsPage, readComposite, compositePatch, type SettingsPage, type SettingsRow as Row} from '../../../../../packages/client-core/src/presentation/settings-structure';
 import type {PreferenceScope} from '../../../../../packages/client-core/src/preferences';
 import {COMMON_LANGUAGES, languageName, MAX_LANGUAGES} from '../../../../../packages/client-core/src/presentation/language-list';
 import {localeChoices} from '../../../../../packages/client-core/src/presentation/region-choices';
@@ -222,7 +222,12 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
     return {owner: new NativeLiveOwnerController(lifetime, api, () => [...nativeRouteCrypto.random(24)].map(byte => byte.toString(16).padStart(2, '0')).join('')), recordings: createNativeRecordingsController(lifetime, api, ports.dvrRequestId)};
   }, [controller, ports, managesServer, theme.isTV]);
   useEffect(() => () => {liveControllers?.owner.dispose(); liveControllers?.recordings.dispose();}, [liveControllers]);
-  const matches = searchSettings({headings: structure.headings.filter(value => value.id === 'account')}, query, t);
+  // N5-5: phone and tablet search every page this viewer has, Server pages included; TV's corpus stays the account pages (serverPages is empty there).
+  const searchable = useMemo(() => ({headings: structure.headings.flatMap(heading => heading.id === 'account' ? [heading]
+    : heading.id === 'server' && serverPages.length ? [{...heading, pages: serverPages}] : [])}), [structure, serverPages]);
+  const matches = searchSettings(searchable, query, t);
+  /** A result's address names its heading and page: open that page (a Server page by its own id). */
+  const openMatch = (address: string) => {const found = findSettingsPage(searchable, address); if (found) choose(found.page.id);};
   const matchingPages = accountPages.flatMap(value => {
     const found = matches.filter(match => match.address === value.id);
     if (!found.length) return [];
@@ -325,7 +330,7 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
             onFocus={() => {if (theme.isTV && !searching) {setSearching(true); setSearchRevision(value => value + 1);}}} containerStyle={{marginHorizontal: theme.isTV ? 0 : 16}}/>
         </FocusRegion>
         {theme.isTV && searching ? <View style={{marginTop: 32}}><NativeTVKeyboard id={keyboard} value={query} onChangeText={setQuery} activation={{visible: true, intent: 'enter', revision: searchRevision}} leftRegionId={ids.rail} rightRegionId={matchRegions[0]} width={500} testID="settings-keyboard" onVoice={voiceSearch.start} voiceBusy={voiceSearch.busy}/>{voiceSearch.field}</View> : <ScrollView style={{marginTop: 20, marginHorizontal: theme.isTV ? -16 : 0}} contentContainerStyle={theme.isTV ? {paddingHorizontal: 16} : {paddingBottom: 24 + insets.bottom}}>
-          {query.trim().length >= 2 ? <SettingsSearchResults matches={matches} query={query} onNavigate={address => choose(address)}/>
+          {query.trim().length >= 2 ? <SettingsSearchResults matches={matches} query={query} onNavigate={openMatch}/>
             : <>
               {compact && <>
                 <Focusable testID="settings-profile-card" accessibilityRole="button" accessibilityLabel={shell.profile.name} onPress={() => choose('profile')} focusKind="row" focusRadius={14} style={{marginHorizontal: 16, minHeight: 78, paddingVertical: 12, paddingHorizontal: 14, gap: 14, borderRadius: 14, flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.raised}}>
