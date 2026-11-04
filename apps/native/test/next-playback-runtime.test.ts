@@ -2129,19 +2129,15 @@ test('late genuine detail responses cannot cross any current native authority in
   }
 });
 
-test('a changed genuine Detail fence clears native metadata and cannot rebind within the same source lifetime', async () => {
+test('a moved Detail fence is a newer answer: native metadata follows it on the same session, never cleared (step 7)', async () => {
   const d = fixture(); let body = episodeDetail('episode-1');
   try {
     d.respond(request => request.path === detailPath('episode-1') ? detailResponse(body) : undefined);
     await d.start('episode-1'); assertEpisodeDetail(d, 'show-1'); const session = d.runtime.getSnapshot().session;
     body = episodeDetail('episode-1', 'c'.repeat(64), 'show-other-fence');
-    await d.runtime.refreshAuthority(); await settle(); assertEpisodeDetail(d);
-    assert.equal(d.runtime.getSnapshot().session?.id, session?.id);
+    await d.runtime.refreshAuthority(); await settle(); assertEpisodeDetail(d, 'show-other-fence');
+    assert.equal(d.runtime.getSnapshot().session?.id, session?.id, 'the same playback session');
     assert.equal(d.runtime.getSnapshot().session?.presentation.generation, session?.presentation.generation);
-    // DetailService can decode a retry after clearing its data. The runtime's original
-    // response-fence binding must still reject that different fence on this source.
-    await d.runtime.refreshAuthority(); await settle(); assertEpisodeDetail(d);
-    assert.ok(d.requests.filter(request => request.path === detailPath('episode-1')).length >= 3);
   } finally { d.runtime.dispose(); }
 });
 

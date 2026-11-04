@@ -1,7 +1,7 @@
 {
  "fence-compare": {
   "apps/native/src-next/kit/dock/PlayerMorph.tsx": 2,
-  "apps/native/src-next/platform/playback/runtime.ts": 2,
+  "apps/native/src-next/platform/playback/runtime.ts": 1,
   "apps/native/src-next/screens/destinations/bulk-media.ts": 1,
   "apps/native/src-next/screens/library/selection-actions.ts": 2,
   "apps/native/src-next/screens/read/read-collection-picker.ts": 2,
