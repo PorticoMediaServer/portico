@@ -30,8 +30,8 @@ test('revocation clears every panel and prevents late sibling completion',async(
  let finish!:(v:unknown)=>void;const service=new ServerOperationsService({scope,api:{requestBounded:async(path:string)=>{if(path.endsWith('build'))throw Object.assign(new Error('denied'),{status:401});return await new Promise(resolve=>finish=resolve)}} as any});
  const pending=service.refresh('memory');await service.refresh('build');finish(response());await pending;assert.equal(service.getSnapshot().memory.panel,null);assert.equal(service.getSnapshot().memory.phase,'access-denied');service.dispose();
 });
-test('wrong server, changed viewer fence and disposed server completion are discarded',async()=>{
- let value=response();const service=new ServerOperationsService({scope,api:fake(async()=>value)});await service.refresh('memory');value=response(panel,'server','b'.repeat(64));await service.refresh('memory');assert.equal(service.getSnapshot().memory.panel,null);service.dispose();
+test('wrong server and disposed server completion are discarded; a moved viewer fence is current',async()=>{
+ let value=response();const service=new ServerOperationsService({scope,api:fake(async()=>value)});await service.refresh('memory');value=response(panel,'server','b'.repeat(64));await service.refresh('memory');assert.equal(service.getSnapshot().memory.phase,'ready');assert.notEqual(service.getSnapshot().memory.panel,null);service.dispose();
  const wrong=new ServerOperationsService({scope,api:fake(async()=>response(panel,'other'))});await wrong.refresh('memory');assert.equal(wrong.getSnapshot().memory.panel,null);wrong.dispose();
  let finish!:(v:unknown)=>void;const old=new ServerOperationsService({scope,api:fake(()=>new Promise(resolve=>finish=resolve))});const pending=old.refresh('memory');old.dispose();finish(response());await pending;assert.equal(old.getSnapshot().memory.panel,null);
 });

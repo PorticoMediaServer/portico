@@ -9,11 +9,13 @@ test('playback settings reads bounded actual diagnostics and preserves stale sna
  await service.refresh();assert.equal(service.getSnapshot().phase,'ready');assert.equal(service.getSnapshot().observation?.diagnostics.activeConversionSessions,1);
  const prior=service.getSnapshot().observation;fail=true;await service.refresh();assert.equal(service.getSnapshot().phase,'error');assert.equal(service.getSnapshot().observation,prior);assert.equal(service.getSnapshot().canRefresh,true);assert.equal(JSON.stringify(service.getSnapshot()).includes('SECRET'),false);service.dispose();
 });
-test('playback settings owner revocation and scope changes erase observations and remove refresh capability',async()=>{
- for(const kind of ['401','403','server','fence']){
+test('playback settings owner revocation and another server erase observations and remove refresh capability; a moved fence does not',async()=>{
+ for(const kind of ['401','403','server']){
   let changed=false,calls=0;const service=new PlaybackSettingsService({scope,api:{requestBounded:async()=>{calls++;const raw=observation();if(changed){if(kind==='401'||kind==='403')throw {status:Number(kind)};if(kind==='server')raw.scope.serverId='another-server';else raw.scope.viewerFence='b'.repeat(64);}return raw as any;}}});
   await service.refresh();changed=true;await service.refresh();assert.equal(service.getSnapshot().phase,'access-denied');assert.equal(service.getSnapshot().observation,null);assert.equal(service.getSnapshot().canRefresh,false);await service.refresh();assert.equal(calls,2);service.dispose();
  }
+ let moved=false;const service=new PlaybackSettingsService({scope,api:{requestBounded:async()=>{const raw=observation();if(moved)raw.scope.viewerFence='b'.repeat(64);return raw as any;}}});
+ await service.refresh();moved=true;await service.refresh();assert.equal(service.getSnapshot().phase,'ready');assert.notEqual(service.getSnapshot().observation,null);assert.equal(service.getSnapshot().canRefresh,true);service.dispose();
 });
 test('playback settings timeout and disposal fence late transport completion',async()=>{
  const pending=deferred();let aborted=false;const service=new PlaybackSettingsService({scope,timeoutMs:5,api:{requestBounded:async(_p,_n,signal)=>{signal.addEventListener('abort',()=>{aborted=true});return pending.promise;}}});
