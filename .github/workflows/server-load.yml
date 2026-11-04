@@ -1,11 +1,17 @@
 name: Schema v1 P0-S scale research (never merge)
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'churn or growth (pure growing initial scan)'
+        default: churn
 permissions:
   contents: read
 jobs:
   scale:
     runs-on: ubuntu-24.04
+    env:
+      MODE: ${{ inputs.mode || 'churn' }}
     timeout-minutes: 80
     strategy:
       fail-fast: false

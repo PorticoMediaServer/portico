@@ -186,7 +186,7 @@ def queries():
    out.append((f'search/{word}/{suffix}',f"SELECT e.id,e.sort_key FROM search_own_prefix f JOIN catalog_entities e ON e.id=f.rowid WHERE search_own_prefix MATCH '{word}' AND e.library_id=1 AND e.retired=0{w} ORDER BY e.sort_key,e.id LIMIT 40"))
  return out
 
-def writer(path,stop,ready,counter,output,start):
+def writer(path,stop,ready,counter,output,start,growth=False):
  db=DB(path);xs=[];nextid=start;previous=None
  try:
   with pathlib.Path(output).with_suffix('.jsonl').open('w') as log:
@@ -195,8 +195,9 @@ def writer(path,stop,ready,counter,output,start):
     rec.update(start_ns=began,end_ns=ended,first_id=nextid,evicted=1000 if previous else 0)
     xs.append(rec);log.write(json.dumps(rec)+'\n');log.flush()
     with counter.get_lock():counter.value+=1000
-    ready.set();previous=(nextid,nextid+999);nextid+=1000
- finally:db.close();atom(output,{'batches':xs,'last_id':nextid-1,'mode':'continuous new ingestion with previous synthetic tail batch retired, no sleeps'})
+    ready.set();previous=None if growth else (nextid,nextid+999);nextid+=1000
+    if growth and nextid-start>2_000_000:break
+ finally:db.close();atom(output,{'batches':xs,'last_id':nextid-1,'mode':('pure append new ingestion, no sleeps; 2M new-item safety cap' if growth else 'continuous new ingestion with previous synthetic tail batch retired, no sleeps')})
 
 def probe(args):
  path=pathlib.Path(args.db);out=pathlib.Path(args.out);out.mkdir(parents=True,exist_ok=True)
@@ -217,10 +218,10 @@ def probe(args):
  atom(out/'manifest.json',{'sqlite_version':scalar(db,'SELECT sqlite_version()'),'sqlite_options':db.query('PRAGMA compile_options')[0],'python':sys.version,'platform':platform.platform(),'profile':args.profile,'size':args.size,'sha':os.getenv('GITHUB_SHA'),'run_id':os.getenv('GITHUB_RUN_ID'),'ddl_sha256':hashlib.sha256((ROOT/'schema.sql').read_bytes()).hexdigest(),'entity_count':scalar(db,'SELECT count(*) FROM catalog_entities'),'foreign_key_violations':db.query('PRAGMA foreign_key_check',120)[0],'kind_count':db.query('SELECT kind,count(*) FROM catalog_entities GROUP BY kind')[0],'memory':db.mem()})
  if args.seed_only:return
  qs=queries();random.Random(1104).shuffle(qs)
- for phase in ['rest','ingest']:
+ for phase in (['growth'] if args.growth else ['rest','ingest']):
   stop=mp.Event();ready=mp.Event();counter=mp.Value('q',0);p=None
-  if phase=='ingest':
-   p=mp.Process(target=writer,args=(path,stop,ready,counter,out/'ingest-writer.json',args.size+1));p.start()
+  if phase in ['ingest','growth']:
+   p=mp.Process(target=writer,args=(path,stop,ready,counter,out/(phase+'-writer.json'),args.size+1,args.growth));p.start()
    if not ready.wait(30):raise RuntimeError('writer did not publish initial progress')
   try:
    with (out/f'queries-{phase}.jsonl').open('w') as f:
@@ -258,4 +259,4 @@ def probe(args):
  atom(out/'memory-pools.json',pools)
 
 if __name__=='__main__':
- ap=argparse.ArgumentParser();ap.add_argument('--db',required=True);ap.add_argument('--out',required=True);ap.add_argument('--size',type=int,default=10000);ap.add_argument('--samples',type=int,default=21);ap.add_argument('--profile',default='smoke');ap.add_argument('--open-only',action='store_true');ap.add_argument('--seed-only',action='store_true');probe(ap.parse_args())
+ ap=argparse.ArgumentParser();ap.add_argument('--db',required=True);ap.add_argument('--out',required=True);ap.add_argument('--size',type=int,default=10000);ap.add_argument('--samples',type=int,default=21);ap.add_argument('--profile',default='smoke');ap.add_argument('--open-only',action='store_true');ap.add_argument('--seed-only',action='store_true');ap.add_argument('--growth',action='store_true');probe(ap.parse_args())

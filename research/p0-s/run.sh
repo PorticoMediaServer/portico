@@ -15,6 +15,7 @@ cg=$(awk -F: '$1=="0" {print $3}' /proc/self/cgroup)
 } > "$out/host-$stage.txt"
 args=()
 if [ "$stage" = seed ]; then args+=(--seed-only); fi
+if [ "${MODE:-churn}" = growth ]; then args+=(--growth); fi
 python3 research/p0-s/bench.py --db "$out/library.db" --out "$out" --size "$size" --samples 21 --profile "$profile" "${args[@]}"
 for field in memory.peak memory.events cpu.stat io.stat; do
   { echo "$field"; cat "/sys/fs/cgroup$cg/$field"; } >> "$out/cgroup-$stage.txt"
