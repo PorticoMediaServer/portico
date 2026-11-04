@@ -393,18 +393,45 @@ func (d Dependencies) groupRoutes(handle socialHandle, viewer socialViewer, stor
 	// stays the place total capacity is decided.
 	groupStreams := &viewerStreamLimiter{held: map[string]int{}}
 	handle("GET /v1/groups/{id}/events", func(w http.ResponseWriter, r *http.Request) {
-		p, ok := viewer(w, r)
+		prelude := streamPreludeWriter{w, r.Context()}
+		p, ok := viewer(prelude, r)
 		if !ok {
 			return
 		}
 		if !groupStreams.admit(p.Hash) {
-			socialFailure(w, &social.Fault{Code: "too_many_streams", Status: 429, Message: "Too many event streams are open for this viewer. Close one and retry.", Retryable: true, RetryAfter: 5})
+			socialFailure(prelude, &social.Fault{Code: "too_many_streams", Status: 429, Message: "Too many event streams are open for this viewer. Close one and retry.", Retryable: true, RetryAfter: 5})
 			return
 		}
 		defer groupStreams.release(p.Hash)
 		d.groupEventStream(w, r, store, p, r.PathValue("id"))
 	})
 }
+
+// streamPreludeWriter is only used for errors before a stream opens. The
+// request may end while authentication or the initial read is in flight; that
+// ends the stream, rather than starting an error response for a departed caller.
+// Live requests keep the normal error mapping, including operation deadlines
+// that are independent of the request's own lifetime. Streaming itself uses the
+// original writer, preserving its Flusher and frame deadline support.
+type streamPreludeWriter struct {
+	http.ResponseWriter
+	ctx context.Context
+}
+
+func (w streamPreludeWriter) WriteHeader(status int) {
+	if w.ctx.Err() == nil {
+		w.ResponseWriter.WriteHeader(status)
+	}
+}
+
+func (w streamPreludeWriter) Write(p []byte) (int, error) {
+	if err := w.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return w.ResponseWriter.Write(p)
+}
+
+func (w streamPreludeWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
 // groupStreamPerViewer is the per-viewer ceiling on open group event streams.
 const groupStreamPerViewer = 4
@@ -450,15 +477,16 @@ const (
 // snapshot, and the client discards whatever it had. `heartbeat` and `resume-gap`
 // carry no id, so neither moves a client's resume point.
 func (d Dependencies) groupEventStream(w http.ResponseWriter, r *http.Request, store *social.Store, p identity.Principal, id string) {
+	prelude := streamPreludeWriter{w, r.Context()}
 	if _, ok := w.(http.Flusher); !ok {
-		socialFailure(w, &social.Fault{Code: "streaming_unsupported", Status: 500, Message: "This server cannot stream events."})
+		socialFailure(prelude, &social.Fault{Code: "streaming_unsupported", Status: 500, Message: "This server cannot stream events."})
 		return
 	}
 	// Membership is checked before a single byte is written: an event stream is
 	// not a place to discover you were never in the group.
 	snapshot, e := store.ReadGroup(r.Context(), p, id)
 	if e != nil {
-		socialFailure(w, e)
+		socialFailure(prelude, e)
 		return
 	}
 	after := int64(-1)
@@ -466,7 +494,7 @@ func (d Dependencies) groupEventStream(w http.ResponseWriter, r *http.Request, s
 	if raw := r.Header.Get("Last-Event-ID"); raw != "" {
 		n, err := strconv.ParseInt(raw, 10, 64)
 		if err != nil || n < 0 {
-			socialFailure(w, &social.Fault{Code: "invalid_request", Status: 400, Message: "Last-Event-ID must be an ordinal."})
+			socialFailure(prelude, &social.Fault{Code: "invalid_request", Status: 400, Message: "Last-Event-ID must be an ordinal."})
 			return
 		}
 		after, resumed = n, true
