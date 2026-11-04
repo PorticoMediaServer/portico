@@ -1,4 +1,4 @@
-name: Exact nightly pressure cohort before and after
+name: Same VM pressure pairs and statement attribution
 on:
   workflow_dispatch:
 permissions:
@@ -7,14 +7,9 @@ concurrency:
   group: pressure-cohort-${{ github.ref }}
   cancel-in-progress: false
 jobs:
-  cohort:
+  paired:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
-    strategy:
-      fail-fast: false
-      matrix:
-        variant: [baseline, fixed]
-        replica: [a, b]
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -24,20 +19,45 @@ jobs:
         with:
           go-version-file: server/go.mod
           cache-dependency-path: '**/go.sum'
-      - name: Prepare matching source and scoped counters
-        env:
-          VARIANT: ${{ matrix.variant }}
-        run: python3 ci/pressure_cost_diagnostic.py "$VARIANT"
       - run: python3 ci/plan.py --full --tier nightly
       - run: python3 ci/run.py download
-      - name: Exact nightly cohort, unchanged concurrency and budgets
+      - name: A B A B exact cohort, no native trace in timing results
         env:
           PORTICO_PRESSURE_COST: '1'
+          PORTICO_PRESSURE_NATIVE: '0'
+        run: python3 ci/pressure_interleaved_diag.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: pressure-same-vm-pairs
+          path: |
+            pressure-paired-results/
+            ci-plan.json
+          retention-days: 7
+  attribution:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: '**/go.sum'
+      - run: python3 ci/pressure_cost_diagnostic.py baseline
+      - run: python3 ci/plan.py --full --tier nightly
+      - run: python3 ci/run.py download
+      - name: Attribute caller SQL and native trigger bodies, exclude these timings
+        env:
+          PORTICO_PRESSURE_COST: '1'
+          PORTICO_PRESSURE_NATIVE: '1'
         run: python3 ci/nightly_lane.py pressure
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: pressure-cohort-${{ matrix.variant }}-${{ matrix.replica }}
+          name: pressure-statement-attribution
           path: |
             ci-results/
             ci-plan.json

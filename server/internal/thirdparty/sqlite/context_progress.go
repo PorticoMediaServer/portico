@@ -44,6 +44,7 @@ func cancellationProgress(_ *libc.TLS, token uintptr) int32 {
 type progressScope struct {
 	conn     *conn
 	previous <-chan struct{}
+	pressure pressureNativeScope
 }
 
 func (c *conn) watchProgress(ctx context.Context) progressScope {
@@ -67,13 +68,14 @@ func (c *conn) watchProgress(ctx context.Context) progressScope {
 	previous := c.progress.done
 	c.progress.done = ctx.Done()
 	sqlite3.Xsqlite3_progress_handler(c.tls, c.db, cancellationProgressOps, cFuncPointer(cancellationProgress), c.progressToken)
-	return progressScope{conn: c, previous: previous}
+	return progressScope{conn: c, previous: previous, pressure: c.watchPressureTrace(ctx)}
 }
 func (scope progressScope) restore() {
 	c := scope.conn
 	if c == nil {
 		return
 	}
+	scope.pressure.restore()
 	c.progress.done = scope.previous
 	if scope.previous == nil {
 		sqlite3.Xsqlite3_progress_handler(c.tls, c.db, 0, 0, 0)
