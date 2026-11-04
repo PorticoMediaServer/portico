@@ -29,6 +29,9 @@ func must(e error) {
 	}
 }
 func save(p string, v any) {
+	if m, ok := v.(map[string]any); ok {
+		m["engine"] = "Portico bundled modernc SQLite3.53.4"
+	}
 	b, e := json.MarshalIndent(v, "", "  ")
 	must(e)
 	must(os.WriteFile(p+".tmp", b, 0644))
@@ -36,6 +39,7 @@ func save(p string, v any) {
 }
 
 var normalWrites, writeOnly, facetMode, frameMode, gatesOnly, browseOnly, admissionSchema, attributionMode, localControl, identitySchema, omitFTS, ablationMode, capsMode bool
+var qualificationMode bool
 
 func open(path string) (*sql.DB, *sql.Conn) {
 	db, e := sql.Open("sqlite", path)
@@ -333,6 +337,7 @@ func main() {
 	normalFlag := flag.Bool("normal", false, "NORMAL writer and separate PASSIVE checkpoint")
 	writeFlag := flag.Bool("write-only", false, "seed and writer quanta only")
 	facetFlag := flag.Bool("facets", false, "rating-band counts and restricted indexes")
+	qualificationFlag := flag.Bool("qualification", false, "pre-registered1000holds/size, host witnesses, sizes1–128")
 	capsFlag := flag.Bool("caps-product", false, "shared100collections/255CUE size contribution collapse")
 	omitFlag := flag.Bool("fts-excluded", false, "diagnostic ONLY omitFTS during measured cohort, never seed")
 	ablationFlag := flag.Bool("ablation", false, "one local batch8FTS control,501tx")
@@ -342,6 +347,7 @@ func main() {
 	browseFlag := flag.Bool("browse-only", false, "skip shaped write sweep after browse")
 	frameFlag := flag.Bool("frames", false, "max source-frame replacements")
 	flag.Parse()
+	qualificationMode = *qualificationFlag
 	capsMode = *capsFlag
 	ablationMode = *ablationFlag
 	localControl = *localFlag
@@ -392,6 +398,7 @@ func main() {
 	}
 	db, c := open(*dbpath)
 	hash := hex.EncodeToString(sum[:])
+	save(filepath.Join(*out, "host-run-start.json"), map[string]any{"ddl_sha256": hash, "host": hostSnapshot(), "gomaxprocs": runtime.GOMAXPROCS(0)})
 	if policy, err := os.ReadFile("research/p0-s/index-policy-dabf44.json"); err == nil {
 		ph := sha256.Sum256(policy)
 		save(filepath.Join(*out, "index-policy.json"), map[string]any{"ddl_sha256": hash, "policy_sha256": hex.EncodeToString(ph[:]), "policy": json.RawMessage(policy)})
@@ -457,6 +464,7 @@ func main() {
 	save(filepath.Join(*out, "full-manifest.json"), map[string]any{"ddl_sha256": hex.EncodeToString(sum[:]), "tables": tables, "entities": entities, "sqlite_version": version, "go": runtime.Version(), "boundary": "Exact complete DDL; Basic movie-only populated fixture, no production statement cache or full private typed writer/scanner/provider paths."})
 	must(c.Close())
 	must(db.Close())
+	save(filepath.Join(*out, "host-run-end.json"), map[string]any{"ddl_sha256": hash, "host": hostSnapshot()})
 	if writeOnly {
 		return
 	}
@@ -1084,6 +1092,13 @@ func attribution(c *sql.Conn, out, hash string) {
 	must(dr.Err())
 	must(dr.Close())
 	save(filepath.Join(out, "initial-btree-depths.json"), map[string]any{"ddl_sha256": hash, "residents": resident, "depth_edges": depths, "boundary": "Root depth0, max root-to-leaf edges; collected before timed writer cohorts"})
+	if qualificationMode {
+		sizes = []int{1, 2, 4, 8, 16, 32, 64, 128}
+		runs = 1000
+		if os.Getenv("GITHUB_RUN_ID") == "" {
+			runs = 128
+		}
+	}
 	if ablationMode {
 		sizes = []int{8}
 		runs = 501
@@ -1098,6 +1113,7 @@ func attribution(c *sql.Conn, out, hash string) {
 		for rep := 0; rep < reps; rep++ {
 			q := acceptanceSQL(resident+1, batch)
 			statements := strings.Split(q, ";")
+			beforeHost := hostSnapshot()
 			_, e := c.ExecContext(context.Background(), "BEGIN IMMEDIATE")
 			must(e)
 			start := time.Now()
@@ -1121,7 +1137,7 @@ func attribution(c *sql.Conn, out, hash string) {
 			hold := float64(time.Since(start).Nanoseconds()) / 1e6
 			phases = append(phases, map[string]any{"phase": "commit", "start_ns": t.UnixNano(), "ms": commit})
 			phaseSamples["commit"] = append(phaseSamples["commit"], commit)
-			row := map[string]any{"rep": rep, "start_ns": start.UnixNano(), "hold_ms": hold, "phases": phases}
+			row := map[string]any{"rep": rep, "start_ns": start.UnixNano(), "hold_ms": hold, "phases": phases, "host_before": beforeHost, "host_after": hostSnapshot()}
 			samples = append(samples, row)
 			times = append(times, hold)
 			if hold > 25 {
@@ -1133,9 +1149,10 @@ func attribution(c *sql.Conn, out, hash string) {
 		for phase, xs := range phaseSamples {
 			summaries[phase] = map[string]any{"p50_ms": pct(xs, .5), "p99_ms": pct(xs, .99), "max_ms": pct(xs, 1)}
 		}
-		row := map[string]any{"ddl_sha256": hash, "control": control, "batch": batch, "n": reps, "p50_ms": pct(times, .5), "p95_ms": pct(times, .95), "p99_ms": pct(times, .99), "max_ms": pct(times, 1), "strict": pct(times, .99) <= 10 && pct(times, 1) <= 25, "max50": pct(times, 1) <= 50, "entities_per_s": float64(batch*reps) / time.Since(totalStart).Seconds(), "phase_summary": summaries, "samples": samples, "holds_over25_ms": tails}
+		upper, rank := quantileUpper(times, .99, .95)
+		row := map[string]any{"ddl_sha256": hash, "control": control, "batch": batch, "n": reps, "p99_upper_95_ms": upper, "p99_upper_rank": rank, "hosted_p99_upper_95_pass": rank > 0 && upper <= 10, "hosted_max_directional_ms": pct(times, 1), "p50_ms": pct(times, .5), "p95_ms": pct(times, .95), "p99_ms": pct(times, .99), "max_ms": pct(times, 1), "strict": pct(times, .99) <= 10 && pct(times, 1) <= 25, "max50": pct(times, 1) <= 50, "entities_per_s": float64(batch*reps) / time.Since(totalStart).Seconds(), "phase_summary": summaries, "samples": samples, "holds_over25_ms": tails}
 		results = append(results, row)
-		save(filepath.Join(out, "writer-attribution.json"), map[string]any{"ddl_sha256": hash, "fts_excluded": omitFTS, "results": results, "boundary": "One hosted benchmark job per VM, no concurrent child probes. NORMAL +PASSIVE100ms unless checkpoint-paused. Each statement separate ExecContext: parse/driver/index work charged to that statement, FTS deferred work may appear in COMMIT. Timestamps permit checkpoint overlap analysis; host scheduler/GC/IO are not individually attributed. No claim quiet physical host."})
+		save(filepath.Join(out, "writer-attribution.json"), map[string]any{"ddl_sha256": hash, "fts_excluded": omitFTS, "qualification_protocol": "O-08 accepted: >=3VMs/profile,1000holds/cell, per-VM95%upperp99; hostedmaxdirectional; quiet/reference max;4xmedian split inconclusive", "empirical_strict_flag_is_not_qualification": true, "results": results, "boundary": "One hosted benchmark job per VM, no concurrent child probes. NORMAL +PASSIVE100ms unless checkpoint-paused. Each statement separate ExecContext: parse/driver/index work charged to that statement, FTS deferred work may appear in COMMIT. Timestamps permit checkpoint overlap analysis; host scheduler/GC/IO are not individually attributed. No claim quiet physical host."})
 		fmt.Println("attribution", batch, control, pct(times, .99), pct(times, 1))
 	}
 	for _, size := range sizes {
@@ -1434,4 +1451,61 @@ func seekPage(where, col, direction, projection string, anchor int, value any) s
 		parts = append(parts, "SELECT * FROM(SELECT "+projection+","+col+" AS page_key FROM catalog_entities WHERE "+where+" AND "+condition+" ORDER BY "+col+" "+direction+",id "+direction+" LIMIT 40)")
 	}
 	return "SELECT " + projection + " FROM(" + strings.Join(parts, " UNION ALL ") + ") ORDER BY page_key " + direction + ",id " + direction + " LIMIT 40"
+}
+
+func hostSnapshot() map[string]any {
+	files := map[string]string{}
+	paths := []string{"/proc/stat", "/proc/diskstats", "/proc/pressure/cpu", "/proc/pressure/io", "/proc/pressure/memory"}
+	if b, e := os.ReadFile("/proc/self/cgroup"); e == nil {
+		for _, line := range strings.Split(string(b), "\n") {
+			parts := strings.SplitN(line, ":", 3)
+			if len(parts) == 3 && parts[0] == "0" {
+				for _, name := range []string{"cpu.stat", "cpu.max", "memory.events", "io.stat"} {
+					paths = append(paths, filepath.Join("/sys/fs/cgroup", parts[2], name))
+				}
+			}
+		}
+	}
+	for _, p := range paths {
+		if b, e := os.ReadFile(p); e == nil {
+			files[p] = string(b)
+		} else {
+			files[p] = "UNAVAILABLE: " + e.Error()
+		}
+	}
+	tasks := map[string]string{}
+	if entries, e := os.ReadDir("/proc/self/task"); e == nil {
+		for _, entry := range entries {
+			if b, e := os.ReadFile(filepath.Join("/proc/self/task", entry.Name(), "schedstat")); e == nil {
+				tasks[entry.Name()] = string(b)
+			}
+		}
+	}
+	return map[string]any{"at_ns": time.Now().UnixNano(), "files": files, "task_schedstat": tasks, "boundary": "Guest steal/iowait/diskstats/PSI and per-native-thread schedstat; unavailable or zero counters do not prove absence of physical-host stalls. Samples outside writer custody; timing window includes only actual statements+COMMIT."}
+}
+
+// Distribution-free one-sided upper confidence order statistic for a quantile.
+// P(true quantile <= X_(k)) = P(Binomial(N,p) <= k-1).
+// rank0 means N is insufficient even when the largest sample is used.
+func quantileUpper(xs []float64, p, confidence float64) (float64, int) {
+	n := len(xs)
+	q := 1 - p
+	prob := math.Pow(p, float64(n))
+	cdf := prob
+	fmax := 0
+	for f := 1; f <= n; f++ {
+		if 1-cdf+1e-14 < confidence {
+			break
+		}
+		fmax = f
+		prob *= float64(n-f+1) / float64(f) * q / p
+		cdf += prob
+	}
+	if fmax == 0 {
+		return 0, 0
+	}
+	rank := n - fmax + 1
+	sorted := append([]float64{}, xs...)
+	sort.Float64s(sorted)
+	return sorted[rank-1], rank
 }
