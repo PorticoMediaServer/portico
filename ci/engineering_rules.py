@@ -139,15 +139,29 @@ QUERY_READ_CONFIGS = ['web/tsconfig.json', 'apps/native/tsconfig.json', 'apps/ve
 
 
 def query_reads(paths, root=ROOT, configs=QUERY_READ_CONFIGS):
-    """{path: [1-based line of each server read]} from ci/query_reads.mjs, which needs the root `npm ci`."""
+    """{path: [1-based line of each server read]} from ci/query_reads.mjs, which needs the root `npm ci`.
+
+    One run serves every caller over the same tree: the answer is kept in the system temp directory under a hash
+    of every file it read, the projects, the counter itself and the lockfile (hygiene's unit test, then the check)."""
+    import hashlib
     import subprocess
+    import tempfile
     request = json.dumps({'root': str(root), 'configs': list(configs), 'files': list(paths)})
+    digest = hashlib.sha256(request.encode())
+    for name in [*paths, *configs]:
+        digest.update(b'\0' + name.encode() + b'\0' + (Path(root) / name).read_bytes())
+    for own in [ROOT / 'ci' / 'query_reads.mjs', ROOT / 'package-lock.json']:
+        digest.update(b'\0' + own.read_bytes())
+    kept = Path(tempfile.gettempdir()) / f'portico-query-reads-{digest.hexdigest()}.json'
+    if kept.exists():
+        return json.loads(kept.read_text())
     try:
         run = subprocess.run(['node', str(ROOT / 'ci' / 'query_reads.mjs')], input=request, capture_output=True, text=True, cwd=root, timeout=600)
     except FileNotFoundError as error:
         raise SystemExit('query-read needs Node (ci/query_reads.mjs)') from error
     if run.returncode != 0:
         raise SystemExit('query-read counter failed (run `npm ci` at the repository root first):\n' + run.stderr)
+    kept.write_text(run.stdout)
     return json.loads(run.stdout)
 
 
