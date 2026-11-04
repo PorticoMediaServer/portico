@@ -85,9 +85,8 @@ func TestPerItemDerivationStatementsSeek(t *testing.T) {
 		"SELECT work,facet FROM (":                                  "a work's member facets: the batch's works (json_each), each work's members by index, grouped",
 		"SELECT EXISTS(SELECT 1 FROM content_rating_pending)":       "stops at the first queued row",
 		// Reading path publication (P2-08): its queues are drained by head reads.
-		"FROM reading_path_semantic_pending ORDER BY library_id LIMIT 128":                            "a draining queue's head read in primary-key order, at most 128 rows",
-		"SELECT EXISTS(SELECT 1 FROM reading_path_dirty_work)":                                        "stops at the first queued row",
-		"INDEXED BY reading_path_build_retired WHERE phase IN('cleanup','abort') ORDER BY id LIMIT 1": "the first row of the retired-build partial index",
+		"FROM reading_path_semantic_pending ORDER BY library_id LIMIT 128": "a draining queue's head read in primary-key order, at most 128 rows",
+		"SELECT EXISTS(SELECT 1 FROM reading_path_dirty_work)":             "stops at the first queued row",
 		// Inserting a parent row plans a scan of its children, which SQLite runs
 		// only while a deferred foreign-key violation is outstanding (FkIfZero);
 		// both are also first-use fallbacks, not per-item writes.

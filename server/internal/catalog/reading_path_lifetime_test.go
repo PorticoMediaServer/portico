@@ -4,17 +4,17 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
+	"path/filepath"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/catalogtest"
 	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
 )
 
-// Private build/work/scope lifetimes may outlive public authority. Existing
+// Per-file work can outlive public authority. Existing
 // removal must still finish, without a new refusal, source FK or large cascade.
-func TestReadingCompleteLibraryRemovalWithActivatedOverlay(t *testing.T) {
+func TestReadingCompleteLibraryRemovalWithPendingPerFileWork(t *testing.T) {
 	c := catalogtest.Open(t)
 	root := t.TempDir()
 	lib := c.Library("path-removal", "Reading", "book", root)
@@ -26,19 +26,13 @@ func TestReadingCompleteLibraryRemovalWithActivatedOverlay(t *testing.T) {
 	}
 	c.Exec(`INSERT INTO reading_publications VALUES(?,?,'epub')`, item.ID, asset)
 	c.Exec(`INSERT INTO inventory_objects(id,source_id,asset_id,root_incarnation,relative_path,revision,evidence_json,size,modified_ns) VALUES('removal-object',?,?,?,'Shelf/Book.epub','r','{}',1,1)`, source, token, inc)
-	c.Exec(`INSERT INTO reading_path_scope(library_id,source_id,incarnation,root_prefix,directory_key,completed,queued) VALUES(?,?,?,?,'Shelf',1,0)`, lib, source, inc, root+string(filepath.Separator))
-	c.Exec(`INSERT OR IGNORE INTO reading_path_inputs(library_id,revision) VALUES(?,1)`, lib)
 	c.Write(func(ctx context.Context, tx *sql.Tx) error {
 		if err := compactcatalog.ReadingNormalizeObjectTx(ctx, tx, "removal-object"); err != nil {
 			return err
 		}
 		return compactcatalog.FlushReadingPathSemanticTx(ctx, tx)
 	})
-	c.Exec(`UPDATE reading_path_clock SET sequence=2`)
 
-	c.Exec(`INSERT INTO reading_path_build(scope_id,desired,input_revision,source_generation,root_identity,job_id,phase,publish_sequence) VALUES(1,1,1,1,'r','job','flatten',2)`)
-	c.Exec(`UPDATE reading_path_slot SET build_id=1,overlay_id=1`)
-	c.Exec(`INSERT INTO reading_path_stage(build_id,item_id,asset_id,object_id,source_revision,author,author_source) VALUES(1,?,?,'removal-object','r','Shelf','folder')`, item.ID, asset)
 	c.Exec(`UPDATE catalog_libraries SET retired=1 WHERE id=?`, lib)
 	done := false
 	for i := 0; i < 100 && !done; i++ {
@@ -57,7 +51,7 @@ func TestReadingCompleteLibraryRemovalWithActivatedOverlay(t *testing.T) {
 			return err
 		})
 	}
-	for _, table := range []string{"reading_path_head", "reading_path_stage", "reading_path_scope_entities", "reading_path_source_barrier", "reading_path_block", "reading_path_scope", "reading_path_inputs", "reading_path_build", "reading_path_dirty_work"} {
+	for _, table := range []string{"reading_path_head", "reading_path_object_keys", "reading_path_source_barrier", "reading_path_block", "reading_path_dirty_work"} {
 		var n int
 		if err := c.DB.QueryRow(`SELECT count(*) FROM ` + table).Scan(&n); err != nil || n != 0 {
 			t.Fatalf("orphan %s=%d err=%v", table, n, err)
@@ -93,7 +87,7 @@ func TestReadingCompleteUnchangedObservationOnlyAdvancesSeenJob(t *testing.T) {
 		c.Exec(`UPDATE inventory_runs SET phase='sidecars' WHERE job_id=?`, job)
 		for i := 0; i < 300; i++ {
 			var pending bool
-			if err := c.DB.QueryRow(`SELECT EXISTS(SELECT 1 FROM reading_path_scope WHERE queued=1) OR EXISTS(SELECT 1 FROM reading_path_dirty_work) OR EXISTS(SELECT 1 FROM reading_path_build)`).Scan(&pending); err != nil {
+			if err := c.DB.QueryRow(`SELECT EXISTS(SELECT 1 FROM reading_path_dirty_work)`).Scan(&pending); err != nil {
 				t.Fatal(err)
 			}
 			if !pending {
@@ -107,7 +101,7 @@ func TestReadingCompleteUnchangedObservationOnlyAdvancesSeenJob(t *testing.T) {
 		t.Fatal("observation did not settle")
 	}
 	state := func() (desired, sequence int64) {
-		if err := c.DB.QueryRow(`SELECT sum(desired),(SELECT sequence FROM reading_path_clock) FROM reading_path_scope`).Scan(&desired, &sequence); err != nil {
+		if err := c.DB.QueryRow(`SELECT COALESCE(sum(pending),0),(SELECT sequence FROM reading_path_clock) FROM reading_path_object_keys`).Scan(&desired, &sequence); err != nil {
 			t.Fatal(err)
 		}
 		return

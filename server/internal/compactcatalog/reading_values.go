@@ -66,7 +66,6 @@ var readingSequence = regexp.MustCompile(`(?i)(?:^|[ _.-])(?:(?:v(?:ol(?:ume)?\.
 var readingDate = regexp.MustCompile(`\b(?:19|20)[0-9]{2}(?:-[0-9]{2}(?:-[0-9]{2})?|[0-9]{4})\b`)
 var readingOwnerNumber = regexp.MustCompile(`^[+]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$`)
 
-
 var readingGenericFolders = map[string]bool{
 	"books": true, "ebooks": true, "e-books": true, "comics": true, "manga": true, "magazines": true, "library": true,
 	"calibre library": true, "unsorted": true, "misc": true, "new": true, "downloads": true, "inbox": true, "to read": true,
@@ -215,30 +214,6 @@ func readingNumber(stem, series string) (*ReadingNumber, string) {
 	return nil, stem
 }
 
-// ReadingPathValues consumes accepted paths relative to the library root.
-// Inputs are ordered by the producer's canonical version selection; versions
-// of the same item count as one title, using that first version's path. No
-// spelling/capitalisation-based person classifier is used. Section 45 permits
-// source-labelled folder guesses and excludes fixed generic folder names.
-// ReadingPathFolderEvidence identifies the actual innermost non-generic
-// directory and whether this title supports its series interpretation. Generic
-// descendants are ignored, but distinct physical directories never coalesce.
-func ReadingPathFolderEvidence(in ReadingRuleInput) (string, bool, error) {
-	if err := readingPathInput(in); err != nil {
-		return "", false, err
-	}
-	key, err := ReadingDirectoryKey(path.Dir(in.RelativePath))
-	if err != nil {
-		return "", false, err
-	}
-	if key == "" {
-		return "", false, nil
-	}
-	stem := strings.TrimSuffix(path.Base(in.RelativePath), path.Ext(in.RelativePath))
-	_, title := readingFileAuthor(stem)
-	return key, strings.HasPrefix(ReadingValueKey(readingCleanTitle(title)), ReadingValueKey(readingCleanTitle(path.Base(key)))) || readingHasSequence(title), nil
-}
-
 func ReadingDirectoryKey(directory string) (string, error) {
 	if directory == "." {
 		return "", nil
@@ -275,6 +250,7 @@ func readingPathInput(in ReadingRuleInput) error {
 //     included): the outer folder is the author;
 //   - Series/Series 001.ext, a sequence-numbered folder with no author above
 //     it: the folder is the series.
+//
 // Generic folder names count as absent, and the file's own author wins.
 func ReadingPathValue(in ReadingRuleInput) (ReadingValues, error) {
 	if err := readingPathInput(in); err != nil {
@@ -345,11 +321,13 @@ func ReadingPathValue(in ReadingRuleInput) (ReadingValues, error) {
 	return v, nil
 }
 
+// ReadingPathValues preserves the producer's canonical version order. Each
+// result is a per-file value; sibling counts supply no evidence.
 func ReadingPathValues(items []ReadingRuleInput) (map[int64]ReadingValues, error) {
 	out := make(map[int64]ReadingValues, len(items))
 	seen := map[int64]Kind{}
 	for _, in := range items {
-		if _, _, err := ReadingPathFolderEvidence(in); err != nil {
+		if err := readingPathInput(in); err != nil {
 			return nil, err
 		}
 		if kind, ok := seen[in.Item]; ok {

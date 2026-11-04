@@ -16,81 +16,29 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/phasedpurge"
 )
 
-// Reading private lifetime cleanup for one retired library, owned by the
-// library removal itself.
-//
-// The Reading dispatcher only claims scopes it is allowed to run. A scope that
-// is queued=0, parked=1, or blocked by domain28 work is never selected, so the
-// removal below cannot depend on it: StepReadingPaths is not the owner of a
-// retired library's private lifetime. This file is called from removal phase 5
-// (removalLibrary) in the caller's writer transaction. It never opens a
-// transaction, never chooses durability, and never consults dispatcher,
-// admission, job or domain28 state.
-//
-// Three stages, one bounded piece per call, all state in the existing
-// catalog_removal_progress.object_cursor of phase 5:
-//
-//	private  drain ONE captured private scope child-first through the shared
-//	         phasedpurge engine (library_removal_reading_scope.go). The scope
-//	         is picked from reading_path_scope_library for the retired handle;
-//	         slot detach, capture, representative, stage, build, object keys,
-//	         scope entities, then the scope row. Repeat for the next scope.
-//	residue  reclaim the library-leading rows the removal's own keys create:
-//	         availability pending, semantic pending, per-source blocks and
-//	         barrier, path inputs, then dirty work LAST (deleting a pending or
-//	         availability row writes dirty work). Sources are walked as one raw
-//	         window at a time - a raw LIMIT 1 pick, then the units filter it -
-//	         never a parent LIMIT used as a child bound.
-//	settle   the existing final row removal (removeLibraryRowTx) runs exactly
-//	         once, then the same bounded residue pass proves the rows the final
-//	         DELETE/UPDATE triggers requeued are gone and no private scope came
-//	         back. Before settle is entered, `libraries` and `catalog_libraries`
-//	         must both be absent in this same writer: the finalizer suppresses a
-//	         failed DELETE behind its own savepoint, so its success is proved
-//	         here and a remaining row is a visible blocker, never Done.
-//
-// A stage advance, the final row removal and Done all happen only after the
-// shared engine's Owner.Finalize was actually called for this turn. A turn that
-// merely saved a position, or an interrupted verify, yields without touching
-// the stage, the final rows or the completion.
-//
-// Ordering is deliberate. Precleanup before the final rows keeps the final
-// DELETE cheap, and settle after it keeps the residue it requeues from being
-// the permanent one. Phase numbering is untouched: this is phase 5, and no
-// table, phase or second deletion framework is added.
-//
-// Costs. The owner reserves eight reads: the lifetime point probe, the scope
-// pick, the raw source pick and the engine's two total_changes() reads, with
-// spare for the settle scope proof. Units declare at most three reads each and
-// at most six effects; the shared engine still runs four units, or eight empty
-// proofs, per turn, so a turn stays far inside 128 reads and 24 effects. Save
-// is one progress row in the same transaction as the deletions.
-//
-// Cursor. object_cursor holds one canonical JSON state:
-// `{d:<plan digest>,h:<captured handle>,s:<stage>,q:<scope>,p:<scope cursor>,
-// a:<source window>,c:<residue cursor>}`. The scope cursor is the shared scope
-// plan's own envelope and the residue cursor is phasedpurge.EncodeCursor
-// output; there is no second cursor format. A state that is not this plan's
-// canonical encoding is refused before any unit runs; it is never repaired,
-// reset or silently restarted.
+// Reading per-object residue is reclaimed by the retired library's existing
+// phase-5 removal owner. Each raw source window uses the same phasedpurge
+// engine and strict durable cursor; dirty work is last because earlier deletes
+// can enqueue it. Final row removal runs once, then a settle pass proves the
+// triggers' remaining residue gone. Publication never owns library lifetime.
 
 const (
-	readingRemovalPrivateStage = "private"
 	readingRemovalResidueStage = "residue"
 	readingRemovalSettleStage  = "settle"
 
 	// readingRemovalStateVersion changes whenever a stage, unit, literal or
 	// bound semantic changes. It is mixed into the digest with the literals.
-	readingRemovalStateVersion = "p2-59-red-main-reading-removal-v1"
+	readingRemovalStateVersion = "reading-per-file-removal-v2"
 
-	// readingRemovalOwnerReads: lifetime point probe, scope pick, source pick,
-	// the engine's two total_changes() reads and the settle scope proof.
+	// readingRemovalOwnerReads includes the lifetime and source probes, the
+	// engine's two total_changes() reads and the final row proofs.
 	readingRemovalOwnerReads = 8
 	// readingRemovalOwnerEffects is the caller's progress Save row.
 	readingRemovalOwnerEffects = 1
 )
 
 var (
+	errReadingRemovalLifetime = errors.New("Reading removal target is not the supplied retired library lifetime")
 	// errReadingRemovalPlan means the stored state belongs to a different
 	// compiled plan. It is a visible block, never a reason to reset.
 	errReadingRemovalPlan = errors.New("Reading removal cursor does not belong to this compiled plan")
@@ -104,8 +52,6 @@ var (
 // leading-index access for the retired library; none joins a whole catalogue.
 const (
 	readingRemovalLifetimeSQL    = `SELECT library_id,retired FROM catalog_libraries WHERE id=?1`
-	readingRemovalScopePickSQL   = `SELECT id FROM reading_path_scope INDEXED BY reading_path_scope_library WHERE library_id=?1 ORDER BY id LIMIT 1`
-	readingRemovalScopeExistsSQL = `SELECT EXISTS(SELECT 1 FROM reading_path_scope INDEXED BY reading_path_scope_library WHERE library_id=?1)`
 	readingRemovalSourceFirstSQL = `SELECT id FROM library_sources INDEXED BY library_sources_library WHERE library_id=?1 ORDER BY id LIMIT 1`
 	readingRemovalSourceNextSQL  = `SELECT id FROM library_sources INDEXED BY library_sources_library WHERE library_id=?1 AND id>?2 ORDER BY id LIMIT 1`
 	// Two point reads after the final row removal: the removal's own savepoint
@@ -156,17 +102,17 @@ var readingRemovalResidueUnits = []readingRemovalUnit{
 		pick:  `SELECT source_id FROM reading_path_source_barrier WHERE source_id=?1`,
 		del:   `DELETE FROM reading_path_source_barrier WHERE source_id=?1`,
 		empty: `SELECT NOT EXISTS(SELECT 1 FROM reading_path_source_barrier WHERE source_id=?1)`},
-	{name: "inputs", reads: 2, effects: 1, shape: readingRemovalOwnerOnly,
-		pick:  `SELECT library_id FROM reading_path_inputs WHERE library_id=?1`,
-		del:   `DELETE FROM reading_path_inputs WHERE library_id=?1`,
-		empty: `SELECT NOT EXISTS(SELECT 1 FROM reading_path_inputs WHERE library_id=?1)`},
+	{name: "objects", reads: 3, effects: 1, shape: readingRemovalKeyThenOwner,
+		pick:  `SELECT object_id FROM reading_path_object_keys INDEXED BY reading_path_object_library WHERE library_id=?1 ORDER BY object_id LIMIT 1`,
+		del:   `DELETE FROM reading_path_object_keys WHERE object_id=?1 AND library_id=?2`,
+		empty: `SELECT NOT EXISTS(SELECT 1 FROM reading_path_object_keys INDEXED BY reading_path_object_library WHERE library_id=?1)`},
 	{name: "work", reads: 3, effects: 1, shape: readingRemovalOwnerThenPair,
 		pick:  `SELECT kind,work_key FROM reading_path_dirty_work WHERE library_id=?1 ORDER BY kind,work_key LIMIT 1`,
 		del:   `DELETE FROM reading_path_dirty_work WHERE library_id=?1 AND kind=?2 AND work_key=?3`,
 		empty: `SELECT NOT EXISTS(SELECT 1 FROM reading_path_dirty_work WHERE library_id=?1)`},
 }
 
-// readingRemovalDigest binds the stage semantics, the shared scope plan, the
+// readingRemovalDigest binds the stage semantics and the
 // literal statements, each unit's declared read/effect bound and order, the
 // owner bounds and the shared engine limits. No process randomness, so the
 // same binary accepts its own cursor after a restart.
@@ -178,8 +124,8 @@ var readingRemovalDigest = func() string {
 		}
 		fmt.Fprint(h, "\n")
 	}
-	write("version", readingRemovalStateVersion, ReadingScopePurgePlanDigest())
-	write("lifetime", readingRemovalLifetimeSQL, readingRemovalScopePickSQL, readingRemovalScopeExistsSQL)
+	write("version", readingRemovalStateVersion)
+	write("lifetime", readingRemovalLifetimeSQL)
 	write("source", readingRemovalSourceFirstSQL, readingRemovalSourceNextSQL)
 	write("row-gone", readingRemovalRowGoneSQL)
 	write("owner", strconv.Itoa(readingRemovalOwnerReads), strconv.Itoa(readingRemovalOwnerEffects))
@@ -194,13 +140,11 @@ var readingRemovalDigest = func() string {
 
 // readingRemovalState is the whole durable phase-5 cursor.
 type readingRemovalState struct {
-	Digest      string  `json:"d"`
-	Handle      int64   `json:"h"`
-	Stage       string  `json:"s"`
-	Scope       int64   `json:"q,omitempty"`
-	ScopeCursor string  `json:"p,omitempty"`
-	After       *string `json:"a,omitempty"`
-	Cursor      string  `json:"c,omitempty"`
+	Digest string  `json:"d"`
+	Handle int64   `json:"h"`
+	Stage  string  `json:"s"`
+	After  *string `json:"a,omitempty"`
+	Cursor string  `json:"c,omitempty"`
 }
 
 // readingRemovalLoad reads one stored state. The empty string is the fresh
@@ -210,7 +154,7 @@ type readingRemovalState struct {
 // re-encoding (which also refuses duplicate, null and unknown fields).
 func readingRemovalLoad(raw string) (readingRemovalState, error) {
 	if raw == "" {
-		return readingRemovalState{Digest: readingRemovalDigest, Stage: readingRemovalPrivateStage}, nil
+		return readingRemovalState{Digest: readingRemovalDigest, Stage: readingRemovalResidueStage}, nil
 	}
 	var st readingRemovalState
 	if !utf8.ValidString(raw) {
@@ -228,50 +172,17 @@ func readingRemovalLoad(raw string) (readingRemovalState, error) {
 	if st.Digest != readingRemovalDigest {
 		return st, errReadingRemovalPlan
 	}
-	if st.Handle <= 0 || st.Scope < 0 {
+	if st.Handle <= 0 {
 		return st, errReadingRemovalCursor
 	}
 	switch st.Stage {
-	case readingRemovalPrivateStage:
-		if st.After != nil || st.Cursor != "" {
-			return st, errReadingRemovalCursor
-		}
 	case readingRemovalResidueStage:
-		if st.Scope != 0 || st.ScopeCursor != "" {
-			return st, errReadingRemovalCursor
-		}
 	case readingRemovalSettleStage:
-		// The final rows are gone, so no source window survives into settle.
-		if st.Scope != 0 || st.ScopeCursor != "" || st.After != nil {
+		if st.After != nil {
 			return st, errReadingRemovalCursor
 		}
 	default:
 		return st, errReadingRemovalCursor
-	}
-	if st.Scope > 0 {
-		if st.ScopeCursor == "" {
-			return st, errReadingRemovalCursor
-		}
-		inner, err := readingScopePurgeDecodeStored(st.ScopeCursor)
-		if err != nil {
-			return st, err
-		}
-		var envelope readingScopePurgeStoredCursor
-		if err := json.Unmarshal([]byte(st.ScopeCursor), &envelope); err != nil {
-			return st, ErrReadingScopePurgeCursor
-		}
-		canonical, err := json.Marshal(envelope)
-		if err != nil || string(canonical) != st.ScopeCursor {
-			return st, ErrReadingScopePurgeCursor
-		}
-		cursor, err := phasedpurge.DecodeCursor(inner, readingScopePurgePlan(&readingScopePurgeState{}))
-		if err != nil {
-			return st, fmt.Errorf("%w: %w", ErrReadingScopePurgeCursor, err)
-		}
-		canonicalInner, err := phasedpurge.EncodeCursor(cursor)
-		if err != nil || canonicalInner != inner {
-			return st, ErrReadingScopePurgeCursor
-		}
 	}
 	if st.Cursor != "" {
 		cursor, err := phasedpurge.DecodeCursor(st.Cursor, readingRemovalResiduePlan(0, sql.NullString{}))
@@ -314,23 +225,20 @@ func removeLibraryReadingTx(ctx context.Context, tx *sql.Tx, library string, han
 	if st.Handle != handle {
 		return false, errReadingRemovalCursor
 	}
-	// Same-writer retirement proof. It deliberately reads no runnable/parked
-	// flag, job, source barrier or domain28 row: private cleanup must finish for
-	// a settled, parked or blocked scope.
+	// Same-writer retirement proof, independent of publication, jobs, source
+	// coverage and availability derivation.
 	var actual string
 	var retired int64
 	if err := tx.QueryRowContext(ctx, readingRemovalLifetimeSQL, handle).Scan(&actual, &retired); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return false, ErrReadingScopePurgeLifetime
+			return false, errReadingRemovalLifetime
 		}
 		return false, err
 	}
 	if actual != library || retired != 1 {
-		return false, fmt.Errorf("%w: library %q retired %d, supplied handle %d", ErrReadingScopePurgeLifetime, actual, retired, handle)
+		return false, fmt.Errorf("%w: library %q retired %d, supplied handle %d", errReadingRemovalLifetime, actual, retired, handle)
 	}
-	if st.Stage == readingRemovalPrivateStage {
-		return readingRemovalPrivateTurn(ctx, tx, handle, &st, p)
-	}
+
 	return readingRemovalResidueTurn(ctx, tx, library, handle, &st, p)
 }
 
@@ -348,56 +256,11 @@ func readingRemovalAfterRowTx(ctx context.Context, tx *sql.Tx, library string, p
 		return false, err
 	}
 	if st.Stage != readingRemovalSettleStage {
-		return false, fmt.Errorf("%w: library row gone while Reading stage %q still owes work", ErrReadingScopePurgeLifetime, st.Stage)
+		return false, fmt.Errorf("%w: library row gone while Reading stage %q still owes work", errReadingRemovalLifetime, st.Stage)
 	}
 	return readingRemovalResidueTurn(ctx, tx, library, st.Handle, &st, p)
 }
 
-// readingRemovalPrivateTurn drains one page of one private scope. It picks the
-// lowest remaining scope of the retired handle, drains it through the shared
-// scope plan, and clears it only when that plan proves the scope row gone.
-func readingRemovalPrivateTurn(ctx context.Context, tx *sql.Tx, handle int64, st *readingRemovalState, p *removalProgress) (bool, error) {
-	if st.Scope == 0 {
-		var scope int64
-		err := tx.QueryRowContext(ctx, readingRemovalScopePickSQL, handle).Scan(&scope)
-		if errors.Is(err, sql.ErrNoRows) {
-			// Every private scope of the handle is gone. Residue next.
-			st.Stage = readingRemovalResidueStage
-			st.After, st.Cursor = nil, ""
-			return false, readingRemovalSave(ctx, tx, p, *st)
-		}
-		if err != nil {
-			return false, err
-		}
-		st.Scope, st.ScopeCursor = scope, ""
-	}
-	out, err := RetireReadingScopePage(ctx, tx, ReadingScopePurgeRequest{
-		ScopeID:       st.Scope,
-		LibraryHandle: handle,
-		StoredCursor:  st.ScopeCursor,
-		Save: func(sctx context.Context, stx *sql.Tx, stored string) error {
-			st.ScopeCursor = stored
-			return readingRemovalSave(sctx, stx, p, *st)
-		},
-	})
-	if err != nil {
-		return false, err
-	}
-	if out.Done {
-		st.Scope, st.ScopeCursor = 0, ""
-		return false, readingRemovalSave(ctx, tx, p, *st)
-	}
-	if !out.Worked {
-		return false, phasedpurge.ErrNoProgress
-	}
-	// The page saved its own cursor inside the shared engine meter.
-	return false, nil
-}
-
-// readingRemovalResidueTurn reclaims the library-leading residue for ONE raw
-// source window, then advances that window. Library-leading units run in the
-// same turn, and dirty work is last so the rows written by the deletes above
-// are included in the same pass.
 func readingRemovalResidueTurn(ctx context.Context, tx *sql.Tx, library string, handle int64, st *readingRemovalState, p *removalProgress) (bool, error) {
 	source, err := readingRemovalSourceTx(ctx, tx, library, st.After)
 	if err != nil {
@@ -466,21 +329,9 @@ func readingRemovalResidueTurn(ctx context.Context, tx *sql.Tx, library string, 
 			// removeLibraryRowTx suppresses a failed DELETE with its own
 			// savepoint. A remaining row is a visible blocker, never a reason to
 			// enter settle and claim Done over a hidden retired library.
-			return false, fmt.Errorf("%w: final rows remain libraries=%d catalog_libraries=%d", ErrReadingScopePurgeLifetime, libraries, catalogRows)
+			return false, fmt.Errorf("%w: final rows remain libraries=%d catalog_libraries=%d", errReadingRemovalLifetime, libraries, catalogRows)
 		}
 		st.Stage = readingRemovalSettleStage
-		st.After, st.Cursor = nil, ""
-		return false, readingRemovalSave(ctx, tx, p, *st)
-	}
-	// Settle: no residue is left. A scope can only be back if something rebuilt
-	// it, in which case it is drained before the removal is called finished.
-	var scopes bool
-	if err := tx.QueryRowContext(ctx, readingRemovalScopeExistsSQL, handle).Scan(&scopes); err != nil {
-		return false, err
-	}
-	if scopes {
-		st.Stage = readingRemovalPrivateStage
-		st.Scope, st.ScopeCursor = 0, ""
 		st.After, st.Cursor = nil, ""
 		return false, readingRemovalSave(ctx, tx, p, *st)
 	}

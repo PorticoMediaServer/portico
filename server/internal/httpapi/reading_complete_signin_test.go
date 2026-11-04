@@ -103,8 +103,8 @@ func TestReadingCompleteMultiPageScanAllowsRealHTTPSignIn(t *testing.T) {
 		t.Fatalf("sign-in must interrupt a live multi-page scan: %d of %d files", observedFiles, files)
 	}
 	var series int
-	if err = f.db.QueryRow(`SELECT count(*) FROM reading_path_head WHERE series IS NOT NULL`).Scan(&series); err != nil || series != 0 {
-		t.Fatalf("open scan leaked folder series: %d %v", series, err)
+	if err = f.db.QueryRow(`SELECT count(*) FROM reading_path_head WHERE series IS NOT NULL`).Scan(&series); err != nil || series > observedFiles {
+		t.Fatalf("path publication exceeded observed files: %d %v", series, err)
 	}
 	server := httptest.NewServer(f.handler)
 	defer server.Close()
@@ -146,7 +146,7 @@ func TestReadingCompleteMultiPageScanAllowsRealHTTPSignIn(t *testing.T) {
 			}
 		}
 		if time.Now().After(deadline) {
-			for _, q := range []string{`SELECT 'scope',directory_key,pending,desired,completed,queued,sealed,reason,served FROM reading_path_scope`, `SELECT 'work',kind,count(*),min(served),max(served) FROM reading_path_dirty_work GROUP BY kind`, `SELECT 'pending',* FROM reading_path_availability_pending LIMIT 5`, `SELECT 'domains',* FROM catalog_derivations WHERE domain IN(20,28)`, `SELECT 'fail',* FROM catalog_derivation_failures LIMIT 5`, `SELECT 'dirty',domain,count(*) FROM catalog_dirty GROUP BY domain`, `SELECT 'build',* FROM reading_path_build`} {
+			for _, q := range []string{`SELECT 'work',kind,count(*),min(served),max(served) FROM reading_path_dirty_work GROUP BY kind`, `SELECT 'pending',* FROM reading_path_availability_pending LIMIT 5`, `SELECT 'domains',* FROM catalog_derivations WHERE domain IN(20,28)`, `SELECT 'fail',* FROM catalog_derivation_failures LIMIT 5`, `SELECT 'dirty',domain,count(*) FROM catalog_dirty GROUP BY domain`} {
 				rows, e := f.db.Query(q)
 				if e != nil {
 					t.Log(e)
@@ -223,16 +223,16 @@ func TestReadingUnchangedRealRescanWritesNoReadingInput(t *testing.T) {
 		t.Fatalf("first scan published %d COMPLETE bundles, want 3", got)
 	}
 	handle := scalar(`SELECT id FROM catalog_libraries WHERE library_id=?`, library.ID)
-	revision := scalar(`SELECT revision FROM reading_path_inputs WHERE library_id=?`, handle)
+	debt := scalar(`SELECT COALESCE(sum(pending),0) FROM reading_path_object_keys WHERE library_id=?`, handle)
 	sequence := scalar(`SELECT sequence FROM reading_path_clock`)
-	desired := scalar(`SELECT sum(desired) FROM reading_path_scope`)
+	objects := scalar(`SELECT count(*) FROM reading_path_object_keys`)
 	if scalar(`SELECT count(*) FROM reading_path_dirty_work`) != 0 {
 		t.Fatal("first scan left Reading work behind")
 	}
 
 	readingScan(t, f, library.ID)
-	if got := scalar(`SELECT revision FROM reading_path_inputs WHERE library_id=?`, handle); got != revision {
-		t.Fatalf("unchanged rescan bumped the Reading input revision %d -> %d", revision, got)
+	if got := scalar(`SELECT COALESCE(sum(pending),0) FROM reading_path_object_keys WHERE library_id=?`, handle); got != debt {
+		t.Fatalf("unchanged rescan changed per-file publication debt %d -> %d", debt, got)
 	}
 	rows, err := f.db.Query(`SELECT kind,count(*) FROM reading_path_dirty_work GROUP BY kind`)
 	if err != nil {
@@ -244,14 +244,14 @@ func TestReadingUnchangedRealRescanWritesNoReadingInput(t *testing.T) {
 		if err = rows.Scan(&kind, &n); err != nil {
 			t.Fatal(err)
 		}
-		if (kind != "coverage" && kind != "wake" && kind != "report") || n != 1 {
+		if (kind != "coverage") || n != 1 {
 			t.Errorf("unchanged rescan queued %d %s Reading work rows", n, kind)
 		}
 	}
 	rows.Close()
 	drain()
-	if scalar(`SELECT sequence FROM reading_path_clock`) != sequence || scalar(`SELECT sum(desired) FROM reading_path_scope`) != desired || scalar(`SELECT count(*) FROM reading_path_build`) != 0 {
-		t.Fatal("unchanged rescan republished or re-queued Reading folders")
+	if scalar(`SELECT sequence FROM reading_path_clock`) != sequence || scalar(`SELECT count(*) FROM reading_path_object_keys`) != objects {
+		t.Fatal("unchanged rescan republished or re-queued Reading files")
 	}
 	if got := scalar(`SELECT count(*) FROM reading_path_head WHERE series='Series' AND author='Writer'`); got != 3 {
 		t.Fatalf("unchanged rescan changed COMPLETE bundles: %d", got)
