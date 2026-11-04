@@ -1,37 +1,51 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {hooks, screenModule} from './helpers/screen-harness.mjs';
+import {tvFocusKit} from './helpers/tv-focus-kit.mjs';
+import {tvRefusedPage} from './helpers/tv-refused-page.mjs';
 
-// The TV page for a refused content link (N5-1's "lands on Home without a message" on TV): a presented layer in the
-// TV layer stack, focus on Home, Back the same as Home.
-const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...nodes(value.props.children)] : [];
+// The TV page for a refused content link (N5-1's "lands on Home without a message" on TV): a full-screen opaque native
+// Modal (DECISIONS, 4 Nov), focus on Home, Back the same as Home, and focus back where it was once it has gone. Runs
+// the real page, overlay lifecycle and native dismissal on the fake engine's window model (D12-D15).
+async function scene(platform: 'android' | 'tvos') {
+  const kit = await tvFocusKit({platform}), {engine, e, focus, Stop} = kit, n = engine.native;
+  const page = await tvRefusedPage(kit), registry = focus.createFocusRegistry();
+  const Shell = ({refused}: {refused: boolean}) => e(focus.FocusProvider, {registry}, e(n.View, {style: {flex: 1}},
+    e(focus.FocusRegion, {id: 'home.row', orientation: 'horizontal', style: {flexDirection: 'row', gap: 20}}, e(Stop, {id: 'film'}), e(Stop, {id: 'show'})),
+    refused ? e(page.Refused, {}) : null));
+  const held = () => page.pageModal.tvPageModal.getSnapshot();
+  return {engine, e, Shell, held};
+}
 
-test('a refused link on TV draws its page as a presented layer that takes focus on Home, and Home or Back closes it', async () => {
-  const host = hooks(), presented: {key: string; claim: () => boolean}[] = [], backs: (() => boolean)[] = [], focused: string[] = [];
-  const effects: (() => void | (() => void))[] = [];
-  const react = {...host.react, useLayoutEffect: (effect: () => void | (() => void)) => {effects.push(effect);}};
-  const {TVContentLinkUnavailable} = await screenModule(new URL('../src-next/screens/share/NativeContentLinks.tsx', import.meta.url), {
-    react: {...react, default: react}, 'react-native': {View: 'View'},
-    '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'},
-    '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => ({focusRegion: (id: string) => {focused.push(id); return true;}}),
-      presentTVLayer: (key: string, claim: () => boolean) => {presented.push({key, claim}); return () => {presented.splice(presented.findIndex(value => value.claim === claim), 1);};}},
-    '../../kit/navigation/back': {registerBack: (handler: () => boolean, options: {scope: string}) => {assert.equal(options.scope, 'overlay'); backs.push(handler); return () => {backs.splice(backs.indexOf(handler), 1);};}},
-    '../../kit/overlays/TVDesignCanvas': {TVDesignCanvas: 'TVDesignCanvas'}, '../../kit/states': {StateLayout: 'StateLayout', StateView: 'StateView'},
-    '../../kit/theme': {useTheme: () => ({isTV: true})}, '../../platform/content-links': {nativeContentLinks: {}}, './share-open': {openContentLink: async () => undefined},
-  });
-  let homes = 0;
-  const tree = host.render(() => TVContentLinkUnavailable({title: 'No access', body: 'Ask the owner', onHome: () => {homes++;}}));
-  const cleanups = effects.map(effect => effect());
-  assert.deepEqual(presented.map(value => value.key), ['content-link-unavailable'], 'a presented layer over the shell');
-  assert.equal(presented[0]!.claim(), true); assert.deepEqual(focused, ['content-link-unavailable'], 'its claim focuses its own region');
-  const region = nodes(tree).find(node => node.type === 'FocusRegion');
-  assert.equal(region.props.id, 'content-link-unavailable'); assert.equal(region.props.entry, 'home'); assert.equal(region.props.hold, true);
-  assert.ok(nodes(tree).some(node => node.type === 'TVDesignCanvas'), 'drawn in the TV design canvas');
-  const layout = nodes(tree).find(node => node.type === 'StateLayout');
-  assert.equal(layout.props.title, 'No access'); assert.equal(layout.props.primaryAction.id, 'home');
-  layout.props.primaryAction.onPress(); assert.equal(homes, 1, 'Home closes it');
-  assert.equal(backs.length, 1); assert.equal(backs[0]!(), true); assert.equal(homes, 2, 'Back does the same as Home');
-  for (const cleanup of cleanups) if (typeof cleanup === 'function') cleanup();
-  assert.deepEqual(presented, [], 'closed: the layer goes, and the stack returns focus');
-  assert.deepEqual(backs, []);
+test('a refused link on TV is a full-screen opaque Modal that takes focus on Home; Home or Back closes it and focus returns', async () => {
+  for (const platform of ['android', 'tvos'] as const) {
+    for (const key of ['select', platform === 'android' ? 'back' : 'menu'] as const) {
+      const {engine, e, Shell, held} = await scene(platform), label = `${platform}, ${key}`;
+      await engine.render(e(Shell, {refused: false}));
+      await engine.focus('show');
+      await engine.render(e(Shell, {refused: true}));
+      assert.equal(engine.focused, 'refused-home', `${label}: focus on Home`);
+      assert.equal(engine.windows().length, 1, `${label}: its own window`);
+      assert.equal(held(), true, `${label}: the shell's layers are covered while it is up`);
+      await engine.press('right');
+      assert.equal(engine.focused, 'refused-home', `${label}: nothing under it takes focus`);
+      await engine.press(key);
+      if (platform === 'tvos') {
+        assert.equal(engine.focused, 'refused-home', `${label}: focus waits for the dismissal`);
+        await engine.finishDismissals();
+      }
+      assert.equal(engine.windows().length, 0, label);
+      assert.equal(held(), false, label);
+      assert.equal(engine.focused, 'show', `${label}: focus back where it was`);
+    }
+  }
+});
+
+test('the refused page is an opaque, unanimated, full-screen Modal', async () => {
+  const {engine, e, Shell} = await scene('android');
+  await engine.render(e(Shell, {refused: true}));
+  const [modal] = engine.windowProps();
+  assert.equal(modal.transparent, false, 'opaque: nothing under it shows');
+  assert.equal(modal.animationType, 'none');
+  assert.equal(typeof modal.onRequestClose, 'function');
+  assert.equal(typeof modal.onDismiss, 'function');
 });

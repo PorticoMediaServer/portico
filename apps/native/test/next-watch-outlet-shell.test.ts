@@ -1,6 +1,7 @@
 // @fabric-react
 import * as homeStart from '../src-next/screens/home/home-start';
 import * as layerStack from '../src-next/kit/focus/layer-stack.ts';
+import * as pageModal from '../src-next/kit/focus/tv-page-modal.ts';
 import {listeningCoverFixture, stackSlotFixture} from './helpers/screen-harness.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -33,7 +34,7 @@ test('the real shell mounts one persistent player and a separate box-none watch 
     'react-native-reanimated': {default: {View: 'AnimatedView'}, useAnimatedStyle: (fn: () => unknown) => fn(), useSharedValue: (value: number) => React.useRef({value}).current, withTiming: (value: unknown) => value},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({bottom: 0})}, '../kit/overlays': {OverlaysProvider: 'OverlaysProvider'},
     '../kit/shell': {}, '../kit/browse': {}, '../kit/theme': {useTheme: () => theme}, '../kit/useMotion': {useMotion: () => ({transforms: false, timing: () => ({duration: 0})})},
-    '../kit/focus': {...layerStack, CoveredLayer: 'CoveredLayer', useFocusRegistry: () => registry}, './tv-focus': focus, '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'}, './model': model,
+    '../kit/focus': {...layerStack, ...pageModal, CoveredLayer: 'CoveredLayer', CoveredSignal: 'CoveredSignal', requestNativeFocus: () => false, useFocusRegistry: () => registry}, './tv-focus': focus, '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'}, './model': model,
     './PhoneTabBar': {}, './MediumRail': {MediumRail: 'MediumRail'}, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}}, './PhoneHomeHeader': {}, './TVRail': {TVRail: 'TVRail'}, './TVProfileMenu': {TVProfileMenu: 'ProfileMenu'},
     './UnreachableLine': {ShellUnreachableLine: () => null}, './NativePlaybackLayer': {NativePlaybackLayer: 'PersistentPlaybackLayer'}, './DesktopHeader': {},
   });
@@ -48,9 +49,10 @@ test('the real shell mounts one persistent player and a separate box-none watch 
     assert.equal(player.length, 1);
     assert.strictEqual(player[0].props.adapter, runtime.playback);
     assert.equal(rendered.filter(node => node.type === 'WatchChrome').length, 1);
-    // TV: the outlet's wrapper holds a CoveredLayer around the chrome, uncovered while nothing is presented over it.
-    const chrome = rendered.find(node => node.type === 'View' && (node.props.children?.type === 'WatchChrome' || node.props.children?.props?.testID === 'native-shell-watch'));
-    const covered = rendered.find(node => node.props?.testID === 'native-shell-watch');
+    // TV: the outlet's wrapper holds the page-Modal signal around the chrome (context only), not covered while no TV
+    // page Modal is held.
+    const chrome = rendered.find(node => node.type === 'View' && (node.props.children?.type === 'WatchChrome' || node.props.children?.type === 'CoveredSignal' && node.props.children.props.children?.type === 'WatchChrome'));
+    const covered = chrome.props.children?.type === 'CoveredSignal' ? chrome.props.children : undefined;
     if (covered) assert.equal(covered.props.covered, false);
     assert.equal(chrome.props.pointerEvents, 'box-none');
     assert.equal(chrome.props.style.zIndex, theme.layers.player + 1);
@@ -66,7 +68,7 @@ test('the real shell mounts one persistent player and a separate box-none watch 
     snapshot.contentVisible = true; snapshot.mediaExpanded = true;
     await act(async () => {await sessionHost!.rerender();});
     assert.equal(base().props.accessibilityElementsHidden, true);
-    const watch = nodes(tree).find(node => node.type === 'View' && (node.props.children?.type === 'WatchChrome' || node.props.children?.props?.testID === 'native-shell-watch'));
+    const watch = nodes(tree).find(node => node.type === 'View' && (node.props.children?.type === 'WatchChrome' || node.props.children?.type === 'CoveredSignal' && node.props.children.props.children?.type === 'WatchChrome'));
     assert.notEqual(watch.props.importantForAccessibility, 'no-hide-descendants', 'visible split watch panes stay exposed in their separate outlet');
     snapshot.mediaExpanded = false;
     await act(async () => {await sessionHost!.rerender();});

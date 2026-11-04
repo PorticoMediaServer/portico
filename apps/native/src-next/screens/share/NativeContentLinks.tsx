@@ -1,9 +1,11 @@
-import React, {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
-import {View} from 'react-native';
+import React, {useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
+import {Modal, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {StandardBackdrop} from '../../kit/artwork';
-import {FocusRegion, presentTVLayer, useFocusRegistry} from '../../kit/focus';
-import {registerBack} from '../../kit/navigation/back';
+import {FocusRegion, holdTVPageModal, type TVPageModalHold} from '../../kit/focus';
+import {useNativeDismissal} from '../../kit/overlays/native-dismissal';
+import {useOverlayLifecycle} from '../../kit/overlays/OverlayHost';
+import {OVERLAY_PAINT_LIVE, OverlayPaintProvider} from '../../kit/overlays/OverlayPaintContext';
 import {TVDesignCanvas} from '../../kit/overlays/TVDesignCanvas';
 import {StateLayout, StateView} from '../../kit/states';
 import {useTheme} from '../../kit/theme';
@@ -14,8 +16,8 @@ import {openContentLink} from './share-open';
 /** N5-1: a `portico://item|play` link (Top Shelf, the Android TV home screen, Siri, Spotlight,
  * Handoff), once this server's shell is ready. It opens the title over Home, `play` resumes it,
  * and a title this viewer can't open says so, with a way Home. On TV that page is a full-screen
- * layer in the TV layer stack: it covers the shell, takes focus on Home, and Home or Back returns
- * focus to where it was. Phones, tablets and TVs all open and play.
+ * native `Modal` over the shell: it takes focus on Home, and Home or Back returns focus to where it
+ * was once the page has gone. Phones, tablets and TVs all open and play.
  * N2-1: the account, Watch Together, downloads and old-invitation app links open their page over
  * Home the same way; an old invitation says to ask for a new one. */
 export function NativeContentLinks({runtime, online}: {runtime: RestoredNativeShellRuntime; online: boolean}) {
@@ -55,16 +57,30 @@ export function NativeContentLinks({runtime, online}: {runtime: RestoredNativeSh
 }
 
 const TV_LINK_REGION = 'content-link-unavailable';
-/** The TV page for a refused link: a presented layer over the whole shell (the stack covers the page, routes and
- * rail under it), focus on Home, and Back does the same as Home. */
+/** The TV page for a refused link: a full-screen opaque native `Modal`, like every other TV overlay (DECISIONS,
+ * 4 Nov). The platform keeps everything under it from taking D-pad focus; the held `tv-page-modal` signal keeps the
+ * shell's layers from asking for it in their own window. Focus starts on Home, and Home or Back closes it. The
+ * `Modal` stays mounted until the platform reports it gone, then focus returns to where it was, or, when the page
+ * under it changed meanwhile (a profile switch), the shell's page takes its own entry (DS-427). */
 export function TVContentLinkUnavailable({title, body, onHome}: {title: string; body: string; onHome: () => void}) {
-  const registry = useFocusRegistry(), home = useRef(onHome); home.current = onHome;
-  useLayoutEffect(() => presentTVLayer(TV_LINK_REGION, () => registry.focusRegion(TV_LINK_REGION)), [registry]);
-  useLayoutEffect(() => registerBack(() => {home.current(); return true;}, {scope: 'overlay'}), []);
-  // Drawn beside the shell's scaled page, so it scales into the TV design canvas itself.
-  return <View testID="content-link-unavailable" style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}}>
+  const dismissal = useNativeDismissal(onHome), hold = useRef<TVPageModalHold>(undefined);
+  useLayoutEffect(() => {const lease = holdTVPageModal(); hold.current = lease; return lease.release;}, []);
+  // Checked when the page closes: a stale opener is skipped and the page's own entry takes focus.
+  const pageCurrent = useCallback(() => hold.current?.pageCurrent() ?? true, []);
+  return <Modal visible={dismissal.visible} transparent={false} animationType="none" onRequestClose={dismissal.close} onDismiss={dismissal.onDismiss}>
+    <OverlayPaintProvider mode={OVERLAY_PAINT_LIVE} returnCurrent={pageCurrent}>
+      <TVContentLinkPage title={title} body={body} close={dismissal.close}/>
+    </OverlayPaintProvider>
+  </Modal>;
+}
+function TVContentLinkPage({title, body, close}: {title: string; body: string; close: () => void}) {
+  // Back (and the Menu key), entry on Home, and the opener's capture and return.
+  useOverlayLifecycle(true, true, close, undefined, undefined, 0, TV_LINK_REGION);
+  // A Modal is its own window, so it scales into the TV design canvas itself.
+  return <View testID="content-link-unavailable" style={{flex: 1}}>
+    <StandardBackdrop/>
     <TVDesignCanvas><FocusRegion id={TV_LINK_REGION} entry="home" hold style={{flex: 1}}>
-      <StateLayout title={title} body={body} primaryAction={{id: 'home', label: defaultI18n.t('web.shell.home'), onPress: () => home.current()}}/>
+      <StateLayout title={title} body={body} primaryAction={{id: 'home', label: defaultI18n.t('web.shell.home'), onPress: close}}/>
     </FocusRegion></TVDesignCanvas>
   </View>;
 }

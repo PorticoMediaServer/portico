@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import * as layerStack from '../src-next/kit/focus/layer-stack.ts';
+import * as pageModal from '../src-next/kit/focus/tv-page-modal.ts';
 import test from 'node:test';
 import * as model from '../src-next/shell/model';
 import {hooks, screenModule, stackSlotFixture} from './helpers/screen-harness.mjs';
@@ -24,7 +25,7 @@ for (const tv of [false, true]) test(`${tv ? 'TV' : 'touch'} shell hides its cov
     '../kit/overlays/SurfacePaintHost': {SurfacePaintHost: 'SurfacePaintHost'}, '../kit/shell': {AccountMenu: 'AccountMenu'},
     '../kit/theme': {useTheme: () => ({isTV: tv, colors: {ink: '#071018'}, layers: {navigation: 3, sticky: 4, player: 8}})},
     '../kit/useMotion': {useMotion: () => ({transforms: false})}, '../platform/menu-key': {}, '../platform/tv-menu': {useTVMenuCapture() {}},
-    '../kit/focus': {...layerStack, CoveredLayer: 'CoveredLayer', useFocusRegistry: () => registry}, './tv-focus': {tvFocusIds: () => ({rail: 'rail'}), sameDestination: (a: unknown, b: unknown) => a === b},
+    '../kit/focus': {...layerStack, ...pageModal, CoveredLayer: 'CoveredLayer', CoveredSignal: 'CoveredSignal', requestNativeFocus: () => false, useFocusRegistry: () => registry}, './tv-focus': {tvFocusIds: () => ({rail: 'rail'}), sameDestination: (a: unknown, b: unknown) => a === b},
     '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'},
     '../screens/home/home-start': {homeStartModel: () => ({}), resolveTVHomeStart: () => undefined, canYieldTVHomeMenu: () => false},
     './model': model, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}},
@@ -49,31 +50,34 @@ for (const tv of [false, true]) test(`${tv ? 'TV' : 'touch'} shell hides its cov
       // W-12: the base page never holds focus itself; every CoveredLayer is an autoFocus guide on TV (next-covered-layer.test.ts).
       assert.equal(layer.props.autoFocus, undefined, 'no per-caller option: the layer itself decides');
     } else assert.equal(layer, undefined);
-    const watch = nodes(tree).find(node => (node.type === 'View' || node.type === 'CoveredLayer') && (Array.isArray(node.props.children) ? node.props.children : [node.props.children]).some((child: any) => child?.type === 'VisibleSplitWatchPanes'));
+    const watch = nodes(tree).find(node => (node.type === 'View' || node.type === 'CoveredSignal') && (Array.isArray(node.props.children) ? node.props.children : [node.props.children]).some((child: any) => child?.type === 'VisibleSplitWatchPanes'));
     assert.ok(watch, 'the separate watch outlet remains mounted');
     assert.notEqual(watch.props.accessibilityElementsHidden, true);
     assert.notEqual(watch.props.importantForAccessibility, 'no-hide-descendants');
-    if (tv) assert.equal(watch.props.covered, false, 'nothing presented: the watch outlet takes focus normally');
+    if (tv) assert.equal(watch.props.covered, false, 'no page Modal: the watch outlet takes focus normally');
   }
   if (!tv) return;
-  // #593 review: a presented state (the refused-link page) over the expanded player or the listening screen covers
-  // them too, so the chrome's preferred picture can't pull focus from under the page. The same element stays mounted.
-  const byTestID = (tree: unknown, id: string) => nodes(tree).find(node => node.type === 'CoveredLayer' && node.props.testID === id);
+  // The refused-link page is a native Modal (4 Nov): the platform keeps D-pad focus out of everything under it, and the
+  // shell covers its page, routes, player and watch chrome by context only while it is held, so nothing under it asks
+  // for focus in its own window. No native wrapper (#628's inert-when-uncovered guides and the Android stop are gone).
+  const signals = (tree: unknown) => nodes(tree).filter(node => node.type === 'CoveredSignal');
   snapshot.contentVisible = true; snapshot.mediaExpanded = true;
   let tree = render();
-  assert.equal(byTestID(tree, 'native-shell-playback').props.covered, false, 'the expanded player is the top layer');
-  assert.equal(byTestID(tree, 'native-shell-watch').props.covered, false);
-  for (const id of ['native-shell-playback', 'native-shell-watch']) assert.equal(byTestID(tree, id).props.inertWhenUncovered, true, `${id} is no focus guide while uncovered (next-covered-layer)`);
-  const playbackElement = byTestID(tree, 'native-shell-playback').props.children;
-  const release = layerStack.presentTVLayer('content-link-unavailable', () => true);
+  assert.equal(signals(tree).length, 4, 'the page, the player, the watch chrome and the routes');
+  assert.ok(signals(tree).every(node => node.props.covered === false), 'nothing held: nothing covered by it');
+  assert.equal(nodes(tree).some(node => node.props?.testID === 'native-shell-playback' || node.props?.testID === 'native-shell-watch'), false, 'no native wrapper around the player');
+  const playbackWrapper = () => nodes(tree).find(node => node.type === 'View' && node.props.style?.zIndex === 8);
+  const playbackSignal = () => [playbackWrapper().props.children].flat()[0];
+  assert.equal(playbackSignal().type, 'CoveredSignal');
+  const playbackElement = playbackSignal().props.children;
+  const baseCovered = () => nodes(tree).find(node => node.type === 'CoveredLayer').props.covered, before = baseCovered();
+  const hold = pageModal.holdTVPageModal();
   try {
     tree = render();
-    assert.equal(byTestID(tree, 'native-shell-playback').props.covered, true, 'the player and listening host are covered under the page');
-    assert.equal(byTestID(tree, 'native-shell-watch').props.covered, true, 'and so is the watch chrome');
-    assert.equal(byTestID(tree, 'native-shell-playback').props.children.type, playbackElement.type, 'the playback layer is the same element: nothing remounts');
-    const playbackWrapper = nodes(tree).find(node => node.type === 'View' && [node.props.children].flat().some((child: any) => child?.props?.testID === 'native-shell-playback'));
-    assert.equal(playbackWrapper.props.style.zIndex, 8, 'and keeps its place above the routes');
-  } finally {release();}
+    assert.ok(signals(tree).every(node => node.props.covered === true), 'held: every layer under it is covered');
+    assert.equal(playbackSignal().props.children.type, playbackElement.type, 'the playback layer is the same element: nothing remounts');
+    assert.equal(baseCovered(), before, 'the hold never blocks the page natively (D7): only the layer stack does');
+  } finally {hold.release();}
   tree = render();
-  assert.equal(byTestID(tree, 'native-shell-playback').props.covered, false, 'closed: the player takes focus again');
+  assert.ok(signals(tree).every(node => node.props.covered === false), 'released: uncovered');
 });

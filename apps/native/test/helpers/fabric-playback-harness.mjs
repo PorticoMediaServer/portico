@@ -1,5 +1,6 @@
 import * as homeStart from '../../src-next/screens/home/home-start.ts';
 import * as layerStack from '../../src-next/kit/focus/layer-stack.ts';
+import * as pageModal from '../../src-next/kit/focus/tv-page-modal.ts';
 import {DockVideoExitImages} from '../../src-next/kit/dock/video-exit-paint.ts';
 import {captureListeningOpening, expandedListeningOccupant, localListeningOccupant} from '../../src-next/shell/listening-presentation.ts';
 import {listeningCoverFixture, stackSlotFixture} from './screen-harness.mjs';
@@ -169,7 +170,7 @@ export async function fabricPlayback(runtime, tv = true, watch, withShell = fals
       '../kit/overlays': {OverlaysProvider: Container}, '../kit/shell': {AccountMenu: Empty}, '../kit/browse': {},
       '../platform/menu-key': {registerTVMenuFallback}, '../platform/tv-menu': {useTVMenuCapture: () => {}},
       '../kit/theme': {useTheme: () => theme}, '../kit/useMotion': {useMotion: () => motion},
-      '../kit/focus': {...layerStack, CoveredLayer: Container, useFocusRegistry: () => registry}, './tv-focus': tvFocus, './model': shellModel,
+      '../kit/focus': {...layerStack, ...pageModal, CoveredLayer: Container, CoveredSignal: ({children}) => children, useFocusRegistry: () => registry}, './tv-focus': tvFocus, './model': shellModel,
       '../screens/home/HomeScreen': {HomeScreen: Empty}, './UnreachableLine': {ShellUnreachableLine: () => null}, './NativePlaybackLayer': {NativePlaybackLayer},
       './PhoneTabBar': {PhoneTabBar: Empty}, './MediumRail': {MediumRail: Empty}, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}}, './PhoneHomeHeader': {PhoneHomeHeader: Empty}, './DesktopHeader': {DesktopHeader: Empty},
       './TVRail': {TVRail: Empty}, './TVProfileMenu': {TVProfileMenu: Empty}}));

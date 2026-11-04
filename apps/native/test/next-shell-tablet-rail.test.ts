@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import * as layerStack from '../src-next/kit/focus/layer-stack.ts';
+import * as pageModal from '../src-next/kit/focus/tv-page-modal.ts';
 import test from 'node:test';
 import * as model from '../src-next/shell/model';
 import {hooks, screenModule, stackSlotFixture} from './helpers/screen-harness.mjs';
@@ -31,7 +32,7 @@ async function shell(width: number, height: number, top: unknown, railHeld?: boo
     '../kit/overlays/SurfacePaintHost': {SurfacePaintHost: 'SurfacePaintHost'}, '../kit/shell': {AccountMenu: 'AccountMenu'},
     '../kit/theme': {useTheme: () => ({isTV: false, colors: {ink: '#071018'}, layers: {navigation: 3, sticky: 4, player: 8}})},
     '../kit/useMotion': {useMotion: () => ({transforms: false})}, '../platform/menu-key': {}, '../platform/tv-menu': {useTVMenuCapture() {}},
-    '../kit/focus': {...layerStack, CoveredLayer: 'CoveredLayer', useFocusRegistry: () => registry}, './tv-focus': {tvFocusIds: () => ({rail: 'rail'}), sameDestination: (a: unknown, b: unknown) => a === b},
+    '../kit/focus': {...layerStack, ...pageModal, CoveredLayer: 'CoveredLayer', CoveredSignal: ({children}: any) => children, useFocusRegistry: () => registry}, './tv-focus': {tvFocusIds: () => ({rail: 'rail'}), sameDestination: (a: unknown, b: unknown) => a === b},
     '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'},
     '../screens/home/home-start': {homeStartModel: () => ({}), resolveTVHomeStart: () => undefined, canYieldTVHomeMenu: () => false},
     './model': model, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}},
