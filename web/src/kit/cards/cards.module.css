@@ -244,7 +244,8 @@
 .collectionFacts, .collectionDetail { font-size:13.5px; color:var(--color-text-secondary); }
 .collectionMeta { display:flex; gap:14px; margin-top:8px; }
 .collectionFacts > span:first-child { color:var(--color-text); font-weight:700; }
-.collectionDetail { color:var(--color-accent-strong); font-weight:700; }
+/* desktop-browse #collections: the years stay grey; only the watched share ("1 of 2 watched") is blue. */
+.collectionDetail > [data-fact='watched'] { color:var(--color-accent-strong); font-weight:700; }
 .collectionTile { --cards-width:421.3333px; aspect-ratio:16/9; border-radius:14px; isolation:isolate; background:var(--color-collection); }
 .collectionTile .primary { height:100%; }
 .collectionTile .collectionBackdrop { width:76%; -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 52%); mask-image:linear-gradient(90deg,transparent 0,#000 52%); }
