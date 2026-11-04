@@ -12,21 +12,25 @@ import {Menu} from '../../../kit/overlays/Popover';
 import {Icon, type IconName} from '../../../kit/Icon';
 import {router} from '../../../router';
 import {StateView} from '../../../kit/states';
+import {Artwork} from '../../../kit/artwork/Artwork';
+import type {ShellArtwork} from '../../../shell/artwork';
 import styles from './libraries.module.css';
 import {libraryRows, movedIds, movedLibraryIds, type LibraryKind} from './model';
 import {AddLibrary} from './AddLibrary';
-import {RemoveLibrary} from './RemoveLibrary';
 
 const t = defaultI18n.t;
 const kindIcons: Readonly<Record<LibraryKind, IconName>> = {movie: 'i-film', tv: 'i-tvlib', anime: 'i-tvlib', music: 'i-music', audiobook: 'i-headph', book: 'i-sbook', comic: 'i-page'};
 
-/** The owner's Libraries settings list. Server facts only: each library's name,
- * its folder and whether a scan is running. A scan is started here, from the
- * row the owner chose, and the page never shows scan progress or counts.
- *
-*/
-export function LibrariesPanel({api, service, onEdit, onError, serverName}: {
+const countPivots: Readonly<Record<string, string>> = {movie: 'movies', show: 'shows', artist: 'artists', album: 'albums', song: 'songs', book: 'books'};
+const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+/** owner-libraries.html frames 1 and 24a: each library is its covers, its name and its counts, with one state line
+ * (Scanning, or when the last scan finished) and one ⋯ menu (Edit, Scan now, Unmatched items, Move up, Move down).
+ * The spec keeps the list to short facts: the folder is in the library panel's Folders tab, and removing a library
+ * lives in that panel too. */
+export function LibrariesPanel({api, service, onEdit, onError, serverName, artwork}: {
   api: LibraryContentApi; service: LibraryManagementService; onEdit: (libraryId: string) => void; onError: (error: unknown) => void; serverName?: string;
+  artwork?: ShellArtwork;
 }) {
   const {hub}=useFreshness();
   const visibility=useContext(SettingsOpenContext);
@@ -39,7 +43,7 @@ export function LibrariesPanel({api, service, onEdit, onError, serverName}: {
     return () => input.dispose();
   },[hub,service,visibility]);
   const snapshot = useSyncExternalStore(service.subscribe, service.getSnapshot, service.getSnapshot);
-  const [busy, setBusy] = useState<string>(), [menu, setMenu] = useState<string>(), [adding, setAdding] = useState(false), [removing, setRemoving] = useState<string>();
+  const [busy, setBusy] = useState<string>(), [menu, setMenu] = useState<string>(), [adding, setAdding] = useState(false);
   const directory = snapshot.directory;
   const libraries = directory.data?.items ?? [];
   const list = useRef<HTMLOListElement>(null);
@@ -61,7 +65,13 @@ export function LibrariesPanel({api, service, onEdit, onError, serverName}: {
   const lastScanLabel = (id: string) => {
     const job = libraries.find(library => library.id === id)?.lastScan;
     if (!job) return t('next.ownerLibraries.neverScanned');
-    if ((job.status === 'complete' || job.status === 'complete_with_warnings') && job.finishedAt && Number.isFinite(Date.parse(job.finishedAt))) return t('server.libraries.scanned', {when: defaultI18n.dateTime(job.finishedAt)});
+    if ((job.status === 'complete' || job.status === 'complete_with_warnings') && job.finishedAt && Number.isFinite(Date.parse(job.finishedAt))) {
+      const at = new Date(job.finishedAt), now = new Date(), yesterday = new Date(now.getTime() - 86_400_000);
+      // owner-libraries 1: "Scanned today at 3:12 PM", then yesterday, then the date.
+      if (sameDay(at, now)) return t('next.ownerLibraries.scannedToday', {time: defaultI18n.time(at)});
+      if (sameDay(at, yesterday)) return t('next.ownerLibraries.scannedYesterday', {time: defaultI18n.time(at)});
+      return t('server.libraries.scanned', {when: defaultI18n.dateTime(job.finishedAt)});
+    }
     return undefined;
   };
   useEffect(() => { void service.loadLibraries().catch(onError); }, [service, onError]);
@@ -143,19 +153,24 @@ export function LibrariesPanel({api, service, onEdit, onError, serverName}: {
           if (!held || held.pointer !== event.pointerId || held.libraries !== libraries || held.api !== api || held.service !== service) return;
           const library = libraries.find(value => value.id === held.id); if (library) void reorder(library, movedLibraryIds(libraries, held.id, held.to));
         }} onPointerCancel={cancelDrag} onLostPointerCapture={cancelDrag}><Icon name="i-grip" size={18} /></button>
-      <span className={styles.kindIcon}><Icon name={kindIcons[row.kind]} size={22} /></span>
-      <span className={styles.identity}>
-        <b className={styles.name}>{row.name}</b>
-        <small className={styles.folder}>{row.folder}</small>
-        <small className={styles.lastScan}>{lastScanLabel(row.id)}</small>
-      </span>
-      {row.scanning
-        ? <span className={styles.scanning} role="status"><Icon name="i-refresh" size={16} />{t('next.settings.libraries.scanning')}</span>
-        : <Button variant="glass" size="small" disabled={!row.canScan || !!busy} loading={busy === row.id}
-            onClick={() => { const library = libraries.find(value => value.id === row.id); if (library) void scan(library); }}>
-            {t('next.settingsSpec.server.libraries.groups.0.rows.0.control.itemActions.0.label')}
-          </Button>}
-      <Button variant="glass" size="small" disabled={!!busy} onClick={() => {if (!lifetime.current?.running) onEdit(row.id);}}>{t('next.settingsSpec.server.libraries.groups.0.rows.0.control.itemActions.1.label')}</Button>
+      {(() => {
+        const library = libraries.find(value => value.id === row.id), square = row.kind === 'music' || row.kind === 'audiobook';
+        const covers = (library?.summary?.coverUrls ?? []).slice(0, 3).flatMap((path, order) => {
+          const source = artwork?.foreground(path, 120, square ? 1 : 2 / 3, {group: 'settings-libraries', order});
+          return source ? [<span key={path}><Artwork source={source} alt="" visible /></span>] : [];
+        }).reverse();
+        const counts = (library?.summary?.counts ?? []).map(count => t(count.atLeast ? 'lib.countAtLeast' : 'lib.count', {count: count.count, pivot: countPivots[count.kind] ?? count.kind}));
+        return <>
+          {covers.length ? <span className={styles.covers} data-square={square || undefined} aria-hidden="true">{covers}</span>
+            : <span className={styles.kindIcon}><Icon name={kindIcons[row.kind]} size={22} /></span>}
+          <span className={styles.identity}>
+            <b className={styles.name}>{row.name}</b>
+            {counts.length > 0 && <small className={styles.counts}>{counts.map(text => <span key={text}>{text}</span>)}</small>}
+            <small className={styles.state} data-state={row.scanning ? 'scanning' : 'idle'} role={row.scanning ? 'status' : undefined}>
+              <i aria-hidden="true" />{row.scanning ? t('next.settings.libraries.scanning') : lastScanLabel(row.id)}</small>
+          </span>
+        </>;
+      })()}
       <Menu open={menu === row.id} onOpenChange={open => {setAgentFact(undefined); setMenu(open ? row.id : undefined);}} title={row.name} items={[
         {id: 'edit', label: t('next.settingsSpec.server.libraries.groups.0.rows.0.control.itemActions.1.label'), disabled: !!busy, onSelect: () => { if (!lifetime.current?.running) onEdit(row.id); }},
         ...(row.canScan && !row.scanning ? [{id: 'scan', label: t('next.settingsSpec.server.libraries.groups.0.rows.0.control.itemActions.0.label'), onSelect: () => {
@@ -170,14 +185,10 @@ export function LibrariesPanel({api, service, onEdit, onError, serverName}: {
         {id: 'down', label: t('next.settings.moveDown', {name: row.name}), disabled: !row.canMoveDown, onSelect: () => {
           const library = libraries.find(value => value.id === row.id); if (library) void move(library, 1);
         }},
-        {id: 'remove', label: t('next.settingsSpec.server.libraries.panels.library.tabs.0.groups.2.rows.0.control.label'), destructive: true,
-          disabled: !!busy, onSelect: () => { if (!lifetime.current?.running) setRemoving(row.id); }},
       ]} trigger={<Button variant="icon" icon="i-more" iconOnly aria-label={t('next.settings.actions')} disabled={!!busy} />} />
     </li>)}
     </ol>
     <span className={styles.announcement} role="status">{announcement}</span>
     <AddLibrary open={adding} onOpenChange={setAdding} api={api} service={service} onError={onError} serverName={serverName} />
-    <RemoveLibrary open={!!removing} onOpenChange={open => { if (!open) setRemoving(undefined); }} libraryId={removing ?? ''} service={service} api={api}
-      onRemoved={() => { setRemoving(undefined); void service.loadLibraries().catch(onError); }} onError={onError} />
   </>;
 }
