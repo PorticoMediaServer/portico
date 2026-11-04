@@ -1,0 +1,10 @@
+.editor h3 { margin: 18px 0 8px; font-size: var(--type-caption-size); font-weight: var(--type-body-strong-weight); color: var(--color-text-secondary); }
+.editor h3:first-child { margin-top: 4px; }
+.rows { list-style: none; margin: 0; padding: 0; border-radius: 12px; overflow: hidden; background: var(--color-raised); }
+.rows li { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 12px 6px 16px; border-top: 1px solid var(--color-line-soft); }
+.rows li:first-child { border-top: 0; }
+.name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.order { display: inline-flex; gap: 2px; }
+.none { margin: 0; color: var(--color-text-tertiary); font-size: var(--type-caption-size); }
+/* The phone sheet gives its body no inset; the desktop dialog does. */
+@media (max-width: 599px) { .editor { padding: 0 20px 24px; } }

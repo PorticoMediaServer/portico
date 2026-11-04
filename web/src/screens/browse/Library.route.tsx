@@ -61,6 +61,7 @@ import {FacetPage, ReadLibraryEntry, useReadLibrarySummary, authorPredicate, typ
 import {isReadingLibrary} from './reading-library';
 import {useReadingMarkAll} from '../read/useReadingMarkAll';
 import {libraryCountText} from '@core/presentation/library-counts.ts';
+import {usePinEditor} from '../pins/PinEditor';
 
 const t = defaultI18n.t;
 const noSelectionSubscribe = () => () => {};
@@ -137,6 +138,8 @@ function LiveReadingLibrary({captured, library, search, onMarked, context, life}
   // owner's library is read once (one get_admin_jobs read), not twice.
   const scan = useLibraryScan(context, library, life, !(search.view === 'browse' || search.query));
   const [linkToast, setLinkToast, copyLibraryLink] = useCopyLibraryLink(library.id);
+  // phone-app 4c: Edit pins in the library's ⋯.
+  const pins = usePinEditor(context);
   type Attempt = {context: ProtectedLibraryScreen['context']; screen: ScreenContext; life: typeof life; libraryId: string; kind: string; controller: AbortController; active: boolean; phase: 'loading' | 'error' | 'ready'};
   const [retry, setRetry] = useState(0), attempt = useRef<Attempt | null>(null);
   const [capabilitySnapshot, setCapabilities] = useState<Readonly<{attempt: Attempt; phase: 'loading' | 'error' | 'ready'; data?: BrowseCapabilities; error?: unknown}>>();
@@ -186,7 +189,7 @@ function LiveReadingLibrary({captured, library, search, onMarked, context, life}
   const header = <LibraryIdentity library={library} libraries={libraryChoices} pivot={periodicalPivot ?? selected.id}
     tabs={tabs.map(tab => ({value: tab.id, label: t(tab.label)}))}
     appearance={{view: appearance.libraryView, cardWidth: width < 600 ? 108 : 190, cardSize: 'medium', backdrops: appearance.showBackdrops}}
-    preferences={appearance} artwork={context.artwork} libraryMenu={withLinkToast(libraryMenu({life}, context, library, false, () => {}, scan, markAll, copyLibraryLink), linkToast, () => setLinkToast(null))} wash={wash} counts={counts}
+    preferences={appearance} artwork={context.artwork} libraryMenu={<>{pins.element}{withLinkToast(libraryMenu({life}, context, library, false, () => {}, scan, markAll, copyLibraryLink, pins.open), linkToast, () => setLinkToast(null))}</>} wash={wash} counts={counts}
     onPivot={id => {const tab = tabs.find(tab => tab.id === id); if (!tab) return;
       if (tab.shows === 'periodicals') {navigate({view: 'series', pivot: tab.id}); return;}
       if (tab.shows === 'facet') {navigate({view: tab.id === 'authors' ? 'authors' : 'series'}); return;}
@@ -221,13 +224,13 @@ type ScanLease = Readonly<{context: ScreenContext; libraryId: string; life: {api
 function withLinkToast(menu: ReactNode, toast: ToastData | null, dismiss: () => void): ReactNode {
   return menu === undefined ? undefined : <>{menu}<ToastHost toast={toast} onDismiss={dismiss}/></>;
 }
-function libraryMenu(resources: {life: {current: () => boolean}; controller?: {canSaveView: () => boolean}}, context: ScreenContext, library: Library, onlineAttention: boolean, save: () => void, scan?: () => void, markAll?: () => void, copy?: () => void) {
+function libraryMenu(resources: {life: {current: () => boolean}; controller?: {canSaveView: () => boolean}}, context: ScreenContext, library: Library, onlineAttention: boolean, save: () => void, scan?: () => void, markAll?: () => void, copy?: () => void, editPins?: () => void) {
   const owner = managesServer(context);
   const unmatched = onlineAttention && context.effects.editMetadata ? () => {if (resources.life.current() && context.isCurrent()) void router.navigate({to: '/library/$libraryId', params: {libraryId: library.id}, search: {unmatched: true}}).catch(context.effects.reportError);} : undefined;
   const settings = owner ? () => {if (resources.life.current() && context.isCurrent()) void router.navigate({to: '/settings', search: {scope: 'server', section: 'libraries'}}).catch(context.effects.reportError);} : undefined;
   const canSave = resources.life.current() && context.isCurrent() && !!resources.controller?.canSaveView();
-  if (!canSave && !unmatched && !settings && !scan && !markAll && !copy) return undefined;
-  return <LibraryMenu owner={!!owner} read={isReadingLibrary(library.kind)} {...(copy ? {onCopyLink: copy} : {})} {...(markAll ? {onMarkAll: markAll} : {})} {...(canSave ? {onSaveView: save} : {})} {...(unmatched ? {onUnmatched: unmatched} : {})}
+  if (!canSave && !unmatched && !settings && !scan && !markAll && !copy && !editPins) return undefined;
+  return <LibraryMenu owner={!!owner} read={isReadingLibrary(library.kind)} {...(copy ? {onCopyLink: copy} : {})} {...(editPins ? {onEditPins: editPins} : {})} {...(markAll ? {onMarkAll: markAll} : {})} {...(canSave ? {onSaveView: save} : {})} {...(unmatched ? {onUnmatched: unmatched} : {})}
     {...(settings ? {onLibrarySettings: settings} : {})} {...(scan ? {onScan: scan} : {})}/>;
 }
 /** The local owner who may manage this server. A reading screen's identity may carry no viewer yet (it reads its
@@ -365,6 +368,8 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
   }) : undefined, [browse, controller, resources, context, library.id]);
   // O-161: the library's ⋯ copies its shareable address (this server's, on Hosted).
   const [linkToast, setLinkToast, copyLibraryLink] = useCopyLibraryLink(library.id);
+  // phone-app 4c: Edit pins in the library's ⋯.
+  const pins = usePinEditor(context);
   const runtime = captured.binding.playback?.runtime;
   // Frame 7's Recently played mark belongs to the queue session this snapshot actually
   // describes: the current entry is the queue's own currentEntryId, and the published
@@ -544,7 +549,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
     // A Reading library's ⋯ draws only the rows this surface can really perform: saving the
     // current view, the owner's Unmatched entry, the owner's Library settings page, and Scan
     // from its own lease, plus the ready original-profile Mark all read action.
-    libraryMenu: withLinkToast(libraryMenu({life: resources.life, controller}, context, library, onlineAttention, save, scan, isReadingLibrary(library.kind) ? readingMarkAll : undefined, copyLibraryLink), linkToast, () => setLinkToast(null)),
+    libraryMenu: <>{pins.element}{withLinkToast(libraryMenu({life: resources.life, controller}, context, library, onlineAttention, save, scan, isReadingLibrary(library.kind) ? readingMarkAll : undefined, copyLibraryLink, pins.open), linkToast, () => setLinkToast(null))}</>,
     onLibrary: (id: string) => navigate({}, id), onLibraries: () => {if (resources.life.current()) void router.navigate({to: '/libraries'}).catch(context.effects.reportError);},
     onPivot: (id: string) => {if (!resources.life.current()) return;const tab = tabs.find(tab => tab.id === id);if (!tab) return;
       if (tab.shows === 'periodicals') {navigate({view: 'series', pivot: tab.id});return;}
