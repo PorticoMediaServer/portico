@@ -90,7 +90,6 @@ type Bookmark = Readonly<{playback: DockPlayback; entry?: ContentEntry; subject?
 type SourceDetail = {
   service: DetailService; sourceEpoch: number; sourceKey: string;
   intentId: number; sessionId: string; generation: number; itemId: string; libraryId: string;
-  responseFence?: string;
 };
 
 /** Actual session, queue and native-engine wiring. Construct one per selected authority.
@@ -1122,7 +1121,7 @@ export class NativePlaybackRuntime {
     if (snapshot.scope.serverId !== this.bound.serverId || snapshot.scope.viewerId !== this.bound.profileId
       || snapshot.target?.itemId !== binding.itemId || snapshot.target.libraryId !== binding.libraryId
       || data?.scope.serverId !== this.bound.serverId || data.scope.itemId !== binding.itemId || data.scope.libraryId !== binding.libraryId
-      || data.item.id !== binding.itemId || data.item.libraryId !== binding.libraryId || data.scope.viewerFence !== binding.responseFence) return;
+      || data.item.id !== binding.itemId || data.item.libraryId !== binding.libraryId) return;
     return data;
   }
   private fence(): PlaybackFence | undefined {
@@ -1298,9 +1297,8 @@ export class NativePlaybackRuntime {
       this.detailOff = detail.subscribe(() => {
         if (!valid() || this.detail !== binding) return;
         const snapshot = detail.getSnapshot();
-        // Home and Detail issue different fence namespaces. Pin only the genuine decoded
-        // response from this bound service; its parser checks server/library/item scope.
-        if (binding.responseFence === undefined && snapshot.phase === 'ready' && snapshot.data) binding.responseFence = snapshot.data.scope.viewerFence;
+        // Step 7: a moved Detail fence is a newer answer for this item; the service's parser checks
+        // server/library/item scope, and a 401/403 clears its data (and so this projection).
         const data = this.detailProjection();
         this.subject = this.entry ? subjectOf(this.entry, data) : undefined;
         this.changed();
