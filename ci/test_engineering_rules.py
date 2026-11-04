@@ -167,6 +167,28 @@ class EngineeringRuleTests(unittest.TestCase):
         self.assertEqual(lines.get('src/fixture.ts', []), expected,
                          '\n'.join(f'{i + 1}: {line}' for i, line in enumerate(source) if '/*read*/' in line or '/*not*/' in line))
 
+    def test_query_read_cache_follows_every_file_the_checker_loads(self):
+        # Review 6630380810: a requester declared in an exempt file decides the count elsewhere. Rename its `method`
+        # parameter and a POST through it becomes a read-only call; the reused answer must not hide that.
+        import shutil
+        import tempfile
+        root = Path(tempfile.mkdtemp(prefix='query-read-cache-'))
+        try:
+            (root / 'tsconfig.json').write_text(json.dumps({'compilerOptions': {'target': 'ES2022', 'lib': ['ES2022', 'DOM'], 'module': 'ESNext',
+                'moduleResolution': 'bundler', 'strict': True, 'noEmit': True, 'skipLibCheck': True, 'types': []}, 'include': ['src/**/*.ts']}))
+            (root / 'src' / 'query').mkdir(parents=True)
+            requester = root / 'src' / 'query' / 'viewer-queries.ts'
+            requester.write_text('export type ViewerRequester = {request<T>(path: string, method?: string, body?: unknown): Promise<T>};\n')
+            (root / 'src' / 'probe.ts').write_text("import type {ViewerRequester} from './query/viewer-queries';\ndeclare const requester: ViewerRequester;\nvoid requester.request('/v1/x', 'POST', {});\n")
+            self.assertEqual(query_reads(['src/probe.ts'], root=root, configs=['tsconfig.json']), {})
+            self.assertEqual(query_reads(['src/probe.ts'], root=root, configs=['tsconfig.json']), {}, 'served again unchanged')
+            requester.write_text('export type ViewerRequester = {request<T>(path: string, verb?: string, body?: unknown): Promise<T>};\n')
+            self.assertEqual(query_reads(['src/probe.ts'], root=root, configs=['tsconfig.json']), {'src/probe.ts': [3]})
+            (root / 'src' / 'extra.ts').write_text('export const untracked = 1;\n')
+            self.assertEqual(query_reads(['src/probe.ts'], root=root, configs=['tsconfig.json']), {'src/probe.ts': [3]}, 'an untracked file joins the key')
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
     def test_query_read_keeps_the_marker_rules(self):
         path = 'web/src/x.ts'
         def n(text, lines):

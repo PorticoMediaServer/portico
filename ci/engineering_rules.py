@@ -138,31 +138,64 @@ QUERY_READ_CONFIGS = ['web/tsconfig.json', 'apps/native/tsconfig.json', 'apps/ve
                       'packages/contracts/tsconfig.json', 'ci/query-reads.tsconfig.json']
 
 
+QUERY_READ_SKIP = {'node_modules', '.git', 'dist', 'build', 'android', 'ios', 'Pods', '.gradle'}
+
+
+def _sha(path):
+    import hashlib
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
 def query_reads(paths, root=ROOT, configs=QUERY_READ_CONFIGS):
     """{path: [1-based line of each server read]} from ci/query_reads.mjs, which needs the root `npm ci`.
 
-    One run serves every caller over the same tree: the answer is kept in the system temp directory under a hash
-    of every file it read, the projects, the counter itself and the lockfile (hygiene's unit test, then the check)."""
+    One run serves every caller over the same tree (hygiene's unit test, then the check), kept in the system temp
+    directory. Its key covers everything the programs could load: every TypeScript and JSON file under the projects'
+    directories (tracked or not, counted or exempt, and the configs they extend), the request, the counter and the
+    lockfile (for node_modules). A file the programs loaded from anywhere else is recorded with the answer and
+    checked again before the answer is reused."""
     import hashlib
+    import os
     import subprocess
     import tempfile
+    root = Path(root)
     request = json.dumps({'root': str(root), 'configs': list(configs), 'files': list(paths)})
     digest = hashlib.sha256(request.encode())
-    for name in [*paths, *configs]:
-        digest.update(b'\0' + name.encode() + b'\0' + (Path(root) / name).read_bytes())
     for own in [ROOT / 'ci' / 'query_reads.mjs', ROOT / 'package-lock.json']:
         digest.update(b'\0' + own.read_bytes())
+    homes = sorted({(root / config).parent.resolve() for config in configs} | ({(root / 'packages').resolve()} if (root / 'packages').is_dir() else set()))
+    seen = set()
+    for home in homes:
+        for folder, dirs, files in os.walk(home):
+            dirs[:] = sorted(d for d in dirs if d not in QUERY_READ_SKIP)
+            for name in sorted(files):
+                if not name.endswith(('.ts', '.tsx', '.mts', '.cts', '.json')):
+                    continue
+                path = Path(folder) / name
+                if path in seen:
+                    continue
+                seen.add(path)
+                digest.update(b'\0' + str(path).encode() + b'\0' + path.read_bytes())
     kept = Path(tempfile.gettempdir()) / f'portico-query-reads-{digest.hexdigest()}.json'
     if kept.exists():
-        return json.loads(kept.read_text())
+        try:
+            entry = json.loads(kept.read_text())
+            if all(Path(path).is_file() and _sha(path) == sha for path, sha in entry['elsewhere'].items()):
+                return entry['reads']
+        except (ValueError, KeyError, OSError):
+            pass
     try:
         run = subprocess.run(['node', str(ROOT / 'ci' / 'query_reads.mjs')], input=request, capture_output=True, text=True, cwd=root, timeout=600)
     except FileNotFoundError as error:
         raise SystemExit('query-read needs Node (ci/query_reads.mjs)') from error
     if run.returncode != 0:
         raise SystemExit('query-read counter failed (run `npm ci` at the repository root first):\n' + run.stderr)
-    kept.write_text(run.stdout)
-    return json.loads(run.stdout)
+    answer = json.loads(run.stdout)
+    # Loaded from outside the projects' directories and node_modules: checked again before the answer is reused.
+    elsewhere = {path: _sha(path) for path in answer['loaded']
+                 if 'node_modules' not in Path(path).parts and Path(path) not in seen and Path(path).is_file()}
+    kept.write_text(json.dumps({'elsewhere': elsewhere, 'reads': answer['reads']}))
+    return answer['reads']
 
 
 def counts(paths, read=lambda p: (ROOT / p).read_text(encoding='utf-8', errors='replace'), reads=None):
