@@ -104,7 +104,7 @@ func TestQueryCaptureDoesNotMixRevisionsAfterRestart(t *testing.T) {
 	if err := s.continueBuild(context.Background(), snap.id); !errors.Is(err, errSelectionChanged) {
 		t.Fatalf("changed source: %v", err)
 	}
-	s.failBuild(snap.id)
+	s.failBuild(context.Background(), snap.id)
 	var count int
 	var state string
 	if err := c.DB.QueryRow(`SELECT count,state FROM queue_v1_snapshots WHERE id=?`, snap.id).Scan(&count, &state); err != nil {

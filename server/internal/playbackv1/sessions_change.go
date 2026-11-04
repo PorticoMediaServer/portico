@@ -527,11 +527,14 @@ func (w *sweeper) kick(s *Service) {
 		return
 	}
 	w.running = true
-	supervise.Supervise(context.Background(), "playbackv1.lease-sweeper", func(context.Context) { w.run(s) })
+	if !s.startWorker("playbackv1.lease-sweeper", func(ctx context.Context) {
+		supervise.Loop(ctx, "playbackv1.lease-sweeper", func(ctx context.Context) { w.run(ctx, s) })
+	}) {
+		w.running = false
+	}
 }
 
-func (w *sweeper) run(s *Service) {
-	ctx := context.Background()
+func (w *sweeper) run(ctx context.Context, s *Service) {
 	for {
 		var next sql.NullInt64
 		if err := s.DB.QueryRowContext(ctx, `SELECT MIN(lease_expires_ms) FROM playback_v1_sessions WHERE ended_ms=0`).Scan(&next); err != nil || !next.Valid {
@@ -557,6 +560,12 @@ func (w *sweeper) run(s *Service) {
 			timer := time.NewTimer(min(wait, time.Hour))
 			select {
 			case <-timer.C:
+			case <-ctx.Done():
+				timer.Stop()
+				w.mu.Lock()
+				w.running = false
+				w.mu.Unlock()
+				return
 			case <-w.kickCh:
 				timer.Stop()
 				continue
