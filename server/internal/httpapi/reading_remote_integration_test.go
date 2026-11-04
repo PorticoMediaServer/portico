@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"html"
 	"io"
 	"net"
@@ -20,7 +21,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -298,7 +298,7 @@ func readingRemoteRegistered(t *testing.T, savedProfile bool) {
 				if w = readingHTTP(t, h, "DELETE", base, token, "", nil); w.Code != 204 {
 					t.Fatal(w.Code, w.Body.String())
 				}
-				if w = read(); w.Code != 403 {
+				if w = read(); w.Code != 410 || v1Code(w) != "reading_session_expired" {
 					t.Fatal("closed remote reader delivered bytes", w.Code)
 				}
 			}
@@ -521,7 +521,7 @@ func readingRemoteRegistered(t *testing.T, savedProfile bool) {
 					t.Fatal("replacement returned bytes through old session", n, err)
 				}
 				w = readingHTTP(t, h, "GET", "/v1/reading/sessions/"+original.SessionID+"/pages/0?width=32", f.owner.AccessToken, original.Revision, nil)
-				if w.Code != 403 {
+				if w.Code != 410 || v1Code(w) != "reading_session_expired" {
 					t.Fatal("changed source session was reopened", w.Code, w.Body.String())
 				}
 			}
