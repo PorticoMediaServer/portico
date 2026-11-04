@@ -8,6 +8,7 @@ export {SettingsSheet, ShortcutTiles, LargeTitleHeader, PushedNavBar, SettingsNa
 export type {SettingsNavPage, SettingsNavProps, SettingsSearchResultsProps} from './SettingsShell';
 export {SettingsRow, DefaultHint, ChoiceMatrix, ChoiceCards, LanguageList, SubtitlePreview} from './SettingsControls';
 export type {SettingsRowProps, ChoiceMatrixRow, LanguageOption} from './SettingsControls';
+export {SettingsRowTargetContext, type SettingsRowTargeting} from './SettingsRowTarget';
 export {StatTiles, Sparkline, BarList, PersonRow, DeviceRow, WaitingNotice} from './Diagnostics';
 export type {StatTile, PersonRowProps, DeviceRowProps} from './Diagnostics';
 export {SegmentWindows, MarkerWindow} from './SegmentWindows';

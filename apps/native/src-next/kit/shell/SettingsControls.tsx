@@ -1,4 +1,4 @@
-import React, {useRef, useState, type ReactNode} from 'react';
+import React, {useContext, useRef, useState, type ReactNode} from 'react';
 import {StyleSheet, Text, View, type StyleProp, type ViewStyle} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
 import {Focusable} from '../controls/Focusable';
@@ -11,6 +11,7 @@ import {useTheme} from '../theme';
 import {focusTestID} from '../focus/registry';
 import {HighlightedText} from './HighlightedText';
 import {alpha, shellType} from './visual';
+import {SettingsRowFlash, SettingsRowTargetContext} from './SettingsRowTarget';
 
 export type SettingsRowProps = {
   testID?: string;
@@ -37,10 +38,17 @@ export type SettingsRowProps = {
 export function SettingsRow({label, highlightQuery, description, scope, control, value, onPress, readable = false, toggle, dependent = false, continuesBranch = false, highlighted = false, destructive = false, first = false, style, nextFocusLeft, testID}: SettingsRowProps) {
   const theme = useTheme();
   const tv = theme.isTV;
+  // Settings search (SettingsRowTarget): a TV match opens its page on OK; the row a match opened is highlighted (TV) or flashes (touch).
+  const targeting = useContext(SettingsRowTargetContext), open = targeting.open;
+  const opens = open !== undefined && testID !== undefined && !control;
+  const press = opens ? () => open(testID) : onPress;
+  const lit = highlighted || (testID !== undefined && targeting.highlight === testID);
+  const flash = testID !== undefined && targeting.flash?.rowId === testID ? targeting.flash : undefined;
   const content = <>
+    {flash && <SettingsRowFlash serial={flash.serial} reveal={flash.reveal}/>}
     {dependent && <View pointerEvents="none" style={{position: 'absolute', left: tv ? 38 : 31, top: -1, height: '50%', width: 14, borderLeftWidth: 2, borderBottomWidth: 2, borderBottomLeftRadius: 9, borderColor: theme.colors.line}}/>}
     {dependent && continuesBranch && <View pointerEvents="none" style={{position: 'absolute', left: tv ? 38 : 31, top: 0, bottom: 0, width: 2, backgroundColor: theme.colors.line}}/>}
-    {highlighted && <View pointerEvents="none" style={{position: 'absolute', left: 0, top: 14, bottom: 14, width: 3, borderRadius: 3, backgroundColor: theme.colors.accent}}/>}
+    {lit && <View pointerEvents="none" style={{position: 'absolute', left: 0, top: 14, bottom: 14, width: 3, borderRadius: 3, backgroundColor: theme.colors.accent}}/>}
     <View style={{flex: 1, minWidth: 0}}><HighlightedText text={label} query={highlightQuery} style={[shellType(tv ? 24 : 15.5), {color: destructive ? theme.colors.record : theme.colors.text}]}/>
       {description && <Text numberOfLines={tv ? 2 : undefined} style={[shellType(tv ? 20 : 12.5, tv ? 400 : 500, tv ? 29 : 17.5), {color: theme.colors.textTertiary, marginTop: 3}]}>{description}</Text>}
       {scope && <Text style={[shellType(tv ? 18 : 12, 600), {color: theme.colors.textTertiary, marginTop: 3}]}>{scope}</Text>}
@@ -48,10 +56,10 @@ export function SettingsRow({label, highlightQuery, description, scope, control,
     {control ?? (toggle ? <View pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants">{toggle.visual}</View> : value && <Text style={[shellType(tv ? 22 : 14.5), {color: destructive ? theme.colors.record : theme.colors.textSecondary, maxWidth: tv ? 340 : 170}]}>{value}</Text>)}
     {onPress && !control && !toggle && <Icon name="i-updown" size={tv ? 26 : 18} color={destructive ? theme.colors.record : theme.colors.textTertiary}/>}
   </>;
-  const layout: StyleProp<ViewStyle> = [{flexDirection: 'row', alignItems: 'center', gap: tv ? 20 : 12, paddingHorizontal: tv ? 24 : 14, paddingVertical: tv ? 12 : 8, paddingLeft: dependent ? tv ? 64 : 58 : tv ? 24 : 14, minHeight: tv ? 80 : 48, borderTopWidth: first ? 0 : 1, borderTopColor: theme.colors.lineSoft, borderRadius: tv ? 18 : 0, backgroundColor: highlighted ? alpha(theme.colors.accent, .16) : 'transparent'}, style];
+  const layout: StyleProp<ViewStyle> = [{flexDirection: 'row', alignItems: 'center', gap: tv ? 20 : 12, paddingHorizontal: tv ? 24 : 14, paddingVertical: tv ? 12 : 8, paddingLeft: dependent ? tv ? 64 : 58 : tv ? 24 : 14, minHeight: tv ? 80 : 48, borderTopWidth: first ? 0 : 1, borderTopColor: theme.colors.lineSoft, borderRadius: tv ? 18 : 0, backgroundColor: lit ? alpha(theme.colors.accent, .16) : 'transparent'}, style];
   // TV: a value-only row is a readable stop (OK does nothing) so every line can be reached and read.
-  const readableStop = tv && !onPress && (readable || toggle !== undefined || value !== undefined);
-  return (onPress || readableStop) && !control ? <Focusable testID={testID} accessibilityRole={toggle ? 'switch' : onPress ? 'button' : 'text'} accessibilityLabel={label} accessibilityHint={description} accessibilityValue={value ? {text: value} : undefined} accessibilityState={toggle ? {checked: toggle.checked} : undefined} onPress={onPress} focusKind="row" focusRadius={tv ? 18 : 10} nextFocusLeft={nextFocusLeft} style={layout}>{content}</Focusable> : <View style={layout}>{content}</View>;
+  const readableStop = tv && !press && (readable || toggle !== undefined || value !== undefined);
+  return (press || readableStop) && !control ? <Focusable testID={testID} accessibilityRole={toggle && !opens ? 'switch' : press ? 'button' : 'text'} accessibilityLabel={label} accessibilityHint={description} accessibilityValue={value ? {text: value} : undefined} accessibilityState={toggle && !opens ? {checked: toggle.checked} : undefined} onPress={press} focusKind="row" focusRadius={tv ? 18 : 10} nextFocusLeft={nextFocusLeft} style={layout}>{content}</Focusable> : <View style={layout}>{content}</View>;
 }
 export function DefaultHint({value, onReset, changed, testID}: {testID?: string; value: string; onReset: () => void; changed: boolean}) {
   const theme = useTheme();
