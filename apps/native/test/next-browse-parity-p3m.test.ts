@@ -258,3 +258,36 @@ test('a department row read again names its in-row target: the focused credit, o
     assert.equal(rowOf(out).props.refocus, undefined, 'a window that arrived without its first page names nothing');
   } finally {await host.unmount();}
 });
+
+// #761 review: Filters lives in the first department row's heading (or the flat Credits heading), so a filter that
+// changes which row is first, or switches grouped and flat, remounts it. The page holds the chip's ref and gives it a
+// stable focus id, and the menu returns focus through that ref: closing the menu lands on Filters, whichever chip is drawn.
+test('Filters keeps one ref and focus id through grouped and flat, and the menu returns focus through it', async () => {
+  let props: Record<string, unknown> = {groups}, tree: any;
+  const host = createFabricHookHost(() => {tree = TVPerson({focusScope: 'person:p', page: person, role: 'all', collection: collectionOf([film('m1', 'First')]),
+    runtime, actions, onRole: () => {}, onBack: () => {}, ...props});});
+  await host.mount();
+  try {
+    // The chip element as drawn: the first department row's tools, else inside the flat Credits heading.
+    const chipOf = () => {
+      const row = descendants(tree).find(node => typeof node.type === 'function' && node.props.group);
+      const chip = row ? row.props.tools : descendants(headingOf(tree)).find(node => node.props?.testID === 'person-role-filter');
+      return {focusId: chip.props.focusId, ref: chip.props.ref ?? chip.ref};
+    };
+    const menu = () => descendants(tree).find(node => node.type === 'Menu');
+    const grouped = chipOf();
+    assert.equal(grouped.focusId, 'person-role-filter');
+    assert.ok(grouped.ref, 'the chip carries the page ref');
+    assert.equal(menu().props.returnFocusRef, grouped.ref, 'the menu returns through it');
+    props = {groups: [groups[1]], role: 'crew'};
+    await host.rerender();
+    const crew = chipOf();
+    assert.equal(crew.ref, grouped.ref, 'another first row: the same ref');
+    props = {groups: []};
+    await host.rerender();
+    const flat = chipOf();
+    assert.equal(flat.focusId, 'person-role-filter', 'flat: the same focus id');
+    assert.equal(flat.ref, grouped.ref, 'flat: the same ref');
+    assert.equal(menu().props.returnFocusRef, grouped.ref);
+  } finally {await host.unmount();}
+});

@@ -174,7 +174,10 @@ export function TVPerson({focusScope, page, role, collection, groups, runtime, a
   const credits = useCreditRefocus(page, creditSlotKey);
   // Department rows for All, Cast and Crew alike (Filters apply to every row); one flat row when there are none.
   const grouped = !!groups?.length;
-  const filtersChip = <Chip testID="person-role-filter" selected={role !== 'all'} onPress={() => setFilters(true)}>{t('next.browse.native.filters')}</Chip>;
+  // Filters sits on the first department heading or the flat Credits heading, so a filter that changes the first row
+  // (or switches grouped and flat) remounts it: the page holds its ref and a stable focus id, so closing the menu returns there.
+  const filtersRef = useRef<View>(null);
+  const filtersChip = <Chip ref={filtersRef} focusId="person-role-filter" testID="person-role-filter" selected={role !== 'all'} onPress={() => setFilters(true)}>{t('next.browse.native.filters')}</Chip>;
   const filterItems: MenuEntry[] = ([['all', 'title.creditsAll'], ['cast', 'web.person.cast'], ['crew', 'web.person.crew']] as const).map(([value, label]) =>
     ({id: value, label: t(label), selected: role === value, onSelect: () => onRole(value)}));
   return <View testID="native-person" style={{flex: 1}}><StandardBackdrop/>
@@ -223,7 +226,7 @@ export function TVPerson({focusScope, page, role, collection, groups, runtime, a
       {state.status === 'error' && <View style={{marginTop: 30, width: 900}}><StateView {...runtime.error(state.error, () => collection.retry())}/></View>}
     </ScrollView>
     {selection?.render(path => <Artwork source={runtime.artwork(path)} width={40} height={40}/>)}
-    <Menu testID={`${focusScope}.role-filter`} open={filters} onOpenChange={setFilters} title={t('next.browse.native.filters')} items={filterItems}/>
+    <Menu testID={`${focusScope}.role-filter`} open={filters} onOpenChange={setFilters} title={t('next.browse.native.filters')} items={filterItems} returnFocusRef={filtersRef}/>
   </View>;
 }
 
