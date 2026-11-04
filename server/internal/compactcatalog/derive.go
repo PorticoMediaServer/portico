@@ -245,6 +245,7 @@ type Worker struct {
 	backfillTurn map[int]bool
 	stepTurn     int
 	sourceTurn   bool
+	sourceEmpty  visibilitySourceEmptyMemo
 	// Source41 commits one raw quantum per source. Rotate its claim point so
 	// a prefenced input waiting on another asset's custody cannot starve the
 	// source that releases it. This is worker-local scheduling, not progress.
@@ -574,6 +575,15 @@ func (w *Worker) Step(ctx context.Context, limit int) (int, error) {
 	var rows int64
 	cleaningSearch := false
 	err := dbwork.WithWriteTx(ctx, w.db, dbwork.ClassMaintenance, func(tx *sql.Tx) error {
+		// The direct source turn and the step family share this transaction's
+		// tentative observation. A rollback must never publish its emptiness.
+		w.mu.Lock()
+		sourceEmpty := w.sourceEmpty
+		w.mu.Unlock()
+		ctx := context.WithValue(ctx, visibilitySourceEmptyKey{}, &sourceEmpty)
+		if err := dbwork.AfterCommit(tx, func() { w.mu.Lock(); w.sourceEmpty = sourceEmpty; w.mu.Unlock() }); err != nil {
+			return err
+		}
 		began = time.Now()
 		before, e := dbwork.TotalChanges(ctx, tx)
 		if e != nil {

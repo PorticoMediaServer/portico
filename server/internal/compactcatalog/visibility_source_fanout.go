@@ -177,6 +177,16 @@ const visibilityRatingAgeTermSQL = `SELECT t.id FROM catalog_attribute_terms t J
 const visibilityRatingAgeItemPageSQL = `SELECT item_id FROM catalog_item_attribute_edges INDEXED BY catalog_item_attribute_edges_term
  WHERE term_id=?1 AND item_id>?2 AND item_id<=?3 ORDER BY item_id LIMIT ?4`
 
+// Only a complete empty queue is memoized. Accepted producers advance the
+// source clock. Children inherit their parent's clock, but the parent remains
+// queued until those children are enqueued in the same transaction; none can
+// appear later behind a committed whole-queue-empty observation.
+type visibilitySourceEmptyMemo struct {
+	sequence int64
+	empty    bool
+}
+type visibilitySourceEmptyKey struct{}
+
 // StepVisibilitySourceFanout expands one coalesced source key. One call takes
 // one job (round robin over the four kinds, oldest first inside a kind), starts
 // or resumes its pass, and consumes at most min(limit,8) raw source rows.
@@ -192,8 +202,16 @@ func StepVisibilitySourceFanout(ctx context.Context, tx *sql.Tx, limit int) (int
 	}
 	budget := min(limit, upstreamQuantum)
 	var turn int
-	if err := tx.QueryRowContext(ctx, `SELECT turn FROM compact_visibility_source_state WHERE id=1`).Scan(&turn); err != nil {
+	var sequence int64
+	if err := tx.QueryRowContext(ctx, `SELECT turn,sequence FROM compact_visibility_source_state WHERE id=1`).Scan(&turn, &sequence); err != nil {
 		return 0, err
+	}
+	memo, _ := ctx.Value(visibilitySourceEmptyKey{}).(*visibilitySourceEmptyMemo)
+	if memo != nil {
+		if memo.empty && memo.sequence == sequence {
+			return 0, nil
+		}
+		memo.sequence, memo.empty = sequence, false
 	}
 	turn = ((turn % visibilitySourceKinds) + visibilitySourceKinds) % visibilitySourceKinds
 	for i := 0; i < visibilitySourceKinds; i++ {
@@ -215,6 +233,9 @@ func StepVisibilitySourceFanout(ctx context.Context, tx *sql.Tx, limit int) (int
 			return 0, err
 		}
 		return max(n, 1), nil
+	}
+	if memo != nil {
+		memo.empty = true
 	}
 	return 0, nil
 }
