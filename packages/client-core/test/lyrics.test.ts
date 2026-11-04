@@ -348,3 +348,25 @@ test('scoped real HttpLocalApi carries original signals/token through PUT and GE
   assert.equal(service.getSnapshot().data?.selection.revision, replaceAt === 'none' ? 2 : 1); service.dispose();
  }
 });
+
+// Step 7 (CLIENT-DATA-REVIEW 4.4): on a read a moved viewer fence only means a newer answer; a write's
+// answer still compares and refuses, and 401/403 still clear the view (the authorization-loss test).
+test('a moved viewer fence on a lyrics read is a newer answer: adopted, never "Viewer permissions changed"', async () => {
+    let fence = 'a'.repeat(64);
+    const service = new LyricsService(api(async () => { const next = view(); next.scope.viewerFence = fence; return next; }), scope, target);
+    await service.refresh();
+    fence = 'e'.repeat(64);
+    await service.refresh();
+    assert.equal(service.getSnapshot().error, '');
+    assert.equal(service.getSnapshot().data?.scope.viewerFence, 'e'.repeat(64));
+    service.dispose();
+});
+test('a lyrics write whose answer arrives under a moved viewer fence still refuses', async () => {
+    let fence = 'a'.repeat(64);
+    const service = new LyricsService(api(async (_path, method) => { if (method === 'GET') { const next = view(); next.scope.viewerFence = fence; return next; } return {}; }), scope, target);
+    await service.refresh();
+    fence = 'f'.repeat(64);
+    await service.setOffset(revision as never, 250);
+    assert.notEqual(service.getSnapshot().error, '', 'the write answer under another fence is refused');
+    service.dispose();
+});
