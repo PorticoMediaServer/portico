@@ -50,6 +50,7 @@ async function fixture(isTV = false, owner = false, io?: {effects: (() => unknow
     './DashboardScreen': {NativeDashboardScreen: 'NativeDashboardScreen'},
     './server/RemoteAccessPage': {NativeRemoteAccessPage: 'NativeRemoteAccessPage'},
     './NativeLossNoticesRow': {NativeLossNoticesRow: 'NativeLossNoticesRow', nativeLossNoticesFocusId: 'settings-device-loss-notices'},
+    './NativeServerOfflineNoticeRow': {NativeServerOfflineNoticeRow: 'NativeServerOfflineNoticeRow'},
     react,
     'react-native': {AppState,NativeModules,Dimensions: {get: () => ({width: 800, height: 1024})}, Platform: {OS: 'ios', isTV: false, isPad: true}, ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
     '../../../../../packages/contracts/src/routes': routes,
