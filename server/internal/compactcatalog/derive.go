@@ -569,13 +569,12 @@ func (w *Worker) Step(ctx context.Context, limit int) (int, error) {
 	cleaningSearch := false
 	err := dbwork.WithWriteTx(ctx, w.db, dbwork.ClassMaintenance, func(tx *sql.Tx) error {
 		began = time.Now()
-		var before int64
-		if e := tx.QueryRowContext(ctx, `SELECT total_changes()`).Scan(&before); e != nil {
+		before, e := dbwork.TotalChanges(ctx, tx)
+		if e != nil {
 			return e
 		}
 		defer func() {
-			var after int64
-			if tx.QueryRowContext(ctx, `SELECT total_changes()`).Scan(&after) == nil {
+			if after, e := dbwork.TotalChanges(ctx, tx); e == nil {
 				rows = after - before
 			}
 			if n == 1 && !unpaced && !cleaningSearch {
@@ -1011,14 +1010,14 @@ func (w *Worker) runSteps(ctx context.Context, tx *sql.Tx, limit int) (int, int,
 	total, idle, lastKind := 0, 0, -1
 	// Stop adding steps once the batch has changed a write plan's worth of
 	// rows; the next batch takes the rest.
-	var before int64
-	if err := tx.QueryRowContext(ctx, `SELECT total_changes()`).Scan(&before); err != nil {
+	before, err := dbwork.TotalChanges(ctx, tx)
+	if err != nil {
 		return 0, kind, err
 	}
 	budget := dbwork.DefaultPlan(dbwork.ClassMaintenance).Rows
 	for total < limit && idle < len(steps) {
-		var changed int64
-		if err := tx.QueryRowContext(ctx, `SELECT total_changes()`).Scan(&changed); err != nil {
+		changed, err := dbwork.TotalChanges(ctx, tx)
+		if err != nil {
 			return 0, kind, err
 		}
 		if total > 0 && changed-before >= budget {
