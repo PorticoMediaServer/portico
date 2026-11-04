@@ -93,6 +93,7 @@ func membershipAuthorityTriggers(db *sql.DB) (out []string, err error) {
 		if err := rows.Scan(&name, &statement); err != nil {
 			return nil, err
 		}
+		statement = membershipSQLWithoutComments(statement)
 		for _, match := range membershipUpdateSQL.FindAllStringIndex(statement, -1) {
 			body := strings.TrimLeft(statement[match[1]:], "\"`] \n\t")
 			set := membershipSetClause.FindStringIndex(body)
@@ -115,6 +116,55 @@ func membershipAuthorityTriggers(db *sql.DB) (out []string, err error) {
 	return out, rows.Err()
 }
 
+// Comments separate SQL tokens, including when SQLite accepts no whitespace
+// around them. Quoted text is kept intact so comment markers in a string or
+// identifier never consume the rest of a statement.
+func membershipSQLWithoutComments(statement string) string {
+	var out strings.Builder
+	for i := 0; i < len(statement); {
+		switch {
+		case strings.HasPrefix(statement[i:], "/*"):
+			end := strings.Index(statement[i+2:], "*/")
+			out.WriteByte(' ')
+			if end < 0 {
+				return out.String()
+			}
+			i += end + 4
+		case strings.HasPrefix(statement[i:], "--"):
+			end := strings.IndexByte(statement[i+2:], '\n')
+			out.WriteByte(' ')
+			if end < 0 {
+				return out.String()
+			}
+			i += end + 3
+		case statement[i] == '\'' || statement[i] == '"' || statement[i] == '`' || statement[i] == '[':
+			quote := statement[i]
+			if quote == '[' {
+				quote = ']'
+			}
+			out.WriteByte(statement[i])
+			i++
+			for i < len(statement) {
+				ch := statement[i]
+				out.WriteByte(ch)
+				i++
+				if ch == quote {
+					if i < len(statement) && statement[i] == quote {
+						out.WriteByte(statement[i])
+						i++
+						continue
+					}
+					break
+				}
+			}
+		default:
+			out.WriteByte(statement[i])
+			i++
+		}
+	}
+	return out.String()
+}
+
 func TestNoSchemaTriggerBypassesTheMembershipAuthorityPath(t *testing.T) {
 	db, err := persistence.Open(filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
@@ -134,5 +184,26 @@ func TestNoSchemaTriggerBypassesTheMembershipAuthorityPath(t *testing.T) {
 	}
 	if writers, err := membershipAuthorityTriggers(db); err != nil || len(writers) != 1 || writers[0] != "synthetic_membership_authority" {
 		t.Fatalf("trigger census missed the synthetic authority writer: %v %v", writers, err)
+	}
+}
+
+func TestMembershipTriggerCensusFindsCommentSeparatedUpdate(t *testing.T) {
+	db, err := persistence.Open(filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(`INSERT INTO accounts(id,username,password_hash,profile_id) VALUES('owner','owner',x'00','owner-main'),('alice','alice',x'00','alice-main');
+ UPDATE direct_memberships SET role='admin' WHERE account_id='alice';
+ CREATE TRIGGER review_membership_comment AFTER UPDATE OF notes ON direct_memberships BEGIN UPDATE/* valid SQLite comment */direct_memberships SET role='member' WHERE account_id=NEW.account_id; END;
+ UPDATE direct_memberships SET notes='changed' WHERE account_id='alice'`); err != nil {
+		t.Fatal(err)
+	}
+	var role string
+	if err := db.QueryRow(`SELECT role FROM direct_memberships WHERE account_id='alice'`).Scan(&role); err != nil || role != "member" {
+		t.Fatalf("commented trigger did not execute its authority write: %s %v", role, err)
+	}
+	if writers, err := membershipAuthorityTriggers(db); err != nil || len(writers) != 1 || writers[0] != "review_membership_comment" {
+		t.Fatalf("trigger census missed executable commented SQL: %v %v", writers, err)
 	}
 }
