@@ -192,7 +192,7 @@ func TestUnknownUsernameGetsTheSameBoundedCooloff(t *testing.T) {
 	s.hashSlots <- struct{}{}
 	started := time.Now()
 	for range 3 {
-		_, err := s.DirectLogin(WithSignInSource(context.Background(), "[2001:db8:ac::1]:443"), "UNLISTED", "wrong")
+		_, err := s.DirectLogin(first, "UNLISTED", "wrong")
 		var locked *AccountLockError
 		if !errors.As(err, &locked) || locked.RetryAfter < 1 || locked.RetryAfter > 60 {
 			t.Fatalf("unknown name escaped the cool-off: %v", err)
@@ -203,8 +203,8 @@ func TestUnknownUsernameGetsTheSameBoundedCooloff(t *testing.T) {
 	}
 	<-s.hashSlots
 	<-s.hashSlots
-	if err := db.QueryRow(`SELECT failed_attempts FROM identity_unknown_attempts WHERE subject_hash=? AND source_bucket='*'`, subject).Scan(&attempts); err != nil || attempts != 8 {
-		t.Fatalf("early unknown guesses were not counted: %d %v", attempts, err)
+	if err := db.QueryRow(`SELECT failed_attempts FROM identity_unknown_attempts WHERE subject_hash=? AND source_bucket='*'`, subject).Scan(&attempts); err != nil || attempts != 5 {
+		t.Fatalf("refused unknown guesses changed the evaluated-failure count: %d %v", attempts, err)
 	}
 	if _, err := db.Exec(`UPDATE identity_unknown_attempts SET last_failure=last_failure-3600,locked_until=0 WHERE subject_hash=?`, subject); err != nil {
 		t.Fatal(err)
