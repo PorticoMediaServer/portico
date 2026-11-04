@@ -1,5 +1,6 @@
 import {CatalogueSelectionEntry, useCatalogueSelectionActive, type CatalogueDocumentSelection} from '../browse/document-selection';
 import {t, locale, environment as env} from './text';
+import {useWatchBodyPlayback} from './watch-body-playback';
 import {Fragment, useId, useEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {preferenceValue} from '@core/preferences.ts';
 import type {ShowWorkspaceRoute, ShowWorkspaceData, ShowSettings, WorkspaceSeason, WorkspaceShowCredit} from '@core/show-workspace.ts';
@@ -106,6 +107,8 @@ function ShowMore({binding, data, personal, busy, watchedInMenu = false}: {bindi
 export function ShowBody({binding, compact = false, selection}: {binding: ShowBindings; compact?: boolean; selection?: CatalogueDocumentSelection}) {
   const tabPanelId = useId();
   const selecting = useCatalogueSelectionActive(selection);
+  // On the watch page the white button follows the video playing above it (phone-player 4).
+  const watch = useWatchBodyPlayback();
   const snapshot = useSyncExternalStore(binding.service.subscribe, binding.service.getSnapshot, binding.service.getSnapshot);
   useFreshDocument(() => [dependsOn.libraries, ...titlesWithPersonalState(binding.service.getSnapshot().route?.libraryId), dependsOn.event('stream.resync')], refresh => binding.revalidate(refresh), () => binding.service.getSnapshot().phase === 'ready');
   const preferences = useSyncExternalStore(binding.context.preferences.subscribe, binding.context.preferences.getSnapshot, binding.context.preferences.getSnapshot);
@@ -147,7 +150,8 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
   // J-23: the next-up episode exists but its file can't be reached: a disabled Play with the reason, never nothing.
   const nextUnplayable = !!data.nextUp && (data.nextUp.available === false || !!data.nextUp.missing || !data.nextUp.playback);
   const actions = <div className={`${detail.actions} ${styles.heroActions}`}>
-    {offer && (offer.resume ? <ResumeButton progress={offer.progress} onClick={playPrimary}>{primaryLabel}</ResumeButton> : <Button variant="primary" icon="i-play" onClick={playPrimary}>{primaryLabel}</Button>)}
+    {watch ? <Button variant="primary" icon={watch.playing ? 'i-pause' : 'i-play'} disabled={!watch.enabled} onClick={watch.toggle}>{t(watch.playing ? 'next.dock.pause' : 'next.dock.play')}</Button>
+      : offer && (offer.resume ? <ResumeButton progress={offer.progress} onClick={playPrimary}>{primaryLabel}</ResumeButton> : <Button variant="primary" icon="i-play" onClick={playPrimary}>{primaryLabel}</Button>)}
     {!offer && nextUnplayable && <Button variant="primary" icon="i-play" disabled aria-describedby={`${show.id}-unplayable`}>{t('next.controls.play')}</Button>}
     {personal && <Button disabled={busy} icon={personal.watchlisted ? 'i-check' : 'i-plus'} aria-pressed={personal.watchlisted} onClick={() => { void binding.setMyList(data, !personal.watchlisted).catch(binding.context.effects.reportError); }}>{t('next.controls.myList')}</Button>}
     {personal && !threeControls && <Button disabled={busy} icon="i-check" iconOnly aria-label={t(personal.watched ? 'title.markUnwatched' : 'title.markWatched')} aria-pressed={personal.watched} onClick={() => { void binding.setWatched(data, !personal.watched).catch(binding.context.effects.reportError); }} />}

@@ -6,6 +6,7 @@ import type {DownloadOptionsView} from '@core/downloads.ts';
 import type {BrowserDownloadTarget} from '../../platform/browser-download';
 import type {EntryActionTarget} from '../../shell/entry-actions';
 import {DownloadNotice} from './DownloadNotice';
+import {useWatchBodyPlayback} from './watch-body-playback';
 import type {PlaybackOptions} from '@core/playback-v1/types.ts';
 import {detailActions} from '@core/presentation/detail-actions.ts';
 import {useTitleMenu} from '../../shell/title-menu';
@@ -17,7 +18,7 @@ import type {ListeningViewerScope} from '@core/listening.ts';
 import {useRelationRow} from './relation-row';
 import {serverTextLabel} from '@core/presentation/server-text.ts';
 import {serviceI18n, serviceText} from '@core/presentation/service-text.ts';
-import {titleFactParts} from '@core/presentation/kit-model';
+import {titleFactParts, type FactPart} from '@core/presentation/kit-model';
 import {preferenceValue} from '@core/preferences.ts';
 import {AmbientArt, Artwork, PersonCircle, type AmbientArtProps} from '../../kit/artwork';
 import {Button, ResumeButton, Select, Tabs} from '../../kit/controls';
@@ -55,6 +56,12 @@ export function DetailScreen({binding, itemId, libraryId, kind, artworkClaim}: D
   return failure ? <ScreenProblem context={binding.context} error={failure} retry={() => setAttempt(value => value + 1)} /> : <TitleBody binding={binding} artworkClaim={artworkClaim} />;
 }
 
+/** phone-player 4: under the watch page's title, its year, genres and how long is left of it. */
+function compactFacts(data: DetailProjection): FactPart[] {
+  const parts = titlePageFacts({year: data.item.year, genres: data.metadata.genres.map(genre => genre.name)}, env).filter(part => part.id === 'year' || part.id === 'genres');
+  const length = data.item.duration ?? 0, left = length > 0 && data.personal.progressSeconds > 0 ? titleFactParts({durationSeconds: Math.max(0, length - data.personal.progressSeconds)}, env).find(part => part.id === 'duration')?.text : undefined;
+  return left ? [...parts, {id: 'left', role: 'supplement', text: serviceText('duration.remaining', {duration: left})}] : parts;
+}
 /** Also mounted under the retained phone/tablet Watch surface. It owns no route or video. */
 export function TitleBody({binding, compact = false, artworkClaim}: {binding: DetailBindings; compact?: boolean; artworkClaim?: SourceArtClaim}) {
   const tabPanelId = useId();
@@ -80,7 +87,7 @@ export function TitleBody({binding, compact = false, artworkClaim}: {binding: De
   return <article className={styles.page} data-compact={compact || undefined} data-title-id={data.scope.itemId}>
     {standalonePhone && !compact && <div className={styles.phoneTopBar}>{binding.context.effects.back && <Button variant="icon" icon="i-left" iconOnly aria-label={t('next.states.back')} onClick={() => runScreenCommand(binding.context, () => { binding.current(data); binding.context.effects.back?.(); })} />}</div>}
     {!compact && <TitleHero binding={binding} data={data} artworkClaim={artworkClaim} showBackdrops={preferenceValue<boolean>(preferences, 'appearance.showBackdrops')} />}
-    {compact && <div className={styles.compactHeader}><h1>{data.item.title}</h1><TitleActions binding={binding} data={data} /></div>}
+    {compact && <div className={styles.compactHeader}><h1>{data.item.title}</h1><TitleFactsLine parts={compactFacts(data)} /><TitleActions binding={binding} data={data} /></div>}
     <TitleTabs title={data.item.title} compact={compact} onBack={binding.context.effects.back ? () => runScreenCommand(binding.context, () => { binding.current(data); binding.context.effects.back?.(); }) : undefined} actions={!compact && <TitlePinnedActions binding={binding} data={data} />}><Tabs externalPanelId={tabPanelId} className={styles.tabStrip} aria-label={t('next.controls.details')} value={tab} onValueChange={value => runScreenCommand(binding.context, () => { binding.current(data); if (value === 'related' || value === 'details' || value === 'extras') binding.view.tab(value); })} items={tabs} /></TitleTabs>
     {snapshot.phase === 'error' && <ScreenFailure retry={() => { void binding.service.retry(); }} />}
     {snapshot.mutationError && <ScreenFailure retry={() => { void binding.service.retryMutation(); }} />}
@@ -163,18 +170,21 @@ export function TitleActions({binding, data, small = false, topResult = false}: 
   // A playable title whose file the server can't reach offers no play action; say so with a disabled
   // Play and the reason instead of drawing no Play at all (J-23).
   const unplayable = !primaryAction && PLAYABLE_KINDS.has(data.item.kind) && data.item.available === false;
+  // On the watch page the white button follows the video playing above it (phone-player 4).
+  const watch = useWatchBodyPlayback();
   return <><div className={styles.actions} data-phone-title={phone && !small || undefined}>
-    {unplayable && <Button variant="primary" icon="i-play" size={size} disabled aria-describedby={`${data.item.id}-unplayable`}>{t('next.controls.play')}</Button>}
-    {primary && primaryAction && (primary.id === 'resume' && !phone ? <ResumeButton size={size} progress={fraction} remaining={remaining} onClick={() => run(binding.play(data, primaryAction.id))}>{t('next.controls.resume')}</ResumeButton>
+    {watch && <Button variant="primary" icon={watch.playing ? 'i-pause' : 'i-play'} size={size} disabled={!watch.enabled} onClick={watch.toggle}>{t(watch.playing ? 'next.dock.pause' : 'next.dock.play')}</Button>}
+    {!watch && unplayable && <Button variant="primary" icon="i-play" size={size} disabled aria-describedby={`${data.item.id}-unplayable`}>{t('next.controls.play')}</Button>}
+    {!watch && primary && primaryAction && (primary.id === 'resume' && !phone ? <ResumeButton size={size} progress={fraction} remaining={remaining} onClick={() => run(binding.play(data, primaryAction.id))}>{t('next.controls.resume')}</ResumeButton>
       : <Button variant="primary" icon="i-play" size={size} onClick={() => run(binding.play(data, primaryAction.id))}>{t(primary.id === 'resume' ? 'next.controls.resume' : 'next.controls.play')}</Button>)}
     {!small && <>
-      {!phone && !topResult && restart && primary?.id === 'resume' && <Button icon="i-retry" size={size} onClick={() => run(binding.play(data, restart.id))}>{t('next.controls.startOver')}</Button>}
+      {!watch && !phone && !topResult && restart && primary?.id === 'resume' && <Button icon="i-retry" size={size} onClick={() => run(binding.play(data, restart.id))}>{t('next.controls.startOver')}</Button>}
       {data.actions.some(action => action.id === 'watchlist' && action.enabled) && <Button icon={data.personal.watchlisted ? 'i-check' : 'i-plus'} size={size} aria-pressed={data.personal.watchlisted} onClick={() => run(binding.mutate(data, {action: 'watchlist', value: !data.personal.watchlisted}))}>{t('next.controls.myList')}</Button>}
       {!phone && !topResult && data.actions.some(action => action.id === 'watched' && action.enabled) && <Button icon="i-check" iconOnly aria-label={t(data.personal.watched ? 'title.markUnwatched' : 'title.markWatched')} aria-pressed={data.personal.watched} size={size} onClick={() => run(binding.mutate(data, {action: 'watched', value: !data.personal.watched}))} />}
       <TitleMore binding={binding} data={data} />
     </>}
   </div>{unplayable && <p id={`${data.item.id}-unplayable`} className={styles.unplayable}>{t('title.fileUnavailable')}</p>}
-  {phone && !small && primary?.id === 'resume' && <div className={styles.phoneResume}>
+  {!watch && phone && !small && primary?.id === 'resume' && <div className={styles.phoneResume}>
     <div className={styles.phoneProgress} role="progressbar" aria-label={t('next.layout.progress')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(Math.min(1, Math.max(0, fraction)) * 100)}><span style={{transform: `scaleX(${Math.min(1, Math.max(0, fraction))})`}} /></div>
     <div className={styles.phoneRemaining}>{remaining}{restart && <Button variant="text" icon="i-retry" size="small" onClick={() => run(binding.play(data, restart.id))}>{t('next.controls.startOver')}</Button>}</div>
   </div>}</>;
