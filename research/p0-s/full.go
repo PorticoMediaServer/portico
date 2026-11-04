@@ -102,10 +102,13 @@ func pct(a []float64, q float64) float64 {
 }
 
 var checkpointMu sync.Mutex
-var foldedTitles bool
+var foldedTitles, decoupledSchema bool
 var ddlPathForChildren, dbPathForChildren string
 
 func acceptanceSQL(start, count int) string {
+	if decoupledSchema {
+		return sourceAcceptanceSQL(start, count)
+	}
 	end := start + count - 1
 	q := fmt.Sprintf(`WITH RECURSIVE n(id) AS(VALUES(%d) UNION ALL SELECT id+1 FROM n WHERE id<%d)
  INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,added_at,duration_key,file_size_key,resolution_key,metadata_incarnation,artwork_incarnation,playback_origin_incarnation,playback_origin_revision)
@@ -164,6 +167,7 @@ func seedAndSweep(c *sql.Conn, target int, out, hash string) {
 	var legacyOwn int
 	must(c.QueryRowContext(context.Background(), "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='search_own'").Scan(&legacyOwn))
 	foldedTitles = legacyOwn == 0
+	must(c.QueryRowContext(context.Background(), "SELECT count(*)>0 FROM sqlite_schema WHERE name='search_publish_jobs' AND type='table'").Scan(&decoupledSchema))
 	must(c.QueryRowContext(context.Background(), "SELECT count(*)>0 FROM pragma_table_info('catalog_identities') WHERE name='library_id'").Scan(&identitySchema))
 	must(c.QueryRowContext(context.Background(), "SELECT count(*)>0 FROM pragma_table_info('catalog_entities') WHERE name='admission_allow_age'").Scan(&admissionSchema))
 	must(c.QueryRowContext(context.Background(), "SELECT count(*) FROM catalog_entities").Scan(&n))
@@ -171,6 +175,9 @@ func seedAndSweep(c *sql.Conn, target int, out, hash string) {
 		q := `INSERT INTO libraries(id,name,kind,root) VALUES('full-library','Full fixture','movie','/synthetic/full');INSERT INTO catalog_libraries(id,library_id,root,name,kind) VALUES(1,'full-library','/synthetic/full','Full fixture',1); INSERT OR IGNORE INTO catalog_kinds VALUES(1,'movie',1,0,1,1,0);`
 		if foldedTitles {
 			q = strings.Replace(q, "catalog_libraries(id,library_id,root,name,kind) VALUES(1,'full-library','/synthetic/full','Full fixture',1)", "catalog_libraries(id,library_id,root) VALUES(1,'full-library','/synthetic/full')", 1)
+		}
+		if decoupledSchema {
+			q += "INSERT INTO search_generations(id,bank_key,recipe_version,engine_version,unicode_fingerprint,state,created_ms) VALUES(1,'v1','0b32cf6f04014d1d81310ff7c1ac9066998937c585b7d87d796cd6cff00e1340','SQLite3.53.4','publisher-not-run','active',1);"
 		}
 		_, e := c.ExecContext(context.Background(), q)
 		must(e)
@@ -194,7 +201,7 @@ func seedAndSweep(c *sql.Conn, target int, out, hash string) {
 			fmt.Println("full seed", n)
 		}
 	}
-	save(filepath.Join(out, "full-seed.json"), map[string]any{"ddl_sha256": hash, "entities": n, "batches": batches, "shape": "Basic movie acceptance: entity+asset+link+encoded own-title FTS+library revision/event. No provider metadata, staging, scanner IO, prepared-media or full production typed command."})
+	save(filepath.Join(out, "full-seed.json"), map[string]any{"ddl_sha256": hash, "entities": n, "batches": batches, "decoupled_search": decoupledSchema, "shape": "Basic movie acceptance: entity+asset+link+encoded own-title FTS+library revision/event. No provider metadata, staging, scanner IO, prepared-media or full production typed command."})
 	if facetMode || frameMode || gatesOnly || attributionMode || capsMode || scalarMode {
 		return
 	}
@@ -406,7 +413,7 @@ func main() {
 	db, c := open(*dbpath)
 	hash := hex.EncodeToString(sum[:])
 	save(filepath.Join(*out, "host-run-start.json"), map[string]any{"ddl_sha256": hash, "host": hostSnapshot(), "gomaxprocs": runtime.GOMAXPROCS(0)})
-	if policy, err := os.ReadFile("research/p0-s/index-policy-dabf44.json"); err == nil {
+	if policy, err := os.ReadFile(strings.TrimSuffix(*ddl, ".sql") + "-index-policy.json"); err == nil {
 		ph := sha256.Sum256(policy)
 		save(filepath.Join(*out, "index-policy.json"), map[string]any{"ddl_sha256": hash, "policy_sha256": hex.EncodeToString(ph[:]), "policy": json.RawMessage(policy)})
 	}
@@ -451,7 +458,7 @@ func main() {
 			defer func() { pprof.StopCPUProfile(); must(pf.Close()) }()
 		}
 		if attributionMode {
-			omitFTS = *omitFlag
+			omitFTS = *omitFlag || decoupledSchema
 			attribution(c, *out, hash)
 		}
 		if scalarMode {
@@ -471,6 +478,17 @@ func main() {
 			wg.Wait()
 			save(filepath.Join(*out, "normal-checkpoints.json"), map[string]any{"ddl_sha256": hash, "interval_ms": 100, "synchronous": "NORMAL", "writer_wal_autocheckpoint": 0, "samples": checkpoints})
 		}
+	}
+	if decoupledSchema {
+		var jobs, ready, pubs, pending, seq, entities int64
+		must(c.QueryRowContext(context.Background(), "SELECT count(*) FROM catalog_entities").Scan(&entities))
+		must(c.QueryRowContext(context.Background(), "SELECT count(*),count(CASE WHEN phase='capture' AND job_due_ms=0 AND input_generation=1 AND job_revision=1 THEN 1 END) FROM search_publish_jobs").Scan(&jobs, &ready))
+		must(c.QueryRowContext(context.Background(), "SELECT count(*) FROM search_publications").Scan(&pubs))
+		must(c.QueryRowContext(context.Background(), "SELECT pending_subjects,captured_input_sequence FROM search_generations WHERE id=1").Scan(&pending, &seq))
+		if jobs != entities || ready != jobs || pubs != 0 || pending != jobs || seq != jobs {
+			panic("source/search witness drift")
+		}
+		save(filepath.Join(*out, "source-witness-audit.json"), map[string]any{"ddl_sha256": hash, "entities": entities, "jobs": jobs, "ready": ready, "publications": pubs, "pending_subjects": pending, "input_sequence": seq, "foreign_keys": "ON", "fts_writes": 0, "boundary": "All source acceptance rows and ready witnesses committed atomically; no published search image or FTS operation. Opaque64byte recipe ID is a fixture witness, not publisher recipe qualification."})
 	}
 	var tables, entities int64
 	var version string
@@ -1078,7 +1096,7 @@ func quantizedFacet(c *sql.Conn, field string, ceiling int, exclude string) map[
 }
 
 func statementPhase(q string) string {
-	for _, p := range []struct{ needle, name string }{{"INSERT INTO catalog_subjects", "subject"}, {"INSERT INTO catalog_identities", "identity-key"}, {"INSERT INTO catalog_entities", "entity-indexes"}, {"INSERT INTO catalog_assets", "asset-indexes"}, {"INSERT INTO catalog_asset_links", "link-indexes"}, {"INSERT INTO search_own_prefix", "fts"}, {"UPDATE libraries", "library-revision"}, {"INSERT INTO api_events", "event"}, {"INSERT INTO catalog_age_item_counts", "age-counter"}, {"INSERT INTO admin_receipts", "receipt"}} {
+	for _, p := range []struct{ needle, name string }{{"INSERT INTO catalog_subjects", "subject"}, {"INSERT INTO catalog_identities", "identity-key"}, {"INSERT INTO catalog_entities", "entity-indexes"}, {"INSERT INTO catalog_assets", "asset-indexes"}, {"INSERT INTO catalog_asset_links", "link-indexes"}, {"INSERT INTO search_own_prefix", "fts"}, {"INSERT INTO search_publish_jobs", "search-input-job"}, {"UPDATE search_generations", "search-generation"}, {"UPDATE libraries", "library-revision"}, {"INSERT INTO api_events", "event"}, {"INSERT INTO catalog_age_item_counts", "age-counter"}, {"INSERT INTO admin_receipts", "receipt"}} {
 		if strings.Contains(q, p.needle) {
 			return p.name
 		}
@@ -1660,4 +1678,27 @@ func scalarPrimitives(c *sql.Conn, out, hash string) {
 			return []sqlPhase{{"source-reverse-delta", q}, {"six-extrema-parents", scalarKeys("id IN(SELECT parent_id FROM catalog_scalar_contributions INDEXED BY catalog_scalar_contributor WHERE contributor_id=1)")}, {"revision-receipt", sharedReceipt(fmt.Sprintf("scalar-reverse-%d", degree), j)}}
 		}, nil)
 	}
+}
+
+func sourceAcceptanceSQL(start, count int) string {
+	end := start + count - 1
+	duration := "7200+id%1000"
+	if scalarMode {
+		duration = "id"
+	}
+	return fmt.Sprintf(`WITH RECURSIVE n(id) AS(VALUES(%d) UNION ALL SELECT id+1 FROM n WHERE id<%d)
+ INSERT INTO catalog_subjects(id,public_id,library_id,kind) SELECT id,CAST(printf('%%016d',id) AS BLOB),1,1 FROM n;
+ INSERT INTO catalog_identities(library_id,source_key,subject_id) SELECT 1,printf('/synthetic/full/%%d',id),id FROM catalog_subjects WHERE id BETWEEN %d AND %d;
+ INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,added_at,duration_key,file_size_key,resolution_key,metadata_incarnation,artwork_incarnation,playback_origin_incarnation,playback_origin_revision,admission_allow_age)
+ SELECT id,public_id,1,1,'Word'||char(97+id%%26),'word'||char(97+id%%26),'w','word'||char(97+id%%26),'w',(id*2654435761)%%4294967296,printf('2026-11-04T00:00:00.%%09dZ',id),%s,1000000+id,1080,randomblob(16),randomblob(16),randomblob(16),1,-1 FROM catalog_subjects WHERE id BETWEEN %d AND %d;
+ INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id)
+ SELECT id,printf('asset-%%d',id),printf('/synthetic/full/%%d',id),file_size_key,1,'mkv','h264','aac',1920,1080,duration_key,1 FROM catalog_entities WHERE id BETWEEN %d AND %d;
+ INSERT INTO catalog_asset_links(entity_id,asset_id,info_duration,library_id) SELECT id,id,duration_key,1 FROM catalog_entities WHERE id BETWEEN %d AND %d;
+ INSERT INTO search_publish_jobs(entity_id,search_generation_id,input_generation,source_incarnation,source_revision,recipe_version,phase,job_revision,job_next_attempt_ms)
+ SELECT id,1,1,metadata_incarnation,metadata_revision,'0b32cf6f04014d1d81310ff7c1ac9066998937c585b7d87d796cd6cff00e1340','capture',1,0 FROM catalog_entities WHERE id BETWEEN %d AND %d;
+ UPDATE search_generations SET pending_subjects=pending_subjects+%d,captured_input_sequence=captured_input_sequence+%d WHERE id=1;
+ INSERT INTO catalog_age_item_counts(library_id,kind,block_unrated,admission_age,total) VALUES(1,1,0,-1,%d) ON CONFLICT(library_id,kind,block_unrated,admission_age) DO UPDATE SET total=total+excluded.total;
+ UPDATE libraries SET data_revision=data_revision+1,data_order_revision=data_order_revision+1 WHERE id='full-library';
+ INSERT INTO api_events(audience,type,resource_kind,resource_id,at_ms) VALUES('library:full-library','changed','library','full-library',1);
+ INSERT INTO admin_receipts(scope,operation_id,digest,result,created_ms) VALUES('research.ingest','%d-%d','%s','applied',1);`, start, end, start, end, duration, start, end, start, end, start, end, start, end, count, count, count, start, count, strings.Repeat("0", 64))
 }

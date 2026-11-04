@@ -7,12 +7,12 @@ on:
         default: churn
       ddl:
         description: 'Pinned full schema basename under research/p0-s'
-        default: full-dabf44.sql
+        default: full-ef4b74.sql
 permissions:
   contents: read
 jobs:
   scale:
-    if: ${{ inputs.mode != 'sweep' && inputs.mode != 'fanout' && inputs.mode != 'supported' && inputs.mode != 'full' && inputs.mode != 'envelope' && inputs.mode != 'envelope2' && inputs.mode != 'selected' && inputs.mode != 'fullpair' && inputs.mode != 'widthpair' && inputs.mode != 'normal' && inputs.mode != 'facets' && inputs.mode != 'frames' && inputs.mode != 'attribution' && inputs.mode != 'caps' && inputs.mode != 'primitives' }}
+    if: ${{ inputs.mode != 'sweep' && inputs.mode != 'fanout' && inputs.mode != 'supported' && inputs.mode != 'full' && inputs.mode != 'envelope' && inputs.mode != 'envelope2' && inputs.mode != 'selected' && inputs.mode != 'fullpair' && inputs.mode != 'widthpair' && inputs.mode != 'normal' && inputs.mode != 'facets' && inputs.mode != 'frames' && inputs.mode != 'attribution' && inputs.mode != 'caps' && inputs.mode != 'primitives' && inputs.mode != 'decision' }}
     runs-on: ubuntu-24.04
     env:
       MODE: ${{ inputs.mode || 'churn' }}
@@ -87,17 +87,17 @@ jobs:
           retention-days: 14
 
   full:
-    if: ${{ inputs.mode == 'full' || inputs.mode == 'fullpair' || inputs.mode == 'widthpair' || inputs.mode == 'normal' || inputs.mode == 'facets' || inputs.mode == 'frames' || inputs.mode == 'attribution' || inputs.mode == 'caps' || inputs.mode == 'primitives' }}
+    if: ${{ inputs.mode == 'full' || inputs.mode == 'fullpair' || inputs.mode == 'widthpair' || inputs.mode == 'normal' || inputs.mode == 'facets' || inputs.mode == 'frames' || inputs.mode == 'attribution' || inputs.mode == 'caps' || inputs.mode == 'primitives' || inputs.mode == 'decision' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 80
     env:
-      TARGET_DDL: ${{ inputs.ddl || 'full-dabf44.sql' }}
+      TARGET_DDL: ${{ inputs.ddl || 'full-ef4b74.sql' }}
       MODE: ${{ inputs.mode }}
     strategy:
       fail-fast: false
       matrix:
         profile: [standard, legacy8]
-        repetition: ${{ fromJSON((inputs.mode == 'normal' || inputs.mode == 'frames' || inputs.mode == 'attribution' || inputs.mode == 'caps' || inputs.mode == 'primitives') && '[1,2,3]' || '[1]') }}
+        repetition: ${{ fromJSON((inputs.mode == 'normal' || inputs.mode == 'frames' || inputs.mode == 'attribution' || inputs.mode == 'caps' || inputs.mode == 'primitives' || inputs.mode == 'decision') && '[1,2,3]' || '[1]') }}
         size: ${{ fromJSON(inputs.mode == 'facets' && '[400000,1000000]' || '[1000000]') }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
