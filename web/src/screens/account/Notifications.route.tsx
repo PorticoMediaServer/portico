@@ -46,7 +46,7 @@ function PhoneNotifications({captured}: {captured: Captured}) {
   const {context} = captured, shared = context.inbox, sharedState = useSyncExternalStore(shared.subscribe, shared.getSnapshot);
   const [view, setView] = useState<InboxView>('unread');
   const owner = context.facts.identity.viewer.role === 'owner' && sharedState.audiences.includes('account-admin');
-  const server = useMemo(() => owner ? new InboxService(context.api, undefined, {queries: context.freshness.queries}) : undefined, [owner, context]);
+  const server = useMemo(() => owner ? new InboxService(context.api, undefined, {queries: context.freshness.queries}) : undefined, [owner, context]); // query-read: kept (the owner's Server audience is a second inbox the shell's one does not read; it reads through the viewer query cache it is given)
   useEffect(() => () => {server?.dispose();}, [server]);
   const serverState = useSyncExternalStore(server?.subscribe ?? noSubscribe, server?.getSnapshot ?? noSnapshot);
   // Each inbox takes the press itself: a busy one (a view switch still reading, a change out) holds
