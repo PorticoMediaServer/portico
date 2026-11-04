@@ -27,7 +27,8 @@ jobs:
           mkdir evidence
           git rev-parse HEAD > evidence/workflow-sha.txt
           git rev-parse HEAD:ci > evidence/ci-tree.txt
-          git rev-parse 84a32d57:ci > evidence/expected-ci-tree.txt
+          echo '33a2ad169acb5aaf02ac9f7d6198b74a3422fee9' > evidence/expected-ci-tree.txt
+          echo '84a32d57bb6a9570370c020f53126dabe2c97fa7' > evidence/code-sha.txt
           cmp evidence/ci-tree.txt evidence/expected-ci-tree.txt
           python3 ci/plan.py --full --tier nightly
           python3 ci/race_plan.py
