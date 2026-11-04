@@ -23,6 +23,10 @@ var updateDirectSnapshots = flag.Bool("update-direct-snapshot-census", false, "r
 type directSnapshotPackage struct {
 	Dir, ImportPath                                   string
 	GoFiles, CgoFiles, IgnoredGoFiles, InvalidGoFiles []string
+	Module                                            *struct {
+		Main    bool
+		Replace *struct{ Dir, Version string }
+	}
 }
 
 // Directory names choose initial package roots only. Go resolves every actual
@@ -93,10 +97,10 @@ func directSnapshotProductionFiles(root string) ([]string, error) {
 		pending := map[string]bool{}
 		for _, pkg := range packages {
 			relative, err := filepath.Rel(root, pkg.Dir)
-			if err != nil {
-				return nil, err
-			}
-			if !filepath.IsLocal(relative) || scanned[pkg.Dir] {
+			owned := err == nil && filepath.IsLocal(relative)
+			localDependency := pkg.Module != nil && (pkg.Module.Main ||
+				pkg.Module.Replace != nil && pkg.Module.Replace.Dir != "" && pkg.Module.Replace.Version == "")
+			if (!owned && !localDependency) || scanned[pkg.Dir] {
 				continue
 			}
 			scanned[pkg.Dir] = true
@@ -107,7 +111,9 @@ func directSnapshotProductionFiles(root string) ([]string, error) {
 					continue
 				}
 				path := filepath.Join(pkg.Dir, name)
-				files[path] = true
+				if owned {
+					files[path] = true
+				}
 				file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
 				if err != nil {
 					return nil, err
@@ -500,6 +506,47 @@ func TestDirectSnapshotCensusIgnoresUnimportedFixtures(t *testing.T) {
 	for _, update := range []bool{false, true} {
 		if total, functions, err := directSnapshotCensus(root, baseline, update); err != nil || total != 1 || functions != 1 {
 			t.Fatalf("unimported test fixture became production: references=%d functions=%d err=%v", total, functions, err)
+		}
+	}
+}
+
+func TestDirectSnapshotCensusFollowsWorkspaceImports(t *testing.T) {
+	root, baseline := directSnapshotCensusFixture(t)
+	helper := t.TempDir()
+	work := filepath.Join(t.TempDir(), "go.work")
+	bridgeDir := filepath.Join(root, ".hidden", "bridge")
+	consumerDir := filepath.Join(root, "internal", "consumer")
+	for _, dir := range []string{bridgeDir, consumerDir} {
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for path, source := range map[string]string{
+		work:                             fmt.Sprintf("go 1.26.10\nuse (\n%q\n%q\n)\n", root, helper),
+		filepath.Join(helper, "go.mod"):  "module example.com/helper\ngo 1.26.10\n",
+		filepath.Join(helper, "base.go"): "package helper; const Base = 1\n",
+		filepath.Join(helper, "tagged.go"): `//go:build snapshot_census_witness
+
+package helper
+import bridge "github.com/PorticoMediaServer/portico/server/.hidden/bridge"
+var Open = bridge.Open
+`,
+		filepath.Join(bridgeDir, "bridge.go"):     `package bridge; import work "github.com/PorticoMediaServer/portico/server/internal/dbwork"; var Open = work.BeginSnapshot`,
+		filepath.Join(consumerDir, "consumer.go"): `package consumer; import "example.com/helper"; var _ = helper.Base`,
+	} {
+		if err := os.WriteFile(path, []byte(source), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("GOWORK", work)
+	cmd := exec.Command("go", "test", "-p", "1", "-tags", "snapshot_census_witness", "-run", "^$", "./internal/consumer")
+	cmd.Dir = root
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("workspace witness does not compile: %v\n%s", err, output)
+	}
+	for _, update := range []bool{false, true} {
+		if _, _, err := directSnapshotCensus(root, baseline, update); err == nil {
+			t.Errorf("inactive workspace import escaped the census: update=%t", update)
 		}
 	}
 }
