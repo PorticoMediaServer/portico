@@ -16,7 +16,7 @@ async function actualRouteBack(context: any, router: any, libraryId: string) {
   if (transformed.errors.length) throw new Error(JSON.stringify(transformed.errors));
   const inert: any = new Proxy(function () {}, {get: (_target, key) => key === 'then' ? undefined : inert, apply: () => undefined});
   const modules: any = new Proxy({react, '../../router': {router}, '@i18n': {defaultI18n: {t: (key: string) => key, region: {formatLocale: 'en'}}},
-    '../detail/Artist': {ArtistScreen: 'ArtistScreen'}, './reading-library': {isReadingLibrary: () => false}, '../read': {useReadLibrarySummary: () => ({libraryCounts: []})},
+    '../detail/Artist': {ArtistScreen: 'ArtistScreen'}, '../pins/PinEditor': {usePinEditor: () => ({open: () => {}, element: null})}, './reading-library': {isReadingLibrary: () => false}, '../read': {useReadLibrarySummary: () => ({libraryCounts: []})},
     // An artist page shows no grid: the cache hands it none.
     './browse-cache': {useBrowseController: () => ({controller: undefined, placeholder: false})}},
     {get: (target: any, key: string) => key in target ? target[key] : inert});

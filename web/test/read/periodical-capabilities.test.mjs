@@ -23,6 +23,7 @@ async function loadActual(h, navigations) {
     '../read': {useReadLibrarySummary: () => ({wash: undefined, counts: undefined, libraryCounts: []}), ReadLibraryEntry: 'ReadLibraryEntry', FacetPage: 'FacetPage'},
     '../../kit/states': {Skeleton: 'Skeleton', StateView: 'StateView'}, './Library': {LibraryIdentity: 'LibraryIdentity'},
     '../read/ReadPeriodicalEntry': {ReadPeriodicalEntry: 'ReadPeriodicalEntry'},
+    '../pins/PinEditor': {usePinEditor: () => ({open: () => {}, element: null})},
     '../../router': {router: {navigate: async value => {navigations.push(value);}}},
     '../../route-registry': {defineWebScreen: value => value}, './route-search': {parseLibraryScreenSearch: value => value},
   };
