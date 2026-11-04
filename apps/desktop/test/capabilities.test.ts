@@ -14,7 +14,7 @@ test('canonical PCM requires the complete native integer/float decoder family, w
 test('native decoder inventory never grants browser, hardware, HDR, object audio or passthrough facts',()=>{
  const document=desktopCapabilities({version:'mpv 0.41.0',decoders:['h264','hevc','aac','flac','dca','truehd'],path:'/private'},'linux','0.1.0');
  const engine=document.engines.native;
- assert.deepEqual(engine.video?.map(value=>value.codec),['h264','hevc']);assert.deepEqual(engine.audio?.map(value=>value.codec),['aac','flac']);
+ assert.deepEqual(engine.video?.map(value=>value.codec),['h264','hevc']);assert.deepEqual(engine.audio?.map(value=>value.codec),['aac','flac','dts','truehd'],'N6-1: base DTS and TrueHD from their decoders');
  assert.deepEqual(engine.video?.map(value=>value.dynamicRanges),[['sdr'],['sdr']]);assert.deepEqual(engine.audioPassthrough,[]);assert.equal(document.audioOutput,undefined);assert.equal(document.display,undefined);
  assert.deepEqual(engine.transports?.map(value=>value.transport),['direct']);assert.deepEqual(engine.subtitleRendering,[]);assert.equal(engine.toneMapsHdr,false);
  assert.doesNotMatch(JSON.stringify(document),/path|private|maxWidth|maxHeight|sampleRate|atmos|dtsx|dts_hd|dolby_vision|hdr10/);
@@ -33,3 +33,12 @@ test('original WavPack requires the actual decoder; it supplies no losslessness 
   assert.doesNotMatch(JSON.stringify(native.audio?.find(a=>a.codec==='wavpack')??{}),/lossless|bitPerfect|sampleRate|output|passthrough|objectAudio/);
  }
 });
+test('N6-1: AC-3, E-AC-3, DTS and TrueHD are declared only from their actual decoders, as base streams',()=>{
+ const profile=desktopCapabilities({version:'mpv 0.41.0',decoders:['h264','aac','ac3','eac3','dca','truehd']},'windows','0.1.0'),native=profile.engines.native;
+ assert.deepEqual(native.audio?.filter(value=>['ac3','eac3','dts','truehd'].includes(value.codec)),[
+  {codec:'ac3',evidence:'probed'},{codec:'eac3',variants:['eac3'],evidence:'probed'},{codec:'dts',variants:['dts_core'],evidence:'probed'},{codec:'truehd',variants:['truehd'],evidence:'probed'}]);
+ assert.deepEqual(native.transports?.[0]?.audio?.filter(codec=>['ac3','eac3','dts','truehd'].includes(codec)),['ac3','eac3','dts','truehd'],'the direct transport carries them');
+ assert.doesNotMatch(JSON.stringify(profile),/atmos|dtsx|eac3_joc|dts_hd|truehd_atmos|objectAudio/,'no object audio or DTS-HD claim');
+ assert.equal(desktopCapabilities({version:'mpv 0.41.0',decoders:['aac']},'linux','0.1.0').engines.native.audio?.some(value=>value.codec==='ac3'),false,'no decoder, no claim');
+});
+

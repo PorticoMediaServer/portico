@@ -1,5 +1,5 @@
 import {invoke} from '@tauri-apps/api/core';
-import {capabilityDocumentProblem,type CapabilityDocument} from '../../../packages/client-core/src/client-profile.ts';
+import {capabilityDocumentProblem,type AudioVariant,type CapabilityDocument} from '../../../packages/client-core/src/client-profile.ts';
 
 /** Only the actual installed libmpv catalog enters this profile. No WebView probe,
  * hardware ceilings, output rate, HDR, DTS-HD or Atmos grant comes from its name. */
@@ -13,7 +13,15 @@ export function desktopCapabilities(raw:unknown,os:'linux'|'macos'|'windows',app
   // Canonical pcm covers the ordinary WAV/AIFF integer and float encodings;
   // one decoder or a demuxer/container name alone cannot admit that family.
   const pcm=['pcm_u8','pcm_s16le','pcm_s16be','pcm_s24le','pcm_s24be','pcm_s32le','pcm_s32be','pcm_f32le','pcm_f32be','pcm_f64le','pcm_f64be'].every(codec=>codecs.has(codec));
-  const audio=[...['aac','mp3','mp2','flac','alac','opus','vorbis','wmav2','wmapro','wavpack'].filter(codec=>codecs.has(codec)),...(pcm?['pcm']:[])].map(codec=>({codec,evidence:'probed' as const}));
+  // N6-1: the base Dolby/DTS codecs of ordinary Blu-ray and DVD remuxes, when libmpv reports the
+  // decoder (FFmpeg names DTS's decoder `dca`). Base streams only: no object audio (Atmos, DTS:X,
+  // E-AC-3 JOC) and no DTS-HD extension is claimed from a decoder name.
+  const surround:readonly (Readonly<{codec:string;decoders:readonly string[];variants?:AudioVariant[]}>)[]=[
+    {codec:'ac3',decoders:['ac3']},{codec:'eac3',decoders:['eac3'],variants:['eac3']},
+    {codec:'dts',decoders:['dca','dts'],variants:['dts_core']},{codec:'truehd',decoders:['truehd'],variants:['truehd']}];
+  const audio=[...['aac','mp3','mp2','flac','alac','opus','vorbis','wmav2','wmapro','wavpack'].filter(codec=>codecs.has(codec)).map(codec=>({codec,evidence:'probed' as const})),
+    ...surround.filter(entry=>entry.decoders.some(name=>codecs.has(name))).map(entry=>({codec:entry.codec,...(entry.variants?{variants:[...entry.variants]}:{}),evidence:'probed' as const})),
+    ...(pcm?[{codec:'pcm',evidence:'probed' as const}]:[])];
   const profile:CapabilityDocument={version:2,client:{family:'desktop',form:'desktop',platform:os,os,app:'Portico',appVersion},engineSetting:'native',
     engines:{native:{name:'mpv',version:value.version,evidence:'probed',video,audio,audioPassthrough:[],
       transports:[{transport:'direct',containers:['mkv','mp4','m4v','mov','webm','avi','ts','m2ts','mpg','mpeg','wmv','asf','flv','mp3','m4a','m4b','aac','flac','ogg','opus','wav','aiff','wma','mka',...(codecs.has('wavpack')?['wv']:[])],video:video.map(v=>v.codec),audio:audio.map(a=>a.codec)}],
