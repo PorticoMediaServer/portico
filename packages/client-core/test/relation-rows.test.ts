@@ -42,7 +42,7 @@ test('a title row continues through its row route under its id', async () => {
   assert.equal((await readRecommendationRowPage(api(() => row({viewerFence: 'moved'})), {kind: 'item', id: 't1'}, first)).viewerFence, 'moved');
 });
 
-test('a failed page keeps the continuation, and a stale one ends the row', async () => {
+test('a failed page keeps the continuation; a refused one reads the row again once; a stale one ends it', async () => {
   let fail: unknown = Object.assign(new Error('offline'), {code: 'request_failed'});
   const pager = new RelationRowPager({entries: [movie('m1')] as any, nextCursor: 'c1'}, async () => { if (fail) throw fail; return {entries: [movie('m2')] as any}; });
   await pager.more();
@@ -52,15 +52,36 @@ test('a failed page keeps the continuation, and a stale one ends the row', async
   await pager.more();
   assert.equal(pager.getSnapshot().cursor, undefined);
   assert.equal(pager.getSnapshot().error?.stale, true);
-  // A cursor the server no longer honours ends the row too, instead of failing again on every more().
-  let reads = 0;
-  const refused = recommendationRowPager(api(() => { reads++; return Object.assign(new Error('Expired'), {code: 'invalid_cursor'}); }), {kind: 'item', id: 't1'}, validateHomeRow(row()));
-  await refused.more(); await refused.more();
-  assert.equal(reads, 1); assert.equal(refused.getSnapshot().cursor, undefined); assert.deepEqual(refused.getSnapshot().error, {code: 'invalid_cursor', stale: true});
-  // A moved revision is a stale continuation too.
-  const moved = recommendationRowPager(api(() => row({revision: {catalog: 2, viewer: 1}})), {kind: 'item', id: 't1'}, validateHomeRow(row()));
+  // A refused cursor (invalid_cursor: its fence or profile no longer matches, so access was decided again) reads the
+  // row once from its first page, whose entries and cursor replace what was shown: nothing allowed is hidden and
+  // nothing read under the old fence stays. Later pages continue the new first page's revision.
+  const reads: string[] = [];
+  const reread = recommendationRowPager(api(path => { reads.push(path); return path.includes('cursor=c1') ? Object.assign(new Error('Expired'), {code: 'invalid_cursor'})
+    : path.includes('cursor=c9') ? row({entries: [movie('m8')], hasMore: false, nextCursor: '', revision: {catalog: 2, viewer: 1}})
+    : row({viewerFence: 'moved', entries: [movie('m7'), movie('m1')], nextCursor: 'c9', revision: {catalog: 2, viewer: 1}}); }), {kind: 'item', id: 't1'}, validateHomeRow(row({entries: [movie('m1'), movie('m2')]})));
+  await reread.more();
+  assert.deepEqual(reread.getSnapshot().entries.map(e => e.id), ['m7', 'm1'], 'the first page read again replaces the row: m2, read under the old fence, is gone');
+  assert.equal(reread.getSnapshot().cursor, 'c9'); assert.equal(reread.getSnapshot().error, undefined);
+  assert.equal(reads[1], '/v1/items/t1/recommendations/rows/genre%3Atmdb%3A18?limit=37', 'the first page is read without a cursor');
+  await reread.more();
+  assert.deepEqual(reread.getSnapshot().entries.map(e => e.id), ['m7', 'm1', 'm8']);
+  // A second refusal ends the row: one re-read per row, never a loop.
+  let tries = 0;
+  const twice = recommendationRowPager(api(path => { tries++; return path.includes('cursor=') ? Object.assign(new Error('Expired'), {code: 'invalid_cursor'}) : row({entries: [movie('m3')], nextCursor: 'c2'}); }), {kind: 'item', id: 't1'}, validateHomeRow(row()));
+  await twice.more();
+  assert.deepEqual(twice.getSnapshot().entries.map(e => e.id), ['m3']); assert.equal(twice.getSnapshot().cursor, 'c2');
+  await twice.more(); await twice.more();
+  assert.equal(tries, 3); assert.equal(twice.getSnapshot().cursor, undefined); assert.deepEqual(twice.getSnapshot().error, {code: 'invalid_cursor', stale: true});
+  assert.deepEqual(twice.getSnapshot().entries.map(e => e.id), ['m3'], 'what was shown stays when the row ends');
+  // A first page that fails on the re-read ends the row too.
+  const gone = recommendationRowPager(api(() => Object.assign(new Error('Expired'), {code: 'invalid_cursor'})), {kind: 'item', id: 't1'}, validateHomeRow(row()));
+  await gone.more();
+  assert.equal(gone.getSnapshot().cursor, undefined); assert.equal(gone.getSnapshot().error?.stale, true);
+  // A real move of the row (its revision) is a stale continuation and still ends it, with no re-read.
+  let movedReads = 0;
+  const moved = recommendationRowPager(api(() => { movedReads++; return row({revision: {catalog: 2, viewer: 1}}); }), {kind: 'item', id: 't1'}, validateHomeRow(row()));
   await moved.more();
-  assert.equal(moved.getSnapshot().error?.code, 'stale_continuation');
+  assert.equal(movedReads, 1); assert.equal(moved.getSnapshot().error?.code, 'stale_continuation'); assert.equal(moved.getSnapshot().cursor, undefined);
 });
 
 test('one more() at a time, and nothing after dispose', async () => {
@@ -86,6 +107,14 @@ test('a related row carries its continuation and pages only related titles', asy
   await pager.more();
   assert.deepEqual(pager.getSnapshot().entries.map(e => e.id), ['m1', 'm2'], 'the title itself and another kind are left out');
   assert.equal(pager.getSnapshot().cursor, undefined);
+  // A refused cursor reads the row's first page ('', no cursor) under its new revision, which replaces the row and continues.
+  const paths: string[] = [];
+  const again = relatedRowPager(api(path => { paths.push(path); return path.includes('cursor=c1') ? Object.assign(new Error('Expired'), {code: 'invalid_cursor'})
+    : path.includes('cursor=c2') ? row({entries: [movie('m5')], hasMore: false, nextCursor: '', revision: {catalog: 3, viewer: 1}})
+    : row({entries: [movie('m1'), movie('m4')], nextCursor: 'c2', revision: {catalog: 3, viewer: 1}}); }), source, related.rows[0]!, {viewerFence: 'fence', revision: {catalog: 1, viewer: 1}});
+  await again.more(); await again.more();
+  assert.equal(paths[1], '/v1/items/t1/recommendations/rows/genre%3Atmdb%3A18?limit=37');
+  assert.deepEqual(again.getSnapshot().entries.map(e => e.id), ['m1', 'm4', 'm5']); assert.equal(again.getSnapshot().error, undefined);
 });
 
 test('the similar row pages by cursor on its first basis', async () => {

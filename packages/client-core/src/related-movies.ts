@@ -31,12 +31,16 @@ function relatedEntry(entry:ContentEntry,source:RelatedSource):ContentEntry{
  * detail's fence and revision, and an entry that is not a related title is left out alone.
  */
 export function relatedRowPager(api:HomeApi,source:RelatedSource,row:RelatedMovieRow,scope:Readonly<{viewerFence:string;revision:Readonly<{catalog:number;viewer:number}>}>,limit?:number):RelationRowPager{
- return new RelationRowPager({entries:row.entries,...(row.nextCursor?{nextCursor:row.nextCursor}:{})},async(cursor,signal)=>{
-  const next=await readRecommendationRowPage(api,{kind:'item',id:source.itemId},{id:row.id},{cursor,...(limit===undefined?{}:{limit})},signal);
-  if(next.revision.catalog!==scope.revision.catalog||next.revision.viewer!==scope.revision.viewer)throw Object.assign(new Error('Reload the title to continue this row.'),{code:'stale_continuation'});
+ // Later pages continue the detail's revision; reading the first page again ('', after the server refused the cursor) moves it.
+ let basis=scope.revision;
+ const page=async(cursor:string,signal:AbortSignal)=>{
+  const next=await readRecommendationRowPage(api,{kind:'item',id:source.itemId},{id:row.id},{...(cursor?{cursor}:{}),...(limit===undefined?{}:{limit})},signal);
+  if(cursor&&(next.revision.catalog!==basis.catalog||next.revision.viewer!==basis.viewer))throw Object.assign(new Error('Reload the title to continue this row.'),{code:'stale_continuation'});
+  if(!cursor)basis=next.revision;
   const entries=keepReadable('related','entries',next.entries,entry=>relatedEntry(validateContentEntry(entry),source));
   return {entries,...(next.hasMore&&next.nextCursor?{nextCursor:next.nextCursor}:{})};
- });
+ };
+ return new RelationRowPager({entries:row.entries,...(row.nextCursor?{nextCursor:row.nextCursor}:{})},page);
 }
 export function validateRelatedMovies(value:unknown,source:{libraryId:string;itemId:string;kind:string}):RelatedMovieProjection{
  if(!object(value)||!['movie','song','audiobook_file','episode'].includes(source.kind)||value.version!==1||value.libraryId!==source.libraryId||!Array.isArray(value.rows)||value.rows.length>3)invalid();

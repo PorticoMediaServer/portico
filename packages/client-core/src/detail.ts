@@ -10,7 +10,6 @@ import type { MediaItem } from './index.ts';
 import {validateRelatedMovies,type RelatedMovieProjection} from './related-movies.ts';
 import {parseSegmentMarkers,type SegmentMarker} from './segment-markers.ts';
 import {validateContentEntry,type ContentEntry} from './library-content.ts';
-import {validateHomeRow,type HomeRow} from './home.ts';
 import {firstOfEach,keepReadable,noteSkipped} from './tolerant.ts';
 import {QueryObserver} from '@tanstack/query-core';
 import type {ViewerQueries} from './query/viewer-queries.ts';
@@ -476,19 +475,5 @@ export async function readCreditPage(api:DetailApi,itemId:string,group:'cast'|'c
  const query=new URLSearchParams({group,limit:String(options.limit??37)});if(options.cursor)query.set('cursor',options.cursor);
  return parseCreditPage(await api.request<RouteResponse<'get_items_id_credits'>>(encodedRoutePath('get_items_id_credits',{id:encodeURIComponent(itemId)})+'?'+query,'GET',undefined,signal),itemId,group);
 }
-export async function readDetailMoreLike(api:DetailApi,itemId:string,options:{cursor?:string;limit?:number}={},signal?:AbortSignal):Promise<HomeRow> {
- const query=new URLSearchParams({limit:String(options.limit??37)});if(options.cursor)query.set('cursor',options.cursor);
- const row=validateHomeRow(await api.request<RouteResponse<'get_items_id_recommendations_row'>>(encodedRoutePath('get_items_id_recommendations_row',{id:encodeURIComponent(itemId),row:'more_like'})+'?'+query,'GET',undefined,signal));
- if(row.id!=='more_like:local:'+itemId || row.evidenceId!==itemId)invalid();
- return row;
-}
-export function appendDetailRecommendationPage(current:HomeRow,next:HomeRow):HomeRow {
- // The server binds the row's cursor to the viewer fence and refuses an old one (invalid_cursor); only the row's own revision is compared.
- if(current.id!==next.id || current.endpoint!==next.endpoint)invalid();
- if(current.revision.catalog!==next.revision.catalog || current.revision.viewer!==next.revision.viewer)throw new Failure('stale_continuation','Reload recommendations after the title changes.');
- const seen=new Set(current.entries.map(entry=>entry.id));
- return Object.freeze({...current,entries:Object.freeze([...current.entries,...next.entries.filter(entry=>!seen.has(entry.id))]),nextCursor:next.nextCursor,hasMore:next.hasMore,total:next.total});
-}
-
 export type FileInfoDiscTitle = Readonly<{number: number; durationMs: number; chapters: number; angles: number}>;
 export type FileInfoDisc = Readonly<{fileId: string; kind: 'bluray' | 'dvd'; titles: readonly FileInfoDiscTitle[]}>;
