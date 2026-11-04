@@ -10,6 +10,7 @@ import (
 
 var publishedSchema = strings.Contains(candidateSQL, "CREATE TABLE search_publications(")
 var currentSearchGeneration = 1
+var generationRun = true
 
 const recipeVersion = "A-CJK-uni-bi-v1"
 
@@ -32,7 +33,7 @@ func createPublished(db *sql.DB) {
 	for i := 1; i <= 11; i++ {
 		exec(db, "INSERT INTO catalog_kinds VALUES(?,?,1,1,1,1,0)", i, fmt.Sprintf("fixture-kind-%d", i))
 	}
-	exec(db, `INSERT INTO search_generations(id,bank_key,recipe_version,engine_version,unicode_fingerprint,state,created_ms) VALUES(1,'v1',?,'modernc1.58.0-SQLite3.53.4','bundled-3.53.4+facettext-pin','active',?)`, recipeVersion, time.Now().UnixMilli())
+	exec(db, `INSERT INTO search_generations(id,bank_key,recipe_version,engine_version,unicode_fingerprint,state,created_ms) VALUES(1,'v1',?,'modernc1.58.0-SQLite3.53.4',?,'active',?)`, recipeVersion, engineFingerprint, time.Now().UnixMilli())
 	exec(db, "INSERT INTO search_revision(singleton,revision,active_generation_id) VALUES(1,1,1)")
 	exec(db, "CREATE TABLE q_items(id INTEGER PRIMARY KEY,rating INTEGER NOT NULL) STRICT")
 	exec(db, `CREATE TABLE rel(parent INTEGER NOT NULL,child INTEGER NOT NULL,PRIMARY KEY(parent,child)) WITHOUT ROWID`)
@@ -210,7 +211,7 @@ func reclaimPub(db *sql.DB, docs []*pubDoc, tag string) {
 				exec(db, "DELETE FROM search_fragments WHERE id=?", fid)
 			}
 			if d.oldDoc > 0 {
-				exec(db, "DELETE FROM search_publications WHERE id=?", d.oldDoc)
+				native(db, tag+".image.delete", "DELETE FROM search_publications WHERE id=?", d.oldDoc)
 			}
 			exec(db, "UPDATE search_publish_jobs SET phase='idle',job_next_attempt_ms=NULL,job_revision=job_revision+1 WHERE id=?", d.job)
 		}

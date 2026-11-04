@@ -100,7 +100,7 @@ func publisherBench(db *sql.DB, n, rounds int) {
 		tag := fmt.Sprintf("publisher.b%d", batch)
 		start := time.Now()
 		docsN := 0
-		cycles := min(max(rounds, 128), 512)
+		cycles := max(rounds, 128)
 		rejected := false
 		for r := 0; r < cycles; r++ {
 			admitPublication()
@@ -138,12 +138,12 @@ func publisherBench(db *sql.DB, n, rounds int) {
 		if passed {
 			largest = batch
 		}
-		emit("publisher_capacity", map[string]any{"batch_documents": batch, "documents": docsN, "cycles": txStat(tag + ".stage.tx").N, "stage": txStat(tag + ".stage.tx"), "head_flip": txStat(tag + ".flip.tx"), "reclaim": txStat(tag + ".reclaim.tx"), "source_accept": txStat(tag + ".accept.tx"), "elapsed_s": time.Since(start).Seconds(), "end_to_end_docs_per_s": float64(docsN) / time.Since(start).Seconds(), "strict_observed_pass": passed, "early_rejected_max_over25": rejected, "policy": "NORMAL;auto0;crisis16;governedmerge1;full source witnesses;staged image+fragment;atomic native own+head"})
+		emit("publisher_capacity", map[string]any{"batch_documents": batch, "documents": docsN, "cycles": txStat(tag + ".stage.tx").N, "stage": txStat(tag + ".stage.tx"), "stage_p99_upper95": upper99(tag + ".stage.tx"), "head_p99_upper95": upper99(tag + ".flip.tx"), "reclaim_p99_upper95": upper99(tag + ".reclaim.tx"), "head_flip": txStat(tag + ".flip.tx"), "reclaim": txStat(tag + ".reclaim.tx"), "source_accept": txStat(tag + ".accept.tx"), "elapsed_s": time.Since(start).Seconds(), "end_to_end_docs_per_s": float64(docsN) / time.Since(start).Seconds(), "strict_observed_pass": passed, "early_rejected_max_over25": rejected, "policy": "NORMAL;auto0;crisis16;governedmerge1;full source witnesses;staged image+fragment;atomic native own+head"})
 	}
 	emit("publisher_choice", map[string]any{"largest_tested_strict_pass": largest, "warning": "per-VM finite sample; shared-host stalls and merge/foreground gates remain separate"})
 	flowBatch := max(1, largest)
 	publisherFlow(db, n, flowBatch)
-	if n < 10000 || (n >= 1000000 && cjkShare == 30) {
+	if n < 10000 || (n >= 1000000 && cjkShare == 30 && generationRun) {
 		generationBench(db, n, min(flowBatch, 8))
 	} else {
 		emit("generation_scheduled_elsewhere", map[string]any{"scope": "full1M30%CJK both profiles plus local1k; per-subject flips/reclaim measured every capacity cell"})

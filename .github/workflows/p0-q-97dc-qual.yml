@@ -1,0 +1,110 @@
+name: Phase 0 exact97dc decoupled publisher on bundled SQLite
+on:
+  push:
+    branches: ['schema-v1/p0-q-97dc-qual']
+    paths: ['research/p0-q/**', '.github/workflows/p0-q-97dc-qual.yml']
+permissions:
+  contents: read
+env:
+  GOWORK: 'off'
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: research/p0-q/go.mod, cache-dependency-path: research/p0-q/go.sum}
+      - name: Build
+        working-directory: research/p0-q
+        run: go build -o "$RUNNER_TEMP/p0-q-bench" .
+      - name: Empty-content and generation smoke
+        env: {MODE: publisher, N: 1000, PROFILE: standard, CONFIG: normal-passive, CJK_SHARE: 30, ROUNDS: 128}
+        run: bash research/p0-q/run-experiment.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: q-97dc-publisher-smoke
+          path: '${{ runner.temp }}/p0-q-experiment/out'
+          retention-days: 30
+  publisher:
+    needs: smoke
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [standard, old8g]
+        n: [100000, 400000, 1000000]
+        share: [5, 30]
+        replica: [0,1,2]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: research/p0-q/go.mod, cache-dependency-path: research/p0-q/go.sum}
+      - name: Build
+        working-directory: research/p0-q
+        run: go build -o "$RUNNER_TEMP/p0-q-bench" .
+      - name: Measure publisher capacity flow and generation
+        env:
+          MODE: publisher
+          N: ${{ matrix.n }}
+          PROFILE: ${{ matrix.profile }}
+          CJK_SHARE: ${{ matrix.share }}
+          CONFIG: normal-passive
+          ROUNDS: 1000
+          GENERATION: ${{ matrix.replica == 0 && '1' || '0' }}
+        run: bash research/p0-q/run-experiment.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: q-97dc-publisher-${{ matrix.profile }}-${{ matrix.n }}-cjk${{ matrix.share }}-vm${{ matrix.replica }}
+          path: '${{ runner.temp }}/p0-q-experiment/out'
+          retention-days: 30
+  wal:
+    needs: smoke
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [standard, old8g]
+        case:
+          - {n: 100000, cap: 0, config: normal-passive}
+          - {n: 400000, cap: 0, config: normal-passive}
+          - {n: 1000000, cap: 0, config: normal-passive}
+          - {n: 100000, cap: 250, config: normal-passive}
+          - {n: 100000, cap: 1000, config: normal-passive}
+          - {n: 100000, cap: 2000, config: normal-passive}
+          - {n: 1000000, cap: 250, config: normal-passive}
+          - {n: 1000000, cap: 1000, config: normal-passive}
+          - {n: 1000000, cap: 2000, config: normal-passive}
+          - {n: 100000, cap: 0, config: normal-passive-250}
+          - {n: 100000, cap: 0, config: normal-passive-1000}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: research/p0-q/go.mod, cache-dependency-path: research/p0-q/go.sum}
+      - name: Build bundled engine harness
+        working-directory: research/p0-q
+        run: go build -o "$RUNNER_TEMP/p0-q-bench" .
+      - name: Measure source publisher bounded readers and FULL auth
+        env:
+          MODE: publisher-wal
+          N: ${{ matrix.case.n }}
+          PROFILE: ${{ matrix.profile }}
+          CONFIG: ${{ matrix.case.config }}
+          CJK_SHARE: 5
+          BOUNDED: 1
+          MIXED: 1
+          SNAPSHOT_CAP: ${{ matrix.case.cap }}
+        run: bash research/p0-q/run-experiment.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: q-97dc-wal-${{ matrix.profile }}-${{ matrix.case.n }}-cap${{ matrix.case.cap }}-${{ matrix.case.config }}
+          path: '${{ runner.temp }}/p0-q-experiment/out'
+          retention-days: 30

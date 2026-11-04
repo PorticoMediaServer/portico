@@ -1295,6 +1295,7 @@ CREATE TABLE catalog_assets(
  download_hash_hashed_ms INTEGER,
  library_id INTEGER NOT NULL REFERENCES catalog_libraries(id),
  file_size_revision INTEGER NOT NULL DEFAULT 1 CHECK(file_size_revision>0),
+ authored_membership_revision INTEGER NOT NULL DEFAULT 1 CHECK(authored_membership_revision>0),
  CHECK((info_owner_object IS NULL)=(info_owner_revision IS NULL)),
  CHECK(has_download_source_digests=0 OR (download_hash_size IS NOT NULL AND download_hash_modified_ns IS NOT NULL AND download_hash_sha256 IS NOT NULL AND download_hash_hashed_ms IS NOT NULL)),
  UNIQUE(library_id,id),
@@ -1331,7 +1332,8 @@ CREATE TABLE catalog_assets(
  CHECK("download_hash_sha256" IS NULL OR typeof("download_hash_sha256")='text'),
  CHECK("download_hash_hashed_ms" IS NULL OR typeof("download_hash_hashed_ms")='integer'),
  CHECK("library_id" IS NULL OR typeof("library_id")='integer'),
- CHECK("file_size_revision" IS NULL OR typeof("file_size_revision")='integer')
+ CHECK("file_size_revision" IS NULL OR typeof("file_size_revision")='integer'),
+ CHECK("authored_membership_revision" IS NULL OR typeof("authored_membership_revision")='integer')
 );
 
 CREATE TABLE catalog_attribute_fields(
@@ -13942,7 +13944,7 @@ CREATE TABLE catalog_scalar_contributions(
 ) WITHOUT ROWID;
 
 CREATE TABLE search_fragments(
- id INTEGER PRIMARY KEY,
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
  owner_entity INTEGER REFERENCES catalog_subjects(id),
  owner_person INTEGER REFERENCES catalog_people(id),
  field INTEGER NOT NULL CHECK(field BETWEEN 1 AND 64),
@@ -14232,7 +14234,7 @@ CREATE TABLE metadata_evidence_collections(
 ) WITHOUT ROWID;
 
 CREATE TABLE search_publications(
- id INTEGER PRIMARY KEY,
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
  entity_id INTEGER REFERENCES catalog_subjects(id),
  person_id INTEGER REFERENCES catalog_people(id),
  search_generation_id INTEGER NOT NULL DEFAULT 1 REFERENCES search_generations(id),
@@ -14271,7 +14273,7 @@ CREATE TABLE search_publications(
 );
 
 CREATE TABLE search_publish_jobs(
- id INTEGER PRIMARY KEY,
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
  entity_id INTEGER REFERENCES catalog_subjects(id),
  person_id INTEGER REFERENCES catalog_people(id),
  search_generation_id INTEGER NOT NULL DEFAULT 1 REFERENCES search_generations(id),
@@ -14332,7 +14334,7 @@ CREATE TABLE search_publish_jobs(
 );
 
 CREATE TABLE catalog_aggregate_operations(
- id INTEGER PRIMARY KEY,
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
  library_id INTEGER NOT NULL REFERENCES catalog_libraries(id),
  source_kind TEXT NOT NULL CHECK(source_kind IN('asset','entity','provider-policy','library-policy','override')),
  source_asset_id INTEGER REFERENCES catalog_assets(id),
@@ -14385,7 +14387,7 @@ CREATE TABLE catalog_aggregate_operations(
 );
 
 CREATE TABLE catalog_aggregate_publications(
- id INTEGER PRIMARY KEY,
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
  operation_id INTEGER NOT NULL REFERENCES catalog_aggregate_operations(id),
  parent_id INTEGER NOT NULL REFERENCES catalog_entities(id),
  captured_revision INTEGER NOT NULL CHECK(captured_revision>0),
@@ -14509,7 +14511,7 @@ CREATE TABLE catalog_asset_deltas(
 ) WITHOUT ROWID;
 
 CREATE TABLE search_generations(
- id INTEGER PRIMARY KEY,
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
  bank_key TEXT NOT NULL UNIQUE,
  recipe_version TEXT NOT NULL,
  engine_version TEXT NOT NULL,
@@ -14523,11 +14525,20 @@ CREATE TABLE search_generations(
  indexed_rows INTEGER NOT NULL DEFAULT 0 CHECK(indexed_rows>=0),
  indexed_bytes INTEGER NOT NULL DEFAULT 0 CHECK(indexed_bytes>=0),
  created_ms INTEGER NOT NULL,
+ phase TEXT NOT NULL DEFAULT 'schema' CHECK(phase IN('schema','subjects','reading','tail','seal','idle','reclaim','complete')),
+ after_table INTEGER NOT NULL DEFAULT 0,
+ job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0),
+ job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
+ job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
+ job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
+ job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts>=0),
+ job_next_attempt_ms INTEGER,
+ job_due_ms INTEGER GENERATED ALWAYS AS(CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) VIRTUAL,
  UNIQUE(id,recipe_version)
 ) STRICT;
 
 CREATE TABLE artwork_subject_jobs(
- id INTEGER PRIMARY KEY,
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
  entity_id INTEGER REFERENCES catalog_subjects(id),
  person_id INTEGER REFERENCES catalog_people(id),
  source_incarnation BLOB NOT NULL CHECK(length(source_incarnation)=16),
@@ -15959,6 +15970,8 @@ CREATE INDEX catalog_scalar_delta_rating ON catalog_scalar_deltas(publication_id
 
 CREATE INDEX catalog_asset_delta_size ON catalog_asset_deltas(publication_id,file_size DESC,asset_id) WHERE action='upsert';
 
+CREATE INDEX search_generation_due ON search_generations(job_due_ms,id) WHERE job_due_ms IS NOT NULL;
+
 CREATE INDEX artwork_subject_due ON artwork_subject_jobs(job_due_ms,id) WHERE job_due_ms IS NOT NULL;
 
 CREATE INDEX catalog_entities_automatic_local ON catalog_entities(library_id,automatic_collection_name_key,id) WHERE kind=1 AND retired=0;
@@ -15969,9 +15982,49 @@ CREATE INDEX catalog_asset_authored ON catalog_asset_contributions(asset_id,pare
 
 CREATE INDEX catalog_asset_delta_source ON catalog_asset_deltas(asset_id,parent_id,publication_id);
 
+CREATE INDEX search_publish_generation ON search_publish_jobs(search_generation_id,id);
+
+CREATE INDEX search_publications_generation ON search_publications(search_generation_id,id);
+
+CREATE INDEX search_fragments_generation ON search_fragments(search_generation_id,id);
+
+CREATE INDEX catalog_aggregate_target_publication ON catalog_aggregate_targets(publication_id,parent_id);
+
+CREATE INDEX catalog_scalar_delta_contributor ON catalog_scalar_deltas(contributor_id,publication_id);
+
+CREATE INDEX search_publish_document_fk ON search_publish_jobs(document_id) WHERE document_id IS NOT NULL;
+
+CREATE INDEX search_publish_published_doc ON search_publish_jobs(published_document_id) WHERE published_document_id IS NOT NULL;
+
+CREATE INDEX catalog_aggregate_source_entity ON catalog_aggregate_operations(source_entity_id) WHERE source_entity_id IS NOT NULL;
+
+CREATE INDEX catalog_aggregate_old_evidence ON catalog_aggregate_operations(old_evidence_id) WHERE old_evidence_id IS NOT NULL;
+
+CREATE INDEX catalog_aggregate_new_evidence ON catalog_aggregate_operations(new_evidence_id) WHERE new_evidence_id IS NOT NULL;
+
 CREATE INDEX metadata_projection_targets_entity ON metadata_projection_targets(entity_id);
 
 CREATE INDEX reading_text_publications_object ON reading_text_publications(inventory_object_id);
+
+CREATE INDEX "fk_child_catalog_age_facet_counts_1" ON "catalog_age_facet_counts"("kind");
+
+CREATE INDEX "fk_child_catalog_age_item_counts_0" ON "catalog_age_item_counts"("kind");
+
+CREATE INDEX "fk_child_catalog_aggregate_operations_2" ON "catalog_aggregate_operations"("provider");
+
+CREATE INDEX "fk_child_catalog_person_merge_work_0" ON "catalog_person_merge_work"("to_person_id");
+
+CREATE INDEX "fk_child_catalog_person_merge_work_1" ON "catalog_person_merge_work"("from_person_id");
+
+CREATE INDEX "fk_child_catalog_subjects_0" ON "catalog_subjects"("kind");
+
+CREATE INDEX "fk_child_identity_state_0" ON "identity_state"("transition_id");
+
+CREATE INDEX "fk_child_metadata_provider_policy_0" ON "metadata_provider_policy"("provider");
+
+CREATE INDEX "fk_child_search_revision_0" ON "search_revision"("building_generation_id");
+
+CREATE INDEX "fk_child_search_revision_1" ON "search_revision"("active_generation_id");
 
 CREATE VIEW authorization_access AS
  SELECT t.token_hash AS hash,f.account_id,f.profile_id,f.authority,f.role,f.epoch,t.expires_at,

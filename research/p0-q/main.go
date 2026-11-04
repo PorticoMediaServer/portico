@@ -75,7 +75,7 @@ func native(db interface {
 		return
 	}
 	t := time.Now()
-	exec(db, q, a...)
+	profiledExec(db, tag, q, a...)
 	nativeMax.Lock()
 	elapsed := float64(time.Since(t).Microseconds()) / 1000
 	nativeMax.values[tag] = append(nativeMax.values[tag], elapsed)
@@ -661,6 +661,7 @@ func main() {
 	v := flag.String("variant", "A", "A or B")
 	profile := flag.String("profile", "smoke", "hardware profile")
 	dir := flag.String("dir", "", "scratch output")
+	genRun := flag.Bool("generation", true, "run full generation backfill for designated cell")
 	samples := flag.Int("samples", 16, "query samples excluding warmup")
 	rounds := flag.Int("rounds", 2048, "churn transactions")
 	cpuPath := flag.String("cpu-profile", "", "labeled diagnostic CPU profile")
@@ -671,6 +672,7 @@ func main() {
 	mixed := flag.Bool("mixed", false, "mixed security/progress traffic")
 	minimum := flag.Duration("mixed-duration", 600*time.Second, "minimum mixed observation")
 	flag.Parse()
+	generationRun = *genRun
 	profileName = *profile
 	cjkShare = *share
 	oldCJKRecipe = *oldRecipe
@@ -707,7 +709,29 @@ func main() {
 	}
 	var sqliteSourceID string
 	must(db.QueryRow("SELECT sqlite_source_id()").Scan(&sqliteSourceID))
-	emit("environment", map[string]any{"sqlite": version, "engine": "bundled-modernc", "driver_module": "modernc.org/sqlite", "driver_version": driverVersion, "sqlite_source_id": sqliteSourceID, "go": runtime.Version(), "cpus": runtime.NumCPU(), "profile": *profile, "variant": *v, "items": *n, "pid": os.Getpid(), "mode": *mode, "config": *config, "automerge": autoMerge, "crisismerge": crisisMerge, "batch": buildBatch, "merge_pages": mergePages, "synchronous": durability, "candidate_sha256": candidateSHA(), "candidate_fk_checks": publishedSchema, "cjk_share_percent": cjkShare, "old_cjk_recipe": oldCJKRecipe, "token_recipe": "CJK-NGRAM-RECIPE", "previous_candidate_sha256": "dabf442e6aab647b693e59ebc509f703050e742f96eb5aac344e4e39ea45224f"})
+	engineFingerprint = frozenFingerprint(sqliteSourceID)
+	emit("environment", map[string]any{"sqlite": version, "engine": "bundled-modernc", "driver_module": "modernc.org/sqlite", "driver_version": driverVersion, "sqlite_source_id": sqliteSourceID, "unicode_fingerprint": engineFingerprint, "go": runtime.Version(), "cpus": runtime.NumCPU(), "profile": *profile, "variant": *v, "items": *n, "pid": os.Getpid(), "mode": *mode, "config": *config, "automerge": autoMerge, "crisismerge": crisisMerge, "batch": buildBatch, "merge_pages": mergePages, "synchronous": durability, "candidate_sha256": candidateSHA(), "candidate_fk_checks": publishedSchema, "cjk_share_percent": cjkShare, "old_cjk_recipe": oldCJKRecipe, "token_recipe": "CJK-NGRAM-RECIPE", "previous_candidate_sha256": "ef4b74ad542e0951c23760d15a3e60f295210d3bf0a1c29a9f9b944f1a4b722c"})
+	if *mode == "reclaim-plan-fk-index" {
+		ddl := "CREATE INDEX search_publish_document_fk ON search_publish_jobs(document_id) WHERE document_id IS NOT NULL"
+		exec(db, ddl)
+		emit("schema_overlay", map[string]any{"ddl": ddl, "scope": "explicit local diagnosis only; not canonical qualification"})
+	}
+	if *mode == "reclaim-plan" || *mode == "reclaim-plan-fk-index" {
+		for _, q := range []string{"EXPLAIN QUERY PLAN DELETE FROM search_publications WHERE id=1", "EXPLAIN QUERY PLAN DELETE FROM search_fragments WHERE id=1"} {
+			rows, e := db.Query(q)
+			must(e)
+			plan := []string{}
+			for rows.Next() {
+				var a, b, c int
+				var detail string
+				must(rows.Scan(&a, &b, &c, &detail))
+				plan = append(plan, detail)
+			}
+			must(rows.Close())
+			emit("reclaim_plan", map[string]any{"sql": q, "plan": plan})
+		}
+		return
+	}
 	if publishedSchema {
 		createPublished(db)
 	} else {
@@ -721,6 +745,7 @@ func main() {
 	} else {
 		build(db, *n)
 	}
+	dumpOperations() // preserve source/build distributions before long/cancelled phases
 	emit("allocation_base", allocation(db, path))
 	emit("debt_base", debt(db))
 	if *mode == "seed-only" {

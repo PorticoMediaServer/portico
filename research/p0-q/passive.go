@@ -143,16 +143,34 @@ func setupExperiment(db *sql.DB, path string) {
 			defer cp.Close()
 			exec(cp, "PRAGMA busy_timeout=0")
 			exec(cp, "PRAGMA wal_autocheckpoint=0")
+			exec(cp, "PRAGMA synchronous=NORMAL")
 			ticker := time.NewTicker(checkpointEvery)
 			defer ticker.Stop()
+			var previousStart time.Time
 			for {
+				trigger := "timer"
 				select {
 				case <-cpStop:
 					return
 				case <-ticker.C:
 				case <-cpRequest:
+					trigger = "pressure"
+				}
+				if wait := time.Until(previousStart.Add(checkpointEvery)); !previousStart.IsZero() && wait > 0 {
+					timer := time.NewTimer(wait)
+					select {
+					case <-cpStop:
+						timer.Stop()
+						return
+					case <-timer.C:
+					}
 				}
 				start := time.Now()
+				elapsedSincePrevious := float64(0)
+				if !previousStart.IsZero() {
+					elapsedSincePrevious = float64(start.Sub(previousStart).Microseconds()) / 1000
+				}
+				previousStart = start
 				beforeW, beforeR := commitCount.Load(), readerCount.Load()
 				beforeWal := walState()
 				cpSequence.Add(1)
@@ -166,7 +184,7 @@ func setupExperiment(db *sql.DB, path string) {
 				if e == nil {
 					markCheckpointDurable(beforeWal, w, frames, backfilled)
 				}
-				event := map[string]any{"ms": ms, "busy": busy, "log_frames": frames, "backfilled_frames": backfilled, "writer_commits_during": afterW - beforeW, "reader_queries_during": afterR - beforeR, "start_unix_ns": start.UnixNano(), "end_unix_ns": time.Now().UnixNano(), "wal": w, "cadence_ms": checkpointEvery.Milliseconds()}
+				event := map[string]any{"ms": ms, "busy": busy, "log_frames": frames, "backfilled_frames": backfilled, "writer_commits_during": afterW - beforeW, "reader_queries_during": afterR - beforeR, "start_unix_ns": start.UnixNano(), "end_unix_ns": time.Now().UnixNano(), "wal": w, "cadence_ms": checkpointEvery.Milliseconds(), "minimum_grant_interval_ms": checkpointEvery.Milliseconds(), "since_previous_start_ms": elapsedSincePrevious, "trigger": trigger}
 				if e != nil {
 					event["error"] = e.Error()
 				}
@@ -372,7 +390,11 @@ func startSnapshotProbe() {
 			if e != nil && e != sql.ErrNoRows {
 				panic(e)
 			}
-			timer := time.NewTimer(snapshotCap)
+			remaining := snapshotCap - time.Since(start)
+			if remaining < 0 {
+				remaining = 0
+			}
+			timer := time.NewTimer(remaining)
 			select {
 			case <-snapshotStop:
 				timer.Stop()

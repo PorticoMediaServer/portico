@@ -35,7 +35,7 @@ func createBank(db *sql.DB, gen int) {
 }
 func generationBench(db *sql.DB, n, batch int) {
 	start := time.Now()
-	exec(db, `INSERT INTO search_generations(id,bank_key,recipe_version,engine_version,unicode_fingerprint,state,created_ms,captured_input_sequence) SELECT 2,'v2',?,'modernc1.58.0-SQLite3.53.4','bundled-3.53.4+facettext-pin','building',?,input_sequence FROM search_revision WHERE singleton=1`, recipeVersion, time.Now().UnixMilli())
+	exec(db, `INSERT INTO search_generations(id,bank_key,recipe_version,engine_version,unicode_fingerprint,state,created_ms,captured_input_sequence) SELECT 2,'v2',?,'modernc1.58.0-SQLite3.53.4',?,'building',?,input_sequence FROM search_revision WHERE singleton=1`, recipeVersion, engineFingerprint, time.Now().UnixMilli())
 	exec(db, "UPDATE search_revision SET building_generation_id=2 WHERE singleton=1")
 	createBank(db, 2)
 	// Source context identities, not expanded descendants.
@@ -151,8 +151,9 @@ func generationBench(db *sql.DB, n, batch int) {
 	// Reclaim old bank in bounded document transactions, retaining old strings
 	// until its native deletes have physically returned. Old generation is inactive.
 	retired := 0
+	afterJob := -1
 	for {
-		rows, e := db.Query(`SELECT id,entity_id,person_id,published_document_id,published_generation FROM search_publish_jobs WHERE search_generation_id=1 AND published_document_id IS NOT NULL ORDER BY id LIMIT ?`, batch)
+		rows, e := db.Query(`SELECT id,entity_id,person_id,published_document_id,published_generation FROM search_publish_jobs WHERE search_generation_id=1 AND id>? AND published_document_id IS NOT NULL ORDER BY id LIMIT ?`, afterJob, batch)
 		must(e)
 		docs := []*pubDoc{}
 		for rows.Next() {
@@ -199,6 +200,7 @@ func generationBench(db *sql.DB, n, batch int) {
 		reclaimPub(db, docs, "generation.retire")
 		maintain(db, "generation.retire.merge")
 		retired += len(docs)
+		afterJob = docs[len(docs)-1].job
 	}
 	emit("generation_reclaim", map[string]any{"documents": retired, "native_old_head": txStat("generation.retire_head.tx"), "fragment_reclaim": txStat("generation.retire.reclaim.tx"), "allocated": allocation(db, databasePath), "physical_drop": "not used; native tombstones/segments repaid by governed merge1; database free pages remain reusable"})
 
