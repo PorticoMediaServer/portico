@@ -31,8 +31,10 @@ async function scene(platform: 'android' | 'tvos', {showAllAsks = true, rowsHeld
   const {useScreenEntry} = await screenModule(new URL('../src-next/screens/settings-live/Screen.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native': n, '../../kit/theme': {useTheme: () => ({isTV: true, colors: {}})},
     '../../kit/shell/visual': {shellType: () => ({})}, '../../kit/focus': focus, '../../kit/artwork': {StandardBackdrop: () => null}});
+  // The real Back ladder (kit/navigation/back) over the fake engine's BackHandler: the ask observes Back in its `observer` scope.
+  const back = await screenModule(new URL('../src-next/kit/navigation/back.ts', import.meta.url), {react: {...React, default: React}, 'react-native': n});
   const {useTVRemoteActivity} = await screenModule(new URL('../src-next/platform/tv-keys.ts', import.meta.url), {
-    react: {...React, default: React}, 'react-native': noTVEvents ? {...n, useTVEventHandler: () => {}} : n, './tv-key-adapter': {}, './tv-key-source': {}});
+    react: {...React, default: React}, 'react-native': noTVEvents ? {...n, useTVEventHandler: () => {}} : n, './tv-key-adapter': {}, './tv-key-source': {}, '../kit/navigation/back': back});
   const registry = focus.createFocusRegistry();
   const filters = 'live.filters', grid = 'live.grid';
   const shell: Shell = {destination: {kind: 'live'}, contentVisible: true, mediaExpanded: false, homeObscured: false};
