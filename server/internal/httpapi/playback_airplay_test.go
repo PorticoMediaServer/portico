@@ -120,14 +120,16 @@ func TestAirPlayReceiverPreparesExactCurrentChoicesBeforeHandoff(t *testing.T) {
 		body := playbackv1.AirPlayPrepare{Generation: local.Presentation.Generation, ChoiceRevision: local.Presentation.ChoiceRevision, PositionMs: 17000}
 		f.call("POST", endpoint, nil, body, 200, &prepared)
 		if track == drawn {
-			early := f.raw("GET", prepared.Presentation.URL, "", nil, nil)
+			t.Logf("SEEK CONTROL active conversions %d", f.v1.Playback.Conversions().Active)
+			firstURL := strings.TrimSuffix(prepared.Presentation.URL, "master.m3u8") + "segment-000000.ts"
+			early := f.raw("GET", firstURL, "", nil, nil)
 			for deadline := time.Now().Add(20 * time.Second); early.Code == 503 && time.Now().Before(deadline); {
 				time.Sleep(10 * time.Millisecond)
-				early = f.raw("GET", prepared.Presentation.URL, "", nil, nil)
+				early = f.raw("GET", firstURL, "", nil, nil)
 			}
-			t.Logf("IMMEDIATE HTTP manifest %d", early.Code)
+			t.Logf("HTTP SEEK slot0 %d", early.Code)
 			if early.Code != 200 {
-				t.Fatalf("immediate receiver manifest %d %s", early.Code, early.Body.String())
+				t.Fatalf("receiver seek slot0 %d %s", early.Code, early.Body.String())
 			}
 		}
 		if prepared.Presentation.AudioTrackID != local.Presentation.AudioTrackID {
