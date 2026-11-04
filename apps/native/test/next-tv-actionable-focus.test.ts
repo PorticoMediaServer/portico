@@ -424,6 +424,7 @@ test('ViewToggle caller binds both actual hosts independently with semantic IDs'
 
 test('TV Now Playing names More and Lyrics from the actual mounted instance and restores original More host', async t => {
   t.mock.timers.enable({apis: ['setTimeout']});
+  let motionReady = true;
   const b = await bindings(), o = await overlayBindings(b), dock = await import('../src-next/kit/dock/model');
   const text = await import('../../../packages/client-core/src/presentation/kit-model/text');
   const {TVNowPlayingScreen} = await screenModule(new URL('../src-next/screens/destinations/music/TVNowPlayingScreen.tsx', import.meta.url), {
@@ -437,7 +438,7 @@ test('TV Now Playing names More and Lyrics from the actual mounted instance and 
     './MusicSignal': {MusicSignalLine: 'Signal', MusicSignalSheet: 'SignalSheet'}, './ListeningNotice': {NativeListeningNotice: 'Notice'},
     './NowPlayingQueue': {NowPlayingQueue: 'Queue', nowPlayingQueueRows: () => [], nowPlayingQueueFocusScope: () => '', nowPlayingQueueEditPort: () => undefined},
     './TVMusicFocus': {MusicFocusRegion: b.focus.FocusRegion, TVMusicFocus: 'MusicFocus', TVMusicSeek: 'Seek'}, './TVQueuePolicy': {useTVQueuePolicy: () => ({})},
-    '../../../tv/layout/TVPageMotion': {TVPageGroup: 'PageGroup', TVPageTransition: 'Transition', useTVPageMotion: () => ({open: true, ready: true})}});
+    '../../../tv/layout/TVPageMotion': {TVPageGroup: 'PageGroup', TVPageTransition: 'Transition', useTVPageMotion: () => ({open: true, ready: motionReady})}});
   const props: any = {occupant: {mode: 'music', playback: {fence: {}, kind: 'music', queue: null, positionSeconds: 5, playing: true},
     presentation: {identity: {title: 'Song', subtitle: []}, durationSeconds: 100, capabilities: {play: true, pause: true, previous: false, next: true}}},
     width: 1920, height: 1080, artwork: () => undefined, onAction() {}, onQueuePlay() {}, onClose() {}, lyrics: React.createElement('Lyrics'), equalizerCopy: {}};
@@ -477,6 +478,20 @@ test('TV Now Playing names More and Lyrics from the actual mounted instance and 
   nodes(retryTree).find(node => node.type === o.Button && node.props.testID === 'now-playing-toggle').props.ref.current = {requestTVFocus() {retryClaims.push('toggle');}};
   assert.equal(retryClaim(), true); assert.deepEqual(retryClaims, ['toggle']);
   await retryHost.unmount();
+  // Reviewer (#577): while the page is still moving in (not ready) the claim declines even with its views attached;
+  // once ready, the same provided claim lands. The stack asks it again when the transport region turns enabled
+  // (next-tv-layer-stack covers that re-ask).
+  motionReady = false;
+  const movingWrap = TVNowPlayingScreen(props).props.children; let movingTree: any;
+  const movingHost = createFabricHookHost(() => {movingTree = movingWrap.type(movingWrap.props);}); await movingHost.mount();
+  const movingClaim = provided.at(-1)!.claim, movingClaims: string[] = [];
+  nodes(movingTree).find(node => node.type === o.Button && node.props.testID === 'now-playing-toggle').props.ref.current = {requestTVFocus() {movingClaims.push('toggle');}};
+  assert.equal(movingClaim(), false, 'not ready: no request, even attached');
+  assert.deepEqual(movingClaims, []);
+  motionReady = true; await movingHost.rerender();
+  assert.equal(provided.at(-1)!.claim, movingClaim, 'the same claim stays provided across the render');
+  assert.equal(movingClaim(), true, 'ready: it lands'); assert.deepEqual(movingClaims, ['toggle']);
+  await movingHost.unmount();
   const another = createFabricHookHost(() => {second = wrap.type(wrap.props);}); await another.mount();
   frames.length = 0;
   const ref = button('more').props.ref; let restored = 0; ref.current = {nativeTag: 701, requestTVFocus() {restored++;}};

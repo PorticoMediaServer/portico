@@ -133,6 +133,31 @@ test('TVF-A1: the listening screen says which control it opens on; the stack ask
   assert.equal(tvLayerSpecs([], false, true, () => null, () => null)[1]!.claim!(), false, 'a released claim is gone');
 });
 
+test('TVF-A1 (#577 review): a listening screen still moving in declines; the stack asks again when its transport region turns enabled, and then it lands', async () => {
+  const {provideTVLayerClaim} = await import('../src-next/kit/focus/layer-stack.ts');
+  const registry = createFocusRegistry(), time = clock(), log: string[] = [];
+  const stack = createTVLayerStack(registry, time);
+  const card = {regionId: 'album', childId: 'play'};
+  registry.configure({id: 'album', order: ['play']}); registry.attach(card, host(log, 'album-play', () => registry.didFocus(card)));
+  registry.didFocus(card);
+  const toggle = {regionId: 'listening.transport', childId: 'toggle'};
+  // The screen's views attach while its region is still disabled (page not ready).
+  registry.configure({id: 'listening.transport', order: ['toggle'], enabled: false});
+  registry.attach(toggle, host(log, 'toggle', () => registry.didFocus(toggle)));
+  let ready = false;
+  const release = provideTVLayerClaim('listening', () => {log.push('claim'); if (!ready) return false; registry.child(toggle)?.requestTVFocus?.(); return true;});
+  try {
+    stack.sync(tvLayerSpecs([], false, false, () => host(log, 'page-layer'), () => null));
+    stack.sync(tvLayerSpecs([], false, true, () => host(log, 'page-layer'), () => null));
+    assert.deepEqual(log, ['claim'], 'asked as it goes on top: declines while moving in');
+    ready = true;
+    registry.configure({id: 'listening.transport', order: ['toggle'], enabled: true});
+    assert.deepEqual(log, ['claim', 'claim', 'toggle'], 'the enabled flip asks again, and it lands on Play/Pause');
+    assert.equal(registry.capture()?.childId, 'toggle');
+    assert.equal(time.size(), 0, 'the claim is over');
+  } finally {release(); stack.dispose();}
+});
+
 /** The shell's page and route layers with the real stack doing the claims and returns. */
 async function layered(platform: 'android' | 'tvos' = 'android') {
   const kit = await tvFocusKit({platform}), {e, engine, focus, Stop, React} = kit, n = engine.native;

@@ -269,3 +269,16 @@ test('bootstrap reports an unreadable native state without preventing Home or lo
     assert.equal(f.state.connects, 1); assert.equal(f.state.disconnects, 0);
   } finally {runtime.dispose();}
 });
+
+test('N5-6 wiring: the bootstrap runtime\'s share scope is the signed-in server: local with this connection\'s own address, or Portico Account (hosted), and nothing once retired', async () => {
+  active = fixture(); const f = active;
+  const runtime = await restoreNativeShellRuntime(() => ({getState: () => ({destination: {kind: 'home'}}), account: {}, attach: noop, subscribe, dispose: noop,
+    reportError: (error: unknown) => {f.state.errors.push(error);}} as any), {onAuthorityEnded: noop});
+  assert.ok(runtime);
+  try {
+    assert.deepEqual(runtime.shareScope?.(), {serverId: 'server', hosted: false, origin: 'https://server.test'}, 'a local-account server shares its own address');
+    (f.session.viewer as {authority: string}).authority = 'hosted';
+    assert.equal(runtime.shareScope?.()?.hosted, true, 'a Portico Account server shares the canonical link');
+  } finally {runtime.dispose();}
+  assert.equal(runtime.shareScope?.(), undefined, 'a retired runtime offers no link');
+});
