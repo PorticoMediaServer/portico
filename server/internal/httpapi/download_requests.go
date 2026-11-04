@@ -31,6 +31,8 @@ func (d Dependencies) downloadRequestAccess(ctx context.Context, tx *sql.Tx, p i
 }
 func downloadRequestError(e error) error {
 	switch {
+	case errors.Is(e, downloads.ErrQualityRequired):
+		return &apierror.Error{Code: "download_quality_required", Cause: e}
 	case errors.Is(e, downloads.ErrRequestConflict):
 		return &apierror.Error{Code: "idempotency_key_reused", Cause: e}
 	case errors.Is(e, downloads.ErrInput):
@@ -55,7 +57,7 @@ func registerDownloadRequests(r *apikit.Registry, d Dependencies) {
 		return out, downloadRequestError(e)
 	})
 
-	v1Route(r, apikit.Metadata{Audience: apikit.Clients, Admission: laneDefault, ID: "create_download_request", Method: "POST", Path: "/v1/downloads/requests", Summary: "Queue all visible members of a container for offline preparation", Access: apikit.Device, Requires: apikit.ScopePlayback, Lane: apikit.Default, Cost: apikit.SelectionAsync, Status: 202, BodyLimit: 8192, Errors: failures}, func(ctx context.Context, q *http.Request, in downloads.ContainerRequest) (downloads.RequestView, error) {
+	v1Route(r, apikit.Metadata{Audience: apikit.Clients, Admission: laneDefault, ID: "create_download_request", Method: "POST", Path: "/v1/downloads/requests", Summary: "Queue all visible members of a container for offline preparation", Access: apikit.Device, Requires: apikit.ScopePlayback, Lane: apikit.Default, Cost: apikit.SelectionAsync, Status: 202, BodyLimit: 8192, Errors: append(append([]string{}, failures...), "download_quality_required")}, func(ctx context.Context, q *http.Request, in downloads.ContainerRequest) (downloads.RequestView, error) {
 		p, e := d.principal(q)
 		if e != nil {
 			return downloads.RequestView{}, e

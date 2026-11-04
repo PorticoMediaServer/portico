@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+
+	"github.com/PorticoMediaServer/portico/server/internal/operations"
 )
 
 func TestQualityDefaultsR25DownloadOmissionAndReplay(t *testing.T) {
@@ -20,9 +22,12 @@ func TestQualityDefaultsR25DownloadOmissionAndReplay(t *testing.T) {
 	}
 	explicit := omitted
 	explicit.Quality = "original"
-	replay, err := h.service.Submit(ctx, h.viewer, explicit, nil)
+	replay, err := h.service.Submit(ctx, h.viewer, omitted, nil)
 	if err != nil || !replay.Duplicate || replay.BatchID != batch.BatchID {
 		t.Fatal(replay, err)
+	}
+	if _, err = h.service.Submit(ctx, h.viewer, explicit, nil); !errors.Is(err, operations.ErrIdempotencyKeyReused) {
+		t.Fatal("explicit Original replaced a saved-choice request", err)
 	}
 	container := newContainerRequest("container-default", h.show)
 	container.Quality = ""
@@ -30,10 +35,13 @@ func TestQualityDefaultsR25DownloadOmissionAndReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	container.Quality = "original"
 	repeated, err := h.service.SubmitContainer(ctx, h.viewer, container)
 	if err != nil || repeated.RequestID != first.RequestID {
 		t.Fatal(repeated, err)
+	}
+	container.Quality = "original"
+	if _, err = h.service.SubmitContainer(ctx, h.viewer, container); !errors.Is(err, ErrRequestConflict) {
+		t.Fatal("explicit Original replaced a saved-choice container request", err)
 	}
 	var stored string
 	if err = h.db.QueryRow(`SELECT quality FROM download_requests WHERE id=?`, first.RequestID).Scan(&stored); err != nil || stored != "original" {
