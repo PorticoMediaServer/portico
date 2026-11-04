@@ -421,7 +421,6 @@ func restrictionRoutes() map[string]restrictionRoute {
 		"GET /v1/albums/{id}/songs":                                 perEntity("/v1/albums/", "album", "/songs"),
 		"GET /v1/artists/{id}/albums":                               perEntity("/v1/artists/", "artist", "/albums"),
 		"GET /v1/books/{id}/chapters":                               perEntity("/v1/books/", "book", "/chapters"),
-		"GET /v1/books/{id}/files":                                  perEntity("/v1/books/", "book", "/files"),
 		"GET /v1/app-reports":                                       exempt("current owner-only receipts of explicitly submitted closed coded app journals; no catalogue identifiers, titles, paths or assets"),
 		"GET /v1/app-reports/recipient":                             exempt("current session and verified device read only the owner's display name and opaque recipient revision; no catalogue lookup or content"),
 		"GET /v1/feedback/capabilities":                             exempt("caller-authored feedback and reports; no catalogue lookup, scoped to the caller (notifications_routes_test)"),
@@ -724,8 +723,6 @@ func restrictionRoutes() map[string]restrictionRoute {
 		"GET /v1/people/{id}/portrait":                  probe(func(m *restrictionEnv) []string { return prefixed("/v1/people/", m.people, "/portrait") }),
 
 		// Catalogue: one library.
-		"GET /v1/libraries/{id}/artists":             perLibrary("/artists"),
-		"GET /v1/libraries/{id}/books":               perLibrary("/books"),
 		"GET /v1/libraries/{id}/browse":              perLibrary("/browse"),
 		"GET /v1/libraries/{id}/browse-capabilities": perLibrary("/browse-capabilities"),
 		"GET /v1/libraries/{id}/categories":          perLibrary("/categories"),
@@ -763,7 +760,6 @@ func restrictionRoutes() map[string]restrictionRoute {
 		"GET /v1/libraries/{id}/metadata/screen":      perLibrary("/metadata/screen"),
 		"GET /v1/libraries/{id}/network-roots":        perLibrary("/network-roots"),
 		"GET /v1/libraries/{id}/show-workspace":       probe(func(m *restrictionEnv) []string { return m.showWorkspacePaths() }),
-		"GET /v1/libraries/{id}/shows":                perLibrary("/shows"),
 		"GET /v1/libraries/{id}/strm-analysis-policy": perLibrary("/strm-analysis-policy"),
 
 		// Live TV, guide and recordings: channels and recordings carry their own

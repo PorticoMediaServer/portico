@@ -12,19 +12,9 @@ func registerBrowseHTTPContracts(registry *apikit.Registry) error {
 	}
 
 	// internal/httpapi/audio.go:11
-	if err := apikit.RegisterHTTP[struct{}, struct {
-		Artists    []catalog.Artist `json:"artists"`
-		NextCursor string           `json:"nextCursor"`
-	}](registry, apikit.Metadata{Audience: apikit.Clients, ID: "get_libraries_id_artists", Method: "GET", Path: "/v1/libraries/{id}/artists", Summary: "Read library artist", Access: apikit.Device, Requires: apikit.ScopeRead, Lane: apikit.Browsing, Admission: laneBrowsing, Cost: apikit.PageSized, BodyLimit: 0, Status: 200, Query: []string{"cursor", "limit"}, QueryIntegers: legacyBrowseLimitQuery, Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "internal"}}); err != nil {
-		return err
-	}
+
 	// internal/httpapi/audio.go:33
-	if err := apikit.RegisterHTTP[struct{}, struct {
-		Books      []catalog.Book `json:"books"`
-		NextCursor string         `json:"nextCursor"`
-	}](registry, apikit.Metadata{Audience: apikit.Clients, ID: "get_libraries_id_books", Method: "GET", Path: "/v1/libraries/{id}/books", Summary: "Read library book", Access: apikit.Device, Requires: apikit.ScopeRead, Lane: apikit.Browsing, Admission: laneBrowsing, Cost: apikit.PageSized, BodyLimit: 0, Status: 200, Query: []string{"cursor", "limit"}, QueryIntegers: legacyBrowseLimitQuery, Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "internal"}}); err != nil {
-		return err
-	}
+
 	// internal/httpapi/audio.go:56
 	if err := apikit.RegisterHTTP[struct{}, struct {
 		Albums     []catalog.Album `json:"albums"`
@@ -40,12 +30,7 @@ func registerBrowseHTTPContracts(registry *apikit.Registry) error {
 		return err
 	}
 	// internal/httpapi/audio.go:56
-	if err := apikit.RegisterHTTP[struct{}, struct {
-		Files      []catalog.Item `json:"files"`
-		NextCursor string         `json:"nextCursor"`
-	}](registry, apikit.Metadata{Audience: apikit.Clients, ID: "get_books_id_files", Method: "GET", Path: "/v1/books/{id}/files", Summary: "Read book files", Access: apikit.Device, Requires: apikit.ScopeRead, Lane: apikit.Default, Admission: laneDefault, Cost: apikit.PageSized, BodyLimit: 0, Status: 200, Query: []string{"cursor", "limit"}, QueryIntegers: legacyBrowseLimitQuery, Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "internal"}}); err != nil {
-		return err
-	}
+
 	// internal/httpapi/audio.go:56
 	if err := apikit.RegisterHTTP[struct{}, struct {
 		Chapters   []catalog.BookChapter `json:"chapters"`
@@ -94,12 +79,7 @@ func registerBrowseHTTPContracts(registry *apikit.Registry) error {
 		return err
 	}
 	// internal/httpapi/episodes.go:36
-	if err := apikit.RegisterHTTP[struct{}, struct {
-		Shows      []catalog.Show `json:"shows"`
-		NextCursor string         `json:"nextCursor"`
-	}](registry, apikit.Metadata{Audience: apikit.Clients, ID: "get_libraries_id_shows", Method: "GET", Path: "/v1/libraries/{id}/shows", Summary: "Read library show", Access: apikit.Device, Requires: apikit.ScopeRead, Lane: apikit.Browsing, Admission: laneBrowsing, Cost: apikit.PageSized, BodyLimit: 0, Status: 200, Query: []string{"cursor", "limit"}, QueryIntegers: legacyBrowseLimitQuery, Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "internal"}}); err != nil {
-		return err
-	}
+
 	// internal/httpapi/episodes.go:60
 	if err := apikit.RegisterHTTP[struct{}, struct {
 		Seasons []catalog.Season `json:"seasons"`
