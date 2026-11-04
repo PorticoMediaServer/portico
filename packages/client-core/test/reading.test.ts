@@ -426,3 +426,16 @@ test('RD-8: a busy reading open presents in the catalogue\'s retry-later words, 
   assert.equal(shown.category, 'busy'); assert.equal(shown.body, defaultI18n.t('error.busy'));
   assert.equal(shown.retryAfterSeconds, 3);
 });
+
+test('RD-5: an EPUB too large to read is refused at open as its own code (422, never waited out or retried)', async () => {
+  const f = setup('epub');
+  f.hook(call => call.url.pathname === routePath('post_reading_sessions') ? new Response(JSON.stringify({error: {code: 'reading_publication_too_large', message: 'This book is too large to open.', retry: 'never'}}), {status: 422, headers: {'Content-Type': 'application/json'}}) : undefined);
+  await assert.rejects(f.client.open({itemId: 'book', sourceId: 'asset'}), (error: unknown) => coded('reading_publication_too_large')(error) && (error as ReadingError).status === 422);
+  assert.equal(f.calls.filter(call => call.url.pathname === routePath('post_reading_sessions')).length, 1, 'one attempt only');
+});
+test('RD-5: an accepted EPUB session keeps the server\'s limits for the reader', async () => {
+  const f = setup('epub');
+  f.hook(call => call.url.pathname === routePath('post_reading_sessions') ? json({...f.manifest, limits: {memberBytes: 16777216, totalBytes: 268435456}}) : undefined);
+  const session = await f.client.open({itemId: 'book', sourceId: 'asset'});
+  assert.equal(session.manifest.limits?.memberBytes, 16777216); assert.equal(session.manifest.limits?.totalBytes, 268435456);
+});

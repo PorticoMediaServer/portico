@@ -11,6 +11,7 @@ import type {ReaderAdapter, ReaderDocument, ReaderLocation, ReaderMetadata, Read
 import {openEpubArchive, safeArchivePath} from './archive.ts';
 import {resourceAssets} from './resources.ts';
 import {orUnreadable, unreadableEpubMember, unreadableEpubText, UnreadableSections, settleUnreadableSection} from '../unreadable.ts';
+import {epubLimits} from './limits.ts';
 import {rejectXmlEntities, secureMarkup, secureCss} from './security.ts';
 import {epubDisplay, type EpubDisplayPreferences} from './display.ts';
 import {validateEpubRaster} from './media.ts';
@@ -76,6 +77,7 @@ export function createBrowserEpubAdapter<P extends EpubDisplayPreferences>(optio
     const id=source.id,revision=source.revision,size=source.size,resources=source.resources,contents=source.contents;
     const indexedSearch=source.indexedSearch,indexedSpine=source.spine;
     const spine=indexedSpine===undefined?undefined:Object.freeze([...indexedSpine]);
+    const limits=epubLimits(source.limits);
     const currentSource=()=>source.id===id&&source.revision===revision&&source.size===size&&source.resources===resources&&source.contents===contents&&source.indexedSearch===indexedSearch&&source.spine===indexedSpine;
     const unchanged=()=>{if(!currentSource())throw new ReaderError('invalid_source');};
     const lifetime=new AbortController(),scope=abortScope([parent,lifetime.signal]),signal=scope.signal;
@@ -90,9 +92,9 @@ export function createBrowserEpubAdapter<P extends EpubDisplayPreferences>(optio
     // parses or rewrites the resource, rather than only at the final Blob.
     function secureText(path:string,mime:string,raw:string):string {
       if(mime==='text/html'||mime==='application/xhtml+xml'||/\.x?html?$/i.test(path)||/<(?:\w+:)?html[\s>]/i.test(raw))
-        return secureMarkup(raw,'application/xhtml+xml');
-      if(mime==='image/svg+xml'||/\.svg$/i.test(path))return secureMarkup(raw,'image/svg+xml');
-      if(mime==='text/css'||/\.css$/i.test(path))return secureCss(raw);
+        return secureMarkup(raw,'application/xhtml+xml',false,limits.memberBytes);
+      if(mime==='image/svg+xml'||/\.svg$/i.test(path))return secureMarkup(raw,'image/svg+xml',false,limits.memberBytes);
+      if(mime==='text/css'||/\.css$/i.test(path))return secureCss(raw,false,limits.memberBytes);
       return rejectXmlEntities(raw);
     }
     // RD-2: after open, a member the server rejected as content becomes a placeholder section
@@ -142,9 +144,9 @@ export function createBrowserEpubAdapter<P extends EpubDisplayPreferences>(optio
       });
       book.transformTarget.addEventListener('data',event=>{
         const detail=(event as CustomEvent<{name?:string;data:string|Blob|Promise<string|Blob>;type:string}>).detail;
-        if(detail.type==='text/css')detail.data=Promise.resolve(detail.data).then(async data=>{throwIfAborted(signal);return secureCss(typeof data==='string'?data:await data.text(),true);});
+        if(detail.type==='text/css')detail.data=Promise.resolve(detail.data).then(async data=>{throwIfAborted(signal);return secureCss(typeof data==='string'?data:await data.text(),true,limits.memberBytes);});
         if(['application/xhtml+xml','text/html','image/svg+xml'].includes(detail.type)) {
-          detail.data=Promise.resolve(detail.data).then(async data=>{throwIfAborted(signal);return secureMarkup(typeof data==='string'?data:await data.text(),detail.type as 'application/xhtml+xml',true);});
+          detail.data=Promise.resolve(detail.data).then(async data=>{throwIfAborted(signal);return secureMarkup(typeof data==='string'?data:await data.text(),detail.type as 'application/xhtml+xml',true,limits.memberBytes);});
         } else if(detail.type!=='text/css') {
           detail.data=Promise.resolve(detail.data).then(async data=>{
             throwIfAborted(signal);

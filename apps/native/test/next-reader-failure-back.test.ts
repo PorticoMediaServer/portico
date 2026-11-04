@@ -40,7 +40,7 @@ const find = (tree: unknown, match: (node: Node) => boolean): Node | undefined =
 const byTestID = (tree: unknown, testID: string) => find(tree, node => node.props?.testID === testID);
 const byType = (tree: unknown, type: string) => find(tree, node => node.type === type);
 
-type Failure = 'none' | 'pending' | 'versions' | 'open' | 'busy' | 'progress' | 'assets';
+type Failure = 'none' | 'pending' | 'versions' | 'open' | 'busy' | 'tooLarge' | 'progress' | 'assets';
 type Fixture = Readonly<{at: Failure; width?: number}>;
 
 async function harness(fixture: Fixture) {
@@ -56,6 +56,7 @@ async function harness(fixture: Fixture) {
     open: async () => {if (at === 'open') throw new Error('open_rejected');
       // The reading client already waited Retry-After once (RD-8); a second busy answer reaches the host.
       if (at === 'busy') throw Object.assign(new Error('reading_sessions_busy'), {name: 'ReadingError', code: 'reading_sessions_busy', status: 503, retryAfterSeconds: 2});
+      if (at === 'tooLarge') throw Object.assign(new Error('reading_publication_too_large'), {name: 'ReadingError', code: 'reading_publication_too_large', status: 422});
       return session;},
     dispose() {},
   };
@@ -421,4 +422,18 @@ test('RD-8 (W-19): a busy server says so in the catalogue\'s words and keeps Ret
     assert.equal(state!.props.primaryAction.id, 'retry'); assert.equal(state!.props.primaryAction.disabled, false, 'a busy open may be tried again');
     await view.host.unmount();
   }
+});
+
+test('RD-5: a book the server refuses as too large says so plainly, with no Try again, and Back stays reachable', async () => {
+  const fixture = await harness({at: 'tooLarge'});
+  let backs = 0;
+  const view = mount(fixture.ReadNativeHost, propsFor(fixture.context, {onBack: () => {backs++;}}));
+  await act(async () => {await view.host.mount(); await new Promise<void>(resolve => setImmediate(resolve));});
+  const state = byType(view.tree, 'StateView');
+  assert.ok(state);
+  assert.equal(state!.props.title, defaultI18n.t('next.reader.publicationTooLargeTitle'));
+  assert.equal(state!.props.body, defaultI18n.t('next.reader.publicationTooLargeBody'));
+  assert.equal(state!.props.primaryAction, undefined, 'no Try again: the server would only refuse again');
+  byTestID(view.tree, 'native-read-host-back')!.props.onPress(); assert.equal(backs, 1);
+  await view.host.unmount();
 });

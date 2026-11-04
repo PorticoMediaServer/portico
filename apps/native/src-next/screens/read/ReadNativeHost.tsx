@@ -144,9 +144,12 @@ export function ReadNativeHost({context, target, active, preferences, onBack, on
   // RD-8 (DECISIONS W-19): only the server-wide session cap is busy, and the reading client has
   // already waited out its Retry-After once. Say so in the catalogue's words (presentError's busy copy).
   const busy = failed && (snapshot as {error?: {code?: unknown}}).error?.code === 'reading_sessions_busy';
+  // RD-5: the server refuses a book too large to read (422, retry never): say so plainly, no Try again.
+  const tooLarge = failed && (snapshot as {error?: {code?: unknown}}).error?.code === 'reading_publication_too_large';
   return place(<CoveredLayer covered={!active}
     style={{position: 'absolute', inset: 0, backgroundColor: theme.colors.ink, opacity: active || stacked ? 1 : 0}}>
-    {failed ? <StateView variant="centered" title={defaultI18n.t('next.states.pageFailed')} body={defaultI18n.t(busy ? 'error.busy' : 'next.states.pageFailedBody')}
+    {tooLarge ? <StateView variant="centered" title={defaultI18n.t('next.reader.publicationTooLargeTitle')} body={defaultI18n.t('next.reader.publicationTooLargeBody')}/>
+      : failed ? <StateView variant="centered" title={defaultI18n.t('next.states.pageFailed')} body={defaultI18n.t(busy ? 'error.busy' : 'next.states.pageFailedBody')}
       primaryAction={{id: 'retry', label: defaultI18n.t('next.states.tryAgain'), disabled: !active || snapshot.phase === 'retired' || !!snapshot.session || !context.current(), onPress: retryOriginal}}/>
       : <LoadingPaint ready={false} skeleton={<SkeletonBlock width="100%" style={{flex: 1}}/>}/>}
     <View pointerEvents="box-none" style={{position: 'absolute', left: 12, top: insets.top + 8, zIndex: 20}}>
