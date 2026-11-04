@@ -10,7 +10,7 @@ import type {ReaderAdapter, ReaderDocument, ReaderLocation, ReaderMetadata, Read
   ReaderNavigation, ReaderIndexedSearchHit, ReaderSearchOptions, ReaderSearchResult, ReaderTocItem, ReaderView, ReaderViewport} from '../ports.ts';
 import {openEpubArchive, safeArchivePath} from './archive.ts';
 import {resourceAssets} from './resources.ts';
-import {orUnreadable, unreadableSectionXhtml} from '../unreadable.ts';
+import {orUnreadable, unreadableEpubMember, unreadableSectionXhtml, UnreadableSections, settleUnreadableSection} from '../unreadable.ts';
 import {rejectXmlEntities, secureMarkup, secureCss} from './security.ts';
 import {epubDisplay, type EpubDisplayPreferences} from './display.ts';
 import {validateEpubRaster} from './media.ts';
@@ -99,12 +99,13 @@ export function createBrowserEpubAdapter<P extends EpubDisplayPreferences>(optio
     // (markup) or is left out (an image, a font); before open the failure propagates.
     const markupPath=(path:string,mime:string)=>['text/html','application/xhtml+xml'].includes(mime)||/\.x?html?$/i.test(path);
     const standIn=()=>book&&options.unreadable?()=>null:undefined;
+    const unreadable=new UnreadableSections();
     async function loadText(path:string,callerSignal:AbortSignal=signal):Promise<string|null> {
       const task=abortScope([signal,callerSignal]),active=task.signal;
       try {throwIfAborted(active);unchanged();
       const entry=byPath.get(safeArchivePath(path));if(!entry)return null;
       const raw=await orUnreadable(()=>assets.read(path,active),standIn());throwIfAborted(active);unchanged();
-      if(raw===null)return markupPath(path,'mime' in entry?entry.mime??'':'')?unreadableSectionXhtml(options.unreadable!):null;
+      if(raw===null){if(!markupPath(path,'mime' in entry?entry.mime??'':''))return null;unreadable.add(path);return unreadableSectionXhtml(options.unreadable!);}
       const text=decoder.decode(raw);
       const mime='mime' in entry ? entry.mime : '';
       return secureText(path,mime??'',text);
@@ -114,7 +115,7 @@ export function createBrowserEpubAdapter<P extends EpubDisplayPreferences>(optio
       throwIfAborted(signal);unchanged();const entry=byPath.get(safeArchivePath(path));if(!entry)return null;
       const mime='mime' in entry && typeof entry.mime==='string'?entry.mime:'';
       const read=await orUnreadable(()=>assets.read(path,signal),standIn());throwIfAborted(signal);unchanged();
-      if(read===null)return markupPath(path,mime)?new Blob([unreadableSectionXhtml(options.unreadable!)],{type:'application/xhtml+xml'}):null;
+      if(read===null){if(markupPath(path,mime))unreadable.add(path);return unreadableEpubMember(path,mime,options.unreadable!);}
       let bytes=read;
       if(['text/html','application/xhtml+xml','image/svg+xml','text/css'].includes(mime)||/\.(?:x?html?|svg|css)$/i.test(path))
         bytes=new TextEncoder().encode(secureText(path,mime,decoder.decode(bytes)));
@@ -201,14 +202,16 @@ export function createBrowserEpubAdapter<P extends EpubDisplayPreferences>(optio
             const entry=contents[index];
             if(!entry||typeof entry.section!=='string'||safeArchivePath(entry.section)!==entry.section||
               entry.fragment!==undefined&&(typeof entry.fragment!=='string'||entry.fragment.length>1024||/[\p{Cc}]/u.test(entry.fragment)))throw new ReaderError('invalid_location');
-            const {section,fragment}=entry;
+            const {section,fragment:requested}=entry;
             const target=b.resolveHref(section);
             if(!target||b.sections[target.index]?.id!==section)throw new ReaderError('invalid_location');
             // Reuse the engine's admitted source loader with the actual caller
             // signal; Section.createDocument only has the book-wide signal.
             const text=await loadText(section,task.signal);
             throwIfAborted(task.signal);unchanged();
-            if(contents[index]!==entry||entry.section!==section||entry.fragment!==fragment)throw new ReaderError('invalid_source');
+            if(contents[index]!==entry||entry.section!==section||entry.fragment!==requested)throw new ReaderError('invalid_source');
+            // RD-2: a placeholder section has none of the book's ids; open it at its start.
+            const fragment=unreadable.fragment(section,requested);
             if(text===null)throw new ReaderError('invalid_location');
             const doc=new DOMParser().parseFromString(text,'application/xhtml+xml');
             if(doc.querySelector('parsererror'))throw new ReaderError('invalid_book');
@@ -232,7 +235,7 @@ export function createBrowserEpubAdapter<P extends EpubDisplayPreferences>(optio
         async mount(mount) {
           throwIfAborted(signal);throwIfAborted(mount.signal);unchanged();if(mounted)throw new ReaderError('invalid_book');mounted=true;
           view=await mountEpub(b,{...mount,onLocation(value){if(currentSource())mount.onLocation(value);},
-            onSelection(value){if(currentSource())mount.onSelection(value);},onSurfaceInput(value){if(currentSource())mount.onSurfaceInput?.(value);}},options,tocBySection,signal,unchanged);return view;
+            onSelection(value){if(currentSource())mount.onSelection(value);},onSurfaceInput(value){if(currentSource())mount.onSurfaceInput?.(value);}},options,tocBySection,signal,unchanged,unreadable);return view;
         },
         async *search(query:string,search:ReaderSearchOptions):AsyncIterable<ReaderSearchResult> {
           if(!query.trim()||query.length>1024||search.limit<1||search.limit>500)throw new ReaderError('limit_exceeded');
@@ -331,7 +334,7 @@ export function createBrowserEpubAdapter<P extends EpubDisplayPreferences>(optio
             // Search has its own read signal, so cancelling a query cancels its
             // asset request without closing the mounted publication.
             const textSource=await loadText(b.sections[index].id,searchSignal);throwIfAborted(searchSignal);
-            if(!textSource)continue;
+            if(!textSource||unreadable.has(b.sections[index].id))continue;
             const doc=new DOMParser().parseFromString(textSource,'application/xhtml+xml');
             if(doc.querySelector('parsererror'))throw new ReaderError('invalid_book');
             const walker=doc.createTreeWalker(doc.body??doc.documentElement,NodeFilter.SHOW_TEXT,{acceptNode(node){
@@ -368,7 +371,7 @@ export function createBrowserEpubAdapter<P extends EpubDisplayPreferences>(optio
     } catch(error){await close();throw error;}
   }};
 }
-async function mountEpub<P extends EpubDisplayPreferences>(book:Book,mount:ReaderMount<P>,options:EpubAdapterOptions,tocBySection:Map<number,{label:string;cfi:string}[]>,parent:AbortSignal,unchanged:()=>void):Promise<ReaderView<P>> {
+async function mountEpub<P extends EpubDisplayPreferences>(book:Book,mount:ReaderMount<P>,options:EpubAdapterOptions,tocBySection:Map<number,{label:string;cfi:string}[]>,parent:AbortSignal,unchanged:()=>void,unreadable:UnreadableSections):Promise<ReaderView<P>> {
   const abort=new AbortController(),scope=abortScope([parent,mount.signal,abort.signal]),signal=scope.signal;
   const renderer=document.createElement('foliate-paginator') as Paginator;
   renderer.setAttribute('portico-motion','');
@@ -404,8 +407,9 @@ async function mountEpub<P extends EpubDisplayPreferences>(book:Book,mount:Reade
     if(mount.metadata?.title)iframe?.setAttribute('title',mount.metadata.title);
     doc.documentElement.lang ||= metadataLanguage(book.metadata?.language)??'';
     const listenerAbort=new AbortController(),opts={signal:listenerAbort.signal};cleanupDoc=()=>listenerAbort.abort();
+    const placeholder=unreadable.has(book.sections[index]?.id);if(placeholder)settleUnreadableSection(doc);
     const selection=()=>{
-      if(dead||signal.aborted)return;const selected=doc.defaultView?.getSelection();
+      if(dead||signal.aborted)return;if(placeholder){mount.onSelection(null);return;}const selected=doc.defaultView?.getSelection();
       if(!selected||selected.isCollapsed||!selected.rangeCount){mount.onSelection(null);return;}
       const range=selected.getRangeAt(0);if(!range.toString().trim())return;
       const frame=doc.defaultView?.frameElement?.getBoundingClientRect(),host=mount.container.getBoundingClientRect();

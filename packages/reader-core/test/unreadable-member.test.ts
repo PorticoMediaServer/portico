@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {MEMBER_UNREADABLE, memberUnreadable, orUnreadable, unreadablePageSurface, unreadableSectionXhtml} from '../src/unreadable.ts';
+import {MEMBER_UNREADABLE, memberUnreadable, orUnreadable, unreadablePageSurface, unreadableSectionXhtml, unreadableEpubMember, UnreadableSections, settleUnreadableSection} from '../src/unreadable.ts';
+import {rasterInfo} from '../src/comic/image.ts';
 
 // RD-2 (#669): the server rejects one EPUB asset or comic page as content with 422
 // `reading_member_unreadable` (retry never) and keeps the reading session open.
@@ -47,4 +48,36 @@ test('an unreadable EPUB section is a small well-formed XHTML page whose line is
   assert.match(page, /<html xmlns="http:\/\/www\.w3\.org\/1999\/xhtml">/);
   assert.match(page, /data-reader-unreadable="true"[^>]*>Part &lt;3&gt; &amp; “more” can&apos;t be read<\/p>/);
   assert.doesNotMatch(page, /<script|on\w+=/i);
+});
+
+test('#699 review: an unreadable EPUB image is left out as a transparent pixel, not a broken-image "null" body; a section is the placeholder; anything else is empty', async () => {
+  const image = unreadableEpubMember('OEBPS/images/plate.png', 'image/png', 'unused');
+  const bytes = new Uint8Array(await image.arrayBuffer());
+  assert.equal(image.type, 'image/gif');
+  assert.notEqual(new TextDecoder().decode(bytes), 'null', 'foliate would wrap a null into a 4-byte "null" image');
+  const info = rasterInfo(bytes); assert.equal(info.mime, 'image/gif'); assert.equal(info.width, 1); assert.equal(info.height, 1);
+  assert.equal(bytes[bytes.length - 1], 0x3b, 'a complete GIF');
+  const section = unreadableEpubMember('OEBPS/ch2.xhtml', 'application/xhtml+xml', 'This part can’t be read.');
+  assert.equal(section.type, 'application/xhtml+xml'); assert.match(await section.text(), /data-reader-unreadable="true"[^>]*>This part can’t be read\.</);
+  const font = unreadableEpubMember('OEBPS/fonts/a.otf', 'font/otf', 'unused');
+  assert.equal(font.size, 0); assert.equal(font.type, 'font/otf');
+});
+
+test('#699 review: a Contents #fragment inside a placeholder section opens at its start; placeholders are never searched', () => {
+  const sections = new UnreadableSections();
+  sections.add('OEBPS/ch2.xhtml');
+  assert.equal(sections.fragment('OEBPS/ch2.xhtml', 'part-two'), undefined, 'the placeholder has none of the book\'s ids');
+  assert.equal(sections.fragment('OEBPS/ch3.xhtml', 'part-three'), 'part-three', 'a readable section keeps its fragment (a missing id there is still invalid_location)');
+  assert.equal(sections.fragment('OEBPS/ch3.xhtml', undefined), undefined);
+  assert.equal(sections.has('OEBPS/ch2.xhtml'), true, 'local search skips it'); assert.equal(sections.has('OEBPS/ch3.xhtml'), false); assert.equal(sections.has(undefined), false);
+});
+
+test('#699 review: a placeholder\'s line can\'t be selected (so never highlighted) and stays centred whatever the reader\'s text rules say', () => {
+  const set: [string, string, string][] = [];
+  const note = {style: {setProperty: (name: string, value: string, priority: string) => {set.push([name, value, priority]);}}};
+  settleUnreadableSection({querySelectorAll: (selector: string) => selector === '[data-reader-unreadable]' ? [note] : []} as unknown as Document);
+  const value = (name: string) => set.find(entry => entry[0] === name);
+  assert.deepEqual(value('user-select'), ['user-select', 'none', 'important']);
+  assert.deepEqual(value('-webkit-user-select'), ['-webkit-user-select', 'none', 'important']);
+  assert.deepEqual(value('text-align'), ['text-align', 'center', 'important']);
 });

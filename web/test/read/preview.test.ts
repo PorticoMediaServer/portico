@@ -57,3 +57,17 @@ test('preview ownership and parent cancellation work without modern AbortSignal 
   await assert.rejects(loadReadPagePreview({controller: f.controller, index: 0, width: 300, authority: f.authority, signal: aborted.signal}));
   assert.equal(f.listeners.size, 0);
 });
+
+test('RD-2 (#699 review): a page the server rejected as content has no preview, so the strip keeps its plain tile instead of failing the reader', async t => {
+  const f = fixture(); await open(f.controller); t.after(() => f.controller.close());
+  const rejected = Object.assign(new Error('reading_member_unreadable'), {name: 'ReadingError', code: 'reading_member_unreadable', status: 422});
+  f.document.page = async () => { throw rejected; };
+  const none = await loadReadPagePreview({controller: f.controller, index: 0, width: 96, authority: f.authority, signal: new AbortController().signal});
+  assert.equal(none, undefined, 'no preview, and nothing for the host to report');
+  assert.equal(f.listeners.size, 0, 'nothing is left subscribed');
+  assert.equal(f.controller.getSnapshot().status, 'ready', 'the book stays open');
+  for (const other of [Object.assign(new Error('reading_source_changed'), {code: 'reading_source_changed', status: 409}), new Error('network')]) {
+    f.document.page = async () => { throw other; };
+    await assert.rejects(loadReadPagePreview({controller: f.controller, index: 0, width: 96, authority: f.authority, signal: new AbortController().signal}), other, 'every other failure still reaches the host');
+  }
+});
