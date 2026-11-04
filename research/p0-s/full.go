@@ -3,9 +3,11 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
@@ -43,7 +45,9 @@ func save(p string, v any) {
 
 var normalWrites, writeOnly, facetMode, frameMode, gatesOnly, browseOnly, admissionSchema, attributionMode, localControl, identitySchema, omitFTS, ablationMode, capsMode bool
 var qualificationMode, scalarMode, diagnosticMode bool
-var traceIO bool
+var traceIO, boundedWAL bool
+var checkpointEvery = 50 * time.Millisecond
+var walGovernor *walControl
 var pagerCacheKiB = 16384
 var mmapBytes int64
 
@@ -198,8 +202,10 @@ func seedAndSweep(c *sql.Conn, target int, out, hash string) {
 			count = target - n
 		}
 		t := time.Now()
+		admitWAL()
 		_, e := c.ExecContext(context.Background(), "BEGIN IMMEDIATE;"+acceptanceSQL(n+1, count)+"COMMIT;")
 		must(e)
+		observeWALCommit()
 		batches = append(batches, map[string]any{"items": count, "ms": float64(time.Since(t).Nanoseconds()) / 1e6})
 		n += count
 		if n%100000 == 0 {
@@ -207,7 +213,11 @@ func seedAndSweep(c *sql.Conn, target int, out, hash string) {
 			fmt.Println("full seed", n)
 		}
 	}
-	save(filepath.Join(out, "full-seed.json"), map[string]any{"ddl_sha256": hash, "entities": n, "batches": batches, "decoupled_search": decoupledSchema, "shape": "Basic movie acceptance: entity+asset+link+encoded own-title FTS+library revision/event. No provider metadata, staging, scanner IO, prepared-media or full production typed command."})
+	shape := "Basic movie acceptance with same-transaction FTS; no provider metadata/staging/scanner IO/full production typed command."
+	if decoupledSchema {
+		shape = "Basic movie source acceptance with subject+identity+entity+asset+link+search input job/generation+age count+library revision/event/receipt; NO FTS or published search image. No provider metadata/staging/scanner IO/full production typed command."
+	}
+	save(filepath.Join(out, "full-seed.json"), map[string]any{"ddl_sha256": hash, "entities": n, "batches": batches, "decoupled_search": decoupledSchema, "shape": shape})
 	if facetMode || frameMode || gatesOnly || attributionMode || capsMode || scalarMode {
 		return
 	}
@@ -355,6 +365,8 @@ func main() {
 	writeFlag := flag.Bool("write-only", false, "seed and writer quanta only")
 	facetFlag := flag.Bool("facets", false, "rating-band counts and restricted indexes")
 	traceFlag := flag.Bool("trace-io", false, "attach strace after fixture creation; diagnostics only")
+	boundedFlag := flag.Bool("bounded-wal", false, "192MiB hard WAL reserve, pre-writer admission and250ms bounded title readers")
+	checkpointFlag := flag.Int("checkpoint-ms", 50, "bounded PASSIVE cadence,50or250ms")
 	diagnosticFlag := flag.Bool("diagnostic", false, "diagnostic-only128holds at1and16; no qualification")
 	cacheFlag := flag.Int("cache-kib", 16384, "pager cache KiB/connection")
 	mmapFlag := flag.Int64("mmap-bytes", 0, "requested mmap bytes; actual pragma recorded")
@@ -371,6 +383,8 @@ func main() {
 	frameFlag := flag.Bool("frames", false, "max source-frame replacements")
 	flag.Parse()
 	traceIO = *traceFlag
+	boundedWAL = *boundedFlag
+	checkpointEvery = time.Duration(*checkpointFlag) * time.Millisecond
 	diagnosticMode = *diagnosticFlag
 	if traceIO && !diagnosticMode {
 		panic("trace-io is diagnostic only")
@@ -439,7 +453,13 @@ func main() {
 		var stop chan struct{}
 		var wg sync.WaitGroup
 		checkpoints := []any{}
-		if normalWrites {
+		if boundedWAL {
+			if !normalWrites {
+				panic("bounded WAL requires NORMAL/PASSIVE")
+			}
+			walGovernor = startWALControl(*dbpath, *out, hash)
+			defer walGovernor.stopAndSave()
+		} else if normalWrites {
 			stop = make(chan struct{})
 			wg.Add(1)
 			go func() {
@@ -497,6 +517,10 @@ func main() {
 			wg.Wait()
 			save(filepath.Join(*out, "normal-checkpoints.json"), map[string]any{"ddl_sha256": hash, "interval_ms": 100, "synchronous": "NORMAL", "writer_wal_autocheckpoint": 0, "samples": checkpoints})
 		}
+		if walGovernor != nil {
+			walGovernor.stopAndSave()
+			walGovernor = nil
+		}
 	}
 	if decoupledSchema && (attributionMode || gatesOnly) {
 		var jobs, ready, pubs, pending, seq, entities int64
@@ -507,7 +531,15 @@ func main() {
 		if jobs != entities || ready != jobs || pubs != 0 || pending != jobs || seq != jobs {
 			panic("source/search witness drift")
 		}
-		save(filepath.Join(*out, "source-witness-audit.json"), map[string]any{"ddl_sha256": hash, "entities": entities, "jobs": jobs, "ready": ready, "publications": pubs, "pending_subjects": pending, "input_sequence": seq, "foreign_keys": "ON", "fts_writes": 0, "boundary": "All source acceptance rows and ready witnesses committed atomically; no published search image or FTS operation. Opaque64byte recipe ID is a fixture witness, not publisher recipe qualification."})
+		var hasWitness, assetWitnesses int64
+		must(c.QueryRowContext(context.Background(), "SELECT count(*) FROM pragma_table_info('catalog_assets') WHERE name='authored_membership_revision'").Scan(&hasWitness))
+		if hasWitness > 0 {
+			must(c.QueryRowContext(context.Background(), "SELECT count(*) FROM catalog_assets WHERE authored_membership_revision=1").Scan(&assetWitnesses))
+			if assetWitnesses != entities {
+				panic("new asset admission witness drift")
+			}
+		}
+		save(filepath.Join(*out, "source-witness-audit.json"), map[string]any{"ddl_sha256": hash, "entities": entities, "jobs": jobs, "ready": ready, "publications": pubs, "pending_subjects": pending, "input_sequence": seq, "asset_admission_witnesses": assetWitnesses, "foreign_keys": "ON", "fts_writes": 0, "boundary": "All source acceptance rows and ready witnesses committed atomically; new assets mint authored_membership_revision1. No published search image or FTS operation. Opaque64byte recipe ID is a fixture witness, not publisher recipe qualification."})
 	}
 	var tables, entities int64
 	var version string
@@ -1177,6 +1209,7 @@ func attribution(c *sql.Conn, out, hash string) {
 		for rep := 0; rep < reps; rep++ {
 			q := acceptanceSQL(resident+1, batch)
 			statements := strings.Split(q, ";")
+			admitWAL()
 			beforeHost := hostSnapshot()
 			walBefore := walCounters(c)
 			_, e := c.ExecContext(context.Background(), "BEGIN IMMEDIATE")
@@ -1201,6 +1234,7 @@ func attribution(c *sql.Conn, out, hash string) {
 			must(e)
 			commit := float64(time.Since(t).Nanoseconds()) / 1e6
 			hold := float64(time.Since(start).Nanoseconds()) / 1e6
+			observeWALCommit()
 			phases = append(phases, map[string]any{"phase": "commit", "start_ns": t.UnixNano(), "ms": commit})
 			phaseSamples["commit"] = append(phaseSamples["commit"], commit)
 			row := map[string]any{"rep": rep, "start_ns": start.UnixNano(), "hold_ms": hold, "phases": phases, "host_before": beforeHost, "host_after": hostSnapshot(), "wal_before": walBefore, "wal_precommit": walPrecommit, "wal_after": walCounters(c)}
@@ -1224,7 +1258,7 @@ func attribution(c *sql.Conn, out, hash string) {
 	for _, size := range sizes {
 		measure(size, runs, "normal-passive")
 	}
-	if !ablationMode && !diagnosticMode {
+	if !ablationMode && !diagnosticMode && !boundedWAL {
 		checkpointMu.Lock()
 		measure(1, runs, "checkpoint-paused")
 		checkpointMu.Unlock()
@@ -1750,6 +1784,250 @@ func scalarPrimitives(c *sql.Conn, out, hash string) {
 			return []sqlPhase{{"source-reverse-delta", updateScalarSource(0, v*1000, v)}, {"six-extrema-parents", scalarKeys("id IN(SELECT parent_id FROM catalog_scalar_contributions INDEXED BY catalog_scalar_contributor WHERE contributor_id=1)")}, {"revision-receipt", sharedReceipt(fmt.Sprintf("scalar-reverse-%d", degree), j)}}
 		}, nil)
 	}
+}
+
+// Experimental WAL admission follows Q/passive.go's64MiB soft,96MiB
+// restart-pressure and192MiB hard envelope; no TRUNCATE/RESTART checkpoint.
+type walInfo struct {
+	Physical, ActiveBytes, Uncheckpointed int64
+	Frames, Backfill                      uint32
+	Salt                                  string
+	Valid                                 bool
+}
+type walControl struct {
+	path, out, hash                     string
+	stop, done, readerDone, request     chan struct{}
+	mu                                  sync.Mutex
+	finish                              sync.Once
+	checkpoints, reads, pauses, commits []any
+	lastSalt                            string
+	resets                              int
+	peakPhysical, peakActive            int64
+}
+
+func walState() walInfo {
+	w := walInfo{}
+	if st, e := os.Stat(dbPathForChildren + "-wal"); e == nil {
+		w.Physical = st.Size()
+	}
+	f, e := os.Open(dbPathForChildren + "-shm")
+	if e != nil {
+		return w
+	}
+	defer f.Close()
+	b := make([]byte, 100)
+	if _, e = f.ReadAt(b, 0); e != nil {
+		return w
+	}
+	if !bytes.Equal(b[:48], b[48:96]) || binary.LittleEndian.Uint32(b[:4]) != 3007000 {
+		return w
+	}
+	w.Frames = binary.LittleEndian.Uint32(b[16:20])
+	w.Backfill = binary.LittleEndian.Uint32(b[96:100])
+	if w.Backfill > w.Frames {
+		return w
+	}
+	size := int64(binary.LittleEndian.Uint16(b[14:16]))
+	if size == 1 {
+		size = 65536
+	}
+	if size == 0 {
+		return w
+	}
+	w.Salt = hex.EncodeToString(b[32:40])
+	w.ActiveBytes = 32 + int64(w.Frames)*(size+24)
+	w.Uncheckpointed = int64(w.Frames-w.Backfill) * (size + 24)
+	w.Valid = true
+	return w
+}
+func compactMemory() map[string]string {
+	out := map[string]string{}
+	b, _ := os.ReadFile("/proc/self/cgroup")
+	for _, line := range strings.Split(string(b), "\n") {
+		if strings.HasPrefix(line, "0::") {
+			base := filepath.Join("/sys/fs/cgroup", strings.TrimPrefix(line, "0::"))
+			for _, name := range []string{"memory.current", "memory.stat", "memory.events", "cpu.stat", "io.stat"} {
+				v, e := os.ReadFile(filepath.Join(base, name))
+				if e == nil {
+					out[name] = string(v)
+				}
+			}
+		}
+	}
+	for _, name := range []string{"io", "memory"} {
+		v, e := os.ReadFile("/proc/pressure/" + name)
+		if e == nil {
+			out["psi_"+name] = string(v)
+		}
+	}
+	return out
+}
+func startWALControl(path, out, hash string) *walControl {
+	g := &walControl{path: path, out: out, hash: hash, stop: make(chan struct{}), done: make(chan struct{}), readerDone: make(chan struct{}), request: make(chan struct{}, 1)}
+	go func() {
+		defer close(g.done)
+		d, cc := open(path)
+		defer d.Close()
+		defer cc.Close()
+		_, e := cc.ExecContext(context.Background(), "PRAGMA busy_timeout=0")
+		must(e)
+		ticker := time.NewTicker(checkpointEvery)
+		defer ticker.Stop()
+		var previous time.Time
+		for {
+			trigger := "ticker"
+			select {
+			case <-g.stop:
+				return
+			case <-ticker.C:
+			case <-g.request:
+				trigger = "pressure-request"
+			}
+			if !previous.IsZero() {
+				if wait := checkpointEvery - time.Since(previous); wait > 0 {
+					timer := time.NewTimer(wait)
+					select {
+					case <-g.stop:
+						timer.Stop()
+						return
+					case <-timer.C:
+					}
+				}
+			}
+			t := time.Now()
+			interval := float64(0)
+			if !previous.IsZero() {
+				interval = float64(t.Sub(previous).Nanoseconds()) / 1e6
+			}
+			previous = t
+			before := walState()
+			var busy, log, done int
+			e := cc.QueryRowContext(context.Background(), "PRAGMA wal_checkpoint(PASSIVE)").Scan(&busy, &log, &done)
+			row := map[string]any{"start_ns": t.UnixNano(), "ms": float64(time.Since(t).Nanoseconds()) / 1e6, "busy": busy, "log": log, "checkpointed": done, "wal_before": before, "wal_after": walState(), "memory": compactMemory(), "trigger": trigger, "start_interval_ms": interval}
+			if e != nil {
+				row["error"] = e.Error()
+			}
+			g.mu.Lock()
+			g.checkpoints = append(g.checkpoints, row)
+			g.mu.Unlock()
+		}
+	}()
+	go func() {
+		defer close(g.readerDone)
+		d, cc := open(path)
+		defer d.Close()
+		defer cc.Close()
+		ticker := time.NewTicker(50 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-g.stop:
+				return
+			case <-ticker.C:
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+			t := time.Now()
+			rows, e := cc.QueryContext(ctx, "SELECT id,title FROM catalog_entities WHERE library_id=1 AND kind=1 AND retired=0 ORDER BY sort_key,id LIMIT 40")
+			count := 0
+			if e == nil {
+				for rows.Next() {
+					var id int64
+					var title string
+					e = rows.Scan(&id, &title)
+					if e != nil {
+						break
+					}
+					count++
+				}
+				if e == nil {
+					e = rows.Err()
+				}
+				ce := rows.Close()
+				if e == nil {
+					e = ce
+				}
+			}
+			cancel()
+			ms := float64(time.Since(t).Nanoseconds()) / 1e6
+			row := map[string]any{"start_ns": t.UnixNano(), "ms": ms, "rows": count, "requested_deadline_ms": 250}
+			if e != nil {
+				row["error"] = e.Error()
+			}
+			g.mu.Lock()
+			g.reads = append(g.reads, row)
+			g.mu.Unlock()
+		}
+	}()
+	return g
+}
+func admitWAL() {
+	g := walGovernor
+	if g == nil {
+		return
+	}
+	w := walState()
+	if w.Valid && w.ActiveBytes < 96<<20 && w.Uncheckpointed < 64<<20 {
+		return
+	}
+	if !w.Valid && w.Physical == 0 {
+		return
+	}
+	t := time.Now()
+	select {
+	case g.request <- struct{}{}:
+	default:
+	}
+	for {
+		time.Sleep(time.Millisecond)
+		w = walState()
+		if w.Valid && ((w.ActiveBytes < 96<<20 && w.Uncheckpointed < 32<<20) || (w.ActiveBytes >= 96<<20 && w.Backfill == w.Frames)) {
+			break
+		}
+		if time.Since(t) > 30*time.Second {
+			save(filepath.Join(g.out, "wal-admission-failure.json"), map[string]any{"ddl_sha256": g.hash, "wal": w, "memory": compactMemory()})
+			panic("bounded WAL admission failed to repay in30s")
+		}
+	}
+	if w.ActiveBytes > 176<<20 {
+		panic("WAL16MiB reserved transaction headroom exhausted")
+	}
+	g.mu.Lock()
+	g.pauses = append(g.pauses, map[string]any{"start_ns": t.UnixNano(), "ms": float64(time.Since(t).Nanoseconds()) / 1e6, "state": w})
+	g.mu.Unlock()
+}
+func observeWALCommit() {
+	g := walGovernor
+	if g == nil {
+		return
+	}
+	w := walState()
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if w.Valid && g.lastSalt != "" && w.Salt != g.lastSalt {
+		g.resets++
+	}
+	if w.Valid {
+		g.lastSalt = w.Salt
+	}
+	if w.Physical > g.peakPhysical {
+		g.peakPhysical = w.Physical
+	}
+	if w.ActiveBytes > g.peakActive {
+		g.peakActive = w.ActiveBytes
+	}
+	g.commits = append(g.commits, map[string]any{"at_ns": time.Now().UnixNano(), "wal": w})
+	if w.Physical > 192<<20 || w.ActiveBytes > 192<<20 {
+		save(filepath.Join(g.out, "wal-cap-failure.json"), map[string]any{"ddl_sha256": g.hash, "wal": w, "resets": g.resets})
+		panic("WAL hard192MiB cap exceeded; invalid qualification")
+	}
+}
+func (g *walControl) stopAndSave() {
+	g.finish.Do(func() {
+		close(g.stop)
+		<-g.done
+		<-g.readerDone
+		save(filepath.Join(g.out, "bounded-wal.json"), map[string]any{"ddl_sha256": g.hash, "checkpoint_ms": checkpointEvery.Milliseconds(), "soft_bytes": 64 << 20, "hard_bytes": 192 << 20, "transaction_reserve_bytes": 16 << 20, "peak_physical_bytes": g.peakPhysical, "peak_active_bytes": g.peakActive, "resets": g.resets, "checkpoints": g.checkpoints, "readers": g.reads, "admission_pauses": g.pauses, "commits": g.commits, "boundary": "PASSIVE only on separate physical connection; writer pre-admission outside hold; no retained SQL readers,20Hz title40probes,250ms requested deadlines with actual durations retained. Q-style64/96/192MiB envelope. No forced RESTART/TRUNCATE. No publisher/authority oracle."})
+	})
 }
 
 func diskSnapshot() map[string]any {

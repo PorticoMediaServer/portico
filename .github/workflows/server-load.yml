@@ -7,7 +7,7 @@ on:
         default: churn
       ddl:
         description: 'Pinned full schema basename under research/p0-s'
-        default: full-ef4b74.sql
+        default: full-97dc08.sql
       profile:
         description: 'both, standard or legacy8'
         default: both
@@ -18,7 +18,7 @@ permissions:
   contents: read
 jobs:
   scale:
-    if: ${{ inputs.mode != 'sweep' && inputs.mode != 'fanout' && inputs.mode != 'supported' && inputs.mode != 'full' && inputs.mode != 'envelope' && inputs.mode != 'envelope2' && inputs.mode != 'selected' && inputs.mode != 'fullpair' && inputs.mode != 'widthpair' && inputs.mode != 'normal' && inputs.mode != 'facets' && inputs.mode != 'frames' && inputs.mode != 'attribution' && inputs.mode != 'caps' && inputs.mode != 'primitives' && inputs.mode != 'decision' && inputs.mode != 'resource' && inputs.mode != 'iodiag' }}
+    if: ${{ inputs.mode != 'sweep' && inputs.mode != 'fanout' && inputs.mode != 'supported' && inputs.mode != 'full' && inputs.mode != 'envelope' && inputs.mode != 'envelope2' && inputs.mode != 'selected' && inputs.mode != 'fullpair' && inputs.mode != 'widthpair' && inputs.mode != 'normal' && inputs.mode != 'facets' && inputs.mode != 'frames' && inputs.mode != 'attribution' && inputs.mode != 'caps' && inputs.mode != 'primitives' && inputs.mode != 'decision' && inputs.mode != 'resource' && inputs.mode != 'iodiag' && inputs.mode != 'bounded' }}
     runs-on: ubuntu-24.04
     env:
       MODE: ${{ inputs.mode || 'churn' }}
@@ -95,18 +95,20 @@ jobs:
           retention-days: 14
 
   full:
-    if: ${{ inputs.mode == 'full' || inputs.mode == 'fullpair' || inputs.mode == 'widthpair' || inputs.mode == 'normal' || inputs.mode == 'facets' || inputs.mode == 'frames' || inputs.mode == 'attribution' || inputs.mode == 'caps' || inputs.mode == 'primitives' || inputs.mode == 'decision' || inputs.mode == 'resource' || inputs.mode == 'iodiag' }}
+    if: ${{ inputs.mode == 'full' || inputs.mode == 'fullpair' || inputs.mode == 'widthpair' || inputs.mode == 'normal' || inputs.mode == 'facets' || inputs.mode == 'frames' || inputs.mode == 'attribution' || inputs.mode == 'caps' || inputs.mode == 'primitives' || inputs.mode == 'decision' || inputs.mode == 'resource' || inputs.mode == 'iodiag' || inputs.mode == 'bounded' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 80
     env:
-      TARGET_DDL: ${{ inputs.ddl || 'full-ef4b74.sql' }}
+      TARGET_DDL: ${{ inputs.ddl || 'full-97dc08.sql' }}
       MODE: ${{ inputs.mode }}
+      CHECKPOINT_MS: ${{ matrix.checkpoint_ms }}
     strategy:
       fail-fast: false
       matrix:
+        checkpoint_ms: ${{ fromJSON(inputs.mode == 'bounded' && '[50,250]' || '[100]') }}
         profile: ${{ fromJSON(inputs.profile == 'legacy8' && '["legacy8"]' || inputs.profile == 'standard' && '["standard"]' || '["standard","legacy8"]') }}
-        repetition: ${{ fromJSON((inputs.mode == 'normal' || inputs.mode == 'frames' || inputs.mode == 'attribution' || inputs.mode == 'caps' || inputs.mode == 'primitives' || inputs.mode == 'decision') && '[1,2,3]' || '[1]') }}
-        size: ${{ fromJSON(inputs.mode == 'facets' && '[400000,1000000]' || inputs.size == '400000' && '[400000]' || '[1000000]') }}
+        repetition: ${{ fromJSON((inputs.mode == 'normal' || inputs.mode == 'frames' || inputs.mode == 'attribution' || inputs.mode == 'caps' || inputs.mode == 'primitives' || inputs.mode == 'decision' || inputs.mode == 'bounded') && '[1,2,3]' || '[1]') }}
+        size: ${{ fromJSON((inputs.mode == 'facets' || inputs.mode == 'bounded') && '[400000,1000000]' || inputs.size == '400000' && '[400000]' || '[1000000]') }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {persist-credentials: false}
@@ -130,7 +132,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: p0-s-full-${{ matrix.profile }}-rep${{ matrix.repetition }}-${{ matrix.size }}
+          name: p0-s-full-${{ matrix.profile }}-rep${{ matrix.repetition }}-${{ matrix.size }}-cp${{ matrix.checkpoint_ms }}
           path: |
             ${{ runner.temp }}/p0-s/**/*.json
             ${{ runner.temp }}/p0-s/**/*.pprof

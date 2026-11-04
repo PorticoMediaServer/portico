@@ -13,6 +13,10 @@ cg=$(awk -F: '$1=="0" {print $3}' /proc/self/cgroup)
    echo "$field"; cat "/sys/fs/cgroup$cg/$field"
  done
 } > "$out/host-$stage.txt"
+if [ "$stage" = bounded ]; then
+  "$RUNNER_TEMP/p0-s-full" --ddl "research/p0-s/$TARGET_DDL" --db "$out/full.db" --out "$out" --seed "$size" --normal --write-only --attribution --qualification --bounded-wal --checkpoint-ms "${CHECKPOINT_MS:-50}" --cpu-profile
+  exit
+fi
 if [ "$stage" = iodiag ]; then
   if ! command -v strace >/dev/null; then sudo -n apt-get update -qq; sudo -n apt-get install -y -qq strace; fi
   for variant in default small-cache mmap; do
