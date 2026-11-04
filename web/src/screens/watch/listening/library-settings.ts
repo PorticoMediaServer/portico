@@ -1,3 +1,4 @@
+import {readLibrarySettings} from '@core/server-admin/libraries.ts';
 import type {WebPlaybackAuthority, WebListeningLifetime} from '../../../platform/playback';
 import type {WatchPlaybackContext} from '../play-on-binding';
 
@@ -16,6 +17,10 @@ export type ListeningLibrarySettings = Readonly<{
   libraryId: string;
   isCurrent(): boolean;
   open(command: ListeningSettingsCommand): Promise<void>;
+  /** Where this library looks for lyrics: only the song files, or also LRCLIB. Read once, with the
+   * captured owner authority (this capture exists only for a server-managing owner, so the read never
+   * 403s for anyone else), and kept for this capture's life. Unknown (`undefined`) if it can't be read. */
+  lyricsSource(): Promise<'files' | 'lrclib' | undefined>;
 }>;
 
 /** A layout-owned offer from the original real shell/Settings capability, never
@@ -52,7 +57,13 @@ export function captureLibrarySettings(input: ListeningSettingsInput | undefined
       return accepted && !retired && !hostSignal.aborted;
     };
     if (!current()) return;
-    return Object.freeze({libraryId, isCurrent:current, open: async (command: ListeningSettingsCommand) => {
+    let source: Promise<'files' | 'lrclib' | undefined> | undefined;
+    const lyricsSource = () => source ??= (async () => {
+      if (!current()) return undefined;
+      try {const doc = await readLibrarySettings(context.api, libraryId, hostSignal); return current() ? doc.settings.lyricsSource : undefined;}
+      catch {return undefined;}
+    })();
+    return Object.freeze({libraryId, isCurrent:current, lyricsSource, open: async (command: ListeningSettingsCommand) => {
       const signal = command.signal, active = command.active.bind(command), admitted = command.isCurrent.bind(command);
       const local = () => !signal.aborted && !hostSignal.aborted && !retired && active();
       if (!local() || !current() || !local() || !admitted() || !local() || !current() || !local() || !admitted() || !local() || !matches(session()) || !local() || !isCurrent() || !local() || !hostCurrent() || !local() || !factsMatch() || !local())

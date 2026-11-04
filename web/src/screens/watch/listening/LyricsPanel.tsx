@@ -8,13 +8,15 @@ const t = defaultI18n.t;
 
 /** A pure view of the captured service snapshot. Original host callbacks retain
  * their source/authority/opening; this component never loads or owns a service. */
-export function LyricsPanel({snapshot, positionSeconds, enabled, canSeek, onRetry, onChoose, onSeek, librarySettings}: Readonly<{
+export function LyricsPanel({snapshot, positionSeconds, enabled, canSeek, onRetry, onChoose, onSeek, librarySettings, lyricsSource}: Readonly<{
   snapshot: LyricsSnapshot; positionSeconds: number; enabled: boolean; canSeek: boolean;
   onRetry: (shown: LyricsSnapshot) => void;
   onChoose?: (shown: LyricsSnapshot, resource: LyricRevision | null) => void;
   onSeek: (shown: LyricsSnapshot, index: number) => void;
   /** Already permission-checked by the original owner; absent means no action. */
   librarySettings?: () => void;
+  /** The owner's library's lyrics source, once known. Only 'files' (no online lookup) earns the note. */
+  lyricsSource?: 'files' | 'lrclib' | null;
 }>) {
   if (!enabled) return null;
   const data = snapshot.data, selected = data?.selection.resource, document = selected?.document, source = data?.source;
@@ -24,8 +26,11 @@ export function LyricsPanel({snapshot, positionSeconds, enabled, canSeek, onRetr
   return <section className={styles.lyrics} aria-label={t('player.lyrics')}>
     {snapshot.error && <Banner action={{label: t('next.states.tryAgain'), onAction: () => onRetry(snapshot)}}>{t('next.states.pageFailedBody')}</Banner>}
     {loading ? <p role="status">{t('next.settings.loading')}</p> : !document && !snapshot.error ? <div className={styles.empty}>
-      <StateView title={t('player.noLyrics')}/>
-      {librarySettings && <Button variant="glass" onClick={librarySettings}>{t('next.browse.librarySettings')}</Button>}
+      <StateView title={t('player.noLyrics')} body={t('player.noLyricsBody')}/>
+      {librarySettings && <div className={styles.owner}>
+        {lyricsSource === 'files' && <span><b>{t('player.lyricsOwner')}</b><br/>{t('player.lyricsNotFetched')}</span>}
+        <Button variant="glass" size="small" onClick={librarySettings}>{t('next.browse.librarySettings')}</Button>
+      </div>}
     </div> : document ? <div className={styles.lines}>
       {document.lines.map((line, index) => {
         const seekable = canSeek && !snapshot.busy && source && line.atMs !== null && lyricSeekPosition(line, selected!.offsetMs, source) !== null;
