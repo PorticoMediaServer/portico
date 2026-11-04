@@ -1,0 +1,1137 @@
+{
+  "apps/native/Native/PorticoAudioRender.m#32cff028c381a2ba": {
+    "category": "platform-url",
+    "reason": "OS audio renderer fetches the core-issued scoped audio URL and byte ranges.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/Native/PorticoAudioRender.m#488846738b8f84c7": {
+    "category": "platform-url",
+    "reason": "OS audio renderer fetches the core-issued scoped audio URL and byte ranges.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/Native/PorticoAudioRender.m#bfdbf39cac1fcc3c": {
+    "category": "platform-url",
+    "reason": "OS audio renderer fetches the core-issued scoped audio URL and byte ranges.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/Native/PorticoDownloads.m#1c50203a8f953138": {
+    "category": "platform-url",
+    "reason": "OS background download task fetches the core-issued download URL; core retains domain coordination.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/Native/PorticoDownloads.m#6fa29c42d5a77d47": {
+    "category": "platform-url",
+    "reason": "OS background download task fetches the core-issued download URL; core retains domain coordination.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/Native/PorticoDownloads.m#7dd1cac3fc5f61f0": {
+    "category": "platform-url",
+    "reason": "OS background download task fetches the core-issued download URL; core retains domain coordination.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/Native/PorticoListeningOwner.m#0d47c21879506b9c": {
+    "category": "native-listening",
+    "reason": "Justin approved Apple native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "condition": "Only the approved native background listening owner queue/session/item/user-mutation scope while JS is suspended, with bounded transport and generated contracts.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/Native/PorticoListeningOwner.m#8a315ef71c38f975": {
+    "category": "native-listening",
+    "reason": "Justin approved Apple native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "condition": "Only the approved native background listening owner queue/session/item/user-mutation scope while JS is suspended, with bounded transport and generated contracts.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/Native/PorticoListeningOwner.m#c83d761f480368a0": {
+    "category": "native-listening",
+    "reason": "Justin approved Apple native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "condition": "Only the approved native background listening owner queue/session/item/user-mutation scope while JS is suspended, with bounded transport and generated contracts.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/Native/PorticoListeningOwner.m#3305378bcd6f67ac": {
+    "category": "native-listening",
+    "reason": "Justin approved Apple native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "condition": "Only the approved native background listening owner queue/session/item/user-mutation scope while JS is suspended, with bounded transport and generated contracts.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/Native/PorticoListeningOwner.m#853ac07fe415c760": {
+    "category": "native-listening",
+    "reason": "Justin approved Apple native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "condition": "Only the approved native background listening owner queue/session/item/user-mutation scope while JS is suspended, with bounded transport and generated contracts.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/Native/PorticoListeningOwner.m#a558ceb07b37a807": {
+    "category": "native-listening",
+    "reason": "Justin approved Apple native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "condition": "Only the approved native background listening owner queue/session/item/user-mutation scope while JS is suspended, with bounded transport and generated contracts.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/Native/PorticoListeningOwner.m#54498ab94cf18290": {
+    "category": "native-listening",
+    "reason": "Justin approved Apple native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "condition": "Only the approved native background listening owner queue/session/item/user-mutation scope while JS is suspended, with bounded transport and generated contracts.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/Native/PorticoListeningOwner.m#c972a79829d23d20": {
+    "category": "native-listening",
+    "reason": "Justin approved Apple native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "condition": "Only the approved native background listening owner queue/session/item/user-mutation scope while JS is suspended, with bounded transport and generated contracts.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/Native/PorticoListeningOwner.m#9e51cd94ea076dfb": {
+    "category": "native-listening",
+    "reason": "Justin approved Apple native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "condition": "Only the approved native background listening owner queue/session/item/user-mutation scope while JS is suspended, with bounded transport and generated contracts.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/Native/PorticoListeningOwner.m#1a60a6a196331f7d": {
+    "category": "native-listening",
+    "reason": "Justin approved Apple native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "condition": "Only the approved native background listening owner queue/session/item/user-mutation scope while JS is suspended, with bounded transport and generated contracts.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/Native/PorticoListeningOwner.m#c84023f7fe04a5db": {
+    "category": "native-listening",
+    "reason": "Justin approved Apple native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "condition": "Only the approved native background listening owner queue/session/item/user-mutation scope while JS is suspended, with bounded transport and generated contracts.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/Native/PorticoListeningOwner.m#e8debf51989704fd": {
+    "category": "native-listening",
+    "reason": "Justin approved Apple native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "condition": "Only the approved native background listening owner queue/session/item/user-mutation scope while JS is suspended, with bounded transport and generated contracts.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/Native/PorticoListeningOwner.m#c992e8c47d13ddd7": {
+    "category": "native-listening",
+    "reason": "Justin approved Apple native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "condition": "Only the approved native background listening owner queue/session/item/user-mutation scope while JS is suspended, with bounded transport and generated contracts.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/Native/PorticoListeningOwner.m#0b14cb6187cd3c9e": {
+    "category": "native-listening",
+    "reason": "Justin approved Apple native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "condition": "Only the approved native background listening owner queue/session/item/user-mutation scope while JS is suspended, with bounded transport and generated contracts.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/Native/PorticoSubtitleOverlay.m#de2f3d6f2de6a2bb": {
+    "category": "platform-url",
+    "reason": "Player fetches the core-issued subtitle document URL.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/Native/PorticoSystemMedia.m#1db2c4c329438c54": {
+    "category": "platform-url",
+    "reason": "OS media artwork fetch uses the validated core-issued artwork URL.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/Native/PorticoSystemMedia.m#4223fe666f74c17b": {
+    "category": "platform-url",
+    "reason": "OS media artwork fetch uses the validated core-issued artwork URL.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoDownloadCenter.kt#9a6f48ab233561a7": {
+    "category": "platform-url",
+    "reason": "Android background transfer fetches and ranges the core-issued download URL; no domain JSON exception.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoDownloadCenter.kt#b2c4e79cef4c5bac": {
+    "category": "platform-url",
+    "reason": "Android background transfer fetches and ranges the core-issued download URL; no domain JSON exception.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoDownloadCenter.kt#977c6761419d10ba": {
+    "category": "platform-url",
+    "reason": "Android background transfer fetches and ranges the core-issued download URL; no domain JSON exception.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoDownloadCenter.kt#b9ceda802ccb2c96": {
+    "category": "platform-url",
+    "reason": "Android background transfer fetches and ranges the core-issued download URL; no domain JSON exception.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#0c37a766d51bcb7e": {
+    "category": "native-listening",
+    "reason": "Justin approved native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "condition": "Only the approved native background listening owner queue/session/item/user-mutation scope while JS is suspended, with bounded transport and generated contracts.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#1a2cb2bafd2259b9": {
+    "category": "native-listening",
+    "reason": "Justin approved native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "condition": "Only the approved native background listening owner queue/session/item/user-mutation scope while JS is suspended, with bounded transport and generated contracts.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#1d710e281a75f48d": {
+    "category": "native-listening",
+    "reason": "Justin approved native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "condition": "Only the approved native background listening owner queue/session/item/user-mutation scope while JS is suspended, with bounded transport and generated contracts.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#89778ff2253fb8c7": {
+    "category": "native-listening",
+    "reason": "Justin approved native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "condition": "Only the approved native background listening owner queue/session/item/user-mutation scope while JS is suspended, with bounded transport and generated contracts.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#6916569d7bdbff07": {
+    "category": "native-listening",
+    "reason": "Justin approved native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "condition": "Only the approved native background listening owner queue/session/item/user-mutation scope while JS is suspended, with bounded transport and generated contracts.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#e12f430cfc976558": {
+    "category": "native-listening",
+    "reason": "Justin approved native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "condition": "Only the approved native background listening owner queue/session/item/user-mutation scope while JS is suspended, with bounded transport and generated contracts.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#33c568ccb7624317": {
+    "category": "native-listening",
+    "reason": "Justin approved native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "condition": "Only the approved native background listening owner queue/session/item/user-mutation scope while JS is suspended, with bounded transport and generated contracts.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#5898b42fceeb5850": {
+    "category": "native-listening",
+    "reason": "Justin approved native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "condition": "Only the approved native background listening owner queue/session/item/user-mutation scope while JS is suspended, with bounded transport and generated contracts.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#1e28cf468ea780c7": {
+    "category": "native-listening",
+    "reason": "Justin approved native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "condition": "Only the approved native background listening owner queue/session/item/user-mutation scope while JS is suspended, with bounded transport and generated contracts.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#96d6211b22111b70": {
+    "category": "native-listening",
+    "reason": "Justin approved native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "condition": "Only the approved native background listening owner queue/session/item/user-mutation scope while JS is suspended, with bounded transport and generated contracts.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#534e81790094bf98": {
+    "category": "native-listening",
+    "reason": "Justin approved native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "condition": "Only the approved native background listening owner queue/session/item/user-mutation scope while JS is suspended, with bounded transport and generated contracts.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoMpvRelay.kt#f7e40cff554dc3b5": {
+    "category": "platform-url",
+    "reason": "Player relay fetches scoped core-issued media URLs for the native player.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoMpvRelay.kt#9c899915f58973fc": {
+    "category": "platform-url",
+    "reason": "Player relay fetches scoped core-issued media URLs for the native player.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoMpvSupport.kt#2aabff10a1352f20": {
+    "category": "platform-url",
+    "reason": "Player byte support fetches core-issued media URLs.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoMpvSupport.kt#2b067fd6bbac938e": {
+    "category": "platform-url",
+    "reason": "Player byte support fetches core-issued media URLs.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSeekIndex.kt#f2fdd5c0f9afc337": {
+    "category": "platform-url",
+    "reason": "Player fetches its core-provided seek-index URL with bounded response handling.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSeekIndex.kt#719a5c92894eaa93": {
+    "category": "platform-url",
+    "reason": "Player fetches its core-provided seek-index URL with bounded response handling.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSystemMedia.kt#b64fbd1d046b4079": {
+    "category": "platform-url",
+    "reason": "OS media artwork fetch uses the validated core-issued artwork URL.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSystemMedia.kt#df425cd5af8219cf": {
+    "category": "platform-url",
+    "reason": "OS media artwork fetch uses the validated core-issued artwork URL.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTopShelf.kt#a051b0d2aaafbc5d": {
+    "category": "native-extension",
+    "reason": "Out-of-process Android TV channels use a bounded scoped Top Shelf contract transport.",
+    "condition": "Only the bounded out-of-process native extension contract transport.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTopShelf.kt#e3faedf13fa68ac9": {
+    "category": "native-extension",
+    "reason": "Out-of-process Android TV channels use a bounded scoped Top Shelf contract transport.",
+    "condition": "Only the bounded out-of-process native extension contract transport.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTopShelf.kt#4a5dc4e1ccf1bd4f": {
+    "category": "native-extension",
+    "reason": "Out-of-process Android TV channels use a bounded scoped Top Shelf contract transport.",
+    "condition": "Only the bounded out-of-process native extension contract transport.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTopShelf.kt#ec704b1c7d0de6ce": {
+    "category": "native-extension",
+    "reason": "Out-of-process Android TV channels use a bounded scoped Top Shelf contract transport.",
+    "condition": "Only the bounded out-of-process native extension contract transport.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/tvos/TopShelf/ContentProvider.swift#2b7f2fe536cf911b": {
+    "category": "native-extension",
+    "reason": "Out-of-process Apple TV Top Shelf extension uses a bounded scoped generated contract transport.",
+    "condition": "Only the bounded out-of-process native extension contract transport.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/tvos/TopShelf/ContentProvider.swift#911d4c673b2df74b": {
+    "category": "native-extension",
+    "reason": "Out-of-process Apple TV Top Shelf extension uses a bounded scoped generated contract transport.",
+    "condition": "Only the bounded out-of-process native extension contract transport.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/tvos/TopShelf/ContentProvider.swift#127c8616adbe2066": {
+    "category": "native-extension",
+    "reason": "Out-of-process Apple TV Top Shelf extension uses a bounded scoped generated contract transport.",
+    "condition": "Only the bounded out-of-process native extension contract transport.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/vega/src/bridge/hls.ts#c1e61a6c559f65c4": {
+    "category": "platform-url",
+    "reason": "Player/reader fetches core-issued media/subtitle URLs or bundled reader font bytes; no domain JSON requests are allowed by this pinned allowance.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "packages/reader-core/src/fonts.ts#dea6eead68612873": {
+    "category": "platform-url",
+    "reason": "Player/reader fetches core-issued media/subtitle URLs or bundled reader font bytes; no domain JSON requests are allowed by this pinned allowance.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "server/receiver/cast/receiver.js#b17b38887c0fb1a9": {
+    "category": "separate-product",
+    "reason": "Cast receiver and website are separately owned products; retain their generated-contract gates. Hosted lives in portico-internal and is outside this app repository.",
+    "condition": "Only the separate Cast receiver, website or Hosted product, retaining its own contract gates.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "server/receiver/cast/receiver.js#d101b615d2a821a6": {
+    "category": "separate-product",
+    "reason": "Cast receiver and website are separately owned products; retain their generated-contract gates. Hosted lives in portico-internal and is outside this app repository.",
+    "condition": "Only the separate Cast receiver, website or Hosted product, retaining its own contract gates.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "server/receiver/cast/receiver.js#803c971a34dad236": {
+    "category": "separate-product",
+    "reason": "Cast receiver and website are separately owned products; retain their generated-contract gates. Hosted lives in portico-internal and is outside this app repository.",
+    "condition": "Only the separate Cast receiver, website or Hosted product, retaining its own contract gates.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "server/receiver/cast/receiver.js#a04f07d2fca4d1b2": {
+    "category": "separate-product",
+    "reason": "Cast receiver and website are separately owned products; retain their generated-contract gates. Hosted lives in portico-internal and is outside this app repository.",
+    "condition": "Only the separate Cast receiver, website or Hosted product, retaining its own contract gates.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "server/receiver/cast/receiver.js#f5abb877fe5f8907": {
+    "category": "separate-product",
+    "reason": "Cast receiver and website are separately owned products; retain their generated-contract gates. Hosted lives in portico-internal and is outside this app repository.",
+    "condition": "Only the separate Cast receiver, website or Hosted product, retaining its own contract gates.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "server/receiver/cast/receiver.js#a454f21e604b180b": {
+    "category": "separate-product",
+    "reason": "Cast receiver and website are separately owned products; retain their generated-contract gates. Hosted lives in portico-internal and is outside this app repository.",
+    "condition": "Only the separate Cast receiver, website or Hosted product, retaining its own contract gates.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "server/receiver/cast/receiver.js#ab016e4f3d42892b": {
+    "category": "separate-product",
+    "reason": "Cast receiver and website are separately owned products; retain their generated-contract gates. Hosted lives in portico-internal and is outside this app repository.",
+    "condition": "Only the separate Cast receiver, website or Hosted product, retaining its own contract gates.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "server/receiver/cast/receiver.js#a362d656938e502b": {
+    "category": "separate-product",
+    "reason": "Cast receiver and website are separately owned products; retain their generated-contract gates. Hosted lives in portico-internal and is outside this app repository.",
+    "condition": "Only the separate Cast receiver, website or Hosted product, retaining its own contract gates.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "server/receiver/cast/receiver.js#1ce6296d14c01c2b": {
+    "category": "separate-product",
+    "reason": "Cast receiver and website are separately owned products; retain their generated-contract gates. Hosted lives in portico-internal and is outside this app repository.",
+    "condition": "Only the separate Cast receiver, website or Hosted product, retaining its own contract gates.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "server/receiver/cast/receiver.js#5dbf47f8a9e62721": {
+    "category": "separate-product",
+    "reason": "Cast receiver and website are separately owned products; retain their generated-contract gates. Hosted lives in portico-internal and is outside this app repository.",
+    "condition": "Only the separate Cast receiver, website or Hosted product, retaining its own contract gates.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "server/receiver/cast/receiver.js#4c2bbc566f56acf3": {
+    "category": "separate-product",
+    "reason": "Cast receiver and website are separately owned products; retain their generated-contract gates. Hosted lives in portico-internal and is outside this app repository.",
+    "condition": "Only the separate Cast receiver, website or Hosted product, retaining its own contract gates.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "server/receiver/cast/receiver.js#2a4f5487eb0e3b24": {
+    "category": "separate-product",
+    "reason": "Cast receiver and website are separately owned products; retain their generated-contract gates. Hosted lives in portico-internal and is outside this app repository.",
+    "condition": "Only the separate Cast receiver, website or Hosted product, retaining its own contract gates.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "server/receiver/cast/receiver.js#f86e0b1523614621": {
+    "category": "separate-product",
+    "reason": "Cast receiver and website are separately owned products; retain their generated-contract gates. Hosted lives in portico-internal and is outside this app repository.",
+    "condition": "Only the separate Cast receiver, website or Hosted product, retaining its own contract gates.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "server/receiver/cast/receiver.js#333c8fb513cefaa7": {
+    "category": "separate-product",
+    "reason": "Cast receiver and website are separately owned products; retain their generated-contract gates. Hosted lives in portico-internal and is outside this app repository.",
+    "condition": "Only the separate Cast receiver, website or Hosted product, retaining its own contract gates.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "server/receiver/cast/receiver.js#3d2e240dbd8c3347": {
+    "category": "separate-product",
+    "reason": "Cast receiver and website are separately owned products; retain their generated-contract gates. Hosted lives in portico-internal and is outside this app repository.",
+    "condition": "Only the separate Cast receiver, website or Hosted product, retaining its own contract gates.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "server/receiver/cast/receiver.js#dc3be11a5aaad95f": {
+    "category": "separate-product",
+    "reason": "Cast receiver and website are separately owned products; retain their generated-contract gates. Hosted lives in portico-internal and is outside this app repository.",
+    "condition": "Only the separate Cast receiver, website or Hosted product, retaining its own contract gates.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "server/receiver/cast/receiver.js#a53afd76df65da4f": {
+    "category": "separate-product",
+    "reason": "Cast receiver and website are separately owned products; retain their generated-contract gates. Hosted lives in portico-internal and is outside this app repository.",
+    "condition": "Only the separate Cast receiver, website or Hosted product, retaining its own contract gates.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "server/receiver/cast/receiver.js#57aa7b0e4f651b32": {
+    "category": "separate-product",
+    "reason": "Cast receiver and website are separately owned products; retain their generated-contract gates. Hosted lives in portico-internal and is outside this app repository.",
+    "condition": "Only the separate Cast receiver, website or Hosted product, retaining its own contract gates.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "server/receiver/cast/receiver.js#ec747bc12444f473": {
+    "category": "separate-product",
+    "reason": "Cast receiver and website are separately owned products; retain their generated-contract gates. Hosted lives in portico-internal and is outside this app repository.",
+    "condition": "Only the separate Cast receiver, website or Hosted product, retaining its own contract gates.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "server/receiver/cast/receiver.js#90a2098b0dcf6068": {
+    "category": "separate-product",
+    "reason": "Cast receiver and website are separately owned products; retain their generated-contract gates. Hosted lives in portico-internal and is outside this app repository.",
+    "condition": "Only the separate Cast receiver, website or Hosted product, retaining its own contract gates.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "server/receiver/cast/receiver.js#e9dd3e5d5082da24": {
+    "category": "separate-product",
+    "reason": "Cast receiver and website are separately owned products; retain their generated-contract gates. Hosted lives in portico-internal and is outside this app repository.",
+    "condition": "Only the separate Cast receiver, website or Hosted product, retaining its own contract gates.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/platform/playback/DecodeAudioRender.ts#be852b6fee24328a": {
+    "category": "platform-url",
+    "reason": "Player/reader fetches core-issued media/subtitle URLs or bundled reader font bytes; no domain JSON requests are allowed by this pinned allowance.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/platform/playback/audio/bytes.ts#aebe74cc88213f06": {
+    "category": "platform-url",
+    "reason": "Player/reader fetches core-issued media/subtitle URLs or bundled reader font bytes; no domain JSON requests are allowed by this pinned allowance.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/platform/playback/audio/bytes.ts#aef3473d60a79a33": {
+    "category": "platform-url",
+    "reason": "Player/reader fetches core-issued media/subtitle URLs or bundled reader font bytes; no domain JSON requests are allowed by this pinned allowance.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/platform/playback/audio/bytes.ts#54f3157a79e9a5fc": {
+    "category": "platform-url",
+    "reason": "Player/reader fetches core-issued media/subtitle URLs or bundled reader font bytes; no domain JSON requests are allowed by this pinned allowance.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/platform/playback/audio/converted.ts#aebe74cc88213f06": {
+    "category": "platform-url",
+    "reason": "Player/reader fetches core-issued media/subtitle URLs or bundled reader font bytes; no domain JSON requests are allowed by this pinned allowance.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/platform/playback/audio/converted.ts#aef3473d60a79a33": {
+    "category": "platform-url",
+    "reason": "Player/reader fetches core-issued media/subtitle URLs or bundled reader font bytes; no domain JSON requests are allowed by this pinned allowance.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/platform/playback/audio/converted.ts#4d5369dc03705e33": {
+    "category": "platform-url",
+    "reason": "Player/reader fetches core-issued media/subtitle URLs or bundled reader font bytes; no domain JSON requests are allowed by this pinned allowance.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/platform/playback/subtitle-retry.ts#4a96be5cb6043e6f": {
+    "category": "platform-url",
+    "reason": "Player/reader fetches core-issued media/subtitle URLs or bundled reader font bytes; no domain JSON requests are allowed by this pinned allowance.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/vega/src/bridge/subtitles.ts#2940ee6c6beefd6d": {
+    "category": "platform-url",
+    "reason": "Player fetches the core-issued subtitle document URL with bounded conditional reads.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/screens/downloads/device.ts#44ee4c53dfdfc69b": {
+    "category": "platform-transport",
+    "reason": "Approved device custody and linked abort: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "guardHash": "06302d6fd6282e30a7b430a5d7c00eb5e857bb45705679a74f044214eccdb7b6",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/screens/downloads/device.ts#683eb631756a9be6": {
+    "category": "platform-url",
+    "reason": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes only, and no domain JSON is constructed.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/screens/saved/directory-commands.ts#e2eff5f631cca540": {
+    "category": "platform-transport",
+    "reason": "Approved activation/authority guard and linked abort: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "guardHash": "1a610704f23bfbb3decb989c991a1aec35fd83b32b4a230a48e19d0eebd1278b",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/screens/saved/view-model.ts#5fd25b31f48dfca0": {
+    "category": "platform-transport",
+    "reason": "Approved captured generation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "guardHash": "8f404dfc523a8576ee81883b3f9e9439db1349bd722245fe982340e23640202d",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/screens/pins/pins-controller.ts#d7dd10775413b00f": {
+    "category": "platform-transport",
+    "reason": "Approved lifetime and linked abort: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "guardHash": "9427b95f948753bba10dcd95f206db4e797fb218aac1aaee90c238ffd634c5e3",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/screens/saved/runtime.ts#03c2017e0a3c0740": {
+    "category": "platform-transport",
+    "reason": "Approved SavedOperations guard and tracked abort: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "guardHash": "d56a8239278b9b0f73c9a433480e5ed1587441cb04bb99a088753e65cad97e35",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/screens/watch/music/favorite-binding.ts#8aaeab0e6897fe9f": {
+    "category": "platform-transport",
+    "reason": "Approved playback opening/authority and linked abort: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "guardHash": "26f208175208184b763ce56a96e5d63e0e7da97c50ea40e3230ad613896d4162",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/desktop/src/offline.ts#cb7cad3af70c077d": {
+    "category": "platform-url",
+    "reason": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes only, and no domain JSON is constructed.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/desktop/src/offline.ts#96e670b478a3c608": {
+    "category": "platform-url",
+    "reason": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes only, and no domain JSON is constructed.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/platform/offline-downloads.ts#131397bcb5eb95b2": {
+    "category": "platform-url",
+    "reason": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes only, and no domain JSON is constructed.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/platform/offline-downloads.ts#aea29f47f699036a": {
+    "category": "platform-url",
+    "reason": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes only, and no domain JSON is constructed.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/screens/saved/Saved.route.tsx#816b9d4e902eb35a": {
+    "category": "platform-url",
+    "reason": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes only, and no domain JSON is constructed.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/platform/local-invitation.ts#2ee476c643df9a2e": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "guardHash": "129630069f05e0667ecb01a5ae2c1de78fc0d67c860451815a40f3c05a92d6a6",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/platform/portico-invitation.ts#66b92be83fc1a9f4": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "guardHash": "f41a15d479468f6683d1b7f8d9dddd92fef3b5c4a3e495d19a7f8755ff4b0320",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/platform/portico-invitation.ts#2ee476c643df9a2e": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "guardHash": "129630069f05e0667ecb01a5ae2c1de78fc0d67c860451815a40f3c05a92d6a6",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/screens/accounts/AccountRoutes.tsx#885991f1e6bf2b6e": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "guardHash": "5ddd7775f266515c262daec24786d11e55a52fb5643063d312da86a36e3955d2",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/screens/accounts/PhoneFirstLibrary.tsx#4f93cfab6afc05d1": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "guardHash": "5183cbc3a3a4ef2134e3a5383850491555e3014ff2993010ed76ce2ba45fe572",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/screens/settings-live/native-account-security.ts#70d251df5e6739cf": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "guardHash": "03ba51452aec4977e41a37dd1eef22e82f81ee26edf7f23c55e289e25318d593",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/platform/account-entry.ts#349560422f5c8e69": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "guardHash": "baeeaa79949975f0ee467ca13a9fc0844d285569873f5a21f0200fe360663cc4",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/platform/account-entry.ts#20dc95d1598f8be9": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "guardHash": "8039843391f461a87fff9a64b8c477d2fef3707d54c10d046ac67400e030b3b1",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/platform/account-entry.ts#d3b65eac59ee9d6e": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "guardHash": "8526f49adf167c5490dcc9ad94a1b302d063a7ef37af2e09264987c184462b3f",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/platform/account-entry.ts#aedeea5fbed3f95a": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "guardHash": "852b3adbeabc88447f73d1fba5df1bde84a90df784ede7405d46936dcc6aeb51",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/platform/account-entry.ts#b39b71362dd7ecdc": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "guardHash": "58c0329ed296f70d039441910a673a115d169b6414c4754607794cb7b6db811b",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/screens/settings/account-profile/ProfileSignIn.tsx#6be9155c99f1ba3b": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "guardHash": "7f161aed3a169dc431d1b1642ca52c118bdba86ec6214fb14ab3e3a0bd31a4f2",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/screens/settings/account-profile/devices.ts#1811510996e7074e": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "guardHash": "7ed947f262de7cfc943dccada9fd221651e2b46e0d043e74dacdf9c0f661310f",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/screens/settings/account-profile/restrictions.ts#db824627c144915c": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "guardHash": "43833d541ce986a41908889035cd509203fbbe99f1f1dbcb4ff15b4e90c7818d",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/screens/settings/account-profile/sign-out-others.ts#43c77788e4893772": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "guardHash": "dbfbd2feaff8173d54f403a9fde903ce31ff8eeb75d636cbff874ea663dd1dd1",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/screens/settings/account-profile/source.ts#4f1230ad27977a29": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "guardHash": "ed181a443ed3aa10a0cf3910d56276d79dd6cc62d92a790ec72c12fec8e5e85a",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/screens/settings/invitations.ts#5ee197e42936d736": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "guardHash": "57a46edcd50913186101ebd2adafc2665bad91698f31c4704cb46c6c085f01e5",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/platform/play-on/cast.ts#ba9fe424a63bf971": {
+    "category": "platform-transport",
+    "reason": "CastController and receiver display/configuration operations; original viewer/caller signals and session custody. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "8dd043a95676931909c2b4fc5ddc2a4a1db9b1b3e788422c6d21981e1873b9d0",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/platform/play-on/cast.ts#4258366f1ac13d4d": {
+    "category": "platform-transport",
+    "reason": "CastController and receiver display/configuration operations; original viewer/caller signals and session custody. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "24e47ed184d3288b7b462a350811ebf8b1f0b64314cfc1a6b6d93661994f0ef6",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/platform/play-on/controller.ts#2b028109967d7aaf": {
+    "category": "platform-transport",
+    "reason": "HandoffController, SessionsClient and PlaybackControlsService; original directory authority or captured handoff attempt/lease. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "f0c7aec57ab71fea9d244a8da0bd94ca14e69ab86769f638fd90ade33d4b3b83",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/platform/play-on/controller.ts#b77ad8a3557e46b8": {
+    "category": "platform-transport",
+    "reason": "HandoffController, SessionsClient and PlaybackControlsService; original directory authority or captured handoff attempt/lease. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "f0c7aec57ab71fea9d244a8da0bd94ca14e69ab86769f638fd90ade33d4b3b83",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/platform/play-on/controller.ts#b2e16cf88c2755c8": {
+    "category": "platform-transport",
+    "reason": "HandoffController, SessionsClient and PlaybackControlsService; original directory authority or captured handoff attempt/lease. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "3d42bd712e48d8e1556542648b26cc7e24f8472d54528d0c79a4b5e5849e8b34",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 2,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/platform/play-on/controller.ts#72a84b119fb62b21": {
+    "category": "platform-transport",
+    "reason": "HandoffController, SessionsClient and PlaybackControlsService; original directory authority or captured handoff attempt/lease. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "ddd7ef1bdac8d8ece7361ab04decd06a010c43e0c8bccb0edc36db2a8e2f8086",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/platform/play-on/controller.ts#6ef68d445969530a": {
+    "category": "platform-transport",
+    "reason": "HandoffController, SessionsClient and PlaybackControlsService; original directory authority or captured handoff attempt/lease. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "c4f4c98ce9cd9991c6e84873e319f69c101c5668896f992ed8a43df681f916a0",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/platform/playback/listening-controls.ts#dd519f381fe5dcc0": {
+    "category": "platform-transport",
+    "reason": "PlayerChaptersService; exact chapter capability equality/read-only guard, original listening source and combined read lifetime. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "cfb195c94867654a4baa6f38cea74451521eb8cbe4aec66330d135c8d44eadb6",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/platform/playback/listening-controls.ts#1800522a23c3ecbc": {
+    "category": "platform-transport",
+    "reason": "PlayerChaptersService; exact chapter capability equality/read-only guard, original listening source and combined read lifetime. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "cfb195c94867654a4baa6f38cea74451521eb8cbe4aec66330d135c8d44eadb6",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/platform/playback/runtime.ts#6fa9e6c28ef3493a": {
+    "category": "platform-transport",
+    "reason": "DetailService; original source generation and registered read signal. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "78e1bb88e6acea4d503c62232b1109ac0cabfd848992083e6a6981ec79cb6c76",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/platform/playback/runtime.ts#120d3b5e9ddd4576": {
+    "category": "platform-url",
+    "reason": "Approved CC-3 player/event byte transport: The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/platform/playback/runtime.ts#02a09dbea8bf9c33": {
+    "category": "platform-url",
+    "reason": "Approved CC-3 player/event byte transport: The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/platform/playback/runtime.ts#327742dcd9f58430": {
+    "category": "platform-url",
+    "reason": "Approved CC-3 player/event byte transport: The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/platform/playback/runtime.ts#30aba193f7b0f70c": {
+    "category": "platform-url",
+    "reason": "Approved CC-3 player/event byte transport: The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/screens/settings-live/together-session.ts#935d9e70052d9758": {
+    "category": "platform-transport",
+    "reason": "GroupSessionService; captured NativeScreenLifetime. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "8b815320c682a88d0960e38b584ef089e391d7f496a918a9ffbc98e126e99758",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/screens/watch/factory.tsx#aee935358fa747fd": {
+    "category": "platform-transport",
+    "reason": "VersionPreparationSelectionService; captured title/menu currentness. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "3412fad2545a43d236cc88f0a9424f8be2458f72c293f03f81ef39eb4251751f",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/screens/watch/live-action-source.ts#2e5c0d4d431405b5": {
+    "category": "platform-transport",
+    "reason": "Channel/guide services; captured live opening and caller signal. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "6836ea02d837aead834eb52d8363aa2e369bf4cb51d4801d9025ccb1c034f557",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/screens/watch/live-guide.ts#b3492108471e4e1c": {
+    "category": "platform-transport",
+    "reason": "Channel/guide services; original playback/authority opening. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "551152622a82abfcd43c575f0ba854614cdf5a07a6e673a735debc4d166667df",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/screens/watch/presenters.ts#b0eee15b14250626": {
+    "category": "platform-transport",
+    "reason": "Version deletion core services; captured presenter and original request abort. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "3149e5b76ae3be163ebb9e01a46abb9dd14a0c321b0d90ebc9db752ccf9b6722",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/screens/watch/title-controller.ts#c2f52700fe553140": {
+    "category": "platform-transport",
+    "reason": "Detail/metadata services; captured original title page/lease or mutation abort. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "c2e82822e27ba4a3643038af928c36fc38af3992414ed02896cb8c36d233e9ff",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/screens/watch/title-controller.ts#d5290bd24048e145": {
+    "category": "platform-transport",
+    "reason": "Detail/metadata services; captured original title page/lease or mutation abort. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "24cb825a3b61e8ef19e9f14d08ddd2484d3acdea9c606f21a708a6ce147e1e62",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/src-next/screens/watch/title-controller.ts#963d5c1cea3839c9": {
+    "category": "platform-transport",
+    "reason": "Detail/metadata services; captured original title page/lease or mutation abort. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "d42642b5388ec70c3508ea6c5c748ee84787da41b111d0b9358be4f6eaf15e1c",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/platform/playback/listening-port.ts#9bc71c09ec8fb3b2": {
+    "category": "platform-transport",
+    "reason": "ListeningV1Bridge core operations; captured original request and combined read/listening lifetime. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "772ecc39322009301ef9175359aab3f20804135f40fc0a73b4fe4033c684f68f",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/platform/playback/runtime.ts#69bd8dfb105e18e1": {
+    "category": "platform-transport",
+    "reason": "DetailService/SubtitleService; original stack lifetime signals. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "1ab910a28f67251b5839683ff9e60bf474134c951bda979db7749e24a211beaf",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/platform/playback/runtime.ts#9f937c39ca0397c2": {
+    "category": "platform-transport",
+    "reason": "DetailService/SubtitleService; original stack lifetime signals. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "9b3c8587753a3ec78086dd24b4b31a7d5b45a1121f7f649837d4a3ef8394e673",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/platform/playback/runtime.ts#0d18e1c4278bb920": {
+    "category": "platform-url",
+    "reason": "Approved CC-3 player/event byte transport: The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/platform/playback/runtime.ts#e8415343fe50a798": {
+    "category": "platform-url",
+    "reason": "Approved CC-3 player/event byte transport: The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/platform/playback/runtime.ts#6cc148b6ddd56810": {
+    "category": "platform-url",
+    "reason": "Approved CC-3 player/event byte transport: The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/platform/playback/runtime.ts#85d22bb6a5a06177": {
+    "category": "platform-url",
+    "reason": "Approved CC-3 player/event byte transport: The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/screens/together/bindings.ts#fe35eb19feab662c": {
+    "category": "platform-transport",
+    "reason": "GroupSessionService/Together item reads; captured family/viewer and joined lifetime. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "67b14226a95fad224816748179e660109f2fd526c77e5b6013f1eae7195bccac",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/screens/watch/StreamLimitSessions.tsx#66b7053e7beb436f": {
+    "category": "platform-transport",
+    "reason": "PlaybackControlsService; original refusal opening and signal. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "34f2f9f24014c4e861ed9a5f0926391686ecce4a2609184b811111e6babdcdf3",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/screens/watch/play-on-binding.ts#43bdecad665b5170": {
+    "category": "platform-transport",
+    "reason": "CastController/WatchReceivers core operations; captured shell authority and caller signal. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "5a663d308dc14f4c5d91c94daeaf96c052c2df7bbe5d00c7a53bbca803b0e88f",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/screens/watch/play-on-binding.ts#211f7c4332ab5021": {
+    "category": "platform-transport",
+    "reason": "CastController/WatchReceivers core operations; captured shell authority and caller signal. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "b90e1659d6d7ac40d559ebf2a20f57dbe0ca7fc49ffc5e74e36dcc33813ea750",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/screens/watch/receivers.ts#551270c96a51117a": {
+    "category": "platform-transport",
+    "reason": "HandoffController; original directory/rollback authority or exact captured send flight/fence. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "0ce28196f123090fde52ad1331e522210d1485cf3b4296f5b6730c689486fe2d",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 2,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/screens/watch/receivers.ts#90567718c0019793": {
+    "category": "platform-transport",
+    "reason": "HandoffController; original directory/rollback authority or exact captured send flight/fence. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
+    "guardHash": "0ce28196f123090fde52ad1331e522210d1485cf3b4296f5b6730c689486fe2d",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/Native/PorticoPlayer.m#2e7d6751f492d737": {
+    "category": "platform-url",
+    "reason": "Approved CC-3 player/event byte transport: The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/Native/PorticoPlayer.m#4c460bf38a42a1e4": {
+    "category": "platform-url",
+    "reason": "Approved CC-3 player/event byte transport: The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoEventStream.kt#67ad1f839c71556c": {
+    "category": "platform-url",
+    "reason": "Approved CC-3 player/event byte transport: The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoEventStream.kt#190d7495e63ddc0b": {
+    "category": "platform-url",
+    "reason": "Approved CC-3 player/event byte transport: The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/vega/src/bridge/event-stream.ts#4a78e11c7e3e7193": {
+    "category": "platform-url",
+    "reason": "Approved CC-3 player/event byte transport: The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/platform/playback/web-playback.ts#5214ea11e83774c6": {
+    "category": "platform-url",
+    "reason": "Approved CC-3 player/event byte transport: The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  }
+}

@@ -32,6 +32,7 @@ jobs:
       - run: python3 ci/source_guard.py
       - run: bash ci/secret-scan.sh
       - run: python3 ci/engineering_rules.py
+      - run: python3 ci/client_api_census.py
   planner:
     runs-on: ubuntu-24.04
     timeout-minutes: 8
