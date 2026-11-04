@@ -24,7 +24,6 @@
   "packages/client-core/src/metadata-editor.ts": 1,
   "packages/client-core/src/metadata-repair.ts": 1,
   "packages/client-core/src/personal-saved.ts": 2,
-  "packages/client-core/src/player-chapters.ts": 2,
   "packages/client-core/src/player-offers.ts": 1,
   "packages/client-core/src/preferences-reader.ts": 1,
   "packages/client-core/src/reading-collection.ts": 3,
