@@ -6,7 +6,7 @@ import type {DownloadOptionsView} from '@core/downloads.ts';
 import type {BrowserDownloadTarget} from '../../platform/browser-download';
 import type {EntryActionTarget} from '../../shell/entry-actions';
 import {DownloadNotice} from './DownloadNotice';
-import {useWatchBodyPlayback, type WatchBodyPlayback} from './watch-body-playback';
+import {useWatchBodyPlayback, watchHeaderFacts, type WatchBodyPlayback} from './watch-body-playback';
 import type {PlaybackOptions} from '@core/playback-v1/types.ts';
 import {detailActions} from '@core/presentation/detail-actions.ts';
 import {useTitleMenu} from '../../shell/title-menu';
@@ -56,11 +56,11 @@ export function DetailScreen({binding, itemId, libraryId, kind, artworkClaim}: D
   return failure ? <ScreenProblem context={binding.context} error={failure} retry={() => setAttempt(value => value + 1)} /> : <TitleBody binding={binding} artworkClaim={artworkClaim} />;
 }
 
-/** phone-player 4: under the watch page's title, its year, genres and how long is left of it. */
-function compactFacts(data: DetailProjection): FactPart[] {
-  const parts = titlePageFacts({year: data.item.year, genres: data.metadata.genres.map(genre => genre.name)}, env).filter(part => part.id === 'year' || part.id === 'genres');
-  const length = data.item.duration ?? 0, left = length > 0 && data.personal.progressSeconds > 0 ? titleFactParts({durationSeconds: Math.max(0, length - data.personal.progressSeconds)}, env).find(part => part.id === 'duration')?.text : undefined;
-  return left ? [...parts, {id: 'left', role: 'supplement', text: serviceText('duration.remaining', {duration: left})}] : parts;
+/** phone-player 4: under the watch page's title, its year, genres and how long is left of it: the
+ * video's own position while it plays above, else the saved place. */
+function compactFacts(data: DetailProjection, leftSeconds: number | undefined): FactPart[] {
+  const length = data.item.duration ?? 0, saved = length > 0 && data.personal.progressSeconds > 0 ? Math.max(0, length - data.personal.progressSeconds) : undefined;
+  return watchHeaderFacts(titlePageFacts({year: data.item.year, genres: data.metadata.genres.map(genre => genre.name)}, env), leftSeconds ?? saved, env);
 }
 /** Also mounted under the retained phone/tablet Watch surface. It owns no route or video. */
 export function TitleBody({binding, compact = false, artworkClaim}: {binding: DetailBindings; compact?: boolean; artworkClaim?: SourceArtClaim}) {
@@ -89,7 +89,7 @@ export function TitleBody({binding, compact = false, artworkClaim}: {binding: De
   return <article className={styles.page} data-compact={compact || undefined} data-title-id={data.scope.itemId}>
     {standalonePhone && !compact && <div className={styles.phoneTopBar}>{binding.context.effects.back && <Button variant="icon" icon="i-left" iconOnly aria-label={t('next.states.back')} onClick={() => runScreenCommand(binding.context, () => { binding.current(data); binding.context.effects.back?.(); })} />}</div>}
     {!compact && <TitleHero binding={binding} data={data} artworkClaim={artworkClaim} showBackdrops={preferenceValue<boolean>(preferences, 'appearance.showBackdrops')} />}
-    {compact && <div className={styles.compactHeader}><h1>{data.item.title}</h1><TitleFactsLine parts={compactFacts(data)} /><TitleActions binding={binding} data={data} watch={watch} /></div>}
+    {compact && <div className={styles.compactHeader}><h1>{data.item.title}</h1><TitleFactsLine parts={compactFacts(data, watch?.leftSeconds)} /><TitleActions binding={binding} data={data} watch={watch} /></div>}
     <TitleTabs title={data.item.title} compact={compact} onBack={binding.context.effects.back ? () => runScreenCommand(binding.context, () => { binding.current(data); binding.context.effects.back?.(); }) : undefined} actions={!compact && <TitlePinnedActions binding={binding} data={data} />}><Tabs externalPanelId={tabPanelId} className={styles.tabStrip} aria-label={t('next.controls.details')} value={tab} onValueChange={value => runScreenCommand(binding.context, () => { binding.current(data); if (value === 'related' || value === 'details' || value === 'extras') binding.view.tab(value); })} items={tabs} /></TitleTabs>
     {snapshot.phase === 'error' && <ScreenFailure retry={() => { void binding.service.retry(); }} />}
     {snapshot.mutationError && <ScreenFailure retry={() => { void binding.service.retryMutation(); }} />}

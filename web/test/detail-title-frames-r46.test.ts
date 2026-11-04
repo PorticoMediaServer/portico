@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {registerHooks} from 'node:module';
-import {createElement} from 'react';
+import {createElement, useContext} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {readFileSync} from 'node:fs';
 import {defaultI18n} from '@i18n';
@@ -22,7 +22,8 @@ const width = (value: number) => { (globalThis as {__detailWidth: {width: number
 
 const {TitleActions, TitleDetails} = await import('../src/screens/detail/Detail.tsx');
 const {createDetailSpecimen} = await import('../src/dev/entries/detail-specimen.tsx');
-const {WatchBodyPlaybackContext} = await import('../src/screens/detail/watch-body-playback.tsx');
+const {WatchBodyPlaybackContext, watchEpisodeLine, watchHeaderFacts} = await import('../src/screens/detail/watch-body-playback.tsx');
+const {WatchBodyPlaybackProvider} = await import('../src/screens/watch/WatchBodyPlayback.tsx');
 const {DetailService} = await import('@core/detail.ts');
 
 const specimenContext = (specimen: ReturnType<typeof createDetailSpecimen>) => ({
@@ -87,6 +88,34 @@ test('phone-player 4: under the watch page an expanded episode keeps Play or Res
     assert.doesNotMatch(html, new RegExp(defaultI18n.t('next.dock.pause')));
     assert.match(html, /1 h 26 min left/, 'its own resume line');
   } finally { service.dispose(); }
+});
+
+test('phone-player 4: under the playing video a show names its episode on one line, then year, genres and the time left', () => {
+  const env = {t: defaultI18n.t, locale: 'en-US'};
+  const episode = {kind: 'video', item: {id: 'ep-1', kind: 'episode', title: 'Failure’s Contagious', show: {title: 'Slow Horses'}, episode: {mode: 'seasonal', season: 1, episode: 1}}} as const;
+  assert.deepEqual(watchEpisodeLine(episode, env).map(part => part.text), ['S1 E1', 'Failure’s Contagious']);
+  assert.deepEqual(watchEpisodeLine({kind: 'video', item: {id: 'm', kind: 'movie', title: 'Inside Out'}}, env), [], 'a film has no episode line');
+  assert.deepEqual(watchEpisodeLine(undefined, env), []);
+  const facts = [{id: 'year', role: 'primary', text: '2022'}, {id: 'seasons', role: 'supplement', text: '4 seasons'}, {id: 'genres', role: 'supplement', text: 'Crime, Drama, Mystery'}, {id: 'content-rating', role: 'supplement', text: 'TV-MA'}] as const;
+  assert.deepEqual(watchHeaderFacts(facts, 37 * 60, env).map(part => part.text), ['2022', 'Crime, Drama, Mystery', '37 min left']);
+  assert.deepEqual(watchHeaderFacts(facts, undefined, env).map(part => part.text), ['2022', 'Crime, Drama, Mystery'], 'no time left without a length');
+});
+
+test('phone-player 4: the watch provider hands the header what plays and its time left in the steps the words change', () => {
+  const subject = {kind: 'video', item: {id: 'ep-1', kind: 'episode', title: 'Failure’s Contagious'}} as const;
+  const seen = (positionSeconds: number, durationSeconds = 2940) => {
+    const snapshot = {disposed: false, fence: {id: 'f'}, presentation: {subject, playing: true, controls: ['pause'], durationSeconds, positionSeconds}};
+    let value: any;
+    const Probe = () => { value = useContext(WatchBodyPlaybackContext); return null; };
+    renderToStaticMarkup(createElement(WatchBodyPlaybackProvider, {runtime: {subscribe: () => () => {}, getSnapshot: () => snapshot, toggle: async () => {}} as never, reportError() {}}, createElement(Probe)));
+    return value;
+  };
+  assert.equal(seen(724).subject, subject);
+  assert.equal(seen(724).leftSeconds, 37 * 60, '12:04 of 49:00 reads 37 min left');
+  assert.equal(seen(725).leftSeconds, seen(740).leftSeconds, 'no redraw while the minute reads the same');
+  assert.equal(seen(2927).leftSeconds, 13, 'under a minute it counts seconds, as the episode row does');
+  assert.equal(seen(10, 0).leftSeconds, undefined, 'no length, no time left');
+  assert.equal(seen(724).enabled, true);
 });
 
 test('the phone Details draws its short About, the real ratings and the credit lines under the people', async () => {
