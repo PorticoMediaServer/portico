@@ -1,9 +1,10 @@
 import {useShellFacts} from '../../shell/fact-hooks';
-import {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
+import {useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {useRouterState} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
 import {noticeWords, type Notification, type NotificationAction} from '@core/notifications.ts';
-import type {InboxAction} from '@core/inbox.ts';
+import {InboxService, type InboxAction, type InboxView} from '@core/inbox.ts';
+import type {NotificationAudience} from '@core/notifications.ts';
 import {defineWebScreen} from '../../route-registry';
 import {useProtectedWebScreenContext} from '../../route-registry-view';
 import {router} from '../../router';
@@ -13,7 +14,8 @@ import {Popover} from '../../kit/overlays';
 import {ShellScrim} from '../../kit/shell/ShellScrim';
 import {StateView} from '../../kit/states';
 import {useShellWidth} from '../../shell/viewport';
-import {Button} from '../../kit/controls';
+import {Button, Tabs} from '../../kit/controls';
+import {PushedNavBar} from '../../kit/shell/SettingsSurfaces';
 import type {ShellPopoverProps} from '../../route-registry';
 import styles from './notifications.module.css';
 import {notificationDestination} from './notification-destination';
@@ -29,9 +31,42 @@ type Captured = NonNullable<ReturnType<typeof useProtectedWebScreenContext>>;
 /** The Notifications page: the whole feed, paged. Desktop draws it as a page of its own, never over
  * a remounted Home; the bell opens {@link NotificationsPopover} over whatever page is open. */
 function NotificationsScreen() {
-  const captured = useProtectedWebScreenContext(), phone = useShellWidth() < 900;
+  const captured = useProtectedWebScreenContext(), width = useShellWidth(), phone = width < 900, narrow = width < 600;
   if (!captured) return null;
+  if (narrow) return <PhoneNotifications captured={captured}/>;
   return phone ? <NotificationsFeed captured={captured} mode="page" /> : <div className={styles.page}><NotificationsFeed captured={captured} mode="page" /></div>;
+}
+
+const noSubscribe = () => () => {};
+const noSnapshot = () => undefined;
+/** phone-app 21 at phone width: "‹ Settings", the title and Mark all read; one Unread / All / Archived row; then the
+ * notices "For you" and, for an owner, "Server · Owner only". The Server section is its own inbox, made on this page
+ * for owners only and gone when the page goes; the bell and the desktop feed keep the shell's one inbox. */
+function PhoneNotifications({captured}: {captured: Captured}) {
+  const {context} = captured, shared = context.inbox, sharedState = useSyncExternalStore(shared.subscribe, shared.getSnapshot);
+  const [view, setView] = useState<InboxView>('unread');
+  const owner = context.facts.identity.viewer.role === 'owner' && sharedState.audiences.includes('account-admin');
+  const server = useMemo(() => owner ? new InboxService(context.api, undefined, {queries: context.freshness.queries}) : undefined, [owner, context]);
+  useEffect(() => () => {server?.dispose();}, [server]);
+  const serverState = useSyncExternalStore(server?.subscribe ?? noSubscribe, server?.getSnapshot ?? noSnapshot);
+  const readAll = () => {
+    for (const [inbox, snapshot] of [[shared, sharedState], [server, serverState]] as const) {
+      if (inbox && snapshot && snapshot.phase === 'ready' && snapshot.revision > 0 && !snapshot.busy) void inbox.readAll();
+    }
+  };
+  const back = () => {if (!context.isCurrent()) return; if (window.history.length > 1) router.history.back(); else void router.navigate({to: '/settings'});};
+  const unread = sharedState.unread;
+  return <div className={styles.phonePage}>
+    <PushedNavBar safeArea={false} backLabel={t('next.shell.settings')} title={t('notifications.title')} onBack={back}
+      trailing={<Button variant="text" size="small" className={styles.markAll} onClick={readAll}>{t('notifications.markAllRead')}</Button>}/>
+    <Tabs phone className={styles.phoneViews} value={view} aria-label={t('web.notifications.show')}
+      onValueChange={value => {if (value === 'unread' || value === 'all' || value === 'archived') setView(value);}}
+      items={(['unread', 'all', 'archived'] as const).map(value => ({value, label: value === 'unread' && unread > 0
+        ? <>{t('notifications.view.unread')}<span className={styles.viewCount}>{defaultI18n.number(unread)}</span></> : t(`notifications.view.${value}`)}))}/>
+    <NotificationsFeed captured={captured} mode="page" section={{audience: 'profile', view, title: t('notifications.audience.profile')}}/>
+    {server && <NotificationsFeed captured={captured} mode="page" service={server}
+      section={{audience: 'account-admin', view, title: <>{t('notifications.audience.admin')}<span>{t('next.shell.ownerOnly')}</span></>}}/>}
+  </div>;
 }
 
 /** desktop-search "Notifications": the bell opens a panel over the page, as today. It is a shell
@@ -46,9 +81,13 @@ function NotificationsPopover({anchorRef, onClose}: ShellPopoverProps) {
   </Popover></>;
 }
 
-function NotificationsFeed({captured, mode, limit, onDone}: {captured: Captured; mode: 'page' | 'popover'; limit?: number; onDone?: () => void}) {
+/** One section of phone-app 21: an audience at the page's view, drawn as a heading and its notices. */
+type FeedSection = Readonly<{audience: NotificationAudience; view: InboxView; title: ReactNode}>;
+function NotificationsFeed({captured, mode, limit, onDone, service: given, section}: {captured: Captured; mode: 'page' | 'popover'; limit?: number; onDone?: () => void;
+  /** The shell's inbox unless a page brings its own (the phone page's Server section). */
+  service?: InboxService; section?: FeedSection}) {
   useShellFacts(captured.context);
-  const {context} = captured, service = context.inbox, state = useSyncExternalStore(service.subscribe, service.getSnapshot);
+  const {context} = captured, service = given ?? context.inbox, state = useSyncExternalStore(service.subscribe, service.getSnapshot);
   const location = useRouterState({select: value => value.location});
   const [published, publish] = useState<Readonly<{context: typeof context; service: typeof service; location: typeof location; admission: NotificationScreenAdmission}>>();
   const owner = useRef<NotificationScreenAdmission | undefined>(undefined);
@@ -72,7 +111,16 @@ function NotificationsFeed({captured, mode, limit, onDone}: {captured: Captured;
   const phone = useShellWidth() < 900;
   // The root owns this shared inbox/badge service. Closing a panel unsubscribes
   // this view; authority retirement disposes the one real service at the root.
-  useEffect(() => {opening?.initialize(state);}, [opening, state]);
+  // A section reads its own audience at the page's view, once per audience/view; otherwise the drawn view.
+  const sectionRead = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!opening) return;
+    if (!section) {opening.initialize(state); return;}
+    const key = `${section.audience}:${section.view}`;
+    if (sectionRead.current === key && state.audience === section.audience && state.view === section.view) return;
+    sectionRead.current = key;
+    opening.run(state, () => {void service.load(section.audience, section.view);});
+  }, [opening, state, section, service]);
   // OW-5: an open page or panel follows the inbox. A change hint, or a stream resync, rereads
   // the view on screen quietly; the shell refreshes the badge on its own.
   useEffect(() => {
@@ -120,8 +168,7 @@ function NotificationsFeed({captured, mode, limit, onDone}: {captured: Captured;
   const items = limit === undefined ? state.items : state.items.slice(0, limit);
   const seeAll = mode === 'popover' && (state.items.length > items.length || state.more)
     ? <Button variant="text" size="small" onClick={() => {if (opening?.owns(state)) go(() => router.navigate({to: '/notifications'}));}}>{t('notifications.seeAll')}</Button> : undefined;
-  const panel = <NotificationsPanel snapshot={state} pages={mode === 'page'} footer={seeAll} onAudience={audience => {if (state.audiences.includes(audience)) opening?.run(state, () => {void service.load(audience, state.view);});}}
-    onView={view => {opening?.run(state, () => {void service.load(state.audience, view);});}} onReadAll={() => {if (state.phase === 'ready' && state.revision > 0 && !state.busy) opening?.run(state, () => {void service.readAll();});}} onMore={() => {if (state.more && !state.busy) opening?.run(state, () => {void service.more();});}}>
+  const body = <>
     {state.phase === 'error' ? <NotificationsPanelState><StateView variant="compact" title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')}
       primary={{id: 'retry', label: t('action.tryAgain'), onPress: () => {opening?.run(state, () => {void service.load(state.audience, state.view);});}}} secondary={{id: 'home', label: t('next.states.goHome'), onPress: close}} /></NotificationsPanelState>
       : state.phase === 'ready' && !state.items.length ? <NotificationsPanelState><StateView variant="compact" icon="i-bell" title={t(state.view === 'unread' ? 'notifications.caughtUp' : state.view === 'archived' ? 'notifications.noneArchived' : 'notifications.none')} body={t('notifications.emptyBody')} /></NotificationsPanelState>
@@ -132,8 +179,15 @@ function NotificationsFeed({captured, mode, limit, onDone}: {captured: Captured;
               disabled: !notificationDestination(action, context.facts.identity.libraries, context.facts.identity.capabilities?.manageServer === true, note), onAction: () => open(note, action)}))}
             onMarkRead={() => apply('read', note)} onArchive={() => apply('archive', note)} onMoveToInbox={() => apply('unarchive', note)} />;
         })}
+  </>;
+  const panel = <NotificationsPanel snapshot={state} pages={mode === 'page'} footer={seeAll} onAudience={audience => {if (state.audiences.includes(audience)) opening?.run(state, () => {void service.load(audience, state.view);});}}
+    onView={view => {opening?.run(state, () => {void service.load(state.audience, view);});}} onReadAll={() => {if (state.phase === 'ready' && state.revision > 0 && !state.busy) opening?.run(state, () => {void service.readAll();});}} onMore={() => {if (state.more && !state.busy) opening?.run(state, () => {void service.more();});}}>
+    {body}
   </NotificationsPanel>;
   if (!opening) return null;
+  if (section) return <section className={styles.phoneSection} aria-label={typeof section.title === 'string' ? section.title : undefined}>
+    <h2>{section.title}</h2>{body}{state.more && <Button variant="text" size="small" onClick={() => {if (state.more) opening.run(state, () => {void service.more();});}}>{t('web.pager.next')}</Button>}
+    {report && <OwnFeedbackReport api={context.api} reportId={report} onClose={() => setReport(undefined)} />}</section>;
   return <>{panel}{report && <OwnFeedbackReport api={context.api} reportId={report} onClose={() => setReport(undefined)} />}</>;
 }
 export default defineWebScreen({id: 'notifications', component: NotificationsScreen, shellPopover: NotificationsPopover});
