@@ -194,6 +194,24 @@ func readingScanWithin(t *testing.T, f *v1Fixture, library string, timeout time.
 		}
 		if state.Status == "complete" || state.Status == "complete_with_warnings" {
 			if state.Warnings != 0 {
+				rows, queryErr := f.db.Query(`SELECT relative_path,reason FROM inventory_scan_issues WHERE job_id=?`, state.ID)
+				if queryErr == nil {
+					for rows.Next() {
+						var path, reason string
+						rows.Scan(&path, &reason)
+						t.Logf("scan issue %s: %s", path, reason)
+					}
+					rows.Close()
+				}
+				objects, objectErr := f.db.Query(`SELECT relative_path,analysis_error FROM inventory_objects WHERE source_id=? AND analysis_error<>''`, state.SourceID)
+				if objectErr == nil {
+					for objects.Next() {
+						var path, reason string
+						objects.Scan(&path, &reason)
+						t.Logf("object issue %s: %s", path, reason)
+					}
+					objects.Close()
+				}
 				t.Fatalf("reading scan warnings: %+v", state)
 			}
 			break
