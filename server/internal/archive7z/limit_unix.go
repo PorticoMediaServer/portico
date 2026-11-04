@@ -4,9 +4,6 @@ package archive7z
 
 import (
 	"errors"
-	"os"
-	"strconv"
-	"strings"
 
 	"golang.org/x/sys/unix"
 )
@@ -25,7 +22,15 @@ const workerAddressBudget = 1 << 30
 // sizeable allocation (OPS, 2 Nov). The limit is what is already reserved plus
 // the worker's 1 GiB budget.
 func limitProcess() error {
-	address := uint64(workerAddressBudget) + reservedAddressSpace()
+	return limitProcessWith(workerAddressLimit, unix.Setrlimit)
+}
+
+// Measurement and all limit installations must succeed before parsing starts.
+func limitProcessWith(addressLimit func() (uint64, error), install func(int, *unix.Rlimit) error) error {
+	address, err := addressLimit()
+	if err != nil {
+		return err
+	}
 	limits := []struct {
 		resource int
 		value    unix.Rlimit
@@ -36,28 +41,9 @@ func limitProcess() error {
 		{unix.RLIMIT_CORE, unix.Rlimit{Cur: 0, Max: 0}},
 	}
 	for _, limit := range limits {
-		if err := unix.Setrlimit(limit.resource, &limit.value); err != nil {
+		if err := install(limit.resource, &limit.value); err != nil {
 			return errors.New("resource limits unavailable")
 		}
 	}
 	return nil
-}
-
-// reservedAddressSpace is this process's current virtual size (VmSize), or zero
-// where /proc is not available.
-func reservedAddressSpace() uint64 {
-	status, err := os.ReadFile("/proc/self/status")
-	if err != nil {
-		return 0
-	}
-	for _, line := range strings.Split(string(status), "\n") {
-		if rest, ok := strings.CutPrefix(line, "VmSize:"); ok {
-			kb, err := strconv.ParseUint(strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(rest), "kB")), 10, 64)
-			if err != nil {
-				return 0
-			}
-			return kb << 10
-		}
-	}
-	return 0
 }
