@@ -635,7 +635,6 @@ export async function walkProbe(api: HttpLocalApi, input: ProbeInput): Promise<P
       ['console telemetry now', '/v1/admin/telemetry/now', () => consoleClient.telemetryNow()],
       ['console attention', '/v1/admin/attention', () => consoleClient.attention()],
       ['console playback history', '/v1/admin/playback/history?period=24h&cursor=&limit=50', () => consoleClient.playbackHistory()],
-      ['console inbox', '/v1/notifications?cursor=', () => consoleClient.inbox()],
       ['console feedback reports', '/v1/admin/feedback?cursor=', () => consoleClient.reports(true)],
     ];
     for (const [name, path, run] of consoleReads) {

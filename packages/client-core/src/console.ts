@@ -56,8 +56,6 @@ export const MISSING_TITLES_RULES:readonly MissingTitlesRule[]=Object.freeze(['i
 export type SettingsDocument={ffmpegValidation?:FFmpegValidation;revision:number;digest:string;requested:RuntimeSettings;effective:RuntimeSettings;activeRevision:number;restartFields:string[];registryRevision:string};
 export type FeedbackStatus=FeedbackItemStatus;
 export type FeedbackTransition=Readonly<{operationId:string;expectedRevision:number;status:FeedbackStatus;reply:string}>;
-export type Notice={id:string;createdAt:number;readAt:number|null;code:string;targetId?:string;message:string};
-export type Inbox=Page<Notice>&{unread:number};
 export type Job={id:string;kind:string;resource:string;trigger:string;state:'queued'|'running'|'paused'|'reconciling'|'cancellation-requested'|'cancelled'|'failed'|'succeeded';phase:string;revision:number;attempt:number;createdAt:number;updatedAt:number;nextAt:number;domainId?:string;errorCode?:string;predecessor?:string;settingsRevision:number;lane:string;actions:('cancel'|'retry'|'pause'|'resume')[];processed?:number;total?:number};
 export type Schedule={id:string;revision:number;kind:string;resource:string;enabled:boolean;timezone:string;startMinute:number;windowMinutes:number;catchUp:boolean;lastSlot:string;createdAt:number};
 export type StreamOptions={libraries:{id:string;label:string}[];viewers:{id:string;label:string}[]};
@@ -120,7 +118,6 @@ export function parseEvidenceRecord(value:unknown):EvidenceRecord {
 /** The page size and the cursor stay exact. A row this app cannot read is left out alone, and a repeated id keeps its first row. */
 export function parsePage<T>(v:unknown,parse:(v:unknown)=>T):Page<T>{const p=base(v);if(!Array.isArray(p.items)||p.items.length>40||typeof p.nextCursor!=='string'||p.nextCursor!==''&&!/^\d{1,19}$/.test(p.nextCursor))invalid();return {items:distinct(keepReadable('console','page.items',p.items,parse)),nextCursor:p.nextCursor};}
 function distinct<T>(rows:T[]):T[]{return rows.every(row=>obj(row)&&typeof row.id==='string')?firstOfEach('console','rows',rows,row=>(row as {id:string}).id):rows;}
-function parseInbox(v:unknown):Inbox{const p=base(v);if(!integer(p.unread))invalid();return {...parsePage(v,n=>{const v=base(wireInstants(n,["createdAt","readAt"]));if(!id(v.id)||!integer(v.createdAt)||v.readAt!==null&&!integer(v.readAt)||!text(v.message,300)||v.targetId!==undefined&&!id(v.targetId))invalid();return v as Notice;}),unread:p.unread};}
 /** A job in a state this app does not know cannot be shown truthfully, so it is left out of its list. An action this app does not know is not offered. */
 function parseJob(v:unknown):Job{const j=base(wireInstants(v,["createdAt","updatedAt","nextAt"]));revision(j);if(!id(j.id)||!id(j.kind)||!Array.isArray(j.actions)||!['queued','running','paused','reconciling','cancellation-requested','cancelled','failed','succeeded'].includes(j.state))invalid();const actions=j.actions.filter((v:unknown)=>v==='retry'||v==='cancel'||v==='pause'||v==='resume');if(actions.length===j.actions.length)return j as Job;noteSkipped('console','job.actions',j.actions.length-actions.length);return {...j,actions} as Job;}
 function list<T>(v:unknown,parse:(v:unknown)=>T,max=100):T[]{if(!Array.isArray(v)||v.length>max)invalid();return distinct(keepReadable('console','rows',v,parse));}
@@ -256,8 +253,6 @@ export class ConsoleClient {
  /** Status and reply behind the read revision. The caller keeps one operationId per
   * intended change, so a retry after a lost answer is the same transition. */
  transitionFeedback(id:string,change:FeedbackTransition){return this.call(encodedRoutePath('post_admin_feedback_reports_id_status',{id:encodeURIComponent(id)}),'POST',{...change},parseFeedbackReport);}
- inbox(cursor=''){return this.call(routePath("get_notifications") + "?cursor=" + (encodeURIComponent(cursor)),'GET',undefined,parseInbox);}
- readNotice(id:string){return this.call(encodedRoutePath("post_notifications_id_read", {"id": encodeURIComponent(id)}),'POST',{},v=>{if(!obj(v)||v.read!==true)invalid();});}
  accountOptions(){return this.call(routePath("get_admin_console_accounts"),'GET',undefined,v=>list(v,row=>{if(!obj(row)||!id(row.id)||!text(row.label,128))invalid();return {id:row.id as string,label:row.label as string};},1000));}
  streamOptions(){return this.call(routePath("get_admin_console_stream_options"),'GET',undefined,parseStreamOptions);}
  jobs(cursor=''){return this.call(routePath("get_admin_console_jobs") + "?cursor=" + (encodeURIComponent(cursor)),'GET',undefined,v=>parsePage(v,parseJob));}

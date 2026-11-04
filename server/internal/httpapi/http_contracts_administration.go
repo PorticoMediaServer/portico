@@ -310,9 +310,7 @@ func registerAdministrationHTTPContracts(registry *apikit.Registry) error {
 		return err
 	}
 	// internal/httpapi/console.go:251
-	if err := apikit.RegisterHTTP[struct{}, projectedConsoleEnvelope[map[string]bool]](registry, apikit.Metadata{Audience: apikit.Clients, ID: "post_notifications_id_read", Method: "POST", Path: "/v1/notifications/{id}/read", Summary: "Run notifications read", Access: apikit.Device, Requires: apikit.ScopePlayback, Lane: apikit.Realtime, Admission: laneRealtime, Cost: apikit.Constant, BodyLimit: 0, Status: 200, Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "internal"}}); err != nil {
-		return err
-	}
+
 	// internal/httpapi/console.go:263
 	if err := apikit.RegisterHTTP[struct{}, projectedConsoleEnvelope[operations.StreamOptions]](registry, apikit.Metadata{Audience: apikit.Clients, ID: "get_admin_console_stream_options", Method: "GET", Path: "/v1/admin/console/stream-options", Summary: "Read server console stream options", Access: apikit.Owner, Requires: apikit.ScopeAdmin, Lane: apikit.Default, Admission: laneAdmin, Cost: apikit.Constant, BodyLimit: 0, Status: 200, Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "internal"}}); err != nil {
 		return err

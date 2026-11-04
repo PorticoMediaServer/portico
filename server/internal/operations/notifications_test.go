@@ -595,3 +595,52 @@ func TestRetentionClearsABacklogInBoundedBatches(t *testing.T) {
 		t.Fatalf("a retention batch was not bounded: %+v", plans)
 	}
 }
+
+func TestConsoleFeedbackSeamUsesCurrentStoreAndRollsBack(t *testing.T) {
+	s, owner, member, auth := noticeFixture(t)
+	for _, commit := range []bool{false, true} {
+		tx, err := s.DB.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, code := range []string{"feedback-updated", "feedback-received"} {
+			for i := 0; i < 2; i++ {
+				if err = Notify(tx, s.now(), member, code, "old-report", strings.Repeat("x", 200)); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		if commit {
+			err = tx.Commit()
+		} else {
+			err = tx.Rollback()
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		inbox, err := s.Notices(context.Background(), member, auth, NoticeQuery{})
+		want := 0
+		if commit {
+			want = 2
+		}
+		if err != nil || len(inbox.Items) != want {
+			t.Fatalf("commit=%v inbox=%+v err=%v", commit, inbox, err)
+		}
+		if commit && (inbox.Revision == 0 || inbox.Counts.Unread != 2) {
+			t.Fatalf("missing current revision/counts: %+v", inbox)
+		}
+		for _, n := range inbox.Items {
+			if len(n.Actions) != 0 {
+				t.Fatalf("old report id routed to new reader: %+v", n)
+			}
+		}
+	}
+	inbox, err := s.Notices(context.Background(), owner, auth, NoticeQuery{})
+	if err != nil || len(inbox.Items) != 0 {
+		t.Fatalf("cross-viewer feedback: %+v %v", inbox, err)
+	}
+	var old int
+	if err = s.DB.QueryRow(`SELECT count(*) FROM console_notifications`).Scan(&old); err != nil || old != 0 {
+		t.Fatalf("legacy writes: %d %v", old, err)
+	}
+}

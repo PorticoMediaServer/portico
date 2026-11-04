@@ -385,3 +385,19 @@ func NotifyFeedbackUpdated(tx *sql.Tx, now int64, authority, account, profile, r
 		},
 	})
 }
+
+// NotifyOwnerAlert commits with the canonical console alert. Its destination is
+// deliberately owner-only; regular administrators never inherit owner alerts.
+// A reopening gets a new dedupe key, while repeated observations do not notify.
+func NotifyOwnerAlert(tx *sql.Tx, now int64, alertID, revision, severity string) error {
+	scopes, err := AdminScopes(tx)
+	if err != nil {
+		return err
+	}
+	for _, scope := range scopes {
+		if _, err = Raise(tx, now, Draft{Audience: AudienceAccountAdmin, Scope: scope, Severity: severity, Source: SourceOperations, Category: "owner.alert", Title: "A server operation needs owner attention.", Body: "Review the server's operation alerts.", Arguments: map[string]string{"alertId": alertID}, DedupeKey: alertID + ":" + revision}); err != nil {
+			return err
+		}
+	}
+	return nil
+}

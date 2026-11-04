@@ -188,7 +188,7 @@ test('a console list keeps its other rows when one row cannot be read, and keeps
  assert.deepEqual((await c.alerts()).map(row=>[row.id,row.severity]),[['alert-one','warning']]);
  assert.deepEqual(await c.streamOptions(),{libraries:[{id:'films',label:'Films'}],viewers:[{id:'v',label:'Viewer'}]});
  assert.deepEqual(Object.keys((await c.measurement('host')).facts),['cpu']);
- const inbox=await c.inbox();assert.deepEqual(inbox.items.map(row=>row.id),['n1']);assert.equal(inbox.unread,2);c.dispose();
+ c.dispose();
 });
 test('list sizes, cursors, revisions and freshness windows still refuse the whole console answer',async()=>{
  const job={id:'job-one',kind:'library-scan',state:'running',revision:2,actions:[]};
