@@ -5,10 +5,13 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server/internal/storage"
 )
 
 func TestReadingInitialReadyHasNoPollDelayOrHiddenHandle(t *testing.T) {
@@ -32,6 +35,27 @@ func TestReadingInitialReadyHasNoPollDelayOrHiddenHandle(t *testing.T) {
 			t.Fatalf("isolated initial readiness: %v\n%s", err, output)
 		}
 		return
+	}
+	if runtime.GOOS != "linux" {
+		// Retained inventory has a process-lifetime expiry ticker. Start that
+		// worker on the real clock, before the isolated database enters a bubble
+		// whose goroutines must all finish. Consume the real helper's whole page.
+		executable, err := os.Executable()
+		if err != nil {
+			t.Fatal(err)
+		}
+		client := storage.New(executable)
+		req := storage.InventoryRequest{Root: t.TempDir(), RelativePath: ".", Limit: 128}
+		for {
+			page, err := client.InventoryPage(t.Context(), "reading-clock-prime", req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if page.Complete {
+				break
+			}
+			req.RootIdentity, req.DirectoryRevision, req.Cursor = page.RootIdentity, page.DirectoryRevision, page.NextCursor
+		}
 	}
 	// Keep cold SQL and the real worker runnable without spending the virtual
 	// initial grace on host scheduling. All resources belong to this bubble.
