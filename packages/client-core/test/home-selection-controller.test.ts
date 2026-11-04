@@ -836,3 +836,36 @@ test('D: an access change that takes a row\'s library away drops its picks, whet
     h.controller.dispose();
   }
 });
+
+// Lead (#740 follow-up): the library list catching up with an access change re-resolves the picks then, not at the
+// next Home answer. `undefined` (unknown) drops nothing on library grounds; a selection an action holds is left to it.
+test('D: a library that leaves the visible list drops its picks when the list changes, with one notice', () => {
+  const a = entry('a'), x = {...entry('x'), libraryId: 'library-2'}, h = harness([a, x]), notices: string[] = [];
+  let visible: readonly string[] | undefined = ['library', 'library-2'];const listeners = new Set<() => void>();
+  h.options.notify = message => notices.push(message);h.options.visibleLibraries = () => visible;
+  h.options.subscribeVisibleLibraries = listener => {listeners.add(listener);return () => {listeners.delete(listener);};};
+  const controller = new HomeSelectionController(h.options);
+  const changed = (next: readonly string[] | undefined) => {visible = next;for (const listener of [...listeners]) listener();};
+  controller.registerWindow({id: 'window', row: h.document.rows[0]!, sectionOrder: 0});controller.selectLoaded();
+  assert.equal(controller.getSnapshot().selection.summary.count, 2);
+  changed(undefined);
+  assert.equal(controller.getSnapshot().selection.summary.count, 2, 'an unknown list drops nothing');
+  changed(['library']);
+  assert.deepEqual(controller.getSnapshot().selection.selectedKeys, [controller.key(homeEntrySelection(a, {platform: 'web', playbackAvailable: true, queueAvailable: true})!)]);
+  assert.deepEqual(notices, ['1 item is no longer available.']);
+  changed(['library']);
+  assert.equal(notices.length, 1, 'the same list again says nothing');
+  controller.dispose(); h.controller.dispose();
+  assert.equal(listeners.size, 0, 'the subscription ends with the controller');
+});
+test('D: a selection an action holds is not re-resolved by a library change', async () => {
+  const x = {...entry('x'), libraryId: 'library-2'}, h = harness([entry('a'), x]);
+  let visible: readonly string[] = ['library', 'library-2'];let notify = () => {};
+  h.options.visibleLibraries = () => visible;h.options.subscribeVisibleLibraries = listener => {notify = listener;return () => {};};
+  const controller = new HomeSelectionController(h.options);
+  controller.registerWindow({id: 'window', row: h.document.rows[0]!, sectionOrder: 0});controller.selectLoaded();
+  await controller.execute('play');
+  visible = ['library'];notify();
+  assert.equal(controller.getSnapshot().selection.summary.count, 2, "the action's own write ends it, not the library change");
+  controller.dispose(); h.controller.dispose();
+});

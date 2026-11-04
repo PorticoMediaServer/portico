@@ -90,6 +90,8 @@ export type NativeShellBootstrapContext = Readonly<{
   watch: NativeWatchOutlet;
   account: DirectSnapshot;
   libraries: () => readonly Library[];
+  /** Called after each shell publish, which includes every committed library read; compare the list before acting. */
+  subscribeLibraries?: (listener: () => void) => () => void;
   /** Fresh authenticated directory, committed only inside this restored viewer. */
   readLibraries?: (signal: AbortSignal) => Promise<readonly Library[]>;
   navigation: NativeShellNavigation;
@@ -347,6 +349,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
       preferences: currentPreferences, subscribePreferences: listener => {preferenceListeners.add(listener); return () => {preferenceListeners.delete(listener);};},
       appVersion: installed.appVersion, serverName: server.name, current,
       get account() {return currentAccount();}, libraries: () => current() ? libraries : [], navigation,
+      subscribeLibraries: listener => {listeners.add(listener); return () => {listeners.delete(listener);};},
       readLibraries: async requestSignal => {
         assertCurrent();
         const ticket = readOrder.libraries.begin();
