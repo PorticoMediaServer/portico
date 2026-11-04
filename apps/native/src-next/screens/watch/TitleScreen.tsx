@@ -374,7 +374,9 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
     : selectedSeason ? selectedSeason.title || t('title.season', {number: selectedSeason.number}) : t('title.seasons');
   // phone-detail ep-bar: the phone bar says how many episodes the season has (its watched
   // progress is in the season sheet); wider screens keep the progress beside the button.
-  const seasonProgress = selectedSeason?.episodeCount === undefined ? undefined : theme.platform === 'phone'
+  const selectedGroup = workspace?.selected.group ? workspace.groups.find(group => group.id === workspace.selected.group) : undefined;
+  const seasonProgress = selectedGroup ? selectedGroup.count > 0 ? t('count.episodes', {count: selectedGroup.count}) : undefined
+    : selectedSeason?.episodeCount === undefined ? undefined : theme.platform === 'phone'
     ? t('count.episodes', {count: selectedSeason.episodeCount})
     : t('title.seasonProgress', {watched: selectedSeason.watchedCount ?? 0, total: selectedSeason.episodeCount});
   const remember = (y: number) => {
@@ -516,6 +518,8 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
       <View onLayout={event => {bodyTop.current = event.nativeEvent.layout.y; restore(); alignTV();}} style={{paddingLeft: theme.isTV ? 200 : 20, paddingRight: theme.isTV ? 96 : 20, paddingTop: 20, paddingBottom: theme.isTV ? Math.max(60, viewport.height - 600) : 60, gap: 20}}>
         {props.selectionBar}
         {(theme.isTV || selectedTab === 'episodes') && workspace && (theme.isTV ? cell('episodes', <TVEpisodeBrowser focus={regions.episodes} requestedSeasonId={snapshot.workspace?.phase === 'loading' ? snapshot.workspace.route?.selectedSeasonId : undefined} seasons={snapshot.seasons} selectedSeasonId={workspace.selected.seasonId ?? null}
+          groups={workspace.groups} selectedGroup={workspace.selected.group} requestedGroup={snapshot.workspace?.phase === 'loading' ? snapshot.workspace.route?.group : undefined}
+          onSelectGroup={id => {void controller.group(id).catch(props.reportError);}}
           episodes={episodes} nextUp={workspace.nextUp} show={{title: workspace.show.title, overview: workspace.show.overview, backdropUrl: workspace.show.backdropUrl}}
           open={openEpisode} text={text} artwork={props.artwork} more={props.more} selection={props.selection}
           onSeasonFocus={() => controller.episode.close()} onEpisodeFocus={entry => controller.episode.open(entry)}
@@ -664,6 +668,8 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
     {!theme.isTV && <NativeSeasonsSheet open={!!seasonsSheet} onOpenChange={value => {if (value) openSeasons(); else closeSeasons();}}
       seasons={snapshot.seasons} total={workspace?.seasonTotalCount ?? snapshot.seasons.length} selectedId={workspace?.selected.seasonId ?? null}
       onSelect={id => {const lease = seasonsSheet; closeSeasons(); if (lease) void controller.season(id, lease).catch(props.reportError);}}
+      groups={workspace?.groups} selectedGroup={workspace?.selected.group}
+      onSelectGroup={id => {const lease = seasonsSheet; closeSeasons(); if (lease) void controller.group(id, lease).catch(props.reportError);}}
       onMore={() => {void controller.moreSeasons().catch(props.reportError);}}
       hideWatched={snapshot.place.hideWatched} onHideWatched={value => {if (seasonsSheet) void controller.hideWatched(value, seasonsSheet).catch(props.reportError);}}/>}
     {!theme.isTV && props.owner && settingsSheet && <NativeShowSettingsSheet open onOpenChange={value => {if (!value) closeSettings();}} showTitle={title}

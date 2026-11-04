@@ -221,9 +221,10 @@ export class NativeTitleController {
     if (!this.current() || this.workspace.getSnapshot().data?.selected.seasonId !== id) return;
     this.memory.select({seasonId: id}); this.changed();
   };
-  group = async (id: string): Promise<void> => {
+  /** An episode group (an owner's Ranges, hidden seasons, specials or unassigned episodes), like a season pick. */
+  group = async (id: string, lease?: NativeTitlePageLease): Promise<void> => {
     const data = this.workspace.getSnapshot().data;
-    if (!this.current() || !data?.groups.some(group => group.id === id)) return;
+    if (!this.current() || !data?.groups.some(group => group.id === id) || lease && !this.onLease(lease)) return;
     await this.workspace.select({libraryId: data.scope.libraryId, showId: data.show.id, group: id, playState: this.memory.getSnapshot().hideWatched ? 'unplayed' : 'all'});
     if (!this.current() || this.workspace.getSnapshot().data?.selected.group !== id) return;
     this.memory.select({group: id}); this.changed();
