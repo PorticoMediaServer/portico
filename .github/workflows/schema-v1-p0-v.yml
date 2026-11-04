@@ -1,6 +1,9 @@
 name: Schema v1 P0-V research
 on:
   workflow_dispatch:
+  push:
+    branches: [schema-v1/p0-v-oracle]
+    paths: [research/p0-v/**, .github/workflows/schema-v1-p0-v.yml]
 permissions:
   contents: read
 jobs:
