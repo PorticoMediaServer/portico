@@ -68,8 +68,13 @@ export class NativeRecordingRoot {
     if (!this.canChoose() || !status || !path || new TextEncoder().encode(path).length > 1024 || path === this.folder()) return Promise.resolve();
     return this.send(Object.freeze({expectedRevision: status.revision, operationId: this.operationId(), path}));
   }
-  /** Try again settles an unconfirmed write with its own intent; anything else rereads. */
-  retry(): Promise<void> {return this.pending ? this.send(this.pending) : this.load();}
+  /** Try again belongs to the failure it was offered for (`shown`, the snapshot that drew it): once anything has happened
+   * since, it does nothing, so a retained Try again never adopts a later write. For the current failure it settles an
+   * unconfirmed write with its own intent; anything else rereads. */
+  retry(shown: RecordingRootState): Promise<void> {
+    if (shown !== this.state || shown.error === undefined) return Promise.resolve();
+    return this.pending ? this.send(this.pending) : this.load();
+  }
   private async send(intent: RecordingRootIntent): Promise<void> {
     if (!this.live() || this.state.loading || this.state.saving || this.pending && this.pending !== intent) return;
     this.pending = intent;
