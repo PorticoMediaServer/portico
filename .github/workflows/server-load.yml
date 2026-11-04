@@ -1,50 +1,82 @@
-name: Server under load
-# Simulated people browse, open titles, search, ask for playback options and open
-# books while a scan and analysis run (scripts/server-load.py). A 4-vCPU hosted
-# runner is about the size of a small VPS. Budgets in ci/server-load-budgets.json.
+name: Scanner import CPU and phase profile (branch qualification)
+# Temporary focused dispatch for this measurement branch. The production load
+# workflow is retained on main; it is not replaced by the eventual guard PR.
 on:
   workflow_dispatch:
     inputs:
-      users:
-        description: Simulated people per phase
-        default: '10,50,100'
-  schedule:
-    - cron: '41 5 * * *'
+      runtime_head:
+        description: Exact runtime revision, baseline or candidate on the shared base
+        default: 'e97871f80086e9047fc430b6913ad9688fb02772'
+      files:
+        description: Real distinct movie files
+        default: '2000'
+      observe_seconds:
+        description: Follow-on observation after the immediate rescan
+        default: '30'
 permissions:
   contents: read
 concurrency:
-  group: server-load
+  group: scanner-import-${{ github.ref }}
   cancel-in-progress: false
 jobs:
-  load:
+  scanner-import:
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with: {persist-credentials: false}
+        with: {persist-credentials: false, fetch-depth: 8}
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with: {go-version-file: server/go.mod, cache-dependency-path: '**/go.sum'}
-      - name: Install FFmpeg and bubblewrap, and allow unprivileged user namespaces as a Debian VPS does
+      - name: Install the sandbox and allow unprivileged user namespaces
         run: |
-          sudo apt-get update -q && sudo apt-get install -yq ffmpeg bubblewrap
+          sudo apt-get update -q && sudo apt-get install -yq bubblewrap strace
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Fetch the qualified development engine
+        run: python3 scripts/development-engine.py fetch --target linux-x64 --output "$RUNNER_TEMP/engine"
+      - name: Validate measurement helpers and generate observation overlay
+        run: |
+          python3 -m unittest discover -s scripts/scanner-evidence -p 'test_*.py' -v
+          (cd scripts/scanner-evidence && GOWORK=off go test -count=1 ./...)
+          python3 scripts/scanner-evidence/build-overlay.py --output "$RUNNER_TEMP/scanner-overlay"
       - name: Build the server
         working-directory: server
-        run: go build -tags devtrust -o "$RUNNER_TEMP/portico-server" ./cmd/server
-      - name: Load
+        run: GOWORK=off go build -mod=mod -modfile "$RUNNER_TEMP/scanner-overlay/evidence.mod" -overlay "$RUNNER_TEMP/scanner-overlay/overlay.json" -tags devtrust -o "$RUNNER_TEMP/portico-server" ./cmd/server
+      - name: First import and immediate rescan
         env:
-          USERS: ${{ inputs.users || '10,50,100' }}
+          FILES: ${{ inputs.files }}
+          OBSERVE_SECONDS: ${{ inputs.observe_seconds }}
+          RUNTIME_HEAD: ${{ inputs.runtime_head }}
+          RUNTIME_BASE: e97871f80086e9047fc430b6913ad9688fb02772
         run: |
-          mkdir -p "$RUNNER_TEMP/load"
-          python3 scripts/server-load.py --scratch "$RUNNER_TEMP/load" --binary "$RUNNER_TEMP/portico-server" --users "$USERS" --budgets ci/server-load-budgets.json
-      - name: Collect results and profiles (no credentials or media)
+          export PATH="$RUNNER_TEMP/engine/bin:$PATH"
+          python3 scripts/scanner-import-probe.py --binary "$RUNNER_TEMP/portico-server" --scratch "$RUNNER_TEMP/scanner-probe" --files "$FILES" --observe-seconds "$OBSERVE_SECONDS" --runtime-base "$RUNTIME_BASE" --runtime-head "$RUNTIME_HEAD"
+      - name: Summarize first-import CPU samples
         if: always()
+        env:
+          PROFILE_DIR: ${{ runner.temp }}/scanner-probe
         run: |
-          mkdir -p "$RUNNER_TEMP/out"
-          for run in "$RUNNER_TEMP"/load/load-*; do
-            cp "$run"/load.json "$run"/*.pb.gz "$run"/diagnostics-*.json "$RUNNER_TEMP/out/" 2>/dev/null || true
-            tail -400 "$run/server.log" > "$RUNNER_TEMP/out/server-tail.log" || true
-          done
+          python3 - <<'PYCPU'
+          import json, os, subprocess
+          from pathlib import Path
+          root=Path(os.environ['PROFILE_DIR'])
+          report=json.loads((root/'scanner-import.json').read_text())
+          end=report['firstImportProfileEndSeconds']
+          files=[str(root/'cpu-profiles'/w['file']) for w in report['cpuProfile']['windows'] if w['endSeconds']<=end]
+          if not files or report.get('profileIncomplete'): raise SystemExit('CPU profiling incomplete')
+          for name,args in [('cpu-top.txt',['-top','-nodecount=60']),('cpu-cumulative.txt',['-top','-cum','-nodecount=60']),('cpu-first-import.pb.gz',['-proto']),('cpu-sql-families.txt',['-tags'])]:
+              with (root/name).open('wb') as out:
+                  subprocess.run(['go','tool','pprof',*args,*files],stdout=out,check=True)
+          PYCPU
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
-        with: {name: server-load, path: '${{ runner.temp }}/out', retention-days: 14}
+        with:
+          name: scanner-import
+          path: |
+            ${{ runner.temp }}/scanner-probe/scanner-import.json
+            ${{ runner.temp }}/scanner-probe/cpu-top.txt
+            ${{ runner.temp }}/scanner-probe/cpu-cumulative.txt
+            ${{ runner.temp }}/scanner-probe/cpu-first-import.pb.gz
+            ${{ runner.temp }}/scanner-probe/cpu-sql-families.txt
+            ${{ runner.temp }}/scanner-overlay/overlay-witness.json
+          if-no-files-found: error
+          retention-days: 14

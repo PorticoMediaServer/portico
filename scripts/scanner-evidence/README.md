@@ -1,0 +1,13 @@
+# Scanner attribution harness
+
+Measurement branch only; never merge the temporary load workflow or these overlays as an import optimization. `build-overlay.py` generates eight Go overlays and an alternate modfile outside the source tree. Original source SHA-256s and generated copies are witnessed. It inserts entry/exit observations, a private worker control socket, and SQL-step CPU labels; it does not alter SQL, branches, timers, capacities, result values, source authority or triggers. Build with `GOWORK=off go build -modfile ... -overlay ...`.
+
+The Python driver verifies the control PID is a supervised, matching-executable descendant of its owned process, and pins PID start time. CPU accounting samples the serving worker and its live descendant tree, including waited child CPU rather than the idle supervising parent. This is a non-atomic snapshot, not an exact native CPU split.
+
+A process-only strace follows all children from startup, so short native processes do not disappear between polls. Raw traces can contain private arguments and remain in the fixture's temporary directory; only fixed executable categories, counts and timings are retained. Native process lifetime occupancy and exec syscall union are separate. Neither is a claim that the whole native lifetime is removable startup overhead.
+
+Wait counters maintain active-span masks and integrate their **union**, so concurrent SQL and scheduler activity cannot be added twice. Pacing/title spans bracket the scanner's own call sites. The partition distinguishes actual scanner scheduler waits with no quantum in flight from scheduler waits overlapping active work. Writer-begin overlap is global overlap, not proof that every observed writer belonged to that quantum.
+
+SQL families are fixed categories classified from the first recognized table after SQL string literals are removed. CTEs retain their own verb category. Labels include no SQL, values, paths or identifiers. Each SQLite `step` is timed, including later result rows and internal triggers; these are step-call counts, **not statement invocation counts**. Family elapsed shares describe cumulative VM-step time across connections; CPU label shares describe sampled VM execution CPU. Preparation, binding and driver overhead outside step are unlabeled. Family time and wait/native occupancy overlap and are not additive wall shares. Cache bounds affect caching only, never measurement inclusion.
+
+Instrumentation and ptrace impose overhead. This run is attribution evidence, not a speedup comparison or a native-start saving estimate. The media function is unchanged. Runtime import changes, trigger moves and proposal steps 1–3 require the lead's separate call.
