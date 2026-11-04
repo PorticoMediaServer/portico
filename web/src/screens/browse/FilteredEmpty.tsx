@@ -34,7 +34,9 @@ export function BrowseFilteredEmpty({controller, model, labels, predicates, libr
     if (!values.length) return [{id: String(index), at: index, field: node.field, phrase: name.toLocaleLowerCase(), display: name, relaxed: t('next.browse.emptyAnything')}];
     const decades = values.map(value => t('next.kit.filter.decade', {year: String(value)}));
     // The sentence names a value in running text; a suggestion keeps the drawn name ("Horror").
-    const display = node.field === 'decade' ? t('next.browse.emptyFrom', {decade: decades.join(', ')}) : values.map(value => String(value)).join(', ');
+    // Several values read as the filter means them: any of them ("documentary or animation"), or all of them.
+    const joined = (items: readonly string[]) => defaultI18n.list(items, node.operator === 'contains-all' ? 'and' : 'or');
+    const display = node.field === 'decade' ? t('next.browse.emptyFrom', {decade: joined(decades)}) : joined(values.map(value => String(value)));
     const phrase = node.field === 'decade' ? display : lower(display);
     const relaxed = node.field === 'decade' || node.field === 'year' ? t('next.browse.emptyAnyYear') : t('next.browse.emptyAnything');
     return [{id: String(index), at: index, field: node.field, phrase, display, relaxed}];
