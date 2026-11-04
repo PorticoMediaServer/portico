@@ -1,6 +1,7 @@
 package decoder
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -46,12 +47,12 @@ func TestHardwareBurnInStaysOnTheProcessorWhereItIsNotProven(t *testing.T) {
 		burn    BurnIn
 		target  ConversionTarget
 	}{
-		"text subtitle":    {BackendVAAPI, BurnIn{File: "/media/subtitle.ass", Format: "ass", Width: 1920, Height: 1080}, sdr},
-		"hdr picture":      {BackendVAAPI, bitmap, ConversionTarget{DynamicRange: "hdr10", BitDepth: 10}},
-		"ten bit picture":  {BackendVAAPI, bitmap, ConversionTarget{DynamicRange: "sdr", BitDepth: 10}},
-		"apple backend":    {BackendVideoToolbox, bitmap, sdr},
-		"amd backend":      {BackendAMF, bitmap, sdr},
-		"no drawn canvas":  {BackendVAAPI, BurnIn{File: "/media/subtitle.sup", Format: "pgs"}, sdr},
+		"text subtitle":   {BackendVAAPI, BurnIn{File: "/media/subtitle.ass", Format: "ass", Width: 1920, Height: 1080}, sdr},
+		"hdr picture":     {BackendVAAPI, bitmap, ConversionTarget{DynamicRange: "hdr10", BitDepth: 10}},
+		"ten bit picture": {BackendVAAPI, bitmap, ConversionTarget{DynamicRange: "sdr", BitDepth: 10}},
+		"apple backend":   {BackendVideoToolbox, bitmap, sdr},
+		"amd backend":     {BackendAMF, bitmap, sdr},
+		"no drawn canvas": {BackendVAAPI, BurnIn{File: "/media/subtitle.sup", Format: "pgs"}, sdr},
 	} {
 		if hardwareBurnInSupported(held.backend, held.burn, held.target) {
 			t.Fatalf("%s must keep the processor burn-in", name)
@@ -91,6 +92,12 @@ func TestBuildConversionQualifiedDecodeBurnInGraph(t *testing.T) {
 		t.Fatal(err)
 	}
 	joined := strings.Join(graph.Video, " ")
+	if runtime.GOOS != "linux" {
+		if graph.Backend != BackendSoftware || !strings.Contains(joined, "overlay=") || strings.Contains(joined, "overlay_vaapi=") {
+			t.Fatalf("unsupported VAAPI keeps bitmap burn-in on the processor: %s", joined)
+		}
+		return
+	}
 	if !strings.Contains(joined, "-filter_complex") || !strings.Contains(joined, "overlay_vaapi=") {
 		t.Fatalf("a qualified decoder with a bitmap subtitle blends on the device: %s", joined)
 	}

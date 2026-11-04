@@ -2,6 +2,7 @@ package playback
 
 import (
 	"context"
+	"runtime"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/decoder"
@@ -62,14 +63,21 @@ func TestHardwareSelectionNarrowsConversionToTheChosenAdapter(t *testing.T) {
 // Hardware decoding off removes the proven decode formats from the probe a
 // plan is made with, so the conversion graph decodes on the processor.
 func TestHardwareDecodeOffKeepsDecodingOnTheProcessor(t *testing.T) {
-	probe := decoder.HardwareProbe{Backend: decoder.BackendVAAPI, Available: true, DecodeCodecs: map[string]bool{"hevc:10": true}}
+	backend := decoder.BackendVAAPI
+	switch runtime.GOOS {
+	case "darwin":
+		backend = decoder.BackendVideoToolbox
+	case "windows":
+		backend = decoder.BackendNVENC
+	}
+	probe := decoder.HardwareProbe{Backend: backend, Available: true, DecodeCodecs: map[string]bool{"hevc:10": true}}
 	cfg := DefaultDeliveryConfiguration()
 	if got := withoutHardwareDecode(probe, cfg); !got.DecodeCodecs["hevc:10"] {
 		t.Fatal("decoding stays on the adapter by default")
 	}
 	cfg.SoftwareDecode = true
 	got := withoutHardwareDecode(probe, cfg)
-	if len(got.DecodeCodecs) != 0 || got.Backend != decoder.BackendVAAPI || !got.Available {
+	if len(got.DecodeCodecs) != 0 || got.Backend != backend || !got.Available {
 		t.Fatalf("off keeps encoding on the adapter and decoding on the processor: %+v", got)
 	}
 	decodes := func(p decoder.HardwareProbe) bool {
