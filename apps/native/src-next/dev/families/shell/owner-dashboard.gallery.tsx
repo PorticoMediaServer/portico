@@ -99,7 +99,7 @@ function specimen(scale: boolean, expanded: boolean, move = false) {
           people={scale ? '37 people · 30 at home, 7 away' : '2 people · 1 at home, 1 away'}
           alerts={alerts.map(value => ownerAlertView(value, t, defaultI18n.has))} jobs={jobs.map(value => ownerJobView(value, t, defaultI18n.has))}
           telemetry={telemetry} healthWindow="1h" summary={summary} viewingPeriod="7d"
-          onBack={() => {}} onRefresh={() => {}} onRetry={() => {}} onHealthWindow={() => {}} onViewingPeriod={() => {}} onAcknowledge={() => {}} onFixPermissions={() => {}} onJobMenu={() => {}} onStop={() => {}} onStreamMenu={() => {}}
+          onBack={() => {}} onRetry={() => {}} onHealthWindow={() => {}} onViewingPeriod={() => {}} onAcknowledge={() => {}} onFixPermissions={() => {}} onJobMenu={() => {}} onStop={() => {}} onStreamMenu={() => {}}
           onShowAll={() => setShowAll(true)} onShowFewer={() => setShowAll(false)} onRetryAll={() => {}}/>
       {showMove ? <OwnerMoveSheet session={scaleSessions[4]} t={t} busy={false} onCancel={() => setShowMove(false)} onMove={() => setShowMove(false)}/> : null}
     </View>;

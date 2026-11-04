@@ -12,6 +12,7 @@ import {View} from 'react-native';
 import {Button, TextField} from '../../../kit/controls';
 import {BottomSheet, Menu, type MenuEntry} from '../../../kit/overlays';
 import {useTheme} from '../../../kit/theme';
+import {usePullRefresh} from '../../../kit/states/usePullRefresh';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeDashboardController} from '../dashboard-controller';
 import type {NativeSettingsLivePorts} from '../ports';
@@ -98,7 +99,10 @@ export function NativeOwnerDashboardPhone({controller, ports, runtime, inline = 
     setBusy(true); setActionError(undefined);
     try {await work(); await controller.refresh();} catch (error) {setActionError(error);} finally {setBusy(false);}
   };
-  const refresh = () => {setActionError(undefined); setAllRevision(value => value + 1); telemetry.reload(); statistics.reload(); void controller.refresh();};
+  const reload = () => {setActionError(undefined); setAllRevision(value => value + 1); telemetry.reload(); statistics.reload(); return controller.refresh();};
+  const refresh = () => {void reload();};
+  // owner-dashboard 2: pulling down refreshes the page; the ring stays until the Dashboard's own read settles, under the page's top bar.
+  const pull = usePullRefresh(reload, setActionError, inline ? 0 : insets.top + 48);
   const entries = useMemo<readonly OwnerStreamEntry[]>(() => state.sessions.map(session => {
     const art = session.item?.art.find(value => value.role === 'backdrop') ?? session.item?.art[0];
     return Object.freeze({view: ownerStreamView(session, runtime.text), ...(art ? {artwork: runtime.artwork(`/v1/items/${encodeURIComponent(art.id)}/art/${encodeURIComponent(art.kind)}`)} : {})});
@@ -129,7 +133,7 @@ export function NativeOwnerDashboardPhone({controller, ports, runtime, inline = 
       people={totals.streams ? ownerPeopleLine(totals, t) : t('next.shell.streams', {count: 0})} alerts={alerts} jobs={jobs}
       telemetry={telemetry.reading} telemetryError={telemetry.error} healthWindow={healthWindow} healthNote={ownerIsNewServer(health.uptimeSeconds) ? t('next.dashboard.healthLater') : undefined}
       summary={statistics.summary} statisticsError={statistics.error} viewingPeriod={viewingPeriod}
-      onBack={() => ports.context.navigation.back(controller.lifetime.authority)} onRefresh={refresh} onRetry={refresh}
+      onBack={() => ports.context.navigation.back(controller.lifetime.authority)} refreshControl={pull} onRetry={refresh}
       onHealthWindow={setHealthWindow} onViewingPeriod={setViewingPeriod}
       onAcknowledge={view => {const alert = state.alerts.find(value => value.id === view.id); if (alert) void run(() => reader.acknowledge(alert));}}
       onFixPermissions={view => {const alert = state.alerts.find(value => value.id === view.id); if (alert) void run(async () => {await reader.fixPermissions(ports.requestId()); await reader.acknowledge(alert);});}}
