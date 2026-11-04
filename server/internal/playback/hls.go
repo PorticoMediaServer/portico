@@ -5,11 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"io"
-	"math"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/apievents"
 	"github.com/PorticoMediaServer/portico/server/internal/childprocess"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
@@ -22,6 +17,11 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/subtitles"
 	"github.com/PorticoMediaServer/portico/server/internal/supervise"
 	"github.com/PorticoMediaServer/portico/server/internal/worker"
+	"io"
+	"math"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -313,7 +313,12 @@ func (h *HLS) startGeneration(ctx context.Context, id string, from, expected int
 		window.cancel()
 		h.cancelOccurrenceRenditionsLocked(id, window.run)
 		h.mu.Unlock()
-		<-window.done
+		select {
+		case <-window.done:
+		case <-ctx.Done():
+			h.mu.Lock()
+			return ctx.Err()
+		}
 		h.mu.Lock()
 
 	}

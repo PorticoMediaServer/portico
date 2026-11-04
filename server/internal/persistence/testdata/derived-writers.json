@@ -10568,7 +10568,7 @@
       ]
     },
     "internal/playback/hls.go": {
-      "sha256": "3c2e928fe535a29a19c631d48cd6185a1067341f59e93d3be4dc7a8054d6cbd3",
+      "sha256": "e9dc19cf12c265134536d9eacfc6edc9a8a982abb9a425df9a28779ff00ce1e3",
       "effects": [
         {
           "table": "*",
