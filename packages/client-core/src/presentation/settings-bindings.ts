@@ -11,7 +11,8 @@ import {canonicalQualityLadder,canonicalMusicQualityLadder} from '../../../contr
 import {validatePreferencePatch,type PreferenceSnapshot,type PreferenceScope,type PreferenceValue} from '../preferences.ts';
 import type {ReadingPreferences} from '../preference-effects.ts';
 
-export type SettingsBindingForm='runtime'|'connectivity'|'connectivityStatus'|'maintenance'|'alerts'|'preferences'|'device'|'remote'|'managedRoute'|'logs'|'library'|'metadata';
+/** `awayLimit`: the same connectivity value as `connectivity`, read optionally for a page that only shows it. */
+export type SettingsBindingForm='runtime'|'connectivity'|'awayLimit'|'connectivityStatus'|'maintenance'|'alerts'|'preferences'|'device'|'remote'|'managedRoute'|'logs'|'library'|'metadata';
 export type SettingsBinding=Readonly<{form:SettingsBindingForm;key:string;scope?:PreferenceScope;readOnly?:boolean;scale?:number;codec?:'insecure-connections'|'history-retention'|'number-choice'|'unlimited'|'domain'|'interface'|'remote-policy'|'away-quality'|'update-checks'|'window-mode'|'days'|'log-retention'|'still-watching'|'missing-rule'|'music-quality-choice'|'video-quality-choice'|'inherited-watched-threshold'|'surround'|'player-engine'|'tv-support'|'boolean'|'artwork-size'|'notice-audience'|'hardware-selection';fields?:Readonly<Record<string,string>>;window?:'heavy'|'backup'}>;
 export type SettingsBindingSources=Readonly<{configuration?:SettingsConfiguration;preferences?:PreferenceSnapshot;forms?:Readonly<Partial<Record<SettingsBindingForm,Readonly<Record<string,unknown>>>>>;device?:Readonly<Record<string,unknown>>;deviceDefaults?:Readonly<Record<string,unknown>>}>;
 export type SettingsBindingValue=Readonly<{current:unknown;effective:unknown;default:unknown;source:string;configOnly:boolean;applicationMode?:string}>;
@@ -66,7 +67,8 @@ const bindings:Readonly<Record<string,SettingsBinding>>={
  'streaming.uploadSpeed':{form:'connectivity',key:'uploadCapacityKbps',scale:1000},
  'streaming.awayQuality':{form:'connectivity',key:'remoteBitrateLimitKbps',codec:'away-quality'},
  // ST-7: the owner sees that same server limit on their own Quality page; it is changed only on Streaming.
- 'quality.awayLimit':{form:'connectivity',key:'remoteBitrateLimitKbps',codec:'away-quality',readOnly:true},
+ // Its own optional read (`awayLimit`): a refusal leaves the row out and never fails the page.
+ 'quality.awayLimit':{form:'awayLimit',key:'remoteBitrateLimitKbps',codec:'away-quality',readOnly:true},
  'streaming.awayExact':{form:'connectivity',key:'remoteBitrateLimitKbps',scale:1000},
  // The drawn Device selector needs the checked opaque device-ID producer.
  // hardwareBackend names a method and cannot represent this decision; the
