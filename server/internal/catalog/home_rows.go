@@ -184,9 +184,11 @@ func (spec homeRowSpec) hiddenIn(order []string, hidden map[string]bool) bool {
 const homeRecentPrefix = "recent_"
 
 type homeSource struct {
-	base string
-	args []any
-	cap  int
+	// delivery marks a recent source containing shows whose page needs delivery cards.
+	delivery bool
+	base     string
+	args     []any
+	cap      int
 	// total is the row's exact count when a maintained counter can answer it, so
 	// the composition does not run a `count(*)` over the whole projection for a
 	// number the client renders. Nil means "count the projection".
@@ -616,7 +618,7 @@ func (s *Service) homeRowIDs(spec homeRowSpec, src homeSource, page HomeRowPage,
 	}
 	if page.AnchorID != "" {
 		anchor := page.AnchorID
-		if spec.ID == "new_on_server" {
+		if spec.ID == "new_on_server" || strings.HasPrefix(spec.ID, homeRecentPrefix) {
 			// Delivery cards navigate to a real episode or season, while the
 			// stable row cursor and order belong to the canonical show work.
 			if err := s.read().QueryRow(`SELECT COALESCE((SELECT pid(parent.public_id) FROM catalog_entities child JOIN catalog_entities parent ON parent.id=CASE child.kind WHEN 4 THEN (SELECT show_id FROM catalog_episodes WHERE entity_id=child.id) WHEN 3 THEN (SELECT show_id FROM catalog_seasons WHERE entity_id=child.id) ELSE child.id END WHERE child.public_id=pid_blob(?)),?)`, anchor, anchor).Scan(&anchor); err != nil {
@@ -838,7 +840,7 @@ func (s *Service) homeRowFor(r HomeRequest, spec homeRowSpec, revision ContentRe
 		}
 	}
 	displayIDs := ids
-	if spec.ID == "new_on_server" {
+	if spec.ID == "new_on_server" || src.delivery {
 		displayIDs, e = s.homeRecentPageTargets(r, ids)
 		if e != nil {
 			return row, e
@@ -922,7 +924,7 @@ func (s *Service) homeRowFor(r HomeRequest, spec homeRowSpec, revision ContentRe
 			row.Platforms = []string{"web", "phone"}
 		}
 	}
-	if spec.ID == "new_on_server" {
+	if spec.ID == "new_on_server" || src.delivery {
 		for i, entry := range entries {
 			row.DisplayTargets = append(row.DisplayTargets, HomeDisplayTarget{MembershipID: ids[i], EntryID: entry.ID})
 		}
