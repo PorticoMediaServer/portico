@@ -47,7 +47,7 @@ test('a show page draws the show\'s recommendation rows under More like this, na
   const f = fixture('show');
   try {
     await f.controller.open(); await settle();
-    const rows = f.controller.getSnapshot().showRows;
+    const rows = f.controller.getSnapshot().recommendationRows;
     assert.deepEqual(rows.map(value => value.id), ['more-like', 'creator'], 'every row in the server\'s order; one with only the show itself is left out');
     assert.equal(rows[0]!.heading, 'More like Actual show');
     assert.equal(rows[1]!.heading, 'More like this', 'a row\'s own words come from the catalogue');
@@ -61,20 +61,20 @@ test('a show page draws the show\'s recommendation rows under More like this, na
     await f.controller.season('s2'); await settle();
     assert.equal(f.reads().length, 1, 'a season change keeps the show\'s rows');
   } finally {f.controller.dispose();}
-  assert.deepEqual(f.controller.getSnapshot().showRows, []);
+  assert.deepEqual(f.controller.getSnapshot().recommendationRows, []);
 });
 
 test('a season page draws its show\'s rows; an answer from another revision is not the page\'s; a film never reads them', async () => {
   const season = fixture('season');
   try {
     await season.controller.open(); await settle();
-    assert.deepEqual(season.controller.getSnapshot().showRows.map(value => value.id), ['more-like', 'creator']);
+    assert.deepEqual(season.controller.getSnapshot().recommendationRows.map(value => value.id), ['more-like', 'creator']);
   } finally {season.controller.dispose();}
   const moved = fixture('show', 2);
   try {
     await moved.controller.open(); await settle();
     assert.equal(moved.reads().length, 1);
-    assert.deepEqual(moved.controller.getSnapshot().showRows, []);
+    assert.deepEqual(moved.controller.getSnapshot().recommendationRows, []);
   } finally {moved.controller.dispose();}
   const film = fixture('movie');
   try {

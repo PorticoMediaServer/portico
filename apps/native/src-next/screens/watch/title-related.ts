@@ -1,9 +1,9 @@
 import type {ContentEntry, LibraryContentApi} from '../../../../../packages/client-core/src/library-content';
 import type {ListeningViewerScope} from '../../../../../packages/client-core/src/listening';
-import {listeningSimilarPager, type ListeningSimilarRead, type RelationRowPager} from '../../../../../packages/client-core/src/relation-rows';
+import {listeningSimilarPager, type ListeningSimilarRead, type RelationRowOwner, type RelationRowPager} from '../../../../../packages/client-core/src/relation-rows';
 import {relatedRowPager, type RelatedMovieRow} from '../../../../../packages/client-core/src/related-movies';
 import type {HomeApi, HomeRevision, HomeRow} from '../../../../../packages/client-core/src/home';
-import {fetchShowRecommendations, titleRecommendationRows} from '../../../../../packages/client-core/src/recommendations';
+import {fetchItemRecommendations, fetchShowRecommendations, titleRecommendationRows} from '../../../../../packages/client-core/src/recommendations';
 import {recommendationRowPager} from '../../../../../packages/client-core/src/relation-rows';
 import {serverTextLabel} from '../../../../../packages/client-core/src/presentation/server-text';
 import {defaultI18n} from '../../../../../packages/i18n/src';
@@ -61,19 +61,20 @@ export function nativeSimilarRow(api: LibraryContentApi, scope: ListeningViewerS
 /** A row a title page draws under More like this: a detail's related row, or a show's recommendation row. */
 export type NativeTitleRelatedRow = Readonly<{id: string; heading: string; entries: readonly ContentEntry[]}>;
 
-/** N4-8: a show page's (and its seasons') More like this, as web reads it (`GET /v1/shows/{id}/recommendations`):
- * every row in the server's order, named by its own words. An answer from another revision than the page's is
- * not this page's: none. */
-export async function readNativeShowRows(api: HomeApi, showId: string, revision: HomeRevision, signal: AbortSignal): Promise<readonly HomeRow[]> {
-  const value = await fetchShowRecommendations(api, showId, 12, signal);
-  if (value.revision.catalog !== revision.catalog || value.revision.viewer !== revision.viewer) return [];
+/** A title page's More like this, as web reads it: a show's (and its seasons') from
+ * `GET /v1/shows/{id}/recommendations` (N4-8), a film's from `GET /v1/items/{id}/recommendations`. Every row in
+ * the server's order, named by its own words. An answer from another revision than the page's is not this page's:
+ * undefined, so the caller decides (a show page shows none; a film falls back to its embedded rows, as web). */
+export async function readNativeRecommendationRows(api: HomeApi, owner: RelationRowOwner, revision: HomeRevision, signal: AbortSignal): Promise<readonly HomeRow[] | undefined> {
+  const value = owner.kind === 'show' ? await fetchShowRecommendations(api, owner.id, 12, signal) : await fetchItemRecommendations(api, owner.id, 12, signal);
+  if (value.revision.catalog !== revision.catalog || value.revision.viewer !== revision.viewer) return undefined;
   return titleRecommendationRows(value);
 }
 
 export const nativeTitleRelatedRow = (row: HomeRow): NativeTitleRelatedRow =>
   Object.freeze({id: row.id, heading: serverTextLabel(defaultI18n, row.titleText, row.title), entries: row.entries});
 
-/** One of a show's recommendation rows, continued to its end through the show's row route. */
-export function nativeShowRelatedRow(api: HomeApi, showId: string, revision: HomeRevision, row: HomeRow, changed: () => void): NativeRelatedRow {
-  return new NativeRelatedRow(JSON.stringify(['show-recommendations', showId, revision, row.id]), recommendationRowPager(api, {kind: 'show', id: showId}, row), changed);
+/** One recommendation row, continued to its end through its owner's row route. */
+export function nativeRecommendationRow(api: HomeApi, owner: RelationRowOwner, revision: HomeRevision, row: HomeRow, changed: () => void): NativeRelatedRow {
+  return new NativeRelatedRow(JSON.stringify([`${owner.kind}-recommendations`, owner.id, revision, row.id]), recommendationRowPager(api, owner, row), changed);
 }
