@@ -100,4 +100,7 @@
   /* phone-app 12: the views are underline tabs on a phone; the chips are the wide screens'. */
   .phoneViews { display: block; padding: 4px var(--shell-gutter, var(--gutter-desktop)) 0; }
   .chips { display: none; }
+  /* Five views do not fit 390: frame 12's row is 20px apart, scrolls sideways, and fades at its end so
+     History and Storage read as more to scroll to rather than missing. */
+  .phoneViews [role="tablist"] { gap: 20px; -webkit-mask-image: linear-gradient(90deg, #000 84%, transparent); mask-image: linear-gradient(90deg, #000 84%, transparent); }
 }
