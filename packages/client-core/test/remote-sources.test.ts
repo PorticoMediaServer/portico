@@ -642,3 +642,15 @@ test('a policy write answered under a moved owner fence is refused; a read under
  await assert.rejects(service.setPolicy(policy,true));
  fence='moved';assert.equal((await service.policy('lib')).revision,2,'a read under the moved fence is current');service.dispose();
 });
+test('a read-profile save answered under a moved owner fence is refused; the same answer under the fence it was read from is taken',async()=>{
+ const {sourceReadPreset}=await import('../src/remote-sources.ts');
+ const before={sourceId:'dav',generation:'1',revision:1,saved:true,values:sourceReadPreset('once')},after={...before,revision:2,values:sourceReadPreset('everything')};
+ for(const fence of ['moved','fence']){
+  let puts=0;
+  const service=new RemoteSourceService(api(async(_path,method)=>{if(method==='GET')return list();puts++;return {scope:{...wire,viewerFence:fence},settings:after};}),scope,async()=>op);
+  await service.load();
+  if(fence==='moved')await assert.rejects(service.saveProfile(before,after.values));
+  else assert.deepEqual(await service.saveProfile(before,after.values),after);
+  assert.equal(puts,1,'the save is sent once');service.dispose();
+ }
+});

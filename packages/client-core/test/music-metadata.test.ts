@@ -36,12 +36,16 @@ test('music policy is an owner action using both current job and library policy 
  assert.equal(service.getSnapshot().data!.policy!.revision,3);service.dispose();
 });
 test('policy cannot write from absent capability or stale scope; conflicts refresh without replay',async()=>{
- let raw=state(),writes=0;raw.actions=['select','retry','search'];
- const service=new MetadataReviewService({scope:{serverId:'server',viewerId:'owner'},api:{request:async<T>(_path,method)=>{if(method==='GET')return raw as T;writes++;raw={...raw,revision:5,policy:{...raw.policy,revision:4}};throw Object.assign(new Error('Changed'),{code:'metadata_conflict'});}}});
+ let raw=state(),writes=0,denied='';raw.actions=['select','retry','search'];
+ const service=new MetadataReviewService({scope:{serverId:'server',viewerId:'owner'},api:{request:async<T>(_path,method)=>{if(method==='GET'){if(denied)throw Object.assign(new Error('Denied'),{code:denied});return raw as T;}writes++;raw={...raw,revision:5,policy:{...raw.policy,revision:4}};throw Object.assign(new Error('Changed'),{code:'metadata_conflict'});}}});
  await service.select({kind:'song',entityId:'song',libraryId:'library'});assert.throws(()=>service.configureMusic({localMode:'off',musicBrainzEnabled:false,acoustidEnabled:false}));
  raw.actions.push('policy');await service.refresh();await service.configureMusic({localMode:'off',musicBrainzEnabled:false,acoustidEnabled:false});assert.equal(writes,1);assert.equal(service.getSnapshot().data!.revision,5);
  // A moved fence on a read is a newer answer, not a refusal: the page shows it (step 7 slice 2).
- raw.viewerFence='different';await service.refresh();assert.equal(service.getSnapshot().data!.scope.viewerFence,'different');assert.equal(service.getSnapshot().data!.revision,5);service.dispose();
+ raw.viewerFence='different';await service.refresh();assert.equal(service.getSnapshot().data!.scope.viewerFence,'different');assert.equal(service.getSnapshot().data!.revision,5);
+ // What still ends the page: an answer older than the one shown, and the server's own refusal.
+ raw={...raw,revision:4};await service.refresh();assert.equal(service.getSnapshot().data,null);assert.equal(service.getSnapshot().error!.code,'metadata_scope_changed');
+ for(const code of ['unauthorized','forbidden']){raw={...raw,revision:5};await service.refresh();assert.equal(service.getSnapshot().data!.revision,5);denied=code;await service.refresh();assert.equal(service.getSnapshot().data,null,code);assert.equal(service.getSnapshot().error!.code,code);denied='';}
+ service.dispose();
 });
 
 test('local audiobook policy uses library identity and revision; ignores late cancelled responses',async()=>{
