@@ -9,6 +9,66 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
 )
 
+func TestAbandonInfoSourceReprovesExactUnacceptedOwner(t *testing.T) {
+	f := newInfoPublicationFixture(t, 1)
+	ctx := context.Background()
+	var epoch int64
+	if err := f.c.DB.QueryRow(`SELECT info_epoch FROM catalog_assets WHERE id=?`, f.asset).Scan(&epoch); err != nil {
+		t.Fatal(err)
+	}
+	spec := compactcatalog.InfoInputSpec{AssetID: f.asset, Token: f.token, ExpectedEpoch: epoch, FamilyMask: 1, Fingerprint: [32]byte{41}, Witnesses: []compactcatalog.InfoWitness{{Kind: compactcatalog.InfoWitnessAsset, Fingerprint: [32]byte{41}}}}
+	old := infoInputBegin(t, f.c, spec)
+	infoInputStage(t, f.c, old.Ref, 1, 0, 1, compactcatalog.InfoStreamFactRow{InputOrdinal: 0, AssetID: f.token, Revision: 1})
+	abandon := func(asset int64, token string, witness compactcatalog.InfoWitness, fingerprint [32]byte, want bool) {
+		t.Helper()
+		f.c.Write(func(ctx context.Context, tx *sql.Tx) error {
+			got, err := compactcatalog.AbandonInfoSourceTx(ctx, tx, asset, token, witness, fingerprint)
+			if err == nil && got != want {
+				t.Fatalf("abandoned=%v want=%v", got, want)
+			}
+			return err
+		})
+	}
+	other := spec.Witnesses[0]
+	other.Fingerprint = [32]byte{99}
+	abandon(f.asset+1, f.token, spec.Witnesses[0], spec.Fingerprint, false)
+	abandon(f.asset, f.token+"-other", spec.Witnesses[0], spec.Fingerprint, false)
+	abandon(f.asset, f.token, other, spec.Fingerprint, false)
+	abandon(f.asset, f.token, spec.Witnesses[0], [32]byte{99}, false)
+	var unchanged bool
+	if err := f.c.DB.QueryRow(`SELECT phase=0 AND copy_aux>=0 AND input_revision=? FROM catalog_info_changes WHERE id=?`, old.Ref.InputRevision, old.Ref.ChangeID).Scan(&unchanged); err != nil || !unchanged {
+		t.Fatal("another source was changed", unchanged, err)
+	}
+	nextSpec := spec
+	nextSpec.FamilyMask = 0
+	nextSpec.Fingerprint = [32]byte{42}
+	nextSpec.Witnesses = []compactcatalog.InfoWitness{{Kind: compactcatalog.InfoWitnessAsset, Fingerprint: nextSpec.Fingerprint}}
+	next := infoInputBegin(t, f.c, nextSpec)
+	infoInputAccept(t, f.c, next.Ref)
+	abandon(f.asset, f.token, nextSpec.Witnesses[0], nextSpec.Fingerprint, false)
+	abandon(f.asset, f.token, spec.Witnesses[0], spec.Fingerprint, true)
+	var revision, cursor int64
+	if err := f.c.DB.QueryRow(`SELECT input_revision,copy_family FROM catalog_info_changes WHERE id=? AND copy_aux=-1`, old.Ref.ChangeID).Scan(&revision, &cursor); err != nil {
+		t.Fatal(err)
+	}
+	abandon(f.asset, f.token, spec.Witnesses[0], spec.Fingerprint, false)
+	if err := f.c.DB.QueryRow(`SELECT input_revision=? AND copy_family=? AND copy_aux=-1 FROM catalog_info_changes WHERE id=?`, revision, cursor, old.Ref.ChangeID).Scan(&unchanged); err != nil || !unchanged {
+		t.Fatal("reset recovery ownership", unchanged, err)
+	}
+	if err := f.c.DB.QueryRow(`SELECT slot=1 AND phase=1 FROM catalog_info_changes WHERE id=?`, next.Ref.ChangeID).Scan(&unchanged); err != nil || !unchanged {
+		t.Fatal("changed accepted receipt", unchanged, err)
+	}
+	for range 180 {
+		if f.step(t) {
+			break
+		}
+	}
+	var pending int
+	if err := f.c.DB.QueryRowContext(ctx, `SELECT count(*) FROM catalog_info_changes WHERE id=? AND phase<5`, next.Ref.ChangeID).Scan(&pending); err != nil || pending != 0 {
+		t.Fatal("stranded accepted receipt", pending, err)
+	}
+}
+
 func TestInfoRecoveryInterruptedProducerKeepsOldAndReclaimsNew(t *testing.T) {
 	f := newInfoPublicationFixture(t, 2)
 	var epoch int64
