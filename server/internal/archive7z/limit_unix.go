@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -26,7 +27,16 @@ const workerAddressBudget = 1 << 30
 // sizeable allocation (OPS, 2 Nov). The limit is what is already reserved plus
 // the worker's 1 GiB budget.
 func limitProcess() error {
-	address := uint64(workerAddressBudget) + reservedAddressSpace()
+	baseline := reservedAddressSpace()
+	if runtime.GOOS == "darwin" {
+		var err error
+		baseline, err = darwinVMSize()
+		if err != nil || baseline == 0 || baseline > ^uint64(0)-workerAddressBudget {
+			return errors.New("native VM measurement unavailable")
+		}
+	}
+	address := uint64(workerAddressBudget) + baseline
+	fmt.Fprintf(os.Stderr, "baseline=%d allowance=%d address=%d\n", baseline, workerAddressBudget, address)
 	limits := []struct {
 		resource int
 		value    unix.Rlimit

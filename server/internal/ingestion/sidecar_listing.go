@@ -2,11 +2,13 @@ package ingestion
 
 import (
 	"context"
-	"path/filepath"
+	"fmt"
 	"github.com/PorticoMediaServer/portico/server/internal/assets"
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/localmetadata"
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -258,6 +260,7 @@ func (s *Service) directoryAsListed(ctx context.Context, source catalog.LibraryS
 	} else {
 		v, err = storage.LocalInventoryDirectory(req)
 	}
+	fmt.Fprintf(os.Stderr, "directory current=%+v err=%v listed=%+v revision=%s\n", v, err, listed, storage.InventoryRevision(v))
 	return err == nil && v.ObjectIdentity == listed.identity && storage.InventoryRevision(v) == listed.revision
 }
 

@@ -2,6 +2,8 @@ package localmetadata
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -60,6 +62,7 @@ func (s *Service) ReadArtworkCandidates(ctx context.Context, library, kind, root
 					return false
 				}
 				current, err := s.storage.InventoryStat(ctx, listing.SourceID, request)
+				fmt.Fprintf(os.Stderr, "image current=%+v err=%v expected=%s revision=%s\n", current, err, entry.Revision, storage.InventoryRevision(current))
 				return err == nil && !current.Directory && current.Size >= 0 && current.Size <= 4<<20 && storage.InventoryRevision(current) == entry.Revision
 			}
 			admitted := func(v storage.Snapshot) bool {
@@ -97,11 +100,13 @@ func (s *Service) ReadArtworkCandidates(ctx context.Context, library, kind, root
 			}
 			if key == "" {
 				raw, err := s.readSmall(ctx, library, path, 4<<20)
+				fmt.Fprintf(os.Stderr, "readSmall path=%s bytes=%d err=%v\n", path, len(raw), err)
 				if err != nil {
 					artworkReadFailed(ctx)
 					return nil, false
 				}
 				key, err = s.store(ctx, raw)
+				fmt.Fprintf(os.Stderr, "store err=%v\n", err)
 				if err != nil {
 					artworkReadFailed(ctx)
 					return nil, false
