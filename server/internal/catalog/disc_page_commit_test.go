@@ -46,17 +46,26 @@ func TestDiscObservationCommitsWithSingleAndBatchedPages(t *testing.T) {
 					t.Fatal(err)
 				}
 				req := storage.InventoryRequest{Root: root, RelativePath: relative, RootIdentity: source.RootIdentity, Limit: 128}
-				page, err := storage.LocalInventoryPage(req)
-				if err != nil {
-					t.Fatal(err)
-				}
 				v, err := storage.LocalInventoryDirectory(req)
 				if err != nil {
 					t.Fatal(err)
 				}
 				v.Name = relative
 				exec(`INSERT INTO inventory_directories(job_id,relative_path) VALUES(?,?)`, job, relative)
-				pages = append(pages, InventoryPageWrite{Relative: relative, Page: page, DiscRoot: &v})
+				// Some directory readers report EOF on a following empty page.
+				// Commit that receipt too before expecting the directory to be done.
+				for {
+					page, err := storage.LocalInventoryPage(req)
+					if err != nil {
+						t.Fatal(err)
+					}
+					pages = append(pages, InventoryPageWrite{Relative: relative, Page: page, DiscRoot: &v})
+					if page.Complete {
+						break
+					}
+					req.Cursor = page.NextCursor
+					req.DirectoryRevision = page.DirectoryRevision
+				}
 			}
 			// Fail the last title observation, after the page's cursor writes.
 			// Even the first page of a batch must remain resumable after rollback.
