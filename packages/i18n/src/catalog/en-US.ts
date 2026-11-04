@@ -535,6 +535,7 @@ export const enUS = {
   'player.volume': 'Volume',
   'player.miniPaused': 'Paused',
   'player.clockOf': '{position} of {duration}',
+  'player.chapterTotal': 'of {total, number, ::group-off}',
   'player.live.onNow': 'On now: {title}',
   'player.live.noProgramme': 'Program information unavailable',
   'player.live.next': 'Next: {title}',

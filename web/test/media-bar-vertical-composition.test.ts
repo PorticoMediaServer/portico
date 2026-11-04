@@ -91,3 +91,24 @@ test('a drag on the dock takes pointer capture as soon as it moves past the slop
   f.node.props.onPointerMove(f.event(0, 660, 1050));   // a vertical move: no horizontal capture of its own
   assert.equal(f.root.captures.has(7), true, 'the moving pointer is captured, so the drag keeps its events off the bar');
 });
+
+test('#646 follow-up: a mouse press that leaves the bar before it moves ends there, so the hold menu never opens by itself', t => {
+  t.mock.timers.enable({apis: ['setTimeout']});
+  const f = fixture(refused(true)), armed = () => bridge.slots.filter(slot => slot && typeof slot === 'object' && 'value' in slot && slot.value === true).length;
+  const before = armed();
+  const mouse = (x: number, y: number, timeStamp: number) => ({...f.event(x, y, timeStamp), pointerType: 'mouse'});
+  f.node.props.onPointerDown(mouse(40, 700, 1000));
+  assert.equal(armed(), before + 1, 'holding while pressed');
+  f.node.props.onPointerLeave(mouse(40, 760, 1100));   // released just outside: no up reaches the bar
+  t.mock.timers.tick(600);
+  assert.equal(armed(), before, 'the hold timer was cancelled: no hold state, no menu');
+});
+
+test('#646 follow-up control: a press held inside the bar still opens the hold menu at 500 ms', t => {
+  t.mock.timers.enable({apis: ['setTimeout']});
+  const f = fixture(refused(true)), armed = () => bridge.slots.filter(slot => slot && typeof slot === 'object' && 'value' in slot && slot.value === true).length;
+  const before = armed();
+  f.node.props.onPointerDown({...f.event(40, 700, 1000), pointerType: 'mouse'});
+  t.mock.timers.tick(600);
+  assert.ok(armed() > before, 'held');
+});
