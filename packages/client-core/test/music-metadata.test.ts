@@ -40,7 +40,8 @@ test('policy cannot write from absent capability or stale scope; conflicts refre
  const service=new MetadataReviewService({scope:{serverId:'server',viewerId:'owner'},api:{request:async<T>(_path,method)=>{if(method==='GET')return raw as T;writes++;raw={...raw,revision:5,policy:{...raw.policy,revision:4}};throw Object.assign(new Error('Changed'),{code:'metadata_conflict'});}}});
  await service.select({kind:'song',entityId:'song',libraryId:'library'});assert.throws(()=>service.configureMusic({localMode:'off',musicBrainzEnabled:false,acoustidEnabled:false}));
  raw.actions.push('policy');await service.refresh();await service.configureMusic({localMode:'off',musicBrainzEnabled:false,acoustidEnabled:false});assert.equal(writes,1);assert.equal(service.getSnapshot().data!.revision,5);
- raw.viewerFence='different';await service.refresh();assert.equal(service.getSnapshot().data,null);service.dispose();
+ // A moved fence on a read is a newer answer, not a refusal: the page shows it (step 7 slice 2).
+ raw.viewerFence='different';await service.refresh();assert.equal(service.getSnapshot().data!.scope.viewerFence,'different');assert.equal(service.getSnapshot().data!.revision,5);service.dispose();
 });
 
 test('local audiobook policy uses library identity and revision; ignores late cancelled responses',async()=>{
