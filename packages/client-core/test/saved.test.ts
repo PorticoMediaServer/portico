@@ -122,7 +122,12 @@ test('a share candidate this app cannot read is left out; scope, revision and si
  const candidate={id:'candidate',authority:'local',accountId:'account2',profileId:'profile2',displayName:'Second'};
  const page=(patch:any={})=>({serverId:'server',viewerFence:'fence',playlistId:'playlist',revision:0,candidates:[candidate,{...candidate,id:'robot',authority:'galactic'},{...candidate,displayName:'Again'},{id:'nameless'}],nextCursor:'',futureField:1,...patch});
  const s=setup(async p=>p.includes('share-candidates')?page():isContent(p)?projection():resource());await s.select({view:'playlist',playlistId:'playlist'});await s.loadCandidates();assert.deepEqual(s.getSnapshot().candidates!.candidates,[candidate]);
- for(const patch of [{serverId:'other'},{viewerFence:'other'},{revision:'0'},{nextCursor:7},{candidates:new Array(41).fill(candidate)},{candidates:{}}]){const denied=setup(async p=>p.includes('share-candidates')?page(patch):isContent(p)?projection():resource());await denied.select({view:'playlist',playlistId:'playlist'});await denied.loadCandidates();assert.equal(denied.getSnapshot().candidates,null);assert(denied.getSnapshot().candidatesError,JSON.stringify(patch));}
+ for(const patch of [{serverId:'other'},{viewerFence:''},{revision:'0'},{nextCursor:7},{candidates:new Array(41).fill(candidate)},{candidates:{}}]){const denied=setup(async p=>p.includes('share-candidates')?page(patch):isContent(p)?projection():resource());await denied.select({view:'playlist',playlistId:'playlist'});await denied.loadCandidates();assert.equal(denied.getSnapshot().candidates,null);assert(denied.getSnapshot().candidatesError,JSON.stringify(patch));}
+});
+test('share candidates answered under a moved fence are the newer answer, not a refusal',async()=>{
+ const candidate={id:'candidate',authority:'local',accountId:'account2',profileId:'profile2',displayName:'Second'};
+ const s=setup(async p=>p.includes('share-candidates')?{serverId:'server',viewerFence:'moved',playlistId:'playlist',revision:0,candidates:[candidate],nextCursor:''}:isContent(p)?projection():resource());
+ await s.select({view:'playlist',playlistId:'playlist'});await s.loadCandidates();assert.equal(s.getSnapshot().candidatesError,null);assert.deepEqual(s.getSnapshot().candidates!.candidates,[candidate]);s.dispose();
 });
 test('candidate page has exact scope, owner rights and bounded entries',async()=>{
  const candidate={id:'candidate',authority:'local',accountId:'account2',profileId:'profile2',displayName:'Profile …profile2'};const s=setup(async p=>p.includes('share-candidates')?{serverId:'server',viewerFence:'fence',playlistId:'playlist',revision:0,candidates:[candidate],nextCursor:''}:isContent(p)?projection():resource());await s.select({view:'playlist',playlistId:'playlist'});await s.loadCandidates();assert.deepEqual(s.getSnapshot().candidates!.candidates,[candidate]);assert.throws(()=>s.mutate({action:'reorder',entryIds:['x','x']}));
@@ -161,7 +166,11 @@ test('order windows page and append; a revision move restarts from the first pag
 });
 test('order rejects torn revision, wrong fence, over-page windows and unreadable occurrence IDs',async()=>{
  const full=new Array(101).fill('entry');
- for(const patch of [{revision:1},{viewerFence:'other'},{entryIds:full},{entryIds:['entry','']},{entryIds:['entry',7]},{nextCursor:7}]){const s=setup(async p=>p.includes('/order')?{serverId:'server',viewerFence:'fence',playlistId:'playlist',revision:0,entryIds:['entry'],nextCursor:'',...patch}:isContent(p)?projection():resource());await s.select({view:'playlist',playlistId:'playlist'});await s.loadOrder();assert.equal(s.getSnapshot().order,null);assert(s.getSnapshot().orderError);assert.equal(s.getSnapshot().orderLoading,false);}
+ for(const patch of [{revision:1},{viewerFence:''},{entryIds:full},{entryIds:['entry','']},{entryIds:['entry',7]},{nextCursor:7}]){const s=setup(async p=>p.includes('/order')?{serverId:'server',viewerFence:'fence',playlistId:'playlist',revision:0,entryIds:['entry'],nextCursor:'',...patch}:isContent(p)?projection():resource());await s.select({view:'playlist',playlistId:'playlist'});await s.loadOrder();assert.equal(s.getSnapshot().order,null);assert(s.getSnapshot().orderError);assert.equal(s.getSnapshot().orderLoading,false);}
+});
+test('an order window answered under a moved fence is the newer answer for the same playlist revision',async()=>{
+ const s=setup(async p=>p.includes('/order')?{serverId:'server',viewerFence:'moved',playlistId:'playlist',revision:0,entryIds:['entry'],nextCursor:''}:isContent(p)?projection():resource());
+ await s.select({view:'playlist',playlistId:'playlist'});await s.loadOrder();assert.equal(s.getSnapshot().orderError,null);assert.deepEqual(s.getSnapshot().order!.entryIds,['entry']);s.dispose();
 });
 test('an order window ignores a field it does not know and keeps the first of a repeated occurrence ID',async()=>{
  const s=setup(async p=>p.includes('/order')?{serverId:'server',viewerFence:'fence',playlistId:'playlist',revision:0,entryIds:['entry','other','entry'],nextCursor:'',media:{title:'Private'}}:isContent(p)?projection():resource());await s.select({view:'playlist',playlistId:'playlist'});await s.loadOrder();
@@ -649,4 +658,26 @@ test('readWatchlist is one named read of My List\'s first page through the Saved
  assert.deepEqual(paths,['/v1/content?view=watchlist&limit=40']);
  assert.deepEqual(titles.map(entry=>entry.id),['one','two']);
  await assert.rejects(readWatchlist(api as any,{...scope,serverId:'other'}),'another server\'s page is refused');
+});
+
+test('step 7: a moved fence on a Saved read is a newer answer; an old cursor is the server\'s to refuse; a write answer under it is still refused',async()=>{
+ const at=(value:any,fence:string)=>({...value,...(value.scope?{scope:{...value.scope,viewerFence:fence}}:{viewerFence:fence})});
+ // Playlist and its content: read together after the fence moved, or one on each side of the move.
+ for(const [content,list] of [['moved','moved'],['moved','fence'],['fence','moved']]){
+  let moved=false;const s=setup(async p=>isContent(p)?at(projection(),moved?content:'fence'):at(resource(),moved?list:'fence'));
+  await s.select({view:'playlist',playlistId:'playlist'});moved=true;await s.refresh();
+  assert.equal(s.getSnapshot().phase,'ready',content+'/'+list);assert.equal(s.getSnapshot().error,null);assert.equal(s.getSnapshot().projection!.scope.viewerFence,content);s.dispose();
+ }
+ // A later page after the fence moved: the server refuses the old cursor, and the list starts again from its first page.
+ let fence='fence';const paths:string[]=[];
+ const paged=setup(async p=>{paths.push(p);if(p.includes('cursor=')&&fence==='moved')throw Object.assign(new Error('Expired'),{code:'invalid_cursor'});return at(projection('favorites',0,[media()],p.includes('cursor=')?'':'next'),fence);});
+ await paged.select({view:'favorites'});fence='moved';await paged.next('entries');
+ assert.equal(paged.getSnapshot().phase,'ready');assert(!paths.at(-1)!.includes('cursor='));assert.equal(paged.getSnapshot().projection!.scope.viewerFence,'moved');assert.equal(paged.getSnapshot().pagination.cursor,null);paged.dispose();
+ // A later page of My List whose own revision moved still starts again from the first page.
+ let revision=1;const again:string[]=[];
+ const moving=setup(async p=>{again.push(p);return {...projection('watchlist',0,[media()],p.includes('cursor=')?'':'next'),savedRevision:p.includes('cursor=')?revision:1};});
+ await moving.select({view:'watchlist'});revision=2;await moving.next('entries');assert(!again.at(-1)!.includes('cursor='));assert.equal(moving.getSnapshot().phase,'ready');moving.dispose();
+ // A write's own answer is still checked against the fence it was made under.
+ const write=setup(async(p,m,b)=>m==='GET'?(isContent(p)?projection():resource()):{...receipt(b),viewerFence:'moved'});
+ await write.select({view:'playlist',playlistId:'playlist'});await assert.rejects(write.mutate({action:'rename',name:'Renamed'}));assert(write.getSnapshot().mutationError);write.dispose();
 });
