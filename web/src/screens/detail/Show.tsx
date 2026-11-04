@@ -1,6 +1,6 @@
 import {CatalogueSelectionEntry, useCatalogueSelectionActive, type CatalogueDocumentSelection} from '../browse/document-selection';
 import {t, locale, environment as env} from './text';
-import {useWatchBodyPlayback} from './watch-body-playback';
+import {useWatchBodyPlayback, watchEpisodeLine, watchHeaderFacts} from './watch-body-playback';
 import {Fragment, useId, useEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {preferenceValue} from '@core/preferences.ts';
 import type {ShowWorkspaceRoute, ShowWorkspaceData, ShowSettings, WorkspaceSeason, WorkspaceShowCredit} from '@core/show-workspace.ts';
@@ -163,6 +163,8 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
   const pin = offer && (offer.resume ? <ResumeButton size="small" progress={offer.progress} onClick={playPrimary}>{primaryLabel}</ResumeButton> : <Button variant="primary" size="small" icon="i-play" onClick={playPrimary}>{primaryLabel}</Button>);
   const owner = binding.canManage();
   const facts = titlePageFacts({year: show.year, seasonCount: data.seasonTotalCount, genres: show.genres, contentRating: show.contentRating}, env);
+  // phone-player 4: under the playing video, the episode stays on one line.
+  const episodeLine = compact ? watchEpisodeLine(watch?.subject, env) : [];
   const starring = showPeople(show.credits).cast.slice(0, 4), [starringBefore, starringAfter] = t('title.starring', {names: '\uFFF0'}).split('\uFFF0');
   const credits = starring.length > 0 && <div className={styles.starring}>{starringBefore}<ShowPersonLinks credits={starring} binding={binding} data={data} />{starringAfter}</div>;
   const titleFacts = <TitleFactsLine parts={facts} genres={<GenreNames names={show.genres ?? []} onOpen={binding.context.effects.openBrowse ? genre => runScreenCommand(binding.context, () => binding.browseGenre(data, genre)) : undefined} />} />;
@@ -178,7 +180,7 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
     </header> : <header className={detail.hero}>
       {preferenceValue<boolean>(preferences, 'appearance.showBackdrops') && <AmbientArt className={detail.heroArt} treatment="title" source={art.ambient(show.backdropUrl ?? show.posterUrl)} foreground={art.foreground(show.backdropUrl ?? show.posterUrl, 1920, 16 / 9)} />}
       <div className={detail.copy}><Lockup title={show.title} platform="desktop" />{titleFacts}{show.overview && <TitleProse variant="hero" className={detail.blurb}>{show.overview}</TitleProse>}{credits}{actions}{unplayableNote}</div>
-    </header> : <div className={detail.compactHeader}><h1>{show.title}</h1>{actions}</div>}
+    </header> : <div className={detail.compactHeader}><h1>{show.title}</h1>{episodeLine.length > 0 && <p className={detail.episodeLine}>{episodeLine.map(part => <span key={part.id} data-fact={part.id}>{part.text}</span>)}</p>}<TitleFactsLine parts={watchHeaderFacts(facts, watch?.leftSeconds, env)} />{actions}</div>}
     <TitleTabs title={show.title} compact={compact} onBack={binding.context.effects.back ? () => runScreenCommand(binding.context, () => { binding.current(data); binding.context.effects.back?.(); }) : undefined} actions={!compact ? <div className={`${detail.actions} ${styles.pinActions}`}>{pin}{personal && <Button size="small" disabled={busy} icon={personal.watchlisted ? 'i-check' : 'i-plus'} iconOnly aria-label={t('next.controls.myList')} title={t('next.controls.myList')} aria-pressed={personal.watchlisted} onClick={() => { void binding.setMyList(data, !personal.watchlisted).catch(binding.context.effects.reportError); }} />}</div> : undefined}><Tabs externalPanelId={tabPanelId} value={tab} onValueChange={value => runScreenCommand(binding.context, () => { binding.current(data); if (value === 'episodes' || value === 'related' || value === 'details') binding.view.tab(value); })} items={[{value: 'episodes', label: t('next.controls.episodes')}, {value: 'related', label: t('next.controls.moreLikeThis')}, {value: 'details', label: t('next.controls.details')}]} /></TitleTabs>
     <div key={tab} id={tabPanelId} role="tabpanel" aria-labelledby={`${tabPanelId}-tab-${tab}`} tabIndex={0} className={detail.tabPanel}>
     {tab === 'episodes' && <section className={styles.episodes}>

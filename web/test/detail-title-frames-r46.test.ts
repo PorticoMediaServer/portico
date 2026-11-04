@@ -1,12 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {registerHooks} from 'node:module';
-import {createElement} from 'react';
+import {createElement, useContext} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {readFileSync} from 'node:fs';
 import {defaultI18n} from '@i18n';
 import {transformTsx} from './transform-tsx.mjs';
 import {withQueries} from '../../packages/client-core/test/fixtures/viewer-queries.ts';
+import {componentModule} from './helpers/component-harness.mjs';
+import {createRenderer} from './helpers/interaction-harness.mjs';
+import {queueScope, playbackFence} from '../../packages/player-core/src/index.ts';
+
+const fenceScope = queueScope({serverId: 'server', authority: 'local', accountId: 'account', profileId: 'profile', controllerId: 'controller', controllerEpoch: 'epoch', commandLaneId: 'lane'});
+// As playbackFence() returns for a streamed session: an equal, freshly frozen fence on every read.
+const streamedFence = (sessionId = 'session') => playbackFence({kind: 'queue', playback: {scope: fenceScope, run: 1}, sessionId, generation: 1, itemId: 'ep-1', entryId: 'entry', sourceId: 'source'});
 
 registerHooks({load(url, context, next) {
   if (url.endsWith('.module.css')) return {format: 'module', source: 'export default new Proxy({}, {get: (_, key) => String(key)});', shortCircuit: true};
@@ -22,7 +29,8 @@ const width = (value: number) => { (globalThis as {__detailWidth: {width: number
 
 const {TitleActions, TitleDetails} = await import('../src/screens/detail/Detail.tsx');
 const {createDetailSpecimen} = await import('../src/dev/entries/detail-specimen.tsx');
-const {WatchBodyPlaybackContext} = await import('../src/screens/detail/watch-body-playback.tsx');
+const {WatchBodyPlaybackContext, watchEpisodeLine, watchHeaderFacts} = await import('../src/screens/detail/watch-body-playback.tsx');
+const {WatchBodyPlaybackProvider} = await import('../src/screens/watch/WatchBodyPlayback.tsx');
 const {DetailService} = await import('@core/detail.ts');
 
 const specimenContext = (specimen: ReturnType<typeof createDetailSpecimen>) => ({
@@ -87,6 +95,65 @@ test('phone-player 4: under the watch page an expanded episode keeps Play or Res
     assert.doesNotMatch(html, new RegExp(defaultI18n.t('next.dock.pause')));
     assert.match(html, /1 h 26 min left/, 'its own resume line');
   } finally { service.dispose(); }
+});
+
+test('phone-player 4: under the playing video a show names its episode on one line, then year, genres and the time left', () => {
+  const env = {t: defaultI18n.t, locale: 'en-US'};
+  const episode = {kind: 'video', item: {id: 'ep-1', kind: 'episode', title: 'Failure’s Contagious', show: {title: 'Slow Horses'}, episode: {mode: 'seasonal', season: 1, episode: 1}}} as const;
+  assert.deepEqual(watchEpisodeLine(episode, env).map(part => part.text), ['S1 E1', 'Failure’s Contagious']);
+  assert.deepEqual(watchEpisodeLine({kind: 'video', item: {id: 'm', kind: 'movie', title: 'Inside Out'}}, env), [], 'a film has no episode line');
+  assert.deepEqual(watchEpisodeLine(undefined, env), []);
+  const facts = [{id: 'year', role: 'primary', text: '2022'}, {id: 'seasons', role: 'supplement', text: '4 seasons'}, {id: 'genres', role: 'supplement', text: 'Crime, Drama, Mystery'}, {id: 'content-rating', role: 'supplement', text: 'TV-MA'}] as const;
+  assert.deepEqual(watchHeaderFacts(facts, 37 * 60, env).map(part => part.text), ['2022', 'Crime, Drama, Mystery', '37 min left']);
+  assert.deepEqual(watchHeaderFacts(facts, undefined, env).map(part => part.text), ['2022', 'Crime, Drama, Mystery'], 'no time left without a length');
+});
+
+test('phone-player 4: the watch provider hands the header what plays and its time left in the steps the words change', () => {
+  const subject = {kind: 'video', item: {id: 'ep-1', kind: 'episode', title: 'Failure’s Contagious'}} as const;
+  const seen = (positionSeconds: number, durationSeconds = 2940) => {
+    const snapshot = {disposed: false, fence: streamedFence(), presentation: {subject, playing: true, controls: ['pause'], durationSeconds, positionSeconds}};
+    let value: any;
+    const Probe = () => { value = useContext(WatchBodyPlaybackContext); return null; };
+    renderToStaticMarkup(createElement(WatchBodyPlaybackProvider, {runtime: {subscribe: () => () => {}, getSnapshot: () => snapshot, toggle: async () => {}} as never, reportError() {}}, createElement(Probe)));
+    return value;
+  };
+  assert.equal(seen(724).subject, subject);
+  assert.equal(seen(724).leftSeconds, 37 * 60, '12:04 of 49:00 reads 37 min left');
+  assert.equal(seen(725).leftSeconds, seen(740).leftSeconds, 'no redraw while the minute reads the same');
+  assert.equal(seen(2927).leftSeconds, 13, 'under a minute it counts seconds, as the episode row does');
+  assert.equal(seen(10, 0).leftSeconds, undefined, 'no length, no time left');
+  assert.equal(seen(724).enabled, true);
+});
+
+test('#638: a streamed tick with a fresh fence object but the same words keeps the watch context, so the title body does not redraw', async () => {
+  const {fenceKey} = await import('../src/shell/playback-model.ts');
+  const h = createRenderer();
+  const {WatchBodyPlaybackProvider: Provider} = await componentModule(new URL('../src/screens/watch/WatchBodyPlayback.tsx', import.meta.url), {
+    react: h.react, '../detail/watch-body-playback': {WatchBodyPlaybackContext: {Provider: 'provider'}}, '../../shell/playback-model': {fenceKey},
+  });
+  const subject = {kind: 'video', item: {id: 'ep-1', kind: 'episode', title: 'Pilot'}};
+  const fenceFor = streamedFence;
+  let position = 724, sessionId = 's1';
+  const toggled: unknown[] = [];
+  const runtime = {subscribe: () => () => {}, toggle: async (fence: unknown) => {toggled.push(fence);},
+    getSnapshot: () => ({disposed: false, fence: fenceFor(sessionId), presentation: {subject, playing: true, controls: ['pause'], durationSeconds: 2940, positionSeconds: position}})};
+  const reportError = () => {};
+  const value = () => {const tree: any = h.render(() => createElement(Provider, {runtime, reportError}, null));return tree.props.value;};
+  try {
+    const first = value();
+    assert.equal(first.leftSeconds, 37 * 60);
+    position = 729;
+    assert.equal(value(), first, 'same playback, same words: the very same context value (no redraw)');
+    position = 760;
+    const next = value();
+    assert.notEqual(next, first, 'the words changed (36 min left): a new value');
+    assert.equal(next.leftSeconds, 36 * 60);
+    next.toggle(); await Promise.resolve();
+    assert.equal(toggled.length, 1); assert.equal(fenceKey(toggled[0] as never), fenceKey(fenceFor('s1') as never), 'toggles the live fence of this playback');
+    sessionId = 's2';
+    next.toggle(); await Promise.resolve();
+    assert.equal(toggled.length, 1, 'an older value never toggles a different playback');
+  } finally {h.dispose();}
 });
 
 test('the phone Details draws its short About, the real ratings and the credit lines under the people', async () => {
