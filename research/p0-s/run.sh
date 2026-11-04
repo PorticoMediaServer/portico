@@ -13,6 +13,10 @@ cg=$(awk -F: '$1=="0" {print $3}' /proc/self/cgroup)
    echo "$field"; cat "/sys/fs/cgroup$cg/$field"
  done
 } > "$out/host-$stage.txt"
+if [ "$stage" = cue ]; then
+  "$RUNNER_TEMP/p0-s-full" --ddl "research/p0-s/$TARGET_DDL" --db "$out/full.db" --out "$out" --seed "$size" --normal --write-only --cue-primitives --qualification --bounded-wal --checkpoint-ms 50 --cpu-profile
+  exit
+fi
 if [ "$stage" = bounded ]; then
   "$RUNNER_TEMP/p0-s-full" --ddl "research/p0-s/$TARGET_DDL" --db "$out/full.db" --out "$out" --seed "$size" --normal --write-only --attribution --qualification --bounded-wal --checkpoint-ms "${CHECKPOINT_MS:-50}" --cpu-profile
   exit

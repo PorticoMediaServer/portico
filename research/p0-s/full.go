@@ -44,7 +44,7 @@ func save(p string, v any) {
 }
 
 var normalWrites, writeOnly, facetMode, frameMode, gatesOnly, browseOnly, admissionSchema, attributionMode, localControl, identitySchema, omitFTS, ablationMode, capsMode bool
-var qualificationMode, scalarMode, diagnosticMode bool
+var qualificationMode, scalarMode, diagnosticMode, cueMode bool
 var traceIO, boundedWAL bool
 var checkpointEvery = 50 * time.Millisecond
 var walGovernor *walControl
@@ -218,7 +218,7 @@ func seedAndSweep(c *sql.Conn, target int, out, hash string) {
 		shape = "Basic movie source acceptance with subject+identity+entity+asset+link+search input job/generation+age count+library revision/event/receipt; NO FTS or published search image. No provider metadata/staging/scanner IO/full production typed command."
 	}
 	save(filepath.Join(out, "full-seed.json"), map[string]any{"ddl_sha256": hash, "entities": n, "batches": batches, "decoupled_search": decoupledSchema, "shape": shape})
-	if facetMode || frameMode || gatesOnly || attributionMode || capsMode || scalarMode {
+	if facetMode || frameMode || gatesOnly || attributionMode || capsMode || scalarMode || cueMode {
 		return
 	}
 	if !writeOnly {
@@ -371,6 +371,7 @@ func main() {
 	cacheFlag := flag.Int("cache-kib", 16384, "pager cache KiB/connection")
 	mmapFlag := flag.Int64("mmap-bytes", 0, "requested mmap bytes; actual pragma recorded")
 	scalarFlag := flag.Bool("scalar-primitives", false, "bundled complete-DDL extrema and reverse10/100")
+	cueFlag := flag.Bool("cue-primitives", false, "bundled255CUE/8episode change/delete plusasset-keyed100collections")
 	cpuFlag := flag.Bool("cpu-profile", false, "sampled CPU attribution with native_sql labels; diagnostic scope")
 	qualificationFlag := flag.Bool("qualification", false, "pre-registered1000holds/size, host witnesses, sizes1–128")
 	capsFlag := flag.Bool("caps-product", false, "shared100collections/255CUE size contribution collapse")
@@ -392,6 +393,7 @@ func main() {
 	pagerCacheKiB = *cacheFlag
 	mmapBytes = *mmapFlag
 	scalarMode = *scalarFlag
+	cueMode = *cueFlag
 	qualificationMode = *qualificationFlag
 	capsMode = *capsFlag
 	ablationMode = *ablationFlag
@@ -502,6 +504,9 @@ func main() {
 		}
 		if scalarMode {
 			scalarPrimitives(c, *out, hash)
+		}
+		if cueMode {
+			cuePrimitives(c, *out, hash)
 		}
 		if capsMode {
 			capsProduct(c, *out, hash)
@@ -1807,6 +1812,115 @@ func scalarPrimitives(c *sql.Conn, out, hash string) {
 			v := 2 + j%2
 			return []sqlPhase{{"source-reverse-delta", updateScalarSource(0, v*1000, v)}, {"six-extrema-parents", scalarKeys("id IN(SELECT parent_id FROM catalog_scalar_contributions INDEXED BY catalog_scalar_contributor WHERE contributor_id=1)")}, {"revision-receipt", sharedReceipt(fmt.Sprintf("scalar-reverse-%d", degree), j)}}
 		}, nil)
+	}
+}
+
+func cuePrimitives(c *sql.Conn, out, hash string) {
+	reps := 1000
+	if os.Getenv("GITHUB_RUN_ID") == "" {
+		reps = 2
+	}
+	for _, nchild := range []int{255, 8} {
+		cue := nchild == 255
+		label := "cue255"
+		if !cue {
+			label = "episode8"
+		}
+		var n int
+		must(c.QueryRowContext(context.Background(), "SELECT max(id) FROM catalog_entities").Scan(&n))
+		owner, lo, hi, p1, p2 := n+1, n+2, n+1+nchild, n+2+nchild, n+3+nchild
+		fixtureTx(c, acceptanceSQL(owner, nchild+103))
+		parentWhere := fmt.Sprintf("id BETWEEN %d AND %d", p1, p2)
+		childWhere := fmt.Sprintf("id BETWEEN %d AND %d", lo, hi)
+		total := nchild * 100
+		q := "INSERT OR IGNORE INTO catalog_kinds VALUES(2,'show',0,1,1,1,0),(3,'season',0,1,1,1,0),(4,'episode',1,0,1,1,0),(5,'artist',0,1,1,1,1),(6,'album',0,1,1,1,1),(7,'song',1,0,1,1,1),(10,'collection',0,1,1,1,0);PRAGMA defer_foreign_keys=ON;"
+		if cue {
+			q += fmt.Sprintf("UPDATE catalog_subjects SET kind=5 WHERE id=%d;UPDATE catalog_subjects SET kind=6 WHERE id=%d;UPDATE catalog_subjects SET kind=7 WHERE %s;UPDATE catalog_entities SET kind=5,resolution_key=NULL WHERE id=%d;UPDATE catalog_entities SET kind=6,artist_id=%d,resolution_key=NULL WHERE id=%d;UPDATE catalog_entities SET kind=7,artist_id=%d,album_id=%d,parent_id=%d,resolution_key=NULL WHERE %s;", p1, p2, childWhere, p1, p1, p2, p1, p2, p2, childWhere)
+		} else {
+			q += fmt.Sprintf("UPDATE catalog_subjects SET kind=2 WHERE id=%d;UPDATE catalog_subjects SET kind=3 WHERE id=%d;UPDATE catalog_subjects SET kind=4 WHERE %s;UPDATE catalog_entities SET kind=2 WHERE id=%d;UPDATE catalog_entities SET kind=3,show_id=%d,season_number=1,parent_id=%d WHERE id=%d;UPDATE catalog_entities SET kind=4,show_id=%d,season_id=%d,parent_id=%d,numbering='seasonal',episode_number=id-%d WHERE %s;", p1, p2, childWhere, p1, p1, p1, p2, p1, p2, p2, owner, childWhere)
+		}
+		q += fmt.Sprintf("DELETE FROM catalog_asset_links WHERE entity_id BETWEEN %d AND %d;UPDATE catalog_entities SET admission_member_count=%d,admission_unrated_members=%d WHERE %s;", lo, p2, nchild, nchild, parentWhere)
+		fixtureTx(c, q)
+		baseline := func() string {
+			h, w, codec, video := 1080, 1920, "aac", "h264"
+			if cue {
+				h, w, codec, video = 0, 0, "flac", ""
+			}
+			q := fmt.Sprintf("INSERT OR IGNORE INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id) VALUES(%d,'asset-%d','/synthetic/full/%d',1000000,1,'fixture','%s','%s',%d,%d,%d,1);UPDATE catalog_assets SET size=1000000,duration=%d,height=%d,file_size_revision=file_size_revision+1 WHERE id=%d;", owner, owner, owner, video, codec, w, h, total, total, h, owner)
+			q += fmt.Sprintf("INSERT OR REPLACE INTO catalog_asset_links(entity_id,asset_id,library_id,info_duration) VALUES(%d,%d,1,%d);", owner, owner, total)
+			if cue {
+				q += fmt.Sprintf("INSERT OR REPLACE INTO catalog_asset_links(entity_id,asset_id,library_id,cue_ordinal,start_seconds,end_seconds,info_duration) SELECT id,%d,1,id-%d,(id-%d)*100.0,CASE WHEN id=%d THEN NULL ELSE (id-%d+1)*100.0 END,100 FROM catalog_entities WHERE %s;", owner, owner, lo, hi, lo, childWhere)
+			} else {
+				q += fmt.Sprintf("INSERT OR REPLACE INTO catalog_asset_links(entity_id,asset_id,library_id,info_duration) SELECT id,%d,1,%d FROM catalog_entities WHERE %s;", owner, total, childWhere)
+			}
+			duration := fmt.Sprintf("%d", total)
+			if cue {
+				duration = fmt.Sprintf("CASE WHEN id=%d THEN %d ELSE 100 END", owner, total)
+			}
+			q += fmt.Sprintf("UPDATE catalog_entities SET file_size_key=1000000,duration_key=%s,resolution_key=CASE WHEN kind IN(1,2,3,4,10) THEN %d ELSE NULL END,scalar_source_revision=scalar_source_revision+1,revision=revision+1 WHERE id BETWEEN %d AND %d;UPDATE catalog_scalar_contributions SET duration=(SELECT duration_key FROM catalog_entities WHERE id=contributor_id),resolution=(SELECT resolution_key FROM catalog_entities WHERE id=contributor_id),contributor_revision=(SELECT scalar_source_revision FROM catalog_entities WHERE id=contributor_id) WHERE contributor_id BETWEEN %d AND %d;", duration, h, owner, hi, lo, hi)
+			q += fmt.Sprintf("INSERT OR REPLACE INTO catalog_asset_contributions(library_id,parent_id,asset_id,membership_refs,file_size,file_size_revision,authored_refs) SELECT 1,id,%d,%d,1000000,(SELECT file_size_revision FROM catalog_assets WHERE id=%d),0 FROM catalog_entities WHERE %s;", owner, nchild, owner, parentWhere)
+			return q + scalarKeys(parentWhere)
+		}
+		fixtureTx(c, baseline())
+		for _, parent := range []int{p1, p2} {
+			fixtureTx(c, scalarInsert+scalarFromEntity(parent, childWhere))
+		}
+		fixtureTx(c, scalarKeys(parentWhere)+ageCountsFill())
+		for _, mode := range []string{"change-corrected", "change-old-full-bound", "delete"} {
+			if !cue && mode == "change-old-full-bound" {
+				continue
+			}
+			name := label + "-" + mode
+			recordPrimitive(c, out, hash, name, reps, func(j int) []sqlPhase {
+				size, duration, height := 1000001+j%2, total+1+j%2, 720+360*(j%2)
+				if cue {
+					height = 0
+				}
+				validate := fmt.Sprintf("SELECT file_size_revision,authored_membership_revision FROM catalog_assets WHERE id=%d;", owner)
+				var delta string
+				if mode == "delete" {
+					delta = fmt.Sprintf("DELETE FROM catalog_asset_contributions WHERE asset_id=%d;DELETE FROM catalog_asset_links WHERE asset_id=%d;UPDATE catalog_entities SET file_size_key=0,duration_key=0,resolution_key=CASE WHEN kind IN(1,2,3,4,10) THEN 0 ELSE NULL END,revision=revision+1,scalar_source_revision=scalar_source_revision+1 WHERE id BETWEEN %d AND %d;UPDATE catalog_scalar_contributions SET duration=0,resolution=CASE WHEN resolution IS NULL THEN NULL ELSE 0 END,contributor_revision=(SELECT scalar_source_revision FROM catalog_entities WHERE id=contributor_id) WHERE contributor_id BETWEEN %d AND %d;DELETE FROM catalog_assets WHERE id=%d;", owner, owner, owner, hi, lo, hi, owner)
+				} else {
+					delta = fmt.Sprintf("UPDATE catalog_assets SET size=%d,duration=%d,height=%d,file_size_revision=file_size_revision+1,info_epoch=info_epoch+1,playback_origin_revision=playback_origin_revision+1 WHERE id=%d;UPDATE catalog_entities SET file_size_key=%d,revision=revision+1 WHERE id BETWEEN %d AND %d;UPDATE catalog_asset_contributions SET file_size=%d,file_size_revision=(SELECT file_size_revision FROM catalog_assets WHERE id=%d) WHERE asset_id=%d;", size, duration, height, owner, size, owner, hi, size, owner, owner)
+					changed := fmt.Sprintf("entity_id BETWEEN %d AND %d", owner, hi)
+					entities := fmt.Sprintf("id BETWEEN %d AND %d", owner, hi)
+					contributors := fmt.Sprintf("contributor_id BETWEEN %d AND %d", lo, hi)
+					if cue && mode == "change-corrected" {
+						changed = fmt.Sprintf("(entity_id=%d OR entity_id=%d)", owner, hi)
+						entities = fmt.Sprintf("(id=%d OR id=%d)", owner, hi)
+						contributors = fmt.Sprintf("contributor_id=%d", hi)
+					}
+					dur := fmt.Sprintf("%d", duration)
+					if cue && mode == "change-corrected" {
+						dur = fmt.Sprintf("%d-start_seconds", duration)
+					}
+					delta += fmt.Sprintf("UPDATE catalog_asset_links SET info_duration=%s,playback_origin_revision=playback_origin_revision+1 WHERE asset_id=%d AND %s;UPDATE catalog_entities SET duration_key=(SELECT info_duration FROM catalog_asset_links WHERE entity_id=catalog_entities.id AND asset_id=%d),resolution_key=CASE WHEN kind IN(1,2,3,4,10) THEN %d ELSE NULL END,scalar_source_revision=scalar_source_revision+1 WHERE %s;UPDATE catalog_scalar_contributions SET duration=(SELECT duration_key FROM catalog_entities WHERE id=contributor_id),resolution=(SELECT resolution_key FROM catalog_entities WHERE id=contributor_id),contributor_revision=(SELECT scalar_source_revision FROM catalog_entities WHERE id=contributor_id) WHERE %s;", dur, owner, changed, owner, height, entities, contributors)
+				}
+				return []sqlPhase{{"source-witness", validate}, {"source-links-leaves-contributions", delta}, {"coalesced-parent-extrema", scalarKeys(parentWhere)}, {"revision-receipt", sharedReceipt(name, j)}}
+			}, func(j int) {
+				fixtureTx(c, baseline())
+				if cue {
+					var closed float64
+					must(c.QueryRowContext(context.Background(), "SELECT duration_key FROM catalog_entities WHERE id=?", lo).Scan(&closed))
+					if closed != 100 {
+						panic("closed CUE range drift")
+					}
+				}
+			})
+		}
+		if cue {
+			clo, chi := p2+1, p2+100
+			fixtureTx(c, fmt.Sprintf("PRAGMA defer_foreign_keys=ON;UPDATE catalog_subjects SET kind=10 WHERE id BETWEEN %d AND %d;UPDATE catalog_entities SET kind=10,resolution_key=0,collection_name_key=printf('cue-collapse-%%d',id),admission_member_count=255,admission_unrated_members=255 WHERE id BETWEEN %d AND %d;", clo, chi, clo, chi))
+			for parent := clo; parent <= chi; parent++ {
+				fixtureTx(c, fmt.Sprintf("INSERT INTO catalog_collection_members SELECT %d,id,printf('%%010d',id) FROM catalog_entities WHERE %s;", parent, childWhere)+scalarInsert+scalarFromEntity(parent, childWhere)+fmt.Sprintf("INSERT INTO catalog_asset_contributions(library_id,parent_id,asset_id,membership_refs,file_size,file_size_revision,authored_refs) SELECT 1,%d,%d,255,size,file_size_revision,255 FROM catalog_assets WHERE id=%d;", parent, owner, owner))
+			}
+			fixtureTx(c, fmt.Sprintf("UPDATE catalog_assets SET authored_membership_revision=authored_membership_revision+1 WHERE id=%d;", owner)+scalarKeys(fmt.Sprintf("id BETWEEN %d AND %d", clo, chi))+ageCountsFill())
+			recordPrimitive(c, out, hash, "cue255-size-collapsed100", reps, func(j int) []sqlPhase {
+				size := 2000000 + j%2
+				return []sqlPhase{{"admission-witness", fmt.Sprintf("SELECT authored_membership_revision FROM catalog_assets WHERE id=%d;SELECT count(*) FROM catalog_asset_contributions WHERE asset_id=%d AND authored_refs>0;", owner, owner)}, {"asset-size-only", fmt.Sprintf("UPDATE catalog_assets SET size=%d,file_size_revision=file_size_revision+1,info_epoch=info_epoch+1 WHERE id=%d;UPDATE catalog_entities SET file_size_key=%d,revision=revision+1 WHERE id BETWEEN %d AND %d;UPDATE catalog_asset_contributions SET file_size=%d,file_size_revision=(SELECT file_size_revision FROM catalog_assets WHERE id=%d) WHERE asset_id=%d;", size, owner, size, owner, hi, size, owner, owner)}, {"102-parent-size-keys", fmt.Sprintf("UPDATE catalog_entities SET file_size_key=(SELECT file_size FROM catalog_asset_contributions WHERE parent_id=catalog_entities.id AND asset_id=%d),aggregate_revision=aggregate_revision+1,revision=revision+1 WHERE id BETWEEN %d AND %d;", owner, p1, chi)}, {"revision-receipt", sharedReceipt("cue255-size-collapsed100", j)}}
+			}, nil)
+		}
+		save(filepath.Join(out, label+"-fixture.json"), map[string]any{"ddl_sha256": hash, "children": nchild, "owner": owner, "automatic_parents": []int{p1, p2}, "base_inline": true, "boundary": "Single-library1owner+255CUE(or8episodes),2automatic parents, asset-scoped size witnesses. Synthetic unparented movie owner deliberately adds a conservative owner row; not a music owner identity oracle. CUEduration closed=end-start/openlast=asset-start, audio resolutionNULL; oldfull propagation is a semantic negative upper bound. Delete removes physical asset/links, retains subjects/entities/hierarchy/metadata and zeroes unavailable metrics; no entity retirement/pinned-prepared custody oracle. CAPSc adds100shared authored collections,25500scalar tuples untouched onsize-only change,102per(parent,asset)size rows. No active aggregate overlay debt, no per-profile visibility."})
 	}
 }
 
