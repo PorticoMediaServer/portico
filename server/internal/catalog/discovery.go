@@ -345,9 +345,6 @@ func (s *Service) DiscoverWithRestrictions(library, profile string, restrictions
 	if lib.Kind == "music" || lib.Kind == "audiobook" {
 		mode, title = "continue_listening", "Continue Listening"
 	}
-	clause, bind := ItemRestrictionSQL("candidate.entity", restrictions)
-	args := []any{profile, idsJSON([]string{library})}
-	args = append(args, bind...)
 	ids := []string{}
 	var rows *sql.Rows
 	var e error
@@ -368,8 +365,14 @@ func (s *Service) DiscoverWithRestrictions(library, profile string, restrictions
 		albums, albumArgs := homeAlbumContinuation(r, []string{library}, nil)
 		rows, e = s.read().Query(`SELECT pid(album.public_id) FROM (`+albums+`) chosen JOIN catalog_entities album ON album.id=chosen.album ORDER BY chosen.ord DESC,album.public_id LIMIT 12`, albumArgs...)
 	} else {
-		// The listening walk's bounded window takes the profile first.
-		rows, e = s.read().Query(`SELECT id FROM (`+homeContinueBase(mode)+`) candidate WHERE `+clause+` ORDER BY ord DESC,id LIMIT 12`, append([]any{profile}, args...)...)
+		// An audiobook continues as a book, using Home's restricted book
+		// continuation rather than publishing its current file as the card.
+		r.Viewer = Viewer{Profile: profile, Libraries: []string{library}, Restrictions: restrictions}
+		source, sourceErr := s.homeBooksSource(r, nil)
+		if sourceErr != nil {
+			return out, sourceErr
+		}
+		rows, e = s.read().Query(`SELECT id FROM (`+source.base+`) ORDER BY ord DESC,id LIMIT 12`, source.args...)
 	}
 	if e != nil {
 		return out, e
@@ -389,16 +392,16 @@ func (s *Service) DiscoverWithRestrictions(library, profile string, restrictions
 	}
 	if len(ids) > 0 {
 		hydrate := s.homeEntries
-		if lib.Kind == "music" {
-			// Albums are works, hydrated as Home's listening row hydrates them.
+		if mode == "continue_listening" {
+			// Albums and books use the same work hydration as Home.
 			hydrate = s.homeEngineEntries
 		}
 		entries, e := hydrate(profile, ids)
 		if e != nil {
 			return out, e
 		}
-		if lib.Kind == "music" {
-			// Each album names its current song and how far through the album it is.
+		if mode == "continue_listening" {
+			// Each work carries progress and its current playable song or part.
 			if _, e = s.homeAudioResume(r, entries); e != nil {
 				return out, e
 			}
