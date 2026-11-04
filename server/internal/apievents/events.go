@@ -19,6 +19,12 @@ func ProfileAudience(authority, account, profile string) string {
 }
 func AccountAudience(authority, account string) string { return "account:" + authority + ":" + account }
 
+// AuthorityAudience reaches every profile of this account, regardless of tier.
+// AccountAudience remains the separate account-administration inbox.
+func AuthorityAudience(authority, account string) string {
+	return "authority:" + authority + ":" + account
+}
+
 // CapacityAudience is distinct from account administration and profile events.
 func CapacityAudience(authority, account string) string {
 	return "capacity:" + authority + ":" + account

@@ -151,6 +151,7 @@ func (d Dependencies) events(w http.ResponseWriter, r *http.Request) {
 // at the deadline. Every page is one bounded read; a page that stopped at the
 // byte budget is answered at once and the client paces its continuation.
 func (d Dependencies) eventLongPoll(w http.ResponseWriter, r *http.Request, p identity.Principal, wake <-chan struct{}, page eventfeed.Page, wait int) {
+	authorityAfter := page.NextAfter
 	if len(page.Events) == 0 && wait > 0 {
 		timer := time.NewTimer(time.Duration(wait) * time.Millisecond)
 		defer timer.Stop()
@@ -164,6 +165,10 @@ func (d Dependencies) eventLongPoll(w http.ResponseWriter, r *http.Request, p id
 			}
 			fresh, owner, err := d.eventAuthority(r)
 			if err != nil {
+				if hint, ok := d.retiringAuthorityPage(r, p, page.NextAfter); ok {
+					consoleWrite(w, 200, hint)
+					return
+				}
 				consoleError(w, err)
 				return
 			}
@@ -180,6 +185,10 @@ func (d Dependencies) eventLongPoll(w http.ResponseWriter, r *http.Request, p id
 	}
 answer:
 	if _, _, err := d.eventAuthority(r); err != nil {
+		if hint, ok := d.retiringAuthorityPage(r, p, authorityAfter); ok {
+			consoleWrite(w, 200, hint)
+			return
+		}
 		consoleError(w, err)
 		return
 	}
@@ -230,6 +239,15 @@ func (d Dependencies) eventStream(w http.ResponseWriter, r *http.Request, p iden
 		lastSent = e.ID
 		return true
 	}
+	retireAuthority := func() {
+		if d.eventAccountDisabled(ctx, p) {
+			send(eventfeed.Event{ID: page.NextAfter, Type: "stream.closed", Data: json.RawMessage(`{"reason":"authority_changed","reconnectAfterMs":1000}`)})
+		} else if hint, ok := d.retiringAuthorityPage(r.WithContext(ctx), p, page.NextAfter); ok {
+			for _, event := range hint.Events {
+				send(event)
+			}
+		}
+	}
 	if err = frameWrite(w, func(out io.Writer) (int, error) {
 		return fmt.Fprint(out, "retry: 1000\n\n")
 	}); err != nil {
@@ -250,6 +268,7 @@ func (d Dependencies) eventStream(w http.ResponseWriter, r *http.Request, p iden
 	flushPage := func() bool {
 		fresh, _, err := d.eventAuthority(r.WithContext(ctx))
 		if err != nil || fresh.Hash != p.Hash {
+			retireAuthority()
 			return false
 		}
 		for _, e := range page.Events {
@@ -307,6 +326,7 @@ func (d Dependencies) eventStream(w http.ResponseWriter, r *http.Request, p iden
 		case <-wake:
 			if pending {
 				if fresh, _, err := d.eventAuthority(r.WithContext(ctx)); err != nil || fresh.Hash != p.Hash {
+					retireAuthority()
 					return
 				}
 				continue
@@ -314,6 +334,7 @@ func (d Dependencies) eventStream(w http.ResponseWriter, r *http.Request, p iden
 		}
 		fresh, owner, err := d.eventAuthority(r.WithContext(ctx))
 		if err != nil || fresh.Hash != p.Hash {
+			retireAuthority()
 			return
 		}
 		page, err = d.Events.Read(ctx, fresh, owner, page.NextAfter)
