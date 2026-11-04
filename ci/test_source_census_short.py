@@ -46,3 +46,64 @@ class CensusIsolation(unittest.TestCase):
         bins, costs = balance_short_censuses(census, {})
         self.assertEqual(bins, [census])
         self.assertEqual(costs, [2])
+
+class CensusPassReceipts(unittest.TestCase):
+    def events(self, action):
+        name = next(iter(TESTS))
+        events = [{'Package': PACKAGE, 'Test': name, 'Action': 'run'}]
+        if action is not None:
+            events.append({'Package': PACKAGE, 'Test': name, 'Action': action})
+        return events + [{'Package': PACKAGE, 'Action': 'pass'}]
+
+    def selection(self):
+        test = {'module': 'server', 'package': PACKAGE, 'name': next(iter(TESTS))}
+        return {'tier': 'short', 'tags': 'tags', 'packages': [{'module': 'server', 'package': PACKAGE}],
+                'inventory': [test], 'all_inventory': [test], 'shards': [[test]], 'js': []}
+
+    def test_runner_rejects_skipped_cancelled_or_missing_census_terminal(self):
+        import subprocess, tempfile
+        from unittest.mock import patch
+        from run import go
+        for action in ['skip', 'cancelled', None]:
+            with self.subTest(action=action), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory); (root / 'ci').mkdir(); (root / 'ci-tools').mkdir()
+                (root / 'ci/quarantine.json').write_text('{"entries": []}')
+                (root / 'ci-tools/portico-server').touch()
+                result = subprocess.CompletedProcess(['go', 'test'], 0,
+                    '\n'.join(json.dumps(e) for e in self.events(action)), '')
+                with patch('run.ROOT', root), patch('run.validate_tags'), patch('run.subprocess.run', return_value=result):
+                    with self.assertRaises(SystemExit):
+                        go(self.selection(), 0)
+
+    def test_required_aggregate_checks_raw_census_pass_even_if_job_claims_success(self):
+        import tempfile
+        from unittest.mock import patch
+        from run import aggregate
+        needs = {name: {'result': 'success'} for name in ['planner', 'hygiene', 'go_build', 'go_vet_cross', 'go_tests', 'decoder_sandbox']}
+        needs.update({name: {'result': 'skipped'} for name in ['js', 'js_static', 'android']})
+        for action in ['pass', 'skip', 'cancelled', None]:
+            with self.subTest(action=action), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory); receipt = root / 'ci-results/go/go-0/census.jsonl'
+                receipt.parent.mkdir(parents=True)
+                receipt.write_text('\n'.join(json.dumps(e) for e in self.events(action)))
+                with patch('run.ROOT', root):
+                    if action == 'pass':
+                        aggregate(self.selection(), needs)
+                        for state in ['skipped', 'cancelled', None]:
+                            with self.assertRaises(ValueError):
+                                aggregate(self.selection(), dict(needs, go_tests={'result': state}))
+                    else:
+                        with self.assertRaises(ValueError):
+                            aggregate(self.selection(), needs)
+
+    def test_ordinary_environment_skips_keep_their_existing_verdict(self):
+        from run import classify
+        events = [{'Test': 'TestOptionalHardware', 'Action': 'skip'}, {'Action': 'pass'}]
+        self.assertEqual(classify(events, ['TestOptionalHardware'], 0, set()), 'pass')
+
+    def test_both_aggregate_jobs_download_the_exact_raw_go_artifacts(self):
+        for filename in ['merge.yml', 'nightly.yml']:
+            gate = (ROOT / '.github/workflows' / filename).read_text().split('  merge:\n', 1)[1]
+            self.assertIn('pattern: go-*', gate)
+            self.assertIn('path: ci-results/go', gate)
+            self.assertIn('merge-multiple: false', gate)
