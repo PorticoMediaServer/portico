@@ -97,7 +97,7 @@ function specimen(scale: boolean, expanded: boolean, move = false) {
           streams={list.slice(0, 10).map(value => ({view: ownerStreamView(value, env)}))} streamTotals={scale ? scaleTotals : {streams: 2, paused: 0, converting: 1, bandwidthKbps: 8000, people: 2, atHome: 1, away: 1}}
           expanded={showAll} allStreams={showAll ? list.map(value => ({view: ownerStreamView(value, env)})) : []}
           people={scale ? '37 people · 30 at home, 7 away' : '2 people · 1 at home, 1 away'}
-          alerts={alerts.map(value => ownerAlertView(value, t, defaultI18n.has))} jobs={jobs.map(value => ownerJobView(value, t, defaultI18n.has))}
+          alerts={alerts.map(value => ownerAlertView(value, t, defaultI18n.has))} update={{latest: '0.2.0', current: '0.1.0', notesURL: 'https://example.com/portico/0.2.0', checking: false}} jobs={jobs.map(value => ownerJobView(value, t, defaultI18n.has))}
           telemetry={telemetry} healthWindow="1h" summary={summary} viewingPeriod="7d"
           onBack={() => {}} onRetry={() => {}} onHealthWindow={() => {}} onViewingPeriod={() => {}} onAcknowledge={() => {}} onFixPermissions={() => {}} onJobMenu={() => {}} onStop={() => {}} onStreamMenu={() => {}}
           onShowAll={() => setShowAll(true)} onShowFewer={() => setShowAll(false)} onRetryAll={() => {}}/>
