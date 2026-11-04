@@ -124,7 +124,7 @@ test('the choice preselects Portico Accounts and Continue submits hosted, naviga
     assert.equal(radios[1]!.props.accessibilityState.checked, false);
     assert.match(textOf(radios[0]), /Portico Accounts · Recommended/);
     assert.match(textOf(radios[1]), /Local sign-in/);
-    await hosted.act(() => hosted.layout().props.primaryAction.onPress());
+    await hosted.act(() => hosted.layout()!.props.primaryAction.onPress());
     assert.equal(hosted.fake().count('submitHosted'), 1);
     assert.deepEqual(hosted.fake().last('submitHosted')!.args, ['Studio', {navigate: true, remote: {remoteAccess: 'on', remoteSecurity: 'enhanced'}}]);
     // O-169: Remote access On (Portico Accounts' default) shows Remote security, Enhanced preselected.
@@ -134,13 +134,13 @@ test('the choice preselects Portico Accounts and Continue submits hosted, naviga
     await hosted.act(() => hosted.choice('setup-security-standard')!.props.onPress());
     await hosted.act(() => hosted.choice('setup-remote-private')!.props.onPress());
     assert.equal(hosted.choice('setup-security-enhanced'), undefined, 'Private only: no Remote security');
-    await hosted.act(() => hosted.layout().props.primaryAction.onPress());
+    await hosted.act(() => hosted.layout()!.props.primaryAction.onPress());
     assert.deepEqual(hosted.fake().last('submitHosted')!.args, ['Studio', {navigate: true, remote: {remoteAccess: 'private', remoteSecurity: 'standard'}}]);
   } finally {await hosted.host.unmount();}
 
   const signedIn = await fixture({view: view('form', {mode: 'choose', name: 'Studio'}), session: {account: {displayName: 'Justin', username: 'justin'}}});
   try {
-    await signedIn.act(() => signedIn.layout().props.primaryAction.onPress());
+    await signedIn.act(() => signedIn.layout()!.props.primaryAction.onPress());
     assert.deepEqual(signedIn.fake().last('submitHosted')!.args, ['Studio', {navigate: false, remote: {remoteAccess: 'on', remoteSecurity: 'enhanced'}}],
       'an app Portico Account approves in place, so there is no browser trip');
   } finally {await signedIn.host.unmount();}
@@ -152,7 +152,7 @@ test('choosing Local sign-in and continuing chooses the local kind and never sub
     await f.act(() => f.radios()[1]!.props.onPress());
     assert.equal(f.radios()[1]!.props.accessibilityState.checked, true);
     assert.equal(f.radios()[0]!.props.accessibilityState.checked, false);
-    await f.act(() => f.layout().props.primaryAction.onPress());
+    await f.act(() => f.layout()!.props.primaryAction.onPress());
     assert.deepEqual(f.fake().last('chooseKind')!.args, ['local']);
     assert.equal(f.fake().count('submitHosted'), 0);
   } finally {await f.host.unmount();}
@@ -161,7 +161,7 @@ test('choosing Local sign-in and continuing chooses the local kind and never sub
   try {
     assert.equal(localOnly.radios().length, 1, 'a server without Portico Accounts offers only local sign-in');
     assert.equal(localOnly.radios()[0]!.props.accessibilityState.checked, true);
-    await localOnly.act(() => localOnly.layout().props.primaryAction.onPress());
+    await localOnly.act(() => localOnly.layout()!.props.primaryAction.onPress());
     assert.deepEqual(localOnly.fake().last('chooseKind')!.args, ['local']);
     assert.equal(localOnly.fake().count('submitHosted'), 0);
   } finally {await localOnly.host.unmount();}
@@ -171,20 +171,20 @@ test('the local owner form enables Create owner only for a valid username and a 
   const f = await fixture({view: view('form', {mode: 'local', name: 'Studio'})});
   try {
     const password = 'correct horse battery staple';
-    assert.equal(f.layout().props.title, t('web.setup.ownerTitle'));
-    assert.equal(f.layout().props.primaryAction.disabled, true);
+    assert.equal(f.layout()!.props.title, t('web.setup.ownerTitle'));
+    assert.equal(f.layout()!.props.primaryAction.disabled, true);
     await f.act(() => field(f, t('auth.password')).props.onChangeText(password));
     await f.act(() => field(f, t('accounts.signIn.confirmPassword')).props.onChangeText(password));
-    assert.equal(f.layout().props.primaryAction.disabled, true, 'a valid password is not enough without a username');
+    assert.equal(f.layout()!.props.primaryAction.disabled, true, 'a valid password is not enough without a username');
     await f.act(() => field(f, t('auth.username')).props.onChangeText('ab'));
-    assert.equal(f.layout().props.primaryAction.disabled, true, 'a short username is refused');
+    assert.equal(f.layout()!.props.primaryAction.disabled, true, 'a short username is refused');
     await f.act(() => field(f, t('auth.username')).props.onChangeText('owner'));
-    assert.equal(f.layout().props.primaryAction.disabled, false);
+    assert.equal(f.layout()!.props.primaryAction.disabled, false);
     await f.act(() => field(f, t('accounts.signIn.confirmPassword')).props.onChangeText('correct horse battery stapl'));
-    assert.equal(f.layout().props.primaryAction.disabled, true, 'a mismatched confirmation is refused');
+    assert.equal(f.layout()!.props.primaryAction.disabled, true, 'a mismatched confirmation is refused');
     await f.act(() => field(f, t('accounts.signIn.confirmPassword')).props.onChangeText(password));
-    assert.equal(f.layout().props.primaryAction.disabled, false);
-    await f.act(() => f.layout().props.primaryAction.onPress());
+    assert.equal(f.layout()!.props.primaryAction.disabled, false);
+    await f.act(() => f.layout()!.props.primaryAction.onPress());
     assert.equal(f.fake().count('submitLocal'), 1);
     assert.deepEqual(f.fake().last('submitLocal')!.args, ['Studio', 'owner', password, {remoteAccess: 'off', remoteSecurity: 'enhanced'}],
       'local sign-in: Remote access Off unless chosen (O-169)');
@@ -308,7 +308,7 @@ test('an ended setup offers Try again that starts again', async () => {
   try {
     const layout = f.layout()!;
     assert.equal(layout.props.title, t('accounts.setup.declinedTitle', {server: 'Studio'}));
-    assert.equal(layout.props.body, setupEndedMessage('denied', 'Studio'));
+    assert.equal(layout.props.body, setupEndedMessage('cancelled', 'Studio'));
     await f.act(() => layout.props.primaryAction.onPress());
     assert.equal(f.fake().count('startAgain'), 1);
     assert.equal(f.fake().count('retry'), 0);

@@ -29,7 +29,7 @@ test('several screens refused at once end the shell through the PIN gate exactly
   const {app, runtime, ended, context} = await boot();
   try {
     assert.equal(ended.length, 0);
-    const failures = await Promise.all([1, 2, 3].map(() => context.api.request(GATED).catch(error => error)));
+    const failures = await Promise.all([1, 2, 3].map(() => context.api.request<unknown>(GATED).catch((error: unknown) => error) as Promise<{code?: string} | undefined>));
     assert.ok(failures.every(error => error?.code === 'profile_pin_reentry'), 'each screen still gets its own error');
     await settle(20);
     assert.equal(ended.length, 1, 'one ending, not one per screen');

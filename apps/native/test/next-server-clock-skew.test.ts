@@ -51,7 +51,7 @@ for (const [name, skew] of [['a year ahead', YEAR], ['a year behind', -YEAR]] as
   test(`${name}: an unavailable renewal only ends the sign-in once the server's own expiry has passed`, t => {
     const real = skewed(t, skew);
     const hint = {serverId: 's', accountId: 'a', familyId: 'f', fingerprint: 'fp', origin, serverName: 'Server', username: 'user', signIn: 'local'} as unknown as NativeSignInHint;
-    const unavailable = new SessionRefreshError('refresh_unavailable', 'later');
+    const unavailable = new SessionRefreshError('refresh_unavailable', 'later', false);
     assert.equal(nativeSignInEnded(unavailable, hint, iso(real + 600_000)), undefined, 'the access token has ten minutes left on the server');
     assert.ok(nativeSignInEnded(unavailable, hint, iso(real - 600_000)), 'a token the server has expired is ended');
   });
