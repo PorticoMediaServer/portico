@@ -33,7 +33,8 @@ export function useMusicLibrarySummary(captured: ProtectedLibraryScreen | undefi
     void readLibrarySummaries(context.api, life.signal).then(libraries => {
       if (life.signal.aborted || !context.isCurrent() || principal(context) !== key || router.state.location.href !== href) return;
       const library = libraries.find(value => value.id === libraryId && value.kind === kind);
-      if (library) remembered.set(context, {key, id: library.id});
+      // Only a Music read is remembered: Home's Mixes More returns to the last Music library, never an Audiobooks one.
+      if (library && kind === 'music') remembered.set(context, {key, id: library.id});
       setRead({context, key, href, libraryId, libraries});
     }).catch(() => {if (!life.signal.aborted && context.isCurrent() && principal(context) === key && router.state.location.href === href) setRead({context, key, href, libraryId, failed: true});});
     return () => life.abort();

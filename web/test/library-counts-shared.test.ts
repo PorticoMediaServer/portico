@@ -28,3 +28,9 @@ test('A13: an Audiobooks library\'s header carries its counts (desktop-listen #b
   assert.match(route, /const audiobookRead = useMusicLibrarySummary\(captured, library\.id, library\.kind === 'audiobook', 'audiobook'\);/);
   assert.match(route, /counts: library\.kind === 'music' \? musicCounts : library\.kind === 'audiobook' \? audiobookCounts : readingHeader\.counts,/);
 });
+
+test('reading an Audiobooks summary never replaces the remembered Music library (Home\'s Mixes More)', () => {
+  const hook = read('../src/screens/browse/music-discover-navigation.tsx');
+  assert.match(hook, /if \(library && kind === 'music'\) remembered\.set\(context, \{key, id: library\.id\}\);/);
+  assert.doesNotMatch(hook, /^\s+if \(library\) remembered\.set/m);
+});
