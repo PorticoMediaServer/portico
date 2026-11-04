@@ -1004,6 +1004,13 @@ func (w *Worker) runSteps(ctx context.Context, tx *sql.Tx, limit int) (int, int,
 	kind := w.stepTurn % len(steps)
 	paced := w.holdTarget > 0
 	w.mu.Unlock()
+	if paced {
+		// Four ordinary units already fit the maintenance plan. A family
+		// that advances one small job per call may use the rest of this same
+		// allowance before committing, rather than paying for a writer and
+		// foreground pause for each individual job.
+		limit = min(limit, 4)
+	}
 	total, idle, lastKind := 0, 0, -1
 	// Stop adding steps once the batch has changed a write plan's worth of
 	// rows; the next batch takes the rest.
@@ -1022,7 +1029,7 @@ func (w *Worker) runSteps(ctx context.Context, tx *sql.Tx, limit int) (int, int,
 		}
 		stepLimit := limit - total
 		if paced {
-			// One raw quantum of one family per writer. Seven-axis sort
+			// At most four ordinary units of one family per writer. Seven-axis sort
 			// replacement costs at most 37 row effects per pair; four pairs
 			// fit with bookkeeping. Evidence/taste/group jobs remain atomic
 			// units under their existing single-unit plan.
@@ -1048,13 +1055,18 @@ func (w *Worker) runSteps(ctx context.Context, tx *sql.Tx, limit int) (int, int,
 		if n > 0 {
 			lastKind = kind
 			total += n
-			if paced || kind == readingAttributionStep || kind == readingAttributionStep+1 {
+			if (paced && (kind == bookEvidenceStep || kind == bookVisibleStep || kind == recommendationTasteStep)) || kind == readingAttributionStep || kind == readingAttributionStep+1 {
 				// Its EOF, obsolete cleanup and ready publication must be
 				// separate committed batches, including an empty library. Do
 				// not re-enter this step in the same writer transaction.
 				break
 			}
 			continue
+		}
+		if paced && total > 0 {
+			// Once a family has produced work, keep this transaction on
+			// that family. Another family gets the next committed turn.
+			break
 		}
 		idle++
 		kind = (kind + 1) % len(steps)
