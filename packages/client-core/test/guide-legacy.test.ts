@@ -219,3 +219,22 @@ test('the guide asks for the channels on screen, never the whole lineup per wind
   assert.equal(requests.length, 1, 'one request for three visible channels');
   assert.deepEqual(new URL(requests[0]!, 'http://x').searchParams.get('channels')!.split(',').sort(), [...ids].sort());
 });
+
+test('step 7: a directory page under a moved viewer fence is the newer answer; a moved revision still asks for a refresh', async () => {
+  // The server pins each page to the revision it was asked for, and that revision covers the viewer fence
+  // (livechannels directoryRevision), so only the revision is compared here.
+  const {api} = legacyApi();
+  let fence = 'fence', revision = 'r1';
+  const shaped = {async request<T>(path: string): Promise<T> {
+    const raw: any = await api.request(path);
+    if (raw?.directory) raw.directory = {...raw.directory, viewerFence: fence, revision};
+    return raw as T;
+  }};
+  const source = legacyGuideSource(shaped as never, SERVER, {kind: 'live-source', sourceId: '', timezone: 'UTC', now: () => NOW});
+  const signal = new AbortController().signal;
+  await source.channels(0, 2, signal);
+  fence = 'moved';
+  assert.equal((await source.channels(2, 2, signal)).items.length, 2);
+  revision = 'r2';
+  await assert.rejects(source.channels(4, 2, signal), (error: any) => error?.code === 'guide_refresh_required');
+});

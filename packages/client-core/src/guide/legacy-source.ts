@@ -108,11 +108,13 @@ export function legacyProgram(p: GuideProgramme): GuideProgram {
 /** The directory sends only the channel rows on screen; programmes use named
  * channels and time windows. */
 export function legacyGuideSource(api:ChannelApi,serverId:string,o:LegacyGuideOptions):GuideDataSource {
- let revision:string|undefined,viewerFence:string|undefined;
+ // Pages are pinned to the directory revision they were read at; the server's revision covers the viewer fence
+ // (livechannels directoryRevision), so a page under a moved fence answers a moved revision, and is refused by the server.
+ let revision:string|undefined;
  const rows=new Map<string,GuideChannel>();
  const route=(kind:'live-source'|'library-channel',start:number,end:number):GuideRoute=>({kind,start:iso(start),end:iso(end),timezone:o.timezone,search:o.search??'',sourceId:o.kind==='all'?'':o.sourceId,...(o.group?{group:o.group}:{}),...(o.favorites!==undefined?{favorites:o.favorites}:{}),...(o.includeServerHidden?{includeServerHidden:true}:{}),...(o.includeHidden?{includeHidden:true}:{})});
  return {
-  reset(){revision=undefined;viewerFence=undefined;rows.clear();},
+  reset(){revision=undefined;rows.clear();},
  async neighbor(channel,delta,signal){
   const native=legacyChannel(channel);if(!native)return undefined;
   for(let attempt=0;attempt<2;attempt++){
@@ -122,13 +124,13 @@ export function legacyGuideSource(api:ChannelApi,serverId:string,o:LegacyGuideOp
    try{
     const page=parseGuideDirectory(await api.request(routePath("get_guide_channels") + "?" + (q),'GET',undefined,signal),serverId,undefined,1);
     if(signal.aborted)throw signal.reason??new Error('aborted');
-    if(revision&&revision!==page.revision||viewerFence&&viewerFence!==page.viewerFence)throw Object.assign(new Error('The guide changed. Refresh this view.'),{code:'guide_refresh_required',retryable:true});
-    revision=page.revision;viewerFence=page.viewerFence;
+    if(revision&&revision!==page.revision)throw Object.assign(new Error('The guide changed. Refresh this view.'),{code:'guide_refresh_required',retryable:true});
+    revision=page.revision;
     const next=page.channels[0];
     if(!next||!next.tuneAvailable||next.id===native.id&&next.provenance===native.provenance&&next.sourceId===native.sourceId)return undefined;
     return legacyChannelRow(next);
    }catch(error){
-    if(attempt===0&&(error as {code?:string})?.code==='guide_refresh_required'){revision=undefined;viewerFence=undefined;rows.clear();continue;}
+    if(attempt===0&&(error as {code?:string})?.code==='guide_refresh_required'){revision=undefined;rows.clear();continue;}
     throw error;
    }
   }
@@ -141,8 +143,8 @@ export function legacyGuideSource(api:ChannelApi,serverId:string,o:LegacyGuideOp
    if(o.group)q.set('group',o.group);if(o.favorites!==undefined)q.set('favorites',String(o.favorites));if(o.includeServerHidden)q.set('includeServerHidden','true');if(o.includeHidden)q.set('includeHidden','true');if(revision)q.set('revision',revision);
    const page=parseGuideDirectory(await api.request(routePath("get_guide_channels") + "?" + (q),'GET',undefined,signal),serverId,from,limit);
     if(signal.aborted)throw signal.reason??new Error('aborted');
-    if(revision&&revision!==page.revision||viewerFence&&viewerFence!==page.viewerFence)throw Object.assign(new Error('The guide changed. Refresh this view.'),{code:'guide_refresh_required',retryable:true});
-    revision=page.revision;viewerFence=page.viewerFence;
+    if(revision&&revision!==page.revision)throw Object.assign(new Error('The guide changed. Refresh this view.'),{code:'guide_refresh_required',retryable:true});
+    revision=page.revision;
     for(const channel of page.channels){rows.delete(channel.id);rows.set(channel.id,channel);}
     while(rows.size>300)rows.delete(rows.keys().next().value!);
     return {items:page.channels.map(legacyChannelRow),total:page.total,revision:page.revision};
