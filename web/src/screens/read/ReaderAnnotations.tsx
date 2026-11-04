@@ -3,7 +3,7 @@ import {defaultI18n} from '@i18n';
 import {randomId} from '@core/random-id.ts';
 import {ReadingAnnotationService, type ReadingAnnotationState} from '@core/reading-annotation-service.ts';
 import type {ReadingAnnotation, ReadingAnnotationContent, ReadingAnnotationPort} from '@core/reading-annotations.ts';
-import {readingLocationFromReader, readerLocationFromReading, type ReadingController, type ReaderSnapshot, type ReaderSelection} from '@portico/reader-core';
+import {readingLocationFromReader, readerLocationFromReading, type ReadingController, type ReaderSnapshot, type ReaderSelection, type ReaderTocItem} from '@portico/reader-core';
 import type {ReadingPreferences} from '@portico/client-core';
 import type {ReaderMountAuthority} from './mount';
 import {Button} from '../../kit/controls';
@@ -109,9 +109,20 @@ export function ReaderAnnotationActions({service, snapshot, controller, onSearch
     {opening?.owner===service&&lease&&<AnnotationNoteEditor key={opening.id} opening={opening} service={service} state={state} signal={lease.life.signal} onClose={()=>close(opening)}/>}
   </>;
 }
+/** Where a text-less bookmark is: its chapter's title from the book's contents, else its page, else
+ * how far through the book it is. An EPUB's saved section is a package path (OEBPS/chapter3.xhtml),
+ * never shown (SRV-A2). */
+export function bookmarkPlace(location:ReadingAnnotation['location'],toc:readonly ReaderTocItem[]):string {
+  if(location.format==='epub'){
+    const find=(items:readonly ReaderTocItem[]):string|undefined=>{for(const item of items){if(item.location.format==='epub'&&location.section!==undefined&&item.location.section===location.section)return item.label;const inner=item.children&&find(item.children);if(inner)return inner;}return undefined;};
+    const title=find(toc);if(title)return title;
+  }else if(typeof location.pageIndex==='number')return t('next.reader.pageLabel',{page:defaultI18n.number(location.pageIndex+1)});
+  return Number.isFinite(location.progression)?defaultI18n.percent(location.progression):t('next.reader.bookmarks');
+}
 export function ReaderAnnotationList({kind,service,state,controller,reportError,signal}: {kind:'bookmark'|'highlight';service:ReadingAnnotationService;state:ReadingAnnotationState;controller:ReadingController;reportError:(error:unknown)=>void;signal:AbortSignal}) {
   const lease=useAnnotationLease(signal);
   const {opening,open,close}=useNoteOpening();
+  const toc=useSyncExternalStore(controller.subscribe,()=>controller.getSnapshot().toc,()=>controller.getSnapshot().toc);
   const entries=state.entries.filter(entry=>entry.kind===kind),busy=state.loading||state.saving||state.revision===undefined;
   const owns=(entry:ReadingAnnotation)=>live(lease)&&!signal.aborted&&service.current()&&service.getSnapshot().entries.includes(entry);
   return <div className={styles.list}>
@@ -121,7 +132,7 @@ export function ReaderAnnotationList({kind,service,state,controller,reportError,
     {!state.loading&&!state.error&&state.revision!==undefined&&!entries.length&&<p>{t('next.reader.annotationEmpty')}</p>}
     {entries.map(entry=><article key={entry.id} data-colour={entry.colour}>
       <button type="button" className={styles.anchor} onClick={()=>{if(owns(entry)&&lease)void controller.navigate({kind:'location',location:readerLocationFromReading(entry.location)},AbortSignal.any([signal,lease.life.signal])).catch(error=>{if(owns(entry))reportError(error);});}}>
-        {entry.text||(entry.location.format==='epub'?entry.location.section||t('next.reader.bookmarks'):typeof entry.location.pageIndex==='number'?t('next.reader.pageLabel',{page:defaultI18n.number(entry.location.pageIndex+1)}):t('next.reader.bookmarks'))}
+        {entry.text||bookmarkPlace(entry.location,toc)}
       </button>
       {entry.note&&<p>{entry.note}</p>}<time dateTime={new Date(entry.updatedAt).toISOString()}>{defaultI18n.dateTime(entry.updatedAt)}</time>
       <Button disabled={busy} onClick={()=>{if(owns(entry)&&state.revision!==undefined)open({id:randomId(),owner:service,life:new AbortController(),content:entry,member:entry,revision:state.revision});}}>{t('next.reader.annotationEdit')}</Button>

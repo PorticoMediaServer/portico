@@ -3,7 +3,7 @@ import {ScrollView, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {generatedCoverTint} from '@portico/design';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import type {ReadingItem} from '../../../../../packages/client-core/src';
+import {readingResumePage, type ReadingItem} from '../../../../../packages/client-core/src';
 import type {BrowseCapabilities} from '../../../../../packages/client-core/src/browse';
 import {readLibrarySummaries, type LibrarySummary} from '../../../../../packages/client-core/src/library-summary';
 import {formatDuration} from '../../../../../packages/client-core/src/presentation/content';
@@ -35,6 +35,12 @@ import {NativeReadingDiscovery} from './reading-discovery';
 import {NativeReadingLibrary} from './reading-library';
 import {TVRow} from '../../kit/layout/TVRow';
 import {usePageWidth} from '../../kit/layout/page-inset';
+
+/** Where a Continue card's book is (SRV-A2): its page for a page book, nothing for an EPUB. */
+function resumeDetail(progress: Parameters<typeof readingResumePage>[0]): {id: string; text: string; role: 'context'}[] {
+  const page = readingResumePage(progress);
+  return page === undefined ? [] : [{id: 'section', text: defaultI18n.t('next.reader.pageLabel', {page: defaultI18n.number(page)}), role: 'context'}];
+}
 
 export type NativeReadingLibraryScreenProps = Readonly<{
   context: NativeShellBootstrapContext;
@@ -179,7 +185,7 @@ export function NativeReadingLibraryScreen(props: NativeReadingLibraryScreenProp
     {discoveryState.phase === 'loading' && !discoveryState.continueItems.length && !discoveryState.recent.length ? loading : null}
     {discoveryState.continueItems.length ? <DiscoveryRow first title={defaultI18n.t('next.cards.read')}>
       {discoveryState.continueItems.map(row => <ReadingMenuAnchor key={row.item.id}>{anchorRef => {const offered = readingOffer(row.item, 'discover'); return <ReadResumeCard testID={`reading-continue-${row.item.id}`} width={tablet ? 392 : 296} height={tablet ? 176 : 150}
-        title={row.item.title} caption={authorPart(row.item)} detail={row.progress.location.section ? [{id: 'section', text: row.progress.location.section, role: 'context'}] : []}
+        title={row.item.title} caption={authorPart(row.item)} detail={resumeDetail(row.progress)}
         progress={Math.min(0.999, Math.max(0, row.progress.location.progression))} palette={tint(row.item.title)}
         artworkFallback={<View accessible={false} importantForAccessibility="no-hide-descendants">{cover(row.item, tablet ? 99 : 81, tablet ? 148 : 122)}</View>}
         disabled={row.item.inventoryAvailable !== true} onNavigate={() => openDiscover(row.item)} menuAnchorRef={anchorRef} selection={offered ? readingActions.selection(offered) : undefined}

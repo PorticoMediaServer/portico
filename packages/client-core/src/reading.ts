@@ -131,6 +131,13 @@ function parseDecodedReadingSearchPage(raw: GetReadingSessionsSessionIdSearchRes
 
 /** Derived from the generated official response, never a hand-written mirror. */
 export type ReadingItem = GetReadingItemsResponse['items'][number];
+/** Where a Continue card's book is (SRV-A2): the 1-based page of a page book. An EPUB's saved
+ * `section` is a package path (OEBPS/chapter3.xhtml), not a place a reader would name, so it gives
+ * none until the row carries a chapter title; a stale location gives none either. */
+export function readingResumePage(progress: Readonly<{stale?: boolean; location: Readonly<{format: string; pageIndex?: number}>}>): number | undefined {
+  const index = progress.location.pageIndex;
+  return !progress.stale && progress.location.format !== 'epub' && Number.isSafeInteger(index) && index! >= 0 ? index! + 1 : undefined;
+}
 export type ReadingContinueItem = GetReadingContinueResponse['items'][number] & Readonly<{conversion?:ReadingConversion}>;
 export type ReadingDiscover = GetReadingDiscoverResponse;
 export type ReadingShortRead = NonNullable<ReadingDiscover['rows'][number]['shortReads']>[number];
