@@ -204,11 +204,13 @@
 .songTableRow[data-selected="true"] .songTitleCell b { color: var(--color-accent-strong); }
 .songTableRow[data-preview="true"] { background: color-mix(in srgb,var(--color-accent-strong) 12%,transparent); }
 .songIndex { display: grid; place-items: center; font-size: var(--type-caption-size); color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
-/* desktop-search #s-songs (lead ruling on #676): the number at rest and ▶ on the row's hover; the select circle only in
-   selection mode, in the number's place, and no space for it otherwise. */
-.songIndex { position: relative; }
-.songIndex > [aria-pressed]:not([data-selected='true'], [data-selecting='true']) { display: none; }
-.songIndex:has(> [data-selected='true'], > [data-selecting='true']) > .songIndexPlay { display: none; }
+/* desktop-search #s-songs and select.html 1/11 (lead rulings on #676): the number at rest and ▶ on the row's hover;
+   the select circle over the album art's corner, on hover with a pointer and always in selection mode, never taking
+   space. */
+.songTitle { position: relative; display: flex; min-width: 0; }
+.songTitle > [aria-pressed] { position: absolute; left: -8px; top: calc(50% - 30px); }
+.songTitle > [aria-pressed]:not([data-selected='true'], [data-selecting='true']) { display: none; }
+@media (hover: hover) { .songTableRow:is(:hover, :focus-within) .songTitle > [aria-pressed] { display: inline-grid; } }
 .songTableRow:is(:hover, :focus-within) .songIndexPlay > span { display: none; }
 .songTableRow:is(:hover, :focus-within) .songIndexPlay > svg { display: block; }
 .songTitleCell { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
