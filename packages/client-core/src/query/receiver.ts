@@ -1,4 +1,4 @@
-import {routeBody, routePath, encodedRoutePath} from '../../../contracts/src/routes.ts';
+import {routeBody, routePath, routePattern, encodedRoutePath} from '../../../contracts/src/routes.ts';
 import type {ItemResponse} from '../media-item.ts';
 import {parseMediaItem} from '../media-item.ts';
 
@@ -6,10 +6,10 @@ type ReceiverApi = {request<T>(path: string, method?: string, body?: unknown, si
 
 /** Display facts remain uncached and belong to the caller's captured playback authority. */
 export function readReceiverItem<T = ItemResponse>(api: ReceiverApi, id: string, method?: 'GET', signal?: AbortSignal): Promise<T> {
-  return api.request<T>(encodedRoutePath('get_items_id', {id: encodeURIComponent(id)}), method, undefined, signal);
+  return api.request<T>(routePattern('get_items_id').replace('{id}', encodeURIComponent(id)), method, undefined, signal);
 }
 export async function readTogetherItem(api: ReceiverApi, id: string, signal?: AbortSignal): Promise<ItemResponse> {
-  const raw = await readReceiverItem<ItemResponse>(api, id, 'GET', signal);
+  const raw = await api.request<ItemResponse>(encodedRoutePath('get_items_id', {id: encodeURIComponent(id)}), 'GET', undefined, signal);
   if (parseMediaItem(raw).id !== id) throw new Error('unexpected_group_item');
   return raw;
 }
