@@ -1,0 +1,215 @@
+{
+  "apps/native/Native/PorticoAudioRender.m": {
+    "category": "platform-url",
+    "reason": "OS audio renderer fetches the core-issued scoped audio URL and byte ranges.",
+    "sites": [
+      "apps/native/Native/PorticoAudioRender.m#b63390ba30878b4a",
+      "apps/native/Native/PorticoAudioRender.m#9f41a5e0e882f455",
+      "apps/native/Native/PorticoAudioRender.m#81299eda6108e194"
+    ]
+  },
+  "apps/native/Native/PorticoDownloads.m": {
+    "category": "platform-url",
+    "reason": "OS background download task fetches the core-issued download URL; core retains domain coordination.",
+    "sites": [
+      "apps/native/Native/PorticoDownloads.m#27cdee11580f4ba1",
+      "apps/native/Native/PorticoDownloads.m#f2f75d8a70a84bb3",
+      "apps/native/Native/PorticoDownloads.m#89462f4b722615ee"
+    ]
+  },
+  "apps/native/Native/PorticoListeningOwner.m": {
+    "category": "native-listening",
+    "reason": "Justin approved Apple native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "sites": [
+      "apps/native/Native/PorticoListeningOwner.m#2caf01f3ce89a4ad",
+      "apps/native/Native/PorticoListeningOwner.m#9f41a5e0e882f455",
+      "apps/native/Native/PorticoListeningOwner.m#289a1773b1ab9680",
+      "apps/native/Native/PorticoListeningOwner.m#9b20a2b0008055ae",
+      "apps/native/Native/PorticoListeningOwner.m#157955810bf94f90",
+      "apps/native/Native/PorticoListeningOwner.m#554e918eb610d1b8",
+      "apps/native/Native/PorticoListeningOwner.m#df3feb75e142d0d4",
+      "apps/native/Native/PorticoListeningOwner.m#e188b7297f93e604",
+      "apps/native/Native/PorticoListeningOwner.m#63853272c6a72cf1",
+      "apps/native/Native/PorticoListeningOwner.m#0488c7de04737af7",
+      "apps/native/Native/PorticoListeningOwner.m#d680b841a42f1a26",
+      "apps/native/Native/PorticoListeningOwner.m#05da973a45191312",
+      "apps/native/Native/PorticoListeningOwner.m#88054f0a2ca55049",
+      "apps/native/Native/PorticoListeningOwner.m#6cff799e119451d9"
+    ]
+  },
+  "apps/native/Native/PorticoSubtitleOverlay.m": {
+    "category": "platform-url",
+    "reason": "Player fetches the core-issued subtitle document URL.",
+    "sites": [
+      "apps/native/Native/PorticoSubtitleOverlay.m#c45a5231ae5e6ff2"
+    ]
+  },
+  "apps/native/Native/PorticoSystemMedia.m": {
+    "category": "platform-url",
+    "reason": "OS media artwork fetch uses the validated core-issued artwork URL.",
+    "sites": [
+      "apps/native/Native/PorticoSystemMedia.m#27cdee11580f4ba1",
+      "apps/native/Native/PorticoSystemMedia.m#62429b38d6721bed"
+    ]
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoDownloadCenter.kt": {
+    "category": "platform-url",
+    "reason": "Android background transfer fetches and ranges the core-issued download URL; no domain JSON exception.",
+    "sites": [
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoDownloadCenter.kt#07af8b83b90235f9",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoDownloadCenter.kt#1f65cfd1ea5cc4be",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoDownloadCenter.kt#1f65cfd1ea5cc4be",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoDownloadCenter.kt#b0552b8df2d2e148"
+    ]
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt": {
+    "category": "native-listening",
+    "reason": "Justin approved native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "sites": [
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#1f65cfd1ea5cc4be",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#689bccaac43d39e6",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#2e18566cfcf8dce8",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#8170781797ae23dd",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#c7ab44aa222a3ad5",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#585268d3c0281515",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#e43db3b5d3e5923d",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#5bd8127b994b97de",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#e3b5fb53c34dab94",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#f3364edf9229bb89",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#f61e334c8d6dd6aa"
+    ]
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoMpvRelay.kt": {
+    "category": "platform-url",
+    "reason": "Player relay fetches scoped core-issued media URLs for the native player.",
+    "sites": [
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoMpvRelay.kt#1f65cfd1ea5cc4be",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoMpvRelay.kt#c90eabd43623c05e"
+    ]
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoMpvSupport.kt": {
+    "category": "platform-url",
+    "reason": "Player byte support fetches core-issued media URLs.",
+    "sites": [
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoMpvSupport.kt#1f65cfd1ea5cc4be",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoMpvSupport.kt#cfba5c77861570b5"
+    ]
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSeekIndex.kt": {
+    "category": "platform-url",
+    "reason": "Player fetches its core-provided seek-index URL with bounded response handling.",
+    "sites": [
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSeekIndex.kt#1f65cfd1ea5cc4be",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSeekIndex.kt#26380727c593d328"
+    ]
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSystemMedia.kt": {
+    "category": "platform-url",
+    "reason": "OS media artwork fetch uses the validated core-issued artwork URL.",
+    "sites": [
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSystemMedia.kt#1f65cfd1ea5cc4be",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSystemMedia.kt#c68091bcee2c9901"
+    ]
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTopShelf.kt": {
+    "category": "native-extension",
+    "reason": "Out-of-process Android TV channels use a bounded scoped Top Shelf contract transport.",
+    "sites": [
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTopShelf.kt#1f65cfd1ea5cc4be",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTopShelf.kt#68b28ea643966d7a",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTopShelf.kt#1f65cfd1ea5cc4be",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTopShelf.kt#39f2209f9c84da7b"
+    ]
+  },
+  "apps/native/tvos/TopShelf/ContentProvider.swift": {
+    "category": "native-extension",
+    "reason": "Out-of-process Apple TV Top Shelf extension uses a bounded scoped generated contract transport.",
+    "sites": [
+      "apps/native/tvos/TopShelf/ContentProvider.swift#8d7eeeddf03b822e",
+      "apps/native/tvos/TopShelf/ContentProvider.swift#3be32f294a069e87",
+      "apps/native/tvos/TopShelf/ContentProvider.swift#8d65b5f807ef93b1"
+    ]
+  },
+  "apps/vega/src/bridge/hls.ts": {
+    "category": "platform-url",
+    "reason": "Player/reader fetches core-issued media/subtitle URLs or bundled reader font bytes; no domain JSON requests are allowed by this pinned allowance.",
+    "sites": [
+      "apps/vega/src/bridge/hls.ts#c1e61a6c559f65c4"
+    ]
+  },
+  "packages/reader-core/src/fonts.ts": {
+    "category": "platform-url",
+    "reason": "Player/reader fetches core-issued media/subtitle URLs or bundled reader font bytes; no domain JSON requests are allowed by this pinned allowance.",
+    "sites": [
+      "packages/reader-core/src/fonts.ts#dea6eead68612873"
+    ]
+  },
+  "server/receiver/cast/receiver.js": {
+    "category": "separate-product",
+    "reason": "Cast receiver and website are separately owned products; retain their generated-contract gates. Hosted lives in portico-internal and is outside this app repository.",
+    "sites": [
+      "server/receiver/cast/receiver.js#b17b38887c0fb1a9",
+      "server/receiver/cast/receiver.js#d101b615d2a821a6",
+      "server/receiver/cast/receiver.js#803c971a34dad236",
+      "server/receiver/cast/receiver.js#a04f07d2fca4d1b2",
+      "server/receiver/cast/receiver.js#f5abb877fe5f8907",
+      "server/receiver/cast/receiver.js#a454f21e604b180b",
+      "server/receiver/cast/receiver.js#ab016e4f3d42892b",
+      "server/receiver/cast/receiver.js#a362d656938e502b",
+      "server/receiver/cast/receiver.js#1ce6296d14c01c2b",
+      "server/receiver/cast/receiver.js#5dbf47f8a9e62721",
+      "server/receiver/cast/receiver.js#4c2bbc566f56acf3",
+      "server/receiver/cast/receiver.js#2a4f5487eb0e3b24",
+      "server/receiver/cast/receiver.js#f86e0b1523614621",
+      "server/receiver/cast/receiver.js#333c8fb513cefaa7",
+      "server/receiver/cast/receiver.js#3d2e240dbd8c3347",
+      "server/receiver/cast/receiver.js#dc3be11a5aaad95f",
+      "server/receiver/cast/receiver.js#a53afd76df65da4f",
+      "server/receiver/cast/receiver.js#57aa7b0e4f651b32",
+      "server/receiver/cast/receiver.js#ec747bc12444f473",
+      "server/receiver/cast/receiver.js#90a2098b0dcf6068",
+      "server/receiver/cast/receiver.js#e9dd3e5d5082da24"
+    ]
+  },
+  "web/src/platform/playback/DecodeAudioRender.ts": {
+    "category": "platform-url",
+    "reason": "Player/reader fetches core-issued media/subtitle URLs or bundled reader font bytes; no domain JSON requests are allowed by this pinned allowance.",
+    "sites": [
+      "web/src/platform/playback/DecodeAudioRender.ts#be852b6fee24328a",
+      "web/src/platform/playback/DecodeAudioRender.ts#6c78a9ff24368edd"
+    ]
+  },
+  "web/src/platform/playback/audio/bytes.ts": {
+    "category": "platform-url",
+    "reason": "Player/reader fetches core-issued media/subtitle URLs or bundled reader font bytes; no domain JSON requests are allowed by this pinned allowance.",
+    "sites": [
+      "web/src/platform/playback/audio/bytes.ts#aebe74cc88213f06",
+      "web/src/platform/playback/audio/bytes.ts#aef3473d60a79a33",
+      "web/src/platform/playback/audio/bytes.ts#54f3157a79e9a5fc"
+    ]
+  },
+  "web/src/platform/playback/audio/converted.ts": {
+    "category": "platform-url",
+    "reason": "Player/reader fetches core-issued media/subtitle URLs or bundled reader font bytes; no domain JSON requests are allowed by this pinned allowance.",
+    "sites": [
+      "web/src/platform/playback/audio/converted.ts#aebe74cc88213f06",
+      "web/src/platform/playback/audio/converted.ts#aef3473d60a79a33",
+      "web/src/platform/playback/audio/converted.ts#4d5369dc03705e33",
+      "web/src/platform/playback/audio/converted.ts#3238ae5782ef82d3"
+    ]
+  },
+  "web/src/platform/playback/subtitle-retry.ts": {
+    "category": "platform-url",
+    "reason": "Player/reader fetches core-issued media/subtitle URLs or bundled reader font bytes; no domain JSON requests are allowed by this pinned allowance.",
+    "sites": [
+      "web/src/platform/playback/subtitle-retry.ts#4a96be5cb6043e6f"
+    ]
+  },
+  "apps/vega/src/bridge/subtitles.ts": {
+    "category": "platform-url",
+    "reason": "Player fetches the core-issued subtitle document URL with bounded conditional reads.",
+    "sites": [
+      "apps/vega/src/bridge/subtitles.ts#2940ee6c6beefd6d"
+    ]
+  }
+}
