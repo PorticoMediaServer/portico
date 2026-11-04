@@ -2,6 +2,8 @@ package eventfeed
 
 import (
 	"context"
+	"database/sql"
+	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"path/filepath"
 	"testing"
 
@@ -92,7 +94,10 @@ func TestAnotherAccountsRoleDoesNotRevealAuthorityOrAdvanceMyRevision(t *testing
 		t.Fatal(err)
 	}
 	for _, role := range []string{"admin", "member", "admin"} {
-		if _, err := db.Exec(`UPDATE direct_memberships SET role=?,revision=revision+1 WHERE account_id='alice'`, role); err != nil {
+		if err := dbwork.WithWriteTx(ctx, db, dbwork.ClassSecurityFence, func(tx *sql.Tx) error {
+			_, err := identity.ExecMembershipTx(ctx, tx, "alice", `UPDATE direct_memberships SET role=?,revision=revision+1 WHERE account_id='alice'`, role)
+			return err
+		}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -104,7 +109,10 @@ func TestAnotherAccountsRoleDoesNotRevealAuthorityOrAdvanceMyRevision(t *testing
 	if err := db.QueryRow(`SELECT revision FROM direct_memberships WHERE account_id='bob'`).Scan(&revision); err != nil || revision != 1 {
 		t.Fatalf("another account advanced my membership revision: %d %v", revision, err)
 	}
-	if _, err := db.Exec(`UPDATE direct_memberships SET allowed_libraries='["one"]',revision=revision+1 WHERE account_id='bob'`); err != nil {
+	if err := dbwork.WithWriteTx(ctx, db, dbwork.ClassSecurityFence, func(tx *sql.Tx) error {
+		_, err := identity.ExecMembershipTx(ctx, tx, "bob", `UPDATE direct_memberships SET allowed_libraries='["one"]',revision=revision+1 WHERE account_id='bob'`)
+		return err
+	}); err != nil {
 		t.Fatal(err)
 	}
 	own, err := h.Read(ctx, p, false, otherChanges.NextAfter)

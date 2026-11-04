@@ -763,8 +763,29 @@ func (s *Service) FinishAccountMove(ctx context.Context, bearer, id string, revi
 		if v.Revision != revision || v.Stage != "moving_to_portico" && v.Stage != "moving_to_local" {
 			return ErrProfileChanged
 		}
-		if _, e = tx.ExecContext(ctx, `UPDATE direct_memberships SET disabled=1,disabled_reason='did_not_move',revision=revision+1 WHERE account_id IN(SELECT account_id FROM identity_move_waiting WHERE move_id=? AND state='waiting')`, id); e != nil {
+		rows, e := tx.QueryContext(ctx, `SELECT account_id FROM identity_move_waiting WHERE move_id=? AND state='waiting' ORDER BY account_id`, id)
+		if e != nil {
 			return e
+		}
+		var waiting []string
+		for rows.Next() {
+			var account string
+			if e = rows.Scan(&account); e != nil {
+				break
+			}
+			waiting = append(waiting, account)
+		}
+		if e == nil {
+			e = rows.Err()
+		}
+		rows.Close()
+		if e != nil {
+			return e
+		}
+		for _, account := range waiting {
+			if _, e = ExecMembershipTx(ctx, tx, account, `UPDATE direct_memberships SET disabled=1,disabled_reason='did_not_move',revision=revision+1 WHERE account_id=?`, account); e != nil {
+				return e
+			}
 		}
 		if _, e = tx.ExecContext(ctx, `UPDATE identity_move_waiting SET state='did_not_move',old_password_hash=NULL,old_password_until_ms=0 WHERE move_id=? AND state='waiting'`, id); e != nil {
 			return e

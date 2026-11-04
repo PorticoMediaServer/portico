@@ -205,7 +205,7 @@ func (s *Service) Register(ctx context.Context, q SelfRegistrationRequest, priva
 	}
 	// The accounts trigger installs the membership and the primary profile. An
 	// account created this way is a member even if it somehow arrives first.
-	if _, e = tx.ExecContext(ctx, `UPDATE direct_memberships SET role='member',allowed_libraries=? WHERE account_id=? AND EXISTS(SELECT 1 FROM direct_memberships WHERE role='owner' AND account_id<>?)`, marshalLibraries(libraries), account, account); e != nil {
+	if _, e = ExecMembershipTx(ctx, tx, account, `UPDATE direct_memberships SET role='member',allowed_libraries=? WHERE account_id=? AND EXISTS(SELECT 1 FROM direct_memberships WHERE role='owner' AND account_id<>?)`, marshalLibraries(libraries), account, account); e != nil {
 		return DirectSignIn{}, e
 	}
 	c, e := s.directAccountTx(ctx, tx, account)

@@ -129,7 +129,7 @@ func (s *Store) BulkMembers(ctx context.Context, auth Authorize, issuer *identit
 		for i, t := range q.Targets {
 			switch q.Action {
 			case "disable", "enable":
-				if _, e = tx.ExecContext(ctx, `UPDATE direct_memberships SET disabled=?,revision=revision+1 WHERE account_id=?`, q.Action == "disable", t.AccountID); e != nil {
+				if _, e = identity.ExecMembershipTx(ctx, tx, t.AccountID, `UPDATE direct_memberships SET disabled=?,revision=revision+1 WHERE account_id=?`, q.Action == "disable", t.AccountID); e != nil {
 					return e
 				}
 				if q.Action == "disable" {
@@ -153,12 +153,12 @@ func (s *Store) BulkMembers(ctx context.Context, auth Authorize, issuer *identit
 				if _, e = tx.ExecContext(ctx, `INSERT INTO access_limits(account_id,revision,updated_ms,body) VALUES(?,?,?,?) ON CONFLICT(account_id) DO UPDATE SET revision=excluded.revision,updated_ms=excluded.updated_ms,body=excluded.body`, t.AccountID, d.Revision+1, s.now(), string(raw)); e != nil {
 					return e
 				}
-				if _, e = tx.ExecContext(ctx, `UPDATE direct_memberships SET access_tokens=?,max_profiles=?,revision=revision+1 WHERE account_id=?`, d.Limits.AccessTokens, d.Limits.MaxProfiles, t.AccountID); e != nil {
+				if _, e = identity.ExecMembershipTx(ctx, tx, t.AccountID, `UPDATE direct_memberships SET access_tokens=?,max_profiles=?,revision=revision+1 WHERE account_id=?`, d.Limits.AccessTokens, d.Limits.MaxProfiles, t.AccountID); e != nil {
 					return e
 				}
 				if q.Access.AllowedLibraries != nil {
 					raw, _ := json.Marshal(*q.Access.AllowedLibraries)
-					if _, e = tx.ExecContext(ctx, `UPDATE direct_memberships SET allowed_libraries=? WHERE account_id=?`, string(raw), t.AccountID); e != nil {
+					if _, e = identity.ExecMembershipTx(ctx, tx, t.AccountID, `UPDATE direct_memberships SET allowed_libraries=? WHERE account_id=?`, string(raw), t.AccountID); e != nil {
 						return e
 					}
 				}

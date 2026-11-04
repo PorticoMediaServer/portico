@@ -1,14 +1,18 @@
-package persistence
+package persistence_test
 
 import (
+	"context"
+	"database/sql"
 	"path/filepath"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/apievents"
+	"github.com/PorticoMediaServer/portico/server/internal/identity"
+	"github.com/PorticoMediaServer/portico/server/internal/persistence"
 )
 
 func TestMembershipAuthorityEventsCommitOnlyRealChanges(t *testing.T) {
-	db, err := Open(filepath.Join(t.TempDir(), "state.db"))
+	db, err := persistence.Open(filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -21,7 +25,7 @@ func TestMembershipAuthorityEventsCommitOnlyRealChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tx.Rollback()
-	if _, err := tx.Exec(`UPDATE direct_memberships SET role='admin',revision=revision+1 WHERE account_id='alice'`); err != nil {
+	if _, err := identity.ExecMembershipTx(context.Background(), tx, "alice", `UPDATE direct_memberships SET role='admin',revision=revision+1 WHERE account_id='alice'`); err != nil {
 		t.Fatal(err)
 	}
 	var audience, kind, resourceKind, resource, revision, data string
@@ -42,36 +46,44 @@ func TestMembershipAuthorityEventsCommitOnlyRealChanges(t *testing.T) {
 		}
 	}
 	count(0)
+	result, err := membershipTestExec(db, "alice", `UPDATE direct_memberships SET role='admin' WHERE account_id='alice' AND disabled=1`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if affected, err := result.RowsAffected(); err != nil || affected != 0 {
+		t.Fatalf("membership seam changed the conditional update result: %d %v", affected, err)
+	}
+	count(0)
 	for _, query := range []string{
 		`UPDATE direct_memberships SET role=role,revision=revision+1 WHERE account_id='alice'`,
 		`UPDATE direct_memberships SET notes='A private note',revision=revision+1 WHERE account_id='alice'`,
 	} {
-		if _, err := db.Exec(query); err != nil {
+		if _, err := membershipTestExec(db, "alice", query); err != nil {
 			t.Fatal(err)
 		}
 		count(0)
 	}
-	if _, err := db.Exec(`UPDATE direct_memberships SET allowed_libraries='["one","two"]',revision=revision+1 WHERE account_id='alice'`); err != nil {
+	if _, err := membershipTestExec(db, "alice", `UPDATE direct_memberships SET allowed_libraries='["one","two"]',revision=revision+1 WHERE account_id='alice'`); err != nil {
 		t.Fatal(err)
 	}
 	count(1)
-	if _, err := db.Exec(`UPDATE direct_memberships SET allowed_libraries='["two", "one"]',revision=revision+1 WHERE account_id='alice'`); err != nil {
+	if _, err := membershipTestExec(db, "alice", `UPDATE direct_memberships SET allowed_libraries='["two", "one"]',revision=revision+1 WHERE account_id='alice'`); err != nil {
 		t.Fatal(err)
 	}
 	count(1) // Ordering and whitespace do not change library access.
-	if _, err := db.Exec(`UPDATE direct_memberships SET role='admin',revision=revision+1 WHERE account_id='alice'`); err != nil {
+	if _, err := membershipTestExec(db, "alice", `UPDATE direct_memberships SET role='admin',revision=revision+1 WHERE account_id='alice'`); err != nil {
 		t.Fatal(err)
 	}
 	count(2)
-	if _, err := db.Exec(`UPDATE direct_memberships SET disabled=1,revision=revision+1 WHERE account_id='alice'`); err != nil {
+	if _, err := membershipTestExec(db, "alice", `UPDATE direct_memberships SET disabled=1,revision=revision+1 WHERE account_id='alice'`); err != nil {
 		t.Fatal(err)
 	}
 	count(3)
-	if _, err := db.Exec(`UPDATE direct_memberships SET disabled=1,revision=revision+1 WHERE account_id='alice'`); err != nil {
+	if _, err := membershipTestExec(db, "alice", `UPDATE direct_memberships SET disabled=1,revision=revision+1 WHERE account_id='alice'`); err != nil {
 		t.Fatal(err)
 	}
 	count(3)
-	if _, err := db.Exec(`UPDATE direct_memberships SET role='admin',revision=revision+1 WHERE account_id='bob'`); err != nil {
+	if _, err := membershipTestExec(db, "bob", `UPDATE direct_memberships SET role='admin',revision=revision+1 WHERE account_id='bob'`); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.QueryRow(`SELECT revision FROM api_events WHERE audience='authority:local:bob'`).Scan(&revision); err != nil || revision != "2" {
@@ -80,7 +92,7 @@ func TestMembershipAuthorityEventsCommitOnlyRealChanges(t *testing.T) {
 }
 
 func TestMembershipAuthorityEventsKeepTheSharedRingBound(t *testing.T) {
-	db, err := Open(filepath.Join(t.TempDir(), "state.db"))
+	db, err := persistence.Open(filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +105,7 @@ func TestMembershipAuthorityEventsKeepTheSharedRingBound(t *testing.T) {
 	if _, err := db.Exec(`INSERT INTO api_events(id,audience,type,at_ms) VALUES(?,'server','test',0),(?,'server','test',0),(?,'server','test',0)`, cutoff, cutoff+1, next-1); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Exec(`UPDATE direct_memberships SET role='admin',revision=revision+1 WHERE account_id='alice'`); err != nil {
+	if _, err := membershipTestExec(db, "alice", `UPDATE direct_memberships SET role='admin',revision=revision+1 WHERE account_id='alice'`); err != nil {
 		t.Fatal(err)
 	}
 	var expired, kept int
@@ -106,4 +118,17 @@ func TestMembershipAuthorityEventsKeepTheSharedRingBound(t *testing.T) {
 	if expired != 0 || kept != 1 {
 		t.Fatalf("shared ring boundary: expired=%d kept=%d", expired, kept)
 	}
+}
+
+func membershipTestExec(db *sql.DB, account, statement string, args ...any) (sql.Result, error) {
+	tx, err := db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	result, err := identity.ExecMembershipTx(context.Background(), tx, account, statement, args...)
+	if err != nil {
+		return result, err
+	}
+	return result, tx.Commit()
 }

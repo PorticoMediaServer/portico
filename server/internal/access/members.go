@@ -176,7 +176,7 @@ func (s *Store) SetRole(ctx context.Context, auth Authorize, actor identity.Prin
 		if revision != c.ExpectedRevision {
 			return &ConflictError{revision}
 		}
-		if _, e = tx.ExecContext(ctx, `UPDATE direct_memberships SET role=?,revision=revision+1 WHERE account_id=?`, c.Role, account); e != nil {
+		if _, e = identity.ExecMembershipTx(ctx, tx, account, `UPDATE direct_memberships SET role=?,revision=revision+1 WHERE account_id=?`, c.Role, account); e != nil {
 			return e
 		}
 		// The account's sessions move to the new tier here, in the same
@@ -249,7 +249,7 @@ func (s *Store) SetMemberNotes(ctx context.Context, auth Authorize, actor identi
 		if current.Revision != q.ExpectedRevision {
 			return &ConflictError{current.Revision}
 		}
-		if _, e = tx.ExecContext(ctx, `UPDATE direct_memberships SET notes=?,revision=revision+1 WHERE account_id=?`, notes, account); e != nil {
+		if _, e = identity.ExecMembershipTx(ctx, tx, account, `UPDATE direct_memberships SET notes=?,revision=revision+1 WHERE account_id=?`, notes, account); e != nil {
 			return e
 		}
 		out, e = readMember(ctx, tx, account)

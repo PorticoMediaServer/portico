@@ -21,7 +21,7 @@ func authorityTestRole(t *testing.T, d Dependencies, role string) {
 	t.Helper()
 	ctx := context.Background()
 	if err := dbwork.WithWriteTx(ctx, d.DB, dbwork.ClassSecurityFence, func(tx *sql.Tx) error {
-		if _, err := tx.Exec(`UPDATE direct_memberships SET role=?,revision=revision+1 WHERE account_id='member'`, role); err != nil {
+		if _, err := identity.ExecMembershipTx(ctx, tx, "member", `UPDATE direct_memberships SET role=?,revision=revision+1 WHERE account_id='member'`, role); err != nil {
 			return err
 		}
 		return identity.RetierFamiliesTx(ctx, tx, "member", role)
@@ -117,7 +117,10 @@ func TestLiveAuthorityFeedReportsRoleAndLibraryChanges(t *testing.T) {
 			}
 			if change == "role" {
 				authorityTestRole(t, d, "member")
-			} else if _, err := dbwork.ExecWrite(ctx, d.DB, dbwork.ClassSecurityFence, `UPDATE direct_memberships SET allowed_libraries='["changed-library"]',revision=revision+1 WHERE account_id='member'`); err != nil {
+			} else if err := dbwork.WithWriteTx(ctx, d.DB, dbwork.ClassSecurityFence, func(tx *sql.Tx) error {
+				_, err := identity.ExecMembershipTx(ctx, tx, "member", `UPDATE direct_memberships SET allowed_libraries='["changed-library"]',revision=revision+1 WHERE account_id='member'`)
+				return err
+			}); err != nil {
 				t.Fatal(err)
 			}
 			for {
@@ -172,7 +175,7 @@ func TestDisableClosesLiveAuthorityStreamAndRefusesLongPoll(t *testing.T) {
 	done := make(chan struct{})
 	go func() { defer close(done); d.eventLongPoll(w, poll, p, wake, start, 25000) }()
 	if err := dbwork.WithWriteTx(ctx, d.DB, dbwork.ClassSecurityFence, func(tx *sql.Tx) error {
-		if _, err := tx.Exec(`UPDATE direct_memberships SET disabled=1,revision=revision+1 WHERE account_id='member'`); err != nil {
+		if _, err := identity.ExecMembershipTx(ctx, tx, "member", `UPDATE direct_memberships SET disabled=1,revision=revision+1 WHERE account_id='member'`); err != nil {
 			return err
 		}
 		return identity.RevokeFamiliesMatchingTx(ctx, tx, identity.RevokedMembershipRemoved, `authority=? AND account_id=?`, "local", "member")

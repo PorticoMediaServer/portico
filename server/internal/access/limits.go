@@ -383,7 +383,7 @@ func (s *Store) SetLimits(ctx context.Context, auth Authorize, account string, c
 		if _, e = tx.Exec(`INSERT INTO access_limits VALUES(?,?,?,?) ON CONFLICT(account_id) DO UPDATE SET revision=excluded.revision,updated_ms=excluded.updated_ms,body=excluded.body`, account, revision, now, string(raw)); e != nil {
 			return e
 		}
-		if _, e = tx.ExecContext(ctx, `UPDATE direct_memberships SET access_tokens=?,max_profiles=? WHERE account_id=?`, c.Limits.AccessTokens, c.Limits.MaxProfiles, account); e != nil {
+		if _, e = identity.ExecMembershipTx(ctx, tx, account, `UPDATE direct_memberships SET access_tokens=?,max_profiles=? WHERE account_id=?`, c.Limits.AccessTokens, c.Limits.MaxProfiles, account); e != nil {
 			return e
 		}
 		out, e = readLimits(tx, account)

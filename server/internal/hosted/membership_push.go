@@ -516,7 +516,7 @@ func (s *Service) applyDepartures(ctx context.Context, v networking.Intent, depa
 			if left.IsZero() {
 				left = time.Now()
 			}
-			changed, e := tx.ExecContext(ctx, `UPDATE direct_memberships SET disabled=1,disabled_ms=?,disabled_reason='left',revision=revision+1 WHERE account_id=? AND disabled=0`, left.UnixMilli(), account)
+			changed, e := identity.ExecMembershipTx(ctx, tx, account, `UPDATE direct_memberships SET disabled=1,disabled_ms=?,disabled_reason='left',revision=revision+1 WHERE account_id=? AND disabled=0`, left.UnixMilli(), account)
 			if e != nil {
 				return e
 			}

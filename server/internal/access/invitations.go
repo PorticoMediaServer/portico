@@ -102,7 +102,7 @@ func applyInvitationAccessTx(ctx context.Context, tx *sql.Tx, account string, v 
 	if _, e = tx.ExecContext(ctx, `INSERT INTO access_limits(account_id,revision,updated_ms,body) VALUES(?,1,?,?) ON CONFLICT(account_id) DO UPDATE SET revision=access_limits.revision+1,updated_ms=excluded.updated_ms,body=excluded.body`, account, now, string(raw)); e != nil {
 		return e
 	}
-	_, e = tx.ExecContext(ctx, `UPDATE direct_memberships SET access_tokens=? WHERE account_id=?`, limits.AccessTokens, account)
+	_, e = identity.ExecMembershipTx(ctx, tx, account, `UPDATE direct_memberships SET access_tokens=? WHERE account_id=?`, limits.AccessTokens, account)
 	return e
 }
 
@@ -596,7 +596,7 @@ func (s *Store) Accept(ctx context.Context, q Acceptance, hash []byte) (out Acce
 		if _, e = tx.ExecContext(ctx, `INSERT INTO accounts(id,username,password_hash,profile_id) VALUES(?,?,?,?)`, account, username, hash, profile); e != nil {
 			return e
 		}
-		if _, e = tx.ExecContext(ctx, `UPDATE direct_memberships SET role=?,allowed_libraries=?,notes=?,joined_via=?,joined_ms=?,revision=revision+1 WHERE account_id=? AND role<>'owner'`, role, libraries, notes, id, now, account); e != nil {
+		if _, e = identity.ExecMembershipTx(ctx, tx, account, `UPDATE direct_memberships SET role=?,allowed_libraries=?,notes=?,joined_via=?,joined_ms=?,revision=revision+1 WHERE account_id=? AND role<>'owner'`, role, libraries, notes, id, now, account); e != nil {
 			return e
 		}
 		grant, e := invitationAccessTx(ctx, tx, id)
@@ -742,7 +742,7 @@ func (s *Store) AcceptPortico(ctx context.Context, q PorticoAcceptance, signIn f
 				return ErrExpired
 			}
 		}
-		granted, e := tx.ExecContext(ctx, `UPDATE direct_memberships SET role=?,allowed_libraries=?,notes=?,joined_via=?,joined_ms=?,disabled=0,revision=revision+1 WHERE account_id=? AND role<>'owner' AND (?<>0 OR disabled<>0)`, role, libraries, notes, id, now, account, created)
+		granted, e := identity.ExecMembershipTx(ctx, tx, account, `UPDATE direct_memberships SET role=?,allowed_libraries=?,notes=?,joined_via=?,joined_ms=?,disabled=0,revision=revision+1 WHERE account_id=? AND role<>'owner' AND (?<>0 OR disabled<>0)`, role, libraries, notes, id, now, account, created)
 		if e != nil {
 			return e
 		}
@@ -816,7 +816,7 @@ func RedeemForRegistrationTx(ctx context.Context, tx *sql.Tx, code, account stri
 	if e = json.Unmarshal([]byte(libraries), &ids); e != nil {
 		return nil, e
 	}
-	if _, e = tx.ExecContext(ctx, `UPDATE direct_memberships SET notes=?,joined_via=?,joined_ms=? WHERE account_id=?`, notes, id, now, account); e != nil {
+	if _, e = identity.ExecMembershipTx(ctx, tx, account, `UPDATE direct_memberships SET notes=?,joined_via=?,joined_ms=? WHERE account_id=?`, notes, id, now, account); e != nil {
 		return nil, e
 	}
 	grant, e := invitationAccessTx(ctx, tx, id)

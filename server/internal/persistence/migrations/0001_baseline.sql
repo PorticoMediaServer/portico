@@ -5135,21 +5135,6 @@ CREATE INDEX playback_v1_sessions_account ON playback_v1_sessions(account_id,cre
 CREATE INDEX playback_v1_sessions_media ON playback_v1_sessions(media_session_id);
 CREATE INDEX playback_v1_sessions_ended ON playback_v1_sessions(ended_ms) WHERE ended_ms>0;
 CREATE INDEX api_events_audience ON api_events(audience,id);
--- Every membership writer (identity, access administration and Hosted) shares
--- this atomic hint. Library ordering is not an authority change. Direct
--- memberships are local identities, including linked Portico Accounts.
-CREATE TRIGGER membership_authority_changed
-AFTER UPDATE OF role,allowed_libraries,disabled ON direct_memberships
-WHEN OLD.role IS NOT NEW.role OR OLD.disabled IS NOT NEW.disabled
- OR EXISTS(SELECT value FROM json_each(OLD.allowed_libraries) EXCEPT SELECT value FROM json_each(NEW.allowed_libraries))
- OR EXISTS(SELECT value FROM json_each(NEW.allowed_libraries) EXCEPT SELECT value FROM json_each(OLD.allowed_libraries))
-BEGIN
- INSERT INTO api_events(audience,type,resource_kind,resource_id,revision,at_ms)
- VALUES('authority:local:'||NEW.account_id,'authority.changed','account','self',CAST(NEW.revision AS TEXT),CAST(round((julianday('now')-2440587.5)*86400000) AS INTEGER));
- -- Match apievents.Append/Trim: the shared ring is bounded every 64 inserts.
- -- The boundary regression derives its cutoff from apievents.RingSize.
- DELETE FROM api_events WHERE id<=last_insert_rowid()-20000 AND last_insert_rowid()%64=0;
-END;
 CREATE INDEX queues_v1_owner ON queues_v1(owner_kind,owner_id);
 CREATE INDEX queues_v1_idle ON queues_v1(updated_ms);
 CREATE INDEX queue_v1_snapshots_queue ON queue_v1_snapshots(queue_id);
