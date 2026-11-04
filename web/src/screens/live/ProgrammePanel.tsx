@@ -121,7 +121,7 @@ export function ProgrammePanelView({channel, programme, now, timezone, snapshot,
       <div className={styles.programmeTrack} aria-hidden="true"><i style={{width: `${(progress * 100).toFixed(2)}%`}}/></div>
       <span>{t('guide.startedLeft', {started, left})}</span>
     </div>}
-    <p className={styles.programmeDescription}>{programme?.description || (programme ? t('guide.noDescription') : t('guide.noInformation'))}</p>
+    <p className={styles.programmeDescription}>{programme?.description || (programme ? t('guide.programNoDescription') : t('guide.noInformation'))}</p>
     {snapshot.error && <Banner className={styles.programmeBanner}>{snapshot.error}</Banner>}
     {notice && <Banner className={styles.programmeBanner}>{notice}</Banner>}
     {/* Spec §10: an unavailable channel says why beside its disabled Watch (LT-4). */}
