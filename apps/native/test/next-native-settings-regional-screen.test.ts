@@ -22,7 +22,7 @@ import * as tvSettingsFocus from '../src-next/screens/settings-live/tv-settings-
 
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
 
-async function fixture(isTV = false) {
+async function fixture(isTV = false, owner = false) {
   const host = hooks(), bodyHost = hooks();
   let nested = false, language = 'CA';
   const focus = {region: undefined as string | undefined, calls: [] as unknown[], back: [] as (() => boolean)[]};
@@ -106,7 +106,7 @@ async function fixture(isTV = false) {
   const runtime = {text: {get t() {const prefix = language; return (key: string) => `${prefix}/${key}`;}}, reportError: (error: unknown) => {throw error;}, subscribe: () => () => {}, getSnapshot: () => shellSnapshot,
     registerTVPageBack: (handler: () => boolean) => {focus.back.push(handler); return () => {focus.back.splice(focus.back.indexOf(handler), 1);};}};
   const settingsRoute = {revision: 0, route: {kind: 'shell', destination: {kind: 'settings'}}};
-  const props = {runtime, ports: {context: {current: () => true, account: {account: {role: 'member'}, canManage: false}, serverName: 'Example', authority: () => ({serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'fence'}), navigation: {subscribe: () => () => {}, getSnapshot: () => settingsRoute, isCurrent: () => true}}, settingsContext: () => ({owner: false, platform: 'phone', capabilities: {localAccount: true}}), serverName: () => 'Example', renderSettingsPanel: () => null},
+  const props = {runtime, ports: {context: {current: () => true, account: {account: {role: owner ? 'owner' : 'member'}, canManage: owner, capabilities: {}}, serverName: 'Example', authority: () => ({serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'fence'}), navigation: {subscribe: () => () => {}, getSnapshot: () => settingsRoute, isCurrent: () => true}}, settingsContext: () => ({owner, platform: 'phone', capabilities: {localAccount: true}}), serverName: () => 'Example', renderSettingsPanel: () => null},
     controller: {subscribe: () => () => {}, getSnapshot: () => ({preferences, busy: false, saved: 0}), lifetime: {authority: {}, current: () => true}},
     devicePreferences: {subscribe: () => () => {}, read: () => undefined}};
   return {focus, setLanguage: (next: string) => {language = next;},
@@ -163,4 +163,27 @@ test('W-14: on TV, Left from any page content lands on its page in the column, a
   assert.ok(back, 'TV Settings registers its own Back step');
   assert.equal(back!(), true);
   assert.equal((f.focus.calls.at(-1) as {regionId: string}).regionId, 'settings.pages', 'Back from the panel returns to the page column');
+});
+
+test('N5-5: phone and tablet Settings search finds a Server page this owner has, and a result opens it', async () => {
+  const f = await fixture(false, true);
+  const general = structure.settingsStructure({owner: true, platform: 'phone', capabilities: {localAccount: true}} as never).headings
+    .find(heading => heading.id === 'server')!.pages.find(page => page.id === 'general')!;
+  let tree = f.render();
+  nodes(tree).find(node => node.type === 'TextField').props.onChangeText(`CA/${general.title}`); tree = f.render();
+  const results = nodes(tree).find(node => node.type === 'SettingsSearchResults');
+  const match = results.props.matches.find((value: {address: string}) => value.address === 'server-general');
+  assert.ok(match, 'the Server page is in the results');
+  results.props.onNavigate(match.address); tree = f.render();
+  assert.ok(nodes(tree).some(node => node.type === 'NativeServerGeneral'), 'and its result opens that page');
+});
+
+test('N5-5: a member\'s search finds no Server page they can\'t open', async () => {
+  const f = await fixture();
+  const general = structure.settingsStructure({owner: true, platform: 'phone', capabilities: {localAccount: true}} as never).headings
+    .find(heading => heading.id === 'server')!.pages.find(page => page.id === 'general')!;
+  let tree = f.render();
+  nodes(tree).find(node => node.type === 'TextField').props.onChangeText(`CA/${general.title}`); tree = f.render();
+  const results = nodes(tree).find(node => node.type === 'SettingsSearchResults');
+  assert.equal(results?.props.matches.some((value: {address: string}) => value.address === 'server-general') ?? false, false);
 });
