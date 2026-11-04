@@ -28,6 +28,7 @@ import {TVRail} from './TVRail';
 import {TVProfileMenu} from './TVProfileMenu';
 import {NativePlaybackLayer} from './NativePlaybackLayer';
 import {NativeStackSlots, NativeStackSlotsProvider} from '../kit/navigation/stack-slot';
+import {RailHoldProvider, useRailHeld} from '../kit/navigation/rail-hold';
 import {TouchStacks, nativeStackMotionTier, type NativeStackPage} from './TouchStacks';
 import {ShellUnreachableLine} from './UnreachableLine';
 
@@ -42,7 +43,7 @@ const immersiveRoute = (route: NativeShellRoute | undefined) => route?.kind === 
 export function NativeShell({runtime}: {runtime: NativeShellRuntime}) {
   const snapshot = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
   // Permission/profile/server changes cannot reuse component state, focus, selections or images.
-  return <OverlaysProvider key={authorityKey(snapshot.authority)}><PlayerMorphProvider><ListeningCoverProvider><DockClearanceProvider><SurfacePaintHost><ShellSession key={authorityKey(snapshot.authority)} runtime={runtime} snapshot={snapshot}/></SurfacePaintHost></DockClearanceProvider></ListeningCoverProvider></PlayerMorphProvider></OverlaysProvider>;
+  return <OverlaysProvider key={authorityKey(snapshot.authority)}><PlayerMorphProvider><ListeningCoverProvider><DockClearanceProvider><SurfacePaintHost><RailHoldProvider><ShellSession key={authorityKey(snapshot.authority)} runtime={runtime} snapshot={snapshot}/></RailHoldProvider></SurfacePaintHost></DockClearanceProvider></ListeningCoverProvider></PlayerMorphProvider></OverlaysProvider>;
 }
 
 function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapshot: NativeShellSnapshot}) {
@@ -158,6 +159,8 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   const {homeStart} = useSyncExternalStore(subscribeFocus, getFocusSnapshot, getFocusSnapshot);
   useTVMenuCapture(theme.isTV && !homeStart);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
+  // tablet-play6: a page's open side panel folds the sidebar to the rail; the remembered choice stays.
+  const railHeld = useRailHeld();
   const sidebarRevision = useRef(0);
   const sidebarLifetime = useRef<object | undefined>(undefined);
   const avatarRef = useRef<View>(null), opening = useRef(0), alive = useRef<{runtime: NativeShellRuntime} | undefined>(undefined);
@@ -276,7 +279,8 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   const barHeight = layout.tabs && !chromeHidden ? phoneBarHeight(insets.bottom, landscapePhone) : 0;
   // foldable3e/3f: the phone bar leaves only on medium; the dock floats at the foot.
   const sideNavigation = layout.rail || layout.kind === 'desktop';
-  const sideWidth = layout.kind === 'desktop' && sidebarExpanded ? 248 : mediumRailMetrics.width;
+  const sidebarOpen = sidebarExpanded && !railHeld;
+  const sideWidth = layout.kind === 'desktop' && sidebarOpen ? 248 : mediumRailMetrics.width;
   const homeBottom = sideNavigation ? 92 : barHeight, pageBottom = sideNavigation ? 16 : barHeight;
   const railDestination = snapshot.railDestination ?? destination;
   const notifications = snapshot.account.actions.find(action => action.id === 'notifications');
@@ -326,7 +330,7 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     {!snapshot.selectionActive && (stacks ? !immersiveRoute(stackTop) : snapshot.contentVisible !== false) && !chromeHidden && (!theme.isTV || topLayer === 'page') && (theme.isTV ? <TVRail authority={snapshot.authority} returnTo={currentPageFocus} libraries={snapshot.libraries} hasLiveTV={snapshot.hasLiveTV} destination={snapshot.railDestination ?? destination} profile={snapshot.profile} unread={snapshot.unreadNotifications} dimmed={destination.kind === 'home' && snapshot.homeVisible && !snapshot.mediaExpanded && !!railDim && !railDim.retired} onNavigate={next => {if (snapshot.contentVisible !== false && sameDestination(next, destination)) {expanded(false); runtime.scrollToTop(destination);} else if (next.kind === 'library') openLibrary(next.libraryId); else navigate(next);}}
       onProfile={() => setAccountOpen(true)} profileRef={avatarRef} onExpandedChange={expanded}/>
       : <>
-        {sideNavigation && (!!stacks || snapshot.contentVisible !== false) && <MediumRail expanded={layout.kind === 'desktop' && sidebarExpanded} onToggle={layout.kind === 'desktop' ? toggleSidebar : undefined} serverName={snapshot.serverName} libraries={snapshot.libraries} hasLiveTV={snapshot.hasLiveTV} destination={railDestination} profile={snapshot.profile} unread={snapshot.unreadNotifications}
+        {sideNavigation && (!!stacks || snapshot.contentVisible !== false) && <MediumRail expanded={layout.kind === 'desktop' && sidebarOpen} onToggle={layout.kind === 'desktop' && !railHeld ? toggleSidebar : undefined} brand={layout.kind === 'desktop' && railHeld} serverName={snapshot.serverName} libraries={snapshot.libraries} hasLiveTV={snapshot.hasLiveTV} destination={railDestination} profile={snapshot.profile} unread={snapshot.unreadNotifications}
           serverAction={snapshot.account.serverAction && {id: snapshot.account.serverAction.id, label: snapshot.account.serverAction.label, onPress: snapshot.account.serverAction.onPress}}
           notificationAction={notifications && {label: notifications.label, onPress: notifications.onPress}}
           profileRef={avatarRef} short={dimensions.height - insets.top - insets.bottom < 800}

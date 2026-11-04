@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {React, fabricHost} from './helpers/fabric-host.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
+import {liveTabsFixture, ownerTagFixture} from './helpers/live-fixtures.mjs';
 import {defaultI18n} from '../../../packages/i18n/src';
 import * as dvr from '../../../packages/client-core/src/dvr';
 import * as channels from '../../../packages/client-core/src/channel-guide';
@@ -48,7 +49,7 @@ async function fixture({isTV = false, width, height, role = 'owner', sources = t
   const theme = createTheme({isTV, width: width ?? (isTV ? 1920 : 400)});
   const authority = {serverId: 'server', accountId: 'owner', profileId: 'main', epoch: 'one', viewerFence: 'fence'};
   const route: any = {revision: 1, route: {kind: 'main'}, destination: {kind: 'live'}};
-  const shell: any = {authority, destination: route.destination, contentVisible: true, mediaExpanded: false};
+  const shell: any = {authority, destination: route.destination, contentVisible: true, mediaExpanded: false, serverName: 'Portico demo'};
   const listen = (fn: () => void) => {listeners.add(fn); return () => {listeners.delete(fn);};};
   const lifetime = new NativeScreenLifetime({authority: () => authority, current: () => true, subscribeAuthority: listen});
   const api = {request: async <T,>(path: string) => {
@@ -81,7 +82,7 @@ async function fixture({isTV = false, width, height, role = 'owner', sources = t
   }
   const recordings: any = {getSnapshot: () => ({error: new Error('record_failed')}), lifetime,
     schedule: async (draft: unknown, options: unknown) => {scheduled.push({draft, options}); return scheduleFails ? undefined : {value: {id: `rec-${scheduled.length}`, state: 'scheduled'}};}};
-  const {NativeLiveScreen} = await screenModule(new URL('../src-next/screens/settings-live/LiveScreen.tsx', import.meta.url), {
+  const {NativeLiveScreen} = await screenModule(new URL('../src-next/screens/settings-live/LiveScreen.tsx', import.meta.url), {...liveTabsFixture(React), ...ownerTagFixture,
     react: {...React, default: React}, 'react-native': native,
     'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Pattern: 'Pattern', Rect: 'Rect', Stop: 'Stop'},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/dvr': dvr, '../../../../../packages/client-core/src/presentation/kit-model': kitModel,
@@ -332,3 +333,54 @@ for (const [name, options] of [['phone', {width: 390, height: 844}], ['tablet', 
     } finally {await f.close();}
   });
 }
+
+// states 17c: the owner's no-source state names the server under the Owner only tag, and a phone stacks its actions full width.
+for (const [name, options, tag, stacked] of [['phone', {width: 390, height: 844}, true, true], ['tablet', {width: 1180, height: 820}, true, false], ['TV', {isTV: true}, false, false]] as const) {
+  test(`${name} owner with no Live TV source: ${tag ? 'the server\'s Owner only tag over the heading' : 'no tag'}, actions ${stacked ? 'stacked' : 'side by side'}`, async () => {
+    const f = await fixture({...options, sources: []}); try {
+      const state = f.find('live-no-sources'); assert.ok(state);
+      assert.equal(state.props.title, defaultI18n.t('web.live.empty.noSourcesOwnerTitle'));
+      if (tag) {assert.equal(state.props.kicker?.type, 'OwnerTag'); assert.equal(state.props.kicker.props.identity, 'Portico demo');}
+      else assert.equal(state.props.kicker, undefined);
+      assert.equal(state.props.stackActions, stacked);
+      assert.equal(state.props.variant, stacked ? 'centered' : 'inline', 'a phone draws the page state at its 30 pt heading');
+      assert.ok(state.props.primaryAction && state.props.secondaryAction);
+    } finally {await f.close();}
+  });
+}
+test('a member with no Live TV source gets no owner tag, and a phone still stacks its one action', async () => {
+  const f = await fixture({width: 390, height: 844, sources: [], role: 'member'}); try {
+    const state = f.find('live-no-sources'); assert.ok(state);
+    assert.equal(state.props.kicker, undefined); assert.equal(state.props.stackActions, true);
+  } finally {await f.close();}
+});
+
+// tablet-play7: an upright tablet has no 2-hour stepper; Now docks at the guide's edge once now scrolls out of view.
+test('an upright tablet\'s guide docks Now at its edges, as the phone does, and draws no stepper', async () => {
+  const f = await fixture({width: 820, height: 1180}); try {
+    assert.equal(f.find('live-view').props.value, 'guide');
+    assert.ok(f.find('live-docked-now-earlier')); assert.ok(f.find('live-docked-now-later'));
+    assert.equal(f.find('live-earlier'), undefined); assert.equal(f.find('live-later'), undefined);
+  } finally {await f.close();}
+});
+
+// tablet-play6: at expanded touch widths the title row carries the Guide / Recordings pair and the view switch; the day,
+// the 2-hour steps with Now between them, and Sort sit under the chips. TV keeps its one controls row.
+test('an expanded tablet draws Live TV with the Guide / Recordings pair over the chips, then the day, the steps and Sort', async () => {
+  const f = await fixture({width: 1180, height: 820}); try {
+    const header = f.find('live-header'); assert.ok(header); assert.equal(header.props.value, 'guide');
+    const inHeader = nodes(header).map(node => node.props?.testID);
+    for (const id of ['live-recordings', 'live-view', 'live-owner-open']) assert.ok(inHeader.includes(id), id);
+    assert.deepEqual(order(f.host.root, ['live-header', 'live-filter-all', 'live-time']), ['live-header', 'live-filter-all', 'live-time']);
+    assert.deepEqual(order(f.find('live-time'), ['live-day', 'live-earlier', 'live-now', 'live-later', 'live-sort']), ['live-day', 'live-earlier', 'live-now', 'live-later', 'live-sort']);
+    assert.equal(f.all().filter(node => node.props?.testID === 'live-now').length, 1, 'one Now');
+    assert.equal(f.find('live-docked-now-later'), undefined, 'the expanded guide keeps its stepper instead');
+    await f.press('live-recordings');
+    assert.ok(f.all().some(node => node.type === 'Recordings'), 'the Recordings tab opens Recordings');
+  } finally {await f.close();}
+  const tv = await fixture({isTV: true}); try {
+    assert.equal(tv.find('live-header'), undefined); assert.equal(tv.find('live-time'), undefined);
+    assert.deepEqual(order(tv.host.root, ['live-now', 'live-recordings', 'live-owner-open', 'live-filter-all']), ['live-now', 'live-recordings', 'live-owner-open', 'live-filter-all'], 'TV keeps its row above the chips');
+  } finally {await tv.close();}
+});
+

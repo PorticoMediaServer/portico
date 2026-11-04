@@ -26,6 +26,7 @@ import type {NativeLiveOwnerController} from './live-owner-controller';
 import {NewRuleSheet} from './LiveOwnerRecording';
 import {keepChoiceList, keepChoiceValue, keepLabel, ruleFacts, ruleKeep, ruleNext, ruleScope, withKeep} from './recording-rule-presentation';
 import {Screen, ScreenText, useScreenBack, useScreenEntry} from './Screen';
+import {NativeLiveTabs} from './LiveTabs';
 import {nativeHomeEntryLifetime} from '../home/entry-lifetime';
 
 const views: readonly DVRView[] = ['upcoming', 'recorded', 'rules', 'history', 'storage'];
@@ -203,13 +204,18 @@ export function NativeRecordingsScreen({controller, ports, runtime, onGuide, own
   const emptyBody: MessageId | undefined = query.view === 'upcoming' ? 'recordings.noneScheduledBody' : query.view === 'rules' ? 'recordings.noneRulesBody' : query.view === 'history' ? undefined : 'recordings.noneRecordedBody';
   const unavailable = state.page && !state.page.captureAvailable && !recordings.length && query.view === 'upcoming';
   // Local open-sheet/group state must not outlive an authoritative DVR access denial.
+  const expandedTouch = !theme.isTV && theme.platform === 'web';
   if (state.accessDenied) return <Screen><StateView {...runtime.error(state.error ?? {status: 403}, onGuide, 'live')}/></Screen>;
   return <Screen style={{paddingTop: theme.isTV ? 56 : 20}}>
-    <View style={{flexDirection: 'row', alignItems: 'center', height: theme.isTV ? 64 : 48, marginBottom: theme.isTV ? 24 : 16, paddingHorizontal: theme.isTV ? 0 : 20}}>
+    {/* desktop-live, tablet-play6: at expanded touch widths Recordings is Live TV's second tab, so the page keeps
+        Live TV's title and the Guide / Recordings pair in place of Back; a show's page keeps Back. */}
+    {expandedTouch && !group ? <View style={{paddingHorizontal: 20}}><NativeLiveTabs value="recordings" t={t} onGuide={leaveGuide}>
+      {state.storage && query.view !== 'storage' && <View style={{width: theme.isTV ? 360 : 160}}><StorageFacts storage={state.storage}/><Meter storage={state.storage}/></View>}
+    </NativeLiveTabs></View> : <View style={{flexDirection: 'row', alignItems: 'center', height: theme.isTV ? 64 : 48, marginBottom: theme.isTV ? 24 : 16, paddingHorizontal: theme.isTV ? 0 : 20}}>
       {!theme.isTV && <Button testID="recordings-back" variant="text" icon="i-left" size="small" onPress={leaveGuide}>{t('action.back')}</Button>}
       <Text accessibilityRole="header" style={[shellType(theme.isTV ? 44 : 32, 800, 'normal', -.03), {color: theme.colors.text, flex: 1}]}>{group?.title ?? t('recordings.title')}</Text>
       {!group && state.storage && query.view !== 'storage' && <View style={{width: theme.isTV ? 360 : 160}}><StorageFacts storage={state.storage}/><Meter storage={state.storage}/></View>}
-    </View>
+    </View>}
     {!group ? <FocusRegion id={tabs} entry={query.view} orientation="horizontal" edges={{left: ids.rail, down: body}} onLayout={entryRegion === tabs ? enter : undefined} style={{flexDirection: 'row', gap: 12, marginBottom: theme.isTV ? 42 : 24, paddingHorizontal: theme.isTV ? 0 : 20}}>{views.map(view => <Chip key={view} focusId={view} testID={`recordings-view-${view}`} selected={view === query.view} onFocus={() => {if (theme.isTV) select(view);}} onPress={() => select(view)} count={view === 'upcoming' || view === 'recorded' || view === 'rules' ? state.summary?.[view] : undefined}>{t(viewLabels[view])}</Chip>)}</FocusRegion>
       : <View style={{marginBottom: 34, flexDirection: 'row', gap: 20}}><ScreenText secondary>{group.recording.channel?.name}</ScreenText><SpacedFacts text={t('recordings.showCountUnwatched', {count: group.recordings, unwatched: group.unwatched})}/></View>}
     <FocusRegion id={body} entry={first} orientation="free" edges={{left: ids.rail, up: tabs}} onFocusChange={value => {bodyFocused.current = value;}} onLayout={entryRegion === body ? enter : undefined} style={{flex: 1, paddingHorizontal: theme.isTV ? 0 : 20}}>

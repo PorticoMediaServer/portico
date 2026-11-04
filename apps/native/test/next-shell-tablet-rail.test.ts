@@ -11,7 +11,7 @@ const home = {kind: 'shell', destination: {kind: 'home'}} as const;
 const title = {kind: 'title', entry: {id: 'm1', kind: 'movie', title: 'Film'}} as const;
 const reader = {kind: 'read', itemId: 'b1', sourceId: 's1'} as const;
 
-async function shell(width: number, height: number, top: unknown) {
+async function shell(width: number, height: number, top: unknown, railHeld?: boolean) {
   const h = hooks(), react = {...h.react, useLayoutEffect() {}};
   const snapshot = {authority, destination: {kind: 'home'}, libraries: [], profile: {}, account: {actions: []}, homeVisible: false,
     contentVisible: false, mediaExpanded: false, selectionActive: false, homeObscured: false};
@@ -21,6 +21,7 @@ async function shell(width: number, height: number, top: unknown) {
     renderWatch: () => null, renderRoutes: () => null, renderSelection: () => null};
   const registry = {subscribe: () => () => {}, getSnapshot: () => ({}), capture: () => undefined, hasRetainedFocus: () => false};
   const {NativeShell} = await screenModule(new URL('../src-next/shell/NativeShell.tsx', import.meta.url), {...stackSlotFixture,
+    ...(railHeld === undefined ? {} : {'../kit/navigation/rail-hold': {RailHoldProvider: 'RailHoldProvider', useRailHeld: () => railHeld}}),
     react: {...react, default: react}, 'react-native': {View: 'View', useWindowDimensions: () => ({width, height})},
     'react-native-reanimated': {default: {View: 'AnimatedView'}, useAnimatedStyle: (fn: () => unknown) => fn(), useSharedValue: (value: unknown) => ({value}), withTiming: (value: unknown) => value},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
@@ -63,3 +64,19 @@ test('N2-3: the reader stays full screen on a tablet, and a phone has no rail', 
   assert.equal(phone.left, 0);
   assert.equal(phone.provider.props.value, 0);
 });
+
+// tablet-play6: while a page's side panel is open the expanded sidebar folds to the rail (the brand mark, no toggle),
+// and the page starts where that rail ends; it opens again when the panel closes. A medium window's rail is unchanged.
+test('an expanded tablet\'s sidebar folds to the rail while a page holds it, and the page moves to the rail\'s edge', async () => {
+  const open = await shell(1180, 820, title, false);
+  assert.equal(open.rail.props.expanded, true); assert.equal(typeof open.rail.props.onToggle, 'function'); assert.equal(open.rail.props.brand, false);
+  assert.equal(open.left, 248);
+  const held = await shell(1180, 820, title, true);
+  assert.equal(held.rail.props.expanded, false, 'folded to the rail');
+  assert.equal(held.rail.props.onToggle, undefined, 'no toggle while folded: the remembered choice is not touched');
+  assert.equal(held.rail.props.brand, true, 'the folded rail carries the brand mark, as tablet-play6 draws it');
+  assert.equal(held.left, model.mediumRailMetrics.width);
+  const medium = await shell(820, 1180, title, true);
+  assert.equal(medium.rail.props.expanded, false); assert.equal(medium.rail.props.brand, false); assert.equal(medium.rail.props.onToggle, undefined);
+});
+

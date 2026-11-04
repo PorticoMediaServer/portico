@@ -18,8 +18,10 @@ type RailEntry = Readonly<{key: string; label: string; icon: IconName; destinati
 
 /** foldable1/tablet: the 84 pt medium rail replaces the phone tab bar. Search,
  * Home, Live TV, Saved, Settings and Profile stay put; only the libraries scroll. */
-export function MediumRail({libraries, hasLiveTV, destination, profile, unread, serverAction, onNavigate, onProfile, profileRef, short, expanded = false, onToggle, serverName, notificationAction}: {
+export function MediumRail({libraries, hasLiveTV, destination, profile, unread, serverAction, onNavigate, onProfile, profileRef, short, expanded = false, onToggle, brand = false, serverName, notificationAction}: {
   expanded?: boolean; onToggle?: () => void; serverName?: string;
+  /** tablet-play6: the sidebar folded under an open panel is the rail with the brand mark and no toggle. */
+  brand?: boolean;
   libraries: readonly Library[]; hasLiveTV: boolean; destination: ShellDestination; profile: ProfileOption; unread: boolean;
   /** Owner/administrator-only Server activity, icon-only as tablet 2/3 draw it. */
   serverAction?: Readonly<{id: string; label: string; onPress: () => void}>;
@@ -57,7 +59,7 @@ export function MediumRail({libraries, hasLiveTV, destination, profile, unread, 
     <BlurView pointerEvents="none" style={{position: 'absolute', inset: 0}} blurType="dark" blurAmount={18} reducedTransparencyFallbackColor={theme.colors.raised}/>
     <View pointerEvents="none" style={{position: 'absolute', inset: 0, backgroundColor: theme.colors.ink, opacity: .72}}/>
     <View style={{flex: 1, alignItems: 'center', paddingTop: padding.top, paddingBottom: padding.bottom}}>
-      {onToggle && !expanded && <View style={{height: 44, alignItems: 'center', justifyContent: 'center'}}><SvgXml xml={brandSymbol} width={19} height={28}/></View>}
+      {(onToggle || brand) && !expanded && <View style={{height: 44, alignItems: 'center', justifyContent: 'center'}}><SvgXml xml={brandSymbol} width={19} height={28}/></View>}
       {onToggle && <View style={{width: '100%', height: expanded ? 48 : 44, paddingHorizontal: expanded ? 24 : 0, flexDirection: 'row', alignItems: 'center', justifyContent: expanded ? 'space-between' : 'center'}}>
         {expanded && <Image accessible accessibilityLabel={defaultI18n.t('next.platform.appName')} source={require('../../assets/wordmark.png')} resizeMode="contain" style={{...headerWordmark.tabletRail, flexShrink: 0}}/>}
         <Focusable testID="sidebar-toggle" accessibilityRole="button" accessibilityLabel={defaultI18n.t(expanded ? 'web.shell.collapse' : 'web.shell.expand')} accessibilityState={{expanded}} onPress={onToggle} focusRadius={12} style={{width: 44, height: 44, alignItems: 'center', justifyContent: 'center'}}>
