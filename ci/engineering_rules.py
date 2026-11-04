@@ -35,14 +35,10 @@ RULES = [
     # §4.7: currency is the cache's to own; no new per-screen lease hooks re-checking it.
     ('lease-layer', set(), re.compile(r'\bfunction\s+use\w*Lease\b')),
     # §4 / step 7 slice 3: a screen reads a server document through a query function in the viewer's query cache
-    # (packages/client-core/src/query/), not with its own GET or a service it builds. Counted: `.request(…)` or
-    # `.requestRaw(…)` with one argument (GET by default) or `'GET'` as its method, and `new …Service(`. A write
-    # (`'POST'`, `'PATCH'`…) or a method held in a variable is not counted. A read that must stay outside the cache
+    # (packages/client-core/src/query/), not with its own GET or a service it builds. Counted by the TypeScript
+    # checker, not a pattern (ci/query_reads.mjs says exactly what counts). A read that must stay outside the cache
     # (sign-in, the event feed, the cache's own transport) carries `// query-read: kept (reason)` on its line.
-    ('query-read', {'packages/client-core/src/query/'},
-     re.compile(r'''\.request(?:Raw)?(?:<[^()]*?>)?\(\s*'''
-                r'''(?:[^,()]|\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*\))+?'''
-                r'''\s*(?:\)|,\s*['"`]GET['"`])|\bnew\s+\w+Service\s*\(''')),
+    ('query-read', {'packages/client-core/src/query/'}, None),
 ]
 # A compare kept on purpose carries `// fence-compare: kept (reason)` as a real line comment on its own line, with a
 # non-empty reason. The marker spares exactly one match on that line: a second compare there still counts. The text
@@ -100,7 +96,12 @@ def line_comments(text):
 
 
 def count(pattern, text, marker=None):
-    matches = [text.count('\n', 0, m.start()) for m in pattern.finditer(text)]
+    return spare([text.count('\n', 0, m.start()) for m in pattern.finditer(text)], text, marker)
+
+
+def spare(matches, text, marker=None):
+    """How many of these matches (0-based line numbers) count once each marked line spares one."""
+    matches = list(matches)
     if marker is None or not matches:
         return len(matches)
     spared = {line for line, comment in line_comments(text).items() if marker.match(comment)}
@@ -131,14 +132,41 @@ def tracked():
     return [p for p in out.split('\0') if p and SOURCES.match(p) and not TESTS.search(p)]
 
 
-def counts(paths, read=lambda p: (ROOT / p).read_text(encoding='utf-8', errors='replace')):
+# The TypeScript projects that hold every client source (the apps' first; ci/query-reads.tsconfig.json last).
+QUERY_READ_CONFIGS = ['web/tsconfig.json', 'apps/native/tsconfig.json', 'apps/vega/tsconfig.json', 'apps/desktop/tsconfig.json',
+                      'packages/client-core/tsconfig.json', 'packages/player-core/tsconfig.json', 'packages/reader-core/tsconfig.json',
+                      'packages/contracts/tsconfig.json', 'ci/query-reads.tsconfig.json']
+
+
+def query_reads(paths, root=ROOT, configs=QUERY_READ_CONFIGS):
+    """{path: [1-based line of each server read]} from ci/query_reads.mjs, which needs the root `npm ci`."""
+    import subprocess
+    request = json.dumps({'root': str(root), 'configs': list(configs), 'files': list(paths)})
+    try:
+        run = subprocess.run(['node', str(ROOT / 'ci' / 'query_reads.mjs')], input=request, capture_output=True, text=True, cwd=root, timeout=600)
+    except FileNotFoundError as error:
+        raise SystemExit('query-read needs Node (ci/query_reads.mjs)') from error
+    if run.returncode != 0:
+        raise SystemExit('query-read counter failed (run `npm ci` at the repository root first):\n' + run.stderr)
+    return json.loads(run.stdout)
+
+
+def counts(paths, read=lambda p: (ROOT / p).read_text(encoding='utf-8', errors='replace'), reads=None):
+    """Per rule and file, the counts above. `reads` gives query-read's lines ({path: [line]}); without it they are
+    found with the TypeScript checker, but only when the files are read from the tree (a test's `read` has none)."""
     found = {}
+    paths = list(paths)
+    if reads is None and read is counts.__defaults__[0]:
+        reads = query_reads([p for p in paths if not exempt(p, dict((r, a) for r, a, _ in RULES)['query-read'])])
     for path in paths:
         text = read(path)
         for rule, allowed, pattern in RULES:
             if exempt(path, allowed):
                 continue
-            n = count(pattern, text, KEPT.get(rule))
+            if pattern is None:
+                n = spare([line - 1 for line in (reads or {}).get(path, [])], text, KEPT.get(rule))
+            else:
+                n = count(pattern, text, KEPT.get(rule))
             if n:
                 found.setdefault(rule, {})[path] = n
     return found

@@ -1,6 +1,85 @@
+import json
 import unittest
+from pathlib import Path
 from commit_bylines import problems
-from engineering_rules import BASELINE, compare, counts, tracked
+from engineering_rules import BASELINE, compare, counts, query_reads, tracked
+
+
+QUERY_FIXTURE = """\
+import {HttpLocalApi} from './client';
+declare const api: HttpLocalApi;
+declare const loose: any;
+declare const signal: AbortSignal;
+declare const id: string, a: string, b: string, m: string;
+declare const verb: 'POST' | 'PATCH';
+declare const either: 'GET' | 'POST';
+declare const f: (x: string) => string, g: (x: string) => string, h: (x: string) => string;
+declare function encodedRoutePath(name: string, params: Record<string, string>): string;
+declare const lifetime: {request<T>(read: () => Promise<T>): Promise<T>};
+declare const factOwner: {request(group: 'directory' | 'members'): void};
+declare const port: {request(tick: number): void};
+declare const dock: {request(panel: string): boolean};
+declare const reader: {request<T>(path: string, signal?: AbortSignal): Promise<T>};
+declare const forwarding: {request<T>(...args: Parameters<HttpLocalApi['request']>): Promise<T>};
+export async function cases(this: {send(path: string, method?: string): Promise<unknown>}) {
+  await api.request('/v1/home'); /*read*/
+  await api.request('/v1/home', 'GET', undefined, signal); /*read*/
+  await api.request('/v1/home', undefined, undefined, signal); /*read*/ // an explicit undefined method
+  await api.request('/v1/home', 'get'); /*read*/ // lower case
+  await api.request(encodedRoutePath('a', {id: encodeURIComponent(f(g(h(id))))})); /*read*/ // four calls deep
+  await api.request(`/v1/items?ids=${a},${b}`); /*read*/ // a template with a comma
+  await api.requestRaw('/v1/events', 'GET'); /*read*/
+  await api.requestConsole('/v1/console/x'); /*read*/
+  await this.send('/v1/home', 'GET'); /*read*/ // a requester under another name
+  await fetch('/v1/files/1'); /*read*/
+  await fetch('/v1/files/1', {method: 'GET'}); /*read*/
+  await fetch('/v1/files/1', {method: m}); /*read*/ // not statically known
+  await api.request('/v1/home', m); /*read*/ // not statically known
+  await api.request('/v1/home', either); /*read*/
+  await loose.request('/v1/home'); /*read*/ // unresolved, named like a requester
+  await reader.request('/v1/home', signal); /*read*/ // a requester with no method
+  await forwarding.request('/v1/guide', 'GET', undefined, signal); /*read*/ // a rest-parameter wrapper, read by position
+  await forwarding.request('/v1/guide', 'POST', {}); /*not*/
+  await api.request('/v1/home', 'POST', {}); /*not*/
+  await api.request('/v1/home', 'patch', {}); /*not*/
+  await api.request('/v1/home', verb, {}); /*not*/
+  await fetch('/v1/files/1', {method: 'DELETE'}); /*not*/
+  await lifetime.request(() => api.request('/v1/setup-code/review', 'POST', {})); /*not*/ // a closure wrapper around a write
+  factOwner.request('directory'); /*not*/
+  port.request(3); /*not*/
+  dock.request('info'); /*not*/
+  await navigator.locks.request('portico', async () => {}); /*not*/
+  await navigator.wakeLock.request('screen'); /*not*/
+  const home = new HomeService(api); /*read*/
+  const ids = new Set<string>(); const byId = new Map<string, string>(); /*not*/
+  const get = (path: string) => api.request(path); /*read*/ // a wrapper counts once, here
+  await get('/v1/a'); await get('/v1/b'); /*not*/ // and never at its callers
+  return [home, ids, byId];
+}
+class HomeService { constructor(readonly api: HttpLocalApi) {} }
+"""
+QUERY_CLIENT = """\
+export class HttpLocalApi {
+  request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> { return fetch(path, {method, body: JSON.stringify(body), signal}).then(r => r.json()); }
+  requestRaw(path: string, method: string, options: {signal?: AbortSignal} = {}): Promise<Response> { return fetch(path, {method, signal: options.signal}); }
+  requestConsole<T>(path: string, method?: string): Promise<T> { return this.request<T>(path, method); }
+}
+"""
+
+
+def query_read_fixture():
+    import tempfile
+    root = tempfile.mkdtemp(prefix='query-read-')
+    (Path(root) / 'src').mkdir()
+    (Path(root) / 'tsconfig.json').write_text(json.dumps({'compilerOptions': {'target': 'ES2022', 'lib': ['ES2022', 'DOM'], 'module': 'ESNext',
+        'moduleResolution': 'bundler', 'strict': True, 'noEmit': True, 'skipLibCheck': True, 'types': []}, 'include': ['src/**/*.ts']}))
+    (Path(root) / 'src' / 'fixture.ts').write_text(QUERY_FIXTURE)
+    (Path(root) / 'src' / 'client.ts').write_text(QUERY_CLIENT)
+    try:
+        return query_reads(['src/fixture.ts'], root=root, configs=['tsconfig.json'])
+    finally:
+        import shutil
+        shutil.rmtree(root, ignore_errors=True)
 
 
 class EngineeringRuleTests(unittest.TestCase):
@@ -80,36 +159,25 @@ class EngineeringRuleTests(unittest.TestCase):
         # It spares its own line only, wherever the compares sit in the file.
         self.assertEqual(self.found('if (fence === held.fence) a(); // fence-compare: kept (same answer)\nif (fence === other.fence) b();'), one)
 
-    def test_query_read_counts_gets_and_services_outside_the_query_cache(self):
-        one = {'query-read': {'web/src/x.ts': 1}}
-        for counted in ["const raw = await api.request(routePath('get_home'), 'GET', undefined, signal);",
-                        "const raw = await api.request<RouteResponse<'get_me'>>(routePath('get_me'),'GET',undefined,signal);",
-                        "const raw = await this.api.request<unknown>(`/v1/items/${encodeURIComponent(id)}/detail`);",
-                        "const raw = await api.request(encodedRoutePath('get_libraries_id', {id: encodeURIComponent(id)}) + '?limit=5');",
-                        "const raw = await api.requestRaw('/v1/events?waitMs=0', 'GET');",
-                        "const raw = await api.request(\n  routePath('get_libraries'),\n  'GET',\n  undefined, signal);",
-                        'const home = new HomeService(api, {observation});',
-                        'const saved = new PersonalSavedService(\n  api);']:
-            self.assertEqual(self.found(counted), one, counted)
-        for spared in ["await api.request(routePath('patch_preferences'), 'PATCH', body, signal);",
-                       "await api.request(path, 'POST');",
-                       'await api.request(path, method, body);',
-                       "await navigator.locks.request('portico-lock', async () => work());",
-                       'const service = createHomeService(api);',
-                       'const s = new Set(ids); const m = new Map();',
-                       "const raw = await api.request(routePath('get_me'), 'GET', undefined, signal); // query-read: kept (sign-in proves who the viewer is before any cache exists)"]:
-            self.assertEqual(self.found(spared), {}, spared)
-        # The marker is held to the same rules as fence-compare's: a reason, a real comment, one read per marker.
-        self.assertEqual(self.found("api.request(routePath('get_me')); // query-read: kept"), one)
-        self.assertEqual(self.found("api.request(a); api.request(b); // query-read: kept (first only)"), one)
-        self.assertEqual(self.found("api.request(a); // fence-compare: kept (another rule's marker)"), one)
+    def test_query_read_counts_reads_the_checker_resolves_to_a_requester(self):
+        lines = query_read_fixture()
+        # Each case in fixture.ts ends with `// read` (counted) or `// not` (spared); a line may hold several.
+        source = QUERY_FIXTURE.splitlines()
+        expected = [i + 1 for i, line in enumerate(source) for _ in range(line.count('/*read*/'))]
+        self.assertEqual(lines.get('src/fixture.ts', []), expected,
+                         '\n'.join(f'{i + 1}: {line}' for i, line in enumerate(source) if '/*read*/' in line or '/*not*/' in line))
 
-    def test_query_read_is_at_home_in_the_query_cache_only(self):
-        read = "const raw = await api.request(routePath('get_home'), 'GET', undefined, signal);"
-        self.assertEqual(self.found(read, 'packages/client-core/src/query/viewer-queries.ts'), {})
-        self.assertEqual(self.found(read, 'packages/client-core/src/query/keys.ts'), {})
-        self.assertEqual(self.found(read, 'packages/client-core/src/query-helpers.ts'), {'query-read': {'packages/client-core/src/query-helpers.ts': 1}})
-        self.assertEqual(self.found(read, 'packages/client-core/src/home-service.ts'), {'query-read': {'packages/client-core/src/home-service.ts': 1}})
+    def test_query_read_keeps_the_marker_rules(self):
+        path = 'web/src/x.ts'
+        def n(text, lines):
+            return counts([path], read=lambda _: text, reads={path: lines}).get('query-read', {}).get(path, 0)
+        self.assertEqual(n("api.request(path); // query-read: kept (sign-in proves who the viewer is)", [1]), 0)
+        self.assertEqual(n("api.request(path); // query-read: kept", [1]), 1, 'a reason is required')
+        self.assertEqual(n("api.request('// query-read: kept (x)');", [1]), 1, 'not inside a string')
+        self.assertEqual(n("api.request(a); api.request(b); // query-read: kept (first only)", [1, 1]), 1, 'one read per marker')
+        self.assertEqual(n("api.request(a); // fence-compare: kept (another rule)", [1]), 1)
+        self.assertEqual(counts(['packages/client-core/src/query/viewer-queries.ts'], read=lambda _: 'x', reads={'packages/client-core/src/query/viewer-queries.ts': [1]}), {},
+                         'the query cache is its home')
 
     def test_authorized_home_is_kept_on_purpose_and_only_by_its_marker(self):
         path = 'apps/native/src-next/screens/home/model.ts'
