@@ -74,14 +74,12 @@ func (s *Service) credentialCooloff(ctx context.Context, account string) error {
 	if account == "" {
 		return nil
 	}
-	read, err := dbwork.BeginSnapshot(ctx, s.db)
-	if err != nil {
+	var until int64
+	err := dbwork.WithReadSnapshot(ctx, s.db, func(snapshot context.Context) error {
+		var err error
+		until, err = credentialLockedUntilTx(snapshot, dbwork.Snapshot(snapshot), account)
 		return err
-	}
-	until, err := credentialLockedUntilTx(ctx, read.Tx(), account)
-	if closeErr := read.Commit(); err == nil {
-		err = closeErr
-	}
+	})
 	if err != nil {
 		return err
 	}
