@@ -13,6 +13,7 @@ import {WatchScreen} from './WatchScreen';
 import {useVideoGesture} from './use-video-gesture';
 import {WatchSkipPrompt} from './SkipPrompt';
 import {WatchUndoPrompt} from './UndoPrompt';
+import {WatchMetadataPrompt} from './MetadataPrompt';
 import {WatchUpNextPrompt} from './UpNextPrompt';
 import {WatchStillWatchingPrompt} from './StillWatchingPrompt';
 import {watchStillWatching} from './still-watching';
@@ -379,6 +380,7 @@ export function WatchPlayback({binding, context, surfaces, geometry, live}: Watc
     ...(stillWatching ? {modal: 'still-watching' as const} : {}),
     prompts: <>{surfaces?.prompts}{policy && snapshot && <><WatchSkipPrompt binding={policy} snapshot={snapshot} expanded={expanded} controlsVisible={controlsVisible} layout={layout} />
       <WatchUndoPrompt binding={policy} snapshot={snapshot} expanded={expanded} controlsVisible={controlsVisible} layout={layout} />
+      {runtime && <WatchMetadataPrompt runtime={runtime} snapshot={snapshot} expanded={expanded} controlsVisible={controlsVisible} layout={layout} />}
       <WatchUpNextPrompt binding={policy} snapshot={snapshot} expanded={expanded} controlsVisible={controlsVisible} layout={layout} artwork={binding!.artwork} environment={binding!.environment} />
       <WatchStillWatchingPrompt binding={policy} snapshot={snapshot} expanded={expanded} layout={layout} environment={binding!.environment} /></>}</>};
   const remote = remoteState?.remote;
