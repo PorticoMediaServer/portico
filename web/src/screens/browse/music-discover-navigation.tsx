@@ -21,7 +21,8 @@ const t = defaultI18n.t;
 
 /** A remembered choice is navigation only. Every use revalidates it with the original
  * viewer's library endpoint; it never filters the profile's Mixes source. */
-export function useMusicLibrarySummary(captured: ProtectedLibraryScreen | undefined, libraryId: string, enabled: boolean) {
+/** A library's own summary (name, counts, latest artwork) and its siblings, for Music; Audiobooks reads its counts the same way. */
+export function useMusicLibrarySummary(captured: ProtectedLibraryScreen | undefined, libraryId: string, enabled: boolean, kind: 'music' | 'audiobook' = 'music') {
   useShellFacts(captured?.context);
   const context = captured?.context, href = useLocation({select: location => location.href});
   const [attempt, setAttempt] = useState(0);
@@ -31,15 +32,15 @@ export function useMusicLibrarySummary(captured: ProtectedLibraryScreen | undefi
     const life = new AbortController(), key = principal(context);
     void readLibrarySummaries(context.api, life.signal).then(libraries => {
       if (life.signal.aborted || !context.isCurrent() || principal(context) !== key || router.state.location.href !== href) return;
-      const library = libraries.find(value => value.id === libraryId && value.kind === 'music');
+      const library = libraries.find(value => value.id === libraryId && value.kind === kind);
       if (library) remembered.set(context, {key, id: library.id});
       setRead({context, key, href, libraryId, libraries});
     }).catch(() => {if (!life.signal.aborted && context.isCurrent() && principal(context) === key && router.state.location.href === href) setRead({context, key, href, libraryId, failed: true});});
     return () => life.abort();
-  }, [context, libraryId, enabled, attempt, href]);
+  }, [context, libraryId, enabled, attempt, href, kind]);
   const current = enabled && context && context.isCurrent() && read?.context === context && read.href === href && read.libraryId === libraryId && read.key === principal(context) ? read : undefined;
   return {phase: current ? current.failed ? 'error' as const : 'ready' as const : 'loading' as const,
-    library: (() => {const row = current?.libraries?.find(value => value.id === libraryId && value.kind === 'music'), display = context?.facts.identity.libraries.find(value => value.id === libraryId);return row && display ? {...row, name: display.name, kind: display.kind} : row;})(),
+    library: (() => {const row = current?.libraries?.find(value => value.id === libraryId && value.kind === kind), display = context?.facts.identity.libraries.find(value => value.id === libraryId);return row && display ? {...row, name: display.name, kind: display.kind} : row;})(),
     libraries: current?.libraries,
     retry: () => {setRead(undefined);setAttempt(value => value + 1);}};
 }

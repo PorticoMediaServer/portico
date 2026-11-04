@@ -60,6 +60,7 @@ import {SaveView} from './SaveView';
 import {FacetPage, ReadLibraryEntry, useReadLibrarySummary, authorPredicate, type FacetRequest} from '../read';
 import {isReadingLibrary} from './reading-library';
 import {useReadingMarkAll} from '../read/useReadingMarkAll';
+import {libraryCountText} from '@core/presentation/library-counts.ts';
 
 const t = defaultI18n.t;
 const noSelectionSubscribe = () => () => {};
@@ -293,6 +294,7 @@ function useBoundLibraryFrame({captured, library, search, tabs: offered, musicLo
   const view: ContentView = search.view ?? (search.pivot ? 'browse' : library.defaultView ?? 'discover');
   const musicMixes = useMusicMixes(captured, library.kind === 'music' && view === 'discover');
   const musicRead = useMusicLibrarySummary(captured, library.id, library.kind === 'music' && !musicLookup);
+  const audiobookRead = useMusicLibrarySummary(captured, library.id, library.kind === 'audiobook', 'audiobook');
   const musicSummary = musicLookup?.library ?? musicRead.library, musicLibraries = musicLookup?.libraries ?? musicRead.libraries;
   const pivot = search.pivot ?? requested?.pivot;
   const browse = !!pivot && !search.entityId && !search.category && !search.q && view !== 'discover';
@@ -303,7 +305,8 @@ function useBoundLibraryFrame({captured, library, search, tabs: offered, musicLo
   const gridKey = browse && pivot ? queryKeys.libraryBrowse(library.id, pivot, addressCacheKey(search, defaultSorts)) : undefined;
   const gridSource: BrowseSource = {libraryId: library.id, pivot: pivot ?? '', ...(defaultSorts ? {defaultSorts} : {}),
     ...(search.query ? {predicates: browseConjunction(search.query)} : {}), ...(search.sort ?? defaultSorts ? {sorts: search.sort ?? defaultSorts} : {})};
-  return {context, appearance, width, ...presentation, onlineAttention, agentKey, setAgentFact, tabs, requested, view, musicMixes, musicSummary, musicLibraries, browse, gridKey, gridSource};
+  const audiobookSummary = audiobookRead.library;
+  return {context, appearance, width, ...presentation, onlineAttention, agentKey, setAgentFact, tabs, requested, view, musicMixes, musicSummary, musicLibraries, audiobookSummary, browse, gridKey, gridSource};
 }
 type BoundPresentation = Readonly<{choice?: Readonly<{defaultView: 'grid' | 'list'; view: 'grid' | 'list'}>; setChoice: (choice: Readonly<{defaultView: 'grid' | 'list'; view: 'grid' | 'list'}>) => void; size: 'small' | 'medium' | 'large'; setSize: (size: 'small' | 'medium' | 'large') => void}>;
 function BoundLibrary(props: BoundLibraryProps) {
@@ -339,7 +342,7 @@ function ContextLibrary(props: BoundLibraryProps & {context: ScreenContext; pres
   return resources ? <CommittedLibrary key={resources.id} {...props} frame={frame} resources={resources} href={href}/> : <Skeleton height={320}/>;
 }
 function CommittedLibrary({captured, library, search, readingMarkAll, frame, resources, href}: BoundLibraryProps & {frame: ReturnType<typeof useBoundLibraryFrame>; resources: BrowseLease; href: string}) {
-  const {context, appearance, width, choice, setChoice, size, setSize, onlineAttention, agentKey, tabs, requested, view, musicMixes, musicSummary, musicLibraries, browse} = frame;
+  const {context, appearance, width, choice, setChoice, size, setSize, onlineAttention, agentKey, tabs, requested, view, musicMixes, musicSummary, musicLibraries, audiobookSummary, browse} = frame;
   // The grid for this address's filters and order, from the viewer's cache; the one shown before
   // stays until a new query's first page arrives.
   // A test's or a guarded screen's API may have no raw reader; the grid then reads without one.
@@ -527,11 +530,12 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
     setSaving({libraryId: library.id, pivot: controller.source.pivot, query: query.query ?? null,
       sort: query.sort ?? [], presentation: shownView});
   };
-  const musicCounts = musicSummary?.summary.counts.map(count => ({id: count.kind, role: 'context' as const,
-    text: t(count.atLeast ? 'lib.countAtLeast' : 'lib.count', {count: count.count, pivot: ({album: 'albums', song: 'songs', artist: 'artists'} as Record<string, string>)[count.kind] ?? count.kind})}));
+  const musicCounts = musicSummary?.summary.counts.map(count => ({id: count.kind, role: 'context' as const, text: libraryCountText(count)}));
+  // desktop-listen #books: an Audiobooks library's header carries its counts too ("8 books · 7 authors").
+  const audiobookCounts = audiobookSummary?.summary.counts.map(count => ({id: count.kind, role: 'context' as const, text: libraryCountText(count)}));
   const header = {library: musicSummary ? {...library, name: musicSummary.name, latestArtwork: musicSummary.summary.latestArtwork} : library,
     libraries: musicLibraries?.map(value => ({id: value.id, name: value.name})) ?? libraryChoices, pivot: requested?.id ?? 'discover', tabs: tabs.map(tab => ({value: tab.id, label: t(tab.label)})),
-    wash: readingHeader.wash, counts: library.kind === 'music' ? musicCounts : readingHeader.counts,
+    wash: readingHeader.wash, counts: library.kind === 'music' ? musicCounts : library.kind === 'audiobook' ? audiobookCounts : readingHeader.counts,
     appearance: appearanceBase, preferences: appearance, libraryViewOverride: choice?.defaultView === appearance.libraryView ? choice.view : undefined,
     artwork: context.artwork,
     // A Reading library's ⋯ draws only the rows this surface can really perform: saving the

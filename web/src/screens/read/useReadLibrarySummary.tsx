@@ -4,13 +4,13 @@ import type {FactPart} from '@portico/client-core/kit-model';
 import {readLibrarySummaries, type LibraryPublicationCount} from '@core/library-summary.ts';
 import type {ShellArtwork} from '../../shell/artwork';
 import {ReadLibraryWash} from './ReadLibraryWash';
+import {libraryCountText as countText} from '@core/presentation/library-counts.ts';
 
 const publicationPivot: Readonly<Record<string, string>> = {book: 'books', magazine: 'magazines', newspaper: 'newspapers'};
 /** Each library's own first published count, worded as the drawn library list words it. */
-const kindPivot: Readonly<Record<string, string>> = {movie: 'movies', show: 'shows', artist: 'artists', album: 'albums', song: 'songs', ebook: 'books', comic: 'comics', book: 'books'};
 const libraryCountText = (counts: readonly Readonly<{kind: string; count: number; atLeast: boolean}>[]) => {
   const first = counts.find(row => row.count > 0);
-  return first ? defaultI18n.t(first.atLeast ? 'lib.countAtLeast' : 'lib.count', {count: first.count, pivot: kindPivot[first.kind] ?? first.kind}) : undefined;
+  return first ? countText(first) : undefined;
 };
 
 export type ReadLibrarySummaryRead = Readonly<{
