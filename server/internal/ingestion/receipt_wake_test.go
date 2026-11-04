@@ -40,6 +40,12 @@ func applyReceiptForWake(t *testing.T, f *loopFixture, key acceptedKey, receipt 
 		if f.s.receiptApplied(context.Background(), key, receipt) {
 			return
 		}
+		// A concurrent accepting quantum can ACK and retire the receipt before
+		// this driver reads it. Its exact committed ACK also proves publication;
+		// the no-timer test still requires that quantum to run via the wake.
+		if f.count(`SELECT count(*) FROM inventory_analysis_queue WHERE job_id=? AND object_id=? AND revision=? AND policy_revision=? AND state='done'`, key.job, key.object, key.revision, key.policy) == 1 {
+			return
+		}
 		if _, err := worker.Step(context.Background(), 1); err != nil {
 			t.Fatal(err)
 		}
