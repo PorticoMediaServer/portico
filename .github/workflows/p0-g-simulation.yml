@@ -1,0 +1,33 @@
+name: P0 G governor deterministic simulation
+on:
+  push:
+    branches: ['schema-v1/p0-g-*']
+permissions:
+  contents: read
+jobs:
+  simulation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: research/p0-g/go.mod
+          cache: false
+      - name: Seeded invariant simulation
+        working-directory: research/p0-g
+        env:
+          GOWORK: 'off'
+          SEEDS: '10000'
+          RESULT_JSON: results.json
+        shell: bash
+        run: |
+          set -o pipefail
+          go test -count=1 -v ./... | tee simulation.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p0-g-simulation
+          path: |
+            research/p0-g/results.json
+            research/p0-g/simulation.log
