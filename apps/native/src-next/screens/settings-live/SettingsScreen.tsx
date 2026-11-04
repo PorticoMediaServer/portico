@@ -112,7 +112,9 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
   const compact = theme.platform === 'phone';
   // quality.awayLimit is the owner's own server limit, read from the same
   // settings-configuration document the Streaming page reads. The route decides
-  // who may see it; a refusal or an unreadable answer leaves the rows out.
+  // who may see it; a refusal or an unreadable answer leaves the rows out, and an optional
+  // read never asks for the management PIN (an owner past their management hour opening
+  // their own Quality page: #595's rule, `manageGate: false`).
   // What the television itself reports, read live: HDR from the display's own modes
   // and surround from the audio output's channels. It only fills the drawn choice
   // until the viewer overrides it; it is never written to the device record.
@@ -142,7 +144,7 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
   useEffect(() => {
     if (!managesServer) return;
     let alive = true;
-    void controller.lifetime.request(next => ports.context.api.request<unknown>(routePath('get_settings_configuration'), 'GET', undefined, next))
+    void controller.lifetime.request(next => ports.context.api.request<unknown>(routePath('get_settings_configuration'), 'GET', undefined, next, {manageGate: false}))
       .then(parseSettingsConfiguration).then(configuration => {
         const binding = settingsBinding('streaming.awayQuality');
         const value = binding ? readSettingsBinding(binding, {configuration}) : undefined;
