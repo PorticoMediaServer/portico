@@ -48,7 +48,7 @@ function tvPreferences(remember: boolean) {
     {scope: 'profile-device-class', revision: 1, activeRevision: 1, digest: 'b'.repeat(64), values: {}},
   ], effective: {'search.rememberHistory': remember}, effectiveSource: {'search.rememberHistory': 'profile-server'}, clampedFields: []});
 }
-const art = (id: string) => ({kind: 'item', id, path: `/v1/metadata/item/${id}/art/backdrop?v=${'a'.repeat(64)}&w=1920`});
+const art = (id: string) => ({kind: 'item', id, path: `/v1/metadata/item/${id}/art/backdrop?v=${'a'.repeat(64)}&sd=800x450.49940.${'b'.repeat(16)}&ld=1920x1080.162149.${'c'.repeat(16)}`});
 const searchPage = (url: URL) => ({
   scope: {serverId: 'server', libraryId: '', libraryKind: 'mixed', view: 'search', entityId: '', viewerFence: 'Search-own-fence'}, revision: {catalog: 3, viewer: 7},
   query: {q: url.searchParams.get('q'), group: url.searchParams.get('group') || '', groups: ['movies'], limit: 40, sort: 'relevance', direction: 'desc', libraryIds: [], recorded: false},
