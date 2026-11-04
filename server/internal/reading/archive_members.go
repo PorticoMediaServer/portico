@@ -93,6 +93,13 @@ func safeMember(name string, dir bool, size uint64) bool {
 }
 
 func isImageMember(name string) bool {
+	// macOS resource forks may use image extensions but are never page data.
+	// Apply the same rule to every archive reader, including nested folders.
+	for _, part := range strings.Split(name, "/") {
+		if strings.EqualFold(part, "__MACOSX") || strings.HasPrefix(part, "._") {
+			return false
+		}
+	}
 	lower := strings.ToLower(name)
 	// Only formats the fixed-page renderer actually decodes; a member the image
 	// inspector would reject is never listed as a page.

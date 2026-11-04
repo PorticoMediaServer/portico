@@ -55,8 +55,7 @@ func OpenSequentialComic(ctx context.Context, source SequentialSource) (*Comic, 
 func openComicArchive(ctx context.Context, a *archive) (*Comic, error) {
 	c := &Comic{archive: a}
 	for _, name := range a.order {
-		switch extension(name) {
-		case ".jpg", ".jpeg", ".png", ".webp":
+		if isImageMember(name) {
 			c.Names = append(c.Names, name)
 		}
 	}
