@@ -71,10 +71,7 @@ type Write struct {
 	// conn is set for security fences and durable user writes, which run on a
 	// connection of its own so that synchronous=FULL applies to it and to
 	// nothing else. See beginDurable.
-	conn *sql.Conn
-	// counterConn is the retained SQL owner for every write, including normal
-	// and caller-reserved connections. Only conn needs durable pragma restore.
-	counterConn  *sql.Conn
+	conn         *sql.Conn
 	retire       func()
 	release      func()
 	parent       *carried
@@ -132,14 +129,12 @@ func Begin(ctx context.Context, db *sql.DB, class Class) (*Write, error) {
 	meter := &writeMeter{}
 	ctx = context.WithValue(context.WithValue(ctx, changeKey{}, changes), meterKey{}, meter)
 	var (
-		tx          *sql.Tx
-		conn        *sql.Conn
-		counterConn *sql.Conn
-		retire      func()
+		tx     *sql.Tx
+		conn   *sql.Conn
+		retire func()
 	)
 	if durable, _ := ctx.Value(durableUserKey{}).(bool); class == ClassSecurityFence || durable {
 		conn, tx, err = beginDurable(ctx, writerHandle(db))
-		counterConn = conn
 	} else {
 		var ordinary *sql.Conn
 		ordinary, err = writerHandle(db).Conn(ctx)
@@ -149,7 +144,6 @@ func Begin(ctx context.Context, db *sql.DB, class Class) (*Write, error) {
 				ordinary.Close()
 			} else {
 				retire = func() { ordinary.Close() }
-				counterConn = ordinary
 			}
 		}
 	}
@@ -158,7 +152,7 @@ func Begin(ctx context.Context, db *sql.DB, class Class) (*Write, error) {
 		return nil, err
 	}
 	held := &carried{tx: tx, class: class}
-	w := &Write{changes: changes, tx: tx, conn: conn, counterConn: counterConn, retire: retire, ctx: context.WithValue(ctx, writeKey{}, held), release: release, owned: held, plan: planFor(ctx, class), meter: meter, site: site}
+	w := &Write{changes: changes, tx: tx, conn: conn, retire: retire, ctx: context.WithValue(ctx, writeKey{}, held), release: release, owned: held, plan: planFor(ctx, class), meter: meter, site: site}
 	liveWrites.Store(tx, w)
 	w.changesAtStart = rowChanges(ctx, tx)
 	return w, nil
@@ -224,7 +218,7 @@ func releaseDurable(ctx context.Context, conn *sql.Conn) {
 // background loop in the server. It is one call into an in-process library, and
 // a transaction that cannot answer reports zero, which errs towards notifying.
 func rowChanges(ctx context.Context, tx *sql.Tx) int64 {
-	total, err := transactionTotalChanges(ctx, tx, true)
+	total, err := TotalChanges(ctx, tx)
 	if err != nil {
 		return 0
 	}
@@ -519,14 +513,14 @@ func ExecWrite(ctx context.Context, db *sql.DB, class Class, query string, args 
 	writeCtx := context.WithValue(ctx, changeKey{}, changes)
 	var result sql.Result
 	var before, after int64
-	if before, err = connectionTotalChanges(writeCtx, conn, nil); err == nil {
+	if before, err = connectionTotalChanges(writeCtx, conn); err == nil {
 		// Autocommit has no BeginTx hook to attach this set to the observed
 		// connection. Record this statement's supplied write root.
 		changes.note(query)
 		result, err = conn.ExecContext(writeCtx, query, args...)
 	}
 	if err == nil {
-		if count, countErr := connectionTotalChanges(writeCtx, conn, nil); countErr != nil {
+		if count, countErr := connectionTotalChanges(writeCtx, conn); countErr != nil {
 			// The statement already committed. Conservatively wake subscribers;
 			// running it again could execute a non-idempotent write twice.
 			after, changes = before+1, nil
@@ -662,7 +656,7 @@ func BeginConn(ctx context.Context, conn *sql.Conn, class Class) (*Write, error)
 		return nil, err
 	}
 	held := &carried{tx: tx, class: class}
-	w := &Write{tx: tx, counterConn: conn, changes: changes, ctx: context.WithValue(ctx, writeKey{}, held), owned: held, plan: planFor(ctx, class), meter: meter, site: site}
+	w := &Write{tx: tx, changes: changes, ctx: context.WithValue(ctx, writeKey{}, held), owned: held, plan: planFor(ctx, class), meter: meter, site: site}
 	liveWrites.Store(tx, w)
 	w.changesAtStart = rowChanges(ctx, tx)
 	return w, nil

@@ -3,81 +3,71 @@ package dbwork
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
+	"io"
 )
 
-// TotalChanges reads the connection's cumulative changed-row count, including
-// trigger and foreign-key effects. Active gated writes use the native counter
-// under their connection's SQL lock, without preparing a bookkeeping statement.
-// Other transactions and drivers retain the SQL counter and its error behavior.
-func TotalChanges(ctx context.Context, tx *sql.Tx) (int64, error) {
-	return transactionTotalChanges(ctx, tx, false)
-}
+const totalChangesSQL = `SELECT total_changes()`
 
-func transactionTotalChanges(ctx context.Context, tx *sql.Tx, ending bool) (int64, error) {
+type nativeCounterKey struct{}
+
+// TotalChanges reads the trigger-inclusive counter through the SQL transaction
+// API, so logical completion and outstanding-row locks retain their SQL fence.
+// For tracked writes the observed driver can answer from SQLite's native scalar
+// without dispatching a statement; other transactions keep the SQL path.
+func TotalChanges(ctx context.Context, tx *sql.Tx) (int64, error) {
 	if ctx == nil {
 		ctx = context.Background()
-	}
-	if err := ctx.Err(); err != nil {
-		return 0, err
 	}
 	if tx == nil {
 		return 0, errors.New("dbwork: nil transaction")
 	}
-	if value, ok := liveWrites.Load(tx); ok {
-		w := value.(*Write)
-		w.mu.Lock()
-		conn, active := w.counterConn, !w.done || ending
-		w.mu.Unlock()
-		if active && conn != nil {
-			if total, err := connectionTotalChanges(ctx, conn, w.meter); err == nil {
-				return total, nil
-			}
-			// SQL retains the transaction's own finished/canceled error when a
-			// concurrent retirement made its retained connection unavailable.
-		}
+	if _, tracked := liveWrites.Load(tx); tracked {
+		ctx = context.WithValue(ctx, nativeCounterKey{}, true)
 	}
 	var total int64
-	err := tx.QueryRowContext(ctx, `SELECT total_changes()`).Scan(&total)
+	err := tx.QueryRowContext(ctx, totalChangesSQL).Scan(&total)
 	return total, err
 }
 
-func connectionTotalChanges(ctx context.Context, conn *sql.Conn, meter *writeMeter) (int64, error) {
-	if err := ctx.Err(); err != nil {
-		return 0, err
-	}
+func connectionTotalChanges(ctx context.Context, conn *sql.Conn) (int64, error) {
 	var total int64
-	var known bool
-	if err := conn.Raw(func(inner any) error {
-		// Raw takes database/sql's connection lock, just like a statement.
-		// Reading an unlocked cache could miss an in-flight write and suppress
-		// its commit notification. Never retain a native getter outside Raw.
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		// A canceled or explicitly ended SQL transaction can leave its outer
-		// Write and reserved connection alive. Do not revive it through Raw.
-		if meter != nil && !meter.active {
-			return sql.ErrTxDone
-		}
-		if observed, ok := inner.(*observedConn); ok {
-			inner = observed.inner
-		}
-		if counter, ok := inner.(interface{ TotalChanges() (int64, bool) }); ok {
-			total, known = counter.TotalChanges()
-		}
-		return nil
-	}); err != nil {
-		return 0, err
+	ctx = context.WithValue(ctx, nativeCounterKey{}, true)
+	err := conn.QueryRowContext(ctx, totalChangesSQL).Scan(&total)
+	return total, err
+}
+
+// database/sql holds the same connection lock here as for every driver query.
+// Answering the opt-in bookkeeping request before SQL dispatch avoids a VM and
+// read lease without bypassing the Tx's logical lifetime or its own row locks.
+func nativeCounterResult(ctx context.Context, query string, inner driver.Conn) (driver.Rows, bool, error) {
+	requested, _ := ctx.Value(nativeCounterKey{}).(bool)
+	if !requested || query != totalChangesSQL {
+		return nil, false, nil
 	}
 	if err := ctx.Err(); err != nil {
-		return 0, err
+		return nil, true, err
 	}
-	if known {
-		return total, nil
+	if counter, ok := inner.(interface{ TotalChanges() (int64, bool) }); ok {
+		if total, known := counter.TotalChanges(); known {
+			return &nativeCounterRows{total: total}, true, nil
+		}
 	}
-	// Unsupported drivers keep their existing SQL path. This must be outside
-	// Raw, since SQL needs to acquire that same connection lock.
-	err := conn.QueryRowContext(ctx, `SELECT total_changes()`).Scan(&total)
-	return total, err
+	return nil, false, nil
+}
+
+type nativeCounterRows struct {
+	total int64
+	done  bool
+}
+
+func (*nativeCounterRows) Columns() []string { return []string{"total_changes()"} }
+func (r *nativeCounterRows) Close() error    { r.done = true; return nil }
+func (r *nativeCounterRows) Next(values []driver.Value) error {
+	if r.done {
+		return io.EOF
+	}
+	r.done, values[0] = true, r.total
+	return nil
 }

@@ -477,6 +477,9 @@ func (c *observedConn) ExecContext(ctx context.Context, query string, args []dri
 }
 
 func (c *observedConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	if rows, handled, err := nativeCounterResult(ctx, query, c.inner); handled {
+		return rows, err
+	}
 	_, ok := c.inner.(driver.QueryerContext)
 	if !ok {
 		return nil, driver.ErrSkip

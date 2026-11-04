@@ -11,8 +11,8 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 )
 
-// Hide only the optional native-counter interface. All SQL still goes through
-// the production observed driver, with the same transaction and query contexts.
+// Route counter reads through equivalent observed SQL instead of the
+// exact connection-level native request. Other queries and pool behavior match.
 type sqlCounterParityConn struct{ driver.Conn }
 
 func (c sqlCounterParityConn) BeginTx(ctx context.Context, o driver.TxOptions) (driver.Tx, error) {
@@ -22,6 +22,10 @@ func (c sqlCounterParityConn) ExecContext(ctx context.Context, q string, args []
 	return c.Conn.(driver.ExecerContext).ExecContext(ctx, q, args)
 }
 func (c sqlCounterParityConn) QueryContext(ctx context.Context, q string, args []driver.NamedValue) (driver.Rows, error) {
+	// Equivalent SQL deliberately bypasses the exact opt-in driver request.
+	if q == "SELECT total_changes()" {
+		q += " /* SQL counter oracle */"
+	}
 	return c.Conn.(driver.QueryerContext).QueryContext(ctx, q, args)
 }
 func (c sqlCounterParityConn) PrepareContext(ctx context.Context, q string) (driver.Stmt, error) {
