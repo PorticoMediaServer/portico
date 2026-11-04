@@ -549,7 +549,7 @@ export function SettingsEntry() {
           const libraryId = rowContext.recordId;
           return <RenameLibrary key={libraryId} name={state.value} disabled={state.disabled === true || state.saving === true} rename={name => controller.renameLibrary(libraryId, name)} />;
         }
-        if (row.id === 'libraries.list' && libraries) return <LibrariesPanel api={api} service={libraries} serverName={buildContext.facts.identity.serverName}
+        if (row.id === 'libraries.list' && libraries) return <LibrariesPanel api={api} service={libraries} serverName={buildContext.facts.identity.serverName} artwork={context.artwork}
           onEdit={libraryId => { if (current()) openPanel('library', libraryId); }} onError={reportError} />;
         if (row.id === 'libraries.skipped' && isLibraryPanelContext(rowContext) && rowContext.recordId && libraries)
           return <SkippedFiles libraryId={rowContext.recordId} api={options.api} service={libraries} isCurrent={current} label={defaultI18n.t(row.control.label ?? row.label)} />;
