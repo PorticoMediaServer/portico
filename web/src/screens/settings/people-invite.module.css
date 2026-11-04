@@ -32,3 +32,12 @@
   font-size: var(--type-caption-size);
   color: var(--color-text-tertiary);
 }
+
+/* Add an account (owner-people 6): the first field sits clear of the dialog's lede. */
+.addForm { padding-top: 10px; }
+@media (max-width: 599px) {
+  .addForm { padding: 14px 20px 0; }
+  /* owner-people 25: Cancel at the sheet's top right, Add account the width of the sheet. */
+  .sheetCancel { margin-left: auto; }
+  .sheetConfirm { flex: 1; }
+}

@@ -36,6 +36,7 @@ import {RemoveLibraryButton} from './libraries/RemoveLibrary';
 import {isLibraryPanelContext, libraryScanAction} from './libraries/model';
 import {createServerSettingsSurfaces} from './server';
 import {createTroubleshootingSurfaces} from './server/troubleshooting';
+import {createDirectMember, type NewDirectMember} from '@core/direct-member-create.ts';
 import {MessageOptions} from './server/troubleshooting/MessageOptions';
 import {PlaybackProblems} from './server/troubleshooting/PlaybackProblems';
 import {PlaybackProblemsSource} from './server/troubleshooting/playback-problems-source';
@@ -409,6 +410,8 @@ export function SettingsEntry() {
         }, context.artwork), get serverName() {return buildContext.facts.serverName;}, get libraries() {return buildContext.facts.identity.libraries;}, subscribe: listener => subscribeFacts(buildContext, listener), memberResetCodes,
         actor: {accountId: viewer.accountId, role}, streamLimits: peopleStreamLimits,
         invitations: new SettingsInvitations(api, current, api.baseUrl, viewer.serverId), signIn: identity.signIn, openHome, reportError,
+        // owner-people 6/25: only the owner of a local-sign-in server adds accounts here (the server refuses anyone else).
+        ...(role === 'owner' && identity.signIn === 'local' ? {addAccount: (input: NewDirectMember, signal: AbortSignal) => {assert(); return createDirectMember(api, input, signal);}} : {}),
         // The owner's invite expiry, in whole days on the server and hours in the
         // dialog, read live so a save is used by the next invitation only.
         inviteRole: () => {
