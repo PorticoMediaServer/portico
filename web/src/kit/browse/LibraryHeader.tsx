@@ -3,6 +3,7 @@ import {defaultI18n} from '@i18n';
 import type {FactPart} from '@core/presentation/kit-model';
 import {Button} from '../controls';
 import {Menu, MenuGroup, MenuItem} from '../overlays';
+import {usePhone} from '../overlays/shared';
 import {Icon} from '../Icon';
 import type {BrowsePlatform} from './types';
 import styles from './browse.module.css';
@@ -60,6 +61,9 @@ export function LibraryMenu({owner, read = false, onSaveView, onMarkAll, onEditP
   const [localOpen, setLocalOpen] = useState(false), open = controlledOpen ?? localOpen;
   const setOpen = (next: boolean) => { setLocalOpen(next); onOpenChange?.(next); };
   const act = (callback: () => void) => () => { setOpen(false); callback(); };
+  // One control, two frames' words: desktop-browse names it "Scan library files" / "Manage library"; the phone frames
+  // (phone-app 4c, owner-metadata 18a) open it as "Scan for new files" / "Library settings".
+  const phone = usePhone();
   return <Menu returnFocusRef={triggerRef} presentation="anchored" open={open} onOpenChange={setOpen} title={t('next.browse.libraryOptions')} accessibilityLabel={t('next.browse.libraryOptions')}
     placement="bottom-end" width={282} className={styles.libraryMenu}
     trigger={<Button ref={triggerRef} variant="icon" size="compact" icon="i-more" iconOnly className={styles.libraryMenuTrigger} aria-expanded={open} aria-label={t('next.browse.libraryOptions')}/>}>
@@ -69,8 +73,8 @@ export function LibraryMenu({owner, read = false, onSaveView, onMarkAll, onEditP
     {onCopyLink && <MenuItem icon="i-copy" onSelect={act(onCopyLink)}>{t('next.overlays.copyLink')}</MenuItem>}
     {owner && (onUnmatched || onLibrarySettings || onScan) && <MenuGroup ownerOnly className={styles.ownerGroup} label={<span className={styles.ownerLabel}>{t('next.browse.server')}{ownerMark}</span>}>
       {onUnmatched && <MenuItem icon="i-list" onSelect={act(onUnmatched)}>{t('next.ownerLibraries.tab.attention')}</MenuItem>}
-      {onLibrarySettings && <MenuItem icon="i-cog" onSelect={act(onLibrarySettings)}>{t('next.browse.librarySettings')}</MenuItem>}
-      {onScan && <MenuItem icon="i-reload" onSelect={act(onScan)}>{t('next.browse.scan')}</MenuItem>}
+      {onLibrarySettings && <MenuItem icon="i-cog" onSelect={act(onLibrarySettings)}>{t(phone ? 'next.browse.librarySettings' : 'web.library.manage')}</MenuItem>}
+      {onScan && <MenuItem icon="i-reload" onSelect={act(onScan)}>{t(phone ? 'next.browse.scan' : 'web.library.scan')}</MenuItem>}
     </MenuGroup>}
   </Menu>;
 }
