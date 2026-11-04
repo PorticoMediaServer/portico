@@ -1,5 +1,5 @@
 import {headerWordmark} from '../kit/shell/brand';
-import React from 'react';
+import React, {useSyncExternalStore} from 'react';
 import {Image, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../packages/i18n/src';
@@ -12,9 +12,11 @@ import {BlurView} from '../platform/native-blur';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {phoneHeaderGeometry} from './model';
 import type {NativeShellSnapshot} from './runtime';
+import {ActivityGlyph, activityGlyphLabel} from './ActivityGlyph';
+import type {NativeOwnerActivity} from './owner-activity';
 
-export function PhoneHomeHeader({profile, unread, avatarRef, onProfile, viewerRole, serverAction, castControl, scrolled = false}: {
-  profile: ProfileOption; unread: boolean; avatarRef: React.RefObject<View | null>; onProfile: () => void; castControl?: React.ReactNode; scrolled?: boolean;
+export function PhoneHomeHeader({profile, unread, avatarRef, onProfile, viewerRole, serverAction, castControl, activity, scrolled = false}: {
+  profile: ProfileOption; unread: boolean; avatarRef: React.RefObject<View | null>; onProfile: () => void; castControl?: React.ReactNode; scrolled?: boolean; activity?: NativeOwnerActivity;
   viewerRole: NativeShellSnapshot['account']['viewerRole']; serverAction?: NativeShellSnapshot['account']['serverAction'];
 }) {
   const theme = useTheme(), insets = useSafeAreaInsets();
@@ -26,10 +28,18 @@ export function PhoneHomeHeader({profile, unread, avatarRef, onProfile, viewerRo
     {scrolled && <BlurView pointerEvents="none" style={{position: 'absolute', inset: 0}} blurType="dark" blurAmount={24} reducedTransparencyFallbackColor={theme.colors.ink}/>}
     <Image accessible accessibilityLabel={defaultI18n.t('next.platform.appName')} source={require('../../assets/wordmark.png')} resizeMode="contain" style={{...headerWordmark.phone, flexShrink: 0}}/>
     <View style={{marginLeft: 'auto', flexDirection: 'row', gap: 16, alignItems: 'center'}}>{castControl}
-      {viewerRole === 'owner' && serverAction && <Focusable accessibilityRole="button" accessibilityLabel={defaultI18n.t('next.shell.activity')} onPress={serverAction.onPress} focusRadius={20}
+      {viewerRole === 'owner' && serverAction && (activity ? <ActivityButton activity={activity} onPress={serverAction.onPress}/> : <Focusable accessibilityRole="button" accessibilityLabel={defaultI18n.t('next.shell.activity')} onPress={serverAction.onPress} focusRadius={20}
         style={{width: 40, height: 40, borderRadius: 20}}>
         {({hovered}) => <View style={{width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: hovered ? `${theme.colors.text}1A` : 'transparent'}}><Icon name="i-activity" size={22} color={hovered ? theme.colors.text : theme.colors.textSecondary}/></View>}
-      </Focusable>}
+      </Focusable>)}
       <ProfileAvatar ref={avatarRef} profile={profile} size={30} unread={unread} accessibilityLabel={defaultI18n.t('next.shell.settings')} onPress={onProfile}/></View>
   </View>;
+}
+
+/** One tap opens the Dashboard (owner-dashboard 1a: no popover on a phone; the page is the summary). */
+function ActivityButton({activity, onPress}: {activity: NativeOwnerActivity; onPress: () => void}) {
+  const label = useSyncExternalStore(activity.subscribe, () => activityGlyphLabel(activity));
+  return <Focusable testID="phone-home-activity" accessibilityRole="button" accessibilityLabel={label} onPress={onPress} focusRadius={20} style={{minWidth: 40, height: 40, borderRadius: 20}}>
+    {({hovered}) => <ActivityGlyph activity={activity} hovered={hovered}/>}
+  </Focusable>;
 }

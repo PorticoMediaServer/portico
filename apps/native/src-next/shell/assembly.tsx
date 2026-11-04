@@ -24,6 +24,7 @@ import {OwnerTag} from '../kit/shell';
 import {HomeSelectionBars} from './HomeSelectionBars';
 import {HomeSelectionOverlays} from './HomeSelectionOverlays';
 import {nativeAccountMenu, nativeAccountOpenTransition, nativeMenuRouteAvailable} from './account';
+import {createNativeOwnerActivity} from './owner-activity';
 import {libraryScanReadiness} from './library-scan';
 import {NativeDownloadSheet} from '../screens/downloads/DownloadSheet';
 import {createNativeHomeSelectionAction, nativeSelectionActionInput, type NativeHomeQueryActions, type NativeSelectionActionPresentation} from '../screens/library/selection-actions';
@@ -312,6 +313,8 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
   };
   const scopeForServices = {serverId: scope.serverId, viewerId: JSON.stringify([scope.authority, scope.accountId, scope.profileId])};
   const management = context.account.account.role === 'owner' ? new LibraryManagementService({api: context.api, scope: scopeForServices, queries: viewerQueriesFor(context.api, {serverId: scope.serverId})}) : undefined;
+  // owner-dashboard 1a: the glyph beside the avatar (phone) and the rail's activity button (tablet) read the owner's summary.
+  const ownerActivity = createNativeOwnerActivity(context, Platform.isTV);
   const cleanups = [context.home.subscribe(onDocument), controller.subscribe(() => {if (capturedMenu?.menu !== controller.getSnapshot().menu) capturedMenu = undefined; publish();}), context.navigation.subscribe(() => {
     closeQueryAction(); controller.clear();
     if (!currentHome()) homeTopPending = false;
@@ -533,6 +536,7 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
     renderDownloads: () => <NativeDownloadSheet context={context}/>,
     openServers: nativeMenuRouteAvailable({kind: 'servers'}) ? initialPanel => open({kind: 'servers', ...(initialPanel ? {initialPanel} : {})}) : undefined,
     connectionFacts: {serverName: context.serverName, connectionAddress: nativeServerHost(context.api.baseUrl)},
+    ownerActivity,
     libraryMenu: library => {
       homeActionDiagnostics.libraryMenu('producer', runtime);
       const common = {read: isReadingLibraryKind(library.kind),
@@ -568,6 +572,6 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
     mixes,
     musicDiscover: musicNavigation.open,
     onArtworkError: error => reportError(error, 'artwork-error'),
-    dispose: () => {if (!alive) return; closeQueryAction(); queryListeners.clear(); alive = false; pendingChanges?.dispose(); capturedMenu = undefined; listeningPlaylist?.dispose(); listeningQueuePolicy?.dispose(); listeningSongDetail?.dispose(); musicNavigation.dispose(); mixesLife.abort(); mixes.dispose(); routes.dispose(); for (const operation of operations) operation.abort(); operations.clear(); for (const cleanup of cleanups) cleanup(); for (const member of members.values()) member.cleanup(); members.clear(); for (const window of windows.values()) window.cleanup?.(); for (const spotlight of spotlights.values()) spotlight.cleanup(); windows.clear(); spotlights.clear(); controller.dispose(); management?.dispose(); scroll.clear(); tvPageBack.clear(); runtime = undefined; listeners.clear();},
+    dispose: () => {if (!alive) return; closeQueryAction(); queryListeners.clear(); alive = false; pendingChanges?.dispose(); capturedMenu = undefined; listeningPlaylist?.dispose(); listeningQueuePolicy?.dispose(); listeningSongDetail?.dispose(); musicNavigation.dispose(); mixesLife.abort(); mixes.dispose(); routes.dispose(); for (const operation of operations) operation.abort(); operations.clear(); for (const cleanup of cleanups) cleanup(); for (const member of members.values()) member.cleanup(); members.clear(); for (const window of windows.values()) window.cleanup?.(); for (const spotlight of spotlights.values()) spotlight.cleanup(); windows.clear(); spotlights.clear(); controller.dispose(); management?.dispose(); ownerActivity?.dispose(); scroll.clear(); tvPageBack.clear(); runtime = undefined; listeners.clear();},
   };
 }

@@ -1,3 +1,4 @@
+import type {NativeOwnerActivity} from './owner-activity';
 import type {ReactNode, RefObject} from 'react';
 import type {View} from 'react-native';
 import type {Library} from '../../../../packages/client-core/src/index';
@@ -181,5 +182,7 @@ export interface NativeShellRuntime {
   skipForwardSeconds?: number;
   /** Only installed when a real device destination control exists. */
   castControl?: ReactNode;
+  /** The owner's server activity (owner-dashboard 1a), on a phone or tablet only; absent for everyone else. */
+  ownerActivity?: NativeOwnerActivity;
   desktopActivity?: ReactNode;
 }

@@ -289,7 +289,7 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   // On TV the page is covered whenever another layer is on top (the stack's one answer).
   const baseHidden = theme.isTV ? topLayer !== 'page' : snapshot.contentVisible === false || !!snapshot.mediaExpanded;
   const homePage = (active: boolean, obscured: boolean) => <HomeScreen runtime={runtime} authority={snapshot.authority} active={active} heroObscured={obscured} railExpanded={railExpanded} bottomInset={homeBottom} onScrolledChange={setHomeScrolled} holdRailDim={holdRailDim} releaseRailDim={releaseRailDim}/>;
-  const phoneHomeHeader = <PhoneHomeHeader profile={snapshot.profile} unread={snapshot.unreadNotifications} avatarRef={avatarRef} onProfile={() => navigate({kind: 'settings'})} viewerRole={snapshot.account.viewerRole} serverAction={snapshot.account.serverAction} castControl={runtime.castControl} scrolled={homeScrolled}/>;
+  const phoneHomeHeader = <PhoneHomeHeader profile={snapshot.profile} unread={snapshot.unreadNotifications} avatarRef={avatarRef} onProfile={() => navigate({kind: 'settings'})} viewerRole={snapshot.account.viewerRole} serverAction={snapshot.account.serverAction} castControl={runtime.castControl} activity={runtime.ownerActivity} scrolled={homeScrolled}/>;
   /** One shell destination inside its stack screen: a tab's first screen, a library opened
    * from Libraries, or Settings (the modal stack's transparent root over the live page). */
   const renderShellPage = ({presentation, top, tabActive, modal}: NativeStackPage) => {
@@ -331,7 +331,7 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
       onProfile={() => setAccountOpen(true)} profileRef={avatarRef} onExpandedChange={expanded}/>
       : <>
         {sideNavigation && (!!stacks || snapshot.contentVisible !== false) && <MediumRail expanded={layout.kind === 'desktop' && sidebarOpen} onToggle={layout.kind === 'desktop' && !railHeld ? toggleSidebar : undefined} brand={layout.kind === 'desktop' && railHeld} serverName={snapshot.serverName} libraries={snapshot.libraries} hasLiveTV={snapshot.hasLiveTV} destination={railDestination} profile={snapshot.profile} unread={snapshot.unreadNotifications}
-          serverAction={snapshot.account.serverAction && {id: snapshot.account.serverAction.id, label: snapshot.account.serverAction.label, onPress: snapshot.account.serverAction.onPress}}
+          serverAction={snapshot.account.serverAction && {id: snapshot.account.serverAction.id, label: snapshot.account.serverAction.label, onPress: snapshot.account.serverAction.onPress}} activity={runtime.ownerActivity}
           notificationAction={notifications && {label: notifications.label, onPress: notifications.onPress}}
           profileRef={avatarRef} short={dimensions.height - insets.top - insets.bottom < 800}
           onNavigate={next => {
@@ -340,7 +340,7 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
             else if (next.kind === 'library') openLibrary(next.libraryId); else navigate(next, next.kind !== 'libraries');
           }}
           onProfile={() => setAccountOpen(true)}/>}
-        {!stacks && destination.kind === 'home' && layout.kind === 'phone' && <PhoneHomeHeader profile={snapshot.profile} unread={snapshot.unreadNotifications} avatarRef={avatarRef} onProfile={() => navigate({kind: 'settings'})} viewerRole={snapshot.account.viewerRole} serverAction={snapshot.account.serverAction} castControl={runtime.castControl} scrolled={homeScrolled}/>}
+        {!stacks && destination.kind === 'home' && layout.kind === 'phone' && <PhoneHomeHeader profile={snapshot.profile} unread={snapshot.unreadNotifications} avatarRef={avatarRef} onProfile={() => navigate({kind: 'settings'})} viewerRole={snapshot.account.viewerRole} serverAction={snapshot.account.serverAction} castControl={runtime.castControl} activity={runtime.ownerActivity} scrolled={homeScrolled}/>}
         {layout.tabs && <Animated.View pointerEvents={snapshot.mediaExpanded ? 'none' : 'box-none'} accessibilityElementsHidden={snapshot.mediaExpanded}
           importantForAccessibility={snapshot.mediaExpanded ? 'no-hide-descendants' : 'auto'} onLayout={event => listeningTabBar.measure(event.nativeEvent.layout.height)}
           style={[{position: 'absolute', left: 0, right: 0, bottom: 0, height: barHeight, zIndex: theme.layers.sticky}, listeningTabBar.style]}>
