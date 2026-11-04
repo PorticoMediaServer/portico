@@ -39,6 +39,7 @@ var (
 )
 
 func redactClientLog(body string) string {
+	body = providerLogURL.ReplaceAllStringFunc(body, redactProviderURL)
 	body = secretHeader.ReplaceAllString(body, "${1}[REDACTED]")
 	body = bearerSecret.ReplaceAllString(body, "Bearer [REDACTED]")
 	body = namedSecret.ReplaceAllStringFunc(body, func(match string) string {
