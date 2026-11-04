@@ -8,7 +8,7 @@ import subprocess
 root = Path.cwd()
 out = root / 'evidence'
 out.mkdir()
-code = 'a65cd0816608484b43539c64443b4ef3757b52c2'
+code = 'd2677056271e2935c922f5eb77bef572abb2e09f'
 subprocess.run(['git', 'diff', '--exit-code', code, '--', 'server', 'apikit'], check=True)
 (out / 'source-sha.txt').write_text(code + '\n')
 (out / 'workflow-sha.txt').write_bytes(subprocess.check_output(['git', 'rev-parse', 'HEAD']))
@@ -52,7 +52,7 @@ def run(label, package, parents, count, expected, replace=None):
         assert terminals == [expected] * count, (label, parent, terminals)
     assert (result.returncode == 0) == (expected == 'pass'), (label, result.returncode)
 
-storage = ['TestRetainedProducerHonorsEachContinuationBudget', 'TestRetainedProducerRejectsOverBudgetRawNames']
+storage = ['TestRetainedProducerHonorsEachContinuationBudget', 'TestRetainedProducerRejectsOverBudgetRawNames', 'TestRetainedProducerUsesUnusedCreditToProveSmallDirectoryEOF']
 owners = ['TestPortableScanCancellationRetiresItsRegisteredProducer']
 http = ['TestReadingCompleteMultiPageScanAllowsRealHTTPSignIn', 'TestReadingDiscoverOperationStrictAndBounded', 'TestReadingEPUBOversizedMemberRefusedAtOpen', 'TestReadingInitialFacetRetryBacksOffAfterFirstPoll', 'TestReadingOpenSurvivesAFailedFactAdoption', 'TestReadingPrivatePathMovedFolderWithdrawsOldAttribution', 'TestReadingPrivatePathPublicationCoversEveryCandidate', 'TestRestrictedProfileWriteRouteMatrix']
 for phase, replacements in [('before', before), ('fixed', {})]:
