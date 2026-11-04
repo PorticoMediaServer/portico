@@ -16,8 +16,11 @@ test('A19: on a window shorter than 960px the sort rows tighten so the whole men
 
 test('A20: a filter with several values reads as it means them in the empty sentence', () => {
   const empty = read('../src/screens/browse/FilteredEmpty.tsx');
-  assert.match(empty, /defaultI18n\.list\(items, node\.operator === 'contains-all' \? 'and' : 'or'\)/);
-  assert.equal(defaultI18n.list(['documentary', 'animation'], 'or'), 'documentary or animation');
+  assert.match(empty, /node\.operator === 'between' && items\.length === 2 \? t\('next\.browse\.emptyRange', \{start: items\[0\]!, end: items\[1\]!\}\)/);
+  assert.match(empty, /: node\.operator === 'contains-all' \? defaultI18n\.list\(items, 'and'\)/);
+  assert.match(empty, /: node\.operator === 'not-in' \|\| node\.operator === 'not-equals' \? t\('next\.browse\.emptyNot', \{values: defaultI18n\.list\(items, 'or'\)\}\)/);
+  assert.equal(defaultI18n.t('next.browse.emptyRange', {start: '1990', end: '2000'}), '1990–2000');
+  assert.equal(defaultI18n.t('next.browse.emptyNot', {values: defaultI18n.list(['documentary', 'animation'], 'or')}), 'not documentary or animation');
 });
 
 test('A7: a search section counts the cards on its line against the total ("7 of 42")', () => {
@@ -29,5 +32,9 @@ test('A11: Music\'s Discover header offers Shuffle all beside the ⋯, a shuffle
   assert.match(route, /library\.kind === 'music' && playRuntime \? <Button variant="glass" size="small" icon="i-shuffle"/);
   assert.match(route, /playRuntime\.playFromQueue\(\{query: \{libraryId: library\.id, pivot: 'songs'\}\}, \{signal: resources\.life\.signal\(\), isCurrent: [^}]*\}, \{shuffle: true\}\)/);
   assert.match(route, /header=\{<LibraryIdentity \{\.\.\.header\} action=\{shuffleAll\}\/>\}/);
+  // Wide headers only: the phone's compact header keeps just the ⋯ (phone-web 6, phone-app).
+  const library = read('../src/screens/browse/Library.tsx');
+  assert.match(library, /<StickyBrowseHeader name=\{library\.name\} switcher=\{switcher\} menu=\{libraryMenu\}/);
+  assert.match(library, /<LibraryHeader name=\{library\.name\} counts=\{counts\} switcher=\{switcher\} menu=\{menu\}/);
   assert.equal(defaultI18n.t('next.browse.shuffleAll'), 'Shuffle all');
 });
