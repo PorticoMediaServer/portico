@@ -1,8 +1,11 @@
-import React, {useEffect, useState, useSyncExternalStore} from 'react';
+import React, {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {StandardBackdrop} from '../../kit/artwork';
-import {StateView} from '../../kit/states';
+import {FocusRegion, presentTVLayer, useFocusRegistry} from '../../kit/focus';
+import {registerBack} from '../../kit/navigation/back';
+import {TVDesignCanvas} from '../../kit/overlays/TVDesignCanvas';
+import {StateLayout, StateView} from '../../kit/states';
 import {useTheme} from '../../kit/theme';
 import {nativeContentLinks} from '../../platform/content-links';
 import type {RestoredNativeShellRuntime} from '../../shell/bootstrap';
@@ -10,8 +13,9 @@ import {openContentLink} from './share-open';
 
 /** N5-1: a `portico://item|play` link (Top Shelf, the Android TV home screen, Siri, Spotlight,
  * Handoff), once this server's shell is ready. It opens the title over Home, `play` resumes it,
- * and a title this viewer can't open says so, with a way Home (phones and tablets; on TV it
- * lands on Home). Phones, tablets and TVs all open and play.
+ * and a title this viewer can't open says so, with a way Home. On TV that page is a full-screen
+ * layer in the TV layer stack: it covers the shell, takes focus on Home, and Home or Back returns
+ * focus to where it was. Phones, tablets and TVs all open and play.
  * N2-1: the account, Watch Together, downloads and old-invitation app links open their page over
  * Home the same way; an old invitation says to ask for a new one. */
 export function NativeContentLinks({runtime, online}: {runtime: RestoredNativeShellRuntime; online: boolean}) {
@@ -36,18 +40,31 @@ export function NativeContentLinks({runtime, online}: {runtime: RestoredNativeSh
       error => {if (current()) runtime.reportError?.(error);});
     return () => {live = false; abort.abort();};
   }, [link, runtime, online, tv]);
-  // TV: a refused link lands on Home without this page. A full-screen state over the shell
-  // needs a covering layer to own focus, which waits for the TV layer stack (TV-FOCUS-REVIEW
-  // step 2); drawing it now would leave focus on the Home underneath.
-  if (!unavailable || theme.isTV) return null;
+  if (!unavailable) return null;
   const [title, body] = unavailable === 'offline' ? ['next.states.linkServerOffline', 'next.states.linkServerOfflineBody'] as const
     : unavailable === 'old-invite' ? ['next.states.linkOldInvite', 'next.states.linkOldInviteBody'] as const
       : ['next.states.linkNoAccess', 'next.states.linkNoAccessBody'] as const;
+  if (tv) return <TVContentLinkUnavailable title={defaultI18n.t(title)} body={defaultI18n.t(body)} onHome={() => setUnavailable(undefined)}/>;
   return <View testID="content-link-unavailable" style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}}>
     <StandardBackdrop/>
     <View style={{flex: 1, justifyContent: 'center'}}>
       <StateView variant="centered" title={defaultI18n.t(title)} body={defaultI18n.t(body)}
         primaryAction={{id: 'home', label: defaultI18n.t('web.shell.home'), onPress: () => setUnavailable(undefined)}}/>
     </View>
+  </View>;
+}
+
+const TV_LINK_REGION = 'content-link-unavailable';
+/** The TV page for a refused link: a presented layer over the whole shell (the stack covers the page, routes and
+ * rail under it), focus on Home, and Back does the same as Home. */
+export function TVContentLinkUnavailable({title, body, onHome}: {title: string; body: string; onHome: () => void}) {
+  const registry = useFocusRegistry(), home = useRef(onHome); home.current = onHome;
+  useLayoutEffect(() => presentTVLayer(TV_LINK_REGION, () => registry.focusRegion(TV_LINK_REGION)), [registry]);
+  useLayoutEffect(() => registerBack(() => {home.current(); return true;}, {scope: 'overlay'}), []);
+  // Drawn beside the shell's scaled page, so it scales into the TV design canvas itself.
+  return <View testID="content-link-unavailable" style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}}>
+    <TVDesignCanvas><FocusRegion id={TV_LINK_REGION} entry="home" hold style={{flex: 1}}>
+      <StateLayout title={title} body={body} primaryAction={{id: 'home', label: defaultI18n.t('web.shell.home'), onPress: () => home.current()}}/>
+    </FocusRegion></TVDesignCanvas>
   </View>;
 }
