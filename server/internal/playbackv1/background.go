@@ -18,8 +18,14 @@ type backgroundWorkers struct {
 	done       chan struct{}
 	active     int
 	closed     bool
-	retireOnce sync.Once
-	retired    chan struct{}
+	retirement *backgroundRetirement
+}
+
+// One attempt owns all physical retirement. A failed final flush may be retried
+// only after that attempt has physically finished; concurrent callers join it.
+type backgroundRetirement struct {
+	done chan struct{}
+	err  error // published by closing done
 }
 
 func (s *Service) beginBackground() (context.Context, func(), bool) {
@@ -77,16 +83,33 @@ func (s *Service) stopBackground() <-chan struct{} {
 // A deadline reports an incomplete join; it does not pretend a stuck worker ended.
 func (s *Service) Shutdown(ctx context.Context) error {
 	done := s.stopBackground()
+	observationsDone := s.stopObservations()
 	b := &s.background
 	b.mu.Lock()
-	if b.retired == nil {
-		b.retired = make(chan struct{})
+	attempt := b.retirement
+	start := attempt == nil
+	if attempt != nil {
+		select {
+		case <-attempt.done:
+			start = attempt.err != nil
+		default:
+		}
 	}
-	retired := b.retired
+	if start {
+		attempt = &backgroundRetirement{done: make(chan struct{})}
+		b.retirement = attempt
+	}
 	b.mu.Unlock()
-	b.retireOnce.Do(func() {
+	if start {
 		supervise.Go("playback.background-retirement", func() {
-			defer close(retired)
+			defer close(attempt.done)
+			// Context cancellation may mark a SQL Tx done before the driver rollback
+			// returns. Joining the observation worker and flush stays inside this task,
+			// so no caller can outwait its deadline while physical cleanup continues.
+			if observationsDone != nil {
+				<-observationsDone
+			}
+			attempt.err = s.FlushObservations(ctx)
 			<-done
 			s.build.mu.Lock()
 			captures := s.build.captures
@@ -96,13 +119,12 @@ func (s *Service) Shutdown(ctx context.Context) error {
 				capture.close()
 			}
 		})
-	})
-	observationsErr := s.CloseObservations(ctx)
+	}
 	select {
-	case <-retired:
-		return errors.Join(observationsErr, ctx.Err())
+	case <-attempt.done:
+		return errors.Join(attempt.err, ctx.Err())
 	case <-ctx.Done():
-		return errors.Join(observationsErr, ctx.Err())
+		return ctx.Err()
 	}
 }
 
