@@ -8,6 +8,7 @@ import {NativeCapabilityRows} from './NativeCapabilityRows';
 import {NativeFrameRateRow, nativeFrameRateFocusId} from './NativeFrameRateRow';
 import {NativePassthroughRow, nativePassthroughFocusId} from './NativePassthroughRow';
 import {NativeLossNoticesRow, nativeLossNoticesFocusId} from './NativeLossNoticesRow';
+import {NativeServerOfflineNoticeRow} from './NativeServerOfflineNoticeRow';
 import {NativeSafeModeRow, nativeSafeModeAvailable, nativeSafeModeFocusId} from './NativeSafeModeRow';
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {AppState, Dimensions, NativeModules, Platform, ScrollView, StatusBar, Text, View} from 'react-native';
@@ -713,6 +714,8 @@ function SettingsPageBody({page, ports, controller, runtime, devicePreferences, 
               : control.type === 'languages' ? <LanguageList testID={id} label={t(row.label)} value={(Array.isArray(value) ? value : []).map(id => ({id, label: languageName(id, key => defaultI18n.has(key) ? t(key as Parameters<typeof t>[0]) : undefined)}))} available={COMMON_LANGUAGES.map(id => ({id, label: languageName(id, key => defaultI18n.has(key) ? t(key as Parameters<typeof t>[0]) : undefined)}))} limit={MAX_LANGUAGES} onChange={next => change(row, next.map(value => value.id))}/>
                 : <Select testID={id} accessibilityLabel={t(row.label)} value={String(value)} options={localeChoices(defaultI18n, String(value)).map(choice => ({value: choice.id, label: choice.label}))} onValueChange={next => change(row, next)} disabled={state.busy}/>}/>;
       })}
+      {/* PX-05 sits under the Notification dot; the shared structure stays web's (Portico Account only). */}
+      {!theme.isTV && page.id === 'profile' && section.id === 'notifications' && <NativeServerOfflineNoticeRow context={ports.context} runtime={runtime} lifetime={controller.lifetime}/>}
       {section.id === 'limits' && awayLimitLabel ? <>
         <SettingsRow testID="settings-away-limit" label={t('next.settingsSpec.account.quality.groups.0.rows.3.label')} description={t('next.settingsSpec.account.quality.groups.0.rows.3.help')} value={awayLimitLabel}/>
         {!theme.isTV && <SettingsRow testID="settings-away-limit-change" label={t('next.settingsSpec.account.quality.groups.0.rows.3.children.0.label')} onPress={onStreaming}/>}
