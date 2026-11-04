@@ -49,7 +49,8 @@ func holdError(ctx context.Context, err error) error {
 // holdBlobs records the running backup's hold. It runs before the first
 // database step: under hard WAL pressure it waits like any writer, so copying
 // never starts without the hold.
-func (s *Service) holdBlobs(ctx context.Context, limits copyLimits, backupID, scratch string) error {
+func (s *Service) holdBlobs(ctx context.Context, limits copyLimits, backupID, scratch string) (retErr error) {
+	defer redBackupPhase(ctx, s.db, "hold")(&retErr)
 	wait, cancel := holdWait(ctx, limits)
 	defer cancel()
 	_, err := dbwork.ExecWrite(wait, s.db, limits.class,
@@ -60,7 +61,8 @@ func (s *Service) holdBlobs(ctx context.Context, limits copyLimits, backupID, sc
 }
 
 // advanceHold moves the hold to the backup's next phase.
-func (s *Service) advanceHold(ctx context.Context, limits copyLimits, backupID, state string) error {
+func (s *Service) advanceHold(ctx context.Context, limits copyLimits, backupID, state string) (retErr error) {
+	defer redBackupPhase(ctx, s.db, "advance-"+state)(&retErr)
 	wait, cancel := holdWait(ctx, limits)
 	defer cancel()
 	wait = dbwork.WithPlan(wait, dbwork.WritePlan{Name: dbwork.BackupHoldPhasePlanName, Rows: 1, Pages: 4, VMOps: 250_000, Why: "one singleton state update; no indexed state column, foreign-key action or trigger"})
