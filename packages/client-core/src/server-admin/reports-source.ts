@@ -31,7 +31,10 @@ export class SettingsReportsSource {
   private readonly transport: ReportTransport;
   private recordsGeneration = 0;
   private removing?: object;
-  constructor(transport: ReportTransport, private readonly serverId: string, viewerId: string, private readonly isCurrent: () => boolean, private readonly reportError: (error: unknown) => void = () => {}) {
+  /** `sections` names what this viewer's tier may read: the app logs with the server's records, and the stuck
+   *  files. A section left out is never requested, so a tier is never sent a read the server refuses. */
+  constructor(transport: ReportTransport, private readonly serverId: string, viewerId: string, private readonly isCurrent: () => boolean, private readonly reportError: (error: unknown) => void = () => {},
+    private readonly sections: Readonly<{reports: boolean; stuckFiles: boolean}> = {reports: true, stuckFiles: true}) {
     const api = transport as ConsoleAPI;
     this.transport = {request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => this.request(signal, current => api.request<T>(path, method, body, current))};
     this.console = new ConsoleClient({request: this.transport.request, requestConsole: <T>(path: string, method: string, body: unknown, signal: AbortSignal) => this.request(signal, current => api.requestConsole ? api.requestConsole<T>(path, method, body, current) : api.request<T>(path, method, body, current))}, {serverId, viewerId});
@@ -66,13 +69,14 @@ export class SettingsReportsSource {
       if (!this.current()) return;
       this.publish({...this.state, phase: 'loading'});
       try {
+        const {reports, stuckFiles} = this.sections;
         const [page, setAside, records] = await Promise.all([
-          listClientReports(this.transport, this.serverId, '', this.signal()),
-          readCatalogueFailures(this.transport, this.signal()).catch(() => undefined),
-          this.console.records('runtime').catch(() => undefined),
+          reports ? listClientReports(this.transport, this.serverId, '', this.signal()) : undefined,
+          stuckFiles ? readCatalogueFailures(this.transport, this.signal()).catch(() => undefined) : undefined,
+          reports ? this.console.records('runtime').catch(() => undefined) : undefined,
         ]);
         if (!this.current()) return;
-        this.publish({...this.state, phase: 'ready', reports: page.items, ...(page.nextCursor ? {next: page.nextCursor} : {}), ...(setAside ? {setAside} : {}),
+        this.publish({...this.state, phase: 'ready', reports: page?.items ?? [], ...(page?.nextCursor ? {next: page.nextCursor} : {}), ...(setAside ? {setAside} : {}),
           ...(records && recordsGeneration === this.recordsGeneration ? {records: {lane: 'runtime' as const, items: records.items, ...(records.nextCursor ? {next: records.nextCursor} : {})}} : {})});
       } catch {if (this.current() && !this.lifetime.signal.aborted) this.publish({...this.state, phase: 'error'});}
       finally {this.reading = undefined;}
