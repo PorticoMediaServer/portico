@@ -49,6 +49,17 @@ export function unreadableEpubMember(path: string, mime: string, text: string): 
   return new Blob([], {type: mime});
 }
 
+const isSvg = (path: string, mime: string) => mime === 'image/svg+xml' || /\.svg$/i.test(path);
+/** The text foliate's `loadText` gets for an EPUB member the server rejected as content: the
+ * placeholder section for markup, an empty SVG for an SVG image (foliate would otherwise make
+ * `src` the text "null" and draw the broken-image glyph), and nothing (`null`) otherwise. */
+export function unreadableEpubText(path: string, mime: string, text: string): string | null {
+  if (isMarkup(path, mime)) return unreadableSectionXhtml(text);
+  if (isSvg(path, mime)) return EMPTY_SVG;
+  return null;
+}
+const EMPTY_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>';
+
 /** The sections of one open EPUB that are placeholders. Their words are the reader's, not
  * the book's: never a search hit, never selectable or highlighted, and a Contents
  * `#fragment` inside one opens at the placeholder's start. */
