@@ -8,7 +8,7 @@ import type {BrowseSelectionContext, SelectionOperation, SelectionKind} from '@c
 import {BulkEditor, MixedEditExplainer, type BulkEditorDraft, type SelectionItemDisplay} from '../../kit/selection';
 import {Dialog} from '../../kit/overlays';
 import {Button} from '../../kit/controls';
-import {OwnerTag} from '../../kit/shell';
+import {OwnerEditorTag} from '../../kit/selection/OwnerEditorTag';
 import {editorResultView, editorUiDraft, editorValues} from '../../shell/selection-presentation';
 import {createSelectionEditor, type SelectionEditorOptions} from './selection-editor';
 
@@ -71,5 +71,5 @@ export function SelectionEditorSurface({session, options, onKeepOnly, onClose}: 
     selection={{count: preview.total, kind}} schema={preview.schema} singleItemFields={preview.singleItemFields} values={editorValues(preview)}
     draft={draft} onDraftChange={value => {if (!busy && !error && !receipts.length) setDraft(value);}} onSave={value => {void save(value);}}
     onRetry={ids => {void retry(ids);}} targets={targets} result={editorResultView(receipts)} busy={busy}
-    error={error ? defaultI18n.t('next.selection.editorUncertain') : undefined} ownerTag={<OwnerTag/>}/>;
+    error={error ? defaultI18n.t('next.selection.editorUncertain') : undefined} ownerTag={<OwnerEditorTag/>}/>;
 }

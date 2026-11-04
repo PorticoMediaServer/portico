@@ -9,6 +9,10 @@ const t = defaultI18n.t;
 /** desktop-search Notifications. Counts/audiences are genuine inbox facts;
  * the renderer does not synthesize a Server badge or a notification subject. */
 /** `footer` closes the panel (the bell's See all); `pages` false is the bell's panel: no Load more (See all opens the page). */
+/** An empty or failed inbox, inset like the header and tabs above it (desktop-search Notifications). */
+export function NotificationsPanelState({children}: {children: ReactNode}) {
+  return <div className={styles.inboxState}>{children}</div>;
+}
 export function NotificationsPanel({snapshot, onAudience, onView, onReadAll, onMore, children, footer, pages = true}: {
   snapshot: InboxSnapshot; onAudience: (value: NotificationAudience) => void; onView: (value: InboxView) => void;
   onReadAll: () => void; onMore: () => void; children: ReactNode; footer?: ReactNode; pages?: boolean;

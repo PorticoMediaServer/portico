@@ -8,8 +8,9 @@ import {defineWebScreen} from '../../route-registry';
 import {useProtectedWebScreenContext} from '../../route-registry-view';
 import {router} from '../../router';
 import {NotificationItem} from '../../kit/shell/AccountSurfaces';
-import {NotificationsPanel} from '../../kit/shell/NotificationsPanel';
+import {NotificationsPanel, NotificationsPanelState} from '../../kit/shell/NotificationsPanel';
 import {Popover} from '../../kit/overlays';
+import {ShellScrim} from '../../kit/shell/ShellScrim';
 import {StateView} from '../../kit/states';
 import {useShellWidth} from '../../shell/viewport';
 import {Button} from '../../kit/controls';
@@ -38,10 +39,11 @@ function NotificationsScreen() {
 function NotificationsPopover({anchorRef, onClose}: ShellPopoverProps) {
   const captured = useProtectedWebScreenContext();
   if (!captured) return null;
-  return <Popover open title={t('notifications.title')} accessibilityLabel={t('notifications.title')} anchorRef={anchorRef} returnFocusRef={anchorRef}
+  // desktop-search Notifications: like the avatar and Activity menus, the page dims behind the panel.
+  return <><ShellScrim open context="activity" /><Popover open title={t('notifications.title')} accessibilityLabel={t('notifications.title')} anchorRef={anchorRef} returnFocusRef={anchorRef}
     onOpenChange={value => {if (!value) onClose();}} modal width={452} sideOffset={10}>
     <NotificationsFeed captured={captured} mode="popover" limit={BELL_NOTICES} onDone={onClose} />
-  </Popover>;
+  </Popover></>;
 }
 
 function NotificationsFeed({captured, mode, limit, onDone}: {captured: Captured; mode: 'page' | 'popover'; limit?: number; onDone?: () => void}) {
@@ -120,9 +122,9 @@ function NotificationsFeed({captured, mode, limit, onDone}: {captured: Captured;
     ? <Button variant="text" size="small" onClick={() => {if (opening?.owns(state)) go(() => router.navigate({to: '/notifications'}));}}>{t('notifications.seeAll')}</Button> : undefined;
   const panel = <NotificationsPanel snapshot={state} pages={mode === 'page'} footer={seeAll} onAudience={audience => {if (state.audiences.includes(audience)) opening?.run(state, () => {void service.load(audience, state.view);});}}
     onView={view => {opening?.run(state, () => {void service.load(state.audience, view);});}} onReadAll={() => {if (state.phase === 'ready' && state.revision > 0 && !state.busy) opening?.run(state, () => {void service.readAll();});}} onMore={() => {if (state.more && !state.busy) opening?.run(state, () => {void service.more();});}}>
-    {state.phase === 'error' ? <StateView variant="compact" title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')}
-      primary={{id: 'retry', label: t('action.tryAgain'), onPress: () => {opening?.run(state, () => {void service.load(state.audience, state.view);});}}} secondary={{id: 'home', label: t('next.states.goHome'), onPress: close}} />
-      : state.phase === 'ready' && !state.items.length ? <StateView variant="compact" icon="i-bell" title={t(state.view === 'unread' ? 'notifications.caughtUp' : state.view === 'archived' ? 'notifications.noneArchived' : 'notifications.none')} body={t('notifications.emptyBody')} />
+    {state.phase === 'error' ? <NotificationsPanelState><StateView variant="compact" title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')}
+      primary={{id: 'retry', label: t('action.tryAgain'), onPress: () => {opening?.run(state, () => {void service.load(state.audience, state.view);});}}} secondary={{id: 'home', label: t('next.states.goHome'), onPress: close}} /></NotificationsPanelState>
+      : state.phase === 'ready' && !state.items.length ? <NotificationsPanelState><StateView variant="compact" icon="i-bell" title={t(state.view === 'unread' ? 'notifications.caughtUp' : state.view === 'archived' ? 'notifications.noneArchived' : 'notifications.none')} body={t('notifications.emptyBody')} /></NotificationsPanelState>
         : items.map(note => {
           const words = noticeWords(note, defaultI18n);
           return <NotificationItem key={note.id} title={words.title} body={words.body} unread={!note.read} archived={note.archived} layout={phone ? 'phone' : 'desktop'}
