@@ -28,13 +28,16 @@ export function createPersonBindings(context: ScreenContext) {
   const life = screenLifetime(context), listeners = new Set<() => void>();
   let generation = 0, personId = '', state: PersonSnapshot = {phase: 'idle', role: 'all'};
   let read: AbortController | undefined;
+  // One quiet re-read of the person after the server refuses a credit cursor (its fence or profile no longer matches:
+  // access was decided again). A second refusal on the page that re-read brought ends the paging. select() resets it.
+  let reread = false;
   const collections = new Map<string, WindowedCollection<PersonCredit>>();
   const collectionUsers = new Map<WindowedCollection<PersonCredit>, number>();
   const publish = (next: PersonSnapshot) => { state = Object.freeze(next); for (const listener of listeners) listener(); };
   const clear = () => { for (const collection of collections.values()) collection.dispose(); collections.clear(); collectionUsers.clear(); };
   const current = (page: PersonPage) => { life.assert(); if (state.phase !== 'ready' || state.page !== page) throw new DOMException('Person changed', 'AbortError'); };
   const select = async (id: string, role: PersonRole = 'all') => {
-    life.assert(); const request = ++generation; read?.abort(); clear(); personId = id;
+    life.assert(); const request = ++generation; read?.abort(); clear(); personId = id; reread = false;
     const controller = new AbortController(); read = controller;
     publish({phase: 'loading', role});
     try {
@@ -42,6 +45,18 @@ export function createPersonBindings(context: ScreenContext) {
       if (request !== generation || !life.current()) return;
       publish({phase: 'ready', role, page});
     } catch (error) { if (request === generation && life.current() && !controller.signal.aborted) publish({phase: 'error', role, error}); }
+  };
+  /** The person's first page read again in place of the shown one: the page stays until the answer, and the credit
+   * collections built on the old page are replaced. False when it could not be read (the refusal then shows). */
+  const rereadPerson = async (): Promise<boolean> => {
+    const ticket = generation, role = state.role, id = personId;
+    if (state.phase !== 'ready' || !id) return false;
+    try {
+      const page = await readPerson(life.api, context.scope, id, {role, limit: 1, signal: life.signal()});
+      if (ticket !== generation || !life.current() || state.phase !== 'ready') return false;
+      generation++; read?.abort(); clear(); publish({phase: 'ready', role, page});
+      return true;
+    } catch { return false; }
   };
   const credits = (page: PersonPage, kind?: string) => {
     life.assert(); const header = state.page, role = state.role, request = generation, id = personId;
@@ -59,9 +74,16 @@ export function createPersonBindings(context: ScreenContext) {
         // A cursor is an address, not permission to read every intervening page on a jump.
         if (!cursors.has(page)) throw new DOMException('Person cursor unavailable', 'AbortError');
         if (cursors.get(page) === '') return {items: [], total};
-        const value = await readPerson(life.api, context.scope, id, {...(kind ? {kind} : {role}), limit: pageSize, cursor: cursors.get(page), signal: life.signal(signal)});
+        let value: PersonPage;
+        try { value = await readPerson(life.api, context.scope, id, {...(kind ? {kind} : {role}), limit: pageSize, cursor: cursors.get(page), signal: life.signal(signal)}); }
+        catch (error) {
+          // A refused cursor: read the person again once; its new first page replaces this collection, so this failure is not shown.
+          if ((error as {code?: unknown})?.code === 'invalid_cursor' && !reread && request === generation && state.page === header) { reread = true; await rereadPerson(); }
+          throw error;
+        }
         life.assert();
-        if (request !== generation || state.page !== header || value.viewerFence !== header.viewerFence || value.revision.catalog !== header.revision.catalog || value.revision.viewer !== header.revision.viewer) throw new DOMException('Person credits changed', 'AbortError');
+        // The server binds the cursor to the viewer fence and refuses an old one (above); only the person's revision is compared here.
+        if (request !== generation || state.page !== header || value.revision.catalog !== header.revision.catalog || value.revision.viewer !== header.revision.viewer) throw new DOMException('Person credits changed', 'AbortError');
         if (value.pageInfo.nextCursor && [...cursors].some(([address, cursor]) => address !== page + 1 && cursor === value.pageInfo.nextCursor)) throw new Error('Repeated person cursor');
         total = value.pageInfo.total; cursors.set(page + 1, value.pageInfo.nextCursor);
         if (value.pageInfo.nextCursor) addressablePage = Math.max(addressablePage, page + 1);

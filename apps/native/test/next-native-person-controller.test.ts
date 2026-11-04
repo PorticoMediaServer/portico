@@ -89,7 +89,7 @@ test('Person role changes supersede late pages and retained hidden requests cann
   } finally {late.resolve(page()); await f.close();}
 });
 
-test('Person continuation replaces the bounded resident page and rejects cross-revision splicing', async () => {
+test('Person continuation replaces the bounded resident page, takes a moved fence as newer and rejects cross-revision splicing', async () => {
   const f = await fixture();
   try {
     f.reply(async () => page(undefined, 0, 40, 'opaque-next'));
@@ -97,7 +97,11 @@ test('Person continuation replaces the bounded resident page and rejects cross-r
     f.reply(async () => page(undefined, 40, 40, 'opaque-after'));
     await f.source.next(); assert.equal(f.source.getSnapshot().page!.credits.length, 40); assert.equal(f.source.contains(old), false);
     assert.equal(new URL(f.reads[1]!.path, 'https://fixture.invalid').searchParams.get('cursor'), 'opaque-next');
-    f.reply(async () => page(undefined, 80, 2, '', 'Changed-person-fence'));
+    // Step 7: a page answered under a moved fence is the newer answer for the same person revision.
+    f.reply(async () => page(undefined, 80, 40, 'opaque-last', 'Changed-person-fence'));
+    await f.source.next(); assert.equal(f.source.getSnapshot().phase, 'ready'); assert.equal(f.source.getSnapshot().page!.viewerFence, 'Changed-person-fence');
+    // Another revision of the person is not spliced.
+    f.reply(async () => ({...page(undefined, 120, 2, '', 'Changed-person-fence'), revision: {catalog: 13, viewer: 7}}));
     await f.source.next(); assert.equal(f.source.getSnapshot().phase, 'error'); assert.equal(f.source.getSnapshot().page, undefined);
   } finally {await f.close();}
 });
