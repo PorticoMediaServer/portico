@@ -136,6 +136,9 @@ func (s *Service) withArtworkSnapshot(ctx context.Context, read func(context.Con
 	err := dbwork.WithReadSnapshot(ctx, s.db, func(ctx context.Context) error {
 		var err error
 		file, mime, err = read(ctx)
+		if err == nil {
+			err = ctx.Err()
+		}
 		return err
 	})
 	if err != nil {
