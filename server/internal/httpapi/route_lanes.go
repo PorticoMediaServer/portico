@@ -284,7 +284,6 @@ var routeLanes = map[string]string{
 	"GET /v1/books/{id}/chapters":                                                 "default",
 	"GET /v1/books/{id}/files":                                                    "default",
 	"GET /v1/books/{id}/timeline":                                                 "browsing",
-	"GET /v1/bootstrap":                                                           "browsing",
 	"GET /v1/browse-capabilities":                                                 "browsing",
 	"GET /v1/browse/facets":                                                       "browsing",
 	"GET /v1/capabilities":                                                        "default",

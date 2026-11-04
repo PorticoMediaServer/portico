@@ -1,57 +1,11 @@
 {
-  "schema": "GetBootstrapResponse",
+  "schema": "GetPreferencesResponse",
   "method": "GET",
-  "path": "/v1/bootstrap",
+  "path": "/v1/preferences?deviceClass=web",
   "auth": "viewer",
   "status": 200,
   "response": {
-    "server": {
-      "id": "wXMWIpk1BPl8Q3hyDvkEk2pHpv4Ptc78zwRTWsrzeK8",
-      "name": "Fixture",
-      "api": {
-        "major": 1,
-        "level": 1
-      },
-      "setupRequired": false
-    },
-    "capabilities": {
-      "api": {
-        "major": 1,
-        "level": 1
-      },
-      "features": {
-        "downloads": "unavailable",
-        "dvr": "unavailable",
-        "feedback": "enabled",
-        "live_tv": "unavailable",
-        "playback_v1": "enabled",
-        "playback_v1_kinds": "movie,episode,video,audiobook,audiobook_file,book,song,track",
-        "queueTransitions": "enabled",
-        "subtitle_burn_in": "enabled",
-        "transcoding": "enabled",
-        "watch_together": "enabled"
-      },
-      "limits": {
-        "bulkJobsActiveMax": 32,
-        "downloadBatchMax": 100,
-        "longPollMaxMs": 25000,
-        "pageSizeMax": 100,
-        "playlistWriteMax": 200,
-        "queueKeysMax": 10000000,
-        "selectorIdsMax": 500
-      }
-    },
-    "me": {
-      "viewer": {
-        "accountId": "nHlSuHKuwDQw_gWG7Wphasxik01uKhcGrJz3GNgNADA",
-        "profileId": "lsNjBKAq_NahjqkiTJRsWIA2U4zatnFX0WDfe2asYWw",
-        "serverId": "wXMWIpk1BPl8Q3hyDvkEk2pHpv4Ptc78zwRTWsrzeK8",
-        "authority": "local",
-        "role": "owner"
-      }
-    },
-    "libraries": [],
-    "preferences": {
+    "data": {
       "audioEffects": {
         "neverBoost": false,
         "smoothTransitions": true,
@@ -63,7 +17,7 @@
       "deviceClass": "web",
       "deviceBound": true,
       "registry": {
-        "revision": "settings.14a.preferences.music.2",
+        "revision": "settings.14a.preferences.downloads.4",
         "fields": [
           {
             "consumer": "client.playback.controls",
@@ -255,6 +209,60 @@
             ],
             "group": "audiobooks",
             "labelKey": "preferences.audiobooks.defaultSpeed"
+          },
+          {
+            "consumer": "client.playback.controls",
+            "step": 1,
+            "key": "audiobooks.skipBackMs",
+            "type": "integer",
+            "default": 15000,
+            "allowedValues": [
+              10000,
+              15000,
+              30000,
+              60000
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "audiobooks",
+            "labelKey": "preferences.audiobooks.skipBackMs"
+          },
+          {
+            "consumer": "client.playback.controls",
+            "step": 1,
+            "key": "audiobooks.skipForwardMs",
+            "type": "integer",
+            "default": 30000,
+            "allowedValues": [
+              15000,
+              30000,
+              60000,
+              90000
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "audiobooks",
+            "labelKey": "preferences.audiobooks.skipForwardMs"
+          },
+          {
+            "consumer": "server.playback.audiobook_resume",
+            "step": 1,
+            "key": "audiobooks.resumeRewindMs",
+            "type": "integer",
+            "default": 0,
+            "allowedValues": [
+              0,
+              5000,
+              15000,
+              30000
+            ],
+            "scopes": [
+              "profile-server"
+            ],
+            "group": "audiobooks",
+            "labelKey": "preferences.audiobooks.resumeRewindMs"
           },
           {
             "consumer": "server.catalog.listening_preferences",
@@ -628,6 +636,51 @@
             ],
             "group": "quality",
             "labelKey": "preferences.quality.remote"
+          },
+          {
+            "consumer": "server.playback.delivery_policy",
+            "key": "quality.mobile",
+            "type": "string",
+            "default": "720p-high",
+            "allowedValues": [
+              "original",
+              "automatic",
+              "2160p",
+              "1080p-high",
+              "1080p-low",
+              "720p-high",
+              "720p-low",
+              "480p",
+              "240p"
+            ],
+            "scopes": [
+              "profile-device-class"
+            ],
+            "group": "quality",
+            "labelKey": "preferences.quality.mobile"
+          },
+          {
+            "consumer": "server.downloads.quality",
+            "key": "quality.downloads",
+            "type": "string",
+            "default": "original",
+            "allowedValues": [
+              "original",
+              "automatic",
+              "2160p",
+              "1080p-high",
+              "1080p-low",
+              "720p-high",
+              "720p-low",
+              "480p",
+              "240p",
+              "ask"
+            ],
+            "scopes": [
+              "profile-device-class"
+            ],
+            "group": "quality",
+            "labelKey": "preferences.quality.downloads"
           },
           {
             "consumer": "server.playback.delivery_policy",
@@ -1306,6 +1359,9 @@
         "appearance.showBackdrops": true,
         "appearance.textSize": "standard",
         "audiobooks.defaultSpeed": 1,
+        "audiobooks.resumeRewindMs": 0,
+        "audiobooks.skipBackMs": 15000,
+        "audiobooks.skipForwardMs": 30000,
         "comics.direction": "file",
         "comics.firstPageAlone": true,
         "comics.fit": "auto",
@@ -1363,7 +1419,9 @@
         "privacy.includeInWatchTogether": true,
         "privacy.pauseWatchHistory": false,
         "privacy.showActivityToMembers": false,
+        "quality.downloads": "original",
         "quality.home": "original",
+        "quality.mobile": "720p-high",
         "quality.remote": "original",
         "reading.alignment": "justified",
         "reading.font": "literata",
@@ -1394,6 +1452,9 @@
         "appearance.showBackdrops": "default",
         "appearance.textSize": "default",
         "audiobooks.defaultSpeed": "default",
+        "audiobooks.resumeRewindMs": "default",
+        "audiobooks.skipBackMs": "default",
+        "audiobooks.skipForwardMs": "default",
         "comics.direction": "default",
         "comics.firstPageAlone": "default",
         "comics.fit": "default",
@@ -1446,7 +1507,9 @@
         "privacy.includeInWatchTogether": "default",
         "privacy.pauseWatchHistory": "default",
         "privacy.showActivityToMembers": "default",
+        "quality.downloads": "default",
         "quality.home": "default",
+        "quality.mobile": "default",
         "quality.remote": "default",
         "reading.alignment": "default",
         "reading.font": "default",
@@ -1469,12 +1532,11 @@
         "search.rememberHistory": "default"
       },
       "clampedFields": [],
-      "registryRevision": "settings.14a.preferences.music.2"
+      "registryRevision": "settings.14a.preferences.downloads.4"
     },
-    "homeLayout": {
-      "revision": 1,
-      "rowOrder": [],
-      "hiddenRowIds": []
+    "scope": {
+      "serverId": "Vh9hpDoLqTFUd7fiEQAfBSmhewZJoDCdDvUsvKeWvLU",
+      "viewerFence": "30aeb773d970336cecfd7d22bba30a0eb8449d7899f72707f5539f0ffea46c68"
     }
   }
 }

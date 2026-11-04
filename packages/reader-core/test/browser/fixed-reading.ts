@@ -1,6 +1,6 @@
 import {createPdfAdapter,createComicAdapter,createReadingController,sourceFromBlob} from '../../src/index.ts';
 import {parsePreferenceSnapshot,readingPreferencesPatch,type PreferenceSnapshot,type ReadingPreferencesChange} from '@portico/client-core';
-import bootstrap from '../../../../server/testdata/contracts/get-bootstrap.json';
+import bootstrap from '../../../../server/testdata/contracts/get-preferences.json';
 import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.mjs?url';
 import {sha256} from '@noble/hashes/sha2.js';
 
@@ -25,7 +25,7 @@ async function fixture(path:string,id:string) {
 
 async function run() {
   const checks:string[]=[],surface=document.querySelector<HTMLElement>('#surface')!,viewport={width:1180,height:820};
-  let snapshot=parsePreferenceSnapshot(bootstrap.response.preferences),workers=0,terminated=0;
+  let snapshot=parsePreferenceSnapshot(bootstrap.response.data),workers=0,terminated=0;
   const reader=createReadingController({preferenceSnapshot:snapshot,adapters:[createPdfAdapter({workerUrl,createWorker(url){
     workers++;const worker=new Worker(url,{type:'module'}),terminate=worker.terminate.bind(worker);worker.terminate=()=>{terminated++;terminate();};return worker;
   }}),createComicAdapter({localArchive:true})]});

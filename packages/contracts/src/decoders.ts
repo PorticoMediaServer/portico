@@ -292,7 +292,6 @@ export function decodeGetAuthServicesReachabilityResponse(input: unknown): types
 export function decodeGetBooksIdChaptersResponse(input: unknown): types.GetBooksIdChaptersResponse { return decode("GetBooksIdChaptersResponse", input) as types.GetBooksIdChaptersResponse; }
 export function decodeGetBooksIdFilesResponse(input: unknown): types.GetBooksIdFilesResponse { return decode("GetBooksIdFilesResponse", input) as types.GetBooksIdFilesResponse; }
 export function decodeGetBooksIdTimelineResponse(input: unknown): types.GetBooksIdTimelineResponse { return decode("GetBooksIdTimelineResponse", input) as types.GetBooksIdTimelineResponse; }
-export function decodeGetBootstrapResponse(input: unknown): types.GetBootstrapResponse { return decode("GetBootstrapResponse", input) as types.GetBootstrapResponse; }
 export function decodeGetBrowseCapabilitiesResponse(input: unknown): types.GetBrowseCapabilitiesResponse { return decode("GetBrowseCapabilitiesResponse", input) as types.GetBrowseCapabilitiesResponse; }
 export function decodeGetBrowseFacetsResponse(input: unknown): types.GetBrowseFacetsResponse { return decode("GetBrowseFacetsResponse", input) as types.GetBrowseFacetsResponse; }
 export function decodeGetCapabilitiesResponse(input: unknown): types.GetCapabilitiesResponse { return decode("GetCapabilitiesResponse", input) as types.GetCapabilitiesResponse; }

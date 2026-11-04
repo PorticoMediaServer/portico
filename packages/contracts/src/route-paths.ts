@@ -291,7 +291,6 @@ export const routePaths = {
   "get_books_id_chapters": "/v1/books/{id}/chapters",
   "get_books_id_files": "/v1/books/{id}/files",
   "get_books_id_timeline": "/v1/books/{id}/timeline",
-  "get_bootstrap": "/v1/bootstrap",
   "get_browse_capabilities": "/v1/browse-capabilities",
   "get_browse_facets": "/v1/browse/facets",
   "get_capabilities": "/v1/capabilities",

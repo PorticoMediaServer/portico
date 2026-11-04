@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {parsePreferenceSnapshot, type PreferenceValue} from '@core/preferences.ts';
 import {savedPresentation} from '../src/screens/saved/presentation.ts';
 
-const wire = JSON.parse(await readFile(new URL('../../server/testdata/contracts/get-bootstrap.json', import.meta.url), 'utf8')).response.preferences;
+const wire = JSON.parse(await readFile(new URL('../../server/testdata/contracts/get-preferences.json', import.meta.url), 'utf8')).response.data;
 const snapshot = (values: Record<string, PreferenceValue> = {}) => parsePreferenceSnapshot({...structuredClone(wire), effective: {...wire.effective, ...values}});
 
 test('Saved consumes the published appearance facade and changes only on a new canonical snapshot', () => {
