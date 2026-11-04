@@ -117,6 +117,7 @@ export function OwnerDashboardPage(props: OwnerDashboardPageProps) {
           {props.alerts.length ? props.alerts.map((alert, index) => <View key={alert.id} style={{marginTop: index ? 12 : 0}}><OwnerAlertCard alert={alert} t={t} onAcknowledge={() => props.onAcknowledge(alert)} {...(props.onFixPermissions ? {onFixPermissions: () => props.onFixPermissions!(alert)} : {})}/></View>)
             : <OwnerCalm icon="i-check" tone="good" title={t('web.overview.noAlerts')}/>}
           {props.update ? <View style={{marginTop: 12}}><OwnerUpdateCard update={props.update} t={t} onReleaseNotes={() => props.onReleaseNotes?.()} onCheck={() => props.onCheckUpdate?.()}/></View> : null}
+          {props.update?.checkFailed ? <View style={{marginTop: 12}}><OwnerCalm icon="i-warn" tone="error" title={t('next.dashboard.updateCheckFailed')} body={t('next.dashboard.updateCheckFailedBody')} action={{label: t('next.shell.tryAgain'), onPress: () => props.onCheckUpdate?.()}}/></View> : null}
         </OwnerSection>
         <OwnerSection title={t('settings.server.activity')}>
           {props.jobs.length ? <>

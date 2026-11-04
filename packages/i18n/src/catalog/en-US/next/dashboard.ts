@@ -188,6 +188,9 @@ export const dashboardMessages = {
   'next.dashboard.updatedNow': 'Updated a few seconds ago',
   'next.dashboard.calmStreamsBody': 'Streams appear here as they start, with who is watching, on what, and how it is being delivered.',
   'next.dashboard.healthLater': 'History appears after a few minutes of running.',
+  // owner-dashboard 8's error card, for a pressed update check the server didn't answer; the update card above keeps the last report.
+  'next.dashboard.updateCheckFailed': 'Couldn’t check for new versions',
+  'next.dashboard.updateCheckFailedBody': 'The server didn’t answer. The version above is from its last check.',
   // The stream menu's Move to… bar names the device and current position.
   'next.dashboard.moveBody': 'Playback on {viewer}’s {device} jumps to the point you choose.',
   'next.dashboard.nowAt': 'Now at {position}',
