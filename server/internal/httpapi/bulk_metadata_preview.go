@@ -13,6 +13,7 @@ import (
 	"github.com/PorticoMediaServer/portico/apikit"
 	"github.com/PorticoMediaServer/portico/apikit/apierror"
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
+	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/metadata"
 	"github.com/PorticoMediaServer/portico/server/internal/readprep"
@@ -237,17 +238,35 @@ func (d Dependencies) bulkMetadataPreviewAccess(p identity.Principal, in bulkMet
 		}
 		return d.catalogViewer(r, p, libraries, fence)
 	}
+	// The local walk's source is a database basis, independent of its raw
+	// cursor. Reconstruct it once per read-only snapshot: the reducer checks
+	// it repeatedly around each bounded window, while Authorize still runs
+	// at every boundary and the authority generation is checked separately.
+	basisKey := ""
+	if local {
+		raw, _ := json.Marshal([]any{p, in})
+		basisKey = "httpapi.bulkMetadataLocalBasis\x00" + string(raw)
+	}
+	localBasis := func(ctx context.Context, tx *sql.Tx) (catalog.BulkMetadataSelectionPage, error) {
+		return dbwork.RememberInSnapshot(tx, basisKey, nil, func() (catalog.BulkMetadataSelectionPage, error) {
+			viewer, err := scope(ctx)
+			if err != nil {
+				return catalog.BulkMetadataSelectionPage{}, err
+			}
+			return d.Catalog.BulkMetadataLocalSelectionBasisTx(ctx, tx, viewer, in.Request)
+		})
+	}
 	source := func(ctx context.Context, tx *sql.Tx, after int64) (catalog.BulkMetadataSelectionPage, error) {
+		if local {
+			return localBasis(ctx, tx)
+		}
 		viewer, err := scope(ctx)
 		if err != nil {
 			return catalog.BulkMetadataSelectionPage{}, err
 		}
-		if local {
-			return d.Catalog.BulkMetadataLocalSelectionBasisTx(ctx, tx, viewer, in.Request)
-		}
 		return d.Catalog.BulkMetadataSelectionUnitTx(ctx, tx, viewer, in.Request, after)
 	}
-	access := metadata.BulkPreviewPreparationAccess{Source: source, Authorize: authorize, CapturedBytes: 8*int64(descriptorBytes) + int64(unsafe.Sizeof(d)+unsafe.Sizeof(p)) + 16384}
+	access := metadata.BulkPreviewPreparationAccess{Source: source, Authorize: authorize, CapturedBytes: 8*int64(descriptorBytes) + int64(len(basisKey)) + int64(unsafe.Sizeof(d)+unsafe.Sizeof(p)) + 16384}
 	if local {
 		access.NewWalk = func(ctx context.Context, tx *sql.Tx) (*catalog.BulkMetadataSelectionWalk, error) {
 			viewer, err := scope(ctx)
