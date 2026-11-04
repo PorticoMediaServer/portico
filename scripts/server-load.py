@@ -13,6 +13,7 @@ the run directory. With --budgets, any phase that misses its budget fails the ru
 uses real credentials; the scratch directory contains secrets and must not be published.
 """
 import argparse
+from contextlib import contextmanager
 import http.client
 import importlib.util
 import json
@@ -74,6 +75,46 @@ def epub(path, i):
 
 def quantile(values, q):
     return values[min(len(values) - 1, int(q * len(values)))]
+
+
+def read_rss_bytes(pid, proc_root=Path('/proc')):
+    """Resident server memory, excluding helper processes; unavailable is None."""
+    try:
+        for line in (proc_root / str(pid) / 'status').read_text().splitlines():
+            fields = line.split()
+            if fields and fields[0] == 'VmRSS:':
+                if len(fields) != 3 or fields[2] != 'kB':
+                    return None
+                value = int(fields[1])
+                return value * 1024 if value >= 0 else None
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+@contextmanager
+def resident_memory(pid, read=read_rss_bytes, interval=1):
+    """Sample independently of the blocking CPU profile; always join on exit."""
+    stop, samples = threading.Event(), []
+
+    def sample():
+        value = read(pid)
+        if value is not None:
+            samples.append(value)
+
+    def run():
+        while not stop.wait(interval):
+            sample()
+
+    sample()
+    thread = threading.Thread(target=run, name='server-load-rss', daemon=True)
+    thread.start()
+    try:
+        yield samples
+    finally:
+        stop.set()
+        thread.join()
+        sample()
 
 
 class Load:
@@ -161,26 +202,30 @@ class Load:
                 stop.wait(random.uniform(.5, 1.5))
 
         threads = [threading.Thread(target=run, args=(user,), daemon=True) for user in self.users[:count]]
-        for thread in threads:
-            thread.start()
-        if profile:
-            time.sleep(self.args.secs / 2)
-            for name in ['block', 'mutex', 'goroutine']:
-                (self.directory / f'{name}-{label}-{count}.pb.gz').write_bytes(self.api.call('GET', '/v1/admin/diagnostics/pprof/' + name, raw=True)[0])
-            (self.directory / f'cpu-{label}-{count}.pb.gz').write_bytes(self.api.call('GET', '/v1/admin/diagnostics/pprof/profile?seconds=8', raw=True)[0])
-            (self.directory / f'diagnostics-{label}-{count}.json').write_text(json.dumps(self.diagnostics(), indent=1))
-            time.sleep(max(0, self.args.secs / 2 - 8))
-        else:
-            time.sleep(self.args.secs)
-        stop.set()
-        for thread in threads:
-            thread.join(35)
+        with resident_memory(self.server_pid) as rss:
+            for thread in threads:
+                thread.start()
+            try:
+                if profile:
+                    time.sleep(self.args.secs / 2)
+                    for name in ['block', 'mutex', 'goroutine']:
+                        (self.directory / f'{name}-{label}-{count}.pb.gz').write_bytes(self.api.call('GET', '/v1/admin/diagnostics/pprof/' + name, raw=True)[0])
+                    (self.directory / f'cpu-{label}-{count}.pb.gz').write_bytes(self.api.call('GET', '/v1/admin/diagnostics/pprof/profile?seconds=8', raw=True)[0])
+                    (self.directory / f'diagnostics-{label}-{count}.json').write_text(json.dumps(self.diagnostics(), indent=1))
+                    time.sleep(max(0, self.args.secs / 2 - 8))
+                else:
+                    time.sleep(self.args.secs)
+            finally:
+                stop.set()
+                for thread in threads:
+                    thread.join(35)
         after = self.diagnostics()
         result = {'users': count, 'label': label, 'requests': len(rows), 'perSecond': round(len(rows) / self.args.secs, 1),
                   'helpersStarted': after['storageHelpers']['admitted'] - before['storageHelpers']['admitted'],
                   'gateWaitMillis': after['writeGate']['queueWaitMillis'] - before['writeGate']['queueWaitMillis'],
                   'poolWaitMillis': after['pool']['waitMillis'] - before['pool']['waitMillis'],
                   'snapshotWaitMillis': after['readSnapshots']['waitMillis'] - before['readSnapshots']['waitMillis'],
+                  'rssBytes': {'samples': len(rss), 'first': rss[0], 'last': rss[-1], 'peak': max(rss)} if rss else None,
                   'statementCacheMisses': after['reads']['statementCache']['misses'] - before['reads']['statementCache']['misses'], 'ops': {}}
         for op in sorted({row[0] for row in rows}):
             times = sorted(row[1] for row in rows if row[0] == op)
@@ -199,6 +244,7 @@ class Load:
         self.generate()
         server = e2e.Exercise(self.directory, self.args.binary.resolve())
         server.start()
+        self.server_pid = server.process.pid
         try:
             server.setup()
             self.api = server.api
@@ -257,12 +303,14 @@ def check(out, budgets):
 
 
 def summary(out, misses):
-    lines = ['| Users | Phase | req/s | ' + ' | '.join(f'{op} p50 / p95' for op in ['browse', 'detail', 'search', 'options', 'read']) + ' | 5xx |',
-             '|---|---|---|' + '---|' * 6]
+    lines = ['| Users | Phase | req/s | ' + ' | '.join(f'{op} p50 / p95' for op in ['browse', 'detail', 'search', 'options', 'read']) + ' | Server RSS peak | 5xx |',
+             '|---|---|---|' + '---|' * 7]
     for phase in out['phases']:
         cells = [f"{phase['ops'][op]['p50']:.0f} / {phase['ops'][op]['p95']:.0f} ms" if op in phase['ops'] else '—' for op in ['browse', 'detail', 'search', 'options', 'read']]
         errors = sum(o['serverErrors'] for o in phase['ops'].values())
-        lines.append(f"| {phase['users']} | {phase['label']} | {phase['perSecond']} | " + ' | '.join(cells) + f' | {errors} |')
+        rss = phase.get('rssBytes')
+        memory = f"{rss['peak'] / (1024 * 1024):.1f} MiB" if rss else '—'
+        lines.append(f"| {phase['users']} | {phase['label']} | {phase['perSecond']} | " + ' | '.join(cells) + f' | {memory} | {errors} |')
     lines.append('')
     lines += [f'- Budget missed: {miss}' for miss in misses] or ['- Every budget met.']
     return '\n'.join(lines)
