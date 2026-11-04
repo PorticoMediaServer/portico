@@ -135,6 +135,10 @@ jobs:
           name: selection
       - run: python3 ci/run.py download
       - run: python3 ci/run.py vet-cross --goos '${{ matrix.goos }}'
+  decoder_sandbox:
+    needs: planner
+    if: needs.planner.outputs.go == 'true'
+    uses: ./.github/workflows/decoder-sandbox.yml
   go_tests:
     needs: planner
     if: needs.planner.outputs.go == 'true'
@@ -282,7 +286,7 @@ jobs:
   merge:
     name: ci/required
     if: ${{ !cancelled() }}
-    needs: [planner, hygiene, go_build, go_vet_cross, go_tests, js, js_static, android]
+    needs: [planner, hygiene, go_build, go_vet_cross, go_tests, decoder_sandbox, js, js_static, android]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
