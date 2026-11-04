@@ -64,6 +64,9 @@ def go(plan,index,report=None):
     helper.chmod(0o755)
     os.environ['PORTICO_PLAYBACK_TEST_HELPER']=str(helper)
     selected=plan['shards'][index]
+    # Diagnostic owners are mandatory observations, as are short source censuses.
+    # A skipped parent (or a repeated terminal) cannot stand in for its pass.
+    mandatory=SHORT_CENSUSES | {(t['package'],t['name']) for t in plan.get('nightly_diagnostics',[])}
     allowed=policy(json.loads((ROOT/'ci/quarantine.json').read_text())); blocked=False
     out=ROOT/'ci-results'; out.mkdir(exist_ok=True)
     workers=os.environ.get('PORTICO_CI_GO_PACKAGE_JOBS','4')
@@ -92,7 +95,7 @@ def go(plan,index,report=None):
             # but never hide a tool/infrastructure exit outside Go's 0/1 contract.
             terminal=next((e['Action'] for e in reversed(own) if not e.get('Test') and e.get('Action') in ['pass','fail','skip']),None)
             code=(0 if terminal in ['pass','skip'] else 1) if result.returncode in [0,1] else result.returncode
-            required={t['name'] for t in tests if (package,t['name']) in SHORT_CENSUSES}
+            required={t['name'] for t in tests if (package,t['name']) in mandatory}
             status=classify(own,[t['name'] for t in tests],code,permitted,required_pass=required)
             lines.append(package+' '+status); blocked |= status=='blocked'
         return blocked, lines

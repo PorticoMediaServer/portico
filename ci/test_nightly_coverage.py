@@ -95,5 +95,33 @@ class NightlyCoverage(unittest.TestCase):
         self.assertIn('["diagnostic"]["result"] == "success"', aggregate)
 
 
+    def test_mandatory_nightly_owner_requires_exactly_one_parent_pass(self):
+        import subprocess
+        from run import go
+        tiers = json.loads((ROOT / 'ci/tiers.json').read_text())
+        owner = tiers['nightly_lanes']['scanner'][0]
+        test = dict(owner, module='server')
+        plan = {'tier': 'nightly', 'tags': 'tags', 'shards': [[test]],
+                'all_inventory': [test], 'nightly_diagnostics': [owner]}
+        for terminals in [['pass'], ['skip'], [], ['pass', 'pass'], ['fail'], ['cancelled']]:
+            with self.subTest(terminals=terminals), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / 'ci').mkdir()
+                (root / 'ci-tools').mkdir()
+                (root / 'ci/quarantine.json').write_text('{"entries": []}')
+                (root / 'ci-tools/portico-server').touch()
+                events = [{'Package': owner['package'], 'Test': owner['name'], 'Action': 'run'}]
+                events.extend(dict(Package=owner['package'], Test=owner['name'], Action=action) for action in terminals)
+                events.append({'Package': owner['package'], 'Action': 'pass'})
+                result = subprocess.CompletedProcess(['go', 'test'], 0,
+                    '\n'.join(json.dumps(event) for event in events), '')
+                with patch('run.ROOT', root), patch('run.validate_tags'), patch('run.subprocess.run', return_value=result):
+                    if terminals == ['pass']:
+                        go(plan, 0)
+                    else:
+                        with self.assertRaises(SystemExit):
+                            go(plan, 0)
+
+
 if __name__ == '__main__':
     unittest.main()
