@@ -1,4 +1,5 @@
 import type {ReactNode} from 'react';
+import {troubleshootingParts} from './server/troubleshooting/parts';
 import {defaultI18n} from '@i18n';
 import type {SettingsRow, SettingsValue} from '@core/presentation/settings-spec.ts';
 import type {SettingPresentation} from '../../kit/settings';
@@ -77,7 +78,7 @@ export function createSettingsBindings(controller: SettingsController, options: 
       const fact = signInSwitch(row.id) ?? sections.signIn?.rowState(row.id);
       return fact ? controller.sectionVisible(context.section) && fact.present : controller.eligible(row, context);
     },
-    audience: section => ['dashboard', 'libraries', 'people'].includes(section.id) ? 'administrators' : 'owner',
+    audience: section => ['dashboard', 'libraries', 'people'].includes(section.id) || section.id === 'troubleshooting' && troubleshootingParts('admin').size > 0 ? 'administrators' : 'owner',
     serverHealth: controller.serverHealth,
     serverFacts: controller.serverFacts,
     rowState: (row, context) => signInSwitch(row.id) ?? sections.signIn?.rowState(row.id) ?? controller.rowState(row, context),

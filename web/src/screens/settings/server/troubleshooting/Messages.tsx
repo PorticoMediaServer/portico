@@ -11,7 +11,9 @@ const t = defaultI18n.t;
 const levelKey = (level: LogLevel) => `web.logs.level.${level}` as MessageId;
 const categoryKey = (category: LogCategory) => `web.logs.category.${category}` as MessageId;
 
-export function MessagesPanel({source, options, detailMinutes}: Readonly<{source: SettingsMessagesSource; options?: ReactNode; detailMinutes?: LogDetailMinutes; reportError: (error: unknown) => void}>) {
+/** `canDetail` is false for a tier that may read the log settings but not open a detail window:
+ *  it still sees whether one is open, with no control that would fail. */
+export function MessagesPanel({source, options, detailMinutes, canDetail = true}: Readonly<{source: SettingsMessagesSource; options?: ReactNode; detailMinutes?: LogDetailMinutes; canDetail?: boolean; reportError: (error: unknown) => void}>) {
   const state = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot);
   const box = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(serverNow());
@@ -23,7 +25,7 @@ export function MessagesPanel({source, options, detailMinutes}: Readonly<{source
     {options}
     {state.settings && <section className={styles.detailWindow}>
       <div><b>{t('settings.server.detailWindow.forMinutes', {minutes: detailMinutes ?? state.settings?.logDetailMinutes ?? 30})}</b><p className={styles.help}>{detailed ? t('settings.server.detailWindow.until', {time: defaultI18n.dateTime(until!)}) : t('settings.server.detailWindow.help')}</p></div>
-      <Button size="xs" variant="glass" disabled={state.changing} onClick={() => {void source.detail(!detailed, detailMinutes).catch(() => { /* The source reports through its captured owner. */ });}}>{t(detailed ? 'settings.server.detailWindow.stop' : 'settings.server.detailWindow.start')}</Button>
+      {canDetail && <Button size="xs" variant="glass" disabled={state.changing} onClick={() => {void source.detail(!detailed, detailMinutes).catch(() => { /* The source reports through its captured owner. */ });}}>{t(detailed ? 'settings.server.detailWindow.stop' : 'settings.server.detailWindow.start')}</Button>}
     </section>}
     <section className={styles.messages}>
       <div className={styles.messageHeader}><h3>{t('web.logs.messages')}<span className={styles.messageScope}>{t('web.logs.adminVisible')}</span></h3></div>
