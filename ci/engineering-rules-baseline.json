@@ -6,8 +6,6 @@
   "apps/native/src-next/screens/library/selection-actions.ts": 2,
   "apps/native/src-next/screens/read/read-collection-picker.ts": 2,
   "apps/native/src-next/screens/saved/directory-commands.ts": 1,
-  "apps/native/src-next/screens/watch/live-actions.ts": 1,
-  "apps/native/src-next/screens/watch/live-guide.ts": 1,
   "apps/native/src-next/screens/watch/title-pages.ts": 1,
   "apps/native/src-next/shell/assembly.tsx": 1,
   "apps/native/src-next/shell/bootstrap-services.ts": 1,
