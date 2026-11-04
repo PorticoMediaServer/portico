@@ -5,6 +5,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server/internal/assets"
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
+	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
 )
 
 // Each storage helper is a new process, and on a small VPS starting one costs
@@ -38,6 +39,7 @@ type acceptedKey struct {
 type acceptedAnalysis struct {
 	facts     assets.Facts
 	completed []string
+	receipt   compactcatalog.InfoInputReceipt
 }
 
 // maxAcceptedAnalyses bounds the facts kept per process; a file past the bound
@@ -74,6 +76,7 @@ func (s *Service) keepAccepted(key acceptedKey, facts assets.Facts, completed []
 }
 
 func (s *Service) takeAccepted(key acceptedKey) (acceptedAnalysis, bool) {
+	s.forgetReceiptWake(key)
 	s.reuseMu.Lock()
 	defer s.reuseMu.Unlock()
 	a, ok := s.accepted[key]
@@ -83,6 +86,7 @@ func (s *Service) takeAccepted(key acceptedKey) (acceptedAnalysis, bool) {
 
 // forgetReuse drops a finished scan's reuse state.
 func (s *Service) forgetReuse(job string) {
+	s.forgetReceiptJob(job)
 	s.reuseMu.Lock()
 	defer s.reuseMu.Unlock()
 	delete(s.ready, job)

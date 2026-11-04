@@ -70,10 +70,11 @@ type Service struct {
 	// reuseMu guards what a scan remembers to spare helper processes
 	// (scan_reuse.go).
 	// pages sizes each scan's inventory steps by measured writer hold.
-	pages pageBudgets
-	reuseMu  sync.Mutex
-	ready    map[string]readyProof
-	accepted map[acceptedKey]acceptedAnalysis
+	pages       pageBudgets
+	reuseMu     sync.Mutex
+	ready       map[string]readyProof
+	accepted    map[acceptedKey]acceptedAnalysis
+	receiptWake *receiptWakeGeneration
 }
 
 func New(db *sql.DB, c *catalog.Service, p assets.Probe) *Service {
@@ -412,6 +413,8 @@ func (s *Service) Run(ctx context.Context) {
 	// floored, so on its own it paced every source at one bounded step per poll
 	// however idle the machine was.
 	advanced := workerloop.NewSignal()
+	stopReceiptWake := s.startReceiptWake(life, advanced)
+	defer stopReceiptWake()
 	pruneAfter := ""
 	nextPrune := time.Time{}
 	workerloop.RunWith(life, "ingestion.scan", advanced, wake, func(ctx context.Context) time.Duration {
@@ -469,6 +472,7 @@ func (s *Service) Run(ctx context.Context) {
 					s.activeSources[c.source] = true
 					work, cancel := context.WithCancel(ctx)
 					s.active[c.id] = cancel
+					s.claimReceiptWake(c.id)
 					workers.Add(1)
 					supervise.Go("ingestion.quantum", func() {
 						defer workers.Done()
@@ -479,6 +483,7 @@ func (s *Service) Run(ctx context.Context) {
 							delete(s.active, c.id)
 							delete(s.activeSources, c.source)
 							s.mu.Unlock()
+							s.releaseReceiptWake(c.id)
 							if more {
 								advanced.Wake()
 							}
