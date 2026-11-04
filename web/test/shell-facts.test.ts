@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {FreshnessHub} from '@core/freshness-hub.ts';
+import {FreshnessHub, dependsOn} from '@core/freshness-hub.ts';
 import {parseDirectSnapshot} from '@core/profile-management.ts';
 import {attachShellFactFeed, bindShellFactWake, shellProofChanged} from '../src/shell/facts.ts';
 import {clock, direct, system, harness} from './shell-facts-fixture.ts';
@@ -95,22 +95,52 @@ test('library access is content scope, not authority: the account or profile lib
   assert.equal(shellProofChanged(initial,{direct:parseDirectSnapshot({...direct(),account:{...direct().account,disabled:true,allowedLibraries:['films','shows']}})},'profile'),true,'so does a disable');
   assert.equal(shellProofChanged(initial,{direct:parseDirectSnapshot({...direct(),canManage:false,capabilities:{manageAccount:false,managePeople:false,manageServer:false,manageSignIn:false},account:{...direct().account,allowedLibraries:['films','shows']}})},'profile'),true,'and a capability change');
 });
-test('a library removed keeps the web shell and re-validates content: the directory answers with the moved viewer fence', async () => {
+test('a library removed, heard as the app hears it (a members or own-account hint): the shell stays and everything built on the libraries reads again', async () => {
   const h=harness();
+  const before=h.hub.version(dependsOn.libraries);
   h.direct({...direct(),account:{...direct().account,allowedLibraries:['films']}});
   h.libraryRead(async()=>({items:[{id:'films',name:'Films',kind:'movies'}],viewerFence:'directory-2',privacyFence:'privacy'}));
-  h.owner.request('members');await h.time.advance(1500);
+  h.hub.note(dependsOn.list('members'));await h.time.advance(1500);
   assert.equal(h.counts().retired,0,'the shell and whatever it plays stay');
   assert.equal(h.calls.filter(path=>path==='/v1/direct').length,1);
-  assert.deepEqual(h.owner.source.getSnapshot().identity.libraries.map(library=>library.id),['films'],'what is offered follows the directory');
-  assert.equal(h.owner.source.getSnapshot().identity.fences?.viewerFence,'directory-2','Home and selections re-validate against the moved fence (ruling D)');
+  assert.equal(h.calls.filter(path=>path==='/v1/libraries').length,1,'the directory is read again (and with it the library route proof)');
+  assert.deepEqual(h.owner.source.getSnapshot().identity.libraries.map(library=>library.id),['films'],'the removed library leaves the navigation');
+  assert.equal(h.owner.source.getSnapshot().identity.fences?.viewerFence,'directory-2','selections re-validate against the moved fence (ruling D)');
+  assert.ok(h.hub.version(dependsOn.libraries)>before,'Home, search and library content, which depend on the libraries, read again');
   h.dispose();
 });
-test('a role change on the same account witness still retires the web shell', async () => {
+test('the library route proof starts over, so an open library, title or reader page from a removed library leaves', async () => {
+  const proof={invalidated:0,directories:0,beginDirectory(){return {};},directory(){proof.directories++;},invalidate(){proof.invalidated++;}};
+  const h=harness({libraryRouteProof:proof});
+  h.direct({...direct(),account:{...direct().account,allowedLibraries:['films']}});
+  h.hub.note(dependsOn.list('members'));await h.time.advance(1500);
+  assert.equal(proof.invalidated,1);
+  assert.equal(proof.directories,1,'and learns from the directory read that follows');
+  h.dispose();
+});
+test('a profile restricted to fewer libraries is read again as content the same way', async () => {
   const h=harness();
-  h.direct({...direct(),capabilities:{...direct().capabilities,manageSignIn:false},account:{...direct().account,role:'admin'}});
-  h.owner.request('members');await h.time.advance(1500);
-  assert.equal(h.counts().retired,1);h.dispose();
+  h.direct({...direct(),profiles:[{...direct().profiles[0],allowedLibraries:['films']}]});
+  h.hub.note(dependsOn.list('members'));await h.time.advance(1500);
+  assert.equal(h.counts().retired,0);
+  assert.equal(h.calls.filter(path=>path==='/v1/libraries').length,1);
+  h.dispose();
+});
+test('a members hint whose answer leaves library access as it was reads nothing more', async () => {
+  const h=harness();
+  const before=h.hub.version(dependsOn.libraries);
+  h.hub.note(dependsOn.list('members'));await h.time.advance(1500);
+  assert.equal(h.calls.filter(path=>path==='/v1/direct').length,1);
+  assert.equal(h.calls.filter(path=>path==='/v1/libraries').length,0);
+  assert.equal(h.hub.version(dependsOn.libraries),before);
+  assert.equal(h.counts().retired,0);h.dispose();
+});
+test('a role change heard by the same hint still retires the web shell, and reads no content first', async () => {
+  const h=harness();
+  h.direct({...direct(),capabilities:{...direct().capabilities,manageSignIn:false},account:{...direct().account,role:'admin',allowedLibraries:['films']}});
+  h.hub.note(dependsOn.list('members'));await h.time.advance(1500);
+  assert.equal(h.counts().retired,1);
+  assert.equal(h.calls.filter(path=>path==='/v1/libraries').length,0);h.dispose();
 });
 
 test('online reconciles retained hidden authority without opening display or depending on a second first-connect', async () => {

@@ -29,12 +29,18 @@ export function shellAccount(snapshot: DirectSnapshot, profileId: string): Shell
 const systemAuthority = (value: ServerSignIn) => JSON.stringify([value.id, value.signIn, value.move, value.setupRequired, value.hostedConfigured, value.hostedAttached]);
 // Who the viewer is and what they may do. Library access (the account's and the profile's allowed
 // libraries) is content scope, not authority: it moves the viewer fence, the server filters what it
-// answers, and open selections re-validate (selection ruling D). It never retires the shell.
+// answers, and open selections re-validate (selection ruling D). It never retires the shell; a
+// change to it is read again as content (`libraryAccess` below).
 function directAuthority(value: DirectSnapshot, profileId: string) {
   const profile = value.profiles.find(row => row.id === profileId);
   return JSON.stringify([value.serverId, value.authority, value.account.id, value.account.role, value.account.disabled,
     value.account.primaryProfileId, value.account.hostedAccountId, value.capabilities, value.canManage,
     value.custodyPending, value.twoStepSetupRequired, profile?.id, profile?.primary]);
+}
+/** The content witness of the same answer: which libraries this account and profile may see. */
+export function libraryAccess(value: DirectSnapshot, profileId: string): string {
+  const profile = value.profiles.find(row => row.id === profileId);
+  return JSON.stringify([[...value.account.allowedLibraries].sort(), Array.isArray(profile?.allowedLibraries) ? [...profile.allowedLibraries].sort() : profile?.allowedLibraries ?? null]);
 }
 export function shellProofChanged(initial: ShellFactWitnesses, next: Partial<ShellFactWitnesses>, profileId: string): boolean {
   return !!(next.system && systemAuthority(initial.system) !== systemAuthority(next.system)
@@ -58,7 +64,7 @@ export function createShellFactOwner(o: Readonly<{
   isCurrent(): boolean; retire(): void;
 }>) {
   const source = createShellFactsSource(o.initial), admitted = o.session(), initial = o.witnesses;
-  let closed = false, retained = false, confirmedGuide = initial.guide;
+  let closed = false, retained = false, confirmedGuide = initial.guide, access: string | undefined = initial.direct ? libraryAccess(initial.direct, admitted.viewer.profileId) : undefined;
   // The shell is keyed on the directory's privacy fence (client data step 5): the first one seen
   // is this shell's, and a different one ends it. A library added or removed moves only the viewer fence.
   let privacy = o.initial.identity.fences?.privacyFence;
@@ -68,8 +74,17 @@ export function createShellFactOwner(o: Readonly<{
   const acceptDirect = (snapshot: DirectSnapshot): boolean => {
     if (!current()) return false;
     if (shellProofChanged(initial, {direct: snapshot}, admitted.viewer.profileId)) {o.retire();return false;}
+    const next = libraryAccess(snapshot, admitted.viewer.profileId);
+    if (access === undefined) access = next;
+    else if (next !== access) {access = next; libraryAccessMoved();}
     return true;
   };
+  // The libraries this viewer may see changed (a members or own-account hint re-read /v1/direct; the
+  // server sends no libraries.changed for an access change). Read everything built on them again:
+  // the directory and its route proof (an open library, title or reader page from a removed library
+  // leaves), and, through dependsOn.libraries, Home, search and library content. Assigned once the
+  // directory interest exists below.
+  let libraryAccessMoved = () => {};
   const interests: FreshnessInterest[] = [];
   const add = (name: string, dependencies: readonly string[], read: (context: InterestReadContext) => Promise<InterestOutcome>, background = false) => {
     const interest = o.hub.interest({name: 'shell-' + name, dependencies, read,
@@ -129,6 +144,7 @@ export function createShellFactOwner(o: Readonly<{
     } catch (error) {return failed(error);}
     // It also proves who the viewer is (its privacy fence), so it keeps running for retained hidden media.
   }, true);
+  libraryAccessMoved = () => {if (!current()) return; o.libraryRouteProof?.invalidate(); directory.invalidate(); o.hub.note(dependsOn.libraries);};
   const serverSystem = add('server-system', [dependsOn.settings('server')], async context => {
     const captured = o.session();
     try {
