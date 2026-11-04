@@ -46,8 +46,9 @@ function LibrariesRouteScreen() {
   if (failed && !shown) return <section className={styles.libraries}>{heading}<StateView title={defaultI18n.t('next.states.pageFailed')} body={defaultI18n.t('next.states.pageFailedBody')}
     primary={{id: 'retry', label: defaultI18n.t('next.states.tryAgain'), onPress: retry}}/></section>;
   const notice = failed && !libraries ? <Banner icon="i-warn" action={{label: defaultI18n.t('next.states.tryAgain'), onAction: retry}}>{defaultI18n.t('next.browse.librarySummariesUnavailable')}</Banner> : undefined;
-  // phone-app 4d: Edit pins beside the title; closing re-reads the overview and the shell's libraries in the new order.
-  const editPins = <Button ref={pinsTrigger} variant="text" size="small" className={styles.editPins} onClick={() => {if (captured.context.isCurrent()) setEditingPins(true);}}>{defaultI18n.t('pins.edit')}</Button>;
+  // phone-app 4d: Edit pins beside the title, on a phone only (no desktop frame draws it there; desktop has it in the
+  // library ⋯). Closing re-reads the overview and the shell's libraries in the new order.
+  const editPins = width < 600 && <Button ref={pinsTrigger} variant="text" size="small" className={styles.editPins} onClick={() => {if (captured.context.isCurrent()) setEditingPins(true);}}>{defaultI18n.t('pins.edit')}</Button>;
   const pinEditor = <PinEditor open={editingPins} api={captured.context.api} serverId={captured.context.facts.identity.viewer.serverId} isCurrent={captured.context.isCurrent}
     libraries={known.libraries} returnFocusRef={pinsTrigger} onClose={() => {setEditingPins(false); if (captured.context.isCurrent()) {retry(); captured.context.retryLibraries?.();}}}/>;
   return shown ? <>{pinEditor}<LibrariesScreen libraries={shown} notice={notice} artwork={captured.context.artwork} action={editPins}
