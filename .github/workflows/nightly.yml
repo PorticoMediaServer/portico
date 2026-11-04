@@ -26,6 +26,8 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version-file: .node-version
+          cache: npm
+      - run: npm ci --no-audit --no-fund
       - run: python3 -m unittest discover -s ci -p 'test_*.py'
       - run: python3 ci/source_guard.py
       - run: bash ci/secret-scan.sh
