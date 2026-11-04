@@ -1,3 +1,4 @@
+import {enterRecordingsPage, leaveRecordingsPage, type RecordingsNavigation, type RecordingsView} from './recordings-history';
 import {serverNow} from '@core/server-clock.ts';
 import {liveGuideStale, liveServerWideNotice} from '@core/presentation/live-availability.ts';
 import {useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
@@ -247,7 +248,7 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
     // Consume before dispatch so a retained same-tick callback refuses.
     committedSelectionRef.current = undefined;committed.live = false;
     setSelected(current => current === target ? undefined : current);
-    if (context.isCurrent()) void router.navigate({to: '/live', search: {...JSON.parse(searchKey), tab: 'recordings', dvr: 'upcoming'}, replace: true, resetScroll: false}).catch(context.effects.reportError);
+    if (context.isCurrent()) void enterRecordings(JSON.parse(searchKey), 'upcoming').catch(context.effects.reportError);
   }, [context, searchKey]);
   if (!lease) return null;
   if (authorityFailure) return <ScreenProblem context={lease.screen} error={authorityFailure} retry={() => {if (context.isCurrent()) setReopen(value => value + 1);}}/>;
@@ -305,7 +306,7 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
         : <GuideScreen title={t('next.home.shell.live')}
           switcher={hasSources ? {value: search.sourceId ? JSON.stringify(['source', selectedSources[0]?.provenance, search.sourceId]) : 'all', options: sourceOptions, onChange: switchSource} : undefined}
           summary={hasSources ? {name: sourceName ?? t('channels.all'), ...(snapshot.total !== undefined ? {channels: snapshot.total} : {}), ...(throughDay ? {through: t('next.live.guideThrough', {day: throughDay})} : {})} : undefined}
-          onTabChange={() => navigate({tab: 'recordings'})}
+          onTabChange={() => {if (context.isCurrent()) void enterRecordings(JSON.parse(searchKey), 'upcoming').catch(context.effects.reportError);}}
           chips={chips}
           onNow={width >= 1024 && hasSources ? <LiveOnNow owner={lease.bindings} now={now} timezone={timezone} artwork={context.artwork} reducedMotion={appearance.reducedMotion}
             onOpen={(channel, programme, witness) => {if (!witness || witness.row !== channel || !witness.current() || !admittedChannel(lease.options, channel)) return;selectRow({lease, channel, programme, admission: witness});}}
@@ -338,13 +339,16 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
       onWatch={onPlay ? () => onPlay(currentSelection.selection.channel, currentSelection.admission) : undefined} onChanged={onChanged} onViewRecordings={() => openRecordings(currentSelection.selection)}/>}
   <ToastHost toast={visibilityToast?.lease === lease && lease?.life.current() && lease.routeCurrent() ? visibilityToast.toast : null} onDismiss={() => setVisibilityToast(undefined)}/></>;
 }
+const recordingsNav: RecordingsNavigation = {state: () => router.state.location.state, back: () => router.history.back(),
+  // The router's history state is typed for its own keys; ours is one extra flag on the same object.
+  navigate: ({state, ...options}) => router.navigate({to: '/live', ...options, ...(state ? {state: state as never} : {})})};
+const enterRecordings = (search: LiveScreenSearch, dvr: RecordingsView) => enterRecordingsPage(recordingsNav, search, dvr);
+const leaveRecordings = (search: LiveScreenSearch) => leaveRecordingsPage(recordingsNav, search);
 function LiveRouteScreen() {
   const captured = useProtectedWebScreenContext();
   const search = parseLiveScreenSearch(useSearch({from: '/live'}));
-  const openView = (dvr: 'upcoming' | 'recorded' | 'rules' | 'history' | 'storage') => {
-    if (captured) void router.navigate({to: '/live', search: {...search, tab: 'recordings', dvr}, replace: true, resetScroll: false}).catch(() => {});
-  };
-  const openGuide = () => {if (captured) void router.navigate({to: '/live', search: {...search, tab: 'guide'}, replace: true, resetScroll: false}).catch(() => {});};
+  const openView = (dvr: RecordingsView) => {if (captured) void enterRecordings(search, dvr).catch(() => {});};
+  const openGuide = () => {if (captured) void leaveRecordings(search).catch(() => {});};
   if (!captured) return null;
   if (search.tab !== 'recordings') return <BoundLive captured={captured}/>;
   const view = search.dvr ?? 'upcoming';
