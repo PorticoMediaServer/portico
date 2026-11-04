@@ -5,6 +5,8 @@ import * as tvSettingsFocus from '../src-next/screens/settings-live/tv-settings-
 
 const nodes = (tree: any): any[] => Array.isArray(tree) ? tree.flatMap(nodes) : tree && typeof tree === 'object' ? [tree, ...nodes(tree.props?.children), ...nodes(tree.props?.headerContent)] : [];
 const find = (tree: any, id: string) => nodes(tree).find(node => node.props?.testID === id);
+// Settings search seams: the matches, the Covered flag, TV, and every destination entry ask the screen makes.
+const search = {matches: [] as any[], covered: false, tv: false, entries: [] as {activation: any; address: any}[]};
 async function fixture(initialRoute: any = {kind: 'shell', destination: {kind: 'settings'}}, initialWidth = 390, role = 'owner', initialPage?: 'live' | 'profile') {
   const host = hooks(), pending: (() => void)[] = [], effects = new Set<{cleanup?: () => void}>();
   const useLayoutEffect = (fn: () => void | (() => void), deps: any[]) => {
@@ -25,18 +27,18 @@ async function fixture(initialRoute: any = {kind: 'shell', destination: {kind: '
       open: (route: any) => {opens.push(route); navigation = {revision: navigation.revision + 1, route};}}};
   const page = (id: string) => ({id, title: id, icon: 'settings', sections: []});
   const structure = {headings: [{id: 'account', pages: ['profile', 'playback', 'region'].map(page)}, {id: 'server', pages: ['dashboard', 'history', 'metadata', 'people', 'remote-sources'].map(page)}]};
-  const theme: any = {isTV: false, width: initialWidth, platform: initialWidth < 600 ? 'phone' : 'tablet', colors: new Proxy({}, {get: (_t, key) => String(key)})};
+  const theme: any = {isTV: search.tv, width: initialWidth, platform: initialWidth < 600 ? 'phone' : 'tablet', colors: new Proxy({}, {get: (_t, key) => String(key)})};
   const {NativeSettingsScreen} = await screenModule(new URL('../src-next/screens/settings-live/SettingsScreen.tsx', import.meta.url), {'../../platform/keyboard': {FormScrollView: 'ScrollView', KeyboardProvider: ({children}: {children: unknown}) => children, useKeyboardHeight: () => 0, touchKeyboard: () => true},  './tv-settings-focus': tvSettingsFocus,
     react: host.react,
     'react-native': {AppState: {}, BackHandler: {addEventListener: (_name: string, listener: () => boolean) => {hardwareBack.push(listener); return {remove: () => {hardwareBack.splice(hardwareBack.indexOf(listener), 1);}};}}, Dimensions: {get: () => ({width: theme.width, height: 844})}, NativeModules: {}, Platform: {OS: 'ios'}, ScrollView: 'ScrollView', StatusBar: {}, Text: 'Text', View: 'View'},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, left: 0, right: 0, bottom: 0})}, 'react-native-qrcode-svg': {default: 'QRCode'},
-    '../../../../../packages/client-core/src/presentation/settings-structure': {settingsStructure: () => structure, searchSettings: () => [], findSettingsPage: () => undefined},
+    '../../../../../packages/client-core/src/presentation/settings-structure': {settingsStructure: () => structure, searchSettings: () => search.matches, findSettingsPage: (searchable: any, address: string) => {for (const heading of searchable.headings) {const found = heading.pages.find((value: any) => value.id === address); if (found) return {heading, page: found};} return undefined;}},
     '../../../../../packages/client-core/src/presentation/language-list': {}, '../../../../../packages/client-core/src/presentation/region-choices': {},
     '../../../../../packages/i18n/src': {defaultI18n: {number: String}}, '../../../../../packages/client-core/src/recommendation-feedback': {}, '../../../../../packages/design/src/next-icons': {nextIcons: {}},
-    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Select: 'Select', Switch: 'Switch', TextField: 'TextField'}, '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => ({capture: () => undefined, focus: () => true})},
-    '../../kit/Icon': {Icon: 'Icon'}, '../../kit/shell': {SettingsRow: 'SettingsRow', SettingsSheet: 'SettingsSheet', SettingsSearchResults: 'SettingsSearchResults', LanguageList: 'LanguageList', ShortcutTiles: 'ShortcutTiles'},
+    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Select: 'Select', Switch: 'Switch', TextField: 'TextField'}, '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => ({capture: () => undefined, focus: () => true, entryAddress: () => undefined, subscribe: () => () => {}, getSnapshot: () => 0}), useCovered: () => search.covered},
+    '../../kit/Icon': {Icon: 'Icon'}, '../../kit/shell': {SettingsRowTargetContext: {Provider: 'TargetProvider'}, SettingsRow: 'SettingsRow', SettingsSheet: 'SettingsSheet', SettingsSearchResults: 'SettingsSearchResults', LanguageList: 'LanguageList', ShortcutTiles: 'ShortcutTiles'},
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfileFace: 'ProfileFace'}, '../../kit/shell/visual': {shellType: () => ({}), alpha: (value: string) => value}, '../../kit/theme': {useTheme: () => theme}, '../../kit/states': {StateView: 'StateView'}, '../../kit/states/sentence-parts': {}, '../../kit/overlays': {Dialog: 'Dialog', Menu: 'Menu'},
-    '../../shell/tv-focus': {tvFocusIds: () => ({surface: (id: string) => id, rail: 'rail'})}, '../destinations': {NativeTVKeyboard: 'NativeTVKeyboard'}, '../destinations/useEntryFocus': {useDestinationEntryFocus() {}},
+    '../../shell/tv-focus': {tvFocusIds: () => ({surface: (id: string) => id, rail: 'rail'})}, '../destinations': {NativeTVKeyboard: 'NativeTVKeyboard'}, '../destinations/useEntryFocus': {useDestinationEntryFocus: (activation: any, address: any) => {search.entries.push({activation, address});}},
     '../../shell/chrome': {setNativeScreenChromeHidden() {}}, './Screen': {Screen: 'Screen', useScreenBack() {}, useScreenEntry() {}}, './settings-actions': {},
     '../../../../../packages/contracts/src/routes': {}, '../../../../../packages/client-core/src/settings-configuration': {}, '../../../../../packages/client-core/src/presentation/settings-bindings': {}, '../../../../../packages/client-core/src/presentation/settings-spec': {settingsSpec: [{id: 'signin', scope: 'server', title: 'signin', icon: 'settings'}]},
     './owner-libraries/OwnerLibrariesPanel': {NativeOwnerLibrariesPanel: 'Libraries'}, '../../kit/shell/ServerIdentity': {ServerBand: 'ServerBand', ServerHeader: 'ServerHeader'},
@@ -242,4 +244,60 @@ test('A tablet keeps the Dashboard row and draws no card', async () => {
 test('A stale card press after the route moved on opens nothing', async () => {
   const f = await fixture();
   try {const press = card(f).props.onPress; f.routeAway(); press(); assert.deepEqual(f.opens, []);} finally {f.unmount();}
+});
+
+const searchFixture = async (options: {tv?: boolean; width?: number} = {}) => {
+  Object.assign(search, {matches: [{address: 'playback', rowId: 'subtitles', label: 'Subtitles', pageTitle: 'playback'}], covered: false, tv: !!options.tv, entries: []});
+  const f = await fixture(undefined, options.width ?? (options.tv ? 1920 : 390));
+  if (options.tv) {f.find('settings-search').props.onFocus(); f.render();}
+  f.find('settings-search').props.onChangeText('sub'); f.render();
+  return f;
+};
+const providers = (f: any) => f.nodes().filter((node: any) => node.type === 'TargetProvider').map((node: any) => node.props.value);
+
+test('settings.html: a phone search result opens its page aimed at the row, which flashes once and is revealed', async () => {
+  const f = await searchFixture();
+  try {
+    f.nodes().find((node: any) => node.type === 'SettingsSearchResults').props.onNavigate('playback', 'subtitles'); f.render();
+    assert.equal(f.header().props.title, 'playback');
+    const [value] = providers(f);
+    assert.equal(value.flash.rowId, 'subtitles'); assert.equal(typeof value.flash.reveal, 'function'); assert.equal(value.highlight, undefined);
+    assert.equal(f.nodes().find((node: any) => node.props?.page?.id === 'playback').props.aimedRow.rowId, 'subtitles');
+  } finally {f.unmount();}
+});
+
+test('a tablet page opened from the column afterwards is not aimed at the old row', async () => {
+  const f = await searchFixture({width: 800});
+  try {
+    f.nodes().find((node: any) => node.type === 'SettingsSearchResults').props.onNavigate('playback', 'subtitles'); f.render();
+    assert.equal(providers(f)[0].flash?.rowId, 'subtitles');
+    f.find('settings-search').props.onChangeText(''); f.render();
+    f.find('settings-page-region').props.onPress(); f.render(); f.find('settings-page-playback').props.onPress(); f.render();
+    assert.deepEqual(providers(f)[0], {});
+  } finally {f.unmount();}
+});
+
+test('tv-more 34: OK on a TV match closes search and opens its page with that row highlighted and asked for focus once', async () => {
+  const f = await searchFixture({tv: true});
+  try {
+    const open = providers(f).find((value: any) => value.open)?.open;
+    assert.equal(typeof open, 'function', 'TV matches are wrapped so OK opens the page');
+    open('subtitles'); f.render();
+    assert.ok(!f.nodes().some((node: any) => node.type === 'NativeTVKeyboard'), 'search closed');
+    assert.deepEqual(providers(f), [{highlight: 'subtitles'}]);
+    const asks = search.entries.filter(entry => entry.address?.regionId === 'settings.rows.playback');
+    assert.deepEqual(asks.at(-1)?.address, {regionId: 'settings.rows.playback', childId: 'subtitles'});
+    assert.equal(asks.at(-1)?.activation.visible, true); assert.equal(asks.at(-1)?.activation.intent, 'enter');
+  } finally {f.unmount(); search.tv = false;}
+});
+
+test('a TV match opening that is covered before its row takes focus never asks, even once uncovered', async () => {
+  const f = await searchFixture({tv: true});
+  try {
+    providers(f).find((value: any) => value.open).open('subtitles');
+    search.covered = true; f.render();
+    search.covered = false; f.render(); f.render();
+    const asks = search.entries.filter(entry => entry.address?.regionId === 'settings.rows.playback');
+    assert.ok(asks.length > 0); assert.ok(asks.every(entry => !entry.activation.visible));
+  } finally {f.unmount(); search.tv = false; search.covered = false;}
 });
