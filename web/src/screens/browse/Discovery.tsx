@@ -8,7 +8,7 @@ import {HomeSkeleton, StateView} from '../../kit/states';
 import {useLoadingClock} from '../detail/Loading';
 import {Artwork} from '../../kit/artwork';
 import {useShellWidth} from '../../shell/viewport';
-import {BrowseEntryCard, type BrowseItemActions} from './EntryCard';
+import {BrowseContinueBookCard, BrowseEntryCard, type BrowseItemActions} from './EntryCard';
 import {CatalogueSelectionEntry, type CatalogueDocumentSelection} from './document-selection';
 import {useLibraryCardMenu} from './use-card-menu';
 import type {ScreenContext} from '../detail/context';
@@ -92,13 +92,20 @@ export function LibraryDiscoveryScreen({menuContext, service, route, header, emp
         return <RecentTiles key={section.id} section={section} actions={actions} artwork={artwork} nowPlayingAlbumId={nowPlayingAlbumId}
           selection={selection} wrapCard={wrapCard} base={orderBase.get(section.id) ?? 0}/>;
       const square = snapshot.projection!.scope.libraryKind === 'music' || snapshot.projection!.scope.libraryKind === 'audiobook';
-      const cardWidth = appearance.cardWidth, musicGenres = snapshot.projection!.scope.libraryKind === 'music' && section.id === 'genres';
-      const shape = musicGenres ? cardWidth / 152 : square ? 1 : 2 / 3;
+      // An audiobook library's Continue listening is the wide resume card from 600px up
+      // (desktop-listen #books) and the square card with its time left on a phone (phone-app).
+      const continuing = snapshot.projection!.scope.libraryKind === 'audiobook' && section.id === 'continue_listening', resume = continuing && width >= 600;
+      const cardWidth = resume ? 456 : appearance.cardWidth, musicGenres = snapshot.projection!.scope.libraryKind === 'music' && section.id === 'genres';
+      const shape = resume ? 456 / 180 : musicGenres ? cardWidth / 152 : square ? 1 : 2 / 3;
       return <PagedShelf key={section.id} focusScope={service} heading={serverTextLabel(defaultI18n, {code: section.heading.key, fallback: section.heading.fallback, params: section.heading.params})}
         platform={width >= 1024 ? 'desktop' : 'phone-web'} reducedMotion={preferences?.reducedMotion ?? reducedMotion} items={section.entries} getKey={entry => entry.id} cardWidth={cardWidth} artworkRatio={shape}
         hasMore={!!section.nextCursor} continuation={section.nextCursor} onMore={() => {void service.next(section.id);}} onSeeAll={section.seeAll ? () => onSeeAll(section) : undefined}
-        onVisibleRange={registerWindow ? (first, last) => registerWindow(section, first, last) : undefined} renderItem={(entry, context) => <CatalogueSelectionEntry selection={selection} entry={entry} position={(orderBase.get(section.id) ?? 0) + context.index}>{cardSelection => <BrowseEntryCard entry={entry} artwork={artwork} env={env} width={cardWidth}
-          group={section.id} order={context.index} visible family={snapshot.projection!.scope.libraryKind} backdrops={appearance.backdrops} actions={wrapCard({...actions(section, entry, context.index), ...(cardSelection ? {selection: cardSelection} : {})}, entry)}/>}</CatalogueSelectionEntry>}/>;
+        onVisibleRange={registerWindow ? (first, last) => registerWindow(section, first, last) : undefined} renderItem={(entry, context) => <CatalogueSelectionEntry selection={selection} entry={entry} position={(orderBase.get(section.id) ?? 0) + context.index}>{cardSelection => {
+          const cardActions = wrapCard({...actions(section, entry, context.index), ...(cardSelection ? {selection: cardSelection} : {})}, entry);
+          return resume ? <BrowseContinueBookCard entry={entry} artwork={artwork} env={env} group={section.id} order={context.index} visible actions={cardActions}/>
+            : <BrowseEntryCard entry={entry} artwork={artwork} env={env} width={cardWidth} continuing={continuing}
+              group={section.id} order={context.index} visible family={snapshot.projection!.scope.libraryKind} backdrops={appearance.backdrops} actions={cardActions}/>;
+        }}</CatalogueSelectionEntry>}/>;
     };
   const music = snapshot.projection?.scope.libraryKind === 'music';
   const recent = music ? merged.find(section => section.id === 'recently_played') : undefined;
