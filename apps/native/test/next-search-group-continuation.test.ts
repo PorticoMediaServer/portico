@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {SearchService} from '../../../packages/client-core/src/search';
-import {NativeSearchDestination} from '../src-next/screens/search/model';
+import {NativeSearchDestination, nativeSearchEntryKey} from '../src-next/screens/search/model';
 
 const scope = {serverId: 'server', viewerId: 'the-actual-viewer'};
 const tick = () => new Promise<void>(resolve => setImmediate(resolve));
@@ -90,15 +90,78 @@ test('same-query type changes retain genuine capability controls while a differe
   } finally {f.native.dispose();}
 });
 
-test('a changed continuation viewer fence discards mixed projections and rereads All through the original parser', async () => {
+test('step 7: a continuation answered under a moved viewer fence is the newer answer and is appended in place', async () => {
   const f = fixture();
   try {
-    await f.native.commit();
+    await f.native.commit(); const reads = f.paths.length;
     f.reply(async url => {const data = answer(url); return {...data, scope: {...data.scope, viewerFence: 'new-search-fence'}};});
     await f.native.next('movies'); await tick();
-    assert.equal(f.native.getSnapshot().search.data?.scope.viewerFence, 'new-search-fence');
-    assert.deepEqual(f.native.getSnapshot().groups.map(group => group.items.map(entry => entry.id)), [['movies-1'], ['shows-1']]);
-    assert.equal(f.paths.at(-1)!.searchParams.get('group'), null, 'the canonical All selection owns the fresh projection');
+    assert.deepEqual(f.native.getSnapshot().groups.map(group => group.items.map(entry => entry.id)), [['movies-1', 'movies-2'], ['shows-1']]);
+    assert.equal(f.paths.length, reads + 1, 'no All read again');
+  } finally {f.native.dispose();}
+});
+
+// A scripted server: the row's first page names a new fence each time it is read; continuations follow `script`.
+function scripted(f: ReturnType<typeof fixture>, script: string[]) {
+  let firsts = 0;
+  f.reply(async url => {
+    const cursor = url.searchParams.get('cursor'), group = url.searchParams.get('group'), data: any = answer(url);
+    data.groups = data.groups.map((value: any) => ({...value, totalCount: 10}));
+    if (!cursor) {
+      if (group) firsts++;
+      // The row's first page, read again, keeps shows-1 out and drops movies-1 for movies-a/movies-b.
+      if (group === 'movies') data.groups[0] = {...data.groups[0], items: ['movies-a', 'movies-1', 'movies-b'].map(id => ({...data.groups[0].items[0], id, navigation: {view: 'item', entityId: id}})), nextCursor: 'movies-again'};
+      return {...data, scope: {...data.scope, viewerFence: `fence-${firsts}`}};
+    }
+    const step = script.shift();
+    if (step === 'answer') return {...data, groups: data.groups.map((value: any) => ({...value, nextCursor: `${cursor}+`, items: [{...value.items[0], id: `${value.id}-after-${cursor}`, navigation: {...value.items[0].navigation, entityId: `${value.id}-after-${cursor}`}}]}))};
+    throw Object.assign(new Error('refused'), {code: step, status: step === 'stale_continuation' ? 409 : 400});
+  });
+  return {firsts: () => firsts};
+}
+const ids = (f: ReturnType<typeof fixture>) => f.native.getSnapshot().groups.map(group => group.items.map(entry => entry.id));
+
+test('step 7: a refused cursor reads the row once from its first page in place of the row, and names where TV focus stays', async () => {
+  const f = fixture();
+  try {
+    await f.native.commit(); const s = scripted(f, ['invalid_cursor']);
+    await f.native.next('movies'); for (let i = 0; i < 10; i++) await tick();
+    assert.equal(s.firsts(), 1, 'the row is read again, group-only, not All');
+    assert.deepEqual(ids(f), [['movies-a', 'movies-1', 'movies-b'], ['shows-1']]);
+    const paging = f.native.getSnapshot().paging?.movies;
+    assert.equal(paging?.error, null); assert.equal(paging?.loading, false);
+    // movies-1 survived the re-read: it is the last entry that did, so TV focus stays on it.
+    const survivor = f.native.getSnapshot().groups[0]!.items[1]!;
+    assert.equal(paging?.replaced?.entryId, nativeSearchEntryKey('movies', survivor));
+    assert.equal(f.native.getSnapshot().search.data?.scope.viewerFence, 'Search-own-fence', 'the All answer stays');
+  } finally {f.native.dispose();}
+});
+
+test('step 7: a later access change in the same visit reads the row again too, once a continuation has answered; a refusal straight after ends it', async () => {
+  const f = fixture();
+  try {
+    await f.native.commit(); const s = scripted(f, ['invalid_cursor', 'answer', 'invalid_cursor', 'invalid_cursor']);
+    const settle = async () => {for (let i = 0; i < 10; i++) await tick();};
+    await f.native.next('movies'); await settle(); assert.equal(s.firsts(), 1);
+    const first = f.native.getSnapshot().paging?.movies?.replaced?.serial;
+    await f.native.next('movies'); await settle(); assert.deepEqual(ids(f)[0], ['movies-a', 'movies-1', 'movies-b', 'movies-after-movies-again']);
+    await f.native.next('movies'); await settle(); assert.equal(s.firsts(), 2);
+    assert.notEqual(f.native.getSnapshot().paging?.movies?.replaced?.serial, first, 'a new replacement');
+    assert.deepEqual(ids(f)[0], ['movies-a', 'movies-1', 'movies-b']);
+    await f.native.next('movies'); await settle(); assert.equal(s.firsts(), 2);
+    assert.equal(f.native.getSnapshot().paging?.movies?.error?.code, 'invalid_cursor');
+    assert.deepEqual(ids(f)[0], ['movies-a', 'movies-1', 'movies-b'], 'the row keeps what it shows');
+  } finally {f.native.dispose();}
+});
+
+test('step 7: a moved revision (stale_continuation) ends the row\'s paging with its error and no re-read', async () => {
+  const f = fixture();
+  try {
+    await f.native.commit(); const reads = f.paths.length, s = scripted(f, ['stale_continuation']);
+    await f.native.next('movies'); for (let i = 0; i < 10; i++) await tick();
+    assert.equal(s.firsts(), 0); assert.equal(f.paths.length, reads + 1);
+    assert.equal(f.native.getSnapshot().paging?.movies?.error?.code, 'stale_continuation');
+    assert.deepEqual(ids(f), [['movies-1'], ['shows-1']]);
   } finally {f.native.dispose();}
 });
 
