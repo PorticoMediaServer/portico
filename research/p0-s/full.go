@@ -35,7 +35,7 @@ func save(p string, v any) {
 	must(os.Rename(p+".tmp", p))
 }
 
-var normalWrites, writeOnly, facetMode, frameMode, gatesOnly, browseOnly, admissionSchema bool
+var normalWrites, writeOnly, facetMode, frameMode, gatesOnly, browseOnly, admissionSchema, attributionMode, localControl bool
 
 func open(path string) (*sql.DB, *sql.Conn) {
 	db, e := sql.Open("sqlite", path)
@@ -96,6 +96,7 @@ func pct(a []float64, q float64) float64 {
 	return b[int(math.Ceil(float64(len(b))*q))-1]
 }
 
+var checkpointMu sync.Mutex
 var foldedTitles bool
 var ddlPathForChildren, dbPathForChildren string
 
@@ -147,7 +148,7 @@ func seedAndSweep(c *sql.Conn, target int, out, hash string) {
 		_, e := c.ExecContext(context.Background(), q)
 		must(e)
 	}
-	if target > 10000 && os.Getenv("GITHUB_RUN_ID") == "" {
+	if target > 10000 && os.Getenv("GITHUB_RUN_ID") == "" && !(localControl && target == 50000) {
 		panic("full fixture >10k is hosted only")
 	}
 	batches := []any{}
@@ -167,7 +168,7 @@ func seedAndSweep(c *sql.Conn, target int, out, hash string) {
 		}
 	}
 	save(filepath.Join(out, "full-seed.json"), map[string]any{"ddl_sha256": hash, "entities": n, "batches": batches, "shape": "Basic movie acceptance: entity+asset+link+encoded own-title FTS+library revision/event. No provider metadata, staging, scanner IO, prepared-media or full production typed command."})
-	if facetMode || frameMode || gatesOnly {
+	if facetMode || frameMode || gatesOnly || attributionMode {
 		return
 	}
 	if !writeOnly {
@@ -302,10 +303,14 @@ func main() {
 	normalFlag := flag.Bool("normal", false, "NORMAL writer and separate PASSIVE checkpoint")
 	writeFlag := flag.Bool("write-only", false, "seed and writer quanta only")
 	facetFlag := flag.Bool("facets", false, "rating-band counts and restricted indexes")
+	localFlag := flag.Bool("local-control", false, "authorized50k quiet-machine control; maximum82769 residents")
+	attributionFlag := flag.Bool("attribution", false, "small batch and per-statement writer phases")
 	gatesFlag := flag.Bool("gates", false, "exact schema open/memory only after small population")
 	browseFlag := flag.Bool("browse-only", false, "skip shaped write sweep after browse")
 	frameFlag := flag.Bool("frames", false, "max source-frame replacements")
 	flag.Parse()
+	localControl = *localFlag
+	attributionMode = *attributionFlag
 	gatesOnly = *gatesFlag
 	browseOnly = *browseFlag
 	facetMode = *facetFlag
@@ -375,6 +380,7 @@ func main() {
 					case <-stop:
 						return
 					case <-ticker.C:
+						checkpointMu.Lock()
 						start := time.Now()
 						var busy, log, done int
 						e := cc.QueryRowContext(context.Background(), "PRAGMA wal_checkpoint(PASSIVE)").Scan(&busy, &log, &done)
@@ -383,11 +389,15 @@ func main() {
 							err = e.Error()
 						}
 						checkpoints = append(checkpoints, map[string]any{"start_ns": start.UnixNano(), "ms": float64(time.Since(start).Nanoseconds()) / 1e6, "busy": busy, "log": log, "checkpointed": done, "error": err})
+						checkpointMu.Unlock()
 					}
 				}
 			}()
 		}
 		seedAndSweep(c, *target, *out, hash)
+		if attributionMode {
+			attribution(c, *out, hash)
+		}
 		if facetMode {
 			facetExperiment(c, *out, hash)
 		}
@@ -1077,4 +1087,129 @@ func quantizedFacet(c *sql.Conn, field string, ceiling int, exclude string) map[
 		result["quantum_max_ms"] = pct(quanta, 1)
 	}
 	return result
+}
+
+func statementPhase(q string) string {
+	for _, p := range []struct{ needle, name string }{{"INSERT INTO catalog_subjects", "subject"}, {"INSERT INTO catalog_entities", "entity-indexes"}, {"INSERT INTO catalog_assets", "asset-indexes"}, {"INSERT INTO catalog_asset_links", "link-indexes"}, {"INSERT INTO search_own_prefix", "fts"}, {"UPDATE libraries", "library-revision"}, {"INSERT INTO api_events", "event"}, {"INSERT INTO catalog_age_item_counts", "age-counter"}, {"INSERT INTO admin_receipts", "receipt"}} {
+		if strings.Contains(q, p.needle) {
+			return p.name
+		}
+	}
+	panic("unclassified acceptance statement: " + q)
+}
+func attribution(c *sql.Conn, out, hash string) {
+	var resident int
+	must(c.QueryRowContext(context.Background(), "SELECT max(id) FROM catalog_entities").Scan(&resident))
+	sizes := []int{1, 2, 4, 8, 16, 32, 64, 128, 256, 1000}
+	runs := 128
+	if localControl {
+		sizes = []int{1, 2, 4, 8, 16, 32, 64, 128}
+	} else if os.Getenv("GITHUB_RUN_ID") == "" {
+		sizes = []int{1, 2}
+		runs = 2
+	}
+	depths := map[string]int64{}
+	dr, de := c.QueryContext(context.Background(), "SELECT name,max(length(path)-length(replace(path,'/','')))-1 FROM dbstat WHERE name='catalog_entities' OR name IN(SELECT name FROM sqlite_schema WHERE type='index' AND tbl_name IN('catalog_entities','catalog_assets','catalog_subjects')) GROUP BY name")
+	must(de)
+	for dr.Next() {
+		var name string
+		var depth int64
+		must(dr.Scan(&name, &depth))
+		depths[name] = depth
+	}
+	must(dr.Err())
+	must(dr.Close())
+	save(filepath.Join(out, "initial-btree-depths.json"), map[string]any{"ddl_sha256": hash, "residents": resident, "depth_edges": depths, "boundary": "Root depth0, max root-to-leaf edges; collected before timed writer cohorts"})
+	results := []any{}
+	measure := func(batch, reps int, control string) {
+		times := []float64{}
+		samples := []any{}
+		phaseSamples := map[string][]float64{}
+		tails := []any{}
+		totalStart := time.Now()
+		for rep := 0; rep < reps; rep++ {
+			q := acceptanceSQL(resident+1, batch)
+			statements := strings.Split(q, ";")
+			_, e := c.ExecContext(context.Background(), "BEGIN IMMEDIATE")
+			must(e)
+			start := time.Now()
+			phases := []any{}
+			for _, stmt := range statements {
+				if strings.TrimSpace(stmt) == "" {
+					continue
+				}
+				name := statementPhase(stmt)
+				t := time.Now()
+				_, e = c.ExecContext(context.Background(), stmt)
+				must(e)
+				ms := float64(time.Since(t).Nanoseconds()) / 1e6
+				phaseSamples[name] = append(phaseSamples[name], ms)
+				phases = append(phases, map[string]any{"phase": name, "start_ns": t.UnixNano(), "ms": ms})
+			}
+			t := time.Now()
+			_, e = c.ExecContext(context.Background(), "COMMIT")
+			must(e)
+			commit := float64(time.Since(t).Nanoseconds()) / 1e6
+			hold := float64(time.Since(start).Nanoseconds()) / 1e6
+			phases = append(phases, map[string]any{"phase": "commit", "start_ns": t.UnixNano(), "ms": commit})
+			phaseSamples["commit"] = append(phaseSamples["commit"], commit)
+			row := map[string]any{"rep": rep, "start_ns": start.UnixNano(), "hold_ms": hold, "phases": phases}
+			samples = append(samples, row)
+			times = append(times, hold)
+			if hold > 25 {
+				tails = append(tails, row)
+			}
+			resident += batch
+		}
+		summaries := map[string]any{}
+		for phase, xs := range phaseSamples {
+			summaries[phase] = map[string]any{"p50_ms": pct(xs, .5), "p99_ms": pct(xs, .99), "max_ms": pct(xs, 1)}
+		}
+		row := map[string]any{"ddl_sha256": hash, "control": control, "batch": batch, "n": reps, "p50_ms": pct(times, .5), "p95_ms": pct(times, .95), "p99_ms": pct(times, .99), "max_ms": pct(times, 1), "strict": pct(times, .99) <= 10 && pct(times, 1) <= 25, "max50": pct(times, 1) <= 50, "entities_per_s": float64(batch*reps) / time.Since(totalStart).Seconds(), "phase_summary": summaries, "samples": samples, "holds_over25_ms": tails}
+		results = append(results, row)
+		save(filepath.Join(out, "writer-attribution.json"), map[string]any{"ddl_sha256": hash, "results": results, "boundary": "One hosted benchmark job per VM, no concurrent child probes. NORMAL +PASSIVE100ms unless checkpoint-paused. Each statement separate ExecContext: parse/driver/index work charged to that statement, FTS deferred work may appear in COMMIT. Timestamps permit checkpoint overlap analysis; host scheduler/GC/IO are not individually attributed. No claim quiet physical host."})
+		fmt.Println("attribution", batch, control, pct(times, .99), pct(times, 1))
+	}
+	for _, size := range sizes {
+		measure(size, runs, "normal-passive")
+	}
+	checkpointMu.Lock()
+	measure(1, runs, "checkpoint-paused")
+	checkpointMu.Unlock()
+	// Snapshot index btree entries around one complete Basic, outside writer timing.
+	snapshot := func() map[string][3]int64 {
+		rows, e := c.QueryContext(context.Background(), "SELECT name,sum(ncell),sum(pgsize),max(length(path)-length(replace(path,'/','')))-1 FROM dbstat GROUP BY name")
+		must(e)
+		data := map[string][3]int64{}
+		for rows.Next() {
+			var name string
+			var cells, bytes, depth int64
+			must(rows.Scan(&name, &cells, &bytes, &depth))
+			data[name] = [3]int64{cells, bytes, depth}
+		}
+		must(rows.Err())
+		must(rows.Close())
+		return data
+	}
+	before := snapshot()
+	var a, b int64
+	must(c.QueryRowContext(context.Background(), "SELECT total_changes()").Scan(&a))
+	_, e := c.ExecContext(context.Background(), "BEGIN IMMEDIATE;"+acceptanceSQL(resident+1, 1)+"COMMIT;")
+	must(e)
+	must(c.QueryRowContext(context.Background(), "SELECT total_changes()").Scan(&b))
+	after := snapshot()
+	indexes := []any{}
+	rows, e := c.QueryContext(context.Background(), "SELECT name,tbl_name,coalesce(sql,'') FROM sqlite_schema WHERE type='index' ORDER BY name")
+	must(e)
+	for rows.Next() {
+		var name, table, ddl string
+		must(rows.Scan(&name, &table, &ddl))
+		old, new := before[name], after[name]
+		if new[0] != old[0] || table == "catalog_entities" || table == "catalog_subjects" || table == "catalog_assets" || table == "catalog_asset_links" {
+			indexes = append(indexes, map[string]any{"name": name, "table": table, "sql": ddl, "entries_before": old[0], "entries_after": new[0], "entry_delta": new[0] - old[0], "bytes_after": new[1], "byte_delta": new[1] - old[1]})
+		}
+	}
+	must(rows.Err())
+	must(rows.Close())
+	save(filepath.Join(out, "basic-index-footprint.json"), map[string]any{"ddl_sha256": hash, "resident_before": resident, "native_total_changes_delta": b - a, "indexes": indexes, "objects_before": before, "objects_after": after, "basic_sql": acceptanceSQL(resident+1, 1), "boundary": "dbstat btree cells delta around one complete Basic; ordinary index entries include implicit indexes. FTS uses compressed postings/segment blocks, not fixed1posting=1btree-cell. Net btree count does not count delete+insert rewrites of existing library/count records. No scalar membership contributions for a standalone movie."})
 }
