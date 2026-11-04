@@ -17,3 +17,13 @@ export function nativeTrickplayWindow(set: TrickplaySet | null | undefined, seco
     scaleX: box.width / frame.width, scaleY: box.height / frame.height,
   };
 }
+
+/** phone-player 1b: the scrub card's size. */
+export const SCRUB_CARD = Object.freeze({width: 178, height: 100});
+/** Where the scrub card's centre sits on a timeline `width` wide: over the knob, kept whole inside
+ * the timeline at either end (a 390-wide phone timeline included). */
+export function scrubCardCentre(fraction: number, width: number): number {
+  if (!(width > 0)) return 0;
+  const half = SCRUB_CARD.width / 2, x = Math.max(0, Math.min(1, Number.isFinite(fraction) ? fraction : 0)) * width;
+  return width <= SCRUB_CARD.width ? width / 2 : Math.max(half, Math.min(width - half, x));
+}
