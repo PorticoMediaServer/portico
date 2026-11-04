@@ -75,8 +75,10 @@ func TestReadingPrivatePathMovedFolderWithdrawsOldAttribution(t *testing.T) {
 	if moved := readingPathItem(t, r, later); moved != twoID {
 		t.Fatalf("reparent changed the title identity: %s want %s", moved, twoID)
 	}
-	expect(oneID, "Series", "")
-	expect(twoID, "Zeta", "")
+	// Author/Series/Title is author and series however many titles the folder
+	// holds; the moved title takes its new folder's series.
+	expect(oneID, "Author", "Series")
+	expect(twoID, "Author", "Zeta")
 	expect(standaloneID, "Author", "")
 	// Moving it back restores the two-title series interpretation.
 	if err := os.Rename(later, two); err != nil {

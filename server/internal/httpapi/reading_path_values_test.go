@@ -87,7 +87,9 @@ func TestReadingPrivatePathProducerGeneratedTree(t *testing.T) {
 		{"Frank Herbert/Dune (12)/Dune.epub", "Dune", "Frank Herbert", "", compactcatalog.ReadingFolder},
 		{"Isaac Asimov/Foundation.pdf", "Foundation", "Isaac Asimov", "", compactcatalog.ReadingFolder},
 		{"Isaac Asimov/Isaac Asimov - Foundation.epub", "Foundation", "Isaac Asimov", "", compactcatalog.ReadingFileName},
-		{"Books/Sci-fi/Frank Herbert/Dune.pdf", "Dune", "Frank Herbert", "", compactcatalog.ReadingFolder},
+		// DECISIONS 2 Nov 2026's accepted trade-off: a genre folder above an
+		// author folder reads as the author, the author folder as the series.
+		{"Books/Sci-fi/Frank Herbert/Dune.pdf", "Dune", "Sci-fi", "Frank Herbert", compactcatalog.ReadingFolder},
 		{"Ebooks/Foundation.pdf", "Foundation", "", "", ""},
 		{"Some Book [Group] (Digital) 1080p.pdf", "Some Book", "", "", ""},
 		{"[Group] (Digital).pdf", "[Group] (Digital)", "", "", ""},
@@ -161,8 +163,10 @@ func TestReadingPrivatePathComicFolderReclassification(t *testing.T) {
 		return v
 	}
 	v := get()
-	if v.Author == nil || v.Author.Value != "Little Nemo" || v.Series != nil {
-		t.Fatal("one-title folder guess is not genuine", v)
+	// A numbered folder is a series with one issue in it as with two
+	// (DECISIONS, 2 Nov 2026, replacing ruling 45 rule 3).
+	if v.Author != nil || v.Series == nil || v.Series.Value != "Little Nemo" || v.SeriesNumber == nil || v.SeriesNumber.Value != 1 {
+		t.Fatal("a one-issue numbered folder is not its series", v)
 	}
 	second := readingTreeFile(t, r, "Little Nemo/02.cbz")
 	readingScan(t, r.f, r.library)
@@ -189,8 +193,8 @@ func TestReadingPrivatePathComicFolderReclassification(t *testing.T) {
 	}
 	readingScan(t, r.f, r.library)
 	v = get()
-	if v.Author == nil || v.Author.Value != "Little Nemo" || v.Series != nil {
-		t.Fatal("missing sibling did not refresh available title", v)
+	if v.Author != nil || v.Series == nil || v.Series.Value != "Little Nemo" || v.SeriesNumber == nil || v.SeriesNumber.Value != 1 {
+		t.Fatal("removing a sibling changed what the numbered folder says", v)
 	}
 }
 
