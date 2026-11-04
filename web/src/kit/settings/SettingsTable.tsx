@@ -5,7 +5,8 @@ import {Icon} from '../Icon';
 import {Artwork} from '../artwork/Artwork';
 import type {ArtworkSource} from '../artwork/types';
 import {accountAvatarStyle} from './account-avatar';
-import {nextTableSort, selectTableRows, settingsTableHeaderHeight, settingsTableRowHeight, settingsTableWindow, tableFocusFallback, type TableQuery} from './table-model';
+import {nextTableSort, selectTableRows, settingsTableMetrics, settingsTablePhoneMetrics, settingsTableWindow, tableFocusFallback, type TableQuery} from './table-model';
+import {usePhone} from '../overlays/shared';
 import styles from './settings.module.css';
 
 const t = defaultI18n.t;
@@ -42,7 +43,8 @@ export function SettingsTable({label, rows, columns, query, onQueryChange, filte
   const [viewport, setViewport] = useState({top: 0, height}), [focused, setFocused] = useState<string | undefined>();
   const pending = useRef<{id: string; slot: number} | undefined>(undefined), before = useRef(rows.map(row => row.id));
   const restoreSearch = useRef(false), autoMore = useRef<string | undefined>(undefined);
-  const range = settingsTableWindow(rows.length, viewport.top, viewport.height), selectable = !!onSelectionChange;
+  const metrics = usePhone() ? settingsTablePhoneMetrics : settingsTableMetrics;
+  const range = settingsTableWindow(rows.length, viewport.top, viewport.height, 3, metrics), selectable = !!onSelectionChange;
   const ids = useMemo(() => rows.map(row => row.id), [rows]), selectedCount = selected?.size ?? 0;
   const selectableIds = useMemo(() => rows.filter(row => row.selectable !== false).map(row => row.id), [rows]);
   const allChecked = selectableIds.length > 0 && selectableIds.every(id => selected?.has(id)), anyChecked = selectableIds.some(id => selected?.has(id));
@@ -58,11 +60,11 @@ export function SettingsTable({label, rows, columns, query, onQueryChange, filte
     const element = root.current, index = rows.findIndex(row => row.id === rowId);
     if (!element || index < 0) { search.current?.focus(); return; }
     pending.current = {id: rowId, slot};
-    const top = index * settingsTableRowHeight, bottom = top + settingsTableRowHeight + settingsTableHeaderHeight;
+    const top = index * metrics.row, bottom = top + metrics.row + metrics.header;
     if (top < element.scrollTop) element.scrollTop = top;
     else if (bottom > element.scrollTop + element.clientHeight) element.scrollTop = bottom - element.clientHeight;
     setViewport({top: element.scrollTop, height: element.clientHeight});
-  }, [rows]);
+  }, [rows, metrics]);
   useImperativeHandle(ref, () => ({focusRow}), [focusRow]);
   useEffect(() => {
     const element = root.current; if (!element) return;
