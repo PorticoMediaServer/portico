@@ -587,3 +587,71 @@ func TestBulkMetadataPreparedHTTPErrorMappingAndDeclarations(t *testing.T) {
 		})
 	}
 }
+
+// The producer fences its basis repeatedly in one snapshot. Reconstructing
+// scope and the proof each time can consume the whole cooperative slice before
+// a target is read, causing one-target windows and hundreds of extra reads.
+func TestBulkMetadataLocalBasisReusesOnlyItsSnapshotAndInput(t *testing.T) {
+	f, _, _ := preparedMetadataFixture(t, 1)
+	in, _, _, _ := prepareMetadataHTTP(t, f)
+	r := httptest.NewRequest("POST", preparedMetadataPath, nil)
+	r.Header.Set("Authorization", "Bearer "+f.token)
+	p, _, fence, err := f.d.bulkMetadataPreviewScope(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	access := f.d.bulkMetadataPreviewAccess(p, bulkMetadataPreviewInput{Request: in, Fence: fence}, 0)
+	var first catalog.BulkMetadataSelectionPage
+	for snapshot := 0; snapshot < 2; snapshot++ {
+		ctx, cost := dbwork.Measure(context.Background())
+		err := dbwork.WithReadSnapshot(ctx, f.d.DB, func(inner context.Context) error {
+			tx := dbwork.Snapshot(inner)
+			before := cost().Statements
+			got, err := access.Source(inner, tx, 0)
+			if err != nil {
+				return err
+			}
+			readCost := cost().Statements - before
+			if readCost == 0 {
+				t.Fatal("basis crossed snapshots without being re-read")
+			}
+			if snapshot == 0 {
+				first = got
+			} else if !reflect.DeepEqual(got, first) {
+				t.Fatal("unchanged basis changed")
+			}
+			before = cost().Statements
+			again, err := access.Source(inner, tx, 123)
+			if err != nil {
+				return err
+			}
+			if !reflect.DeepEqual(again, got) || cost().Statements != before {
+				t.Fatalf("repeated immutable basis ran %d extra statements", cost().Statements-before)
+			}
+			// A different descriptor in the same snapshot cannot reuse this
+			// input's revision, even when its query and viewer are identical.
+			other := in
+			other.Expected = &catalog.JobExpected{CatalogRevision: "another-revision"}
+			otherAccess := f.d.bulkMetadataPreviewAccess(p, bulkMetadataPreviewInput{Request: other, Fence: fence}, 0)
+			value, err := otherAccess.Source(inner, tx, 0)
+			if err != nil {
+				return err
+			}
+			if value.Selection.Revision != "another-revision" {
+				t.Fatal("basis reused another descriptor")
+			}
+			t.Logf("snapshot %d: first basis %d statements, repeat 0", snapshot, readCost)
+			return access.Authorize(inner, tx)
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	f.c.Exec(`UPDATE catalog_entities SET year=2001 WHERE kind=1`)
+	if err := dbwork.WithReadSnapshot(context.Background(), f.d.DB, func(inner context.Context) error {
+		_, err := access.Source(inner, dbwork.Snapshot(inner), 0)
+		return err
+	}); !errors.Is(err, catalog.ErrStaleContinuation) {
+		t.Fatalf("changed source reused a prior snapshot: %v", err)
+	}
+}
