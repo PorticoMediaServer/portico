@@ -227,9 +227,39 @@ test('D12: a visible Modal is its own window: it takes focus, the D-pad sees onl
     assert.equal(engine.focusable('b'), false, `${platform}: nothing under it is a target`);
     let handled = 0; const off = engine.native.BackHandler.addEventListener('hardwareBackPress', () => {handled++; return true;});
     await engine.press(platform === 'android' ? 'back' : 'menu');
+    if (platform === 'tvos') await engine.finishDismissals(); // D16: Menu's request comes from UIKit's completion
     assert.equal(handled, 0, `${platform}: BackHandler never sees it`);
     assert.ok(engine.log.some((step: any) => step.why === 'request-close'), `${platform}: onRequestClose`);
     off.remove();
+  }
+});
+test('D12: the window shown last is on top even when it sits earlier in the tree; it gets the D-pad and Back or Menu', async () => {
+  for (const platform of ['android', 'tvos'] as const) {
+    const engine = await tvFocusEngine({platform}), e = engine.React.createElement, n = engine.native, closes: string[] = [];
+    const window = (id: string) => e(n.Modal, {key: id, testID: id, onRequestClose: () => closes.push(id)}, row(e, n, [`${id}-a`, `${id}-b`], 400));
+    const scene = (early: boolean) => e(n.View, {style: {flex: 1}}, early ? window('early') : null, window('late'));
+    await engine.render(scene(false));
+    assert.equal(engine.focused, 'late-a');
+    await engine.render(scene(true));
+    assert.equal(engine.focused, 'early-a', `${platform}: the new window takes focus`);
+    assert.deepEqual(engine.windows().map((w: any) => w.testID), ['late', 'early'], `${platform}: bottom first, in the order shown`);
+    await engine.press('right');
+    assert.equal(engine.focused, 'early-b', `${platform}: the D-pad stays in the top window`);
+    await engine.press(platform === 'android' ? 'back' : 'menu');
+    if (platform === 'tvos') await engine.finishDismissals();
+    assert.deepEqual(closes, ['early'], `${platform}: the window shown last takes the key`);
+  }
+});
+test('D12: an explicit nextFocus naming a host in another window is ignored; the D-pad stays in the top window', async () => {
+  for (const platform of ['android', 'tvos'] as const) {
+    const engine = await tvFocusEngine({platform}), e = engine.React.createElement, n = engine.native;
+    const scene = (open: boolean, base?: number) => e(n.View, {style: {flex: 1}}, row(e, n, ['a', 'b']),
+      open ? e(n.Modal, {testID: 'page', onRequestClose() {}}, e(n.Pressable, {testID: 'home', nextFocusRight: base, style: {width: 200, height: 100}})) : null);
+    await engine.render(scene(false));
+    await engine.render(scene(true, engine.tag('b')));
+    assert.equal(engine.focused, 'home');
+    await engine.press('right');
+    assert.equal(engine.focused, 'home', `${platform}: a stale cross-window edge never crosses the window`);
   }
 });
 test('D13 (Android): a request under a Modal becomes that window\'s focus without key focus, and is what it gets back when the Modal closes', async () => {
@@ -261,4 +291,26 @@ test('D14 (tvOS): requests under a Modal move nothing; a dismissal keeps it on s
   assert.equal(engine.focused, 'b', 'restoresFocusAfterTransition: the view focused when it opened');
   const steps = engine.log.map((step: any) => step.why);
   assert.ok(steps.lastIndexOf('window-close') < steps.lastIndexOf('dismissed'), 'focus is back before onDismiss');
+});
+test('D16 (tvOS): Menu in a Modal is UIKit\'s own dismissal: focus waits, then the opener, then onDismiss and onRequestClose; a later visible={false} reports nothing', async () => {
+  const engine = await tvFocusEngine({platform: 'tvos'});
+  await engine.render(windowScene(engine, {open: false}));
+  await engine.focus('b');
+  await engine.render(windowScene(engine));
+  await engine.press('menu');
+  assert.deepEqual(engine.windows(), [{testID: 'page', dismissing: true}], 'dismissing at once, still on screen');
+  assert.equal(engine.focused, 'home');
+  assert.ok(!engine.log.some((step: any) => step.why === 'request-close' || step.why === 'dismissed'), 'nothing reaches JS yet');
+  await engine.press('left');
+  assert.equal(engine.focused, 'home', 'nothing moves during the dismissal');
+  await engine.finishDismissals();
+  assert.deepEqual(engine.windows(), [], 'gone, though the Modal is still mounted');
+  assert.equal(engine.focused, 'b', 'restoresFocusAfterTransition');
+  const steps = engine.log.map((step: any) => step.why);
+  assert.ok(steps.lastIndexOf('window-close') < steps.indexOf('dismissed') && steps.indexOf('dismissed') < steps.indexOf('request-close'), 'focus, then onDismiss, then onRequestClose');
+  await engine.render(windowScene(engine, {visible: false}));
+  await engine.finishDismissals();
+  assert.equal(engine.log.filter((step: any) => step.why === 'dismissed').length, 1, 'nothing left to dismiss, so no second report');
+  await engine.render(windowScene(engine, {open: false}));
+  assert.equal(engine.focused, 'b');
 });

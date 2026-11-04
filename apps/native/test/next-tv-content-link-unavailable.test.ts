@@ -6,9 +6,9 @@ import {tvRefusedPage} from './helpers/tv-refused-page.mjs';
 // The TV page for a refused content link (N5-1's "lands on Home without a message" on TV): a full-screen opaque native
 // Modal (DECISIONS, 4 Nov), focus on Home, Back the same as Home, and focus back where it was once it has gone. Runs
 // the real page, overlay lifecycle and native dismissal on the fake engine's window model (D12-D15).
-async function scene(platform: 'android' | 'tvos') {
+async function scene(platform: 'android' | 'tvos', options?: {wait: number}) {
   const kit = await tvFocusKit({platform}), {engine, e, focus, Stop} = kit, n = engine.native;
-  const page = await tvRefusedPage(kit), registry = focus.createFocusRegistry();
+  const page = await tvRefusedPage(kit, options), registry = focus.createFocusRegistry();
   const Shell = ({refused}: {refused: boolean}) => e(focus.FocusProvider, {registry}, e(n.View, {style: {flex: 1}},
     e(focus.FocusRegion, {id: 'home.row', orientation: 'horizontal', style: {flexDirection: 'row', gap: 20}}, e(Stop, {id: 'film'}), e(Stop, {id: 'show'})),
     refused ? e(page.Refused, {}) : null));
@@ -38,6 +38,21 @@ test('a refused link on TV is a full-screen opaque Modal that takes focus on Hom
       assert.equal(engine.focused, 'show', `${label}: focus back where it was`);
     }
   }
+});
+
+test('tvOS Menu: UIKit dismisses the page itself and reports onDismiss before onRequestClose; the page goes at once, not on the fallback', async () => {
+  const {engine, e, Shell, held} = await scene('tvos', {wait: 60_000});
+  await engine.render(e(Shell, {refused: false}));
+  await engine.focus('show');
+  await engine.render(e(Shell, {refused: true}));
+  assert.equal(engine.focused, 'refused-home');
+  await engine.press('menu');
+  assert.equal(engine.focused, 'refused-home', 'focus waits for the dismissal');
+  await engine.finishDismissals();
+  assert.equal(held(), false, 'the page has gone: its already-reported dismissal counts');
+  assert.equal(engine.windows().length, 0);
+  assert.equal(engine.focused, 'show', 'focus back where it was');
+  await engine.unmount();
 });
 
 test('the refused page is an opaque, unanimated, full-screen Modal', async () => {

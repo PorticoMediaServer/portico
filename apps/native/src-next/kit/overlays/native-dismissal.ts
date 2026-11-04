@@ -10,21 +10,23 @@ import {LAYER_FOCUS_WAIT_MS} from '../focus/layer-stack';
  * when the caller unmounts it (and so when the overlay lifecycle gives focus back):
  * - iOS and tvOS: `close` starts the dismissal, and `onGone` runs from `onDismiss`, once UIKit has finished the
  *   transition and given the presenting hierarchy its focus back. If dismissal is never reported (a cold-start
- *   present that never reached the window, D15), `onGone` runs after `wait`.
+ *   present that never reached the window, D15), `onGone` runs after `wait`. Menu on tvOS is UIKit's own dismissal: it
+ *   reports `onDismiss` first and the `onRequestClose` that calls `close` after it, possibly in a later commit (D16). A
+ *   dismissal already reported is kept, so that `close` is gone at once rather than on the fallback.
  * - Android and Vega: the dialog window goes with the element, so `onGone` runs at once.
  */
 export function useNativeDismissal(onGone: () => void, wait = LAYER_FOCUS_WAIT_MS): Readonly<{visible: boolean; close: () => void; onDismiss: () => void}> {
   const [closing, setClosing] = useState(false);
-  const gone = useRef(onGone), state = useRef({closing: false, finished: false});
+  const gone = useRef(onGone), state = useRef({closing: false, finished: false, dismissed: false});
   gone.current = onGone;
   const finish = useCallback(() => {if (state.current.finished) return; state.current.finished = true; gone.current();}, []);
   const close = useCallback(() => {
     if (state.current.closing || state.current.finished) return;
-    if (Platform.OS !== 'ios') {finish(); return;}
+    if (Platform.OS !== 'ios' || state.current.dismissed) {finish(); return;}
     state.current.closing = true;
     setClosing(true);
   }, [finish]);
-  const onDismiss = useCallback(() => {if (state.current.closing) finish();}, [finish]);
+  const onDismiss = useCallback(() => {state.current.dismissed = true; if (state.current.closing) finish();}, [finish]);
   useEffect(() => {
     if (!closing) return;
     const timer = setTimeout(finish, wait);
