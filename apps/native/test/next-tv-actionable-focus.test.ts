@@ -429,7 +429,7 @@ test('TV Now Playing names More and Lyrics from the actual mounted instance and 
   const {TVNowPlayingScreen} = await screenModule(new URL('../src-next/screens/destinations/music/TVNowPlayingScreen.tsx', import.meta.url), {
     react: b.react, 'react-native': b.native, '../../../../../../packages/i18n/src': {defaultI18n}, '../../../../../../packages/client-core/src/presentation/kit-model/text': text,
     '../../../../../../packages/player-core/src': {sameFence: (a: any, c: any) => a === c}, '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', AmbientArt: 'Ambient', Artwork: 'Artwork'},
-    '../../../kit/controls': {Button: o.Button}, '../../../kit/focus': {requestNativeFocus: registryModule.requestNativeFocus, useOptionalFocusRegistry: () => claimRegistry}, '../../../kit/Icon': {Icon: 'Icon'}, '../../../kit/overlays': {...o.menu, SidePanel: o.surface.SidePanel},
+    '../../../kit/controls': {Button: o.Button}, '../../../kit/focus': {requestNativeFocus: registryModule.requestNativeFocus, provideTVLayerClaim: (key: string, claim: () => boolean) => {provided.push({key, claim}); return () => {released.push(claim);};}}, '../../../kit/Icon': {Icon: 'Icon'}, '../../../kit/overlays': {...o.menu, SidePanel: o.surface.SidePanel},
     '../../../kit/theme': {useTheme: () => b.theme, nativeType}, '../../../kit/dock/model': dock,
     '../../../shell/model': {shellLayout: () => ({width: 1920, height: 1080, left: 0, top: 0, scale: 1})},
     '../../../platform/playback/equalizer': {nativeEqualizer: {subscribe: () => () => {}, getSnapshot: (() => {const snapshot = {supported: true}; return () => snapshot;})()}},
@@ -442,17 +442,20 @@ test('TV Now Playing names More and Lyrics from the actual mounted instance and 
     presentation: {identity: {title: 'Song', subtitle: []}, durationSeconds: 100, capabilities: {play: true, pause: true, previous: false, next: true}}},
     width: 1920, height: 1080, artwork: () => undefined, onAction() {}, onQueuePlay() {}, onClose() {}, lyrics: React.createElement('Lyrics'), equalizerCopy: {}};
   const wrap = TVNowPlayingScreen(props).props.children; let tree: any, second: any;
-  // W-9: the player claims focus as it opens, a frame after it is drawn, and keeps claiming until focus is inside it.
-  let claimRegistry: any = undefined;
-  const frames: (() => void)[] = [], realFrame = globalThis.requestAnimationFrame, realCancel = globalThis.cancelAnimationFrame;
-  globalThis.requestAnimationFrame = ((callback: () => void) => frames.push(callback)) as never; globalThis.cancelAnimationFrame = (() => {}) as never;
-  t.after(() => {globalThis.requestAnimationFrame = realFrame; globalThis.cancelAnimationFrame = realCancel;});
+  // W-9, TVF-A1: the listening screen tells the TV layer stack which control it opens on; the stack asks when the
+  // layer goes on top and again as elements attach. Nothing here loops on frames.
+  const provided: {key: string; claim: () => boolean}[] = [], released: (() => boolean)[] = [];
+  const realFrame = globalThis.requestAnimationFrame, frames: unknown[] = [];
+  globalThis.requestAnimationFrame = ((callback: () => void) => frames.push(callback)) as never;
+  t.after(() => {globalThis.requestAnimationFrame = realFrame;});
   const source = createFabricHookHost(() => {tree = wrap.type(wrap.props);}); await source.mount();
   const button = (name: string) => nodes(tree).find(node => node.type === o.Button && node.props.testID === `now-playing-${name}`);
   const claimed: string[] = [];
   for (const name of ['toggle', 'next', 'previous', 'lyrics']) button(name).props.ref.current = {requestTVFocus() {claimed.push(name);}};
-  for (const frame of frames.splice(0)) frame();
+  assert.equal(provided.length, 1); assert.equal(provided[0]!.key, 'listening');
+  assert.equal(provided[0]!.claim(), true, 'a request was sent');
   assert.deepEqual(claimed, ['toggle'], 'the player opens with focus on Play/Pause, off the covered page underneath');
+  assert.equal(frames.length, 0, 'no frame loop');
   // At the end of a track Play is not available: the first control that is takes focus instead.
   const ended = {...props, occupant: {...props.occupant, playback: {...props.occupant.playback, playing: false},
     presentation: {...props.occupant.presentation, capabilities: {play: false, pause: false, previous: false, next: false}}}};
@@ -460,22 +463,20 @@ test('TV Now Playing names More and Lyrics from the actual mounted instance and 
   const endedHost = createFabricHookHost(() => {endedTree = endedWrap.type(endedWrap.props);}); await endedHost.mount();
   const endedClaims: string[] = [];
   for (const name of ['toggle', 'next', 'previous', 'lyrics']) nodes(endedTree).find(node => node.type === o.Button && node.props.testID === `now-playing-${name}`).props.ref.current = {requestTVFocus() {endedClaims.push(name);}};
-  for (const frame of frames.splice(0)) frame();
+  provided.at(-1)!.claim();
   assert.deepEqual(endedClaims, ['lyrics'], 'a disabled Play/Pause, Next and Previous are skipped');
+  const endedClaim = provided.at(-1)!.claim;
   await endedHost.unmount();
-  // 2eec0520: a request made before the views attach does nothing, so the claim repeats until focus is inside the player.
-  let inside = false; claimRegistry = {capture: () => inside ? {regionId: 'player.transport'} : {regionId: 'album.actions'}};
+  assert.ok(released.includes(endedClaim), 'a screen that goes stops providing its claim');
+  // 2eec0520: before its views attach a request can't land: the claim says so, and the stack asks again as they attach.
   const retryWrap = TVNowPlayingScreen(props).props.children; let retryTree: any;
   const retryHost = createFabricHookHost(() => {retryTree = retryWrap.type(retryWrap.props);}); await retryHost.mount();
+  const retryClaim = provided.at(-1)!.claim;
+  assert.equal(retryClaim(), false, 'nothing attached yet: no request sent');
   const retryClaims: string[] = [];
   nodes(retryTree).find(node => node.type === o.Button && node.props.testID === 'now-playing-toggle').props.ref.current = {requestTVFocus() {retryClaims.push('toggle');}};
-  for (let i = 0; i < 3; i++) for (const frame of frames.splice(0)) frame();
-  assert.equal(retryClaims.length, 3, 'still claiming while focus is elsewhere');
-  const regionId = nodes(retryTree).find(node => node.props?.id?.endsWith?.('.transport'))?.props.id as string;
-  claimRegistry.capture = () => ({regionId});
-  for (let i = 0; i < 3; i++) for (const frame of frames.splice(0)) frame();
-  assert.equal(retryClaims.length, 3, 'stops once focus is inside the player');
-  await retryHost.unmount(); claimRegistry = undefined; frames.length = 0;
+  assert.equal(retryClaim(), true); assert.deepEqual(retryClaims, ['toggle']);
+  await retryHost.unmount();
   const another = createFabricHookHost(() => {second = wrap.type(wrap.props);}); await another.mount();
   frames.length = 0;
   const ref = button('more').props.ref; let restored = 0; ref.current = {nativeTag: 701, requestTVFocus() {restored++;}};

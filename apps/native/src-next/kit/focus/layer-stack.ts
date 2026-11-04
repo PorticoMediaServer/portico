@@ -6,6 +6,9 @@ export type TVLayerSpec = Readonly<{
   /** The layer's own native host (its CoveredLayer). A fresh layer takes focus by asking it, which lands on the
    * element last focused there or its first focusable. A layer without a host claims focus itself. */
   host?: () => FocusHost | null | undefined;
+  /** A layer that names the control it opens on asks for it itself (asked instead of the host). Returns
+   * whether a request was sent; the stack asks again as elements attach, within its wait. */
+  claim?: () => boolean;
 }>;
 type Registry = Pick<FocusRegistry, 'capture' | 'focus' | 'restore' | 'retain' | 'subscribe'>;
 type Clock = Readonly<{later: (run: () => void, ms: number) => unknown; cancel: (handle: unknown) => void}>;
@@ -52,8 +55,9 @@ export function createTVLayerStack(registry: Registry, clock: Clock = realClock,
   const host = (key: string) => layers.find(layer => layer.key === key)?.host?.();
   const claim = (key: string) => {
     const target = layers.find(layer => layer.key === key);
-    if (!target?.host) return;
-    settle(() => requestNativeFocus(host(key)), () => {});
+    const ask = target?.claim ?? (target?.host ? () => requestNativeFocus(host(key)) : undefined);
+    if (!ask) return;
+    settle(ask, () => {});
   };
   const restore = (key: string, snapshot: FocusSnapshot) => settle(
     () => registry.focus(snapshot),
@@ -105,11 +109,18 @@ export function tvRouteLayerKeys(navigation: LayerNavigation): string {
   while (page >= 0 && stack[page]!.route.kind !== 'shell') page--;
   return JSON.stringify(stack.slice(page + 1).map(presentation => `route:${presentation.occurrence}`));
 }
+/** How a layer drawn outside the shell (the listening screen) takes focus, provided by that layer while it is
+ * mounted (TVF-A1). The stack asks it when the layer goes on top. */
+const layerClaims = new Map<string, () => boolean>();
+export function provideTVLayerClaim(key: 'listening', claim: () => boolean): () => void {
+  layerClaims.set(key, claim);
+  return () => {if (layerClaims.get(key) === claim) layerClaims.delete(key);};
+}
 /** The full-screen TV layers, bottom first: the page, each route over it, the player, the listening screen. */
 export function tvLayerSpecs(routes: readonly string[], expanded: boolean, listening: boolean,
   page: () => FocusHost | null, route: () => FocusHost | null): readonly TVLayerSpec[] {
   return [{key: 'page', host: page}, ...routes.map(key => ({key, host: route})),
-    // The player and the listening screen take focus themselves; the stack covers what is under them and gives
-    // the layer below its focus back when they go.
-    ...expanded ? [{key: 'player'}] : [], ...listening ? [{key: 'listening'}] : []];
+    // The player takes focus itself (its preferred control); the listening screen tells the stack which control it
+    // opens on. Either way the stack covers what is under them and gives the layer below its focus back when they go.
+    ...expanded ? [{key: 'player'}] : [], ...listening ? [{key: 'listening', claim: () => layerClaims.get('listening')?.() ?? false}] : []];
 }

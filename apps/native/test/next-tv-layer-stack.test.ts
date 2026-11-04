@@ -99,7 +99,38 @@ test('the shell derives one layer per route occurrence above the page, then the 
     'routes under a later page are not over it');
   const specs = tvLayerSpecs(['route:3'], true, true, () => null, () => null);
   assert.deepEqual(specs.map(spec => spec.key), ['page', 'route:3', 'player', 'listening']);
-  assert.equal(specs[2]!.host, undefined, 'the player and the listening screen claim focus themselves');
+  assert.equal(specs[2]!.host, undefined, 'the player claims focus itself');
+  assert.equal(specs[3]!.host, undefined);
+  assert.equal(specs[3]!.claim!(), false, 'no listening screen provides its claim: nothing is asked');
+});
+
+test('TVF-A1: the listening screen says which control it opens on; the stack asks it when the layer goes on top, then as elements attach, then stops', async () => {
+  const {provideTVLayerClaim} = await import('../src-next/kit/focus/layer-stack.ts');
+  const registry = createFocusRegistry(), time = clock(), log: string[] = [];
+  const stack = createTVLayerStack(registry, time);
+  const card = {regionId: 'album', childId: 'play'};
+  registry.configure({id: 'album', order: ['play']}); registry.attach(card, host(log, 'album-play', () => registry.didFocus(card)));
+  registry.didFocus(card);
+  let attached = false;
+  const release = provideTVLayerClaim('listening', () => {log.push('claim'); return attached;});
+  try {
+    stack.sync(tvLayerSpecs([], false, false, () => host(log, 'page-layer'), () => null));
+    stack.sync(tvLayerSpecs([], false, true, () => host(log, 'page-layer'), () => null));
+    assert.equal(stack.top(), 'listening');
+    assert.deepEqual(stack.opener('page')?.childId, 'play', 'the album keeps where focus was');
+    assert.deepEqual(log, ['claim'], 'asked once as it goes on top, not the page host');
+    const toggle = {regionId: 'listening.transport', childId: 'toggle'};
+    registry.configure({id: 'listening.transport', order: ['toggle']});
+    assert.deepEqual(log, ['claim', 'claim'], 'asked again as its views attach');
+    attached = true; registry.attach(toggle, host(log, 'toggle')); registry.didFocus(toggle);
+    const before = log.length;
+    registry.configure({id: 'listening.queue', order: ['row']});
+    assert.equal(log.length, before, 'focus is inside: the claim is over');
+    assert.equal(time.size(), 0);
+    stack.sync(tvLayerSpecs([], false, false, () => host(log, 'page-layer'), () => null));
+    assert.deepEqual(registry.capture() && {regionId: registry.capture()!.regionId, childId: registry.capture()!.childId}, card, 'closing it returns the album\'s Play');
+  } finally {release(); stack.dispose();}
+  assert.equal(tvLayerSpecs([], false, true, () => null, () => null)[1]!.claim!(), false, 'a released claim is gone');
 });
 
 /** The shell's page and route layers with the real stack doing the claims and returns. */
