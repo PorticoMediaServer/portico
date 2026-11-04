@@ -99,3 +99,12 @@ streams. It avoids computing full title populations before first response.
 Inherited title matches remain reachable in the deferred complete A set. It
 changes title-group rank policy and requires the runtime continuation/fence/
 pending-total design above; it does not change any candidate table/index.
+
+The extended native-policy run raises only the research repayment-attempt limit
+512→32768; same-level admission ceiling4, engine settings and offered data are
+unchanged. It records progress while publication remains paused and reports
+physical WAL bytes before every checkpoint. This distinguishes a diagnostic
+loop limit from non-repaying debt. No successful native-write subset qualifies
+the private connection's long TRUNCATE checkpoint calls or production FK/custody
+acceptance. New candidate280f03e6 has ten byte-identical search-family statements
+to the executed d07d13 schema; native search results apply to that family.

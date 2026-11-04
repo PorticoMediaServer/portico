@@ -257,7 +257,15 @@ func insertItem(db *sql.DB, i, shared int) {
 		exec(db, "INSERT OR IGNORE INTO edges VALUES(?,?)", shared+4, i)
 	}
 }
-func checkpoint(db *sql.DB) { native(db, "checkpoint", "PRAGMA wal_checkpoint(TRUNCATE)") }
+
+var databasePath string
+
+func checkpoint(db *sql.DB) {
+	if f, e := os.Stat(databasePath + "-wal"); e == nil {
+		emit("wal_checkpoint_before", map[string]any{"physical_bytes": f.Size()})
+	}
+	native(db, "checkpoint", "PRAGMA wal_checkpoint(TRUNCATE)")
+}
 func build(db *sql.DB, n int) {
 	shared := max(128, n/50)
 	for i := 1; i <= shared+max(1, shared/10); {
@@ -388,14 +396,17 @@ var maxDebt = map[string]int{}
 
 func maintain(db *sql.DB, tag string) {
 	for _, idx := range indexes {
-		for step := 0; step < 512; step++ {
+		for step := 0; step < 32768; step++ {
 			d := structure(db, idx)
+			if step > 0 && step%512 == 0 {
+				emit("debt_repayment_progress", map[string]any{"index": idx, "steps": step, "debt": d})
+			}
 			n := d["max_same_level"].(int)
 			maxDebt[idx] = max(maxDebt[idx], n)
 			if n < 4 {
 				break
 			}
-			if step == 511 {
+			if step == 32767 {
 				emit("debt_admission_blocked", map[string]any{"index": idx, "debt": d})
 				panic("cannot repay segment debt")
 			}
@@ -605,6 +616,7 @@ func main() {
 	configure(*config)
 	must(os.MkdirAll(*dir, 0755))
 	path := filepath.Join(*dir, "search.sqlite")
+	databasePath = path
 	db := open(path)
 	defer db.Close()
 	var version string
