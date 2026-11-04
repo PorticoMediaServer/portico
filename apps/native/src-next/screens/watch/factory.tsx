@@ -197,12 +197,16 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
       && sameAuthority(ports.navigation.getSnapshot().authority, ports.authority) && ports.navigation.getSnapshot().revision === revision;
     return request(valid, signal => readNativePlaybackInfo(ports.playback, fence, words, {signal, isCurrent: valid}), lifetime.signal);
   };
+  /** A card on this title page's More like this: any related or recommendation row, every page read so far
+   *  (detail's related rows, a show's or a film's recommendations). */
+  const onTitlePage = (state: ReturnType<NativeTitleController['getSnapshot']>, member: ContentEntry) =>
+    Object.values(state.related).some(row => row.entries.some(value => titleKey(value) === titleKey(member)));
   const createTitleController = (key: string, entry: ContentEntry, body = false): NativeTitleController => {
     let owner: NativeTitleController;
     const memberCurrent = (member: ContentEntry) => {
       const state = owner.getSnapshot();
       return controllers.get(key) === owner && !state.retired && (titleKey(state.entry) === titleKey(member) || state.episodes.some(value => titleKey(value) === titleKey(member))
-        || state.detail?.data?.related?.rows.some(row => row.entries.some(value => titleKey(value) === titleKey(member))) === true);
+        || onTitlePage(state, member));
     };
     // The exact host this page lives under: the layout's own route revision for a
     // title page, or the playing session's fence for the watch body. A retained
@@ -342,7 +346,8 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
     let detail: DetailService | undefined;
     if (entry.libraryId) {
       const candidate = new DetailService({queries: viewerQueriesFor(ports.api, ports.scope), api: ports.api, scope: ports.scope, requestId: ports.requestId});
-      try {await candidate.select({libraryId: entry.libraryId, itemId: entry.id});}
+      // The menu needs no related rows: ask as the title page does (a film's page holds Detail without them), so it shares that read.
+      try {await candidate.select({libraryId: entry.libraryId, itemId: entry.id}, {related: entry.kind === 'movie' ? 'none' : 'all'});}
       catch {candidate.dispose();}
       if (!current(captured)) {candidate.dispose(); return;}
       if (!candidate.getSnapshot().data) candidate.dispose(); else detail = candidate;
@@ -509,7 +514,7 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
             const state = owner.getSnapshot();
             return controllers.get(key) === owner && !state.retired && (titleKey(state.entry) === titleKey(entry)
               || state.episodes.some(item => titleKey(item) === titleKey(entry))
-              || state.detail?.data?.related?.rows.some(row => row.entries.some(item => titleKey(item) === titleKey(entry))) === true);
+              || onTitlePage(state, entry));
           }, anchorRef, card?.onEnter).catch(ports.title.reportError);
         }}
         myList={ports.title.myList?.(route.entry)} download={ports.title.download}/>;
@@ -537,7 +542,7 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
           const state = owner.getSnapshot(), active = ports.playback.getSnapshot();
           return !state.retired && !active.retired && active.dock.local?.expanded === true && !!active.entry && titleKey(active.entry) === titleKey(entry)
             && (titleKey(state.entry) === titleKey(member) || state.episodes.some(value => titleKey(value) === titleKey(member))
-            || state.detail?.data?.related?.rows.some(row => row.entries.some(value => titleKey(value) === titleKey(member))) === true);
+            || onTitlePage(state, member));
         }, anchorRef, card?.onEnter).catch(ports.title.reportError);
       }}/>;
   };
