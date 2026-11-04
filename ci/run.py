@@ -286,6 +286,7 @@ def js_static(plan,component):
             execute(['npm','run','build'],ROOT/group)
             execute(['node',str(ROOT/'scripts/check-no-external-fonts.mjs'),'--dist',str(ROOT/'web/dist')])
         elif (ROOT/group/'tsconfig.json').exists(): execute(['npx','--no-install','tsc','--noEmit'],ROOT/group)
+        if group=='apps/native': execute(['npx','--no-install','tsc','--noEmit','--project','test/tsconfig.json'],ROOT/group)
         for name in ['lint:boundary','lint:hooks','lint:strings','lint:design','lint:routes','tokens']:
             if name in scripts: execute(['npm','run',name],ROOT/group)
     if component=='apps/desktop': execute(['npm','run','test:rust'],ROOT/component)
