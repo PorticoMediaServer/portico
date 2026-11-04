@@ -64,9 +64,11 @@ def go(plan,index,report=None):
     helper.chmod(0o755)
     os.environ['PORTICO_PLAYBACK_TEST_HELPER']=str(helper)
     selected=plan['shards'][index]
-    # Diagnostic owners are mandatory observations, as are short source censuses.
-    # A skipped parent (or a repeated terminal) cannot stand in for its pass.
-    mandatory=SHORT_CENSUSES | {(t['package'],t['name']) for t in plan.get('nightly_diagnostics',[])}
+    # Source censuses require a pass in short runs too. Diagnostic owners only
+    # require one in their nightly tier; their -short skips are intentional.
+    mandatory=set(SHORT_CENSUSES)
+    if plan.get('tier')=='nightly':
+        mandatory |= {(t['package'],t['name']) for t in plan.get('nightly_diagnostics',[])}
     allowed=policy(json.loads((ROOT/'ci/quarantine.json').read_text())); blocked=False
     out=ROOT/'ci-results'; out.mkdir(exist_ok=True)
     workers=os.environ.get('PORTICO_CI_GO_PACKAGE_JOBS','4')

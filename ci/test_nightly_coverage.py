@@ -122,6 +122,28 @@ class NightlyCoverage(unittest.TestCase):
                         with self.assertRaises(SystemExit):
                             go(plan, 0)
 
+    def test_short_tier_accepts_a_nightly_owners_legitimate_skip(self):
+        import subprocess
+        from run import go
+        owner = {'package': 'github.com/PorticoMediaServer/portico/server/internal/httpapi',
+                 'name': 'TestReadPathGoldenEquivalence'}
+        test = dict(owner, module='server')
+        plan = {'tier': 'short', 'tags': 'tags', 'shards': [[test]],
+                'all_inventory': [test], 'nightly_diagnostics': [owner]}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'ci').mkdir()
+            (root / 'ci-tools').mkdir()
+            (root / 'ci/quarantine.json').write_text('{"entries": []}')
+            (root / 'ci-tools/portico-server').touch()
+            events = [dict(Package=owner['package'], Test=owner['name'], Action=action)
+                      for action in ['run', 'skip']]
+            events.append({'Package': owner['package'], 'Action': 'pass'})
+            result = subprocess.CompletedProcess(['go', 'test'], 0,
+                '\n'.join(json.dumps(event) for event in events), '')
+            with patch('run.ROOT', root), patch('run.validate_tags'), patch('run.subprocess.run', return_value=result):
+                go(plan, 0)
+
 
 if __name__ == '__main__':
     unittest.main()
