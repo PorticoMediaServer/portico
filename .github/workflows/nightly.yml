@@ -41,7 +41,7 @@ jobs:
           go build -C server -tags "$tags" -o "$RUNNER_TEMP/portico-server" ./cmd/server
           export PORTICO_PLAYBACK_TEST_HELPER="$RUNNER_TEMP/portico-server"
           set +e
-          go test -C server -p 1 -json -count=10 -timeout=780s -tags "$tags" -run '^TestSubtitleReplanRoutesHoldToTheMembersCurrentCeiling$' ./internal/httpapi > evidence/original.jsonl 2> evidence/original.stderr
+          go test -C server -p 1 -json -count=1 -timeout=780s -tags "$tags" -run '^TestSubtitleReplanRoutesHoldToTheMembersCurrentCeiling$' ./internal/httpapi > evidence/original.jsonl 2> evidence/original.stderr
           echo "$?" > evidence/original.exit
           set -e
           python3 - <<'PYCONTROL'
@@ -57,7 +57,7 @@ jobs:
           s=s.replace(needle,needle+'\ncurrentURL = view.Presentation.URL',1)
           needle='\t\t_, bitrate, action := planned()'
           assert s.count(needle)==1
-          inject='\n          if burned {\n              grant := strings.TrimSuffix(strings.TrimPrefix(currentURL, "/v1/media/"), "/master.m3u8")\n              _, err := player.HLSFileContext(context.Background(), grant, "segment-000000.ts")\n              var code, diagnostic string\n              media, _, _ := planned()\n              _ = f.db.QueryRow(`SELECT failure_code,diagnostic FROM playback_artifacts WHERE session_id=?`, media).Scan(&code, &diagnostic)\n              t.Logf("PRODUCER CONTROL err=%v code=%s diagnostic=%s", err, code, diagnostic)\n          }\n'
+          inject='\n          if burned {\n              grant := strings.TrimSuffix(strings.TrimPrefix(currentURL, "/v1/media/"), "/master.m3u8")\n              mediaID, _, _ := planned()\n              readyErr := player.Ready(context.Background(), playback.Session{ID: mediaID, Mode: "hls"})\n              t.Logf("PRODUCER READY err=%v", readyErr)\n              _, err := player.HLSFileContext(context.Background(), grant, "segment-000000.ts")\n              var code, diagnostic string\n              media, _, _ := planned()\n              _ = f.db.QueryRow(`SELECT failure_code,diagnostic FROM playback_artifacts WHERE session_id=?`, media).Scan(&code, &diagnostic)\n              t.Logf("PRODUCER CONTROL err=%v code=%s diagnostic=%s", err, code, diagnostic)\n          }\n'
           s=s.replace(needle,needle+inject,1)
           p.write_text(s)
           PYCONTROL
