@@ -51,12 +51,21 @@ def main():
         for f in p.parent.iterdir():
             if f.is_file():
                 raw=f.read_bytes();(args.output/('dabf-'+p.parent.name+'-'+f.name+('.gz' if f.suffix!='.gz' else ''))).write_bytes(gzip.compress(raw,mtime=0) if f.suffix!='.gz' else raw)
-    (args.output/'dabf-final-summary.json').write_text(json.dumps(records,indent=2,ensure_ascii=False)+'\n')
+    detail=json.dumps(records,ensure_ascii=False,separators=(',',':')).encode()
+    (args.output/'dabf-final-detail.json.gz').write_bytes(gzip.compress(detail,mtime=0))
+    compact=json.loads(detail)
+    for r in compact:
+        r.pop('wal_series',None);r.pop('snapshot_lifetime_raw',None)
+        for q in r['policy_full']:
+            q['per_page_p95_ms']=[v.get('p95_ms',0) for v in q.pop('per_page',[])]
+            q.pop('page_raw_ms',None)
+        for c in r['foreground'].values():c.pop('writes',None)
+    (args.output/'dabf-final-summary.json').write_text(json.dumps(compact,indent=2,ensure_ascii=False)+'\n')
     pairs=collections.defaultdict(dict)
     for r in records:
         e=r['environment']
         if e['mode'] in ['policy','recipe']:pairs[(e['profile'],e['items'],e['cjk_share_percent'])][e['old_cjk_recipe']]=r
-    lines=['# Bundled modernc3.53.4 / dabf442e final-policy receipts','', 'Eight samples per static query: p95/p99 equal observed max; not a reliability qualification. Every ordinal show-more page and raw sample is in dabf-final-summary.json. Full first-page includes preparation. Corpus is static accepted state; production freshness remains a separate gate.','', '| Profile | Items | CJK share | Old/new FTS MiB | Delta | a / al / jo p95 ms | 東 / 王 title p95 ms | 東京 / 王菲 full p95 ms | Worst read snapshot ms |','|---|---:|---:|---:|---:|---:|---:|---:|---:|']
+    lines=['# Bundled modernc3.53.4 / dabf442e final-policy receipts','', 'Eight samples per static query: p95/p99 equal observed max; not a reliability qualification. Every ordinal show-more page p95 is in dabf-final-summary.json; full raw samples are in dabf-final-detail.json.gz and the immutable compressed result receipts. Full first-page includes preparation. Corpus is static accepted state; production freshness remains a separate gate.','', '| Profile | Items | CJK share | Old/new FTS MiB | Delta | a / al / jo p95 ms | 東 / 王 title p95 ms | 東京 / 王菲 full p95 ms | Worst read snapshot ms |','|---|---:|---:|---:|---:|---:|---:|---:|---:|']
     for (profile,n,share),pair in sorted(pairs.items()):
         new=pair.get(False); old=pair.get(True)
         if not new:continue

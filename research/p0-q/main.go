@@ -167,6 +167,9 @@ func open(path string) *sql.DB {
 	must(e)
 	db.SetMaxOpenConns(1)
 	exec(db, "PRAGMA busy_timeout=30000")
+	if publishedSchema {
+		exec(db, "PRAGMA foreign_keys=ON")
+	}
 	exec(db, fmt.Sprintf("PRAGMA cache_size=%d", cacheKiB))
 	if !cacheSpill {
 		exec(db, "PRAGMA cache_spill=OFF")
@@ -702,14 +705,30 @@ func main() {
 	}
 	var sqliteSourceID string
 	must(db.QueryRow("SELECT sqlite_source_id()").Scan(&sqliteSourceID))
-	emit("environment", map[string]any{"sqlite": version, "engine": "bundled-modernc", "driver_module": "modernc.org/sqlite", "driver_version": driverVersion, "sqlite_source_id": sqliteSourceID, "go": runtime.Version(), "cpus": runtime.NumCPU(), "profile": *profile, "variant": *v, "items": *n, "pid": os.Getpid(), "mode": *mode, "config": *config, "automerge": autoMerge, "crisismerge": crisisMerge, "batch": buildBatch, "merge_pages": mergePages, "synchronous": durability, "candidate_sha256": candidateSHA(), "candidate_fk_checks": false, "cjk_share_percent": cjkShare, "old_cjk_recipe": oldCJKRecipe, "token_recipe": "CJK-NGRAM-RECIPE", "previous_candidate_sha256": "42605a7641e8e99bb359739fae6a380e1306665b72a46e1d7c8341dc747a5411"})
-	create(db, *v)
+	emit("environment", map[string]any{"sqlite": version, "engine": "bundled-modernc", "driver_module": "modernc.org/sqlite", "driver_version": driverVersion, "sqlite_source_id": sqliteSourceID, "go": runtime.Version(), "cpus": runtime.NumCPU(), "profile": *profile, "variant": *v, "items": *n, "pid": os.Getpid(), "mode": *mode, "config": *config, "automerge": autoMerge, "crisismerge": crisisMerge, "batch": buildBatch, "merge_pages": mergePages, "synchronous": durability, "candidate_sha256": candidateSHA(), "candidate_fk_checks": publishedSchema, "cjk_share_percent": cjkShare, "old_cjk_recipe": oldCJKRecipe, "token_recipe": "CJK-NGRAM-RECIPE", "previous_candidate_sha256": "dabf442e6aab647b693e59ebc509f703050e742f96eb5aac344e4e39ea45224f"})
+	if publishedSchema {
+		createPublished(db)
+	} else {
+		create(db, *v)
+	}
 	setupExperiment(db, path)
 	defer stopExperiment()
 	defer dumpOperations()
-	build(db, *n)
+	if publishedSchema {
+		buildPublished(db, *n)
+	} else {
+		build(db, *n)
+	}
 	emit("allocation_base", allocation(db, path))
 	emit("debt_base", debt(db))
+	if *mode == "seed-only" {
+		emit("seed_completed", map[string]any{"items": *n})
+		return
+	}
+	if *mode == "publisher" {
+		publisherBench(db, *n, *rounds)
+		return
+	}
 	if *mode == "first-page" {
 		firstPageBench(db, *n, *samples)
 		emit("first_completed", map[string]any{"items": *n, "samples": *samples, "single_term_known_lead": true})

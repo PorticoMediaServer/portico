@@ -13,6 +13,11 @@ import (
 )
 
 type lazySearch struct {
+	roots         map[int]int
+	streams       contextHeap
+	frontierReady bool
+	frontierPeak  int
+
 	reader          *policyReader
 	term            string
 	restricted      bool
@@ -73,7 +78,7 @@ func (l *lazySearch) page(ctx context.Context, c lazyCursor) ([]int, lazyCursor,
 		batch := []candidate{}
 		n := 0
 		if c.Tier == 3 {
-			e := l.reader.read(ctx, `SELECT id,title_fold,retired,kind FROM catalog_entities INDEXED BY catalog_entities_search_exact WHERE library_id IN(0,1,2,3,4,5,6,7) AND kind IN(1,2,3,4,5,6,7,8) AND title_fold=? AND id>? ORDER BY id LIMIT 64`, []any{l.term, c.ID}, func(r *sql.Rows) error {
+			e := l.reader.read(ctx, exactTitleSQL(), []any{l.term, c.ID}, func(r *sql.Rows) error {
 				var id, retired, kind int
 				var fold string
 				if e := r.Scan(&id, &fold, &retired, &kind); e != nil {
@@ -81,6 +86,10 @@ func (l *lazySearch) page(ctx context.Context, c lazyCursor) ([]int, lazyCursor,
 				}
 				if retired == 0 && (kind == 2 || kind == 5 || kind == 6) {
 					l.potentialParent = true
+					if l.roots == nil {
+						l.roots = map[int]int{}
+					}
+					l.roots[id] = kind
 				}
 				n++
 				batch = append(batch, candidate{id, 3})
@@ -93,7 +102,7 @@ func (l *lazySearch) page(ctx context.Context, c lazyCursor) ([]int, lazyCursor,
 				return nil, c, e
 			}
 		} else if c.Tier == 2 || c.Tier == 1 {
-			e := l.reader.read(ctx, `WITH p AS MATERIALIZED(SELECT rowid FROM search_own_prefix WHERE search_own_prefix MATCH ? AND rowid>? ORDER BY rowid LIMIT 64) SELECT p.rowid,e.title_fold,e.retired,e.kind FROM p CROSS JOIN catalog_entities e ON e.id=p.rowid ORDER BY p.rowid`, []any{prefixMatch(l.term, c.Tier == 2), c.ID}, func(r *sql.Rows) error {
+			e := l.reader.read(ctx, `WITH p AS MATERIALIZED(SELECT rowid FROM search_own_prefix WHERE search_own_prefix MATCH ? AND rowid>? ORDER BY rowid LIMIT 64) SELECT p.rowid,e.title_fold,e.retired,e.kind FROM p CROSS JOIN catalog_entities e ON e.id=p.rowid ORDER BY p.rowid`, []any{lazyTitleMatch(l.term, c.Tier), c.ID}, func(r *sql.Rows) error {
 				var id, retired, kind int
 				var fold string
 				if e := r.Scan(&id, &fold, &retired, &kind); e != nil {
@@ -103,6 +112,10 @@ func (l *lazySearch) page(ctx context.Context, c lazyCursor) ([]int, lazyCursor,
 				t := ownTier(fold, l.term)
 				if retired == 0 && t >= 0 && (kind == 2 || kind == 5 || kind == 6) {
 					l.potentialParent = true
+					if l.roots == nil {
+						l.roots = map[int]int{}
+					}
+					l.roots[id] = kind
 				}
 				if retired != 0 {
 					t = -1
@@ -114,94 +127,26 @@ func (l *lazySearch) page(ctx context.Context, c lazyCursor) ([]int, lazyCursor,
 				return nil, c, e
 			}
 		} else {
-			if !l.contextChecked {
-				l.contextChecked = true
-				match := encode(l.term) + "*"
-				if strings.ContainsFunc(l.term, facettext.CJK) {
-					match = encode(cjkSeed(l.term))
-				}
-				e := l.reader.read(ctx, `SELECT rowid FROM search_fragment_prefix WHERE search_fragment_prefix MATCH ? LIMIT 1`, []any{match}, func(r *sql.Rows) error {
-					var id int
-					if e := r.Scan(&id); e != nil {
-						return e
-					}
-					l.contextPossible = true
-					return nil
-				})
-				if e != nil {
-					return nil, c, e
-				}
+			if e := l.initFrontier(ctx, c.ID); e != nil {
+				return nil, c, e
 			}
-			if !l.potentialParent && !l.contextPossible {
-				c.Tier = -1
-				break
-			}
-			folds := map[int]string{}
-			entityIDs := []int{}
-			e := l.reader.read(ctx, `SELECT e.id,e.title_fold,e.retired,e.kind FROM catalog_entities e CROSS JOIN q_items q ON q.id=e.id WHERE e.id>? ORDER BY e.id LIMIT 64`, []any{c.ID}, func(r *sql.Rows) error {
-				var id, retired, kind int
-				var fold string
-				if e := r.Scan(&id, &fold, &retired, &kind); e != nil {
-					return e
-				}
-				n++
-				entityIDs = append(entityIDs, id)
-				folds[id] = fold
-				if retired != 0 {
-					folds[id] = ""
-				}
-				return nil
-			})
+			beforeCandidates := l.candidates
+			next, done, e := l.contextNext(ctx, 4096-examined)
 			if e != nil {
 				return nil, c, e
 			}
-			matched := map[int]bool{}
-			if len(entityIDs) > 0 {
-				// Fixed parent depth. Only title matches propagate; a parent's people do not.
-				e = l.reader.read(ctx, `SELECT j.value,p.title_fold,g.title_fold FROM json_each(?) j CROSS JOIN catalog_entities e ON e.id=j.value LEFT JOIN rel r ON r.child=e.id LEFT JOIN catalog_entities p ON p.id=r.parent AND p.retired=0 LEFT JOIN rel r2 ON r2.child=p.id LEFT JOIN catalog_entities g ON g.id=r2.parent AND g.retired=0`, []any{encodedJSON(entityIDs)}, func(r *sql.Rows) error {
-					var id int
-					var p, g sql.NullString
-					if e := r.Scan(&id, &p, &g); e != nil {
-						return e
-					}
-					if (p.Valid && ownTier(p.String, l.term) >= 0) || (g.Valid && ownTier(g.String, l.term) >= 0) {
-						matched[id] = true
-					}
-					return nil
-				})
-				if e != nil {
-					return nil, c, e
-				}
-				// The entity reverse edge is outermost: <=64*3 fixture edges, not all FTS hits.
-				match := encode(l.term) + "*"
-				if strings.ContainsFunc(l.term, facettext.CJK) {
-					match = encode(cjkSeed(l.term))
-				}
-				e = l.reader.read(ctx, `SELECT x.entity,f.normalized FROM json_each(?) j CROSS JOIN edges x INDEXED BY edge_entity ON x.entity=j.value CROSS JOIN search_fragment_prefix z ON z.rowid=x.fragment CROSS JOIN search_fragments f ON f.id=z.rowid WHERE search_fragment_prefix MATCH ?`, []any{encodedJSON(entityIDs), match}, func(r *sql.Rows) error {
-					var id int
-					var fold string
-					if e := r.Scan(&id, &fold); e != nil {
-						return e
-					}
-					if ownTier(fold, l.term) >= 0 {
-						matched[id] = true
-					}
-					return nil
-				})
-				if e != nil {
-					return nil, c, e
-				}
+			if done {
+				c.Tier = -1
+				break
 			}
-			for _, id := range entityIDs {
-				t := -1
-				if folds[id] != "" && ownTier(folds[id], l.term) < 0 && matched[id] {
-					t = 0
-				}
-				batch = append(batch, candidate{id, t})
-			}
+			n = l.candidates - beforeCandidates
+			batch = append(batch, candidate{next, 0})
+
 		}
 		examined += n
-		l.candidates += n
+		if c.Tier > 0 {
+			l.candidates += n
+		}
 		for _, x := range batch {
 			c.ID = x.id
 			if x.tier == c.Tier && (!l.restricted || x.id%100 == 0) {
@@ -211,7 +156,7 @@ func (l *lazySearch) page(ctx context.Context, c lazyCursor) ([]int, lazyCursor,
 				}
 			}
 		}
-		if n < 64 {
+		if n < 64 && c.Tier > 0 {
 			c.Tier--
 			c.ID = -1
 		}
@@ -224,7 +169,13 @@ func (l *lazySearch) page(ctx context.Context, c lazyCursor) ([]int, lazyCursor,
 }
 func firstPageBench(db *sql.DB, n, samples int) {
 	ctx := context.Background()
-	rows, e := db.Query(`EXPLAIN QUERY PLAN SELECT x.entity,f.normalized FROM json_each(?) j CROSS JOIN edges x INDEXED BY edge_entity ON x.entity=j.value CROSS JOIN search_fragment_prefix z ON z.rowid=x.fragment CROSS JOIN search_fragments f ON f.id=z.rowid WHERE search_fragment_prefix MATCH ?`, "[0,1,2]", encode("王菲"))
+	var rows *sql.Rows
+	var e error
+	if publishedSchema {
+		rows, e = db.Query(`EXPLAIN QUERY PLAN SELECT entity FROM edges WHERE fragment=? AND entity>? ORDER BY entity LIMIT 1`, 1, -1)
+	} else {
+		rows, e = db.Query(`EXPLAIN QUERY PLAN SELECT x.entity,f.normalized FROM json_each(?) j CROSS JOIN edges x INDEXED BY edge_entity ON x.entity=j.value CROSS JOIN search_fragment_prefix z ON z.rowid=x.fragment CROSS JOIN search_fragments f ON f.id=z.rowid WHERE search_fragment_prefix MATCH ?`, "[0,1,2]", encode("王菲"))
+	}
 	must(e)
 	plan := []string{}
 	for rows.Next() {
@@ -310,6 +261,6 @@ func firstPageBench(db *sql.DB, n, samples int) {
 		for i, pages := range allPageSamples {
 			pageStats[i] = stats(pages)
 		}
-		emit("first_bounded", map[string]any{"query": q, "latency": stats(times), "raw_ms": times, "snapshots": stats(snaps), "candidates": candidates, "first_ids": first, "result_count": len(all), "membership_digest": idsDigest(all), "page_raw_ms": allPageSamples, "per_page": pageStats, "page_sample_n": 3, "all_page_snapshots": stats(allSnaps), "budget_p95_ms": 50, "formal_1m_p95_ms": 200, "oracle": "exact old single-term tier/id order and complete membership", "lead": "single token; no population count required", "context_candidate_limit_per_page": 4096, "read_chunk": 64})
+		emit("first_bounded", map[string]any{"query": q, "latency": stats(times), "raw_ms": times, "snapshots": stats(snaps), "candidates": candidates, "first_ids": first, "result_count": len(all), "membership_digest": idsDigest(all), "page_raw_ms": allPageSamples, "per_page": pageStats, "page_sample_n": 3, "all_page_snapshots": stats(allSnaps), "budget_p95_ms": 50, "formal_1m_p95_ms": 200, "oracle": "exact old single-term tier/id order and complete membership", "lead": "single token; no population count required", "context_candidate_limit_per_page": 4096, "read_chunk": 64, "context_frontier_limit": 8192, "first_budget_scope": "first ready result;warm DB;no wire count"})
 	}
 }

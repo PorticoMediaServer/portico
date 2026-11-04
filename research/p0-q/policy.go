@@ -29,6 +29,9 @@ type policyReader struct {
 }
 
 func (p *policyReader) read(ctx context.Context, q string, args []any, scan func(*sql.Rows) error) error {
+	if publishedSchema {
+		q = strings.ReplaceAll(q, "catalog_entities", "q_search_entities")
+	}
 	c, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
 	defer cancel()
 	start := time.Now()
