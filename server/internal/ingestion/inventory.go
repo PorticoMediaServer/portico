@@ -363,7 +363,7 @@ func (s *Service) readDirectoryPage(ctx context.Context, job string, source cata
 	var page storage.InventoryPage
 	var err error
 	if s.storage != nil {
-		page, err = s.storage.InventoryPage(ctx, source.ID, req)
+		page, err = s.storage.InventoryPage(ctx, job, req)
 	} else {
 		page, err = storage.LocalInventoryPage(req)
 	}
@@ -689,7 +689,9 @@ func (s *Service) fail(ctx context.Context, job, source string, cause error) {
 	if _, err = notify.NotifyScanFailure(tx, time.Now().UnixMilli(), library, source, code, where); err != nil {
 		return
 	}
-	_ = gated6.Commit()
+	if gated6.Commit() == nil && s.storage != nil {
+		s.storage.StopInventory(job)
+	}
 }
 
 // Every due timestamp is persisted. A paused source claim suppresses scheduled
