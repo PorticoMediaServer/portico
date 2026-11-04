@@ -19,8 +19,10 @@ test('A20: a filter with several values reads as it means them in the empty sent
   assert.match(empty, /node\.operator === 'between' && items\.length === 2 \? t\('next\.browse\.emptyRange', \{start: items\[0\]!, end: items\[1\]!\}\)/);
   assert.match(empty, /: node\.operator === 'contains-all' \? defaultI18n\.list\(items, 'and'\)/);
   assert.match(empty, /: node\.operator === 'not-in' \|\| node\.operator === 'not-equals' \? t\('next\.browse\.emptyNot', \{values: defaultI18n\.list\(items, 'or'\)\}\)/);
-  assert.equal(defaultI18n.t('next.browse.emptyRange', {start: '1990', end: '2000'}), '1990–2000');
-  assert.equal(defaultI18n.t('next.browse.emptyNot', {values: defaultI18n.list(['documentary', 'animation'], 'or')}), 'not documentary or animation');
+  // In the sentence: "Nothing in Movies is from 1990 to 2000." and "… is anything but documentary or animation."
+  assert.equal(defaultI18n.t('next.browse.emptyNothingIn', {library: 'Movies', filters: defaultI18n.t('next.browse.emptyRange', {start: '1990', end: '2000'})}), 'Nothing in Movies is from 1990 to 2000.');
+  assert.equal(defaultI18n.t('next.browse.emptyRange', {start: '1990', end: '2000'}), 'from 1990 to 2000');
+  assert.equal(defaultI18n.t('next.browse.emptyNot', {values: defaultI18n.list(['documentary', 'animation'], 'or')}), 'anything but documentary or animation');
 });
 
 test('A7: a search section counts the cards on its line against the total ("7 of 42")', () => {
