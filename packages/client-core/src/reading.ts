@@ -768,7 +768,20 @@ export class ReadingClient {
     validateManifest(manifest, captured); this.check(signal);
     const session = new ReadingSession(this, manifest); this.#sessions.add(session); return session;
   }
+  /** RD-7: a new server session for an open book whose session the server has ended (410
+   * `reading_session_expired`). One attempt, no busy wait; the caller checks it is the same book. */
+  async renew(manifest: ReadingManifest, signal: AbortSignal): Promise<ReadingManifest> {
+    const captured = Object.freeze({itemId: manifest.itemId, sourceId: manifest.sourceId});
+    const fresh = await this.json(routePath('post_reading_sessions'), 'POST', captured, signal, parseReadingManifest, 8 << 20, undefined, undefined, m => m.revision);
+    validateManifest(fresh, captured); this.check(signal);
+    return fresh;
+  }
 }
+
+/** RD-7: the server answers 410 `reading_session_expired` for a session it has ended (idle, evicted,
+ * or not this caller's). Open again the book once; never loop. */
+export const READING_SESSION_EXPIRED = 'reading_session_expired';
+const sessionExpired = (error: unknown): error is ReadingError => error instanceof ReadingError && error.code === READING_SESSION_EXPIRED;
 
 /** Native byte callbacks carry no credentials or origin URLs into an engine. */
 export class ReadingSession {
@@ -780,26 +793,65 @@ export class ReadingSession {
   #activeSequential = false;
   #savingFile = false;
   #retire: () => void;
+  /** The server's current id for this session. `manifest.sessionId` is the one it opened with. */
+  #sessionId: string;
+  #renewal: Promise<void> | undefined;
   constructor(client: ReadingClient, manifest: ReadingManifest) {
-    this.#client = client; this.manifest = frozen(manifest); this.signal = this.#life.signal;
+    this.#client = client; this.manifest = frozen(manifest); this.signal = this.#life.signal; this.#sessionId = this.manifest.sessionId;
     this.#retire = () => this.retire(client.signal.reason); client.signal.addEventListener('abort', this.#retire, {once: true});
     Object.freeze(this);
   }
   retire(reason: unknown = new ReadingError('cancelled')) { this.#life.abort(reason); this.#client.signal.removeEventListener('abort', this.#retire); this.#client.forget(this); }
   #check = () => { this.#client.check(this.signal); };
+  /** The id the server knows this session by now; it changes only when an ended session is renewed. */
+  get sessionId(): string { return this.#sessionId; }
+  /** RD-7: when the server has ended this session (410), open the same book again once, transparently,
+   * and send the one request again under the new session; the reader stays where it is. A second 410,
+   * or a renewal that fails or finds another revision, ends the session as `reading_session_expired`
+   * (sign-in and access failures stay as they are), so the reader offers "Open again". Never loops. */
+  async #renewable<T>(run: (sessionId: string) => Promise<T>): Promise<T> {
+    const used = this.#sessionId;
+    try { return await run(used); }
+    catch (error) {
+      if (!sessionExpired(error)) throw error;
+      await this.#renew(used, error);
+      try { return await run(this.#sessionId); }
+      catch (again) { if (sessionExpired(again)) this.retire(again); throw again; }
+    }
+  }
+  async #renew(used: string, expired: ReadingError): Promise<void> {
+    if (this.#sessionId !== used) return; // another request already renewed it
+    this.#renewal ??= (async () => {
+      try {
+        const fresh = await this.#client.renew(this.manifest, this.signal);
+        if (fresh.revision !== this.manifest.revision || fresh.format !== this.manifest.format || fresh.size !== this.manifest.size) {
+          // Another revision is another book: release the new session and let the reader open it afresh.
+          void this.#client.response(routePath('delete_reading_sessions_sessionId', {sessionId: fresh.sessionId}), {method: 'DELETE'}, undefined, async r => { await discard(r); }).catch(() => {});
+          throw expired;
+        }
+        this.#sessionId = fresh.sessionId;
+      } finally { this.#renewal = undefined; }
+    })();
+    try { await this.#renewal; }
+    catch (error) {
+      if (this.signal.aborted) throw this.signal.reason;
+      const ended = error instanceof ReadingError && (error.status === 401 || error.status === 403 || error.code === 'cancelled') ? error : expired;
+      this.retire(ended); throw ended;
+    }
+  }
   #headers() { return {'If-Match': '"' + this.manifest.revision + '"'}; }
   #etag(response: Response) { if (response.headers.get('ETag') !== '"' + this.manifest.revision + '"') fail('source_changed'); }
-  async #control<T>(run: () => Promise<T>, cas = false): Promise<T> {
+  async #control<T>(run: (sessionId: string) => Promise<T>, cas = false): Promise<T> {
     this.#check();
-    try { return await run(); }
+    try { return await this.#renewable(run); }
     catch (error) {
       if (error instanceof ReadingError && (['source_changed', 'invalid_document', 'invalid_progress'].includes(error.code) || [401, 403, 404].includes(error.status ?? 0) || (!cas && error.status === 412))) this.retire(error);
       throw error;
     }
   }
-  async #binary<T>(path: string, init: RequestInit, signal: AbortSignal | undefined, consume: (r: Response, active: AbortSignal, check: () => void) => Promise<T>) {
+  async #binary<T>(path: (sessionId: string) => string, init: RequestInit, signal: AbortSignal | undefined, consume: (r: Response, active: AbortSignal, check: () => void) => Promise<T>) {
     this.#check();
-    try { return await this.#client.response(path, {...init, headers: {...this.#headers(), ...init.headers}}, signal, consume, this.signal); }
+    try { return await this.#renewable(id => this.#client.response(path(id), {...init, headers: {...this.#headers(), ...init.headers}}, signal, consume, this.signal)); }
     catch (error) {
       if (error instanceof ReadingError && (['source_changed', 'response_size', 'invalid_response'].includes(error.code) || [401, 403, 404, 412].includes(error.status ?? 0))) this.retire(error);
       throw error;
@@ -807,7 +859,7 @@ export class ReadingSession {
   }
   headPDF = async (signal?: AbortSignal): Promise<void> => {
     if (this.manifest.format !== 'pdf') fail('invalid_format');
-    return this.#binary(routePath('head_reading_sessions_sessionId_source', {sessionId: this.manifest.sessionId}), {method: 'HEAD'}, signal, async (r, active, check) => {
+    return this.#binary(id => routePath('head_reading_sessions_sessionId_source', {sessionId: id}), {method: 'HEAD'}, signal, async (r, active, check) => {
       if (r.status !== 200) return this.#client.error(r, active, check);
       this.#etag(r);
       if (r.headers.get('Content-Length') !== String(this.manifest.size) || r.headers.get('Accept-Ranges') !== (this.manifest.sequential ? 'none' : 'bytes') || mime(r.headers.get('Content-Type')) !== 'application/pdf') fail('source_changed');
@@ -821,7 +873,7 @@ export class ReadingSession {
     if (this.#activeRanges >= 2) fail('range_busy');
     this.#activeRanges++;
     try {
-      return await this.#binary(routePath('get_reading_sessions_sessionId_source', {sessionId: this.manifest.sessionId}), {method: 'GET', headers: {Range: `bytes=${start}-${endExclusive - 1}`}}, signal, async (r, active, check) => {
+      return await this.#binary(id => routePath('get_reading_sessions_sessionId_source', {sessionId: id}), {method: 'GET', headers: {Range: `bytes=${start}-${endExclusive - 1}`}}, signal, async (r, active, check) => {
         if (r.status !== 206) { if (r.status === 200) return fail('invalid_response'); return this.#client.error(r, active, check); }
         this.#etag(r);
         if (r.headers.get('Content-Range') !== `bytes ${start}-${endExclusive - 1}/${this.manifest.size}` || r.headers.get('Content-Length') !== String(length) || mime(r.headers.get('Content-Type')) !== 'application/pdf') fail('source_changed');
@@ -839,7 +891,7 @@ export class ReadingSession {
     let handedOff = false;
     const release = () => { this.#activeSequential = false; op.release(); };
     try {
-      return await this.#binary(routePath('get_reading_sessions_sessionId_source', {sessionId: this.manifest.sessionId}), {method: 'GET', headers: {Accept: 'application/pdf'}}, op.signal, async (r, active, check) => {
+      return await this.#binary(id => routePath('get_reading_sessions_sessionId_source', {sessionId: id}), {method: 'GET', headers: {Accept: 'application/pdf'}}, op.signal, async (r, active, check) => {
         if (r.status !== 200) { if (r.status === 206) return fail('invalid_response'); return this.#client.error(r, active, check); }
         this.#etag(r);
         if (r.headers.get('Content-Length') !== String(this.manifest.size) || r.headers.has('Content-Range') || r.headers.get('Accept-Ranges') !== 'none' || mime(r.headers.get('Content-Type')) !== 'application/pdf') fail('source_changed');
@@ -883,7 +935,7 @@ export class ReadingSession {
     if (this.manifest.format !== 'epub') fail('invalid_format');
     const entry = this.manifest.resources?.find(resource => resource.path === path) ?? fail('invalid_asset');
     if (!member(path)) fail('invalid_asset');
-    return this.#binary(query(routePath('get_reading_sessions_sessionId_assets', {sessionId: this.manifest.sessionId}), {path}), {method: 'GET'}, signal, async (r, active, check) => {
+    return this.#binary(id => query(routePath('get_reading_sessions_sessionId_assets', {sessionId: id}), {path}), {method: 'GET'}, signal, async (r, active, check) => {
       if (r.status !== 200) return this.#client.error(r, active, check);
       this.#etag(r);
       if (mime(r.headers.get('Content-Type')) !== entry.mime.toLowerCase()) fail('invalid_response');
@@ -903,7 +955,7 @@ export class ReadingSession {
     try {
       // The canonical session route supplies the captured identity; the new
       // source-declared subresource descriptor is checkpoint-generated.
-      const path = routePath('delete_reading_sessions_sessionId', {sessionId: this.manifest.sessionId}) + '/file-save';
+      const path = (id: string) => routePath('delete_reading_sessions_sessionId', {sessionId: id}) + '/file-save';
       return await this.#binary(path, {method: 'POST', headers: {'Content-Type': 'application/json','If-Match':'"'+originalRevision+'"'}, body: JSON.stringify({operationId})}, signal, async (r, active, check) => {
         if (r.status !== 200) return this.#client.error(r, active, check);
         if(r.headers.get('ETag')!=='"'+originalRevision+'"')fail('source_changed');
@@ -918,7 +970,7 @@ export class ReadingSession {
   page = async (index: number, options: Readonly<{width: number; signal?: AbortSignal}>): Promise<ReadingPage> => {
     if (!comicFormat(this.manifest.format)) fail('invalid_format');
     if (!integer(index, 0, this.manifest.pageNames!.length - 1) || !integer(options.width, 32, 2048)) fail('invalid_page');
-    return this.#binary(query(routePath('get_reading_sessions_sessionId_pages_pageIndex', {sessionId: this.manifest.sessionId, pageIndex: index}), {width: options.width}), {method: 'GET'}, options.signal, async (r, active, check) => {
+    return this.#binary(id => query(routePath('get_reading_sessions_sessionId_pages_pageIndex', {sessionId: id, pageIndex: index}), {width: options.width}), {method: 'GET'}, options.signal, async (r, active, check) => {
       if (r.status !== 200) return this.#client.error(r, active, check);
       this.#etag(r); const observed = mime(r.headers.get('Content-Type'));
       if (observed !== 'image/jpeg' && observed !== 'image/png' && observed !== 'image/webp') return fail('invalid_response');
@@ -937,33 +989,33 @@ export class ReadingSession {
     // Reject a lone surrogate before URL encoding can replace it with U+FFFD and
     // search different text.
     if (!wellFormed(q) || !q || q.length > 1024 || !integer(limit, 1, 50) || cursor !== '' && !readingSearchCursor.test(cursor)) fail('invalid_request');
-    const witness: ReadingSearchWitness = {
-      sessionId: this.manifest.sessionId, sourceId: this.manifest.sourceId,
+    const witness = (sessionId: string): ReadingSearchWitness => ({
+      sessionId, sourceId: this.manifest.sourceId,
       expectedRevision: this.manifest.conversion?.originalRevision ?? this.manifest.revision,
       format: this.manifest.format, converted: this.manifest.conversion !== undefined,
       spine: this.manifest.spine ?? [],
       xhtml: path => this.manifest.resources?.some(resource => resource.path === path && resource.mime.toLowerCase() === 'application/xhtml+xml') === true,
-    };
-    return this.#control(async () => {
+    });
+    return this.#control(async id => {
       const out = await this.#client.json(
-        query(routePath('get_reading_sessions_sessionId_search', {sessionId: this.manifest.sessionId}), {q, ...(cursor ? {cursor} : {}), limit}),
+        query(routePath('get_reading_sessions_sessionId_search', {sessionId: id}), {q, ...(cursor ? {cursor} : {}), limit}),
         'GET', undefined, options.signal, decodeGetReadingSessionsSessionIdSearchResponse, 2 << 20,
         undefined, this.signal, value => value.sourceRevision);
       this.#check();
-      return parseDecodedReadingSearchPage(out, witness, limit);
+      return parseDecodedReadingSearchPage(out, witness(id), limit);
     });
   };
   progress = async (signal?: AbortSignal): Promise<ReadingProgress> => {
-    return this.#control(async () => {
-      const out = await this.#client.json(routePath('get_reading_sessions_sessionId_progress', {sessionId: this.manifest.sessionId}), 'GET', undefined, signal, decodeGetReadingSessionsSessionIdProgressResponse, 16 << 10, this.#headers(), this.signal);
+    return this.#control(async id => {
+      const out = await this.#client.json(routePath('get_reading_sessions_sessionId_progress', {sessionId: id}), 'GET', undefined, signal, decodeGetReadingSessionsSessionIdProgressResponse, 16 << 10, this.#headers(), this.signal);
       validateProgress(out, this.manifest); return out;
     });
   };
   saveProgress = async (request: PutReadingSessionsSessionIdProgressRequest, signal?: AbortSignal): Promise<ReadingSavedProgress> => {
     this.#check(); const expectedRevision = request.expectedRevision, location = {...request.location};
     if (!integer(expectedRevision, 0, Number.MAX_SAFE_INTEGER)) fail('invalid_revision'); validateLocation(location, this.manifest);
-    return this.#control(async () => {
-      const out = await this.#client.json(routePath('put_reading_sessions_sessionId_progress', {sessionId: this.manifest.sessionId}), 'PUT', {expectedRevision, location}, signal, decodePutReadingSessionsSessionIdProgressResponse, 16 << 10, this.#headers(), this.signal);
+    return this.#control(async id => {
+      const out = await this.#client.json(routePath('put_reading_sessions_sessionId_progress', {sessionId: id}), 'PUT', {expectedRevision, location}, signal, decodePutReadingSessionsSessionIdProgressResponse, 16 << 10, this.#headers(), this.signal);
       validateProgress(out, this.manifest);
       if (out.saved && (out.progress === null || out.progress.stale || out.progress.revision !== expectedRevision + 1)) fail('invalid_progress');
       return out;
@@ -975,21 +1027,21 @@ export class ReadingSession {
     this.#check();
     if (this.manifest.canAnnotate !== true) fail('not_permitted');
     if (cursor && (!readingAnnotationId(cursor) || revision === undefined) || revision !== undefined && !integer(revision, 0, Number.MAX_SAFE_INTEGER)) fail('invalid_revision');
-    const path = routePath('delete_reading_sessions_sessionId', {sessionId: this.manifest.sessionId}) + '/annotations';
-    return this.#control(() => this.#client.json(query(path, {cursor, revision}), 'GET', undefined, signal,
+    const path = (id: string) => routePath('delete_reading_sessions_sessionId', {sessionId: id}) + '/annotations';
+    return this.#control(id => this.#client.json(query(path(id), {cursor, revision}), 'GET', undefined, signal,
       raw => parseReadingAnnotations(raw, this.manifest, location => validateLocation(location, this.manifest), cursor), 2 << 20, this.#headers(), this.signal), true);
   };
   mutateAnnotation = async (request: ReadingAnnotationMutation, signal?: AbortSignal): Promise<Readonly<{revision: number}>> => {
     this.#check(); if (this.manifest.canAnnotate !== true) fail('not_permitted');
     const captured = captureReadingAnnotationMutation(request, location => validateLocation(location, this.manifest));
-    const path = routePath('delete_reading_sessions_sessionId', {sessionId: this.manifest.sessionId}) + '/annotations';
-    return this.#control(() => this.#client.json(path, 'PUT', captured, signal,
+    const path = (id: string) => routePath('delete_reading_sessions_sessionId', {sessionId: id}) + '/annotations';
+    return this.#control(id => this.#client.json(path(id), 'PUT', captured, signal,
       raw => parseReadingAnnotationSaved(raw, captured.expectedRevision), 4096, this.#headers(), this.signal), true);
   };
   close = async (signal?: AbortSignal): Promise<void> => {
     if (this.signal.aborted) return;
     this.retire(); this.#client.check(signal);
-    return this.#client.response(routePath('delete_reading_sessions_sessionId', {sessionId: this.manifest.sessionId}), {method: 'DELETE'}, signal, async (r, active, check) => {
+    return this.#client.response(routePath('delete_reading_sessions_sessionId', {sessionId: this.#sessionId}), {method: 'DELETE'}, signal, async (r, active, check) => {
       if (r.status !== 204) return this.#client.error(r, active, check);
       check(); await discard(r);
     });

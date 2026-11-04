@@ -21,7 +21,7 @@ import {Button, ResumeButton} from '../../kit/controls';
 import {Dialog, Menu, MenuGroup, MenuItem} from '../../kit/overlays';
 import {usePhone} from '../../kit/overlays/shared';
 import {runScreenCommand} from '../detail/context';
-import {Skeleton, StateView} from '../../kit/states';
+import {Skeleton} from '../../kit/states';
 import {ReadBookFacts, ReadBookHero, ReadBookSections} from '../../kit/reader/ReadBookHero';
 import {readBookTitleStyle} from '../../kit/reader/book-title';
 import {ServerMark} from '../../kit/shell';
@@ -30,6 +30,7 @@ import {ReadMetadata} from './ReadMetadata';
 import {createReadBindings} from './bindings';
 import {readDestination, type ReadItemEligibility} from './navigation';
 import {readBackCommit, readRetireAttempt, readRouteEntry, readVersionCanChoose, readVersionRecovery, type ReadRouteEntry, type ReadVersion, type ReadVersionSource} from './read-version-choice';
+import {ReadOpenFailure, readFailureKind, readFailureReported, type ReadFailureKind} from './ReadOpenFailure';
 import styles from './read-item.module.css';
 
 type Captured = NonNullable<ReturnType<typeof useProtectedWebScreenContext>>;
@@ -59,7 +60,7 @@ function BoundReadItem({captured, handoff, eligibility}: {captured: Captured; ha
   const attemptRef = useRef<ReadAttempt | undefined>(undefined);
   const committed = useRef<ReadVersionSource | undefined>(undefined);
   useLayoutEffect(() => {committed.current = {context: captured.context, sourceId, versions: eligibility.versions};}, [captured.context, sourceId, eligibility.versions]);
-  const [detail, setDetail] = useState<Readonly<{attempt?: ReadAttempt; manifest?: ReadingManifest; progress?: ReadingProgress; client?: ReturnType<typeof createReadBindings>['client']; targets?: readonly ReaderContentsTarget[]; failed?: boolean}>>({});
+  const [detail, setDetail] = useState<Readonly<{attempt?: ReadAttempt; manifest?: ReadingManifest; progress?: ReadingProgress; client?: ReturnType<typeof createReadBindings>['client']; targets?: readonly ReaderContentsTarget[]; failed?: boolean; failure?: ReadFailureKind}>>({});
   const current = useCallback((value: ReadAttempt | undefined): value is ReadAttempt => {
     if (!value) return false;
     const exact = () => value.live && attemptRef.current === value && value.entry === router.state.location
@@ -105,7 +106,7 @@ function BoundReadItem({captured, handoff, eligibility}: {captured: Captured; ha
       original.target = index => {if (!live() || !original.ready) throw new Error('source_changed'); return publication!.contentsTarget(index);};
       setDetail({attempt: original, manifest: session.manifest, progress, client: bindings.client,
         targets: session.manifest.format === 'epub' ? (session.manifest.contents ?? []).map((_, index) => publication!.contentsTarget(index)) : []});
-    })().catch(error => {if (live()) {errorSink.current(error); original.ready = false; original.target = undefined; setDetail({attempt: original, failed: true});} void bindings.close().catch(() => {});});
+    })().catch(error => {if (live()) {const failure = readFailureKind(error); if (readFailureReported(failure)) errorSink.current(error); original.ready = false; original.target = undefined; setDetail({attempt: original, failed: true, failure});} void bindings.close().catch(() => {});});
     return () => {active = false; original.ready = false; original.target = undefined; publication?.dispose(); off(); void bindings.dispose().catch(() => {});};
   }, [attempt, eligibility.itemId, current]);
   // The reading branch owns no shell navigation on a phone, so the page keeps one
@@ -159,8 +160,7 @@ function BoundReadItem({captured, handoff, eligibility}: {captured: Captured; ha
   </div> : null;
   if (current(attempt) && detail.attempt === attempt && detail.failed) return <>
     {phoneBack}
-    <StateView variant="page" title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')}
-      primary={{id: 'retry', label: t('next.states.tryAgain'), onPress: () => refresh(attempt)}}/>
+    <ReadOpenFailure kind={detail.failure ?? 'failed'} onRetry={() => refresh(attempt)}/>
     {versionChooser}
   </>;
   const manifest = current(attempt) && detail.attempt === attempt ? detail.manifest : undefined;

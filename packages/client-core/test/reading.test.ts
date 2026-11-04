@@ -439,3 +439,73 @@ test('RD-5: an accepted EPUB session keeps the server\'s limits for the reader',
   const session = await f.client.open({itemId: 'book', sourceId: 'asset'});
   assert.equal(session.manifest.limits?.memberBytes, 16777216); assert.equal(session.manifest.limits?.totalBytes, 268435456);
 });
+
+// RD-7 (#695): the server answers 410 reading_session_expired on every session route once it has
+// ended a session (idle, evicted, or not this caller's). The client reopens the book once,
+// transparently, and carries on; it never loops.
+const expired = () => new Response(JSON.stringify({error: {code: 'reading_session_expired', message: 'This reading session has ended. Open the book again to continue.', retry: 'never'}}), {status: 410, headers: {'Content-Type': 'application/json'}});
+const renewedPage = (f: ReturnType<typeof setup>, sessionId: string) => (call: Call) => {
+  if (call.url.pathname === routePath('get_reading_sessions_sessionId_pages_pageIndex', {sessionId, pageIndex: 1}))
+    return new Response(png, {headers: {'Content-Type': 'image/png', 'Content-Length': String(png.length), ETag: '"' + rev + '"'}});
+  if (call.url.pathname === routePath('post_reading_sessions') && f.calls.filter(c => c.url.pathname === routePath('post_reading_sessions')).length > 1) return json({...f.manifest, sessionId});
+  return undefined;
+};
+const posts = (f: ReturnType<typeof setup>) => f.calls.filter(call => call.url.pathname === routePath('post_reading_sessions')).length;
+
+test('RD-7: mid-read, an ended session is reopened once, transparently, and the page that hit it is read under the new session', async () => {
+  const f = setup('cbz');
+  const session = await f.client.open({itemId: 'book', sourceId: 'asset'});
+  const renewed = renewedPage(f, 'session-2');
+  f.hook(call => call.url.pathname === routePath('get_reading_sessions_sessionId_pages_pageIndex', {sessionId: 'session', pageIndex: 1}) ? expired() : renewed(call));
+  const page = await session.page(1, {width: 320});
+  assert.equal(page.index, 1); assert.deepEqual(page.bytes, png);
+  assert.equal(posts(f), 2, 'one reopen'); assert.equal(f.calls.at(-2)!.url.pathname, routePath('post_reading_sessions'));
+  assert.deepEqual(JSON.parse(String(f.calls.at(-2)!.init.body)), {itemId: 'book', sourceId: 'asset'}, 'the same book and version');
+  assert.equal(session.sessionId, 'session-2'); assert.equal(session.manifest.sessionId, 'session', 'the reader keeps its book; nothing remounts');
+  assert.equal(session.signal.aborted, false);
+  await session.page(1, {width: 320}); assert.equal(posts(f), 2, 'later reads use the new session without reopening');
+});
+
+test('RD-7: a second 410 straight after the reopen ends the session as reading_session_expired, never looping', async () => {
+  const f = setup('cbz');
+  const session = await f.client.open({itemId: 'book', sourceId: 'asset'});
+  f.hook(call => call.url.pathname.includes('/pages/') ? expired() : call.url.pathname === routePath('post_reading_sessions') ? json({...f.manifest, sessionId: 'session-2'}) : undefined);
+  await assert.rejects(session.page(1, {width: 320}), (error: unknown) => coded('reading_session_expired')(error) && (error as ReadingError).status === 410);
+  assert.equal(posts(f), 2, 'exactly one reopen');
+  assert.equal(session.signal.aborted, true); assert.ok(coded('reading_session_expired')(session.signal.reason), 'the reader learns why');
+  await assert.rejects(session.page(1, {width: 320})); assert.equal(posts(f), 2, 'an ended session does not reopen again');
+});
+
+test('RD-7: a reopen that fails, or finds another revision, ends the session as expired; a sign-in failure stays itself', async () => {
+  for (const [label, answer, code] of [
+    ['busy', () => new Response(JSON.stringify({error: {code: 'reading_sessions_busy', message: 'Busy.', retry: 'same_request'}}), {status: 503, headers: {'Content-Type': 'application/json'}}), 'reading_session_expired'],
+    ['another revision', (f: ReturnType<typeof setup>) => json({...f.manifest, sessionId: 'session-2', revision: 'b'.repeat(64)}), 'reading_session_expired'],
+    ['signed out', () => new Response(JSON.stringify({error: {code: 'unauthorized', message: 'Sign in.', retry: 'never'}}), {status: 401, headers: {'Content-Type': 'application/json'}}), 'unauthorized'],
+  ] as const) {
+    const f = setup('cbz');
+    const session = await f.client.open({itemId: 'book', sourceId: 'asset'});
+    f.hook(call => call.url.pathname.includes('/pages/') ? expired() : call.url.pathname === routePath('post_reading_sessions') ? answer(f) : call.url.pathname === routePath('delete_reading_sessions_sessionId', {sessionId: 'session-2'}) ? new Response(null, {status: 204}) : undefined);
+    const error = await session.page(1, {width: 320}).then(() => assert.fail(label), (value: unknown) => value);
+    assert.equal((error as ReadingError).code, code, label); assert.equal(posts(f), 2, label);
+    assert.equal(session.signal.aborted, true, label);
+  }
+});
+
+test('RD-7: requests that meet the ended session together share one reopen, and progress saves carry on under it', async () => {
+  const f = setup('epub');
+  const session = await f.client.open({itemId: 'book', sourceId: 'asset'});
+  f.hook(call => {
+    const path = call.url.pathname;
+    if (path === routePath('get_reading_sessions_sessionId_progress', {sessionId: 'session'})) return expired();
+    if (path === routePath('get_reading_sessions_sessionId_assets', {sessionId: 'session'})) return expired();
+    if (path === routePath('post_reading_sessions')) return json({...f.manifest, sessionId: 'session-2'});
+    if (path === routePath('get_reading_sessions_sessionId_progress', {sessionId: 'session-2'})) return json(call.init.method === 'PUT' ? {progress: null, saved: false} : {progress: null});
+    if (path === routePath('get_reading_sessions_sessionId_assets', {sessionId: 'session-2'})) return new Response(chapter, {headers: {'Content-Type': 'application/xhtml+xml', 'Content-Length': String(chapter.length), ETag: '"' + rev + '"'}});
+    return undefined;
+  });
+  const [progress, asset] = await Promise.all([session.progress(), session.readAsset('EPUB/chapter.xhtml')]);
+  assert.equal(progress.progress, null); assert.equal(asset.length, chapter.length);
+  assert.equal(posts(f), 2, 'one shared reopen'); assert.equal(session.sessionId, 'session-2');
+  f.hook(call => call.url.pathname === routePath('delete_reading_sessions_sessionId', {sessionId: 'session-2'}) ? new Response(null, {status: 204}) : undefined);
+  await session.close(); assert.equal(f.calls.at(-1)!.url.pathname, routePath('delete_reading_sessions_sessionId', {sessionId: 'session-2'}), 'close ends the session the server knows now');
+});

@@ -8,6 +8,9 @@ type Snapshot = Readonly<{phase: 'idle' | 'opening' | 'ready' | 'failed' | 'reti
 type Source = Readonly<{current: () => boolean; subscribe: (listener: () => void) => () => void;
   acquire: (signal: AbortSignal, current: () => boolean) => Promise<Accepted>}>;
 const retired = () => Object.assign(new Error('reading_retired'), {name: 'AbortError', code: 'cancelled'});
+/** RD-7: the server ended the session and the reading client's one transparent reopen didn't
+ * hold (410 `reading_session_expired`). The owner retires carrying why, so the host offers Open again. */
+const sessionEnded = (reason: unknown) => !!reason && typeof reason === 'object' && (reason as {code?: unknown}).code === 'reading_session_expired';
 
 const cleanups = new WeakMap<Accepted, Promise<void>>();
 export const closeReadingResource = (owned: Accepted): Promise<void> => {
@@ -32,13 +35,13 @@ export function createReadingSessionOwner(source: Source) {
   const current = () => {if (ended || life.signal.aborted) return false;
     try {if (!source.current() || ended || life.signal.aborted || accepted?.session.signal.aborted) return false; return true;} catch {return false;}};
   const assert = () => {if (!current()) throw retired();};
-  const dispose = () => {
+  const dispose = (why?: unknown) => {
     if (ended) return close ?? Promise.resolve();
     ended = true;
     for (const cleanup of [...tickets.values()]) {try {cleanup();} catch { /* Continue retiring the original owner. */ }}
     tickets.clear(); life.abort(); off();
     const owned = accepted; accepted = undefined;
-    update({phase: 'retired'}); listeners.clear();
+    update(why === undefined ? {phase: 'retired'} : {phase: 'retired', error: why}); listeners.clear();
     close = owned ? closeReadingResource(owned) : Promise.resolve();
     return close;
   };
@@ -59,7 +62,7 @@ export function createReadingSessionOwner(source: Source) {
         if (acquired.session.signal.aborted) throw retired();
         accepted = acquired; transferred = true;
         const owned = acquired;
-        const onAbort = () => {void dispose().catch(() => {});};
+        const onAbort = () => {const reason = owned.session.signal.reason; void dispose(sessionEnded(reason) ? reason : undefined).catch(() => {});};
         owned.session.signal.addEventListener('abort', onAbort, {once: true});
         if (owned.session.signal.aborted) {onAbort(); throw retired();}
         const progress = await owned.session.progress(life.signal); assert();

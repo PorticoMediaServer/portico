@@ -3,17 +3,18 @@ import {defaultI18n} from '@i18n';
 import type {ReadingSession} from '@portico/client-core';
 import {Button} from '../../kit/controls';
 import {Dialog} from '../../kit/overlays';
-import {Skeleton, StateView} from '../../kit/states';
+import {Skeleton} from '../../kit/states';
 import type {ScreenContext} from '../detail/context';
 import {createReadBindings, type ReadBindingContext} from './bindings';
 import styles from './cover-pages.module.css';
 import {coverPagePreview, type CoverPagePreview} from './cover-page-preview';
+import {ReadOpenFailure, readFailureKind, readFailureReported, type ReadFailureKind} from './ReadOpenFailure';
 
 const {t} = defaultI18n;
 type Opening = Readonly<{controller: AbortController; isCurrent: () => boolean}>;
 /** CBZ pages are actual admitted archive images. No PDF page count or EPUB page is inferred. */
 export function ReadCoverPages({reading, context, itemId, sourceId, upload, busy}: {reading: ReadBindingContext; context: ScreenContext; itemId: string; sourceId: string; upload: (file: Blob) => Promise<boolean>; busy: boolean}) {
-  const [opening, setOpening] = useState<Opening>(), [session, setSession] = useState<ReadingSession>(), [failed, setFailed] = useState(false);
+  const [opening, setOpening] = useState<Opening>(), [session, setSession] = useState<ReadingSession>(), [failed, setFailed] = useState<ReadFailureKind | false>(false);
   const activeOpening = useRef<Opening | undefined>(undefined), inputs = useRef({reading, context, itemId, sourceId});
   inputs.current = {reading, context, itemId, sourceId};
   const trigger = useRef<HTMLButtonElement>(null);
@@ -34,17 +35,17 @@ export function ReadCoverPages({reading, context, itemId, sourceId, upload, busy
     setSession(undefined); setFailed(false);
     const stop = () => {active = false; void bindings.dispose().catch(() => {});};
     opening.controller.signal.addEventListener('abort', stop, {once: true});
-    const off = bindings.authority.subscribe(() => {if (active && opening.isCurrent()) setFailed(true);});
+    const off = bindings.authority.subscribe(() => {if (active && opening.isCurrent()) setFailed('failed');});
     void bindings.open({itemId, sourceId}).then(value => {
       if (!active || !opening.isCurrent() || !bindings.authority.isCurrent()) return;
       if (value.manifest.format !== 'cbz' || !value.manifest.pageNames?.length) throw new Error('invalid_cover_source');
       setSession(value);
-    }).catch(error => {if (active && opening.isCurrent()) {setFailed(true); context.effects.reportError(error);}});
+    }).catch(error => {if (active && opening.isCurrent()) {const kind = readFailureKind(error); setFailed(kind); if (readFailureReported(kind)) context.effects.reportError(error);}});
     return () => {opening.controller.signal.removeEventListener('abort', stop); off(); stop();};
   }, [opening, reading, context, itemId, sourceId]);
   return <><Button ref={trigger} size="small" disabled={busy} onClick={begin}>{t('next.reader.chooseCoverPage')}</Button>
     {opening?.isCurrent() && <Dialog open title={t('next.reader.chooseCoverPage')} returnFocusRef={trigger} onOpenChange={value => {if (!value) close(opening);}}>
-      {failed ? <StateView title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')} primary={{id: 'retry', label: t('next.states.tryAgain'), onPress: begin}}/>
+      {failed ? <ReadOpenFailure kind={failed} page={false} onRetry={begin}/>
         : session ? <Pages key={session.manifest.sessionId} session={session} context={context} opening={opening} upload={upload} busy={busy} onChosen={() => {if (opening.isCurrent()) close(opening);}}/> : <Skeleton height={280}/>}
     </Dialog>}
   </>;
