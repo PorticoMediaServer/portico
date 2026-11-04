@@ -24,6 +24,7 @@ test('G14 renders only the owner glyph and invokes the genuine existing Dashboar
       '../kit/shell/brand': {headerWordmark}, '../kit/theme': {useTheme: () => theme}, '../platform/native-blur': {BlurView: 'BlurView'},
       'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},
       './model': {phoneHeaderGeometry: () => ({top: 54, height: 104})},
+      './ActivityGlyph': {ActivityGlyph: 'ActivityGlyph', activityGlyphLabel: () => 'Server activity'},
     });
     for (const role of ['owner', 'admin', 'member'] as const) {
       const opened: unknown[] = [];
@@ -41,6 +42,13 @@ test('G14 renders only the owner glyph and invokes the genuine existing Dashboar
         assert.deepEqual(opened, [{kind: 'server-dashboard'}]);
       } else assert.deepEqual(opened, []);
       assert.equal(elements(tree).filter(node => node.type === 'ProfileAvatar').length, 1);
+      // owner-dashboard 1a: with the owner's summary, the live glyph takes the static icon's place.
+      const activity = {getSnapshot: () => ({known: false, count: 0, busy: false, update: false}), subscribe: () => () => {}, hold: () => () => {}, dispose() {}};
+      const live = elements(PhoneHomeHeader({profile: {}, unread: false, avatarRef: {current: null}, onProfile() {}, activity, ...account}));
+      const buttons = live.filter(node => typeof node.type === 'function' && node.type.name === 'ActivityButton');
+      assert.equal(buttons.length, role === 'owner' ? 1 : 0, role);
+      assert.equal(live.filter(node => node.type === 'Focusable').length, 0);
+      if (role === 'owner') {assert.equal(buttons[0].props.onPress, account.serverAction!.onPress); assert.equal(buttons[0].props.activity, activity);}
     }
     assert.equal(defaultI18n.t(phoneTabs(true).find(tab => tab.id === 'libraries')!.message), 'Libraries', 'G56 retains the plural phone label');
   } finally {

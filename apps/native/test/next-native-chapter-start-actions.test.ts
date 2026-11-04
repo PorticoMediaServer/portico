@@ -100,7 +100,7 @@ test('Home distinguishes a direct chapter play from a container Resume with a ch
     '../platform/haptics': {}, '../platform/home-action-diagnostics': {homeActionDiagnostics: {action() {}, error() {}}},
     '../screens/native-screen-services': {nativeScreenServices: () => ({reportError: assert.fail, requestId: async () => 'request'})},
     '../kit/shell': {OwnerTag: 'Owner'}, './HomeSelectionBars': {}, './HomeSelectionOverlays': {},
-    './account': {nativeMenuRouteAvailable: () => false}, './library-scan': {}, '../screens/downloads/DownloadSheet': {},
+    './owner-activity': {createNativeOwnerActivity: () => undefined}, './account': {nativeMenuRouteAvailable: () => false}, './library-scan': {}, '../screens/downloads/DownloadSheet': {},
     './selection-scope': {nativeHomeSelectionScope: (viewer: any) => viewer}, './routes': {},
     './route-registry': {nativeShellRoutes: {subscribe, bind: () => ({dispose() {}})}}, './model': model,
     './music-discover-navigation': {createNativeMusicDiscoverNavigation: inactiveOverlay}, '../screens/home/model': homeModel,

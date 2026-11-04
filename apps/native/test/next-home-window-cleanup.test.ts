@@ -59,7 +59,7 @@ test('Home window unmounts and expired Live windows never throw (P2-74 E-tv-30)'
     '../../../../packages/client-core/src/presentation/errors': {presentError: () => ({silent: true})},
     '../../../../packages/client-core/src/library-management': {}, '../../../../packages/client-core/src/presentation/home-spotlight': {},
     '../platform/home-action-diagnostics': {homeActionDiagnostics}, '../platform/haptics': {}, '../kit/overlays': {ToastHost: 'Toast'}, '../kit/states': {StateView: 'State', StateLayout: 'StateLayout'}, '../kit/theme': {useTheme: () => ({isTV: false})}, '../kit/shell': {OwnerTag: 'Owner'},
-    './HomeSelectionBars': {HomeSelectionBars: 'Bars'}, './HomeSelectionOverlays': {HomeSelectionOverlays: 'Overlays'}, './account': {nativeAccountMenu() {}, nativeMenuRouteAvailable: () => true}, './library-scan': {libraryScanReadiness: () => ({ok: true})}, '../screens/downloads/DownloadSheet': {NativeDownloadSheet: 'NativeDownloadSheet'},
+    './HomeSelectionBars': {HomeSelectionBars: 'Bars'}, './HomeSelectionOverlays': {HomeSelectionOverlays: 'Overlays'}, './owner-activity': {createNativeOwnerActivity: () => undefined}, './account': {nativeAccountMenu() {}, nativeMenuRouteAvailable: () => true}, './library-scan': {libraryScanReadiness: () => ({ok: true})}, '../screens/downloads/DownloadSheet': {NativeDownloadSheet: 'NativeDownloadSheet'},
     '../screens/home/HomeEmpty': {NativeHomeEmpty: 'NativeHomeEmpty'},
     './model': shellModel,
     './home-windows': {homeRegistrationLimit, planHomeWindows, planHomeWindowsReport},

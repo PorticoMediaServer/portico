@@ -27,7 +27,7 @@ test('medium rail draws the drawn order, selects the current destination and pin
     '../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
     '../kit/controls': {Focusable: 'Focusable'}, '../kit/Icon': {Icon: 'Icon'}, '../kit/artwork': {ProfileFace: 'ProfileFace'},
     '../kit/shell/brand': {headerWordmark}, '../kit/theme': {nativeType, useTheme: () => theme}, '../platform/native-blur': {BlurView: 'BlurView'},
-    './model': model, './tv-focus': {sameDestination},
+    './model': model, './tv-focus': {sameDestination}, './ActivityGlyph': {ActivityGlyph: 'ActivityGlyph', activityGlyphLabel: () => 'Server activity: 2 streams'},
   });
   const libraries = [{id: 'movies', name: 'Movies', kind: 'movie'}, {id: 'shows', name: 'TV Shows', kind: 'tv'},
     {id: 'tunes', name: 'Music', kind: 'music'}, {id: 'talks', name: 'Audiobooks', kind: 'audiobook'}, {id: 'comics', name: 'Comics', kind: 'comic'}];
@@ -59,7 +59,7 @@ test('medium rail drops Live TV when the server has none and keeps the current l
     '../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
     '../kit/controls': {Focusable: 'Focusable'}, '../kit/Icon': {Icon: 'Icon'}, '../kit/artwork': {ProfileFace: 'ProfileFace'},
     '../kit/shell/brand': {headerWordmark}, '../kit/theme': {nativeType, useTheme: () => theme}, '../platform/native-blur': {BlurView: 'BlurView'},
-    './model': model, './tv-focus': {sameDestination},
+    './model': model, './tv-focus': {sameDestination}, './ActivityGlyph': {ActivityGlyph: 'ActivityGlyph', activityGlyphLabel: () => 'Server activity: 2 streams'},
   });
   const element = h.render(() => MediumRail({libraries: [{id: 'shows', name: 'TV Shows', kind: 'tv'}], hasLiveTV: false,
     destination: {kind: 'library', libraryId: 'shows'}, profile: {name: 'D', initial: 'D'} as never, unread: false,
@@ -80,7 +80,7 @@ test('an owner sees the icon-only Server activity after Saved, never a Notificat
     '../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
     '../kit/controls': {Focusable: 'Focusable'}, '../kit/Icon': {Icon: 'Icon'}, '../kit/artwork': {ProfileFace: 'ProfileFace'},
     '../kit/shell/brand': {headerWordmark}, '../kit/theme': {nativeType, useTheme: () => theme}, '../platform/native-blur': {BlurView: 'BlurView'},
-    './model': model, './tv-focus': {sameDestination},
+    './model': model, './tv-focus': {sameDestination}, './ActivityGlyph': {ActivityGlyph: 'ActivityGlyph', activityGlyphLabel: () => 'Server activity: 2 streams'},
   });
   const opened: unknown[] = [];
   const element = h.render(() => MediumRail({libraries: [{id: 'movies', name: 'Movies', kind: 'movie'}], hasLiveTV: true, destination: {kind: 'home'},

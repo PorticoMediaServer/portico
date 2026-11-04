@@ -1,5 +1,5 @@
 import {headerWordmark} from '../kit/shell/brand';
-import React, {useState} from 'react';
+import React, {useEffect, useState, useSyncExternalStore} from 'react';
 import {Image, ScrollView, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Defs, LinearGradient, Rect, Stop, SvgXml} from 'react-native-svg';
@@ -13,12 +13,17 @@ import {nativeType, useTheme} from '../kit/theme';
 import {BlurView} from '../platform/native-blur';
 import {mediumLibraryIcon, mediumRailMetrics, mediumRailPadding, visibleLibraries, type ShellDestination} from './model';
 import {sameDestination} from './tv-focus';
+import {ActivityGlyph, activityGlyphLabel} from './ActivityGlyph';
+import type {NativeOwnerActivity} from './owner-activity';
 
+const noSubscription = () => () => {};
 type RailEntry = Readonly<{key: string; label: string; icon: IconName; destination: ShellDestination}>;
 
 /** foldable1/tablet: the 84 pt medium rail replaces the phone tab bar. Search,
  * Home, Live TV, Saved, Settings and Profile stay put; only the libraries scroll. */
-export function MediumRail({libraries, hasLiveTV, destination, profile, unread, serverAction, onNavigate, onProfile, profileRef, short, expanded = false, onToggle, brand = false, serverName, notificationAction}: {
+export function MediumRail({libraries, hasLiveTV, destination, profile, unread, serverAction, onNavigate, onProfile, profileRef, short, expanded = false, onToggle, brand = false, serverName, notificationAction, activity}: {
+  /** The owner's server activity: the rail's button draws the glyph (tablet-play 6), the sidebar a count. */
+  activity?: NativeOwnerActivity;
   expanded?: boolean; onToggle?: () => void; serverName?: string;
   /** tablet-play6: the sidebar folded under an open panel is the rail with the brand mark and no toggle. */
   brand?: boolean;
@@ -30,6 +35,10 @@ export function MediumRail({libraries, hasLiveTV, destination, profile, unread, 
   onNavigate: (destination: ShellDestination) => void; onProfile: () => void; profileRef: React.RefObject<View | null>; short: boolean;
 }) {
   const theme = useTheme(), insets = useSafeAreaInsets(), padding = mediumRailPadding(insets.top, insets.bottom);
+  // The sidebar's count reads the same summary; the folded rail's glyph holds it itself.
+  const activityState = useSyncExternalStore(activity?.subscribe ?? noSubscription, () => activity?.getSnapshot());
+  const activityLabel = activity ? activityGlyphLabel(activity) : undefined;
+  useEffect(() => activity && expanded ? activity.hold() : undefined, [activity, expanded]);
   const [libraryViewport, setLibraryViewport] = useState(0), [libraryContent, setLibraryContent] = useState(0);
   const overflow = libraryContent > libraryViewport + 1;
   const top: RailEntry[] = [
@@ -91,9 +100,12 @@ export function MediumRail({libraries, hasLiveTV, destination, profile, unread, 
         {expanded && <Text numberOfLines={1} style={[nativeType({size: 15, weight: 600, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textSecondary}]}>{notificationAction.label}</Text>}
       </Focusable>}
       {hairline}
-      {serverAction && <Focusable testID="medium-rail-server" accessibilityRole="button" accessibilityLabel={serverAction.label} onPress={serverAction.onPress} focusRadius={mediumRailMetrics.itemRadius}
+      {serverAction && <Focusable testID="medium-rail-server" accessibilityRole="button" accessibilityLabel={activity ? activityLabel : serverAction.label} onPress={serverAction.onPress} focusRadius={mediumRailMetrics.itemRadius}
         style={{width: expanded ? 224 : mediumRailMetrics.itemWidth, minHeight: expanded ? 44 : 48, paddingTop: 8, paddingBottom: 6, borderRadius: mediumRailMetrics.itemRadius, flexDirection: expanded ? 'row' : 'column', gap: expanded ? 12 : 0, paddingHorizontal: expanded ? 12 : 0, alignItems: 'center', justifyContent: expanded ? 'flex-start' : 'center'}}>
-        <Icon name="i-activity" size={expanded ? 20 : mediumRailMetrics.iconSize} color={theme.colors.textTertiary}/>{expanded && <Text style={[nativeType({size: 15, weight: 600, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textSecondary}]}>{serverAction.label}</Text>}
+        {activity && !expanded ? <ActivityGlyph activity={activity} size={mediumRailMetrics.iconSize}/>
+          : <Icon name="i-activity" size={expanded ? 20 : mediumRailMetrics.iconSize} color={activityState?.busy ? theme.colors.accentStrong : theme.colors.textTertiary}/>}
+        {expanded && <Text style={[nativeType({size: 15, weight: 600, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textSecondary}]}>{serverAction.label}</Text>}
+        {expanded && activityState?.busy && activityState.count > 0 && <Text testID="medium-rail-activity-count" style={[nativeType({size: 12, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale), {marginLeft: 'auto', paddingHorizontal: 7, paddingVertical: 1, borderRadius: 999, overflow: 'hidden', backgroundColor: 'rgba(64,159,212,.2)', color: theme.colors.accentStrong}]}>{defaultI18n.number(activityState.count)}</Text>}
       </Focusable>}
       <View style={{marginTop: 'auto', alignItems: 'center'}}>
         {item({key: 'settings', icon: 'i-settings', label: defaultI18n.t('settings.title'), destination: {kind: 'settings'}})}
