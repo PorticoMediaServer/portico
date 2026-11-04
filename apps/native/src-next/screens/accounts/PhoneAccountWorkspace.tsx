@@ -92,7 +92,7 @@ export function PhoneAccountWorkspace({createSource, username, onDone, onFind, o
             {row.current && caption(t('device.thisDevice'))}
             {device.app && caption(device.app)}
             {caption(t('web.hostedAccount.signedInOn', {date: defaultI18n.date(row.createdAt)}))}
-            {row.lastUsedAt && caption(t('web.hostedAccount.lastUsed', {when: defaultI18n.relativeTime(row.lastUsedAt)}))}
+            {row.lastUsedAt && caption(t('web.hostedAccount.lastUsed', {when: defaultI18n.relativeTime(row.lastUsedAt, undefined, {inSentence: true})}))}
             {row.status !== 'active' && label(t('web.hostedAccount.ended'))}
             {row.status === 'active' && !row.current && <Button testID={`account-device-sign-out-${row.id}`} variant="glass" disabled={ending || unresolved} onPress={() => {if (current()) setConfirm({kind: 'session', row});}}>{t('action.signOut')}</Button>}
           </View>;

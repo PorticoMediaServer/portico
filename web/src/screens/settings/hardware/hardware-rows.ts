@@ -109,7 +109,7 @@ export function hardwareRowState(rowId: string, snapshot: HardwareSnapshot, stor
     }
     case 'streaming.hwTest': {
       const at = hardware.lastTest * 1000;
-      const when = at > 0 ? defaultI18n.relativeTime(at, serverNow()) : undefined;
+      const when = at > 0 ? defaultI18n.relativeTime(at, serverNow(), {inSentence: true}) : undefined;
       return {present: true, help: when ? t('next.settings.hardware.lastTest', {when}) : t('next.settings.hardware.neverTested'), disabled: snapshot.testing};
     }
     default:

@@ -86,7 +86,7 @@ export function IntegrationsPage({api, source, webhooks, baseUrl, isCurrent, rep
       <span className={styles.keyIcon}><Icon name="i-key" size={20} /></span>
       <div className={styles.keyText}><b>{key.name}</b><div className={styles.facts}>
         <span>{scopesText(t, key.scopes)}</span>{key.hint && <span>{t('api.credential.endsIn', {hint: key.hint})}</span>}
-        <span>{key.lastUsedAt ? t('api.credential.lastUsed', {when: defaultI18n.relativeTime(key.lastUsedAt)}) : t('api.credential.neverUsed')}</span>
+        <span>{key.lastUsedAt ? t('api.credential.lastUsed', {when: defaultI18n.relativeTime(key.lastUsedAt, undefined, {inSentence: true})}) : t('api.credential.neverUsed')}</span>
         <span>{key.expiresAt ? t('api.credential.expires', {when: defaultI18n.date(key.expiresAt)}) : t('api.credential.noExpiry')}</span>
       </div></div>
       <div className={styles.actions}><span className={styles.badge} data-tone={badge?.tone ?? 'healthy'}>{badge?.text ?? t('api.credential.state.active')}</span>

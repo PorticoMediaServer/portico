@@ -42,7 +42,9 @@ export function SourceStatusPanel({controller, source, isCurrent, t}: {
   useEffect(() => {void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const ago = (value: string | undefined) => value ? defaultI18n.relativeTime(value) || undefined : undefined;
+  // `inSentence` for the words that sit inside a sentence ("Tested just now."); the standalone
+  // "Last error: …" and "Last connected: …" values keep their capital.
+  const ago = (value: string | undefined, inSentence = false) => value ? defaultI18n.relativeTime(value, undefined, {inSentence}) || undefined : undefined;
   // A missing count is unknown, never zero: only real numbers make a live claim.
   const playback = typeof status?.playbackReads === 'number' ? status.playbackReads : undefined;
   const analysis = typeof status?.analysisReads === 'number' ? status.analysisReads : undefined;
@@ -52,7 +54,7 @@ export function SourceStatusPanel({controller, source, isCurrent, t}: {
     : playback > 0 && connections !== undefined ? t('next.remoteSources.readingNow', {watching: playback, connections})
     : playback === 0 && analysis === 0 && connections === 0 ? t('next.remoteSources.nothingReading')
     : connections !== undefined && connections > 0 ? t('next.remoteSources.connectionsNow', {connections}) : undefined;
-  const checked = ago(status?.lastCheckedAt);
+  const checked = ago(status?.lastCheckedAt, true);
   const health = status?.health ? HEALTH_WORDS[status.health] : undefined;
   const contact = status?.lastErrorCode ? CONTACT_NOTICES[status.lastErrorCode] : undefined;
   const failedAt = ago(status?.lastErrorAt), connectedAt = ago(status?.lastConnectedAt);
@@ -85,7 +87,7 @@ export function SourceStatusPanel({controller, source, isCurrent, t}: {
         <Text style={[theme.type.body, {color: theme.colors.text}]}>{library.name}</Text>
         <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('next.remoteSources.foldersInLibrary', {count: library.folders})}</Text>
         {!!library.lastCompleteAt && !!ago(library.lastCompleteAt) && <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>
-          {t('next.remoteSources.libraryComplete', {when: ago(library.lastCompleteAt)})}
+          {t('next.remoteSources.libraryComplete', {when: ago(library.lastCompleteAt, true)})}
         </Text>}
       </View>)}
     </>}
