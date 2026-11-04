@@ -112,7 +112,7 @@ func TestTimeoutBudgetPublishesAndResolvesOwnerAlert(t *testing.T) {
 	}
 	waitStatus("open")
 	var notices int
-	if err := db.QueryRow(`SELECT count(*) FROM console_notifications WHERE code='owner-alert'`).Scan(&notices); err != nil || notices != 1 {
+	if err := db.QueryRow(`SELECT count(*) FROM notification_records WHERE source='operations' AND category='owner.alert'`).Scan(&notices); err != nil || notices != 1 {
 		t.Fatalf("owner notification count=%d err=%v", notices, err)
 	}
 	now = now.Add(overloadWindow + time.Second)

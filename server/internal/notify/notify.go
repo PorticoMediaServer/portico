@@ -48,6 +48,7 @@ const (
 // producers cannot collide on a shared key.
 const (
 	SourceFeedback   = "feedback"
+	SourceOperations = "operations"
 	SourceDownloads  = "downloads"
 	SourceDVR        = "dvr"
 	SourceSecurity   = "security"
@@ -74,7 +75,7 @@ var Views = []string{
 var (
 	Severities = []string{SeverityInfo, SeverityWarning, SeverityCritical}
 	Audiences  = []string{AudienceProfile, AudienceAccountAdmin}
-	Sources    = []string{SourceFeedback, SourceDownloads, SourceDVR, SourceSecurity, SourceScan, SourceNetworking, SourceStorage, SourceBroadcast}
+	Sources    = []string{SourceOperations, SourceFeedback, SourceDownloads, SourceDVR, SourceSecurity, SourceScan, SourceNetworking, SourceStorage, SourceBroadcast}
 )
 
 // DefaultRetentionDays mirrors the settings registry default for

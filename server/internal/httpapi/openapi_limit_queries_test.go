@@ -49,7 +49,6 @@ func expectedLimitQueries() map[string]apikit.QueryInteger {
 	strict(100, 100, true, "integration_libraries", "integration_users")
 	strict(16, 100, true, "integration_media_info")
 	strict(40, 100, true, "get_notifications_inbox", "get_feedback_reports", "get_admin_feedback_reports")
-	strict(40, 40, true, "get_notifications")
 	add(apikit.QueryInteger{Name: "limit", Minimum: 0, Default: 40, Maximum: 40, EmptyIsDefault: true}, "get_library_inventory")
 	strict(25, 50, true, "get_metadata_attention", "get_server_metadata_attention")
 	strict(256, 256, true, "get_download_usage")
