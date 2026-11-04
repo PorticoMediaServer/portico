@@ -3,6 +3,7 @@ package dbwork
 import (
 	"context"
 	"database/sql"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -57,6 +58,7 @@ type walRequest struct {
 	name          string
 	bytes, growth int64
 	qualified     bool
+	diagRefusal   bool
 	class         Class
 }
 
@@ -124,6 +126,10 @@ func (r *walRequest) ready() bool {
 		return true
 	}
 	if !l.probeOK || l.free-(l.spent-l.probedSpent) < r.bytes+r.growth+walEmergencyBytes+max(0, walEnvelopeBytes-l.stats.AdmissionBytes) {
+		if !r.diagRefusal {
+			r.diagRefusal = true
+			log.Printf("REDS-RESERVATION reason=free-observation probe_ok=%v cached_free=%d spent=%d probed_spent=%d required=%d admission=%d physical=%d", l.probeOK, l.free, l.spent, l.probedSpent, r.bytes+r.growth+walEmergencyBytes+max(0, walEnvelopeBytes-l.stats.AdmissionBytes), l.stats.AdmissionBytes, l.stats.PhysicalBytes)
+		}
 		return false
 	}
 	limit := walHardBytes

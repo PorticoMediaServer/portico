@@ -1,40 +1,28 @@
-name: Pinned main red phase diagnostic
+name: Backup stale reservation observation owner control
 on:
   workflow_dispatch:
 permissions:
   contents: read
   actions: read
-concurrency:
-  group: main-reds-phase-r2-${{ github.ref }}
-  cancel-in-progress: false
 jobs:
-  diagnostic:
+  control:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {replay: access-a, shard: 8}
-          - {replay: access-b, shard: 8}
-          - {replay: backup-a, shard: 2}
-          - {replay: backup-b, shard: 2}
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with: {persist-credentials: false}
+        with: {persist-credentials: false, fetch-depth: 0}
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with: {go-version-file: server/go.mod, cache-dependency-path: '**/go.sum'}
-      - name: Fetch the main run's exact recorded selection
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - env: {GH_TOKEN: '${{ github.token }}'}
         run: gh run download 41825281590 -R PorticoMediaServer/portico -n selection -D "$RUNNER_TEMP/original-selection"
       - run: python3 ci/run.py download --plan "$RUNNER_TEMP/original-selection/ci-plan.json"
-      - run: python3 ci/run.py ffmpeg --index ${{ matrix.shard }} --plan "$RUNNER_TEMP/original-selection/ci-plan.json"
-      - name: Replay original shard with unchanged deadlines and parallel package neighbours
-        run: python3 ci/run.py go --index ${{ matrix.shard }} --plan "$RUNNER_TEMP/original-selection/ci-plan.json"
+      - name: Same VM stale-observation baseline then production-owner fixture
+        env:
+          RECORDED_PLAN: '${{ runner.temp }}/original-selection/ci-plan.json'
+        run: python3 ci/backup_owner_control_diag.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: main-reds-phase-r2-${{ matrix.replay }}
-          path: ci-results
+          name: backup-owner-stale-observation
+          path: backup-owner-*/
           retention-days: 7
