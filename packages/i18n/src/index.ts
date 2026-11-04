@@ -163,7 +163,8 @@ export type I18n = Readonly<{
   /** `inSentence`: the words read mid-sentence ("finished just now", "finished yesterday"), not as a standalone label. */
   relativeTime: (value: Date | number | string, now?: number, options?: Readonly<{inSentence?: boolean}>) => string;
   /** "A, B and C" in the UI locale; `'or'` gives "A, B or C". */
-  list: (items: readonly string[], type?: 'and' | 'or') => string;
+  /** `unit`: a plain comma list ("Writer, Tag, Label"), for summaries that name things rather than join them. */
+  list: (items: readonly string[], type?: 'and' | 'or' | 'unit') => string;
 }>;
 
 const toDate = (value: Date | number | string): Date => (value instanceof Date ? value : new Date(value));
@@ -254,11 +255,11 @@ export function createI18n(region: ResolvedRegion = resolveRegion(undefined, {lo
     if (days < 7) return t('relative.daysAgo', {count: days});
     return date(d, new Date(now).getFullYear() === d.getFullYear() ? 'dayMonth' : 'medium');
   };
-  const list = (items: readonly string[], type: 'and' | 'or' = 'and') => {
+  const list = (items: readonly string[], type: 'and' | 'or' | 'unit' = 'and') => {
     const ListFormat = (Intl as {ListFormat?: new (l: string, o: object) => {format(x: readonly string[]): string}}).ListFormat;
-    if (ListFormat) return safe(() => new ListFormat(region.uiLocale, {style: 'long', type: type === 'or' ? 'disjunction' : 'conjunction'}).format(items), items.join(', '));
+    if (ListFormat) return safe(() => new ListFormat(region.uiLocale, type === 'unit' ? {style: 'short', type: 'unit'} : {style: 'long', type: type === 'or' ? 'disjunction' : 'conjunction'}).format(items), items.join(', '));
     if (items.length <= 1) return items[0] ?? '';
-    if (type === 'or') return items.join(', ');
+    if (type === 'or' || type === 'unit') return items.join(', ');
     return t('list.and', {first: items.slice(0, -1).join(', '), second: items[items.length - 1]!});
   };
   // The locale words the unit ("GB", "Go") where the runtime knows byte units; an engine that

@@ -71,6 +71,10 @@ export const browseMessages = {
   'next.browse.matchMode': 'Match',
   'next.browse.find': 'Find {field}',
   'next.browse.showAll': 'Show all {count} {field}',
+  /** desktop-browse #filters' More summary names the rating fields together. */
+  'next.browse.ratingsGroup': 'ratings',
+  /** desktop-browse #filters: "Show all 13 genres", the field's plural. */
+  'next.browse.showAllValues': 'Show all {count} {field, select, genre {genres} studio {studios} network {networks} country {countries} language {languages} writer {writers} director {directors} actor {actors} cast {cast} tag {tags} label {labels} collection {collections} author {authors} narrator {narrators} publisher {publishers} series {series} artist {artists} album {albums} mood {moods} style {styles} other {{name}}}',
   'next.browse.activeCount': '{count} on',
   'next.browse.facetHelp': 'Tap once to include. Tap again to leave out.',
   'next.browse.include': 'Include {value}',

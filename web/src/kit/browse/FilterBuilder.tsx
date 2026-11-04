@@ -50,6 +50,13 @@ export type FilterBuilderProps = Readonly<{
   visibleFieldCount?: Partial<Readonly<Record<ToolbarGroupId, number>>>; moreSummary?: Partial<Readonly<Record<ToolbarGroupId, string>>>;
   note?: ReactNode; className?: string;
 }>;
+/** desktop-browse #filters: the More row names its fields as a plain list, with two or more rating fields as one
+ * "ratings" ("Writer, Tag, Label, ratings, Release date"). */
+export function moreFieldsSummary<F extends {id: string}>(fields: readonly F[], label: (field: F) => string): string {
+  const ratings = fields.filter(field => /Rating$/.test(field.id)), grouped = ratings.length > 1;
+  const names = fields.flatMap(field => !grouped || !ratings.includes(field) ? [label(field)] : field === ratings[0] ? [t('next.browse.ratingsGroup')] : []);
+  return defaultI18n.list(names, 'unit');
+}
 export function FilterBuilder({model, labels, platform = 'desktop', fields, openFields, onFieldOpenChange, onFieldChange, onSearchChange, onShowAll, onRetry,
   visibleFieldCount, moreSummary, note, className}: FilterBuilderProps) {
   const id = useId(), [expandedGroups, setExpandedGroups] = useState<readonly ToolbarGroupId[]>([]);
@@ -80,7 +87,7 @@ export function FilterBuilder({model, labels, platform = 'desktop', fields, open
         <h3 id={`${id}-${group.id}-heading`}>{t(`filter.group.${group.id}`)}{platform === 'desktop' && count > 0 && <span>{t('next.browse.activeCount', {count})}</span>}</h3>
         <div className={styles.fieldGrid}>{visible.map(renderField)}
           {more.length > 0 && <button type="button" className={styles.moreFields} aria-expanded={expanded} onClick={() => setExpandedGroups(current => expanded ? current.filter(key => key !== group.id) : [...current, group.id])}>
-            <span>{t('next.browse.more')}</span><small>{moreSummary?.[group.id] ?? defaultI18n.list(more.map(labels.field))}</small><Icon name={expanded ? 'i-up' : 'i-down'} size={18}/>
+            <span>{t('next.browse.more')}</span><small>{moreSummary?.[group.id] ?? moreFieldsSummary(more, labels.field)}</small><Icon name={expanded ? 'i-up' : 'i-down'} size={18}/>
           </button>}
         </div>
       </section>;
@@ -109,11 +116,11 @@ export function FilterFieldBody({field, state, label, platform = 'desktop', cont
         {state.status === 'error' && <div className={styles.fieldNotice} role="alert">{state.error}{onRetry && <Button variant="text" size="small" onClick={() => onRetry(field.id)}>{t('next.browse.retry')}</Button>}</div>}
         {(state.status !== 'error' || state.values.length > 0) &&
           <>{platform === 'tv' && state.hint && <p className={styles.facetHelp}>{state.hint}</p>}<FacetChips values={state.values} included={state.included} excluded={state.excluded} cycleExclusion={platform === 'phone' && canExclude}
-            trailing={platform === 'phone' && state.total !== undefined && state.total > state.values.length && onShowAll ? <Button variant="text" size="xs" className={styles.inlineMore} onClick={() => onShowAll(field.id)}>{state.moreLabel ?? t('next.browse.showAll', {count: state.total, field: label.toLocaleLowerCase()})}</Button> : undefined}
+            trailing={platform === 'phone' && state.total !== undefined && state.total > state.values.length && onShowAll ? <Button variant="text" size="xs" className={styles.inlineMore} onClick={() => onShowAll(field.id)}>{state.moreLabel ?? t('next.browse.showAllValues', {count: state.total, field: field.id, name: label.toLocaleLowerCase()})}</Button> : undefined}
             onValueChange={(value, selection) => change({kind: 'facet', value, selection: state.match === 'none' && selection === 'include' ? 'exclude' : selection})}/>
             {state.status !== 'loading' && state.values.length === 0 && <span className={styles.fieldNotice}>{t('next.browse.noValues')}</span>}
             {platform !== 'phone' && state.total !== undefined && state.total > state.values.length && onShowAll && <Button variant="text" size="xs" className={styles.showAll} onClick={() => onShowAll(field.id)}>
-              {state.moreLabel ?? t('next.browse.showAll', {count: state.total, field: label.toLocaleLowerCase()})}<Icon name="i-down" size={14}/></Button>}</>}
+              {state.moreLabel ?? t('next.browse.showAllValues', {count: state.total, field: field.id, name: label.toLocaleLowerCase()})}<Icon name="i-down" size={14}/></Button>}</>}
         {platform === 'phone' && canExclude && <p className={styles.facetHelp}>{t('next.browse.facetHelp')}</p>}
       </>}
       {state.kind === 'toggle' && <Segmented variant={platform === 'phone' ? 'phone' : 'browse'} value={state.value === undefined ? 'any' : state.value ? 'yes' : 'no'}

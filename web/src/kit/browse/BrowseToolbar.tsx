@@ -127,12 +127,13 @@ export function BrowseToolbar({model, labels, resultCount, platform = 'desktop',
   return <div className={[styles.toolbar, className].filter(Boolean).join(' ')} data-platform={platform} data-sticky={sticky || undefined} style={{top: topInset}}>
     {selection}{!(selectionActive ?? selection != null) && <><div className={styles.toolbarMain}>
       {platform === 'tv' ? <>{sort}{filters}{onJump && <Chip onClick={onJump}>{t('next.browse.jump')}<Icon name="i-down" size={16}/></Chip>}</> : filters}
-      <span className={styles.separator} aria-hidden="true"/>
+      {/* The divider separates Filters from what follows it; with nothing after it (Comics' Volumes and issues) it is not drawn. */}
+      {(sortInFirstRow || actions != null && actions !== false || quick.length > 0) && <span className={styles.separator} aria-hidden="true"/>}
       {sortInFirstRow && sort}
       {actions}{quick.map(item => <QuickToggle key={item.id} selected={item.active} onCheckedChange={checked => onQuickChange(item.id, checked)}>{item.label?.text ?? labels.quick(item)}</QuickToggle>)}
       {platform !== 'phone' && <div className={styles.toolbarEnd}>{platform === 'desktop' && <ResultCount className={styles.resultCount} accepted={accepted} source={acceptedSource}>{resultCount}</ResultCount>}{platform === 'desktop' && sort}
         {view && <ViewToggle {...view}/>} {cardSize && <CardSizeButton {...cardSize}/>} {save && <SaveViewButton {...save}/>}</div>}
-    </div>{platform === 'phone' && <div className={styles.phoneCount}><ResultCount accepted={accepted} source={acceptedSource}>{resultCount}</ResultCount>{save && <SaveViewButton {...save}/>}<span className={styles.phoneView}>{!sortInFirstRow && sort}{view && <ViewToggle {...view}/>}</span></div>}
+    </div>{platform === 'phone' && <div className={styles.phoneCount}><ResultCount accepted={accepted} source={acceptedSource}>{resultCount}</ResultCount>{/* phone-app 5: Save this view lives in the ⋯ menu. */}<span className={styles.phoneView}>{!sortInFirstRow && sort}{view && <ViewToggle {...view}/>}</span></div>}
     {applied.length > 0 && onRemoveFilter && onClearFilters && <div className={platform === 'tv' ? styles.tvAppliedRow : undefined}><AppliedFilterChips items={applied} onRemove={onRemoveFilter} onClear={onClearFilters}/>{platform === 'tv' && <ResultCount className={styles.resultCount} accepted={accepted} source={acceptedSource}>{resultCount}</ResultCount>}</div>}</>}
   </div>;
 }
