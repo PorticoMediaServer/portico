@@ -23,14 +23,18 @@ export type GuideReentry = Readonly<{from: number; target?: number}>;
 export type GuideReentryEvent = Readonly<
   | {kind: 'press'; revision: number}
   | {kind: 'revision'; revision: number}
-  | {kind: 'key'; key: string}
+  | {kind: 'remote'; eventType?: string}
+  | {kind: 'leave'}
   | {kind: 'focus'}
   | {kind: 'filter'}>;
 
 /** The one-shot entry ask after Show all. Armed at the press; the first revision change records the revision it
- *  produced; any later revision, a key event from the remote, a guide cell taking focus or a filter chosen again
- *  disarms it for good. Native recovery also moves focus when Show all unmounts, so only the remote's keys tell the
- *  person from recovery. A select key is not one of them: it is the press itself, which its key event may trail. */
+ *  produced; any later revision, anything the remote or Back does (the raw TV events, swipes and pans included, and
+ *  Android's Back, which never reaches them), leaving Live or opening one of its pages (Recordings, the source page,
+ *  a programme sheet), a guide cell taking focus or a filter chosen again disarms it for good: coming back never
+ *  re-arms. Native recovery also moves focus when Show all unmounts, so only the remote's own events tell the person
+ *  from recovery. Select (and the engine's own focus and blur reports) are not the person moving: select is the press
+ *  itself, which its event may trail. */
 export function guideReentryNext(state: GuideReentry | undefined, event: GuideReentryEvent): GuideReentry | undefined {
   switch (event.kind) {
     case 'press': return {from: event.revision};
@@ -38,9 +42,14 @@ export function guideReentryNext(state: GuideReentry | undefined, event: GuideRe
       if (!state) return undefined;
       if (state.target === undefined) return event.revision === state.from ? state : {from: state.from, target: event.revision};
       return event.revision === state.target ? state : undefined;
-    case 'key': return event.key === 'select' ? state : undefined;
+    case 'remote': return remoteKeepsGuideEntry(event.eventType) ? state : undefined;
     default: return undefined;
   }
+}
+
+/** The raw TV events that are not the person moving: the press itself (select) and the native focus engine's reports. */
+export function remoteKeepsGuideEntry(eventType?: string): boolean {
+  return eventType === 'select' || eventType === 'longSelect' || eventType === 'focus' || eventType === 'blur';
 }
 
 /** Whether the guide's first row asks for TV entry focus: on the first draw of the page (not after a return from
@@ -52,7 +61,22 @@ export function liveGuideEntry(revision: number, recordingsReturn: number, manag
     || reentry !== undefined && revision !== reentry.from && (reentry.target === undefined || revision === reentry.target);
 }
 
-/** Whether the page can take a focus request now: its destination is Live and visible, and nothing is over it. */
-export function livePageTakesFocus(page: Readonly<{covered: boolean; destination: string; contentVisible?: boolean; mediaExpanded?: boolean}>): boolean {
-  return !page.covered && page.destination === 'live' && page.contentVisible !== false && !page.mediaExpanded;
+/** Whether the page can take a focus request now: its destination is Live and visible, and nothing is over it (the
+ *  same set the page's Back handler requires, plus covered). */
+export function livePageTakesFocus(page: Readonly<{covered: boolean; destination: string; contentVisible?: boolean; mediaExpanded?: boolean; homeObscured?: boolean}>): boolean {
+  return !page.covered && page.destination === 'live' && page.contentVisible !== false && !page.mediaExpanded && !page.homeObscured;
+}
+
+/** How long after the revision Show all produced native recovery is given to land and be reported to the focus
+ *  registry. Android leaves focus on the grid region's host (no registered target); tvOS prefers a control and the
+ *  registry learns it a few frames later, so a baseline taken sooner reads nothing. */
+export const GUIDE_RECOVERY_SETTLE_MS = 300;
+
+/** The backstop for input the remote adapter does not report. `baseline` is where focus was once native recovery had
+ *  settled after Show all, GUIDE_RECOVERY_SETTLE_MS after the target revision (`at` is undefined when recovery left it
+ *  on the page's own host rather than a registered target; before it is sampled there is nothing to compare, and the
+ *  ask is allowed). Focus anywhere else afterwards is where the person put it: the ask must not take it. A person
+ *  returning to exactly recovery's landing cannot be told from it and is not protected. */
+export function guideFocusMoved(baseline: Readonly<{at?: Readonly<{regionId: string; childId: string}>}> | undefined, current?: Readonly<{regionId: string; childId: string}>): boolean {
+  return baseline !== undefined && (baseline.at?.regionId !== current?.regionId || baseline.at?.childId !== current?.childId);
 }

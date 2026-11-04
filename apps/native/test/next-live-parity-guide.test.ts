@@ -71,7 +71,7 @@ async function fixture({isTV = false, width, height, role = 'owner', sources = t
     FlatList: ({data, renderItem, ListHeaderComponent}: any) => jsx('FlatList', null, ListHeaderComponent, ...(data ?? []).map((item: unknown, index: number) => jsx(React.Fragment, {key: index}, renderItem({item})))),
     useWindowDimensions: () => ({width: theme.width, height: height ?? 1080})};
   const controls = {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable', Segmented: 'Segmented', Select: 'Select'};
-  const focus = {FocusRegion: 'Region', FocusItem: 'FocusItem', useCovered: () => false, useFocusRegistry: () => ({subscribe, cellPosition: () => undefined, focus: () => true})};
+  const focus = {FocusRegion: 'Region', FocusItem: 'FocusItem', useCovered: () => false, useFocusRegistry: () => ({subscribe, cellPosition: () => undefined, attachedFocus: () => undefined, focus: () => true})};
   class FakeFeatures {
     dispose() {}
     async reminders() {return {items: []};}
@@ -93,7 +93,7 @@ async function fixture({isTV = false, width, height, role = 'owner', sources = t
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, 'react-native-gesture-handler': {GestureDetector: 'GestureDetector'},
     'react-native-reanimated': {default: {View: 'AnimatedView'}, useAnimatedStyle: (fn: () => unknown) => fn()}, '../../../../../packages/client-core/src/channel-guide': channels,
     '../../../../../packages/client-core/src/guide': guide, '../../../../../packages/client-core/src/guide/directory': {...directory, GuideFeatureClient: FakeFeatures}, './GuideLoadingMarker': {GuideLoadingMarker: 'Loading'},
-    '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, '../../platform/tv-keys': {useTVKeyEvent: noop}, '../../shell/model': shellModel, './RecordingsScreen': {NativeRecordingsScreen: 'Recordings'}, '../../tv/layout/guide-focus': {},
+    '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, '../../platform/tv-keys': {useTVRemoteActivity: noop}, '../../shell/model': shellModel, './RecordingsScreen': {NativeRecordingsScreen: 'Recordings'}, '../../tv/layout/guide-focus': {},
     '../destinations/useTVPageBack': {useTVPageBack: noop}, '../destinations/useEntryFocus': {useDestinationEntryFocus: noop}, './guide-presentation': guidePresentation,
     '../../kit/useScreenReader': {useScreenReader: () => false},
     './useGuideTimePan': {useGuideTimePan: () => ({active: false, position: {value: 0}, adjust: noop})}, '../../../../../packages/client-core/src/presentation/live-availability': availability, './guide-pan-model': guidePan, './LivePhonePicker': {NativeLivePhonePicker: 'PhonePicker'},

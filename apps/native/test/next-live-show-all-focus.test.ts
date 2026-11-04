@@ -1,45 +1,48 @@
 // #689 review: on TV, pressing Show all in Live TV's filtered-empty state unmounts the focused button and swaps the
 // grid's focus region for the guide's own, so nothing focused is left. The guide must then ask for its own entry
 // (tv-focus 24: the programme on now on the first channel), never leave focus to native recovery. The ask is one
-// shot: bound to the revision Show all produces, cancelled by any key from the remote after the press, and made only
-// while the page can take focus (not covered, still the Live destination, visible, no media expanded).
+// shot: bound to the revision Show all produces, cancelled by anything the remote or Back does after the press (raw TV
+// events, swipes and pans included; Android's Back through BackHandler), by leaving Live or opening one of its pages
+// (Recordings), and by focus moving to somewhere other than where native recovery left it; and made only while the
+// page can take focus (not covered, still the Live destination, visible, no media expanded, home not obscured).
 //
 // The fake native focus engine with the real focus kit, Focusable, the real `useScreenEntry` (settings-live
-// Screen.tsx), the real `useTVKeyEvent` (platform/tv-keys) and the rules LiveScreen's rows use (`liveGuideEntry`,
-// `guideReentryNext`, `livePageTakesFocus`). The scene mirrors LiveScreen's TV structure: the page layer (an autoFocus
+// Screen.tsx), the real `useTVRemoteActivity` (platform/tv-keys) and the rules LiveScreen's rows use (`liveGuideEntry`,
+// `guideReentryNext`, `livePageTakesFocus`, `guideFocusMoved`). The scene mirrors LiveScreen's TV structure: the page layer (an autoFocus
 // CoveredLayer), the filter chips region, then the grid region holding either the filtered-empty state's Show all or
 // the guide rows (keyed by the guide revision, the first row asking for entry once its channel has arrived).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {screenModule} from './helpers/screen-harness.mjs';
 import {tvFocusKit} from './helpers/tv-focus-kit.mjs';
-import * as keyAdapter from '../src-next/platform/tv-key-adapter.ts';
-import * as keySource from '../src-next/platform/tv-key-source.ts';
-import {guideReentryNext, liveGuideEntry, livePageTakesFocus, type GuideReentry, type GuideReentryEvent} from '../src-next/screens/settings-live/tv-settings-focus.ts';
+import {GUIDE_RECOVERY_SETTLE_MS, guideFocusMoved, guideReentryNext, liveGuideEntry, livePageTakesFocus, type GuideReentry, type GuideReentryEvent} from '../src-next/screens/settings-live/tv-settings-focus.ts';
 
 const g = globalThis as any;
 g.requestAnimationFrame ??= (run: () => void) => setTimeout(run, 0);
 g.cancelAnimationFrame ??= (id: unknown) => clearTimeout(id as ReturnType<typeof setTimeout>);
 const frames = () => new Promise(resolve => setTimeout(resolve, 5));
+// Native recovery's landing is taken as the baseline this long after the target revision (the backstop's reference).
+const recovered = () => new Promise(resolve => setTimeout(resolve, GUIDE_RECOVERY_SETTLE_MS + 50));
 
-type Shell = {destination: {kind: string}; contentVisible?: boolean; mediaExpanded?: boolean};
-async function scene(platform: 'android' | 'tvos', {showAllAsks = true, rowsHeld = false}: {showAllAsks?: boolean; rowsHeld?: boolean} = {}) {
+type Shell = {destination: {kind: string}; contentVisible?: boolean; mediaExpanded?: boolean; homeObscured?: boolean};
+// `noTVEvents`: Android's Back never reaches TVEventHandler, so only BackHandler can see it.
+async function scene(platform: 'android' | 'tvos', {showAllAsks = true, rowsHeld = false, noTVEvents = false}: {showAllAsks?: boolean; rowsHeld?: boolean; noTVEvents?: boolean} = {}) {
   const kit = await tvFocusKit({platform}), {e, engine, focus, Stop, React} = kit, n = engine.native;
   const {useScreenEntry} = await screenModule(new URL('../src-next/screens/settings-live/Screen.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native': n, '../../kit/theme': {useTheme: () => ({isTV: true, colors: {}})},
     '../../kit/shell/visual': {shellType: () => ({})}, '../../kit/focus': focus, '../../kit/artwork': {StandardBackdrop: () => null}});
-  const {useTVKeyEvent} = await screenModule(new URL('../src-next/platform/tv-keys.ts', import.meta.url), {
-    react: {...React, default: React}, 'react-native': n, './tv-key-adapter': keyAdapter, './tv-key-source': keySource});
+  const {useTVRemoteActivity} = await screenModule(new URL('../src-next/platform/tv-keys.ts', import.meta.url), {
+    react: {...React, default: React}, 'react-native': noTVEvents ? {...n, useTVEventHandler: () => {}} : n, './tv-key-adapter': {}, './tv-key-source': {}});
   const registry = focus.createFocusRegistry();
   const filters = 'live.filters', grid = 'live.grid';
-  const shell: Shell = {destination: {kind: 'live'}, contentVisible: true, mediaExpanded: false};
+  const shell: Shell = {destination: {kind: 'live'}, contentVisible: true, mediaExpanded: false, homeObscured: false};
   const ctl = {arrive: () => {}, bump: () => {}, cover: (_covered: boolean) => {}};
   // One guide row: the first asks for the programme on now when the rule says so, once its channel has arrived and
   // while the page can take it; layout stands in as a layout effect (the fake engine fires no onLayout).
   const Row = ({index, ready, entryEnabled, entryOpen, onCell}: {index: number; ready: boolean; entryEnabled: boolean; entryOpen: () => boolean; onCell: () => void}) => {
     const covered = focus.useCovered(), coveredRef = React.useRef(covered), openRef = React.useRef(entryOpen); coveredRef.current = covered; openRef.current = entryOpen;
     const current = React.useCallback(() => livePageTakesFocus({covered: coveredRef.current, destination: shell.destination.kind, contentVisible: shell.contentVisible,
-      mediaExpanded: shell.mediaExpanded}) && openRef.current(), []);
+      mediaExpanded: shell.mediaExpanded, homeObscured: shell.homeObscured}) && openRef.current(), []);
     const entry = useScreenEntry(entryEnabled && ready && index === 0 ? {regionId: grid, childId: `row-${index}-now`} : undefined, current);
     React.useLayoutEffect(() => {entry();}, [entry]);
     if (!ready) return e(n.View, {style: {height: 100}});
@@ -54,25 +57,42 @@ async function scene(platform: 'android' | 'tvos', {showAllAsks = true, rowsHeld
     const [ready, setReady] = React.useState(!rowsHeld) as [boolean, (value: boolean) => void];
     const [covered, setCovered] = React.useState(false) as [boolean, (value: boolean) => void];
     const [reentry, setReentry] = React.useState(undefined) as [GuideReentry | undefined, (value: GuideReentry | undefined) => void];
-    const reentryRef = React.useRef(undefined as GuideReentry | undefined);
+    const [recordingsOpen, setRecordingsOpen] = React.useState(false) as [boolean, (value: boolean) => void];
+    const [recordingsReturn, setRecordingsReturn] = React.useState(0) as [number, (update: (value: number) => number) => void];
+    const reentryRef = React.useRef(undefined as GuideReentry | undefined), baseline = React.useRef(undefined as {at?: {regionId: string; childId: string}} | undefined);
     ctl.arrive = () => setReady(true); ctl.bump = () => setRevision((value: number) => value + 1); ctl.cover = setCovered;
     const step = (event: GuideReentryEvent) => {
       const next = guideReentryNext(reentryRef.current, event);
+      if (event.kind === 'press' || next === undefined) baseline.current = undefined;
       if (next !== reentryRef.current) {reentryRef.current = next; setReentry(next);}
     };
-    React.useLayoutEffect(() => {step({kind: 'revision', revision});}, [revision]);
-    useTVKeyEvent((event: {key: string}) => step({kind: 'key', key: event.key}));
+    useTVRemoteActivity(reentry !== undefined, (raw: {eventType?: string}) => step({kind: 'remote', eventType: raw.eventType}));
+    React.useLayoutEffect(() => {
+      step({kind: 'revision', revision});
+      const armed = reentryRef.current;
+      if (armed?.target !== revision || baseline.current) return;
+      const settle = setTimeout(() => {if (reentryRef.current === armed && !baseline.current) baseline.current = {at: registry.attachedFocus()};}, GUIDE_RECOVERY_SETTLE_MS);
+      return () => clearTimeout(settle);
+    }, [revision]);
+    React.useLayoutEffect(() => {if (recordingsOpen) step({kind: 'leave'});}, [recordingsOpen]);
+    // The restore a return from Recordings makes (useDestinationEntryFocus): its own control, not the guide's entry.
+    React.useEffect(() => {if (recordingsReturn > 0) registry.focus({regionId: 'live.controls', childId: 'live-recordings'});}, [recordingsReturn]);
     const empty = filter === 'news';
     const showAll = () => {if (showAllAsks) step({kind: 'press', revision}); setFilter('all'); setRevision((value: number) => value + 1);};
+    if (recordingsOpen) return e(focus.FocusProvider, {registry}, e(focus.CoveredLayer, {covered, autoFocus: true, testID: 'native-shell-base', style: {position: 'absolute', inset: 0}},
+      e(focus.FocusRegion, {id: 'recordings.page', style: {flex: 1}},
+        e(Stop, {id: 'recordings-guide', focusId: 'recordings-guide', w: 200, h: 60, onPress: () => {setRecordingsReturn((value: number) => value + 1); setRecordingsOpen(false);}}))));
     return e(focus.FocusProvider, {registry}, e(focus.CoveredLayer, {covered, autoFocus: true, testID: 'native-shell-base', style: {position: 'absolute', inset: 0}},
-      e(focus.FocusRegion, {id: filters, orientation: 'horizontal', entry: filter, edges: {down: grid}, style: {flexDirection: 'row', gap: 12, height: 80}},
+      e(focus.FocusRegion, {id: 'live.controls', orientation: 'horizontal', edges: {down: filters}, style: {flexDirection: 'row', height: 60}},
+        e(Stop, {id: 'live-recordings', focusId: 'live-recordings', w: 160, h: 50, onPress: () => setRecordingsOpen(true)})),
+      e(focus.FocusRegion, {id: filters, orientation: 'horizontal', entry: filter, edges: {up: 'live.controls', down: grid}, style: {flexDirection: 'row', gap: 12, height: 80}},
         e(Stop, {id: 'chip-all', focusId: 'all', w: 120, h: 60, onPress: () => {setFilter('all'); setRevision((value: number) => value + 1);}}),
         e(Stop, {id: 'chip-news', focusId: 'news', w: 120, h: 60})),
       empty
         ? e(focus.FocusRegion, {id: grid, edges: {up: filters}, style: {flex: 1}}, e(Stop, {id: 'show-all', focusId: 'show-all', w: 300, h: 80, onPress: showAll}))
         : e(focus.FocusRegion, {id: grid, edges: {up: filters}, style: {flex: 1}},
           [0, 1].map(index => e(Row, {key: `${revision}:${index}`, index, ready, onCell: () => step({kind: 'focus'}),
-            entryEnabled: liveGuideEntry(revision, 0, 0, reentry), entryOpen: () => reentry === undefined || reentryRef.current !== undefined})))));
+            entryEnabled: liveGuideEntry(revision, 0, 0, reentry), entryOpen: () => reentry === undefined || reentryRef.current !== undefined && !guideFocusMoved(baseline.current, registry.attachedFocus())})))));
   };
   return {...kit, Live, ctl, shell};
 }
@@ -112,6 +132,22 @@ for (const platform of ['android', 'tvos'] as const) {
     await engine.press('select');
     await frames(); await engine.settle();
     assert.notEqual(engine.focused, 'row-0-now', 'the rows are not there yet');
+    ctl.arrive(); await frames(); await engine.settle();
+    assert.equal(engine.focused, 'row-0-now');
+    await engine.unmount();
+  });
+
+  test(`${platform}: rows that arrive after recovery has settled, with nothing pressed since, still get the ask: recovery's landing is not the person's`, async () => {
+    // Recovery lands on the grid region's host on Android (no registered target) and on a control on tvOS (the registry
+    // learns it late); either way it is the baseline the backstop compares against, not a move.
+    const s = await scene(platform, {rowsHeld: true}), {engine, e, Live, ctl} = s;
+    await engine.render(e(Live, {}));
+    await engine.focus('show-all');
+    await engine.press('select');
+    await frames(); await engine.settle();
+    const landing = engine.focused;
+    await recovered();
+    assert.equal(engine.focused, landing, `${platform}: recovery landed on ${landing}`);
     ctl.arrive(); await frames(); await engine.settle();
     assert.equal(engine.focused, 'row-0-now');
     await engine.unmount();
@@ -162,11 +198,77 @@ for (const platform of ['android', 'tvos'] as const) {
     await cancelled.engine.unmount();
   });
 
+  // Show all, with the rows still to arrive, and recovery settled.
+  const showAllLoading = async (options: {noTVEvents?: boolean} = {}) => {
+    const s = await scene(platform, {rowsHeld: true, ...options});
+    await s.engine.render(s.e(s.Live, {}));
+    await s.engine.focus('show-all');
+    await s.engine.press('select');
+    await frames(); await s.engine.settle();
+    return s;
+  };
+
+  test(`${platform}: Back pressed while the guide loads disarms the ask`, async () => {
+    // Android: Back never reaches TVEventHandler, so only BackHandler sees it (the scene drops the raw events).
+    // tvOS: Back is Menu, which reaches both; the BackHandler listener must not consume it.
+    const s = await showAllLoading({noTVEvents: platform === 'android'}), {engine, ctl} = s;
+    const placed = engine.focused, before = requests(engine);
+    await engine.press(platform === 'android' ? 'back' : 'menu');
+    assert.equal(engine.log.filter((step: any) => step.why === 'back').at(-1)?.handled, false, 'the listener did not consume Back');
+    ctl.arrive(); await frames(); await engine.settle();
+    assert.equal(requests(engine), before, `${platform}: no entry request after Back`);
+    assert.notEqual(engine.focused, 'row-0-now');
+    assert.equal(engine.focused, placed);
+    await engine.unmount();
+  });
+
+  for (const gesture of ['swipeLeft', 'swipeDown', 'pan', 'channelUp', 'pageDown']) {
+    test(`${platform}: a ${gesture} event while the guide loads disarms the ask (the adapter drops it; the raw listener sees it)`, async () => {
+      // Swipes and pans are tvOS-only on a real device; the raw TV event path is the same on both, so both run it.
+      const s = await showAllLoading(), {engine, ctl} = s;
+      const before = requests(engine);
+      await engine.press(gesture);
+      ctl.arrive(); await frames(); await engine.settle();
+      assert.equal(requests(engine), before, `${platform}: no entry request after ${gesture}`);
+      assert.notEqual(engine.focused, 'row-0-now');
+      await engine.unmount();
+    });
+  }
+
+  test(`${platform}: Select into Recordings and back leaves the restore to live-recordings alone; the ask does not fire on the same revision`, async () => {
+    const s = await showAllLoading(), {engine, ctl} = s;
+    await engine.focus('live-recordings');
+    await engine.press('select');
+    await frames(); await engine.settle();
+    assert.ok(engine.has('recordings-guide'), 'the Recordings page is open');
+    await engine.focus('recordings-guide');
+    await engine.press('select');
+    await frames(); await engine.settle();
+    assert.equal(engine.focused, 'live-recordings', 'the restore landed');
+    const before = requests(engine);
+    ctl.arrive(); await frames(); await engine.settle();
+    assert.equal(requests(engine), before, `${platform}: no entry request after the return`);
+    assert.equal(engine.focused, 'live-recordings', `${platform}: the restore won`);
+    await engine.unmount();
+  });
+
+  test(`${platform}: focus moved mid-load by input the adapter does not report is the person's: the rows arriving do not take it`, async () => {
+    const s = await showAllLoading(), {engine, ctl} = s;
+    await recovered();
+    await engine.focus('chip-all');
+    const before = requests(engine);
+    ctl.arrive(); await frames(); await engine.settle();
+    assert.equal(requests(engine), before, `${platform}: no entry request`);
+    assert.equal(engine.focused, 'chip-all');
+    await engine.unmount();
+  });
+
   for (const [name, hold] of [
     ['the page is covered', (s: any) => s.ctl.cover(true)],
     ['the destination is not Live', (s: any) => {s.shell.destination = {kind: 'home'};}],
     ['media is expanded', (s: any) => {s.shell.mediaExpanded = true;}],
     ['the content is not visible', (s: any) => {s.shell.contentVisible = false;}],
+    ['home is obscured', (s: any) => {s.shell.homeObscured = true;}],
   ] as const) {
     test(`${platform}: no entry ask when the rows arrive while ${name}`, async () => {
       const s = await scene(platform, {rowsHeld: true}), {engine, e, Live, ctl} = s;
@@ -206,17 +308,17 @@ test('the one-shot reducer: armed at the press, the first revision is the target
   assert.equal(run(press, rev(5), rev(6), rev(5)), undefined, 'and never re-arms, even back at the target');
   assert.equal(run(press, rev(5), rev(6), rev(7)), undefined);
   assert.equal(run(rev(5)), undefined, 'a revision with nothing armed arms nothing');
-  for (const key of ['up', 'down', 'left', 'right', 'menu', 'playPause']) {
-    assert.equal(run(press, {kind: 'key', key}), undefined, `${key} after the press cancels`);
-    assert.equal(run(press, rev(5), {kind: 'key', key}), undefined, `${key} after the target cancels`);
-    assert.equal(run(press, {kind: 'key', key}, rev(5)), undefined, `${key} cancelled it for good`);
+  for (const key of ['up', 'down', 'left', 'right', 'menu', 'back', 'playPause', 'swipeLeft', 'swipeUp', 'pan', 'channelUp', 'pageDown']) {
+    assert.equal(run(press, {kind: 'remote', eventType: key}), undefined, `${key} after the press cancels`);
+    assert.equal(run(press, rev(5), {kind: 'remote', eventType: key}), undefined, `${key} after the target cancels`);
+    assert.equal(run(press, {kind: 'remote', eventType: key}, rev(5)), undefined, `${key} cancelled it for good`);
   }
-  assert.deepEqual(run(press, {kind: 'key', key: 'select'}), {from: 4}, 'the select that pressed Show all is not the person moving');
+  assert.deepEqual(run(press, {kind: 'remote', eventType: 'select'}), {from: 4}, 'the select that pressed Show all is not the person moving');
   assert.equal(run(press, {kind: 'focus'}), undefined, 'a guide cell taking focus');
   assert.equal(run(press, rev(5), {kind: 'focus'}), undefined);
   assert.equal(run(press, {kind: 'filter'}), undefined, 'a filter chosen again');
-  assert.equal(run({kind: 'key', key: 'up'}), undefined, 'a key with nothing armed arms nothing');
-  assert.deepEqual(run({kind: 'press', revision: 2}, rev(3), {kind: 'key', key: 'up'}, press), {from: 4}, 'a new press arms afresh');
+  assert.equal(run({kind: 'remote', eventType: 'up'}), undefined, 'a key with nothing armed arms nothing');
+  assert.deepEqual(run({kind: 'press', revision: 2}, rev(3), {kind: 'remote', eventType: 'up'}, press), {from: 4}, 'a new press arms afresh');
 });
 
 test('the page takes a focus request only when it is uncovered, the Live destination, visible and not under expanded media', () => {
@@ -227,4 +329,24 @@ test('the page takes a focus request only when it is uncovered, the Live destina
   assert.equal(livePageTakesFocus({...open, destination: 'home'}), false);
   assert.equal(livePageTakesFocus({...open, contentVisible: false}), false);
   assert.equal(livePageTakesFocus({...open, mediaExpanded: true}), false);
+  assert.equal(livePageTakesFocus({...open, homeObscured: true}), false, 'the page Back handler requires home not obscured; so does the ask');
+});
+
+test('leaving Live or opening one of its pages disarms for good; the focus engine reports are not the person moving', () => {
+  const run = (...events: GuideReentryEvent[]) => events.reduce<GuideReentry | undefined>((state, event) => guideReentryNext(state, event), undefined);
+  const press = {kind: 'press', revision: 4} as const, rev = (revision: number) => ({kind: 'revision', revision}) as const;
+  assert.equal(run(press, {kind: 'leave'}), undefined);
+  assert.equal(run(press, rev(5), {kind: 'leave'}, rev(5)), undefined, 'coming back at the target revision never re-arms');
+  for (const eventType of ['select', 'longSelect', 'focus', 'blur']) assert.deepEqual(run(press, {kind: 'remote', eventType}), {from: 4}, `${eventType} is not the person moving`);
+  assert.equal(run(press, {kind: 'remote'}), undefined, 'an event with no type still counts as input');
+});
+
+test('the backstop: focus is moved only when it is somewhere other than where native recovery left it', () => {
+  const chip = {regionId: 'live.filters', childId: 'all'}, other = {regionId: 'live.filters', childId: 'news'};
+  assert.equal(guideFocusMoved(undefined, chip), false, 'recovery has not settled: nothing to compare');
+  assert.equal(guideFocusMoved({at: undefined}, undefined), false, 'recovery left focus on the page host and it is still there');
+  assert.equal(guideFocusMoved({at: undefined}, chip), true, 'focus went to a real target from the host');
+  assert.equal(guideFocusMoved({at: chip}, chip), false, 'recovery landed on a chip and it is still there');
+  assert.equal(guideFocusMoved({at: chip}, other), true);
+  assert.equal(guideFocusMoved({at: chip}, undefined), true);
 });
