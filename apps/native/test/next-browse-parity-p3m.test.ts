@@ -158,7 +158,7 @@ const {TVPerson} = await screenModule(new URL('../src-next/screens/people/Person
 });
 const film = (id: string, title: string) => ({media: {id, kind: 'movie', title, year: 2000, posterUrl: `/p/${id}`}, creditKind: 'crew', role: 'Director'});
 const collectionOf = (items: any[]) => ({pageSize: 40, pageOf: () => 0, subscribe: () => () => {}, subscribePage: () => () => {},
-  getSnapshot: () => ({generation: 1, total: items.length, status: 'ready', refreshing: false}), getPageVersion: () => 'v1', itemAt: (index: number) => items[index], ensureRange: () => {}, retry: () => {}}) as any;
+  getSnapshot: () => ({generation: 1, total: items.length, status: 'ready', refreshing: false}), getPageVersion: () => 'v1', itemAt: (index: number) => items[index], residentItems: () => items, ensureRange: () => {}, retry: () => {}}) as any;
 const person = {person: {id: 'p', name: 'Pat Director', roles: ['Directing'], knownFor: []}, pageInfo: {total: 3}, groups: []} as any;
 const runtime = {artwork: () => undefined, ambient: () => undefined, text: {locale: 'en-US'}, registerTVPageBack: () => () => {}, error: () => ({})} as any;
 const movies = collectionOf([film('m1', 'First'), film('m2', 'Second')]), shows = collectionOf([film('s1', 'Series')]);
@@ -173,6 +173,9 @@ async function mountTV(props: Record<string, unknown>) {
   return {host, tree: () => tree};
 }
 const rowOf = (node: any) => descendants(node).find(child => child.type === 'TVShelf');
+// A credits heading (TVCreditHeading reads only the theme): its title, count and tools.
+const headingOf = (node: any) => {const heading = descendants(node).find(child => child.type?.name === 'TVCreditHeading'); return heading && heading.type(heading.props);};
+const hasFilters = (node: any) => descendants(node).some(child => child.props?.testID === 'person-role-filter');
 
 test('TV person credits are one row per department, each its own focus region, in the page group order', async () => {
   const page = await mountTV({groups});
@@ -185,8 +188,12 @@ test('TV person credits are one row per department, each its own focus region, i
       try {painted.push(out);} finally {await host.unmount();}
     }
     assert.deepEqual(painted.map(row => row.props.testID), ['person-credits-department:Directing', 'person-credits-department:Production']);
-    const headings = painted.map(row => descendants(row).filter(node => node.type === 'Text').map(text).slice(0, 2));
+    const headings = painted.map(row => descendants(headingOf(row)).filter(node => node.type === 'Text').map(text));
     assert.deepEqual(headings, [['Directing', '5 titles'], ['Production', '3 titles']]);
+    // tv-detail frame 10 (`f9`): "Directing 5 titles … Filters"; no Credits heading above the department rows.
+    assert.deepEqual(painted.map(row => hasFilters(headingOf(row))), [true, false], 'Filters sits on the first department heading only');
+    assert.equal(descendants(page.tree()).filter(node => node.type?.name === 'TVCreditHeading').length, 0, 'no Credits heading line');
+    assert.equal(descendants(page.tree()).filter(node => node.props?.testID === 'person-role-filter').length, 0, 'and no Filters outside the rows');
     const shelves = painted.map(rowOf);
     assert.deepEqual(shelves.map(shelf => shelf.props.focus.id), ['person:p.credits.department:Directing', 'person:p.credits.department:Production'], 'stable region ids');
     assert.equal(shelves[0].props.focus.edges.down, 'person:p.credits.department:Production', 'Down from the first row enters the next');
@@ -212,7 +219,37 @@ test('Cast or Crew, and a page with no department groups, keep the one flat cred
     assert.equal(shelves.length, 1);
     assert.deepEqual(shelves[0]!.props.items, [0, 1, 2]);
     assert.match(shelves[0]!.props.focus?.id ?? '', /\.credits$/, 'the one flat row keeps its own region (main, credit-refocus), not a department row');
+    const heading = headingOf(crew.tree());
+    assert.deepEqual(descendants(heading).filter(node => node.type === 'Text').map(text), ['Credits', '3 titles'], 'the flat row keeps its Credits heading');
+    assert.equal(hasFilters(heading), true, 'with Filters on it');
   } finally {await crew.host.unmount();}
   const none = await mountTV({groups: []});
   try {assert.equal(descendants(none.tree()).filter(node => node.type === 'TVShelf').length, 1);} finally {await none.host.unmount();}
+});
+
+// #728 review: a re-read builds each department row's window again, seeded with the department's new first page. Like
+// the flat row (credit-refocus), the row names where focus stays: the focused credit when the new page holds it, else
+// that page's last credit. (Row asks for it only when the row held focus: next-person-credit-refocus.)
+test('a department row read again names its in-row target: the focused credit, or the new first page last one', async () => {
+  const page = await mountTV({groups});
+  const TVCreditRow = descendants(page.tree()).find(node => typeof node.type === 'function' && node.props.group)!.type;
+  await page.host.unmount();
+  let group: any = {id: 'department:Directing', department: 'Directing', total: 3, collection: collectionOf([film('m1', 'First'), film('m2', 'Second'), film('m3', 'Third')])};
+  let out: any;
+  const host = createFabricHookHost(() => {out = TVCreditRow({group, runtime, actions, first: true, regionId: 'person:p.credits.department:Directing', downRegionId: undefined});});
+  await host.mount();
+  try {
+    assert.equal(rowOf(out).props.refocus, undefined, 'nothing to name on the first draw');
+    rowOf(out).props.renderItem(2, {index: 2, focusId: '2', onFocus: () => {}, onBlur: () => {}}).props.onFocus();
+    group = {...group, collection: collectionOf([film('m1', 'First'), film('m2', 'Second')])};
+    await host.rerender();
+    assert.deepEqual(rowOf(out).props.refocus, {focusId: '1', serial: 1}, 'the focused credit is gone: the new first page last credit');
+    rowOf(out).props.renderItem(0, {index: 0, focusId: '0', onFocus: () => {}, onBlur: () => {}}).props.onFocus();
+    group = {...group, collection: collectionOf([film('m1', 'First'), film('m2', 'Second')])};
+    await host.rerender();
+    assert.deepEqual(rowOf(out).props.refocus, {focusId: '0', serial: 2}, 'the focused credit is still there');
+    group = {...group, collection: collectionOf([])};
+    await host.rerender();
+    assert.equal(rowOf(out).props.refocus, undefined, 'a window that arrived without its first page names nothing');
+  } finally {await host.unmount();}
 });

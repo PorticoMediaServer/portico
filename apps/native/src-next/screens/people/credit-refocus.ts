@@ -11,13 +11,20 @@ export type CreditRefocus = Readonly<{focusId: string; serial: number}>;
  * page holds it, else that page's last credit (the first when nothing had focus). Row asks for it only when it held
  * focus, on the top layer, while mounted, when the replacement commits (kit/focus/replacement-refocus). */
 export function useCreditRefocus(page: PersonPage, slotKey: (index: number) => string) {
+  return useCreditRowRefocus(page, () => page.credits.length, slotKey);
+}
+
+/** The same rule for any index-keyed credits row: `source` is what a replacement swaps (the flat row's page, a TV
+ * department row's window, which a re-read builds again seeded with that department's new first page), and `held` is how
+ * many credits the new one holds from its first render (read only when `source` changes). */
+export function useCreditRowRefocus(source: object, held: () => number, slotKey: (index: number) => string) {
   const focused = useRef<number | undefined>(undefined);
-  const replacement = useRef<{page: PersonPage; serial: number; refocus?: CreditRefocus} | undefined>(undefined);
+  const replacement = useRef<{source: object; serial: number; refocus?: CreditRefocus} | undefined>(undefined);
   const prior = replacement.current;
-  if (!prior) replacement.current = {page, serial: 0};
-  else if (prior.page !== page) {
-    const serial = prior.serial + 1, count = page.credits.length;
-    replacement.current = {page, serial, refocus: count ? Object.freeze({focusId: slotKey(Math.min(focused.current ?? 0, count - 1)), serial}) : undefined};
+  if (!prior) replacement.current = {source, serial: 0};
+  else if (prior.source !== source) {
+    const serial = prior.serial + 1, count = held();
+    replacement.current = {source, serial, refocus: count ? Object.freeze({focusId: slotKey(Math.min(focused.current ?? 0, count - 1)), serial}) : undefined};
   }
   const onFocus = useCallback((index: number) => {focused.current = index;}, []);
   return {refocus: replacement.current!.refocus, onFocus};

@@ -20,13 +20,13 @@ import type {createNativeEntryActions} from '../destinations/entry-actions';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import {TVRow} from '../../kit/layout/TVRow';
 import {usePageWidth} from '../../kit/layout/page-inset';
-import {useCreditRefocus} from './credit-refocus';
+import {useCreditRefocus, useCreditRowRefocus} from './credit-refocus';
 
 /** TV: one department of the all-credits page, read as its own window and drawn as its own row. */
 export type NativePersonCreditGroup = Readonly<{id: string; department: string; total: number; collection: WindowedCollection<PersonCredit>}>;
 export type NativePersonScreenProps = Readonly<{
   focusScope: string; page: PersonPage; role: PersonRole; collection: WindowedCollection<PersonCredit>;
-  /** TV only: with all credits shown and the server grouping them by department, a row per department in the page's group order (frame 10), instead of one flat row. */
+  /** TV only: with all credits shown and the server grouping them by department, a row per department in the page's group order (frame 10, `f9`), instead of one flat row. */
   groups?: readonly NativePersonCreditGroup[];
   runtime: NativeShellRuntime; actions: ReturnType<typeof createNativeEntryActions>; selection?: NativeSelection;
   onRole: (role: PersonRole) => void; onBack: () => void;
@@ -136,7 +136,7 @@ export function PersonScreen({focusScope, page, role, collection, groups, runtim
   </View>;
 }
 
-/** tv-detail frame 10: the ten-foot person page. One blur mosaic circle,
+/** tv-detail frame 10 (`f9`): the ten-foot person page. One blur mosaic circle,
  * the person's own facts and biography, then the real windowed credits as a
  * horizontal row per department (one flat row for Cast or Crew, or when the person has one department); Sort is not
  * produced by the person read, so only the real All/Cast/Crew filter is drawn. */
@@ -173,6 +173,7 @@ export function TVPerson({focusScope, page, role, collection, groups, runtime, a
   // A re-read replaces the page and its credit window: the shelf names where focus stays in the row (credit-refocus).
   const credits = useCreditRefocus(page, creditSlotKey);
   const grouped = role === 'all' && !!groups?.length;
+  const filtersChip = <Chip testID="person-role-filter" selected={role !== 'all'} onPress={() => setFilters(true)}>{t('next.browse.native.filters')}</Chip>;
   const filterItems: MenuEntry[] = ([['all', 'title.creditsAll'], ['cast', 'web.person.cast'], ['crew', 'web.person.crew']] as const).map(([value, label]) =>
     ({id: value, label: t(label), selected: role === value, onSelect: () => onRole(value)}));
   return <View testID="native-person" style={{flex: 1}}><StandardBackdrop/>
@@ -201,13 +202,10 @@ export function TVPerson({focusScope, page, role, collection, groups, runtime, a
           renderItem={(entry, slot) => <PersonEntryCard entry={entry} group="known" actions={actions} selection={selection} testID={`person-known-${entry.id}`} title={entry.displayTitle || entry.title} width={214}
             onFocus={slot.onFocus} onBlur={slot.onBlur} preferredFocus={slot.index === 0} artwork={runtime.artwork(entry.posterUrl)} caption={entry.year === undefined ? [] : [{id: 'year', text: String(entry.year), role: 'context'}]}/>}/>
       </View>}
-      <View style={{flexDirection: 'row', alignItems: 'center', gap: 18, marginTop: 52, marginBottom: 24}}>
-        <Text accessibilityRole="header" style={[browseType(theme, 38, 800, -.02), {color: theme.colors.text}]}>{t('web.person.credits')}</Text>
-        <Text style={[browseType(theme, 24, 600), {color: theme.colors.textTertiary}]}>{t('web.person.titles', {count: total})}</Text>
-        <View style={{flex: 1}}/>
-        <Chip testID="person-role-filter" selected={role !== 'all'} onPress={() => setFilters(true)}>{t('next.browse.native.filters')}</Chip>
-      </View>
+      {/* Frame 10 (`f9`): with department rows there is no Credits heading; the first department's heading carries Filters. */}
+      {!grouped && <TVCreditHeading title={t('web.person.credits')} count={total} first tools={filtersChip}/>}
       {grouped ? groups!.map((group, row) => <TVCreditRow key={group.id} group={group} runtime={runtime} actions={actions} selection={selection} first={row === 0}
+        tools={row === 0 ? filtersChip : undefined}
         regionId={`${focusScope}.credits.${group.id}`} upRegionId={row > 0 ? `${focusScope}.credits.${groups![row - 1]!.id}` : undefined}
         downRegionId={row < groups!.length - 1 ? `${focusScope}.credits.${groups![row + 1]!.id}` : undefined}/>) :
       <TVShelf items={slots} getKey={creditSlotKey} itemWidth={214} itemHeight={440} isFocusable={index => !!collection.itemAt(index)?.media}
@@ -236,11 +234,22 @@ function PersonEntryCard({entry, group, actions, selection, ...props}: Omit<Post
     onNavigate={() => actions.open(entry)} onMore={() => actions.menu(entry, anchor, pick?.onEnter)}/>;
 }
 
-/** tv-detail frame 10: one windowed credits row for one department, with its own heading and focus region.
- * Up and Down move between the rows; the first row's Up and the last row's Down leave the region. */
-function TVCreditRow({group, runtime, actions, selection, first, regionId, upRegionId, downRegionId}: {
+/** A TV credits heading (frame 10, `f9`: "Directing  5 titles", Filters at the end of the first one). */
+function TVCreditHeading({title, count, first, tools}: {title: string; count: number; first: boolean; tools?: React.ReactNode}) {
+  const theme = useTheme();
+  return <View style={{flexDirection: 'row', alignItems: 'center', gap: 18, marginTop: first ? 52 : 44, marginBottom: 24}}>
+    <Text accessibilityRole="header" style={[browseType(theme, 38, 800, -.02), {color: theme.colors.text}]}>{title}</Text>
+    <Text style={[browseType(theme, 24, 600), {color: theme.colors.textTertiary}]}>{t('web.person.titles', {count})}</Text>
+    {tools && <><View style={{flex: 1}}/>{tools}</>}
+  </View>;
+}
+
+/** tv-detail frame 10 (`f9`): one windowed credits row for one department, with its own heading and focus region.
+ * Up and Down move between the rows; the first row's Up and the last row's Down leave the region. A re-read builds the
+ * row's window again (seeded with the department's new first page): like the flat row, it names where focus stays. */
+function TVCreditRow({group, runtime, actions, selection, first, tools, regionId, upRegionId, downRegionId}: {
   group: NativePersonCreditGroup; runtime: NativeShellRuntime; actions: ReturnType<typeof createNativeEntryActions>; selection?: NativeSelection;
-  first: boolean; regionId: string; upRegionId?: string; downRegionId?: string;
+  first: boolean; tools?: React.ReactNode; regionId: string; upRegionId?: string; downRegionId?: string;
 }) {
   const theme = useTheme(), t = defaultI18n.t, collection = group.collection, [range, setRange] = useState({first: 0, last: 19});
   const firstPage = collection.pageOf(range.first), lastPage = collection.pageOf(range.last);
@@ -258,19 +267,17 @@ function TVCreditRow({group, runtime, actions, selection, first, regionId, upReg
   useEffect(() => {collection.ensureRange(range.first, range.last);}, [collection, range]);
   const state = collection.getSnapshot(), total = state.total ?? group.total;
   const slots = useMemo(() => Array.from({length: total}, (_, index) => index), [total]);
-  return <View testID={`person-credits-${group.id}`} style={{marginBottom: 36}}>
-    <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 18, marginBottom: 22}}>
-      <Text accessibilityRole="header" style={[browseType(theme, 34, 800, -.02), {color: theme.colors.text}]}>{group.department}</Text>
-      <Text style={[browseType(theme, 24, 600), {color: theme.colors.textTertiary}]}>{t('web.person.titles', {count: group.total})}</Text>
-    </View>
+  const credits = useCreditRowRefocus(collection, () => collection.residentItems().length, creditSlotKey);
+  return <View testID={`person-credits-${group.id}`}>
+    <TVCreditHeading title={group.department} count={group.total} first={first} tools={tools}/>
     <TVShelf items={slots} getKey={creditSlotKey} getFocusId={creditSlotKey} itemWidth={214} itemHeight={440} isFocusable={index => !!collection.itemAt(index)?.media}
-      focus={{id: regionId, entry: '0', edges: {up: upRegionId, down: downRegionId}, stops: {down: !downRegionId}}}
+      focus={{id: regionId, entry: '0', edges: {up: upRegionId, down: downRegionId}, stops: {down: !downRegionId}}} refocus={credits.refocus}
       onVisibleRange={(from, to) => setRange(current => current.first === from && current.last === to ? current : {first: from, last: to})}
       renderItem={(index, slot) => {
         const credit = collection.itemAt(index), entry = credit?.media;
         if (!entry) return <View testID={`person-credit-placeholder-${group.id}-${index}`} style={{width: 214, height: 321, borderRadius: 10, backgroundColor: theme.colors.raised}}/>;
         return <PersonEntryCard entry={entry} group="credits" actions={actions} selection={selection} testID={`person-credit-${group.id}-${index}`} focusId={slot.focusId} title={entry.displayTitle || entry.title} width={214}
-          onFocus={slot.onFocus} onBlur={slot.onBlur} preferredFocus={first && index === 0} artwork={runtime.artwork(entry.posterUrl)} watched={entry.watched} progress={entry.duration && entry.progressSeconds ? entry.progressSeconds / entry.duration : undefined}
+          onFocus={() => {credits.onFocus(index); slot.onFocus();}} onBlur={slot.onBlur} preferredFocus={first && index === 0} artwork={runtime.artwork(entry.posterUrl)} watched={entry.watched} progress={entry.duration && entry.progressSeconds ? entry.progressSeconds / entry.duration : undefined}
           caption={[...(entry.year === undefined ? [] : [{id: 'year', text: String(entry.year), role: 'context' as const}]),
             ...(credit.character ? [{id: 'character', text: t('web.person.as', {character: credit.character}), role: 'context' as const}] : [])]}/>;
       }}/>

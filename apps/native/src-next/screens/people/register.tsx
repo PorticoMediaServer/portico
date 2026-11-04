@@ -14,7 +14,7 @@ import type {NativeShellRoute} from '../../shell/routes';
 import {nativeShellRoutes, type NativeRouteRenderer} from '../../shell/route-registry';
 import {createNativeSelection, type NativeSelection} from '../selection/native-selection';
 import {createNativeEntryActions} from '../destinations/entry-actions';
-import {createNativePersonController, type NativePersonController, type NativePersonSnapshot} from './controller';
+import {createNativePersonController, personDepartments, type NativePersonController, type NativePersonSnapshot} from './controller';
 import {createNativePersonCreditWindow, type NativePersonCreditWindow} from './credit-window';
 import {PersonScreen} from './PersonScreen';
 import {authorityKey} from '../../shell/model';
@@ -25,7 +25,7 @@ type PersonRoute = Extract<NativeShellRoute, {kind: 'person'}>;
 type Entry = {
   route: PersonRoute; focusScope: string; source: NativePersonController; key: number; stop: () => void;
   snapshot?: NativePersonSnapshot; selection?: NativeSelection; window?: NativePersonCreditWindow;
-  /** TV: one window per department of the all-credits page, drawn as a row each (tv-detail frame 10). */
+  /** TV: one window per department of the all-credits page, drawn as a row each (tv-detail frame 10, `f9`). */
   groupWindows?: readonly Readonly<{id: string; department: string; total: number; window: NativePersonCreditWindow}>[]; actions?: ReturnType<typeof createNativeEntryActions>;
 };
 
@@ -45,7 +45,7 @@ export function createNativePersonRenderer(context: NativeShellBootstrapContext)
     for (const [route, entry] of sources) if (!keep.has(route)) {sources.delete(route); release(entry);}
     for (const route of routes) {
       if (route.kind !== 'person' || sources.has(route)) continue;
-      const source = createNativePersonController(context, route);
+      const source = createNativePersonController(context, route, {departmentPages: Platform.isTV});
       const entry: Entry = {route, focusScope: `person:${authorityKey(context.authority())}:${JSON.stringify(route)}:${sequence + 1}`, source, key: ++sequence, stop: () => {}};
       sources.set(route, entry); entry.stop = source.subscribe(reconcile);
     }
@@ -54,8 +54,9 @@ export function createNativePersonRenderer(context: NativeShellBootstrapContext)
       if (entry.snapshot !== snapshot) {releaseWindow(entry); entry.snapshot = snapshot;}
       if (snapshot.phase !== 'ready' || snapshot.pageOrigin !== 'initial' || entry.window || context.navigation.getSnapshot().route !== entry.route) continue;
       const window = createNativePersonCreditWindow(context, entry.route, entry.source); entry.window = window;
-      const departments = Platform.isTV && 'role' in snapshot.group && snapshot.group.role === 'all' ? (snapshot.page?.groups ?? []).flatMap(group => group.department && group.total > 0 ? [{id: group.id, department: group.department, total: group.total}] : []) : [];
-      entry.groupWindows = departments.map(group => ({...group, window: createNativePersonCreditWindow(context, entry.route, entry.source, group)}));
+      const departments = Platform.isTV && 'role' in snapshot.group && snapshot.group.role === 'all' ? personDepartments(snapshot.page) : [];
+      entry.groupWindows = departments.map(group => ({...group,
+        window: createNativePersonCreditWindow(context, entry.route, entry.source, {...group, first: snapshot.departmentPages?.get(group.id)})}));
       entry.actions = createNativeEntryActions(context, {
         current: () => !disposed && entry.source.activation.getSnapshot().visible,
         contains: item => entry.source.contains(item) || window.contains(item) || !!entry.groupWindows?.some(group => group.window.contains(item)),

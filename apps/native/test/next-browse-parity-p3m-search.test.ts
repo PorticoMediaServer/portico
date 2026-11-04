@@ -108,3 +108,30 @@ test('the On now read is bounded to one favourites page and hides on failure', a
   assert.equal(retired.getSnapshot().phase, 'idle', 'a stale screen reads nothing');
   failing.dispose();
 });
+
+// #728 review: the programmes are read for one moment, so a card would show a finished programme (then "No information")
+// once it ends. The row is read again once the clock passes the first shown programme's end, and not before.
+test('the On now row is read again once a programme it shows has ended, keeping its cards meanwhile', async () => {
+  const reads: number[] = [];
+  let ends = serverNow() + 80;
+  const source = {
+    channels: async () => ({items: [{id: 'ch1', sourceId: 'tuner', name: 'Channel 1'}], total: 1, revision: 'r'}),
+    programs: async (_ids: readonly string[], start: number) => {reads.push(start); return {ch1: [{id: `p${reads.length}`, channelId: 'ch1', title: `Show ${reads.length}`, start: start - 60_000, end: ends}]};},
+  } as any;
+  const row = new NativeSearchOnNow({serverId: 's', timezone: 'UTC', current: () => true, api: {} as any, source});
+  await row.load();
+  assert.equal(row.getSnapshot().until, ends, 'until the programme on now ends');
+  await row.load();
+  assert.equal(reads.length, 1, 'still current: not read again');
+  const before = row.getSnapshot().cards, phases: string[] = [];
+  row.subscribe(() => phases.push(row.getSnapshot().phase));
+  await new Promise(resolve => setTimeout(resolve, 120));
+  ends = serverNow() + 60_000;
+  await row.load();
+  assert.equal(reads.length, 2, 'past its end: read again');
+  assert.deepEqual(phases, ['ready'], 'no loading state in between: the old cards stay until the answer');
+  assert.notEqual(row.getSnapshot().cards, before);
+  assert.equal(row.getSnapshot().cards[0]!.programmes[0]!.title, 'Show 2');
+  assert.equal(row.getSnapshot().until, ends);
+  row.dispose();
+});

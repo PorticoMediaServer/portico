@@ -12,12 +12,23 @@ export type NativePersonSnapshot = Readonly<{
   page?: PersonPage;
   /** Provenance of the actual canonical request, never inferred from row facts. */
   pageOrigin?: 'initial' | 'continuation';
+  /** TV, all credits, after a re-read only: the first page of each department (by group id), read with it so each
+   * department row holds its first page from the replacement's first render (credit-window, credit-refocus). A department
+   * whose page could not be read, or answered for another revision, is absent and its row reads it itself. */
+  departmentPages?: ReadonlyMap<string, PersonPage>;
   error?: unknown;
 }>;
 
+/** The departments the TV page draws a row each for (tv-detail frame 10, `f9`): the server groups all credits by
+ * department only when a person has more than one. */
+export function personDepartments(page: PersonPage | undefined): readonly Readonly<{id: string; department: string; total: number}>[] {
+  return (page?.groups ?? []).flatMap(group => group.department && group.total > 0 ? [{id: group.id, department: group.department, total: group.total}] : []);
+}
+
 /** One exact Person history object, with one bounded canonical credit page.
  * No library is inferred from a person or from their first known-for title. */
-export function createNativePersonController(context: NativeShellBootstrapContext, target: Extract<NativeShellRoute, {kind: 'person'}>) {
+export function createNativePersonController(context: NativeShellBootstrapContext, target: Extract<NativeShellRoute, {kind: 'person'}>,
+  options: Readonly<{departmentPages?: boolean}> = {}) {
   const lifetime = nativeDestinationLifetime(context);
   const retained = () => context.navigation.getSnapshot().route === target || context.navigation.retainedRoutes().includes(target);
   if (!target.personId || !retained()) throw new Error('native_person_route_required');
@@ -54,7 +65,13 @@ export function createNativePersonController(context: NativeShellBootstrapContex
     try {
       const page = await readPerson(context.api, lifetime.scope, target.personId, {...group, limit: 40, signal: controller.signal});
       if (!live()) return false;
-      publish({phase: 'ready', group, page, pageOrigin: 'initial'});
+      // TV's department rows replace theirs too: each is read with the page, so the replacement arrives with them.
+      const departments = options.departmentPages && 'role' in group && group.role === 'all' ? personDepartments(page) : [];
+      const pages = await Promise.all(departments.map(department => readPerson(context.api, lifetime.scope, target.personId, {department: department.department, limit: 40, signal: controller.signal})
+        .then(value => value.revision.catalog === page.revision.catalog && value.revision.viewer === page.revision.viewer && value.person.revision === page.person.revision
+          ? [[department.id, value] as const] : [], () => [])));
+      if (!live()) return false;
+      publish({phase: 'ready', group, page, pageOrigin: 'initial', ...(departments.length ? {departmentPages: new Map(pages.flat())} : {})});
       return true;
     } catch {return false;}
     finally {if (request === controller) request = undefined;}
