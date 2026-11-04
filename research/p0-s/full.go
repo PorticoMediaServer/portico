@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"runtime/pprof"
 	"sort"
 	"strconv"
 	"strings"
@@ -39,7 +40,7 @@ func save(p string, v any) {
 }
 
 var normalWrites, writeOnly, facetMode, frameMode, gatesOnly, browseOnly, admissionSchema, attributionMode, localControl, identitySchema, omitFTS, ablationMode, capsMode bool
-var qualificationMode bool
+var qualificationMode, scalarMode bool
 
 func open(path string) (*sql.DB, *sql.Conn) {
 	db, e := sql.Open("sqlite", path)
@@ -132,6 +133,9 @@ func acceptanceSQL(start, count int) string {
 		q = strings.Replace(q, "printf('%06x',97+id%26) FROM n;", "printf('%06x',97+id%26),-1 FROM n;", 1)
 		q += fmt.Sprintf("INSERT INTO catalog_age_item_counts(library_id,kind,block_unrated,admission_age,total) VALUES(1,1,0,-1,%d) ON CONFLICT(library_id,kind,block_unrated,admission_age) DO UPDATE SET total=total+excluded.total;", count)
 	}
+	if scalarMode {
+		q = strings.ReplaceAll(q, "7200+id%1000", "id")
+	}
 	if identitySchema {
 		q = fmt.Sprintf("INSERT INTO catalog_identities(library_id,source_key,subject_id) WITH RECURSIVE n(id) AS(VALUES(%d) UNION ALL SELECT id+1 FROM n WHERE id<%d) SELECT 1,printf('/synthetic/full/%%d',id),id FROM n;", start, end) + q
 		// Subjects must precede identity FK: move this statement after its subject INSERT.
@@ -191,7 +195,7 @@ func seedAndSweep(c *sql.Conn, target int, out, hash string) {
 		}
 	}
 	save(filepath.Join(out, "full-seed.json"), map[string]any{"ddl_sha256": hash, "entities": n, "batches": batches, "shape": "Basic movie acceptance: entity+asset+link+encoded own-title FTS+library revision/event. No provider metadata, staging, scanner IO, prepared-media or full production typed command."})
-	if facetMode || frameMode || gatesOnly || attributionMode || capsMode {
+	if facetMode || frameMode || gatesOnly || attributionMode || capsMode || scalarMode {
 		return
 	}
 	if !writeOnly {
@@ -337,6 +341,8 @@ func main() {
 	normalFlag := flag.Bool("normal", false, "NORMAL writer and separate PASSIVE checkpoint")
 	writeFlag := flag.Bool("write-only", false, "seed and writer quanta only")
 	facetFlag := flag.Bool("facets", false, "rating-band counts and restricted indexes")
+	scalarFlag := flag.Bool("scalar-primitives", false, "bundled complete-DDL extrema and reverse10/100")
+	cpuFlag := flag.Bool("cpu-profile", false, "sampled CPU attribution with native_sql labels; diagnostic scope")
 	qualificationFlag := flag.Bool("qualification", false, "pre-registered1000holds/size, host witnesses, sizes1–128")
 	capsFlag := flag.Bool("caps-product", false, "shared100collections/255CUE size contribution collapse")
 	omitFlag := flag.Bool("fts-excluded", false, "diagnostic ONLY omitFTS during measured cohort, never seed")
@@ -347,6 +353,7 @@ func main() {
 	browseFlag := flag.Bool("browse-only", false, "skip shaped write sweep after browse")
 	frameFlag := flag.Bool("frames", false, "max source-frame replacements")
 	flag.Parse()
+	scalarMode = *scalarFlag
 	qualificationMode = *qualificationFlag
 	capsMode = *capsFlag
 	ablationMode = *ablationFlag
@@ -437,9 +444,18 @@ func main() {
 			}()
 		}
 		seedAndSweep(c, *target, *out, hash)
+		if *cpuFlag {
+			pf, err := os.Create(filepath.Join(*out, "cpu.pprof"))
+			must(err)
+			must(pprof.StartCPUProfile(pf))
+			defer func() { pprof.StopCPUProfile(); must(pf.Close()) }()
+		}
 		if attributionMode {
 			omitFTS = *omitFlag
 			attribution(c, *out, hash)
+		}
+		if scalarMode {
+			scalarPrimitives(c, *out, hash)
 		}
 		if capsMode {
 			capsProduct(c, *out, hash)
@@ -1131,7 +1147,7 @@ func attribution(c *sql.Conn, out, hash string) {
 				phases = append(phases, map[string]any{"phase": name, "start_ns": t.UnixNano(), "ms": ms})
 			}
 			t := time.Now()
-			_, e = c.ExecContext(context.Background(), "COMMIT")
+			pprof.Do(context.Background(), pprof.Labels("native_sql", fmt.Sprintf("%s-b%d.commit", control, batch)), func(ctx context.Context) { _, e = c.ExecContext(ctx, "COMMIT") })
 			must(e)
 			commit := float64(time.Since(t).Nanoseconds()) / 1e6
 			hold := float64(time.Since(start).Nanoseconds()) / 1e6
@@ -1508,4 +1524,140 @@ func quantileUpper(xs []float64, p, confidence float64) (float64, int) {
 	sorted := append([]float64{}, xs...)
 	sort.Float64s(sorted)
 	return sorted[rank-1], rank
+}
+
+type sqlPhase struct{ name, sql string }
+
+func recordPrimitive(c *sql.Conn, out, hash, name string, reps int, build func(int) []sqlPhase, restore func(int)) {
+	samples := []any{}
+	times := []float64{}
+	effects := []int64{}
+	startAll := time.Now()
+	for j := 0; j < reps; j++ {
+		phases := build(j)
+		var before, after int64
+		must(c.QueryRowContext(context.Background(), "SELECT total_changes()").Scan(&before))
+		hostBefore := hostSnapshot()
+		_, e := c.ExecContext(context.Background(), "BEGIN IMMEDIATE")
+		must(e)
+		start := time.Now()
+		details := []any{}
+		for _, p := range phases {
+			t := time.Now()
+			pprof.Do(context.Background(), pprof.Labels("native_sql", name+"."+p.name), func(ctx context.Context) { _, e = c.ExecContext(ctx, p.sql) })
+			must(e)
+			details = append(details, map[string]any{"phase": p.name, "start_ns": t.UnixNano(), "ms": float64(time.Since(t).Nanoseconds()) / 1e6})
+		}
+		t := time.Now()
+		pprof.Do(context.Background(), pprof.Labels("native_sql", name+".commit"), func(ctx context.Context) { _, e = c.ExecContext(ctx, "COMMIT") })
+		must(e)
+		end := time.Now()
+		ms := float64(end.Sub(start).Nanoseconds()) / 1e6
+		details = append(details, map[string]any{"phase": "commit", "start_ns": t.UnixNano(), "ms": float64(end.Sub(t).Nanoseconds()) / 1e6})
+		times = append(times, ms)
+		must(c.QueryRowContext(context.Background(), "SELECT total_changes()").Scan(&after))
+		effects = append(effects, after-before)
+		samples = append(samples, map[string]any{"sample": j, "start_ns": start.UnixNano(), "end_ns": end.UnixNano(), "hold_ms": ms, "rows_changed": after - before, "phases": details, "host_before": hostBefore, "host_after": hostSnapshot()})
+		if restore != nil {
+			restore(j)
+		}
+	}
+	upper, rank := quantileUpper(times, .99, .95)
+	save(filepath.Join(out, name+".json"), map[string]any{"ddl_sha256": hash, "n": reps, "p50_ms": pct(times, .5), "p95_ms": pct(times, .95), "p99_ms": pct(times, .99), "p99_upper_95_ms": upper, "p99_upper_rank": rank, "hosted_p99_upper_95_pass": rank > 0 && upper <= 10, "hosted_max_directional_ms": pct(times, 1), "rows_changed": effects, "samples": samples, "elapsed_with_restore_and_telemetry_s": time.Since(startAll).Seconds(), "boundary": "Bundled complete-DDL primitive; all SQL phases+receipt+COMMIT included. Restore/telemetry excluded from writer hold. Not production private typed command or authority oracle."})
+	fmt.Println(name, pct(times, .99), pct(times, 1))
+}
+func scalarKeys(where string) string {
+	fields := []struct{ target, source, predicate, def string }{{"duration_key", "duration", "duration IS NOT NULL", "0"}, {"community_rating_key", "community_rating", "community_rating IS NOT NULL", "0"}, {"critic_rating_key", "critic_rating", "1", "0"}, {"file_size_key", "file_size", "1", "0"}, {"resolution_key", "resolution", "1", "0"}, {"latest_aired_key", "latest_aired_key", "1", "''"}}
+	sets := []string{}
+	for _, f := range fields {
+		v := fmt.Sprintf("coalesce((SELECT %s FROM catalog_scalar_contributions c WHERE c.parent_id=catalog_entities.id AND %s ORDER BY %s DESC,contributor_id,source LIMIT 1),%s)", f.source, f.predicate, f.source, f.def)
+		if f.target == "resolution_key" {
+			v = "CASE WHEN kind IN(1,2,3,4,10) THEN " + v + " ELSE NULL END"
+		}
+		sets = append(sets, f.target+"="+v)
+	}
+	return "UPDATE catalog_entities SET " + strings.Join(sets, ",") + ",revision=revision+1,collection_revision=collection_revision+1 WHERE " + where + ";"
+}
+func scalarFromEntity(parent int, where string) string {
+	return fmt.Sprintf("SELECT library_id,%d,id,8,revision,id,duration_key,community_rating_key,critic_rating_key,file_size_key,coalesce(resolution_key,0),release_key,admission_own_age FROM catalog_entities WHERE %s", parent, where)
+}
+
+const scalarInsert = "INSERT INTO catalog_scalar_contributions(library_id,parent_id,contributor_id,source,contributor_revision,membership_sequence,duration,community_rating,critic_rating,file_size,resolution,latest_aired_key,admission_age) "
+
+func sharedReceipt(name string, j int) string {
+	return fmt.Sprintf("UPDATE libraries SET data_revision=data_revision+1,data_order_revision=data_order_revision+1 WHERE id='full-library';INSERT INTO api_events(audience,type,resource_kind,resource_id,at_ms) VALUES('library:full-library','changed','library','full-library',1);INSERT INTO admin_receipts VALUES('%s','%d','%s','applied',1);", name, j, strings.Repeat("0", 64))
+}
+func scalarPrimitives(c *sql.Conn, out, hash string) {
+	var n int
+	must(c.QueryRowContext(context.Background(), "SELECT max(id) FROM catalog_entities").Scan(&n))
+	members := n
+	if os.Getenv("GITHUB_RUN_ID") == "" {
+		members = 500
+	}
+	extra, parent, revLo, revHi := n+1, n+1001, n+1002, n+1101
+	_, e := c.ExecContext(context.Background(), "BEGIN;"+acceptanceSQL(n+1, 1104)+"COMMIT;")
+	must(e)
+	setup := fmt.Sprintf("INSERT OR IGNORE INTO catalog_kinds VALUES(10,'collection',0,1,1,1,0);BEGIN;PRAGMA defer_foreign_keys=ON;UPDATE catalog_subjects SET kind=10 WHERE id BETWEEN %d AND %d;UPDATE catalog_entities SET kind=10,collection_name_key=printf('scalar-%%d',id) WHERE id BETWEEN %d AND %d;INSERT INTO catalog_collection_members SELECT %d,id,printf('%%010d',id) FROM catalog_entities WHERE id<=%d;", parent, revHi, parent, revHi, parent, members)
+	setup += scalarInsert + scalarFromEntity(parent, fmt.Sprintf("id<=%d", members)) + ";" + scalarKeys(fmt.Sprintf("id=%d", parent)) + fmt.Sprintf("UPDATE catalog_entities SET admission_member_count=%d,admission_unrated_members=%d WHERE id=%d;COMMIT;", members, members, parent)
+	_, e = c.ExecContext(context.Background(), setup)
+	must(e)
+	_, e = c.ExecContext(context.Background(), ageCountsFill())
+	must(e)
+	plans := []any{}
+	for _, f := range []struct{ col, pred string }{{"duration", "duration IS NOT NULL"}, {"community_rating", "community_rating IS NOT NULL"}, {"critic_rating", "1"}, {"file_size", "1"}, {"resolution", "1"}, {"latest_aired_key", "1"}} {
+		q := fmt.Sprintf("SELECT %s FROM catalog_scalar_contributions WHERE parent_id=%d AND %s ORDER BY %s DESC,contributor_id,source LIMIT 1", f.col, parent, f.pred, f.col)
+		plans = append(plans, readCohort(c, q, 1, time.Second))
+	}
+	save(filepath.Join(out, "scalar-fixture.json"), map[string]any{"ddl_sha256": hash, "members": members, "collection": parent, "plans": plans, "boundary": "Complete target DDL and exact current contribution indexes, movie sources, one authored collection, six seek reductions. Unknown rating admission stays unchanged. Primitive controls, not production whole-command oracle."})
+	reps := 1000
+	if os.Getenv("GITHUB_RUN_ID") == "" {
+		reps = 2
+	}
+	for _, name := range []string{"remove-extreme", "add", "update"} {
+		recordPrimitive(c, out, hash, "scalar-"+name, reps, func(j int) []sqlPhase {
+			currentExtra := extra + j
+			q := ""
+			if name == "remove-extreme" {
+				q = fmt.Sprintf("DELETE FROM catalog_collection_members WHERE collection_id=%d AND item_id=%d;DELETE FROM catalog_scalar_contributions WHERE parent_id=%d AND contributor_id=%d;UPDATE catalog_entities SET admission_member_count=admission_member_count-1,admission_unrated_members=admission_unrated_members-1 WHERE id=%d;", parent, members, parent, members, parent)
+			}
+			if name == "add" {
+				q = fmt.Sprintf("INSERT INTO catalog_collection_members VALUES(%d,%d,'%010d');", parent, currentExtra, currentExtra) + scalarInsert + scalarFromEntity(parent, fmt.Sprintf("id=%d", currentExtra)) + fmt.Sprintf(";UPDATE catalog_entities SET admission_member_count=admission_member_count+1,admission_unrated_members=admission_unrated_members+1,last_content_added_at='2026-11-04T00:00:01.%09dZ' WHERE id=%d;", j, parent)
+			}
+			if name == "update" {
+				q = fmt.Sprintf("UPDATE catalog_assets SET duration=%d,size=%d,info_epoch=info_epoch+1,playback_origin_revision=playback_origin_revision+1 WHERE id=1;UPDATE catalog_asset_links SET info_duration=%d WHERE entity_id=1;UPDATE catalog_entities SET duration_key=%d,file_size_key=%d,revision=revision+1 WHERE id=1;UPDATE catalog_scalar_contributions SET duration=%d,file_size=%d,contributor_revision=(SELECT revision FROM catalog_entities WHERE id=1) WHERE parent_id=%d AND contributor_id=1;", 2*members, 3*members, 2*members, 2*members, 3*members, 2*members, 3*members, parent)
+			}
+			return []sqlPhase{{"contribution-delta", q}, {"six-extrema-entity", scalarKeys(fmt.Sprintf("id=%d", parent))}, {"revision-receipt", sharedReceipt("scalar-"+name, j)}}
+		}, func(j int) {
+			currentExtra := extra + j
+			q := ""
+			if name == "remove-extreme" {
+				var got float64
+				must(c.QueryRowContext(context.Background(), "SELECT duration_key FROM catalog_entities WHERE id=?", parent).Scan(&got))
+				if got != float64(members-1) {
+					panic("extreme seek drift")
+				}
+				q = fmt.Sprintf("INSERT INTO catalog_collection_members VALUES(%d,%d,'%010d');", parent, members, members) + scalarInsert + scalarFromEntity(parent, fmt.Sprintf("id=%d", members)) + fmt.Sprintf(";UPDATE catalog_entities SET admission_member_count=admission_member_count+1,admission_unrated_members=admission_unrated_members+1 WHERE id=%d;", parent)
+			}
+			if name == "add" {
+				q = fmt.Sprintf("DELETE FROM catalog_scalar_contributions WHERE parent_id=%d AND contributor_id=%d;DELETE FROM catalog_collection_members WHERE collection_id=%d AND item_id=%d;UPDATE catalog_entities SET admission_member_count=admission_member_count-1,admission_unrated_members=admission_unrated_members-1 WHERE id=%d;", parent, currentExtra, parent, currentExtra, parent)
+			}
+			if name == "update" {
+				q = fmt.Sprintf("UPDATE catalog_assets SET duration=1,size=1000001 WHERE id=1;UPDATE catalog_asset_links SET info_duration=1 WHERE entity_id=1;UPDATE catalog_entities SET duration_key=1,file_size_key=1000001,revision=revision+1 WHERE id=1;UPDATE catalog_scalar_contributions SET duration=1,file_size=1000001,contributor_revision=(SELECT revision FROM catalog_entities WHERE id=1) WHERE parent_id=%d AND contributor_id=1;", parent)
+			}
+			_, e = c.ExecContext(context.Background(), "BEGIN;"+q+scalarKeys(fmt.Sprintf("id=%d", parent))+"COMMIT;")
+			must(e)
+		})
+	}
+	_, e = c.ExecContext(context.Background(), fmt.Sprintf("DELETE FROM catalog_scalar_contributions WHERE parent_id=%d AND contributor_id=1;DELETE FROM catalog_collection_members WHERE collection_id=%d AND item_id=1;UPDATE catalog_entities SET admission_member_count=admission_member_count-1,admission_unrated_members=admission_unrated_members-1 WHERE id=%d;", parent, parent, parent))
+	must(e)
+	for _, degree := range []int{10, 100} {
+		hi := revLo + degree - 1
+		_, e = c.ExecContext(context.Background(), fmt.Sprintf("DELETE FROM catalog_scalar_contributions WHERE contributor_id=1;DELETE FROM catalog_collection_members WHERE item_id=1;INSERT INTO catalog_collection_members SELECT id,1,'one' FROM catalog_entities WHERE id BETWEEN %d AND %d;INSERT INTO catalog_scalar_contributions(library_id,parent_id,contributor_id,source,contributor_revision,membership_sequence,duration,community_rating,critic_rating,file_size,resolution,latest_aired_key) SELECT 1,id,1,8,1,1,1,0,0,1000001,1080,'' FROM catalog_entities WHERE id BETWEEN %d AND %d;UPDATE catalog_entities SET admission_member_count=1,admission_unrated_members=1 WHERE id BETWEEN %d AND %d;", revLo, hi, revLo, hi, revLo, hi))
+		must(e)
+		recordPrimitive(c, out, hash, fmt.Sprintf("scalar-reverse-%d", degree), reps, func(j int) []sqlPhase {
+			v := 2 + j%2
+			q := fmt.Sprintf("UPDATE catalog_assets SET duration=%d,size=%d,info_epoch=info_epoch+1 WHERE id=1;UPDATE catalog_asset_links SET info_duration=%d WHERE entity_id=1;UPDATE catalog_entities SET duration_key=%d,file_size_key=%d,revision=revision+1 WHERE id=1;UPDATE catalog_scalar_contributions SET duration=%d,file_size=%d,contributor_revision=(SELECT revision FROM catalog_entities WHERE id=1) WHERE contributor_id=1;", v, v*1000, v, v, v*1000, v, v*1000)
+			return []sqlPhase{{"source-reverse-delta", q}, {"six-extrema-parents", scalarKeys("id IN(SELECT parent_id FROM catalog_scalar_contributions INDEXED BY catalog_scalar_contributor WHERE contributor_id=1)")}, {"revision-receipt", sharedReceipt(fmt.Sprintf("scalar-reverse-%d", degree), j)}}
+		}, nil)
+	}
 }
