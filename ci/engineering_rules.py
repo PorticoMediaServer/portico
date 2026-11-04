@@ -34,11 +34,20 @@ RULES = [
     ('page-memory', set(), re.compile(r'\busePageMemory\(|\bpages\.(?:remember|recall)\(')),
     # §4.7: currency is the cache's to own; no new per-screen lease hooks re-checking it.
     ('lease-layer', set(), re.compile(r'\bfunction\s+use\w*Lease\b')),
+    # §4 / step 7 slice 3: a screen reads a server document through a query function in the viewer's query cache
+    # (packages/client-core/src/query/), not with its own GET or a service it builds. Counted: `.request(…)` or
+    # `.requestRaw(…)` with one argument (GET by default) or `'GET'` as its method, and `new …Service(`. A write
+    # (`'POST'`, `'PATCH'`…) or a method held in a variable is not counted. A read that must stay outside the cache
+    # (sign-in, the event feed, the cache's own transport) carries `// query-read: kept (reason)` on its line.
+    ('query-read', {'packages/client-core/src/query/'},
+     re.compile(r'''\.request(?:Raw)?(?:<[^()]*?>)?\(\s*'''
+                r'''(?:[^,()]|\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*\))+?'''
+                r'''\s*(?:\)|,\s*['"`]GET['"`])|\bnew\s+\w+Service\s*\(''')),
 ]
 # A compare kept on purpose carries `// fence-compare: kept (reason)` as a real line comment on its own line, with a
 # non-empty reason. The marker spares exactly one match on that line: a second compare there still counts. The text
 # inside a string or template, or without a reason, spares nothing, and neither does a marker on the line above.
-KEPT = {'fence-compare': re.compile(r'^//\s*fence-compare: kept \(\S[^)]*\)')}
+KEPT = {rule: re.compile(r'^//\s*' + re.escape(rule) + r': kept \(\S[^)]*\)') for rule in ('fence-compare', 'query-read')}
 
 
 def line_comments(text):
@@ -107,7 +116,13 @@ GUIDE = {
     'fence-compare': 'read through the viewer query cache (packages/client-core/src/query); a moved fence means read again, and only a revision of the same entity is compared',
     'page-memory': 'keep a screen\'s document in the viewer query cache (packages/client-core/src/query) instead of a page memory',
     'lease-layer': 'read through the viewer query cache, which owns cancellation and the viewer boundary, instead of a new lease hook',
+    'query-read': 'read server documents through a query function in packages/client-core/src/query (viewer-queries.ts), not with a GET or a new service outside it',
 }
+
+
+def exempt(path, allowed):
+    """A rule's own homes: an exact file, or every file under a directory named with a trailing slash."""
+    return any(path == home or home.endswith('/') and path.startswith(home) for home in allowed)
 
 
 def tracked():
@@ -121,7 +136,7 @@ def counts(paths, read=lambda p: (ROOT / p).read_text(encoding='utf-8', errors='
     for path in paths:
         text = read(path)
         for rule, allowed, pattern in RULES:
-            if path in allowed:
+            if exempt(path, allowed):
                 continue
             n = count(pattern, text, KEPT.get(rule))
             if n:
