@@ -1,4 +1,5 @@
 import type {ViewerQueries} from '@core/query/viewer-queries.ts';
+import {troubleshootingParts, troubleshootingRowShown} from './server/troubleshooting/parts';
 import type {QuietRefreshOutcome} from '@core/freshness-actions.ts';
 import type {QuietInput} from './quiet-refresh';
 import {LOG_DETAIL_MINUTES, type LogDetailMinutes} from '@core/server-administration.ts';
@@ -196,6 +197,8 @@ export class SettingsController {
     if (section.id === 'people') return this.options.capabilities.managePeople;
     if (section.id === 'signin') return this.options.capabilities.manageSignIn;
     if (section.id === 'remote-sources') return this.options.capabilities.manageServer && this.options.role === 'owner' && this.options.environment.signIn === 'local';
+    // Troubleshooting is shared with administrators when any of its parts is theirs (parts.ts).
+    if (section.id === 'troubleshooting') return this.options.capabilities.manageServer && this.options.role !== 'member' && troubleshootingParts(this.options.role).size > 0;
     return this.options.capabilities.manageServer && (this.options.role === 'owner' || section.id === 'dashboard' || section.id === 'libraries');
   };
   eligible = (row: SettingsRow, context?: SettingsContext): boolean => {
@@ -251,6 +254,7 @@ export class SettingsController {
     if (row.id === 'troubleshooting.detailLength' && this.forms.logs?.status()?.logDetailMinutes === undefined) return {present: false};
     const location = settingsRowIndex.get(row.id);
     if (!location || !this.sectionVisible(location.section)) return {present: false};
+    if (this.options.role !== 'member' && !troubleshootingRowShown(row.id, this.options.role)) return {present: false};
     // The drawn status line above Home networks says whether this connection
     // counts as home, from the same connectivity report the form holds.
     if (row.id === 'remote.thisDevice') {
