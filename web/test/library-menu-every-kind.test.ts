@@ -11,3 +11,11 @@ test('every library draws its ⋯ from one composition, not only reading or onli
   assert.match(route, /if \(!manageServer\) \{setScanOffer\(undefined\); return;\}/);
   assert.match(route, /<LibraryMenu owner=\{!!owner\} read=\{isReadingLibrary\(library\.kind\)\}/);
 });
+
+test('a reading library draws the same ⋯ on Discover, series and periodical pivots as on its grid, owner group included', () => {
+  assert.match(route, /libraryMenu=\{withLinkToast\(libraryMenu\(\{life\}, context, library, false, \(\) => \{\}, scan, markAll, copyLibraryLink\), linkToast, \(\) => setLinkToast\(null\)\)\}/);
+  assert.doesNotMatch(route, /<LibraryMenu owner=\{false\} read onMarkAll/);
+  // One scan offer and one link copy serve both.
+  assert.equal(route.match(/useLibraryScan\(context, library, /g)?.length, 2);
+  assert.equal(route.match(/= useCopyLibraryLink\(library\.id\);/g)?.length, 2);
+});
