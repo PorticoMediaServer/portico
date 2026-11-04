@@ -197,7 +197,6 @@ internal/identity/browser_accounts.go	(*Service).ForgetBrowserAccount	Begin	Clas
 internal/identity/browser_accounts.go	(*Service).RememberBrowserAccount	Begin	ClassSecurityFence	-
 internal/identity/credential_security.go	(*Service).passwordAttempt	WithWriteTx	ClassSecurityFence	-
 internal/identity/credential_security.go	(*Service).unknownAttempt	WithWriteTx	ClassSecurityFence	-
-internal/identity/credential_security.go	(*Service).unknownCooloff	WithWriteTx	ClassSecurityFence	-
 internal/identity/dev_e2e.go	init	Begin	ClassSecurityFence	-
 internal/identity/devices.go	(*Service).EditDevice	Begin	ClassSecurityFence	-
 internal/identity/devices.go	(*Service).ForgetDevice	Begin	ClassSecurityFence	-

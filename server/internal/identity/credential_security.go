@@ -8,14 +8,14 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
-	"net/netip"
 	"github.com/PorticoMediaServer/portico/server/internal/networkpolicy"
+	"net/netip"
 	"strings"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/notify"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var ErrPasswordChangeRequired = errors.New("Choose a new password before continuing.")
@@ -122,26 +122,19 @@ func (s *Service) unknownSubject(user string) string {
 // digest prevents the ledger from becoming a list of guessed usernames.
 func (s *Service) unknownCooloff(ctx context.Context, user string) error {
 	subject := s.unknownSubject(user)
-	var retryAfter int64
-	err := dbwork.WithWriteTx(ctx, s.db, dbwork.ClassSecurityFence, func(tx *sql.Tx) error {
-		until, err := unknownLockedUntilTx(ctx, tx, subject)
-		if err != nil || until <= time.Now().Unix() {
-			return err
-		}
-		if err = unknownAttemptTx(ctx, tx, subject); err != nil {
-			return err
-		}
-		until, err = unknownLockedUntilTx(ctx, tx, subject)
-		if err == nil {
-			retryAfter = max(1, until-time.Now().Unix())
-		}
-		return err
-	})
+	read, err := dbwork.BeginSnapshot(ctx, s.db)
 	if err != nil {
 		return err
 	}
-	if retryAfter > 0 {
-		return &AccountLockError{RetryAfter: retryAfter}
+	until, err := unknownLockedUntilTx(ctx, read.Tx(), subject)
+	if closeErr := read.Commit(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return err
+	}
+	if now := time.Now().Unix(); until > now {
+		return &AccountLockError{RetryAfter: max(1, until-now)}
 	}
 	return nil
 }
@@ -159,7 +152,7 @@ func (s *Service) unknownAttempt(ctx context.Context, user string) error {
 func unknownLockedUntilTx(ctx context.Context, tx *sql.Tx, subject string) (int64, error) {
 	source, _ := credentialSource(ctx)
 	var until int64
-	err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(locked_until),0) FROM identity_unknown_attempts WHERE subject_hash=? AND source_bucket IN (?, '*')`, subject, source).Scan(&until)
+	err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(locked_until),0) FROM identity_unknown_attempts WHERE subject_hash=? AND source_bucket=?`, subject, source).Scan(&until)
 	return until, err
 }
 
@@ -170,6 +163,7 @@ func unknownAttemptTx(ctx context.Context, tx *sql.Tx, subject string) error {
 	}
 	source, _ := credentialSource(ctx)
 	now := time.Now().Unix()
+	var globalDelay int64
 	for _, bucket := range []string{source, "*"} {
 		var attempts int
 		var last, until int64
@@ -182,12 +176,18 @@ func unknownAttemptTx(ctx context.Context, tx *sql.Tx, subject string) error {
 		}
 		attempts++
 		delay := passwordDelay(policy.Values.PasswordAttempts, attempts)
+		if bucket == "*" {
+			globalDelay = delay
+		}
 		_, err = tx.ExecContext(ctx, `INSERT INTO identity_unknown_attempts(subject_hash,source_bucket,failed_attempts,last_failure,locked_until) VALUES(?,?,?,?,?) ON CONFLICT(subject_hash,source_bucket) DO UPDATE SET failed_attempts=excluded.failed_attempts,last_failure=excluded.last_failure,locked_until=excluded.locked_until`, subject, bucket, attempts, now, max(until, now+delay))
 		if err != nil {
 			return err
 		}
 	}
-	return nil
+	// As for real accounts, only an evaluated wrong guess inherits the global
+	// budget on its own source. A fresh source may still prove a correct password.
+	_, err = tx.ExecContext(ctx, `UPDATE identity_unknown_attempts SET locked_until=MAX(locked_until, ?) WHERE subject_hash=? AND source_bucket=?`, now+globalDelay, subject, source)
+	return err
 }
 
 func credentialLockedUntilTx(ctx context.Context, tx *sql.Tx, account string) (int64, error) {
