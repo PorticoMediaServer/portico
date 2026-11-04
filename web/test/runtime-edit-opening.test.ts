@@ -19,7 +19,7 @@ const settle = async () => {for (let i = 0; i < 12; i++) await new Promise(setIm
 
 /** A real runtime with one local queue session, and the wire log, so an edit opening can be
  * exercised against the actual captureEditWindow path (no product fake, no second port). */
-function queueRuntime(t: import('node:test').TestContext, preferences: Partial<WebPlaybackSettings> = {}) {
+function queueRuntime(t: import('node:test').TestContext, preferences: Partial<WebPlaybackSettings> = {}, autoplay = true) {
   const clock = manualClock(), server = new FakePlaybackServer({now: clock.now, itemKind: () => 'movie'}), inner = fakeHttp(server);
   const log: V1Request[] = [], hls = fakeHls(), video = new FakeVideo();
   let current = true, serial = 0, viewerFence = homeViewerFence;
@@ -52,7 +52,7 @@ function queueRuntime(t: import('node:test').TestContext, preferences: Partial<W
           {id: 'quality', enabled: true, reason: ''}]}};
     } else response = await inner.send(request as never) as V1Response;
     if (request.method === 'GET' && /^\/v1\/queues\/[^/]+$/.test(request.path)) {
-      response = {...response, body: {...response.body as object, postPlay: {autoplay: true, countdownMs: 5000}}};
+      response = {...response, body: {...response.body as object, postPlay: {autoplay, countdownMs: 5000}}};
     } else if (request.path.includes('/window?')) {
       const body = response.body as {items: object[]};
       response = {...response, body: {...body, items: body.items.map(item => ({...item, durationMs: 7200000}))}};
@@ -183,4 +183,42 @@ test('an ended queue still draws its Up next window: the last title, current, wi
   assert.equal(shown.phase, 'ready', 'the window draws instead of the page-failed banner');
   assert.deepEqual(shown.page!.rows.map(row => [row.itemId, row.current]), [['only', true]]);
   assert.equal(shown.page!.canNext, false);
+});
+
+
+/** #642 follow-up (review): with autoplay off a title ends and the queue stops there, upcoming
+ * entries still listed. That ended window is still the queue's own reader: its edit goes out while
+ * the queue is unchanged, and is refused, with nothing sent, once the revision moves under it. */
+async function endedWindow(t: import('node:test').TestContext) {
+  const f = queueRuntime(t, {}, false);
+  await f.runtime.selectionPlayback(() => true).play({context: selectionContext, items: [leaf('first'), leaf('later')], signal: new AbortController().signal});
+  await f.arrive();
+  const fence = f.runtime.getSnapshot().fence!;
+  f.video.finish(); await settle(); f.clock.advance(5000); await settle();
+  assert.equal(f.runtime.getSnapshot().playback.phase, 'ended', 'autoplay off: the queue stops after this title');
+  const lifetime = {signal: new AbortController().signal, isCurrent: () => true};
+  const port = f.runtime.captureListening(fence, lifetime)!;
+  const opening = port.queue!.edit(port.queue!.list.getSnapshot(), lifetime);
+  t.after(() => opening.dispose());
+  await opening.open();
+  const page = opening.getSnapshot().page!;
+  assert.deepEqual(page.rows.map(row => [row.itemId, row.current]), [['first', true], ['later', false]]);
+  const removals = () => f.log.filter(request => request.method === 'DELETE' && request.path.includes('/entries/')).length;
+  return {f, opening, page, removals};
+}
+
+test('#642 follow-up: an edit from an ended window is refused once the queue revision moves, and nothing is sent', async t => {
+  const {f, opening, page, removals} = await endedWindow(t);
+  const queues = (f.server as unknown as {queues: Map<string, {revision: number}>}).queues;
+  for (const queue of queues.values()) queue.revision++;   // another device edits the queue under this window
+  const before = removals();
+  await assert.rejects(() => opening.remove(page, page.rows[1]!.entryId));
+  assert.equal(removals(), before, 'no remove reaches the server');
+});
+
+test('#642 follow-up control: the same ended window\'s edit goes out while the queue is unchanged', async t => {
+  const {opening, page, removals} = await endedWindow(t);
+  const before = removals();
+  await opening.remove(page, page.rows[1]!.entryId);
+  assert.equal(removals(), before + 1, 'the upcoming entry\'s removal is sent');
 });
