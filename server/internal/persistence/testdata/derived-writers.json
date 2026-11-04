@@ -1,0 +1,6606 @@
+{
+  "tables": {
+    "access_invitations": [
+      "internal/access",
+      "internal/identity"
+    ],
+    "access_limits": [
+      "internal/access"
+    ],
+    "account_portico_links": [
+      "internal/access",
+      "internal/hosted",
+      "internal/identity"
+    ],
+    "accounts": [
+      "internal/access",
+      "internal/catalogtest",
+      "internal/hosted",
+      "internal/identity"
+    ],
+    "admin_channel_logos": [
+      "internal/administration"
+    ],
+    "admin_dvr_groups": [
+      "internal/administration"
+    ],
+    "admin_receipts": [
+      "internal/administration"
+    ],
+    "analysis_marker_history": [
+      "internal/mediaanalysis"
+    ],
+    "analysis_marker_sets": [
+      "internal/mediaanalysis"
+    ],
+    "analysis_markers": [
+      "internal/mediaanalysis"
+    ],
+    "analysis_probe_bindings": [
+      "internal/catalog"
+    ],
+    "api_credentials": [
+      "internal/access",
+      "internal/identity"
+    ],
+    "artwork_blobs": [
+      "internal/metadata"
+    ],
+    "artwork_jobs": [
+      "internal/catalog",
+      "internal/metadata"
+    ],
+    "artwork_selections": [
+      "internal/catalog",
+      "internal/metadata"
+    ],
+    "artwork_sources": [
+      "internal/metadata"
+    ],
+    "asset_subtitle_facts": [
+      "internal/compactcatalog",
+      "internal/subtitles"
+    ],
+    "asset_subtitles": [
+      "internal/compactcatalog",
+      "internal/subtitles"
+    ],
+    "audio_metadata_policies": [
+      "internal/administration",
+      "internal/metadata"
+    ],
+    "audio_source_metadata": [
+      "internal/catalog"
+    ],
+    "audio_tag_evidence": [
+      "internal/catalog"
+    ],
+    "authorization_session_families": [
+      "internal/identity",
+      "internal/testauth"
+    ],
+    "book_resume": [
+      "internal/catalog",
+      "internal/playback"
+    ],
+    "catalog_albums": [
+      "internal/catalog/scalebench"
+    ],
+    "catalog_artists": [
+      "internal/catalog/scalebench"
+    ],
+    "catalog_asset_links": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/compactcatalog"
+    ],
+    "catalog_assets": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog"
+    ],
+    "catalog_attribute_fields": [
+      "internal/catalog/scalebench",
+      "internal/compactcatalog"
+    ],
+    "catalog_attribute_terms": [
+      "internal/catalog/scalebench",
+      "internal/compactcatalog"
+    ],
+    "catalog_automatic_members": [],
+    "catalog_book_chapters": [
+      "internal/compactcatalog"
+    ],
+    "catalog_book_files": [
+      "internal/catalog"
+    ],
+    "catalog_book_group_members": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "catalog_books": [],
+    "catalog_browse_availability_counts": [],
+    "catalog_browse_blocks": [
+      "internal/compactcatalog"
+    ],
+    "catalog_browse_buckets": [
+      "internal/compactcatalog"
+    ],
+    "catalog_browse_counted_rows": [
+      "internal/compactcatalog"
+    ],
+    "catalog_browse_groups": [],
+    "catalog_browse_member_metrics": [
+      "internal/compactcatalog"
+    ],
+    "catalog_browse_memberships": [
+      "internal/compactcatalog"
+    ],
+    "catalog_browse_memberships_previous": [],
+    "catalog_browse_rows": [
+      "internal/compactcatalog"
+    ],
+    "catalog_browse_rows_previous": [],
+    "catalog_collection_members": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "catalog_collections": [],
+    "catalog_credit_labels": [
+      "internal/catalog/scalebench",
+      "internal/compactcatalog"
+    ],
+    "catalog_credits": [
+      "internal/catalog/scalebench",
+      "internal/compactcatalog"
+    ],
+    "catalog_dataset_tags": [
+      "internal/enrichment"
+    ],
+    "catalog_dataset_vocabulary": [
+      "internal/enrichment"
+    ],
+    "catalog_derivation_failures": [
+      "internal/compactcatalog"
+    ],
+    "catalog_derivations": [
+      "internal/catalog/scalebench",
+      "internal/compactcatalog"
+    ],
+    "catalog_dirty": [
+      "internal/catalog",
+      "internal/compactcatalog",
+      "internal/metadata"
+    ],
+    "catalog_entities": [
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog"
+    ],
+    "catalog_entity_mutations": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "catalog_entity_terms": [
+      "internal/catalog/scalebench",
+      "internal/compactcatalog"
+    ],
+    "catalog_episodes": [
+      "internal/catalog/scalebench"
+    ],
+    "catalog_external_ids": [
+      "internal/catalog",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/metadata"
+    ],
+    "catalog_facet_base_classes": [
+      "internal/catalog"
+    ],
+    "catalog_facet_base_rows": [
+      "internal/catalog"
+    ],
+    "catalog_facet_base_show_seen": [
+      "internal/catalog"
+    ],
+    "catalog_facet_base_texts": [
+      "internal/catalog"
+    ],
+    "catalog_facet_base_values": [
+      "internal/catalog"
+    ],
+    "catalog_facet_base_work": [
+      "internal/catalog"
+    ],
+    "catalog_facet_bases": [
+      "internal/catalog"
+    ],
+    "catalog_facet_counts": [
+      "internal/compactcatalog"
+    ],
+    "catalog_facet_members": [
+      "internal/compactcatalog"
+    ],
+    "catalog_generations": [
+      "internal/compactcatalog"
+    ],
+    "catalog_home_buckets": [
+      "internal/compactcatalog"
+    ],
+    "catalog_info_changes": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "catalog_info_input_families": [
+      "internal/compactcatalog"
+    ],
+    "catalog_info_input_witnesses": [
+      "internal/compactcatalog"
+    ],
+    "catalog_info_new_chapter_facts": [],
+    "catalog_info_new_chapters": [],
+    "catalog_info_new_disc_chapters": [],
+    "catalog_info_new_disc_clips": [],
+    "catalog_info_new_disc_facts": [],
+    "catalog_info_new_disc_media_members": [],
+    "catalog_info_new_disc_streams": [],
+    "catalog_info_new_disc_title_media": [],
+    "catalog_info_new_disc_title_media_members": [],
+    "catalog_info_new_disc_title_media_streams": [],
+    "catalog_info_new_disc_titles": [],
+    "catalog_info_new_stream_breadth": [],
+    "catalog_info_new_stream_facts": [],
+    "catalog_info_new_streams": [],
+    "catalog_info_new_subtitle_facts": [],
+    "catalog_info_new_subtitle_inventory_evidence": [],
+    "catalog_info_new_subtitle_sidecars": [],
+    "catalog_info_new_subtitles": [],
+    "catalog_info_path_old": [
+      "internal/compactcatalog"
+    ],
+    "catalog_info_scalar_old": [
+      "internal/compactcatalog"
+    ],
+    "catalog_info_shapes": [
+      "internal/compactcatalog"
+    ],
+    "catalog_item_attribute_edges": [
+      "internal/catalog/scalebench",
+      "internal/compactcatalog"
+    ],
+    "catalog_item_availability": [
+      "internal/compactcatalog"
+    ],
+    "catalog_item_availability_previous": [],
+    "catalog_item_details": [
+      "internal/catalog/scalebench",
+      "internal/compactcatalog",
+      "internal/metadata"
+    ],
+    "catalog_item_version_counts": [],
+    "catalog_kinds": [],
+    "catalog_libraries": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "catalog_missing_titles": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "catalog_movie_category_members": [
+      "internal/compactcatalog"
+    ],
+    "catalog_movie_category_summaries": [
+      "internal/compactcatalog"
+    ],
+    "catalog_people": [
+      "internal/catalog/scalebench",
+      "internal/compactcatalog",
+      "internal/metadata"
+    ],
+    "catalog_personal_sort_members": [
+      "internal/compactcatalog"
+    ],
+    "catalog_personal_sort_rows": [
+      "internal/compactcatalog"
+    ],
+    "catalog_playlist_entries": [
+      "internal/catalog",
+      "internal/catalog/scalebench"
+    ],
+    "catalog_playlists": [
+      "internal/catalog",
+      "internal/identity"
+    ],
+    "catalog_rec_facets": [
+      "internal/compactcatalog"
+    ],
+    "catalog_related_facets": [
+      "internal/compactcatalog"
+    ],
+    "catalog_search_documents": [
+      "internal/compactcatalog"
+    ],
+    "catalog_search_documents_next": [],
+    "catalog_search_genre_accepted_targets": [
+      "internal/catalog"
+    ],
+    "catalog_search_genre_candidates": [
+      "internal/catalog"
+    ],
+    "catalog_search_genre_ready": [
+      "internal/catalog"
+    ],
+    "catalog_search_genre_targets": [
+      "internal/catalog"
+    ],
+    "catalog_search_prefix_rows": [
+      "internal/compactcatalog"
+    ],
+    "catalog_search_prefix_rows_next": [],
+    "catalog_search_prefix_terms": [
+      "internal/compactcatalog"
+    ],
+    "catalog_seasons": [
+      "internal/catalog/scalebench"
+    ],
+    "catalog_selection_profile_epochs": [],
+    "catalog_shows": [
+      "internal/catalog/scalebench"
+    ],
+    "catalog_similar": [
+      "internal/catalogtest",
+      "internal/enrichment",
+      "internal/metadata"
+    ],
+    "catalog_song_artists": [
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/compactcatalog"
+    ],
+    "catalog_songs": [
+      "internal/catalog",
+      "internal/catalog/scalebench"
+    ],
+    "catalog_term_sources": [
+      "internal/catalog/scalebench",
+      "internal/compactcatalog"
+    ],
+    "catalog_terms": [
+      "internal/catalog/scalebench",
+      "internal/compactcatalog"
+    ],
+    "catalog_title_tombstone_viewers": [
+      "internal/catalog"
+    ],
+    "client_log_uploads": [
+      "internal/servicelog"
+    ],
+    "compact_visibility_classes": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "compact_visibility_rows": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "configuration": [
+      "internal/audiofacts",
+      "internal/catalog",
+      "internal/catalogtest",
+      "internal/hosted",
+      "internal/identity",
+      "internal/livechannels",
+      "internal/lyrics",
+      "internal/mounts",
+      "internal/networking",
+      "internal/operations",
+      "internal/persistence"
+    ],
+    "console_audit": [
+      "internal/operations"
+    ],
+    "console_report_events": [
+      "internal/operations"
+    ],
+    "console_reports": [
+      "internal/operations"
+    ],
+    "console_settings_revision": [
+      "internal/administration",
+      "internal/backup",
+      "internal/metadata",
+      "internal/operations"
+    ],
+    "container_personal_state": [
+      "internal/catalog"
+    ],
+    "content_rating_ages": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "continue_dismissals": [
+      "internal/catalog"
+    ],
+    "credit_source_heads": [
+      "internal/compactcatalog"
+    ],
+    "credit_source_publication_members": [
+      "internal/compactcatalog"
+    ],
+    "credit_source_publications": [
+      "internal/compactcatalog"
+    ],
+    "credit_source_rows": [
+      "internal/compactcatalog"
+    ],
+    "detail_jobs": [],
+    "direct_memberships": [
+      "internal/access",
+      "internal/hosted",
+      "internal/identity"
+    ],
+    "direct_profiles": [
+      "internal/access",
+      "internal/catalogtest",
+      "internal/identity"
+    ],
+    "download_grants": [
+      "internal/catalog",
+      "internal/downloads"
+    ],
+    "download_preparations": [
+      "internal/catalog",
+      "internal/downloads",
+      "internal/identity"
+    ],
+    "download_receipt_keys": [
+      "internal/downloads"
+    ],
+    "download_receipts": [
+      "internal/catalog",
+      "internal/downloads"
+    ],
+    "download_request_items": [
+      "internal/catalog",
+      "internal/downloads"
+    ],
+    "dvr_catalog_provenance": [
+      "internal/livechannels/dvr"
+    ],
+    "dvr_catalog_retirements": [
+      "internal/livechannels/dvr"
+    ],
+    "dvr_owner_revisions": [
+      "internal/identity",
+      "internal/livechannels/dvr"
+    ],
+    "dvr_recordings": [
+      "internal/identity",
+      "internal/livechannels/dvr"
+    ],
+    "dvr_rules": [
+      "internal/identity",
+      "internal/livechannels/dvr"
+    ],
+    "dvr_storage_policy": [
+      "internal/livechannels/dvr"
+    ],
+    "episode_asset_boundaries": [
+      "internal/catalog"
+    ],
+    "hosted_claim_cleanup_receipts": [],
+    "hosted_membership_endings": [
+      "internal/identity"
+    ],
+    "hosted_membership_journal": [
+      "internal/access",
+      "internal/hosted",
+      "internal/identity"
+    ],
+    "hosted_profile_erasure_receipts": [
+      "internal/hosted"
+    ],
+    "hosted_profile_revisions": [
+      "internal/hosted"
+    ],
+    "hosted_server_events": [
+      "internal/hosted"
+    ],
+    "hosted_signing_revocations": [
+      "internal/hosted"
+    ],
+    "identity_device_families": [
+      "internal/identity",
+      "internal/testauth"
+    ],
+    "identity_devices": [
+      "internal/identity",
+      "internal/testauth"
+    ],
+    "identity_family_pin_lineages": [
+      "internal/identity"
+    ],
+    "identity_state": [
+      "internal/identity"
+    ],
+    "inventory_directory_cache": [
+      "internal/catalog",
+      "internal/ingestion"
+    ],
+    "inventory_objects": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/ingestion",
+      "internal/mediaanalysis",
+      "internal/metadata"
+    ],
+    "inventory_reading_seals": [
+      "internal/catalog",
+      "internal/ingestion"
+    ],
+    "inventory_runs": [
+      "internal/catalog",
+      "internal/compactcatalog",
+      "internal/ingestion"
+    ],
+    "inventory_scan_issues": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "inventory_video_names": [
+      "internal/catalog"
+    ],
+    "item_extras": [
+      "internal/catalog"
+    ],
+    "jobs": [
+      "internal/catalog",
+      "internal/compactcatalog",
+      "internal/ingestion"
+    ],
+    "lc_channels": [
+      "internal/livechannels/library"
+    ],
+    "lc_playback_refs": [
+      "internal/livechannels/library"
+    ],
+    "lc_receipts": [
+      "internal/livechannels/library"
+    ],
+    "libraries": [
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/httpapi/fixture",
+      "internal/livechannels/dvr"
+    ],
+    "library_configuration": [
+      "internal/catalog"
+    ],
+    "library_metadata_agents": [
+      "internal/metadata"
+    ],
+    "library_navigation_revisions": [
+      "internal/catalog"
+    ],
+    "library_preferences": [
+      "internal/catalog"
+    ],
+    "library_revisions": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/compactcatalog",
+      "internal/ingestion",
+      "internal/metadata",
+      "internal/persistence"
+    ],
+    "library_scan_policies": [
+      "internal/catalog",
+      "internal/remotesources"
+    ],
+    "library_sources": [
+      "internal/catalog",
+      "internal/catalogtest",
+      "internal/httpapi/fixture",
+      "internal/ingestion",
+      "internal/remotesources"
+    ],
+    "listening_book_groups": [
+      "internal/catalog"
+    ],
+    "listening_metadata_attention": [],
+    "live_allocations": [
+      "internal/livechannels"
+    ],
+    "live_channel_preferences": [
+      "internal/livechannels"
+    ],
+    "live_enable_receipts": [
+      "internal/livechannels"
+    ],
+    "live_preference_receipts": [
+      "internal/livechannels"
+    ],
+    "live_programme_images": [
+      "internal/administration"
+    ],
+    "live_reminders": [
+      "internal/livechannels"
+    ],
+    "live_remote_configs": [
+      "internal/livechannels"
+    ],
+    "live_remote_save_bindings": [
+      "internal/livechannels"
+    ],
+    "live_reservations": [
+      "internal/identity",
+      "internal/livechannels/dvr"
+    ],
+    "live_source_dependencies": [
+      "internal/administration",
+      "internal/identity",
+      "internal/livechannels",
+      "internal/livechannels/dvr"
+    ],
+    "live_source_identities": [
+      "internal/livechannels"
+    ],
+    "live_source_removals": [
+      "internal/livechannels"
+    ],
+    "live_sources": [
+      "internal/livechannels"
+    ],
+    "local_artwork": [
+      "internal/catalog"
+    ],
+    "lyric_fetch_runs": [
+      "internal/lyrics"
+    ],
+    "lyric_resources": [
+      "internal/catalog",
+      "internal/lyrics"
+    ],
+    "lyric_revisions": [
+      "internal/lyrics"
+    ],
+    "managed_mounts": [
+      "internal/mounts"
+    ],
+    "mb_accounting_state": [
+      "internal/mbaccounting"
+    ],
+    "mb_album_heads": [
+      "internal/compactcatalog"
+    ],
+    "mb_album_links": [
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/metadata"
+    ],
+    "mb_album_reconciliations": [
+      "internal/metadata"
+    ],
+    "mb_candidate_reasons": [
+      "internal/metadata"
+    ],
+    "mb_evidence_builds": [
+      "internal/metadata"
+    ],
+    "mb_jobs": [
+      "internal/compactcatalog",
+      "internal/metadata"
+    ],
+    "mb_provider_policies": [
+      "internal/metadata"
+    ],
+    "mb_publication_operations": [
+      "internal/metadata"
+    ],
+    "mb_recording_accounting_base": [
+      "internal/mbaccounting"
+    ],
+    "mb_recording_aliases": [
+      "internal/metadata"
+    ],
+    "mb_recording_credits": [],
+    "mb_recording_evidence": [
+      "internal/metadata"
+    ],
+    "mb_release_accounting": [],
+    "mb_release_aliases": [
+      "internal/metadata"
+    ],
+    "mb_release_credits": [],
+    "mb_release_evidence": [
+      "internal/metadata"
+    ],
+    "mb_release_group_types": [
+      "internal/metadata"
+    ],
+    "mb_release_media": [
+      "internal/metadata"
+    ],
+    "mb_release_tracks": [
+      "internal/metadata"
+    ],
+    "mb_song_links": [
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/metadata"
+    ],
+    "mb_track_credits": [
+      "internal/metadata"
+    ],
+    "metadata_details": [
+      "internal/catalogtest",
+      "internal/metadata"
+    ],
+    "metadata_discovery_items": [
+      "internal/persistence"
+    ],
+    "metadata_jobs": [],
+    "metadata_movie_candidates": [
+      "internal/metadata"
+    ],
+    "metadata_movie_selections": [
+      "internal/metadata"
+    ],
+    "metadata_owner_fields": [
+      "internal/catalog",
+      "internal/compactcatalog",
+      "internal/metadata",
+      "internal/reading"
+    ],
+    "metadata_owner_history": [
+      "internal/metadata"
+    ],
+    "metadata_provider_policies": [
+      "internal/metadata"
+    ],
+    "metadata_publication_heads": [
+      "internal/compactcatalog",
+      "internal/metadata"
+    ],
+    "metadata_ratings": [
+      "internal/catalogtest",
+      "internal/metadata"
+    ],
+    "metadata_relationship_decisions": [
+      "internal/metadata"
+    ],
+    "metadata_runtime_settings": [
+      "internal/metadata"
+    ],
+    "metadata_tags": [
+      "internal/catalogtest",
+      "internal/metadata"
+    ],
+    "mount_controls": [
+      "internal/mounts"
+    ],
+    "music_match_observations": [
+      "internal/metadata"
+    ],
+    "networking_claim_cancellations": [
+      "internal/identity",
+      "internal/networking"
+    ],
+    "networking_claim_identity": [
+      "internal/identity",
+      "internal/networking"
+    ],
+    "networking_claim_intents": [
+      "internal/identity",
+      "internal/networking"
+    ],
+    "networking_server_identities": [
+      "internal/networking"
+    ],
+    "notification_inbox": [
+      "internal/notify"
+    ],
+    "notification_records": [
+      "internal/notify",
+      "internal/operations"
+    ],
+    "owned_capture_presentation_refs": [
+      "internal/playbackdisc"
+    ],
+    "owned_capture_receipts": [
+      "internal/ownedcapture"
+    ],
+    "owned_capture_sources": [
+      "internal/ownedcapture"
+    ],
+    "personal_activity_revisions": [
+      "internal/catalog"
+    ],
+    "personal_conflicts": [
+      "internal/catalog"
+    ],
+    "personal_device_sequences": [
+      "internal/catalog"
+    ],
+    "personal_history": [
+      "internal/catalog",
+      "internal/catalogtest"
+    ],
+    "personal_items": [
+      "internal/catalog",
+      "internal/catalogtest",
+      "internal/httpapi/fixture"
+    ],
+    "personal_music_radios": [
+      "internal/catalog",
+      "internal/playbackv1"
+    ],
+    "personal_play_counts": [
+      "internal/catalog"
+    ],
+    "personal_watched_intents": [
+      "internal/catalog",
+      "internal/catalogtest",
+      "internal/personalstate"
+    ],
+    "playback_disc_capture_inputs": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_conditional_inputs": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_lifecycle": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_reader_pins": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshot_actor": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshot_chapters": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshot_clips": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshot_disc": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshot_disc_chapters": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshot_disc_streams": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshot_media": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshot_operation": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshot_source": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshot_streams": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshot_titles": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshot_tools": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_snapshots": [
+      "internal/playbackdisc"
+    ],
+    "playback_disc_subtitle_resources": [
+      "internal/playbackdisc",
+      "internal/subtitles"
+    ],
+    "playback_legacy_replacement_requests": [
+      "internal/playback"
+    ],
+    "playback_marker_skips": [
+      "internal/playbackv1"
+    ],
+    "playback_origin_albums": [],
+    "playback_origin_assets": [],
+    "playback_origin_associations": [],
+    "playback_origin_books": [],
+    "playback_origin_items": [],
+    "playback_origin_roots": [],
+    "playback_origin_seasons": [],
+    "playback_origin_shows": [],
+    "playback_owner_policy": [
+      "internal/operations"
+    ],
+    "playback_personal_claims": [
+      "internal/playback"
+    ],
+    "playback_personal_intents": [
+      "internal/playback"
+    ],
+    "playback_personal_profile_fences": [
+      "internal/catalog",
+      "internal/identity"
+    ],
+    "playback_requests": [
+      "internal/playback"
+    ],
+    "playback_route_failures": [
+      "internal/identity",
+      "internal/playback"
+    ],
+    "playback_sessions": [
+      "internal/catalog",
+      "internal/hosted",
+      "internal/identity",
+      "internal/playback",
+      "internal/playbackv1",
+      "internal/subtitles"
+    ],
+    "playback_start_preparation_actor": [
+      "internal/identity",
+      "internal/playbackdisc"
+    ],
+    "playback_start_preparation_lifecycle": [
+      "internal/playbackdisc"
+    ],
+    "playback_start_preparation_queue": [
+      "internal/playbackdisc"
+    ],
+    "playback_start_preparation_results": [
+      "internal/playbackdisc"
+    ],
+    "playback_start_preparation_source": [
+      "internal/playbackdisc"
+    ],
+    "playback_start_preparations": [
+      "internal/identity",
+      "internal/playbackdisc"
+    ],
+    "playback_v1_sessions": [
+      "internal/playbackv1"
+    ],
+    "playlist_directory_revisions": [],
+    "playlist_shares": [
+      "internal/catalog",
+      "internal/identity"
+    ],
+    "policy": [
+      "internal/hosted"
+    ],
+    "prepared_media_jobs": [
+      "internal/catalog",
+      "internal/preparedmedia"
+    ],
+    "prepared_media_versions": [
+      "internal/catalog",
+      "internal/preparedmedia"
+    ],
+    "profile_avatars": [
+      "internal/identity"
+    ],
+    "profile_restrictions": [
+      "internal/catalogtest",
+      "internal/identity"
+    ],
+    "progress": [
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/httpapi/fixture",
+      "internal/playback"
+    ],
+    "progress_activity": [
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/httpapi/fixture",
+      "internal/playback"
+    ],
+    "provider_evidence": [
+      "internal/metadata"
+    ],
+    "queue_v1_container_counts": [
+      "internal/playbackv1"
+    ],
+    "queue_v1_sonic_windows": [
+      "internal/playbackv1"
+    ],
+    "reading_attribution_members": [
+      "internal/compactcatalog"
+    ],
+    "reading_attribution_state": [
+      "internal/compactcatalog"
+    ],
+    "reading_path_availability_pending": [
+      "internal/catalog"
+    ],
+    "reading_path_dirty_work": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "reading_path_object_keys": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "reading_path_scope": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "reading_path_scope_entities": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "reading_path_slot": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "reading_path_source_barrier": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
+    "reading_publication_types": [
+      "internal/reading"
+    ],
+    "reading_publications": [
+      "internal/catalog",
+      "internal/catalogtest"
+    ],
+    "reading_saved_groups": [
+      "internal/catalog"
+    ],
+    "reading_source_values": [
+      "internal/reading"
+    ],
+    "reading_text_index_state": [
+      "internal/reading"
+    ],
+    "reading_text_sections": [
+      "internal/reading"
+    ],
+    "rec_data_revision": [
+      "internal/compactcatalog",
+      "internal/enrichment"
+    ],
+    "rec_profile_jobs": [
+      "internal/compactcatalog"
+    ],
+    "rec_profile_revisions": [
+      "internal/compactcatalog"
+    ],
+    "remote_analysis_status": [
+      "internal/ingestion"
+    ],
+    "remote_object_refs": [
+      "internal/remotesources"
+    ],
+    "remote_source_captures": [
+      "internal/remotesources"
+    ],
+    "remote_source_choice_definitions": [],
+    "remote_sources": [
+      "internal/mounts",
+      "internal/remotesources"
+    ],
+    "retained_title_state": [
+      "internal/catalog",
+      "internal/identity"
+    ],
+    "saved_operation_fences": [
+      "internal/catalog"
+    ],
+    "saved_pin_order_revisions": [
+      "internal/catalog"
+    ],
+    "saved_pins": [
+      "internal/catalog"
+    ],
+    "saved_resource_entries": [
+      "internal/catalog"
+    ],
+    "saved_resource_shares": [
+      "internal/catalog",
+      "internal/identity"
+    ],
+    "saved_resources": [
+      "internal/catalog",
+      "internal/identity"
+    ],
+    "screen_metadata_attention": [],
+    "screen_metadata_consent": [
+      "internal/metadata"
+    ],
+    "screen_metadata_fields": [
+      "internal/catalogtest",
+      "internal/metadata"
+    ],
+    "screen_metadata_policies": [
+      "internal/metadata"
+    ],
+    "screen_metadata_work": [
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/metadata"
+    ],
+    "segment_files": [
+      "internal/mediaanalysis"
+    ],
+    "social_cast_bootstraps": [
+      "internal/identity",
+      "internal/social"
+    ],
+    "social_cast_devices": [
+      "internal/identity",
+      "internal/social"
+    ],
+    "social_group_invites": [
+      "internal/social"
+    ],
+    "social_group_members": [
+      "internal/social"
+    ],
+    "social_groups": [
+      "internal/social"
+    ],
+    "social_handoffs": [
+      "internal/social"
+    ],
+    "social_rate": [
+      "internal/social"
+    ],
+    "social_receiver_grants": [
+      "internal/social"
+    ],
+    "social_receivers": [
+      "internal/social"
+    ],
+    "subtitle_operations": [
+      "internal/subtitles"
+    ],
+    "subtitle_original_files": [
+      "internal/subtitles"
+    ],
+    "subtitle_original_revisions": [
+      "internal/subtitles"
+    ],
+    "subtitle_render_revisions": [
+      "internal/compactcatalog",
+      "internal/subtitles"
+    ],
+    "subtitle_resources": [
+      "internal/catalog",
+      "internal/compactcatalog",
+      "internal/subtitles"
+    ],
+    "subtitle_revisions": [
+      "internal/compactcatalog",
+      "internal/subtitles"
+    ],
+    "subtitle_sidecars": [
+      "internal/compactcatalog",
+      "internal/subtitles"
+    ],
+    "tvdb_episode_credit_evidence": [
+      "internal/metadata"
+    ],
+    "tvdb_episode_credit_pending": [],
+    "tvdb_episode_evidence": [
+      "internal/metadata"
+    ],
+    "tvdb_episode_links": [
+      "internal/metadata"
+    ],
+    "tvdb_evidence_page_ownership": [
+      "internal/metadata"
+    ],
+    "tvdb_jobs": [
+      "internal/metadata"
+    ],
+    "tvdb_provider_policies": [
+      "internal/metadata"
+    ],
+    "tvdb_publication_heads": [
+      "internal/compactcatalog"
+    ],
+    "tvdb_publication_operations": [
+      "internal/metadata"
+    ],
+    "tvdb_publication_pages": [
+      "internal/metadata"
+    ],
+    "tvdb_publication_sets": [
+      "internal/metadata"
+    ],
+    "tvdb_series_candidates": [
+      "internal/metadata"
+    ],
+    "user_mutation_accounts": [
+      "internal/usermutation"
+    ],
+    "user_mutation_global": [
+      "internal/usermutation"
+    ],
+    "user_mutation_receipts": [
+      "internal/playbackv1",
+      "internal/usermutation"
+    ],
+    "user_mutation_roots": [
+      "internal/identity"
+    ],
+    "video_nfo_evidence": [
+      "internal/localmetadata"
+    ],
+    "viewer_revisions": [
+      "internal/catalog"
+    ],
+    "webhook_deliveries": [
+      "internal/webhooks"
+    ],
+    "webhook_events": [
+      "internal/webhooks"
+    ],
+    "webhooks": [
+      "internal/webhooks"
+    ]
+  },
+  "dynamic_sql_files": {
+    "cmd/server/main.go": {
+      "sha256": "d0d985f3c6ae6651c17a5afbffbd0e7ec7c96c0b7b9d3a82571326655be16abf",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "cmd/server/service_windows.go": {
+      "sha256": "e55d1571d1d984d79ab512ba8a3f6d8d268d3c052903035c85521ae33740a656",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "cmd/server/webhooks.go": {
+      "sha256": "a986bfac56fadc8c12191a32b75a8535ed79200170894d40d76a36c94a608377",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/access/invitations.go": {
+      "sha256": "827947c11c0be64148275b2ceb1f0777a706e5b5da80dd2ad6e5b4f8e474f831",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/access/invitations_table.go": {
+      "sha256": "f471e5d71c79bb9a8334a6c0a20f88f349830a2730995b09bd0a148935db8f4c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/access/members.go": {
+      "sha256": "8e164ca5229ae1a3ec58f3339d8b65438b6d275ca039fac5230800e29cabb29c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/access/members_table.go": {
+      "sha256": "a9bd0b20b2035f6c79ba67efb2c24bc86b9ca5174fcf27224a382c6d66dcc7dc",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/administration/deletion.go": {
+      "sha256": "9d7166e1bad7468353b91314e04bec1262f510df409536d364ee428e9f7f0c8d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/administration/dvr_settings.go": {
+      "sha256": "379cd9f248d45114b15671e3cc0809037b2b9688cc439e698cd0d476eab3e7b9",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/administration/live_sources.go": {
+      "sha256": "e3f65d37e948f27631145a4a9b65d6b0947c9424a812d83195baa2c93730e41f",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/administration/maintenance.go": {
+      "sha256": "8c439f004b88f50acd68c56057cd274a9b095efc977c96bb3dac8d294a467897",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/administration/maintenance_storage.go": {
+      "sha256": "ee1c9f2d3a7a713399a53141d0ca51f256e6f3b904e7c55072ed18c1791094b5",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/administration/selection_action_delete.go": {
+      "sha256": "2adc2effd0c7197f64458daae7e710355f50abbff4582bf21a8e78db28d157aa",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/administration/update_feed.go": {
+      "sha256": "b78eb0531fe352a5aa6127fe19d0c64c1196d8edad1157b91aa44d9efdec2568",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/artworkref/artworkref.go": {
+      "sha256": "3f52c15565721081c2254cdfa591bac04af44bceb5c241c7438860e19cf66a40",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/assets/playback_pin.go": {
+      "sha256": "301ce75ab5f8a6608652bd84a1af3096c566afcd28fcdd5bf9f8eabd21771c2e",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/assets/stream_breadth.go": {
+      "sha256": "fe3431cfdac5635093b9bf624367ee3fdf478adceaa7280d11f824488958fda8",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/audiofacts/store.go": {
+      "sha256": "b5b07c14bfd31ad0e7405be5ca424f35b31ab372808fb3934191fc21df2544a0",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/backup/files.go": {
+      "sha256": "db29dad1f0fc920063245a25a547f289e55ea2f7dfba262f3211e05076b28269",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/backup/holds.go": {
+      "sha256": "0bf6d8aceab6c17b3e639a768536614ae8df1927ea6a46368b8620acffa40d3e",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/backup/policy.go": {
+      "sha256": "bf69326ccf70f4f64ea93d378d44c9d590a916ff786c5c37cd9695dd357c4fb5",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/backup/preserve.go": {
+      "sha256": "3e99b804efda748abc076d4972781d0c4b6808087389369c0187595f4cf8fe17",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/backup/stream_apply.go": {
+      "sha256": "2d76944b1993db808bd95bcc1c7c45f138a430e5864ab965bb56c6777da96937",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/admin.go": {
+      "sha256": "51d16149e1413c155ba8dc9c346b75b17791f0bb30f9fd1eaef66852eb62ef6e",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/artwork_resolver.go": {
+      "sha256": "5215a37ea1642b2dd546574564a9daa238d7ad8dd6165579a77ae0d68f492658",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/audio_queries.go": {
+      "sha256": "eec1e3e33cdc45dbb3681879f5a07b2709e52825caceaaaa1eea60533dd0f361",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/audio_repository.go": {
+      "sha256": "eb1782ad0d609599e6ed2a5768a12e467b7519add7a0afe9f7353c5b676933db",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/browse_across.go": {
+      "sha256": "ee19cb6d72324cb519b5fad2745a3a3151f30da3604da06ae17bb6ac7469b351",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/browse_availability_counts.go": {
+      "sha256": "011d911c7dcb42cac28e624644a8524abc36eada8402e4b80e580f3e5c19ca69",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/browse_contract.go": {
+      "sha256": "7cf70ec49ce7deaa6c08fb7b3be3eff97ace019df1c593e89556c519bbf16310",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/browse_counts.go": {
+      "sha256": "fa795f34abdb7832998e866ae8e9ed7a4288b8e03dbbeade9bfed6b3c001fd82",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/browse_engine.go": {
+      "sha256": "b58d87183c13fa3cba979f557b4f9493d5bf71ea8565d03b6271e13de300b2b6",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/browse_facets.go": {
+      "sha256": "55d5f5f670d18ca27d9321ee43f919b17ec4a8828fa8821c91dd7f11afc6f9fd",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/browse_groups.go": {
+      "sha256": "75e349c14366dc221afbec5213fce004a55530b57b67029767853ffe0f2b6125",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/browse_indexed_sorts.go": {
+      "sha256": "696233d7cc2d8111db01efbf1344e2f15c7595d76051aac2467b56240e373a19",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/browse_pages.go": {
+      "sha256": "97d54fb9fb94b4a1943ec59e9df47daaf75c0c40e5d2df325dea22b3a491ea8b",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/browse_personal.go": {
+      "sha256": "07d85c4582b48d12a1ae3bf45b6e429a72b27128577fd7fcd3801814d70ea647",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/browse_random_positions.go": {
+      "sha256": "f456e0dafd8298e76d8349a46855a8e195c9c5c1dadd84a8abe1c4889d5b536e",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/browse_range.go": {
+      "sha256": "fa7444937d022acf6c8bc75744e4bbc5217fc7e5ce3a98cc18c4e5b17f8c347b",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/browse_selection_aggregate.go": {
+      "sha256": "e003a7e8bbee37c468257cda4fc38ff6779672a875b8f883a4febe4fc0e97773",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/browse_selection_batch.go": {
+      "sha256": "da1d90aaf9ab0aaa3435be22dd391b598d4018c1c7fcce12fabaab159b5fa542",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/browse_selection_batch_predicates.go": {
+      "sha256": "1f3da72aeab81987cfd04eab6011a7abcbf6356fb73c8edf85cbfd45c934f10b",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/browse_selection_conversion.go": {
+      "sha256": "c9d74f9366e5912ddbc6fcbf24779bd3409364cfd65a6ca9d79bd0b6fcfe73c1",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/browse_selection_preparation.go": {
+      "sha256": "8a00ccf3e30344e48a893aa877c2be1d476d18329cec062eddaa1a56643b0644",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/browse_selection_replay.go": {
+      "sha256": "36a85cbe0b62a56c5de984235945fac5663dcd32d9b381cae6e71909925db0ef",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/bulk_capture.go": {
+      "sha256": "acf577e6b0edce617243a244a1623ea0e713f643fa05c1fb3cfd877f2f3fef27",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/bulk_commands.go": {
+      "sha256": "a79af01896078b74fbad2ca57b6c945476419920fe141a723e8ed572f626c21b",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/bulk_jobs.go": {
+      "sha256": "69196d55c38934bc8ec09a3b5dd33bbce1f7960c6b1a843de354f70ffe13f46f",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/bulk_metadata_preview.go": {
+      "sha256": "2f94f93f518d531ac539e370db4c1db019f13acca4ebed56eaf585b4b9d16c68",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/bulk_metadata_preview_walk.go": {
+      "sha256": "4c982881505af6474a52cc683bf5eb66302d56a403e7200e49604ad7c46eec66",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/bulk_order.go": {
+      "sha256": "a95ce777895e72916e14b030bf7382507475b1f4bf19e2b1fd504bb3c83fe474",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/bulk_reading_collection.go": {
+      "sha256": "f417031a0b0c1566035a8098d48b3aeb61cdab6ec9d4e05777d4694872fccd1f",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/bulk_replay.go": {
+      "sha256": "2517bdc711f2db169de8cff9c64892606575c155131c1be02bea4b03bc5bbde7",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/bulk_selection.go": {
+      "sha256": "7464cf7b9f329c0940f9344ce1d39de7513dbe8c021d1ebf8977601b982433d7",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/catalog.go": {
+      "sha256": "434574a303c61dd53192f36d5e2fa10ec622957bad31a3efabbc83e14579016e",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/channel_play_merge.go": {
+      "sha256": "e0b917e70b0b4cdcc1a875e3d188b7c8e0426a247502abee7b31dca6a66b3ab3",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/collections.go": {
+      "sha256": "d7ad0dc1b82ecb9b4807192b695962c69eef9d4c1e4d60ffb0a1a217516c0f9d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/compact_browse_anchors.go": {
+      "sha256": "d1cc216725d9784416f4d83d79a10d3b2c34a79a7cc9752fe14deaec6a040815",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/compact_categories.go": {
+      "sha256": "f29c3da66c610f325e786820204d4a867fffd2cdf76729b2e62ddcc6af9bd774",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/compact_films.go": {
+      "sha256": "b5dc20b8c3f285b7b7f45c88cb6cc34c87343967c24a63641cfceda60337c08b",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/compact_page.go": {
+      "sha256": "217808763b0a7163202a9add462bc51b7b8cc03b8bd9eeee149dd63f965fbe26",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/container_merge.go": {
+      "sha256": "1245873efe31456aae2140aff473b02a3f137a0a42a77faea801d3e22135d849",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/container_personal.go": {
+      "sha256": "8f6a3fe3dbbcfec20755c19a62025ca4e500d1de7f9968691e286c0f7887cc9a",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/container_undo.go": {
+      "sha256": "8eac8f0d04c54fab0d0687fb1d275889cef07fbb7850084cde06daf6d25f76ea",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/content.go": {
+      "sha256": "4619d87ef3a9b576a3606d9ce7ea6d66c42b7a3cc161053b810100cb1dadd0e7",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/content_entities.go": {
+      "sha256": "50348b17d04ecfe299451044a29bd794b2e45ac7d99130e8bff96416bd78a8c4",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/content_types.go": {
+      "sha256": "3c48d0f3a3e0f32e1c6c5153cb61a6e2690569e5c1487e4f0a645b2824291948",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/credits.go": {
+      "sha256": "b5a7c4b8383a20bcb836246a0191f36d4ff52c8be5a789d1d43a4a1e461d7950",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/dashboard_history.go": {
+      "sha256": "33d76fe75604ede1abc98b7873bccec1db85a0526b7ff67a8902057a1aee2c80",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/dashboard_people_total.go": {
+      "sha256": "153c07378d6e4d34d985ab025328d2500f34fefe05ca1aba267826a974350c72",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/detail.go": {
+      "sha256": "f804ff98bd61b38f69f52c32d358cc26943a50be608c1fa8c77584f5bde07cbf",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/detail_files.go": {
+      "sha256": "77c298831eabc766f8544edb3fa47aea363f669cedc8c9b04e672d801d13fdc9",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/disc_read.go": {
+      "sha256": "14917355644c50c47ae032ec40adf98102fb671894af5db94430af6fb6fb40f0",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/discovery.go": {
+      "sha256": "bdd66e305ef29b56aa037ddeb526378aa6776f99dd30f83402eecef0306f615d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/download_identity.go": {
+      "sha256": "8455eb6262d15417818103f9aaf3d3cca39b339abea4bf8ac8bb34503c5be723",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/empty_parent_mutations.go": {
+      "sha256": "f22d31f40f289733043d44612ea2967e64218efc36ea467f95657e557c60dc5d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/episode_repository.go": {
+      "sha256": "53a0c76924390fb5458263038a3bbe4adda218fd085c09b167c2ef1ab16d1f0b",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/extras.go": {
+      "sha256": "23dd07949cd3f6c460d4663c2d69e4394d6b2e97304ffead8f324eed3be1ff86",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/facet_authority.go": {
+      "sha256": "4a90f847254a5f6aa0c300a4db6032332e485a5b1cec54d1d42a9bf436ced259",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/facet_base.go": {
+      "sha256": "94bccfb663462365ae25111bc2d5257ec7bfe29e4eda317995f56d834b2936a5",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/facet_base_source_counts.go": {
+      "sha256": "f3c68f9d75b8d162bca9c89de4d2b0a52f2b2f51f50f35956acbd921d8b0992e",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/facet_base_source_linked.go": {
+      "sha256": "e7649342a4d73773c655aa486b0406f9c6e7426dd098c41da4b6ec902945f5a6",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/facet_base_source_restricted.go": {
+      "sha256": "d5d22e55585fe35af62f8e02f67c6c4b043b0f313b0c48085a7eba05375f8416",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/facet_base_source_show.go": {
+      "sha256": "eb3644e4673185cea4765949aec7d07d2f8f9b0689078688e610ca0e6110f60f",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/facet_runtime.go": {
+      "sha256": "f5f57154f7146098af9c79febcb4bd29b19011e1b80a331523edfc187352193d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/facet_windows_prefix.go": {
+      "sha256": "8826180a944e8c0f4cca3fb14cd6328d0e14066114c14f9ba0267d96d94799b7",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/facet_windows_scan.go": {
+      "sha256": "2c0938f20bd619cc5ec6bc14a1b1272b8c38059eb65a06999406dfbf2930f917",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/file_info_admission.go": {
+      "sha256": "570eba8d8f4add3d21c3cd0d2121595b1df3ba209a45118c88437f585242c243",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/file_info_decoration.go": {
+      "sha256": "fc0a56854f01c1877a4954a5e7acf089a710f46e31e92dee78ce76aa716fb163",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/file_info_disc_source.go": {
+      "sha256": "6055a6251acfe71af78ec3caa13baf64591d552e6adfc38b50a82c511b63adfe",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/file_info_group_source.go": {
+      "sha256": "88054deae2ce13855ec4e158f13c1bd2dfa2da43827df28b6a2c186eca0563ec",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/file_info_head_track_source.go": {
+      "sha256": "6d379f87a15cbd2c04e4572002fe3e2b56c4f5bba79d132313cf64e10cc75f9d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/file_info_hydration.go": {
+      "sha256": "f93377f030c7fd863948794c05742b69a244fef8c0c01434ccd3f33383b4ed51",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/file_info_member_source.go": {
+      "sha256": "bd557f1f84db1dff48bf3f874826b9f524eaffda491102ab7b68b4bbad1a6b4c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/file_info_sql_source.go": {
+      "sha256": "a6748f452839dbd409a4ea72aa2283001c36a0e9c39da8361c44a0955905532e",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/file_info_track_source.go": {
+      "sha256": "182bd3e9cefa263a27c98e8c556a9ca8dacb98ad0acbf8de5b4c2254e0f4b87c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/home.go": {
+      "sha256": "7932c2499c22757347540b22ea8a9a13d513beb847bfbd5c52735ca79d386682",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/home_actions.go": {
+      "sha256": "6418edf208e27dfd7d8160a43ac45836468e2c9db7bf700f52c36df54a7cf494",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/home_album_continuation.go": {
+      "sha256": "6fb59b4f4a5ca1f9c2f343682ce1dc948631c432bd1ed4802cd84492552783c6",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/home_composition.go": {
+      "sha256": "ed8c65d210b9f4bb5bcdf172961d338ba2eb4d2089cbdb7c6d2928d43b649536",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/home_continue_source.go": {
+      "sha256": "eaef1dd62c589e3cab6859830d22d37f95f93970e3f17b61e75ff00a973fde05",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/home_destination_picker.go": {
+      "sha256": "a06764051cb7771d4a35df88994f95b36543e43d5c558346ba15df2a597e0bef",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/home_destination_receipt.go": {
+      "sha256": "44afeecd9aeb7aa6ba5a911010fc48d7f95a84b585e6ba2150412699d456559a",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/home_explanation_candidates.go": {
+      "sha256": "af5d930265b9dc1fce4c903e4ec021a6d56fdfc4ce4ec2eef70b33b18b9e51b1",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/home_new_server_source.go": {
+      "sha256": "be314604d08877a92abc89db0804fb34da7afb721ba62ba0827f6952f23278d7",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/home_reading_projection.go": {
+      "sha256": "824e4ea6eb203e03647fbf7baf9c781363dcad9165d0932bec414156a941ff1d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/home_recent_source.go": {
+      "sha256": "4eb01813a26ee514dd5479312a1d8df2b1e6a01afbca4c983bb465d315721f3d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/home_recent_walk.go": {
+      "sha256": "b707ab6ed49a037f844c56ad4d2267dd666de6991c8da69c2f650b9fedea3cf3",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/home_rows.go": {
+      "sha256": "41b9785b29d9990411760b7c965284bf39c9ac411e7c16166db700781becee8f",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/home_views.go": {
+      "sha256": "227b7295750893dbe421f9166be9923f87f75a64256a985ba7b0685d87de9af9",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/info_disc_media_source.go": {
+      "sha256": "499d36b6c3e4bcdb1e818ffc72ef887891416226188fb72a122dc00b09f86959",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/info_inventory_source.go": {
+      "sha256": "6a59a4cb3ff5447aad2b205e606749d0f853bfb821e0073a6d412a6b900b1a35",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/integration_reads.go": {
+      "sha256": "8cd659c318170e66173d65dad77ab861b05962300159ade997bd94ecc5bb85d0",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/inventory_admin.go": {
+      "sha256": "651210bfd14c28ef54406594644bdfbe2421a48f09fa983e27d2419e146245ff",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/item_recommendations.go": {
+      "sha256": "1a374167e87dd2567a4cc8821e8c8244c0448cef9c65e95479e153d2280114e8",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/library_removal.go": {
+      "sha256": "e3d9e9d73cfff3415dfecba7c057658d2afe64319fe3a2d48231230638253acd",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/library_removal_reading_cleanup.go": {
+      "sha256": "4af680bd61d997e7f74c28950111a8af01f1e35581b41bf067c129b2cc8db0de",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/library_removal_reading_scope.go": {
+      "sha256": "6169bc3191f32fbd6c5813df842c17d67d12b68db4400e87f3a02ce5d9ff9daa",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/library_sources.go": {
+      "sha256": "4a1f7b16470d601c7cb88f42d4856a41d27b58d98f69c1fe728302d7e1101a5c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/library_summary.go": {
+      "sha256": "c5f186be3397a5dd4c1dd9e425e9fa5690097b0fa6119560bdb2f85cd8fb3398",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/library_summary_batch.go": {
+      "sha256": "3b25ce336033cd709871adcf52a77338fb953051baa0d3d6cdccb8f90a334f66",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/library_summary_batch_keys.go": {
+      "sha256": "5f3a9300e865978c4e1368a063094e6a096bf5bc43f1236167535731303ed6c2",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/listening_content.go": {
+      "sha256": "e22d6754029baa0c5d7bcf950f266b0bf109950d24c4eb42babbcb95d211dd26",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/listening_discover.go": {
+      "sha256": "191f44c6016c4f505eee36204cba2748798316fb8edce688f121a4ecd76b09dc",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/listening_entity.go": {
+      "sha256": "75e34860bc9b7af37e2311a2d3302e5d292e28e395bb6959ad02316c49f75a89",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/listening_library_sections.go": {
+      "sha256": "0e38c975eab0cee39de9dafd690e86e9f287a407b502f7e295e486b1904b18cf",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/listening_page.go": {
+      "sha256": "092da2d48e6c97a6778518c97f8dfc1767483625d1149b719dc4e92bdbf51aa5",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/listening_recent.go": {
+      "sha256": "f3ae346646246c5d358c136b8f69405f297fdb72b483013dd9514980e3440e8b",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/listening_recommendations.go": {
+      "sha256": "ac0c4af5f569bfa3def393dc59e34e92df6cd27d18c648916f7d6e73a810308a",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/listening_selection.go": {
+      "sha256": "31a32c3f4847a851ec621b86ea07a3d62cee1662ebd6f5ba494d5a619f0a3674",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/listening_similar.go": {
+      "sha256": "c78e9767f7f37ad37a8c0ae97d76f669b8d221902eb8b33fbcc234dd113e63a8",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/listening_timeline.go": {
+      "sha256": "13677ea6feaba8bd4dc7a86314d19907bb604e09313ba9e617698c542e2a309c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/missing.go": {
+      "sha256": "ab4c363ffb19e75dc9c7e5cb15f063512fd7e9c65e17a69690ab741066a08053",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/music_badges.go": {
+      "sha256": "569e756cfa3b08b4aafe812291ca8c686355d089b336e5299ca2a36eeb111610",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/music_genre_covers.go": {
+      "sha256": "0d82664a5ae398a9ca0050806201d50d31fc2e13594b7af26cbca1c8b739f649",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/music_journey.go": {
+      "sha256": "ea1301f9cc4d74e47939a94f1e66a59cf26fd729b6627070cdc8e1020ca04fd5",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/music_library_playlists.go": {
+      "sha256": "719c25f6db7e448839638ebbc30f0daee1af90295c208c4fb0b7cd0cf1760ebd",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/music_listening_clusters.go": {
+      "sha256": "7464a69b33e95d55ba5a972d218dc116739066f9078d7b7d19792a239ba8eecf",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/music_mixes.go": {
+      "sha256": "feb0c45706159fc0cd97082014927e559eb65812758aca04b96a3d2ec2a9de14",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/music_radio.go": {
+      "sha256": "1e07ecc41477f3eab4573f3d8f19fe354a37fdf937931393f79f7bc52df735ff",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/music_smooth_order.go": {
+      "sha256": "ffc1adb6265248cbde6ec07bd185234697591e2fbba289cfcff618eb2c92073c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/music_sonic_similar.go": {
+      "sha256": "749c546be8ae0708b0137d830fa330c91b60a8c634fdc0dd74cceb169009009a",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/mutation_members.go": {
+      "sha256": "14fb939dbcee32b6096b43fcca4232f6f22cb5664e10f40e8cd8dfe25df52197",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/people.go": {
+      "sha256": "d34937ba4723e0414eba3bdb1f18a1583eef09c6e7d9ca5166b62ead1eeac676",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/personal.go": {
+      "sha256": "192b5fcd6d4bd0caea7c942a13dd6beb93136cf04732d339818654d66c802af8",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/personal_activity.go": {
+      "sha256": "a8e507e0e22b3c0229d9817230c7c645fb1139731d9ee1b0d986ca6c20e34276",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/personal_batch_read.go": {
+      "sha256": "41eabf28e814c767d6869096980199c082c18ac1f825ff05185bf765b1c0ecaa",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/personal_mutations.go": {
+      "sha256": "8bccd32c739e7afc3488232c9231bede906a55134b92eb3609a1a756bf0f6d89",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/play_history.go": {
+      "sha256": "aa79ffa0d958bfe390ff459c5fe806b781f82075b38bb8dd4c48e68d3c76bbaf",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/playlist_content.go": {
+      "sha256": "072df5e2c70fb5efd3e31532f0045a0489f63c52a22f9a0d67e9f99e684c1991",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/purge.go": {
+      "sha256": "2dd6d0c258143e0e922c9d568a3dbc2bc4bf32c075029e33a525a8e52d907bc2",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/queue_local_ordered.go": {
+      "sha256": "896c0f397d9e7aeef24cdeb0fa714887c1e66c4c6b56d6f90d15f243dad8c08b",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/queue_selection.go": {
+      "sha256": "8d59f9cb867da4a92f39f23b310bfe0e69c35598ada3764f5353971254268ac3",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/queue_selection_revision.go": {
+      "sha256": "fab5d3d3fb7767129a119f48b2dc7b1e5843aefefc5eb06f4e1cebec0291c98b",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/reading_browse.go": {
+      "sha256": "f48916bb9610c0ea91a7ca09ccaa4f5c843f35b7eec672ad071a522b27a347dd",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/reading_closure.go": {
+      "sha256": "56508a5d41fa8dc6165a70eb485ba295726e6d56fe602436fc469c701ee73caf",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/reading_count_continuation.go": {
+      "sha256": "90d243e160041112835f0f0b70b05d9c6df5f1f0f5b0b4d71bdb20d06092ade3",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/reading_count_delivery.go": {
+      "sha256": "8b2d32b841f9aadecfb3d5eb3b44020eb89d5bdf298688f1426112da32604924",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/reading_count_page.go": {
+      "sha256": "4da70f6a1ae816fafbfb20bd7cad68426e1008753f6b9fa40b4344193f0ceee7",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/reading_count_preparation.go": {
+      "sha256": "afed521c890aa282ebd09e28928c1d886cc1ba12df78b24efcccf19e42fdfcee",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/reading_count_reducer.go": {
+      "sha256": "22e53b478290740735f0a6761be7e7c18f2fe792814efef7ffb5297d25eb1c96",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/reading_facet_input.go": {
+      "sha256": "4d5939593f8531d0507586391e81945b3f8df44ef876e18bdc62fe94b6cae614",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/reading_facet_preparation.go": {
+      "sha256": "6b831e912a92813b42ae95157fa10ed4d6d657fba254d4106f2a7898d492a152",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/reading_facet_reduce.go": {
+      "sha256": "5990a2161bf59831f0086fe5c0b104d5bd9e7956ac2072eceed2250b8e2099e5",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/reading_mark_all.go": {
+      "sha256": "5c0b5004bc54f20eb63efb400e14e8eaf8911d50decacf51f465270a9ee36b22",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/reading_saved_group_projection.go": {
+      "sha256": "14cbd699311637d40100acc943335bea352b7156c9917681f81a6aad8704aafc",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/reads.go": {
+      "sha256": "bdebe7425fb2554792a401630d4c57f360c8c8a40f71ca601490e5e597951835",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/rec_browse.go": {
+      "sha256": "72d9988a35f156a21d775e9c35349d58a9eae140d5c373c442891c2f534fb8ee",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/rec_engine.go": {
+      "sha256": "629c3f9d2ea353d750bc3193ac1c4ec4dfd71ea7ec5553ead4d18d15d576ffdc",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/rec_generators.go": {
+      "sha256": "c6d535eb4116bfecebeaa526cc05730b239cbb72792b62550b6f4f15166af682",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/rec_why.go": {
+      "sha256": "e6f1c3d1a948c3ccbb43bb94478574fd604144b2d10415118d10d68e779a5255",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/recommendation_engine.go": {
+      "sha256": "f09e8a6114014afbcf70f8b0d2555ffcf1337bac4f953810fc22c5f86b818d82",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/recommendation_pool.go": {
+      "sha256": "f996dabc047d9a52c1e1423274d68501d67645e7477237c24e372af40c73d05a",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/relation_rows.go": {
+      "sha256": "3808aecfdeda2a291364bd06a7bf584f97d6587034845af3f8ef091f0566f589",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/resource_pins.go": {
+      "sha256": "68630fc8a4c23cd78ec46b725b81d5480ac49ca2f5e968fe3b1d9dc1e52b4f58",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/resource_reading.go": {
+      "sha256": "9b75395210b7979f49694f3edac88f6e685df19970cb9573aa4ffa329424b672",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/resources.go": {
+      "sha256": "24829e9e323fccfc277c3cb7454ae089e94773cfd999801b554cc9d9eec36090",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/restrictions.go": {
+      "sha256": "9fa63b566e0d58f8f980c685c7de9ce8009b61091c91ccc1e35ac7914530b25a",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/retained_state.go": {
+      "sha256": "5c329087a034402101d80899d938fd0313d7900e4b6905a586b280bddbf6b693",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/row_membership.go": {
+      "sha256": "1decd1bbed64d3a1a93080dfce31308da94b024fbf155e6a5536ee6db733dda1",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/saved.go": {
+      "sha256": "0b901f2e7596279035b58ace9efb8c9dd85e376223814df5ea6bcd36b590657a",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/saved_mixed.go": {
+      "sha256": "80a9e1cf0277ccfbd4ea9f619b27e56d04d8fe15c4b01ff5f403159d4cce6330",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/saved_reading.go": {
+      "sha256": "edafc6e0dc4cab89cbd31d593e4723f198f6ea2b20717e0c8c3da1a7f77cbe6f",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/scalebench/bulk_reference.go": {
+      "sha256": "765bda51f92ceb2afbbe08cd18a0b2fc33a316c1762eb7aecae8f493321606c7",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/scalebench/copy_facts.go": {
+      "sha256": "a5a7e8c76a778c666f881178502a027df0b706f76095b17d0e8e39359179f402",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/scalebench/exercise.go": {
+      "sha256": "b0dd89bc768a38742565f1fa23217cb74b42167c02e5b7249482715899265ef6",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/scalebench/focused.go": {
+      "sha256": "13b366dc1eb971a5f1e4960f2783cb7f8b2cfde8f3ea73382c9b34201856557e",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/scalebench/grouped_matrix.go": {
+      "sha256": "3e1c61ff1b9bcfb4e37088398b7c6e9271836cc7024ef6e7860fcd62e9edca0e",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/scalebench/ingest.go": {
+      "sha256": "af53a73f26037c6cdf0ae2176e3ee989d65979464aee171909eba7a35528ac78",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/scalebench/main.go": {
+      "sha256": "b9653008c757128002bc6a1a890eed2fc2139aacde10478553338d844b52f2af",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/scalebench/playlist.go": {
+      "sha256": "36663e22a8f8e22e4443b9832f0de05cff6e79807884616c8340e75de5bc79a7",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/scalebench/query_memory.go": {
+      "sha256": "5082832a3e6c7c2838c0bfa2febebd62af93674afc1040da457217e6509d62fc",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/scalebench/trickle.go": {
+      "sha256": "329d84dbef44d944947f2858b5a174fc0d61c211081bb611122d124d6dc5b52d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/search.go": {
+      "sha256": "bd29ed0f23938c97c06c2ca131c2ca3ebc44a59104d4eadc3f07a0041461978b",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/search_genre_candidates.go": {
+      "sha256": "b3b266e4e1205065d8d5fae916bce0c13311d01a7e3a7731bf60f710fea6f761",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/search_genre_hydrate.go": {
+      "sha256": "1b975eb4833e71f9ccf2cb617e653baa129f80f657aef23661149385c183a17c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/search_genre_merge.go": {
+      "sha256": "52886e42ad866fd90c4ea9b375c69756dd0003311721ab96da6d6ee850b392b6",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/search_genre_producer.go": {
+      "sha256": "572701664bac11f70039129d6db9f90e7a676063228d9af4a7f4ec1312385a96",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/search_history.go": {
+      "sha256": "97b43eb770ec258613de06197da356c673e86c5cd6fc6ec6a5f6c4f734f4b466",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/search_prefix.go": {
+      "sha256": "b02cf6a36e8a111b102fc1522c94bc865d74ac8fc4df2c82a71174721e933260",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/search_title_walk.go": {
+      "sha256": "f5d9fc2a6624f8a602094e20275944ff0fc506b7748eb4d960db911fb4ce5e0c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/selection_action_walk.go": {
+      "sha256": "521ca905d1931494269ddc63347548eb60d458e06c9c1c9b3b1c1dbd51fe1a41",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/selection_small_for_you.go": {
+      "sha256": "2844ca77f7fd70b0e3683257aaa339e75d42e295c14d4cd75fbaa92af6354e81",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/selection_small_order.go": {
+      "sha256": "78f74e7b21bf8915948542266c9504943824d11b630ba2692c31a1d3fe5e79a4",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/separate_folder_admission.go": {
+      "sha256": "ea746ff01abe1965546c155b3ecf571acdb65948d0bd6ac9c913aadba51d4c69",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/separate_folder_command.go": {
+      "sha256": "e9c6319328bb8ebb431a9ca23627d3fbf9163338f55a140f33460725204f0a26",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/separate_folder_retirement.go": {
+      "sha256": "3e84824f67c5c177802856f4481ce4840e67842fd0cb52708bd06f394c97d95a",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/separate_folder_step.go": {
+      "sha256": "92edf08de20cddfc19f8b6e5ab57f46faca23a7bd2c670474e5b162f60c7cdb6",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/show_recommendations.go": {
+      "sha256": "ca41c6d9902f027c3444fa05e8ab83c16d70204882b2627025761679075b374d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/show_settings.go": {
+      "sha256": "e548a599a834ed04f7ada72a157af48cb6f990c4e4607b7947ab3af547853ac9",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/show_workspace.go": {
+      "sha256": "71d742b3d96f4327854038b0ca5baf44ce322c2c38c6696e5cbfef5afa575bec",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/show_workspace_episodes.go": {
+      "sha256": "82e7dca389859e23ee4cf2f9a2007383f0af01b52957f0052df23b1b122c610b",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/show_workspace_next.go": {
+      "sha256": "fd80cf4bb3931252ba37b37ceceb971acc89eab662f15b7281b5fa7ec2635d32",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/sidecar_sources.go": {
+      "sha256": "bffedba0e36851831ab0af84de74d6f2578cd53f8116995818bb66fd75675d1c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/title_files_batch.go": {
+      "sha256": "aeb6ed931800d010d9137729adf9452f2204485005f3e912ac7532b444ad56f0",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/title_merge.go": {
+      "sha256": "7a07ef0148f82d1ebc7282202f123fcf28cfa79fe508021190d5aea75b50f551",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/title_query.go": {
+      "sha256": "a252665879a346c268af2fbaba2b42b2a83591b94eda67aea2bafb51d3583b3d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/title_tombstones.go": {
+      "sha256": "cb4117a907c686d3d414e908ca63f454308b42d98431b6c5c605ea199831386c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/viewer.go": {
+      "sha256": "3de1fc50429498d3d87f82b4139de5a9e337d2a020169687cc3a04eb4fef227e",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/visibility_classes.go": {
+      "sha256": "34718af0477b08d42819f193a7d7cad53be6525f81a810f1b4b0fa95e11f3232",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/visibility_incremental.go": {
+      "sha256": "c24a4e4305949c68bea54f899a17891f0a977f975a071e94c440f2bfdf10687a",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalogtest/catalogtest.go": {
+      "sha256": "4f42e47ac4500d8e2f9d32bba9c189bb961c1c2c3465267a677e056af5c55967",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalogtest/derived_parity.go": {
+      "sha256": "6b2429ae26ff42ea8b2c4bb14e0b66c3f82aba3a93b61e646b4ba5d771739900",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalogtest/mb_accounting.go": {
+      "sha256": "2639dfc238caabfdd2c11209d0f6dcc8980229d48a938bce2b1ba46516ef81c4",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalogtest/taste.go": {
+      "sha256": "e8fa8ae3ed086ec13ec8b99a43905b0beba28794549e50665606819c0f4908bb",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/availability_holder.go": {
+      "sha256": "db24cf557873525c1bc11316da5b9923bd48422fa365abc9d3cfbd62baaf92b8",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/browse_categories.go": {
+      "sha256": "2f909783ebca92dd52fa40a2f2f3c1d39c4a1cbe8e337f32aafdce8edabdbb20",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/browse_counter_repair.go": {
+      "sha256": "07f680d0db8b9fd0fdc1037470c9388085115413c0daea9ff1ec44516ba4b1eb",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/browse_members_work.go": {
+      "sha256": "4ade56fa6fa9b9d4242b21bf19d81eac80dc40b39cd9b39a24ed101210c65e2d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/content_eligible.go": {
+      "sha256": "020ff2007eb3a6cb3fea64af6b2b6e941f75ecb138bb9b6060007f2d77e03678",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/credit_source_custody.go": {
+      "sha256": "316d6e94fbd1306287e8261649597bd1f8b5bb04511e126b0945c00ff49c31af",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/derive.go": {
+      "sha256": "1d0fc8835334c9a3c72b1be27b8d8175397e27337f06b681b60529e1bf1c8a95",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/derive_availability.go": {
+      "sha256": "d07e94da5a99f472e72301704b1f4ec73213b8a83944a7bffe29e7be067f39cb",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/derive_browse.go": {
+      "sha256": "8f10d1bfd00d944c0f0579cd971c6ef9de247b831137eafeafb906ffec7ee139",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/derive_browse_blocks.go": {
+      "sha256": "7834b0626ece1d588b3db0d3ebdc56a13f922594bf02ffa38537f99556f586c6",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/derive_rec_facets.go": {
+      "sha256": "bb076aa9009e3f80462d92c8dd03531b611c51982b53cb1f471fbe744cc80df6",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/derive_search.go": {
+      "sha256": "7c41d6406116dfcb3949d1935ae3ac830d25e9240be6c985332967a6320f4fc6",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/entity_mutations.go": {
+      "sha256": "3ae64312bd934a76ee4e5140d13bee5fc4f24eaed77eb58f870bf4662b295c04",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/entity_pin_accounting.go": {
+      "sha256": "76a3071c4dca34fdbc7a9895fa7bcb942018a51023b7b45d915917337ccc8a60",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/facet_holder_stage.go": {
+      "sha256": "1670fb94f2fd842f9858498aa1b15a15401aa1aedc4563bf4f71b159b1c2966c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/info_disc_subtitles.go": {
+      "sha256": "9f5b685e1ab8f6090328bb64da2f1b183550d94791df4f0aea62bafb2c3573a2",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/info_input.go": {
+      "sha256": "614eae9cabf9489c6ceaf106b92fc50096ccc6de15da32c4d482bac48d9c8476",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/info_materialize.go": {
+      "sha256": "7c7599d5714445ca565ada379dd6fbe6a984d8b12b1f1555ca3216f4fc1b70c8",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/info_publication.go": {
+      "sha256": "fbe1fecd74f7617ffbd0079c92b56659f1b0fb482e0a4a2cb7117425c3048e8c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/info_read.go": {
+      "sha256": "298d969de557eb2bd7c58b2a09a5d3d17d07f292bdac779cc7b4cb49d3296d32",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/info_recovery.go": {
+      "sha256": "8356393eadddcf91002790beeb0d7e4e06e6af21b2b924966b8da42c1c7c137d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/info_shape.go": {
+      "sha256": "b30adc15078cca85c986acc5202461589d06ee22644a2bb62a3a7a076d8582fa",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/info_source.go": {
+      "sha256": "ae8a683b582d99c29133b773db1e87be49a18e2fd5b4d87d88bed22dfce223e6",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/info_subtitles.go": {
+      "sha256": "dfb52e8ae5fd452375dfcb16447420a3cca9763209b99eb9510fc399a5b80ed5",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/library_cleanup.go": {
+      "sha256": "29aab1b968010be8e5fbed433302052e56b71dea4df6ff2b46614d12004fe495",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/listening_context_evidence.go": {
+      "sha256": "2df2ac419baafd2c5b56db568456d6d97579a43c7a93860953f02cc1798bc043",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/reading_covers.go": {
+      "sha256": "bd2d006818da7f29cc540ff6d2ef338364adc9590de305e7d140e3388bb8d230",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/reading_owner_values.go": {
+      "sha256": "2d3e39ccbcce1f6cb73b133f4c5a0203024fdf53ac580daccc68ef646a60e879",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/reading_path.go": {
+      "sha256": "1a581adb30ac0afec93459278a0ace9d58dcae980ab32d1c9bed9e53487ef95d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/reading_source_values.go": {
+      "sha256": "fd42bab649aacea8c63f8ab32b21c6803916eeb1021c580b3ad697d2abbda1fb",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/rec_profile.go": {
+      "sha256": "f88637ccb58cac1551acc68212e4ecec45ea8ea537180194ac72b14b68c3c5a2",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/recent_order_settled.go": {
+      "sha256": "22ecce121b9bdf3a73bebad9b14273bf833e8df9dff70d2fa29e72c36499f9f0",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/retention.go": {
+      "sha256": "68f12bf6a956a1f9fdc88ada799649a1122430a6ad10a96968f28a3f21652693",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/search_cleanup.go": {
+      "sha256": "b0ab52c235c7d4d9f71e3a760dd3ce7cd348c5f8d7c09c8a0bbbbdf2757cf453",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/source_fanouts.go": {
+      "sha256": "ee43dcd7dca1a610324534bef5f59a1f353cbdd5c21fb414a2bbb6b65884a063",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/source_missing.go": {
+      "sha256": "3124844ea8d9ecc8a5d7747ed3a73f36f9568e58faf2e1bae6557816ecafde90",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/visibility_source_fanout.go": {
+      "sha256": "ffad0045d835d3cb30004edc0b345a82e2f87a05727a91a852ce04f60d6fdff9",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/write.go": {
+      "sha256": "470173c20ff311da412d041ee4e57be2e8625dcedd1cf44a01a143d0019c7f9e",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/contentaccess/item.go": {
+      "sha256": "228c5e64671d0add14548567587a39b89cd4b80e87d6733f1ab62548d3334c8a",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/dbwork/authority_registry.go": {
+      "sha256": "1869d2f0fa71cea930c96e34f5b9005b8ab1ebaaa6ee940952f329a0b0ac1b3e",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/dbwork/candidate.go": {
+      "sha256": "a33ba14f1e8c401487a727efce999dcf4b2738d3d23c1b427fffa461c4051e79",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/dbwork/change_wakes.go": {
+      "sha256": "0d21628e8d03d72f06a72c0d1d794edc7c880d635122825dde2b5c3fc43ea4d8",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/dbwork/foreignkeys.go": {
+      "sha256": "8ef4f26d07de5d957f100865aef7a7cc35aa9e1b18ca16ef4e51a8be1a7df4d1",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/dbwork/instrument.go": {
+      "sha256": "3c69eb143860fb5c8c2a07d36ad3ddf1ea66c17157600b39e1f3f91e4516599a",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/dbwork/open.go": {
+      "sha256": "7d4ac46428d3db26745cc883d8c07f807ceab311562fa3846779230fc6cbe74a",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/dbwork/read.go": {
+      "sha256": "01c958107773bf208880b0a5435cd974532a21790de8884ddf2d9da082d4ba63",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/dbwork/statement_cache.go": {
+      "sha256": "f23428374d778cb402bc3724fe0c255d8642d2519703dea79ace62a1001ecdf8",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/dbwork/waketest/waketest.go": {
+      "sha256": "ff2961ce866d6c052c8e3594b73064e84befa2e799e8783ae34f0c85ca0bff8e",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/dbwork/wal.go": {
+      "sha256": "9501a296f07907a5c867d5b89a1485bea6648ed1b0a46af60b55d0fd0eb316b9",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/dbwork/write.go": {
+      "sha256": "9c59a673cc0be22027e4540c946e98c41d54c0a778b217d901333456f09cc596",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/dbwork/writer_discipline.go": {
+      "sha256": "1cbc4749d735462dfbadbfe942d048d3989cc4b629c69da9954f48badb27eca6",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/diagnostics/report.go": {
+      "sha256": "9837c49cdc9f8e884a70f4ebcb95b69624fea7427d5f66a71db04ff05692c8ba",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/dlna/content.go": {
+      "sha256": "45e94c539b3d21b00fe1be10f845af14aae770677a39a174d6c67857be946a11",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/downloads/bundle.go": {
+      "sha256": "e92b3fb7af4c2618bfabebc84f04f61bd4477a0fb1e9c7707578e4cd9a30881b",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/downloads/options.go": {
+      "sha256": "d90f2d5c4f87ae42c2ed2cc064d78f6ba4e5b18c3497d7f4839b9c7c655a0371",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/downloads/profile_cache_release.go": {
+      "sha256": "ef8fa4be118c40f83af878e2c4303e89d7dad42bad9c76d765fe4ce9d2e05596",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/downloads/progress.go": {
+      "sha256": "cc99c6d530ebdc04ced4f80b5c2435482d67adfb9cdfee950ea448c57d2065fb",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/downloads/receipts.go": {
+      "sha256": "a047659bd8c9bb859920fe7a19dda3324e16da7a87b06927af1fc2655120cba1",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/downloads/requests.go": {
+      "sha256": "5186bae94ace8f16be188b104caf8c3f1295b8ade121d36fa59e564e2385a0d6",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/downloads/selection_actions.go": {
+      "sha256": "04e545685f7aca93190c618422cb450f85cd65630ffb1b0388db638f8ed9732c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/downloads/service.go": {
+      "sha256": "d8ae1c3e57b1e2566065b261748297ea1aae1da6945b51874c89216fa27ecc83",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/downloads/targets.go": {
+      "sha256": "f03bd71920298e45831b125df91948bd08b83c4abf0ab1f65fe3ee9a32a75ca9",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/downloads/worker.go": {
+      "sha256": "fe39e406fd3d33d6d2e8f33e4b0540d5959b41379ef8ba4ef097e084ea5cb298",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/enrichment/enrichment.go": {
+      "sha256": "da67690e9a10546b2f1faa19d2d951c001865b7c39bc2a3bd98e74f068884c20",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/entityid/entityid.go": {
+      "sha256": "5a9ec3385c3e8177a828e101560ce04c0fad98395f1b8a02134ff63d1cd5dd28",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/hosted/identity_assertion.go": {
+      "sha256": "0c590787c56c1e51332dbe380934985912f5acdb7f241c72a6db0d7d9fa4c2ea",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/hosted/membership_endings.go": {
+      "sha256": "5da26969240e17d9bcf014700ec71f94dfb9854ceaa8716fc81ffc8cf5c9ca75",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/hosted/membership_push.go": {
+      "sha256": "dd5376f3c798c206fc18ca7c937214fd3ed96f8fc63cc708ecfe8038c6504bea",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/hosted/service.go": {
+      "sha256": "b7df30af827882e3744ad38b0dbda92b4451b57ba6cae00fa238777d8a247a52",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/hosted/transaction_policy.go": {
+      "sha256": "e98b10f024119a0cb310039529ea5dbb8c620b2db384d62ef433173da1e5fec8",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/activity.go": {
+      "sha256": "5e2138770a05b5ea3bd2273633ba9e4519dc4a936dd61c09c5baaf7b29164bb0",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/admin.go": {
+      "sha256": "e02eefaa52264e7ed24ebbf4f19086469aefef719c45ec47ca26662ea431c6bb",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/admin_access.go": {
+      "sha256": "85264fd63967737bc61173d185279347a91c4ce80278efceb13b39519e1ba1c5",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/admin_diagnostics.go": {
+      "sha256": "a404e23f35dc7fc0c81b70bc24cc0158e8c0670abcd7a11c8402e02d4f2733ec",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/admin_log_events.go": {
+      "sha256": "3c73a1a5e2ad8de1c75b1d56fa18d4e477e35d402d85c7a56fedfb8764f2b90c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/admin_pprof.go": {
+      "sha256": "7acff06b020410561b836afa5cf325a9b79a9d7048e175f72888ea83d23f95e6",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/administration.go": {
+      "sha256": "62c695dd3b3ff8c507940ea25a0da8628997a29c099f171d548495ffd53d9a2b",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/api_credentials_routes.go": {
+      "sha256": "1cd586dd106fd51460c001baee0ce98131ee9d2b48f379b9db0ce2d41d3fe8bd",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/artwork_response.go": {
+      "sha256": "8a3c15e39d8a84dd70b6786a0163ab0faa2135356417f54860632b9982e7e70d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/audio.go": {
+      "sha256": "69c60a66977065fd474364db8ccb44b912ed21b833c5b0202910a136c78f93d4",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/audio_media.go": {
+      "sha256": "4c5268ed6a9f309bbf1d4030f709a9a2af7744c3f9aeaa3ba60c1385e474938f",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/browse_across_routes.go": {
+      "sha256": "f26def660d7faf2247a2908fda55f6b799349c6b6227a5e8091508180dba09e6",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/browse_routes.go": {
+      "sha256": "b60c58fa4ecc042eda3b6b553e4379ebd6fc8ae7c23aab58cd752f47ba13ebeb",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/bulk_jobs.go": {
+      "sha256": "a169a2c42091ed588f7fb0490044b27d3027bc186e866e6175442cccff7a3a99",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/bulk_metadata_preview.go": {
+      "sha256": "84977aa5b6538e5abfc1e7170eae3a3ba375308fb90defdadcd45761c13e6219",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/bulk_metadata_preview_small.go": {
+      "sha256": "b3ba49634c57bf248e62e58bd21b2abfc844fac90de6a276726ed91a11bad349",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/client_reports.go": {
+      "sha256": "3d5dc975fe8b09d656418462976bff192221c23d61a455c69ee605987a28c53f",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/compatibility_auth.go": {
+      "sha256": "2e87572f42a5c07d80a263ba4cf69a70236f55e86209f41965d1f3c5786b1014",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/compatibility_routes.go": {
+      "sha256": "003d921d572914e8504aad759f14da45d2272d881c4a753bf26632a1ec764fa2",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/console.go": {
+      "sha256": "11a8a8746cc8997b37744fecd3614cff7b97fa479647c5704d859841a9acb8c1",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/dashboard_history.go": {
+      "sha256": "482b3006146243995364092d4341c51da3348583214ea591c5e9b052c9efcb81",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/dashboard_report.go": {
+      "sha256": "7f8bd3d85cecfa5e876948040f9c061b2edd704794656d291ec45ae34c1dff24",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/detail.go": {
+      "sha256": "9655b4fff3113059ac99dd24cb44999c785b334a5505d4f1692bef638a0b9da4",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/device_contract.go": {
+      "sha256": "ee7ae831422a2c6e2bbd9e0c119e02c2b3dcc96862fe57de7726f4f069ba2ea5",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/direct_identity.go": {
+      "sha256": "f593ba8099eafc888359904619dad359e1229f8355419c21f9963a8dd5007235",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/disc_titles.go": {
+      "sha256": "124c14355df017967c252451d6858b270b92bbe235ce9d56bb7bddf868f0ba3e",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/discovery.go": {
+      "sha256": "7f2203ddf6a819cbc784053bf409dbf53cb93da1a44a20cf1f8981289b3d9db8",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/download_requests.go": {
+      "sha256": "daa86a011ce97ab82cbacc5ee6ef94d3a86ef94d072b49ae013afd81fd85ffb1",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/downloads_routes.go": {
+      "sha256": "27d0c2bf8d1675ae00e2d285dd59c8f125f4f22baea890502dc2cd85ecb4f264",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/dvr.go": {
+      "sha256": "66a0d956610cdd298575cc5ec1237f95ad5af1297d4a55982e03148a2377810d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/episodes.go": {
+      "sha256": "b5b21aa16c6e0367cd8af78b5bb8bb2b0b04f1368d22d8608e6a1be5d4ca0cea",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/events_routes.go": {
+      "sha256": "7efb2f7022af0b45180ea1140ba38960a052643cca09acd74f3d48250dafffae",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/facet_reads.go": {
+      "sha256": "231825574e420c036da26057246793c068f414cf73faf055fc4361684bdea3b3",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/file_info.go": {
+      "sha256": "850197b0cfbf085ae5ff1f72a4036c08c457b01fa2613be75ce432b2210f98e0",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/file_info_opening.go": {
+      "sha256": "f652775060b5568150ea4a4d84c2a373d0d723ee4c1a1a4fab6c83ddfcef13c6",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/file_info_window_routes.go": {
+      "sha256": "1924a164c7e278d51eb500d8af07447bb27e4519284e7b0006a20d0bb64eecf9",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/fixture/fixture.go": {
+      "sha256": "b560046b6cc7e179beae0c87309839468a35cb36ebf12c81196da2a12c00f1cd",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/foundation.go": {
+      "sha256": "786ef6b81a06760d38e5e81b1a9addedbe80df1a41ef48cba35d1886a20b7559",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/grid_etag.go": {
+      "sha256": "de6d32171909815e5af5879fc68069f898a093910acae8ffb3a3db043e27ac28",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/guide_directory.go": {
+      "sha256": "577a55d46265cff50b2e205965fbcdb9a9296130cee16a983e30529bdd17c271",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/home.go": {
+      "sha256": "322b4d9d7d3df09e72ce8d840da410de0a36749f1ff9fbf283f718327e0a3dc9",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/home_routes.go": {
+      "sha256": "aa7355ff820394a4c0e45a81e3a19aaf8a749b83388b6a1e07dbd0441a049396",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/http_contracts_administration.go": {
+      "sha256": "3b925111e76b36148f7739207c8f2888463b77534d2e0372badb0f3a8bdf8622",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/http_contracts_browse.go": {
+      "sha256": "4f467c0b50425abd2fb6426feb4dcbca62c59d3436ff57fa81fca9dfd5a857b2",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/http_contracts_identity.go": {
+      "sha256": "50310cb981d08580ce54ff3a4d02316cc90e6d0211371d81c43a054baffd6000",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/http_contracts_libraries.go": {
+      "sha256": "f214e5e8f9699730a1eda3a48b03253426520d60afc9a62bb5ccdb6d8f0878f4",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/http_contracts_live.go": {
+      "sha256": "64b958577b45041806daab3e4368704f10c1c85ba85b20320f89d3efe2ad43c1",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/http_contracts_metadata.go": {
+      "sha256": "eacace38c9708ceb46dae229a41c3c6e9e48f0955b1871e4486b2a887234db5e",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/http_contracts_personal.go": {
+      "sha256": "743df837f5af9881ca592f81b986895c62ac092b5080fd6ecc7e028753b2cbf2",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/http_contracts_playback.go": {
+      "sha256": "05a1dc13990da8dc7f1c3e70a40791a016be0a504a785cf8db860b752808c760",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/http_contracts_reading.go": {
+      "sha256": "81eede79a54146624c49c69a503b9e302775448031f51b2d1e2613d91331f74f",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/http_contracts_segments.go": {
+      "sha256": "f8a33142a83c4fa1029e3f87c15e21b57ef0926dc390f157be1da9ace37efbe1",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/http_contracts_setup.go": {
+      "sha256": "78ec5afda4bf4f1d9a8d753da497622110e0eca20258cf0e3c3efe7c70d746b4",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/identity_routes.go": {
+      "sha256": "09158d20a73533157d203800f036ea692280939d6c622aed8da51f25efedf563",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/integration_credentials_routes.go": {
+      "sha256": "d7062edc3f7e6911f8ba200f738c88e12a2ebd874a7f1b5a80b401c875ae3c80",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/integration_read_routes.go": {
+      "sha256": "c04d6e1e5e2361665889e360076e7dc688d3e75fc6f151dfe1f5bd2e8b6d00c5",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/inventory.go": {
+      "sha256": "059cd9c15680748773832a32510821ccc221275212751c2a918238c15bbc05d9",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/inventory_read.go": {
+      "sha256": "17bc6ff04861a72fa7ab0f4ecdd16b2a7d480a459e5374dc0eec27de1763e67d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/listening.go": {
+      "sha256": "855f3d117a50f07ee9a7f32b688e9ecba8d38cb2f799d7c4c6aabd0ba6c6d22f",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/live_channels.go": {
+      "sha256": "8bbbd65d640483df6f81be68bd1a8dfbd5c1755a81e7a7b2bba69b7ef4aa189d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/live_choices.go": {
+      "sha256": "8a2ffd473b2ce777fed9da76f25880494c7e3aa46e983eb07ce80bdc17f42647",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/lyrics.go": {
+      "sha256": "b28b24c858f03a287165a1d21573c984ce2f529b8c8d21ad01916e5bffecb32c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/mcp.go": {
+      "sha256": "51945e944d13991bebb92d06739737f13ffa9a2c33991b5b76e091021c2565cd",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/media_analysis.go": {
+      "sha256": "51b7ac4b0a54d5c9db73a3242a4fd5baee27adab2d26bc2e644190ce64d33af7",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/member_contract.go": {
+      "sha256": "5905b3ca12055514c9750093b0feac08108d796672f68296c11a014f09c1b59e",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/member_profile_pictures.go": {
+      "sha256": "cf45d183bb2e8f1d4aa45ddfa09d7dfa17a58a87f65094dc30298efc21a9cefd",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/metadata_attention.go": {
+      "sha256": "1a300b0f2571fa53c4a8aee8275aafd0ab58603f6fd8ea8ba81d2263246d03b2",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/metadata_editor.go": {
+      "sha256": "47ae77de6b00381f1f08e35113a5c09b83f11659a1605eb3ca3362a6c6bacc2f",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/metadata_repair.go": {
+      "sha256": "f07bbba845affb2028505ba22d82ece94b67934df7fd88ab815b2368a8e06520",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/mounts.go": {
+      "sha256": "a9b398e02af74a8a6511895de11ad468ab5a9b9e22f90402654d1a9309d173fb",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/music_mix_routes.go": {
+      "sha256": "973542d5769ecc0827e75f483547be7cf571deee8c0d5813edc7afb173769f43",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/music_sonic.go": {
+      "sha256": "f52390c817bf784630659b353d6458b2801276759a0ba977b8b4ac2abd067016",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/notifications_routes.go": {
+      "sha256": "149524ec86e1549ee61ac4799da9882c2992d6e9ecff382df5b136afb1521949",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/people_routes.go": {
+      "sha256": "b6695f2bd9a64fb4c19f914e1df80bce67dd6c8ea6fe84054ce4119f29080b98",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/personal_contracts.go": {
+      "sha256": "c1fb224696ba2bd849e84f7880a50adeaf2639d3bb0e7360145b906848e1c468",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/platform_routes.go": {
+      "sha256": "f92eaabb10791d8e3a2e6c61d28b98d58fe7a727de4bff9539027a13d0989c8d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/play_history.go": {
+      "sha256": "ed81f117ed522d903c89c8b09fb571fc02fa02edb51aecaf6cd31af84caff905",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/playback_chapters.go": {
+      "sha256": "4aab8049ad5b024659a76a15f9690eece736919e49b8978997ae21d75c925927",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/playback_controls.go": {
+      "sha256": "568519c11f7cf66a500513bbdd1b68a1e58c28ed0722bbc7e97aa72a1af8d171",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/playback_offers.go": {
+      "sha256": "cae5fc35a81712982a8fa096240f6459f6c3510e174067108d48bc7eb1e35363",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/playback_v1_routes.go": {
+      "sha256": "469fb1c289512f8d59d2f7d4e24c1cb61fe8e6425d1e2df30c7f419571a15cdb",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/playlist_order_routes.go": {
+      "sha256": "cfacfdb985cb2c477a9e1854cd9da0bb49bc3025eae67a03364eb71e318bb46a",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/playlists.go": {
+      "sha256": "ae6f3171aab4ae798c4912a0f89b21accdc8b60294ced2d276c97cc60747849e",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/reading_annotations.go": {
+      "sha256": "8102d73c79fc4bf24adeb1d4a0137cc7ad5bf3f718b830dc2896920a248f7b64",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/reading_browse_queries.go": {
+      "sha256": "bdb1489c164faad1c5ee7cd7bd0d54953b6edb59cd86a677dab6c700f0e1c8ae",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/reading_bytes.go": {
+      "sha256": "83977f1949e5bb371b67cdd0dd50e936fec753a59c23a7f6514b8176650d15d8",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/reading_discover_routes.go": {
+      "sha256": "c5a2752b46552a3786c619e8a108b15d6de62ec874587e78ceda388dde91ac7f",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/reading_facet_queries.go": {
+      "sha256": "cc561c6bb64fc65ff6942e6e39bab90267f3e1967dcdf1b19b1da4e3f8f6f0e4",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/reading_index_search.go": {
+      "sha256": "55ee2e7d8d59210bdece08775dca390ee8ff668736d6a49f1972ca8e0bcf3ea9",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/reading_periodical_groups.go": {
+      "sha256": "1c0eb25b150b1ad44cfde58839d652ffa0321c1a91df26a791a0d5ea560b0436",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/reading_periodical_issues.go": {
+      "sha256": "e3620771a720b0ed337d87170be3625b85ae2467c329d810ab6009143c6f15ec",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/reading_routes.go": {
+      "sha256": "c2d8cdc86d58a9fcbac7ab8befb4158bb865054e952e1b68f5a5768d1716b530",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/reading_series.go": {
+      "sha256": "3c7e4e48a05c4103fdad99c4cb0d2e7cb6117858c28d047faf14fc9af0757833",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/recording_owners.go": {
+      "sha256": "2f6dae88683b73b9649e712dd1b574ccbe245f1e0122a18ed9efc166dc10596e",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/remote_folders.go": {
+      "sha256": "6777355575332c6ce35782c7bb4359d4bb7edc21b401e5c4a80aa9f15842b488",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/remote_gate.go": {
+      "sha256": "5545eec7c72e5ed0ea95a8ad086b719ccad1247352f6249cb033b506b54b7024",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/router.go": {
+      "sha256": "3a44322caedd05c6083cd11da37358d73989eb62e42b79cb9006ae4a7b2b0bd9",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/saved_resources.go": {
+      "sha256": "4c2b8ed1b6a78a70fa450c37dd40190a522fe4cbd599dda9ba83930416165b98",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/scan_loop.go": {
+      "sha256": "7baf797031c1b3a0050bda1c67aeca5c4287ae5dfacfd624a423410067ff3b09",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/search.go": {
+      "sha256": "1a34fd0f2649ffbf973167807f31d7533c1aaa374ff7b58619345cb3a66ae64e",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/search_genres.go": {
+      "sha256": "ca7ee6c720435029b542b04135931f637fa178e845e6ea76ad9bcddde93da3a8",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/search_sort_routes.go": {
+      "sha256": "955dbe4ddd5c446177b253901dfd39a5bb017e331cb942512a2b23d10af07054",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/segments.go": {
+      "sha256": "8804d17d4df002cdb57fceb94cffb3e09e498986a05ef142b2f1735417540853",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/selection_action_preparation.go": {
+      "sha256": "b636bc2d1a44b03027db37c39954d86433a3ae5501b4783289cea262a9a419d8",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/selection_actions.go": {
+      "sha256": "4a511b78f75cc889d4ff24c3ec27c47a068658a541708dd7c85866ff4b1113cf",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/show_workspace.go": {
+      "sha256": "b928c56c4678943c62ec719131253e511fe9e6545110f090ed96ac84b476ada7",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/social_contract.go": {
+      "sha256": "99522cececa10ae1c175d3a00c03ac325c62448ba4953b91732ba83f60f3f33b",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/social_routes.go": {
+      "sha256": "5e4709e19ad2ff09eaa54019ad29b01e451653022f33fa1f7a28515e2d1fd68f",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/subtitle_original_routes.go": {
+      "sha256": "49051bca36920e1f7cf49cff57d4afe3b37cadd44feedbb1f6431db38531d9cb",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/subtitle_routes.go": {
+      "sha256": "95586966750bac0e8c44bc30d0f7b5414032c76cf12d42df1a5b819f52487cbc",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/telemetry_routes.go": {
+      "sha256": "17c3fc0c8ead596e6a10c95b8b278ab5b8293efbff6d4d9c5820aa5002397b77",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/title_routes.go": {
+      "sha256": "5999250d06c181ca423848c8d40ec853a04a608100199e8b588403f40fdae1cf",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/topshelf.go": {
+      "sha256": "50629ad41c64df6b97c66b7c1c928e0fc020f45e2c265c7a66783352093efed6",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/unit_projection_routes.go": {
+      "sha256": "6fab234cd472ba3f9bcb8adc7bc67e24ea957ba7c2f7af56d11522e513b880f5",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/user_mutations.go": {
+      "sha256": "578bbb04c7160da60f545a9c97c1df84131fc9a6f37ad65fd00eb587fff72e35",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/httpapi/webhook_routes.go": {
+      "sha256": "fc7be4a9f2fe0270ff58be36a59a33671ec68a783cfbc8a3bd53803131d7c085",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/identity/account_moves.go": {
+      "sha256": "50ea095fd2ab2db69a09a43fa3010874be33adf8d1e06830f2310fdcff03a783",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/identity/direct_policy.go": {
+      "sha256": "37c0335ec824039c82ca3824573a42f75fab623b3053649fadf449f253325018",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/identity/direct_profiles.go": {
+      "sha256": "58b63e5187a9ac8e08efa9ab9db8d30db66bbd0271239c8e5bac75bd86b9728c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/identity/families.go": {
+      "sha256": "e6475255658d4466412d93c220a24bfd2b1584a19a673c0a6700a6bc16cec25b",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/identity/family_revocation.go": {
+      "sha256": "2691b6a807e88f9073ad364dcdef9d62e008aac07a14fc67d8810731338a02ed",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/identity/member_erasure.go": {
+      "sha256": "438516d0c97d522e390dafdd299a06b89c346d89a81798f5fcaf7028b375c39d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/identity/onboarding.go": {
+      "sha256": "0c6e64f225fd746d6eab5bd6deab53c1a8ea099c88477254bb72000ec942471e",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/identity/owner_claim_install.go": {
+      "sha256": "96453e78f78fb7b06e2c1164a185d4b38d955a67002d8efe50b6000ecf91cb71",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/identity/owner_reset_file.go": {
+      "sha256": "7097f7e7031ed2c73344c3c6f714c1a0802e9b3ab11432c8430064dbf7e92349",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/identity/portico_accounts.go": {
+      "sha256": "cd7eb90957a8c54aacfe4d3fcb4eb570f234dc6b6515ea4d0d41fd9cdaf5a770",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/identity/profile_erasure.go": {
+      "sha256": "61b157ecfab5195001fdded44197402a72b9c5f988bf6b255f01b35fb8ee14d1",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/identity/profile_purge.go": {
+      "sha256": "b07d241107d7120a3bcd5b59aa12e917a6373296c628924d37f216637e19c7c9",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/identity/prune_sessions.go": {
+      "sha256": "dacbea72af8256d9937d41f31c8d80f87eacd916768261a8a5909dfd4bde9893",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/identity/quick_connect.go": {
+      "sha256": "b094a1e05129eb5fef31479297210aed0f0bf12aca142b6ae491b5c82133c989",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/identity/restore.go": {
+      "sha256": "6a3773212c56f585ca0b7de68e0fc5edffa58e750e5da9eeb2c53c8ab07b6150",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/identity/restrictions.go": {
+      "sha256": "17e3fa3f3717f540d64839f5b982da149db37f1f73f3e67e05480ecf8ae7c999",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/identity/sign_in_kind.go": {
+      "sha256": "028c041d93a5a3d1baf0d92903539b5f21160306e7cf7aafc56fd06b3b8514b5",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/identity/sign_in_policy.go": {
+      "sha256": "7a2e4c143aec9cb22de60a06c560d21de908ceca0ed93681d6923c4a6a635da5",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/ingestion/directory_cache.go": {
+      "sha256": "8b41edc76d486272cb1da3a3866f0d6abd77e13389ff3b8e7626b4f75df61ed3",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/ingestion/issues.go": {
+      "sha256": "a81177a507b5ebb88cceacb7cb88aa000dcc5bab502b265b1a8a8e3ef193f8ca",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/ingestion/retention.go": {
+      "sha256": "0f8cc5eee2bd3602564e71dbcfbb4dbee5f5808d879f2ce0aebb064be3ea5cd9",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/ingestion/sidecar_changes.go": {
+      "sha256": "68a8a1afe031771f84483649389b92fcc2e545185b4625b409f537399710c1fe",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/ingestion/source_verification.go": {
+      "sha256": "bcb69f61e6652d42d0dc97bee0b66b2e4ea18b458ef21a9ccd0cfae0be49827b",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/livechannels/directory.go": {
+      "sha256": "1a032b3b121d75689475d24332323651c867ef8e43a7270bff0a720f5a573cfd",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/livechannels/dvr/presentation.go": {
+      "sha256": "cdb02529de3be7646c04ebdd73fb4616f6ec3b71fdb2afbb5b33f97ff9c1e450",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/livechannels/dvr/query.go": {
+      "sha256": "dd7d277ac302772703efdc0ec784da4dc9b0680a5a7767e0f10911b1fdd69238",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/livechannels/dvr/reconcile.go": {
+      "sha256": "e21c4839071b491b9eff95751d29d036a160f877677f9bb7e831264075f6479c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/livechannels/dvr/rules.go": {
+      "sha256": "cb4e4c382a191f3d6dd72c89d12cbcb78edafd8213d4526fa7f4d6132d4ad9fa",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/livechannels/generation_retention.go": {
+      "sha256": "123e8ba62d629939e84e171e5ffe43f72cbb067817618b5e1a2f489bef305473",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/livechannels/library/candidates.go": {
+      "sha256": "c754724b8aeebfec766d6e8f7ec0acd090884e9b32c44000ec9104c3ecfad7b0",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/livechannels/library/defaults.go": {
+      "sha256": "fdfb80a144105bb231148ffcee976622c388383686ab7ad6acb17342c8f270df",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/livechannels/library/generator.go": {
+      "sha256": "70cd95c7ce503d0f22928717537b7a2e8838e3243eea2834083ca768de4bee3c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/livechannels/library/guide.go": {
+      "sha256": "701295e9519f499a16be0734d1ab0888e33b382716cb869b2777f863228ba913",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/livechannels/library/model.go": {
+      "sha256": "282cc9f64476119ba6ed12fd0b7a04dafafd5d46e89d0318df114cfed4375ea7",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/livechannels/library/play_history.go": {
+      "sha256": "b195a0b973776f65001b6dc1167b16ca2f9030c8451ec5007290e4c0a2510750",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/livechannels/library/prune.go": {
+      "sha256": "7efbef31dea463057b5b978843a9ffabb7edc9f234089630c16d6fe070cb3509",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/livechannels/library/stmtcache.go": {
+      "sha256": "f62ca6ca55c612a89c370003f8575ef6d78f3ee653c14a575aee6ff9a710b84d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/livechannels/library/templates.go": {
+      "sha256": "5ac753f985b9dd1bec3e7eb99d05ad94cec06ac0c96649d0468a8c8d2c15dbfb",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/livechannels/migrate_sealed.go": {
+      "sha256": "c3cb5bcceb97d7d8d8a2ad02fb4f188bc199e919d15bac39467382010f019dbd",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/livechannels/programme_spool.go": {
+      "sha256": "7bc7df8b5333b24e0a9b7cf7bee4778360fc1738b69a7fee45e0fb292c12feb6",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/livechannels/remote.go": {
+      "sha256": "7252e9cc6271c365c416247f1057d8a27f78ab529c04205f73001adf0113c26a",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/livechannels/store.go": {
+      "sha256": "f83b427bb6a8a3ae3d3909ff9107172ac9cf881dfc1c59797c1c8be865dfa1a4",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/localonly/localonly.go": {
+      "sha256": "0aed8f6cf2709ae8ab0ce26b7038a4a34170ab14788142d0086825c671514af0",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/lyrics/acquisition.go": {
+      "sha256": "0f0f89fe95de8ca4d57e61df95f6e5ccf984ad49f2d27a6b8ee01d421662c4ba",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/lyrics/bulk.go": {
+      "sha256": "10c4e72e40d55b9cfef64ceaddd590699cbd7393208aac88f3116ed904d4afa8",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/mediaanalysis/segment_modes.go": {
+      "sha256": "e3e4479362ff804d4a6fee7918812c54d9a8d5a7130bb25cc075da9b400415d7",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/mediaanalysis/segments_admin.go": {
+      "sha256": "649c4e06ed20dcc8a805fac565f971254b15e452acd17344ad061ba55ddbaf62",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/mediaanalysis/segments_work.go": {
+      "sha256": "15c2391121fb354fd7976f0164f7214b63a811e1b5b972fe3e8cf593d6a47253",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/mediaanalysis/storage_limits.go": {
+      "sha256": "b936cf442e705feb43dc2e4bad547446fccaf06a36ddb310573b094a6814012b",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/mediaexec/shim_unix.go": {
+      "sha256": "0023e30f489cb5c8b64e44ec697965ee9574577802431651aa9ab17b65f34ac2",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/artwork.go": {
+      "sha256": "cfa710179d174b1cb0c093b6090ecb62dedd5bbb03f05787aedec2b07c5473ef",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/artwork_discovery.go": {
+      "sha256": "4830ba9a64cb98da4b09e31cdc75104b4fdcd798b2659d0becdccf6573d992d6",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/artwork_integration.go": {
+      "sha256": "09594ad8d5522dd57550525160e6cc16a41a252b2d86f38fba027667bddd2c27",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/artwork_missing.go": {
+      "sha256": "7697622a192c270693ca302f9c44efdcfcdcffbdbd2f0842eb86a3e40ecffbfd",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/artwork_state.go": {
+      "sha256": "b47e17113c1ea6163cd3793d74d99752303e8ed8ec0bed998cf42fb94b407a23",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/artwork_upload.go": {
+      "sha256": "224437bc1806f880a739ffd1b4c44c87a1b88263597bddac4fd5ea71796a4dc6",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/artwork_worker.go": {
+      "sha256": "18940c65bc7a6618459793c63aac71f6276b1c319a5e9717e4bb9e56a664c7c5",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/attention.go": {
+      "sha256": "c3865e5cace6a0179d4a5d3a8d76560bb41b5d87abb96222bf5675a668b3e61f",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/episode_thumbnail_runtime.go": {
+      "sha256": "f0d3cf25865120962d77528a309545d9d1bc738ebdeda7c923f691d20fe87c1f",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/lookup_fanout.go": {
+      "sha256": "3555a40b7e0e2fd0fbfe74730a433eacdb855c47ab8b95939c6ac5f29f372f10",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/mb_claim.go": {
+      "sha256": "f37b6045f3a9b09bba7304113ce4492c663b9cf6afde400aed76d4321b950ee6",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/mb_evidence_store.go": {
+      "sha256": "7bca704c7bf38ffcb3c48fdd5a0e576f5d6667b8318d27d339a69d6595736171",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/mb_retire.go": {
+      "sha256": "53c002469c74a48a91ce51c104bf785ef77e820cb5f1ef9a64a35b5340f41507",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/mb_review.go": {
+      "sha256": "5edc9c12236eb9233fa7c0a354a5f04b1017f4efaca0acc3a107a66c28cd9095",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/mb_staging.go": {
+      "sha256": "bcca95bc7406e44540fa24ff5383c8df891b55c691514ef384da752673e0b6b1",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/mb_track.go": {
+      "sha256": "86a056c86d14d91366cc6d14c0595109b6b890b3fe15fa14e43dcb6ced7ea907",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/music_inputs.go": {
+      "sha256": "ba80d79fd995dc9168930d4630d21a098e202e41bbe3abf0723e69c9ea1008c6",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/music_policy.go": {
+      "sha256": "a30a34a85dae951fc75d6e23dffbc381969f3ac07156d897fafb7c76b6dcfbd1",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/music_published.go": {
+      "sha256": "9091a59bc15d53bb5e761e3aa7412e064138fabab289d2fb1ebd3c51131d429c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/musicbrainz.go": {
+      "sha256": "4023255ddabf9069cb2468b343f29650efb77cbe627076311ce4142a3ed419f3",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/repair.go": {
+      "sha256": "5a748ad2e3d2bc94abcb009a1b73953a0db1ed61559949e9565067cabfe50dfc",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/repair_bulk_preview.go": {
+      "sha256": "a929ce0589f7756bdd92b61ffdddb88b6f12f7457a5c51834b18a9c13b5725f2",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/repair_fields.go": {
+      "sha256": "80831818390ea09f3d6b961d9ee161ff44132825b65975bd49d5ca9a17f82d87",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/repair_relationships.go": {
+      "sha256": "0caa86dbaff00e2e8c38920cd9d70cb005b478d7cd129c6a97f9aa18121c860c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/repair_retry.go": {
+      "sha256": "8635850eb178556b54be46f309afcc08ac7fc56acb578d0215948d8bb9fa4c21",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/screen_base.go": {
+      "sha256": "ec2870e0ee8a84aa5cae1670edf4786c5399e244b4e10f03fe43b498b50f05d0",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/screen_fanout.go": {
+      "sha256": "81dbb400593bf6336c9686b06b14ee1f25b344e322dc142c29b914503af5afdd",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/screen_freshness.go": {
+      "sha256": "b461b77665368937d9e6d1ce74a48476c925b2f1b7d366a6bf92a2b550483df6",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/screen_links.go": {
+      "sha256": "26e8e10f652c109127c15f988ce1a69bcedc9703eebee839583e0f90733f2110",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/screen_match.go": {
+      "sha256": "13049c8aa82bb5964f98f5b8b68338d6e2aaf5f8e97c79039aa2a570d9c0c1a8",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/screen_publish.go": {
+      "sha256": "095dcfcafbf8541b7b7bd2dfeeb280f2d6cad28dd92f20c49925c5324245c614",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/screen_repair.go": {
+      "sha256": "457d28e4a3057beefa265b1ef80c992e461099c3a7ca9c4d0ef95c6394589337",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/screen_review.go": {
+      "sha256": "222baaedce48dfacb21e6de7dd9da889f1aa24e4679a28582c01586831a45691",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/screen_worker.go": {
+      "sha256": "405bb663f99898c8b32eb235567e51a3bd0378f05fabdbd115e640e913bc7aa0",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/tvdb_publication.go": {
+      "sha256": "6d1689ccbf5936566fe3b14351475f9dc87cbce65f06ddd20d53cc36469d3a3f",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/tvdb_publication_apply.go": {
+      "sha256": "0dc17126a40370260298de4a83f40279381c0ae029ef6204ae97077d24fb5023",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadata/tvdb_selection.go": {
+      "sha256": "ac8b7f17cad033463c4d6735cc68b7370d70e11f0019e9b4017388217effd80c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadatalanguage/original.go": {
+      "sha256": "333b8de436b15bd4661adc11a6f61febebf09696d0b2994c350cb25d2627653c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadataprovider/music_artist.go": {
+      "sha256": "5298abc4e5e525c341f6d3ed7a748558c3876499dfebc17217a6519adc9a7a61",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/metadataprovider/tvdb.go": {
+      "sha256": "56bb454390352753dc2d4f89147b50cf13e7c4b41c8173885dc4fb7b8a6955ad",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/mounts/commands.go": {
+      "sha256": "176e3feb0c243df978cd21076798303da6f9eb725231004ed60dd08cd2bb8a28",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/networking/claim_sqlite.go": {
+      "sha256": "a153edf687877f0996bb64034feec5985329e27dc390a60557c955ae6c1fded9",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/networking/mapping.go": {
+      "sha256": "b5f60f04f0f60a662853b2fe788a4849e50bdc6fc8f802d81efa744f2eaca2f3",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/networking/remote_manager.go": {
+      "sha256": "a328538a7833040eef5ab94519475b177c1564430dda7150c17d2de904857f46",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/networking/wan.go": {
+      "sha256": "3b850878a60f42a4c84933c312563d3465e4c50b91406711fdbe53e4c8397bf2",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/notify/notify.go": {
+      "sha256": "40cbe12ecfc42ae66efd8d2e3ffa37f41b9aacdc61cfb44249ce23385ed3bcfb",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/operations/attention.go": {
+      "sha256": "a70327e5df87d2e3caa5a38dc38483c4ddeca3a3178bc780b39290cea22bb00a",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/operations/events.go": {
+      "sha256": "f3fa02f35414a2e4ee75036630a0ba4922be6ab186e2107d14070c671beee3cd",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/operations/evidence.go": {
+      "sha256": "188f79e92a22c985eb9974bc1e1f2715cdd21b7a508220986df9a8af8c5778f0",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/operations/export_paths.go": {
+      "sha256": "074d8e095eedb92b9cbf8a2b04dc0fdb08def275a0672808e71a9c83e8da0e48",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/operations/feedback.go": {
+      "sha256": "949f32dcc4537350d05826e788585c4c536597cb4cca8a0a6b095abdfac9fbf8",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/operations/feedback_reports.go": {
+      "sha256": "be315ad7502a1e0349989a95378070613c9de9189c973ed73f5126851091e164",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/operations/jobs.go": {
+      "sha256": "c3b1bd355f1275f2cf58a6e5188529b3931290b639ea38897d3b043bf9277672",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/operations/notifications.go": {
+      "sha256": "9bab360b214d5d04828aa23e8028e679ed544d0ff66d7ee54f23297a5e5a0692",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/operations/preferences.go": {
+      "sha256": "d95fcbfcf1d7e8287e656af336115b835ddacda95556a7f99ed231d4e004be51",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/operations/settings_storage.go": {
+      "sha256": "ab7ae7ba05d5185c4d2744c7244fa524a92a0b53db676fc3e4f5a4bc0c0d497a",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/persistence/integrity.go": {
+      "sha256": "263b5cbd880c423b1377182361f5877577547968bc7e7dfa4c02f5a186da48ff",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/persistence/maintenance.go": {
+      "sha256": "d7eb81273b8fd3533dee737eb15ad3214653f3565f8c46a57ae0b73fbf73b908",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/persistence/metadata_discovery.go": {
+      "sha256": "dc5711f2d781230f70ba7f0dcf5b1ab56173c4ccb50d3cc04dab344e6393fb62",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/persistence/planner_stats.go": {
+      "sha256": "632fe50c481c46fb37b7d46d6f160b61ef2d03cc0bd7eb5eda91b523a89dea95",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/persistence/rebase.go": {
+      "sha256": "c514d7d5f812ee7119faca89cf03375b1f63d2b322cbbffdea90a15d33ae1b96",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/persistence/restored_state.go": {
+      "sha256": "721f03548b4dd247a6742741194ca00d222656f4b2c61fac632ff81b82d15563",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/persistence/salvage.go": {
+      "sha256": "c8531055d5575aa51316117711f7896fd8c37a2b518586dd7a00546d415e86d0",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/persistence/schema.go": {
+      "sha256": "7a489130f4c33b6d6ebcb32c88253e8e1ab5ff866457e713ad9c288bb48d8685",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playback/activity.go": {
+      "sha256": "cd40a7112b5b0451e1e07408e85d799cf383538fe8103cc4f5a6576c90097643",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playback/audio_plan_v2.go": {
+      "sha256": "21932a8d3a137a89d9529fa886e8ca6eca7ecf8db51f43b509076a976019541f",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playback/capability_document.go": {
+      "sha256": "68dd865b985890d8415b95e9d5c624db4c5ce10a8d9dbb56499278beb0009cc7",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playback/delivery_plan.go": {
+      "sha256": "d10a2c1fedc5eae156f1d99bb8f91b52afdc466d228ff3d29a8169b82bcdcba7",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playback/delivery_source.go": {
+      "sha256": "971b0eb985d9ac9c033689b55fe85b387c1317dfc634324f7eb6085c04689393",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playback/finite_hls.go": {
+      "sha256": "c3f28624c913b1018212b9e96ad12551bd73e057ffe259ae312cc8ed7b1153ec",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playback/hls.go": {
+      "sha256": "64ef476c3d73f852b76ef4a46e0ad5117538cbb3d4d78a894214a1f2cbf6b4a8",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playback/hls_sweep.go": {
+      "sha256": "9a364a32f577b731073a1b8b1878867e238cf7a3216730e2f8fa216a790cc910",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playback/observed_playback.go": {
+      "sha256": "c3c546a4a0ff5ad715e33a1c1a458b45bc9afa3b74100c88efb31ea9f1f13fd6",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playback/occurrence_io.go": {
+      "sha256": "6f036fb9217fb9256f70e6bfea1be466117e2e2742e0838085cec3a5f2a19c77",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playback/service.go": {
+      "sha256": "79f7945fe1258590c3dd1bc4a844c01b8ee7339a84bd63f8000a518094e50ada",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playback/v1.go": {
+      "sha256": "7a2e474cba22c1d1db44ccee3be735c008f4b39e0041b0a971f882ae091b2b03",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playbackdisc/lifecycle.go": {
+      "sha256": "3aaf444355dc0f25383375521636054a8dfae3775ca9caf26dfdcb4f99dcf31b",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playbackv1/duration.go": {
+      "sha256": "ff4282b12bc715d6f89cb02153cc233392930214771fb6678fb617aadc96f073",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playbackv1/errors.go": {
+      "sha256": "e51fb5c0ed838237c54efd7223dcb52c2b8db67f6696f16d624186b01aac16c5",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playbackv1/options.go": {
+      "sha256": "a25186d9661d33b9aebbe1cb73eff3479ab478f15f1564a09d6114192bf68cc7",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playbackv1/queue_build.go": {
+      "sha256": "6ef83b2cb267e0cac922300ebde44fa42df2b49f949ec3593d3876c44faf15d1",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playbackv1/queue_commands.go": {
+      "sha256": "5f32678d3cd828e65f8cb280f52e183673a2ecfaac35afd211b7e016685febfb",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playbackv1/queue_counts.go": {
+      "sha256": "9b76fee3d1da79c95506fd57947bc963535f95eb8d00671ec5997798dba2d7ff",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playbackv1/queue_radio.go": {
+      "sha256": "4b6dc2cbd54fc041c3f4b2971f6a9810d0cecf40d69bae1c5eb8f9cf8f9b0e65",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playbackv1/queue_radio_history.go": {
+      "sha256": "8f42feb37fd82a54e9c33a4a3bf543d169a9ac342759b43aa888a408058be01b",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playbackv1/queues.go": {
+      "sha256": "b51e6aad10a25ed1c20160d133e8352d845cc932eb4a2286a025fddf58f4d930",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playbackv1/restore.go": {
+      "sha256": "53fd1b8c33f1707adc4d53ceae2915db0087b4ee590bfc6f5eaad8716a6de6a4",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playbackv1/selectors.go": {
+      "sha256": "c30842ca98aa03dd984cb46f6bb976104088a85ae29fe380bffdab22fd4898ea",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playbackv1/sessions.go": {
+      "sha256": "18bdc4ff85643e561622ef911b366fadcef095e932ba31d31afddae6d81b8e39",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/playbackv1/transitions.go": {
+      "sha256": "80a71210d32286e2556dfb9c33d021eef2b5f24f700471e8a2b84d868aa15c5d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/reading/continue.go": {
+      "sha256": "092ad00545db7178326ba0cc65d7b743abe3d927f0f9653b8738fe6f0d1da83d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/reading/cover_prepare.go": {
+      "sha256": "fbdd829986ba1f3cd45668e91dc8ac1ed64d08c046fe385d9e4c89b21302959d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/reading/discover.go": {
+      "sha256": "7d5eff94669f2f9d62fe9793b4043acb9d7c934e4b4e6c95194a07445e281856",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/reading/discover_new_issues.go": {
+      "sha256": "a8aa22ed9542fbbacb7721064eab1c8e7a8e791799b3bb0df91ab3a59092bac8",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/reading/discover_series.go": {
+      "sha256": "bad1020b39531a01beeb8452de6735eea81a7fe8a63292122bffa80d0b63a4c2",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/reading/discover_short_reads.go": {
+      "sha256": "c3b85a3d5e2c3279c7ac0556495038fec71cf8a3fa141d186f4d320135e5ff5d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/reading/periodical_groups.go": {
+      "sha256": "5e84c12bccb93adca3375923879f706e3551036a79b2bf5272de7da8f0eea6a8",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/reading/periodical_issues.go": {
+      "sha256": "d715ed398135378abfe5fd62b6580f3b89c803b41db54cc359bae93f2877b205",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/reading/publication.go": {
+      "sha256": "06c39c6b5ded42eb6c00f8926dd2cc8fcaea92d1ccabe39152a789106b0bffce",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/reading/series.go": {
+      "sha256": "e7969d4c144d4c16fa60b0553f03f48bc15847d4e184d0f8e7609681b66b8b6f",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/reading/series_select.go": {
+      "sha256": "e477ee8bf4d4d501d4b5c855c7b1d41a970c458908be418a25917d02e8b0d5f7",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/reading/series_summary.go": {
+      "sha256": "b576a989c4ef68956af6a8b8e8c2399480654cf9af498855afde803a875f66bc",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/reading/source.go": {
+      "sha256": "14fe9d3837b465057493c86e175031df087f4db0016e377abeda18756a6b8910",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/reading/text_count.go": {
+      "sha256": "9936d9567ba241d8e516db82dedfe0aae878ca0b8c8934a3d158307d2734cf0c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/reading/text_count_prepare.go": {
+      "sha256": "e09be5da957625b502b2c4832647ceb710fe6e86f63e8f39c9189c73a9f64358",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/reading/text_index_global.go": {
+      "sha256": "a7e3a788172f41de8610353a19fbebbded51481c5d09b23687145c5ac69dea23",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/reading/text_index_query.go": {
+      "sha256": "285aee93fa0c8d68d745df52b1be2c83a072f41f781b0e3c0d8f0dc32e5a41d8",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/reading/text_index_session.go": {
+      "sha256": "c5b01689b02251d5746a3ffd0163b9f8294667a74283c4f04fdafa0969779520",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/recordingaccess/grants.go": {
+      "sha256": "4dcf17f43b98453bdc93307a4d5e8a5f8a2712551cfcf23815ab9b518dceead1",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/remotesources/capture_producer.go": {
+      "sha256": "c456f5ec18dc91050f4c9d19721e721bcd578c8ea82c8e8ea32845412fafc2e3",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/remotesources/disc_conditional_source.go": {
+      "sha256": "da2c8f87500fc69ceb06c2133dc2d7d2ed0fc3727ba40caccc644ec7c9e656fe",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/remotesources/inventory_native.go": {
+      "sha256": "b26bf4d355995f9d6b025ead362be5016776cf7a6aff5f1161aedb93bec3cf07",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/remotesources/verification_listing.go": {
+      "sha256": "6a94be855024f6f6b98d8fc92fd049ddfff507eb68be657fcdd46ec0771cc938",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/remotesources/verification_pacing.go": {
+      "sha256": "878e1f71092bb66587f57c3a7623a59d9b5cce19936afd33e00d7b3224ee3a41",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/selectionactions/journal.go": {
+      "sha256": "1c9c012ff3dcc40e07b715b4cf714696bd0a401333ad3a8cf1cc0f5827781369",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/servicelog/servicelog.go": {
+      "sha256": "96c92b074eb658eb9b4df808bc27c2cb4a1dfb72b024e23f694080f9de920f03",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/setupflow/derive.go": {
+      "sha256": "27c50fd2975a230b03421a08409bbc8eb283731d340221cc33c8df3e3aef1cce",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/social/groups.go": {
+      "sha256": "77478ed281a8165703ca6f561beaa738d1210c8a3a5ac8ad033c2197637e9063",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/social/privacy.go": {
+      "sha256": "5e4281dca43d869b986df2917899575dc55a373081b61ce07f9ab03e9876133e",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/social/queue.go": {
+      "sha256": "04e512ea41fde649b54ba22eb361ab0839847c00c1bab31cb4000997ef375655",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/social/receivers.go": {
+      "sha256": "f717e5d8545277e8172f7554896e5b9c8895db2222509dc10075b72bf62b6c66",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/streamlimits/limits.go": {
+      "sha256": "16f246a466f2033fd80141fcfc44e209f06038bbbf458b225f61abec232a2f02",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/subtitles/autoselect.go": {
+      "sha256": "5c5a5166f74a108fb36d6ba9dd5dfcbf7b9889e389f2ea9e312945b584575194",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/subtitles/burn_input.go": {
+      "sha256": "fb4cfacc4d554502ba3da47e763d8f7aa499abe01305234ae352128a45627392",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/subtitles/file_info_resource.go": {
+      "sha256": "e2160df81f35e46e9d13dcc444ef94f8169661cf5056ebe0602523ae413bcf90",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/subtitles/manifest.go": {
+      "sha256": "c9f31ab96bca628062cbd77455691158aa4cd8b793f17ed17def98c2e3284504",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/subtitles/provider.go": {
+      "sha256": "9f1435d91599568217746b4eff06bb7fe8a38f2f83a143f6545eae9e0c444a0e",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/subtitles/service.go": {
+      "sha256": "3299fcabbaffa5fb8f76e1b7b7f5c184c34bae75135f983cdef493ca82715f1a",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/tableretention/retention.go": {
+      "sha256": "7108e7183fed4fd361d32ddb322d3507a5571aff71feef30958cfa386c807200",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/telemetry/collector.go": {
+      "sha256": "84b9de9833d7331ee0f9d99b2f45cb3384f4d2f118945523d07d2fee1c7b64de",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/testauth/session.go": {
+      "sha256": "d736d646062fd76d0d2fb859418c230b970107350071792ef66fb6e24b9d5abd",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/usermutation/store.go": {
+      "sha256": "a1e9ef94d616ddfcf21841397ff8215dda055130476d469e04b7e8258538702d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/workpolicy/policy.go": {
+      "sha256": "9537209a061143c2229606fbfe461460957b41ef23b515de1cf85f8e19670152",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    }
+  },
+  "migrated_owners": {}
+}
