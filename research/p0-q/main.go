@@ -661,6 +661,7 @@ func main() {
 	v := flag.String("variant", "A", "A or B")
 	profile := flag.String("profile", "smoke", "hardware profile")
 	dir := flag.String("dir", "", "scratch output")
+	ramHeads := flag.Int("frontier-ram-heads", 8192, "source heads retained before ephemeral spill")
 	genRun := flag.Bool("generation", true, "run full generation backfill for designated cell")
 	samples := flag.Int("samples", 16, "query samples excluding warmup")
 	rounds := flag.Int("rounds", 2048, "churn transactions")
@@ -672,6 +673,7 @@ func main() {
 	mixed := flag.Bool("mixed", false, "mixed security/progress traffic")
 	minimum := flag.Duration("mixed-duration", 600*time.Second, "minimum mixed observation")
 	flag.Parse()
+	frontierRAMHeads = *ramHeads
 	generationRun = *genRun
 	profileName = *profile
 	cjkShare = *share

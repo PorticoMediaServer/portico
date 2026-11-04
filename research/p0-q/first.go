@@ -13,10 +13,15 @@ import (
 )
 
 type lazySearch struct {
-	roots         map[int]int
-	streams       contextHeap
-	frontierReady bool
-	frontierPeak  int
+	spill          *sql.DB
+	spillPath      string
+	spillPeakBytes int64
+	spillCalls     int
+	spillMaxMS     float64
+	roots          map[int]int
+	streams        contextHeap
+	frontierReady  bool
+	frontierPeak   int
 
 	reader          *policyReader
 	term            string
@@ -208,7 +213,7 @@ func firstPageBench(db *sql.DB, n, samples int) {
 			times = append(times, float64(time.Since(t).Microseconds())/1000)
 			snaps = append(snaps, l.reader.snapshots...)
 			candidates = append(candidates, l.candidates)
-			l.reader.close()
+			l.close()
 			first = ids
 			if len(ids) != min(20, len(expected)) {
 				panic("first page size mismatch")
@@ -224,6 +229,9 @@ func firstPageBench(db *sql.DB, n, samples int) {
 		allPageSamples := [][]float64{}
 		var all []int
 		var allSnaps []float64
+		spillMax := int64(0)
+		spillNativeMax := 0.0
+		spillCalls := 0
 		for rep := 0; rep < 3; rep++ {
 			l := lazySearch{reader: &policyReader{db: db}, term: facettext.SearchFold(q)}
 			c := lazyCursor{}
@@ -255,13 +263,16 @@ func firstPageBench(db *sql.DB, n, samples int) {
 				allPageSamples[i] = append(allPageSamples[i], ms)
 			}
 			allSnaps = append(allSnaps, l.reader.snapshots...)
-			l.reader.close()
+			spillMax = max(spillMax, l.spillPeakBytes)
+			spillNativeMax = max(spillNativeMax, l.spillMaxMS)
+			spillCalls += l.spillCalls
+			l.close()
 		}
 		pageStats := make([]Stat, len(allPageSamples))
 		for i, pages := range allPageSamples {
 			pageStats[i] = stats(pages)
 		}
-		emit("first_bounded", map[string]any{"query": q, "latency": stats(times), "raw_ms": times, "snapshots": stats(snaps), "candidates": candidates, "first_ids": first, "result_count": len(all), "membership_digest": idsDigest(all), "page_raw_ms": allPageSamples, "per_page": pageStats, "page_sample_n": 3, "all_page_snapshots": stats(allSnaps), "budget_p95_ms": 50, "formal_1m_p95_ms": 200, "oracle": "exact old single-term tier/id order and complete membership", "lead": "single token; no population count required", "context_candidate_limit_per_page": 4096, "read_chunk": 64, "context_frontier_limit": 8192, "first_budget_scope": "first ready result;warm DB;no wire count"})
+		emit("first_bounded", map[string]any{"query": q, "latency": stats(times), "raw_ms": times, "snapshots": stats(snaps), "candidates": candidates, "first_ids": first, "result_count": len(all), "membership_digest": idsDigest(all), "page_raw_ms": allPageSamples, "per_page": pageStats, "page_sample_n": 3, "all_page_snapshots": stats(allSnaps), "budget_p95_ms": 50, "formal_1m_p95_ms": 200, "oracle": "exact old single-term tier/id order and complete membership", "lead": "single token; no population count required", "context_candidate_limit_per_page": 4096, "read_chunk": 64, "context_ram_head_limit": frontierRAMHeads, "spill_peak_bytes": spillMax, "spill_native_max_ms": spillNativeMax, "spill_calls": spillCalls, "spill_pager_mib": 2, "spill_disk_ceiling_mib": 16, "first_budget_scope": "first ready result;warm DB;no wire count"})
 	}
 }
 
