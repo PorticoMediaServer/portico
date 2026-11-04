@@ -1170,7 +1170,7 @@ func infoInputHeaderForWrite(ctx context.Context, tx *sql.Tx, ref InfoInputRef) 
 	if err != nil {
 		return infoInputHeader{}, err
 	}
-	if h.assetID != ref.AssetID || h.token != ref.Token || h.slot != ref.Slot || h.inputRevision != ref.InputRevision {
+	if h.assetID != ref.AssetID || h.token != ref.Token || !infoSlotFollows(ref.Slot, h.slot) || h.inputRevision != ref.InputRevision {
 		return infoInputHeader{}, fmt.Errorf("%w: handle revision %d/slot %d, header %d/%d", ErrInfoInputDrift,
 			ref.InputRevision, ref.Slot, h.inputRevision, h.slot)
 	}
@@ -1178,6 +1178,15 @@ func infoInputHeaderForWrite(ctx context.Context, tx *sql.Tx, ref InfoInputRef) 
 		return infoInputHeader{}, fmt.Errorf("%w: input is at phase %d", ErrInfoInputSealed, h.phase)
 	}
 	return h, nil
+}
+
+// infoSlotFollows reports whether a handle taken for slot still names an input
+// now in current: the same slot, or a queued input (slot 1) promoted to slot 0
+// when the input ahead of it retired. Promotion keeps the change and its input
+// revision, and a live unfinished successor finishes its own producer, so
+// the producer's handle follows it. Nothing moves an input from 0 to 1.
+func infoSlotFollows(slot, current int) bool {
+	return current == slot || slot == 1 && current == 0
 }
 
 func infoInputHeaderBySlot(ctx context.Context, tx *sql.Tx, asset int64, token string, slot int) (infoInputHeader, error) {

@@ -35,7 +35,7 @@ func abandonInfoWitnessTx(ctx context.Context, tx *sql.Tx, ref InfoInputRef, wit
 	if e != nil {
 		return false, e
 	}
-	if h.phase != 0 || h.assetID != ref.AssetID || h.token != ref.Token || h.slot != ref.Slot || !bytes.Equal(h.fingerprint, fingerprint[:]) {
+	if h.phase != 0 || h.assetID != ref.AssetID || h.token != ref.Token || !infoSlotFollows(ref.Slot, h.slot) || !bytes.Equal(h.fingerprint, fingerprint[:]) {
 		return false, nil
 	}
 	w, e := infoInputWitnessAt(ctx, tx, h.changeID, 0)
