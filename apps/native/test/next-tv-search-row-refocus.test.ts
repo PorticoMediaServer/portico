@@ -111,3 +111,19 @@ for (const platform of ['android', 'tvos'] as const) test(`${platform} grid: a r
     assert.deepEqual(s.requests, [{regionId: 'search.songs', childId: 'e3'}], 'one request for one replacement');
   } finally {await s.engine.unmount();}
 });
+
+// #724 review probe: a replacement that commits while covered is decided then, and asks nothing; uncovering it, then the
+// person moving focus, then a change of the region's id, never asks for it later.
+for (const platform of ['android', 'tvos'] as const) test(`${platform} grid: a replacement committed while covered asks nothing, even after uncover and a region change`, async () => {
+  const s = await scene(platform);
+  try {
+    await s.engine.render(s.e(s.Scene, {kind: 'grid', ids: ['e1', 'e2', 'e3']}));
+    await s.engine.focus('e1');
+    const replaced = {kind: 'grid' as const, ids: ['e9', 'e2', 'e3'], refocus: {focusId: 'e3', serial: 1}};
+    await s.engine.render(s.e(s.Scene, {...replaced, covered: true})); await s.engine.settle(); await tick();
+    await s.engine.render(s.e(s.Scene, {...replaced, covered: false})); await s.engine.settle(); await tick();
+    await s.engine.focus('keyboard');
+    await s.engine.render(s.e(s.Scene, {...replaced, regionId: 'search.songs-again'})); await s.engine.settle(); await tick(); await s.engine.settle();
+    assert.deepEqual(s.requests, []); assert.equal(s.engine.focused, 'keyboard');
+  } finally {await s.engine.unmount();}
+});

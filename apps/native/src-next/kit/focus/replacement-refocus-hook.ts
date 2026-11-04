@@ -33,8 +33,10 @@ export function replacementRefocusHook(react: Hooks) {
     }
     const lost = held.current.lost ? held.current.serial : undefined, focusId = refocus?.focusId;
     react.useEffect(() => {
-      if (coveredNow.current || lost === undefined || held.current.decided === lost || !regionId || !registry || !focusId) return;
+      // Decided at commit, covered or not: a covered replacement asks nothing, now or after it is uncovered.
+      if (lost === undefined || held.current.decided === lost) return;
       held.current.decided = lost;
+      if (coveredNow.current || !regionId || !registry || !focusId) return;
       let live = true;
       queueMicrotask(() => {if (live && !coveredNow.current && registry.order(regionId).includes(focusId)) registry.focus({regionId, childId: focusId});});
       return () => {live = false;};
