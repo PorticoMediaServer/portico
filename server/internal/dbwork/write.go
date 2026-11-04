@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"log"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -60,6 +61,9 @@ func Publications() uint64 { return publications.Load() }
 // will perform, and Rollback marks the outer transaction aborted so it cannot
 // commit work an inner writer rejected.
 type Write struct {
+	diagnosticStart  time.Time
+	diagnosticPool   *sql.DB
+	diagnosticCaller context.Context
 	// changesAtStart is SQLite's row-change counter when this transaction opened.
 	// A commit that has not moved it wrote nothing, and a commit that wrote
 	// nothing must not wake every background loop in the server.
@@ -355,6 +359,10 @@ func (w *Write) Rollback() error {
 
 func (w *Write) finish() {
 	w.once.Do(func() {
+		if !w.diagnosticStart.IsZero() {
+			deadline, _ := w.ctx.Deadline()
+			log.Printf("ARTWORK-DIAG finish tag=%s age=%s inner_left=%s caller_error=%v inner_error=%v pool=%+v snapshots=%+v", ownerFrom(w.diagnosticCaller), time.Since(w.diagnosticStart), time.Until(deadline), w.diagnosticCaller.Err(), w.ctx.Err(), w.diagnosticPool.Stats(), Snapshots())
+		}
 		if w.parent == nil {
 			liveWrites.Delete(w.tx)
 		}
@@ -569,14 +577,27 @@ func BeginSnapshot(ctx context.Context, db *sql.DB) (*Write, error) {
 	if tx := Snapshot(ctx); tx != nil {
 		return &Write{tx: tx, ctx: ctx, parent: &carried{tx: tx}}, nil
 	}
+	caller := ctx
 	ctx, cancel := snapshotContext(ctx)
-	tx, err := ReadHandle(ctx, db).BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	started := time.Now()
+	pool := ReadHandle(ctx, db)
+	before := pool.Stats()
+	tx, err := pool.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if os.Getenv("PORTICO_ARTWORK_DIAGNOSTIC") == "1" && ownerFrom(caller) != "" {
+		deadline, _ := ctx.Deadline()
+		callerDeadline, _ := caller.Deadline()
+		log.Printf("ARTWORK-DIAG begin tag=%s elapsed=%s inner_left=%s caller_left=%s caller_error=%v inner_error=%v result=%T:%v before=%+v after=%+v snapshots=%+v", ownerFrom(caller), time.Since(started), time.Until(deadline), time.Until(callerDeadline), caller.Err(), ctx.Err(), err, err, before, pool.Stats(), Snapshots())
+	}
 	if err != nil {
 		cancel()
 		return nil, err
 	}
 	forget := registerReadSnapshot(tx)
-	return &Write{tx: tx, ctx: withSnapshot(ctx, tx), readOnly: true, release: func() { forget(); cancel() }, changesAtStart: rowChanges(ctx, tx)}, nil
+	w := &Write{tx: tx, ctx: withSnapshot(ctx, tx), readOnly: true, release: func() { forget(); cancel() }, changesAtStart: rowChanges(ctx, tx)}
+	if os.Getenv("PORTICO_ARTWORK_DIAGNOSTIC") == "1" && ownerFrom(caller) != "" {
+		w.diagnosticStart, w.diagnosticPool, w.diagnosticCaller = started, pool, caller
+	}
+	return w, nil
 }
 
 type writerReservationKey struct{}
