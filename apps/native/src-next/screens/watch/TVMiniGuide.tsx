@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useRef} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {Modal, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import Animated, {cancelAnimation, runOnJS, useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import {defaultI18n} from '../../../../../packages/i18n/src';
@@ -15,6 +15,7 @@ import {BlurView, glassRecipe} from '../../platform/native-blur';
 import {nativeType, useTheme} from '../../kit/theme';
 import {useMotion} from '../../kit/useMotion';
 import {useTVPanelPresence, useTVPresentationCompletion} from '../../kit/overlays/TVPanelMotion';
+import {useNativeModalPresence} from '../../kit/overlays/native-dismissal';
 
 /** One supplied channel: the canonical channel row and the programmes the parent
  * proved for it. Nothing here is read, resolved or invented by this component. */
@@ -68,9 +69,14 @@ function MiniGuideSurface(props: NativeMiniGuideProps & {open: boolean; onExited
   const motion = useMotion(), opacity = useSharedValue(0), finished = useRef(props.onExited);
   finished.current = props.onExited;
   const completion = useTVPresentationCompletion();
-  const exited = useCallback((ticket: number) => {if (completion.current(ticket)) finished.current();}, [completion]), open = props.open;
+  // `out`: the fade out has ended and the guide's Modal is leaving. It has exited (and the caller returns focus) once
+  // the platform reports the Modal gone (useNativeModalPresence).
+  const [out, setOut] = useState(false), native = useNativeModalPresence(!out);
+  const exited = useCallback((ticket: number) => {if (completion.current(ticket)) setOut(true);}, [completion]), open = props.open;
+  useEffect(() => {if (out && !native.mounted) finished.current();}, [out, native.mounted]);
   useEffect(() => {
     const ticket = completion.begin();
+    if (open) setOut(false);
     opacity.value = withTiming(open ? 1 : 0, {...motion.timing(open ? 'standard' : 'quick', open ? 'out' : 'in'),
       duration: motion.reduce ? 160 : open ? 180 : 120}, done => {if (done && !open) runOnJS(exited)(ticket);});
     return () => {completion.cancel(ticket); cancelAnimation(opacity);};
@@ -103,7 +109,7 @@ function MiniGuideSurface(props: NativeMiniGuideProps & {open: boolean; onExited
     return <View style={{width: 60, height: 60, borderRadius: 14, marginRight: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: '#edf5fa14'}}>
       <Text numberOfLines={1} adjustsFontSizeToFit style={[nativeType({size: 20, weight: 800, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textSecondary}]}>{row.channel.number}</Text></View>;
   };
-  return <Modal transparent visible animationType="none" onRequestClose={props.onClose} statusBarTranslucent navigationBarTranslucent>
+  return <Modal transparent visible={native.visible} onDismiss={native.onDismiss} animationType="none" onRequestClose={props.onClose} statusBarTranslucent navigationBarTranslucent>
     <Animated.View pointerEvents={props.open ? 'auto' : 'none'} accessibilityElementsHidden={!props.open} importantForAccessibility={props.open ? 'auto' : 'no-hide-descendants'} style={[StyleSheet.absoluteFill, fade]} accessibilityViewIsModal>
       <View pointerEvents="box-none" testID="tv-mini-guide-canvas" style={{position: 'absolute', left: canvas.left, top: canvas.top, width: canvas.width, height: canvas.height, transformOrigin: 'top left', transform: [{scale: canvas.scale}]}}>
         {/* The drawn shell keeps its shadow outside the clipped glass layer. */}

@@ -14,6 +14,7 @@ import {nativeType, useTheme} from '../theme';
 import {useMotion} from '../useMotion';
 import {BottomSheet} from './BottomSheet';
 import {OverlayPortal, useOverlayFrame, useOverlayLifecycle} from './OverlayHost';
+import {useNativeModalPresence} from './native-dismissal';
 import type {DialogProps, OverlayReason, SidePanelProps, SurfaceProps} from './types';
 
 export function alpha(color: string, opacity: number): string {
@@ -88,10 +89,12 @@ function CenteredDialog({open, onOpenChange, title, headerContext, description, 
   const closeRef = useRef<View>(null);
   const scrimStyle = useScrimStyle(animation.progress);
   const dismiss = (reason: OverlayReason) => {if ((reason !== 'back' && reason !== 'escape') || dismissOnBack) onOpenChange(false, reason);};
-  useOverlayLifecycle(animation.present, true, dismiss, initialFocusRef ?? closeRef, returnFocusRef, animation.enterMs, testID, restoreFocus);
-  if (!animation.present || !paint.visible) return null;
+  // Its Modal is gone (and focus goes back) only once the platform says so (useNativeModalPresence).
+  const native = useNativeModalPresence(animation.present);
+  useOverlayLifecycle(native.mounted, true, dismiss, initialFocusRef ?? closeRef, returnFocusRef, animation.enterMs, testID, restoreFocus);
+  if (!native.mounted || !paint.visible) return null;
   const width = suppliedWidth ?? (size === 'md' ? theme.isTV ? 900 : 480 : theme.spec.overlay.width[size][theme.platform]);
-  return <OverlayPaintDescendants><Modal transparent visible animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={() => dismiss('back')} supportedOrientations={['portrait', 'landscape']}>
+  return <OverlayPaintDescendants><Modal transparent visible={native.visible} onDismiss={native.onDismiss} animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={() => dismiss('back')} supportedOrientations={['portrait', 'landscape']}>
     <TVDesignCanvas><View pointerEvents={paint.interactive ? 'auto' : 'none'} accessibilityElementsHidden={!paint.interactive} style={styles.modalRoot} accessibilityViewIsModal importantForAccessibility={paint.interactive ? 'yes' : 'no-hide-descendants'} onAccessibilityEscape={() => dismiss('escape')}>
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: scrimColor ?? alpha(theme.isTV ? '#04090d' : '#03080c', theme.isTV ? 0.62 : 0.64)}, scrimStyle]}/>
       <Pressable accessible={false} focusable={false} style={StyleSheet.absoluteFill} onPress={() => {if (dismissOnOutsidePress) dismiss('outside');}}/>

@@ -7,7 +7,7 @@ import {BottomSheet} from '../../kit/overlays';
 import {overlayPaintKey, RetainedOverlay, type OverlayPaintPermit} from '../../kit/overlays/SurfacePaintHost';
 import {FocusBoundary} from '../../kit/overlays/surface';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
-import {TVPanelSlide, TVPanelScrim, useTVPanelInteractive} from '../../kit/overlays/TVPanelMotion';
+import {TVPanelSlide, TVPanelScrim, useTVPanelInteractive, useTVPanelModal} from '../../kit/overlays/TVPanelMotion';
 import {useOverlayLifecycle} from '../../kit/overlays/OverlayHost';
 import {nativeType, useTheme} from '../../kit/theme';
 import type {NativeWatchOverlay} from './presenters';
@@ -16,7 +16,7 @@ import type {NativeWatchOverlay} from './presenters';
  * checks, radio selection, confirmation step or remembered preference. */
 export function NativeVersionChooser({value, choose, close, paintPermit}: {paintPermit?: OverlayPaintPermit; value: NativeWatchOverlay; choose: (id: string) => void; close: () => void}) {
   const theme = useTheme(), window = useWindowDimensions(), first = useRef<View>(null), done = useRef<View>(null), t = defaultI18n.t;
-  const interactive = useTVPanelInteractive();
+  const interactive = useTVPanelInteractive(), modal = useTVPanelModal();
   const destination = value.destination, rows = destination?.rows ?? [];
   const selected = rows.findIndex(row => row.id === destination?.selectedRowId);
   const entry = selected >= 0 ? selected : Math.min(1, rows.length - 1);
@@ -52,7 +52,7 @@ export function NativeVersionChooser({value, choose, close, paintPermit}: {paint
     const canvas = shellLayout(window.width, window.height, true);
     const key = (label: string) => <View style={{height: 36, minWidth: 44, paddingHorizontal: 10, borderRadius: 9, borderWidth: 1.5, borderColor: '#edf5fa4d', alignItems: 'center', justifyContent: 'center'}}>
       <Text style={[nativeType({size: 17, weight: 800, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textSecondary}]}>{label}</Text></View>;
-    return <Modal transparent visible animationType="none" onRequestClose={close} statusBarTranslucent navigationBarTranslucent>
+    return <Modal transparent visible={modal.visible} onDismiss={modal.onDismiss} animationType="none" onRequestClose={close} statusBarTranslucent navigationBarTranslucent>
       <View style={StyleSheet.absoluteFill} accessibilityViewIsModal><TVPanelScrim/>
         <View pointerEvents="box-none" testID="watch-versions-tv-canvas" style={{position: 'absolute', left: canvas.left, top: canvas.top, width: canvas.width, height: canvas.height, transformOrigin: 'top left', transform: [{scale: canvas.scale}]}}>
           <TVPanelSlide width={760} style={StyleSheet.absoluteFill}><FocusBoundary modal testID="watch-versions-tv" style={{position: 'absolute', right: 0, top: 0, bottom: 0, width: 760, boxShadow: '-40px 0 80px -20px rgba(0,0,0,.7)', paddingTop: 60, paddingLeft: 56, paddingRight: 96, paddingBottom: 56}}>

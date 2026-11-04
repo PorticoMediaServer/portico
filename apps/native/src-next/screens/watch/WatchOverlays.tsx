@@ -17,7 +17,7 @@ import type {EntryActionId} from '../../../../../packages/client-core/src/presen
 import {nativeWatchMenuGroups} from './menu-model';
 import {TouchMenuHeader} from '../../kit/overlays/Menu';
 import {FocusBoundary, PanelBackground} from '../../kit/overlays/surface';
-import {TVPanelTransition, TVPanelSlide, TVPanelScrim, useTVPanelPresence, useTVPanelInteractive} from '../../kit/overlays/TVPanelMotion';
+import {TVPanelTransition, TVPanelSlide, TVPanelScrim, useTVPanelPresence, useTVPanelInteractive, useTVPanelModal} from '../../kit/overlays/TVPanelMotion';
 import {useOverlayLifecycle} from '../../kit/overlays/OverlayHost';
 import {nativeType, useTheme} from '../../kit/theme';
 import type {NativeScreenServices} from '../screen-services';
@@ -38,13 +38,13 @@ const watchPaintPermit = (value: NativeWatchOverlay, presenters: NativeWatchPres
  * host below this overlay. TV chrome alone uses the1920 canvas once. */
 function FileInfoSurface({value, presenters}: {value: NativeWatchOverlay; presenters: NativeWatchPresenters}) {
   const theme = useTheme(), window = useWindowDimensions(), done = useRef<View>(null), t = defaultI18n.t;
-  const interactive = useTVPanelInteractive();
+  const interactive = useTVPanelInteractive(), modal = useTVPanelModal();
   React.useEffect(() => {if (theme.isTV && interactive) done.current?.requestTVFocus?.();}, [theme.isTV, interactive]);
   useOverlayLifecycle(theme.isTV, true, presenters.close, undefined, value.anchorRef, 0, 'watch-file-info');
   const action = <Button ref={done} testID="watch-file-info-done" variant={theme.isTV ? 'primary' : 'glass'} size={theme.isTV ? 'hero' : 'small'} preferredFocus={interactive} onPress={presenters.close}>{t('next.overlays.done')}</Button>;
   if (theme.isTV) {
     const canvas = shellLayout(window.width, window.height, true);
-    return <Modal transparent visible animationType="none" onRequestClose={presenters.close} statusBarTranslucent navigationBarTranslucent>
+    return <Modal transparent visible={modal.visible} onDismiss={modal.onDismiss} animationType="none" onRequestClose={presenters.close} statusBarTranslucent navigationBarTranslucent>
       <View style={StyleSheet.absoluteFill} accessibilityViewIsModal><TVPanelScrim color="#04090d9e"/>
         <View pointerEvents="box-none" style={{position: 'absolute', left: canvas.left, top: canvas.top, width: canvas.width, height: canvas.height, transformOrigin: 'top left', transform: [{scale: canvas.scale}]}}>
           <TVPanelSlide width={900} style={StyleSheet.absoluteFill}><FocusBoundary modal testID="watch-file-info-tv" style={{position: 'absolute', right: 0, top: 0, bottom: 0, width: 900, paddingTop: 64, paddingLeft: 56, paddingRight: 96, paddingBottom: 56}}>
@@ -109,7 +109,7 @@ export function NativeWatchOverlays({presenters, runtime, common}: {presenters: 
   const presence = useTVPanelPresence(moving, runtime);
   const value = current ?? presence.value;
   if (!value) return null;
-  const transition = (node: React.ReactNode) => theme.isTV ? <TVPanelTransition key={value.phase} open={presence.open} onExited={presence.exited}>{node}</TVPanelTransition> : node;
+  const transition = (node: React.ReactNode) => theme.isTV ? <TVPanelTransition key={value.phase} modal open={presence.open} onExited={presence.exited}>{node}</TVPanelTransition> : node;
   if (value.phase === 'disc-titles' && value.disc) return transition(<NativeDiscTitlesSheet controller={value.disc} paintPermit={watchPaintPermit(value, presenters, runtime)} subject={named(value.capture.entry)} close={() => presenters.closeDisc(value)}
     renderError={(error, retry) => <StateView variant="inline" {...common.error(error, retry, 'detail')}/>}/>);
   if (value.phase === 'versions') return transition(<NativeVersionChooser value={value} paintPermit={watchPaintPermit(value, presenters, runtime)} choose={id => {void presenters.chooseVersion(value, id);}} close={() => presenters.closeVersions(value)}/>);
