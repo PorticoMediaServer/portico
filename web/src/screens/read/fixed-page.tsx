@@ -263,9 +263,9 @@ export function FixedPageMenus({controller, authority, reportError, format, open
       <MenuItem disabled={snapshot.status !== 'ready' || !zoom} selected={!preferences.twoPages} onSelect={() => override({twoPages: false})}>{t('next.reader.onePage')}</MenuItem>
       <MenuItem disabled={snapshot.status !== 'ready' || !zoom} selected={preferences.twoPages} onSelect={() => override({twoPages: true})}>{t('next.reader.twoPages')}</MenuItem>
     </Menu>
-    {format === 'cbz' && <Menu open={open === 'direction'} onOpenChange={value => onOpenChange(value ? 'direction' : undefined)} title={t('next.reader.direction')} anchorRef={directionRef}>
-      {(['file', 'ltr', 'rtl'] as const).map(direction => <MenuItem key={direction} selected={preferences.comicDirection === direction}
-        onSelect={() => override({comicDirection: direction})}>{t(direction === 'file' ? 'next.reader.directionFile' : direction === 'ltr' ? 'next.reader.directionLtr' : 'next.reader.directionRtl')}</MenuItem>)}
+    {(format === 'cbz' || format === 'cbr') && <Menu open={open === 'direction'} onOpenChange={value => onOpenChange(value ? 'direction' : undefined)} title={t('next.reader.direction')} anchorRef={directionRef}>
+      {(['file', 'ltr', 'rtl', 'vertical'] as const).map(direction => <MenuItem key={direction} selected={preferences.comicDirection === direction}
+        onSelect={() => override({comicDirection: direction})}>{t(direction === 'file' ? 'next.reader.directionFile' : direction === 'ltr' ? 'next.reader.directionLtr' : direction === 'rtl' ? 'next.reader.directionRtl' : 'next.reader.directionVertical')}</MenuItem>)}
     </Menu>}
   </>;
 }

@@ -14,6 +14,7 @@ import {Skeleton, StateView} from '../../kit/states';
 import {ReaderContents, ReaderPanel, type ReaderContentsEntry} from '../../kit/reader/ReaderPanel';
 import {ReaderDisplayMark} from '../../kit/reader/ReaderDisplayMark';
 import {ReaderSearch, type ReaderSearchHit} from '../../kit/reader/ReaderSearch';
+import {readingDirection, type ReadDirection} from '../../kit/reader/interaction';
 import {ReadReader} from './ReadReader';
 import {ReadingDisplay} from './ReadingDisplay';
 import {ReaderFirstRunHint} from './ReaderFirstRunHint';
@@ -26,7 +27,7 @@ import fixedStyles from './fixed-page.module.css';
 import {ReaderMatchNavigation} from './ReaderMatchNavigation';
 import {ReaderBrowserHint} from './ReaderBrowserHint';
 const {t} = defaultI18n;
-const directionIcon = (rtl: boolean): 'i-rtl' | 'i-ltr' => rtl ? 'i-rtl' : 'i-ltr';
+const directionIcon = (direction: ReadDirection): 'i-rtl' | 'i-ltr' | 'i-vscroll' => direction === 'rtl' ? 'i-rtl' : direction === 'vertical' ? 'i-vscroll' : 'i-ltr';
 /** Real outline boundaries, including nested chapters; coincident starts draw one tick. */
 export function readerChapterMarks(items: readonly ReaderTocItem[], location?: ReaderLocation): readonly ReaderChapterMark[] {
   const outline: ReaderTocItem[] = [];
@@ -228,13 +229,12 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
     state={state => state.status === 'error' ? <StateView title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')}/> : <Skeleton height="100%"/>}
     presentation={value => ({copy: {back: t('next.reader.back'), previous: t('next.reader.previous'), next: t('next.reader.next'), progress: t('next.reader.position'), showControls: t('next.reader.hintShowControls')},
       holdOpen: fixedMenu !== undefined, presentation,
-      direction: comic && value.preferences.comicDirection !== 'file' ? value.preferences.comicDirection === 'rtl' ? 'rtl' : 'ltr'
-        : value.metadata?.direction === 'rtl' ? 'rtl' : 'ltr', tapTurnEnabled: value.preferences.tapToTurn, showPageArrows: layout.showPageArrows,
+      direction: readingDirection(comic, value.preferences.comicDirection, value.metadata?.direction), tapTurnEnabled: value.preferences.tapToTurn, showPageArrows: layout.showPageArrows,
       chapters: readerChapterMarks(value.toc, value.location ?? undefined),
       chapter: value.location?.chapter, pages: readerPagePosition(value.location, value.metadata?.pageCount),
       remainingInSection: value.location?.pagesLeftInSection === undefined ? undefined : t('next.reader.sectionRemaining', {count: value.location.pagesLeftInSection}),
       hint: presentation === 'phone' && hint && !panel && value.status === 'ready' && value.preferences.tapToTurn && value.selection === null ? <ReaderFirstRunHint onDone={dismissHint} swipe={publication.format === 'epub' && value.preferences.layout === 'pages'}
-        direction={comic && value.preferences.comicDirection !== 'file' ? value.preferences.comicDirection === 'rtl' ? 'rtl' : 'ltr' : value.metadata?.direction === 'rtl' ? 'rtl' : 'ltr'}/> : undefined,
+        direction={readingDirection(comic, value.preferences.comicDirection, value.metadata?.direction) === 'rtl' ? 'rtl' : 'ltr'}/> : undefined,
       percent: value.location ? defaultI18n.percent(value.location.progression) : undefined,
       searchNavigation: active && value.status === 'ready' && value.sourceId === publication.source.id && value.sourceRevision === publication.source.revision && presentation === 'phone' && currentHit && visibleHits.some(hit => hit.id === currentHit)
         ? <ReaderMatchNavigation query={query} onStep={stepSearch} onClose={() => changeQuery('')}/> : undefined, panel: panelContent, panelReflows: layout.panelReflows(panel),
@@ -253,7 +253,7 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
           onPress:()=>{if (!notes.service?.current() || controller.getSnapshot() !== value || !value.location) return;
             if(annotationLease&&!annotationLease.retired)void notes.service.write({id:randomId(),kind:'bookmark',location:readingLocationFromReader(value.location),text:'',note:'',colour:''},{revision:notes.state.revision,signal:annotationLease.life.signal,isCurrent:()=>!annotationLease.retired&&authority.isCurrent()&&controller.getSnapshot()===value});}}] : []),
         ...(!compactDocument ? [{id: 'contents', label: t('next.reader.contents'), icon: 'i-chapters' as const, expanded: panel === 'contents', onPress: (element: HTMLButtonElement) => {anchor.current = element; setPanel(panel === 'contents' ? undefined : 'contents');}}] : []),
-        ...(publication.format !== 'cbz' && !compactDocument ? [{id: 'search', label: t('next.reader.search'), icon: 'i-search' as const, expanded: panel === 'search', onPress: (element: HTMLButtonElement) => {anchor.current = element; setPanel(panel === 'search' ? undefined : 'search');}}] : []),
+        ...(!comic && !compactDocument ? [{id: 'search', label: t('next.reader.search'), icon: 'i-search' as const, expanded: panel === 'search', onPress: (element: HTMLButtonElement) => {anchor.current = element; setPanel(panel === 'search' ? undefined : 'search');}}] : []),
         ...(publication.format === 'epub' ? [{id: 'display', label: t('next.reader.displayAction'), text: <ReaderDisplayMark sample={t('next.reader.sample')}/>, expanded: panel === 'display', onPress: (element: HTMLButtonElement) => {anchor.current = element; setPanel(panel === 'display' ? undefined : 'display');}}] : []),
         ...(compactDocument ? [{id: 'more', label: t('next.controls.more'), icon: 'i-more' as const, expanded: fixedMenu === 'more',
           onPress: (element: HTMLButtonElement) => {moreAnchor.current = element; setFixedMenu(fixedMenu === 'more' ? undefined : 'more');}}] : []),
@@ -267,12 +267,12 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
             onPress: () => {if (value.status === 'ready' && value.zoom && authority.isCurrent() && controller.getSnapshot() === value) void controller.setOverride({twoPages: !value.preferences.twoPages}).catch(error => {if (authority.isCurrent()) engineError(readerErrorCode(error));});}}] : []),
         ...(fixed && !compactDocument ? [{id: 'zoom', label: t('next.reader.zoom'), text: <span className={fixedStyles.zoomLabel}>{fixedPageZoomLabel(value.zoom)}</span>, disabled: value.status !== 'ready' || !value.zoom,
           expanded: fixedMenu === 'zoom', onPress: (element: HTMLButtonElement) => {zoomAnchor.current = element; setFixedMenu(fixedMenu === 'zoom' ? undefined : 'zoom');}},
-          ...(publication.format === 'cbz' ? [{id: 'direction', label: t('next.reader.direction'), icon: directionIcon(value.preferences.comicDirection === 'rtl' || value.preferences.comicDirection === 'file' && publication.metadata.direction === 'rtl'),
+          ...(comic ? [{id: 'direction', label: t('next.reader.direction'), icon: directionIcon(readingDirection(comic, value.preferences.comicDirection, publication.metadata.direction)),
             expanded: fixedMenu === 'direction', onPress: (element: HTMLButtonElement) => {directionAnchor.current = element; setFixedMenu(fixedMenu === 'direction' ? undefined : 'direction');}}] : [])] : []),
         ...(layout.fullscreen && document.fullscreenEnabled ? [{id: 'fullscreen', label: t('next.reader.fullscreen'), icon: 'i-fs' as const, separatorBefore: true,
           onPress: (element: HTMLButtonElement) => {const root = element.closest<HTMLElement>('[data-reader-root]'); void (document.fullscreenElement ? document.exitFullscreen() : root?.requestFullscreen())?.catch(reportError);}}] : []),
       ]})}/>
-    {active && <ReaderAnnotationActions service={notes.service} snapshot={snapshot} controller={controller} onSearch={publication.format !== 'cbz' ? text => {changeQuery(text);setPanel('search');} : undefined} reportError={reportError}/>}
+    {active && <ReaderAnnotationActions service={notes.service} snapshot={snapshot} controller={controller} onSearch={!comic ? text => {changeQuery(text);setPanel('search');} : undefined} reportError={reportError}/>}
     {active && environment === 'web' && snapshot.status === 'ready' && <ReaderBrowserHint visible={presentation === 'phone' && !panel && !fixedMenu && !currentHit && snapshot.selection === null && !hint}/>}
     {active && fixed && <FixedPageMenus controller={controller} authority={authority} format={publication.format} reportError={engineError}
       open={fixedMenu} onOpenChange={setFixedMenu} anchorRef={zoomAnchor} directionRef={directionAnchor} moreRef={moreAnchor}/>}

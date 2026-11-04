@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {observedProgress, readKeyTurn, readTapTurn} from '../../src/kit/reader/interaction.ts';
+import {observedProgress, readKeyTurn, readTapTurn, readingDirection} from '../../src/kit/reader/interaction.ts';
 
 test('the same physical arrow reverses between Western comics and manga', () => {
   assert.equal(readKeyTurn('ArrowLeft', 'ltr'), 'previous');
@@ -38,4 +38,15 @@ test('missing or malformed position never turns into fabricated progress', () =>
   assert.equal(observedProgress(0), 0);
   assert.equal(observedProgress(.46), .46);
   assert.equal(observedProgress(1), 1);
+});
+
+test('RD-9: a comic keeps its chosen direction, vertical included; other books follow their file', () => {
+  assert.equal(readingDirection(true, 'vertical', 'ltr'), 'vertical', 'a vertical default is not read as a left-to-right paged comic');
+  assert.equal(readingDirection(true, 'rtl', 'ltr'), 'rtl');
+  assert.equal(readingDirection(true, 'file', 'rtl'), 'rtl');
+  assert.equal(readingDirection(true, 'file', undefined), 'ltr');
+  assert.equal(readingDirection(false, 'vertical', 'rtl'), 'rtl', 'the comic choice never applies to an EPUB or PDF');
+  assert.equal(readKeyTurn('ArrowDown', 'vertical'), 'next');
+  assert.equal(readKeyTurn('ArrowUp', 'vertical'), 'previous');
+  assert.equal(readKeyTurn('ArrowDown', 'ltr'), undefined, 'only a vertical strip turns with up and down');
 });

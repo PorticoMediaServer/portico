@@ -81,13 +81,25 @@ function cursorCollection<T>(libraryId: string | undefined, keyOf: (item: T) => 
   const collection = createWindowedCollection<T>({pageSize, maxResidentPages: 6, maxConcurrent: 2, prefetchPages: 1,
     keyOf,
     async fetchPage(start, count, signal) {
-      const next = await cursor(start, signal);
+      let next = await cursor(start, signal);
       if (ended !== undefined && start >= ended) return {items: [], total: ended};
-      const response = await fetch(next, count, signal);
-      if (disposed || signal.aborted) throw new ReadingError('cancelled');
-      if (libraryId !== undefined && response.items.some(item => libraryOf(item) !== libraryId) || response.nextCursor && (response.items.length !== count || [...cursors.values()].includes(response.nextCursor)))
-        throw new ReadingError('invalid_document');
-      accept?.(response);
+      // RD-6: the server stops a page early when its text would pass the byte budget and gives a
+      // cursor from the last item it kept. Read on from there until this page's slots are full,
+      // so positions stay exact and no item is skipped.
+      const items: T[] = [], used = new Set(cursors.values());
+      let response: Readonly<{items: readonly T[]; nextCursor?: string}>;
+      for (;;) {
+        response = await fetch(next, count - items.length, signal);
+        if (disposed || signal.aborted) throw new ReadingError('cancelled');
+        if (libraryId !== undefined && response.items.some(item => libraryOf(item) !== libraryId) || response.items.length > count - items.length
+          || response.nextCursor && (used.has(response.nextCursor) || items.length + response.items.length < count && !response.items.length))
+          throw new ReadingError('invalid_document');
+        accept?.(response);
+        items.push(...response.items);
+        if (!response.nextCursor || items.length >= count) break;
+        used.add(response.nextCursor); next = response.nextCursor;
+      }
+      response = {items, ...(response.nextCursor ? {nextCursor: response.nextCursor} : {})};
       if (response.nextCursor) {
         cursors.set(start + count, response.nextCursor); frontier = Math.max(frontier, start + count);
         lowerBound = Math.max(lowerBound, start + response.items.length + 1);
