@@ -636,7 +636,6 @@ func restrictionRoutes() map[string]restrictionRoute {
 		"GET /v1/library-kinds/{kind}/metadata-agents": exempt(reasonAdmin),
 
 		// Catalogue: global lists.
-		"GET /v1/bootstrap":   static("/v1/bootstrap"),
 		"GET /v1/home":        static("/v1/home"),
 		"GET /v1/home/layout": static("/v1/home/layout"),
 		// The viewer's own saved lists (Home has its own route now).

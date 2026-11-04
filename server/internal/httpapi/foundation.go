@@ -20,7 +20,6 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/downloads"
 	"github.com/PorticoMediaServer/portico/server/internal/eventfeed"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
-	"github.com/PorticoMediaServer/portico/server/internal/operations"
 	"github.com/PorticoMediaServer/portico/server/internal/playbackv1"
 )
 
@@ -41,14 +40,6 @@ type CapabilitiesDocument struct {
 }
 type BootstrapViewer struct {
 	Viewer identity.Viewer `json:"viewer"`
-}
-type BootstrapDocument struct {
-	Server       ServerDocument                `json:"server"`
-	Capabilities CapabilitiesDocument          `json:"capabilities"`
-	Me           BootstrapViewer               `json:"me"`
-	Libraries    []catalog.Library             `json:"libraries"`
-	Preferences  operations.PreferenceSnapshot `json:"preferences"`
-	HomeLayout   operations.HomeLayoutDocument `json:"homeLayout"`
 }
 type RatingSystemsDocument struct {
 	Items []identity.RatingSystem `json:"items"`
@@ -261,45 +252,6 @@ func (d Dependencies) visibleLibraries(r *http.Request, p identity.Principal) ([
 		}
 	}
 	return visible, nil
-}
-
-func (d Dependencies) bootstrap(r *http.Request) (BootstrapDocument, error) {
-	p, err := d.foundationCaller(r)
-	if err != nil {
-		return BootstrapDocument{}, foundationAuthError(err)
-	}
-	if p.Role == "account" {
-		return BootstrapDocument{}, &apierror.Error{Code: "not_permitted"}
-	}
-	deviceClass := r.URL.Query().Get("deviceClass")
-	if deviceClass == "" {
-		deviceClass = "web"
-	}
-	if deviceClass != "web" && deviceClass != "mobile" && deviceClass != "television" {
-		return BootstrapDocument{}, &apierror.Error{Code: "invalid_request"}
-	}
-	capabilities, err := d.viewerCapabilities(r)
-	if err != nil {
-		return BootstrapDocument{}, &apierror.Error{Code: "internal", Cause: err}
-	}
-	libraries, err := d.visibleLibraries(r, p)
-	if err != nil {
-		return BootstrapDocument{}, &apierror.Error{Code: "internal", Cause: err}
-	}
-	authorize := d.consoleAuthority(p, false)
-	preferences, err := d.Console.Preferences(r.Context(), p, deviceClass, authorize)
-	if err != nil {
-		return BootstrapDocument{}, &apierror.Error{Code: "internal", Cause: err}
-	}
-	homeLayout, err := d.Console.HomeLayout(r.Context(), p, authorize)
-	if err != nil {
-		return BootstrapDocument{}, &apierror.Error{Code: "internal", Cause: err}
-	}
-	return BootstrapDocument{
-		Server:       ServerDocument{d.Identity.ID(), d.Identity.Name(), APIVersion{Major: 1, Level: 1}, d.Identity.SetupRequired()},
-		Capabilities: capabilities, Me: BootstrapViewer{Viewer: p.Viewer}, Libraries: libraries,
-		Preferences: preferences, HomeLayout: homeLayout,
-	}, nil
 }
 
 // FoundationRegistry is used both by the live router and apigen. Contract
@@ -663,14 +615,6 @@ func FoundationRegistry(d Dependencies) (*apikit.Registry, error) {
 		ID: "get_capabilities", Method: "GET", Path: "/v1/capabilities", Summary: "Read this viewer's feature states and published limits", Access: apikit.Device, Requires: apikit.ScopeRead, Lane: apikit.Default, Cost: apikit.Constant, Status: 200, Errors: []string{"unauthorized", "internal"},
 	}, Handler: func(_ context.Context, r *http.Request, _ struct{}) (CapabilitiesDocument, error) {
 		return d.viewerCapabilities(r)
-	}})
-	if err != nil {
-		return nil, err
-	}
-	err = apikit.Register(registry, apikit.Route[struct{}, BootstrapDocument]{Metadata: apikit.Metadata{Audience: apikit.Clients, Admission: laneBrowsing,
-		ID: "get_bootstrap", Method: "GET", Path: "/v1/bootstrap", Summary: "Read this viewer's startup state", Access: apikit.Device, Requires: apikit.ScopeRead, Lane: apikit.Browsing, Cost: apikit.PageSized, Status: 200, Query: []string{"deviceClass"}, Errors: []string{"unauthorized", "not_permitted", "invalid_request", "internal"},
-	}, Handler: func(_ context.Context, r *http.Request, _ struct{}) (BootstrapDocument, error) {
-		return d.bootstrap(r)
 	}})
 	if err != nil {
 		return nil, err
