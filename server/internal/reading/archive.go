@@ -90,6 +90,10 @@ func safePath(name string) bool {
 }
 
 func openArchive(r io.ReaderAt, size int64) (*archive, error) {
+	return openArchiveWithLimits(r, size, safetyArchiveLimits)
+}
+
+func openArchiveWithLimits(r io.ReaderAt, size int64, limits archiveLimits) (*archive, error) {
 	if err := inspectDirectory(r, size); err != nil {
 		return nil, err
 	}
@@ -113,12 +117,15 @@ func openArchive(r io.ReaderAt, size int64) (*archive, error) {
 		if f.Method != zip.Store && f.Method != zip.Deflate {
 			return nil, ErrInvalid
 		}
-		if f.UncompressedSize64 > MaxMember || f.CompressedSize64 > MaxSource || (f.UncompressedSize64 > 1<<20 && f.UncompressedSize64/max(uint64(1), f.CompressedSize64) > 200) {
+		if f.UncompressedSize64 > limits.member {
+			return nil, limits.exceeded
+		}
+		if f.CompressedSize64 > MaxSource || (f.UncompressedSize64 > 1<<20 && f.UncompressedSize64/max(uint64(1), f.CompressedSize64) > 200) {
 			return nil, ErrLimit
 		}
 		expanded += f.UncompressedSize64
-		if expanded > MaxExpanded {
-			return nil, ErrLimit
+		if expanded > limits.total {
+			return nil, limits.exceeded
 		}
 		a.files[name] = &archiveFile{f.UncompressedSize64, f}
 		a.order = append(a.order, name)

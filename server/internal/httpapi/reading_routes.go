@@ -207,6 +207,9 @@ func (d Dependencies) prepareReadingSession(w http.ResponseWriter, r *http.Reque
 	}
 	v, m := document.Selection, document.Metadata
 	out := ReadingSessionResponse{CanAnnotate: reading.CanAnnotate(p), Sequential: document.Sequential, SessionID: session.ID, ItemID: v.ItemID, SourceID: v.SourceID, Revision: v.Revision, Format: ReadingFormat(v.Format), Size: v.Size, Metadata: ReadingMetadata{Title: m.Title, Author: m.Author, Language: m.Language, Direction: ReadingDirection(m.Direction), CoverURL: m.CoverURL}, Spine: document.Spine, PageNames: document.PageNames}
+	if v.Format == "epub" {
+		out.Limits = &ReadingPublicationLimits{MemberBytes: reading.EPUBMemberBytes, TotalBytes: reading.EPUBTotalBytes}
+	}
 	out.Conversion = readingConversionProjection(document.Conversion)
 	readingManifestFactsProjection(&out.Metadata, m)
 	// This optional offer is descriptive only; the transfer rechecks the exact
