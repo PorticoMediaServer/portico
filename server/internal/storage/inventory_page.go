@@ -286,7 +286,7 @@ func localInventoryPage(r InventoryRequest) (p InventoryPage, raw int, err error
 }
 func inventoryPageHelper(r InventoryRequest, out io.Writer) error {
 	if r.Stream {
-		return inventoryStreamHelper(r, out)
+		return ErrInventoryChanged // streaming requires the bounded demand reader
 	}
 	p, err := LocalInventoryPage(r)
 	if err != nil {

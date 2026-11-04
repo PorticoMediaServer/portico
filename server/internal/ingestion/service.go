@@ -226,6 +226,9 @@ func (s *Service) Control(ctx context.Context, id, action string, authorize func
 	}
 	if action == "cancel" {
 		s.forgetListing(id)
+		if s.storage != nil {
+			s.storage.StopInventory(id)
+		}
 	}
 	return nil
 }
@@ -375,6 +378,8 @@ func (s *Service) Run(ctx context.Context) {
 	// before the outer supervisor restarts the scanner, so the supplied parent
 	// is never cancelled and no child is detached.
 	life, stopLife := context.WithCancel(ctx)
+	inventory := storage.NewOperationScope()
+	life = storage.WithInventoryOperations(life, inventory)
 	// Everything this loop writes is bulk catalogue work, so it queues behind
 	// playback, authentication and interactive edits at the write gate.
 	life = dbwork.WithClass(life, dbwork.ClassBackgroundMedia)
@@ -391,6 +396,7 @@ func (s *Service) Run(ctx context.Context) {
 		// quantums, then join them all. A panic continues to the supervisor only
 		// after this returns.
 		stopLife()
+		inventory.Close()
 		s.mu.Lock()
 		for _, cancel := range s.active {
 			cancel()
@@ -400,6 +406,7 @@ func (s *Service) Run(ctx context.Context) {
 		<-monitorDone
 		<-verificationDone
 		<-presenceDone
+		_ = inventory.Wait(context.Background()) // join this Run's retained directory helpers
 	}()
 	// A scan is enqueued by a write, so the loop is woken by one. With nothing
 	// queued it asked the database three times a second for the life of the
@@ -670,6 +677,9 @@ func (s *Service) processQuantum(ctx context.Context, id, library string) bool {
 	if err == nil && after.status != "running" && after.status != "queued" && after.status != "paused" {
 		s.forgetListing(id)
 		s.forgetAnalysing(id)
+		if s.storage != nil {
+			s.storage.StopInventory(id)
+		}
 	}
 	return err == nil && after != before && after.status == "running"
 }
