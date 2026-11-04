@@ -53,10 +53,7 @@ func (s *Service) FlushObservations(ctx context.Context) error {
 	return nil
 }
 
-// CloseObservations stops admission and joins the background worker, then tries
-// to save the unwritten window. Call after HTTP drain and before DB close. A
-// failed/timed-out flush is reported; it never counts evidence as committed.
-func (s *Service) CloseObservations(ctx context.Context) error {
+func (s *Service) stopObservations() <-chan struct{} {
 	o := s.observations()
 	o.mu.Lock()
 	o.closed = true
@@ -65,6 +62,14 @@ func (s *Service) CloseObservations(ctx context.Context) error {
 	}
 	done := o.workerDone
 	o.mu.Unlock()
+	return done
+}
+
+// CloseObservations stops admission and joins the background worker, then tries
+// to save the unwritten window. Call after HTTP drain and before DB close. A
+// failed/timed-out flush is reported; it never counts evidence as committed.
+func (s *Service) CloseObservations(ctx context.Context) error {
+	done := s.stopObservations()
 	if done != nil {
 		select {
 		case <-done:
