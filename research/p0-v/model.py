@@ -4,10 +4,17 @@
 Input is source facts, not candidate results. Unsupported semantics fail closed.
 The prototype validates three leaf pivots; see V-ORACLE for outstanding adapters.
 """
-import argparse,collections,copy,json,re,unicodedata,urllib.parse
+import argparse,collections,copy,json,re,unicodedata,urllib.parse,calendar,datetime
 
 def fold(s):
     return ''.join(c for c in unicodedata.normalize('NFKD',s.lower()) if not unicodedata.combining(c))
+
+def instant_ns(text):
+    if text is None: return None
+    m=re.fullmatch(r'(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:\.(\d{1,9}))?Z',text)
+    if not m: raise ValueError('expected UTC RFC3339 with <=9 fractional digits')
+    seconds=calendar.timegm(datetime.datetime.strptime(m[1],'%Y-%m-%dT%H:%M:%S').timetuple())
+    return seconds*1000000000+int((m[2] or '').ljust(9,'0'))
 
 def title_key(e):
     text=fold(e.get('sort_title') or e['title'])
@@ -47,7 +54,7 @@ class Reference:
         def key(e):
             if field=='title': v=title_key(e)
             elif field=='year': v=e['year']
-            elif field=='added': v=e['added_ms'] or 0
+            elif field=='added': v=instant_ns(e['added_at']) if e.get('added_at') is not None else (e.get('added_ms') or 0)*1000000
             elif field=='duration': v=max([a['duration'] for a in self.assets[e['id']]] or [0])
             else: raise ValueError('unimplemented sort '+field)
             return v,e['id']

@@ -1,0 +1,86 @@
+{
+  "records": [
+    {
+      "name": "fraction-early",
+      "id": 1,
+      "added_at": "2026-11-04T12:00:00.0000001Z"
+    },
+    {
+      "name": "exact-second",
+      "id": 2,
+      "added_at": "2026-11-04T12:00:00Z"
+    },
+    {
+      "name": "fraction-late",
+      "id": 3,
+      "added_at": "2026-11-04T12:00:00.0000002Z"
+    },
+    {
+      "name": "equal-early-later-id",
+      "id": 4,
+      "added_at": "2026-11-04T12:00:00.0000001Z"
+    },
+    {
+      "name": "half-second",
+      "id": 5,
+      "added_at": "2026-11-04T12:00:00.5Z"
+    },
+    {
+      "name": "next-second",
+      "id": 6,
+      "added_at": "2026-11-04T12:00:01Z"
+    },
+    {
+      "name": "fraction-prefix-short",
+      "id": 7,
+      "added_at": "2026-11-04T12:00:00.1Z"
+    },
+    {
+      "name": "fraction-prefix-long",
+      "id": 8,
+      "added_at": "2026-11-04T12:00:00.11Z"
+    }
+  ],
+  "instantDescending": [
+    "next-second",
+    "half-second",
+    "fraction-prefix-long",
+    "fraction-prefix-short",
+    "fraction-late",
+    "equal-early-later-id",
+    "fraction-early",
+    "exact-second"
+  ],
+  "legacyTextDescending": [
+    "next-second",
+    "exact-second",
+    "half-second",
+    "fraction-prefix-short",
+    "fraction-prefix-long",
+    "fraction-late",
+    "equal-early-later-id",
+    "fraction-early"
+  ],
+  "disposition": "Accepted deliberate change by lead, widened for R-06: every variable-width timestamp compares by true instant descending, then id descending. Includes exact-second/fractional and fractional-prefix .1Z/.11Z differences. legacyTextDescending is an old-server diagnostic control, never the release oracle.",
+  "id": "CHRONO-LEAF-INSTANT-ORDER",
+  "fractionalPair": {
+    "records": [
+      {
+        "id": 1,
+        "added_at": "2026-11-04T12:00:00.1Z"
+      },
+      {
+        "id": 2,
+        "added_at": "2026-11-04T12:00:00.11Z"
+      }
+    ],
+    "legacyDescending": [
+      1,
+      2
+    ],
+    "instantDescending": [
+      2,
+      1
+    ]
+  }
+}

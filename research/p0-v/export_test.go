@@ -1,11 +1,16 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/PorticoMediaServer/portico/server/internal/catalogtest"
+	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog"
 	"net/url"
 	"os"
+	"reflect"
 	"testing"
 )
 
@@ -154,4 +159,87 @@ func TestP0VExport(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("exported %d entities and %d HTTP pages", len(out["entities"].([]map[string]any)), len(cases))
+}
+
+// Pin the shipped DVR leaf writer/read path, including its TEXT-order anomaly.
+// This uses the exact publication seam, not a recording/helper simulation.
+func TestP0VDVRLegacyOrderControl(t *testing.T) {
+	f, call := buildGoldenFixture(t)
+	raw, err := os.ReadFile(os.Getenv("P0V_CHRONOLOGY"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var golden struct {
+		Records []struct {
+			Name    string
+			ID      int
+			AddedAt string `json:"added_at"`
+		}
+		Legacy []string `json:"legacyTextDescending"`
+	}
+	if err = json.Unmarshal(raw, &golden); err != nil {
+		t.Fatal(err)
+	}
+	var library int64
+	if err = f.db.QueryRow(`SELECT id FROM catalog_libraries WHERE library_id=?`, f.library.Movies).Scan(&library); err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]string{}
+	times := map[string]string{}
+	c := catalogtest.New(t, f.db)
+	for _, r := range golden.Records {
+		var id int64
+		c.Write(func(ctx context.Context, tx *sql.Tx) error {
+			var e error
+			id, _, e = compactcatalog.UpsertEntityTx(ctx, tx, compactcatalog.Entity{Library: library, Kind: compactcatalog.Movie, Key: compactcatalog.RecordingKey("p0v-" + r.Name), Title: r.Name, Added: r.AddedAt})
+			return e
+		})
+		var public string
+		if err = f.db.QueryRow(`SELECT pid(public_id) FROM catalog_entities WHERE id=?`, id).Scan(&public); err != nil {
+			t.Fatal(err)
+		}
+		names[public] = r.Name
+		times[r.Name] = r.AddedAt
+	}
+	settleCompactCatalogue(t, f.db)
+	cursor := ""
+	got := []string{}
+	for page := 0; page < len(golden.Records); page++ {
+		body := fmt.Sprintf(`{"pivot":"movies","sort":[{"field":"added","direction":"desc"}],"limit":1,"cursor":%q}`, cursor)
+		status, response := call("POST", "/v1/libraries/"+f.library.Movies+"/browse", body, "owner")
+		if status != 200 {
+			t.Fatal(status, response)
+		}
+		var doc struct {
+			Entries []struct {
+				ID      string
+				AddedAt string `json:"addedAt"`
+			}
+			PageInfo struct {
+				Cursor string `json:"nextCursor"`
+			}
+		}
+		if err = json.Unmarshal([]byte(response), &doc); err != nil {
+			t.Fatal(err)
+		}
+		if len(doc.Entries) != 1 {
+			t.Fatal(response)
+		}
+		name := names[doc.Entries[0].ID]
+		if name == "" {
+			t.Fatal("unexpected non-DVR leaf", response)
+		}
+		if doc.Entries[0].AddedAt != times[name] {
+			t.Fatalf("timestamp wire changed for %s: %s != %s", name, doc.Entries[0].AddedAt, times[name])
+		}
+		got = append(got, name)
+		cursor = doc.PageInfo.Cursor
+		if cursor == "" {
+			t.Fatal("early end", response)
+		}
+	}
+	if !reflect.DeepEqual(got, golden.Legacy) {
+		t.Fatalf("Old-server diagnostic changed: %v != %v; CHRONO-LEAF-INSTANT-ORDER already accepts the corrected instant order", got, golden.Legacy)
+	}
+	t.Logf("old-server DVR chronology diagnostic: %v", got)
 }

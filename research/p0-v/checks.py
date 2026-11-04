@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import argparse,copy,json,pathlib,time
-from model import Reference,compare
+from model import Reference,compare,instant_ns
 
 p=argparse.ArgumentParser();p.add_argument('facts');p.add_argument('--plans');p.add_argument('--record-plan',action='store_true');a=p.parse_args()
 facts=json.load(open(a.facts));start=time.perf_counter();result=compare(facts)
@@ -39,6 +39,16 @@ assert not permitted([('contentRating','unknown')],{})
 assert not permitted([('contentRating','pg'),('label','violence')],{'pg':8})
 assert not permitted([('contentRating','pg')],{'pg':8},library='hidden')
 assert not permitted([],{},viewer='owner',retired=1)
+chron=json.loads((pathlib.Path(__file__).parent/'chronology.json').read_text())
+actual=[x['name'] for x in sorted(chron['records'],key=lambda x:(instant_ns(x['added_at']),x['id']),reverse=True)]
+legacy=[x['name'] for x in sorted(chron['records'],key=lambda x:(x['added_at'],x['id']),reverse=True)]
+assert actual==chron['instantDescending'] and legacy==chron['legacyTextDescending'] and actual!=legacy
+assert instant_ns('2026-11-04T12:00:00Z')==instant_ns('2026-11-04T12:00:00.000000000Z')
+assert instant_ns(chron['records'][0]['added_at'])!=instant_ns(chron['records'][2]['added_at'])
+pair=chron['fractionalPair']
+assert [r['id'] for r in sorted(pair['records'],key=lambda r:(instant_ns(r['added_at']),r['id']),reverse=True)]==pair['instantDescending']==[2,1]
+assert [r['id'] for r in sorted(pair['records'],key=lambda r:(r['added_at'],r['id']),reverse=True)]==pair['legacyDescending']==[1,2]
+result['chronology']=dict(instantDescending=actual,legacyTextDescending=legacy,semantic_difference=True)
 result.update(negative_controls=controls,policy_edge_cases=7,elapsed_seconds=round(time.perf_counter()-start,3))
 if a.plans:
     plans={k:facts[k] for k in ['planRegistry','engine','compileOptions','schemaSHA256','plannerPragmas','statistics']}
