@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -27,6 +28,22 @@ func TestDerivedWorkerCompletesWithForegroundPressure(t *testing.T) {
 	dbwork.RegisterForegroundProbe(t.Name(), func() bool { return true })
 	defer dbwork.RegisterForegroundProbe(t.Name(), nil)
 	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cost := dbwork.Measure(ctx)
+	tracing := os.Getenv("PORTICO_COUNTER_TRACE") == "1"
+	if tracing {
+		ctx = compactcatalog.MarkCounterTrace(ctx)
+	}
+	defer func() {
+		measured := cost()
+		t.Logf("COUNTER-COST statements=%d transactions=%d vm=%d acquisitions=%d", measured.Statements, measured.Transactions, measured.VMSteps, measured.Acquisitions)
+		if tracing {
+			captured, expected, meters, probes := compactcatalog.CounterTraceSummary()
+			t.Logf("COUNTER-SQL captured=%d expected=%d root_expected=%d total_changes=%d source_probes=%d", captured, expected, measured.Statements, meters, probes)
+			if captured != expected || expected != measured.Statements {
+				t.Error("incomplete per-statement coverage")
+			}
+		}
+	}()
 	started := time.Now()
 	pressureBefore := dbwork.Pressure()
 	defer func() {
