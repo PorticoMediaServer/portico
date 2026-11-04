@@ -5,7 +5,7 @@ import {defaultI18n, type I18n} from '../../../../../packages/i18n/src';
 import {serverTextLabel} from '../../../../../packages/client-core/src/presentation/server-text';
 import type {PersonalResource} from '../../../../../packages/client-core/src/personal-saved';
 import {Button, Focusable, Switch} from '../../kit/controls';
-import {useFocusRegistry} from '../../kit/focus';
+import {useCovered, useFocusRegistry} from '../../kit/focus';
 import {Icon} from '../../kit/Icon';
 import {alpha} from '../../kit/browse/presentation';
 import {BottomSheet, Dialog, SidePanel} from '../../kit/overlays';
@@ -133,21 +133,29 @@ export function HomeCustomize({controller, copy, i18n, onClose, onAddView, views
     return () => listener?.remove();
   }, [controller, regionId, registry, state.pending, state.pickedId, theme.isTV]);
   /** Ruling C (step 7 item 4): a saved view that drops after an access change unmounts its row. On TV, focus that was
-   * on it (or that the unmount left detached) goes to the row now in its place, the row above, or Add view: it stays in
-   * the panel. Focus already elsewhere in the panel is left where it is. */
-  const shownRows = useRef(state.rows);
+   * on it goes to the row now in its place, the row above, or Add view, so it stays in the panel. As the shared
+   * replacement-refocus hook does: where focus was is read on the render that brings the change, while the old rows are
+   * still attached, and only a capture in this panel on a dropped row counts; nothing moves while the panel is covered,
+   * then or when the frame runs; and the frame moves nothing if focus has meanwhile attached somewhere else. */
+  const covered = useCovered(), coveredNow = useRef(covered);
+  coveredNow.current = covered;
+  const shownRows = useRef(state.rows), focusBefore = useRef<ReturnType<typeof registry.capture>>(undefined);
+  if (shownRows.current !== state.rows) focusBefore.current = theme.isTV ? registry.capture?.() : undefined;
   useEffect(() => {
-    const before = shownRows.current;shownRows.current = state.rows;
-    if (!theme.isTV || !controller.isCurrent()) return;
-    const kept = (row: {id: string}) => state.rows.some(value => value.id === row.id), gone = before.filter(row => !kept(row));
-    if (!gone.length) return;
+    const before = shownRows.current, active = focusBefore.current;
+    shownRows.current = state.rows;focusBefore.current = undefined;
+    if (!theme.isTV || coveredNow.current || !controller.isCurrent() || !active || active.regionId !== regionId) return;
+    const kept = (row: {id: string}) => state.rows.some(value => value.id === row.id);
     const on = (childId: string | undefined, row: {id: string}) => childId === row.id || !!childId?.startsWith(row.id + ':');
-    const attached = registry.attachedFocus?.();
-    if (attached && (attached.regionId !== regionId || !gone.some(row => on(attached.childId, row)))) return;
-    const active = registry.capture?.();
-    if (!attached && active && active.regionId === regionId && !gone.some(row => on(active.childId, row))) return;
-    const lost = before.indexOf(gone[0]!), neighbor = before.slice(lost + 1).find(kept) ?? before.slice(0, lost).reverse().find(kept);
-    const frame = requestAnimationFrame(() => {if (controller.isCurrent()) focusTarget((neighbor && rowRefs.current.get(neighbor.id)) ?? addView.current);});
+    const lost = before.findIndex(row => !kept(row) && on(active.childId, row));
+    if (lost < 0) return;
+    const neighbor = before.slice(lost + 1).find(kept) ?? before.slice(0, lost).reverse().find(kept);
+    const elsewhere = () => {const now = registry.attachedFocus?.();return !!now && (now.regionId !== regionId || !before.some(row => !kept(row) && on(now.childId, row)));};
+    if (elsewhere()) return;
+    const frame = requestAnimationFrame(() => {
+      if (!controller.isCurrent() || coveredNow.current || elsewhere()) return;
+      focusTarget((neighbor && rowRefs.current.get(neighbor.id)) ?? addView.current);
+    });
     return () => cancelAnimationFrame(frame);
   }, [controller, regionId, registry, state.rows, theme.isTV]);
   const rowHeight = theme.isTV ? 70 : 58;

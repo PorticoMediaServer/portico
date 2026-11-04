@@ -251,7 +251,7 @@ test('touch Customize exposes saved-view removal and keeps its normal footer dur
     react: h.react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
     'react-native-gesture-handler': {Gesture: {Native: () => ({})}, GestureDetector: 'GestureDetector'}, '../../../../../packages/i18n/src': {defaultI18n: {t}},
     '../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel: (_i18n: unknown, text: unknown, fallback: string) => text ?? fallback}, '../../../../../packages/client-core/src/presentation/home-row-reason': {homeRowReasonParts: () => undefined},
-    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch'}, '../../kit/focus': {useFocusRegistry: () => ({})},
+    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch'}, '../../kit/focus': {useCovered: () => false, useFocusRegistry: () => ({})},
     '../../kit/Icon': {Icon: 'Icon'}, '../../kit/browse/presentation': {alpha: (value: string) => value},
     '../../kit/overlays': {BottomSheet: 'BottomSheet', Dialog: 'Dialog', SidePanel: 'SidePanel'}, '../../kit/overlays/OverlayHost': {},
     '../../kit/theme': {nativeType: type, useTheme: () => theme}, './customize-controller': {}, './customize-drag': {},

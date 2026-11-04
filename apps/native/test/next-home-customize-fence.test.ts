@@ -127,8 +127,10 @@ test('C: a Saved intent that could not be added never hides the views-dropped no
 });
 
 // TV: the dropped view's row unmounts while it holds focus. Focus goes to the row now in its place (here the row
-// above) inside the side panel, never out of it; focus already elsewhere in the panel stays where it is.
-test('C: on TV, focus on a dropped view moves to its neighbour inside the side panel', async () => {
+// above) inside the side panel, never out of it. As the shared replacement-refocus hook: only a capture in this panel
+// on the dropped row counts (#751 review probe: detached focus whose last capture was "recent" moves nothing), focus
+// attached elsewhere (the reset dialog) is left there, a covered panel never moves focus, and the frame re-checks.
+test('C: on TV, focus on a dropped view moves to its neighbour inside the side panel, and only then', async () => {
   const owner = hooks(), effects: (() => void | (() => void))[] = [], focused: unknown[] = [];
   // Effects run after each render when their dependencies change, as React runs them.
   const react: any = {...owner.react, useLayoutEffect: () => {}, useId: () => 'customize',
@@ -141,8 +143,8 @@ test('C: on TV, focus on a dropped view moves to its neighbour inside the side p
   const raf = globalThis.requestAnimationFrame, caf = globalThis.cancelAnimationFrame;
   globalThis.requestAnimationFrame = ((callback: () => void) => {frames.push(callback);return frames.length;}) as never;
   globalThis.cancelAnimationFrame = (() => {}) as never;
-  let focus: {regionId: string; childId: string} | undefined;
-  const registry = {capture: () => focus, attachedFocus: () => undefined};
+  let capture: {regionId: string; childId: string} | undefined, attached: {regionId: string; childId: string} | undefined, covered = false;
+  const registry = {capture: () => capture, attachedFocus: () => attached};
   const theme = {isTV: true, platform: 'tv', colors: {text: '#fff', textSecondary: '#aaa', textTertiary: '#777', raisedHigh: '#222', accentStrong: '#0af', shadow: '#000', line: '#333'},
     textScale: 1, type: {title: {}, body: {}, bodyStrong: {}, caption: {}, captionStrong: {}}};
   const {HomeCustomize} = await screenModule(new URL('../src-next/screens/home/HomeCustomize.tsx', import.meta.url), {
@@ -150,7 +152,7 @@ test('C: on TV, focus on a dropped view moves to its neighbour inside the side p
     'react-native-gesture-handler': {Gesture: {Native: () => ({})}, GestureDetector: 'GestureDetector'}, '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
     '../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel: (_i18n: unknown, text: unknown, fallback: string) => text ?? fallback},
     '../../../../../packages/client-core/src/presentation/home-row-reason': {homeRowReasonParts: () => undefined},
-    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch'}, '../../kit/focus': {useFocusRegistry: () => registry},
+    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch'}, '../../kit/focus': {useCovered: () => covered, useFocusRegistry: () => registry},
     '../../kit/Icon': {Icon: 'Icon'}, '../../kit/browse/presentation': {alpha: (value: string) => value},
     '../../kit/overlays': {BottomSheet: 'BottomSheet', Dialog: 'Dialog', SidePanel: 'SidePanel'}, '../../kit/overlays/OverlayHost': {focusTarget: (node: unknown) => {focused.push(node);}},
     '../../kit/theme': {nativeType: () => ({}), useTheme: () => theme}, './customize-controller': {}, './customize-drag': {},
@@ -166,18 +168,26 @@ test('C: on TV, focus on a dropped view moves to its neighbour inside the side p
     for (const node of all(tree)) if (typeof node.props.ref === 'function') node.props.ref({id: node.props.focusId});
     const add = all(tree).find(node => node.props.focusId === 'add-view');if (add) add.props.ref.current = {id: 'add-view'};
     for (const effect of effects) effect();return tree;};
+  /** Puts the added view back, then drops it under the given focus; returns where focus was asked to go. */
+  const drop = (focus: {capture?: typeof capture; attached?: typeof attached; covered?: boolean; meanwhile?: typeof attached}) => {
+    capture = undefined;attached = undefined;covered = false;state = {...state, rows: [recent, added]};draw();frames.length = 0;focused.length = 0;
+    capture = focus.capture;attached = focus.attached;covered = focus.covered ?? false;
+    state = {...state, rows: [recent], noLongerAvailable: 1};const tree = draw();
+    if (focus.meanwhile) attached = focus.meanwhile;
+    for (const frame of frames.splice(0)) frame();
+    return {tree, focused: [...focused]};
+  };
   try {
     assert.equal(all(draw()).some(node => node.type === 'SidePanel'), true);
-    frames.length = 0;focused.length = 0;
-    focus = {regionId: 'customize', childId: 'view:added'};
-    state = {...state, rows: [recent], noLongerAvailable: 1};
-    const after = draw();
-    for (const frame of frames.splice(0)) frame();
-    assert.deepEqual(focused, [{id: 'recent'}], 'focus moves to the row above, inside the panel');
-    assert.equal(all(after).some(node => node.type === 'SidePanel' && node.props.open === true), true, 'the panel stays open');
-    focus = {regionId: 'customize', childId: 'recent:visibility'};focused.length = 0;
-    state = {...state, rows: [recent, added]};draw();for (const frame of frames.splice(0)) frame();
-    state = {...state, rows: [recent]};draw();for (const frame of frames.splice(0)) frame();
-    assert.deepEqual(focused, [], 'focus already elsewhere in the panel stays');
+    const moved = drop({capture: {regionId: 'customize', childId: 'view:added'}});
+    assert.deepEqual(moved.focused, [{id: 'recent'}], 'focus on the dropped view moves to the row above, inside the panel');
+    assert.equal(all(moved.tree).some(node => node.type === 'SidePanel' && node.props.open === true), true, 'the panel stays open');
+    assert.deepEqual(drop({capture: {regionId: 'customize', childId: 'view:added:remove'}}).focused, [{id: 'recent'}], 'its remove button counts as the row');
+    assert.deepEqual(drop({capture: {regionId: 'customize', childId: 'recent'}}).focused, [], 'review probe: detached focus last captured on "recent" moves nothing');
+    assert.deepEqual(drop({capture: {regionId: 'shell', childId: 'view:added'}}).focused, [], 'a last capture in another region moves nothing');
+    const dialog = {regionId: 'customize-reset-confirm', childId: 'reset-cancel'};
+    assert.deepEqual(drop({capture: dialog, attached: dialog}).focused, [], 'focus attached elsewhere (the reset dialog) is left there');
+    assert.deepEqual(drop({capture: {regionId: 'customize', childId: 'view:added'}, covered: true}).focused, [], 'a covered panel never moves focus');
+    assert.deepEqual(drop({capture: {regionId: 'customize', childId: 'view:added'}, meanwhile: dialog}).focused, [], 'the frame re-checks: focus that attached elsewhere meanwhile stays');
   } finally {globalThis.requestAnimationFrame = raf;globalThis.cancelAnimationFrame = caf;}
 });
