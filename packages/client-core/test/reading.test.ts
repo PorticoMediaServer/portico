@@ -338,3 +338,13 @@ for (const format of ['cbr', 'cb7'] as const) test(`${format.toUpperCase()} keep
     assert.equal(f.calls.length, after);
   } finally {f.client.dispose();}
 });
+
+test('SRV-A2: a Continue card names a page book\'s page and never an EPUB\'s package path', async () => {
+  const {readingResumePage} = await import('../src/reading.ts');
+  assert.equal(readingResumePage({location: {format: 'cbz', pageIndex: 11, progression: .5}}), 12);
+  assert.equal(readingResumePage({location: {format: 'pdf', pageIndex: 0, progression: 0}}), 1);
+  assert.equal(readingResumePage({location: {format: 'epub', progression: .4, section: 'OEBPS/chapter3.xhtml'} as never}), undefined);
+  assert.equal(readingResumePage({stale: true, location: {format: 'cbz', pageIndex: 3, progression: .1}}), undefined, 'a stale place is not shown as current');
+  assert.equal(readingResumePage({location: {format: 'cbz', pageIndex: -1, progression: 0}}), undefined);
+});
+
