@@ -148,10 +148,6 @@ func productionStatementsIn(t *testing.T, root string) ([]productionStatement, m
 }
 
 func TestProductionStatementsPrepareAgainstTheBaseline(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
-	}
-
 	db, err := Open(filepath.Join(t.TempDir(), "statements.sqlite"))
 	if err != nil {
 		t.Fatal(err)

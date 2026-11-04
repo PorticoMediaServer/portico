@@ -86,6 +86,26 @@ def balance(tests, durations, count=None):
     assert sorted((t['package'],t['name']) for b in bins for t in b) == sorted((t['package'],t['name']) for t in tests)
     return bins, costs
 
+SHORT_CENSUSES = {
+    ('github.com/PorticoMediaServer/portico/server/internal/persistence', 'TestProductionStatementsPrepareAgainstTheBaseline'),
+    ('github.com/PorticoMediaServer/portico/server/internal/persistence', 'TestNoInsertOrIgnoreUpdateTriggerOnAnUpsertedTable'),
+}
+
+def balance_short_censuses(tests, durations):
+    census = [t for t in tests if (t['package'], t['name']) in SHORT_CENSUSES]
+    if not census: return balance(tests, durations)
+    # Preserve the previous short layout, where these guards cost zero, then
+    # move only the censuses to their own VM. Their added CPU must neither
+    # contend with interactive fixtures nor reshuffle those fixtures together.
+    layout_costs = dict(durations)
+    layout_costs.update({t['package']+'.'+t['name']: 0 for t in census})
+    bins, costs = balance(tests, layout_costs)
+    ordinary = [([t for t in shard if (t['package'],t['name']) not in SHORT_CENSUSES], cost)
+                for shard,cost in zip(bins,costs)]
+    ordinary = [(shard,cost) for shard,cost in ordinary if shard]
+    return ([shard for shard,cost in ordinary] + [census],
+            [cost for shard,cost in ordinary] + [sum(durations.get(t['package']+'.'+t['name'],1) for t in census)])
+
 def components(paths, full=False):
     if full: return sorted(COMPONENTS), True
     chosen=set(); go=False
@@ -205,7 +225,7 @@ def make_plan(paths, full=False, tier="short"):
     excluded={(t['package'],t['name']) for t in exclusions}
     inventory=[t for t in inventory if (t['package'],t['name']) not in excluded]
     cost=sum(durations.get(t['package']+'.'+t['name'],1) for t in inventory)
-    bins,costs=balance(inventory,durations)
+    bins,costs=(balance_short_censuses if tier=='short' else balance)(inventory,durations)
     js=[]; js_reasons={}
     from js_affected import select as affected_js
     for component in selected:
@@ -230,7 +250,7 @@ def make_plan(paths, full=False, tier="short"):
     assigned=[t for t in inventory if '/httpapi' in t['package'] and t['name'] in producer_consumers and any(f.endswith(producer_consumers[t['name']]) for f in js_files)]
     assigned_keys={(t['package'],t['name']) for t in assigned}
     inventory=[t for t in inventory if (t['package'],t['name']) not in assigned_keys]
-    bins,costs=balance(inventory,durations)
+    bins,costs=(balance_short_censuses if tier=='short' else balance)(inventory,durations)
     from explain import selection_reasons
     why=selection_reasons(paths,full,selected,go_owned,components,js_reasons,go_fallbacks,source_readers=reader_tests)
     return {'selection_diagnostics':why,'source_reader_tests':[{'package':k,'name':n,'changed':c} for k,v in sorted(reader_tests.items()) for n,c in sorted(v.items())],'ffmpeg_packages':sorted(probe_packages) if go else [],'android':android_selected(paths,full),'all_inventory':all_inventory,'nightly_diagnostics':diagnostics,'js_owned_producers':assigned,'tier':tier,'paths':paths,'tags':tags,'packages':[{'module':p['module'],'package':p['ImportPath']} for p in packages], 'inventory':inventory,'shards':bins,'predicted_seconds':costs,'js':js,'tier_exclusions':exclusions, 'compile_only_examples':exemptions, 'unmeasured_parents':[t for t in inventory if t['package']+'.'+t['name'] not in durations]}
