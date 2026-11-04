@@ -46,3 +46,11 @@ func recordingWaitDiagnostics(t *testing.T, db *sql.DB) {
     events = [json.loads(line) for line in (out / (label + '.jsonl')).read_text().splitlines()]
     terminals = [e['Action'] for e in events if e.get('Test') == 'TestRecordingLayoutActualStoreAndIO' and e.get('Action') in ['pass', 'fail', 'skip']]
     assert len(terminals) == 5 and set(terminals) <= {'pass', 'fail'}, (label, terminals)
+
+    cohort = ['TestLayoutAtomicLinkRetiresOnlyExactOccurrence', 'TestLayoutRefusesUnownedEqualByteCollision', 'TestLayoutRejectsSymlinksAndEscapesWithoutTouchingOutside', 'TestLayoutReceiptBindsRootSourceOwnerAndTarget', 'TestLayoutCancellationNeverPublishesOrDeletes', 'TestLayoutTargetSubstitutionAndRootReplacementStayUntouched', 'TestLayoutPinnedParentCannotBeRedirected', 'TestLayoutRejectsCorruptClosedBytesAndNonRegularTarget', 'TestLayoutMeasureCountsPhysicalPayloadOnceAcrossAllNames', 'TestRecordingLayoutDriverPreparesBeforeIOAndRecoversExactLink', 'TestLayoutConcurrentOwnersNeverReplaceOrAdoptEachOther', 'TestRecordingLayoutActualStoreAndIO', 'TestRecoveryPersistsFinalCheckpointBeforeValidation', 'TestSharedObjectUsesOneInodeAndLastOwnerReleasesBytes']
+    with (out / (label + '-cohort.jsonl')).open('w') as stdout, (out / (label + '-cohort.stderr')).open('w') as stderr:
+        result = subprocess.run(['go', 'test', '-C', 'server', '-p', '1', '-json', '-count=5', '-timeout=780s', '-tags', tags, '-run', '^(' + '|'.join(cohort) + ')$', './internal/recordingmedia'], cwd=tree, stdout=stdout, stderr=stderr)
+    (out / (label + '-cohort.exit')).write_text(str(result.returncode) + '\n')
+    events = [json.loads(line) for line in (out / (label + '-cohort.jsonl')).read_text().splitlines()]
+    terminals = [e['Action'] for e in events if e.get('Test') == 'TestRecordingLayoutActualStoreAndIO' and e.get('Action') in ['pass', 'fail', 'skip']]
+    assert len(terminals) == 5 and set(terminals) <= {'pass', 'fail'}, (label, terminals)
