@@ -8,13 +8,14 @@ import {screenModule} from './helpers/screen-harness.mjs';
 import {createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {NativeCollectionController} from '../src-next/screens/collections/controller.ts';
 import {createWindowedCollection} from '../../../packages/client-core/src/collections/windowed.ts';
+import * as kitModel from '../../../packages/client-core/src/presentation/kit-model/index.ts';
 
 const themed = {useTheme: () => ({isTV: true, colors: {ink: '#000', text: '#fff', textSecondary: '#ccc', textTertiary: '#999', raised: '#111', line: '#222', accent: '#3af', accentStrong: '#4bf'}, type: {}})};
 const {NativeCollectionScreen, CollectionCard} = await screenModule(new URL('../src-next/screens/collections/CollectionScreen.tsx', import.meta.url), {
   react: {...React, default: React},
   'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
   '../../kit/cards/primitives': {CardFrame: 'CardFrame'}, '../../kit/selection': {SelectionCircle: 'SelectionCircle'},
-  '../saved/presentation': {savedDuration: (value: number) => String(value)},
+  '../../../../../packages/client-core/src/presentation/kit-model': kitModel, '../saved/presentation': {savedDuration: (value: number) => String(value)},
   'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 1920, height: 1080})},
   '../../../../../packages/i18n/src': {defaultI18n},
   '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', AmbientArt: 'Ambient', Artwork: 'Artwork'}, '../../kit/cards': {PosterCard: 'Poster'},

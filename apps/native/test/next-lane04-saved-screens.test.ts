@@ -4,6 +4,7 @@ import {defaultI18n} from '../../../packages/i18n/src';
 import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import {savedNearEnd} from '../src-next/screens/saved/paging.ts';
+import * as kitModel from '../../../packages/client-core/src/presentation/kit-model/index.ts';
 
 const i18n = {t: (key: string, values?: any) => ['web.group.ownOrder', 'next.saved.reordering', 'next.collection.automaticDescription'].includes(key) ? defaultI18n.t(key as never, values) : values?.count === undefined ? key : `${key}:${values.count}`, has: () => true,
   number: String, bytes: String, list: (items: string[]) => items.join(', '), date: String};
@@ -30,7 +31,7 @@ function fixture(phone = true) {
     './presentation': {exactDurationSeconds: () => undefined, personalMosaic: () => [], playlistEntryMosaic: () => [], savedDuration: String,
       savedItemCount: String, savedLibraryName: () => undefined, savedPlaylistEyebrow: 'playlist', savedResourceEyebrow: () => 'collection',
       savedTitleCount: String, savedViewCount: String, savedViewConditionCount: () => 1, savedVisibility: () => undefined, savedVisibilityHelp: () => ''},
-    '../saved/presentation': {savedDuration: String}, '../../tv/layout/TVShelf': {TVShelf: 'TVShelf'}, '../../kit/layout': {WindowedGrid: 'WindowedGrid', WindowedRow: 'WindowedRow'},
+    '../../../../../packages/client-core/src/presentation/kit-model': kitModel, '../saved/presentation': {savedDuration: String}, '../../tv/layout/TVShelf': {TVShelf: 'TVShelf'}, '../../kit/layout': {WindowedGrid: 'WindowedGrid', WindowedRow: 'WindowedRow'},
     '../../platform/offline-downloads': {groupOfflineEntries: () => []}, './model': {}, './SavedDownloadCard': {SavedDownloadCard: 'SavedDownloadCard'},
     '../downloads/playback': {openNativeSavedDownload() {}},
   };
