@@ -6,7 +6,7 @@ import {routePath} from '../../../packages/contracts/src/index.ts';
 import {createReadBindings} from '../../src/screens/read/bindings.ts';
 
 const preferences = parsePreferenceSnapshot(JSON.parse(readFileSync(new URL('../../../server/testdata/contracts/get-bootstrap.json', import.meta.url), 'utf8')).response.preferences);
-function fixture(options: {hold?: Promise<void>; route?: AbortSignal; busy?: number} = {}) {
+function fixture(options: {hold?: Promise<void>; route?: AbortSignal; busy?: number; expired?: Set<string>} = {}) {
   let busy = options.busy ?? 0;
   let routeCurrent = true;
   let selected = {sessionFamilyId: 'unit-family', viewer: {serverId: 'unit-server', accountId: 'unit-account', profileId: 'unit-profile', authority: 'local', role: 'member'}};
@@ -18,6 +18,10 @@ function fixture(options: {hold?: Promise<void>; route?: AbortSignal; busy?: num
       {status: 503, headers: {'Content-Type': 'application/json', 'Retry-After': '3'}}); }
     if (path === routePath('post_reading_sessions')) { if (options.hold) await options.hold; return new Response(JSON.stringify({itemId: 'unit-book', sourceId: 'unit-source', sessionId: `unit-session-${++sequence}`,
       revision: 'a'.repeat(64), format: 'pdf', size: 1024, metadata: {title: 'Stored unit title'}}), {headers: {'Content-Type': 'application/json', ETag: '"' + 'a'.repeat(64) + '"'}}); }
+    const progress = /^\/v1\/reading\/sessions\/([^/]+)\/progress$/.exec(path);
+    if (progress && (init.method ?? 'GET') === 'GET') return options.expired?.has(decodeURIComponent(progress[1]!))
+      ? new Response(JSON.stringify({error: {code: 'reading_session_expired', message: 'This reading session has ended. Open the book again to continue.', retry: 'never'}}), {status: 410, headers: {'Content-Type': 'application/json'}})
+      : new Response(JSON.stringify({progress: null}), {headers: {'Content-Type': 'application/json', ETag: '"' + 'a'.repeat(64) + '"'}});
     if (init.method === 'DELETE') {if (init.keepalive) calls.push({path, method: 'DELETE keepalive'}); return new Response(null, {status: 204});}
     throw new Error('unexpected unit operation');
   });
@@ -158,4 +162,28 @@ test('RD-8 (#693 review): leaving the reader during a busy wait cancels it: no s
   assert.equal(posts(), 1, 'no second POST after the reader has gone');
   assert.equal(f.calls.filter(call => call.method === 'DELETE').length, 0, 'nothing was opened, so nothing to delete');
   await disposal;
+});
+
+test('RD-7 (#785 review): after a renewal, a hard page leave says farewell to the renewed session, and the tab holds only that id', async () => {
+  const page = new EventTarget(), before = (globalThis as {window?: unknown}).window;
+  const store = new Map<string, string>(), storageBefore = (globalThis as {sessionStorage?: unknown}).sessionStorage;
+  (globalThis as {window?: unknown}).window = page;
+  Object.defineProperty(globalThis, 'sessionStorage', {configurable: true, value: {getItem: (key: string) => store.get(key) ?? null, setItem: (key: string, value: string) => {store.set(key, value);}, removeItem: (key: string) => {store.delete(key);}}});
+  try {
+    const f = fixture({expired: new Set(['unit-session-1'])}), opened = await f.bound.open({itemId: 'unit-book', sourceId: 'unit-source'});
+    assert.equal(opened.sessionId, 'unit-session-1');
+    await opened.progress();
+    assert.equal(opened.sessionId, 'unit-session-2', 'the ended session was renewed transparently');
+    assert.deepEqual([...store.values()].map(value => JSON.parse(value)), [['unit-session-2']], 'the tab holds the renewed id, not the ended one');
+    page.dispatchEvent(new Event('pagehide'));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const farewells = f.calls.filter(call => call.method === 'DELETE keepalive').map(call => call.path);
+    assert.deepEqual(farewells, [routePath('delete_reading_sessions_sessionId', {sessionId: 'unit-session-2'})], 'the renewed session is released; the ended one needs nothing');
+    await f.bound.dispose();
+    assert.equal(f.calls.filter(call => call.method === 'DELETE').at(-1)!.path, routePath('delete_reading_sessions_sessionId', {sessionId: 'unit-session-2'}), 'Close ends the renewed session too');
+    assert.equal(store.size, 0, 'nothing is left held after a clean close');
+  } finally {
+    (globalThis as {window?: unknown}).window = before;
+    Object.defineProperty(globalThis, 'sessionStorage', {configurable: true, value: storageBefore});
+  }
 });
