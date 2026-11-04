@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readCastMetadata} from '../src/query/cast-metadata.ts';
-import {readTogetherItem, receiverLinkOperations} from '../src/query/receiver.ts';
+import {readReceiverItem, readTogetherItem, receiverLinkOperations} from '../src/query/receiver.ts';
 
 function pending() {let resolve!: (value: any) => void, reject!: (error: unknown) => void;const promise = new Promise<any>((yes, no) => {resolve = yes;reject = no;});return {promise, resolve, reject};}
 const settled = () => new Promise<void>(resolve => setImmediate(resolve));
@@ -41,3 +41,14 @@ test('Quick Connect validates the response only after the original request settl
   read.resolve({get requestId() {validated = true;return null;}});
   await assertion;assert.equal(validated, true);
 });
+
+
+for (const id of ['', '.', '..']) {
+  test(`native receiver item ${JSON.stringify(id)} retains request settlement before any local response validation`, async () => {
+    const read = pending(), calls: unknown[][] = [], refusal = new Error('original transport refusal');
+    const task = readReceiverItem({request<T>(...args: unknown[]) {calls.push(args);return read.promise as Promise<T>;}}, id, 'GET');
+    const assertion = assert.rejects(task, error => error === refusal);
+    assert.deepEqual(calls, [[`/v1/items/${encodeURIComponent(id)}`, 'GET', undefined, undefined]]);
+    read.reject(refusal);await assertion;
+  });
+}
