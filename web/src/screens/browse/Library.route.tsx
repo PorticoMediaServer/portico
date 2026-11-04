@@ -45,6 +45,7 @@ import {useMusicMixes} from './music-mixes-hook';
 import {useMusicLibrarySummary} from './music-discover-navigation';
 import {LibraryIdentity, LibraryScreen, type LibraryBindings} from './Library';
 import {LibraryMenu} from '../../kit/browse';
+import {Button} from '../../kit/controls';
 import {NeedsAttention} from '../metadata/NeedsAttention';
 import type {AttentionEntry} from '@core/metadata-attention.ts';
 import {LibraryDiscoveryScreen} from './Discovery';
@@ -529,6 +530,12 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
   };
   const musicCounts = musicSummary?.summary.counts.map(count => ({id: count.kind, role: 'context' as const,
     text: t(count.atLeast ? 'lib.countAtLeast' : 'lib.count', {count: count.count, pivot: ({album: 'albums', song: 'songs', artist: 'artists'} as Record<string, string>)[count.kind] ?? count.kind})}));
+  // desktop-listen #music: Music's Discover header offers Shuffle all, the library's songs in a shuffled queue.
+  const playRuntime = captured.binding.playback?.runtime;
+  const shuffleAll = library.kind === 'music' && playRuntime ? <Button variant="glass" size="small" icon="i-shuffle" onClick={() => {
+    if (!resources.life.current() || !context.isCurrent()) return;
+    void playRuntime.playFromQueue({query: {libraryId: library.id, pivot: 'songs'}}, {signal: resources.life.signal(), isCurrent: () => resources.life.current() && context.isCurrent()}, {shuffle: true}).catch(context.effects.reportError);
+  }}>{t('next.browse.shuffleAll')}</Button> : undefined;
   const header = {library: musicSummary ? {...library, name: musicSummary.name, latestArtwork: musicSummary.summary.latestArtwork} : library,
     libraries: musicLibraries?.map(value => ({id: value.id, name: value.name})) ?? libraryChoices, pivot: requested?.id ?? 'discover', tabs: tabs.map(tab => ({value: tab.id, label: t(tab.label)})),
     wash: readingHeader.wash, counts: library.kind === 'music' ? musicCounts : readingHeader.counts,
@@ -588,7 +595,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
     : view === 'album' && search.entityId ? <AlbumScreen context={context} libraryId={library.id} albumId={search.entityId} actions={actions}
       onArtist={artistId => navigate({view: 'artist', entityId: artistId})}
       onBack={() => {const back = context.effects.back; if (back) {back(); return;} void router.navigate({to: '/library/$libraryId', params: {libraryId: library.id}, search: {}}).catch(context.effects.reportError);}} />
-    : browse ? <LibraryScreen {...bindings}/> : <LibraryDiscoveryScreen menuContext={context} service={resources.service} route={contentRoute} musicMixes={musicMixes} mixesTarget={search.section === 'mixes'} reportError={context.effects.reportError} header={<LibraryIdentity {...header}/>} empty={empty}
+    : browse ? <LibraryScreen {...bindings}/> : <LibraryDiscoveryScreen menuContext={context} service={resources.service} route={contentRoute} musicMixes={musicMixes} mixesTarget={search.section === 'mixes'} reportError={context.effects.reportError} header={<LibraryIdentity {...header} action={shuffleAll}/>} empty={empty}
       appearance={appearanceBase} preferences={appearance} reducedMotion={appearance.reducedMotion} artwork={context.artwork} env={bindings.env}
       actions={discoveryActions} nowPlayingAlbumId={nowPlayingAlbumId} onSeeAll={section => {if (!resources.life.current() || resources.service.getSnapshot().phase !== 'ready' || !discoverySections(resources.service.getSnapshot()).includes(section)) return;const target = section.seeAll;if (target) navigate({pivot: target.pivot, query: target.query, sort: target.sort});}}
       selectionInput={context.identity && (context.identity.viewer.authority === 'local' || context.identity.viewer.authority === 'hosted') ? {context: resources.screen, playback: runtime,

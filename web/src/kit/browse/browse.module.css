@@ -64,7 +64,6 @@
 .toolbar[data-platform=phone] .toolbarMain { padding: 10px 20px 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
 .toolbar[data-platform=phone] .separator { display: none; }
 .phoneCount { display: flex; align-items: center; gap: 10px; padding: 10px 20px; font-size: 13px; color: var(--browse-muted); font-weight: 600; }
-.phoneCount .saveView { font-size: 13px; height: 30px; padding: 0; color: var(--color-accent-strong); }
 .phoneView { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 /* Frame 47: the count-row sort is the phone chip, not the toolbar chip. */
 .toolbar[data-platform=phone] .phoneView .sortTrigger,.toolbar[data-platform=phone] .toolbarMain .sortTrigger { height: 34px; padding: 0 13px; border-radius: 9px; gap: 6px; font-size: 13.5px; background: transparent; box-shadow: inset 0 0 0 1px var(--color-line-strong); }
@@ -246,6 +245,9 @@
 .filtersButton[data-size=small] { font-size: 14.5px; }
 .sortLabel { gap: 8px; }
 .sortMenu button { height: 36px; }
+/* desktop-browse #sort draws the whole menu, Order included. A 900px-tall window leaves about 590px under the toolbar,
+   so on shorter windows the rows tighten rather than scroll the Order switch out of view (survey A 19). */
+@media (max-height: 960px) { .sortMenu button { height: 32px; } }
 .sortOrder button { height: 32px; }
 .viewToggle button[data-variant=icon] { border-radius: 8px; width: 38px; height: 34px; }
 .saveView[data-variant=text] { height: 40px; font-size: 14.5px; padding: 0 12px; }
@@ -275,7 +277,6 @@
 .filterBuilder[data-platform=phone] .facetHelp { margin-top: -2px; }
 .toolbar[data-platform=phone] .toolbarMain > button, .toolbar[data-platform=phone] .sortTrigger { height: 34px; border-radius: 9px; font-size: 13.5px; padding-inline: 13px; gap: 6px; }
 .toolbar[data-platform=phone] .phoneCount .viewToggle button[data-variant=icon] { width: 32px; height: 30px; }
-.toolbar[data-platform=phone] .phoneCount .saveView[data-variant=text] { height: 30px; font-size: 13px; padding: 0; }
 .trackTable[data-platform=phone] .trackRow { column-gap: 12px; padding: 0 16px; }
 .trackTable[data-platform=phone] .trackText b { font-size: 15px; }
 .trackTable[data-platform=phone] [data-column=duration] { font-size: 12px; }

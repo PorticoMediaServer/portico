@@ -16,6 +16,8 @@ export const browseMessages = {
   'next.browse.switchLibrary': 'Switch library',
   'next.browse.libraries': 'Libraries',
   'next.browse.libraryOptions': 'Library options',
+  /** desktop-listen #music: the Music header's Shuffle all, beside the ⋯. */
+  'next.browse.shuffleAll': 'Shuffle all',
   'next.browse.saveThisView': 'Save this view',
   'next.browse.markAllWatched': 'Mark all as watched',
   'next.browse.markAllRead': 'Mark all as read',
@@ -70,7 +72,6 @@ export const browseMessages = {
   'next.browse.noneOf': 'None of these',
   'next.browse.matchMode': 'Match',
   'next.browse.find': 'Find {field}',
-  'next.browse.showAll': 'Show all {count} {field}',
   /** desktop-browse #filters' More summary names the rating fields together. */
   'next.browse.ratingsGroup': 'ratings',
   /** desktop-browse #filters: "Show all 13 genres", the field's plural. */
