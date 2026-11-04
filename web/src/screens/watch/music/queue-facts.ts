@@ -11,6 +11,15 @@ export function musicQueueOrigin(snapshot: WebPlaybackRuntimeSnapshot): string |
   return label?.trim() || undefined;
 }
 
+/** phone-app 14's "Next  {title}": the entry the queue itself says plays next, named from its own
+ * rows, only while that answer belongs to this playing occurrence. */
+export function musicQueueNext(snapshot: WebPlaybackRuntimeSnapshot): string | undefined {
+  const view = snapshot.queueView, fence = snapshot.fence;
+  if (fence?.kind !== 'queue' || !view || view.queue.currentEntryId !== fence.entryId || !view.next?.available || !view.next.entryId) return;
+  const title = view.items.find(row => row.entryId === view.next!.entryId)?.title;
+  return title?.trim() || undefined;
+}
+
 /** Detail's favorite grant needs the real library and item of this accepted occurrence. */
 export function musicQueueItem(snapshot: WebPlaybackRuntimeSnapshot): Readonly<{libraryId: string; itemId: string}> | undefined {
   const fence = snapshot.fence, view = snapshot.queueView;
