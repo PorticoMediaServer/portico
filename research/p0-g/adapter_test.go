@@ -43,7 +43,7 @@ func (s *fakeJobs) Claim(_ context.Context, p *Grant, r Ready, o OwnerID, ttl ti
 	}
 	s.row.Attempts++
 	s.row.Revision++
-	s.row.Lease = Lease{Key: s.row.Key, Generation: s.row.Lease.Generation + 1, Owner: o, ExpiresAt: s.gov.Clock.Now().Add(ttl)}
+	s.row.Lease = Lease{Fence: s.fence, Key: s.row.Key, Generation: s.row.Lease.Generation + 1, Owner: o, ExpiresAt: s.gov.Clock.Now().Add(ttl)}
 	return s.row, nil
 }
 func (s *fakeJobs) valid(l Lease) bool {
@@ -57,7 +57,7 @@ func (s *fakeJobs) Renew(_ context.Context, p *Grant, l Lease, ttl time.Duration
 	return s.row.Lease, nil
 }
 func (s *fakeJobs) Advance(_ context.Context, p *Grant, l Lease, a Advance[cursor]) (Job[cursor], error) {
-	if !s.writer(p) || !s.valid(l) || a.ExpectedRevision != s.row.Revision || a.Fence != s.fence || a.Expected != s.row.Cursor {
+	if !s.writer(p) || !s.valid(l) || a.ExpectedRevision != s.row.Revision || a.Fence != s.fence || a.Fence != l.Fence || a.Expected != s.row.Cursor {
 		return Job[cursor]{}, errors.New("stale advance")
 	}
 	// One atomic fake transaction; no wake/response callback owns accepted state.
@@ -97,6 +97,16 @@ func TestLateSameCursorSourceChange(t *testing.T) {
 	require(t, e != nil && s.effects == 0, "stale source fence accepted")
 	a.Fence = s.fence
 	_, e = s.Advance(ctx, p, j.Lease, a)
+	require(t, e != nil && s.effects == 0, "old lease rebased source witness")
+	c.MS = 1001
+	// Expired input is reclaimed with a new generation and captured source fence.
+	r.Deadline = c.Now().Add(time.Second)
+	_ = g.Retired(p)
+	p = granted(t, g, r)
+	j, e = s.Claim(ctx, p, Ready{Key: key, Revision: s.row.Revision, Fence: s.fence}, 7, time.Second)
+	require(t, e == nil, "reclaim fresh source")
+	a.ExpectedRevision = j.Revision
+	_, e = s.Advance(ctx, p, j.Lease, a)
 	require(t, e == nil && s.effects == 1 && s.receipt == "accepted-1", "valid acceptance")
 	_, e = s.Advance(ctx, p, j.Lease, a)
 	require(t, e != nil && s.effects == 1, "response-loss replay duplicated commit")
@@ -123,6 +133,8 @@ func TestLeaseReclaimAndNextAttempt(t *testing.T) {
 	ready.Revision = s.row.Revision
 	k, e := s.Claim(ctx, p, ready, 2, time.Second)
 	require(t, e == nil && k.Attempts == 2, "expired lease reclaim")
+	_, e = s.Advance(ctx, p, j.Lease, Advance[cursor]{ExpectedRevision: k.Revision, Fence: s.fence, Expected: k.Cursor, Outcome: Applied})
+	require(t, e != nil && s.effects == 0, "ABA old generation published")
 	_, e = s.Renew(ctx, p, j.Lease, time.Second)
 	require(t, e != nil, "old owner renewed successor")
 	_ = g.Retired(p)
@@ -191,4 +203,28 @@ func TestMediaByteBudget(t *testing.T) {
 		_ = g.Retired(p)
 	}
 	require(t, g.Check() == nil, "media byte leak")
+}
+
+func TestWedgedActorStaticFallback(t *testing.T) {
+	c := &Clock{}
+	g := NewFake(c)
+	bg := granted(t, g, request(c, Background, Amounts{0, 1, 8}))
+	fg := granted(t, g, request(c, Foreground, Amounts{2, 1, 32}))
+	// Actor heartbeat expires; independent supervisor enters a fixed policy. Old
+	// actor's delayed response cannot authorize any new IO or publication.
+	c.MS = 250
+	g.EnterStatic()
+	require(t, !g.Valid(bg) && !g.Valid(fg), "old actor grants escaped epoch fence")
+	require(t, g.Used[Background][Helper] == 1, "fallback erased physical debt")
+	require(t, !g.Recover(), "resumed with unresolved physical custody")
+	for _, cl := range []Class{Foreground, Recovery, ScanMinimum} {
+		p := granted(t, g, request(c, cl, Amounts{1}))
+		_ = g.Retired(p)
+	}
+	require(t, g.Try(request(c, Background, Amounts{})).Refusal.Code == FailSafe, "fallback admitted discretionary work")
+	_ = g.Retired(bg)
+	_ = g.Retired(fg)
+	require(t, g.Recover(), "failed to exit fail-safe after reconciliation")
+	p := granted(t, g, request(c, Background, Amounts{1}))
+	_ = g.Retired(p)
 }

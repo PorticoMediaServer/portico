@@ -16,6 +16,7 @@ type ReceiptID string
 
 // Lease is durable row ownership. It is not a resource reservation or authority.
 type Lease struct {
+	Fence      SourceFence // immutable captured source witness; Renew cannot rebase it
 	Key        JobKey
 	Generation Generation
 	Owner      OwnerID

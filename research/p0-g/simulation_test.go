@@ -123,7 +123,7 @@ func simulate(t *testing.T, seed int64, weak, bg, busy bool) result {
 	c := &Clock{}
 	g := NewFake(c)
 	var out result
-	const count = 24
+	const count = 64
 	jobs := make([]receipt, count)
 	for i := range jobs {
 		jobs[i].next = 0
@@ -135,9 +135,13 @@ func simulate(t *testing.T, seed int64, weak, bg, busy bool) result {
 	activeJob := -1
 	cursor := 0
 	nextScan := int64(0)
-	lastScan := int64(-1)
 	helperUntil := int64(0)
 	var helperGrant *Grant
+	readySince := int64(-1)
+	lastVisible := int64(0)
+	visibleDuring := 0
+	serviceTicks := make([]int, 3000)
+	windowService := 0
 	off := int64(rng.Intn(10))
 	service := int64(2)
 	if busy {
@@ -145,7 +149,7 @@ func simulate(t *testing.T, seed int64, weak, bg, busy bool) result {
 	}
 	quantum := int64(5)
 	if weak {
-		quantum = 8
+		quantum = 5 // 8ms model failed p95; shrink weak-host units before admission
 	}
 	// Active stream exists from start through drain; no queued HTTP needed to hold it.
 	stream := granted(t, g, request(c, Foreground, Amounts{2, 1, 32, 1000, 32, 32}))
@@ -198,8 +202,11 @@ func simulate(t *testing.T, seed int64, weak, bg, busy bool) result {
 				helperGrant = granted(t, g, request(c, ScanMinimum, Amounts{0, 1, 8, 100, 4}))
 				j.phase = 3
 				helperUntil = now + int64(1+rng.Intn(15))
+				if weak {
+					helperUntil += 15
+				}
 				gen := j.generation
-				if rng.Intn(5) == 0 {
+				if !busy && rng.Intn(5) == 0 {
 					g.Cancel(helperGrant)
 					j.generation++
 					helperUntil += int64(10 + rng.Intn(80))
@@ -209,10 +216,7 @@ func simulate(t *testing.T, seed int64, weak, bg, busy bool) result {
 				events = append(events, event{helperUntil, 2, activeJob, gen})
 			}
 		}
-		if finish != nil {
-			require(t, g.Check() == nil, "writer accounting")
-			continue
-		}
+
 		// Admitted foreground envelope = <=90% writer service, <= protected vector.
 		// Minimum scan reservation is not a second writer or a foreground promotion.
 		scanRunnable := false
@@ -231,13 +235,47 @@ func simulate(t *testing.T, seed int64, weak, bg, busy bool) result {
 				}
 			}
 		}
+		// Ready-stage age is measured EVERY tick, including first/trailing gaps,
+		// not just at a subsequent grant. Exclude a currently executing scan tx.
+		scanExecuting := false
+		for _, h := range g.Physical {
+			if h.request.Writer && h.request.Class == ScanMinimum {
+				scanExecuting = true
+			}
+		}
+		if bg && scanRunnable && !scanExecuting {
+			if readySince < 0 {
+				readySince = now
+			}
+			age := now - readySince
+			if age > out.MaxScanGap {
+				out.MaxScanGap = age
+			}
+			require(t, age <= 125, fmt.Sprintf("seed %d first/trailing runnable stage starved at %d age %d", seed, now, age))
+		} else {
+			readySince = -1
+		}
+		if bg && busy && now < 3000 {
+			if scanExecuting {
+				serviceTicks[now] = 1
+			}
+			windowService += serviceTicks[now]
+			if now >= 1000 {
+				windowService -= serviceTicks[now-1000]
+			}
+			if now >= 999 {
+				require(t, windowService >= 50, fmt.Sprintf("seed %d reserved scan service missing at %d: %d/1000ms", seed, now, windowService))
+			}
+			require(t, now-lastVisible <= 500, fmt.Sprintf("seed %d no visible publication during foreground at %d", seed, now))
+		}
+		if finish != nil {
+			require(t, g.Check() == nil, "writer accounting")
+			continue
+		}
 		chooseScan := scanRunnable && (len(fg) == 0 || now >= nextScan)
 		if chooseScan {
-			if lastScan >= 0 && now < 3000 && busy && now-lastScan > out.MaxScanGap {
-				out.MaxScanGap = now - lastScan
-			}
-			lastScan = now
-			nextScan = now + 100
+			nextScan = now + 90 // <=9ms foreground residual + guard keeps >=5% in 1s windows
+			readySince = -1
 			i := activeJob
 			j := &jobs[i]
 			publishing := j.phase == 4
@@ -255,6 +293,10 @@ func simulate(t *testing.T, seed int64, weak, bg, busy bool) result {
 					j.applied++
 					j.phase = 5
 					out.Applied++
+					if c.MS < 3000 {
+						lastVisible = c.MS
+						visibleDuring++
+					}
 					activeJob = -1
 					if rng.Intn(3) == 0 {
 						out.Crash++
@@ -299,6 +341,9 @@ func simulate(t *testing.T, seed int64, weak, bg, busy bool) result {
 		}
 	}
 	require(t, !bg || out.Applied == count, fmt.Sprintf("seed=%d weak=%v bg=%v busy=%v applied=%d active=%d jobs=%v events=%v", seed, weak, bg, busy, out.Applied, activeJob, jobs, events))
+	if bg && busy {
+		require(t, visibleDuring >= 5, "no minimum visible scan publication during active foreground")
+	}
 	for _, j := range jobs {
 		require(t, !bg || (j.applied == 1 && j.phase == 5), "receipt/cursor not atomic")
 	}

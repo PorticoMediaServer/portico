@@ -137,3 +137,25 @@ func (g *Fake) Check() error {
 	}
 	return nil
 }
+
+// Emergency entry bypasses a nonresponsive actor, with its backend epoch fenced.
+// It never clears live handles. The real supervisor must own this inventory.
+func (g *Fake) EnterStatic() {
+	g.degraded = true
+	g.epoch++
+	var truth [4]Amounts
+	for _, h := range g.Physical {
+		for k, n := range h.request.Need {
+			truth[h.request.Class][k] += n
+		}
+	}
+	g.Used = truth
+}
+func (g *Fake) Recover() bool {
+	if !g.degraded || len(g.Physical) != 0 || g.Check() != nil {
+		return false
+	}
+	g.epoch++
+	g.degraded = false
+	return true
+}
