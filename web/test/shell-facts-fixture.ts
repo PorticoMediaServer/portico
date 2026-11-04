@@ -20,7 +20,7 @@ export const direct = () => ({authority:'local', serverId:'server', canManage:tr
   account:{id:'account',username:'viewer',primaryProfileId:'profile',role:'owner',revision:1,disabled:false,allowedLibraries:[]},
   profiles:[{id:'profile',name:'Evening',primary:true,position:0,art:'mint',revision:1,pinRevision:1,pinRequired:false}]});
 export const system = () => ({id:'server',name:'Study',version:'1',signIn:'local' as const,move:null,setupRequired:false,hostedConfigured:false,hostedAttached:false, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []});
-export function harness() {
+export function harness(o: Readonly<{libraryRouteProof?: unknown}> = {}) {
   const time=clock(), hub=new FreshnessHub(time.env), session={sessionFamilyId:'family',accessToken:'private-test-token',viewer:{serverId:'server',authority:'local',accountId:'account',profileId:'profile',role:'owner'}} as LocalSession;
   let record:unknown=direct(), info=system(), libraries=[{id:'library',name:'Films',kind:'movies'}], guideError:unknown, systemError:unknown, preferenceError:unknown, retired=0, permission=0, privacy='privacy';
   const calls:string[]=[];
@@ -32,7 +32,7 @@ export function harness() {
   const api={async request(path:string) {calls.push(path); if (path==='/v1/libraries') return libraryRead ? await libraryRead() : {items:libraries,viewerFence:'directory',privacyFence:privacy}; if (path==='/v1/direct') return record;
     if (path==='/v1/system') {if(systemError)throw systemError;return info;} if (path.startsWith('/v1/guide/sources?')) {if (guideError) throw guideError;return {protocolVersion:GUIDE_PROTOCOL,serverId:'server',viewerFence:'guide',revision:'1',sources:[]};}
     throw new Error('Unexpected read '+path);}};
-  const owner=createShellFactOwner({api:api as never, session:()=>session, hub,initial,witnesses,
+  const owner=createShellFactOwner({api:api as never, session:()=>session, hub,initial,witnesses,libraryRouteProof:o.libraryRouteProof as never,
     isCurrent:()=>retired===0, retire:()=>{retired++;},
     preferences:{observePreferences:async()=>{calls.push('/v1/preferences?deviceClass=web');return preferenceError?{kind:'unreadable',error:preferenceError}:{kind:'ok',value:settings};}} as never,
     auth:{reconcilePermissions:async()=>{permission++;return {kind:'confirmed-unchanged'};}} as never});
