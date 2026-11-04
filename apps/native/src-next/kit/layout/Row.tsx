@@ -5,7 +5,7 @@ import Animated, {runOnJS, useAnimatedScrollHandler, useSharedValue} from 'react
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {Icon} from '../Icon';
 import {useTheme} from '../theme';
-import {FocusItem, FocusProvider, FocusRegion, focusTestID, useOptionalFocusRegistry, type FocusRegionProps} from '../focus';
+import {FocusItem, FocusProvider, FocusRegion, focusTestID, useCovered, useOptionalFocusRegistry, type FocusRegionProps} from '../focus';
 import {reconcileRowSlots, indexRowSlots, visibleRowSlots, rowNeedsPage, type RowPage} from './row-state';
 import {useRowPageBoundary} from '../focus/page-boundary';
 import {useFocusAnchor} from './FocusAnchor';
@@ -92,18 +92,28 @@ function RowContent<T>({title, showHeading = true, headingStyle, subtitle, items
   // paging.refocus: read while the old slots are still on screen, so whether this row held focus on a slot the
   // replacement removes is known before the platform recovers it elsewhere (tvOS leaves the row).
   const refocus = theme.isTV ? paging?.refocus : undefined, refocusSerial = refocus?.serial, refocusId = refocus?.focusId;
-  const lostFocus = useMemo(() => {
-    const active = refocusSerial !== undefined && regionId && registry ? registry.capture() : undefined;
-    return active && active.regionId === regionId && !rowIndex.byFocus.has(active.childId) ? refocusSerial : undefined;
-  }, [refocusSerial, regionId, registry, rowIndex]);
+  // Only the top layer takes focus: a covered row (for example inside a cover-claim's wait) never asks for it, at the
+  // effect or when its queued request runs. Uncovering later does not ask either: the layer's own claim owns focus then.
+  const coveredNow = useRef(false);
+  coveredNow.current = useCovered();
+  // Decided once per replacement (its serial), on the render that brings it: a later re-render (focus moving, the
+  // region's ownership changing) neither re-decides it nor cancels the request below. Unmounting does.
+  const rowIndexNow = useRef(rowIndex);
+  rowIndexNow.current = rowIndex;
+  const held = useRef<{serial?: number; lost: boolean}>({lost: false});
+  if (refocusSerial !== undefined && held.current.serial !== refocusSerial) {
+    const active = regionId && registry ? registry.capture() : undefined;
+    held.current = {serial: refocusSerial, lost: !!active && active.regionId === regionId && !rowIndex.byFocus.has(active.childId)};
+  }
+  const lostFocus = held.current.lost ? held.current.serial : undefined;
   useEffect(() => {
-    if (lostFocus === undefined || !regionId || !registry || !refocusId || !rowIndex.byFocus.has(refocusId)) return;
+    if (coveredNow.current || lostFocus === undefined || !regionId || !registry || !refocusId || !rowIndexNow.current.byFocus.has(refocusId)) return;
     // The registry's own recovery of the removed slot was queued as a microtask when that slot left (registry.recover);
     // queue behind it so the row's named target is the last word, whatever the platform or that recovery chose.
     let live = true;
-    queueMicrotask(() => {if (live && registry.order(regionId).includes(refocusId)) registry.focus({regionId, childId: refocusId});});
+    queueMicrotask(() => {if (live && !coveredNow.current && registry.order(regionId).includes(refocusId)) registry.focus({regionId, childId: refocusId});});
     return () => {live = false;};
-  }, [lostFocus, refocusId, regionId, registry, rowIndex]);
+  }, [lostFocus, refocusId, regionId, registry]);
   // The native boundary is the actionable part of the same painted order: every slot keeps its
   // identity, and an inert one simply is not a destination the region hands the platform.
   const activeOrder = useMemo(() => {

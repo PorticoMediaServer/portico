@@ -33,18 +33,21 @@ async function scene(platform: 'android' | 'tvos') {
     './FocusAnchor': {useFocusAnchor: () => ({anchor() {}, repeating: false, offset: {value: 0}, scrollRef: {current: null}, stop() {}, move() {}})},
     './model': layoutModel, './MotionItem': {MotionItem: ({style, children}: any) => e(native.View, {style}, children)}, './types': layoutTypes, './TVRow': {TVRow}});
   const registry = focus.createFocusRegistry();
+  // The row's own requests (registry.focus); the registry's internal recovery does not go through this property.
+  const requests: {regionId: string; childId: string}[] = [], focusOf = registry.focus;
+  registry.focus = ((address: {regionId: string; childId: string}, options?: unknown) => {requests.push({...address}); return focusOf(address, options as never);}) as typeof registry.focus;
   const unselected = {active: false, isSelected: () => false, onToggle() {}, onEnter() {}};
   // TitleScreen's mapping of a related row's pages to the shelf's paging (TitleScreen.tsx, related rows).
-  const Scene = ({pages, targeted = true}: {pages: NativeRelatedRowSnapshot; targeted?: boolean}) => e(focus.FocusProvider, {registry},
+  const Scene = ({pages, targeted = true, covered = false}: {pages: NativeRelatedRowSnapshot; targeted?: boolean; covered?: boolean}) => e(focus.FocusProvider, {registry},
     e(native.View, {style: {flex: 1}},
       e(focus.FocusRegion, {id: 'title.actions', orientation: 'horizontal', edges: {down: 'title.related'}, style: {height: 120}}, e(Stop, {id: 'play', w: 240, h: 80})),
-      e(row.Row, {title: '', showHeading: false, items: pages.entries, getKey: (value: any) => value.id, itemWidth: 214, itemHeight: 420, gap: 28, selection: unselected,
+      e(focus.CoveredLayer, {covered}, e(row.Row, {title: '', showHeading: false, items: pages.entries, getKey: (value: any) => value.id, itemWidth: 214, itemHeight: 420, gap: 28, selection: unselected,
         initialViewportWidth: 1920, focus: {id: 'title.related', edges: {up: 'title.actions'}},
         paging: {hasMore: pages.hasMore, loading: pages.loading, failed: pages.failed, waitingId: pages.waitingId, fulfilled: pages.fulfilled, waitingItem: entry('waiting'),
           requestNext() {}, ...(targeted && pages.replaced ? {refocus: {focusId: pages.replaced.entryId, serial: pages.replaced.serial}} : {})},
         renderItem: (value: any, slot: any) => e(Focusable, {testID: slot.waiting ? 'waiting' : value.id, focusId: slot.focusId, onFocus: slot.onFocus, onBlur: slot.onBlur,
-          style: {width: 214, height: 321}}, () => null)})));
-  return {engine, e, Scene};
+          style: {width: 214, height: 321}}, () => null)}))));
+  return {engine, e, Scene, requests};
 }
 
 async function replaced(platform: 'android' | 'tvos', reread: readonly string[], targeted = true, start = 'm3') {
@@ -98,3 +101,46 @@ test('without the row\'s target, tvOS itself leaves the row: the engine recovers
   const from = android.log.findIndex((step: any) => step.why === 'removed');
   assert.equal(android.log[from + 1]?.why, 'recover', 'Android recovers through the row\'s own focus guide');
 });
+
+// The three cases in which the row asks for nothing (#674 review hardening): only a row that held focus, is on the top
+// layer and is still mounted when its queued request runs moves focus.
+async function noFire(platform: 'android' | 'tvos', mode: 'not-held' | 'covered' | 'unmounted' | 'control') {
+  const s = await scene(platform);
+  const pager = new RelationRowPager({entries: ['m1', 'm2', 'm3'].map(entry), nextCursor: 'c1'}, async cursor => {
+    if (cursor === '') return {entries: ['m9', 'm2', 'm3'].map(entry)};
+    throw Object.assign(new Error('Expired'), {code: 'invalid_cursor'});
+  });
+  const related = new NativeRelatedRow('title', pager, () => {});
+  const held: (() => void)[] = [], queue = globalThis.queueMicrotask;
+  let mounted = true;
+  try {
+    await s.engine.render(s.e(s.Scene, {pages: related.getSnapshot()}));
+    await s.engine.focus(mode === 'not-held' ? 'play' : 'm1');
+    related.next(related.getSnapshot()); await tick();
+    const hold = mode === 'unmounted' || mode === 'control';
+    if (hold) globalThis.queueMicrotask = callback => {held.push(callback);};
+    try {await s.engine.render(s.e(s.Scene, {pages: related.getSnapshot(), covered: mode === 'covered'}));}
+    finally {globalThis.queueMicrotask = queue;}
+    if (mode === 'unmounted') {await s.engine.unmount(); mounted = false;}
+    for (const callback of held) callback();
+    await s.engine.settle(); await tick();
+    return {requests: s.requests, focused: s.engine.focused, held: held.length};
+  } finally {related.dispose(); if (mounted) await s.engine.unmount();}
+}
+
+for (const platform of ['android', 'tvos'] as const) {
+  test(`${platform}: a row that did not hold focus asks for none when it is read again`, async () => {
+    const result = await noFire(platform, 'not-held');
+    assert.deepEqual(result.requests, []); assert.equal(result.focused, 'play');
+  });
+  test(`${platform}: a covered row (inside a cover claim's wait) asks for no focus when it is read again`, async () => {
+    const result = await noFire(platform, 'covered');
+    assert.deepEqual(result.requests, [], 'only the top layer takes focus');
+  });
+  test(`${platform}: a row unmounted before its queued request runs asks for nothing; mounted, the same request goes out`, async () => {
+    const control = await noFire(platform, 'control');
+    assert.deepEqual(control.requests, [{regionId: 'title.related', childId: 'm3'}], 'the request is queued as a microtask');
+    const result = await noFire(platform, 'unmounted');
+    assert.ok(result.held > 0); assert.deepEqual(result.requests, []);
+  });
+}
