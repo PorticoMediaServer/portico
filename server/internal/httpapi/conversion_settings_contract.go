@@ -184,7 +184,7 @@ func registerConversionSettings(registry *apikit.Registry, d Dependencies) error
 		}
 		defer done()
 		fields := []operations.Field{}
-		for _, field := range operations.Registry() {
+		for _, field := range append(operations.Registry(), operations.SignInConfigurationFields()...) {
 			if field.Permission != "owner" || p.Role == "owner" {
 				if field.Default == nil {
 					field.Default = (*int)(nil)
