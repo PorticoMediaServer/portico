@@ -1,0 +1,437 @@
+{
+  "apps/native/Native/PorticoAudioRender.m": {
+    "category": "platform-url",
+    "reason": "OS audio renderer fetches the core-issued scoped audio URL and byte ranges.",
+    "sites": [
+      "apps/native/Native/PorticoAudioRender.m#32cff028c381a2ba",
+      "apps/native/Native/PorticoAudioRender.m#488846738b8f84c7",
+      "apps/native/Native/PorticoAudioRender.m#bfdbf39cac1fcc3c"
+    ]
+  },
+  "apps/native/Native/PorticoDownloads.m": {
+    "category": "platform-url",
+    "reason": "OS background download task fetches the core-issued download URL; core retains domain coordination.",
+    "sites": [
+      "apps/native/Native/PorticoDownloads.m#1c50203a8f953138",
+      "apps/native/Native/PorticoDownloads.m#6fa29c42d5a77d47",
+      "apps/native/Native/PorticoDownloads.m#7dd1cac3fc5f61f0"
+    ]
+  },
+  "apps/native/Native/PorticoListeningOwner.m": {
+    "category": "native-listening",
+    "reason": "Justin approved Apple native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "sites": [
+      "apps/native/Native/PorticoListeningOwner.m#0d47c21879506b9c",
+      "apps/native/Native/PorticoListeningOwner.m#8a315ef71c38f975",
+      "apps/native/Native/PorticoListeningOwner.m#c83d761f480368a0",
+      "apps/native/Native/PorticoListeningOwner.m#3305378bcd6f67ac",
+      "apps/native/Native/PorticoListeningOwner.m#853ac07fe415c760",
+      "apps/native/Native/PorticoListeningOwner.m#a558ceb07b37a807",
+      "apps/native/Native/PorticoListeningOwner.m#54498ab94cf18290",
+      "apps/native/Native/PorticoListeningOwner.m#c972a79829d23d20",
+      "apps/native/Native/PorticoListeningOwner.m#9e51cd94ea076dfb",
+      "apps/native/Native/PorticoListeningOwner.m#1a60a6a196331f7d",
+      "apps/native/Native/PorticoListeningOwner.m#c84023f7fe04a5db",
+      "apps/native/Native/PorticoListeningOwner.m#e8debf51989704fd",
+      "apps/native/Native/PorticoListeningOwner.m#c992e8c47d13ddd7",
+      "apps/native/Native/PorticoListeningOwner.m#0b14cb6187cd3c9e"
+    ]
+  },
+  "apps/native/Native/PorticoSubtitleOverlay.m": {
+    "category": "platform-url",
+    "reason": "Player fetches the core-issued subtitle document URL.",
+    "sites": [
+      "apps/native/Native/PorticoSubtitleOverlay.m#de2f3d6f2de6a2bb"
+    ]
+  },
+  "apps/native/Native/PorticoSystemMedia.m": {
+    "category": "platform-url",
+    "reason": "OS media artwork fetch uses the validated core-issued artwork URL.",
+    "sites": [
+      "apps/native/Native/PorticoSystemMedia.m#1db2c4c329438c54",
+      "apps/native/Native/PorticoSystemMedia.m#4223fe666f74c17b"
+    ]
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoDownloadCenter.kt": {
+    "category": "platform-url",
+    "reason": "Android background transfer fetches and ranges the core-issued download URL; no domain JSON exception.",
+    "sites": [
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoDownloadCenter.kt#9a6f48ab233561a7",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoDownloadCenter.kt#b2c4e79cef4c5bac",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoDownloadCenter.kt#977c6761419d10ba",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoDownloadCenter.kt#b9ceda802ccb2c96"
+    ]
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt": {
+    "category": "native-listening",
+    "reason": "Justin approved native queue/session/item/user-mutation requests while JS is suspended; retain bounded transport and generated contracts.",
+    "sites": [
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#0c37a766d51bcb7e",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#1a2cb2bafd2259b9",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#1d710e281a75f48d",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#89778ff2253fb8c7",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#6916569d7bdbff07",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#e12f430cfc976558",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#33c568ccb7624317",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#5898b42fceeb5850",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#1e28cf468ea780c7",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#96d6211b22111b70",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoListeningOwner.kt#534e81790094bf98"
+    ]
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoMpvRelay.kt": {
+    "category": "platform-url",
+    "reason": "Player relay fetches scoped core-issued media URLs for the native player.",
+    "sites": [
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoMpvRelay.kt#f7e40cff554dc3b5",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoMpvRelay.kt#9c899915f58973fc"
+    ]
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoMpvSupport.kt": {
+    "category": "platform-url",
+    "reason": "Player byte support fetches core-issued media URLs.",
+    "sites": [
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoMpvSupport.kt#2aabff10a1352f20",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoMpvSupport.kt#2b067fd6bbac938e"
+    ]
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSeekIndex.kt": {
+    "category": "platform-url",
+    "reason": "Player fetches its core-provided seek-index URL with bounded response handling.",
+    "sites": [
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSeekIndex.kt#f2fdd5c0f9afc337",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSeekIndex.kt#719a5c92894eaa93"
+    ]
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSystemMedia.kt": {
+    "category": "platform-url",
+    "reason": "OS media artwork fetch uses the validated core-issued artwork URL.",
+    "sites": [
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSystemMedia.kt#b64fbd1d046b4079",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSystemMedia.kt#df425cd5af8219cf"
+    ]
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTopShelf.kt": {
+    "category": "native-extension",
+    "reason": "Out-of-process Android TV channels use a bounded scoped Top Shelf contract transport.",
+    "sites": [
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTopShelf.kt#a051b0d2aaafbc5d",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTopShelf.kt#e3faedf13fa68ac9",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTopShelf.kt#4a5dc4e1ccf1bd4f",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTopShelf.kt#ec704b1c7d0de6ce"
+    ]
+  },
+  "apps/native/tvos/TopShelf/ContentProvider.swift": {
+    "category": "native-extension",
+    "reason": "Out-of-process Apple TV Top Shelf extension uses a bounded scoped generated contract transport.",
+    "sites": [
+      "apps/native/tvos/TopShelf/ContentProvider.swift#2b7f2fe536cf911b",
+      "apps/native/tvos/TopShelf/ContentProvider.swift#911d4c673b2df74b",
+      "apps/native/tvos/TopShelf/ContentProvider.swift#127c8616adbe2066"
+    ]
+  },
+  "apps/vega/src/bridge/hls.ts": {
+    "category": "platform-url",
+    "reason": "Player/reader fetches core-issued media/subtitle URLs or bundled reader font bytes; no domain JSON requests are allowed by this pinned allowance.",
+    "sites": [
+      "apps/vega/src/bridge/hls.ts#c1e61a6c559f65c4"
+    ]
+  },
+  "packages/reader-core/src/fonts.ts": {
+    "category": "platform-url",
+    "reason": "Player/reader fetches core-issued media/subtitle URLs or bundled reader font bytes; no domain JSON requests are allowed by this pinned allowance.",
+    "sites": [
+      "packages/reader-core/src/fonts.ts#dea6eead68612873"
+    ]
+  },
+  "server/receiver/cast/receiver.js": {
+    "category": "separate-product",
+    "reason": "Cast receiver and website are separately owned products; retain their generated-contract gates. Hosted lives in portico-internal and is outside this app repository.",
+    "sites": [
+      "server/receiver/cast/receiver.js#b17b38887c0fb1a9",
+      "server/receiver/cast/receiver.js#d101b615d2a821a6",
+      "server/receiver/cast/receiver.js#803c971a34dad236",
+      "server/receiver/cast/receiver.js#a04f07d2fca4d1b2",
+      "server/receiver/cast/receiver.js#f5abb877fe5f8907",
+      "server/receiver/cast/receiver.js#a454f21e604b180b",
+      "server/receiver/cast/receiver.js#ab016e4f3d42892b",
+      "server/receiver/cast/receiver.js#a362d656938e502b",
+      "server/receiver/cast/receiver.js#1ce6296d14c01c2b",
+      "server/receiver/cast/receiver.js#5dbf47f8a9e62721",
+      "server/receiver/cast/receiver.js#4c2bbc566f56acf3",
+      "server/receiver/cast/receiver.js#2a4f5487eb0e3b24",
+      "server/receiver/cast/receiver.js#f86e0b1523614621",
+      "server/receiver/cast/receiver.js#333c8fb513cefaa7",
+      "server/receiver/cast/receiver.js#3d2e240dbd8c3347",
+      "server/receiver/cast/receiver.js#dc3be11a5aaad95f",
+      "server/receiver/cast/receiver.js#a53afd76df65da4f",
+      "server/receiver/cast/receiver.js#57aa7b0e4f651b32",
+      "server/receiver/cast/receiver.js#ec747bc12444f473",
+      "server/receiver/cast/receiver.js#90a2098b0dcf6068",
+      "server/receiver/cast/receiver.js#e9dd3e5d5082da24"
+    ]
+  },
+  "web/src/platform/playback/DecodeAudioRender.ts": {
+    "category": "platform-url",
+    "reason": "Player/reader fetches core-issued media/subtitle URLs or bundled reader font bytes; no domain JSON requests are allowed by this pinned allowance.",
+    "sites": [
+      "web/src/platform/playback/DecodeAudioRender.ts#be852b6fee24328a"
+    ]
+  },
+  "web/src/platform/playback/audio/bytes.ts": {
+    "category": "platform-url",
+    "reason": "Player/reader fetches core-issued media/subtitle URLs or bundled reader font bytes; no domain JSON requests are allowed by this pinned allowance.",
+    "sites": [
+      "web/src/platform/playback/audio/bytes.ts#aebe74cc88213f06",
+      "web/src/platform/playback/audio/bytes.ts#aef3473d60a79a33",
+      "web/src/platform/playback/audio/bytes.ts#54f3157a79e9a5fc"
+    ]
+  },
+  "web/src/platform/playback/audio/converted.ts": {
+    "category": "platform-url",
+    "reason": "Player/reader fetches core-issued media/subtitle URLs or bundled reader font bytes; no domain JSON requests are allowed by this pinned allowance.",
+    "sites": [
+      "web/src/platform/playback/audio/converted.ts#aebe74cc88213f06",
+      "web/src/platform/playback/audio/converted.ts#aef3473d60a79a33",
+      "web/src/platform/playback/audio/converted.ts#4d5369dc03705e33"
+    ]
+  },
+  "web/src/platform/playback/subtitle-retry.ts": {
+    "category": "platform-url",
+    "reason": "Player/reader fetches core-issued media/subtitle URLs or bundled reader font bytes; no domain JSON requests are allowed by this pinned allowance.",
+    "sites": [
+      "web/src/platform/playback/subtitle-retry.ts#4a96be5cb6043e6f"
+    ]
+  },
+  "apps/vega/src/bridge/subtitles.ts": {
+    "category": "platform-url",
+    "reason": "Player fetches the core-issued subtitle document URL with bounded conditional reads.",
+    "sites": [
+      "apps/vega/src/bridge/subtitles.ts#2940ee6c6beefd6d"
+    ]
+  },
+  "apps/native/src-next/screens/downloads/device.ts": {
+    "category": "platform-transport",
+    "reason": "Approved device custody and linked abort: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/screens/downloads/device.ts#44ee4c53dfdfc69b"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/downloads/device.ts#44ee4c53dfdfc69b": "06302d6fd6282e30a7b430a5d7c00eb5e857bb45705679a74f044214eccdb7b6"
+    },
+    "additionalSites": {
+      "apps/native/src-next/screens/downloads/device.ts#683eb631756a9be6": {
+        "category": "platform-url",
+        "reason": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes only, and no domain JSON is constructed."
+      }
+    }
+  },
+  "apps/native/src-next/screens/saved/directory-commands.ts": {
+    "category": "platform-transport",
+    "reason": "Approved activation/authority guard and linked abort: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/screens/saved/directory-commands.ts#e2eff5f631cca540"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/saved/directory-commands.ts#e2eff5f631cca540": "1a610704f23bfbb3decb989c991a1aec35fd83b32b4a230a48e19d0eebd1278b"
+    }
+  },
+  "apps/native/src-next/screens/saved/view-model.ts": {
+    "category": "platform-transport",
+    "reason": "Approved captured generation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/screens/saved/view-model.ts#5fd25b31f48dfca0"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/saved/view-model.ts#5fd25b31f48dfca0": "8f404dfc523a8576ee81883b3f9e9439db1349bd722245fe982340e23640202d"
+    }
+  },
+  "web/src/screens/pins/pins-controller.ts": {
+    "category": "platform-transport",
+    "reason": "Approved lifetime and linked abort: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "web/src/screens/pins/pins-controller.ts#d7dd10775413b00f"
+    ],
+    "guardHashes": {
+      "web/src/screens/pins/pins-controller.ts#d7dd10775413b00f": "9427b95f948753bba10dcd95f206db4e797fb218aac1aaee90c238ffd634c5e3"
+    }
+  },
+  "web/src/screens/saved/runtime.ts": {
+    "category": "platform-transport",
+    "reason": "Approved SavedOperations guard and tracked abort: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "web/src/screens/saved/runtime.ts#03c2017e0a3c0740"
+    ],
+    "guardHashes": {
+      "web/src/screens/saved/runtime.ts#03c2017e0a3c0740": "d56a8239278b9b0f73c9a433480e5ed1587441cb04bb99a088753e65cad97e35"
+    }
+  },
+  "web/src/screens/watch/music/favorite-binding.ts": {
+    "category": "platform-transport",
+    "reason": "Approved playback opening/authority and linked abort: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "web/src/screens/watch/music/favorite-binding.ts#8aaeab0e6897fe9f"
+    ],
+    "guardHashes": {
+      "web/src/screens/watch/music/favorite-binding.ts#8aaeab0e6897fe9f": "26f208175208184b763ce56a96e5d63e0e7da97c50ea40e3230ad613896d4162"
+    }
+  },
+  "apps/desktop/src/offline.ts": {
+    "category": "platform-url",
+    "reason": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes only, and no domain JSON is constructed.",
+    "sites": [
+      "apps/desktop/src/offline.ts#cb7cad3af70c077d"
+    ],
+    "additionalSites": {
+      "apps/desktop/src/offline.ts#96e670b478a3c608": {
+        "category": "platform-url",
+        "reason": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes only, and no domain JSON is constructed."
+      }
+    }
+  },
+  "apps/native/platform/offline-downloads.ts": {
+    "category": "platform-url",
+    "reason": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes only, and no domain JSON is constructed.",
+    "sites": [
+      "apps/native/platform/offline-downloads.ts#131397bcb5eb95b2",
+      "apps/native/platform/offline-downloads.ts#aea29f47f699036a"
+    ]
+  },
+  "web/src/screens/saved/Saved.route.tsx": {
+    "category": "platform-url",
+    "reason": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes only, and no domain JSON is constructed.",
+    "sites": [
+      "web/src/screens/saved/Saved.route.tsx#816b9d4e902eb35a"
+    ]
+  },
+  "apps/native/src-next/platform/local-invitation.ts": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/platform/local-invitation.ts#2ee476c643df9a2e"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/platform/local-invitation.ts#2ee476c643df9a2e": "129630069f05e0667ecb01a5ae2c1de78fc0d67c860451815a40f3c05a92d6a6"
+    }
+  },
+  "apps/native/src-next/platform/portico-invitation.ts": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/platform/portico-invitation.ts#66b92be83fc1a9f4",
+      "apps/native/src-next/platform/portico-invitation.ts#2ee476c643df9a2e"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/platform/portico-invitation.ts#66b92be83fc1a9f4": "f41a15d479468f6683d1b7f8d9dddd92fef3b5c4a3e495d19a7f8755ff4b0320",
+      "apps/native/src-next/platform/portico-invitation.ts#2ee476c643df9a2e": "129630069f05e0667ecb01a5ae2c1de78fc0d67c860451815a40f3c05a92d6a6"
+    }
+  },
+  "apps/native/src-next/screens/accounts/AccountRoutes.tsx": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/screens/accounts/AccountRoutes.tsx#885991f1e6bf2b6e"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/accounts/AccountRoutes.tsx#885991f1e6bf2b6e": "5ddd7775f266515c262daec24786d11e55a52fb5643063d312da86a36e3955d2"
+    }
+  },
+  "apps/native/src-next/screens/accounts/PhoneFirstLibrary.tsx": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/screens/accounts/PhoneFirstLibrary.tsx#4f93cfab6afc05d1"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/accounts/PhoneFirstLibrary.tsx#4f93cfab6afc05d1": "5183cbc3a3a4ef2134e3a5383850491555e3014ff2993010ed76ce2ba45fe572"
+    }
+  },
+  "apps/native/src-next/screens/settings-live/native-account-security.ts": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/screens/settings-live/native-account-security.ts#70d251df5e6739cf"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/settings-live/native-account-security.ts#70d251df5e6739cf": "03ba51452aec4977e41a37dd1eef22e82f81ee26edf7f23c55e289e25318d593"
+    }
+  },
+  "web/src/platform/account-entry.ts": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "web/src/platform/account-entry.ts#349560422f5c8e69",
+      "web/src/platform/account-entry.ts#20dc95d1598f8be9",
+      "web/src/platform/account-entry.ts#d3b65eac59ee9d6e",
+      "web/src/platform/account-entry.ts#aedeea5fbed3f95a",
+      "web/src/platform/account-entry.ts#b39b71362dd7ecdc"
+    ],
+    "guardHashes": {
+      "web/src/platform/account-entry.ts#349560422f5c8e69": "baeeaa79949975f0ee467ca13a9fc0844d285569873f5a21f0200fe360663cc4",
+      "web/src/platform/account-entry.ts#20dc95d1598f8be9": "8039843391f461a87fff9a64b8c477d2fef3707d54c10d046ac67400e030b3b1",
+      "web/src/platform/account-entry.ts#d3b65eac59ee9d6e": "8526f49adf167c5490dcc9ad94a1b302d063a7ef37af2e09264987c184462b3f",
+      "web/src/platform/account-entry.ts#aedeea5fbed3f95a": "852b3adbeabc88447f73d1fba5df1bde84a90df784ede7405d46936dcc6aeb51",
+      "web/src/platform/account-entry.ts#b39b71362dd7ecdc": "58c0329ed296f70d039441910a673a115d169b6414c4754607794cb7b6db811b"
+    }
+  },
+  "web/src/screens/settings/account-profile/ProfileSignIn.tsx": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "web/src/screens/settings/account-profile/ProfileSignIn.tsx#6be9155c99f1ba3b"
+    ],
+    "guardHashes": {
+      "web/src/screens/settings/account-profile/ProfileSignIn.tsx#6be9155c99f1ba3b": "7f161aed3a169dc431d1b1642ca52c118bdba86ec6214fb14ab3e3a0bd31a4f2"
+    }
+  },
+  "web/src/screens/settings/account-profile/devices.ts": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "web/src/screens/settings/account-profile/devices.ts#1811510996e7074e"
+    ],
+    "guardHashes": {
+      "web/src/screens/settings/account-profile/devices.ts#1811510996e7074e": "7ed947f262de7cfc943dccada9fd221651e2b46e0d043e74dacdf9c0f661310f"
+    }
+  },
+  "web/src/screens/settings/account-profile/restrictions.ts": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "web/src/screens/settings/account-profile/restrictions.ts#db824627c144915c"
+    ],
+    "guardHashes": {
+      "web/src/screens/settings/account-profile/restrictions.ts#db824627c144915c": "43833d541ce986a41908889035cd509203fbbe99f1f1dbcb4ff15b4e90c7818d"
+    }
+  },
+  "web/src/screens/settings/account-profile/sign-out-others.ts": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "web/src/screens/settings/account-profile/sign-out-others.ts#43c77788e4893772"
+    ],
+    "guardHashes": {
+      "web/src/screens/settings/account-profile/sign-out-others.ts#43c77788e4893772": "dbfbd2feaff8173d54f403a9fde903ce31ff8eeb75d636cbff874ea663dd1dd1"
+    }
+  },
+  "web/src/screens/settings/account-profile/source.ts": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "web/src/screens/settings/account-profile/source.ts#4f1230ad27977a29"
+    ],
+    "guardHashes": {
+      "web/src/screens/settings/account-profile/source.ts#4f1230ad27977a29": "ed181a443ed3aa10a0cf3910d56276d79dd6cc62d92a790ec72c12fec8e5e85a"
+    }
+  },
+  "web/src/screens/settings/invitations.ts": {
+    "category": "platform-transport",
+    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "sites": [
+      "web/src/screens/settings/invitations.ts#5ee197e42936d736"
+    ],
+    "guardHashes": {
+      "web/src/screens/settings/invitations.ts#5ee197e42936d736": "57a46edcd50913186101ebd2adafc2665bad91698f31c4704cb46c6c085f01e5"
+    }
+  }
+}
