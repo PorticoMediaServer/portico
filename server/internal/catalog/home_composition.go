@@ -229,7 +229,7 @@ func (s *Service) homeMergedRecent(r HomeRequest, audio bool) ([][2]string, erro
 		if isAudio != audio {
 			continue
 		}
-		values, err := s.homeRecentWorks(r, library.ID)
+		values, _, err := s.homeRecentWorks(r, library.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -349,7 +349,7 @@ func (s *Service) homeAudioSource(r HomeRequest, booksOnly bool) (homeSource, er
 		// old union grouped the complete audio library before taking a page.
 		values := [][2]string{}
 		for _, library := range r.Libraries {
-			head, err := s.homeRecentWorks(r, library)
+			head, _, err := s.homeRecentWorks(r, library)
 			if err != nil {
 				return homeSource{}, err
 			}

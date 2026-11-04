@@ -49,7 +49,7 @@ func TestRecentlyAddedBoundsExaminedCandidates(t *testing.T) {
 			ctx, cost := dbwork.Measure(context.Background())
 			start := time.Now()
 			err = dbwork.WithReadSnapshot(ctx, db, func(ctx context.Context) error {
-				found, err := s.WithContext(ctx).homeRecentWorks(HomeRequest{}, "m")
+				found, _, err := s.WithContext(ctx).homeRecentWorks(HomeRequest{}, "m")
 				if len(found) != 0 {
 					t.Fatalf("retired titles leaked: %d", len(found))
 				}
@@ -70,7 +70,7 @@ func TestRecentlyAddedBoundsExaminedCandidates(t *testing.T) {
 			// A live row in the same stale projection must still be found. This
 			// rules out an empty fixture or a reader that always returns no works.
 			exec(`UPDATE catalog_entities SET retired=0 WHERE id=?`, n)
-			found, err := s.homeRecentWorks(HomeRequest{}, "m")
+			found, _, err := s.homeRecentWorks(HomeRequest{}, "m")
 			if err != nil || len(found) != 1 {
 				t.Fatalf("live control: %v %v", found, err)
 			}

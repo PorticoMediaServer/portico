@@ -104,11 +104,13 @@ func homeRecentPhases(r HomeRequest, class *recentClass) ([]string, [][]any) {
 // materialises the library (ARCH-SRV-04): the cost is the items above the
 // last shown work.
 func (s *Service) homeRecentSource(r HomeRequest, library string) (homeSource, error) {
-	values, err := s.homeRecentWorks(r, library)
+	values, delivery, err := s.homeRecentWorks(r, library)
 	if err != nil {
 		return homeSource{}, err
 	}
-	return homeRecentList(values), nil
+	src := homeRecentList(values)
+	src.delivery = delivery
+	return src, nil
 }
 
 // homeRecentList is a recent shelf as a row source: (id, order key) pairs the
@@ -127,29 +129,28 @@ func homeRecentList(values [][2]string) homeSource {
 
 // homeRecentWorks is one library's shelf as (entity, order key) pairs, newest
 // first.
-func (s *Service) homeRecentWorks(r HomeRequest, library string) ([][2]string, error) {
+func (s *Service) homeRecentWorks(r HomeRequest, library string) ([][2]string, bool, error) {
 	// Dated items newest first; then, only while the shelf is still short,
 	// items with no added date, which sort last as they always did.
 	var class *recentClass
 	if r.Restrictions.Active() {
 		key, generation, ready, err := s.publishedVisibilityClass(library, r.Restrictions)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		if ready {
 			class = &recentClass{generation: generation}
 			if err = s.read().QueryRow(`SELECT id FROM compact_visibility_classes WHERE class_key=?`, key).Scan(&class.id); err != nil {
-				return nil, err
+				return nil, false, err
 			}
 		}
 	}
 	phases, phaseArgs := homeRecentPhases(r, class)
 	type work struct {
 		key, entity, added string
-		// A show's own entity row, for the newest addition under it; 0 otherwise.
-		show int64
 	}
 	found := []work{}
+	delivery := false
 	examined := 0
 	seen := map[string]int{}
 	for phase, query := range phases {
@@ -160,7 +161,7 @@ func (s *Service) homeRecentWorks(r HomeRequest, library string) ([][2]string, e
 			bounded := strings.Replace(query, "LIMIT 256", fmt.Sprintf("LIMIT %d", min(256, homeRecentCandidateMaximum-examined)), 1)
 			rows, err := s.read().Query(bounded, args...)
 			if err != nil {
-				return nil, err
+				return nil, false, err
 			}
 			n := 0
 			for rows.Next() {
@@ -170,7 +171,7 @@ func (s *Service) homeRecentWorks(r HomeRequest, library string) ([][2]string, e
 				var visible bool
 				if err = rows.Scan(&added, &key, &entity, &ent, &visible, &kind); err != nil {
 					rows.Close()
-					return nil, err
+					return nil, false, err
 				}
 				n++
 				examined++
@@ -190,36 +191,23 @@ func (s *Service) homeRecentWorks(r HomeRequest, library string) ([][2]string, e
 				if len(found) < homeRecentMaximum {
 					seen[key] = len(found)
 					w := work{key: key, entity: *entity, added: added}
-					if phase == 0 && kind == 2 {
-						w.show = ent
-					}
 					found = append(found, w)
+					delivery = delivery || phase == 0 && kind == 2
 				}
 			}
 			err = rows.Err()
 			rows.Close()
 			if err != nil {
-				return nil, err
+				return nil, false, err
 			}
 			if n < 256 {
 				break
 			}
 		}
 	}
-	// A show stands for what was added to it (Plex's shape): one episode, one
-	// season, or the show when several seasons arrived together.
-	for i, w := range found {
-		if w.show == 0 {
-			continue
-		}
-		addition, err := s.homeRecentAddition(r, w.show)
-		if err != nil {
-			return nil, err
-		}
-		if addition != "" {
-			found[i].entity = addition
-		}
-	}
+	// Keep canonical works in the source. Delivery cards are resolved only
+	// after selecting a page, so unseen shows require no delivery reads. The
+	// stable work ID also breaks equal-added ties independently of delivery.
 	values := make([][2]string, 0, len(found))
 	ids := map[string]bool{}
 	for _, w := range found {
@@ -229,7 +217,7 @@ func (s *Service) homeRecentWorks(r HomeRequest, library string) ([][2]string, e
 		ids[w.entity] = true
 		values = append(values, [2]string{w.entity, w.added + "\x1f" + w.entity})
 	}
-	return values, nil
+	return values, delivery, nil
 }
 
 // homeRecentAdditionGap separates deliveries: a scan adds a season's files
@@ -241,99 +229,89 @@ const homeRecentAdditionGap = time.Hour
 // at the first gap or the second season, so it usually reads a season or less.
 const homeRecentAdditionWalk = 200
 
-// homeRecentAddition is what a show on a Recently Added shelf stands for: the
-// one episode of its newest delivery, or the season when the delivery was
-// several episodes of one season; "" keeps the show (several seasons, or no
-// dated episode). Only episodes the viewer may see and play are counted.
-func (s *Service) homeRecentAddition(r HomeRequest, show int64) (string, error) {
-	restriction, restrictionArgs := r.Viewer.itemVisibilitySQL("m.item_id")
-	rows, err := s.read().Query(`SELECT m.item_id,m.added,COALESCE(e.season_id,0),pid(ep.public_id),COALESCE(pid(se.public_id),'')
-	 FROM (SELECT item_id,added FROM catalog_browse_member_metrics INDEXED BY catalog_browse_metric_added
-	  WHERE entity_id=? AND added IS NOT NULL ORDER BY added DESC LIMIT `+strconv.Itoa(homeRecentAdditionWalk)+`) m
-	 CROSS JOIN catalog_episodes e ON e.entity_id=m.item_id CROSS JOIN catalog_entities ep ON ep.id=m.item_id
- CROSS JOIN catalog_item_availability available ON available.entity_id=m.item_id
-	 LEFT JOIN catalog_entities se ON se.id=e.season_id
-	 WHERE ep.retired=0 AND available.available=1 AND available.retired=0 AND `+restriction+recordingsClause("m.item_id", r.Restrictions)+`
- AND EXISTS(SELECT 1 FROM catalog_browse_memberships current WHERE current.entity_id=? AND current.item_id=m.item_id)
- ORDER BY m.added DESC,m.item_id DESC`, append(append([]any{show}, restrictionArgs...), show)...)
-	if err != nil {
-		return "", err
-	}
-	defer rows.Close()
-	var episode, season string
-	var seasonID int64
-	var last time.Time
-	episodes := 0
-	counted := map[int64]bool{}
-	for rows.Next() {
-		var item, sid int64
-		var added, episodeID, seasonPID string
-		if err = rows.Scan(&item, &added, &sid, &episodeID, &seasonPID); err != nil {
-			return "", err
-		}
-		if counted[item] {
-			continue
-		}
-		counted[item] = true
-		at, err := time.Parse(time.RFC3339Nano, added)
-		if err != nil || episodes > 0 && last.Sub(at) > homeRecentAdditionGap {
-			break
-		}
-		if episodes > 0 && sid != seasonID {
-			return "", rows.Err()
-		}
-		if episodes == 0 {
-			episode, seasonID, season = episodeID, sid, seasonPID
-		}
-		episodes++
-		last = at
-	}
-	if err = rows.Err(); err != nil {
-		return "", err
-	}
-	switch {
-	case episodes == 1:
-		return episode, nil
-	case episodes > 1 && seasonID != 0:
-		return season, nil
-	}
-	return "", nil
-}
-
-// homeRecentPageTargets preserves the established delivery card (one episode,
-// one season, or the whole show), while SQL pages canonical works. Only the
-// requested page is inspected; no source member list is built in memory.
+// homeRecentPageTargets resolves one selected page in one statement. Each
+// requested show seeks at most the existing delivery-walk limit through the
+// added index, then joins only those bounded member rows. The page never
+// scans a show's full membership, nor resolves shows outside the page.
 func (s *Service) homeRecentPageTargets(r HomeRequest, ids []string) ([]string, error) {
 	out := append([]string{}, ids...)
-	rows, err := s.read().Query(`SELECT pid(e.public_id),e.id FROM json_each(?) requested JOIN catalog_entities e ON e.public_id=pid_blob(requested.value) WHERE e.kind=2`, idsJSON(ids))
-	if err != nil {
-		return nil, err
+	if len(ids) == 0 {
+		return out, nil
 	}
-	shows := map[string]int64{}
-	for rows.Next() {
-		var id string
-		var entity int64
-		if err = rows.Scan(&id, &entity); err != nil {
-			break
-		}
-		shows[id] = entity
-	}
-	if err == nil {
-		err = rows.Err()
-	}
-	rows.Close()
-	if err != nil {
-		return nil, err
-	}
+	// Each UNION arm has its own uncorrelated work key. This lets SQLite
+	// push the key into both indexed runs of the retained serving view; a
+	// correlated key against that compound view can instead scan all metrics.
+	windows := make([]string, len(ids))
+	args := make([]any, 0, len(ids))
 	for i, id := range ids {
-		if entity, ok := shows[id]; ok {
-			target, e := s.homeRecentAddition(r, entity)
-			if e != nil {
-				return nil, e
-			}
-			if target != "" {
-				out[i] = target
-			}
+		windows[i] = `SELECT ` + strconv.Itoa(i) + ` AS position,entity_id,item_id,added FROM (
+ SELECT entity_id,item_id,added FROM catalog_browse_member_metrics INDEXED BY catalog_browse_metric_added
+ WHERE entity_id=(SELECT id FROM catalog_entities WHERE public_id=pid_blob(?) AND kind=2)
+ AND added IS NOT NULL ORDER BY added DESC LIMIT ` + strconv.Itoa(homeRecentAdditionWalk) + `)`
+		args = append(args, id)
+	}
+	restriction, restrictionArgs := r.Viewer.itemVisibilitySQL("m.item_id")
+	rows, err := s.read().Query(`SELECT m.position,m.item_id,m.added,COALESCE(e.season_id,0),pid(ep.public_id),COALESCE(pid(se.public_id),'')
+ FROM (`+strings.Join(windows, ` UNION ALL `)+`) m
+ CROSS JOIN catalog_episodes e ON e.entity_id=m.item_id
+ CROSS JOIN catalog_entities ep ON ep.id=m.item_id
+ CROSS JOIN catalog_item_availability available ON available.entity_id=m.item_id
+ LEFT JOIN catalog_entities se ON se.id=e.season_id
+ WHERE ep.retired=0 AND available.available=1 AND available.retired=0 AND `+restriction+recordingsClause("m.item_id", r.Restrictions)+`
+ AND EXISTS(SELECT 1 FROM catalog_browse_memberships current WHERE current.entity_id=m.entity_id AND current.item_id=m.item_id)
+ ORDER BY m.position,m.added DESC,m.item_id DESC`, append(args, restrictionArgs...)...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	type delivery struct {
+		episode, season string
+		seasonID        int64
+		last            time.Time
+		episodes        int
+		counted         map[int64]bool
+		done            bool
+	}
+	deliveries := make([]delivery, len(ids))
+	for rows.Next() {
+		var position int
+		var item, sid int64
+		var added, episode, season string
+		if err = rows.Scan(&position, &item, &added, &sid, &episode, &season); err != nil {
+			return nil, err
+		}
+		d := &deliveries[position]
+		if d.done || d.counted[item] {
+			continue
+		}
+		if d.counted == nil {
+			d.counted = map[int64]bool{}
+		}
+		d.counted[item] = true
+		at, e := time.Parse(time.RFC3339Nano, added)
+		if e != nil || d.episodes > 0 && d.last.Sub(at) > homeRecentAdditionGap {
+			d.done = true
+			continue
+		}
+		if d.episodes > 0 && sid != d.seasonID {
+			d.episodes = 0
+			d.done = true
+			continue
+		}
+		if d.episodes == 0 {
+			d.episode, d.seasonID, d.season = episode, sid, season
+		}
+		d.episodes++
+		d.last = at
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	for i, d := range deliveries {
+		if d.episodes == 1 {
+			out[i] = d.episode
+		} else if d.episodes > 1 && d.seasonID != 0 && d.season != "" {
+			out[i] = d.season
 		}
 	}
 	return out, nil
