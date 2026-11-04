@@ -74,17 +74,42 @@ func inventoryStreamHelper(r InventoryRequest, in io.Reader, out io.Writer) erro
 			return ErrInventoryChanged
 		}
 		r.Limit = demand.Limit
-		page, raw, err := localInventoryPage(r)
-		if err != nil {
-			return inventoryFailure(err, out)
+		var frame inventoryStreamPage
+		issues := make(map[InventoryIssue]struct{})
+		for frame.RawUsed < demand.Limit {
+			r.Limit = demand.Limit - frame.RawUsed
+			page, raw, err := localInventoryPage(r)
+			if err != nil {
+				return inventoryFailure(err, out)
+			}
+			if raw == 0 && !page.Complete {
+				return ErrInventoryChanged
+			}
+			if frame.RootIdentity == "" {
+				frame.InventoryPage = page
+				frame.Entries = nil
+				frame.Issues = nil
+			}
+			frame.Entries = append(frame.Entries, page.Entries...)
+			for _, issue := range page.Issues {
+				if _, seen := issues[issue]; !seen {
+					frame.Issues = append(frame.Issues, issue)
+					issues[issue] = struct{}{}
+				}
+			}
+			frame.RawUsed += raw
+			frame.Complete, frame.Unstable, frame.NextCursor = page.Complete, page.Unstable, page.NextCursor
+			r.RootIdentity, r.DirectoryRevision, r.Cursor = page.RootIdentity, page.DirectoryRevision, page.NextCursor
+			if page.Complete {
+				break
+			}
 		}
-		if err = encoder.Encode(inventoryStreamPage{page, raw}); err != nil {
+		if err = encoder.Encode(frame); err != nil {
 			return err
 		}
-		if page.Complete {
+		if frame.Complete {
 			return nil
 		}
-		r.RootIdentity, r.DirectoryRevision, r.Cursor = page.RootIdentity, page.DirectoryRevision, page.NextCursor
 	}
 }
 func inventoryStreamKey(c *Client, key string, r InventoryRequest) string {

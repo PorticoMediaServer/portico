@@ -119,3 +119,28 @@ func TestRetainedProducerRejectsOverBudgetRawNames(t *testing.T) {
 	}
 	t.Fatal("invalid helper did not retire")
 }
+
+func TestRetainedProducerUsesUnusedCreditToProveSmallDirectoryEOF(t *testing.T) {
+	binary, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := New(binary)
+	c.SourceOperations = NewOperationScope()
+	t.Cleanup(func() {
+		c.SourceOperations.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := c.SourceOperations.Wait(ctx); err != nil {
+			t.Error(err)
+		}
+	})
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "one.pdf"), []byte("unchanged"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	page := awaitStreamPage(t, c, "small-eof", InventoryRequest{Root: root, RelativePath: ".", Limit: 64})
+	if !page.Complete || len(page.Entries) != 1 || page.NextCursor != "" || c.SourceOperations.Active() != 0 {
+		t.Fatal("unused credit left a small directory's physical producer alive", page, c.SourceOperations.Active())
+	}
+}
