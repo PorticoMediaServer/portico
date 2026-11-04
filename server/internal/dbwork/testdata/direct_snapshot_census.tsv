@@ -56,7 +56,6 @@ internal/identity/account_moves.go	(*Service).ConfirmLocalMove	1
 internal/identity/avatars.go	(*Service).AuthorizeProfileAvatarUpload	1
 internal/identity/avatars.go	(*Service).ProfileAvatars	1
 internal/identity/browser_accounts.go	(*Service).BrowserAccounts	1
-internal/identity/credential_security.go	(*Service).credentialCooloff	1
 internal/identity/credential_security.go	(*Service).proveCurrentPassword	1
 internal/identity/devices.go	(*Service).Devices	1
 internal/identity/direct_accounts.go	(*Service).DirectMembers	1
