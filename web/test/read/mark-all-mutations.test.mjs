@@ -1,3 +1,4 @@
+import * as readingCommands from '../../../packages/client-core/src/query/reading-commands.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
@@ -13,7 +14,7 @@ async function loadHook(h) {
   const file=new URL('../../src/screens/read/useReadingMarkAll.ts',import.meta.url);
   const result=transformSync(file.pathname,await readFile(file,'utf8'));
   if(result.errors.length)throw new Error(JSON.stringify(result.errors));
-  const modules={react:h.react,'@core/index.ts':{ApiError},'@core/reading-mark-all.ts':reading,'@core/user-mutations.ts':mutations,'@core/random-id.ts':{randomId},'../detail/context':{screenLifetime}};
+  const modules={'@core/query/reading-commands.ts':readingCommands,react:h.react,'@core/index.ts':{ApiError},'@core/reading-mark-all.ts':reading,'@core/user-mutations.ts':mutations,'@core/random-id.ts':{randomId},'../detail/context':{screenLifetime}};
   const code=result.code.replace(/import\s+([\s\S]*?)\s+from\s+["']([^"']+)["'];/g,(_,names,source)=>`const ${names.trim().replace(/\bas\b/g,':')} = modules[${JSON.stringify(source)}];`).replace('export function useReadingMarkAll','function useReadingMarkAll');
   return new Function('modules',`${code}\nreturn useReadingMarkAll;`)(modules);
 }
