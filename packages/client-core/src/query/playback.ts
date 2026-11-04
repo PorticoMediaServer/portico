@@ -1,4 +1,4 @@
-import {encodedRoutePath, routePath} from '../../../contracts/src/routes.ts';
+import {encodedRoutePath, routePath, routePattern} from '../../../contracts/src/routes.ts';
 import type {ItemResponse} from '../media-item.ts';
 import type {V1Http} from '../playback-v1/http.ts';
 import {call, enc} from '../playback-v1/http.ts';
@@ -29,7 +29,7 @@ export async function readPreparingChannel(http: V1Http, id: string, signal?: Ab
 }
 /** Page teardown must keep using the captured API's keepalive path, without waiting. */
 export function farewellPlaybackSession(farewell: (path: string, method: string, body?: unknown) => void, id: string, generation: number, positionMs?: number): void {
-  farewell(encodedRoutePath('stop_playback_session', {id: encodeURIComponent(id)}), 'DELETE', {generation,
+  farewell(routePattern('stop_playback_session').replace('{id}', encodeURIComponent(id)), 'DELETE', {generation,
     ...(positionMs !== undefined ? {positionMs: Math.max(0, Math.round(positionMs))} : {})});
 }
 

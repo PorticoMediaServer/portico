@@ -1,4 +1,4 @@
-import {encodedRoutePath} from '../../../contracts/src/routes.ts';
+import {routePattern} from '../../../contracts/src/routes.ts';
 import type {DetailApi} from '../detail.ts';
 
 /** The measured disc-title choices the server exposes for one physical version.
@@ -67,7 +67,7 @@ const current = (lifetime: DiscTitleLifetime) => !lifetime.signal.aborted && lif
  * one the panel was opened with; a changed item or version never borrows it. */
 export async function readDiscTitles(api: DetailApi, itemId: string, versionId: string, lifetime: DiscTitleLifetime): Promise<DiscTitles | undefined> {
   if (!current(lifetime)) return;
-  const raw = await api.request<unknown>(encodedRoutePath('get_disc_titles', {id: encodeURIComponent(itemId)}) + `?versionId=${encodeURIComponent(versionId)}`, undefined, undefined, lifetime.signal);
+  const raw = await api.request<unknown>(routePattern('get_disc_titles').replace('{id}', encodeURIComponent(itemId)) + `?versionId=${encodeURIComponent(versionId)}`, undefined, undefined, lifetime.signal);
   if (!current(lifetime)) return;
   return parseDiscTitles(raw, versionId);
 }
@@ -78,7 +78,7 @@ export async function readDiscTitles(api: DetailApi, itemId: string, versionId: 
  * instead, so the caller re-reads rather than writing over someone else's choice. */
 export async function prepareDiscTitle(api: DetailApi, write: DiscTitleWrite, lifetime: DiscTitleLifetime): Promise<DiscTitles | undefined> {
   if (!current(lifetime)) return;
-  const raw = await api.request<unknown>(encodedRoutePath('prepare_disc_title', {id: encodeURIComponent(write.itemId)}), 'POST',
+  const raw = await api.request<unknown>(routePattern('prepare_disc_title').replace('{id}', encodeURIComponent(write.itemId)), 'POST',
     {versionId: write.versionId, revision: write.revision, titleId: write.titleId}, lifetime.signal);
   if (!current(lifetime)) return;
   return parseDiscTitles(raw, write.versionId);
@@ -90,7 +90,7 @@ export async function prepareDiscTitle(api: DetailApi, write: DiscTitleWrite, li
 export async function chooseDiscMainTitle(api: DetailApi, write: DiscTitleWrite, lifetime: DiscTitleLifetime): Promise<DiscTitles | undefined> {
   if (!current(lifetime)) return;
   try {
-    const raw = await api.request<unknown>(encodedRoutePath('put_disc_main_title', {id: encodeURIComponent(write.itemId)}), 'PUT',
+    const raw = await api.request<unknown>(routePattern('put_disc_main_title').replace('{id}', encodeURIComponent(write.itemId)), 'PUT',
       {versionId: write.versionId, revision: write.revision, titleId: write.titleId}, lifetime.signal);
     if (!current(lifetime)) return;
     return parseDiscTitles(raw, write.versionId);
