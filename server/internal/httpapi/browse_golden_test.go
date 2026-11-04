@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -169,8 +171,10 @@ func goldenBrowseExtension(t *testing.T, f *goldenFixture, c goldenCase, want st
 	if strings.HasPrefix(c.Name, "capabilities/") && c.Status == 200 {
 		fields := doc["fields"].([]any)
 		match := map[string]any{"id": "match", "labelKey": "browse.field.match", "type": "enum", "operators": []string{"equals", "not-equals", "in", "not-in"}, "controlHint": "select", "complexity": "standard", "cost": "indexed-join", "applicableKinds": []string{"movie", "show", "season", "episode", "artist", "album", "song"}, "allowedValues": []string{"matched", "unmatched"}}
-		next := []any{fields[0], match}
-		next = append(next, fields[1:]...)
+		next := fields
+		if !slices.ContainsFunc(fields, func(value any) bool { return value.(map[string]any)["id"] == "match" }) {
+			next = append([]any{fields[0], match}, fields[1:]...)
+		}
 		doc["fields"] = next
 		for _, v := range next {
 			field := v.(map[string]any)
@@ -180,7 +184,9 @@ func goldenBrowseExtension(t *testing.T, f *goldenFixture, c goldenCase, want st
 			// operator and all unrelated capability facts exactly.
 			switch id {
 			case "releaseDate", "dateAdded", "lastPlayedAt":
-				field["operators"] = append([]any{"within-last-days"}, field["operators"].([]any)...)
+				if operators := field["operators"].([]any); !slices.Contains(operators, any("within-last-days")) {
+					field["operators"] = append([]any{"within-last-days"}, operators...)
+				}
 			}
 			if id == "actor" || id == "director" || id == "writer" {
 				field["controlHint"] = "facet-multi-select"
@@ -193,7 +199,7 @@ func goldenBrowseExtension(t *testing.T, f *goldenFixture, c goldenCase, want st
 		}
 		addMatch := func(p map[string]any) {
 			old := p["filters"].([]any)
-			if len(old) == 0 {
+			if len(old) == 0 || slices.Contains(old, any("match")) {
 				return
 			}
 			n := []any{old[0], "match"}
@@ -682,5 +688,28 @@ func TestGoldenAggregateCardFactsBoundaries(t *testing.T) {
 	}
 	if strings.Contains(string(view), `"browse":`) {
 		t.Fatalf("ContentNavigation.Browse is no longer omitted when absent: %s", view)
+	}
+}
+
+// Re-recorded responses already include each approved extension. Applying the
+// expectations twice must keep their facts exact instead of duplicating them.
+func TestGoldenBrowseCapabilitiesExtensionIsIdempotent(t *testing.T) {
+	raw, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var recorded []goldenCase
+	if err = json.Unmarshal(raw, &recorded); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range recorded {
+		if !strings.HasPrefix(c.Name, "capabilities/") {
+			continue
+		}
+		once := goldenBrowseExtension(t, nil, c, c.Response)
+		twice := goldenBrowseExtension(t, nil, c, once)
+		if once != twice {
+			t.Fatalf("%s extension duplicated facts: %s", c.Name, goldenChangedPaths(twice, once))
+		}
 	}
 }

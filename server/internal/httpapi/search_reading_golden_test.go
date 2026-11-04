@@ -37,6 +37,34 @@ func goldenSearchReadingGroup(t *testing.T, f *goldenFixture, c goldenCase, reco
 		if !ok {
 			t.Fatalf("%s: recorded Search group list missing", c.Name)
 		}
+		// The current recording already includes Reading. Keep its facts
+		// exact, while still rejecting duplicated group identities.
+		seen := map[string]bool{}
+		hasReading := false
+		for _, entry := range entries {
+			id, ok := entry.(string)
+			if !ok {
+				object, objectOK := entry.(map[string]any)
+				if !objectOK {
+					t.Fatalf("%s: invalid recorded Search group", c.Name)
+				}
+				id, ok = object["id"].(string)
+				if !ok {
+					t.Fatalf("%s: recorded Search group id missing", c.Name)
+				}
+			}
+			if seen[id] {
+				t.Fatalf("%s: duplicated Search group %s", c.Name, id)
+			}
+			seen[id] = true
+			hasReading = hasReading || id == "reading"
+		}
+		if !seen["books"] {
+			t.Fatalf("%s: recorded audiobook group missing", c.Name)
+		}
+		if hasReading {
+			return entries
+		}
 		out := make([]any, 0, len(entries)+1)
 		inserted := false
 		for _, entry := range entries {

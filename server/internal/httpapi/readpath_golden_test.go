@@ -436,6 +436,11 @@ func TestReadPathGoldenEquivalence(t *testing.T) {
 		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
 	}
 
+	runReadPathGolden(t, goldenPath)
+}
+
+func runReadPathGolden(t *testing.T, goldenPath string) {
+	t.Helper()
 	f, call := buildGoldenFixture(t)
 	cases := goldenMatrix(f.library, f.item)
 	for index := range cases {
@@ -485,7 +490,7 @@ func TestReadPathGoldenEquivalence(t *testing.T) {
 	}
 
 	if os.Getenv("PORTICO_GOLDEN_UPDATE") == "1" {
-		if err := os.MkdirAll("testdata", 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(goldenPath), 0o755); err != nil {
 			t.Fatal(err)
 		}
 		encoded, err := json.MarshalIndent(cases, "", " ")
@@ -966,11 +971,20 @@ func goldenUnselectedDetailArtwork(t *testing.T, f *goldenFixture, actual golden
 		t.Fatal(err)
 	}
 	item, ok := document["item"].(map[string]any)
-	if !ok || item["id"] != "movie-0000000" || item["posterUrl"] != "/v1/items/movie-0000000/art/poster" || item["backdropUrl"] != "/v1/items/movie-0000000/art/backdrop" {
+	if !ok || item["id"] != "movie-0000000" {
 		t.Fatal("review changed frozen detail artwork expectation")
 	}
-	delete(item, "posterUrl")
-	delete(item, "backdropUrl")
+	// A fresh recording already omits these unselected hints. Only the
+	// exact obsolete URLs may be removed; any other recorded value is drift.
+	for key, expected := range map[string]string{
+		"posterUrl":   "/v1/items/movie-0000000/art/poster",
+		"backdropUrl": "/v1/items/movie-0000000/art/backdrop",
+	} {
+		if value, present := item[key]; present && value != expected {
+			t.Fatalf("review changed frozen detail %s expectation: %v", key, value)
+		}
+		delete(item, key)
+	}
 	encoded, err := json.Marshal(document)
 	if err != nil {
 		t.Fatal(err)
@@ -1381,4 +1395,24 @@ func goldenSearchCardFacts(t *testing.T, f *goldenFixture, c goldenCase, want st
 		t.Fatal(err)
 	}
 	return string(encoded)
+}
+
+// Exercise the real update switch against a disposable snapshot, then compare
+// a fresh fixture without update mode. Never rewrite the reviewed golden here.
+func TestReadPathGoldenUpdateThenRecheck(t *testing.T) {
+	if testing.Short() {
+		t.Skip("read-path golden round trip")
+	}
+	path := filepath.Join(t.TempDir(), "readpath_golden.json")
+	t.Run("update", func(t *testing.T) {
+		t.Setenv("PORTICO_GOLDEN_UPDATE", "1")
+		runReadPathGolden(t, path)
+	})
+	if t.Failed() {
+		return
+	}
+	t.Run("recheck", func(t *testing.T) {
+		t.Setenv("PORTICO_GOLDEN_UPDATE", "")
+		runReadPathGolden(t, path)
+	})
 }
