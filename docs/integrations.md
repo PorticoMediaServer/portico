@@ -99,14 +99,19 @@ Portico account passwords is not supported. Quick Connect is not provided.
 ### Home Assistant
 
 Choose the **Jellyfin** integration and enter Portico's URL, username and dedicated
-app password with `read` and `playback` scopes. Monitoring and native transport
-commands are available only where the bound account/profile has authority.
-Server-wide monitoring or administrative controls require native administrator
-authority and appropriate scope. Pause, resume, seek and stop translate to native
-controls with their revision checks. Unsupported commands return an error.
+app password with `read` and `playback` scopes. The stock integration exposes
+**session monitoring only**, within the bound account/profile's authority.
+Server-wide monitoring requires native administrator authority and appropriate
+scope. App version and position update time come from the stored native device
+and session facts. An unknown app version is an empty string.
 
-Volume/mute control, starting playback on another player, media-source streaming
-and third-party player setup are outside this adapter's supported tier.
+The adapter deliberately reports nested `SupportsMediaControl=false`: Home
+Assistant couples transport controls to browse, search and playback-start, which
+this adapter cannot promise. Native pause, resume, seek and stop endpoints remain
+available to separately configured automation with their existing authority and
+revision checks. Volume/mute, playback-start, media-source streaming and third-party
+player setup are outside this tier. Full stock-tool qualification is a release gate;
+a passing adapter test alone does not establish Home Assistant setup acceptance.
 
 ### Jellystat
 

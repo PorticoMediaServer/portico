@@ -155580,6 +155580,7 @@ var PorticoCastContracts = (function(exports) {
 								"type": "array"
 							},
 							"app": { "type": "string" },
+							"appVersion": { "type": "string" },
 							"device": {
 								"properties": {
 									"id": { "type": "string" },
@@ -155656,6 +155657,7 @@ var PorticoCastContracts = (function(exports) {
 							"revision": { "type": "string" },
 							"startedAt": { "type": "string" },
 							"state": { "type": "string" },
+							"updatedAt": { "type": "string" },
 							"user": {
 								"properties": {
 									"id": { "type": "string" },

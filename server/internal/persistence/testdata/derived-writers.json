@@ -5843,7 +5843,7 @@
       ]
     },
     "internal/httpapi/compatibility_actions.go": {
-      "sha256": "b7a4e2819023c33edb1d6c634909f7a8fdb1129eac4f7aa1a3c7932e9adf2186",
+      "sha256": "e3bc0ef1532cb44f88e7c4bcdfd0e4f5488e7f656f56afab1084e8ef69dada0e",
       "effects": [
         {
           "table": "*",
@@ -6338,7 +6338,7 @@
       ]
     },
     "internal/httpapi/integration_read_routes.go": {
-      "sha256": "c04d6e1e5e2361665889e360076e7dc688d3e75fc6f151dfe1f5bd2e8b6d00c5",
+      "sha256": "b974d3c0ea67073c263c88bf0e6e84b3e82f37f086f76388f7fc21ebe8acacbb",
       "effects": [
         {
           "table": "*",

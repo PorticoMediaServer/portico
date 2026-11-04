@@ -216436,6 +216436,9 @@ export const schemas = {
             "app": {
               "type": "string"
             },
+            "appVersion": {
+              "type": "string"
+            },
             "device": {
               "properties": {
                 "id": {
@@ -216565,6 +216568,9 @@ export const schemas = {
               "type": "string"
             },
             "state": {
+              "type": "string"
+            },
+            "updatedAt": {
               "type": "string"
             },
             "user": {

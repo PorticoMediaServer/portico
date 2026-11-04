@@ -109577,6 +109577,9 @@
                 "app": {
                   "type": "string"
                 },
+                "appVersion": {
+                  "type": "string"
+                },
                 "device": {
                   "properties": {
                     "id": {
@@ -109706,6 +109709,9 @@
                   "type": "string"
                 },
                 "state": {
+                  "type": "string"
+                },
+                "updatedAt": {
                   "type": "string"
                 },
                 "user": {
@@ -388474,6 +388480,9 @@
                           "app": {
                             "type": "string"
                           },
+                          "appVersion": {
+                            "type": "string"
+                          },
                           "device": {
                             "properties": {
                               "id": {
@@ -388603,6 +388612,9 @@
                             "type": "string"
                           },
                           "state": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
                             "type": "string"
                           },
                           "user": {

@@ -52,6 +52,8 @@ type IntegrationSessionItem struct {
 }
 
 type IntegrationSession struct {
+	AppVersion string                  `json:"appVersion,omitempty"`
+	UpdatedAt  string                  `json:"updatedAt,omitempty"`
 	Actions    []string                `json:"actions"`
 	ID         string                  `json:"id"`
 	State      string                  `json:"state"`
@@ -584,9 +586,9 @@ func (d Dependencies) integrationSessions(r *http.Request) (IntegrationSessions,
 			out.Items = append(out.Items, row)
 		}
 		out.NextCursor = page.NextCursor
-		if e := d.integrationOwnSessionFacts(r, &out); e != nil {
-			return IntegrationSessions{}, integrationReadError(e)
-		}
+	}
+	if e := d.integrationSessionFacts(r, &out, admin); e != nil {
+		return IntegrationSessions{}, integrationReadError(e)
 	}
 	if err := d.integrationSessionItems(r, &out, admin); err != nil {
 		return IntegrationSessions{}, integrationReadError(err)
@@ -594,9 +596,10 @@ func (d Dependencies) integrationSessions(r *http.Request) (IntegrationSessions,
 	return out, nil
 }
 
-// Fill native ownership/app facts for the already-authorized own-controls page
-// in one batch. No target profile is guessed from the caller's current profile.
-func (d Dependencies) integrationOwnSessionFacts(r *http.Request, out *IntegrationSessions) error {
+// Fill stored device and session facts for the already-authorized page in one
+// batch. Member reads retain the account/authority predicate; admin reads have
+// already passed the native dashboard and per-session control boundaries.
+func (d Dependencies) integrationSessionFacts(r *http.Request, out *IntegrationSessions, admin bool) error {
 	if len(out.Items) == 0 {
 		return nil
 	}
@@ -609,13 +612,20 @@ func (d Dependencies) integrationOwnSessionFacts(r *http.Request, out *Integrati
 		}
 		raw, _ := json.Marshal(ids)
 		tx := dbwork.Snapshot(ctx)
-		rows, e := tx.QueryContext(ctx, `SELECT s.id,s.account_id,s.profile_id,COALESCE(a.username,''),COALESCE(p.name,''),COALESCE(d.app,''),COALESCE(d.platform,'') FROM playback_v1_sessions s LEFT JOIN accounts a ON a.id=s.account_id LEFT JOIN direct_profiles p ON p.id=s.profile_id AND p.account_id=s.account_id AND p.deleted=0 LEFT JOIN identity_devices d ON d.id=s.device_id AND d.account_id=s.account_id WHERE s.id IN(SELECT value FROM json_each(?)) AND s.account_id=? AND s.authority=?`, string(raw), p.AccountID, p.Authority)
+		query := `SELECT s.id,s.account_id,s.profile_id,COALESCE(a.username,''),COALESCE(p.name,''),COALESCE(d.app,''),COALESCE(d.platform,''),COALESCE(d.app_version,''),s.updated_ms FROM playback_v1_sessions s LEFT JOIN accounts a ON a.id=s.account_id LEFT JOIN direct_profiles p ON p.id=s.profile_id AND p.account_id=s.account_id AND p.deleted=0 LEFT JOIN identity_devices d ON d.id=s.device_id AND d.account_id=s.account_id WHERE s.id IN(SELECT value FROM json_each(?))`
+		args := []any{string(raw)}
+		if !admin {
+			query += ` AND s.account_id=? AND s.authority=?`
+			args = append(args, p.AccountID, p.Authority)
+		}
+		rows, e := tx.QueryContext(ctx, query, args...)
 		if e != nil {
 			return e
 		}
 		for rows.Next() {
-			var id, account, profile, username, name, app, platform string
-			if e = rows.Scan(&id, &account, &profile, &username, &name, &app, &platform); e != nil {
+			var id, account, profile, username, name, app, platform, version string
+			var updated int64
+			if e = rows.Scan(&id, &account, &profile, &username, &name, &app, &platform, &version, &updated); e != nil {
 				rows.Close()
 				return e
 			}
@@ -624,6 +634,8 @@ func (d Dependencies) integrationOwnSessionFacts(r *http.Request, out *Integrati
 			item.Profile = &playbackv1.AdminName{ID: profile, Name: name}
 			item.App = app
 			item.Platform = platform
+			item.AppVersion = version
+			item.UpdatedAt = time.UnixMilli(updated).UTC().Format(time.RFC3339Nano)
 		}
 		e = rows.Err()
 		rows.Close()
