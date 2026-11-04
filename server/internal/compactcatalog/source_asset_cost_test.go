@@ -30,7 +30,8 @@ func sourceAssetCost(t *testing.T, db *sql.DB, name string, fn func(context.Cont
 		t.Fatalf("asset acceptance exceeded constant trigger-inclusive bound: %+v", stats)
 	}
 	t.Logf("%s: statements=%d rows=%d pages=%d vmops=%d", name, measure().Statements, stats.Largest.Rows, stats.Largest.Pages, stats.Largest.VMOps)
-	if name != "unlinked-insert" && measure().Statements != 3 {
+	// Only the accepting SQL statement remains; row meters use the native scalar.
+	if name != "unlinked-insert" && measure().Statements != 1 {
 		t.Fatalf("%s repeated source acceptance statements: %+v", name, measure())
 	}
 	if name == "availability-noop" && stats.Largest.Rows != 0 {
