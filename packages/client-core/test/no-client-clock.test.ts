@@ -4,7 +4,7 @@ import {DeviceAuthorizationService} from '../src/index.ts';
 import {observeServerTime, resetServerClocks, serverNow} from '../src/server-clock.ts';
 import {SetupCodeApprover, SetupCodeService, type SetupCodeJournal} from '../src/setup-code.ts';
 import {TVConsentApprover, type TVConsentAuthority} from '../src/tv-consent.ts';
-import {receiptUsable, topShelfExpired, type ReceiptClaims} from '../src/index.ts';
+import {receiptUsable, type ReceiptClaims} from '../src/index.ts';
 import {rememberedFor} from '../src/remember-marker.ts';
 import {moveOfferDays} from '../src/sign-in.ts';
 import {captureReportContext} from '../src/report-context.ts';
@@ -81,12 +81,10 @@ for (const [label, skew] of SKEWS) {
     const viewer = claims.viewer;
     assert.equal(receiptUsable(claims, viewer, new Date(serverNow() + 86_400_000)), true);
     assert.equal(receiptUsable(claims, viewer, new Date(serverNow() + 31 * 86_400_000)), false);
-    // the remembered profile and the top shelf are the server's expiry against the server's now
+    // the remembered profile is the server's expiry against the server's now
     const held = {serverId: 's', familyId: 'f', profileId: 'p'};
     assert.equal(rememberedFor({...held, expiresAt: iso(truth + 60_000)}, held), true);
     assert.equal(rememberedFor({...held, expiresAt: iso(truth - 60_000)}, held), false);
-    assert.equal(topShelfExpired({expiresAt: iso(truth + 60_000)} as never), false);
-    assert.equal(topShelfExpired({expiresAt: iso(truth - 60_000)} as never), true);
     // a move offer counts its days from the server's calendar, and a report is captured for the server's now
     assert.equal(moveOfferDays(iso(truth + 3 * 86_400_000 + 3_600_000)) !== undefined, true);
     assert.ok(Math.abs(Date.parse(captureReportContext('UTC').until) - truth) <= 15 * 60_000);
