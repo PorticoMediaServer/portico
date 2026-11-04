@@ -12,7 +12,7 @@ import sys
 import tempfile
 import time
 from js_shards import digest, receipt_name, reconcile, validate_selection
-from plan import ROOT
+from plan import ROOT, SHORT_CENSUSES
 
 def policy(data, today=None, engine=None):
     today=today or datetime.date.today(); entries={}
@@ -31,7 +31,7 @@ def policy(data, today=None, engine=None):
     if entries and data.get('status')!='approved': raise ValueError('quarantine not approved')
     return entries
 
-def classify(events, expected, returncode, allowed):
+def classify(events, expected, returncode, allowed, required_pass=()):
     terminals={}; failures=set(); started=set(); package_terminal=None; dangerous=False
     for e in events:
         output=e.get('Output','')
@@ -46,6 +46,9 @@ def classify(events, expected, returncode, allowed):
         if name and action in ['pass','fail','skip']: terminals[name]=action
         if name and action=='fail': failures.add(name.split('/')[0])
     if dangerous or package_terminal is None or any(t not in terminals for t in set(expected)|started): return 'blocked'
+    for name in required_pass:
+        exact=[e['Action'] for e in events if e.get('Test')==name and e.get('Action') in ('pass','fail','skip','cancelled','canceled')]
+        if package_terminal!='pass' or exact!=['pass']: return 'blocked'
     if failures:
         if returncode!=1 or package_terminal!='fail' or not failures.issubset(allowed): return 'blocked'
         return 'quarantined'
@@ -89,7 +92,8 @@ def go(plan,index,report=None):
             # but never hide a tool/infrastructure exit outside Go's 0/1 contract.
             terminal=next((e['Action'] for e in reversed(own) if not e.get('Test') and e.get('Action') in ['pass','fail','skip']),None)
             code=(0 if terminal in ['pass','skip'] else 1) if result.returncode in [0,1] else result.returncode
-            status=classify(own,[t['name'] for t in tests],code,permitted)
+            required={t['name'] for t in tests if (package,t['name']) in SHORT_CENSUSES}
+            status=classify(own,[t['name'] for t in tests],code,permitted,required_pass=required)
             lines.append(package+' '+status); blocked |= status=='blocked'
         return blocked, lines
     planned=batches(plan, selected)
@@ -290,11 +294,26 @@ def js_static(plan,component):
             if name in scripts: execute(['npm','run',name],ROOT/group)
     if component=='apps/desktop': execute(['npm','run','test:rust'],ROOT/component)
 
+def verify_census_passes(plan, directory):
+    expected={(t['package'],t['name']) for t in plan.get('inventory',[])} & SHORT_CENSUSES
+    if not expected: return
+    terminals={key:[] for key in expected}
+    for path in Path(directory).rglob('*.jsonl'):
+        for line in path.read_text().splitlines():
+            if not line.strip(): continue
+            event=json.loads(line)
+            key=(event.get('Package'),event.get('Test'))
+            if key in expected and event.get('Action') in ('pass','fail','skip','cancelled','canceled'):
+                terminals[key].append(event['Action'])
+    for key,states in terminals.items():
+        if states!=['pass']: raise ValueError(f'{key}: census must run and pass exactly once, got {states}')
+
 def aggregate(plan,needs):
     expected={'planner':True,'hygiene':True,'go_build':bool(plan['packages']),'go_vet_cross':bool(plan['packages']),'go_tests':bool(plan['packages']),'decoder_sandbox':bool(plan['packages']),'js':any(x['shards'] for x in plan['js']),'js_static':bool(plan['js']), 'android':plan.get('android',False)}
     for job,required in expected.items():
         actual=needs.get(job,{}).get('result')
         if actual != ('success' if required else 'skipped'): raise ValueError(f'{job}: unexpected {actual}')
+    verify_census_passes(plan,ROOT/'ci-results/go')
     reconcile(plan,ROOT/'ci-results/js')
 
 def validate_tags(plan):

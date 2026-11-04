@@ -36,7 +36,7 @@ test('a row with no producer never becomes a value, so it stays absent', () => {
 });
 
 test('defaults and config-file state come from the server configuration registry, not from the client', () => {
-  const configuration: SettingsConfiguration = {revision: 9, registryRevision: 'registry', path: '/etc/portico.toml', fields: [
+  const configuration: SettingsConfiguration = {revision: 9, registryRevision: 'registry', signInPolicyRevision: 'policy-1', path: '/etc/portico.toml', fields: [
     {id: 'storage.analysisSpace', key: 'storage.analysis_space_gb', current: 64, effective: 64, default: 16, source: 'file', configOnly: false, applicationMode: 'immediate'},
     {id: 'storage.subtitleTracks', key: 'storage.subtitle_tracks_per_file', current: 512, effective: 512, default: 256, source: 'file', configOnly: true, applicationMode: 'restart'},
   ]};

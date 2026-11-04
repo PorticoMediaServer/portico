@@ -255,7 +255,7 @@ func readingRemoteRegistered(t *testing.T, savedProfile bool) {
 					t.Fatal("wrong actual remote bytes")
 				}
 				page := int64(0)
-				location := ReadingLocation{Format: item.Format, PageIndex: &page, Progression: .25}
+				location := ReadingLocation{Format: ReadingFormat(item.Format), PageIndex: &page, Progression: .25}
 				if item.Format == "epub" {
 					location.PageIndex = nil
 					location.CFI = "epubcfi(/6/4!/4/2:0)"
@@ -338,7 +338,7 @@ func readingRemoteRegistered(t *testing.T, savedProfile bool) {
 				t.Fatal("revoked remote lease returned extent", n, err)
 			}
 			page := int64(0)
-			location := ReadingLocation{Format: item.Format, PageIndex: &page, Progression: .9}
+			location := ReadingLocation{Format: ReadingFormat(item.Format), PageIndex: &page, Progression: .9}
 			if item.Format == "epub" {
 				location.PageIndex = nil
 				location.CFI = "epubcfi(/6/4!/4/2:0)"

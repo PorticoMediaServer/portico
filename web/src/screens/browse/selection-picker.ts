@@ -70,26 +70,36 @@ export class LibraryPickerProducer {
     if (!targets.length || targets.length > 256) throw new Error('picker-target-required');
     if (!targets.every((item): item is SelectionItem & CatalogueSelectionIdentity => item.kind !== 'channel' && item.kind !== 'person' && 'libraryId' in item)) throw new Error('picker-action-not-permitted');
     if (new Set(targets.map(item => item.id)).size !== targets.length) throw new Error('picker-target-required');
-    const picks: SelectedItem[] = [];
-    let captured: {fence: string; catalog: number; viewer: number} | undefined;
-    for (const selected of targets) {
-      if (!('libraryId' in selected) || selected.capabilities[this.kind] !== true) throw new Error('picker-action-not-permitted');
-      if (['show', 'season', 'album', 'artist', 'book', 'collection'].includes(selected.kind)) {
-        picks.push(Object.freeze({key: JSON.stringify([selected.libraryId, selected.kind, selected.id]), item: selected}));
-        continue;
-      }
-      await this.detail.select({libraryId: selected.libraryId, itemId: selected.id}); this.check();
+    const read = async (selected: SelectionItem & CatalogueSelectionIdentity, fresh: boolean) => {
+      await this.detail.select({libraryId: selected.libraryId, itemId: selected.id}, fresh ? {fresh: true} : {}); this.check();
       const data = this.detail.getSnapshot().data;
       if (this.detail.getSnapshot().phase !== 'ready' || !data || data.item.id !== selected.id || data.scope.libraryId !== selected.libraryId
         || data.item.kind !== selected.kind || !['movie', 'episode', 'song', 'audiobook_file'].includes(data.item.kind)) throw new Error('picker-leaf-required');
+      return data;
+    };
+    type Leaf = {selected: SelectionItem & CatalogueSelectionIdentity; data?: Awaited<ReturnType<typeof read>>};
+    const members: Leaf[] = [];
+    for (const selected of targets) {
+      if (!('libraryId' in selected) || selected.capabilities[this.kind] !== true) throw new Error('picker-action-not-permitted');
+      members.push(['show', 'season', 'album', 'artist', 'book', 'collection'].includes(selected.kind) ? {selected} : {selected, data: await read(selected, false)});
+    }
+    // The leaves' reads must agree with each other. When they don't (the viewer's access was decided again while they
+    // were read, or the cache held an older page of one of them), every leaf is read again once, from the server, and
+    // only then compared: no read is trusted as the newest. Leaves that still disagree show picker-selection-changed.
+    const answer = (leaf: Leaf) => JSON.stringify([leaf.data!.scope.viewerFence, leaf.data!.revision.catalog, leaf.data!.revision.viewer]);
+    const leaves = members.filter(leaf => leaf.data), agree = () => leaves.every(leaf => answer(leaf) === answer(leaves[0]!));
+    if (!agree()) {
+      for (const leaf of leaves) leaf.data = await read(leaf.selected, true);
+      if (!agree()) throw new Error('picker-selection-changed');
+    }
+    const picks: SelectedItem[] = members.map(({selected, data}) => {
+      if (!data) return Object.freeze({key: JSON.stringify([selected.libraryId, selected.kind, selected.id]), item: selected});
       const playlist = data.actions.some(action => action.id === 'add_to_playlist' && action.enabled);
       const collection = data.actions.some(action => action.id === 'add_to_collection' && action.enabled);
       if (!(this.kind === 'playlist' ? playlist : collection)) throw new Error('picker-action-not-permitted');
-      if (!captured) captured = {fence: data.scope.viewerFence, catalog: data.revision.catalog, viewer: data.revision.viewer};
-      if (captured.fence !== data.scope.viewerFence || captured.catalog !== data.revision.catalog || captured.viewer !== data.revision.viewer) throw new Error('picker-selection-changed');
       const item = Object.freeze({...selected, capabilities: Object.freeze({...selected.capabilities, playlist, collection})});
-      picks.push(Object.freeze({key: JSON.stringify([item.libraryId, item.kind, item.id]), item}));
-    }
+      return Object.freeze({key: JSON.stringify([item.libraryId, item.kind, item.id]), item});
+    });
     if (!picks.length) throw new Error('picker-target-required');
     // The detail reads above only proved each leaf may be added (and agree with each other). The destination session
     // holds the fence the destination read itself issues: never a detail's, the Search token or a descendant read

@@ -10,7 +10,7 @@ import {settingNumber} from '../src-next/screens/settings-live/server/settings-v
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children), ...nodes(node.props.footer)] : [];
 const feed = 'https://updates.example/releases.json';
 const field = (id: string, value: unknown, extra: Record<string, unknown> = {}) => ({id, key: id, current: value, effective: value, default: value, source: 'default', configOnly: false, applicationMode: 'live', ...extra});
-const configuration = (...fields: ReturnType<typeof field>[]) => ({revision: 1, registryRevision: 'r', path: '/etc/portico/config.toml', fields: [field('general.updateFeed', feed), ...fields]}) as any;
+const configuration = (...fields: ReturnType<typeof field>[]) => ({revision: 1, registryRevision: 'r', signInPolicyRevision: 'policy-1', path: '/etc/portico/config.toml', fields: [field('general.updateFeed', feed), ...fields]}) as any;
 const runtime = {name: 'Den', 'updates.feedUrl': feed, perAccountCap: null, playHistoryDays: 0, 'library.missingTitles': 'after_days', 'library.missingTitlesDays': 46, 'people.invitation_days': 7};
 const alerts = {storageWarningPercent: 10, storageCriticalPercent: 5, certificateWarningDays: 14, noticeAudience: {scan: 'both', storage: 'both', certificate: 'both', recording: 'both', feedback: 'owner'}};
 const section = (id: string) => settingsSpec.find(value => value.scope === 'server' && value.id === id)!;

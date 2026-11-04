@@ -21,7 +21,11 @@ const SKEWS = [['a year ahead', YEAR], ['a year behind', -YEAR]] as const;
 const real = Date.now;
 const iso = (ms: number) => new Date(ms).toISOString().replace(/\.\d+Z$/, 'Z');
 function skewed(t: {after(fn: () => void): void}, skew: number, origin = 'https://server.test') {
-  const truth = real();
+  // Both clocks are controlled: the device's is frozen at truth + skew, and the server's answer is exactly truth. An HTTP
+  // date is whole seconds, so truth is a whole second; otherwise the header drops truth's milliseconds and the learned
+  // offset is short by up to a second (the nearest end of the exchange's range, server-clock.ts), which a year behind
+  // put past the 1 s check below in about one run in fifty (nightly 41796280485).
+  const truth = Math.floor(real() / 1000) * 1000;
   resetServerClocks();
   t.after(() => {Date.now = real; resetServerClocks();});
   Date.now = () => truth + skew;
@@ -100,6 +104,7 @@ for (const [label, skew] of SKEWS) {
     // a block that ends later today reads as a time of day on the server's calendar
     const words = {t: ((_id: string, values?: Record<string, string | number>) => String(values?.time)) as never, time: () => 'TIME', dateTime: () => 'DATETIME'};
     assert.equal(securityBlockLine({blockedUntil: iso(truth + 60_000), failedAttempts: 3} as never, words), new Date(truth + 60_000).getDate() === new Date(serverNow()).getDate() ? 'TIME' : 'DATETIME');
-    assert.ok(Math.abs(serverNow() - truth) < 1000);
+    // the exchange took 40 ms on the device's clock (sentAt − 20 to receivedAt + 20): the server's now is within it
+    assert.ok(Math.abs(serverNow() - truth) <= 20);
   });
 }

@@ -181777,9 +181777,13 @@ export const schemas = {
             "maximum": 9007199254740991,
             "minimum": -9007199254740991,
             "type": "integer"
+          },
+          "signInPolicyRevision": {
+            "type": "string"
           }
         },
         "required": [
+          "signInPolicyRevision",
           "revision",
           "registryRevision",
           "path",

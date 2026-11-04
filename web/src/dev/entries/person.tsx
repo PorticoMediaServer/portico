@@ -206,7 +206,6 @@ const contextBase = {
   api: specimen.api, session: () => session, events: specimen.events, artwork: specimen.artwork,
   facts: {identity, preferences, serverName: identity.serverName}, preferences: {getSnapshot: () => preferences, subscribe: specimen.subscribePreferences},
   epoch: 1, isCurrent: () => true, signOut: () => { specimen.record('sign-out'); },
-  signOutPorticoAccount: () => { specimen.record('sign-out-portico'); },
   switchProfile: async () => {}, switchServer: async () => {}, savedServers: [],
 } as unknown as ShellAssemblyContext;
 const activity = createOwnerActivity(contextBase, time, () => { specimen.record('open-dashboard'); }, () => { specimen.record('open-update'); }, destination => { specimen.record('open-issue', destination); });

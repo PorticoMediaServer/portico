@@ -41,7 +41,7 @@ export function ProfileAvatarFace({initial, art = 'blue', size = 34, appearance 
 export type AccountMenuActions = Readonly<{
   manageProfiles?: () => void; addProfile?: () => void; switchProfile: (profile: ProfileIdentity) => void;
   switchServer: () => void; switchToLocalSignIn?: () => void; settings: () => void; notifications?: () => void; watchTogether: () => void; downloads?: () => void;
-  feedback?: () => void; help: () => void; signOut: () => void; signOutPorticoAccount?: () => void;
+  feedback?: () => void; help: () => void; signOut: () => void;
   /** Shown only while this device remembers the current profile (auth.html section 8). */
   forgetRememberedProfile?: () => void;
 }>;
@@ -72,7 +72,6 @@ export function AccountMenu({open, onOpenChange, trigger, current, primary, acco
     <MenuItem className={styles.menuAction} icon="i-help" onSelect={actions.help}>{t('next.shell.help')}<Icon name="i-ext" size={16} className={styles.external} /></MenuItem>
     <MenuSeparator />{actions.forgetRememberedProfile && <MenuItem className={styles.menuAction} icon="i-x" onSelect={actions.forgetRememberedProfile}>{t('web.direct.forgetRememberedProfile')}</MenuItem>}
     <MenuItem className={styles.menuAction} icon="i-out" onSelect={actions.signOut}>{signOutLabel??t('next.shell.signOut')}</MenuItem>
-    {actions.signOutPorticoAccount && <MenuItem className={styles.menuAction} icon="i-out" onSelect={actions.signOutPorticoAccount}>{t('accounts.signOut.portico')}</MenuItem>}
   </Menu></>;
 }
 

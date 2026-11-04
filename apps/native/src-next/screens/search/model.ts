@@ -13,7 +13,11 @@ export const nativeSearchTailKey = (group: SearchGroup, cursor: string): string 
 export const nativeSearchEntryKey = (group: SearchGroup, entry: SearchEntry): string => JSON.stringify([group, entry.kind, entry.id]);
 
 export type NativeSearchPageIssue = NonNullable<SearchSnapshot['error']> | Readonly<{code: SearchGroupResult['errorCode']; retryable: true}>;
-export type NativeSearchPageState = Readonly<{loading: boolean; error: NativeSearchPageIssue | null; fulfilled?: Readonly<{waitingId: string; firstItemId?: string}>}>;
+export type NativeSearchPageState = Readonly<{loading: boolean; error: NativeSearchPageIssue | null; fulfilled?: Readonly<{waitingId: string; firstItemId?: string}>;
+  /** The row was read again from its first page (the server refused its cursor: access was decided again) and replaced.
+   * TV focus that was on an entry no longer in the row moves to `entryId` (an entry key), in the row: the last entry that
+   * survived, or the first. A new `serial` is a new replacement. */
+  replaced?: Readonly<{entryId: string; serial: number}>}>;
 
 const pageIssue = (search: SearchSnapshot, group: SearchGroup): NativeSearchPageIssue | null => {
   const failed = search.phase === 'ready' ? search.groups.find(result => result.id === group && result.status === 'error') : undefined;
@@ -64,6 +68,7 @@ export class NativeSearchDestination {
   private displayedData?: SearchSnapshot['data'];
   private capabilityQuery = '';
   private pages = new Map<SearchGroup, SearchGroupResult>();
+  private replacements = 0;
   private groupReads = new Map<SearchGroup, {service: SearchService; unsubscribe: () => void; revision: number; base: NonNullable<SearchSnapshot['data']>}>();
   private readonly freshness: FreshDocument;
   private holds = 0;
@@ -194,13 +199,16 @@ export class NativeSearchDestination {
     if (!read || !this.current() || this.paused || read.revision !== this.selectionRevision || this.state.group !== 'all'
       || this.service.getSnapshot().data !== read.base) return;
     const search = read.service.getSnapshot();
-    if (search.error?.code === 'unauthorized' || search.error?.code === 'forbidden'
-      || search.data && search.data.scope.viewerFence !== read.base.scope.viewerFence) {
-      // A known access/fence change retires all retained facts before the canonical All reread.
+    if (search.error?.code === 'unauthorized' || search.error?.code === 'forbidden') {
+      // A refused session retires all retained facts before the canonical All reread.
       this.stopGroupReads(); this.service.cancel(); this.forgetFirstPages(); void this.select(false); return;
     }
+    // A page under a moved viewer fence is the newer answer. A cursor the server refuses (the viewer's access was decided
+    // again) is read again once by the continuation itself, from the row's first page, which replaces the row below; a
+    // moved revision, or a refusal straight after that re-read, ends the row's paging with its error (core search.ts).
     const pageError = pageIssue(search, group);
     let fulfilled: Readonly<{waitingId: string; firstItemId?: string}> | undefined;
+    let replaced: Readonly<{entryId: string; serial: number}> | undefined;
     if (search.phase === 'ready' && search.data !== read.base) {
       const result = search.groups.find(value => value.id === group);
       if (result?.status === 'error') {
@@ -213,6 +221,12 @@ export class NativeSearchDestination {
           this.stopGroupReads(); this.service.cancel(); this.forgetFirstPages(); void this.select(false); return;
         }
         const known = new Set(previous?.items.map(entry => nativeSearchEntryKey(group, entry)));
+        if (!search.pagination.cursor && result.items.length) {
+          // The row's first page read again replaces what it showed: name where TV focus stays in the row.
+          const shown = new Set(this.pages.get(group)?.items.map(entry => nativeSearchEntryKey(group, entry)));
+          const target = result.items.filter(entry => shown.has(nativeSearchEntryKey(group, entry))).at(-1) ?? result.items[0]!;
+          replaced = Object.freeze({entryId: nativeSearchEntryKey(group, target), serial: ++this.replacements});
+        }
         const firstAdded = result.items.find(entry => !known.has(nativeSearchEntryKey(group, entry)));
         if (search.pagination.cursor) fulfilled = {waitingId: nativeSearchTailKey(group, search.pagination.cursor),
           ...(firstAdded ? {firstItemId: nativeSearchEntryKey(group, firstAdded)} : {})};
@@ -222,7 +236,7 @@ export class NativeSearchDestination {
       }
     }
     this.publish({groups: Object.freeze([...this.pages.values()]), paging: {...this.state.paging,
-      [group]: {...this.state.paging?.[group], loading: search.phase === 'loading', error: pageError, ...(fulfilled ? {fulfilled} : {})}}});
+      [group]: {...this.state.paging?.[group], loading: search.phase === 'loading', error: pageError, ...(fulfilled ? {fulfilled} : {}), ...(replaced ? {replaced} : {})}}});
   };
   next = (group: SearchGroup): Promise<void> => {
     if (!this.current() || this.paused) return Promise.resolve();

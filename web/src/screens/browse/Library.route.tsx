@@ -131,6 +131,11 @@ function CommittedReadingLibrary({captured, library, search, onMarked, context, 
 function LiveReadingLibrary({captured, library, search, onMarked, context, life}: {captured: ProtectedLibraryScreen; library: Library; search: LibraryScreenSearch; onMarked: () => void; context: ScreenContext; life: ReturnType<typeof screenLifetime>}) {
   const appearance = useScreenAppearance(captured.context)!, width = useShellWidth();
   const markAll = useReadingMarkAll(context, library.id, useLocation({select: libraryAddressKey}), onMarked);
+  // The same ⋯ as the grid pivot (survey A 3): Copy link, Mark all as read, and the owner's Library settings and Scan.
+  // The grid pivot mounts BoundLibrary, whose CommittedLibrary owns the scan offer there; this one stays off so the
+  // owner's library is read once (one get_admin_jobs read), not twice.
+  const scan = useLibraryScan(context, library, life, !(search.view === 'browse' || search.query));
+  const [linkToast, setLinkToast, copyLibraryLink] = useCopyLibraryLink(library.id);
   type Attempt = {context: ProtectedLibraryScreen['context']; screen: ScreenContext; life: typeof life; libraryId: string; kind: string; controller: AbortController; active: boolean; phase: 'loading' | 'error' | 'ready'};
   const [retry, setRetry] = useState(0), attempt = useRef<Attempt | null>(null);
   const [capabilitySnapshot, setCapabilities] = useState<Readonly<{attempt: Attempt; phase: 'loading' | 'error' | 'ready'; data?: BrowseCapabilities; error?: unknown}>>();
@@ -180,7 +185,7 @@ function LiveReadingLibrary({captured, library, search, onMarked, context, life}
   const header = <LibraryIdentity library={library} libraries={libraryChoices} pivot={periodicalPivot ?? selected.id}
     tabs={tabs.map(tab => ({value: tab.id, label: t(tab.label)}))}
     appearance={{view: appearance.libraryView, cardWidth: width < 600 ? 108 : 190, cardSize: 'medium', backdrops: appearance.showBackdrops}}
-    preferences={appearance} artwork={context.artwork} libraryMenu={markAll ? <LibraryMenu owner={false} read onMarkAll={markAll}/> : undefined} wash={wash} counts={counts}
+    preferences={appearance} artwork={context.artwork} libraryMenu={withLinkToast(libraryMenu({life}, context, library, false, () => {}, scan, markAll, copyLibraryLink), linkToast, () => setLinkToast(null))} wash={wash} counts={counts}
     onPivot={id => {const tab = tabs.find(tab => tab.id === id); if (!tab) return;
       if (tab.shows === 'periodicals') {navigate({view: 'series', pivot: tab.id}); return;}
       if (tab.shows === 'facet') {navigate({view: tab.id === 'authors' ? 'authors' : 'series'}); return;}
@@ -216,13 +221,59 @@ function withLinkToast(menu: ReactNode, toast: ToastData | null, dismiss: () => 
   return menu === undefined ? undefined : <>{menu}<ToastHost toast={toast} onDismiss={dismiss}/></>;
 }
 function libraryMenu(resources: {life: {current: () => boolean}; controller?: {canSaveView: () => boolean}}, context: ScreenContext, library: Library, onlineAttention: boolean, save: () => void, scan?: () => void, markAll?: () => void, copy?: () => void) {
-  const owner = context.identity?.viewer.role === 'owner' && context.identity.viewer.authority === 'local' && context.identity.capabilities?.manageServer === true;
+  const owner = managesServer(context);
   const unmatched = onlineAttention && context.effects.editMetadata ? () => {if (resources.life.current() && context.isCurrent()) void router.navigate({to: '/library/$libraryId', params: {libraryId: library.id}, search: {unmatched: true}}).catch(context.effects.reportError);} : undefined;
   const settings = owner ? () => {if (resources.life.current() && context.isCurrent()) void router.navigate({to: '/settings', search: {scope: 'server', section: 'libraries'}}).catch(context.effects.reportError);} : undefined;
   const canSave = resources.life.current() && context.isCurrent() && !!resources.controller?.canSaveView();
   if (!canSave && !unmatched && !settings && !scan && !markAll && !copy) return undefined;
   return <LibraryMenu owner={!!owner} read={isReadingLibrary(library.kind)} {...(copy ? {onCopyLink: copy} : {})} {...(markAll ? {onMarkAll: markAll} : {})} {...(canSave ? {onSaveView: save} : {})} {...(unmatched ? {onUnmatched: unmatched} : {})}
     {...(settings ? {onLibrarySettings: settings} : {})} {...(scan ? {onScan: scan} : {})}/>;
+}
+/** The local owner who may manage this server. A reading screen's identity may carry no viewer yet (it reads its
+ * pivots first), so every step is optional. */
+function managesServer(context: ScreenContext): boolean {
+  const identity = context.identity, viewer = identity?.viewer;
+  return viewer?.role === 'owner' && viewer.authority === 'local' && identity?.capabilities?.manageServer === true;
+}
+/** Scan for new files, offered to the owner when the server lists `scan` for this library. Every library kind's ⋯ uses it. */
+function useLibraryScan(context: ScreenContext, library: Library, life: ScanLease['life'], enabled = true): (() => void) | undefined {
+  const manageServer = enabled && managesServer(context);
+  const [scanOffer, setScanOffer] = useState<Readonly<{lease: ScanLease; allowed: boolean}>>();
+  useLayoutEffect(() => {
+    if (!manageServer) {setScanOffer(undefined); return;}
+    const controller = new AbortController();
+    const lease: ScanLease = {context, libraryId: library.id, life, signal: controller.signal, pending: {current: false},
+      service: new LibraryManagementService({queries: context.queries, scope: {serverId: context.scope.serverId, viewerId: context.scope.viewerId},
+        api: {request: <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal) =>
+          life.api.request<T>(path, method, body, controller.signal.aborted ? controller.signal : AbortSignal.any([controller.signal, ...(signal ? [signal] : [])]))}})};
+    let live = true;
+    setScanOffer(undefined);
+    void lease.service.selectLibrary(library.id).then(() => {
+      if (!live || controller.signal.aborted || !life.current() || !context.isCurrent()) return;
+      const selected = lease.service.getSnapshot().selected;
+      setScanOffer({lease, allowed: selected.phase === 'ready' && selected.data?.library.id === library.id && selected.data.library.actions.includes('scan')});
+    }).catch(error => {if (live && !controller.signal.aborted && life.current() && context.isCurrent()) context.effects.reportError(error);});
+    return () => {live = false; controller.abort(); lease.service.dispose();};
+  }, [manageServer, library.kind, library.id, life, context]);
+  /** The click closes over the exact rendered lease and the exact selected row it offered. */
+  const scan = scanOffer?.allowed ? () => {
+    const {lease} = scanOffer;
+    if (lease.context !== context || lease.libraryId !== library.id || lease.signal.aborted || !lease.life.current()
+      || !context.isCurrent() || lease.pending.current) return;
+    const selected = lease.service.getSnapshot().selected;
+    if (selected.phase !== 'ready' || selected.data?.library.id !== library.id || !selected.data.library.actions.includes('scan')) return;
+    lease.pending.current = true;
+    void lease.service.scan().catch(error => {if (!lease.signal.aborted && lease.life.current() && context.isCurrent()) context.effects.reportError(error);}).finally(() => {lease.pending.current = false;});
+  } : undefined;
+  return scan;
+}
+/** O-161: the library's ⋯ copies its shareable address (this server's, on Hosted), with a toast saying how it went. */
+function useCopyLibraryLink(libraryId: string) {
+  const [linkToast, setLinkToast] = useState<ToastData | null>(null);
+  const copyLibraryLink = () => {void copyLink('library', {libraryId}).then(
+    () => setLinkToast({id: crypto.randomUUID(), icon: 'i-check', message: t('next.overlays.linkCopied')}),
+    () => setLinkToast({id: crypto.randomUUID(), icon: 'i-warn', tone: 'warning', message: t('next.overlays.copyLinkFailed')}));};
+  return [linkToast, setLinkToast, copyLibraryLink] as const;
 }
 type BoundLibraryProps = {captured: ProtectedLibraryScreen; library: Library; search: LibraryScreenSearch; tabs?: readonly ReadingTab[]; musicLookup?: ReturnType<typeof useMusicLibrarySummary>; readingMarkAll?: () => void};
 function useBoundLibraryFrame({captured, library, search, tabs: offered, musicLookup}: BoundLibraryProps, context: ScreenContext, presentation: BoundPresentation) {
@@ -310,10 +361,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
       .catch(error => {if (resources.life.current() && context.isCurrent()) context.effects.reportError(error);});
   }) : undefined, [browse, controller, resources, context, library.id]);
   // O-161: the library's ⋯ copies its shareable address (this server's, on Hosted).
-  const [linkToast, setLinkToast] = useState<ToastData | null>(null);
-  const copyLibraryLink = () => {void copyLink('library', {libraryId: library.id}).then(
-    () => setLinkToast({id: crypto.randomUUID(), icon: 'i-check', message: t('next.overlays.linkCopied')}),
-    () => setLinkToast({id: crypto.randomUUID(), icon: 'i-warn', tone: 'warning', message: t('next.overlays.copyLinkFailed')}));};
+  const [linkToast, setLinkToast, copyLibraryLink] = useCopyLibraryLink(library.id);
   const runtime = captured.binding.playback?.runtime;
   // Frame 7's Recently played mark belongs to the queue session this snapshot actually
   // describes: the current entry is the queue's own currentEntryId, and the published
@@ -465,34 +513,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
   /** The owner's Scan row is offered only when this library's own management read says the
    *  server allows scanning it. Each setup gets a fresh lease: its own service, the captured
    *  context and library it answers for, and a signal that retires it synchronously. */
-  const manageServer = context.identity?.viewer.authority === 'local' && context.identity.viewer.role === 'owner' && context.identity.capabilities?.manageServer === true;
-  const [scanOffer, setScanOffer] = useState<Readonly<{lease: ScanLease; allowed: boolean}>>();
-  useLayoutEffect(() => {
-    if (!manageServer) {setScanOffer(undefined); return;}
-    const controller = new AbortController(), life = resources.life;
-    const lease: ScanLease = {context, libraryId: library.id, life, signal: controller.signal, pending: {current: false},
-      service: new LibraryManagementService({queries: context.queries, scope: {serverId: context.scope.serverId, viewerId: context.scope.viewerId},
-        api: {request: <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal) =>
-          life.api.request<T>(path, method, body, controller.signal.aborted ? controller.signal : AbortSignal.any([controller.signal, ...(signal ? [signal] : [])]))}})};
-    let live = true;
-    setScanOffer(undefined);
-    void lease.service.selectLibrary(library.id).then(() => {
-      if (!live || controller.signal.aborted || !life.current() || !context.isCurrent()) return;
-      const selected = lease.service.getSnapshot().selected;
-      setScanOffer({lease, allowed: selected.phase === 'ready' && selected.data?.library.id === library.id && selected.data.library.actions.includes('scan')});
-    }).catch(error => {if (live && !controller.signal.aborted && life.current() && context.isCurrent()) context.effects.reportError(error);});
-    return () => {live = false; controller.abort(); lease.service.dispose();};
-  }, [manageServer, library.kind, library.id, resources, context]);
-  /** The click closes over the exact rendered lease and the exact selected row it offered. */
-  const scan = scanOffer?.allowed ? () => {
-    const {lease} = scanOffer;
-    if (lease.context !== context || lease.libraryId !== library.id || lease.signal.aborted || !lease.life.current()
-      || !context.isCurrent() || lease.pending.current) return;
-    const selected = lease.service.getSnapshot().selected;
-    if (selected.phase !== 'ready' || selected.data?.library.id !== library.id || !selected.data.library.actions.includes('scan')) return;
-    lease.pending.current = true;
-    void lease.service.scan().catch(error => {if (!lease.signal.aborted && lease.life.current() && context.isCurrent()) context.effects.reportError(error);}).finally(() => {lease.pending.current = false;});
-  } : undefined;
+  const scan = useLibraryScan(context, library, resources.life);
   const readingHeader = useReadLibrarySummary({context: captured.context, libraryId: library.id, artwork: context.artwork,
     api: resources.life.api, signal: resources.life.signal, isCurrent: resources.life.current, reportError: context.effects.reportError, enabled: isReadingLibrary(library.kind)});
   const libraryChoices = (context.identity?.libraries ?? []).map(choice => ({...choice, count: readingHeader.libraryCounts.find(row => row.id === choice.id)?.text}));

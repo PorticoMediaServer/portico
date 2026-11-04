@@ -297,6 +297,12 @@ jobs:
         with:
           name: selection
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        if: needs.planner.outputs.go == 'true'
+        with:
+          pattern: go-*
+          path: ci-results/go
+          merge-multiple: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         if: needs.planner.outputs.js == 'true'
         with:
           pattern: js-*

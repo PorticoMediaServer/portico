@@ -346,7 +346,7 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
   return <>
     <SettingsGroup title={t(section.groups![0].title!)} plain actions={<Button size="small" variant="primary" icon="i-plus" iconSize={20} disabled={!bindings.invite && !bindings.invitations}
       onClick={event => { if (!bindings.authority.isCurrent()) return; if (bindings.invite) bindings.invite(event.currentTarget); else void openInvite(event.currentTarget); }}>{t(table.addLabel!)}</Button>}>
-    {error && !page && !personId ? <SettingsPageFailure retry={() => setRefresh(value => value + 1)} home={bindings.openHome} /> : <SettingsTable ref={tableRef} height={table.height}
+    {error && !page && !personId ? <SettingsPageFailure retry={() => setRefresh(value => value + 1)} home={bindings.openHome} /> : <SettingsTable phoneCards ref={tableRef} height={table.height}
       label={t(section.title)} rows={(page?.items ?? []).map(row => peopleTableRow(row, bindings.actor))} columns={table.columns!.map(column => ({id: column.id!, label: t(column.label), kind: column.kind as 'main', sortable: column.sort, width: column.width}))}
       query={query} onQueryChange={admitQuery} filters={table.filters!.map(filter => ({id: filter.id, label: t(filter.label), showAllValue: false,
         options: [...filter.options.map(option => ({value: option.value, label: t(option.label)})),

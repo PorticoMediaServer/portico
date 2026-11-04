@@ -95091,9 +95091,13 @@
                 "maximum": 9007199254740991,
                 "minimum": -9007199254740991,
                 "type": "integer"
+              },
+              "signInPolicyRevision": {
+                "type": "string"
               }
             },
             "required": [
+              "signInPolicyRevision",
               "revision",
               "registryRevision",
               "path",
@@ -314621,9 +314625,13 @@
                           "maximum": 9007199254740991,
                           "minimum": -9007199254740991,
                           "type": "integer"
+                        },
+                        "signInPolicyRevision": {
+                          "type": "string"
                         }
                       },
                       "required": [
+                        "signInPolicyRevision",
                         "revision",
                         "registryRevision",
                         "path",
@@ -345911,6 +345919,8 @@
           "downloads_not_allowed",
           "downloads_unavailable",
           "internal",
+          "download_quality_required",
+          "idempotency_key_reused",
           "timeout",
           "database_busy",
           "writer_capacity"
@@ -349156,6 +349166,7 @@
           "idempotency_key_reused",
           "rate_limited",
           "internal",
+          "download_quality_required",
           "timeout",
           "database_busy",
           "writer_capacity"

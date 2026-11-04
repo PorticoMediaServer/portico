@@ -10,12 +10,16 @@ import (
 // sizes. The renderer owns sanitization and Blob URL rewriting. Escaped tokens
 // and indirect image functions are deliberately outside this bounded subset.
 func validateCSS(base string, b []byte, assets map[string]string) error {
+	return validateCSSWithSVG(base, b, assets, false)
+}
+
+func validateCSSWithSVG(base string, b []byte, assets map[string]string, localSVG bool) error {
 	for _, c := range b {
 		if c == '\\' || c == 127 || c < 32 && !cssSpace(c) {
 			return ErrInvalid
 		}
 	}
-	p := cssValidator{base: base, b: b, assets: assets}
+	p := cssValidator{base: base, b: b, assets: assets, localSVG: localSVG}
 	var stack []byte
 	namespaceAllowed, namespaceSeen, importPrelude := true, false, false
 	for p.i < len(b) {
@@ -139,10 +143,11 @@ func validateCSS(base string, b []byte, assets map[string]string) error {
 }
 
 type cssValidator struct {
-	base   string
-	b      []byte
-	i      int
-	assets map[string]string
+	localSVG bool
+	base     string
+	b        []byte
+	i        int
+	assets   map[string]string
 }
 
 func cssSpace(c byte) bool { return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\f' }
@@ -288,8 +293,11 @@ func (p *cssValidator) reference(reference string, imported bool) bool {
 	if imported {
 		return mime == "text/css"
 	}
+	if p.localSVG && name == p.base && strings.HasPrefix(reference, "#") && len(reference) > 1 {
+		return true
+	}
 	switch mime {
-	case "image/jpeg", "image/png", "image/webp", "font/otf", "font/ttf", "font/woff", "font/woff2", "application/font-sfnt", "application/vnd.ms-opentype":
+	case "image/jpeg", "image/png", "image/webp", "image/svg+xml", "font/otf", "font/ttf", "font/woff", "font/woff2", "application/font-sfnt", "application/vnd.ms-opentype":
 		return true
 	}
 	return false

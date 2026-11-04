@@ -18,6 +18,7 @@ const {TVPerson} = await screenModule(new URL('../src-next/screens/people/Person
   '../../kit/browse/presentation': {browseType: (_theme: unknown, size: number, weight: number, tracking = 0) => ({fontSize: size, fontWeight: weight, tracking})},
   '../../kit/theme': themed, '../../kit/overlays': {Menu: 'Menu', MenuEntry: {}},
   '../../tv/layout/TVShelf': {TVShelf: 'TVShelf'},
+  './credit-refocus': await screenModule(new URL('../src-next/screens/people/credit-refocus.ts', import.meta.url), {react}),
 });
 const descendants = (node: any): any[] => Array.isArray(node) ? node.flatMap(descendants) : node?.props ? [node, ...descendants(node.props.children)] : [];
 const flat = (style: any): any => Array.isArray(style) ? Object.assign({}, ...style.map(flat)) : style ?? {};

@@ -53,16 +53,28 @@ export function createNativePersonCreditWindow(context: NativeShellBootstrapCont
     const controller = new AbortController(), abort = () => controller.abort();
     signal.addEventListener('abort', abort, {once: true}); pending.add(controller);
     try {
-      const page = await readPerson(context.api, lifetime.scope, target.personId, {...seed.group, limit: 40, cursor, signal: controller.signal});
+      let page: PersonPage;
+      try {page = await readPerson(context.api, lifetime.scope, target.personId, {...seed.group, limit: 40, cursor, signal: controller.signal});}
+      catch (error) {
+        // A refused cursor (access was decided again): the person is read once more, and its new first page replaces this
+        // window, so this failure is never shown. A second refusal, or a re-read that fails, shows it.
+        if ((error as {code?: unknown})?.code === 'invalid_cursor' && visible() && await source.reread()) throw cancelled();
+        throw error;
+      }
       if (!visible() || controller.signal.aborted) throw cancelled();
-      if (page.viewerFence !== first.viewerFence || page.revision.catalog !== first.revision.catalog || page.revision.viewer !== first.revision.viewer
+      // The server binds the cursor to the viewer fence and refuses an old one (above): only the person's own revision is compared.
+      if (page.revision.catalog !== first.revision.catalog || page.revision.viewer !== first.revision.viewer
         || page.person.revision !== first.person.revision || page.pageInfo.total !== first.pageInfo.total) throw changed();
       remember(index + 1, page.pageInfo.nextCursor || null);
+      if (cursor) source.paged();
       page.credits.forEach((credit, offset) => positions.set(credit, index * 40 + offset));
       return page;
     } finally {signal.removeEventListener('abort', abort); pending.delete(controller);}
   };
+  // Page zero is the arrived seed, resident from the first render: a window built again after a re-read paints the credits
+  // it has at once, so a focused card that the new first page still holds never turns into a placeholder.
   const collection = createWindowedCollection<PersonCredit>({pageSize: 40, maxResidentPages: 5, maxConcurrent: 1, prefetchPages: 0,
+    initialPage: {items: first.credits, total: first.pageInfo.total},
     keyOf: credit => JSON.stringify([credit.media.libraryId, credit.media.kind, credit.media.id, credit.creditKind, credit.role, credit.character]),
     fetchPage: async (start, count, signal) => {
       if (!visible() || signal.aborted) throw cancelled();

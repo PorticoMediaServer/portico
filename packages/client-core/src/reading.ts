@@ -1,4 +1,5 @@
 import {validReadingCover} from './reading-cover.ts';
+import {retryAfterFrom} from './timer.ts';
 import {readingSavedGroupPath, parseReadingSavedGroupMembership, validReadingSavedGroupCommand, type ReadingSavedGroupTarget, type ReadingSavedGroupCommand} from './reading-saved-group.ts';
 import {readingFavoritePath, parseReadingFavorite, validReadingFavoriteCommand, type ReadingFavoriteCommand} from './reading-favorite.ts';
 export type {ReadingFavoriteFlag, ReadingFavoriteCommand} from './reading-favorite.ts';
@@ -169,8 +170,26 @@ export type ReadingByteStream = Readonly<{getReader(): ReadingByteReader; cancel
 export class ReadingError extends Error {
   readonly code: string;
   readonly status?: number;
-  constructor(code: string, status?: number) { super(code); this.name = 'ReadingError'; this.code = code; this.status = status; }
+  /** A busy or rate-limited answer's Retry-After, in whole seconds (presentError reads it). */
+  readonly retryAfterSeconds?: number;
+  constructor(code: string, status?: number, retryAfterSeconds?: number) {
+    super(code); this.name = 'ReadingError'; this.code = code; this.status = status;
+    if (retryAfterSeconds !== undefined) this.retryAfterSeconds = retryAfterSeconds;
+  }
 }
+/** The answer's Retry-After (by the shared parser) in whole seconds. */
+function retryAfter(response: Response): number | undefined {
+  const ms = retryAfterFrom(response.headers);
+  return ms === undefined ? undefined : Math.min(Math.ceil(ms / 1000), 86400);
+}
+/** RD-8 (DECISIONS W-19): only the server-wide cap answers busy; wait as asked, briefly. */
+const BUSY_WAIT_DEFAULT_S = 2, BUSY_WAIT_MAX_S = 10;
+const waitFor = (ms: number, signal?: AbortSignal) => new Promise<void>((resolve, reject) => {
+  if (signal?.aborted) {reject(cancellation(signal)); return;}
+  const stop = () => {clearTimeout(timer); reject(cancellation(signal!));};
+  const timer = setTimeout(() => {signal?.removeEventListener('abort', stop); resolve();}, ms);
+  signal?.addEventListener('abort', stop, {once: true});
+});
 type Sender = (path: string, init: RequestInit) => Promise<Response>;
 type Capture = Readonly<{acknowledge?: (key: string) => Promise<void>; send: Sender; isCurrent: () => boolean; subscribe: (retire: () => void) => () => void}>;
 function fail(code: string): never { throw new ReadingError(code); }
@@ -515,7 +534,8 @@ export class ReadingClient {
         if (typeof raw?.error?.code === 'string' && serverCodes.has(raw.error.code)) code = raw.error.code;
       } catch (error) { check(); /* Never retain an untrusted error body. */ }
     }
-    await discard(response); throw new ReadingError(code, response.status);
+    await discard(response);
+    throw new ReadingError(code, response.status, response.status === 503 || response.status === 429 ? retryAfter(response) : undefined);
   }
   canFavorite(itemId: string): boolean {
     const viewer = this.viewer;
@@ -727,10 +747,24 @@ export class ReadingClient {
     if (out.chosenSourceId !== undefined && !out.versions.some(v => v.sourceId === out.chosenSourceId) || out.chosenSourceId === undefined && out.versions.length) fail('invalid_document');
     return out;
   }
-  async open(request: PostReadingSessionsRequest, signal?: AbortSignal): Promise<ReadingSession> {
+  /** `options.busyWait` cancels only the RD-8 busy wait (and the retry it would send): during that wait no
+   * session exists, so a reader that leaves may stop it outright. An open already on the wire is not cut. */
+  async open(request: PostReadingSessionsRequest, signal?: AbortSignal, options?: Readonly<{busyWait?: AbortSignal}>): Promise<ReadingSession> {
     if (!id(request.itemId) || !id(request.sourceId)) fail('invalid_request');
     const captured = Object.freeze({itemId: request.itemId, sourceId: request.sourceId});
-    const manifest = await this.json(routePath('post_reading_sessions'), 'POST', captured, signal, parseReadingManifest, 8 << 20, undefined, undefined, m => m.revision);
+    const attempt = () => this.json(routePath('post_reading_sessions'), 'POST', captured, signal, parseReadingManifest, 8 << 20, undefined, undefined, m => m.revision);
+    let manifest: ReadingManifest;
+    try { manifest = await attempt(); }
+    catch (error) {
+      // W-19: a profile's own sessions never refuse an open; only the server-wide cap is busy. Wait
+      // as Retry-After asks (at most ten seconds), then try once more; a second busy answer is shown.
+      if (!(error instanceof ReadingError) || error.code !== 'reading_sessions_busy') throw error;
+      const waitSignal = options?.busyWait ? (signal ? AbortSignal.any([signal, options.busyWait]) : options.busyWait) : signal;
+      await waitFor(Math.min(BUSY_WAIT_MAX_S, error.retryAfterSeconds ?? BUSY_WAIT_DEFAULT_S) * 1000, waitSignal);
+      this.check(signal);
+      if (options?.busyWait?.aborted) throw new ReadingError('cancelled');
+      manifest = await attempt();
+    }
     validateManifest(manifest, captured); this.check(signal);
     const session = new ReadingSession(this, manifest); this.#sessions.add(session); return session;
   }

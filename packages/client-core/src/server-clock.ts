@@ -5,7 +5,9 @@
  *
  * Instead each origin's clock is estimated from its own answers: every response's `Date` header
  * (or a `serverTime` the body carries) gives the offset between that origin's clock and this
- * device's, taken at the midpoint of the exchange. `serverNow(origin)` is this device's clock plus
+ * device's. The exchange's start and end, and how finely the time was reported, bound that offset to
+ * a range; the offset is the range's end nearest zero, or 0 when the range holds zero (the clocks
+ * agree; see observeServerTime). `serverNow(origin)` is this device's clock plus
  * that offset, so a device a year ahead or behind still reads a server's expiry the way the server
  * does. The final word stays with the server: a client still attempts, and renews on the server's
  * own 401 or expired answer.

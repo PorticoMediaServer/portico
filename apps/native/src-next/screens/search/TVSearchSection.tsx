@@ -4,8 +4,9 @@ import {defaultI18n} from '../../../../../packages/i18n/src';
 import {searchGroupLabel} from '../../../../../packages/client-core/src/presentation/search-model';
 import type {SearchEntry, SearchGroupResult} from '../../../../../packages/client-core/src/search';
 import {Focusable} from '../../kit/controls';
-import {FocusItem, FocusRegion, useFocusRegistry, type FocusAddress} from '../../kit/focus';
+import {FocusItem, FocusRegion, useCovered, useFocusRegistry, type FocusAddress} from '../../kit/focus';
 import {useRowPageBoundary} from '../../kit/focus/page-boundary';
+import {useReplacementRefocus} from '../../kit/focus/replacement-refocus';
 import {LoadingPaint, SkeletonBlock, StateView} from '../../kit/states';
 import {browseType} from '../../kit/browse/presentation';
 import {useTheme} from '../../kit/theme';
@@ -35,6 +36,13 @@ export function TVSearchSection({group, destination, runtime, actions, selection
   const items = useMemo<readonly Cell[]>(() => [...group.items.map(entry => ({kind: 'entry' as const, entry})),
     ...(tailId ? [{kind: 'tail' as const, id: tailId}] : [])], [group.items, tailId]);
   const getKey = useCallback((cell: Cell) => cell.kind === 'entry' ? nativeSearchEntryKey(group.id, cell.entry) : cell.id, [group.id]);
+  // A row read again from its first page (its cursor refused: access decided again) names where TV focus stays in it.
+  const replacedId = paging?.replaced?.entryId, replacedSerial = paging?.replaced?.serial;
+  const refocus = useMemo(() => replacedId !== undefined && replacedSerial !== undefined ? {focusId: replacedId, serial: replacedSerial} : undefined, [replacedId, replacedSerial]);
+  const drawnAsRow = singleRow && !songs && group.items.length > 0;
+  const cellKeys = useMemo(() => new Set(items.map(getKey)), [getKey, items]);
+  // The grid's own (a Row keeps its focus by its `refocus`, below): a cell the replacement took away has lost focus.
+  useReplacementRefocus(registry, drawnAsRow ? undefined : regionId, refocus, useCovered(), id => !cellKeys.has(id));
   const canRetry = paging?.error?.retryable !== false;
   const retry = useCallback(() => {if (enabled && canRetry) void destination.retryGroup(group.id).catch(runtime.reportError);}, [canRetry, destination, enabled, group.id, runtime]);
   useRowPageBoundary(enabled && (!singleRow || songs), registry, regionId, tailId, tailId ? {hasMore: true, waitingId: tailId,
@@ -46,12 +54,13 @@ export function TVSearchSection({group, destination, runtime, actions, selection
   const edges = {left: keyboardRegion, ...(previousRegion ? {up: previousRegion} : {}), ...(nextRegion ? {down: nextRegion} : {})};
   const heading = <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 14}}><Text accessibilityRole="header" style={[browseType(theme, 32, 700, -.019), {color: theme.colors.text}]}>{defaultI18n.t(searchGroupLabel(group.id))}</Text>
     {group.totalCountExact && <Text style={[browseType(theme, 20, 600), {color: theme.colors.textTertiary}]}>{group.totalCount}</Text>}</View>;
-  if (singleRow && !songs && group.items.length) {
+  if (drawnAsRow) {
     const waitingId = tailId ?? paging?.fulfilled?.waitingId;
     return <View style={{marginTop: 46}}>{heading}<Row<Cell> title="" showHeading={false} style={{marginTop: 30, marginLeft: -focusRoom}}
       items={items.filter(cell => cell.kind === 'entry')} getKey={getKey} getFocusId={getKey} itemWidth={cardWidth} itemHeight={height} gap={28} gutter={focusRoom} rightGutter={0} initialViewportWidth={width + focusRoom}
       selection={{active: false, isSelected: () => false, onToggle: () => {}, onEnter: () => {}}}
       focus={{id: regionId, enabled, entry: nativeSearchEntryKey(group.id, group.items[0]!), edges, neighbors: {next: nextRegion, previous: previousFallback}, screenStart}}
+      refocus={refocus}
       paging={waitingId ? {hasMore: !!tailId, waitingId, waitingItem: {kind: 'tail', id: waitingId}, loading: !!paging?.loading, failed: !!paging?.error,
         fulfilled: paging?.fulfilled, requestNext: () => {if (paging?.error) retry(); else request();}} : undefined}
       renderItem={(cell, context) => <SearchGridCard entry={cell.kind === 'entry' ? cell.entry : undefined} group={group.id} width={cardWidth} runtime={runtime} actions={actions}

@@ -29,6 +29,9 @@ var (
 	// ErrInput is a malformed request: an unknown quality, an empty target set,
 	// more targets than the batch limit, a bad identifier.
 	ErrInput = errors.New("invalid download request")
+	// ErrQualityRequired asks the caller to choose a real quality when the
+	// saved download preference is Ask each time.
+	ErrQualityRequired = errors.New("download quality required")
 	// ErrNotFound is an unknown preparation, grant or receipt for this viewer.
 	ErrNotFound = errors.New("download not found")
 	// ErrConflict is a fence failure: expectedRevision did not match, or the

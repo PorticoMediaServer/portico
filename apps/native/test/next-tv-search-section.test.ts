@@ -12,12 +12,12 @@ const child = (node: any) => Array.isArray(node.props.children) ? node.props.chi
 const flatten = (style: any): any => Array.isArray(style) ? Object.assign({}, ...style.map(flatten)) : style ?? {};
 async function fixture() {
   const host = hooks(), registry = createFocusRegistry(), calls: string[] = [], theme = createTheme({isTV: true, width: 1920});
-  let boundary: any;
+  let boundary: any, refocused: any;
   const {TVSearchSection} = await screenModule(new URL('../src-next/screens/search/TVSearchSection.tsx', import.meta.url), {
     react: host.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n},
     '../../../../../packages/client-core/src/presentation/search-model': {searchGroupLabel},
-    '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useFocusRegistry: () => registry},
-    '../../kit/focus/page-boundary': {useRowPageBoundary: (...args: any[]) => {boundary = args;}},
+    '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useCovered: () => false, useFocusRegistry: () => registry},
+    '../../kit/focus/replacement-refocus': {useReplacementRefocus: (...args: any[]) => {refocused = args;}}, '../../kit/focus/page-boundary': {useRowPageBoundary: (...args: any[]) => {boundary = args;}},
     '../../kit/states': {LoadingPaint: 'LoadingPaint', SkeletonBlock: 'SkeletonBlock', StateView: 'StateView'},
     '../../kit/browse/presentation': {browseType}, '../../kit/theme': {useTheme: () => theme}, '../../kit/layout/Row': {Row: 'Row'}, '../../tv/layout/TVLoadedGrid': {TVLoadedGrid: 'TVLoadedGrid'},
     './model': {nativeSearchEntryKey, nativeSearchTailKey}, './SearchGridCard': {SearchGridCard: 'SearchGridCard'},
@@ -29,7 +29,7 @@ async function fixture() {
     enabled: true, regionId: 'movies', keyboardRegion: 'keyboard-row', previousRegion: 'top', previousFallback: 'top', nextRegion: 'shows',
     screenStart: {regionId: 'keyboard-row', childId: 'l'}, scrollY: 0, viewportHeight: 1080, contentRoot: {current: null}, width: 1044, layoutRevision: 0};
   const render = () => host.render(() => TVSearchSection(props));
-  return {host, registry, calls, props, render, boundary: () => boundary};
+  return {host, registry, calls, props, render, boundary: () => boundary, refocused: () => refocused};
 }
 test('the real section exposes all served cells, actual geometry and declarative grid boundaries', async () => {
   const f = await fixture(); const tree = f.render(), grid = nodes(tree).find(node => node.type === 'TVLoadedGrid');
@@ -102,4 +102,22 @@ test('the actual card accepts absent data only under its owned loading slot and 
   assert.equal(filled.type, pending.type); assert.equal(filled.props.focusId, pending.props.focusId);
   filled.props.onNavigate(); assert.deepEqual(calls, [[entry, 'movies']]);
   assert.throws(() => host.render(() => SearchGridCard(props)), /served entry or an owned waiting slot/);
+});
+
+test('step 7: a row read again from its first page hands its named entry to Row, and the grid to its region, as one replacement', async () => {
+  const f = await fixture(); f.props.singleRow = true;
+  // The replacement fits one page: no tail and no earlier page, so Row has no paging, and still gets its target.
+  f.props.group = {...f.props.group, nextCursor: ''};
+  f.props.paging = {loading: false, error: null, replaced: {entryId: 'served-entry', serial: 4}};
+  let row = nodes(f.render()).find(node => node.type === 'Row');
+  assert.equal(row.props.paging, undefined); assert.deepEqual(row.props.refocus, {focusId: 'served-entry', serial: 4});
+  assert.equal(f.refocused()[1], undefined, 'a Row keeps its own focus: the grid hook has no region');
+  f.props.paging = {loading: false, error: null}; row = nodes(f.render()).find(node => node.type === 'Row');
+  assert.equal(row.props.refocus, undefined);
+  // Drawn as a grid (songs), the same replacement goes to the region's hook with the cells it now holds.
+  f.props.singleRow = false; f.props.paging = {loading: false, error: null, replaced: {entryId: 'served-entry', serial: 5}}; f.render();
+  const [, regionId, refocus, covered, lostChild] = f.refocused();
+  assert.equal(regionId, 'movies'); assert.deepEqual(refocus, {focusId: 'served-entry', serial: 5}); assert.equal(covered, false);
+  assert.equal(lostChild(nativeSearchEntryKey('movies', f.props.group.items[0])), false, 'a cell the row still holds');
+  assert.equal(lostChild('gone'), true, 'a cell the replacement took away');
 });

@@ -16432,6 +16432,8 @@ export const routes = [
       "downloads_not_allowed",
       "downloads_unavailable",
       "internal",
+      "download_quality_required",
+      "idempotency_key_reused",
       "timeout",
       "database_busy",
       "writer_capacity"
@@ -16458,6 +16460,7 @@ export const routes = [
       "idempotency_key_reused",
       "rate_limited",
       "internal",
+      "download_quality_required",
       "timeout",
       "database_busy",
       "writer_capacity"

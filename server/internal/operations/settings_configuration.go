@@ -105,10 +105,11 @@ type ConfigurationValue struct {
 	ApplicationMode string `json:"applicationMode"`
 }
 type SettingsConfiguration struct {
-	Revision         int64                `json:"revision"`
-	RegistryRevision string               `json:"registryRevision"`
-	Path             string               `json:"path"`
-	Fields           []ConfigurationValue `json:"fields"`
+	SignInPolicyRevision int64                `json:"signInPolicyRevision,string"`
+	Revision             int64                `json:"revision"`
+	RegistryRevision     string               `json:"registryRevision"`
+	Path                 string               `json:"path"`
+	Fields               []ConfigurationValue `json:"fields"`
 }
 
 // A required nullable pointer declares an intentionally unset value to the wire
@@ -197,6 +198,12 @@ func (s *Store) Configuration(ctx context.Context, auth Authorize) (out Settings
 			}
 			out.Fields = append(out.Fields, ConfigurationValue{b.ID, b.Key, configurationAtom(configurationValue(b, current[b.Field])), configurationAtom(configurationValue(b, effective[b.Field])), configurationAtom(configurationValue(b, defaults[b.Field])), source, b.ConfigOnly, definitions[b.Field].Apply})
 		}
+		policy, fields, err := readSignInConfiguration(ctx, tx)
+		if err != nil {
+			return err
+		}
+		out.SignInPolicyRevision = policy.Revision
+		out.Fields = append(out.Fields, fields...)
 		for _, domain := range s.ConfigurationDomains {
 			fields, err := domain.Read(ctx, tx, sources)
 			if err != nil {

@@ -50,6 +50,9 @@ func openMembers(ctx context.Context, format string, ra io.ReaderAt, size int64)
 		// reader must never become a weaker ZIP path.
 		return nil, archiveFormatError("cbz")
 	case "cbr":
+		if err := checkComicArchiveReader(ra, size, "cbr"); err != nil {
+			return nil, err
+		}
 		return openClassicArchive(ctx, format, ra, size)
 	case "cb7":
 		members, err := cb7Members(ctx, ra, size)

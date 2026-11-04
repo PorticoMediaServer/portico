@@ -15,6 +15,16 @@
 .nameLine { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 22px; margin-top: 16px; }
 .nameLine > b { font-size: 26px; line-height: 1; font-weight: 800; letter-spacing: -.03em; }
 .facts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; font-size: 15px; color: var(--color-text-secondary); }
+.phoneCard { display: none; }
+@media (max-width: 599px) {
+  .header { margin-bottom: 18px; }
+  .header > .serverPill, .header > .nameLine { display: none; }
+  .phoneCard { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 14px; background: linear-gradient(120deg, color-mix(in srgb, var(--color-accent) 30%, transparent), color-mix(in srgb, var(--color-accent) 6%, transparent) 70%); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent-strong) 28%, transparent); }
+  .phoneCard > .mark { background: color-mix(in srgb, var(--color-accent) 16%, transparent); color: var(--color-accent-strong); }
+  .phoneCard > div { flex: 1; min-width: 0; }
+  .phoneCard small { display: block; font-size: var(--type-caption-size); font-weight: var(--type-body-strong-weight); color: var(--color-accent-strong); }
+  .phoneCard b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-subheading-size); font-weight: var(--type-title-weight); letter-spacing: var(--type-subheading-tracking); }
+}
 .health { display: inline-flex; align-items: center; gap: 8px; color: var(--color-text); font-weight: 700; }
 .health::before { content: ''; flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--color-healthy); box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-healthy) 16%, transparent); }
 .health[data-health='attention']::before { background: var(--color-amber); box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-amber) 16%, transparent); }

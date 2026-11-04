@@ -81,8 +81,8 @@ func readingRestrictionCheck(pattern string) func(*testing.T) {
 			if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &own) != nil || own.SessionID == "" {
 				t.Fatal("ordinary member prepare", w.Code, w.Body.String())
 			}
-			if w = readingHTTP(t, h, "GET", "/v1/reading/sessions/"+own.SessionID+"/progress", token, own.Revision, nil); w.Code != 403 {
-				t.Fatal("cross-account member session admitted", w.Code, w.Body.String())
+			if w = readingHTTP(t, h, "GET", "/v1/reading/sessions/"+own.SessionID+"/progress", token, own.Revision, nil); w.Code != 410 || v1Code(w) != "reading_session_expired" {
+				t.Fatal("cross-account member session did not expire", w.Code, w.Body.String())
 			}
 			if w = readingHTTP(t, h, "DELETE", "/v1/reading/sessions/"+own.SessionID, member.Session.AccessToken, "", nil); w.Code != 204 {
 				t.Fatal("ordinary member cleanup", w.Code, w.Body.String())

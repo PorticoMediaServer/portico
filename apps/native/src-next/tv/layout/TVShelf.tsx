@@ -7,9 +7,9 @@ import type {LayoutItemContext, LayoutSelection} from '../../kit/layout/types';
 export const tvItemKey = (item: {id: string}) => item.id;
 const unselected: LayoutSelection = {active: false, isSelected: () => false, onToggle: () => {}, onEnter: () => {}};
 /** TV compositions own headings/commands; the shared shelf owns visible slots and glide. */
-export function TVShelf<T>({items, getKey, renderItem, itemWidth, itemHeight, gap = 28, onVisibleRange, focus, getFocusId, isFocusable, paging}: {
+export function TVShelf<T>({items, getKey, renderItem, itemWidth, itemHeight, gap = 28, onVisibleRange, focus, getFocusId, isFocusable, paging, refocus}: {
   items: readonly T[]; getKey: (item: T) => string; getFocusId?: RowProps<T>['getFocusId']; isFocusable?: RowProps<T>['isFocusable']; focus?: RowProps<T>['focus']; renderItem: (item: T, context: LayoutItemContext) => ReactNode;
-  paging?: RowProps<T>['paging'];
+  paging?: RowProps<T>['paging']; refocus?: RowProps<T>['refocus'];
   itemWidth: number; itemHeight: number; gap?: number; onVisibleRange?: (first: number, last: number) => void;
 }) {
   // W-11: the focused card scales up and draws its ring outside its edge. The track reserves that
@@ -18,7 +18,7 @@ export function TVShelf<T>({items, getKey, renderItem, itemWidth, itemHeight, ga
   const bleed = tvShelfBleed(useTheme(), itemWidth);
   return <View style={{marginHorizontal: -bleed}}>
     <Row title="" showHeading={false} items={items} getKey={getKey} getFocusId={getFocusId} isFocusable={isFocusable} focus={focus} renderItem={renderItem} itemWidth={itemWidth} itemHeight={itemHeight}
-      gap={gap} gutter={bleed} rightGutter={bleed} selection={unselected} paging={paging} onVisibleRange={onVisibleRange}/>
+      gap={gap} gutter={bleed} rightGutter={bleed} selection={unselected} paging={paging} refocus={refocus} onVisibleRange={onVisibleRange}/>
   </View>;
 }
 

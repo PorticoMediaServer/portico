@@ -20,6 +20,7 @@ import type {createNativeEntryActions} from '../destinations/entry-actions';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import {TVRow} from '../../kit/layout/TVRow';
 import {usePageWidth} from '../../kit/layout/page-inset';
+import {useCreditRefocus} from './credit-refocus';
 
 export type NativePersonScreenProps = Readonly<{
   focusScope: string; page: PersonPage; role: PersonRole; collection: WindowedCollection<PersonCredit>;
@@ -165,6 +166,8 @@ export function TVPerson({focusScope, page, role, collection, runtime, actions, 
   const initials = person.name.split(/\s+/u).filter(Boolean).slice(0, 2).map(word => [...word][0]).join('');
   const known = page.person.knownFor;
   const slots = useMemo(() => Array.from({length: total}, (_, index) => index), [total]);
+  // A re-read replaces the page and its credit window: the shelf names where focus stays in the row (credit-refocus).
+  const credits = useCreditRefocus(page, creditSlotKey);
   const filterItems: MenuEntry[] = ([['all', 'title.creditsAll'], ['cast', 'web.person.cast'], ['crew', 'web.person.crew']] as const).map(([value, label]) =>
     ({id: value, label: t(label), selected: role === value, onSelect: () => onRole(value)}));
   return <View testID="native-person" style={{flex: 1}}><StandardBackdrop/>
@@ -200,12 +203,13 @@ export function TVPerson({focusScope, page, role, collection, runtime, actions, 
         <Chip testID="person-role-filter" selected={role !== 'all'} onPress={() => setFilters(true)}>{t('next.browse.native.filters')}</Chip>
       </View>
       <TVShelf items={slots} getKey={creditSlotKey} itemWidth={214} itemHeight={440} isFocusable={index => !!collection.itemAt(index)?.media}
+        focus={{id: `${focusScope}.credits`}} refocus={credits.refocus}
         onVisibleRange={(first, last) => setRange(current => current.first === first && current.last === last ? current : {first, last})}
         renderItem={(index, slot) => {
           const credit = collection.itemAt(index), entry = credit?.media;
           if (!entry) return <View testID={`person-credit-placeholder-${index}`} style={{width: 214, height: 321, borderRadius: 10, backgroundColor: theme.colors.raised}}/>;
           return <PersonEntryCard entry={entry} group="credits" actions={actions} selection={selection} testID={`person-credit-${index}`} title={entry.displayTitle || entry.title} width={214}
-            onFocus={slot.onFocus} onBlur={slot.onBlur} preferredFocus={index === 0} artwork={runtime.artwork(entry.posterUrl)} watched={entry.watched} progress={entry.duration && entry.progressSeconds ? entry.progressSeconds / entry.duration : undefined}
+            onFocus={() => {credits.onFocus(index); slot.onFocus();}} onBlur={slot.onBlur} preferredFocus={index === 0} artwork={runtime.artwork(entry.posterUrl)} watched={entry.watched} progress={entry.duration && entry.progressSeconds ? entry.progressSeconds / entry.duration : undefined}
             caption={[...(entry.year === undefined ? [] : [{id: 'year', text: String(entry.year), role: 'context' as const}]),
               ...(credit.character ? [{id: 'character', text: t('web.person.as', {character: credit.character}), role: 'context' as const}] : [])]}/>;
         }}/>

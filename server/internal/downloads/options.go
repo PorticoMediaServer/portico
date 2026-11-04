@@ -213,7 +213,7 @@ func (s *Service) optionsVersionTx(ctx context.Context, tx *sql.Tx, p identity.P
 	} else if !allowed {
 		original.Reason = ReasonNotAllowed
 	}
-	out.DefaultQuality, e = requestedDownloadQuality(ctx, tx, p, "", found)
+	out.DefaultQuality, e = defaultDownloadQuality(ctx, tx, p, found)
 	if e != nil {
 		return out, e
 	}

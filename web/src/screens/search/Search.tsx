@@ -10,7 +10,8 @@ import {preferenceValue} from '@core/preferences.ts';
 import {searchDependencies, searchQueryProblem, type SearchEntry, type SearchGroup, type SearchGroupResult} from '@core/search.ts';
 import {SEARCH_CHIPS, searchChipOffered, searchGroupLabel, topSearchResult} from '@core/presentation/search-model.ts';
 import {Button, Chip, TextField} from '../../kit/controls';
-import {useSelectionRangePreview, type CardSelection, PosterCard, SquareCard, CircleCard, EpisodeTile, GenreTile, LiveCard, CoverCard} from '../../kit/cards';
+import {useSelectionRangePreview, type CardSelection, type CardSelectionIntent, PosterCard, SquareCard, CircleCard, EpisodeTile, GenreTile, LiveCard, CoverCard} from '../../kit/cards';
+import {useCardHold} from '../../kit/cards/useCardHold';
 import {Artwork} from '../../kit/artwork';
 import {WindowedGrid} from '../../kit/layout';
 import {Skeleton} from '../../kit/states';
@@ -298,6 +299,12 @@ export function SongTableRow({entry, binding, selection, position = 0, onCommit}
   const interactionRoot = useRef<HTMLDivElement>(null);
   const picked = useCardInteractionAdmission(song ? selection?.card(song) : undefined, interactionRoot), range = useSelectionRangePreview(picked);
   const more = useResultMore(binding, entry, picked, useContext(SearchTitleMenu), onCommit);
+  // select.html 16/17: on touch, press and hold opens the row's title menu, whose Select row starts selection.
+  const holdSelection = useMemo(() => picked && more ? {...picked, onToggle: (intent: CardSelectionIntent) => {
+    if (intent.source === 'long-press' && intent.anchor && !picked.active) {more(intent.anchor); return;}
+    picked.onToggle(intent);
+  }} : picked, [picked, more]);
+  const hold = useCardHold({selection: holdSelection, row: song});
   if (!song) return null;
   const {context} = binding, open = () => runScreenCommand(context, () => { binding.open(song); onCommit(); });
   const playable = song.available === true && !!song.playback, title = song.displayTitle ?? song.title;
@@ -307,14 +314,14 @@ export function SongTableRow({entry, binding, selection, position = 0, onCommit}
     else open();
   };
   return <div ref={interactionRoot} className={styles.songTableRow} data-selected={picked?.checked || undefined} data-preview={picked?.preview || undefined} {...range}>
-    <span className={styles.songIndex}>{picked ? <SelectionCircle variant="row" selected={picked.checked} selecting={picked.active} accessibilityLabel={t('next.selection.select')} onClick={event => {event.preventDefault(); picked.onToggle({range: event.shiftKey, source: event.detail === 0 ? 'keyboard' : 'pointer'});}}/>
-      : <button type="button" className={styles.songIndexPlay} onClick={activate} aria-label={t('next.browse.play', {title})}><span>{defaultI18n.number(position + 1)}</span><Icon name="i-play" size={16}/></button>}</span>
-    <button type="button" className={styles.songTitleCell} onClick={activate} aria-label={title}><Artwork source={context.artwork.foreground(song.posterUrl, 88, 1)} alt="" />
+    <span className={styles.songIndex}><button type="button" className={styles.songIndexPlay} onClick={activate} aria-label={t('next.browse.play', {title})}><span>{defaultI18n.number(position + 1)}</span><Icon name="i-play" size={16}/></button></span>
+    <span className={styles.songTitle}>{picked && <SelectionCircle variant="row" selected={picked.checked} selecting={picked.active} accessibilityLabel={t('next.selection.select')} onClick={event => {event.preventDefault(); picked.onToggle({range: event.shiftKey, source: event.detail === 0 ? 'keyboard' : 'pointer'});}}/>}
+    <button type="button" className={styles.songTitleCell} {...hold.handlers} onBlur={() => hold.cancel()} onClick={event => {if (hold.consumeClick()) {event.preventDefault(); return;} activate(event);}} aria-label={title}><Artwork source={context.artwork.foreground(song.posterUrl, 88, 1)} alt="" />
       <span className={styles.songTitleText}><b>{title}</b>
         {/* music-plus f8: a list that mixes albums carries the song's own notable formats after
             its title, at most two; the title shortens first and a badge never does. */}
         {song.audioFacts && musicFormatBadges(song.audioFacts).map(badge => <span key={typeof badge === 'string' ? badge : formatSignalText(badge, t)} className={styles.songBadge}>{typeof badge === 'string' ? badge : formatSignalText(badge, t)}</span>)}
-      </span></button>
+      </span></button></span>
     <span className={styles.songArtist}>{song.artist?.name}</span>
     <span className={styles.songAlbum}>{song.album?.name}</span>
     <span className={styles.songPlays}>{song.plays === undefined ? undefined : defaultI18n.number(song.plays)}</span>

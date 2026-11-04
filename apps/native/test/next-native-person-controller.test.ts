@@ -22,6 +22,8 @@ async function fixture() {
     if (!request.path.startsWith('/v1/people/')) return;
     reads.push({path: request.path, signal: request.signal});
     const body = await reply(request.path);
+    // A reply may be the server's refusal: {refuse: code} answers 400 in the server's error envelope.
+    if (body && typeof body === 'object' && 'refuse' in body) return {status: 400, body: {error: {code: (body as {refuse: string}).refuse, message: 'refused'}}};
     return {status: 200, body: {...body as object, serverId: f.pin.serverId}};
   }});
   let runtime: RestoredNativeShellRuntime | undefined;
@@ -89,7 +91,7 @@ test('Person role changes supersede late pages and retained hidden requests cann
   } finally {late.resolve(page()); await f.close();}
 });
 
-test('Person continuation replaces the bounded resident page and rejects cross-revision splicing', async () => {
+test('Person continuation replaces the bounded resident page, takes a moved fence as newer and rejects cross-revision splicing', async () => {
   const f = await fixture();
   try {
     f.reply(async () => page(undefined, 0, 40, 'opaque-next'));
@@ -97,7 +99,11 @@ test('Person continuation replaces the bounded resident page and rejects cross-r
     f.reply(async () => page(undefined, 40, 40, 'opaque-after'));
     await f.source.next(); assert.equal(f.source.getSnapshot().page!.credits.length, 40); assert.equal(f.source.contains(old), false);
     assert.equal(new URL(f.reads[1]!.path, 'https://fixture.invalid').searchParams.get('cursor'), 'opaque-next');
-    f.reply(async () => page(undefined, 80, 2, '', 'Changed-person-fence'));
+    // Step 7: a page answered under a moved fence is the newer answer for the same person revision.
+    f.reply(async () => page(undefined, 80, 40, 'opaque-last', 'Changed-person-fence'));
+    await f.source.next(); assert.equal(f.source.getSnapshot().phase, 'ready'); assert.equal(f.source.getSnapshot().page!.viewerFence, 'Changed-person-fence');
+    // Another revision of the person is not spliced.
+    f.reply(async () => ({...page(undefined, 120, 2, '', 'Changed-person-fence'), revision: {catalog: 13, viewer: 7}}));
     await f.source.next(); assert.equal(f.source.getSnapshot().phase, 'error'); assert.equal(f.source.getSnapshot().page, undefined);
   } finally {await f.close();}
 });
@@ -110,4 +116,26 @@ test('Person authority retirement clears facts and refuses a late actual read', 
     late.resolve(page()); await pending; await f.source.load(); assert.equal(f.reads.length, 1);
     assert.equal(f.source.getSnapshot().phase, 'idle'); f.source.dispose(); f.source.dispose();
   } finally {late.resolve(page()); await f.close();}
+});
+
+test('step 7: a refused continuation reads the first page again once; a continuation that answers lets a later refusal read again', async () => {
+  const f = await fixture();
+  try {
+    const script = ['refuse', 'answer', 'refuse', 'refuse']; let firsts = 0;
+    f.reply(async path => new URL(path, 'https://fixture.invalid').searchParams.has('cursor')
+      ? (script.shift() === 'answer' ? page(undefined, 40, 40, 'opaque-80') : {refuse: 'invalid_cursor'})
+      : page(undefined, 0, 40, 'opaque-40', `fence-${++firsts}`));
+    const settled = async () => {for (let i = 0; i < 20; i++) await tick();};
+    await f.source.load(); assert.equal(firsts, 1);
+    // First access change: refused, and the first page is read again.
+    await f.source.next(); await settled();
+    assert.equal(f.source.getSnapshot().phase, 'ready'); assert.equal(f.source.getSnapshot().pageOrigin, 'initial'); assert.equal(firsts, 2);
+    // A continuation answers; a second access change is read again too.
+    await f.source.next(); await settled(); assert.equal(f.source.getSnapshot().pageOrigin, 'continuation');
+    await f.source.next(); await settled();
+    assert.equal(f.source.getSnapshot().phase, 'ready'); assert.equal(f.source.getSnapshot().page?.viewerFence, 'fence-3'); assert.equal(firsts, 3);
+    // A refusal straight after that re-read shows.
+    await f.source.next(); await settled();
+    assert.equal(f.source.getSnapshot().phase, 'error'); assert.equal(firsts, 3);
+  } finally {await f.close();}
 });

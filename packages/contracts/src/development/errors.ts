@@ -259,6 +259,12 @@ export const errors = [
     "retry": "same_request"
   },
   {
+    "code": "download_quality_required",
+    "status": 400,
+    "message": "Choose a quality for this download.",
+    "retry": "never"
+  },
+  {
     "code": "download_source_offline",
     "status": 503,
     "message": "The file for this download can't be reached right now.",

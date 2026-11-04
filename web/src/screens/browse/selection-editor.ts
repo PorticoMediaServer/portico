@@ -49,7 +49,11 @@ export function createSelectionEditor({api, events, requestId, isCurrent, server
   // bulk preview issues the editing fence and every later bulk answer must match it; the metadata reads that name an
   // aggregate's title must match each other. The page's own Home fence exists only while Home is the current document,
   // so a show or library page opened any other way refused every edit before asking the server.
-  let editingFence: string | undefined, displayFence: string | undefined;
+  // The newest preview's fence: a save is granted only for a preview read under it (a preview under a moved fence is the
+  // newer answer, step 7), and every chunk and answer of that save is checked against it.
+  // Previews are ordered by when they started, as the preferences reader's reads are: an older preview that answers late
+  // never takes the editing fence back from a newer one.
+  let editingFence: string | undefined, previewsStarted = 0, previewAdopted = 0;
   const routeSignal = lifetime ?? new AbortController().signal;
   const current = (caller?: AbortSignal) => {
     if (!isCurrent() || routeSignal.aborted || caller?.aborted) throw new SelectionEditorError('cancelled');
@@ -71,8 +75,6 @@ export function createSelectionEditor({api, events, requestId, isCurrent, server
           if (!viewerId) throw new SelectionEditorError('metadata-authority-unavailable');
           const raw = await api.request(encodedRoutePath('get_metadata_kind_id', {kind: encodeURIComponent(target.kind), id: encodeURIComponent(target.id)}), 'GET', undefined, routeSignal); current();
           const data = validateRepair(raw, {serverId, viewerId}, target);
-          if (displayFence !== undefined && data.viewerFence !== displayFence) throw new SelectionEditorError('metadata-authority-changed');
-          displayFence = data.viewerFence;
           if (data.snapshot.fields.title === undefined) throw new SelectionEditorError('metadata-target-mismatch');
           const roles = target.kind === 'artist' ? ['portrait', 'square'] : target.kind === 'album' || target.kind === 'book' ? ['cover', 'square', 'poster'] : ['poster'];
           const chosen = roles.flatMap(role => data.snapshot.artwork.filter(choice => choice.role === role && choice.url))[0];
@@ -84,10 +86,11 @@ export function createSelectionEditor({api, events, requestId, isCurrent, server
     async preview(operation: AnyOperation): Promise<BulkMetadataPreview> {
       current();
       if (operation.target.mode !== 'explicit' || !operation.target.items.every(pick => pick.item.capabilities.edit)) throw new SelectionEditorError('metadata-not-offered');
-      const request = editorPreviewRequest(operation.target);
+      const request = editorPreviewRequest(operation.target), order = ++previewsStarted;
       const preview = await fetchBulkMetadataPreview(api, request, serverId, routeSignal, {isCurrent}); current();
-      if (editingFence !== undefined && preview.viewerFence !== editingFence) throw new SelectionEditorError('metadata-authority-changed');
-      editingFence = preview.viewerFence;
+      // A preview under a moved fence is the newer answer (the viewer's access was decided again): it replaces the editing
+      // fence, so Try again after an access change works; a save from an older preview is refused below.
+      if (order > previewAdopted) {previewAdopted = order;editingFence = preview.viewerFence;}
       grants.set(preview, operation); return preview;
     },
     /** The same direct bulk endpoint the Home editor uses, so each title gets its

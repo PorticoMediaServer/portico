@@ -14,10 +14,6 @@ import (
 // conflict algorithm. No such trigger may sit on a table that any server code
 // or baseline upserts; use INSERT ... ON CONFLICT DO NOTHING in the trigger.
 func TestNoInsertOrIgnoreUpdateTriggerOnAnUpsertedTable(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
-	}
-
 	root := filepath.Join("..", "..")
 	var sql strings.Builder
 	sql.WriteString(BaselineSQL())

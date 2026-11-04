@@ -69,6 +69,59 @@ test('query metadata preview and save carry the same full witness into the final
   } finally {held.model.dispose();}
 });
 
+// Step 7: the query editor's Try again could never succeed after an access change (the first preview's fence was kept
+// for its whole life). A preview under a moved fence is the newer answer; only the newest preview can start the job.
+test('step 7: a query preview under a moved fence is the newer answer, and an older preview cannot start the job', async () => {
+  const held = selected(), jobs: unknown[] = [];
+  let fence = 'd'.repeat(64);
+  const spec = {field: 'contentRating', label: 'Content rating', type: 'text', bulk: true, group: 'general', maxLength: 300};
+  const preview = () => ({variant: 'ready', serverId: 'server', viewerFence: fence, contentKind: 'movie', kind: 'item', total: 2, selectionRevision: revision,
+    schema: [spec], singleItemFields: [spec], excludedFields: [], targets: [],
+    fields: {contentRating: {state: 'shared', distinctCount: 1, value: 'G', values: [{value: 'G', count: 2}], entries: [], locked: 0, truncated: false}}});
+  const editor = createQuerySelectionEditor({api: {request: async <T>(path: string, _method?: string, body?: unknown) => {
+    if (path.includes('preview')) return preview() as T;
+    jobs.push(body); return {jobId: 'job', command: 'metadata-edit', state: 'complete', total: 2, totalKnown: true, done: 2, failed: 0} as T;
+  }}, serverId: 'server', viewerId: 'viewer', events: {on: () => () => {}}, requestId: async () => 'operation', isCurrent: () => true});
+  try {
+    const older = await editor.preview(held.operation);
+    fence = 'e'.repeat(64);
+    const newer = await editor.preview(held.operation);
+    assert.equal(newer.viewerFence, 'e'.repeat(64));
+    await assert.rejects(editor.save(held.operation, older, {fields: {contentRating: 'PG'}, lists: {}, lockEdited: true}, () => {}), /metadata-preview-not-current/);
+    assert.equal(jobs.length, 0);
+    assert.equal((await editor.save(held.operation, newer, {fields: {contentRating: 'PG'}, lists: {}, lockEdited: true}, () => {})).updated, 2);
+  } finally {held.model.dispose();}
+});
+
+// Ordered by start, as the explicit editor and the preferences reader (#720): an older query preview that answers after
+// the newer one never takes the editing fence back, so only the newer preview can start the job.
+test('step 7: an older query preview that answers late cannot start the job, and the newer one still can', async () => {
+  const held = selected(), jobs: unknown[] = [], waiting: (() => void)[] = [];
+  let fence = 'd'.repeat(64);
+  const spec = {field: 'contentRating', label: 'Content rating', type: 'text', bulk: true, group: 'general', maxLength: 300};
+  const preview = () => ({variant: 'ready', serverId: 'server', viewerFence: fence, contentKind: 'movie', kind: 'item', total: 2, selectionRevision: revision,
+    schema: [spec], singleItemFields: [spec], excludedFields: [], targets: [],
+    fields: {contentRating: {state: 'shared', distinctCount: 1, value: 'G', values: [{value: 'G', count: 2}], entries: [], locked: 0, truncated: false}}});
+  const editor = createQuerySelectionEditor({api: {request: async <T>(path: string, _method?: string, body?: unknown) => {
+    if (path.includes('preview')) {const answer = preview();return new Promise<T>(resolve => {waiting.push(() => resolve(answer as T));});}
+    jobs.push(body); return {jobId: 'job', command: 'metadata-edit', state: 'complete', total: 2, totalKnown: true, done: 2, failed: 0} as T;
+  }}, serverId: 'server', viewerId: 'viewer', events: {on: () => () => {}}, requestId: async () => 'operation', isCurrent: () => true});
+  try {
+    const olderRead = editor.preview(held.operation);
+    await new Promise(resolve => setImmediate(resolve));
+    fence = 'e'.repeat(64);
+    const newerRead = editor.preview(held.operation);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(waiting.length, 2);
+    waiting[1]!();const newer = await newerRead;
+    waiting[0]!();const older = await olderRead;
+    assert.equal(older.viewerFence, 'd'.repeat(64));assert.equal(newer.viewerFence, 'e'.repeat(64));
+    await assert.rejects(editor.save(held.operation, older, {fields: {contentRating: 'PG'}, lists: {}, lockEdited: true}, () => {}), /metadata-preview-not-current/);
+    assert.equal(jobs.length, 0);
+    assert.equal((await editor.save(held.operation, newer, {fields: {contentRating: 'PG'}, lists: {}, lockEdited: true}, () => {})).updated, 2);
+  } finally {held.model.dispose();}
+});
+
 test('queue-source capture validates and preserves the supplied proof losslessly', () => {
   const input = {query: {libraryId: 'lib', pivot: 'movies', selectionBasis: proof, selectionRevision: revision, sort}};
   const captured = captureQueueSource(input); input.query.selectionBasis = otherProof;

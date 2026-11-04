@@ -212,8 +212,8 @@ test('a page of credits keeps the credits it can read; the group asked for, the 
  for(const broken of [{group:'crew',total:0,credits:[]},{group:'cast',total:0,credits:'nope'},{group:'cast',total:0,credits:[],nextCursor:7},{group:'cast',total:0,credits:Array(10001).fill(credit('1'))}])assert.throws(()=>parseCreditPage(broken,'item','cast'),{code:'invalid_detail'});
 });
 
-test('detail credit pages preserve all 537 loaded entries and reject a different revision', async()=>{
- const {readCreditPage,appendCreditPage}=await import('../src/detail.ts');
+test('detail credit pages read each later page by its cursor', async()=>{
+ const {readCreditPage}=await import('../src/detail.ts');
  const revision={catalog:3,viewer:1};
  const makePage=(start:number)=>{
   const entries=Array.from({length:Math.min(37,537-start)},(_,index)=>{const id=String(start+index);return {id,kind:'movie',title:'Title '+id,libraryId:'library',available:true,navigation:{view:'item',entityId:id},playback:{itemId:id}};});
@@ -225,13 +225,12 @@ test('detail credit pages preserve all 537 loaded entries and reject a different
   if(url.pathname.endsWith('/credits')) return {group:'cast',revision,total:537,credits:row.entries.map(entry=>({id:entry.id,name:entry.title,role:'Role',department:'Acting',provider:'tmdb'})),...(row.nextCursor?{nextCursor:row.nextCursor}:{})} as T;
   return row as T;
  }};
- let credits=await readCreditPage(api,'item','cast');
- const firstCredits=credits.credits;
- while(credits.nextCursor)credits=appendCreditPage(credits,await readCreditPage(api,'item','cast',{cursor:credits.nextCursor}));
+ const credits=await readCreditPage(api,'item','cast');
+ // Credits page by cursor: each page is read on its own (the native title controller keeps its window).
+ const later=await readCreditPage(api,'item','cast',{cursor:credits.nextCursor});
  const ids=Array.from({length:537},(_,index)=>String(index));
- assert.deepEqual(credits.credits.map(credit=>credit.id),ids);
- assert.deepEqual(credits.credits.slice(0,37),firstCredits);
- assert.throws(()=>appendCreditPage(credits,{...credits,revision:{catalog:4,viewer:1}}),{code:'stale_continuation'});
+ assert.deepEqual(credits.credits.map(credit=>credit.id),ids.slice(0,37));
+ assert.deepEqual(later.credits.map(credit=>credit.id),ids.slice(37,74));assert.equal(later.nextCursor,'74');
  assert.ok(paths.includes('/v1/items/item/credits?group=cast&limit=37&cursor=37'));
 });
 

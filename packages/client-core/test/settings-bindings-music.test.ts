@@ -38,7 +38,7 @@ test('Music defaults come from the real registry document without changing scope
 test('owner away Music ceiling shares the exact four-rung codec and real configuration sources',()=>{
  const binding=settingsBinding('streaming.musicAwayQuality')!;
  assert.deepEqual(binding,{form:'runtime',key:'musicAwayQuality',codec:'music-quality-choice'});
- const configuration={revision:3,registryRevision:'settings-r40.1',path:'/state/portico.toml',fields:[{id:'streaming.musicAwayQuality',key:'streaming.music_away_quality',current:'cd-quality',effective:'96',default:'original',source:'file' as const,configOnly:false,applicationMode:'next-operation'}]};
+ const configuration={revision:3,registryRevision:'settings-r40.1',signInPolicyRevision:'policy-1',path:'/state/portico.toml',fields:[{id:'streaming.musicAwayQuality',key:'streaming.music_away_quality',current:'cd-quality',effective:'96',default:'original',source:'file' as const,configOnly:false,applicationMode:'next-operation'}]};
  assert.deepEqual(readSettingsBinding(binding,{configuration},'streaming.musicAwayQuality'),{current:'cd',effective:'96',default:'original',source:'file',configOnly:false,applicationMode:'next-operation'});
  assert.deepEqual(settingsBindingPatch(binding,'cd'),{form:'runtime',values:{musicAwayQuality:'cd-quality'}});
  for(const invalid of ['cd-quality','256','192','128','automatic',320])assert.throws(()=>settingsBindingPatch(binding,invalid));

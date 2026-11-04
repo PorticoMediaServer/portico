@@ -15,7 +15,8 @@ export type QueryEditorResult = Readonly<{updated: number; failed: number; jobId
 export function createQuerySelectionEditor(options: SelectionEditorOptions) {
   const {api, serverId, requestId, events} = options;
   // As the explicit editor: the bulk preview issues the editing fence, and the job runs only while answers match it.
-  let editingFence: string | undefined;
+  // Ordered by start, so an older preview that answers late never takes the editing fence back from a newer one.
+  let editingFence: string | undefined, previewsStarted = 0, previewAdopted = 0;
   const signal = options.signal ?? new AbortController().signal;
   const check = () => {if (signal.aborted || !options.isCurrent()) throw new DOMException('Selection retired', 'AbortError');};
   const grants = new WeakMap<BulkMetadataPreview, Operation>();
@@ -25,10 +26,11 @@ export function createQuerySelectionEditor(options: SelectionEditorOptions) {
       check(); const target = operation.target;
       if (target.mode !== 'query' || target.summary.types.length !== 1 || target.summary.unavailableActions?.metadataPreview || !target.summary.every.edit) throw new Error('query-editor-unavailable');
       const query = selectionQuerySelector(target); if (!query.ok) throw new Error('query-editor-refined');
+      const order = ++previewsStarted;
       const preview = await fetchBulkMetadataPreview(api, {selector: query.selector, expected: query.expected}, serverId, signal, {isCurrent: options.isCurrent}); check();
-      if (editingFence !== undefined && preview.viewerFence !== editingFence) throw new Error('metadata-authority-changed');
       if (preview.total !== target.total || preview.contentKind !== target.summary.types[0].kind) throw new Error('metadata-preview-mismatch');
-      editingFence = preview.viewerFence;
+      // A preview under a moved fence is the newer answer (step 7); only the newest preview can start the job (save).
+      if (order > previewAdopted) {previewAdopted = order;editingFence = preview.viewerFence;}
       grants.set(preview, operation); return preview;
     },
     async save(operation: Operation, preview: BulkMetadataPreview, draft: BulkEditorDraft, progress: (value: HomeSelectionProgress) => void): Promise<QueryEditorResult> {

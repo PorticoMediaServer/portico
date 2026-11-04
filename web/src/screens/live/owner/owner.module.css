@@ -22,8 +22,10 @@
 .badge[data-paused]::before { display:none; }
 .notice { display:flex;gap:10px;margin:0 18px 16px 80px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--color-amber) 25%,transparent);border-radius:10px;background:color-mix(in srgb,var(--color-amber) 7%,transparent);font-size:var(--type-label-size);line-height:calc(var(--type-label-size) * 1.5); }
 .notice p { margin:3px 0 0; }
-.empty { text-align:center;padding:40px 24px;border:1px solid var(--color-line);border-radius:14px; }
-.empty h4 { margin:0 0 8px; }.empty p { color:var(--color-text-tertiary);font-size:var(--type-caption-size); }
+/* live-owner d2: the empty card sits on the raised surface with a TV tile above its title, and the white Add source. */
+.empty { text-align:center;padding:44px 24px 40px;border-radius:14px;background:var(--color-raised); }
+.emptyIcon { display:grid;place-items:center;width:60px;height:60px;margin:0 auto 18px;border-radius:14px;background:color-mix(in srgb, var(--color-accent) 16%, transparent);color:var(--color-accent-strong); }
+.empty h4 { margin:0 0 8px;font-size:var(--type-subheading-size); }.empty p { color:var(--color-text-tertiary);font-size:var(--type-caption-size); }
 @media(max-width:700px) { .source { grid-template-columns:44px minmax(0,1fr) auto;gap:10px;padding:14px; }.facts { grid-column:2/4; }.badge { grid-column:2;justify-self:start; }.source>button { margin-left:auto; }.notice { margin-left:14px;margin-right:14px; }.heading { align-items:flex-start; } }
 .unit { margin-left:10px;color:var(--color-text-tertiary);font-size:var(--type-label-size); }
 .save { position:sticky;bottom:16px;display:flex;justify-content:flex-end;gap:12px;margin-top:20px;padding:12px 16px;border:1px solid var(--color-line);border-radius:12px;background:var(--color-raised); }

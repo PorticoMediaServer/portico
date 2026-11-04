@@ -305,7 +305,7 @@ const identity: ShellIdentity = {viewer, username: 'demo', profileName: 'Demo', 
 
 const contextBase = {api, session: () => session, events, artwork, facts: {identity, preferences, serverName: identity.serverName},
   preferences: {getSnapshot: () => preferences, subscribe: subscribePreferences}, epoch: 1, isCurrent: () => true,
-  signOut: () => record('sign-out'), signOutPorticoAccount: () => record('sign-out-portico'), switchProfile: async () => {}, switchServer: async () => {}, savedServers: []} as unknown as ShellAssemblyContext;
+  signOut: () => record('sign-out'), switchProfile: async () => {}, switchServer: async () => {}, savedServers: []} as unknown as ShellAssemblyContext;
 const activity = createOwnerActivity(contextBase, time, () => record('open-dashboard'), () => record('open-update'), destination => record('open-issue', destination));
 const homeService = {getSnapshot: () => ({phase: 'idle'}), subscribe: () => () => {}} as unknown as HomeBindings['service'];
 const home: HomeBindings = {service: homeService, artwork, time, reducedMotion: true,

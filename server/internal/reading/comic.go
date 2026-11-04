@@ -39,6 +39,9 @@ type Comic struct {
 }
 
 func OpenComic(ctx context.Context, r io.ReaderAt, size int64) (*Comic, error) {
+	if err := checkComicArchiveReader(r, size, "cbz"); err != nil {
+		return nil, err
+	}
 	a, err := openArchive(r, size)
 	if err != nil {
 		return nil, err

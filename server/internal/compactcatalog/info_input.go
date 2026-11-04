@@ -516,7 +516,27 @@ func beginInfoInputTx(ctx context.Context, tx *sql.Tx, spec InfoInputSpec) (Info
 		return InfoInput{}, err
 	}
 	if active.fault == infoReclaim {
-		return InfoInput{}, ErrInfoInputBusy
+		// Recovery waits for a live, already-claimed successor to accept. Let
+		// only that exact producer resume its own existing body; opening or
+		// coalescing a different successor here would adopt recovery's OLD.
+		queued, err := infoInputHeaderBySlot(ctx, tx, spec.AssetID, spec.Token, 1)
+		if errors.Is(err, sql.ErrNoRows) {
+			return InfoInput{}, ErrInfoInputBusy
+		}
+		if err != nil {
+			return InfoInput{}, err
+		}
+		if queued.phase != 0 || queued.fault != "" || queued.expectedEpoch != active.expectedEpoch+1 || queued.familyMask != spec.FamilyMask || !bytes.Equal(queued.fingerprint, spec.Fingerprint[:]) {
+			return InfoInput{}, ErrInfoInputBusy
+		}
+		witnesses, err := infoInputWitnesses(ctx, tx, queued.changeID)
+		if err != nil {
+			return InfoInput{}, err
+		}
+		if len(witnesses) != 1 || witnesses[0].ordinal != 0 || witnesses[0].witness != spec.Witnesses[0] {
+			return InfoInput{}, ErrInfoInputBusy
+		}
+		return begunInfoInputAs(ctx, tx, spec.AssetID, spec.Token, 1, InfoInputDuplicate)
 	}
 	witnesses, err := infoInputWitnesses(ctx, tx, active.changeID)
 	if err != nil {
