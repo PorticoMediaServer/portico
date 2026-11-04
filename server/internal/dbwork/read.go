@@ -48,6 +48,15 @@ func QueryRow(ctx context.Context, db *sql.DB, query string, args ...any) *sql.R
 // long-lived one holds back WAL checkpointing, so it must not outlive the
 // response it exists for.
 func WithReadSnapshot(ctx context.Context, db *sql.DB, fn func(context.Context) error) error {
+	if artworkGateMutation(ctx) {
+		bounded, cancel := snapshotContext(ctx)
+		defer cancel()
+		blocked, err := Begin(bounded, db, ClassInteractive)
+		if err != nil {
+			return err
+		}
+		defer blocked.Rollback()
+	}
 	countCall()
 	if ctx == nil {
 		ctx = context.Background()

@@ -23,6 +23,9 @@ type splitDriver struct {
 }
 
 func (c *splitConnector) Connect(ctx context.Context) (driver.Conn, error) {
+	if err := artworkRejectCold(ctx); err != nil {
+		return nil, err
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

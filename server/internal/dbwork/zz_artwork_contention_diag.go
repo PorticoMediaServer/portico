@@ -3,6 +3,7 @@ package dbwork
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log"
 	"os"
 	"strings"
@@ -22,4 +23,14 @@ func artworkOpened(name string, readers *readerScope, role connRole, started, ac
 		return
 	}
 	log.Printf("ARTWORK-OPEN at=%d scope=%p role=%v lock_wait=%s driver_open=%s err=%v", time.Now().UnixNano(), readers, role, acquired.Sub(started), time.Since(acquired), err)
+}
+
+func artworkRejectCold(ctx context.Context) error {
+	if os.Getenv("PORTICO_ARTWORK_REJECT_COLD") == "1" && strings.HasPrefix(ownerFrom(ctx), "ARTWORK-") {
+		return errors.New("diagnostic: publication phase attempted a cold foreground reader")
+	}
+	return nil
+}
+func artworkGateMutation(ctx context.Context) bool {
+	return os.Getenv("PORTICO_ARTWORK_GATE_MUTATION") == "1" && strings.HasPrefix(ownerFrom(ctx), "ARTWORK-")
 }
