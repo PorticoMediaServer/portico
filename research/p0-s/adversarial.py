@@ -120,10 +120,13 @@ def fanout(out):
   db.close()
   for suffix in ['', '-wal','-shm']:pathlib.Path(str(p)+suffix).unlink(missing_ok=True)
  shared=[]
- for n in (([8,255,4096,36,777,1024] if os.getenv("CUE_RANGE") else [36,777,1024]) if os.getenv("ENVELOPE") else [8,255,264,4096] if os.getenv("SUPPORTED") else [10000,100000]):
+ for n in (([9,256,4097] if os.getenv("CUE_RANGE") else [36,777,1024]) if os.getenv("ENVELOPE") else [8,255,264,4096] if os.getenv("SUPPORTED") else [10000,100000]):
   p=out/'shared.db';db=DB(p);create(db);reference_seed(db);lo,hi=populate_members(db,n)
   db.exec(f"INSERT INTO catalog_assets VALUES(10000000,'shared','/shared',1,1,'mkv','h264','aac',1920,1080,123,1); INSERT INTO catalog_asset_links SELECT id,10000000,0,1 FROM catalog_entities WHERE id BETWEEN {lo} AND {hi};")
-  if os.getenv('ENVELOPE') and n in [36,777,1024]:
+  if os.getenv('CUE_RANGE'):
+   if n in [256,4097]:db.exec(f'UPDATE catalog_entities SET kind=7,parent_id=611,album_id=611 WHERE id BETWEEN {lo} AND {hi}')
+   else:db.exec(f"UPDATE catalog_entities SET kind=4,parent_id=161,show_id=151,season_id=161,numbering='seasonal',episode_number=id WHERE id BETWEEN {lo+1} AND {hi}")
+  elif os.getenv('ENVELOPE') and n in [36,777,1024]:
    envelope_setup(db,n,lo,hi)
   elif os.getenv('SUPPORTED'):
    # True kind/parent relationships on exact T1 entity DDL.
@@ -135,7 +138,9 @@ def fanout(out):
     db.exec(f"UPDATE catalog_entities SET library_id=2,kind=4,parent_id=152,show_id=152,season_id=NULL,numbering='seasonal',episode_number=id WHERE id>{hi-1}")
   if os.getenv('CUE_RANGE'):db.exec("CREATE TABLE admin_receipts(scope TEXT NOT NULL,operation_id TEXT NOT NULL,digest TEXT NOT NULL,result TEXT NOT NULL,created_ms INTEGER NOT NULL,PRIMARY KEY(scope,operation_id)) STRICT")
   cue=(f'((id-{lo})%256)>0' if n==1024 else f'id<{lo+768} AND ((id-{lo})%256)>0' if n==777 else '0' if n in [8,36] else 'kind=7')
+  if os.getenv('CUE_RANGE'):cue=f'id>{lo}' if n in [256,4097] else '0'
   affected=(f'id={hi}' if n in [255,4096] else f'((id-{lo})%256) IN(0,255)' if n==1024 else f'(id<{lo+768} AND ((id-{lo})%256) IN(0,255)) OR id>={lo+768}' if n==777 else '1')
+  if os.getenv('CUE_RANGE'):affected=f'id IN({lo},{hi})' if n in [256,4097] else '1'
   for case in ((['asset-change','asset-delete','cue-size-resolution-change','cue-size-resolution-delete','cue-range-change','cue-range-delete'] if os.getenv('CUE_RANGE') else ['asset-change','asset-delete','cue-size-resolution-change','cue-size-resolution-delete']) if os.getenv('SUPPORTED') else ['asset-change','asset-delete']):
    xs=[]
    for rep in range(101 if os.getenv('SUPPORTED') else 5):
@@ -160,7 +165,8 @@ def fanout(out):
      compute=f'UPDATE catalog_entities SET duration_key={newdur},file_size_key={newsize},resolution_key={newres},revision=revision+1 WHERE id BETWEEN {lo} AND {hi} AND NOT ({cue}) RETURNING id'
     if case.startswith('cue-range'):
      newsize,newres,newdur=(999999,2160,336) if case.endswith('change') else (0,0,0)
-     if n in [255,4096]:affected=f'id={hi}'
+     if os.getenv('CUE_RANGE'):affected=f'id IN({lo},{hi})' if n in [256,4097] else '1'
+     elif n in [255,4096]:affected=f'id={hi}'
      elif n==1024:affected=f'((id-{lo})%256) IN(0,255)'
      elif n==777:affected=f'(id<{lo+768} AND ((id-{lo})%256) IN(0,255)) OR id>={lo+768}'
      else:affected='1'
