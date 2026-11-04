@@ -11,6 +11,7 @@ for p in sorted(E.glob('bounded-97-*')):
  assert d['ddl_sha256']==SHA and w['ddl_sha256']==SHA and audit['ddl_sha256']==SHA and d['fts_excluded']
  cp=w['checkpoints'];readers=w['readers'];intervals=[x['start_interval_ms'] for x in cp if x['start_interval_ms']];invalid=[]
  if w['peak_physical_bytes']>192*2**20 or w['peak_active_bytes']>192*2**20:invalid.append('hardcap')
+ if w['checkpoint_ms']!=cadence:invalid.append('wrong-cadence-setting')
  if any(x<cadence for x in intervals):invalid.append('minimum-spacing')
  if not w['resets']:invalid.append('no-reset-witness')
  if any(x.get('error') for x in cp):invalid.append('checkpoint-error')
