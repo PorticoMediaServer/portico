@@ -348,7 +348,7 @@ async function mount(element: HTMLElement) {
   const contextBase = {
     api, session: () => session, events, artwork, facts: {identity, preferences, serverName: identity.serverName},
     preferences: {getSnapshot: () => preferences, subscribe: () => () => {}},
-    epoch: 1, isCurrent: () => true, signOut: () => record('sign-out'), signOutPorticoAccount: () => record('sign-out-portico'),
+    epoch: 1, isCurrent: () => true, signOut: () => record('sign-out'),
     switchProfile: async () => {}, switchServer: async () => {}, savedServers: [],
   };
   const activity = createOwnerActivity(contextBase as never, time, () => record('open-dashboard'), () => record('open-update'), issue => record('open-issue', issue));
