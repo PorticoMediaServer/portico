@@ -822,7 +822,7 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
         </View>}
         {!theme.isTV && <View style={{position: 'absolute', left: (side ?? (compact ? 14 : 60)) + (props.edgeInsets?.left ?? 0), right: (side ?? (compact ? 6 : 60)) + (props.edgeInsets?.right ?? 0), bottom: compact ? 8 : 15}}>
           {!compact && <View style={{marginBottom: 8}}>
-            <NativeWatchTimeline source={source} controls={controls} playback={playback} artwork={props.artwork} compact={compact} enabled={controlsEnabled} liveEdge={liveEdge} onPreview={setLanding} reportError={props.reportError} skipBackSeconds={props.skipBackSeconds} skipForwardSeconds={props.skipForwardSeconds}/>
+            <NativeWatchTimeline source={source} controls={controls} playback={playback} compact={compact} enabled={controlsEnabled} liveEdge={liveEdge} onPreview={setLanding} reportError={props.reportError} skipBackSeconds={props.skipBackSeconds} skipForwardSeconds={props.skipForwardSeconds}/>
           </View>}
           <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
             <Text style={[theme.type.bodyStrong, {fontSize: 12.5, color: theme.colors.text, fontVariant: ['tabular-nums']}]}>{clockText(source.playback.positionSeconds)}</Text>
@@ -844,7 +844,9 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
             <View style={{flex: 1}}/>{qualityChip(true)}
             {props.fullWindowRequest?.() && controls.canFullWindow() && !controls.getSnapshot().fullWindow && icon('fullscreen', 'i-fs', t('next.states.shortcut.fullscreen'), () => {if (current() && props.fullWindowRequest?.()) controls.setFullWindow(fence, true);})}
           </View>}
-          {!compact && <View style={{flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 8}}>
+          {/* phone-player 1b: while you drag, the chips step aside (kept in place, hidden) until you let go. */}
+          {!compact && <View testID="watch-chip-row" pointerEvents={scrubbing ? 'none' : 'auto'} accessibilityElementsHidden={scrubbing} importantForAccessibility={scrubbing ? 'no-hide-descendants' : 'auto'}
+            style={{flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 8, opacity: scrubbing ? 0 : 1}}>
             {linear
               ? (props.onGuide ? chip('episodes', 'i-list', t('player.live.guide'), undefined, () => {if (controlsCurrent() && props.onGuide) props.onGuide();}) : null)
               : fence.kind === 'queue' && fence.showId ? chip('episodes', 'i-stack', t('title.episodes'), undefined) : null}
@@ -855,7 +857,7 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
           </View>}
         </View>}
         {!theme.isTV && compact && <View style={{position: 'absolute', left: (props.edgeInsets?.left ?? 0), right: (props.edgeInsets?.right ?? 0), bottom: -21}}>
-          <NativeWatchTimeline source={source} controls={controls} playback={playback} artwork={props.artwork} compact enabled={controlsEnabled} onPreview={setLanding} reportError={props.reportError} skipBackSeconds={props.skipBackSeconds} skipForwardSeconds={props.skipForwardSeconds}/>
+          <NativeWatchTimeline source={source} controls={controls} playback={playback} compact enabled={controlsEnabled} onPreview={setLanding} reportError={props.reportError} skipBackSeconds={props.skipBackSeconds} skipForwardSeconds={props.skipForwardSeconds}/>
         </View>}
       </FocusRegion>
     </Animated.View>

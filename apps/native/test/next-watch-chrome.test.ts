@@ -220,6 +220,29 @@ test('seek preview keeps transport native targets mounted for a guide-based Down
   } finally {await host.unmount(); controls.dispose();}
 });
 
+test('phone-player 1b: while you drag, the chips step aside in place, and come back when you let go', async () => {
+  const previousTV = isTV; isTV = false;
+  const controls = new NativeWatchControls(false), currentFence = {...fence, showId: 'show'};
+  const source = {fence: currentFence, retired: false, dock: {local: {expanded: true}}, queue: {}, capabilities: {play: true, pause: true, seek: true, subtitleTrack: true}, playback: {intent: 'paused', positionSeconds: 17, duration: 100}};
+  const playback = {getSnapshot: () => source};
+  controls.source(currentFence, {expanded: true, autoHide: true, hiddenByPanel: false, paused: false, scrubbing: false, focusHeld: false}); controls.reveal(currentFence);
+  let tree: any;
+  const host = createFabricHookHost(() => {tree = NativeWatchChrome({source, controls, playback, text: {t: defaultI18n.t}, quality: 'Original', width: 844, height: 390, compact: false,
+    skipBackSeconds: 10, skipForwardSeconds: 30, onMinimize() {}, reportError: assert.fail});});
+  await host.mount();
+  try {
+    const row = () => descendants(tree).find(node => node.props.testID === 'watch-chip-row');
+    assert.equal(row().props.style.opacity, 1); assert.equal(row().props.pointerEvents, 'auto');
+    const timeline = descendants(tree).find(node => node.type === 'Timeline' && !node.props.tv);
+    timeline.props.onPreview(25); await host.flush();
+    assert.equal(row().props.style.opacity, 0, 'hidden while dragging');
+    assert.equal(row().props.pointerEvents, 'none'); assert.equal(row().props.importantForAccessibility, 'no-hide-descendants');
+    assert.equal(row().props.style.marginTop, 10, 'its space is kept, so nothing moves');
+    timeline.props.onPreview(undefined); await host.flush();
+    assert.equal(row().props.style.opacity, 1, 'back when you let go');
+  } finally {await host.unmount(); controls.dispose(); isTV = previousTV;}
+});
+
 /** Authored UNRUN source: actual chrome/controller with controlled paint driver,
  * not a native timing or first-frame admission check. */
 test('a slow first frame never bypasses ordinary timer and toggle hiding after the entrance', async t => {
