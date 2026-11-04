@@ -42,7 +42,8 @@ export function MediaBar(props: DockRendererProps) {
     movement.current.track(painted.position, 0, performance.now());
     gesture.current = {id: event.pointerId, x: event.clientX - painted.position, y: event.clientY, lastX: event.clientX, lastY: event.clientY, time: event.timeStamp, vx: 0, vy: 0, dx: painted.position, dy: 0, moved: painted.position !== 0, vertical: props.videoGesture};
     if (event.target instanceof Element && (!event.target.closest('button,input,[role="slider"]') || event.target.closest('[data-dock-identity]'))) gesture.current.vertical?.begin(event, element, 1);
-    event.currentTarget.setPointerCapture(event.pointerId);
+    // No capture yet: a tap must keep its click on the control under it (Open now playing, Pause…).
+    // Capturing here would retarget that click to the bar. The drag takes capture once it moves.
     signalDockMotion(event.currentTarget, {kind: 'begin', offset: painted.position});
     holdTimer.current = setTimeout(() => { suppressClick.current = true; setHolding(false); props.videoGesture?.cancel(); setHeld(true); }, 500); setHolding(true);
   };
@@ -52,6 +53,7 @@ export function MediaBar(props: DockRendererProps) {
     g.lastX = event.clientX; g.lastY = event.clientY; g.time = event.timeStamp; g.dx = event.clientX - g.x; g.dy = event.clientY - g.y;
     if (Math.hypot(g.dx, g.dy) < 6 && !g.moved) return;
     g.moved = true; suppressClick.current = true; clearHold();
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.setPointerCapture(event.pointerId);
     if ((g.verticalActive || Math.abs(g.dy) > Math.abs(g.dx)) && g.vertical?.move(event)) {g.verticalActive = true;event.preventDefault();return;}
     if (Math.abs(g.dx) >= Math.abs(g.dy)) { g.vertical?.cancel(); event.currentTarget.setPointerCapture(event.pointerId); event.currentTarget.style.transform = `translateX(${g.dx}px)`; event.currentTarget.style.opacity = String(dragOpacity(g.dx, event.currentTarget.clientWidth)); signalDockMotion(event.currentTarget, {kind: 'track', offset: g.dx}); }
   };

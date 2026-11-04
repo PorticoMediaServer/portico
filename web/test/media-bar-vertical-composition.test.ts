@@ -55,7 +55,7 @@ function fixture(port: VideoGesturePort) {
   bridge.slots = [];bridge.cursor = 0;const node = section(MediaBar(props)), root = new Root();node.props.ref.current = root;
   const event = (x: number, y: number, timeStamp: number) => ({pointerId: 7, pointerType: 'touch', button: 0, currentTarget: root, target: root, clientX: x, clientY: y, timeStamp, preventDefault() {}});
   const swipe = (dx: number, dy: number) => {node.props.onPointerDown(event(0, 700, 1000));node.props.onPointerMove(event(dx, 700 + dy, 1200));node.props.onPointerUp(event(dx, 700 + dy, 1400));};
-  return {swipe, actions, root};
+  return {swipe, actions, root, node, event};
 }
 const refused = (begin: boolean): VideoGesturePort => ({begin: () => begin, move: () => begin, release: () => false, cancel() {}});
 test('installed port missing full geometry is terminal for a moved upward gesture', () => {
@@ -73,4 +73,21 @@ test('a horizontal dismiss still uses the original guarded stop path', async () 
   const f = fixture(refused(false));f.swipe(220, 0);assert.equal(f.actions.length, 0);
   f.root.finished.forEach(resolve => resolve());await Promise.resolve();await Promise.resolve();
   assert.deepEqual(f.actions.map(action => action.kind), ['stop']);
+});
+
+test('a tap on the narrow dock takes no pointer capture, so the control under it keeps its click (Open now playing)', () => {
+  const f = fixture(refused(true));
+  f.node.props.onPointerDown(f.event(40, 700, 1000));
+  assert.equal(f.root.captures.size, 0, 'pointerdown alone never captures: the click stays on the button');
+  f.node.props.onPointerMove(f.event(42, 701, 1050));   // under the 6 px slop: still a tap
+  assert.equal(f.root.captures.size, 0);
+  f.node.props.onPointerUp(f.event(42, 701, 1100));
+  assert.equal(f.root.captures.size, 0);
+});
+
+test('a drag on the dock takes pointer capture as soon as it moves past the slop', () => {
+  const f = fixture(refused(false));
+  f.node.props.onPointerDown(f.event(0, 700, 1000));
+  f.node.props.onPointerMove(f.event(0, 660, 1050));   // a vertical move: no horizontal capture of its own
+  assert.equal(f.root.captures.has(7), true, 'the moving pointer is captured, so the drag keeps its events off the bar');
 });
