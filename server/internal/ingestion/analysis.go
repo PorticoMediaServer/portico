@@ -617,7 +617,7 @@ func (s *Service) analyzeOne(parent context.Context, job string, source catalog.
 				return s.publicationFailed(parent, job, object, revision, queuedPolicy, err)
 			}
 			if receipt.State != compactcatalog.InfoInputApplied {
-				s.keepAccepted(accepted, a.facts, a.completed)
+				s.keepPendingReceipt(accepted, a, receipt.InfoInputReceipt)
 				return nil
 			}
 			return s.finishBasicAnalysis(parent, ctx, job, object, revision, queuedPolicy, policy, source, a.completed, descriptor, deep, a.facts.SubtitleTextPending)
@@ -837,7 +837,7 @@ func (s *Service) analyzeOne(parent context.Context, job string, source catalog.
 	}
 	if receipt.State != compactcatalog.InfoInputApplied {
 		if !descriptor && !before.Directory {
-			s.keepAccepted(accepted, f, completed)
+			s.keepPendingReceipt(accepted, acceptedAnalysis{facts: f, completed: completed}, receipt.InfoInputReceipt)
 		}
 		return nil
 	}

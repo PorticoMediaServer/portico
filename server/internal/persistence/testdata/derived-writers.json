@@ -7625,7 +7625,7 @@
       ]
     },
     "internal/ingestion/analysis.go": {
-      "sha256": "3ad3a7c355dded28bf7160d6b9e8ed62e73f91d334f8d96faed24e122462ac7f",
+      "sha256": "da049fa7e33ae6514d57254af418e7e411e0e732b7c57c4363e814eabe74be2b",
       "effects": [
         {
           "table": "*",
@@ -7696,6 +7696,15 @@
         }
       ]
     },
+    "internal/ingestion/receipt_wake.go": {
+      "sha256": "5d55d714ceacb5de41e11f872a43c565410192125df5d6e8cfc20aab625e264c",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "SELECT"
+        }
+      ]
+    },
     "internal/ingestion/remote.go": {
       "sha256": "37ddaef8392236f49089830f797eed5cc80308e42c59c59df534715fb6f2adc0",
       "effects": [
@@ -7733,7 +7742,7 @@
       ]
     },
     "internal/ingestion/service.go": {
-      "sha256": "f9ea13d9b4dfb9eb6f3ce12dfde9ccf97ae65d6e2aad77915cd25f4e2392839a",
+      "sha256": "cbb1ebbcc637351e6e946949e8480662e5c52a1e2f0f92c7da146083222f2c01",
       "effects": [
         {
           "table": "*",
