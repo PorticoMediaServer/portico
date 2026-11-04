@@ -86,7 +86,7 @@
   .header { padding-top: 44px; }
 }
 @media (max-width: 599px) {
-  .header { padding-inline: 18px; gap: 8px; flex-wrap: nowrap; }
+  .header { padding-inline: var(--shell-gutter, var(--gutter-desktop)); gap: 8px; flex-wrap: nowrap; }
   .header h1 { font-size: var(--type-title-size); white-space: nowrap; }
   .header .source { flex: none; }
   .header p { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

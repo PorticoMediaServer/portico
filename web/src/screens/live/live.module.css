@@ -122,7 +122,7 @@
   .guideCellDetail { font-size: calc(var(--type-label-size) - 2px); }
 }
 @media (max-width: 599px) {
-  .guideHeader, .guideChips, .guideTime { padding-inline: 18px; }
+  .guideHeader, .guideChips, .guideTime { padding-inline: var(--shell-gutter, var(--gutter-desktop)); }
   .guideHeader { gap: 8px; flex-wrap: nowrap; }
   .guideHeader h1 { font-size: var(--type-title-size); }
   .guideRecordings { flex: none; }
@@ -363,7 +363,7 @@
   .recordedSortLabel { margin-left: auto; }
 }
 @media (max-width: 599px) {
-  .recordingsBar, .recordingsBanner, .recBody { padding-inline: 18px; }
+  .recordingsBar, .recordingsBanner, .recBody { padding-inline: var(--shell-gutter, var(--gutter-desktop)); }
   .recRow { grid-template-columns: 84px minmax(0, 1fr); gap: 12px; }
   .recArt { grid-row: span 2; }
   .recRight { grid-column: 1 / -1; }

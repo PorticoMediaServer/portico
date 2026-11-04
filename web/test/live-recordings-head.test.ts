@@ -18,7 +18,14 @@ test('the Recordings head and body follow the shell gutter, as the Channels tab 
 
 test('on a phone the Recordings head stays one line: title size, no wrap, the source choice keeps its width', () => {
   const phone = rules.slice(rules.lastIndexOf('@media (max-width: 599px) {'));
-  assert.match(phone, /\.header \{ padding-inline: 18px; gap: 8px; flex-wrap: nowrap; \}/);
+  assert.match(phone, /\.header \{ padding-inline: var\(--shell-gutter, var\(--gutter-desktop\)\); gap: 8px; flex-wrap: nowrap; \}/);
   assert.match(phone, /\.header h1 \{ font-size: var\(--type-title-size\); white-space: nowrap; \}/);
   assert.match(phone, /\.header \.source \{ flex: none; \}/);
+});
+
+test('on a phone the Channels and Recordings heads, chips and body all sit on the shell gutter, not a hard-coded 18px', () => {
+  const phone = live.slice(live.lastIndexOf('@media (max-width: 599px)'));
+  assert.match(live, /\.guideHeader, \.guideChips, \.guideTime \{ padding-inline: var\(--shell-gutter, var\(--gutter-desktop\)\); \}/);
+  assert.match(phone, /\.recordingsBar, \.recordingsBanner, \.recBody \{ padding-inline: var\(--shell-gutter, var\(--gutter-desktop\)\); \}/);
+  assert.doesNotMatch(live, /padding-inline: 18px/);
 });
