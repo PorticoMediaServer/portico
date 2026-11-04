@@ -360,6 +360,9 @@ func GenerateWith(definitions []Definition, options Options) (Artifacts, error) 
 			contentType = "application/json"
 		}
 		operation := map[string]any{"operationId": d.ID, "summary": d.Summary, "tags": []string{string(d.Audience)}, "x-audience": d.Audience, "x-access": d.Access, "x-scope": d.Requires, "x-lane": d.Lane, "x-cost": d.Cost, "responses": map[string]any{fmt.Sprint(d.Status): map[string]any{"description": "Success", "content": map[string]any{contentType: map[string]any{"schema": schemaForStatus(d.Response, d.Status, response)}}}}}
+		if d.Description != "" {
+			operation["description"] = d.Description
+		}
 		if d.Protocol != "" {
 			operation["x-protocol"] = d.Protocol
 		}

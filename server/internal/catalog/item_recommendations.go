@@ -391,7 +391,7 @@ func relatedRowText(relation, heading string) ServerText {
 	return ServerText{Code: spec.code, Params: map[string]string{spec.param: strings.TrimPrefix(heading, spec.prefix)}, Fallback: heading}
 }
 
-// DetailMoreLike pages every eligible local recommendation. Ranking is the
+// DetailMoreLike pages the selected ranked set of local recommendations. Ranking is the
 // number of shared catalogue facets, then catalogue quality and stable id.
 // The revision pins both the ranking inputs and the viewer's access/preferences;
 // a later publication is an explicit stale continuation, never a reorder.

@@ -145,12 +145,13 @@ type Metadata struct {
 	// Audience is mandatory; the registry never supplies a default.
 	Audience Audience `json:"audience"`
 	// Protocol is empty for native routes, or ProtocolCompatibility for foreign ones.
-	Protocol string `json:"protocol,omitempty"`
-	ID       string `json:"id"`
-	Method   string `json:"method"`
-	Path     string `json:"path"`
-	Summary  string `json:"summary"`
-	Access   Access `json:"access"`
+	Protocol    string `json:"protocol,omitempty"`
+	ID          string `json:"id"`
+	Method      string `json:"method"`
+	Path        string `json:"path"`
+	Summary     string `json:"summary"`
+	Description string `json:"description,omitempty"`
+	Access      Access `json:"access"`
 	// AdminScope names the administrative area an Admin route belongs to.
 	AdminScope string `json:"adminScope,omitempty"`
 	// Requires is the scope an API key or personal access token needs. It is
