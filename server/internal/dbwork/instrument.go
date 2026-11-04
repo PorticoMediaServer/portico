@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"io"
 	"log"
+	"os"
 	"reflect"
 	"strings"
 	"sync"
@@ -324,10 +325,15 @@ type observedDriver struct{ inner driver.Driver }
 func (d observedDriver) Open(name string) (driver.Conn, error) {
 	name, role := connRoleOf(name)
 	readers := acquireReaderScope(name)
+	waitStarted := time.Now()
 	readers.opening.Lock()
+	opened := time.Now()
 	generation := readers.plannerGeneration.Load()
 	inner, err := d.inner.Open(name)
 	readers.opening.Unlock()
+	if os.Getenv("PORTICO_ARTWORK_DIAGNOSTIC") == "1" {
+		log.Printf("ARTWORK-DIAG open scope=%p role=%v lock_wait=%s driver_open=%s error=%T:%v", readers, role, opened.Sub(waitStarted), time.Since(opened), err, err)
+	}
 	if err != nil {
 		releaseReaderScope(readers)
 		return nil, err

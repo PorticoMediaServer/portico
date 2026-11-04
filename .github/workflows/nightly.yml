@@ -1,40 +1,39 @@
-name: Artwork deadline diagnostic
+name: Artwork recorded shard diagnostic
 on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: artwork-deadline-${{ github.ref }}
   cancel-in-progress: false
 jobs:
   diagnostic:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        mode: [focused, package-short]
+        replay: [a, b]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {persist-credentials: false}
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with: {go-version-file: server/go.mod, cache-dependency-path: '**/go.sum'}
-      - name: Diagnose snapshot admission and lifetime
-        working-directory: server
+      - name: Fetch the failing short shard's exact recorded selection
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download 41790112870 -R PorticoMediaServer/portico -n selection -D "$RUNNER_TEMP/original-selection"
+      - run: python3 ci/run.py download --plan "$RUNNER_TEMP/original-selection/ci-plan.json"
+      - run: python3 ci/run.py ffmpeg --index 1 --plan "$RUNNER_TEMP/original-selection/ci-plan.json"
+      - name: Replay the original four-package short shard
         env:
           PORTICO_ARTWORK_DIAGNOSTIC: '1'
-          MODE: ${{ matrix.mode }}
-        run: |
-          mkdir -p "$RUNNER_TEMP/artwork-diagnostic"
-          set -o pipefail
-          if [ "$MODE" = focused ]; then
-            go test -json -run '^TestArtworkSlowPublicationDoesNotBlockReadsOrPreviews$' -count=12 -p 1 ./internal/metadata | tee "$RUNNER_TEMP/artwork-diagnostic/result.jsonl"
-          else
-            go test -short -json -count=1 -p 1 ./internal/metadata | tee "$RUNNER_TEMP/artwork-diagnostic/result.jsonl"
-          fi
+          PORTICO_CI_GO_PACKAGE_JOBS: '4'
+        run: python3 ci/run.py go --index 1 --plan "$RUNNER_TEMP/original-selection/ci-plan.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: artwork-diagnostic-${{ matrix.mode }}
-          path: ${{ runner.temp }}/artwork-diagnostic
+          name: artwork-replay-${{ matrix.replay }}
+          path: ci-results
           retention-days: 7
