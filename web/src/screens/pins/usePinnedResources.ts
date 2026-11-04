@@ -8,7 +8,7 @@ const idle: PinsSnapshot = Object.freeze({phase: 'idle', busy: false});
 const none: readonly PinnedResource[] = Object.freeze([]);
 
 /** The viewer's pinned collections, saved views and playlists in the server's order (phone-app Saved: "Pinned"),
- * read only while `enabled`. `reload` re-reads after the pin editor closes; nothing is kept that the server did
+ * read only while `enabled`. `reload` reads again after the pin editor closes, after any read already out (the editor saves through its own controller); nothing is kept that the server did
  * not answer. */
 export function usePinnedResources(context: Readonly<{api: PinsApi; isCurrent: () => boolean; scope: {serverId: string}; identity?: {libraries: readonly Library[]}}>,
   enabled: boolean): Readonly<{pins: readonly PinnedResource[]; reload: () => void}> {
@@ -21,7 +21,7 @@ export function usePinnedResources(context: Readonly<{api: PinsApi; isCurrent: (
     return () => {created.dispose(); setController(current => current === created ? undefined : current);};
   }, [enabled, api, serverId, isCurrent, libraries]);
   const snapshot = useSyncExternalStore(controller?.subscribe ?? noSubscribe, controller?.getSnapshot ?? idleSnapshot, controller?.getSnapshot ?? idleSnapshot);
-  return {pins: snapshot.resources?.order ?? none, reload: () => {void controller?.load();}};
+  return {pins: snapshot.resources?.order ?? none, reload: () => {void controller?.refresh();}};
 }
 const noSubscribe = () => () => {};
 const idleSnapshot = () => idle;
