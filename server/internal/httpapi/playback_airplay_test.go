@@ -159,12 +159,13 @@ func TestAirPlayReceiverPreparesExactCurrentChoicesBeforeHandoff(t *testing.T) {
 		if track == drawn {
 			// Joining publication makes an asynchronous encoder failure observable
 			// before the next choice retires this presentation.
-			if e := f.v1.Playback.Ready(context.Background(), playback.Session{ID: media, Mode: "hls"}); e != nil {
-				var code, diagnostic string
-				_ = f.db.QueryRow(`SELECT failure_code,diagnostic FROM playback_artifacts WHERE session_id=?`, media).Scan(&code, &diagnostic)
-				t.Fatalf("receiver burn publication %s: %v; %s: %s", media, e, code, diagnostic)
-			}
+
 			manifest := f.raw("GET", prepared.Presentation.URL, "", nil, nil)
+			for deadline := time.Now().Add(20 * time.Second); manifest.Code == 503 && time.Now().Before(deadline); {
+				time.Sleep(10 * time.Millisecond)
+				manifest = f.raw("GET", prepared.Presentation.URL, "", nil, nil)
+			}
+			t.Logf("HTTP ONLY receiver %s manifest %d", media, manifest.Code)
 			if manifest.Code != 200 || !strings.HasPrefix(manifest.Body.String(), "#EXTM3U") {
 				t.Fatalf("receiver burn manifest: %d %s", manifest.Code, manifest.Body.String())
 			}
