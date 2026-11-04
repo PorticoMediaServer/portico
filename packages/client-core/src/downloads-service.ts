@@ -210,11 +210,15 @@ export class DownloadsService{
   return parseDownloadSettings(await this.api.request<RouteResponse<"get_download_settings">>(routePath("get_download_settings"),'GET',undefined,signal)).qualities;
  }
  /** Asks the server to prepare one title, several, a whole season or album, or the next one.
-  * A batch is partial by design: what could not be accepted is reported, the rest proceeds. */
- async request(target:DownloadTarget,quality:string=originalQuality):Promise<DownloadBatch>{
+  * A batch is partial by design: what could not be accepted is reported, the rest proceeds.
+  * `operationId`: the caller's own id for this intent, so a retry of the same choice resends the identical body under it
+  * (the server replays it); a changed choice needs a new one (a changed body under an old id is 422
+  * `idempotency_key_reused`). A new id per call when omitted. */
+ async request(target:DownloadTarget,quality:string=originalQuality,operationId?:string):Promise<DownloadBatch>{
   if(!canonicalQualityLadder.some(q=>q.id===quality))throw new Error('Choose a download quality.');
+  if(operationId!==undefined&&!/^[A-Za-z0-9_-]{1,160}$/.test(operationId))throw new Error('A download request needs a stable operationId.');
   // Only the item fields are sent, whatever else the caller's object carries (containers are durable requests).
-  const body={operationId:this.operationId(),...(target.versionId?{versionId:target.versionId}:{}),...(target.mediaId?{mediaId:target.mediaId}:{}),...(target.mediaIds?{mediaIds:[...target.mediaIds]}:{}),...(target.nextAfterMediaId?{nextAfterMediaId:target.nextAfterMediaId}:{}),quality};
+  const body={operationId:operationId??this.operationId(),...(target.versionId?{versionId:target.versionId}:{}),...(target.mediaId?{mediaId:target.mediaId}:{}),...(target.mediaIds?{mediaIds:[...target.mediaIds]}:{}),...(target.nextAfterMediaId?{nextAfterMediaId:target.nextAfterMediaId}:{}),quality};
   const batch=parseDownloadBatch(await this.api.request<RouteResponse<"create_download_preparations">>(routePath("create_download_preparations"),'POST',body));
   void this.refresh();return batch;
  }
