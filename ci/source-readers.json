@@ -21,7 +21,7 @@
       "reads": ["server/*.go"],
       "ignore": ["*_test.go", "*/testdata/*"],
       "files": ["server/internal/dbwork/direct_snapshot_census_test.go", "server/internal/dbwork/discipline_test.go", "server/internal/dbwork/finish_discipline_test.go", "server/internal/dbwork/foreignkeys_test.go", "server/internal/dbwork/plan_census_test.go", "server/internal/dbwork/snapshot_discipline_test.go", "server/internal/dbwork/sql_callback_guard_test.go"],
-      "tests": ["TestDirectBeginSnapshotCensus", "TestDirectSnapshotBaselineCanOnlyShrink", "TestDirectSnapshotCensusRejectsReviewerWitnesses", "TestDirectSnapshotReferenceCensusUsesImports", "TestDirectSnapshotUpdateRequiresPreviousBaseline", "TestEveryWriteHandleIsFinishedWhereItIsUsed", "TestNoArbitrarySQLCallbackSurfaces", "TestNoRawForeignKeyDisablingOutsideDBWork", "TestNoRawWriteTransactionsOutsideDBWork", "TestNoWritesThroughReadSnapshots", "TestWriteCensus"]
+      "tests": ["TestDirectBeginSnapshotCensus", "TestDirectSnapshotBaselineCanOnlyShrink", "TestDirectSnapshotCensusFollowsProductionImports", "TestDirectSnapshotCensusIgnoresUnimportedFixtures", "TestDirectSnapshotCensusRejectsReviewerWitnesses", "TestDirectSnapshotReferenceCensusUsesImports", "TestDirectSnapshotUpdateRequiresPreviousBaseline", "TestEveryWriteHandleIsFinishedWhereItIsUsed", "TestNoArbitrarySQLCallbackSurfaces", "TestNoRawForeignKeyDisablingOutsideDBWork", "TestNoRawWriteTransactionsOutsideDBWork", "TestNoWritesThroughReadSnapshots", "TestWriteCensus"]
     },
     {
       "package": "server/internal/supervise",
