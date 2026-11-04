@@ -60,7 +60,7 @@ async function searchFixture(group = 'all') {
     '../../kit/focus': await focusNamespace(host.react),
     '../home/model': {homeCardText: () => ({caption: []}), nativeSearchCardText: () => ({caption: []})}, './model': {nativeSearchEntryKey: (kind: string, item: any) => JSON.stringify([kind, item.kind, item.id])},
   });
-  const {SearchScreen} = await screenModule(new URL('../src-next/screens/search/SearchScreen.tsx', import.meta.url), {
+  const {SearchScreen} = await screenModule(new URL('../src-next/screens/search/SearchScreen.tsx', import.meta.url), {'../../../../../packages/client-core/src/timer': await import('../../../packages/client-core/src/timer.ts'), 
     '../../../../../packages/client-core/src/guide/now-next': {nowNext: () => ({})},
     react: {...host.react, useId: () => 'gradient'}, 'react-native': {FlatList: 'FlatList', ScrollView: 'ScrollView', Text: 'Text', View: 'View', Keyboard: {}, useWindowDimensions: () => ({width: 390, height: 844})},
     'react-native-svg': {default: 'Svg'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0})},
