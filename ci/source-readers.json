@@ -145,7 +145,7 @@
       "why": "Reads the decoder music format fixtures",
       "reads": ["server/internal/decoder/testdata/"],
       "files": ["server/internal/catalog/music_musepack_scan_test.go"],
-      "tests": ["TestMusicMusepackBasicTimelineReachesStoredFacts"]
+      "tests": ["TestInventoryStreamsPublishesOnlyStreamsAndKeepsPendingReceipt", "TestInventoryStreamsRefusesCompetingPendingStreams", "TestInventoryStreamsRejectsChangedAdmissionBeforeSeal", "TestInventoryStreamsRetryCannotResetAbandonedReclaimCursor", "TestMusicMusepackBasicTimelineReachesStoredFacts"]
     },
     {
       "package": "server/internal/catalog",
