@@ -34,7 +34,6 @@ internal/hosted/setup_return.go	(*Service).setupCompletionCaller	1
 internal/httpapi/access_admission.go	(Dependencies).admitChannel	1
 internal/httpapi/access_area.go	(Dependencies).administrator	1
 internal/httpapi/activity_summary.go	(Dependencies).readActivitySummary	1
-internal/httpapi/admin_access_events.go	readAdminEvents	1
 internal/httpapi/admin_connectivity.go	(Dependencies).connectivityOwnerFacts	1
 internal/httpapi/app_reports.go	registerAppReports	3
 internal/httpapi/console.go	(Dependencies).ConsoleCheck	1
