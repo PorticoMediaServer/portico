@@ -219,7 +219,7 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
   useSyncExternalStore(trackSearchFocus ? registry.subscribe : noFocusSubscription, trackSearchFocus ? registry.getSnapshot : noFocusSnapshot, noFocusSnapshot);
   const voiceSearch = useTVVoiceSearch(theme.isTV && searching, controller.lifetime, setQuery, runtime.reportError);
   const [restoreRevision, setRestoreRevision] = useState(0);
-  const [target, setTarget] = useState<Readonly<{page: string; rowId: string; serial: number}>>();
+  const [target, setTarget] = useState<Readonly<{opening: object; page: string; rowId: string; serial: number}>>();
   const targetSerial = useRef(0), aimedCovered = useRef<number | undefined>(undefined), covered = useCovered();
   const pageScroll = useRef<ScrollView>(null), pageScrollHeight = useRef(0);
   const liveControllers = useMemo(() => {
@@ -241,7 +241,7 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
     if (!found || !viewCurrent()) return;
     if (theme.isTV) {setSearching(false); setQuery('');}
     choose(found.page.id);
-    if (rowId) setTarget({page: found.page.id, rowId, serial: ++targetSerial.current});
+    if (rowId) setTarget({opening, page: found.page.id, rowId, serial: ++targetSerial.current});
   };
   const matchingPages = accountPages.flatMap(value => {
     const found = matches.filter(match => match.address === value.id);
@@ -250,12 +250,21 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
   });
   const serverPage = serverPages.find(value => value.id === selected);
   const page = serverPage ?? accountPages.find(value => value.id === selected) ?? accountPages[0];
-  // The opened row belongs to the page a match opened; any other page (TV column focus included) drops it.
-  if (target && target.page !== page?.id) setTarget(undefined);
-  const aimed = target && target.page === page?.id ? target : undefined;
+  // The opened row belongs to the opening and page a match opened; another page (TV column focus included) or a
+  // replacement opening drops it.
+  const aimedHere = !!target && target.opening === opening && target.page === page?.id;
+  if (target && !aimedHere) setTarget(undefined);
+  const aimed = aimedHere ? target : undefined;
+  // The aim as committed: a measurement answers only for the aim, opening and scroll host it was asked for.
+  const committedAim = useRef<typeof target>(undefined);
+  useLayoutEffect(() => {committedAim.current = aimed;}, [aimed]);
   const reveal = useCallback((row: View) => {
-    const host = pageScroll.current?.getNativeScrollRef?.();
-    if (host) row.measureLayout(host, (_x, y, _width, height) => pageScroll.current?.scrollTo({y: Math.max(0, y - (pageScrollHeight.current - height) / 2), animated: false}));
+    const aim = committedAim.current, scroll = pageScroll.current, host = scroll?.getNativeScrollRef?.();
+    if (!aim || !scroll || !host) return;
+    row.measureLayout(host, (_x, y, _width, height) => {
+      if (committedAim.current !== aim || aim.opening !== openingRef.current || pageScroll.current !== scroll) return;
+      scroll.scrollTo({y: Math.max(0, y - (pageScrollHeight.current - height) / 2), animated: false});
+    });
   }, []);
   const rowTargeting = useMemo<SettingsRowTargeting>(() => !aimed ? {} : theme.isTV ? {highlight: aimed.rowId}
     : {flash: {rowId: aimed.rowId, serial: aimed.serial, reveal}}, [aimed, theme.isTV, reveal]);
