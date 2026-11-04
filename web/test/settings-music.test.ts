@@ -37,9 +37,12 @@ test('Account Music exposes only the rows with a real web or server consumer', (
   assert.equal(settingsBinding('music.qualityAway')?.scope, 'profile-device-class');
 });
 
+test('Pause when idle is offered on web, whose listening engine applies it (ST-8)', () => {
+  assert.equal(hasWebPreferenceEffect(row('music.idlePause')), true);
+});
+
 test('rows without a web consumer stay hidden', () => {
-  for (const id of ['playback.showSyncedLyrics', 'music.qualityMobile', 'music.downloadQuality', 'music.sampleRateMatching',
-    'music.idlePause']) {
+  for (const id of ['playback.showSyncedLyrics', 'music.qualityMobile', 'music.downloadQuality', 'music.sampleRateMatching']) {
     assert.equal(hasWebPreferenceEffect(row(id)), false, id);
   }
 });

@@ -44,6 +44,9 @@ const preferenceEffects = new Set([
      away network class, and music.dsdGainDb is the server's audio-conversion gain. */
   'music.audioNormalization', 'music.crossfadeMs', 'music.gapless',
   'music.smoothTransitions', 'music.neverBoost', 'music.qualityAway', 'music.dsdGainDb',
+  // ST-8: Pause when idle. The listening engine the web queue player runs (listening.ts) pauses music and
+  // audiobooks after this many minutes without interaction; the server serves it as passoutMinutes.
+  'playback.sleepTimerMinutes',
   'quality.downloads',
 ]);
 function preferenceEffect(binding: SettingsBinding): boolean {
