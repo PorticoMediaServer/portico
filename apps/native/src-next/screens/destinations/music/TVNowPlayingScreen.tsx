@@ -1,11 +1,11 @@
-import React, {useCallback, useEffect, useId, useRef, useState, useSyncExternalStore} from 'react';
+import React, {useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {clockText} from '../../../../../../packages/client-core/src/presentation/kit-model/text';
 import {sameFence} from '../../../../../../packages/player-core/src';
 import {AmbientArt, Artwork, StandardBackdrop} from '../../../kit/artwork';
 import {Button} from '../../../kit/controls';
-import {requestNativeFocus, useOptionalFocusRegistry} from '../../../kit/focus';
+import {provideTVLayerClaim, requestNativeFocus} from '../../../kit/focus';
 import {Icon} from '../../../kit/Icon';
 import {Menu, SidePanel} from '../../../kit/overlays';
 import {useTheme, nativeType} from '../../../kit/theme';
@@ -77,24 +77,17 @@ function TVNowPlayingContent({occupant, queue, artwork, width, height, onAction,
   const shown = page.open && page.ready;
   const opening = useRef({toggle: false, next: false, previous: false});
   opening.current = {toggle: playback.playing ? p.capabilities.pause : p.capabilities.play, next: p.capabilities.next, previous: p.capabilities.previous};
-  // A request made before the player's native views are attached does nothing (2eec0520: focus stayed on the
-  // album's Play), so the claim repeats each frame until focus is inside this player's own regions, for up to
-  // about half a second. Without a focus registry to ask, it claims once.
-  const focusRegistry = useOptionalFocusRegistry();
-  useEffect(() => {
-    if (!shown) return;
-    let frame = 0, tries = 0;
-    const inside = () => !!focusRegistry?.capture()?.regionId.startsWith(`${id}.`);
-    const claim = () => {
-      if (focusRegistry && inside()) return;
-      const enabled = opening.current;
-      const order = [enabled.toggle && toggleRef, enabled.next && nextRef, enabled.previous && previousRef, lyricsRef, playlistRef, moreRef];
-      for (const ref of order) if (ref && ref.current && requestNativeFocus(ref.current as never)) break;
-      if (focusRegistry && ++tries < 30) frame = requestAnimationFrame(claim);
-    };
-    frame = requestAnimationFrame(claim);
-    return () => cancelAnimationFrame(frame);
-  }, [shown, focusRegistry, id]);
+  // TVF-A1: the TV layer stack claims focus for this layer when it goes on top, and asks again as its native
+  // views attach (a request made before they are attached does nothing: 2eec0520). This screen only says which
+  // control it opens on; nothing here loops or counts frames.
+  const shownNow = useRef(shown); shownNow.current = shown;
+  useLayoutEffect(() => provideTVLayerClaim('listening', () => {
+    if (!shownNow.current) return false;
+    const enabled = opening.current;
+    const order = [enabled.toggle && toggleRef, enabled.next && nextRef, enabled.previous && previousRef, lyricsRef, playlistRef, moreRef];
+    for (const ref of order) if (ref && ref.current && requestNativeFocus(ref.current as never)) return true;
+    return false;
+  }), []);
   const act = (action: Parameters<typeof dockCommand>[1]) => {if (page.open && page.ready && !panel && !more && commandAllowed(occupant, action)) onAction(dockCommand(occupant, action));};
   const close = () => setPanel(null);
   return <TVMusicFocus id={id} visible={page.open && !panel && !more} interactive={page.ready} entry="toggle" onClose={onClose}>
