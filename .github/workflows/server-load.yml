@@ -36,7 +36,7 @@ jobs:
           out = pathlib.Path(os.environ['RUNNER_TEMP']) / 'artwork-wake-control'
           out.mkdir()
           test = 'TestArtworkSlowPublicationDoesNotBlockReadsOrPreviews'
-          tags = subprocess.check_output(['python3', 'scripts/release-build-tags.py', '--capability'], cwd=workspace/'head', text=True).strip()
+          tags = subprocess.check_output(['python3', 'scripts/release-build-tags.py', '--capability'], cwd=workspace/'head', text=True).strip() + ',reading_client_integration'
           sides = {'head': os.environ['HEAD_REVISION'], 'parent': os.environ['PARENT_REVISION']}
           summary = {'test': test, 'tags': tags, 'goVersion': subprocess.check_output(['go','version'], text=True).strip(), 'sources': {}, 'runs': []}
           for side, revision in sides.items():
