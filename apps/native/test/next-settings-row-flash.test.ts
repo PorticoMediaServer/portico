@@ -11,9 +11,9 @@ async function fixture(reduced = false) {
       withTiming: (value: unknown) => {animations++; return value;}},
     '../useMotion': {useMotion: () => motion, useReducedMotion: () => reduced}, '../theme': {useTheme: () => ({colors: {accent: '#409fd4'}})}, './visual': {alpha: () => '#409fd4'},
   });
-  let serial = 1;
-  const render = () => host.render(() => host.react.createElement(SettingsRowFlash, {serial, reveal: () => reveals++}));
-  return {host, render, setSerial: (value: number) => {serial = value;}, get reveals() {return reveals;}, get animations() {return animations;}};
+  let serial = 1, ready = true;
+  const render = () => host.render(() => host.react.createElement(SettingsRowFlash, {serial, reveal: () => {reveals++; return ready;}}));
+  return {host, render, setSerial: (value: number) => {serial = value;}, setReady: (value: boolean) => {ready = value;}, get reveals() {return reveals;}, get animations() {return animations;}};
 }
 
 test('a row flash measures once however often it lays out, and with reduced motion reveals without flashing', async () => {
@@ -28,5 +28,14 @@ test('a new opening serial reveals the same mounted tablet row even when its lay
     let row: any = f.render(); row.props.onLayout(); assert.equal(f.reveals, 1);
     f.setSerial(2); row = f.render();
     assert.equal(f.reveals, 2, 'a new opening reveals without waiting for another native layout event');
+  } finally {f.host.dispose();}
+});
+
+test('a row whose page was not ready to reveal it asks again at its next layout, then no more (Sol 8 on #823, r2)', async () => {
+  const f = await fixture();
+  try {
+    f.setReady(false); const row: any = f.render(); assert.equal(f.reveals, 1);
+    f.setReady(true); row.props.onLayout(); assert.equal(f.reveals, 2, 'the refused ask is repeated');
+    row.props.onLayout(); assert.equal(f.reveals, 2, 'a taken ask is not');
   } finally {f.host.dispose();}
 });
