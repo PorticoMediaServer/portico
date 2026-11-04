@@ -38,7 +38,10 @@
 .level[data-level="info"] { color: var(--color-text-secondary); }
 .tag { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: color-mix(in srgb, var(--color-text) 8%, transparent); font-size: var(--type-label-size); font-weight: var(--type-button-weight); color: var(--color-text-tertiary); }
 
-.page { display: flex; flex-direction: column; gap: 22px; }
+/* An opened viewer starts where the landing's first group does (kit settings .group:first-child),
+   so its way back never touches the page heading; the way back is a button, not a full-width bar. */
+.page { display: flex; flex-direction: column; gap: 22px; margin-top: 28px; }
+.back { align-self: flex-start; }
 .tabs + * { margin-top: 6px; }
 .landing { min-width: 0; }
 .landing > .support { margin-top: 44px; }
