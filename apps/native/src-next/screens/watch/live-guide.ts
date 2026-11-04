@@ -31,7 +31,7 @@ export class NativeTVLiveGuide {
   private command?: {controller: AbortController; fromMini: boolean};
   private opening?: {controller: AbortController; fence: ChannelPlaybackFence; origin?: NativeChannelGuideOrigin; options: LegacyGuideOptions;
     route: ReturnType<NativeShellBootstrapContext['navigation']['getSnapshot']>; principal: string; authority: ReturnType<NativeShellBootstrapContext['authority']>;
-    viewerFence?: string; busy: boolean};
+    busy: boolean};
   constructor(private readonly context: NativeShellBootstrapContext, private readonly touch = false) {
     this.off = [context.playback.subscribe(this.update), context.navigation.subscribe(this.update), context.subscribeAuthority(this.update)];
     this.update();
@@ -106,7 +106,6 @@ export class NativeTVLiveGuide {
     try {
       const directory = await fetchGuideSourceSummaries(api, opening.authority.serverId, opening.options.timezone, signal);
       if (!directory.sources.some(row => row.id === opening.fence.sourceId && row.provenance === opening.fence.channelKind && row.generation === opening.fence.channelGeneration)) throw new Error('channel_source_unavailable');
-      opening.viewerFence = directory.viewerFence;
       if (!opening.origin) {
         const sourceId = opening.fence.sourceId;
         if (!sourceId) throw new Error('channel_source_unavailable');
@@ -201,9 +200,7 @@ export class NativeTVLiveGuide {
       if (!target || !sameTarget(target, advertised.channel)) throw new Error('channel_lineup_changed');
       const raw = legacyChannel(target)!;
       const directory = await fetchGuideSourceSummaries(api, opening.authority.serverId, opening.options.timezone, signal);
-      if (directory.viewerFence !== opening.viewerFence
-        || !directory.sources.some(row => row.id === opening.fence.sourceId && row.provenance === opening.fence.channelKind && row.generation === opening.fence.channelGeneration)
-        || !directory.sources.some(row => row.id === raw.sourceId && row.provenance === raw.provenance && row.generation === raw.generation)) throw new Error('channel_source_unavailable');
+      if (!zapSourcesListed(directory, opening.fence, raw)) throw new Error('channel_source_unavailable');
       if (!current()) return;
       const route = {kind: 'channel' as const, sourceId: raw.sourceId, channelId: raw.id,
         guide: Object.freeze({row: target, options: opening.options}), tune: {fence: opening.fence, sourceGeneration: raw.generation}};
@@ -223,4 +220,13 @@ export class NativeTVLiveGuide {
     }
   };
   dispose() {this.disposed = true;this.panel?.abort();this.panel = undefined;this.command?.controller.abort();this.command = undefined;this.opening?.controller.abort();this.opening = undefined;for (const off of this.off) off();this.listeners.clear();}
+}
+
+/** Zapping (channel up/down) may tune only while the guide directory still lists both the opening's
+ * source and the target's, each at its generation. Step 7: a moved viewer fence on this directory read
+ * is a newer answer, not a refusal; a read the server refuses (401/403) never gets here. */
+export function zapSourcesListed(directory: Readonly<{sources: readonly Readonly<{id: string; provenance: string; generation: string}>[]}>,
+  fence: Readonly<{sourceId?: string; channelKind: string; channelGeneration: string}>, raw: Readonly<{sourceId: string; provenance: string; generation: string}>): boolean {
+  return directory.sources.some(row => row.id === fence.sourceId && row.provenance === fence.channelKind && row.generation === fence.channelGeneration)
+    && directory.sources.some(row => row.id === raw.sourceId && row.provenance === raw.provenance && row.generation === raw.generation);
 }
