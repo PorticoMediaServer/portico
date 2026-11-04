@@ -28,6 +28,25 @@ test('the guide\'s summary read publishes only the aggregate summary, once at a 
   } finally {recordings.dispose(); lifetime.dispose();}
 });
 
+test('a guide summary read that started before a write never replaces the facts read after it (review)', async () => {
+  let reads = 0, conflicts = 0, release!: () => void;
+  const {lifetime, recordings} = controller({
+    summary: async () => {reads++; const sampled = conflicts; if (reads === 1) await new Promise<void>(resolve => {release = resolve;}); return summary(sampled);},
+    schedule: async () => {conflicts = 2; return {id: 'new', state: 'scheduled'};},
+    list: async () => ({revision: 1, recordings: [], rules: []}), storage: async () => ({}),
+  });
+  try {
+    const before = recordings.loadSummary();
+    await recordings.schedule({channel: {id: 'channel'}, programme: {id: 'programme'}, series: false} as any, {} as any);
+    for (let i = 0; i < 4; i++) await new Promise(resolve => setImmediate(resolve));
+    assert.equal(recordings.getSnapshot().summary?.conflicts, 2, 'the post-write facts read is fresh');
+    const after = recordings.loadSummary();
+    release(); await Promise.all([before, after]);
+    assert.equal(recordings.getSnapshot().summary?.conflicts, 2, 'the older read answers last but does not clear the dot');
+    assert.equal(reads, 3, 'the guide\'s read after the write starts afresh instead of joining the older one');
+  } finally {recordings.dispose(); lifetime.dispose();}
+});
+
 test('a summary read that fails draws no dot and is never the Recordings page\'s error', async () => {
   const {lifetime, recordings} = controller({summary: async () => {throw new Error('offline');}});
   try {

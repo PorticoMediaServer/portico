@@ -24,7 +24,11 @@ export class NativeRecordingsController extends NativeScreenStore<NativeRecordin
   private pending?: Readonly<{query: NativeRecordingQuery; epoch: number; opening?: object}>;
   private worker?: Promise<void>;
   private facts?: Promise<void>;
-  private summaryRead?: Promise<void>;
+  private summaryRead?: Readonly<{generation: number; promise: Promise<void>}>;
+  /** Every summary read and every command takes the next generation; a summary publishes only when no newer
+   * one has, so a read started before a write never replaces the facts read after it. */
+  private summaryGeneration = 0;
+  private summaryShown = 0;
   private viewerWindow?: DashboardCursorWindow<ViewerRow, ViewerPage>;
   private viewerOpening?: object;
   private detailScope?: {dispose: () => void};
@@ -110,21 +114,30 @@ export class NativeRecordingsController extends NativeScreenStore<NativeRecordin
    * storage). A read that fails or is refused draws no dot; it never becomes the Recordings page's error. */
   loadSummary(): Promise<void> {
     if (!this.current() || this.getSnapshot().accessDenied) return Promise.resolve();
-    if (this.summaryRead) return this.summaryRead;
-    return this.summaryRead = (async () => {
+    // Join a read in flight only while nothing has moved since it started.
+    if (this.summaryRead?.generation === this.summaryGeneration) return this.summaryRead.promise;
+    const generation = ++this.summaryGeneration;
+    const promise = (async () => {
       const summary = await this.service.summary();
-      if (this.current() && !this.getSnapshot().accessDenied) this.publish({...this.getSnapshot(), summary});
-    })().catch(() => {}).finally(() => {this.summaryRead = undefined;});
+      if (this.current() && !this.getSnapshot().accessDenied) this.publishSummary(summary, generation);
+    })().catch(() => {}).finally(() => {if (this.summaryRead?.promise === promise) this.summaryRead = undefined;});
+    this.summaryRead = {generation, promise};
+    return promise;
+  }
+  private publishSummary(summary: DVRSummary, generation: number) {
+    if (generation <= this.summaryShown) return;
+    this.summaryShown = generation; this.publish({...this.getSnapshot(), summary});
   }
   loadFacts(): Promise<void> {
     this.assert();
     if (this.getSnapshot().accessDenied) return Promise.resolve();
     if (this.facts) return this.facts;
     // Header counts and storage come from authoritative aggregate reads, never the loaded page.
+    const generation = ++this.summaryGeneration;
     return this.facts = (async () => {
       const summary = await this.service.summary();
       if (!this.current() || this.getSnapshot().accessDenied) return;
-      this.publish({...this.getSnapshot(), summary});
+      this.publishSummary(summary, generation);
       const storage = await this.service.storage();
       if (this.current() && !this.getSnapshot().accessDenied) this.publish({...this.getSnapshot(), storage});
     })().catch(error => {if (this.current() && !this.getSnapshot().accessDenied) this.publish({...this.getSnapshot(), error});}).finally(() => {this.facts = undefined;});
@@ -144,6 +157,8 @@ export class NativeRecordingsController extends NativeScreenStore<NativeRecordin
     try {
       this.requireCommand(original);
       const value = await this.read(() => work(this.service));
+      // A summary read that started before this write is stale now, even if it answers later.
+      this.summaryShown = Math.max(this.summaryShown, ++this.summaryGeneration);
       this.requireCommand(original);
       // A receipt is the success boundary. Refreshing another current view never changes
       // the mutation's expectedRevision or creates a replacement retry request id.
