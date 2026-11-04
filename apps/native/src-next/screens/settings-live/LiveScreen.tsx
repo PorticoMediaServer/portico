@@ -184,8 +184,11 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   const paneLeft = creaseRight ?? Math.max(0, contentWidth - panelWidth), guideEnd = creaseLeft ?? paneLeft;
   const twoPane = !!selected && !theme.isTV && !phone && view === 'guide' && contentWidth > 0
     && guideEnd >= channelWidth + 100 && contentWidth - paneLeft >= 300;
-  // tablet-play6: the sidebar folds to the rail while the programme panel is open beside the guide.
-  useRailHold(!theme.isTV && twoPane && onLive && !ownerOpen && !recordingsOpen);
+  // tablet-play6: the sidebar folds to the rail while the programme panel is open beside the guide, and only while the
+  // guide is the page showing: any page pushed over Live (a title, a channel editor, Recordings, the owner's pages) or the
+  // expanded player releases it, and it folds again when the guide is back with the panel still open.
+  const liveOnTop = route.route?.kind === 'shell' && route.route.destination.kind === 'live' && shell.contentVisible !== false && !shell.mediaExpanded;
+  useRailHold(!theme.isTV && twoPane && onLive && liveOnTop && !ownerOpen && !recordingsOpen && !management);
   const width = Math.max(0, measuredWidth - insetLeft - (twoPane ? Math.max(0, contentWidth - guideEnd) : insetRight));
   const rowHeight = theme.isTV ? 92 : view === 'list' ? 100 : landscape ? 62 : 72, rowGap = theme.isTV ? 8 : phoneChrome ? 0 : 6, px = pxPerMsFor(halfHour), end = start + Math.max(halfHour, width - channelWidth) / px;
   useEffect(() => {void controller.loadSources(); const timer = setInterval(() => setNow(serverNow()), 30000); return () => clearInterval(timer);}, [controller]);
@@ -515,6 +518,10 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   // tablet-play6: at expanded touch widths the title row carries the Guide / Recordings pair and the view switch;
   // the day, the 2-hour steps with Now between them, and Sort sit under the chips. TV keeps its one controls row.
   const ownerButton = managesServer && <Button testID="live-owner-open" variant="glass" size="small" icon="i-sliders" disabled={theme.isTV && !managementUrl} onPress={() => openManagement()}>{t('settings.server.live')}</Button>;
+  // tablet-play6 draws the view choice in the title row as an icon-only Grid / List pair, and no owner button there.
+  const viewIcons = <Segmented testID="live-view" value={view} onValueChange={value => setView(value as 'list' | 'guide')}
+    itemProps={item => ({accessibilityLabel: t(item.value === 'list' ? 'channels.viewList' : 'channels.viewGuide'), style: {minHeight: 44, minWidth: 44, paddingHorizontal: 12}})}
+    items={(['guide', 'list'] as const).map(value => ({value, label: <Icon name={value === 'list' ? 'i-list' : 'i-timeline'} size={20} color={view === value ? theme.colors.text : theme.colors.textTertiary}/>}))}/>;
   const controlsRow = <FocusRegion id={controls} orientation="horizontal" edges={{left: ids.rail, down: filters}} stops={{up: true}} style={{flexDirection: 'row', gap: 22, alignItems: 'center', marginBottom: 24, minHeight: 64}}>
     <Text accessibilityRole="header" style={[shellType(44, 800, 'normal', -.03), {color: theme.colors.text, marginRight: 14}]}>{t('search.chip.liveTV')}</Text>
     {sourcePicker}
@@ -547,8 +554,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
       {landscape && <View style={{flexDirection: 'row', gap: 12, alignItems: 'center', height: 50, paddingTop: 6, marginBottom: 6}}><Text accessibilityRole="header" style={[shellType(24, 800, 'normal', -.035), {color: theme.colors.text}]}>{t('search.chip.liveTV')}</Text>{viewSwitch}{filterChips}{sortPicker}{hasRecordings && <Button testID="live-recordings" variant="icon" size="small" icon="i-rec" accessibilityLabel={t('recordings.title')} onPress={() => setRecordingsOpen(true)}/>}{managesServer && <Button testID="live-owner-open" variant="icon" size="small" icon="i-sliders" accessibilityLabel={t('settings.server.live')} disabled={theme.isTV && !managementUrl} onPress={() => openManagement()}/>}</View>}
       {theme.isTV && controlsRow}
       {expandedTouch && <NativeLiveTabs value="guide" t={t} onRecordings={hasRecordings ? () => setRecordingsOpen(true) : undefined}>
-        {viewSwitch}
-        {ownerButton}
+        {viewIcons}
       </NativeLiveTabs>}
       {!landscape && <FocusRegion id={filters} orientation="horizontal" entry={state.options.favorites ? 'favorites' : state.options.group ? `group:${state.options.group}` : 'all'} edges={{left: ids.rail, up: controls, down: grid}} style={{marginBottom: theme.isTV ? 38 : stackedHeader ? 8 : 14}}>
         {filterChips}
