@@ -11,7 +11,6 @@ import {appearancePreferences, regionPreferences} from '@core/preference-effects
 import type {PreferenceSnapshot} from '@core/preferences.ts';
 import {parseDirectSnapshot, type DirectSnapshot} from '@core/profile-management.ts';
 import {HomeService} from '@core/home-service.ts';
-import {homeShellFence} from '@core/home.ts';
 import {createShellFactOwner, attachShellFactFeed, bindShellFactWake, shellAccount, type ShellFactWitnesses} from './facts';
 import type {ShellFactsSource} from './fact-source';
 import {InboxService} from '@core/inbox.ts';
@@ -94,29 +93,10 @@ export function sameShellAuthority(a: LocalSession, b: LocalSession): boolean {
 export function shellArtworkAuthorityKey(session: LocalSession, epoch: number): string {
   return JSON.stringify([session.viewer.serverId, session.sessionFamilyId, viewerId(session), session.viewer.role, epoch]);
 }
-/** Subscribe before the initial load. The first actual document establishes the
- * baseline without remounting Settings; a later missing/replaced privacy fence retires it.
- * A library added or removed changes only the viewer fence: the shell stays, and
- * `viewerFence` follows the current document (H-11). */
 /** A renewal that finds a different sign-in saved (another tab chose a profile, or signed out)
  * restarts on what is saved instead of signing this tab out (C-DESIGN §2, multi-tab rule): the
  * same profile opens; a different one asks Who's watching first (the launch gate). */
 export const followsStoredSignIn = (error: {code?: string}) => error.code === 'session_replaced';
-
-export function watchHomeViewerFence(home: Pick<HomeService, 'getSnapshot' | 'subscribe'>, isCurrent: () => boolean, replaced: () => void) {
-  let shell: string | undefined, fence: string | undefined, closed = false, off = () => {};
-  const dispose = () => {if (closed) return; closed = true; off();};
-  const read = () => {
-    if (closed) return;
-    if (!isCurrent()) {dispose(); return;}
-    const document = home.getSnapshot().document, next = document && homeShellFence(document);
-    if (shell === undefined) {if (next) {shell = next; fence = document!.viewerFence;} return;}
-    if (next !== shell) {dispose(); replaced(); return;}
-    fence = document!.viewerFence;
-  };
-  off = home.subscribe(read); read();
-  return {get viewerFence() {return !closed && isCurrent() ? fence : undefined;}, dispose};
-}
 
 type ShellAccount = Pick<ShellIdentity, 'username' | 'profileName' | 'profileArt' | 'primaryProfile' | 'profiles' | 'canManageProfiles' | 'accountFacts' | 'capabilities'>;
 export async function currentShellProfile(api: HttpLocalApi, session: LocalSession, signal: AbortSignal): Promise<ShellAccount> {
@@ -140,7 +120,7 @@ export async function readShellIdentity(api: HttpLocalApi, session: LocalSession
   const [libraries, profile, system, guide] = await Promise.all([
     // One slow or failed library directory never stops the shell: it is unavailable, never empty,
     // and the shell's directory interest reads it again. Authority answers still stop sign-in.
-    api.request(routePath('get_libraries'), 'GET', undefined, signal).then(parseLibraryList).then(value => value.items, error => {
+    api.request(routePath('get_libraries'), 'GET', undefined, signal).then(parseLibraryList).then(value => value, error => {
       if (signal.aborted || [401, 403].includes((error as {status?: unknown} | null)?.status as number)) throw error;
       return undefined;
     }),
@@ -152,18 +132,18 @@ export async function readShellIdentity(api: HttpLocalApi, session: LocalSession
   ]);
   if (system.id !== session.viewer.serverId) throw new RouteError('identity_mismatch', 'The server identity changed.');
   negotiateServer(system);
-  return {libraries: libraries ?? [], ...(libraries ? {} : {librariesUnavailable: true as const}), direct: profile, profile: shellAccount(profile, session.viewer.profileId), system, guide, liveAvailable: !!guide?.sources.length};
+  return {libraries: libraries?.items ?? [], ...(libraries ? {} : {librariesUnavailable: true as const}), ...(libraries?.fences ? {fences: libraries.fences} : {}), direct: profile, profile: shellAccount(profile, session.viewer.profileId), system, guide, liveAvailable: !!guide?.sources.length};
 }
 async function readFacts(api: HttpLocalApi, session: LocalSession, preferences: PreferencesReader, inbox: InboxService, signal: AbortSignal): Promise<{facts: ShellFacts; witnesses: ShellFactWitnesses}> {
   const [read, settings] = await Promise.all([readShellIdentity(api, session, signal), preferences.preferences('web')]);
-  const {libraries, profile, system, liveAvailable} = read, librariesUnavailable = 'librariesUnavailable' in read;
+  const {libraries, profile, system, liveAvailable} = read, librariesUnavailable = 'librariesUnavailable' in read, fences = 'fences' in read ? read.fences : undefined;
   rememberShell(session.sessionFamilyId, system.name);
   // O-169: signed in, the server gives the owner's home networks; the route connection keeps
   // them, so a VPN or tailnet range the owner added counts as home for routing from now on.
   void api.connection(signal).then(facts => api.getRouteConnection()?.learnSignedInFacts(facts), () => {});
   await inbox.load();
   signal.throwIfAborted();
-  return {witnesses: {system: read.system, direct: read.direct, guide: read.guide && {viewerFence:read.guide.viewerFence, revision:read.guide.revision}}, facts: {identity: {viewer: session.viewer, libraries, ...(librariesUnavailable ? {librariesUnavailable: true as const} : {}), serverName: system.name, serverVersion: system.version, serverApiVersion: system.apiVersion, signIn:system.signIn, ...profile,
+  return {witnesses: {system: read.system, direct: read.direct, guide: read.guide && {viewerFence:read.guide.viewerFence, revision:read.guide.revision}}, facts: {identity: {viewer: session.viewer, libraries, ...(librariesUnavailable ? {librariesUnavailable: true as const} : {}), ...(fences ? {fences} : {}), serverName: system.name, serverVersion: system.version, serverApiVersion: system.apiVersion, signIn:system.signIn, ...profile,
     accountFacts:[{id:'sign-in',role:'status',text:defaultI18n.t(signInLabelKey(system.signIn))}],
     liveAvailable, unread: inbox.getSnapshot().unread, showNotificationDot: settings.effective['notifications.badges'] === true}, preferences: settings, serverName: system.name}};
 }
@@ -448,33 +428,23 @@ export class ShellBootstrap {
     const notificationScope = createNotificationScope(notificationApi, {serverId: session.viewer.serverId, signal, isCurrent,
       onRetired: () => { if (isCurrent()) this.restart(); }});
     cleanups.push(() => notificationScope.dispose());
-    let manifestFence: string | undefined;
     let factOwner: ReturnType<typeof createShellFactOwner> | undefined;
     const libraryRouteProof = createLibraryRouteProof({session: () => session, isCurrent,
       directoryVersion: () => freshness.hub.version(dependsOn.libraries),
-      homeVersion: () => JSON.stringify([dependsOn.libraries, dependsOn.list('members'), dependsOn.settings('server'), dependsOn.settings('preferences')].map(key => freshness.hub.version(key))),
       request: () => factOwner?.request('directory')});
     cleanups.push(libraryRouteProof.dispose);
     const home = new HomeService(api, {observation: {
       serverId: session.viewer.serverId, isCurrent,
       retire: () => {if (isCurrent()) this.restart();},
       mismatch: () => factOwner?.authority(),
-      observe: observation => {
-        if (!isCurrent()) return 'retire';
-        // The shell restarts on a privacy change only (H-11); a library added or removed refreshes Home.
-        const shellFence = observation.privacyFence ?? observation.viewerFence;
-        if (manifestFence === undefined) manifestFence = shellFence;
-        else if (manifestFence !== shellFence) {this.restart(); return 'retire';}
-        // Home retirement is classified first; only accepted same-epoch manifests
-        // reach the route proof observer, never custom-layout row membership.
-        libraryRouteProof.observeHome(observation);
-        return isCurrent() ? 'accept' : 'retire';
-      },
+      // Who the viewer is and what they may see is the library directory's privacy fence (client
+      // data step 5); Home answers for this shell while it is current.
+      observe: () => isCurrent() ? 'accept' : 'retire',
     }}), inbox = new InboxService(notificationScope);
     cleanups.push(() => home.dispose(), () => inbox.dispose());
     const {facts: initialFacts, witnesses} = await readFacts(api, session, preferences, inbox, signal);
     if (!isCurrent()) return;
-    factOwner = createShellFactOwner({api, session: () => session, auth, preferences, home, hub: freshness.hub,
+    factOwner = createShellFactOwner({api, session: () => session, auth, preferences, hub: freshness.hub,
       initial: initialFacts, witnesses, libraryRouteProof, isCurrent, retire: () => {if (isCurrent()) this.restart();}});
     cleanups.push(factOwner.dispose);
     // The directory did not answer at sign-in: one automatic try after a short wait; after that the
@@ -486,8 +456,6 @@ export class ShellBootstrap {
     const factsSource = factOwner.source;
     const facts = () => factsSource.getSnapshot();
     freshness.hub.attach(events);
-    const homeFence = watchHomeViewerFence(home, isCurrent, () => this.restart());
-    cleanups.push(homeFence.dispose);
     const authorityKey = shellArtworkAuthorityKey(session, epoch);
     const artwork = authenticatedArtwork({api, auth, identity: {serverId: session.viewer.serverId, viewerId: viewerId(session), authorityKey}, currentToken: () => session.accessToken, isCurrent});
     cleanups.push(() => artwork.dispose());
@@ -498,7 +466,7 @@ export class ShellBootstrap {
     const saved=(await (this.environment.actions?.()??browserAppSessionActions()).store.read()).servers;
     const savedServers=await display.choices(saved.map(value=>({pin:value.connection.pin,origin:value.connection.logicalOrigin,signIn:value.signIn})),signal);
     if (!isCurrent()) return;
-    const context: ShellAssemblyContext = {api, session: () => session, auth, events, freshness, home, inbox, artwork, factsSource, libraryRouteProof: libraryRouteProof.source, homeAuthority: factOwner.authority, observeDirect: factOwner.observeDirect, retryLibraries: () => {if (isCurrent()) factOwner?.request('directory');}, get facts() {return facts();}, preferences, epoch, get viewerFence() {return homeFence.viewerFence;}, isCurrent, signOut,signOutPorticoAccount,switchProfile,manageGate,switchServer:this.selectServer,get savedServers() {return savedServers.map(value => value.id === session.viewer.serverId ? {...value, label: facts().serverName} : value);}};
+    const context: ShellAssemblyContext = {api, session: () => session, auth, events, freshness, home, inbox, artwork, factsSource, libraryRouteProof: libraryRouteProof.source, homeAuthority: factOwner.authority, observeDirect: factOwner.observeDirect, retryLibraries: () => {if (isCurrent()) factOwner?.request('directory');}, get facts() {return facts();}, preferences, epoch, get viewerFence() {return isCurrent() ? facts().identity.fences?.viewerFence : undefined;}, isCurrent, signOut,signOutPorticoAccount,switchProfile,manageGate,switchServer:this.selectServer,get savedServers() {return savedServers.map(value => value.id === session.viewer.serverId ? {...value, label: facts().serverName} : value);}};
     const assembly = await this.assemble(context);
     if (!isCurrent()) { assembly.dispose(); return; }
     cleanups.push(() => assembly.dispose());
@@ -546,7 +514,8 @@ export class ShellBootstrap {
     cleanups.push(preferences.subscribe(applyMotion));
     cleanups.push(() => motion.removeEventListener('change', applyMotion));
     cleanups.push(runEventFeed(events, freshness.hub, browserFeedEnvironment(assembly.busy, assembly.onBusy, assembly.retainsMedia, assembly.onRetention)));
-    void home.load().catch(error => {if (isCurrent()) this.publish({phase:'error', error});});
+    // Home is read when it is shown (Home.tsx), never to learn who the viewer is: a deep link to a
+    // library or Search reads no Home rows (client data step 5).
     publishBinding();
   }
   selectServer = async (serverId:string,expectedRevision?:number) => {if(this.disposed)return;this.clearWait();this.fence();const epoch=this.epoch;this.publish({phase:'restoring'});try{await (this.environment.actions?.()??browserAppSessionActions()).switchServer(serverId,()=>!this.disposed&&this.epoch===epoch,expectedRevision);if(!this.disposed&&this.epoch===epoch)await this.start();}catch(error){if(!this.disposed&&this.epoch===epoch)this.publish({phase:'error',error});}};

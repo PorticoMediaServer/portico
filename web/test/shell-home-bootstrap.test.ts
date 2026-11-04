@@ -1,8 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {currentShellProfile, readShellIdentity, ShellBootstrap, sameShellAuthority, shellArtworkAuthorityKey, watchHomeViewerFence, type ShellAssembler} from '../src/shell/bootstrap.ts';
+import {currentShellProfile, readShellIdentity, ShellBootstrap, sameShellAuthority, shellArtworkAuthorityKey, type ShellAssembler} from '../src/shell/bootstrap.ts';
 import {type HttpLocalApi, type LocalSession} from '@core/index.ts';
-import {HomeService} from '@core/home-service.ts';
 import type {SelectedViewerRecord} from '@core/viewer-selection.ts';
 
 const unavailableAssembly: ShellAssembler = async () => { throw new Error('Unexpected assembly.'); };
@@ -64,48 +63,6 @@ test('token rotation retains a scope but every authority or family replacement r
   }
 });
 
-function homeDocument(fence: string) {
-  return {serverId: 'server-a', viewerFence: fence, generatedAt: '2026-10-23T12:00:00.000Z', rows: [], spotlight: [], revision: {catalog: 1, viewer: 1}, layout: {revision: 1, rowOrder: [], hiddenRowIds: []}};
-}
-test('pending and failed initial Home reads have no fabricated fence; the first genuine retry establishes the baseline', async () => {
-  const gate = deferred<unknown>(); let response: Promise<unknown> | unknown = gate.promise, replacements = 0;
-  const home = new HomeService({request: async <T>() => await response as T});
-  const boundary = watchHomeViewerFence(home, () => true, () => {replacements++;});
-  const pending = home.load(); assert.equal(home.getSnapshot().phase, 'loading'); assert.equal(boundary.viewerFence, undefined);
-  gate.resolve({invalid: true}); await pending;
-  assert.equal(home.getSnapshot().phase, 'error'); assert.equal(home.getSnapshot().document, undefined); assert.equal(boundary.viewerFence, undefined);
-  response = homeDocument('actual-first-fence'); await home.retry();
-  assert.equal(boundary.viewerFence, 'actual-first-fence'); assert.equal(replacements, 0);
-  await home.load(); assert.equal(replacements, 0); boundary.dispose(); home.dispose();
-});
-test('a later genuine Home fence replacement retires only this boundary and never adopts its successor', async () => {
-  let response = homeDocument('first'), replacements = 0;
-  const home = new HomeService({request: async <T>() => response as T});
-  const boundary = watchHomeViewerFence(home, () => true, () => {replacements++;});
-  await home.load(); response = homeDocument('different'); await home.load();
-  assert.equal(replacements, 1); assert.equal(boundary.viewerFence, undefined);
-  response = homeDocument('third'); await home.load(); assert.equal(replacements, 1); home.dispose();
-});
-// H-11: a library added or removed changes the viewer fence only; Settings and the player
-// host stay mounted, and Home-data checks follow the current document's viewer fence.
-test('a viewer-fence-only change keeps the boundary and follows the new fence; a privacy change retires it', async () => {
-  let response: unknown = {...homeDocument('first'), privacyFence: 'privacy'}, replacements = 0;
-  const home = new HomeService({request: async <T>() => response as T});
-  const boundary = watchHomeViewerFence(home, () => true, () => {replacements++;});
-  await home.load(); assert.equal(boundary.viewerFence, 'first');
-  response = {...homeDocument('more-libraries'), privacyFence: 'privacy'}; await home.load();
-  assert.equal(replacements, 0); assert.equal(boundary.viewerFence, 'more-libraries');
-  response = {...homeDocument('more-libraries'), privacyFence: 'another-viewer'}; await home.load();
-  assert.equal(replacements, 1); assert.equal(boundary.viewerFence, undefined); home.dispose();
-});
-test('explicitly clearing an established document fences before its next request finishes', async () => {
-  const gate = deferred<unknown>(); let response: Promise<unknown> | unknown = homeDocument('first'), replacements = 0;
-  const home = new HomeService({request: async <T>() => await response as T});
-  const boundary = watchHomeViewerFence(home, () => true, () => {replacements++;});
-  await home.load(); response = gate.promise; const pending = home.load({clear: true});
-  assert.equal(replacements, 1); assert.equal(boundary.viewerFence, undefined);
-  gate.resolve(homeDocument('different')); await pending; assert.equal(replacements, 1); home.dispose();
-});
 test('artwork cache identity derives from captured family/viewer/role/epoch without a Home document', () => {
   const session = {sessionFamilyId: 'family-a', accessToken: 'token-a', viewer: {serverId: 'server-a', authority: 'local', accountId: 'account-a', profileId: 'profile-a', role: 'member'}} as LocalSession;
   const key = shellArtworkAuthorityKey(session, 4);
@@ -164,7 +121,7 @@ test('shell identity loads during a building Reading generation and retains Sett
   const calls: string[] = [];
   const api = {request: async (path: string) => {
     calls.push(path);
-    if (path === '/v1/libraries') return {items: [{id: 'reading-a', name: 'Still importing', kind: 'book', summary}]};
+    if (path === '/v1/libraries') return {items: [{id: 'reading-a', name: 'Still importing', kind: 'book', summary}], viewerFence: 'viewer-a', privacyFence: 'privacy-a'};
     if (path === '/v1/direct') return directRecord();
     if (path === '/v1/system') return {id: 'server-a', name: 'Test server', version: '1', signIn: 'local', move: null, setupRequired: false, hostedConfigured: false, hostedAttached: false, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []};
     if (path.startsWith('/v1/guide/sources?')) throw Object.assign(new Error('not permitted'), {status: 403});
@@ -176,6 +133,9 @@ test('shell identity loads during a building Reading generation and retains Sett
   assert.equal(read.profile.capabilities?.manageServer, true);
   assert.equal(read.profile.profileName, 'Evening profile');
   assert.equal(read.system.name, 'Test server');
+  // Client data step 5: the shell learns who the viewer is from the directory, not from Home.
+  assert.deepEqual('fences' in read && read.fences, {viewerFence: 'viewer-a', privacyFence: 'privacy-a'});
+  assert.equal(calls.includes('/v1/home'), false);
   assert.ok(calls.includes('/v1/libraries') && calls.includes('/v1/direct') && calls.includes('/v1/system'));
 });
 

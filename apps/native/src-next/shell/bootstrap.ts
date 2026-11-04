@@ -7,11 +7,10 @@ import {bindNativeTogether} from '../screens/settings-live/together-playback';
 import {audiobookPreferences} from '../../../../packages/client-core/src/audiobook-preferences';
 import {routePath, type RouteResponse} from '../../../../packages/contracts/src/routes';
 import {HomeService} from '../../../../packages/client-core/src/home-service';
-import {homeShellFence} from '../../../../packages/client-core/src/home';
 import type {DirectSnapshot} from '../../../../packages/client-core/src/profile-management';
 import {IdentityClient} from '../../../../packages/client-core/src/identity-client';
 import {currentPreferenceSnapshot, type PreferenceSnapshot} from '../../../../packages/client-core/src/preferences';
-import {parseLibraryList} from '../../../../packages/client-core/src/library-list';
+import {parseLibraryList, type LibraryDirectoryFences} from '../../../../packages/client-core/src/library-list';
 import {createRoleProbe} from './role-probe';
 import {LocalSessionRefresher} from '../../../../packages/client-core/src/session-refresh';
 import {EventsClient} from '../../../../packages/client-core/src/playback-v1/events';
@@ -266,7 +265,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     await events.prime(signal.signal);
     assertCurrent();
     const [librariesResult, initialAccount, initialAvatars, initialPreferences, server] = await Promise.all([
-      readers.request(routePath('get_libraries'), 'GET', undefined, signal.signal).then(parseLibraryList).then(value => value.items, error => tolerateLibraryDirectory(error, signal.signal)),
+      readers.request(routePath('get_libraries'), 'GET', undefined, signal.signal).then(parseLibraryList).then(value => value, error => tolerateLibraryDirectory(error, signal.signal)),
       readers.readAccount(),
       identities.avatars(signal.signal),
       readers.readPreferences(Platform.isTV ? 'television' : 'mobile', signal.signal),
@@ -292,19 +291,28 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     installationSettings = await records.change('preferences:v1', raw => ({record: raw, value: raw}));
     assertCurrent();
     let unread = 0;
-    let viewerFence = document.viewerFence;
+    let viewerFence = document.viewerFence, directoryPrivacy = librariesResult?.fences?.privacyFence;
     const authority: ShellAuthority = Object.freeze({serverId: session.viewer.serverId, accountId: session.viewer.accountId, profileId: session.viewer.profileId,
       // H-11: the whole shell is keyed on this authority. Only a new family, profile, PIN, privacy
       // fence or sign-out may change it; a token renewal sliding the inactivity horizon must not,
       // and neither may a library added or removed. That only moves `viewerFence`, read live by
       // Home-data checks, while this object (and everything keyed on it) stays the same.
       epoch: JSON.stringify([session.sessionFamilyId, profile.revision, profile.pinRevision]), get viewerFence() {return viewerFence;},
-      ...(document.privacyFence !== undefined ? {privacyFence: document.privacyFence} : {})});
+      // Who the viewer is and what they may see: the library directory's privacy fence (client
+      // data step 5). The key never follows the live viewer fence: a directory that did not answer
+      // at start keys the shell on the Home fence it opened with, and its first answer is adopted.
+      privacyFence: directoryPrivacy ?? 'opened:' + document.viewerFence});
+    /** A later directory answer for a different viewer or what they may see ends this shell. */
+    const privacyMoved = (fences: LibraryDirectoryFences | undefined): boolean => {
+      if (!fences) return false;
+      if (directoryPrivacy === undefined) {directoryPrivacy = fences.privacyFence; return false;}
+      return fences.privacyFence !== directoryPrivacy;
+    };
     let publishedFence = viewerFence;
     // Subscribed before any Home reader, so every later subscriber already sees the new fence.
     cleanups.push(documentService.subscribe(() => {
       const next = documentService.getSnapshot().document;
-      if (alive && next && next.serverId === authority.serverId && homeShellFence(next) === (authority.privacyFence ?? viewerFence)) viewerFence = next.viewerFence;
+      if (alive && next && next.serverId === authority.serverId) viewerFence = next.viewerFence;
     }));
     const scopeIdentity = authorityKey(authority);
     let invalidReported = false;
@@ -325,7 +333,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
       return valid;
     };
     const profileOption: ProfileOption = Object.freeze({id: profile.id, name: profile.name, initial: [...profile.name.trim()][0] ?? '', color: profile.art, primary: profile.primary, pinRequired: profile.pinRequired});
-    libraries = Object.freeze(librariesResult ?? []); librariesUnavailable = librariesResult === undefined;
+    libraries = Object.freeze(librariesResult?.items ?? []); librariesUnavailable = librariesResult === undefined;
     let hasLiveTV = false;
     navigation = new NativeShellNavigation(authority, () => authority,
       (route, origin) => nativeReadRouteAllowed(route, libraries, Platform.isTV, origin), {tabStacks: !Platform.isTV});
@@ -340,6 +348,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
         const ticket = readOrder.libraries.begin();
         const result = parseLibraryList(await readers.request(routePath('get_libraries'), 'GET', undefined, requestSignal));
         assertCurrent(); if (requestSignal.aborted) throw cancelled();
+        if (privacyMoved(result.fences)) {end(); throw cancelled();}
         const selected = await readNativeSelectedViewer(); assertCurrent();
         if (requestSignal.aborted || !selected || selected.serverUrl !== original.serverUrl || !sameViewer(selected.session, session!)) throw cancelled();
         try {await accountBinding.assertCurrent();}
@@ -468,6 +477,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
         await accountBinding.assertCurrent(); assertCurrent();
         preferences = currentPreferenceSnapshot(preferences, nextFacts.preferences); installationSettings = nextInstallation;
         // A directory that did not answer keeps the libraries already known (or stays unavailable).
+        if (privacyMoved(nextLibraries?.fences)) {end(); return;}
         if (nextLibraries) readOrder.libraries.apply(tickets.libraries, () => {libraries = Object.freeze(nextLibraries.items); librariesUnavailable = false;});
         text.refreshDeviceRegion();
         readOrder.identity.apply(tickets.identity, () => {account = nextAccount; avatars = nextAvatars;});
@@ -553,7 +563,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     cleanups.push(bound.subscribe(publish), local.subscribeRoute(routeChanged), documentService.subscribe(() => {
       const next = documentService.getSnapshot().document;
       if (!ready || !current() || !next) return;
-      if (next.serverId !== authority.serverId || homeShellFence(next) !== (authority.privacyFence ?? authority.viewerFence)) {end(); return;}
+      if (next.serverId !== authority.serverId) {end(); return;}
       // A library added or removed: same shell and player, Home-data checks follow the new fence.
       if (publishedFence !== viewerFence) {publishedFence = viewerFence; publish();}
     }));

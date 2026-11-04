@@ -130,40 +130,34 @@ test('wrong current requested server retires before observer or baseline; malfor
   } finally { h.service.dispose(); }
 });
 
-test('valid fence replacement retires synchronously before display settle', async () => {
+test('an answer the owner refuses retires synchronously before display settle', async () => {
   const h = harness(); let settles = 0;
   try {
     await h.service.load(); const before = h.service.getSnapshot();
+    // The shell's owner refuses this answer (its directory's privacy fence moved meanwhile).
+    h.setObserver(() => 'retire');
     h.setHandler(() => document('new', {viewerFence: 'new-fence', rows: [row('recent', 'new', {viewerFence: 'new-fence'})]}));
     await assert.rejects(h.service.refresh({settle: async () => { settles++; }}), HomeAuthorityRetired);
     assert.equal(h.retired(), 1); assert.equal(settles, 0); assert.equal(h.service.getSnapshot(), before);
   } finally { h.service.dispose(); }
 });
 
-// H-11: a library added or removed changes the viewer fence only. Home adopts the new
-// document; the authority (and every shell keyed on it) stays. A privacy change retires.
-test('a privacy fence keeps authority across a viewer-fence-only change and retires on its own change', async () => {
+// H-11 and client data step 5: who the viewer is and what they may see is the library directory's
+// privacy fence, not Home's. A library added or removed changes Home's viewer fence; Home adopts it
+// and never retires the shell over a fence of its own.
+test('Home adopts a new viewer fence and leaves the shell to the directory', async () => {
   const h = harness();
   try {
-    h.setHandler(() => document('a', {privacyFence: 'privacy'}));
     await h.service.load();
-    h.setHandler(() => document('more', {viewerFence: 'more-libraries', privacyFence: 'privacy', rows: [row('recent', 'more', {viewerFence: 'more-libraries'})]}));
+    h.setHandler(() => document('more', {viewerFence: 'more-libraries', rows: [row('recent', 'more', {viewerFence: 'more-libraries'})]}));
     assert.equal(await h.service.refresh(), 'adopted');
     assert.equal(h.retired(), 0); assert.equal(card(h.service), 'more');
     assert.equal(h.service.getSnapshot().document?.viewerFence, 'more-libraries');
-    assert.equal(h.observations.at(-1)?.privacyFence, 'privacy');
-    h.setHandler(() => document('other', {viewerFence: 'more-libraries', privacyFence: 'another-viewer', rows: [row('recent', 'other', {viewerFence: 'more-libraries'})]}));
-    await assert.rejects(h.service.refresh(), HomeAuthorityRetired);
-    assert.equal(h.retired(), 1); assert.equal(card(h.service), 'more');
   } finally { h.service.dispose(); }
 });
 
-test('older servers without a privacy fence keep retiring on the viewer fence', () => {
-  const old = validateHomeDocument(document());
-  assert.equal('privacyFence' in old, false);
-  assert.equal(validateHomeDocument(document('a', {privacyFence: 'privacy'})).privacyFence, 'privacy');
-  assert.throws(() => validateHomeDocument(document('a', {privacyFence: ''})));
-  assert.throws(() => validateHomeDocument(document('a', {privacyFence: 7})));
+test('a Home document carries no privacy fence of its own', () => {
+  assert.equal('privacyFence' in validateHomeDocument(document('a', {privacyFence: 'privacy'})), false);
 });
 
 test('either borrower can cancel independently; all borrowed cancellation aborts transport even if ignored', async () => {

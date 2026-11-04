@@ -24,12 +24,14 @@ test('H-11: a library added then removed keeps the shell and player host; Home f
   }
 });
 
-for (const server of ['privacy', 'older'] as const) test(`H-11: ${server === 'privacy' ? 'a privacy change' : 'an older server\'s viewer-fence change'} still retires the shell`, async () => {
-  const app = await standardHomeApp(server === 'privacy' ? {privacyFence: 'privacy-fence'} : {});
+// Client data step 5: the privacy fence is the library directory's; the next directory read
+// that answers another one ends the shell.
+test('H-11: a privacy change in the library directory retires the shell', async () => {
+  const app = await standardHomeApp({privacyFence: 'privacy-fence'});
   try {
     const home = homeHost(app);
     assert.ok(home);
-    await app.changeHome(server === 'privacy' ? {privacyFence: 'another-viewer'} : {viewerFence: 'home-fence-with-music'});
+    await app.changeHome({privacyFence: 'another-viewer'});
     assert.notEqual(homeHost(app), home, 'the old Home is gone');
   } finally {
     try { await app.unmount(); } finally { app.disposeLoader(); }

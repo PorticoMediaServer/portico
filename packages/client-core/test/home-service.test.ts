@@ -296,8 +296,6 @@ test('another viewer or server is never merged into what is shown', () => {
   const shown = validateHomeDocument(document([row('recent', ['m1'])]));
   const other = validateHomeDocument(document([row('recent', ['x'], {viewerFence:'someone-else'})], {viewerFence: 'someone-else'}));
   assert.equal(mergeHomeDocument(shown, other), other);
-  const private_ = validateHomeDocument(document([row('recent', ['m1'])], {privacyFence: 'another-privacy'}));
-  assert.equal(mergeHomeDocument(shown, private_), private_, 'a privacy change is never merged either');
 });
 
 test('Home publishes fast shelves while another shelf is still loading', async () => {

@@ -273,20 +273,13 @@ test('standard index/App Home actions use restored authority, current documents 
       },
     );
     await t.test(
-      'changed server Home fence retires the real authority and removes Home once Home is shown again',
+      'a privacy change in the library directory retires the real authority at once, even under the player',
       async () => {
-        // The second session's player covers Home. A hidden Home waits rather
-        // than revalidating, so the fence change cannot retire it yet.
-        const reads = () => app.receipts.filter(receipt => receipt.path === '/v1/home').length;
-        const before = reads();
+        // Client data step 5: who the viewer is and what they may see is the directory's privacy
+        // fence. The app's refresh reads the directory whether or not Home is shown, so a covered
+        // Home is no reason to keep a retired authority's shell.
         await app.retireHome();
-        assert.equal(reads(), before, 'a Home covered by the player is not read');
-        assert.ok(app.hosts().some(host => host.props.testID === 'native-home'));
-        await app.tapLabel('Minimize player');
-        // The shown Home's owed read waits out the freshness gather (400 ms, plus jitter).
-        await realTimeout(700);
         await app.settle();
-        assert.ok(reads() > before, 'collapsing the player revalidates the waiting Home');
         assert.equal(
           app.hosts().some(host => host.props.testID === 'native-home'),
           false,

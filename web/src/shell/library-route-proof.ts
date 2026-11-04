@@ -12,8 +12,7 @@ export type LibraryRouteProof = Readonly<{
 }>;
 type Session = Pick<LocalSession, 'sessionFamilyId' | 'viewer' | 'deviceId'>;
 type Version = string | number;
-type Candidate = Readonly<{ids: readonly string[]; version: Version}>;
-type HomeTicket = Readonly<{wave: object; version: Version; observation: object | undefined}>;
+type Candidate = Readonly<{ids: readonly string[]; fence: string; version: Version}>;
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const text = (value: unknown, max: number): value is string => typeof value === 'string' && value.length > 0 && value.length <= max && !/[\x00-\x1f\x7f]/.test(value);
 
@@ -31,14 +30,14 @@ export function completeLibraryDirectory(raw: unknown): readonly string[] | unde
   return Object.freeze(ids);
 }
 
+/** The library directory's own proof (client data step 5): its complete list of libraries and the
+ * viewer fence it answered with, read in one response. Home is not involved. */
 export function createLibraryRouteProof(o: Readonly<{
-  session(): Session; isCurrent(): boolean; directoryVersion(): Version; homeVersion(): Version; request(): void;
+  session(): Session; isCurrent(): boolean; directoryVersion(): Version; request(): void;
 }>) {
   const initial = o.session(), family = initial.sessionFamilyId, device = initial.deviceId, viewer = Object.freeze({...initial.viewer});
   let closed = false, directoryTicket: Readonly<{wave: object; version: Version}> | undefined, candidate: Candidate | undefined;
-  let directoryWave: object = {}, homeWave: object = {};
-  let observation: Readonly<{serverId: string; viewerFence: string}> | undefined, fence: string | undefined;
-  let confirmedHome: Readonly<{value: NonNullable<typeof observation>; version: Version}> | undefined;
+  let directoryWave: object = {};
   let snapshot: LibraryRouteProofSnapshot | undefined, claimedOpening: object | undefined;
   const listeners = new Set<Readonly<{retire(): void; afterRetire?: () => void}>>();
   const current = () => {
@@ -47,18 +46,17 @@ export function createLibraryRouteProof(o: Readonly<{
     return now.sessionFamilyId === family && now.deviceId === device
       && (['serverId', 'authority', 'accountId', 'profileId', 'role'] as const).every(key => now.viewer[key] === viewer[key]) && !closed && o.isCurrent();
   };
-  const inputsCurrent = () => !!candidate && candidate.version === o.directoryVersion() && !!confirmedHome && confirmedHome.version === o.homeVersion();
+  const inputsCurrent = () => !!candidate && candidate.version === o.directoryVersion();
   const getSnapshot = () => {
     const value = snapshot;
     return current() && inputsCurrent() && current() && value === snapshot ? value : undefined;
   };
   // Every original route guard retires before any replacement navigation runs.
   const reconcile = () => {const wave = [...listeners];for (const listener of wave) listener.retire();for (const listener of wave) listener.afterRetire?.();};
-  const invalidateHome = () => {homeWave = {};confirmedHome = undefined;snapshot = undefined;reconcile();};
-  const invalidate = () => {directoryWave = {};directoryTicket = undefined;candidate = undefined;invalidateHome();};
+  const invalidate = () => {directoryWave = {};directoryTicket = undefined;candidate = undefined;snapshot = undefined;reconcile();};
   const publish = () => {
     if (!current() || !inputsCurrent()) return false;
-    snapshot = Object.freeze({serverId: confirmedHome!.value.serverId, viewerFence: confirmedHome!.value.viewerFence, libraryIds: candidate!.ids});
+    snapshot = Object.freeze({serverId: viewer.serverId, viewerFence: candidate!.fence, libraryIds: candidate!.ids});
     reconcile();return true;
   };
   const source: LibraryRouteProof = Object.freeze({getSnapshot, reconcile, isCurrent: current,
@@ -70,7 +68,7 @@ export function createLibraryRouteProof(o: Readonly<{
     },
   });
   return {
-    source, invalidate, invalidateHome,
+    source, invalidate,
     beginDirectory() {
       directoryTicket = undefined;candidate = undefined;snapshot = undefined;reconcile();
       const ticket = {wave: directoryWave, version: o.directoryVersion()};
@@ -78,26 +76,11 @@ export function createLibraryRouteProof(o: Readonly<{
     },
     directory(ticket: object, raw: unknown) {
       if (!current() || directoryTicket !== ticket || directoryTicket.wave !== directoryWave || directoryTicket.version !== o.directoryVersion()) return false;
-      const ids = completeLibraryDirectory(raw);
-      if (!ids || !current() || directoryTicket !== ticket || directoryTicket.version !== o.directoryVersion()) return false;
-      candidate = {ids, version: directoryTicket.version};publish();return true;
+      const ids = completeLibraryDirectory(raw), fence = record(raw) && text(raw.viewerFence, 8192) ? raw.viewerFence : undefined;
+      if (!ids || !fence || !current() || directoryTicket !== ticket || directoryTicket.version !== o.directoryVersion()) return false;
+      candidate = {ids, fence, version: directoryTicket.version};publish();return true;
     },
-    beginHome(): HomeTicket {confirmedHome = undefined;snapshot = undefined;reconcile();return {wave: homeWave, version: o.homeVersion(), observation};},
-    /** Called ONLY after bootstrap's requested-server/fence retirement checks accept. */
-    observeHome(value: Readonly<{serverId: string; viewerFence: string}>) {
-      if (!current() || value.serverId !== viewer.serverId || !text(value.viewerFence, 8192)) return;
-      const replaced = fence !== undefined && fence !== value.viewerFence;
-      fence = value.viewerFence;observation = Object.freeze({serverId: value.serverId, viewerFence: value.viewerFence});
-      // A library added or removed keeps the shell (H-11): every guard proven on the old list
-      // retires, and both inputs are read again under the new fence.
-      if (replaced) {invalidate();queueMicrotask(() => source.request());}
-    },
-    homeAnswered(ticket: HomeTicket) {
-      const accepted = observation;
-      if (!current() || ticket.wave !== homeWave || ticket.version !== o.homeVersion() || !accepted || accepted === ticket.observation) return false;
-      confirmedHome = {value: accepted, version: ticket.version};return publish();
-    },
-    dispose() {if (closed) return;closed = true;snapshot = undefined;candidate = undefined;directoryTicket = undefined;observation = undefined;confirmedHome = undefined;claimedOpening = undefined;reconcile();listeners.clear();},
+    dispose() {if (closed) return;closed = true;snapshot = undefined;candidate = undefined;directoryTicket = undefined;claimedOpening = undefined;reconcile();listeners.clear();},
   };
 }
 export type LibraryRouteProofOwner = ReturnType<typeof createLibraryRouteProof>;

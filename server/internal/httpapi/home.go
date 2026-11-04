@@ -73,20 +73,12 @@ func (d Dependencies) homeScopeFences(r *http.Request, p identity.Principal) ([]
 			}
 		}
 		sort.Strings(ids)
-		var policy, restriction int64
-		if p.Authority != "local" {
-			if e = d.DB.QueryRowContext(ctx, `SELECT COALESCE((SELECT revision FROM policy WHERE server_id=?),0),COALESCE((SELECT revision FROM restrictions WHERE profile_id=?),0)`, d.Identity.ID(), p.ProfileID).Scan(&policy, &restriction); e != nil {
-				return e
-			}
-		}
-		raw, _ := json.Marshal(ids)
 		_, contentFence, e := d.viewerRestrictions(r.WithContext(ctx), p)
 		if e != nil {
 			return e
 		}
-		fence = fmt.Sprintf("%x", sha256.Sum256([]byte(fmt.Sprintf("%s:%d:%d:%d:%s:%s", presentationIdentity(p), p.Epoch, policy, restriction, raw, contentFence))))
-		privacy = homePrivacyFence(p, policy, restriction, contentFence)
-		return nil
+		fence, privacy, e = d.viewerFences(ctx, p, ids, contentFence)
+		return e
 	}
 	if d.DB == nil {
 		e := resolve(r.Context())
@@ -96,6 +88,24 @@ func (d Dependencies) homeScopeFences(r *http.Request, p identity.Principal) ([]
 		return nil, "", "", e
 	}
 	return ids, fence, privacy, nil
+}
+
+// viewerFences hashes the viewer fence and the privacy fence from inputs the caller has
+// already read in its snapshot: the IDs of the libraries the viewer may see, and their content
+// fence. Home and the library directory (GET /v1/libraries) both answer with these, so a
+// client can learn them from whichever it reads first.
+func (d Dependencies) viewerFences(ctx context.Context, p identity.Principal, libraryIDs []string, contentFence string) (string, string, error) {
+	ids := append([]string{}, libraryIDs...)
+	sort.Strings(ids)
+	var policy, restriction int64
+	if p.Authority != "local" {
+		if e := d.DB.QueryRowContext(ctx, `SELECT COALESCE((SELECT revision FROM policy WHERE server_id=?),0),COALESCE((SELECT revision FROM restrictions WHERE profile_id=?),0)`, d.Identity.ID(), p.ProfileID).Scan(&policy, &restriction); e != nil {
+			return "", "", e
+		}
+	}
+	raw, _ := json.Marshal(ids)
+	fence := fmt.Sprintf("%x", sha256.Sum256([]byte(fmt.Sprintf("%s:%d:%d:%d:%s:%s", presentationIdentity(p), p.Epoch, policy, restriction, raw, contentFence))))
+	return fence, homePrivacyFence(p, policy, restriction, contentFence), nil
 }
 
 // homePrivacyFence hashes every viewer-fence input except the library list, under its own

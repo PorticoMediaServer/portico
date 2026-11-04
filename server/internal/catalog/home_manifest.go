@@ -50,7 +50,7 @@ func (s *Service) homeManifestFresh(r HomeRequest) (HomeDocument, error) {
 			break
 		}
 	}
-	out := HomeDocument{ServerID: r.ServerID, ViewerFence: r.ViewerFence, PrivacyFence: r.PrivacyFence, Revision: revision, Rows: []HomeRow{}, Layout: HomeLayout{Revision: r.LayoutRevision, RowOrder: append([]string{}, r.RowOrder...), HiddenRowIDs: append([]string{}, r.HiddenRowIDs...)}, GeneratedAt: r.now().UTC().Format("2006-01-02T15:04:05.000Z")}
+	out := HomeDocument{ServerID: r.ServerID, ViewerFence: r.ViewerFence, Revision: revision, Rows: []HomeRow{}, Layout: HomeLayout{Revision: r.LayoutRevision, RowOrder: append([]string{}, r.RowOrder...), HiddenRowIDs: append([]string{}, r.HiddenRowIDs...)}, GeneratedAt: r.now().UTC().Format("2006-01-02T15:04:05.000Z")}
 	for _, spec := range ordered {
 		if spec.PolicyState != "available" || spec.hiddenIn(r.RowOrder, hidden) {
 			continue

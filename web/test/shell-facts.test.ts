@@ -13,8 +13,9 @@ test('five hint groups refresh current display without re-admitting authority; b
   assert.equal(h.owner.source.getSnapshot().identity.libraries[0].name,'Cinema');
   assert.equal(h.owner.source.getSnapshot().identity.profileName,'Night');
   assert.equal(h.owner.source.getSnapshot().identity.username,'updated');
-  assert.equal(h.counts().retired,0);assert.equal(h.counts().permission,1);assert.equal(h.counts().manifests,1);
-  assert.equal(h.calls.filter(path=>path==='/v1/libraries').length,1);assert.equal(h.calls.filter(path=>path==='/v1/direct').length,1);
+  assert.equal(h.counts().retired,0);assert.equal(h.counts().permission,1);
+  // One directory read answers both the names and who the viewer is; Home is never read here.
+  assert.equal(h.calls.filter(path=>path==='/v1/libraries').length,1);assert.equal(h.calls.filter(path=>path==='/v1/home').length,0);assert.equal(h.calls.filter(path=>path==='/v1/direct').length,1);
   assert.equal(h.calls.filter(path=>path.startsWith('/v1/guide/sources?')).length,1);
   assert.equal(h.initial.serverName,'Study');h.dispose();assert.equal(h.time.pending(),0);
 });
@@ -28,11 +29,12 @@ test('guide failure cannot discard independently confirmed directory or invent a
 });
 test('retained hidden media runs independent authority checks while display remains dormant', async () => {
   const h=harness();h.hub.setActive(false);h.owner.setRetained(true);h.owner.all();await h.time.advance(1000);
-  assert.equal(h.calls.filter(path=>path==='/v1/libraries').length,0);
+  // The directory proves who the viewer is (its privacy fence), so it runs for retained media too.
+  assert.equal(h.calls.filter(path=>path==='/v1/libraries').length,1);
   assert.equal(h.calls.filter(path=>path==='/v1/system').length,0);
   assert.equal(h.calls.filter(path=>path==='/v1/direct').length,1);
-  assert.deepEqual(h.counts(),{permission:1,manifests:1,retired:0});
-  h.hub.setActive(true);await h.time.advance(1500);assert.ok(h.calls.includes('/v1/libraries'));h.dispose();
+  assert.deepEqual(h.counts(),{permission:1,retired:0});
+  h.hub.setActive(true);await h.time.advance(1500);assert.ok(h.calls.includes('/v1/system'));h.dispose();
 });
 test('strict direct eligibility proof retires before input settles; malformed proof never certifies absence', async () => {
   const h=harness();h.hub.touch();h.direct({...direct(),profiles:[{...direct().profiles[0],id:'replacement'}],account:{...direct().account,primaryProfileId:'replacement'}});
@@ -73,10 +75,12 @@ test('independent server inputs retain each failure and full floor, even beside 
   assert.equal(reads(),1,'system retry or wake cannot shorten independent preference floor');
   h.preferenceFailure(undefined);await h.time.advance(7200000);assert.equal(reads(),2);h.dispose();
 });
-test('malformed Home authority proof stays owed instead of inheriting the legacy terminal parser flag', async () => {
-  const h=harness(),error=Object.assign(new Error('unreadable Home'),{code:'invalid_home',retryable:false});h.homeFailure(error);
-  h.owner.authority();await h.time.advance(1000);assert.equal(h.counts().manifests,1);assert.equal(h.counts().retired,0);
-  h.homeFailure(undefined);await h.time.advance(2500);assert.equal(h.counts().manifests,2);h.dispose();
+test('the directory\'s privacy fence keys the shell: a library added keeps it, another viewer or what they may see retires it', async () => {
+  const h=harness();h.rename();h.owner.request('directory');await h.time.advance(1500);
+  assert.equal(h.counts().retired,0);assert.equal(h.owner.source.getSnapshot().identity.libraries[0].name,'Cinema');
+  assert.deepEqual(h.owner.source.getSnapshot().identity.fences,{viewerFence:'directory',privacyFence:'privacy'});
+  h.privacy('another-viewer');h.owner.authority();await h.time.advance(1500);
+  assert.equal(h.counts().retired,1);h.dispose();
 });
 
 test('online reconciles retained hidden authority without opening display or depending on a second first-connect', async () => {
@@ -84,8 +88,8 @@ test('online reconciles retained hidden authority without opening display or dep
   const page=new EventTarget(),browser=new EventTarget();Object.defineProperty(page,'hidden',{value:true});
   const off=bindShellFactWake(page as never,browser as never,{isCurrent:()=>true,retained:()=>true,wakeAuth:()=>{wakes++;},invalidate:()=>h.owner.all()});
   browser.dispatchEvent(new Event('online'));await h.time.advance(1000);
-  assert.equal(wakes,1);assert.equal(h.counts().permission,1);assert.equal(h.counts().manifests,1);
-  assert.equal(h.calls.filter(path=>path==='/v1/libraries'||path==='/v1/system').length,0);
+  assert.equal(wakes,1);assert.equal(h.counts().permission,1);
+  assert.equal(h.calls.filter(path=>path==='/v1/libraries').length,1);assert.equal(h.calls.filter(path=>path==='/v1/system').length,0);
   off();browser.dispatchEvent(new Event('online'));assert.equal(wakes,1);h.dispose();
 });
 

@@ -193,12 +193,12 @@ test('an unscoped preference snapshot and the wrong returned device class are re
   assert.equal(f.state.ended, 0); assert.equal(f.services.getSnapshot(), undefined);
 });
 
-for (const domain of ['preferences', 'inbox', 'guide', 'home'] as const) test(`a changed ${domain} fence retires the genuine authority and hides every private body`, async t => {
+for (const domain of ['preferences', 'inbox', 'guide'] as const) test(`a changed ${domain} fence retires the genuine authority and hides every private body`, async t => {
   const f = fixture(t);
   await Promise.all([f.services.read(), f.services.home.load()]);
   assert.equal(f.services.home.getSnapshot().document?.rows[0]?.entries[0]?.title, 'Private catalogue title');
   f.state.fences[domain] = 'e'.repeat(64);
-  if (domain === 'home') await f.services.home.revalidate(); else await assert.rejects(f.services.read());
+  await assert.rejects(f.services.read());
   assert.equal(f.state.ended, 1);
   assert.equal(f.services.getSnapshot(), undefined);
   assert.equal(f.services.home.getSnapshot().document, undefined);
@@ -247,12 +247,16 @@ for (const path of [routePath('get_preferences'), routePath('get_notifications_u
   assert.equal((await f.services.read()).preferences.effective['playback.defaultSpeed'], 1.25);
 });
 
-test('Home row pages retain their own genuine fence without a repeated serverId', async t => {
-  const f = fixture(t); await f.services.home.load();
+// Client data step 5: who the viewer is and what they may see is the library directory's privacy
+// fence (checked in bootstrap.ts). Home's own fence moves when a library is added or removed; it
+// never retires the shell, at the manifest or on a row page.
+test('a changed Home fence is followed by Home and never retires the shell', async t => {
+  const f = fixture(t); await Promise.all([f.services.read(), f.services.home.load()]);
   await f.services.home.more('recent'); assert.equal(f.state.ended, 0);
-  assert.equal(f.services.home.getSnapshot().document?.rows[0]?.nextCursor, '');
-  await f.services.home.load(); f.state.fences.home = 'changed-home-page';
-  await f.services.home.more('recent'); assert.equal(f.state.ended, 1); assert.equal(f.services.home.getSnapshot().document, undefined);
+  f.state.fences.home = 'e'.repeat(64);
+  await f.services.home.revalidate(); assert.equal(f.state.ended, 0);
+  await f.services.home.more('recent'); assert.equal(f.state.ended, 0);
+  assert.ok(f.services.getSnapshot());
 });
 
 for (const finish of ['dispose', 'abort', 'supersede'] as const) test(`${finish} cancels native owned reads and rejects late private responses`, async t => {

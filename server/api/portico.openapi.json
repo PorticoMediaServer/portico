@@ -63314,9 +63314,6 @@
             ],
             "type": "object"
           },
-          "privacyFence": {
-            "type": "string"
-          },
           "revision": {
             "properties": {
               "catalog": {
@@ -149515,10 +149512,18 @@
               "type": "object"
             },
             "type": "array"
+          },
+          "privacyFence": {
+            "type": "string"
+          },
+          "viewerFence": {
+            "type": "string"
           }
         },
         "required": [
-          "items"
+          "items",
+          "viewerFence",
+          "privacyFence"
         ],
         "type": "object"
       },
@@ -221291,9 +221296,6 @@
               "hiddenRowIds"
             ],
             "type": "object"
-          },
-          "privacyFence": {
-            "type": "string"
           },
           "revision": {
             "properties": {
@@ -529272,9 +529274,6 @@
                       ],
                       "type": "object"
                     },
-                    "privacyFence": {
-                      "type": "string"
-                    },
                     "revision": {
                       "properties": {
                         "catalog": {
@@ -631029,10 +631028,18 @@
                         "type": "object"
                       },
                       "type": "array"
+                    },
+                    "privacyFence": {
+                      "type": "string"
+                    },
+                    "viewerFence": {
+                      "type": "string"
                     }
                   },
                   "required": [
-                    "items"
+                    "items",
+                    "viewerFence",
+                    "privacyFence"
                   ],
                   "type": "object"
                 }

@@ -16,12 +16,12 @@
  *
  * No React and no timers of its own beyond the read deadline: tested under Node.
  */
-import {appendHomeRowPage, homeShellFence, fetchHome, fetchHomeLayout, fetchHomeRow, hasFencedHomeMembership, hasHomeRowContent, resetHomeLayout, saveHomeLayout, type HomeApi, type HomeDocument, type HomeLayout, type HomeLayoutView} from './home.ts';
+import {appendHomeRowPage, fetchHome, fetchHomeLayout, fetchHomeRow, hasFencedHomeMembership, hasHomeRowContent, resetHomeLayout, saveHomeLayout, type HomeApi, type HomeDocument, type HomeLayout, type HomeLayoutView} from './home.ts';
 import {isStaleAnswer, mergeRevalidatedList} from './freshness-actions.ts';
 
 /** Manifest facts only; the revision is the exact parsed Home revision. */
 export type HomeAuthorityObservation = Readonly<{
-  serverId: string; viewerFence: string; privacyFence?: string; revision: HomeDocument['revision'];
+  serverId: string; viewerFence: string; revision: HomeDocument['revision'];
   generation: number; quiet: number; at: number;
 }>;
 export type HomeObservationOptions = Readonly<{
@@ -95,7 +95,7 @@ const permissionDenied=(error:unknown):boolean=>typeof error==='object'&&error!=
 
 /** `fresh` merged into `shown`: only reanchorable rows may keep a bounded tail. Returns `shown` when nothing changed. */
 export function mergeHomeDocument(shown: HomeDocument, fresh: HomeDocument): HomeDocument {
-  if (shown.serverId !== fresh.serverId || shown.viewerFence !== fresh.viewerFence || shown.privacyFence !== fresh.privacyFence) return fresh;
+  if (shown.serverId !== fresh.serverId || shown.viewerFence !== fresh.viewerFence) return fresh;
   // Layout owns row order and hidden membership, so an older layout cannot replace either.
   if (fresh.layout.revision < shown.layout.revision) return shown;
   const before = new Map(shown.rows.map(row => [row.id, row]));
@@ -156,7 +156,6 @@ export class HomeService {
   private readonly initialLimit: number | undefined;
   private readonly observation?: HomeObservationOptions;
   private retired = false;
-  private baseline?: string;
   private privateReadSerial = 0;
   private manifest?: ManifestFlight;
   private display?: DisplayFlight;
@@ -292,12 +291,11 @@ export class HomeService {
         const observation = this.observation!;
         if (document.serverId !== observation.serverId) throw this.retireAuthority();
         const verdict = observation.observe(Object.freeze({serverId: document.serverId, viewerFence: document.viewerFence,
-          ...(document.privacyFence !== undefined ? {privacyFence: document.privacyFence} : {}),
           revision: document.revision, generation: flight.generation, quiet: flight.quiet, at: Date.now()}));
-        // The authority retires on a privacy change only; a library added or removed is a refresh.
-        if (verdict === 'retire' || !this.ownerCurrent() || this.baseline !== undefined && homeShellFence(document) !== this.baseline) throw this.retireAuthority();
-        if (Array.from(flight.borrowers).some(borrower => borrower.current())) this.baseline ??= homeShellFence(document);
-        else document = undefined;
+        // Who the viewer is and what they may see is the library directory's to say (its privacy
+        // fence); Home's owner decides only whether this answer is still its own.
+        if (verdict === 'retire' || !this.ownerCurrent()) throw this.retireAuthority();
+        if (![...flight.borrowers].some(borrower => borrower.current())) document = undefined;
       }
     } catch (caught) { error = caught; }
     finally {
