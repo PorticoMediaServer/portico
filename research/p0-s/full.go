@@ -35,7 +35,7 @@ func save(p string, v any) {
 	must(os.Rename(p+".tmp", p))
 }
 
-var normalWrites, writeOnly, facetMode, frameMode, gatesOnly, browseOnly, admissionSchema, attributionMode, localControl, identitySchema, omitFTS, ablationMode bool
+var normalWrites, writeOnly, facetMode, frameMode, gatesOnly, browseOnly, admissionSchema, attributionMode, localControl, identitySchema, omitFTS, ablationMode, capsMode bool
 
 func open(path string) (*sql.DB, *sql.Conn) {
 	db, e := sql.Open("sqlite", path)
@@ -187,7 +187,7 @@ func seedAndSweep(c *sql.Conn, target int, out, hash string) {
 		}
 	}
 	save(filepath.Join(out, "full-seed.json"), map[string]any{"ddl_sha256": hash, "entities": n, "batches": batches, "shape": "Basic movie acceptance: entity+asset+link+encoded own-title FTS+library revision/event. No provider metadata, staging, scanner IO, prepared-media or full production typed command."})
-	if facetMode || frameMode || gatesOnly || attributionMode {
+	if facetMode || frameMode || gatesOnly || attributionMode || capsMode {
 		return
 	}
 	if !writeOnly {
@@ -322,6 +322,7 @@ func main() {
 	normalFlag := flag.Bool("normal", false, "NORMAL writer and separate PASSIVE checkpoint")
 	writeFlag := flag.Bool("write-only", false, "seed and writer quanta only")
 	facetFlag := flag.Bool("facets", false, "rating-band counts and restricted indexes")
+	capsFlag := flag.Bool("caps-product", false, "shared100collections/255CUE size contribution collapse")
 	omitFlag := flag.Bool("fts-excluded", false, "diagnostic ONLY omitFTS during measured cohort, never seed")
 	ablationFlag := flag.Bool("ablation", false, "one local batch8FTS control,501tx")
 	localFlag := flag.Bool("local-control", false, "authorized50k quiet-machine control; maximum82769 residents")
@@ -330,6 +331,7 @@ func main() {
 	browseFlag := flag.Bool("browse-only", false, "skip shaped write sweep after browse")
 	frameFlag := flag.Bool("frames", false, "max source-frame replacements")
 	flag.Parse()
+	capsMode = *capsFlag
 	ablationMode = *ablationFlag
 	localControl = *localFlag
 	attributionMode = *attributionFlag
@@ -420,6 +422,9 @@ func main() {
 		if attributionMode {
 			omitFTS = *omitFlag
 			attribution(c, *out, hash)
+		}
+		if capsMode {
+			capsProduct(c, *out, hash)
 		}
 		if facetMode {
 			facetExperiment(c, *out, hash)
@@ -1293,4 +1298,87 @@ func agePropagation(c *sql.Conn, out, hash string) {
 		must(e)
 	}
 	save(filepath.Join(out, "age-propagation.json"), map[string]any{"ddl_sha256": hash, "samples_ms": times, "rows_changed": effects, "p50_ms": pct(times, .5), "p99_ms": pct(times, .99), "max_ms": pct(times, 1), "boundary": "Canonical contributions admission_age with exact nonNULL predicate; flattened100leaf membership per season/show/collection. One leaf0->18 moves all3parent minima0->8. Canonical item/facet count deltas and4canonical+16candidate age indexes, source/entity revisions, library revision,receipt,NORMAL commit. Own container age21 ignored. Empty containers bothfrontiers=-1; unknown-only nonempty allow=-1/knownNULL. No per-profile/user state."})
+}
+
+func capsProduct(c *sql.Conn, out, hash string) {
+	children, parents, reps := 255, 100, 101
+	if os.Getenv("GITHUB_RUN_ID") == "" {
+		children, parents, reps = 3, 2, 2
+	}
+	endChild := children + 1
+	startParent := endChild + 1
+	endParent := endChild + parents
+	setup := fmt.Sprintf(`INSERT OR IGNORE INTO catalog_kinds VALUES(5,'artist',0,1,1,1,1),(6,'album',0,1,1,1,1),(7,'song',1,0,1,1,1),(10,'collection',0,1,1,1,0);
+ BEGIN;PRAGMA defer_foreign_keys=ON;
+ UPDATE catalog_subjects SET kind=5 WHERE id=998;UPDATE catalog_subjects SET kind=6 WHERE id=999;UPDATE catalog_entities SET kind=5,resolution_key=NULL WHERE id=998;UPDATE catalog_entities SET kind=6,artist_id=998,resolution_key=NULL WHERE id=999;
+ UPDATE catalog_subjects SET kind=7 WHERE id<=%d;UPDATE catalog_subjects SET kind=10 WHERE id BETWEEN %d AND %d;
+ UPDATE catalog_entities SET kind=7,album_id=999,artist_id=998,resolution_key=NULL,file_size_key=1000001 WHERE id<=%d;
+ UPDATE catalog_entities SET kind=10,collection_name_key=printf('collection-%%d',id),file_size_key=1000001,admission_member_count=%d,admission_unrated_members=%d WHERE id BETWEEN %d AND %d;
+ DELETE FROM catalog_asset_links WHERE entity_id BETWEEN 2 AND %d;
+ INSERT INTO catalog_asset_links(library_id,entity_id,asset_id,cue_ordinal,start_seconds,end_seconds,info_duration) SELECT 1,id,1,id-1,(id-2)*100.0,(id-1)*100.0,100 FROM catalog_entities WHERE id BETWEEN 2 AND %d;
+ WITH RECURSIVE n(i) AS(VALUES(1) UNION ALL SELECT i+1 FROM n WHERE i<%d)
+ INSERT INTO catalog_collection_members SELECT %d+(i-1)%%%d,2+(i-1)/%d,printf('%%09d',i) FROM n;
+ INSERT INTO catalog_scalar_contributions(library_id,parent_id,contributor_id,source,contributor_revision,membership_sequence,file_size)
+ SELECT 1,collection_id,item_id,8,1,1,1000001 FROM catalog_collection_members;COMMIT;`, endChild, startParent, endParent, endChild, children, children, startParent, endParent, endChild, endChild, children*parents, startParent, parents, parents)
+	_, e := c.ExecContext(context.Background(), setup)
+	must(e)
+	_, e = c.ExecContext(context.Background(), ageCountsFill())
+	must(e)
+	var n int
+	must(c.QueryRowContext(context.Background(), "SELECT count(*) FROM catalog_scalar_contributions").Scan(&n))
+	if n != children*parents {
+		panic("CAPS membership count drift")
+	}
+	overlay := `CREATE TABLE catalog_collection_asset_sizes(library_id INTEGER NOT NULL,parent_id INTEGER NOT NULL,asset_id INTEGER NOT NULL,asset_revision INTEGER NOT NULL,file_size INTEGER NOT NULL,PRIMARY KEY(parent_id,asset_id),FOREIGN KEY(library_id,parent_id) REFERENCES catalog_entities(library_id,id),FOREIGN KEY(library_id,asset_id) REFERENCES catalog_assets(library_id,id)) WITHOUT ROWID,STRICT;
+ CREATE INDEX collection_asset_size_extreme ON catalog_collection_asset_sizes(parent_id,file_size DESC,asset_id);
+ CREATE INDEX collection_asset_size_reverse ON catalog_collection_asset_sizes(asset_id,parent_id);`
+	body := func(size int, collapsed bool) string {
+		q := fmt.Sprintf("UPDATE catalog_assets SET size=%d,info_epoch=info_epoch+1,playback_origin_revision=playback_origin_revision+1 WHERE id=1;UPDATE catalog_entities SET file_size_key=%d,revision=revision+1,playback_origin_revision=playback_origin_revision+1 WHERE id<=%d;", size, size, endChild)
+		if collapsed {
+			q += fmt.Sprintf("UPDATE catalog_collection_asset_sizes SET file_size=%d,asset_revision=(SELECT info_epoch FROM catalog_assets WHERE id=1) WHERE asset_id=1;UPDATE catalog_entities SET file_size_key=(SELECT file_size FROM catalog_collection_asset_sizes WHERE parent_id=catalog_entities.id ORDER BY file_size DESC,asset_id LIMIT 1),revision=revision+1 WHERE id BETWEEN %d AND %d;", size, startParent, endParent)
+		} else {
+			q += fmt.Sprintf("UPDATE catalog_scalar_contributions SET file_size=%d,contributor_revision=(SELECT revision FROM catalog_entities WHERE id=contributor_id) WHERE contributor_id BETWEEN 2 AND %d;UPDATE catalog_entities SET file_size_key=(SELECT file_size FROM catalog_scalar_contributions WHERE parent_id=catalog_entities.id ORDER BY file_size DESC,contributor_id,source LIMIT 1),revision=revision+1 WHERE id BETWEEN %d AND %d;", size, endChild, startParent, endParent)
+		}
+		return q
+	}
+	measure := func(collapsed bool, count int) map[string]any {
+		times := []float64{}
+		changes := []int64{}
+		for rep := 0; rep < count; rep++ {
+			size := 2000001 + rep
+			scope := "caps-inline"
+			if collapsed {
+				scope = "caps-collapsed"
+			}
+			q := body(size, collapsed) + fmt.Sprintf("UPDATE libraries SET data_revision=data_revision+1 WHERE id='full-library';INSERT INTO api_events(audience,type,resource_kind,resource_id,at_ms) VALUES('library:full-library','changed','library','full-library',1);INSERT INTO admin_receipts VALUES('%s','%d','%s','applied',1);", scope, rep, strings.Repeat("0", 64))
+			var before, after int64
+			must(c.QueryRowContext(context.Background(), "SELECT total_changes()").Scan(&before))
+			_, e = c.ExecContext(context.Background(), "BEGIN IMMEDIATE")
+			must(e)
+			start := time.Now()
+			var epoch int
+			must(c.QueryRowContext(context.Background(), "SELECT info_epoch FROM catalog_assets WHERE id=1").Scan(&epoch))
+			_, e = c.ExecContext(context.Background(), q)
+			must(e)
+			_, e = c.ExecContext(context.Background(), "COMMIT")
+			must(e)
+			times = append(times, float64(time.Since(start).Nanoseconds())/1e6)
+			must(c.QueryRowContext(context.Background(), "SELECT total_changes()").Scan(&after))
+			changes = append(changes, after-before)
+			var ok int
+			must(c.QueryRowContext(context.Background(), "SELECT count(*) FROM catalog_entities WHERE id BETWEEN ? AND ? AND file_size_key=?", startParent, endParent, size).Scan(&ok))
+			if ok != parents {
+				panic("CAPS parent scalar drift")
+			}
+		}
+		return map[string]any{"collapsed": collapsed, "n": count, "samples_ms": times, "p50_ms": pct(times, .5), "p99_ms": pct(times, .99), "max_ms": pct(times, 1), "rows_changed": changes, "sql": body(2000001, collapsed)}
+	}
+	baseline := measure(false, 1)
+	_, e = c.ExecContext(context.Background(), overlay)
+	must(e)
+	_, e = c.ExecContext(context.Background(), fmt.Sprintf("INSERT INTO catalog_collection_asset_sizes SELECT 1,id,1,(SELECT info_epoch FROM catalog_assets WHERE id=1),(SELECT size FROM catalog_assets WHERE id=1) FROM catalog_entities WHERE id BETWEEN %d AND %d;UPDATE catalog_scalar_contributions SET file_size=0;", startParent, endParent))
+	must(e)
+	candidate := measure(true, reps)
+	oh := sha256.Sum256([]byte(overlay))
+	save(filepath.Join(out, "caps-product.json"), map[string]any{"ddl_sha256": hash, "cue_children": children, "shared_collections": parents, "baseline_contribution_rows": children * parents, "collapsed_rows": parents, "baseline_single_inline": baseline, "candidate": candidate, "overlay": overlay, "overlay_sha256": hex.EncodeToString(oh[:]), "boundary": "All children share same100authored collections; per(collection,asset) stores size only, other child metrics remain per-child. Current-source asset+owner/CUE entity keys+parentkeys+libraryrevision/event/receipt/NORMAL COMMIT included. Candidate does NOT advance25500unaffected child-tuple revision witnesses: INT must select field-scoped revision semantics, otherwise broad contributor_revision rewrites erase collapse benefit. Focused collection propagation; album/artist hierarchy publication is not charged. No claim this overlay is canonical, complete typed writer or arbitrary disjoint-collection collapse. No budget sweep, chunking or local qualification."})
 }
