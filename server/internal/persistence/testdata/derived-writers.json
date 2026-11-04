@@ -1379,7 +1379,7 @@
       ]
     },
     "internal/access/invitations.go": {
-      "sha256": "827947c11c0be64148275b2ceb1f0777a706e5b5da80dd2ad6e5b4f8e474f831",
+      "sha256": "d52afd7b3d2b6abfea9cbc97c8b040bb2f824e6a66d0fa5f383571d4a27c6947",
       "effects": [
         {
           "table": "*",
@@ -5645,7 +5645,7 @@
       ]
     },
     "internal/httpapi/admin_access.go": {
-      "sha256": "85264fd63967737bc61173d185279347a91c4ce80278efceb13b39519e1ba1c5",
+      "sha256": "51d1415c89a0035c611aca807fa81dc65de79dcc12b4d4aed5fa1e20555b2e76",
       "effects": [
         {
           "table": "*",
@@ -6212,7 +6212,7 @@
       ]
     },
     "internal/httpapi/http_contracts_administration.go": {
-      "sha256": "ca4503a0b90ba4ea21132cf0b6fdaae1fac1658ec7aaed27b8d49b196f68b151",
+      "sha256": "8a568b2ba152d1fb2f517754e55575a042084d001b0cf29e9bf4cfd53234fa63",
       "effects": [
         {
           "table": "*",
@@ -7464,6 +7464,15 @@
     },
     "internal/identity/owner_switch_count_capture.go": {
       "sha256": "4b58800c4ee6709e3dae043c23a47dd212e948647b1bd0a14ecc36ae18930d47",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/identity/password_hash.go": {
+      "sha256": "63a6f6ee6ef9e31dfe64e5439bc09e31071a972ab751bba9869e1c3317d20685",
       "effects": [
         {
           "table": "*",
