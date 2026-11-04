@@ -55,7 +55,6 @@
   "web/src/screens/search/Search.route.tsx": 1
  },
  "query-read": {
-  "apps/desktop/src/offline.ts": 3,
   "apps/native/src-next/dev/families/selection/selection.gallery.tsx": 1,
   "apps/native/src-next/platform/account-security.ts": 1,
   "apps/native/src-next/platform/account-workspace.ts": 4,
@@ -83,7 +82,6 @@
   "apps/native/src-next/screens/destinations/music/playlist-port.ts": 3,
   "apps/native/src-next/screens/destinations/pins.ts": 1,
   "apps/native/src-next/screens/destinations/saved/model.ts": 1,
-  "apps/native/src-next/screens/downloads/ReadingDownloadSheet.tsx": 1,
   "apps/native/src-next/screens/downloads/device.ts": 2,
   "apps/native/src-next/screens/home/CustomizeRoute.tsx": 2,
   "apps/native/src-next/screens/home/SeeAllRoute.tsx": 1,
@@ -322,7 +320,6 @@
   "web/src/platform/account-server-directory.ts": 1,
   "web/src/platform/account.ts": 4,
   "web/src/platform/app-sessions.ts": 1,
-  "web/src/platform/browser-download.ts": 3,
   "web/src/platform/owner-claim.ts": 4,
   "web/src/platform/playback/DecodeAudioRender.ts": 1,
   "web/src/platform/playback/audio/bytes.ts": 1,
@@ -338,7 +335,6 @@
   "web/src/screens/browse/SaveView.tsx": 1,
   "web/src/screens/browse/controller.ts": 3,
   "web/src/screens/browse/play-selection.ts": 1,
-  "web/src/screens/browse/selection-action-transfers.ts": 1,
   "web/src/screens/browse/selection-editor.ts": 2,
   "web/src/screens/browse/selection-picker.ts": 2,
   "web/src/screens/browse/selection.tsx": 1,
