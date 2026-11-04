@@ -39,7 +39,7 @@ func TestFilesystemFlagsReasonsAndCursorScope(t *testing.T) {
 	if err := os.Symlink(filepath.Join(root, "absent"), filepath.Join(root, "broken")); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink("/proc", filepath.Join(root, "system-link")); err != nil {
+	if err := os.Symlink("/dev", filepath.Join(root, "system-link")); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Symlink(t.TempDir(), filepath.Join(root, "outside")); err != nil {
