@@ -92,3 +92,10 @@ same-level ceiling4 observation; no silent unbounded debt or optimize. Slow
 native calls emit start/end timestamps. Separate strace cohorts record only
 fsync/fdatasync calls to distinguish sync wait from engine work; traced wall
 latencies are labeled instrumented, never substituted for untraced results.
+
+The bounded C experiment (`schema-v1/p0-q-cfast`) returns a top41 own-title page
+from exact-title covering seeks plus rowid-ordered FTS title-start/title-word
+streams. It avoids computing full title populations before first response.
+Inherited title matches remain reachable in the deferred complete A set. It
+changes title-group rank policy and requires the runtime continuation/fence/
+pending-total design above; it does not change any candidate table/index.

@@ -46,16 +46,60 @@ func matched(terms int) string {
 	}
 	return q
 }
+func fastTitlePage(db *sql.DB, q Query) ([]int, string) {
+	terms := facettext.SearchTerms(q.Text)
+	parts := []string{}
+	for _, t := range terms {
+		parts = append(parts, "title_prefix_tokens:"+encode(t)+"*")
+	}
+	primary := strings.Join(parts, " AND ")
+	initial := "initial_prefix_tokens:" + encode(terms[0]) + "*"
+	ids := []int{}
+	rows, e := db.Query("SELECT entity_id FROM search_own WHERE library_id IN(0,1,2,3,4,5,6,7) AND kind IN(1,2,3,4,5,6,7,8) AND title_fold=? ORDER BY entity_id LIMIT 41", facettext.SearchFold(q.Text))
+	must(e)
+	for rows.Next() {
+		var id int
+		must(rows.Scan(&id))
+		ids = append(ids, id)
+	}
+	rows.Close()
+	for _, match := range []string{"(" + primary + ") AND " + initial, "(" + primary + ") NOT " + initial} {
+		if len(ids) >= 41 {
+			break
+		}
+		args := []any{match}
+		sqlq := "SELECT f.rowid FROM search_own_prefix f CROSS JOIN search_own s ON s.entity_id=f.rowid WHERE search_own_prefix MATCH ? AND s.library_id IN(0,1,2,3,4,5,6,7) AND s.kind IN(1,2,3,4,5,6,7,8)"
+		if len(ids) > 0 {
+			ph := []string{}
+			for _, id := range ids {
+				ph = append(ph, "?")
+				args = append(args, id)
+			}
+			sqlq += " AND f.rowid NOT IN(" + strings.Join(ph, ",") + ")"
+		}
+		sqlq += " ORDER BY f.rowid LIMIT ?"
+		args = append(args, 41-len(ids))
+		rows, e = db.Query(sqlq, args...)
+		must(e)
+		for rows.Next() {
+			var id int
+			must(rows.Scan(&id))
+			ids = append(ids, id)
+		}
+		rows.Close()
+	}
+	return ids, primary
+}
 func hybridOnce(db *sql.DB, q Query) (float64, float64, map[string]any) {
 	start := time.Now()
 	exec(db, "BEGIN")
-	_, titlePage := search(db, "B", q)
+	titlePage, primaryMatch := fastTitlePage(db, q)
 	firstMs := float64(time.Since(start).Microseconds()) / 1000
 	// Copy the complete title-first population only after response values are ready.
 	deferredStart := time.Now()
 	exec(db, "CREATE TEMP TABLE IF NOT EXISTS ctitles(entity INTEGER PRIMARY KEY)")
 	exec(db, "DELETE FROM ctitles")
-	exec(db, "INSERT INTO ctitles "+matched(len(strings.Fields(q.Text))))
+	exec(db, "INSERT INTO ctitles SELECT rowid FROM search_own_prefix WHERE search_own_prefix MATCH ?", primaryMatch)
 	var titles int
 	must(db.QueryRow("SELECT count(*) FROM ctitles").Scan(&titles))
 	_, contextPage := searchExcluding(db, "A", q, true)
