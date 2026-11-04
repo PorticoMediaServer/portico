@@ -8,3 +8,11 @@
 .reportReply { margin: 0 0 12px; padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, var(--color-text) 6%, transparent); }
 .reportReply p { margin: 0 0 6px; font-size: var(--type-body-size); color: var(--color-text); white-space: pre-wrap; overflow-wrap: anywhere; }
 .reportReply footer { font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
+/* phone-app 21: the phone page — its bar, one view row, and a section per audience. */
+.phonePage { padding: 0 0 96px; }
+.markAll[data-variant=text] { color: var(--color-accent-strong); }
+.phoneViews { margin: 0 var(--shell-gutter, var(--gutter-desktop)); }
+.viewCount { display: inline-grid; place-items: center; min-width: 20px; height: 20px; margin-left: 8px; padding: 0 6px; border-radius: 10px; background: var(--color-raised-high); color: var(--color-text-secondary); font-size: var(--type-caption-size); }
+.phoneSection { margin: 18px var(--shell-gutter, var(--gutter-desktop)) 0; }
+.phoneSection > h2 { display: flex; gap: 10px; margin: 0 0 10px; font-size: var(--type-caption-size); font-weight: var(--type-body-strong-weight); color: var(--color-text-secondary); }
+.phoneSection > h2 > span { color: var(--color-text-tertiary); font-weight: inherit; }
