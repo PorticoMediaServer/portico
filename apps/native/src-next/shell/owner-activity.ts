@@ -56,7 +56,12 @@ export function createNativeOwnerActivity(context: NativeShellBootstrapContext, 
       if (retired) return;
       retired = true; offAuthority(); offService();
       for (const listener of [...sourceListeners]) listener();
-      service.dispose(); sourceListeners.clear(); listeners.clear();
+      service.dispose(); sourceListeners.clear();
+      // The service is cleared, but this store's own indicator is what a glyph draws: erase it and tell any glyph still
+      // mounted, before its listeners go. Nothing later (the authority change) reaches a disposed store.
+      const shown = last; last = unknown;
+      if (shown !== unknown) for (const listener of [...listeners]) listener();
+      listeners.clear();
     },
   });
 }
