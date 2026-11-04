@@ -20,7 +20,7 @@ import type {WatchScreenProps} from '../types';
 import type {WatchPlaybackContext} from '../play-on-binding';
 import type {V1QueuePolicyIntent} from '@core/playback-v1/v1-queue-player.ts';
 import {ListeningSeek} from '../listening/ListeningSeek';
-import {musicQueueOrigin} from './queue-facts';
+import {musicQueueNext, musicQueueOrigin} from './queue-facts';
 import {useMusicFavorite} from './use-music-favorite';
 import ambientStyles from '../listening/listening-ambient.module.css';
 import styles from './now-playing.module.css';
@@ -110,7 +110,7 @@ export function WatchMusicNowPlaying({binding, snapshot, expanded, onCollapse, p
   const bounds = watchSeekBounds(snapshot), at = presentation.positionSeconds, duration = presentation.durationSeconds;
   const can = (kind: string) => presentation.controls.includes(kind as never);
   const canSeek = can('seek') && !!bounds;
-  const from = musicQueueOrigin(snapshot);
+  const from = musicQueueOrigin(snapshot), nextTitle = phone ? musicQueueNext(snapshot) : undefined;
   const code = snapshot.playback.listeningNotice;
   const notice = code ? {code, sequence: snapshot.sequence} : undefined;
   const listeningNotice = <ListeningNotice notice={notice} paused={snapshot.playback.intent === 'paused'}
@@ -138,10 +138,12 @@ export function WatchMusicNowPlaying({binding, snapshot, expanded, onCollapse, p
     <AmbientArt source={binding.artwork.ambient(presentation.posterUrl ?? presentation.backdropUrl)} className={`${ambientStyles.ambient}${phone ? ` ${ambientStyles.phone}` : ''}`}/>
     <header className={styles.top}>
       <button type="button" className={styles.round} aria-label={t('player.minimize')} onClick={onCollapse}><Icon name="i-down" size={22} /></button>
-      {from && <span className={styles.from}>{t('next.music.playingFrom', {source: from})}</span>}
+      {/* phone-app 14: on a phone "Playing from" sits centred over its source, on two lines. */}
+      {from && (phone ? <span className={styles.from}><small>{t('web.player.playingFromLabel')}</small><b>{from}</b></span>
+        : <span className={styles.from}>{t('next.music.playingFrom', {source: from})}</span>)}
       {!phone && listeningNotice}
       <span className={styles.spacer} />
-      {playOn && listenOwner && listenState && <button type="button" className={styles.glass} aria-label={t('next.dock.playOn')}
+      {!phone && playOn && listenOwner && listenState && <button type="button" className={styles.glass} aria-label={t('next.dock.playOn')}
         onClick={event => {if (open) listenOwner.external(listenState, snapshot, () => playOn(event.currentTarget));}}><Icon name="i-cast" size={20}/></button>}
       {equalizer ? <button ref={moreAnchor} type="button" className={styles.glass} aria-label={t('player.more')} aria-haspopup="menu" aria-expanded={moreOpen}
         onClick={() => {
@@ -186,6 +188,8 @@ export function WatchMusicNowPlaying({binding, snapshot, expanded, onCollapse, p
             aria-pressed={!!queue && queue.repeat !== 'off'} disabled={policyBusy} onClick={() => policy({action: 'repeat', repeat: queue?.repeat === 'off' ? 'all' : queue?.repeat === 'all' ? 'one' : 'off'})}>
             <Icon name="i-repeat" size={22}/>{queue?.repeat === 'one' && <span className={styles.repeatOne} aria-hidden="true">1</span>}</button>
         </div>
+        {/* phone-app 14: what plays next, under the transport. */}
+        {phone && nextTitle && <p className={styles.nextLine}><span>{t('player.next')}</span><b>{nextTitle}</b></p>}
         {phone && <div className={styles.notice}>{listeningNotice}</div>}
         {!phone && can('volume') && <div className={`${styles.volume} ${styles.fade2}`} data-music-content-group="1"><button type="button" className={styles.ctl} aria-label={t(presentation.muted ? 'player.unmute' : 'player.mute')} onClick={() => send({kind: 'mute'})}><Icon name="i-vol" size={20} /></button>
           <Slider min={0} max={1} step={.01} value={presentation.muted ? 0 : presentation.volume} aria-label={t('player.volume')} onValueChange={volume => send({kind: 'volume', volume})} /></div>}
@@ -195,9 +199,11 @@ export function WatchMusicNowPlaying({binding, snapshot, expanded, onCollapse, p
       <div className={styles.fade3} data-music-content-group="2">{panel}</div>
       {!eqOpen&&listenOwner&&listenState?.panel==='lyrics'&&<Button size="small" onClick={()=>listenOwner.closePanel(listenState)}>{t('action.close')}</Button>}
     </aside>}
+    {/* phone-app 14: Lyrics, Play on and Up next along the foot, each an icon over its label. */}
     {phone&&listening&&<div className={styles.phoneTools}>
-      {listenOwner?.queueOffered()&&<Button size="small" onClick={event=>listenOwner.show(listenState!,'queue',event.currentTarget)}>{t('next.music.upNext')}</Button>}
-      {listenOwner?.lyricsOffered()&&<Button size="small" onClick={event=>listenOwner.show(listenState!,'lyrics',event.currentTarget)}>{t('player.lyrics')}</Button>}
+      {listenOwner?.lyricsOffered()?<button type="button" className={styles.tool} onClick={event=>listenOwner.show(listenState!,'lyrics',event.currentTarget)}><Icon name="i-lyrics" size={20}/><span>{t('player.lyrics')}</span></button>:<span className={styles.toolGap}/>}
+      {playOn&&listenOwner&&listenState?<button type="button" className={`${styles.tool} ${styles.playOnTool}`} aria-label={t('next.dock.playOn')} onClick={event=>{if(open)listenOwner.external(listenState,snapshot,()=>playOn(event.currentTarget));}}><Icon name="i-cast" size={18}/><span>{t('device.thisDevice')}</span></button>:<span className={styles.toolGap}/>}
+      {listenOwner?.queueOffered()?<button type="button" className={styles.tool} onClick={event=>listenOwner.show(listenState!,'queue',event.currentTarget)}><Icon name="i-queue" size={20}/><span>{t('next.music.upNext')}</span></button>:<span className={styles.toolGap}/>}
     </div>}
     {phone&&<Dialog open={open&&(eqOpen||listenState?.panelVisible===true)} onOpenChange={value=>{if(value)return;if(eqOpen)closeEq(eqReceipt);else if(listenOwner&&listenState)listenOwner.closePanel(listenState);}}
       title={eqOpen?t('next.media.eq.title'):listenState?.panel==='lyrics'?t('player.lyrics'):t('next.music.upNext')} returnFocusRef={eqOpen?moreAnchor:listenState?.focus??undefined}>{panel}</Dialog>}

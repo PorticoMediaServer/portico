@@ -300,7 +300,7 @@ test('actual ListeningPanels callbacks consume retired save/editor failures whil
 /** Actual persistent WatchPlayback + actual committed host hook + audiobook
  * composition, using supplied runtime/core transports and inert DOM/media ports.
  * This establishes wiring and original lifetimes, never browser rendering. */
-async function mountedPlayback(kind:'music'|'audiobook'='audiobook',settings?:{role?:'owner'|'admin'|'member';primary?:boolean;manage?:boolean;library?:boolean;facts?:boolean;enabled?:boolean;lyrics?:'lrc'|'text'|'404'|'error'|'empty';liveFacts?:boolean}){
+async function mountedPlayback(kind:'music'|'audiobook'='audiobook',settings?:{role?:'owner'|'admin'|'member';primary?:boolean;manage?:boolean;library?:boolean;facts?:boolean;enabled?:boolean;lyrics?:'lrc'|'text'|'404'|'error'|'empty';liveFacts?:boolean;width?:number}){
   const f=harness({kind,expanded:false}),events=new EventTarget(),navigations:unknown[]=[];
   if(settings?.lyrics)f.lyricsMode(settings.lyrics);
   const oldDocument=globalThis.document,oldHTMLElement=globalThis.HTMLElement;globalThis.HTMLElement=class {} as typeof HTMLElement;
@@ -327,7 +327,7 @@ async function mountedPlayback(kind:'music'|'audiobook'='audiobook',settings?:{r
     react:h.react,'@i18n':{defaultI18n},'../../../../packages/player-core/src/index.ts':{sameFence},'./listening/use-listening-owner':hook,'./listening/AudiobookHost':bookHost,'./music/NowPlaying':music,
     './music/expansion-owner':{useMusicExpansion:expansion.useMusicExpansion,MusicExpansionSurface:'MusicExpansionSurface'},
     '../../shell/playback-model':{PlaybackPresentations,fenceKey,localVideoSurfaceActive,playbackPresentation,retainedPlaybackNotice},
-    '../../shell/playback-media-owner':{PlaybackMediaOwner},'../../shell/viewport':{useShellWidth:()=>1440},
+    '../../shell/playback-media-owner':{PlaybackMediaOwner},'../../shell/viewport':{useShellWidth:()=>settings?.width??1440},
     '../../platform/settings-platform':{settingsPlatform:()=>undefined},'../account/feedback':{feedbackAvailable:()=>false,subscribeFeedback:()=>()=>{}},
     './feedback':{watchFeedbackTarget:()=>undefined},'./play-on-binding':{createWatchPlayOn:()=>cast,remotePictureKeepsCaptions:()=>true},
     '../../router':{router:route},'./still-watching':{watchStillWatching:()=>null},
@@ -524,4 +524,19 @@ test('fact replacement retires a pending Settings navigation flight without repo
     h.publishFacts({...h.context.facts,serverName:'Renamed'});assert.ok(librarySettingsButton(h.show()));
     held.reject(new Error('retired_navigation'));await tick();assert.equal(h.errors.length,0);assert.equal(h.f.calls.mounts,1);assert.equal(h.f.calls.unmounts,0);
   }finally{h.close();assert.equal(h.factSubscriptions(),0);}
+});
+
+test('phone-app 14 at phone widths: Lyrics, Play on and Up next along the foot as icons over labels; desktop keeps frame 4\'s side panel',async()=>{
+  for(const width of [390,1440]){
+    const h=await mountedPlayback('music',{lyrics:'lrc',width});try{
+      h.show();await tick();let ui=h.show();one(ui,'DockHost').props.binding.onAction({kind:'lyrics',fence:h.f.snapshot.fence});await tick();ui=h.show();await tick();ui=h.show();
+      const tools=all(ui,'button').filter((node:any)=>node.props.className==='tool');
+      if(width===1440){assert.equal(tools.length,0,'desktop: no foot row');continue;}
+      const text=(node:any):string=>Array.isArray(node)?node.map(text).join(''):node?.props?text(node.props.children):typeof node==='string'?node:'';
+      assert.deepEqual(tools.map(text),[defaultI18n.t('player.lyrics'),defaultI18n.t('next.music.upNext')],'Lyrics left, Up next right');
+      assert.deepEqual(tools.map((node:any)=>all(node.props.children,'Icon')[0]?.props.name),['i-lyrics','i-queue'],'each an icon over its label');
+      assert.equal(all(ui,'span').filter((node:any)=>node.props.className==='toolGap').length,1,'Play on keeps its middle place when it is not offered');
+      tools[1].props.onClick({currentTarget:undefined});await tick();assert.deepEqual(h.errors,[]);
+    }finally{h.close();}
+  }
 });
