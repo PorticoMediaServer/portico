@@ -62,7 +62,7 @@ function DashboardView({bindings: b, embedded = false, initialSection, phone = f
   if (!allowed) return null;
   const failed = sessions.failed || b.role === 'owner' && (status.failed || (phone ? health.failed : live.failed || accounts.failed) || report.state.failed);
   const retry = () => {sessions.refresh(); if (b.role === 'owner') {status.refresh(); if (phone) health.refresh(); else live.refresh(); report.state.refresh(); accounts.refresh(); server.refresh();}};
-  /* Frames 10 and 10b: Now playing, then Alerts beside Background activity, then Health and the statistics, quiet or busy. */
+  /* settings.html's Dashboard (lead, 4 Nov): Alerts, Now playing, Server load, the statistics, then Background tasks, quiet or busy. */
   const groupedQuiet = !phone && !failed && b.role === 'owner';
   const sections = phone
     ? <><div data-dashboard-section="streams"><NowPlaying bindings={b} state={sessions} phone /></div>
@@ -203,7 +203,7 @@ function Tasks({status, phone = false}: {status: StatusState; phone?: boolean}) 
   if (!tasks.length && !status.value?.scans.length) return quiet
     ? phone
       ? <Section phone title={t('next.dashboard.backgroundActivity')}><p className={styles.phoneQuietLine}><DashboardQuiet kind="tasks" phone /></p></Section>
-      : <Section title={t('next.dashboard.backgroundActivity')} extra={<DashboardQuiet kind="tasks" />}><></></Section>
+      : <Section title={t('next.dashboard.tasks')} extra={<DashboardQuiet kind="tasks" />}><></></Section>
     : null;
   if (phone) {
     const scan = (scan: NonNullable<StatusState['value']>['scans'][number]) => {
