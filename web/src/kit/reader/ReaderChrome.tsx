@@ -194,7 +194,7 @@ export function ReaderChrome({title, subtitle, copy, chapter, pages, remainingIn
         <button type="button" className={styles.back} aria-label={copy.back} onClick={onBack}><Icon name="i-left" size={24} /></button>
         <div className={styles.title}>{title && <b>{title}</b>}{subtitle && <small>{subtitle}</small>}</div>
         <div className={styles.tools}>{actions.map(action => <span key={action.id} className={styles.action}>{action.separatorBefore && <span className={styles.separator} aria-hidden="true" />}<button type="button" className={styles.tool} aria-label={action.label}
-          aria-pressed={action.pressed} aria-expanded={action.expanded} disabled={action.disabled} data-open={action.expanded || undefined}
+          aria-pressed={action.pressed} aria-expanded={action.expanded} disabled={action.disabled} data-open={action.expanded || undefined} data-text={!action.icon || undefined}
           onClick={event => action.onPress(event.currentTarget)}>{action.icon ? <Icon name={action.icon} size={22} /> : action.text}</button></span>)}</div>
       </header>
       {showPageArrows && <><button type="button" disabled={!pageTurnsEnabled} className={`${styles.turn} ${styles.left}`} data-reader-chrome-layer="turn" aria-label={direction === 'rtl' ? copy.next : copy.previous} onClick={() => onTurn(direction === 'rtl' ? 'next' : 'previous')}><Icon name="i-left" size={26} /></button>

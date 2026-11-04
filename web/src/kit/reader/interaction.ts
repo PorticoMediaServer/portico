@@ -36,3 +36,20 @@ export function observedProgress(value: number | undefined): number | undefined 
 export function readerInteractiveTarget(target: EventTarget | null): boolean {
   return target instanceof Element && !!target.closest('button,a,input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="slider"],[role="tab"],[data-reader-panel]');
 }
+
+/** desktop-read 6, 9 and 10: each reader's toolbar in the order its frame draws it. EPUB: Contents,
+ * Search, Bookmark, Aa. PDF: the zoom group (−, the zoom, +), then Pages, Two pages, Contents,
+ * Search and Bookmark. Comic: the fit menu, Two pages, direction, Contents and Bookmark. Then More
+ * and full screen. Any other action keeps its place ahead of More. */
+const toolbarOrders = {
+  epub: ['contents', 'search', 'bookmark', 'display'],
+  pdf: ['zoom-out', 'zoom', 'zoom-in', 'pages', 'layout', 'contents', 'search', 'bookmark'],
+  comic: ['zoom', 'layout', 'direction', 'contents', 'bookmark'],
+} as const;
+export function readerToolbarOrder<T extends Readonly<{id: string; separatorBefore?: boolean}>>(actions: readonly T[], kind: 'epub' | 'pdf' | 'comic' = 'epub'): T[] {
+  const order: readonly string[] = toolbarOrders[kind], tail = ['more', 'fullscreen'];
+  const rank = (id: string) => tail.includes(id) ? order.length + 1 + tail.indexOf(id) : order.includes(id) ? order.indexOf(id) : order.length;
+  const sorted = actions.map((action, index) => ({action, index})).sort((a, b) => rank(a.action.id) - rank(b.action.id) || a.index - b.index).map(entry => entry.action);
+  // PDF: a rule between the zoom group and the pages tools, as frame 10 draws.
+  return kind === 'pdf' && sorted.some(action => action.id === 'zoom') ? sorted.map(action => action.id === 'pages' && !action.separatorBefore ? {...action, separatorBefore: true} : action) : sorted;
+}

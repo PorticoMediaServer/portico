@@ -30,6 +30,8 @@
 .action { display: flex; align-items: center; }
 .separator { width: 1px; height: 24px; background: rgba(237,245,250,.14); margin: 0 6px; }
 .reader .tool { display: grid; place-items: center; flex: none; width: 44px; height: 44px; border-radius: 10px; background: transparent; color: var(--color-text-secondary); }
+/* A worded tool (the zoom, "Fit height", Aa) is as wide as its words, as desktop-read 9 and 10 draw. */
+.reader .tool[data-text] { width: auto; min-width: 44px; padding: 0 10px; }
 .reader .tool:hover, .reader .tool[data-open] { background: rgba(237,245,250,.14); color: var(--color-text); }
 .reader .tool[aria-pressed="true"] { color: var(--color-accent-strong); }
 .reader .back { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; flex: none; color: var(--color-text); background: rgba(237,245,250,.1); }

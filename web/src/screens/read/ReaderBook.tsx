@@ -14,7 +14,7 @@ import {Skeleton, StateView} from '../../kit/states';
 import {ReaderContents, ReaderPanel, type ReaderContentsEntry} from '../../kit/reader/ReaderPanel';
 import {ReaderDisplayMark} from '../../kit/reader/ReaderDisplayMark';
 import {ReaderSearch, type ReaderSearchHit} from '../../kit/reader/ReaderSearch';
-import {readingDirection, type ReadDirection} from '../../kit/reader/interaction';
+import {readerToolbarOrder, readingDirection, type ReadDirection} from '../../kit/reader/interaction';
 import {ReadReader} from './ReadReader';
 import {ReadingDisplay} from './ReadingDisplay';
 import {ReaderFirstRunHint} from './ReaderFirstRunHint';
@@ -246,7 +246,7 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
       fixedPageZoom: publication.format === 'pdf' && value.location && value.location.format !== 'epub' && value.location.viewport
         ? <FixedPageZoom controller={controller} authority={authority} format={publication.format} reportError={engineError} viewport={value.location.viewport} presentation={presentation}/> : undefined,
       fixedPageStrip: publication.format === 'pdf' && !compactDocument ? <FixedPageStrip controller={controller} authority={authority} format={publication.format} reportError={engineError}/> : undefined,
-      onPanelDismiss: () => setPanel(undefined), actions: [
+      onPanelDismiss: () => setPanel(undefined), actions: readerToolbarOrder([
         ...(compactDocument ? [{id: 'search', label: t('next.reader.search'), icon: 'i-search' as const, expanded: panel === 'search', onPress: (element: HTMLButtonElement) => {anchor.current = element; setPanel(panel === 'search' ? undefined : 'search');}}] : []),
         ...(notes.service ? [{id:'bookmark',label:t('next.reader.addBookmark'),icon:'i-bookmark' as const,
           disabled:notes.state.loading || notes.state.saving || notes.state.revision === undefined || !value.location,
@@ -257,12 +257,13 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
         ...(publication.format === 'epub' ? [{id: 'display', label: t('next.reader.displayAction'), text: <ReaderDisplayMark sample={t('next.reader.sample')}/>, expanded: panel === 'display', onPress: (element: HTMLButtonElement) => {anchor.current = element; setPanel(panel === 'display' ? undefined : 'display');}}] : []),
         ...(compactDocument ? [{id: 'more', label: t('next.controls.more'), icon: 'i-more' as const, expanded: fixedMenu === 'more',
           onPress: (element: HTMLButtonElement) => {moreAnchor.current = element; setFixedMenu(fixedMenu === 'more' ? undefined : 'more');}}] : []),
-        ...(fixed && presentation !== 'phone' ? [{id: 'pages', label: t('next.reader.pagesStrip'), icon: 'i-thumbs' as const, disabled: value.status !== 'ready' || !value.metadata?.pageCount,
+        ...(fixed && presentation !== 'phone' ? [...(comic ? [] : [{id: 'pages', label: t('next.reader.pagesStrip'), icon: 'i-thumbs' as const, disabled: value.status !== 'ready' || !value.metadata?.pageCount,
           expanded: panel === 'contents' && fixedPane === 'pages', onPress: () => {setFixedPane('pages'); setPanel('contents');}},
           {id: 'zoom-out', label: t('next.reader.zoomOut'), text: <span className={fixedStyles.zoomStep}>−</span>, disabled: value.status !== 'ready' || !value.zoom || value.zoom.scale <= .05,
             onPress: () => {if (value.status === 'ready' && value.zoom && authority.isCurrent() && controller.getSnapshot() === value) void controller.setZoom({kind: 'scale', value: Math.max(.05, Math.round(value.zoom.scale / 1.25 * 100) / 100)}).catch(error => {if (authority.isCurrent()) engineError(readerErrorCode(error));});}},
           {id: 'zoom-in', label: t('next.reader.zoomIn'), text: <span className={fixedStyles.zoomStep}>+</span>, disabled: value.status !== 'ready' || !value.zoom || value.zoom.scale >= 8,
             onPress: () => {if (value.status === 'ready' && value.zoom && authority.isCurrent() && controller.getSnapshot() === value) void controller.setZoom({kind: 'scale', value: Math.min(8, Math.round(value.zoom.scale * 1.25 * 100) / 100)}).catch(error => {if (authority.isCurrent()) engineError(readerErrorCode(error));});}},
+          ]),
           {id: 'layout', label: t(value.preferences.twoPages ? 'next.reader.onePage' : 'next.reader.twoPages'), icon: 'i-spread' as const, pressed: value.preferences.twoPages, disabled: value.status !== 'ready' || !value.zoom,
             onPress: () => {if (value.status === 'ready' && value.zoom && authority.isCurrent() && controller.getSnapshot() === value) void controller.setOverride({twoPages: !value.preferences.twoPages}).catch(error => {if (authority.isCurrent()) engineError(readerErrorCode(error));});}}] : []),
         ...(fixed && !compactDocument ? [{id: 'zoom', label: t('next.reader.zoom'), text: <span className={fixedStyles.zoomLabel}>{fixedPageZoomLabel(value.zoom)}</span>, disabled: value.status !== 'ready' || !value.zoom,
@@ -271,7 +272,7 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
             expanded: fixedMenu === 'direction', onPress: (element: HTMLButtonElement) => {directionAnchor.current = element; setFixedMenu(fixedMenu === 'direction' ? undefined : 'direction');}}] : [])] : []),
         ...(layout.fullscreen && document.fullscreenEnabled ? [{id: 'fullscreen', label: t('next.reader.fullscreen'), icon: 'i-fs' as const, separatorBefore: true,
           onPress: (element: HTMLButtonElement) => {const root = element.closest<HTMLElement>('[data-reader-root]'); void (document.fullscreenElement ? document.exitFullscreen() : root?.requestFullscreen())?.catch(reportError);}}] : []),
-      ]})}/>
+      ], publication.format === 'epub' ? 'epub' : comic ? 'comic' : 'pdf')})}/>
     {active && <ReaderAnnotationActions service={notes.service} snapshot={snapshot} controller={controller} onSearch={!comic ? text => {changeQuery(text);setPanel('search');} : undefined} reportError={reportError}/>}
     {active && environment === 'web' && snapshot.status === 'ready' && <ReaderBrowserHint visible={presentation === 'phone' && !panel && !fixedMenu && !currentHit && snapshot.selection === null && !hint}/>}
     {active && fixed && <FixedPageMenus controller={controller} authority={authority} format={publication.format} reportError={engineError}
