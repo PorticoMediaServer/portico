@@ -20,6 +20,10 @@
     {
       "package": "github.com/PorticoMediaServer/portico/server/internal/metadata",
       "name": "TestMBStagingTenThousandCompleteFinalWriterHold"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "name": "TestScannerTenThousandInventoryAndNames"
     }
   ],
   "reviewed_kept": [
@@ -61,6 +65,12 @@
       {
         "package": "github.com/PorticoMediaServer/portico/server/internal/httpapi",
         "name": "TestReadPathGoldenEquivalence"
+      }
+    ],
+    "scanner": [
+      {
+        "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+        "name": "TestScannerTenThousandInventoryAndNames"
       }
     ]
   }

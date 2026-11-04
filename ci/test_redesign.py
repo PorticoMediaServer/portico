@@ -44,7 +44,8 @@ class Redesign(unittest.TestCase):
         tiers=json.loads((ROOT/'ci/tiers.json').read_text())
         keys=[(t['package'],t['name']) for lane in tiers['nightly_lanes'].values() for t in lane]
         self.assertEqual(len(keys),len(set(keys)))
-        self.assertEqual(len(keys),6)
+        self.assertEqual(len(keys),7)
+        self.assertIn(('github.com/PorticoMediaServer/portico/server/internal/ingestion', 'TestScannerTenThousandInventoryAndNames'), keys)
 
 class BatchExecution(unittest.TestCase):
     def test_batched_package_terminals_and_diagnostic_stderr(self):

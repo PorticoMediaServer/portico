@@ -2012,6 +2012,10 @@
     },
     {
       "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
+      "test": "TestScannerTenThousandInventoryAndNames"
+    },
+    {
+      "package": "github.com/PorticoMediaServer/portico/server/internal/ingestion",
       "test": "TestSelectiveEnqueueAdvancesPastAnUnchangedCandidatePage"
     },
     {
