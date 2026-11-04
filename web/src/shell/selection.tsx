@@ -59,7 +59,8 @@ export function createShellSelection(context: ShellAssemblyContext, playback: Ho
     routes: {openEntry: entry => {const destination = entryDestination(entry);return navigateArtworkEntry(entry, destination, artworkScope, () => isCurrent(controller.getSnapshot().context), () => !retired && context.isCurrent(), manual => router.navigate({...destination, ...(manual ? {viewTransition: false} : {})}));}, openCollection: collection => router.navigate(seeAllDestination({type: 'collection', resourceId: collection.collection.id, libraryId: collection.collection.libraryId})),
       openDestination: destination => router.navigate({to: '/saved', search: {resourceId: destination.id}}), editEntry}, reportError, ...(notify ? {notify} : {}),
     // An unread or empty directory is unknown, never "no library is visible" (that would drop every pick).
-    visibleLibraries: () => {const identity = context.facts.identity;return identity.librariesUnavailable || !identity.libraries.length ? undefined : identity.libraries.map(library => library.id);}});
+    visibleLibraries: () => {const identity = context.facts?.identity;return !identity || identity.librariesUnavailable || !identity.libraries.length ? undefined : identity.libraries.map(library => library.id);},
+    subscribeVisibleLibraries: listener => subscribeFacts(context, listener)});
   const queryLife = new AbortController();
   const queryActions = createBrowserQueryActions({subscribe: controller.selection.subscribe, captureOperation: () => controller.selection.captureOperation(),
     isOperationCurrent: operation => controller.selection.isOperationCurrent(operation)}, {api: context.api, requestId: async () => crypto.randomUUID(),

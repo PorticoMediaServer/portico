@@ -59,8 +59,15 @@ export type HomeSelectionOptions = Readonly<{
   reportError(error: unknown): void;
   /** A short confirmation (a toast) for work that finished after its selection ended. */
   notify?(message: string): void;
-  /** The libraries the viewer may see now, when the shell knows them; a pick from any other library is gone. */
+  /**
+   * The libraries the viewer may see now; a Home pick from any other library is gone. `undefined` means unknown (not
+   * read yet, or the read failed), and nothing drops on library grounds. `[]` means none is visible, and every library
+   * pick drops. A shell must never report a failed or missing read as `[]`.
+   */
   visibleLibraries?(): readonly string[] | undefined;
+  /** Called when that list may have changed, so a pick whose library went drops when the directory catches up rather
+   * than at the next Home answer. */
+  subscribeVisibleLibraries?(listener: () => void): () => void;
   /** A genuine native download sheet/runtime, absent on other platforms. */
   download?: (entries: readonly ContentEntry[], context: SelectionContext, signal: AbortSignal) => Promise<void>;
 }>;

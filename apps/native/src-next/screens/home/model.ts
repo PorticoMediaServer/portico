@@ -14,8 +14,15 @@ export const savedCardText = (entry: ContentEntry, env: TextEnvironment) => card
 /** A native search card: TV Search (tv.html f5) draws a show's year, with the season count as a
  *  tag on the top result only, so the row's own season count is not its caption here (W2-A4). */
 export const nativeSearchCardText = (entry: ContentEntry, env: TextEnvironment) => homeCardText(entry.kind === 'show' ? {...entry, seasonCount: undefined} : entry, false, env);
+/**
+ * The Home document as this viewer's latest answer, or nothing. `authority.viewerFence` is a live getter that follows
+ * the latest Home document, so this asks only "this server, and the latest answer", never "the same fence as before".
+ * It stays because a TV start treats an admitted document with no rows as proof that Home is empty
+ * (resolveTVHomeStart → canYieldTVHomeMenu moves focus to the rail or menu for good): a document from another viewer
+ * must read as still waiting, never as empty (step 7 item 4).
+ */
 export function authorizedHome(document: HomeDocument | undefined, authority: ShellAuthority): HomeDocument | undefined {
-  return document?.serverId === authority.serverId && document.viewerFence === authority.viewerFence ? document : undefined;
+  return document?.serverId === authority.serverId && document.viewerFence === authority.viewerFence ? document : undefined; // fence-compare: kept (same answer, see above)
 }
 
 /** Platform eligibility is server-authored; Read is additionally hidden from the TV shell. */

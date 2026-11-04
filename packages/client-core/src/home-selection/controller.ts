@@ -55,6 +55,7 @@ export class HomeSelectionController {
   private epoch = 0;
   private disposed = false;
   private changing = false;
+  private visibleLibraries = 'null';
   private document?: HomeDocument;
   private menuWindow?: () => void;
   private menuSource?: WindowSource;
@@ -92,6 +93,9 @@ export class HomeSelectionController {
     this.cleanups.push(options.events.on('job.updated', revalidateJobs));
     const offResync = options.events.onResync?.(revalidateJobs);
     if (offResync) this.cleanups.push(offResync);
+    this.visibleLibraries = JSON.stringify(options.visibleLibraries?.() ?? null);
+    const offLibraries = options.subscribeVisibleLibraries?.(() => this.librariesChanged());
+    if (offLibraries) this.cleanups.push(offLibraries);
     this.homeChanged();
   }
   getSnapshot = (): HomeSelectionSnapshot => this.state;
@@ -139,11 +143,31 @@ export class HomeSelectionController {
   }
   /** A pick the newer answer does not list is unknown, not gone, while the row it was picked in still has pages the
    * answer did not read (a refresh reads first pages only). It is gone once that row is fully loaded or no longer
-   * there, the spotlight no longer shows it, or its library is no longer visible to the viewer. */
-  private unknown(item: SelectionIdentity, sectionId: string) {
-    const visible = this.options.visibleLibraries?.();
-    if ('libraryId' in item && visible && !visible.includes(item.libraryId)) return false;
+   * there, or the spotlight no longer shows it (a library no longer visible is checked first, in resolvePicks). */
+  private unknown(sectionId: string) {
     return sectionId !== 'home:spotlight' && this.rows().some(row => row.id === sectionId && row.hasMore);
+  }
+  /** Re-resolves the picks against the current Home document under `context` (ruling D); returns how many dropped. */
+  private resolvePicks(context: SelectionContext) {
+    const offered = this.offeredMembers(context), previous = new Map([...this.held.values()].map(member => [selectionKey(context.scope, member.item), member]));
+    // A library the viewer can no longer see wins over a Home document that still lists the pick (the directory caught
+    // up first); otherwise the newer item, or an unknown pick kept as it was.
+    const visible = this.options.visibleLibraries?.();
+    const dropped = this.selection.moveContext(context, (item, sectionId) => visible && 'libraryId' in item && !visible.includes(item.libraryId) ? undefined
+      : offered.get(selectionKey(context.scope, item))?.item ?? (this.unknown(sectionId) ? item : undefined));
+    this.held.clear();
+    for (const key of this.selection.getSnapshot().selectedKeys) {const member = offered.get(key) ?? previous.get(key); if (member) this.held.set(key, member);}
+    return dropped;
+  }
+  /** The visible libraries changed (the directory caught up with an access change): picks from a library no longer
+   * visible drop now, with the notice, instead of at the next Home answer. A selection an action holds is left to it. */
+  private librariesChanged() {
+    const visible = JSON.stringify(this.options.visibleLibraries?.() ?? null);
+    if (this.disposed || visible === this.visibleLibraries) return;
+    this.visibleLibraries = visible;
+    if (this.ticket || !this.isHomeCurrent(this.state.context)) return;
+    const dropped = this.resolvePicks(this.state.context);
+    if (dropped > 0) this.options.notify?.(defaultI18n.t('next.selection.noLongerAvailable', {count: dropped}));
   }
   /** Revision changes may retain a menu's semantic opener, never its old grants or in-flight work. */
   private reconcile(context: SelectionContext, environment: SelectionEnvironment) {
@@ -170,12 +194,8 @@ export class HomeSelectionController {
     try {
       this.invalidate(keep, survive ? 'keep' : 'clear');
       this.environment = {...environment};
-      if (survive) {
-        const offered = this.offeredMembers(context), previous = new Map([...this.held.values()].map(member => [selectionKey(context.scope, member.item), member]));
-        dropped = this.selection.moveContext(context, (item, sectionId) => offered.get(selectionKey(context.scope, item))?.item ?? (this.unknown(item, sectionId) ? item : undefined));
-        this.held.clear();
-        for (const key of this.selection.getSnapshot().selectedKeys) {const member = offered.get(key) ?? previous.get(key); if (member) this.held.set(key, member);}
-      } else this.selection.setContext(context);
+      if (survive) dropped = this.resolvePicks(context);
+      else this.selection.setContext(context);
       this.document = this.options.home.getSnapshot().document;
       this.publish({context: this.selection.getSnapshot().context, selection: this.selection.getSnapshot(), actions: selectionActions(this.selection.getSnapshot().summary, this.environment), action: idle()});
       if (!menu || !window || !source || !sameSource(source, window.source) || !sameScope(previous, context) || !this.isHomeCurrent(context)) {retainedMenuWindow?.(); return;}
