@@ -278,7 +278,7 @@ export function GuideScreen({title, switcher, summary, conflicts, onTabChange, c
     </header>
     <Tabs className={styles.guideTabs} data-guide-tabs listClassName={styles.guideTabList} value="guide" aria-label={t('next.home.shell.live')}
       onValueChange={value => {if (value === 'recordings') onTabChange?.(value);}}
-      items={[{value: 'guide', label: t('channels.title')},
+      items={[{value: 'guide', label: t('channels.tabGuide')},
         {value: 'recordings', label: <>{t('recordings.title')}{conflicts !== undefined && conflicts > 0 && <span className={styles.guideTabNote}>{t('next.live.conflicts', {count: conflicts})}</span>}</>}]}/>
     <div className={styles.guideChips} data-guide-chips role="group" aria-label={t('channels.filters')}>
       {compactHeader && switcher && <Select className={styles.guideSourceChip} aria-label={t('channels.source')} value={switcher.value} options={switcher.options} onValueChange={switcher.onChange}/>}
@@ -301,8 +301,8 @@ export function GuideScreen({title, switcher, summary, conflicts, onTabChange, c
           <Select className={styles.guideSort} aria-label={t('channels.sort')} value={sort.value} options={sort.options} onValueChange={sort.onChange}/>
         </div>
         {!compactHeader && <Segmented className={styles.guideView} variant="view" aria-label={t('channels.view')} value={view} onValueChange={value => {if (value === 'guide' || value === 'list') onViewChange(value);}}
-          items={[{value: 'list', label: t('channels.viewList'), icon: 'i-list'},
-            {value: 'guide', label: t('channels.viewGuide'), icon: 'i-timeline'}]}/>}
+          items={[{value: 'guide', label: t('channels.viewGrid'), icon: 'i-timeline'},
+            {value: 'list', label: t('channels.viewList'), icon: 'i-list'}]}/>}
       </div>
     </div>
     </div>
