@@ -20,7 +20,7 @@ test('every published History retention choice round-trips through the server da
   }
 });
 test('History configuration maps current, effective and default independently', () => {
-  const configuration = parseSettingsConfiguration({revision: 1, registryRevision: 'test', path: '/config/portico.toml', fields: [
+  const configuration = parseSettingsConfiguration({revision: 1, registryRevision: 'test', signInPolicyRevision: 'policy-1', path: '/config/portico.toml', fields: [
     {id: 'history.keepHistory', key: 'history.keep_play_history', current: 1095, effective: 365, default: 0, source: 'file', configOnly: true, applicationMode: 'hot'},
   ]});
   assert.deepEqual(readSettingsBinding(binding, {configuration}, 'history.keepHistory'),

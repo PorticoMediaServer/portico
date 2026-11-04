@@ -18,7 +18,8 @@ test('the configuration keeps the sign-in policy revision (#713)', () => {
   assert.equal(parsed.signInPolicyRevision, '7');
   assert.throws(() => parseSettingsConfiguration({...document, signInPolicyRevision: 7}));
   assert.throws(() => parseSettingsConfiguration({...document, signInPolicyRevision: ''}));
-  assert.equal(parseSettingsConfiguration({...document, signInPolicyRevision: undefined}).signInPolicyRevision, undefined);
+  // Required, like any other field the contract requires.
+  assert.throws(() => parseSettingsConfiguration({...document, signInPolicyRevision: undefined}));
 });
 
 test('the nine rows read as the typed policy, and a change sends the complete object', async () => {
@@ -44,6 +45,9 @@ test('the nine rows read as the typed policy, and a change sends the complete ob
 test('a revision mismatch is a conflict to re-read, not an error', () => {
   assert.equal(signInPolicyConflict({status: 412, code: 'revision_mismatch'}), true);
   assert.equal(signInPolicyConflict({code: 'revision_mismatch'}), true);
+  // The code decides, not the status: another 409 or 412 is not this conflict.
+  assert.equal(signInPolicyConflict({status: 412}), false);
+  assert.equal(signInPolicyConflict({status: 409, code: 'conflict'}), false);
   assert.equal(signInPolicyConflict({status: 403, code: 'not_permitted'}), false);
   assert.equal(signInPolicyConflict({code: 'factor_setup_required'}), false);
 });

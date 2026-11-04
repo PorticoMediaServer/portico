@@ -15,7 +15,7 @@ test('picture-size labels encode only the exact approved pixel edges',()=>{
 
 test('picture-size projection retains actual current/effective/default and file source',()=>{
  const binding=settingsBinding('metadata.artworkSize')!;
- const configuration={revision:9,registryRevision:'settings',path:'/config/portico.toml',fields:[{id:'metadata.artworkSize',key:'metadata.artwork_max_edge',current:1280,effective:1920,default:2560,source:'file' as const,configOnly:false,applicationMode:'next-operation'}]};
+ const configuration={revision:9,registryRevision:'settings',signInPolicyRevision:'policy-1',path:'/config/portico.toml',fields:[{id:'metadata.artworkSize',key:'metadata.artwork_max_edge',current:1280,effective:1920,default:2560,source:'file' as const,configOnly:false,applicationMode:'next-operation'}]};
  assert.deepEqual(readSettingsBinding(binding,{configuration},'metadata.artworkSize'),{current:'small',effective:'standard',default:'large',source:'file',configOnly:false,applicationMode:'next-operation'});
  // A captured form alone never manufactures a factory default or provenance.
  assert.equal(readSettingsBinding(binding,{forms:{metadata:{artworkMaxEdge:1280}}})?.default,undefined);

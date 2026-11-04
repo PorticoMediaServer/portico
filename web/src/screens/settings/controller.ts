@@ -90,6 +90,12 @@ function withSignInHashStrength(configuration: SettingsConfiguration, query: str
   // searchConfiguration matches words against id and key; the id carries the label so "hashing" finds it.
   return {...configuration, fields: [...configuration.fields, {id: `${signInHashKey} ${text}`, key: signInHashKey, current: value, effective: value, default: value, source: 'default', configOnly: true, applicationMode: 'restart'}]};
 }
+/** A refused save names its reason where the server gives one the owner can act on: Require two-step verification
+ * refused with `factor_setup_required` (#713) asks the owner to turn it on for their own account first. */
+function settingsRowErrorText(error: unknown): string {
+  const code = error && typeof error === 'object' ? (error as {code?: unknown}).code : undefined;
+  return defaultI18n.t(code === 'factor_setup_required' ? 'error.factorSetupRequired' : 'next.states.pageFailedBody');
+}
 export class SettingsController {
   private readonly options: SettingsControllerOptions;
   private readonly console: ConsoleClient;
@@ -272,7 +278,7 @@ export class SettingsController {
       displayValue: option ? defaultI18n.t(option.label) : typeof current === 'boolean' ? defaultI18n.t(current ? 'next.settings.on' : 'next.settings.off') : typeof current === 'object' ? JSON.stringify(current) : String(current),
       disabled: this.writing || this.libraryRow(context) && this.library.getSnapshot().saving || !this.current(), saving: this.writing || this.libraryRow(context) && this.library.getSnapshot().saving,
       readOnly: row.id === 'storage.backupPassphrase' || settingsBinding(row.id)?.readOnly === true || settingsBinding(row.id)?.form === 'device' && !canWriteDeviceSettings(this.options.device) || row.id === 'device.appVersion' || row.id === 'device.name' && (!settingsBinding(row.id) || !canWriteDeviceSettings(this.options.device) || this.options.device?.getSnapshot().facts.name?.readOnly === true),
-      error: this.rowErrors.has(row.id) ? defaultI18n.t('next.states.pageFailedBody') : undefined};
+      error: this.rowErrors.has(row.id) ? settingsRowErrorText(this.rowErrors.get(row.id)) : undefined};
   };
   configurationMatches = (query: string) => this.configuration && this.options.role === 'owner' && this.options.mainProfile ? searchConfiguration(withSignInHashStrength(this.configuration, query), query).filter(field => configurationFieldEligible(field, this.eligible) && (settingsRowIndex.has(field.id) || settingsSpec.some(section => section.configOnly.some(item => item.key === field.key)))).map(field => ({...field, label: settingsRowIndex.has(field.id) ? defaultI18n.t(settingsRowIndex.get(field.id)!.row.label) : defaultI18n.t(settingsSpec.flatMap(section => section.configOnly).find(item => item.key === field.key)!.label), path: this.configuration!.path})) : [];
   /** The server band's health and storage facts ("Running normally · Up for … · free · Database …"), read once for
@@ -409,10 +415,10 @@ export class SettingsController {
   /** Sign-in › Advanced (#713): the complete nine-value policy with the configuration's policy revision. A revision
    * conflict re-reads the configuration, so the rows show what is current rather than an error. */
   private writeSignInPolicy = async (row: SettingsRow, value: SettingsValue) => {
-    const configuration = this.configuration, values = signInPolicyValues(configuration), revision = configuration?.signInPolicyRevision;
-    if (!values || !revision) throw new Error('settings_binding_unavailable');
+    const configuration = this.configuration, values = signInPolicyValues(configuration);
+    if (!values || !configuration) throw new Error('settings_binding_unavailable');
     try {
-      await patchSignInPolicy(this.options.api, revision, signInPolicyWith(values, row.id, value), this.lifetime.signal);
+      await patchSignInPolicy(this.options.api, configuration.signInPolicyRevision, signInPolicyWith(values, row.id, value), this.lifetime.signal);
     } catch (error) {
       if (!signInPolicyConflict(error)) throw error;
       await this.readConfiguration();
