@@ -1699,7 +1699,10 @@ func scalarKeys(where string) string {
 const scalarInsert = "INSERT INTO catalog_scalar_contributions(library_id,parent_id,contributor_id,source,contributor_revision,membership_sequence,duration,community_rating,critic_rating,resolution,latest_aired_key,admission_age) "
 
 func scalarFromEntity(parent int, where string) string {
-	return fmt.Sprintf("SELECT library_id,%d,id,8,scalar_source_revision,id,duration_key,community_rating_key,critic_rating_key,resolution_key,release_key,admission_own_age FROM catalog_entities WHERE %s;", parent, where)
+	return scalarFromEntitySource(parent, where, 8)
+}
+func scalarFromEntitySource(parent int, where string, source int) string {
+	return fmt.Sprintf("SELECT library_id,%d,id,%d,scalar_source_revision,id,duration_key,community_rating_key,critic_rating_key,resolution_key,release_key,admission_own_age FROM catalog_entities WHERE %s;", parent, source, where)
 }
 func assetFromEntity(parent int, where string) string {
 	return fmt.Sprintf("INSERT INTO catalog_asset_contributions(library_id,parent_id,asset_id,membership_refs,file_size,file_size_revision,authored_refs) SELECT 1,%d,a.id,count(*),a.size,a.file_size_revision,count(*) FROM catalog_entities e JOIN catalog_asset_links l ON l.entity_id=e.id JOIN catalog_assets a ON a.id=l.asset_id WHERE %s GROUP BY a.id;", parent, where)
@@ -1862,8 +1865,10 @@ func cuePrimitives(c *sql.Conn, out, hash string) {
 			return q + scalarKeys(parentWhere)
 		}
 		fixtureTx(c, baseline())
-		for _, parent := range []int{p1, p2} {
-			fixtureTx(c, scalarInsert+scalarFromEntity(parent, childWhere))
+		if cue {
+			fixtureTx(c, scalarInsert+scalarFromEntitySource(p1, childWhere, 4)+scalarInsert+scalarFromEntitySource(p1, childWhere, 5)+scalarInsert+scalarFromEntitySource(p2, childWhere, 3))
+		} else {
+			fixtureTx(c, scalarInsert+scalarFromEntitySource(p1, childWhere, 1)+scalarInsert+scalarFromEntitySource(p2, childWhere, 2))
 		}
 		fixtureTx(c, scalarKeys(parentWhere)+ageCountsFill())
 		for _, mode := range []string{"change-corrected", "change-old-full-bound", "delete"} {
