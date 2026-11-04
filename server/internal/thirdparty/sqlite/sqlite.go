@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math/bits"
 	"net/url"
+	"os"
 	"runtime"
 	"sort"
 	"strconv"
@@ -406,6 +407,12 @@ func applyQueryParams(c *conn, query string, defensive bool) error {
 				v)
 		}
 		c.textToTime = onoff
+	}
+
+	if os.Getenv("PORTICO_ARTWORK_SCHEMA_FIRST") == "1" {
+		if _, err := c.artworkOpenExec(context.Background(), "pragma schema_version", nil); err != nil {
+			return err
+		}
 	}
 
 	// Apply phase. The order here is the documented one and is independent of
