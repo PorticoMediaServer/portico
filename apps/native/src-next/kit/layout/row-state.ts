@@ -5,6 +5,10 @@ export type RowPage<T> = Readonly<{
   waitingId: string; waitingItem: T; requestNext: () => void;
   /** Only the matching response may fill its waiting host. Omit firstItemId for an empty/filtered page. */
   fulfilled?: Readonly<{waitingId: string; firstItemId?: string}>;
+  /** Opt-in: the row's items were replaced (not appended). When TV focus was on a slot that is gone, it moves to this
+   * slot, in the row, instead of wherever the platform recovers (tvOS asks the screen's preferred view). A new
+   * `serial` is a new replacement. */
+  refocus?: Readonly<{focusId: string; serial: number}>;
 }>;
 
 /** A focused/retained row accepts appends and removals but defers server reordering. */

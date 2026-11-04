@@ -89,6 +89,21 @@ function RowContent<T>({title, showHeading = true, headingStyle, subtitle, items
         fulfilled: fulfilledId ? {waitingId: fulfilledId, firstItemId: fulfilledItem} : undefined} : undefined, getFocusId));
   }, [failed, fulfilledId, fulfilledItem, getFocusId, getKey, hasMore, items, owned, regionId, theme.isTV, waitingId, waitingItem]);
   useLayoutEffect(() => {previous.current = {regionId, index: rowIndex};}, [regionId, rowIndex]);
+  // paging.refocus: read while the old slots are still on screen, so whether this row held focus on a slot the
+  // replacement removes is known before the platform recovers it elsewhere (tvOS leaves the row).
+  const refocus = theme.isTV ? paging?.refocus : undefined, refocusSerial = refocus?.serial, refocusId = refocus?.focusId;
+  const lostFocus = useMemo(() => {
+    const active = refocusSerial !== undefined && regionId && registry ? registry.capture() : undefined;
+    return active && active.regionId === regionId && !rowIndex.byFocus.has(active.childId) ? refocusSerial : undefined;
+  }, [refocusSerial, regionId, registry, rowIndex]);
+  useEffect(() => {
+    if (lostFocus === undefined || !regionId || !registry || !refocusId || !rowIndex.byFocus.has(refocusId)) return;
+    // The registry's own recovery of the removed slot was queued as a microtask when that slot left (registry.recover);
+    // queue behind it so the row's named target is the last word, whatever the platform or that recovery chose.
+    let live = true;
+    queueMicrotask(() => {if (live && registry.order(regionId).includes(refocusId)) registry.focus({regionId, childId: refocusId});});
+    return () => {live = false;};
+  }, [lostFocus, refocusId, regionId, registry, rowIndex]);
   // The native boundary is the actionable part of the same painted order: every slot keeps its
   // identity, and an inert one simply is not a destination the region hands the platform.
   const activeOrder = useMemo(() => {
@@ -123,7 +138,7 @@ function RowContent<T>({title, showHeading = true, headingStyle, subtitle, items
   const first = Math.max(0, Math.floor((offset - leading) / stride));
   const last = Math.min(rowIndex.length - 1, Math.max(first, Math.ceil((offset + width - leading) / stride) - 1));
   const recovery = focus ? registry?.recovery(focus.id) ?? [] : focused ? [{childId: focused, order: previous.current?.index.order ?? []}] : [];
-  const visible = visibleRowSlots(rowIndex, first, last, focused, remembered, recovery);
+  const visible = visibleRowSlots(rowIndex, first, last, focused, remembered, refocusId && lostFocus !== undefined ? [...recovery, {childId: refocusId, order: []}] : recovery);
   // Only an item added after this row's first paint fades in; scrolling into the window never does.
   const seen = useRef<Set<string> | undefined>(undefined);
   useEffect(() => {const ids = seen.current ?? new Set<string>(); for (const slot of rowIndex.slots) ids.add(slot.focusId); seen.current = ids;}, [rowIndex]);
