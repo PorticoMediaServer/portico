@@ -361,7 +361,6 @@ func restrictionRoutes() map[string]restrictionRoute {
 		// whose links can lead to what the profile may not see now.
 		"GET /v1/notifications/inbox":        static("/v1/notifications/inbox?limit=100", "/v1/notifications/inbox?state=unread&limit=100", "/v1/notifications/inbox?audience=profile&state=all&limit=100"),
 		"GET /v1/notifications/unread-count": static("/v1/notifications/unread-count", "/v1/notifications/unread-count?audience=profile"),
-		"GET /v1/notifications":              static("/v1/notifications?limit=40"),
 		// The profile's own reports, each naming the title it was about.
 		"GET /v1/feedback/reports": static("/v1/feedback/reports?limit=100"),
 		"GET /v1/feedback/reports/{id}": probe(func(m *restrictionEnv) []string {

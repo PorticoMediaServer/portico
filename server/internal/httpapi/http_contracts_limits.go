@@ -28,8 +28,6 @@ func projectionLimitQueries(path string) []apikit.QueryInteger {
 		return emptyLimitQuery(50, 200)
 	case "/v1/notifications/inbox", "/v1/feedback/reports", "/v1/admin/feedback/reports":
 		return emptyLimitQuery(40, 100)
-	case "/v1/notifications":
-		return emptyLimitQuery(40, 40)
 	}
 	return nil
 }

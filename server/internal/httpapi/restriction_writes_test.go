@@ -567,7 +567,6 @@ func restrictionWriteRoutes() map[string]writeRoute {
 		"POST /v1/networking/remote/check":                 writeExempt(reasonNetworking),
 		"POST /v1/networking/remote/config":                writeExempt(reasonNetworking),
 		"POST /v1/notifications/inbox/actions":             writeExempt("marks only the caller's notification objects as read (notifications_routes_test)"),
-		"POST /v1/notifications/{id}/read":                 writeExempt("marks only the caller's notification objects as read (notifications_routes_test)"),
 		"POST /v1/optimization-jobs/{id}/cancel":           writeExempt("owner-only prepared job/version mutation, no new catalogue selection (preparedmedia service owner checks)"),
 		"POST /v1/optimization-jobs/{id}/retry":            writeExempt("owner-only prepared job/version mutation, no new catalogue selection (preparedmedia service owner checks)"),
 		"POST /v1/music/mixes/{id}/playlist":               {check: musicMixForbiddenCopyCheck},

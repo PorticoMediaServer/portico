@@ -25550,41 +25550,6 @@ export const routes = [
   },
   {
     "audience": "Clients",
-    "id": "get_notifications",
-    "method": "GET",
-    "path": "/v1/notifications",
-    "summary": "Read or update the selected projection",
-    "access": "device",
-    "requires": "read",
-    "lane": "default",
-    "cost": "page_sized",
-    "bodyLimit": 0,
-    "query": [
-      "cursor",
-      "limit"
-    ],
-    "queryIntegers": [
-      {
-        "name": "limit",
-        "minimum": 1,
-        "default": 40,
-        "maximum": 40,
-        "emptyIsDefault": true
-      }
-    ],
-    "errors": [
-      "invalid_request",
-      "unauthorized",
-      "not_permitted",
-      "not_found",
-      "internal",
-      "database_busy"
-    ],
-    "status": 200,
-    "admission": "default"
-  },
-  {
-    "audience": "Clients",
     "id": "get_notifications_capabilities",
     "method": "GET",
     "path": "/v1/notifications/capabilities",
@@ -34443,30 +34408,6 @@ export const routes = [
     "status": 200,
     "http": true,
     "admission": "default"
-  },
-  {
-    "audience": "Clients",
-    "id": "post_notifications_id_read",
-    "method": "POST",
-    "path": "/v1/notifications/{id}/read",
-    "summary": "Run notifications read",
-    "access": "device",
-    "requires": "playback",
-    "lane": "realtime",
-    "cost": "constant",
-    "bodyLimit": 0,
-    "errors": [
-      "invalid_request",
-      "unauthorized",
-      "not_permitted",
-      "not_found",
-      "internal",
-      "database_busy",
-      "writer_capacity"
-    ],
-    "status": 200,
-    "http": true,
-    "admission": "realtime"
   },
   {
     "audience": "Clients",

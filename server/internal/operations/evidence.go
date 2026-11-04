@@ -9,6 +9,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/diagnostics"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
+	"github.com/PorticoMediaServer/portico/server/internal/notify"
 	"github.com/PorticoMediaServer/portico/server/internal/usermutation"
 	"strconv"
 	"strings"
@@ -483,20 +484,22 @@ func (s *Store) Alert(ctx context.Context, code, severity string, active bool, d
 		}
 	}
 	if opened {
-		owners, e := ownerScopes(tx)
-		if e != nil {
+		if e = notify.NotifyOwnerAlert(tx, s.now(), id, strconv.FormatInt(revision+1, 10), severity); e != nil {
 			return e
 		}
-		for _, scope := range owners {
-			if e = notifyTx(tx, s.now(), scope, "owner-alert", id, id+":"+strconv.FormatInt(revision+1, 10)); e != nil {
-				return e
-			}
-		}
 	}
+
 	if e = AppendActivityProgressTx(tx, "server.updated", "alert", id, strconv.FormatInt(revision+1, 10), opened); e != nil {
 		return e
 	}
-	return gated2.Commit()
+	if e = gated2.Commit(); e != nil {
+		return e
+	}
+	if opened {
+		WakeNotifications()
+	}
+	return nil
+
 }
 func (s *Store) Alerts(ctx context.Context, auth Authorize) (out []Alert, e error) {
 	out = []Alert{}

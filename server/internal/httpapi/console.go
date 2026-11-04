@@ -8,10 +8,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 	"github.com/PorticoMediaServer/portico/server/internal/operations"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -222,20 +222,6 @@ func (d Dependencies) consoleRoutes(mux *http.ServeMux) {
 			return nil, e
 		}
 		return d.Console.ApplyPreferences(r.Context(), p, a, c)
-	})
-	register("GET /v1/notifications", false, []string{"cursor", "limit"}, func(r *http.Request, p identity.Principal, a operations.Authorize) (any, error) {
-		n, e := consoleLimit(r)
-		if e != nil {
-			return nil, e
-		}
-		return d.Console.Inbox(r.Context(), p, a, r.URL.Query().Get("cursor"), n)
-	})
-	register("POST /v1/notifications/{id}/read", false, nil, func(r *http.Request, p identity.Principal, a operations.Authorize) (any, error) {
-		var body struct{}
-		if e := decodeBody(r, &body); e != nil {
-			return nil, e
-		}
-		return map[string]bool{"read": true}, d.Console.ReadNotice(r.Context(), p, a, r.PathValue("id"))
 	})
 	if d.Measurements != nil {
 		register("GET /v1/admin/console/panels/{panel}", true, nil, func(r *http.Request, p identity.Principal, a operations.Authorize) (any, error) {

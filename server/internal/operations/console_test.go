@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/apiwire"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -142,9 +142,21 @@ func TestConsoleOwnerAlertsDeduplicateAndReopen(t *testing.T) {
 			t.Fatal(e)
 		}
 	}
-	inbox, e := s.Inbox(ctx, p, a, "", 40)
-	if e != nil || len(inbox.Items) != 1 || inbox.Items[0].Code != "owner-alert" || inbox.Items[0].TargetID == "" {
+	inbox, e := s.Notices(ctx, p, a, NoticeQuery{})
+	if e != nil || len(inbox.Items) != 1 || inbox.Items[0].Category != "owner.alert" || inbox.Items[0].Arguments["alertId"] == "" {
 		t.Fatalf("alert inbox: %+v %v", inbox, e)
+	}
+	var legacy int
+	if e = s.DB.QueryRow(`SELECT count(*) FROM console_notifications`).Scan(&legacy); e != nil || legacy != 0 {
+		t.Fatalf("old table must stay empty: %d %v", legacy, e)
+	}
+	outsider := p
+	outsider.AccountID = "other"
+	outsider.ProfileID = "other"
+	outsider.Role = "member"
+	other, err := s.Notices(ctx, outsider, a, NoticeQuery{})
+	if err != nil || len(other.Items) != 0 {
+		t.Fatalf("owner alert leaked: %+v %v", other, err)
 	}
 	alerts, e := s.Alerts(ctx, a)
 	if e != nil || len(alerts) != 1 || alerts[0].Occurrences != 2 {
@@ -162,7 +174,7 @@ func TestConsoleOwnerAlertsDeduplicateAndReopen(t *testing.T) {
 	if e = s.Alert(ctx, "scan-failed", "warning", true); e != nil {
 		t.Fatal(e)
 	}
-	inbox, e = s.Inbox(ctx, p, a, "", 40)
+	inbox, e = s.Notices(ctx, p, a, NoticeQuery{})
 	if e != nil || len(inbox.Items) != 2 {
 		t.Fatal("reopened alert missing", e)
 	}

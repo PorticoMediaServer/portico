@@ -5897,7 +5897,7 @@
       ]
     },
     "internal/httpapi/console.go": {
-      "sha256": "11a8a8746cc8997b37744fecd3614cff7b97fa479647c5704d859841a9acb8c1",
+      "sha256": "162a7337b455b54450512c8b48726a8e005df98cc4439ea513ba2d3379e78157",
       "effects": [
         {
           "table": "*",
@@ -6212,7 +6212,7 @@
       ]
     },
     "internal/httpapi/http_contracts_administration.go": {
-      "sha256": "8a568b2ba152d1fb2f517754e55575a042084d001b0cf29e9bf4cfd53234fa63",
+      "sha256": "15fae3bfb3a49b501a29a7ea5bf918f2a07b167fd9f4fbd96ffcd55d1304e1fa",
       "effects": [
         {
           "table": "*",
@@ -7256,7 +7256,7 @@
       ]
     },
     "internal/httpapi/unit_projection_routes.go": {
-      "sha256": "96a2743cbba31f4bc0c0f00f1caa99dc5e7a216560ea687127b264966708b824",
+      "sha256": "efba1a4c68bd72214671fd22a8a433f86cfb8a895c8ca89033def91f59a811f0",
       "effects": [
         {
           "table": "*",
@@ -9983,7 +9983,7 @@
       ]
     },
     "internal/notify/notify.go": {
-      "sha256": "40cbe12ecfc42ae66efd8d2e3ffa37f41b9aacdc61cfb44249ce23385ed3bcfb",
+      "sha256": "c6983bd26fc89b35ffdfc92fc7ad353a0a9d6d76a6dbbba7693870c89001aba9",
       "effects": [
         {
           "table": "*",
@@ -10010,7 +10010,7 @@
       ]
     },
     "internal/operations/evidence.go": {
-      "sha256": "188f79e92a22c985eb9974bc1e1f2715cdd21b7a508220986df9a8af8c5778f0",
+      "sha256": "b38c8029d5e55597646175980892157b455e6740db8dbe778fb4a4858db55416",
       "effects": [
         {
           "table": "*",
@@ -10028,7 +10028,7 @@
       ]
     },
     "internal/operations/feedback.go": {
-      "sha256": "949f32dcc4537350d05826e788585c4c536597cb4cca8a0a6b095abdfac9fbf8",
+      "sha256": "fa58d06c6415d801c19acbca30ddcf4a072247c7e113e4d2ba52556499989b80",
       "effects": [
         {
           "table": "*",

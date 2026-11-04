@@ -48,6 +48,7 @@ const (
 // producers cannot collide on a shared key.
 const (
 	SourceFeedback   = "feedback"
+	SourceOperations = "operations"
 	SourceDownloads  = "downloads"
 	SourceDVR        = "dvr"
 	SourceSecurity   = "security"
@@ -74,7 +75,7 @@ var Views = []string{
 var (
 	Severities = []string{SeverityInfo, SeverityWarning, SeverityCritical}
 	Audiences  = []string{AudienceProfile, AudienceAccountAdmin}
-	Sources    = []string{SourceFeedback, SourceDownloads, SourceDVR, SourceSecurity, SourceScan, SourceNetworking, SourceStorage, SourceBroadcast}
+	Sources    = []string{SourceOperations, SourceFeedback, SourceDownloads, SourceDVR, SourceSecurity, SourceScan, SourceNetworking, SourceStorage, SourceBroadcast}
 )
 
 // DefaultRetentionDays mirrors the settings registry default for
@@ -290,6 +291,25 @@ func Bump(tx *sql.Tx, now int64, scope, audience string) (int64, error) {
 	}
 	e = apievents.Append(tx, apievents.InboxAudience(scope, audience), "notification.changed", "inbox", "inbox", fmt.Sprint(revision), nil)
 	return revision, e
+}
+
+// RaiseOnce inserts a producer event only if its scoped key has never been
+// stored. Unlike a restated condition, retrying an event must not change its
+// content, read/archive receipts, expiry, inbox revision or events. The caller
+// owns the write transaction, so the lookup and first Raise commit together.
+func RaiseOnce(tx *sql.Tx, now int64, d Draft) (Result, error) {
+	var out Result
+	if err := d.validate(); err != nil {
+		return out, err
+	}
+	err := tx.QueryRow(`SELECT id,revision FROM notification_records WHERE scope=? AND audience=? AND source=? AND dedupe_key=?`, d.Scope, d.Audience, d.Source, d.DedupeKey).Scan(&out.ID, &out.Revision)
+	if err == nil {
+		return out, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return out, err
+	}
+	return Raise(tx, now, d)
 }
 
 // Raise writes or refreshes one notification inside the caller's transaction.

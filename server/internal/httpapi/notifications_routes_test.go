@@ -254,3 +254,13 @@ func itoa(v int64) string {
 	}
 	return out
 }
+
+func TestOldNotificationRoutesAreRetired(t *testing.T) {
+	f := administrationFixtureNew(t)
+	for _, test := range []struct{ method, path string }{{"GET", "/v1/notifications"}, {"POST", "/v1/notifications/old/read"}} {
+		w := f.call(test.method, test.path, f.owner, "")
+		if w.Code != 404 {
+			t.Fatalf("old inbox %s %s: %d %s", test.method, test.path, w.Code, w.Body)
+		}
+	}
+}
