@@ -229,6 +229,28 @@ test('desktop-listen 8: the chapter clock reads "12:04 of 31:40"; on a phone the
   assert.equal(elements(ListeningSeek({position: 12, duration: 500, middle: 'ignored off a phone', onSeek: noop})).some(e => e.props.className === 'middle'), false);
 });
 
+test('phone-app 15 at phone widths: a centred two-line Playing from, "≡ Chapter … of N", and a bar over the playing chapter; desktop keeps the part bar', () => {
+  const row = (id: string, itemId: string, number: number, title: string, start: number, end: number) => ({id, itemId, index: Number(id.split(':')[1]), number, title, startSeconds: start, endSeconds: end});
+  const view = {bookId: 'book', itemId: 'part-b', phase: 'ready' as const, current: 3,
+    chapters: [row('part-a:1', 'part-a', 1, 'One', 0, 600), row('part-a:2', 'part-a', 2, 'Two', 600, 1200), row('part-b:1', 'part-b', 3, 'Three', 0, 10), row('part-b:2', 'part-b', 4, 'Four', 10, 400)]};
+  const at = {...playback, presentation: {...playback.presentation, positionSeconds: 130, durationSeconds: 400, controls: ['seek', 'pause']}, bookChapters: view};
+  const phone = elements(AudiobookListening(book({snapshot: at, phone: true, sourceLabel: 'Continue Listening', onShowPanel: noop})));
+  const from = phone.find(e => e.type === 'span' && e.props.className === 'from');
+  assert.deepEqual(elements(from.props.children).map(e => e.props.children), [defaultI18n.t('web.player.playingFromLabel'), 'Continue Listening']);
+  assert.deepEqual(phone.filter(e => e.props.icon === 'i-down' || e.props.icon === 'i-more').map(e => e.props.variant), ['ghost', 'ghost'], 'bare buttons on a phone');
+  const line = phone.find(e => e.type === 'div' && e.props.className === 'chapter');
+  assert.ok(elements(line.props.children).some(e => e.type === 'span' && e.props.children === 'of 4'), 'the book\'s chapter count on the right');
+  const bar = phone.find(e => e.type === ListeningSeek).props;
+  assert.equal(bar.offset, 10); assert.equal(bar.duration, 400); assert.deepEqual(bar.chapters, []);
+  assert.deepEqual(bar.bounds, {start: 10, end: 400}, 'the playing chapter, clamped to what can be sought');
+  const seek = elements(ListeningSeek({position: 130, duration: 400, bounds: {start: 10, end: 400}, offset: 10, phone: true, onSeek: noop}));
+  assert.ok(seek.some(e => e.props.className === 'elapsed' && e.props.children === '2:00'), 'chapter-relative elapsed');
+  assert.ok(seek.some(e => e.props.className === 'remaining' && e.props.children === '−4:30'), 'chapter-relative remaining');
+  const desktop = elements(AudiobookListening(book({snapshot: at, sourceLabel: 'Continue Listening', onShowPanel: noop}))).find(e => e.type === ListeningSeek).props;
+  assert.equal(desktop.offset, undefined); assert.equal(desktop.duration, 400, 'desktop: the part bar');
+  assert.equal(desktop.chapters.length, 2, 'with this part\'s chapter ticks');
+});
+
 test('desktop-listen 8: the audiobook side tabs carry their drawn icons', () => {
   const host: any = {owner: {lyricsOffered: () => false, chaptersOffered: () => true, queueOffered: () => true, show: noop}, state: {panel: 'chapters'}};
   const buttons = elements(ListeningTabs({host, audiobook: true})).filter(element => element.props.onClick);
