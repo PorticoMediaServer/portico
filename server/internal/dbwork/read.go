@@ -6,6 +6,8 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
+	"log"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -48,6 +50,7 @@ func QueryRow(ctx context.Context, db *sql.DB, query string, args ...any) *sql.R
 // long-lived one holds back WAL checkpointing, so it must not outlive the
 // response it exists for.
 func WithReadSnapshot(ctx context.Context, db *sql.DB, fn func(context.Context) error) error {
+	started := time.Now()
 	countCall()
 	if ctx == nil {
 		ctx = context.Background()
@@ -73,11 +76,18 @@ func WithReadSnapshot(ctx context.Context, db *sql.DB, fn func(context.Context) 
 		}
 		defer release()
 	}
+	if os.Getenv("PORTICO_ARTWORK_DIAGNOSTIC") == "1" && ownerFrom(ctx) != "" {
+		log.Printf("ARTWORK-COMMON admitted tag=%s waited=%s snapshots=%+v", ownerFrom(ctx), time.Since(started), Snapshots())
+	}
 	ctx, cancel := snapshotContext(ctx)
 	defer cancel()
 	tx, err := ReadHandle(ctx, db).BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return err
+	}
+	if os.Getenv("PORTICO_ARTWORK_DIAGNOSTIC") == "1" && ownerFrom(ctx) != "" {
+		deadline, _ := ctx.Deadline()
+		log.Printf("ARTWORK-COMMON begin tag=%s elapsed=%s inner_left=%s pool=%+v", ownerFrom(ctx), time.Since(started), time.Until(deadline), ReadHandle(ctx, db).Stats())
 	}
 	defer registerReadSnapshot(tx)()
 	defer tx.Rollback()

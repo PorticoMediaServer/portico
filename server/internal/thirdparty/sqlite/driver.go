@@ -8,6 +8,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"sync"
+	"time"
 
 	sqlite3 "modernc.org/sqlite/lib"
 	"modernc.org/sqlite/vtab"
@@ -246,29 +247,39 @@ func (d *Driver) Open(name string) (conn driver.Conn, err error) {
 			dmesg("name %q: (driver.Conn %p, err %v)", name, conn, err)
 		}()
 	}
+	newStarted := time.Now()
 	c, err := newConn(name)
 	if err != nil {
 		return nil, err
 	}
 
+	artworkOpenTrace(c, "new-connection", newStarted)
+	functionsStarted := time.Now()
 	for _, udf := range d.udfs {
 		if err = c.createFunctionInternal(udf); err != nil {
 			c.Close()
 			return nil, err
 		}
 	}
+	artworkOpenTrace(c, "functions", functionsStarted)
+	collationsStarted := time.Now()
 	for _, coll := range d.collations {
 		if err = c.createCollationInternal(coll); err != nil {
 			c.Close()
 			return nil, err
 		}
 	}
-	for _, connHookFn := range d.connectionHooks {
+	artworkOpenTrace(c, "collations", collationsStarted)
+	for i, connHookFn := range d.connectionHooks {
+		hookStarted := time.Now()
 		if err = connHookFn(c, name); err != nil {
 			c.Close()
 			return nil, fmt.Errorf("connection hook: %w", err)
 		}
+		artworkOpenTrace(c, fmt.Sprintf("hook-%d", i), hookStarted)
 	}
+	artworkOpenCounts(c, len(d.udfs), len(d.collations), len(d.connectionHooks))
+	modulesStarted := time.Now()
 	// Register any vtab modules with this connection.
 	// Note: vtab module registration applies to new connections only. If a
 	// module is registered after a connection has been opened, that existing
@@ -277,6 +288,7 @@ func (d *Driver) Open(name string) (conn driver.Conn, err error) {
 		c.Close()
 		return nil, err
 	}
+	artworkOpenTrace(c, "modules", modulesStarted)
 	return c, nil
 }
 

@@ -15,15 +15,24 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {replay: pr677-a, source_run: '41792546748', shard: 4}
-          - {replay: pr677-b, source_run: '41792546748', shard: 4}
-          - {replay: pr681-a, source_run: '41793452518', shard: 3}
-          - {replay: pr681-b, source_run: '41793452518', shard: 3}
+          - {replay: baseline-pr677-a, variant: baseline, source_run: '41792546748', shard: 4}
+          - {replay: baseline-pr677-b, variant: baseline, source_run: '41792546748', shard: 4}
+          - {replay: baseline-pr681-a, variant: baseline, source_run: '41793452518', shard: 3}
+          - {replay: baseline-pr681-b, variant: baseline, source_run: '41793452518', shard: 3}
+          - {replay: fixed-pr677-a, variant: fixed, source_run: '41792546748', shard: 4}
+          - {replay: fixed-pr677-b, variant: fixed, source_run: '41792546748', shard: 4}
+          - {replay: fixed-pr681-a, variant: fixed, source_run: '41793452518', shard: 3}
+          - {replay: fixed-pr681-b, variant: fixed, source_run: '41793452518', shard: 3}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with: {persist-credentials: false}
+        with: {persist-credentials: false, fetch-depth: 3}
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with: {go-version-file: server/go.mod, cache-dependency-path: '**/go.sum'}
+      - name: Restore original artwork entrypoints for the baseline
+        if: matrix.variant == 'baseline'
+        run: |
+          git restore --source HEAD~2 -- server/internal/metadata/artwork.go server/internal/metadata/artwork_preview.go
+          python3 -c "from pathlib import Path; Path('server/internal/metadata/artwork_snapshot_test.go').unlink()"
       - name: Fetch the failing short shard's exact recorded selection
         env:
           GH_TOKEN: ${{ github.token }}

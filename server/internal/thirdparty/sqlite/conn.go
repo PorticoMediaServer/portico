@@ -63,6 +63,7 @@ type conn struct {
 }
 
 func newConn(dsn string) (*conn, error) {
+	newStarted := time.Now()
 	var query, vfsName string
 
 	// Parse the query parameters from the dsn and them from the dsn if not prefixed by file:
@@ -121,6 +122,8 @@ func newConn(dsn string) (*conn, error) {
 	}
 
 	c.db = db
+	artworkOpenTrace(c, "native-open", newStarted)
+	configStarted := time.Now()
 	if err = c.extendedResultCodes(true); err != nil {
 		c.Close()
 		return nil, err
@@ -172,6 +175,7 @@ func newConn(dsn string) (*conn, error) {
 		return nil, err
 	}
 
+	artworkOpenTrace(c, "configuration", configStarted)
 	if err = applyQueryParams(c, query, defensiveMode); err != nil {
 		c.Close()
 		return nil, err

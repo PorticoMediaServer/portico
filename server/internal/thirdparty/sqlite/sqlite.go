@@ -415,7 +415,7 @@ func applyQueryParams(c *conn, query string, defensive bool) error {
 	// that make changes to the database might otherwise unexpectedly fail with
 	// SQLITE_BUSY.
 	if busyTimeout != "" {
-		if _, err := c.exec(context.Background(), "pragma busy_timeout = "+busyTimeout, nil); err != nil {
+		if _, err := c.artworkOpenExec(context.Background(), "pragma busy_timeout = "+busyTimeout, nil); err != nil {
 			return err
 		}
 	}
@@ -424,7 +424,7 @@ func applyQueryParams(c *conn, query string, defensive bool) error {
 	// change or the first table materialises page 1 and locks the setting in, so
 	// it runs before the _pragma list and the other shorthand keys.
 	if autoVacuum != "" {
-		if _, err := c.exec(context.Background(), "pragma auto_vacuum = "+autoVacuum, nil); err != nil {
+		if _, err := c.artworkOpenExec(context.Background(), "pragma auto_vacuum = "+autoVacuum, nil); err != nil {
 			return err
 		}
 	}
@@ -449,26 +449,26 @@ func applyQueryParams(c *conn, query string, defensive bool) error {
 	})
 	for _, v := range a {
 		cmd := "pragma " + v
-		_, err := c.exec(context.Background(), cmd, nil)
+		_, err := c.artworkOpenExec(context.Background(), cmd, nil)
 		if err != nil {
 			return err
 		}
 	}
 
 	if foreignKeys != "" {
-		if _, err := c.exec(context.Background(), "pragma foreign_keys = "+foreignKeys, nil); err != nil {
+		if _, err := c.artworkOpenExec(context.Background(), "pragma foreign_keys = "+foreignKeys, nil); err != nil {
 			return err
 		}
 	}
 
 	if journalMode != "" {
-		if _, err := c.exec(context.Background(), "pragma journal_mode = "+journalMode, nil); err != nil {
+		if _, err := c.artworkOpenExec(context.Background(), "pragma journal_mode = "+journalMode, nil); err != nil {
 			return err
 		}
 	}
 
 	if synchronous != "" {
-		if _, err := c.exec(context.Background(), "pragma synchronous = "+synchronous, nil); err != nil {
+		if _, err := c.artworkOpenExec(context.Background(), "pragma synchronous = "+synchronous, nil); err != nil {
 			return err
 		}
 	}
@@ -476,7 +476,7 @@ func applyQueryParams(c *conn, query string, defensive bool) error {
 	// query_only is applied last: it makes the connection read-only, so it must
 	// not precede the write-capable pragmas above (notably auto_vacuum).
 	if queryOnly != "" {
-		if _, err := c.exec(context.Background(), "pragma query_only = "+queryOnly, nil); err != nil {
+		if _, err := c.artworkOpenExec(context.Background(), "pragma query_only = "+queryOnly, nil); err != nil {
 			return err
 		}
 	}
