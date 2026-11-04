@@ -31,7 +31,7 @@ test('a management refusal keeps the shell and asks for the PIN once per refusal
   const {app, runtime, ended, context, gate} = await boot();
   try {
     const before = gate.getSnapshot();
-    const failure: {code?: unknown} = await context.api.request(MANAGED, 'POST', {name: 'Kid'}).catch((error: unknown) => error as {code?: unknown});
+    const failure = await context.api.request<unknown>(MANAGED, 'POST', {name: 'Kid'}).catch((error: unknown) => error) as {code?: unknown};
     assert.equal(failure?.code, 'profile_pin_manage', 'the screen still gets its own error');
     await settle(20);
     assert.deepEqual(ended, [], 'not a sign-out, a re-entry or a role probe');

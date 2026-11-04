@@ -298,7 +298,7 @@ test('a shared title action closes the menu and runs only for its exact current 
     d.presenters.goToSeason(d.presenters.getSnapshot()!);
     d.presenters.openMenu(d.capture, {fileInfo: async () => {}, entry: entryMenu()});
     await d.presenters.titleAction(d.presenters.getSnapshot()!, 'refreshMetadata');
-    assert.deepEqual(calls.filter(call => !call.startsWith('dispose')), ['start-over', 'season', 'refresh']);
+    assert.deepEqual((calls as string[]).filter(call => !call.startsWith('dispose')), ['start-over', 'season', 'refresh']);
     calls.length = 0;
     d.presenters.openMenu(d.capture, {fileInfo: async () => {}, entry: entryMenu({addToCollection: undefined})});
     d.presenters.titleAction(d.presenters.getSnapshot()!, 'addToCollection');

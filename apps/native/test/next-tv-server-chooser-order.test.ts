@@ -53,7 +53,7 @@ test('the TV server chooser keeps its actions in a row, Down goes Refresh server
       {regionId: 'accounts.chooser.rows', childId: 'server:office'}], 'focus still enters the first offered server row');
     assert.equal(actions.props.style.flexDirection, 'row', 'the actions sit side by side, as Connect24 draws them');
     assert.deepEqual(actions.props.order, ['refresh', 'add']);
-    const buttons = React.Children.toArray(actions.props.children).filter((child: any) => child?.type === 'Button');
+    const buttons = React.Children.toArray(actions.props.children).filter((child: any) => child?.type === 'Button') as any[];
     assert.deepEqual(buttons.map((child: any) => child.props.focusId), ['refresh', 'add'], 'Refresh servers comes before Use a local server');
     assert.deepEqual(buttons.map((child: any) => child.props.children),
       [defaultI18n.t('accounts.servers.refresh'), defaultI18n.t('accounts.signIn.local')]);
