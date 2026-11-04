@@ -203,7 +203,7 @@ func routesUnderTest() []struct{ method, path string } {
 func hostileRequestBudget(method, path string) time.Duration {
 	// Realtime routes wait for disconnection; a finite event list is an
 	// ordinary read, regardless of its path spelling.
-	if routeLanes[method+" "+path] == laneRealtime {
+	if routeLanes[method+" "+path] == laneRealtime && strings.HasSuffix(path, "/events") {
 		return 10 * time.Millisecond
 	}
 	return 2 * time.Second
@@ -219,6 +219,7 @@ func TestHostileRequestBudgetDistinguishesEventReadsFromStreams(t *testing.T) {
 		{"/v1/events", 10 * time.Millisecond},
 		{"/v1/groups/{id}/events", 10 * time.Millisecond},
 		{"/v1/items", 2 * time.Second},
+		{"/v1/notifications/capabilities", 2 * time.Second},
 	} {
 		if got := hostileRequestBudget("GET", tc.path); got != tc.want {
 			t.Errorf("%s budget=%s, want %s", tc.path, got, tc.want)
