@@ -128,6 +128,9 @@ export class NativeShellBootstrapServices {
       if (!/^[a-f0-9]{64}$/.test(fence)) throw invalid();
     } else if (!opaqueFence(fence)) throw invalid();
     if (domain === 'home' && this.checkHomeFence(scope, fence)) return;
+    // A notification envelope's fence is never compared with another read's (client data step 6):
+    // the server re-authorizes every request, and a role change is the shell's to follow.
+    if (domain === 'inbox') return;
     if (this.fences.has(domain) && this.fences.get(domain) !== fence || domain === 'guide' && this.guideDenied) this.retire();
     this.fences.set(domain, fence);
   }

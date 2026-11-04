@@ -193,7 +193,7 @@ test('an unscoped preference snapshot and the wrong returned device class are re
   assert.equal(f.state.ended, 0); assert.equal(f.services.getSnapshot(), undefined);
 });
 
-for (const domain of ['preferences', 'inbox', 'guide'] as const) test(`a changed ${domain} fence retires the genuine authority and hides every private body`, async t => {
+for (const domain of ['preferences', 'guide'] as const) test(`a changed ${domain} fence retires the genuine authority and hides every private body`, async t => {
   const f = fixture(t);
   await Promise.all([f.services.read(), f.services.home.load()]);
   assert.equal(f.services.home.getSnapshot().document?.rows[0]?.entries[0]?.title, 'Private catalogue title');
@@ -204,6 +204,19 @@ for (const domain of ['preferences', 'inbox', 'guide'] as const) test(`a changed
   assert.equal(f.services.home.getSnapshot().document, undefined);
   await assert.rejects(f.services.read(), abortError);
   f.services.dispose(); assert.equal(f.state.ended, 1);
+});
+
+// Client data step 6: a notification envelope's fence is never compared with another read's. The
+// server re-authorizes every request (a refusal still ends the shell, below), and a role change is
+// followed by the shell itself.
+test('a moved inbox fence retires nothing: the badge is read as before', async t => {
+  const f = fixture(t);
+  await Promise.all([f.services.read(), f.services.home.load()]);
+  f.state.fences.inbox = 'e'.repeat(64);
+  await f.services.read();
+  assert.equal(f.state.ended, 0);
+  assert.notEqual(f.services.getSnapshot(), undefined);
+  assert.equal(f.services.home.getSnapshot().document?.rows[0]?.entries[0]?.title, 'Private catalogue title');
 });
 
 for (const domain of ['preferences', 'inbox', 'guide', 'home'] as const) test(`a foreign server in the ${domain} response is refused independently of Home`, async t => {

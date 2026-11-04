@@ -57,19 +57,22 @@ const lifetime = (over: Partial<{signal: AbortSignal; isCurrent: () => boolean; 
 });
 const codeOf = (error: unknown) => (error as {code?: string} | null)?.code;
 
-test('the first admitted envelope pins the notification fence for this scope', async () => {
-  const {api, calls} = transport(call => envelope(firstFence, payload(call.path)));
-  const scope = createNotificationScope(api, lifetime());
+test('envelopes pass through unchanged, and a moved fence is not a retirement: the server re-authorizes every request', async () => {
+  let retired = 0;
+  const {api, calls} = transport(call => envelope(calls.length === 1 ? firstFence : otherFence, payload(call.path)));
+  const scope = createNotificationScope(api, lifetime({onRetired: () => { retired++; }}));
   const first = await scope.request<{scope: {viewerFence: string}}>(inbox);
   assert.equal(first.scope.viewerFence, firstFence);
-  await scope.request(unread);
+  const second = await scope.request<{scope: {viewerFence: string}}>(unread);
+  assert.equal(second.scope.viewerFence, otherFence, 'a later read with another fence is answered as it is');
+  assert.equal(retired, 0, 'and retires nothing');
   // The route and its request were passed through unchanged, once each.
   assert.deepEqual(calls.map(call => [call.path, call.method]), [[inbox, 'GET'], [unread, 'GET']]);
   assert.equal(calls[0].body, undefined);
 });
 
-test('a changed fence or another server retires the scope, aborts work and contains the sink', async () => {
-  for (const reply of [envelope(otherFence, payload(actions)), {scope: {serverId: 'other', viewerFence: firstFence}, data: payload(actions)}]) {
+test('another server retires the scope, aborts work and contains the sink', async () => {
+  for (const reply of [{scope: {serverId: 'other', viewerFence: firstFence}, data: payload(actions)}]) {
     let retired = 0;
     const {api, calls} = transport(call => {
       if (calls.length === 1) return envelope(firstFence, payload(call.path));
@@ -102,7 +105,7 @@ test('an envelope whose audience differs from the requested one is refused', asy
   assert.equal(calls.length, 2);
 });
 
-test('a malformed first payload does not admit its valid fence', async () => {
+test('a malformed payload is refused, and the next valid one is answered', async () => {
   for(const path of [inbox, unread, actions, capabilities]) {
     let calls = 0;
     const {api} = transport(() => (++calls === 1
@@ -112,8 +115,6 @@ test('a malformed first payload does not admit its valid fence', async () => {
     const read = () => scope.request(path, path === actions ? 'POST' : 'GET',
       path === actions ? {operationId: 'op', audience: 'profile', operations: []} : undefined);
     await assert.rejects(read(), error => codeOf(error) === 'invalid_document');
-    // The refused payload carried a syntactically genuine but unadmitted fence.
-    // The next valid document may admit a different one.
     await read();
     scope.dispose();
   }
@@ -192,7 +193,7 @@ test('only the four notification routes, their methods, and their query keys are
   assert.equal(calls.length, 1);
 });
 
-test('an invalid fence is refused without pinning a later valid document', async () => {
+test('an invalid fence is refused, and a later valid document is answered', async () => {
   let calls = 0;
   const {api} = transport(call => envelope(++calls === 1 ? 'not-a-fence' : otherFence, payload(call.path)));
   const scope = createNotificationScope(api, lifetime());

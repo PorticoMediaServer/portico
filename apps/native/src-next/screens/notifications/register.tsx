@@ -10,6 +10,7 @@ import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeShellRoute} from '../../shell/routes';
 import {NativeScreenLifetime} from '../settings-live/lifetime';
 import {NativeNotificationsScreen} from './NotificationsScreen';
+import {viewerQueriesFor} from '../../shell/freshness';
 
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 const invalid = () => Object.assign(new Error('invalid_notifications_response'), {code: 'invalid_response'});
@@ -31,14 +32,15 @@ type Session = Readonly<{
 }>;
 
 /** One opened Notifications route owns one exact inbox session. A back/reopen gets a
- * fresh session at the new navigation revision; a fence refusal retires this one. */
+ * fresh session at the new navigation revision (its views come from the viewer's cache);
+ * an answer from another server retires this one. */
 export function createNativeNotificationsRenderer(context: NativeShellBootstrapContext): NativeRouteRenderer {
   let session: Session | undefined;
 
   const create = (route: NativeShellRoute, revision: number): Session => {
     const lifetime = new NativeScreenLifetime(context);
     const authority = lifetime.authority;
-    let fence: string | undefined, retired = false;
+    let retired = false;
     let retirement: Error | undefined;
     const listeners = new Set<() => void>();
     const retirementStore: NotificationsRetirement = {
@@ -66,9 +68,9 @@ export function createNativeNotificationsRenderer(context: NativeShellBootstrapC
       if (!object(scope)) throw invalid();
       if (typeof scope.serverId !== 'string' || typeof scope.viewerFence !== 'string') throw invalid();
       if (scope.serverId !== authority.serverId) throw scopeChanged();
+      // The fence's shape is checked, never compared with another read's: the server re-authorizes
+      // every request, and a role or identity change is the shell's to follow (CLIENT-DATA-REVIEW §4.4).
       if (!/^[a-f0-9]{64}$/.test(scope.viewerFence)) throw invalid();
-      if (fence !== undefined && fence !== scope.viewerFence) throw scopeChanged();
-      fence = scope.viewerFence;
       if (requestedAudience !== undefined) {
         const data = raw.data;
         if (!object(data) || typeof data.audience !== 'string' || data.audience !== requestedAudience) throw invalid();
@@ -96,8 +98,11 @@ export function createNativeNotificationsRenderer(context: NativeShellBootstrapC
       return raw;
     }};
     const operationId = () => [...nativeRouteCrypto.random(16)].map(byte => byte.toString(16).padStart(2, '0')).join('');
-    profile = new InboxService(api, operationId);
-    admin = new InboxService(api, operationId);
+    // Both audiences read through the viewer's cache: a view opened again shows at once, and a
+    // change made in one is read again in the other.
+    const queries = viewerQueriesFor(context.api, {serverId: authority.serverId});
+    profile = new InboxService(api, operationId, {queries});
+    admin = new InboxService(api, operationId, {queries});
     const dispose = () => {
       if (retired) return;
       retired = true;

@@ -19,11 +19,17 @@ import {
 import {serviceProblem,serviceText} from './presentation/service-text.ts';
 import type {MessageId} from '../../i18n/src/index.ts';
 import {serverNow} from './server-clock.ts';
+import {dependsOn} from './freshness-hub.ts';
+import {queryKeys} from './query/keys.ts';
+import type {ViewerQueries} from './query/viewer-queries.ts';
+import type {ViewerQueryOptions} from './query/react.ts';
 
 export type InboxApi={request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>};
 export type InboxView='unread'|'all'|'archived';
 export type InboxAction='read'|'unread'|'archive'|'unarchive';
-export type InboxServiceOptions={unreadTimeoutMs?:number;setTimer?:(fn:()=>void,ms:number)=>unknown;clearTimer?:(timer:unknown)=>void};
+export type InboxServiceOptions={unreadTimeoutMs?:number;setTimer?:(fn:()=>void,ms:number)=>unknown;clearTimer?:(timer:unknown)=>void;
+ /** The viewer's cache: first pages and unread counts are read through it, so every inbox of this viewer shares them and a view opened again shows at once. */
+ queries?:ViewerQueries};
 export type InboxSnapshot=Readonly<{
  phase:'idle'|'loading'|'ready'|'error';
  audience:NotificationAudience;
@@ -44,8 +50,30 @@ export type InboxSnapshot=Readonly<{
 
 /** The first page's size, and the most the server returns in one page. */
 const PAGE=50,MAX_PAGE=100;
+/** What every cached notification document moves with: the server's hint, or a change made on this device. */
+const notificationsMoved=dependsOn.event('notification.changed');
+const inboxPath=(audience:NotificationAudience,view:InboxView,limit:number)=>routePath("get_notifications_inbox") + "?audience=" + (encodeURIComponent(audience)) + "&state=" + (view) + "&limit=" + limit;
 const noCounts:NotificationCounts=Object.freeze({unread:0,read:0,archived:0,total:0});
 const data=(raw:unknown):unknown=>raw&&typeof raw==='object'&&'data' in (raw as Record<string,unknown>)?(raw as Record<string,unknown>).data:raw;
+/** A notification view's first page in the viewer's cache, read with `api` (the owner's checked requester). */
+export function inboxFirstPageQuery(api:InboxApi,audience:NotificationAudience,view:InboxView):ViewerQueryOptions<NotificationInbox>{
+ return {queryKey:queryKeys.notificationsInbox(audience,view),
+  queryFn:async({signal})=>parseNotificationInbox(data(await api.request<RouteResponse<"get_notifications_inbox">>(inboxPath(audience,view,PAGE),'GET',undefined,signal))),
+  meta:{dependencies:[notificationsMoved]}};
+}
+/** The viewer's unread count in one audience, in the viewer's cache. */
+export function unreadCountQuery(api:InboxApi,audience:NotificationAudience):ViewerQueryOptions<number>{
+ return {queryKey:queryKeys.notificationsUnread(audience),
+  queryFn:async({signal})=>parseNotificationSummary(data(await api.request<RouteResponse<"get_notifications_unread_count">>(routePath("get_notifications_unread_count") + "?audience=" + (encodeURIComponent(audience)),'GET',undefined,signal))).counts.unread,
+  meta:{dependencies:[notificationsMoved]}};
+}
+/** `value`, or a rejection as soon as `signal` aborts: a shared read goes on for its other owners. */
+const until=<T,>(value:Promise<T>,signal:AbortSignal):Promise<T>=>new Promise<T>((resolve,reject)=>{
+ const stop=()=>reject(Object.assign(new Error('aborted'),{name:'AbortError'}));
+ if(signal.aborted){stop();return;}
+ signal.addEventListener('abort',stop,{once:true});
+ value.then(v=>{signal.removeEventListener('abort',stop);resolve(v);},e=>{signal.removeEventListener('abort',stop);reject(e);});
+});
 // A transport failure ("Failed to fetch") is not something to show a person; the server's own
 // words are.
 // X-04: what the viewer reads comes from the catalogue, never from `error.message`.
@@ -75,7 +103,7 @@ export class InboxService{
  private api:InboxApi;private operationId:()=>string;
  private state:InboxSnapshot=Object.freeze<InboxSnapshot>({phase:'idle',audience:'profile',audiences:['profile'],view:'unread',items:[],counts:noCounts,unread:0,unreadBy:{},revision:0,more:false,busy:false});
  private listeners=new Set<()=>void>();private cursor='';private generation=0;private controller?:AbortController;private disposed=false;
- private unreadFlight?:Promise<number>;private unreadController?:AbortController;private unreadDirty=false;private options:InboxServiceOptions;
+ private unreadFlight?:Promise<number>;private unreadController?:AbortController;private unreadDirty=false;private unreadRoundFresh=false;private options:InboxServiceOptions;
  // The one write this view owns. 'inflight' means its answer is still out and no
  // other change is dispatched; 'unresolved' means the attempt ended without a
  // definite answer and only the same change may resume it.
@@ -96,7 +124,7 @@ export class InboxService{
  dispose(){this.disposed=true;this.generation++;this.controller?.abort();this.unreadController?.abort();this.retireFlight();this.retireMore();this.retirePage();this.listeners.clear();}
 
  /** Loads the first page of a view. What is on screen stays until the new page arrives. */
- async load(audience:NotificationAudience=this.state.audience,view:InboxView=this.state.view):Promise<void>{return this.read(audience,view,PAGE);}
+ async load(audience:NotificationAudience=this.state.audience,view:InboxView=this.state.view):Promise<void>{return this.read(audience,view,PAGE,false);}
  /**
   * A `notification.changed` hint (OW-5): quietly reread the view on screen, keeping its rows
   * until the new page arrives. A revision this page already holds (the echo of its own write)
@@ -118,12 +146,23 @@ export class InboxService{
   if(this.disposed||this.pending===undefined||this.reading||this.moreFlight||this.flight?.phase==='inflight')return;
   const wanted=this.pending;this.pending=undefined;
   if(wanted<=this.state.revision)return;
-  void this.read(this.state.audience,this.state.view,Math.min(MAX_PAGE,Math.max(PAGE,this.state.items.length)));
+  void this.read(this.state.audience,this.state.view,Math.min(MAX_PAGE,Math.max(PAGE,this.state.items.length)),true);
  }
- private firstPage(audience:NotificationAudience,view:InboxView,limit:number,signal:AbortSignal){
-  return this.api.request<RouteResponse<"get_notifications_inbox">>(routePath("get_notifications_inbox") + "?audience=" + (encodeURIComponent(audience)) + "&state=" + (view) + "&limit=" + limit,'GET',undefined,signal);
+ /** The cached first page of a view, when nothing it was built from has moved since it was read. */
+ private cached(audience:NotificationAudience,view:InboxView):NotificationInbox|undefined{
+  const queries=this.options.queries;
+  if(!queries)return undefined;
+  const key=queryKeys.notificationsInbox(audience,view),state=queries.client.getQueryState<NotificationInbox>(key);
+  return state&&state.data!==undefined&&!state.isInvalidated&&queries.documentFor(key)?.getState().stale!==true?state.data:undefined;
  }
- private async read(audience:NotificationAudience,view:InboxView,limit:number):Promise<void>{
+ /** A first page: from the viewer's cache when there is one (current unless `fresh`), else from the server. */
+ private async firstPage(audience:NotificationAudience,view:InboxView,limit:number,signal:AbortSignal,fresh:boolean):Promise<NotificationInbox>{
+  const queries=this.options.queries;
+  if(queries&&limit===PAGE){const options=inboxFirstPageQuery(this.api,audience,view);return until(queries.client.fetchQuery(fresh?{...options,staleTime:0}:options),signal);}
+  return parseNotificationInbox(data(await this.api.request<RouteResponse<"get_notifications_inbox">>(inboxPath(audience,view,limit),'GET',undefined,signal)));
+ }
+ /** `fresh`: something moved that the cached page may not include (a hint, a resync, a conflict). */
+ private async read(audience:NotificationAudience,view:InboxView,limit:number,fresh:boolean):Promise<void>{
   if(this.disposed)return;
   // A new page retires the write and the admitted page identity at once. The
   // rows stay on screen, but nothing is admitted to write against until this
@@ -131,13 +170,17 @@ export class InboxService{
   this.retireFlight();this.retireMore();this.retirePage();this.reading=true;
   const generation=++this.generation;this.controller?.abort();const controller=this.controller=new AbortController();
   const same=audience===this.state.audience&&view===this.state.view;
+  // A view the cache holds and nothing has moved since: shown at once, with no request and no loading state.
+  const held=fresh||limit!==PAGE?undefined:this.cached(audience,view);
+  if(held){this.reading=false;this.adopt(held,audience,view);void this.refreshUnread(false);this.settle();return;}
   this.publish({phase:this.state.items.length&&same?'ready':'loading',audience,view,busy:false,error:undefined,...(same?{}:{items:[],more:false})});
   try{
    if(!this.readCurrent(generation,controller))return;
-   const inbox=parseNotificationInbox(data(await this.firstPage(audience,view,limit,controller.signal)));
+   const inbox=await this.firstPage(audience,view,limit,controller.signal,fresh);
    if(!this.readCurrent(generation,controller))return;
    this.adopt(inbox,audience,view);
-   void this.refreshUnread();
+   // A page from the cache goes with the count cached beside it; a fresh page with a fresh count.
+   void this.refreshUnread(fresh);
   }catch(e){
    if(generation!==this.generation||controller.signal.aborted)return;
    this.publish({phase:this.state.items.length?'ready':'error',error:message(e,'notifications.error.load')});
@@ -173,7 +216,7 @@ export class InboxService{
  }
  /** Applies a change pushed by the event stream or long poll. */
  accept(delta:NotificationDelta){
-  if(delta.resync){void this.load();return;}
+  if(delta.resync){void this.read(this.state.audience,this.state.view,PAGE,true);return;}
   if(delta.revision<=this.state.revision)return;
   // While a first page is being read, its answer already carries this change;
   // merging a delta into retained rows would admit a partial page.
@@ -292,6 +335,8 @@ export class InboxService{
    // The confirmed change is now part of this page: a later write fences at the
    // revision the server just returned, never at the one it replaced.
    this.admit(result.revision,intent.audience,this.state.view);
+   // Every cached notification document of this viewer (another view, another inbox, the badge) is read again when next asked for.
+   this.options.queries?.moved([notificationsMoved]);
    this.publish({counts:result.counts,revision:result.revision});this.unreadDirty=true;void this.refreshUnread();
   }catch(e){
    if(!this.owns(token))return;
@@ -318,7 +363,7 @@ export class InboxService{
   this.publish({items:before.items,counts:before.counts,error:notice,busy:false});
   try{
    if(!this.readCurrent(generation,controller))return;
-   const inbox=parseNotificationInbox(data(await this.firstPage(audience,view,PAGE,controller.signal)));
+   const inbox=await this.firstPage(audience,view,PAGE,controller.signal,true);
    if(!this.readCurrent(generation,controller))return;
    this.adopt(inbox,audience,view,notice);
    void this.refreshUnread();
@@ -331,16 +376,22 @@ export class InboxService{
   const audiences=(inbox.audiences.filter(a=>a==='profile'||a==='account-admin') as NotificationAudience[]);
   this.publish({phase:'ready',busy:false,items:inbox.items,counts:inbox.counts,revision:inbox.revision,more:!!inbox.nextCursor,audiences:audiences.length?audiences:['profile'],error:notice});
  }
- /** The badge. Failure leaves the last known number in place. */
- refreshUnread():Promise<number>{
+ /** The badge. Failure leaves the last known number in place. `fresh: false` takes the viewer's cached count when nothing moved since it was read. */
+ refreshUnread(fresh=true):Promise<number>{
   if(this.disposed)return Promise.resolve(this.state.unread);
-  if(this.unreadFlight)return this.unreadFlight;
-  this.unreadFlight=this.readUnread().finally(()=>{this.unreadFlight=undefined;});
+  if(this.unreadFlight){
+   // A round that may answer from the cache cannot stand in for a fresh one: one more round follows it.
+   if(fresh&&!this.unreadRoundFresh)this.unreadDirty=true;
+   return this.unreadFlight;
+  }
+  this.unreadFlight=this.readUnread(fresh).finally(()=>{this.unreadFlight=undefined;});
   return this.unreadFlight;
  }
- private async readUnread():Promise<number>{
+ private async readUnread(fresh:boolean):Promise<number>{
+  // Only the first round may answer from the cache; a round repeated because something moved reads the server.
+  let round=fresh;
   do{
-   this.unreadDirty=false;
+   this.unreadDirty=false;this.unreadRoundFresh=round;
    const audiences=[...this.state.audiences],revision=this.state.revision;
    const controller=this.unreadController=new AbortController();
    const setTimer=this.options.setTimer??((fn:()=>void,ms:number)=>setTimeout(fn,ms));
@@ -353,9 +404,9 @@ export class InboxService{
    try{
     let total=0;const by:Partial<Record<NotificationAudience,number>>={};
     for(const audience of audiences){
-     const raw=await Promise.race([this.api.request<RouteResponse<"get_notifications_unread_count">>(routePath("get_notifications_unread_count") + "?audience=" + (encodeURIComponent(audience)),'GET',undefined,controller.signal),cancelled]);
+     const count=await Promise.race([this.unreadCount(audience,controller.signal,round),cancelled]);
      if(controller.signal.aborted||this.disposed)return this.state.unread;
-     by[audience]=parseNotificationSummary(data(raw)).counts.unread;total+=by[audience];
+     by[audience]=count;total+=count;
     }
     // An inbox load can discover the owner audience while the profile read is pending.
     // Never publish a partial/obsolete badge; coalesce changes into one fresh round.
@@ -368,8 +419,14 @@ export class InboxService{
     if(!this.unreadDirty)return this.state.unread;
    }
    finally{clearTimer(timer);controller.signal.removeEventListener('abort',abort);if(this.unreadController===controller)this.unreadController=undefined;}
+   round=true;
   }while(this.unreadDirty&&!this.disposed);
   return this.state.unread;
+ }
+ private async unreadCount(audience:NotificationAudience,signal:AbortSignal,fresh:boolean):Promise<number>{
+  const queries=this.options.queries;
+  if(queries){const options=unreadCountQuery(this.api,audience);return until(queries.client.fetchQuery(fresh?{...options,staleTime:0}:options),signal);}
+  return parseNotificationSummary(data(await this.api.request<RouteResponse<"get_notifications_unread_count">>(routePath("get_notifications_unread_count") + "?audience=" + (encodeURIComponent(audience)),'GET',undefined,signal))).counts.unread;
  }
 
 }
