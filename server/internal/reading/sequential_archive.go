@@ -96,10 +96,14 @@ func safeEntry(e sequentialEntry) error {
 }
 
 func openSequentialArchive(ctx context.Context, source SequentialSource) (*archive, error) {
-	return openSequentialArchiveWithLimits(ctx, source, safetyArchiveLimits)
+	return openSequentialArchiveWithFormat(ctx, source, safetyArchiveLimits, "cbz")
 }
 
 func openSequentialArchiveWithLimits(ctx context.Context, source SequentialSource, limits archiveLimits) (*archive, error) {
+	return openSequentialArchiveWithFormat(ctx, source, limits, "")
+}
+
+func openSequentialArchiveWithFormat(ctx context.Context, source SequentialSource, limits archiveLimits, expectedFormat string) (*archive, error) {
 	if source.Size < 22 || source.Size > MaxSource || source.Open == nil {
 		return nil, ErrLimit
 	}
@@ -109,6 +113,15 @@ func openSequentialArchiveWithLimits(ctx context.Context, source SequentialSourc
 	}
 	defer body.Close()
 	c := newCursor(ctx, body, source.Size)
+	if expectedFormat != "" {
+		head, err := c.r.Peek(8)
+		if err != nil {
+			return nil, err
+		}
+		if err := checkComicArchiveSignature(head, expectedFormat); err != nil {
+			return nil, err
+		}
+	}
 	stream := &sequentialArchive{source: source, entries: map[string]sequentialEntry{}}
 	a := &archive{files: map[string]*archiveFile{}, sequential: stream}
 	all := map[string]sequentialEntry{}
