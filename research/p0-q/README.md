@@ -108,3 +108,42 @@ loop limit from non-repaying debt. No successful native-write subset qualifies
 the private connection's long TRUNCATE checkpoint calls or production FK/custody
 acceptance. New candidate280f03e6 has ten byte-identical search-family statements
 to the executed d07d13 schema; native search results apply to that family.
+
+## R14 and the durability ruling
+
+`schema-v1/p0-q-passive` executes candidate09a97242b681fe51077bb109fe2c1d28a0eb2cdd7fccfed0a661c3d9115782b6.
+Prior d07d13/280f search-family results are historical controls, not direct
+qualification: search_own folded into catalog_entities, exact index renamed and
+FTS external content remapped to catalog_entities/id. New fixtures populate the
+actual wide entity (640-byte synopsis, mandatory identity fields and all its
+indexes) and use only an auxiliary rating table. FK parent domains remain outside
+this isolated corpus; all row CHECK/UNIQUE/STRICT/index work is real. Old and new
+SHAs are recorded, and every event carries the executed candidate SHA.
+
+Main background/user-state class: WAL+NORMAL, auto0/batch8/merge1, writer
+wal_autocheckpoint0. One separate PASSIVE connection gets a fake governor grant
+every50ms (also250/1000ms controls), max one in flight. No TRUNCATE is issued in
+these cases. A read-only pinned wal-index header probe reports committed frames,
+backfill and physical file size. Publication pauses outside the transaction at
+64MiB uncheckpointed debt or96MiB active-prefix pressure, permitting reset trials
+after full backfill, with a16MiB reserve below192MiB hard stop. Unknown/incoherent
+header state is charged/waits; it is not zero. Physical/active-prefix sizes differ
+because PASSIVE does not truncate. This is a benchmark governor, not G integration.
+
+Each checkpoint records duration/busy/frames plus writer and reader completions
+while in flight. Commit latency is split into checkpoint-overlap and idle cohorts.
+Slow native calls record locked-thread CPU time and Linux schedstat runqueue wait;
+/proc/stat steal and effective cache_size/cache_spill are retained. Thread CPU
+includes engine and runtime CPU; unclassified non-CPU wait is not assumed engine.
+
+Mixed cases keep one writer. Seeded Poisson security arrivals have mean60s and
+switch to FULL only for a tiny committed security row, then back to NORMAL.
+Progress arrivals mean1s (10 streams updating every10s), use NORMAL. Background
+build is followed by at least600s continuous ingest/rename offered work; after
+2048 additions size remains bounded and renames continue. At high WAL pressure,
+foreground service is retained while background publication waits. Foreground
+FULL commit/transaction/queue/response timing and precommit WAL committed-prefix
+and uncheckpointed bytes are recorded. These bytes bound the prefix carried;
+they are not a VFS-exact unsynced-background-byte oracle. FULL still syncs the WAL
+prefix, so security latency is not inferred from small row size. Few real-rate
+security samples mean p99 is the observed maximum, not a high-confidence tail.

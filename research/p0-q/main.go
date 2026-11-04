@@ -43,7 +43,7 @@ var outMu sync.Mutex
 func emit(kind string, v any) {
 	outMu.Lock()
 	defer outMu.Unlock()
-	b, e := json.Marshal(map[string]any{"event": kind, "at": time.Now().UTC().Format(time.RFC3339Nano), "data": v})
+	b, e := json.Marshal(map[string]any{"event": kind, "candidate_sha256": candidateSHA(), "at": time.Now().UTC().Format(time.RFC3339Nano), "data": v})
 	if e != nil {
 		panic(e)
 	}
@@ -69,6 +69,10 @@ var nativeMax = struct {
 func native(db interface {
 	Exec(string, ...any) (sql.Result, error)
 }, tag, q string, a ...any) {
+	if strings.Contains(tag, "commit") || strings.Contains(tag, ".step.") {
+		cpuNative(db, tag, q, a...)
+		return
+	}
 	t := time.Now()
 	exec(db, q, a...)
 	nativeMax.Lock()
@@ -138,7 +142,10 @@ func open(path string) *sql.DB {
 	must(e)
 	db.SetMaxOpenConns(1)
 	exec(db, "PRAGMA busy_timeout=30000")
-	exec(db, "PRAGMA cache_size=-65536")
+	exec(db, fmt.Sprintf("PRAGMA cache_size=%d", cacheKiB))
+	if !cacheSpill {
+		exec(db, "PRAGMA cache_spill=OFF")
+	}
 	exec(db, "PRAGMA temp_store=FILE")
 	return db
 }
@@ -151,8 +158,8 @@ func create(db *sql.DB, variant string) {
 	exec(db, "PRAGMA synchronous="+durability)
 	exec(db, "PRAGMA wal_autocheckpoint=0")
 	exec(db, candidateSQL)
-	exec(db, "CREATE TABLE q_items(id INTEGER PRIMARY KEY,rating INTEGER NOT NULL,title TEXT NOT NULL) STRICT")
-	exec(db, `CREATE VIEW own AS SELECT s.entity_id id,s.library_id library,s.kind,q.rating,q.title,s.title_fold,s.title_prefix_tokens,s.initial_prefix_tokens FROM search_own s CROSS JOIN q_items q ON q.id=s.entity_id`)
+	exec(db, "CREATE TABLE q_items(id INTEGER PRIMARY KEY,rating INTEGER NOT NULL) STRICT")
+	exec(db, `CREATE VIEW own AS SELECT e.id,e.library_id library,e.kind,q.rating,e.title,e.title_fold,e.title_prefix_tokens,e.initial_prefix_tokens FROM catalog_entities e CROSS JOIN q_items q ON q.id=e.id`)
 	exec(db, `CREATE VIEW fragments AS SELECT id,CASE WHEN owner_person IS NOT NULL THEN -owner_person WHEN field=3 THEN -(owner_entity-300000000) ELSE owner_entity END owner,field,prefix_tokens,lexical_tokens,normalized FROM search_fragments`)
 	exec(db, `CREATE TABLE rel(parent INTEGER NOT NULL,child INTEGER NOT NULL,PRIMARY KEY(parent,child)) WITHOUT ROWID`)
 	exec(db, `CREATE INDEX rel_child ON rel(child,parent)`)
@@ -236,8 +243,8 @@ func insertItem(db *sql.DB, i, shared int) {
 	t := title(i)
 	p, init := prefix(t), initial(t)
 	kind, parent := shape(i)
-	exec(db, "INSERT INTO q_items VALUES(?,?,?)", i, i%100, t)
-	exec(db, "INSERT INTO search_own VALUES(?,?,?,?,?,?)", i, (i/100)%8, kind, facettext.SearchFold(t), p, init)
+	exec(db, "INSERT INTO q_items VALUES(?,?)", i, i%100)
+	insertEntity(db, i, kind, parent, t, p, init)
 	native(db, "fts.insert.search_own_prefix", "INSERT INTO search_own_prefix(rowid,title_prefix_tokens,initial_prefix_tokens) VALUES(?,?,?)", i, p, init)
 	fragment(db, 100000000+i, i, 1, t)
 	if parent >= 0 {
@@ -261,6 +268,10 @@ func insertItem(db *sql.DB, i, shared int) {
 var databasePath string
 
 func checkpoint(db *sql.DB) {
+	if passiveEnabled {
+		requestCheckpoint()
+		return
+	}
 	if f, e := os.Stat(databasePath + "-wal"); e == nil {
 		emit("wal_checkpoint_before", map[string]any{"physical_bytes": f.Size()})
 	}
@@ -269,6 +280,8 @@ func checkpoint(db *sql.DB) {
 func build(db *sql.DB, n int) {
 	shared := max(128, n/50)
 	for i := 1; i <= shared+max(1, shared/10); {
+		admitPublication()
+		serviceForeground(db)
 		measured("build.shared.tx", func() {
 			exec(db, "BEGIN IMMEDIATE")
 			for end := min(shared+max(1, shared/10)+1, i+buildBatch); i < end; i++ {
@@ -287,6 +300,8 @@ func build(db *sql.DB, n int) {
 	checkpoint(db)
 	start := time.Now()
 	for i := 0; i < n; {
+		admitPublication()
+		serviceForeground(db)
 		measured("build.tx", func() {
 			exec(db, "BEGIN IMMEDIATE")
 			for end := min(n, i+buildBatch); i < end; i++ {
@@ -397,6 +412,8 @@ var maxDebt = map[string]int{}
 func maintain(db *sql.DB, tag string) {
 	for _, idx := range indexes {
 		for step := 0; step < 32768; step++ {
+			serviceForeground(db)
+			admitPublication()
 			d := structure(db, idx)
 			if step > 0 && step%512 == 0 {
 				emit("debt_repayment_progress", map[string]any{"index": idx, "steps": step, "debt": d})
@@ -420,6 +437,8 @@ func maintain(db *sql.DB, tag string) {
 }
 func merge(db *sql.DB, tag string) {
 	for _, x := range indexes {
+		serviceForeground(db)
+		admitPublication()
 		measured(tag+".tx."+x, func() {
 			exec(db, "BEGIN IMMEDIATE")
 			native(db, tag+".step."+x, "INSERT INTO "+x+"("+x+",rank) VALUES('merge',?)", mergePages)
@@ -447,8 +466,7 @@ func renameTitle(db *sql.DB, id int, s string) {
 	var p, in string
 	must(db.QueryRow("SELECT title_prefix_tokens,initial_prefix_tokens FROM own WHERE id=?", id).Scan(&p, &in))
 	native(db, "fts.delete.search_own_prefix", "INSERT INTO search_own_prefix(search_own_prefix,rowid,title_prefix_tokens,initial_prefix_tokens) VALUES('delete',?,?,?)", id, p, in)
-	exec(db, "UPDATE q_items SET title=? WHERE id=?", s, id)
-	exec(db, "UPDATE search_own SET title_fold=?,title_prefix_tokens=?,initial_prefix_tokens=? WHERE entity_id=?", facettext.SearchFold(s), prefix(s), initial(s), id)
+	exec(db, "UPDATE catalog_entities SET title=?,sort_key=?,sort_head=?,sort_key_keep_articles=?,sort_head_keep_articles=?,title_fold=?,title_prefix_tokens=?,initial_prefix_tokens=? WHERE id=?", s, facettext.SearchFold(s), string([]rune(s)[0]), facettext.SearchFold(s), string([]rune(s)[0]), facettext.SearchFold(s), prefix(s), initial(s), id)
 	native(db, "fts.insert.search_own_prefix", "INSERT INTO search_own_prefix(rowid,title_prefix_tokens,initial_prefix_tokens) VALUES(?,?,?)", id, prefix(s), initial(s))
 	renameFragment(db, 100000000+id, s)
 }
@@ -612,7 +630,11 @@ func main() {
 	dir := flag.String("dir", "", "scratch output")
 	samples := flag.Int("samples", 16, "query samples excluding warmup")
 	rounds := flag.Int("rounds", 2048, "churn transactions")
+	mixed := flag.Bool("mixed", false, "mixed security/progress traffic")
+	minimum := flag.Duration("mixed-duration", 600*time.Second, "minimum mixed observation")
 	flag.Parse()
+	mixedEnabled = *mixed
+	mixedDuration = *minimum
 	configure(*config)
 	must(os.MkdirAll(*dir, 0755))
 	path := filepath.Join(*dir, "search.sqlite")
@@ -621,8 +643,11 @@ func main() {
 	defer db.Close()
 	var version string
 	must(db.QueryRow("SELECT sqlite_version()").Scan(&version))
-	emit("environment", map[string]any{"sqlite": version, "go": runtime.Version(), "cpus": runtime.NumCPU(), "profile": *profile, "variant": *v, "items": *n, "pid": os.Getpid(), "mode": *mode, "config": *config, "automerge": autoMerge, "crisismerge": crisisMerge, "batch": buildBatch, "merge_pages": mergePages, "synchronous": durability, "candidate_sha256": candidateSHA(), "candidate_fk_checks": false})
+	emit("environment", map[string]any{"sqlite": version, "go": runtime.Version(), "cpus": runtime.NumCPU(), "profile": *profile, "variant": *v, "items": *n, "pid": os.Getpid(), "mode": *mode, "config": *config, "automerge": autoMerge, "crisismerge": crisisMerge, "batch": buildBatch, "merge_pages": mergePages, "synchronous": durability, "candidate_sha256": candidateSHA(), "candidate_fk_checks": false, "previous_candidate_sha256": "d07d13b0146246d28e5122c85b0880f48f9d95addded5bab19c3ffe91f18a2f0"})
 	create(db, *v)
+	setupExperiment(db, path)
+	defer stopExperiment()
+	defer dumpOperations()
 	build(db, *n)
 	emit("allocation_base", allocation(db, path))
 	emit("debt_base", debt(db))

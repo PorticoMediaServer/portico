@@ -14,9 +14,37 @@ import (
 //go:embed candidate.sql
 var candidateSQL string
 
-func candidateSHA() string { return fmt.Sprintf("%x", sha256.Sum256([]byte(candidateSQL))) }
+var candidateDigest = fmt.Sprintf("%x", sha256.Sum256([]byte(candidateSQL)))
+
+func candidateSHA() string { return candidateDigest }
 func configure(name string) {
 	switch name {
+	case "normal-passive":
+		autoMerge = 0
+		durability = "NORMAL"
+		passiveEnabled = true
+	case "normal-passive-250":
+		autoMerge = 0
+		durability = "NORMAL"
+		passiveEnabled = true
+		checkpointEvery = 250 * time.Millisecond
+	case "normal-passive-1000":
+		autoMerge = 0
+		durability = "NORMAL"
+		passiveEnabled = true
+		checkpointEvery = time.Second
+	case "normal-auto2":
+		durability = "NORMAL"
+		passiveEnabled = true
+	case "normal-auto2-nospill":
+		durability = "NORMAL"
+		passiveEnabled = true
+		cacheSpill = false
+	case "normal-auto2-cache256":
+		durability = "NORMAL"
+		passiveEnabled = true
+		cacheKiB = -262144
+	case "full-cpu":
 	case "baseline":
 	case "noauto-b8":
 		autoMerge = 0
@@ -55,7 +83,7 @@ func fastTitlePage(db *sql.DB, q Query) ([]int, string) {
 	primary := strings.Join(parts, " AND ")
 	initial := "initial_prefix_tokens:" + encode(terms[0]) + "*"
 	ids := []int{}
-	rows, e := db.Query("SELECT entity_id FROM search_own WHERE library_id IN(0,1,2,3,4,5,6,7) AND kind IN(1,2,3,4,5,6,7,8) AND title_fold=? ORDER BY entity_id LIMIT 41", facettext.SearchFold(q.Text))
+	rows, e := db.Query("SELECT id FROM catalog_entities WHERE library_id IN(0,1,2,3,4,5,6,7) AND kind IN(1,2,3,4,5,6,7,8) AND title_fold=? ORDER BY id LIMIT 41", facettext.SearchFold(q.Text))
 	must(e)
 	for rows.Next() {
 		var id int
@@ -68,7 +96,7 @@ func fastTitlePage(db *sql.DB, q Query) ([]int, string) {
 			break
 		}
 		args := []any{match}
-		sqlq := "SELECT f.rowid FROM search_own_prefix f CROSS JOIN search_own s ON s.entity_id=f.rowid WHERE search_own_prefix MATCH ? AND s.library_id IN(0,1,2,3,4,5,6,7) AND s.kind IN(1,2,3,4,5,6,7,8)"
+		sqlq := "SELECT f.rowid FROM search_own_prefix f CROSS JOIN catalog_entities s ON s.id=f.rowid WHERE search_own_prefix MATCH ? AND s.library_id IN(0,1,2,3,4,5,6,7) AND s.kind IN(1,2,3,4,5,6,7,8)"
 		if len(ids) > 0 {
 			ph := []string{}
 			for _, id := range ids {
@@ -177,7 +205,9 @@ func experiment(db *sql.DB, path string, n, samples, rounds int, mode string) {
 			tuneBench(db, samples, phase)
 		}
 	}
-	bench("base")
+	if !mixedEnabled {
+		bench("base")
+	}
 	shared := max(128, n/50)
 	stop, done := make(chan struct{}), make(chan struct{})
 	go func() {
@@ -193,21 +223,27 @@ func experiment(db *sql.DB, path string, n, samples, rounds int, mode string) {
 			}
 			q := Query{Text: []string{"a", "al", "jo"}[i%3]}
 			t := time.Now()
+			cpActive, cpSeq := cpRunning.Load(), cpSequence.Load()
 			if mode == "hybrid" {
 				first, deferred, proof := hybridOnce(rd, q)
 				emit("concurrent_hybrid", map[string]any{"query": q.Text, "first_ms": first, "deferred_ms": deferred, "proof": proof})
 			} else {
 				search(rd, "A", q)
-				emit("concurrent_tune", map[string]any{"query": q.Text, "ms": float64(time.Since(t).Microseconds()) / 1000})
+				emit("concurrent_tune", map[string]any{"query": q.Text, "ms": float64(time.Since(t).Microseconds()) / 1000, "checkpoint_overlap": cpActive || cpRunning.Load() || cpSeq != cpSequence.Load()})
 			}
+			readerCount.Add(1)
 			i++
 		}
 	}()
 	peakWal := int64(0)
-	for i := 0; i < rounds; i++ {
+	for i, started := 0, time.Now(); i < rounds || (mixedEnabled && time.Since(started) < mixedDuration); i++ {
+		serviceForeground(db)
+		admitPublication()
 		measured("churn.tx", func() {
 			exec(db, "BEGIN IMMEDIATE")
-			insertItem(db, n+i, shared)
+			if i < rounds {
+				insertItem(db, n+i, shared)
+			}
 			renameTitle(db, (i*7919)%n, fmt.Sprintf("Harbor Churn %d", i))
 			renameFragment(db, 1+i%shared, fmt.Sprintf("Ada Churn Common %d", i))
 			native(db, "churn.commit", "COMMIT")
@@ -223,6 +259,7 @@ func experiment(db *sql.DB, path string, n, samples, rounds int, mode string) {
 	}
 	close(stop)
 	<-done
+	finishMixed(db)
 	emit("debt_before_drain", debt(db))
 	for i := 0; i < 256; i++ {
 		merge(db, "drain")
@@ -230,7 +267,9 @@ func experiment(db *sql.DB, path string, n, samples, rounds int, mode string) {
 	checkpoint(db)
 	emit("debt_after_drain", debt(db))
 	emit("allocation_churn", allocation(db, path))
-	bench("after_churn")
+	if !mixedEnabled {
+		bench("after_churn")
+	}
 	controls(db, "A")
 	var body strings.Builder
 	for j := 0; body.Len() < 65536; j++ {
@@ -249,6 +288,7 @@ func experiment(db *sql.DB, path string, n, samples, rounds int, mode string) {
 	}
 	checkpoint(db)
 	emit("debt_final", debt(db))
+	finishMixed(db)
 	dumpOperations()
 	emit("completed", map[string]any{"wal_peak_bytes": peakWal, "peak_same_level": maxDebt, "tombstone_operations": rounds * 2})
 }

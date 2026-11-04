@@ -1,4 +1,5 @@
--- INTEGRATION DRAFT. Not cleared for measurement; see INT-ASSEMBLY.json.
+-- Integration candidate, not a migration/freeze approval.
+-- Full-DDL measurements require matching zero-error INT-BUNDLED-CHECK.json.
 
 CREATE TABLE access_invitation_short_codes(
  invitation_id TEXT PRIMARY KEY REFERENCES access_invitations(id) ON DELETE CASCADE,
@@ -534,8 +535,10 @@ CREATE TABLE catalog_asset_issues(
  PRIMARY KEY(library_id,asset_id)) WITHOUT ROWID, STRICT;
 
 CREATE TABLE catalog_asset_links(
- entity_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
- asset_id INTEGER NOT NULL REFERENCES catalog_assets(id) ON DELETE CASCADE,
+ cue_ordinal INTEGER CHECK(cue_ordinal BETWEEN 1 AND 255),
+ cue_slot INTEGER CHECK(cue_slot BETWEEN 1 AND 255),
+ entity_id INTEGER NOT NULL,
+ asset_id INTEGER NOT NULL,
  part_index INTEGER NOT NULL DEFAULT 0,
  available INTEGER NOT NULL DEFAULT 1 CHECK(available IN(0,1)),
  start_seconds REAL NOT NULL DEFAULT 0,
@@ -546,13 +549,18 @@ CREATE TABLE catalog_asset_links(
  info_shape_id INTEGER REFERENCES catalog_info_shapes(id),
  playback_origin_incarnation BLOB NOT NULL DEFAULT(randomblob(16)) CHECK(length(playback_origin_incarnation)=16),
  playback_origin_revision INTEGER NOT NULL DEFAULT 1 CHECK(playback_origin_revision>0),
- PRIMARY KEY(entity_id,asset_id)
+ library_id INTEGER NOT NULL,
+ PRIMARY KEY(entity_id,asset_id),
+ CHECK((cue_ordinal IS NULL)=(cue_slot IS NULL)),
+ CHECK(cue_slot IS NULL OR (start_seconds>=0 AND (end_seconds IS NULL OR end_seconds>start_seconds))),
+ FOREIGN KEY(library_id,entity_id) REFERENCES catalog_entities(library_id,id) ON DELETE CASCADE,
+ FOREIGN KEY(library_id,asset_id) REFERENCES catalog_assets(library_id,id) ON DELETE CASCADE
 ) WITHOUT ROWID, STRICT;
 
 CREATE TABLE catalog_assets(
  id INTEGER PRIMARY KEY,
  token TEXT NOT NULL UNIQUE,
- path TEXT NOT NULL UNIQUE,
+ path TEXT NOT NULL,
  size INTEGER NOT NULL,
  modified_ns INTEGER NOT NULL,
  container TEXT NOT NULL,
@@ -581,8 +589,11 @@ CREATE TABLE catalog_assets(
  download_hash_modified_ns INTEGER,
  download_hash_sha256 TEXT,
  download_hash_hashed_ms INTEGER,
+ library_id INTEGER NOT NULL REFERENCES catalog_libraries(id),
  CHECK((info_owner_object IS NULL)=(info_owner_revision IS NULL)),
- CHECK(has_download_source_digests=0 OR (download_hash_size IS NOT NULL AND download_hash_modified_ns IS NOT NULL AND download_hash_sha256 IS NOT NULL AND download_hash_hashed_ms IS NOT NULL))
+ CHECK(has_download_source_digests=0 OR (download_hash_size IS NOT NULL AND download_hash_modified_ns IS NOT NULL AND download_hash_sha256 IS NOT NULL AND download_hash_hashed_ms IS NOT NULL)),
+ UNIQUE(library_id,id),
+ UNIQUE(library_id,path)
 ) STRICT;
 
 CREATE TABLE catalog_attribute_fields(
@@ -689,7 +700,7 @@ CREATE TABLE catalog_entities(
  community_rating_key REAL NOT NULL DEFAULT 0,
  critic_rating_key REAL NOT NULL DEFAULT 0,
  file_size_key INTEGER NOT NULL DEFAULT 0,
- resolution_key INTEGER NOT NULL DEFAULT 0,
+ resolution_key INTEGER DEFAULT 0,
  release_key TEXT NOT NULL DEFAULT '',
  episode_count INTEGER NOT NULL DEFAULT 0 CHECK(episode_count>=0),
  latest_aired_key TEXT NOT NULL DEFAULT '',
@@ -785,8 +796,10 @@ CREATE TABLE catalog_entities(
  reading_series_source TEXT CHECK(reading_series_source IN('owner','file-metadata','file-name','folder')),
  reading_numbered_order INTEGER CHECK(reading_numbered_order IN(0,1)),
  reading_number_value REAL CHECK(reading_number_value>=0 AND reading_number_value<=1.7976931348623157e308),
+ title_fold TEXT NOT NULL DEFAULT '',
+ title_prefix_tokens TEXT NOT NULL DEFAULT '',
+ initial_prefix_tokens TEXT NOT NULL DEFAULT '',
  CHECK((playback_origin_incarnation IS NULL)=(playback_origin_revision IS NULL)),
- UNIQUE(library_id,id),
  FOREIGN KEY(library_id,parent_id) REFERENCES catalog_entities(library_id,id),
  FOREIGN KEY(library_id,show_id) REFERENCES catalog_entities(library_id,id),
  FOREIGN KEY(library_id,season_id) REFERENCES catalog_entities(library_id,id),
@@ -794,7 +807,7 @@ CREATE TABLE catalog_entities(
  FOREIGN KEY(library_id,album_id) REFERENCES catalog_entities(library_id,id),
  FOREIGN KEY(library_id,book_id) REFERENCES catalog_entities(library_id,id),
  CHECK(kind<>3 OR (show_id IS NOT NULL AND season_number IS NOT NULL)),
- CHECK(kind<>4 OR (show_id IS NOT NULL AND numbering IN('seasonal','absolute') AND episode_number IS NOT NULL)),
+ CHECK(kind<>4 OR (show_id IS NOT NULL AND numbering IN('seasonal','absolute','date') AND episode_number IS NOT NULL)),
  CHECK(kind<>6 OR artist_id IS NOT NULL),
  CHECK(kind<>7 OR album_id IS NOT NULL),
  CHECK(kind<>9 OR book_id IS NOT NULL),
@@ -804,7 +817,8 @@ CREATE TABLE catalog_entities(
  CHECK((reading_author_value IS NULL AND reading_author_key IS NULL AND reading_author_source IS NULL) OR (reading_author_value IS NOT NULL AND reading_author_key IS NOT NULL AND reading_author_source IS NOT NULL)),
  CHECK((reading_series_value IS NULL AND reading_series_key IS NULL AND reading_series_id IS NULL AND reading_series_source IS NULL) OR (reading_series_value IS NOT NULL AND reading_series_key IS NOT NULL AND reading_series_id IS NOT NULL AND reading_series_source IS NOT NULL)),
  CHECK(reading_numbered_order=0 OR reading_number_value=0),
- CHECK(has_reading_attribution_members=0 OR (reading_numbered_order IS NOT NULL AND reading_number_value IS NOT NULL))
+ CHECK(has_reading_attribution_members=0 OR (reading_numbered_order IS NOT NULL AND reading_number_value IS NOT NULL)),
+ CHECK(kind IN(1,2,3,4,10) OR resolution_key IS NULL)
 ) STRICT;
 
 CREATE TABLE catalog_entity_mutations(
@@ -1201,9 +1215,8 @@ CREATE TABLE catalog_libraries(
  id INTEGER PRIMARY KEY AUTOINCREMENT,
  library_id TEXT NOT NULL UNIQUE REFERENCES libraries(id) ON DELETE CASCADE,
  root TEXT NOT NULL,
- name TEXT NOT NULL,
- kind INTEGER NOT NULL CHECK(kind BETWEEN 1 AND 99),
- retired INTEGER NOT NULL DEFAULT 0 CHECK(retired IN(0,1))) STRICT;
+ retired INTEGER NOT NULL DEFAULT 0 CHECK(retired IN(0,1))
+) STRICT;
 
 CREATE TABLE catalog_merged_ids(
  public_id BLOB PRIMARY KEY CHECK(length(public_id)=16),
@@ -3187,14 +3200,6 @@ CREATE TABLE music_sonic_tags(
  tag_index INTEGER NOT NULL CHECK(tag_index BETWEEN 0 AND 49),score REAL NOT NULL CHECK(score BETWEEN 0 AND 1),
  PRIMARY KEY(result_id,entity_id,tag_index),
  FOREIGN KEY(result_id,entity_id) REFERENCES music_sonic_embeddings(result_id,entity_id) ON DELETE CASCADE
-) WITHOUT ROWID, STRICT;
-
-CREATE TABLE music_virtual_tracks(
- asset_id TEXT NOT NULL REFERENCES catalog_assets(token) ON DELETE CASCADE,
- ordinal INTEGER NOT NULL CHECK(ordinal BETWEEN 1 AND 4096),
- entity_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
- start_seconds REAL NOT NULL CHECK(start_seconds>=0),end_seconds REAL NOT NULL CHECK(end_seconds>start_seconds),
- PRIMARY KEY(asset_id,ordinal),UNIQUE(entity_id,asset_id)
 ) WITHOUT ROWID, STRICT;
 
 CREATE TABLE networking_certificate_settings (
@@ -5829,7 +5834,9 @@ CREATE TABLE metadata_evidence(
  UNIQUE(provider,subject_kind,provider_id,language,region,request_shape,digest),
  UNIQUE(id,provider,subject_kind,provider_id),UNIQUE(id,subject_id),
  FOREIGN KEY(subject_id,provider,subject_kind,provider_id,language,region,request_shape)
- REFERENCES metadata_provider_subjects(id,provider,subject_kind,provider_id,language,region,request_shape)
+ REFERENCES metadata_provider_subjects(id,provider,subject_kind,provider_id,language,region,request_shape),
+ UNIQUE(provider,subject_kind,id),
+ UNIQUE(id,provider_id)
 ) STRICT;
 
 CREATE TABLE metadata_evidence_builds(
@@ -5847,7 +5854,8 @@ CREATE TABLE metadata_evidence_aliases(
  evidence_id TEXT NOT NULL REFERENCES metadata_evidence(id),
  ordinal INTEGER NOT NULL CHECK(ordinal>=0),requested_id TEXT NOT NULL,canonical_id TEXT NOT NULL,
  alias TEXT NOT NULL DEFAULT '',observed_at TEXT NOT NULL,
- PRIMARY KEY(evidence_id,ordinal)
+ PRIMARY KEY(evidence_id,ordinal),
+ FOREIGN KEY(evidence_id,canonical_id) REFERENCES metadata_evidence(id,provider_id)
 ) WITHOUT ROWID, STRICT;
 
 CREATE TABLE metadata_evidence_external_ids(
@@ -5862,11 +5870,16 @@ CREATE TABLE metadata_evidence_terms(
 ) WITHOUT ROWID, STRICT;
 
 CREATE TABLE metadata_evidence_credits(
+ provider TEXT NOT NULL,evidence_kind TEXT NOT NULL,
+ track_id TEXT GENERATED ALWAYS AS (NULLIF(scope,'')) VIRTUAL,
  evidence_id TEXT NOT NULL REFERENCES metadata_evidence(id),scope TEXT NOT NULL DEFAULT '',ordinal INTEGER NOT NULL,
  provider_person_id TEXT NOT NULL,name TEXT NOT NULL,artist_name TEXT NOT NULL DEFAULT '',
  sort_name TEXT NOT NULL DEFAULT '',disambiguation TEXT NOT NULL DEFAULT '',join_phrase TEXT NOT NULL DEFAULT '',
  role TEXT NOT NULL DEFAULT '',department TEXT NOT NULL DEFAULT '',credit_id TEXT NOT NULL DEFAULT '',
- PRIMARY KEY(evidence_id,scope,ordinal)
+ PRIMARY KEY(evidence_id,scope,ordinal),
+ FOREIGN KEY(provider,evidence_kind,evidence_id) REFERENCES metadata_evidence(provider,subject_kind,id),
+ FOREIGN KEY(provider,evidence_kind,evidence_id,track_id) REFERENCES metadata_evidence_tracks(provider,evidence_kind,evidence_id,track_id),
+ CHECK(scope='' OR evidence_kind='release')
 ) WITHOUT ROWID, STRICT;
 
 CREATE TABLE metadata_evidence_ratings(
@@ -5876,23 +5889,38 @@ CREATE TABLE metadata_evidence_ratings(
 ) WITHOUT ROWID, STRICT;
 
 CREATE TABLE metadata_evidence_episodes(
+ provider TEXT NOT NULL,
+ evidence_kind TEXT NOT NULL DEFAULT 'series' CHECK(evidence_kind IN('series','season')),
+ episode_kind TEXT NOT NULL DEFAULT 'episode' CHECK(episode_kind='episode'),
  evidence_id TEXT NOT NULL REFERENCES metadata_evidence(id),ordinal INTEGER NOT NULL,
  episode_evidence_id TEXT NOT NULL REFERENCES metadata_evidence(id),episode_order TEXT NOT NULL,
  season_number INTEGER,episode_number INTEGER,absolute_number INTEGER,
- PRIMARY KEY(evidence_id,ordinal),UNIQUE(evidence_id,episode_evidence_id,episode_order)
+ PRIMARY KEY(evidence_id,ordinal),UNIQUE(evidence_id,episode_evidence_id,episode_order),
+ FOREIGN KEY(provider,evidence_kind,evidence_id) REFERENCES metadata_evidence(provider,subject_kind,id),
+ FOREIGN KEY(provider,episode_kind,episode_evidence_id) REFERENCES metadata_evidence(provider,subject_kind,id)
 ) WITHOUT ROWID, STRICT;
 
 CREATE TABLE metadata_evidence_media(
+ provider TEXT NOT NULL,
+ evidence_kind TEXT NOT NULL DEFAULT 'release' CHECK(evidence_kind='release'),
  evidence_id TEXT NOT NULL REFERENCES metadata_evidence(id),position INTEGER NOT NULL CHECK(position>0),
- format TEXT NOT NULL,title TEXT NOT NULL,PRIMARY KEY(evidence_id,position)
+ format TEXT NOT NULL,title TEXT NOT NULL,PRIMARY KEY(evidence_id,position),
+ UNIQUE(provider,evidence_kind,evidence_id,position),
+ FOREIGN KEY(provider,evidence_kind,evidence_id) REFERENCES metadata_evidence(provider,subject_kind,id)
 ) WITHOUT ROWID, STRICT;
 
 CREATE TABLE metadata_evidence_tracks(
+ provider TEXT NOT NULL,
+ evidence_kind TEXT NOT NULL DEFAULT 'release' CHECK(evidence_kind='release'),
+ recording_kind TEXT NOT NULL DEFAULT 'recording' CHECK(recording_kind='recording'),
  evidence_id TEXT NOT NULL,track_id TEXT NOT NULL,medium_position INTEGER NOT NULL,
  position INTEGER NOT NULL CHECK(position>0),number TEXT NOT NULL,title TEXT NOT NULL,artist TEXT NOT NULL,
  length_millis INTEGER CHECK(length_millis>=0),recording_evidence_id TEXT NOT NULL REFERENCES metadata_evidence(id),
  PRIMARY KEY(evidence_id,track_id),UNIQUE(evidence_id,medium_position,position),
- FOREIGN KEY(evidence_id,medium_position) REFERENCES metadata_evidence_media(evidence_id,position)
+ FOREIGN KEY(evidence_id,medium_position) REFERENCES metadata_evidence_media(evidence_id,position),
+ UNIQUE(provider,evidence_kind,evidence_id,track_id),
+ FOREIGN KEY(provider,evidence_kind,evidence_id,medium_position) REFERENCES metadata_evidence_media(provider,evidence_kind,evidence_id,position),
+ FOREIGN KEY(provider,recording_kind,recording_evidence_id) REFERENCES metadata_evidence(provider,subject_kind,id)
 ) WITHOUT ROWID, STRICT;
 
 CREATE TABLE metadata_evidence_attachments(
@@ -5912,10 +5940,15 @@ CREATE TABLE metadata_subject_providers(
  FOREIGN KEY(accepted_evidence_id,provider,subject_kind,provider_id)
  REFERENCES metadata_evidence(id,provider,subject_kind,provider_id),
  FOREIGN KEY(accepted_evidence_id,accepted_track_id) REFERENCES metadata_evidence_tracks(evidence_id,track_id),
- CHECK(accepted_track_id IS NULL OR accepted_evidence_id IS NOT NULL)
+ CHECK(accepted_track_id IS NULL OR accepted_evidence_id IS NOT NULL),
+ FOREIGN KEY(entity_id,provider,subject_kind,provider_id,accepted_set_id) REFERENCES metadata_publication_sets(entity_id,provider,subject_kind,provider_id,id),
+ FOREIGN KEY(entity_id,provider,subject_kind,provider_id,accepted_publication_id) REFERENCES metadata_publications(entity_id,provider,subject_kind,provider_id,id),
+ FOREIGN KEY(entity_id,provider,subject_kind,provider_id,accepted_publication_id,accepted_evidence_id) REFERENCES metadata_publications(entity_id,provider,subject_kind,provider_id,id,evidence_id),
+ FOREIGN KEY(entity_id,provider,subject_kind,provider_id,accepted_publication_id,accepted_set_id) REFERENCES metadata_publications(entity_id,provider,subject_kind,provider_id,id,set_id)
 ) WITHOUT ROWID, STRICT;
 
 CREATE TABLE metadata_publication_sets(
+ member_kind TEXT NOT NULL DEFAULT 'episode',
  id TEXT PRIMARY KEY,entity_id INTEGER NOT NULL REFERENCES catalog_entities(id),provider TEXT NOT NULL REFERENCES metadata_providers(code),
  incarnation BLOB NOT NULL CHECK(length(incarnation)=16),revision INTEGER NOT NULL CHECK(revision>0),generation INTEGER NOT NULL,
  subject_kind TEXT NOT NULL,provider_id TEXT NOT NULL,episode_order TEXT NOT NULL DEFAULT '',
@@ -5923,7 +5956,10 @@ CREATE TABLE metadata_publication_sets(
  complete INTEGER NOT NULL DEFAULT 0 CHECK(complete IN(0,1)),
  coverage_source_revision INTEGER NOT NULL DEFAULT 0,coverage_hierarchy_revision INTEGER NOT NULL DEFAULT 0,
  coverage_selection_revision INTEGER NOT NULL DEFAULT 0,coverage_after_item INTEGER NOT NULL DEFAULT 0,
- coverage_complete INTEGER NOT NULL DEFAULT 0 CHECK(coverage_complete IN(0,1))
+ coverage_complete INTEGER NOT NULL DEFAULT 0 CHECK(coverage_complete IN(0,1)),
+ UNIQUE(entity_id,provider,subject_kind,provider_id,id),
+ UNIQUE(id,provider,member_kind),
+ CHECK(subject_kind NOT IN('series','season') OR member_kind='episode')
 ) STRICT;
 
 CREATE TABLE metadata_publication_pages(
@@ -5934,13 +5970,19 @@ CREATE TABLE metadata_publication_pages(
 ) WITHOUT ROWID, STRICT;
 
 CREATE TABLE metadata_publication_page_members(
+ provider TEXT NOT NULL,
+ subject_kind TEXT NOT NULL,
  set_id TEXT NOT NULL,page INTEGER NOT NULL,ordinal INTEGER NOT NULL,
  evidence_id TEXT NOT NULL REFERENCES metadata_evidence(id),
  PRIMARY KEY(set_id,page,ordinal),UNIQUE(set_id,evidence_id),
- FOREIGN KEY(set_id,page) REFERENCES metadata_publication_pages(set_id,page)
+ FOREIGN KEY(set_id,page) REFERENCES metadata_publication_pages(set_id,page),
+ FOREIGN KEY(set_id,provider,subject_kind) REFERENCES metadata_publication_sets(id,provider,member_kind),
+ FOREIGN KEY(provider,subject_kind,evidence_id) REFERENCES metadata_evidence(provider,subject_kind,id)
 ) WITHOUT ROWID, STRICT;
 
 CREATE TABLE metadata_provider_operations(
+ set_subject_kind TEXT,
+ set_provider_id TEXT,
  id TEXT PRIMARY KEY,entity_id INTEGER NOT NULL REFERENCES catalog_entities(id),provider TEXT NOT NULL REFERENCES metadata_providers(code),
  phase TEXT NOT NULL,status TEXT NOT NULL CHECK(status IN('claimed','staged','ready','applied','stale','failed')),
  generation INTEGER NOT NULL CHECK(generation>0),lease TEXT NOT NULL,lease_until TEXT NOT NULL,
@@ -5953,15 +5995,25 @@ CREATE TABLE metadata_provider_operations(
  selected_id TEXT NOT NULL,manual INTEGER NOT NULL CHECK(manual IN(0,1)),review_search INTEGER NOT NULL CHECK(review_search IN(0,1)),
  hint_id TEXT NOT NULL DEFAULT '',hint_problem TEXT NOT NULL DEFAULT '',qualification TEXT NOT NULL,
  episode_order TEXT NOT NULL DEFAULT '',set_id TEXT REFERENCES metadata_publication_sets(id),page INTEGER NOT NULL DEFAULT 0,
- after_item TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL,finished_at TEXT NOT NULL DEFAULT '',reason TEXT NOT NULL DEFAULT ''
+ after_item TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL,finished_at TEXT NOT NULL DEFAULT '',reason TEXT NOT NULL DEFAULT '',
+ UNIQUE(provider,id),
+ FOREIGN KEY(entity_id,provider,set_subject_kind,set_provider_id,set_id) REFERENCES metadata_publication_sets(entity_id,provider,subject_kind,provider_id,id),
+ CHECK((set_id IS NULL)=(set_subject_kind IS NULL) AND (set_id IS NULL)=(set_provider_id IS NULL))
 ) STRICT;
 
 CREATE TABLE metadata_operation_subjects(
+ provider TEXT NOT NULL,
+ evidence_kind TEXT,
  operation_id TEXT NOT NULL REFERENCES metadata_provider_operations(id),role TEXT NOT NULL,
  entity_id INTEGER NOT NULL REFERENCES catalog_entities(id),entity_incarnation BLOB NOT NULL CHECK(length(entity_incarnation)=16),
  revision INTEGER NOT NULL,source_revision INTEGER NOT NULL,identity_revision INTEGER NOT NULL,metadata_revision INTEGER NOT NULL,
  membership_revision INTEGER NOT NULL,accepted_evidence_id TEXT REFERENCES metadata_evidence(id),
- PRIMARY KEY(operation_id,role,entity_id)
+ PRIMARY KEY(operation_id,role,entity_id),
+ FOREIGN KEY(provider,operation_id) REFERENCES metadata_provider_operations(provider,id),
+ FOREIGN KEY(provider,evidence_kind,accepted_evidence_id) REFERENCES metadata_evidence(provider,subject_kind,id),
+ CHECK((accepted_evidence_id IS NULL)=(evidence_kind IS NULL)),
+ CHECK(role NOT IN('album','release') OR evidence_kind IS NULL OR evidence_kind='release'),
+ CHECK(role NOT IN('song','recording') OR evidence_kind IS NULL OR evidence_kind='recording')
 ) WITHOUT ROWID, STRICT;
 
 CREATE TABLE metadata_provider_operation_sources(
@@ -5986,7 +6038,9 @@ CREATE TABLE metadata_candidates(
  confidence REAL NOT NULL CHECK(confidence BETWEEN 0 AND 1),decision TEXT NOT NULL,
  query_digest TEXT NOT NULL,input_digest TEXT NOT NULL,strong_signals INTEGER NOT NULL,contradiction INTEGER NOT NULL,
  source_kind TEXT NOT NULL,observed_at TEXT NOT NULL,language TEXT NOT NULL,region TEXT NOT NULL,
- UNIQUE(operation_id,ordinal)
+ UNIQUE(operation_id,ordinal),
+ FOREIGN KEY(provider,operation_id) REFERENCES metadata_provider_operations(provider,id),
+ FOREIGN KEY(evidence_id,provider,subject_kind,provider_id) REFERENCES metadata_evidence(id,provider,subject_kind,provider_id)
 ) STRICT;
 
 CREATE TABLE metadata_candidate_reasons(
@@ -6000,20 +6054,36 @@ CREATE TABLE metadata_candidate_aliases(
 ) WITHOUT ROWID, STRICT;
 
 CREATE TABLE metadata_projection_targets(
+ provider TEXT NOT NULL,
+ result_kind TEXT NOT NULL DEFAULT 'episode' CHECK(result_kind='episode'),
+ result_provider_id TEXT,
  operation_id TEXT NOT NULL REFERENCES metadata_provider_operations(id),ordinal INTEGER NOT NULL,
  entity_id INTEGER NOT NULL REFERENCES catalog_entities(id),entity_incarnation BLOB NOT NULL CHECK(length(entity_incarnation)=16),
  source_revision INTEGER NOT NULL,identity_revision INTEGER NOT NULL,metadata_revision INTEGER NOT NULL,library_id INTEGER NOT NULL,
  show_id INTEGER,season_id INTEGER,season_number INTEGER,numbering TEXT NOT NULL,number INTEGER NOT NULL,local_identity_status TEXT NOT NULL,
  accepted_provider_id TEXT NOT NULL,result_status TEXT NOT NULL,result_evidence_id TEXT REFERENCES metadata_evidence(id),
- PRIMARY KEY(operation_id,ordinal),UNIQUE(operation_id,entity_id)
+ PRIMARY KEY(operation_id,ordinal),UNIQUE(operation_id,entity_id),
+ FOREIGN KEY(provider,operation_id) REFERENCES metadata_provider_operations(provider,id),
+ FOREIGN KEY(result_evidence_id,provider,result_kind,result_provider_id) REFERENCES metadata_evidence(id,provider,subject_kind,provider_id),
+ CHECK((result_evidence_id IS NULL)=(result_provider_id IS NULL))
 ) WITHOUT ROWID, STRICT;
 
 CREATE TABLE metadata_publications(
+ previous_provider TEXT,previous_subject_kind TEXT,previous_provider_id TEXT,
  id TEXT PRIMARY KEY,operation_id TEXT NOT NULL REFERENCES metadata_provider_operations(id),entity_id INTEGER NOT NULL REFERENCES catalog_entities(id),
  provider TEXT NOT NULL REFERENCES metadata_providers(code),subject_kind TEXT NOT NULL,provider_id TEXT NOT NULL,
  evidence_id TEXT REFERENCES metadata_evidence(id),set_id TEXT REFERENCES metadata_publication_sets(id),
  previous_id TEXT REFERENCES metadata_publications(id),selection_revision INTEGER NOT NULL,generation INTEGER NOT NULL,
- decision TEXT NOT NULL CHECK(decision IN('accepted','superseded')),observed_at TEXT NOT NULL
+ decision TEXT NOT NULL CHECK(decision IN('accepted','superseded')),observed_at TEXT NOT NULL,
+ UNIQUE(entity_id,provider,subject_kind,provider_id,id),
+ UNIQUE(entity_id,provider,subject_kind,provider_id,id,evidence_id),
+ UNIQUE(entity_id,provider,subject_kind,provider_id,id,set_id),
+ FOREIGN KEY(provider,operation_id) REFERENCES metadata_provider_operations(provider,id),
+ FOREIGN KEY(evidence_id,provider,subject_kind,provider_id) REFERENCES metadata_evidence(id,provider,subject_kind,provider_id),
+ FOREIGN KEY(entity_id,provider,subject_kind,provider_id,set_id) REFERENCES metadata_publication_sets(entity_id,provider,subject_kind,provider_id,id),
+ FOREIGN KEY(entity_id,previous_provider,previous_subject_kind,previous_provider_id,previous_id) REFERENCES metadata_publications(entity_id,provider,subject_kind,provider_id,id),
+ CHECK((previous_id IS NULL)=(previous_provider IS NULL) AND (previous_id IS NULL)=(previous_subject_kind IS NULL) AND (previous_id IS NULL)=(previous_provider_id IS NULL)),
+ CHECK(previous_subject_kind IS NULL OR previous_subject_kind=subject_kind)
 ) STRICT;
 
 CREATE TABLE metadata_selection_receipts(
@@ -6044,13 +6114,18 @@ CREATE TABLE metadata_accounting_transitions(
  stage_kind TEXT NOT NULL,stage_link TEXT NOT NULL,stage_entity INTEGER,
  stage_old_release TEXT NOT NULL,stage_new_release TEXT NOT NULL,stage_old_direct INTEGER NOT NULL,stage_new_direct INTEGER NOT NULL,
  stage_pin_digest TEXT NOT NULL,stage_cursor TEXT NOT NULL,stage_source TEXT NOT NULL,stage_rows INTEGER NOT NULL,
- stage_delta_recordings INTEGER NOT NULL,stage_delta_charge INTEGER NOT NULL,last_transition TEXT NOT NULL,last_outcome TEXT NOT NULL
+ stage_delta_recordings INTEGER NOT NULL,stage_delta_charge INTEGER NOT NULL,last_transition TEXT NOT NULL,last_outcome TEXT NOT NULL,
+ UNIQUE(provider,id)
 ) STRICT;
 
 CREATE TABLE metadata_accounting_next(
+ provider TEXT NOT NULL,
+ evidence_kind TEXT NOT NULL DEFAULT 'recording' CHECK(evidence_kind='recording'),
  transition_id TEXT NOT NULL REFERENCES metadata_accounting_transitions(id),evidence_id TEXT NOT NULL REFERENCES metadata_evidence(id),
  direct_refs INTEGER NOT NULL CHECK(direct_refs>=0),release_refs INTEGER NOT NULL CHECK(release_refs>=0),
- PRIMARY KEY(transition_id,evidence_id)
+ PRIMARY KEY(transition_id,evidence_id),
+ FOREIGN KEY(provider,transition_id) REFERENCES metadata_accounting_transitions(provider,id),
+ FOREIGN KEY(provider,evidence_kind,evidence_id) REFERENCES metadata_evidence(provider,subject_kind,id)
 ) WITHOUT ROWID, STRICT;
 
 CREATE TABLE metadata_acquisition_jobs(
@@ -6075,10 +6150,12 @@ CREATE TABLE metadata_hint_scans(
 ) WITHOUT ROWID, STRICT;
 
 CREATE TABLE metadata_reconciliations(
+ evidence_kind TEXT NOT NULL DEFAULT 'release' CHECK(evidence_kind='release'),
  entity_id INTEGER NOT NULL REFERENCES catalog_entities(id),provider TEXT NOT NULL REFERENCES metadata_providers(code),
  evidence_id TEXT NOT NULL REFERENCES metadata_evidence(id),membership_revision INTEGER NOT NULL,cursor TEXT NOT NULL,
  status TEXT NOT NULL,revision INTEGER NOT NULL,current_pin INTEGER NOT NULL CHECK(current_pin IN(0,1)),
- PRIMARY KEY(entity_id,provider)
+ PRIMARY KEY(entity_id,provider),
+ FOREIGN KEY(provider,evidence_kind,evidence_id) REFERENCES metadata_evidence(provider,subject_kind,id)
 ) WITHOUT ROWID, STRICT;
 
 CREATE TABLE metadata_entity_external_ids(
@@ -6092,11 +6169,17 @@ CREATE TABLE metadata_person_external_ids(
 ) WITHOUT ROWID, STRICT;
 
 CREATE TABLE metadata_field_origins(
+ subject_kind TEXT,
+ provider_id TEXT,
  entity_id INTEGER NOT NULL REFERENCES catalog_entities(id),field TEXT NOT NULL,
  provider TEXT NOT NULL,source_kind TEXT NOT NULL,source_url TEXT NOT NULL,confidence REAL NOT NULL,
  observed_at TEXT NOT NULL,language TEXT NOT NULL,region TEXT NOT NULL,selection_revision INTEGER NOT NULL,
  publication_id TEXT REFERENCES metadata_publications(id),evidence_id TEXT REFERENCES metadata_evidence(id),
- PRIMARY KEY(entity_id,field)
+ PRIMARY KEY(entity_id,field),
+ FOREIGN KEY(evidence_id,provider,subject_kind,provider_id) REFERENCES metadata_evidence(id,provider,subject_kind,provider_id),
+ FOREIGN KEY(entity_id,provider,subject_kind,provider_id,publication_id) REFERENCES metadata_publications(entity_id,provider,subject_kind,provider_id,id),
+ CHECK((subject_kind IS NULL)=(provider_id IS NULL)),
+ CHECK((evidence_id IS NULL AND publication_id IS NULL) OR subject_kind IS NOT NULL)
 ) WITHOUT ROWID, STRICT;
 
 CREATE TABLE metadata_credit_cleanup(
@@ -6113,6 +6196,23 @@ CREATE TABLE metadata_provider_subjects(
  UNIQUE(id,provider,subject_kind,provider_id,language,region,request_shape),
  FOREIGN KEY(accepted_evidence_id,id) REFERENCES metadata_evidence(id,subject_id)
 ) STRICT;
+
+CREATE TABLE catalog_scalar_contributions(
+ library_id INTEGER NOT NULL,
+ parent_id INTEGER NOT NULL,
+ contributor_id INTEGER NOT NULL,
+ source INTEGER NOT NULL CHECK(source BETWEEN 0 AND 8),
+ contributor_revision INTEGER NOT NULL CHECK(contributor_revision>0),
+ duration REAL,
+ community_rating REAL,
+ critic_rating REAL NOT NULL DEFAULT 0,
+ file_size INTEGER NOT NULL DEFAULT 0,
+ resolution INTEGER NOT NULL DEFAULT 0,
+ latest_aired_key TEXT NOT NULL DEFAULT '',
+ PRIMARY KEY(parent_id,contributor_id,source),
+ FOREIGN KEY(library_id,parent_id) REFERENCES catalog_entities(library_id,id),
+ FOREIGN KEY(library_id,contributor_id) REFERENCES catalog_entities(library_id,id)
+) WITHOUT ROWID, STRICT;
 
 CREATE TABLE access_schedule_windows(
  account_id TEXT NOT NULL REFERENCES access_limits(account_id) ON DELETE CASCADE,
@@ -6134,15 +6234,6 @@ CREATE TABLE access_denied_labels(
  PRIMARY KEY(account_id,ordinal)
 ) WITHOUT ROWID, STRICT;
 
-CREATE TABLE search_own(
- entity_id INTEGER PRIMARY KEY REFERENCES catalog_entities(id) ON DELETE CASCADE,
- library_id INTEGER NOT NULL REFERENCES catalog_libraries(id),
- kind INTEGER NOT NULL REFERENCES catalog_kinds(id),
- title_fold TEXT NOT NULL,
- title_prefix_tokens TEXT NOT NULL,
- initial_prefix_tokens TEXT NOT NULL
-) STRICT;
-
 CREATE TABLE search_fragments(
  id INTEGER PRIMARY KEY,
  owner_entity INTEGER REFERENCES catalog_entities(id) ON DELETE CASCADE,
@@ -6159,7 +6250,7 @@ CREATE TABLE search_fragments(
 CREATE TABLE search_revision(singleton INTEGER PRIMARY KEY CHECK(singleton=1),revision INTEGER NOT NULL CHECK(revision>0)) STRICT;
 
 CREATE VIRTUAL TABLE search_own_prefix USING fts5(
- title_prefix_tokens,initial_prefix_tokens,content='search_own',content_rowid='entity_id',
+ title_prefix_tokens,initial_prefix_tokens,content='catalog_entities',content_rowid='id',
  tokenize='ascii',prefix='6 12 18 24 30 36 42 48 54 60 66 72');
 
 CREATE VIRTUAL TABLE search_fragment_prefix USING fts5(
@@ -6332,7 +6423,7 @@ CREATE INDEX catalog_credits_source_row ON catalog_credits(source_row_id,entity_
 
 CREATE INDEX catalog_entities_library ON catalog_entities(library_id,kind,id);
 
-CREATE INDEX catalog_entities_library_id ON catalog_entities(library_id,id);
+CREATE UNIQUE INDEX catalog_entities_library_id ON catalog_entities(library_id,id);
 
 CREATE INDEX catalog_entities_parent ON catalog_entities(parent_id,id) WHERE parent_id IS NOT NULL;
 
@@ -6856,8 +6947,6 @@ CREATE INDEX mount_operations_retention ON mount_operations(created_at);
 CREATE INDEX music_sonic_embeddings_entity ON music_sonic_embeddings(entity_id,result_id);
 
 CREATE INDEX music_sonic_embeddings_model ON music_sonic_embeddings(model_id,model_version,model_sha256,result_id,entity_id);
-
-CREATE INDEX music_virtual_tracks_entity ON music_virtual_tracks(entity_id);
 
 CREATE INDEX networking_certificates_scope ON networking_certificates(scope_id,created_at);
 
@@ -7448,7 +7537,7 @@ CREATE INDEX catalog_entities_critic ON catalog_entities(library_id,kind,critic_
 
 CREATE INDEX catalog_entities_file_size ON catalog_entities(library_id,kind,file_size_key,id);
 
-CREATE INDEX catalog_entities_resolution ON catalog_entities(library_id,kind,resolution_key,id);
+CREATE INDEX catalog_entities_resolution ON catalog_entities(library_id,kind,resolution_key,id) WHERE kind IN(1,2,3,4,10);
 
 CREATE INDEX catalog_entities_release ON catalog_entities(library_id,kind,release_key,id);
 
@@ -7492,7 +7581,7 @@ CREATE INDEX catalog_entities_parent_critic_rating_key ON catalog_entities(paren
 
 CREATE INDEX catalog_entities_parent_file_size_key ON catalog_entities(parent_id,kind,file_size_key,id) WHERE parent_id IS NOT NULL;
 
-CREATE INDEX catalog_entities_parent_resolution_key ON catalog_entities(parent_id,kind,resolution_key,id) WHERE parent_id IS NOT NULL;
+CREATE INDEX catalog_entities_parent_resolution_key ON catalog_entities(parent_id,kind,resolution_key,id) WHERE parent_id IS NOT NULL AND kind IN(1,2,3,4,10);
 
 CREATE INDEX catalog_entities_parent_latest_aired_key ON catalog_entities(parent_id,kind,latest_aired_key,id) WHERE parent_id IS NOT NULL;
 
@@ -7576,8 +7665,6 @@ CREATE INDEX metadata_subject_provider ON metadata_subject_providers(provider,en
 
 CREATE INDEX metadata_set_provider ON metadata_publication_sets(provider,id);
 
-CREATE INDEX metadata_operation_provider ON metadata_provider_operations(provider,id);
-
 CREATE INDEX metadata_operation_subject_evidence ON metadata_operation_subjects(accepted_evidence_id,operation_id);
 
 CREATE INDEX metadata_candidate_operation ON metadata_candidates(operation_id,id);
@@ -7592,8 +7679,6 @@ CREATE INDEX metadata_publication_set ON metadata_publications(set_id,id);
 
 CREATE INDEX metadata_publication_previous ON metadata_publications(previous_id,id);
 
-CREATE INDEX metadata_transition_provider ON metadata_accounting_transitions(provider,id);
-
 CREATE INDEX metadata_acquisition_provider ON metadata_acquisition_jobs(provider,entity_id,purpose);
 
 CREATE INDEX metadata_hint_provider ON metadata_hint_scans(provider,entity_id);
@@ -7606,15 +7691,59 @@ CREATE INDEX metadata_field_origin_publication ON metadata_field_origins(publica
 
 CREATE UNIQUE INDEX metadata_accounting_one_active ON metadata_accounting_transitions(provider) WHERE phase<>'idle';
 
+CREATE INDEX metadata_episode_parent_namespace ON metadata_evidence_episodes(provider,evidence_kind,evidence_id);
+
+CREATE INDEX metadata_episode_child_namespace ON metadata_evidence_episodes(provider,episode_kind,episode_evidence_id);
+
+CREATE INDEX metadata_track_recording_namespace ON metadata_evidence_tracks(provider,recording_kind,recording_evidence_id);
+
+CREATE INDEX metadata_track_media_namespace ON metadata_evidence_tracks(provider,evidence_kind,evidence_id,medium_position);
+
+CREATE INDEX metadata_page_member_namespace ON metadata_publication_page_members(set_id,provider,subject_kind);
+
+CREATE INDEX metadata_page_evidence_namespace ON metadata_publication_page_members(provider,subject_kind,evidence_id);
+
+CREATE INDEX metadata_subject_dependency_namespace ON metadata_operation_subjects(provider,evidence_kind,accepted_evidence_id);
+
+CREATE INDEX metadata_accounting_next_namespace ON metadata_accounting_next(provider,evidence_kind,evidence_id);
+
+CREATE INDEX metadata_credit_track_namespace ON metadata_evidence_credits(provider,evidence_kind,evidence_id,track_id);
+
 CREATE INDEX catalog_people_artwork_due ON catalog_people(artwork_due_ms,id) WHERE artwork_dirty=1 AND artwork_next_attempt_ms IS NOT NULL;
 
-CREATE INDEX search_own_exact ON search_own(library_id,kind,title_fold,entity_id);
+CREATE INDEX catalog_scalar_contributor ON catalog_scalar_contributions(contributor_id,parent_id,source);
+
+CREATE INDEX catalog_scalar_library_parent ON catalog_scalar_contributions(library_id,parent_id,contributor_id,source);
+
+CREATE INDEX catalog_scalar_library_contributor ON catalog_scalar_contributions(library_id,contributor_id,parent_id,source);
+
+CREATE INDEX catalog_scalar_duration ON catalog_scalar_contributions(parent_id,duration DESC,contributor_id,source) WHERE duration IS NOT NULL;
+
+CREATE INDEX catalog_scalar_rating ON catalog_scalar_contributions(parent_id,community_rating DESC,contributor_id,source) WHERE community_rating IS NOT NULL;
+
+CREATE INDEX catalog_scalar_critic ON catalog_scalar_contributions(parent_id,critic_rating DESC,contributor_id,source);
+
+CREATE INDEX catalog_scalar_size ON catalog_scalar_contributions(parent_id,file_size DESC,contributor_id,source);
+
+CREATE INDEX catalog_scalar_resolution ON catalog_scalar_contributions(parent_id,resolution DESC,contributor_id,source);
+
+CREATE INDEX catalog_scalar_latest_aired ON catalog_scalar_contributions(parent_id,latest_aired_key DESC,contributor_id,source);
 
 CREATE UNIQUE INDEX search_fragment_entity ON search_fragments(owner_entity,field,ordinal) WHERE owner_entity IS NOT NULL;
 
 CREATE UNIQUE INDEX search_fragment_person ON search_fragments(owner_person,field,ordinal) WHERE owner_person IS NOT NULL;
 
+CREATE UNIQUE INDEX catalog_asset_links_cue_slot ON catalog_asset_links(asset_id,cue_slot) WHERE cue_slot IS NOT NULL;
+
+CREATE INDEX catalog_asset_links_cue_ordinal ON catalog_asset_links(asset_id,cue_ordinal,entity_id) WHERE cue_ordinal IS NOT NULL;
+
 CREATE UNIQUE INDEX metadata_accounting_one_published ON metadata_accounting_transitions(provider) WHERE published_next=1;
+
+CREATE INDEX catalog_entities_search_exact ON catalog_entities(library_id,kind,title_fold,id);
+
+CREATE INDEX catalog_asset_links_library_entity ON catalog_asset_links(library_id,entity_id,asset_id);
+
+CREATE INDEX catalog_asset_links_library_asset ON catalog_asset_links(library_id,asset_id,entity_id);
 
 CREATE VIEW authorization_access AS
  SELECT t.token_hash AS hash,f.account_id,f.profile_id,f.authority,f.role,f.epoch,t.expires_at,
