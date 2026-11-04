@@ -6,6 +6,7 @@ import {checkAbort,ComicInputError} from './zip.ts';
 import {rasterInfo} from './image.ts';
 import {abortScope,abortReason} from '../abort.ts';
 import {comicPreview} from './preview.ts';
+import {orUnreadable,unreadablePageSurface} from '../unreadable.ts';
 
 type Source=Parameters<ReaderAdapter<object>['open']>[0]['source'];
 export type ComicAdapterOptions=Readonly<{
@@ -14,6 +15,9 @@ export type ComicAdapterOptions=Readonly<{
   pages?:(source:Source,signal:AbortSignal)=>Promise<ComicPageProvider>;
   /** Explicitly opt in for local/offline files; never a remote-browser fallback. */
   localArchive?:boolean;
+  /** RD-2: the host's catalogue line for a page the server rejected as content. With it, that
+   * page draws as unreadable and Next/Previous carry on; without it the page fails as before. */
+  unreadable?:string;
 }>;
 function validatePage(page:ComicPage,index:number):void{
   if(page.index!==index||page.bytes.byteLength>32*1024*1024)throw new ComicInputError('image_invalid');
@@ -37,6 +41,8 @@ export function createComicAdapter<P extends FixedPreferences>(options:ComicAdap
     if(signal.aborted){await provider.dispose();throw abortReason(signal);}
     if(provider.id!==id||provider.revision!==revision||!Number.isSafeInteger(provider.pageCount)||provider.pageCount<1||provider.pageCount>10000){await provider.dispose();throw new ComicInputError('archive_limit');}
     const life=new AbortController(),views=new Set<Awaited<ReturnType<ReaderDocument<P>['mount']>>>();let closed=false;
+    // An unreadable page takes the size of the last page drawn (portrait 2:3 before any), so the spread doesn't jump.
+    let lastSize={width:1000,height:1500};
     const active=(taskSignal:AbortSignal)=>{if(closed)throw new ComicInputError('closed');if(source.id!==id||source.revision!==revision||source.size!==size||provider.id!==id||provider.revision!==revision)throw new ComicInputError('archive_invalid');checkAbort(life.signal);checkAbort(taskSignal);};
     const document:ReaderDocument<P>={id,revision,format,metadata:{...provider.metadata,pageCount:provider.pageCount},toc:[],
       async mount(mountOptions){
@@ -47,7 +53,9 @@ export function createComicAdapter<P extends FixedPreferences>(options:ComicAdap
           // A phone-size thumbnail must not become the cached zoom/resize image.
           active(taskSignal);const task=abortScope([life.signal,taskSignal]),combined=task.signal;
           try {
-          const page=await provider.page(index,{width:2048,signal:combined});active(combined);validatePage(page,index);
+          const page=await orUnreadable(()=>provider.page(index,{width:2048,signal:combined}),options.unreadable?()=>null:undefined);
+          active(combined);if(page===null)return unreadablePageSurface(options.unreadable!,lastSize);
+          validatePage(page,index);lastSize={width:page.image.width,height:page.image.height};
           const bitmap=await bitmapFor(page,combined);try{active(combined);}catch(error){releaseQuietly('comic bitmap close',()=>bitmap.close());throw error;}let released=false;
           return {width:bitmap.width,height:bitmap.height,
             async mount(target,scale,renderSignal){checkAbort(renderSignal);const canvas=target.ownerDocument.createElement('canvas');

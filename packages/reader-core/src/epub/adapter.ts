@@ -10,6 +10,7 @@ import type {ReaderAdapter, ReaderDocument, ReaderLocation, ReaderMetadata, Read
   ReaderNavigation, ReaderIndexedSearchHit, ReaderSearchOptions, ReaderSearchResult, ReaderTocItem, ReaderView, ReaderViewport} from '../ports.ts';
 import {openEpubArchive, safeArchivePath} from './archive.ts';
 import {resourceAssets} from './resources.ts';
+import {orUnreadable, unreadableSectionXhtml} from '../unreadable.ts';
 import {rejectXmlEntities, secureMarkup, secureCss} from './security.ts';
 import {epubDisplay, type EpubDisplayPreferences} from './display.ts';
 import {validateEpubRaster} from './media.ts';
@@ -32,7 +33,11 @@ interface Paginator extends HTMLElement {
   setStyles(styles: string): void; render(): void; destroy(): void;
   getContents(): {doc: Document; index: number}[];
 }
-export type EpubAdapterOptions = Readonly<{fonts: Readonly<{literata: Blob; manrope: Blob}>}>;
+export type EpubAdapterOptions = Readonly<{fonts: Readonly<{literata: Blob; manrope: Blob}>;
+  /** RD-2: the host's catalogue line for a part of the book the server rejected as content. Once
+   * the book is open, that section draws as this line and an unreadable image is left out; the
+   * rest of the book stays readable. Before the book opens, such a failure still fails the open. */
+  unreadable?: string}>;
 function cfiAt(book: Book, index: number, range?: Range): string {
   return range ? joinIndir(book.sections[index].cfi, fromRange(range)) : book.sections[index].cfi;
 }
@@ -90,19 +95,27 @@ export function createBrowserEpubAdapter<P extends EpubDisplayPreferences>(optio
       if(mime==='text/css'||/\.css$/i.test(path))return secureCss(raw);
       return rejectXmlEntities(raw);
     }
+    // RD-2: after open, a member the server rejected as content becomes a placeholder section
+    // (markup) or is left out (an image, a font); before open the failure propagates.
+    const markupPath=(path:string,mime:string)=>['text/html','application/xhtml+xml'].includes(mime)||/\.x?html?$/i.test(path);
+    const standIn=()=>book&&options.unreadable?()=>null:undefined;
     async function loadText(path:string,callerSignal:AbortSignal=signal):Promise<string|null> {
       const task=abortScope([signal,callerSignal]),active=task.signal;
       try {throwIfAborted(active);unchanged();
       const entry=byPath.get(safeArchivePath(path));if(!entry)return null;
-      const text=decoder.decode(await assets.read(path,active));throwIfAborted(active);unchanged();
+      const raw=await orUnreadable(()=>assets.read(path,active),standIn());throwIfAborted(active);unchanged();
+      if(raw===null)return markupPath(path,'mime' in entry?entry.mime??'':'')?unreadableSectionXhtml(options.unreadable!):null;
+      const text=decoder.decode(raw);
       const mime='mime' in entry ? entry.mime : '';
       return secureText(path,mime??'',text);
       }finally{task.dispose();}
     }
     async function loadBlob(path:string):Promise<Blob|null> {
       throwIfAborted(signal);unchanged();const entry=byPath.get(safeArchivePath(path));if(!entry)return null;
-      let bytes=await assets.read(path,signal);throwIfAborted(signal);unchanged();
       const mime='mime' in entry && typeof entry.mime==='string'?entry.mime:'';
+      const read=await orUnreadable(()=>assets.read(path,signal),standIn());throwIfAborted(signal);unchanged();
+      if(read===null)return markupPath(path,mime)?new Blob([unreadableSectionXhtml(options.unreadable!)],{type:'application/xhtml+xml'}):null;
+      let bytes=read;
       if(['text/html','application/xhtml+xml','image/svg+xml','text/css'].includes(mime)||/\.(?:x?html?|svg|css)$/i.test(path))
         bytes=new TextEncoder().encode(secureText(path,mime,decoder.decode(bytes)));
       return new Blob([bytes as Uint8Array<ArrayBuffer>],{type:mime});
