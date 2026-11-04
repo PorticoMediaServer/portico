@@ -17585,6 +17585,7 @@ export const routes = [
       "body_too_large",
       "comic_archive_unsupported",
       "internal",
+      "reading_session_expired",
       "database_busy",
       "writer_capacity"
     ],
@@ -26567,6 +26568,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "reading_session_expired",
       "internal",
       "database_busy"
     ],
@@ -26603,6 +26605,7 @@ export const routes = [
       "body_too_large",
       "comic_archive_unsupported",
       "internal",
+      "reading_session_expired",
       "database_busy"
     ],
     "status": 200,
@@ -26642,6 +26645,7 @@ export const routes = [
       "body_too_large",
       "comic_archive_unsupported",
       "internal",
+      "reading_session_expired",
       "database_busy"
     ],
     "status": 200,
@@ -26677,6 +26681,7 @@ export const routes = [
       "body_too_large",
       "comic_archive_unsupported",
       "internal",
+      "reading_session_expired",
       "database_busy"
     ],
     "status": 200,
@@ -26719,6 +26724,7 @@ export const routes = [
       "body_too_large",
       "comic_archive_unsupported",
       "internal",
+      "reading_session_expired",
       "search_busy",
       "database_busy"
     ],
@@ -26752,6 +26758,7 @@ export const routes = [
       "body_too_large",
       "comic_archive_unsupported",
       "internal",
+      "reading_session_expired",
       "database_busy"
     ],
     "status": 206,
@@ -28889,6 +28896,7 @@ export const routes = [
       "body_too_large",
       "comic_archive_unsupported",
       "internal",
+      "reading_session_expired",
       "database_busy"
     ],
     "status": 200,
@@ -34870,6 +34878,7 @@ export const routes = [
       "body_too_large",
       "comic_archive_unsupported",
       "internal",
+      "reading_session_expired",
       "database_busy",
       "writer_capacity"
     ],
@@ -37431,6 +37440,7 @@ export const routes = [
       "revision_mismatch",
       "request_in_progress",
       "body_too_large",
+      "reading_session_expired",
       "internal",
       "database_busy",
       "writer_capacity"
@@ -37464,6 +37474,7 @@ export const routes = [
       "body_too_large",
       "comic_archive_unsupported",
       "internal",
+      "reading_session_expired",
       "database_busy",
       "writer_capacity"
     ],

@@ -212,7 +212,7 @@ func (d Dependencies) readingMutateAnnotation(w http.ResponseWriter, r *http.Req
 	write(w, 200, ReadingAnnotationSavedResponse{revision})
 }
 func registerReadingAnnotationHTTPContracts(registry *apikit.Registry) error {
-	m := apikit.Metadata{Audience: apikit.Clients, ID: "get_reading_sessions_sessionId_annotations", Method: "GET", Path: "/v1/reading/sessions/{sessionId}/annotations", Summary: "Read the current profile's annotations for this exact publication version", Access: apikit.Device, Requires: apikit.ScopeRead, Lane: apikit.Browsing, Admission: laneBrowsing, Cost: apikit.PageSized, Status: 200, Query: []string{"cursor", "revision"}, Headers: []string{"If-Match"}, Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "revision_required", "revision_mismatch", "request_in_progress", "body_too_large", "internal"}}
+	m := apikit.Metadata{Audience: apikit.Clients, ID: "get_reading_sessions_sessionId_annotations", Method: "GET", Path: "/v1/reading/sessions/{sessionId}/annotations", Summary: "Read the current profile's annotations for this exact publication version", Access: apikit.Device, Requires: apikit.ScopeRead, Lane: apikit.Browsing, Admission: laneBrowsing, Cost: apikit.PageSized, Status: 200, Query: []string{"cursor", "revision"}, Headers: []string{"If-Match"}, Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "revision_required", "revision_mismatch", "request_in_progress", "body_too_large", "reading_session_expired", "internal"}}
 	if err := apikit.RegisterHTTP[struct{}, ReadingAnnotationsResponse](registry, m); err != nil {
 		return err
 	}
