@@ -51,3 +51,20 @@ test('unknown or malformed source fields remain absent without profile/codec/nam
   for(const key of Object.keys(technical)) assert.equal(Object.hasOwn(video,key),false,key);
   assert.equal(video.hdr,undefined);
 });
+
+// #682: hdr10Plus, dolbyVisionRpu and dolbyVisionBaseLayer are required `boolean | null`; null is
+// "not yet observed" and must never read as "no", nor stop a header-only answer.
+test('#682: null frame observations read as unknown (absent), never as false, and the header answer still names the picture', async () => {
+  const {video, options} = await read({hdr: 'hdr10', hdr10Plus: null, dolbyVisionRpu: null, dolbyVisionBaseLayer: null});
+  assert.equal(video.hdr10Plus, undefined, 'unobserved, not "no HDR10+"');
+  assert.equal(video.dolbyVisionRpu, undefined); assert.equal(video.dolbyVisionBaseLayer, undefined);
+  assert.equal(video.hdr, 'hdr10', 'header facts unchanged');
+  assert.equal(options.plan, undefined);
+  const {dynamicRangeLabel} = await import('../src/presentation/title-files.ts');
+  const {hdrText} = await import('../src/presentation/kit-model/technical.ts');
+  const {defaultI18n} = await import('../../i18n/src/index.ts');
+  assert.equal(dynamicRangeLabel(video.hdr, video.hdr10Plus), dynamicRangeLabel('hdr10'), 'HDR10, as the header alone says');
+  assert.equal(hdrText(video.hdr, video.hdr10Plus, defaultI18n.t), defaultI18n.t('next.kit.hdr.hdr10'));
+  const dv = await read({hdr: 'dolby_vision', dolbyVisionProfile: 8, dolbyVisionCompatibility: 1, hdr10Plus: null, dolbyVisionRpu: null, dolbyVisionBaseLayer: null});
+  assert.equal(dv.video.dolbyVisionProfile, 8, 'the header DV profile still stands'); assert.equal(dv.video.dolbyVisionRpu, undefined);
+});
