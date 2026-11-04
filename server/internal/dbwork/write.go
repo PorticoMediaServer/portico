@@ -482,6 +482,8 @@ func noteAdmittedFailure(class Class, err error) error {
 // invalidates a cache or publishes an event afterwards does so with no writer
 // hold outstanding.
 func ExecWrite(ctx context.Context, db *sql.DB, class Class, query string, args ...any) (sql.Result, error) {
+	diag := plannerWritePhase(query)
+	defer diag.finish()
 	countCall()
 	if ctx == nil {
 		ctx = context.Background()
@@ -500,27 +502,33 @@ func ExecWrite(ctx context.Context, db *sql.DB, class Class, query string, args 
 	forgetRequestMemo(ctx)
 	site := captureSite(2)
 	ctx = walContext(ctx, db, class, query)
+	diag.mark("setup")
 	release, err := acquireCatalogWrite(ctx, db, class)
 	if err != nil {
 		return nil, err
 	}
+	diag.mark("admission")
 	conn, err := writerHandle(db).Conn(ctx)
 	if err != nil {
 		release()
 		return nil, err
 	}
+	diag.mark("writer-connection")
 	meter := &writeMeter{}
 	meter.wal, _ = ctx.Value(walRequestKey{}).(*walRequest)
 	_ = conn.Raw(func(inner any) error { meter.begin(inner); return nil })
+	diag.mark("meter-start")
 	changes := &changeSet{}
 	writeCtx := context.WithValue(ctx, changeKey{}, changes)
 	var result sql.Result
 	var before, after int64
 	if err = conn.QueryRowContext(writeCtx, `SELECT total_changes()`).Scan(&before); err == nil {
+		diag.mark("row-count-before")
 		// Autocommit has no BeginTx hook to attach this set to the observed
 		// connection. Record this statement's supplied write root.
 		changes.note(query)
 		result, err = conn.ExecContext(writeCtx, query, args...)
+		diag.mark("statement")
 	}
 	if err == nil {
 		if countErr := conn.QueryRowContext(writeCtx, `SELECT total_changes()`).Scan(&after); countErr != nil {
@@ -529,14 +537,17 @@ func ExecWrite(ctx context.Context, db *sql.DB, class Class, query string, args 
 			after, changes = before+1, nil
 		}
 	}
+	diag.mark("row-count-after")
 	_ = conn.Raw(func(inner any) error { meter.end(inner); return nil })
 	_ = conn.Close()
+	diag.mark("return-connection")
 	// Publish while still holding the gate: the next writer must observe
 	// every successful changing autocommit in its consistency fence.
 	if err == nil && after != before {
 		publications.Add(1)
 	}
 	release()
+	diag.mark("release")
 	if err != nil {
 		return result, noteAdmittedFailure(class, err)
 	}

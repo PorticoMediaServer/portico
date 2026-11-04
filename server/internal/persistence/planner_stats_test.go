@@ -70,6 +70,12 @@ func plannerStat(t *testing.T, db *sql.DB, index string) []int64 {
 // queued behind it. The refresh must leave the gate to a sign-in-like writer
 // within a small bound however large the table is.
 func TestPlannerStatisticsNeverHoldTheWriteGateAcrossATable(t *testing.T) {
+	for i := 0; i < 10; i++ {
+		t.Run(strconv.Itoa(i), plannerStatsDiagnostic)
+	}
+}
+
+func plannerStatsDiagnostic(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds a 400k-row table")
 	}

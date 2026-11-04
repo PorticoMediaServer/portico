@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"math"
 	"math/rand/v2"
 	"strconv"
@@ -75,13 +76,18 @@ func RefreshPlannerStatistics(ctx context.Context, db *sql.DB) error {
 		if !dbwork.PaceBackground(ctx, time.Time{}) {
 			return ctx.Err()
 		}
+		readStarted := time.Now()
 		rows, stale, err := plannerTableStats(ctx, read, table)
+		if took := time.Since(readStarted); took >= 50*time.Millisecond {
+			log.Printf("REDS-PLANNER table=%s read=%s stale=%v stat_rows=%d error=%v", table, took, stale, len(rows), err)
+		}
 		if err != nil {
 			return fmt.Errorf("planner statistics for %s: %w", table, err)
 		}
 		if !stale {
 			continue
 		}
+		writeStarted := time.Now()
 		if err = dbwork.WithWriteTx(ctx, db, dbwork.ClassMaintenance, func(tx *sql.Tx) error {
 			if _, err := tx.ExecContext(ctx, `DELETE FROM sqlite_stat1 WHERE tbl=?`, table); err != nil {
 				return err
@@ -98,6 +104,9 @@ func RefreshPlannerStatistics(ctx context.Context, db *sql.DB) error {
 			return nil
 		}); err != nil {
 			return err
+		}
+		if took := time.Since(writeStarted); took >= 50*time.Millisecond {
+			log.Printf("REDS-PLANNER table=%s stats_write=%s stat_rows=%d", table, took, len(rows))
 		}
 		changed = true
 	}
