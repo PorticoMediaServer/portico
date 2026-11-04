@@ -57,5 +57,5 @@ export async function tvKitOverlays(kit, {wait = 60} = {}) {
     '../../kit/overlays/TVPanelMotion': panels, '../../kit/overlays/native-dismissal': dismissal});
   return {Dialog: surface.Dialog, BottomSheet: sheet.BottomSheet, Popover: menu.Popover, Menu: menu.Menu, TVPanelTransition: panels.TVPanelTransition,
     useTVPanelModal: panels.useTVPanelModal, useTVPanelPresence: panels.useTVPanelPresence, NativeMiniGuide: guide.NativeMiniGuide,
-    useOverlayLifecycle: host.useOverlayLifecycle, FocusBoundary: surface.FocusBoundary, native};
+    useOverlayLifecycle: host.useOverlayLifecycle, useNativeModalPresence: dismissal.useNativeModalPresence, FocusBoundary: surface.FocusBoundary, native};
 }
