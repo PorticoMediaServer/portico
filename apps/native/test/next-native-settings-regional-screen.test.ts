@@ -22,7 +22,7 @@ import * as tvSettingsFocus from '../src-next/screens/settings-live/tv-settings-
 
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
 
-async function fixture(isTV = false, owner = false) {
+async function fixture(isTV = false, owner = false, io?: {effects: (() => unknown)[]; api: unknown; lifetime?: unknown}) {
   const host = hooks(), bodyHost = hooks();
   let nested = false, language = 'CA';
   const focus = {region: undefined as string | undefined, calls: [] as unknown[], back: [] as (() => boolean)[]};
@@ -30,6 +30,7 @@ async function fixture(isTV = false, owner = false) {
   for (const name of Object.keys(host.react).filter(name => name.startsWith('use'))) react[name] = (...args: any[]) => {const active: any = nested ? bodyHost.react : host.react; return active[name](...args);};
   // The body's layout effects own reconciliation, not this word-for-word render.
   react.useLayoutEffect = () => {}; react.useInsertionEffect = () => {};
+  if (io) react.useEffect = (effect: () => unknown) => {io.effects.push(effect);};
   react.default = react;
   const theme = createTheme({width: isTV ? 1920 : 800, isTV});
   const safeMode = await screenModule(new URL('../src-next/screens/settings-live/NativeSafeModeRow.tsx', import.meta.url), {
@@ -106,8 +107,8 @@ async function fixture(isTV = false, owner = false) {
   const runtime = {text: {get t() {const prefix = language; return (key: string) => `${prefix}/${key}`;}}, reportError: (error: unknown) => {throw error;}, subscribe: () => () => {}, getSnapshot: () => shellSnapshot,
     registerTVPageBack: (handler: () => boolean) => {focus.back.push(handler); return () => {focus.back.splice(focus.back.indexOf(handler), 1);};}};
   const settingsRoute = {revision: 0, route: {kind: 'shell', destination: {kind: 'settings'}}};
-  const props = {runtime, ports: {context: {current: () => true, account: {account: {role: owner ? 'owner' : 'member'}, canManage: owner, capabilities: {}}, serverName: 'Example', authority: () => ({serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'fence'}), navigation: {subscribe: () => () => {}, getSnapshot: () => settingsRoute, isCurrent: () => true}}, settingsContext: () => ({owner, platform: 'phone', capabilities: {localAccount: true}}), serverName: () => 'Example', renderSettingsPanel: () => null},
-    controller: {subscribe: () => () => {}, getSnapshot: () => ({preferences, busy: false, saved: 0}), lifetime: {authority: {}, current: () => true}},
+  const props = {runtime, ports: {context: {current: () => true, account: {account: {role: owner ? 'owner' : 'member'}, canManage: owner, capabilities: {}}, ...(io ? {api: io.api} : {}), serverName: 'Example', authority: () => ({serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'fence'}), navigation: {subscribe: () => () => {}, getSnapshot: () => settingsRoute, isCurrent: () => true}}, settingsContext: () => ({owner, platform: 'phone', capabilities: {localAccount: true}}), serverName: () => 'Example', renderSettingsPanel: () => null},
+    controller: {subscribe: () => () => {}, getSnapshot: () => ({preferences, busy: false, saved: 0}), lifetime: io?.lifetime ?? {authority: {}, current: () => true, request: (run: (signal?: AbortSignal) => Promise<unknown>) => run(undefined)}},
     devicePreferences: {subscribe: () => () => {}, read: () => undefined}};
   return {focus, setLanguage: (next: string) => {language = next;},
     render: () => {nested = false; return host.render(() => module.NativeSettingsScreen(props));},
@@ -186,4 +187,29 @@ test('N5-5: a member\'s search finds no Server page they can\'t open', async () 
   nodes(tree).find(node => node.type === 'TextField').props.onChangeText(`CA/${general.title}`); tree = f.render();
   const results = nodes(tree).find(node => node.type === 'SettingsSearchResults');
   assert.equal(results?.props.matches.some((value: {address: string}) => value.address === 'server-general') ?? false, false);
+});
+
+test('#595 rule on native, through the real path: the owner\'s away-limit read goes through the screen lifetime to HttpLocalApi as optional, so a management refusal never asks for the PIN and leaves only that row out', async () => {
+  const {HttpLocalApi} = await import('../../../packages/client-core/src/index.ts');
+  const {NativeScreenLifetime} = await import('../src-next/screens/settings-live/lifetime.ts');
+  const refusal = () => new Response(JSON.stringify({error: {code: 'profile_pin_manage', message: 'Enter this profile\'s PIN to manage this account.'}}), {status: 403, headers: {'content-type': 'application/json'}});
+  const paths: string[] = [];
+  const api = new HttpLocalApi('https://portico.test', 'token', async input => {paths.push(new URL(String(input)).pathname); return refusal();});
+  const gate: unknown[] = []; api.subscribeManageGate(value => {gate.push(value);});
+  const shellAuthority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'fence'};
+  const lifetime = new NativeScreenLifetime({authority: () => shellAuthority, current: () => true, subscribeAuthority: () => () => {}});
+  const io = {effects: [] as (() => unknown)[], api, lifetime};
+  const f = await fixture(false, true, io);
+  let tree = f.render();
+  for (const effect of io.effects.splice(0)) {try {effect();} catch {/* other effects need native modules this fixture leaves out */}}
+  for (let i = 0; i < 10; i++) await new Promise(resolve => setImmediate(resolve));
+  assert.ok(paths.includes('/v1/admin/settings/configuration'), 'the away-limit read reached the server');
+  assert.deepEqual(gate, [], 'its refusal never asked for the management PIN');
+  tree = f.render();
+  assert.ok(nodes(tree).some(node => node.type === 'TextField'), 'the page is still drawn');
+  assert.equal(nodes(tree).some(node => node.props?.testID === 'settings-away-limit'), false, 'only the away-limit row is left out');
+  // Control: the same refusal to an ordinary read through this api does ask, so a dropped option would fail above.
+  await api.request('/v1/admin/settings/configuration').catch(() => {});
+  assert.equal(gate.length, 1);
+  lifetime.dispose();
 });
