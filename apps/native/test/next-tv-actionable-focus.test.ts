@@ -696,7 +696,8 @@ test('actual Search registration keeps equal-value retained genre R1/R2 sort roo
   const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'viewer'};
   const r1 = {kind: 'search-genre', label: 'Drama', value: 'Drama'}, r2 = {...r1}; let showing = r2;
   const commands: {route: unknown; sort: unknown}[] = [], collection = {subscribe: () => () => {}, subscribePage: () => () => {}, getSnapshot: (() => {const snapshot = {status: 'ready', total: 0}; return () => snapshot;})(), pageOf: () => 0, getPageVersion: () => 0};
-  const register = await screenModule(new URL('../src-next/screens/search/register.tsx', import.meta.url), {...stackSlotFixture, react: b.react, 'react-native': b.native,
+  const register = await screenModule(new URL('../src-next/screens/search/register.tsx', import.meta.url), {
+    './on-now': {NativeSearchOnNow: class {dispose() {}}},...stackSlotFixture, react: b.react, 'react-native': b.native,
     '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}, registerDestination() {}}}, '../destinations/lifetime': {nativeDestinationLifetime: () => ({current: () => true})},
     '../destinations/entry-actions': {createNativeEntryActions: () => ({dispose() {}, menuState: {subscribe: () => () => {}, getSnapshot: () => 0}})},
     './controller': {}, './actions': {}, './explore': {}, './selection': {}, './SearchScreen': {}, './AllGenresScreen': {}, './reading-register': {},

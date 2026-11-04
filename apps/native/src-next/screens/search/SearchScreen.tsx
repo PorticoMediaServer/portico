@@ -6,7 +6,7 @@ import type {ContentEntry} from '../../../../../packages/client-core/src/library
 import type {SearchEntry, SearchGroup} from '../../../../../packages/client-core/src/search';
 import {orderedSearchGroups, SEARCH_CHIPS, searchGroupLabel, topSearchResult, topResultKindLabel} from '../../../../../packages/client-core/src/presentation/search-model';
 import {Artwork, StandardBackdrop} from '../../kit/artwork';
-import {GenreTile, type CardSelection} from '../../kit/cards';
+import {GenreTile, LiveCard, type CardSelection} from '../../kit/cards';
 import {CardFrame} from '../../kit/cards/primitives';
 import {Chip, Focusable, TextField} from '../../kit/controls';
 import {SelectionCircle} from '../../kit/selection';
@@ -25,22 +25,31 @@ import type {NativeSearchActions, NativeSearchExplorePort, NativeSearchGenre, Na
 import {nativeSearchGenreTiles} from './genre-tiles';
 import {channelTint} from '../../../../../packages/client-core/src/presentation/kit-model';
 import {TVRow} from '../../kit/layout/TVRow';
+import {nowNext} from '../../../../../packages/client-core/src/guide/now-next';
+import {serverNow} from '../../../../../packages/client-core/src/server-clock';
+import {programmeTimeRange} from '../../../../../packages/client-core/src/presentation/kit-model';
+import type {NativeSearchOnNowCard, NativeSearchOnNowPort, NativeSearchOnNowSnapshot} from './on-now';
 
 const media = (entry: SearchEntry): entry is ContentEntry => entry.kind !== 'person' && entry.kind !== 'channel';
 
 export type NativeSearchScreenProps = Readonly<{
   focusScope?: string; destination: NativeSearchDestination; runtime: NativeShellRuntime;
-  explore: NativeSearchExplorePort; actions: NativeSearchActions; selection?: NativeSearchSelectionPort;
+  explore: NativeSearchExplorePort; actions: NativeSearchActions;
+  /** Handheld only: what's on now for the empty page, offered when the server has Live TV. */
+  onNow?: NativeSearchOnNowPort; selection?: NativeSearchSelectionPort;
   activation: NativeDestinationActivationPort; tvCopy: NativeSearchTVCopy;
 }>;
 
 /** Actual SearchService results and per-profile history. The shell owns authority lifetime. */
-export function SearchScreen({focusScope, destination, runtime, explore, actions, selection, activation, tvCopy}: NativeSearchScreenProps) {
+export function SearchScreen({focusScope, destination, runtime, explore, onNow = noOnNow, actions, selection, activation, tvCopy}: NativeSearchScreenProps) {
   const t = runtime.text.t;
   useSyncExternalStore(actions.menuState?.subscribe ?? (() => () => {}), actions.menuState?.getSnapshot ?? (() => 0));
   const theme = useTheme(), insets = useSafeAreaInsets(), dimensions = useWindowDimensions();
   const state = useSyncExternalStore(destination.subscribe, destination.getSnapshot);
   const landing = useSyncExternalStore(explore.subscribe, explore.getSnapshot);
+  // Only a screen given the On now port reads the shell's Live TV fact (TV search has its own page).
+  const hasLiveTV = useSyncExternalStore(onNow === noOnNow ? noSubscribe : runtime.subscribe, onNow === noOnNow ? noLiveTV : () => runtime.getSnapshot().hasLiveTV);
+  const live = useSyncExternalStore(onNow.subscribe, onNow.getSnapshot);
   const activeRoute = useSyncExternalStore(activation.subscribe, activation.getSnapshot);
   const scroll = useRef<ScrollView>(null), grid = useRef<FlatList<SearchEntry>>(null), input = useRef<TextInput>(null), focusedOnEntry = useRef(false), [focused, setFocused] = useState(false), [elapsed, setElapsed] = useState(0);
   // The shell's sidebar narrows this page; measure the content box instead of the window.
@@ -69,6 +78,19 @@ export function SearchScreen({focusScope, destination, runtime, explore, actions
     return () => cancelAnimationFrame(frame);
   }, [activeRoute.visible, theme.isTV, theme.platform]);
   useEffect(() => selection?.register(state.search, state.groups), [selection, state.groups, state.search]);
+  // The row is read only on the empty page of a server with Live TV, and only while this page is showing.
+  const onNowOffered = hasLiveTV && !typed && !theme.isTV;
+  useEffect(() => {
+    if (activeRoute.visible && onNowOffered) run(onNow.load());
+  }, [activeRoute.visible, onNow, onNowOffered, run]);
+  // The programmes on now are read for one moment; the row re-reads the clock while it is showing.
+  const [now, setNow] = useState(() => serverNow());
+  useEffect(() => {
+    if (!activeRoute.visible || !onNowOffered) return;
+    setNow(serverNow());
+    const timer = setInterval(() => setNow(serverNow()), 30_000);
+    return () => clearInterval(timer);
+  }, [activeRoute.visible, onNowOffered]);
   useEffect(() => theme.isTV ? undefined : runtime.registerScrollToTop({kind: 'search'}, () => {
     scroll.current?.scrollTo({y: 0, animated: !theme.reduceMotion});
     grid.current?.scrollToOffset({offset: 0, animated: !theme.reduceMotion});
@@ -135,6 +157,7 @@ export function SearchScreen({focusScope, destination, runtime, explore, actions
       {emptyIn && <StateView testID="search-none-in" variant="search" title={t('web.search.nothingIn', {group: t(searchGroupLabel(emptyIn))})}
         primaryAction={{id: 'everything', label: t('web.search.everything'), onPress: () => destination.selectGroup('all')}} style={{paddingTop: 26, marginHorizontal: 20}}/>}
       {(!typed || emptyAll) && (emptyAll ? <>{genres}{history}</> : <>{history}{genres}</>)}
+      {onNowOffered && live.phase === 'ready' && live.cards.length > 0 && <SearchOnNow snapshot={live} runtime={runtime} width={surface} now={now} onGuide={() => runtime.onDestination({kind: 'live'})}/>}
       {!wideSearch && top && <SearchTopResult entry={top.entry} group={top.group} runtime={runtime} actions={actions} selection={selection?.item(top.entry, top.group)} width={surface - 32}/>}
       {wideSearch ? groups.filter(group => group.items.length).map(group => <View key={group.id}>
         <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 8, marginHorizontal: 20, marginTop: 22, marginBottom: 10}}>
@@ -168,6 +191,32 @@ export function SearchScreen({focusScope, destination, runtime, explore, actions
       ListHeaderComponent={error || null} ListEmptyComponent={loading ? <GridSkeleton elapsedMs={elapsed} scrollOffset={0} viewportHeight={dimensions.height - 180} width={surface} columns={3} totalCount={9}/> : null}/>}
     {selection?.render(path => {const source = runtime.artwork(path); return source ? <Artwork source={source} width={48} height={48}/> : undefined;})}
   </View>;
+}
+
+const noSubscribe = () => () => {};
+const noLiveTV = () => false;
+const noOnNowSnapshot: NativeSearchOnNowSnapshot = Object.freeze({phase: 'idle', cards: [], at: 0});
+const noOnNow: NativeSearchOnNowPort = Object.freeze({subscribe: noSubscribe, getSnapshot: () => noOnNowSnapshot, load: () => Promise.resolve()});
+
+/** phone-app.html #8: "On now" with a Guide link, then live cards: channel, Live tag, programme, when it ends, progress. */
+function SearchOnNow({snapshot, runtime, width, now, onGuide}: {snapshot: NativeSearchOnNowSnapshot; runtime: NativeShellRuntime; width: number; now: number; onGuide: () => void}) {
+  const t = runtime.text.t;
+  const cardWidth = Math.min(244, Math.max(180, width - 72));
+  return <View testID="search-on-now">
+    <SectionHeading title={t('next.home.onNow')} action={t('next.controls.guide')} onAction={onGuide}/>
+    <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: 20, paddingTop: 6, gap: 10}}>
+      {snapshot.cards.map(card => <SearchOnNowCardView key={`${card.channel.sourceId}:${card.channel.id}`} card={card} runtime={runtime} now={now} width={cardWidth} onOpen={onGuide}/>)}
+    </ScrollView></TVRow>
+  </View>;
+}
+
+function SearchOnNowCardView({card, runtime, now, width, onOpen}: {card: NativeSearchOnNowCard; runtime: NativeShellRuntime; now: number; width: number; onOpen: () => void}) {
+  const t = runtime.text.t, current = nowNext(card.programmes, now), programme = current.now, channel = card.channel;
+  const range = programme && programmeTimeRange(programme.start, programme.end, runtime.text);
+  return <LiveCard testID={`search-on-now-${encodeURIComponent(channel.id)}`} title={programme?.title ?? t('guide.noInformation')} channel={channel.name}
+    mark={{id: channel.id, sourceId: channel.sourceId, text: channel.mark?.text ?? '', seed: channel.mark?.seed ?? `${channel.sourceId}:${channel.id}`}} logo={runtime.artwork(channel.logoUrl)}
+    width={width} visible flags={programme?.flags?.live ? [{id: 'live', text: t('next.kit.live'), role: 'status'}] : []} range={range ? t('guide.ends', {time: range.end}) : undefined}
+    progress={programme ? current.progress : undefined} primaryAction="navigate" onNavigate={onOpen}/>;
 }
 
 function SectionHeading({title, action, disabled, onAction}: {title: string; action?: string; disabled?: boolean; onAction?: () => void}) {

@@ -121,7 +121,8 @@ async function setup() {
     '../destinations/lifetime': {nativeDestinationLifetime},
     './reading-search': {createNativeReadingSearch}, './ReadingSearchScreen': {ReadingSearchScreen: 'ReadingSearchScreen'},
   });
-  await screenModule(new URL('../src-next/screens/search/register.tsx', import.meta.url), {...stackSlotFixture, 
+  await screenModule(new URL('../src-next/screens/search/register.tsx', import.meta.url), {
+    './on-now': {NativeSearchOnNow: class {dispose() {}}},...stackSlotFixture, 
     react: hooks().react, 'react-native': {AppState, Platform: {isTV: true}, View: 'View'}, '../../shell/route-registry': registry,
     '../../shell/model': {authorityKey},
     '../destinations/lifetime': {nativeDestinationLifetime},

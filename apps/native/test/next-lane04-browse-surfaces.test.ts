@@ -29,6 +29,7 @@ test('expanded Search shelves keep every loaded result and prefetch ten cards be
   const snapshot: any = {text: 'query', group: 'all', groups: [group], recent: [], paging: {}, search: {phase: 'ready', data: {capabilities: {groups: [{id: 'movies', available: true}]}}}};
   let visible = true;
   const {SearchScreen} = await screenModule(new URL('../src-next/screens/search/SearchScreen.tsx', import.meta.url), {
+    '../../../../../packages/client-core/src/guide/now-next': {nowNext: () => ({})},
     react: h.react, 'react-native': {FlatList: 'FlatList', ScrollView: 'ScrollView', Text: 'Text', View: 'View', Keyboard: {}, useWindowDimensions: () => ({width: 1200, height: 900})},
     'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0})},

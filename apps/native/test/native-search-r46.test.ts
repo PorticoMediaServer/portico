@@ -45,6 +45,7 @@ async function mount(snapshot: any, landing: any, text = defaultI18n) {
   const theme = createTheme({width: 390, isTV: false});
   const calls: unknown[] = [];
   const view = await screenModule(new URL('../src-next/screens/search/SearchScreen.tsx', import.meta.url), {
+    '../../../../../packages/client-core/src/guide/now-next': {nowNext: () => ({})},
     react: host.react,
     'react-native': {FlatList: 'FlatList', Keyboard: {dismiss: () => {}}, ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},
     'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},

@@ -9,24 +9,28 @@ import type {NativePersonController} from './controller';
 const cancelled = () => Object.assign(new Error('native_person_window_retired'), {name: 'AbortError', code: 'cancelled'});
 const changed = () => Object.assign(new Error('native_person_page_changed'), {code: 'stale_data'});
 
+/** One department of the arrived person page: the TV page draws a row per department (tv-detail frame 10). */
+export type NativePersonDepartmentGroup = Readonly<{department: string; total: number}>;
+
 /** Sparse credits for one arrived Person/group snapshot. Cursors are only
- * server-returned tokens; seeking follows those tokens, never an offset guess. */
+ * server-returned tokens; seeking follows those tokens, never an offset guess.
+ * With `group`, the window reads that one department of the same arrived page (no seeded first page). */
 export function createNativePersonCreditWindow(context: NativeShellBootstrapContext,
-  target: Extract<NativeShellRoute, {kind: 'person'}>, source: NativePersonController) {
+  target: Extract<NativeShellRoute, {kind: 'person'}>, source: NativePersonController, group?: NativePersonDepartmentGroup) {
   const lifetime = nativeDestinationLifetime(context), seed = source.getSnapshot();
   if (context.navigation.getSnapshot().route !== target || seed.phase !== 'ready' || !seed.page || seed.page.person.id !== target.personId) {
     throw new Error('native_person_arrived_page_required');
   }
   if (seed.pageOrigin !== 'initial') throw new Error('native_person_initial_page_required');
-  const first = seed.page;
+  const first = seed.page, requestGroup = group ? {department: group.department} : seed.group, windowTotal = group ? group.total : first.pageInfo.total;
   // Selection uses real sparse offsets, never the compact order of resident pages.
   const positions = new WeakMap<PersonCredit, number>();
-  first.credits.forEach((credit, index) => positions.set(credit, index));
+  if (!group) first.credits.forEach((credit, index) => positions.set(credit, index));
   let disposed = false;
   const pending = new Set<AbortController>(), cleanups: (() => void)[] = [];
   // Bounded cursor checkpoints contain no page bodies. Page zero is the real
   // arrived seed; old checkpoints can be reached again through canonical reads.
-  const cursors = new Map<number, string | null>([[0, null], [1, first.pageInfo.nextCursor || null]]);
+  const cursors = new Map<number, string | null>(group ? [[0, null]] : [[0, null], [1, first.pageInfo.nextCursor || null]]);
   const retained = () => context.navigation.getSnapshot().route === target || context.navigation.retainedRoutes().includes(target);
   const dispose = () => {
     if (disposed) return;
@@ -54,7 +58,7 @@ export function createNativePersonCreditWindow(context: NativeShellBootstrapCont
     signal.addEventListener('abort', abort, {once: true}); pending.add(controller);
     try {
       let page: PersonPage;
-      try {page = await readPerson(context.api, lifetime.scope, target.personId, {...seed.group, limit: 40, cursor, signal: controller.signal});}
+      try {page = await readPerson(context.api, lifetime.scope, target.personId, {...requestGroup, limit: 40, cursor, signal: controller.signal});}
       catch (error) {
         // A refused cursor (access was decided again): the person is read once more, and its new first page replaces this
         // window, so this failure is never shown. A second refusal, or a re-read that fails, shows it.
@@ -64,7 +68,7 @@ export function createNativePersonCreditWindow(context: NativeShellBootstrapCont
       if (!visible() || controller.signal.aborted) throw cancelled();
       // The server binds the cursor to the viewer fence and refuses an old one (above): only the person's own revision is compared.
       if (page.revision.catalog !== first.revision.catalog || page.revision.viewer !== first.revision.viewer
-        || page.person.revision !== first.person.revision || page.pageInfo.total !== first.pageInfo.total) throw changed();
+        || page.person.revision !== first.person.revision || !group && page.pageInfo.total !== first.pageInfo.total) throw changed();
       remember(index + 1, page.pageInfo.nextCursor || null);
       if (cursor) source.paged();
       page.credits.forEach((credit, offset) => positions.set(credit, index * 40 + offset));
@@ -77,16 +81,16 @@ export function createNativePersonCreditWindow(context: NativeShellBootstrapCont
       if (!visible() || signal.aborted) throw cancelled();
       if (count !== 40 || start % 40 !== 0) throw new Error('native_person_page_alignment_required');
       const index = start / 40;
-      if (index === 0) return {items: first.credits, total: first.pageInfo.total};
+      if (index === 0 && !group) return {items: first.credits, total: windowTotal};
       let known = index;
       while (!cursors.has(known)) known--;
       let page: PersonPage | undefined;
       for (let position = known; position <= index; position++) {
         const cursor = cursors.get(position);
-        if (position > 0 && !cursor) return {items: [], total: first.pageInfo.total};
+        if (position > 0 && !cursor) return {items: [], total: windowTotal};
         page = await request(position, cursor ?? null, signal);
       }
-      return {items: page!.credits, total: first.pageInfo.total};
+      return {items: page!.credits, total: windowTotal};
     }});
   const reconcile = () => {
     if (!current()) return;

@@ -22,8 +22,12 @@ import {TVRow} from '../../kit/layout/TVRow';
 import {usePageWidth} from '../../kit/layout/page-inset';
 import {useCreditRefocus} from './credit-refocus';
 
+/** TV: one department of the all-credits page, read as its own window and drawn as its own row. */
+export type NativePersonCreditGroup = Readonly<{id: string; department: string; total: number; collection: WindowedCollection<PersonCredit>}>;
 export type NativePersonScreenProps = Readonly<{
   focusScope: string; page: PersonPage; role: PersonRole; collection: WindowedCollection<PersonCredit>;
+  /** TV only: with all credits shown and the server grouping them by department, a row per department in the page's group order (frame 10), instead of one flat row. */
+  groups?: readonly NativePersonCreditGroup[];
   runtime: NativeShellRuntime; actions: ReturnType<typeof createNativeEntryActions>; selection?: NativeSelection;
   onRole: (role: PersonRole) => void; onBack: () => void;
 }>;
@@ -33,7 +37,7 @@ const creditSlotKey = (index: number) => String(index);
 
 /** phone-detail frame7: one sparse credits scroller, with the genuine person,
  * biography and bounded known-for shelf as its header. */
-export function PersonScreen({focusScope, page, role, collection, runtime, actions, selection, onRole, onBack}: NativePersonScreenProps) {
+export function PersonScreen({focusScope, page, role, collection, groups, runtime, actions, selection, onRole, onBack}: NativePersonScreenProps) {
   const selectionRevision = useSyncExternalStore(selection?.subscribe ?? (() => () => {}), selection?.getSnapshot ?? (() => 0));
   useSyncExternalStore(actions.menuState.subscribe, actions.menuState.getSnapshot);
   const theme = useTheme(), insets = useSafeAreaInsets(), pageWidth = usePageWidth();
@@ -110,7 +114,7 @@ export function PersonScreen({focusScope, page, role, collection, runtime, actio
     </View>
   </>;
   const rows = useMemo(() => Math.ceil((state.total ?? page.pageInfo.total) / columns), [columns, page.pageInfo.total, state.total]);
-  if (theme.isTV) return <TVPerson focusScope={focusScope} page={page} role={role} collection={collection} runtime={runtime} actions={actions} selection={selection} onRole={onRole} onBack={onBack}/>;
+  if (theme.isTV) return <TVPerson focusScope={focusScope} page={page} role={role} collection={collection} groups={groups} runtime={runtime} actions={actions} selection={selection} onRole={onRole} onBack={onBack}/>;
   return <View style={{flex: 1}} testID="native-person"><StandardBackdrop/>
     <VirtualizedList data={collection} getItem={(_data, index) => index} getItemCount={() => rows} keyExtractor={index => String(index)} extraData={`${version()}:${selectionRevision}`}
       initialNumToRender={4} maxToRenderPerBatch={4} windowSize={5} ListHeaderComponent={header} onViewableItemsChanged={visible}
@@ -134,10 +138,10 @@ export function PersonScreen({focusScope, page, role, collection, runtime, actio
 
 /** tv-detail frame 10: the ten-foot person page. One blur mosaic circle,
  * the person's own facts and biography, then the real windowed credits as a
- * horizontal row; Sort is not produced by the person read, so only the real
- * All/Cast/Crew filter is drawn. */
-export function TVPerson({focusScope, page, role, collection, runtime, actions, selection, onRole, onBack}: {
-  focusScope: string; page: PersonPage; role: PersonRole; collection: WindowedCollection<PersonCredit>;
+ * horizontal row per department (one flat row for Cast or Crew, or when the person has one department); Sort is not
+ * produced by the person read, so only the real All/Cast/Crew filter is drawn. */
+export function TVPerson({focusScope, page, role, collection, groups, runtime, actions, selection, onRole, onBack}: {
+  focusScope: string; page: PersonPage; role: PersonRole; collection: WindowedCollection<PersonCredit>; groups?: readonly NativePersonCreditGroup[];
   runtime: NativeShellRuntime; actions: ReturnType<typeof createNativeEntryActions>; selection?: NativeSelection;
   onRole: (role: PersonRole) => void; onBack: () => void;
 }) {
@@ -168,6 +172,7 @@ export function TVPerson({focusScope, page, role, collection, runtime, actions, 
   const slots = useMemo(() => Array.from({length: total}, (_, index) => index), [total]);
   // A re-read replaces the page and its credit window: the shelf names where focus stays in the row (credit-refocus).
   const credits = useCreditRefocus(page, creditSlotKey);
+  const grouped = role === 'all' && !!groups?.length;
   const filterItems: MenuEntry[] = ([['all', 'title.creditsAll'], ['cast', 'web.person.cast'], ['crew', 'web.person.crew']] as const).map(([value, label]) =>
     ({id: value, label: t(label), selected: role === value, onSelect: () => onRole(value)}));
   return <View testID="native-person" style={{flex: 1}}><StandardBackdrop/>
@@ -202,6 +207,9 @@ export function TVPerson({focusScope, page, role, collection, runtime, actions, 
         <View style={{flex: 1}}/>
         <Chip testID="person-role-filter" selected={role !== 'all'} onPress={() => setFilters(true)}>{t('next.browse.native.filters')}</Chip>
       </View>
+      {grouped ? groups!.map((group, row) => <TVCreditRow key={group.id} group={group} runtime={runtime} actions={actions} selection={selection} first={row === 0}
+        regionId={`${focusScope}.credits.${group.id}`} upRegionId={row > 0 ? `${focusScope}.credits.${groups![row - 1]!.id}` : undefined}
+        downRegionId={row < groups!.length - 1 ? `${focusScope}.credits.${groups![row + 1]!.id}` : undefined}/>) :
       <TVShelf items={slots} getKey={creditSlotKey} itemWidth={214} itemHeight={440} isFocusable={index => !!collection.itemAt(index)?.media}
         focus={{id: `${focusScope}.credits`}} refocus={credits.refocus}
         onVisibleRange={(first, last) => setRange(current => current.first === first && current.last === last ? current : {first, last})}
@@ -212,7 +220,7 @@ export function TVPerson({focusScope, page, role, collection, runtime, actions, 
             onFocus={() => {credits.onFocus(index); slot.onFocus();}} onBlur={slot.onBlur} preferredFocus={index === 0} artwork={runtime.artwork(entry.posterUrl)} watched={entry.watched} progress={entry.duration && entry.progressSeconds ? entry.progressSeconds / entry.duration : undefined}
             caption={[...(entry.year === undefined ? [] : [{id: 'year', text: String(entry.year), role: 'context' as const}]),
               ...(credit.character ? [{id: 'character', text: t('web.person.as', {character: credit.character}), role: 'context' as const}] : [])]}/>;
-        }}/>
+        }}/>}
       {state.status === 'error' && <View style={{marginTop: 30, width: 900}}><StateView {...runtime.error(state.error, () => collection.retry())}/></View>}
     </ScrollView>
     {selection?.render(path => <Artwork source={runtime.artwork(path)} width={40} height={40}/>)}
@@ -226,4 +234,46 @@ function PersonEntryCard({entry, group, actions, selection, ...props}: Omit<Post
   const anchor = useRef<View>(null), pick = selection?.item(entry, group);
   return <PosterCard {...props} menuAnchorRef={anchor} moreExpanded={actions.isMenuOpen?.(entry)} selection={pick}
     onNavigate={() => actions.open(entry)} onMore={() => actions.menu(entry, anchor, pick?.onEnter)}/>;
+}
+
+/** tv-detail frame 10: one windowed credits row for one department, with its own heading and focus region.
+ * Up and Down move between the rows; the first row's Up and the last row's Down leave the region. */
+function TVCreditRow({group, runtime, actions, selection, first, regionId, upRegionId, downRegionId}: {
+  group: NativePersonCreditGroup; runtime: NativeShellRuntime; actions: ReturnType<typeof createNativeEntryActions>; selection?: NativeSelection;
+  first: boolean; regionId: string; upRegionId?: string; downRegionId?: string;
+}) {
+  const theme = useTheme(), t = defaultI18n.t, collection = group.collection, [range, setRange] = useState({first: 0, last: 19});
+  const firstPage = collection.pageOf(range.first), lastPage = collection.pageOf(range.last);
+  const subscribePages = useCallback((listener: () => void) => {
+    const stops = [collection.subscribe(listener)];
+    for (let index = firstPage; index <= lastPage; index++) stops.push(collection.subscribePage(index, listener));
+    return () => stops.forEach(stop => stop());
+  }, [collection, firstPage, lastPage]);
+  const version = useCallback(() => {
+    const state = collection.getSnapshot(), values = [`${state.generation}:${state.total}:${state.status}:${state.refreshing}`];
+    for (let index = firstPage; index <= lastPage; index++) values.push(collection.getPageVersion(index));
+    return values.join('|');
+  }, [collection, firstPage, lastPage]);
+  useSyncExternalStore(subscribePages, version);
+  useEffect(() => {collection.ensureRange(range.first, range.last);}, [collection, range]);
+  const state = collection.getSnapshot(), total = state.total ?? group.total;
+  const slots = useMemo(() => Array.from({length: total}, (_, index) => index), [total]);
+  return <View testID={`person-credits-${group.id}`} style={{marginBottom: 36}}>
+    <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 18, marginBottom: 22}}>
+      <Text accessibilityRole="header" style={[browseType(theme, 34, 800, -.02), {color: theme.colors.text}]}>{group.department}</Text>
+      <Text style={[browseType(theme, 24, 600), {color: theme.colors.textTertiary}]}>{t('web.person.titles', {count: group.total})}</Text>
+    </View>
+    <TVShelf items={slots} getKey={creditSlotKey} getFocusId={creditSlotKey} itemWidth={214} itemHeight={440} isFocusable={index => !!collection.itemAt(index)?.media}
+      focus={{id: regionId, entry: '0', edges: {up: upRegionId, down: downRegionId}, stops: {down: !downRegionId}}}
+      onVisibleRange={(from, to) => setRange(current => current.first === from && current.last === to ? current : {first: from, last: to})}
+      renderItem={(index, slot) => {
+        const credit = collection.itemAt(index), entry = credit?.media;
+        if (!entry) return <View testID={`person-credit-placeholder-${group.id}-${index}`} style={{width: 214, height: 321, borderRadius: 10, backgroundColor: theme.colors.raised}}/>;
+        return <PersonEntryCard entry={entry} group="credits" actions={actions} selection={selection} testID={`person-credit-${group.id}-${index}`} focusId={slot.focusId} title={entry.displayTitle || entry.title} width={214}
+          onFocus={slot.onFocus} onBlur={slot.onBlur} preferredFocus={first && index === 0} artwork={runtime.artwork(entry.posterUrl)} watched={entry.watched} progress={entry.duration && entry.progressSeconds ? entry.progressSeconds / entry.duration : undefined}
+          caption={[...(entry.year === undefined ? [] : [{id: 'year', text: String(entry.year), role: 'context' as const}]),
+            ...(credit.character ? [{id: 'character', text: t('web.person.as', {character: credit.character}), role: 'context' as const}] : [])]}/>;
+      }}/>
+    {state.status === 'error' && <View style={{marginTop: 30, width: 900}}><StateView {...runtime.error(state.error, () => collection.retry())}/></View>}
+  </View>;
 }
