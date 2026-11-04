@@ -60,8 +60,10 @@ export function ReadSeriesScreen({controller, route, comic, context, runtime, on
   const width = Math.max(96, Math.min(220, (Math.min(900, paneWidth ?? pageWidth) - 40 - columnGap * (columns - 1)) / columns));
   const height = width * 3 / 2;
   const progression = continuedRow ? Math.max(0, Math.min(1, continuedRow.progress.location.progression)) : undefined;
-  const readLabel = continued ? t('next.cards.read')
-    : comic && first?.series?.number !== undefined ? t('next.reader.readVolume', {number: defaultI18n.number(first.series.number, {maximumFractionDigits: 20})})
+  // N5-4: Read opens only a book the server can serve: the continued one while it can, else the first that can.
+  const readable = continued?.inventoryAvailable === true ? continued : state.items.find(item => item.inventoryAvailable === true);
+  const readLabel = readable && readable === continued ? t('next.cards.read')
+    : comic && readable?.series?.number !== undefined ? t('next.reader.readVolume', {number: defaultI18n.number(readable.series.number, {maximumFractionDigits: 20})})
       : t(phone ? 'next.reader.readNext' : 'next.reader.read');
   const stack = state.items.slice(0, 3);
   const window = useMemo(() => new NativeReadingWindow(() => {const value = controller.getSnapshot();
@@ -125,7 +127,7 @@ export function ReadSeriesScreen({controller, route, comic, context, runtime, on
           </View> : null}
         </View>
         <View style={{paddingHorizontal: 20, marginTop: 18}}>
-          <Button icon="i-book" disabled={!first} onPress={() => {if (first) void controller.open(first).catch(runtime.reportError);}} style={{alignSelf: 'stretch'}}>
+          <Button icon="i-book" disabled={!readable} onPress={() => {if (readable) void controller.open(readable).catch(runtime.reportError);}} style={{alignSelf: 'stretch'}}>
             {readLabel}
           </Button>
         </View>
@@ -158,22 +160,24 @@ export function VolumeCard({item, width, height, comic, theme, runtime, progress
   item: ReadingItem; width: number; height: number; comic: boolean; theme: ReturnType<typeof useTheme>;
   runtime: NativeShellRuntime; progression?: number; onOpen: () => void; onMenu?: (anchor: React.RefObject<View | null>) => void; selection?: CardSelection; variant?: 'default' | 'shelf';
 }) {
-  const anchor = useRef<View>(null);
+  // N5-4: a book the server can't serve now is drawn but takes no open, menu or selection (as web).
+  const anchor = useRef<View>(null), unavailable = item.inventoryAvailable !== true;
+  const pick = unavailable ? undefined : selection, menu = unavailable ? undefined : onMenu;
   const number = item.series?.number, shelf = variant === 'shelf', phoneDefault = !shelf && theme.platform === 'phone';
   const numberLabel = number === undefined ? undefined : t(comic ? 'next.reader.volumeNumber' : 'next.reader.bookNumber', {number: defaultI18n.number(number, {maximumFractionDigits: 20})});
   const numberText = numberLabel === undefined ? null : <Text numberOfLines={1} style={[browseType(theme, shelf ? 13 : 11.5, shelf ? 400 : phoneDefault ? 500 : 600), {color: theme.colors.textTertiary, marginTop: shelf ? 2 : phoneDefault ? 2 : 7}]}>
     {numberLabel}
   </Text>;
   const titleText = <Text numberOfLines={shelf ? 1 : 2} style={[browseType(theme, shelf ? 13.5 : phoneDefault ? 12.5 : 13, 600), {color: theme.colors.text, marginTop: shelf ? 10 : phoneDefault ? 7 : number !== undefined ? 2 : 7}]}>{item.title}</Text>;
-  return <Focusable accessibilityRole="button" accessibilityLabel={item.title} focusKind="row" focusRadius={10} ref={anchor} onPress={selection?.active ? selection.onToggle : onOpen}
-    onLongPressAction={onMenu ? () => onMenu(anchor) : undefined} accessibilityState={selection?.active ? {selected: selection.selected} : undefined} style={{width}}>
-    <View style={{width, height, borderRadius: 10, overflow: 'hidden', backgroundColor: theme.colors.raised, borderWidth: selection?.selected ? 2 : 0, borderColor: theme.colors.accentStrong}}>
+  return <Focusable accessibilityRole="button" accessibilityLabel={item.title} focusKind="row" focusRadius={10} ref={anchor} disabled={unavailable} onPress={pick?.active ? pick.onToggle : onOpen}
+    onLongPressAction={menu ? () => menu(anchor) : undefined} accessibilityState={pick?.active ? {selected: pick.selected} : unavailable ? {disabled: true} : undefined} style={{width}}>
+    <View style={{width, height, borderRadius: 10, overflow: 'hidden', backgroundColor: theme.colors.raised, borderWidth: pick?.selected ? 2 : 0, borderColor: theme.colors.accentStrong}}>
       {runtime.artwork(item.coverUrl) ? <Artwork source={runtime.artwork(item.coverUrl)} width={width} height={height}/>
         : <GeneratedCover title={item.title} author={item.author?.value} tint={generatedCoverTint(item.title)} glyph={initial(item.title)} width={width} height={height}/>}
       {progression !== undefined ? <View style={{position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, backgroundColor: alpha(theme.colors.text, .2)}}>
         <View style={{width: `${progression * 100}%`, height: 3, backgroundColor: theme.colors.accentStrong}}/>
       </View> : null}
-      {selection?.active ? <SelectionCircle selected={selection.selected} selecting interactive={false} accessibilityLabel={item.title}
+      {pick?.active ? <SelectionCircle selected={pick.selected} selecting interactive={false} accessibilityLabel={item.title}
         style={{position: 'absolute', right: 7, bottom: 7}}/> : null}
     </View>
     {shelf || phoneDefault ? <>{titleText}{numberText}</> : <>{numberText}{titleText}</>}

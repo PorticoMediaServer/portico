@@ -161,7 +161,8 @@ export function NativeReadingLibraryScreen(props: NativeReadingLibraryScreenProp
   const offerBooksDownload = (item: ReadingItem) => {downloads.offer(() => opening && visibleLife ? nativeReadingDownloadOffer(opening, item,
     () => books.getSnapshot() === booksState && item.libraryId === libraryId && booksState.items.some(candidate => candidate === item), visibleLife) : undefined); downloads.select(downloads.getSnapshot());};
   const readingOffer = (item: ReadingItem, source: 'discover' | 'books'): NativeReadingActionOffer | undefined => {
-    if (!visibleLife) return undefined;
+    // N5-4: a title the server can't serve now takes no menu or selection (as web).
+    if (!visibleLife || item.inventoryAvailable !== true) return undefined;
     const isCurrent = () => visibleLife.isCurrent() && (source === 'books' ? books.getSnapshot().items.includes(item)
       : discovery.getSnapshot().recent.includes(item) || discovery.getSnapshot().shortReads.some(row => row.item === item) || discovery.getSnapshot().continueItems.some(row => row.item === item));
     return {item, lifetime: {signal: visibleLife.signal, isCurrent}, open: () => source === 'books' ? openBooks(item) : openDiscover(item),
@@ -181,7 +182,7 @@ export function NativeReadingLibraryScreen(props: NativeReadingLibraryScreenProp
         title={row.item.title} caption={authorPart(row.item)} detail={row.progress.location.section ? [{id: 'section', text: row.progress.location.section, role: 'context'}] : []}
         progress={Math.min(0.999, Math.max(0, row.progress.location.progression))} palette={tint(row.item.title)}
         artworkFallback={<View accessible={false} importantForAccessibility="no-hide-descendants">{cover(row.item, tablet ? 99 : 81, tablet ? 148 : 122)}</View>}
-        onNavigate={() => openDiscover(row.item)} menuAnchorRef={anchorRef} selection={offered ? readingActions.selection(offered) : undefined}
+        disabled={row.item.inventoryAvailable !== true} onNavigate={() => openDiscover(row.item)} menuAnchorRef={anchorRef} selection={offered ? readingActions.selection(offered) : undefined}
         onMore={offered ? () => readingActions.actions.show({...offered, anchorRef}) : undefined}/>;}}</ReadingMenuAnchor>)}
     </DiscoveryRow> : null}
     {discoveryState.recent.length ? <DiscoveryRow title={defaultI18n.t('home.row.recentlyAdded')} first={!discoveryState.continueItems.length} onSeeAll={() => setTab('browse')}
@@ -279,9 +280,9 @@ function DiscoveryRow({title, sub, first = false, onSeeAll, onNearEnd, children}
 function DiscoveryCoverCard({item, width, detail, onOpen, offer, actions}: {item: ReadingItem; width: number; detail?: string; offer?: NativeReadingActionOffer; actions: ReturnType<typeof useReadingActions>; onOpen: (item: ReadingItem) => void}) {
   const anchor = useRef<View>(null), selection = offer ? actions.selection(offer) : undefined;
   const theme = useTheme(), periodical = item.publicationType?.value === 'magazine' || item.publicationType?.value === 'newspaper';
-  const height = periodical ? width * 4 / 3 : width * 3 / 2;
+  const height = periodical ? width * 4 / 3 : width * 3 / 2, unavailable = item.inventoryAvailable !== true;
   return <Focusable testID={`reading-item-${item.id}`} accessibilityRole="button" accessibilityLabel={detail ? `${item.title}. ${detail}` : item.title} focusKind="row"
-    ref={anchor} onPress={selection?.active ? selection.onToggle : () => onOpen(item)}
+    ref={anchor} disabled={unavailable} accessibilityState={unavailable ? {disabled: true} : undefined} onPress={selection?.active ? selection.onToggle : () => onOpen(item)}
     onLongPressAction={offer ? () => actions.actions.show({...offer, anchorRef: anchor}) : undefined} style={{width}}>
     <View accessible={false} importantForAccessibility="no-hide-descendants" style={{width, height, borderRadius: 10, overflow: 'hidden', borderWidth: selection?.selected ? 2 : 0, borderColor: theme.colors.accentStrong}}>{cover(item, width, height)}
       {selection?.active ? <SelectionCircle selected={selection.selected} selecting interactive={false} accessibilityLabel={item.title}

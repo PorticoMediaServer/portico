@@ -162,3 +162,50 @@ test('reading loading delegates the quiet skeleton and adds a notice only after 
   t.mock.timers.tick(1); tree = r.render(ReadingLoading, props); assert.deepEqual(named(tree, 'Text').props.children, ['next.states.stillLoading']);
   cleanup?.(); tree = r.render(ReadingLoading, {...props, ready: true}); assert.equal(named(tree, 'Text'), undefined);
 });
+
+// N5-4: an item the server can't serve now (`inventoryAvailable: false`) is drawn but takes no open, menu or selection, as on web.
+const gone = (id: string, issueDate: string) => ({issueDate, item: {...issue(id, issueDate).item, inventoryAvailable: false}});
+
+test('N5-4: an issue the server can\'t serve is drawn but opens nothing, and offers no menu or selection', async () => {
+  const f = await periodical(true, true), rowNode = named(f.tree, 'MagazineIssues'), list = f.r.render(rowNode.type, rowNode.props);
+  const shelf = list.props.renderItem({item: list.props.data[1]});
+  const card = (value: any) => {const element = shelf.props.renderItem(value); return f.r.render(element.type, element.props);};
+  const available = card(issue('here', '2026-10-02')), missing = card(gone('missing', '2026-10-03'));
+  assert.notEqual(available.props.disabled, true);
+  assert.equal(missing.props.disabled, true, 'not pressable');
+  assert.deepEqual(missing.props.accessibilityState, {disabled: true}, 'and said so');
+  assert.equal(missing.props.onLongPressAction, undefined, 'no menu');
+});
+
+test('N5-4: a newspaper front page the server can\'t serve takes no press', async () => {
+  const f = await periodical(false, false);
+  f.selected.item.inventoryAvailable = false;
+  const tree = f.r.render(named(f.tree, 'NewspaperEditions').type, named(f.tree, 'NewspaperEditions').props);
+  const front = nodes(tree).find(node => node.type === 'Focusable' && node.props.accessibilityLabel === 'selected');
+  assert.equal(front.props.disabled, true);
+});
+
+test('N5-4: a series volume the server can\'t serve takes no open, menu or selection', async () => {
+  const r = renderer();
+  const {VolumeCard} = await screenModule(new URL('../src-next/screens/read/ReadSeriesScreen.tsx', import.meta.url), {
+    react: r.react, 'react-native': {Text: 'Text', View: 'View'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
+    '@portico/design': {generatedCoverTint: () => ({})}, '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key, number: String}},
+    '../../kit/artwork': {Artwork: 'Artwork', AmbientArt: 'AmbientArt', GeneratedCover: 'GeneratedCover', StandardBackdrop: 'StandardBackdrop'},
+    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/layout': {WindowedGrid: 'WindowedGrid'},
+    './reading-window': {NativeReadingWindow: class {}}, './ReadingActions': {ReadingItemMenu: 'ReadingItemMenu', ReadingSelectionToolbar: 'ReadingSelectionToolbar', useReadingActions: () => ({})},
+    '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, '../downloads/request': {askNativeDownload: () => {}}, '../../../platform/offline-reading': {nativePublicationReadsAvailable: () => true},
+    '../../kit/states': {StateView: 'StateView', SkeletonBlock: 'SkeletonBlock', LoadingPaint: 'LoadingPaint'},
+    '../../kit/browse/presentation': {alpha: (color: string, opacity: number) => `${color}/${opacity}`, browseType: typography}, '../../kit/theme': {useTheme: () => theme(false)},
+    '../../kit/layout/page-inset': {usePageWidth: () => 390},
+  });
+  const opens: string[] = [], menus: string[] = [], toggles: string[] = [];
+  const card = (inventoryAvailable: boolean) => r.render(VolumeCard, {item: {id: 'volume', libraryId: 'books', title: 'Volume', inventoryAvailable}, width: 100, height: 150, comic: false,
+    theme: theme(false), runtime: {artwork: () => undefined}, onOpen: () => opens.push('open'), onMenu: () => menus.push('menu'),
+    selection: {active: true, selected: false, onToggle: () => toggles.push('toggle')}});
+  const here = card(true), missing = card(false);
+  here.props.onPress(); assert.deepEqual(toggles, ['toggle'], 'an available volume toggles in a selection');
+  assert.equal(missing.props.disabled, true);
+  assert.deepEqual(missing.props.accessibilityState, {disabled: true});
+  assert.equal(missing.props.onLongPressAction, undefined);
+  assert.equal(nodes(missing).some(node => node.type === 'SelectionCircle'), false, 'never part of a selection');
+});
