@@ -83,7 +83,6 @@ type OfferBinding = {
   readonly api: WebPlaybackSource['api']; readonly authority: WebPlaybackAuthority;
   readonly sessionKey: string; readonly libraryId: string; readonly itemId: string;
   readonly sessionId: string; readonly generation: number; readonly playbackRun: number;
-  detailFence?: string;
 };
 type Starting = {attach(stack: Stack): void; identify(next: WebPlaybackStartDisplay): void; stopWith(stop: () => void): void; accepted(): void; end(): void; display(): WebPlaybackStartDisplay | undefined};
 type StartingState = {key: string; display?: WebPlaybackStartDisplay; accepted: boolean; stack?: Stack; stop: () => void; retry: () => Promise<void>; timer: unknown; view?: WebPlaybackStarting};
@@ -1229,12 +1228,9 @@ export class WebShellPlaybackRuntime {
     if (response.phase !== 'ready' || response.error || response.scope.serverId !== this.source.contentScope.serverId || response.scope.viewerId !== this.source.contentScope.viewerId || !data) return null;
     if (response.query?.libraryId !== binding.libraryId || response.query.itemId !== binding.itemId || response.query.sessionId !== binding.sessionId || stack.libraryId !== binding.libraryId || stack.itemId !== binding.itemId) return null;
     if (data.scope.serverId !== this.authority.serverId || data.scope.libraryId !== binding.libraryId || data.scope.itemId !== binding.itemId || playback.itemId !== binding.itemId || data.current?.sessionId !== binding.sessionId || playback.session?.id !== binding.sessionId || data.current.generation !== binding.generation || playback.session.generation !== binding.generation) return null;
-    // Home hashes its entitled library set; detail/offers hash a different namespace. Bind
-    // the actual validated response under this captured API/authority and media source,
-    // never substitute the Home fence. PlayerOffersService also retains its detail fence
-    // across refreshes and source generations, and rejects a changed fence or denial.
-    if (binding.detailFence && binding.detailFence !== data.scope.viewerFence) return null;
-    binding.detailFence = data.scope.viewerFence;
+    // Bind the actual validated response under this captured API/authority and media source.
+    // Step 7: a moved viewer fence on the offers read is a newer answer for the same session;
+    // a real loss of access answers 401/403, which stops the playback (sync's offers check).
     return data;
   }
   private presentations(current?: WebPlaybackPresentation): readonly WebPlaybackPresentation[] {

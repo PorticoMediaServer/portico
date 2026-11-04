@@ -1541,21 +1541,27 @@ test('runtime ignores late playback offers after another source starts', async t
   assert.equal(f.runtime.getSnapshot().playback.positionSeconds, 15);
 });
 
-test('runtime requires the bound detail viewer fence before exposing source commands', async t => {
+test('a moved detail viewer fence on an offers refresh is a newer answer: playback carries on with the newer offers (step 7)', async t => {
   const f = setup(t); await f.runtime.play('movie', 5); const engine = await f.arrive();
   const fence = f.runtime.getSnapshot().fence;
   assert.ok(fence);
   assert.equal(f.runtime.getSnapshot().offers?.scope.viewerFence, detailViewerFence);
   f.changeViewerFence(); await f.offers().refresh({quiet: true}); await settle();
-  assert.equal(f.runtime.getSnapshot().fence, undefined);
-  assert.equal(f.runtime.getSnapshot().presentation, undefined);
-  assert.equal(f.offers().getSnapshot().error?.code, 'permission_changed');
-  assert.equal(f.offers().getSnapshot().data, null);
-  assert.equal(f.runtime.getSnapshot().offers, null);
-  assert.equal(f.runtime.getSnapshot().disposed, true);
-  assert.deepEqual(f.runtime.getSnapshot().presentations, []);
-  assert.equal(f.runtime.getSnapshot().dock.local, null);
-  assert.equal(engine.destroyed, true); assert.equal(f.video.listenerCount(), 0);
+  assert.equal(f.offers().getSnapshot().error, null, 'no permission_changed on a read');
+  assert.notEqual(f.offers().getSnapshot().data?.scope.viewerFence, detailViewerFence, 'the newer offers are adopted');
+  assert.equal(f.runtime.getSnapshot().offers?.scope.viewerFence, f.offers().getSnapshot().data?.scope.viewerFence, 'and bound to the playback');
+  assert.equal(f.runtime.getSnapshot().disposed, false); assert.equal(engine.destroyed, false);
+  assert.ok(f.runtime.getSnapshot().presentation?.controls.includes('pause'), 'still playing, its controls offered');
+  await f.runtime.pause(fence);
+});
+
+test('an offers refresh that the server refuses (403) still stops the playback: real loss of access is the server\'s answer', async t => {
+  const f = setup(t); await f.runtime.play('movie', 5); const engine = await f.arrive();
+  const fence = f.runtime.getSnapshot().fence!;
+  f.intercept(async (request, response) => request.path.includes('/playback-offers') ? {status: 403, headers: {}, body: {error: {code: 'forbidden', message: 'No access', retryable: false}}} : response);
+  await f.offers().refresh({quiet: true}); await settle();
+  assert.equal(f.offers().getSnapshot().error?.code, 'forbidden');
+  assert.equal(f.runtime.getSnapshot().disposed, true); assert.equal(engine.destroyed, true);
   await assert.rejects(f.runtime.resume(fence), /stale_playback_command/);
 });
 
@@ -1936,20 +1942,15 @@ test('runtime accepts the same actual detail fence after refresh and a new media
   await f.runtime.pause(next); assert.equal(f.video.paused, true);
 });
 
-test('runtime cannot rebind a changed detail fence when the media generation changes', async t => {
+test('a moved detail viewer fence across a media generation change is a newer answer, never a stop (step 7)', async t => {
   const f = setup(t); await f.runtime.play('movie', 20); await f.arrive();
   const first = f.runtime.getSnapshot().fence;
   assert.ok(first);
-  f.changeViewerFence(); await f.runtime.setQuality(first, '720p-high'); await settle();
-  assert.equal(f.offers().getSnapshot().error?.code, 'permission_changed');
-  assert.equal(f.offers().getSnapshot().data, null);
-  assert.equal(f.runtime.getSnapshot().offers, null);
-  assert.equal(f.runtime.getSnapshot().fence, undefined);
-  assert.equal(f.runtime.getSnapshot().presentation, undefined);
-  assert.deepEqual(f.runtime.getSnapshot().presentations, []);
-  assert.equal(f.runtime.getSnapshot().disposed, true);
-  assert.equal(f.runtime.getSnapshot().dock.local, null);
-  await assert.rejects(f.runtime.resume(first), /stale_playback_command/);
+  f.changeViewerFence(); await f.runtime.setQuality(first, '720p-high'); await settle(); await f.arrive();
+  assert.equal(f.offers().getSnapshot().error, null);
+  assert.equal(f.runtime.getSnapshot().disposed, false);
+  assert.ok(f.runtime.getSnapshot().offers, 'the newer offers are bound to the new generation');
+  assert.ok(f.runtime.getSnapshot().presentation);
 });
 
 test('runtime rejects cross-server, library, item, session and media-generation offer responses', async t => {
