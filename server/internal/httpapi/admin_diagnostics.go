@@ -114,7 +114,7 @@ func (d Dependencies) diagnosticsRoutes(mux *http.ServeMux) {
 		write(w, 200, d.logSettings(document))
 	})
 	d.httpHandle(mux, "POST /v1/admin/logs/debug-window", func(w http.ResponseWriter, r *http.Request) {
-		p, e := d.administrator(r)
+		p, e := d.owner(r)
 		if e != nil {
 			accessFailure(w, e)
 			return
