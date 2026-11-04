@@ -54,7 +54,8 @@ export class MetadataEditorService{
   this.controller?.abort();const epoch=++this.epoch,c=new AbortController();this.controller=c;
   if(this.target?.itemId!==target.itemId||this.target?.libraryId!==target.libraryId)this.fence=undefined;
   this.target=Object.freeze({...target});this.publish({phase:'loading',data:null,error:null});
-  try{const raw=await this.request(target,'GET',undefined,c);if(this.disposed||epoch!==this.epoch||c.signal.aborted)return;const data=validateMetadataEdit(raw,this.options.scope,target);if(this.fence&&data.scope.viewerFence!==this.fence)throw Object.assign(new Error('Owner access changed.'),{code:'permission_changed'});this.fence=data.scope.viewerFence;this.publish({phase:'ready',data,error:null});}
+  try{const raw=await this.request(target,'GET',undefined,c);if(this.disposed||epoch!==this.epoch||c.signal.aborted)return;const data=validateMetadataEdit(raw,this.options.scope,target);// A read answers under the owner's access now; a moved fence is newer, not a refusal (that is a 401/403). A save sends from this read.
+  this.fence=data.scope.viewerFence;this.publish({phase:'ready',data,error:null});}
   catch(e){if(!this.disposed&&epoch===this.epoch)this.failure(e,false);}
  }
  async save(patch:MetadataEditPatch):Promise<boolean>{

@@ -381,7 +381,7 @@ function definiteRefusal(error:unknown):boolean{
 }
 export class RemoteSourceService{
  private state:RemoteState={sources:[],loading:false,busy:false,error:'',errorCode:'',operationId:null,operationKind:'',ambiguous:false,receipt:null,rclone:null,alreadyDone:false,mountSupported:false};
- private listeners=new Set<()=>void>();private controllers=new Set<AbortController>();private epoch=0;private read=0;private disposed=false;private viewerFence?:string;
+ private listeners=new Set<()=>void>();private controllers=new Set<AbortController>();private epoch=0;private read=0;private disposed=false;
  private intent:SourceCommandIntent|null=null;
  // One nonsecret settings command belongs to this service opening. The durable
  // coordinator remains the only restart/retry owner; this merely retains the
@@ -445,7 +445,7 @@ export class RemoteSourceService{
  private refuse(error:unknown){const code=this.refusalCode(error);if(code)this.retire(code);}
  private publish(value:Partial<RemoteState>){if(this.refused||!this.live())return;this.state=Object.freeze({...this.state,...value});for(const fn of this.listeners)fn();}
  dispose(){this.epoch++;this.disposed=true;this.choicePending=undefined;this.choiceFlight=undefined;this.settingsPending=undefined;this.intent=null;this.refused=false;this.refusedCode='';for(const c of this.controllers)c.abort();this.controllers.clear();this.listeners.clear();this.state={...this.state,sources:[],receipt:null,rclone:null,operationId:null,operationKind:''};}
- private fence(raw:unknown){if(!record(raw)||!record(raw.scope)||raw.scope.serverId!==this.scope.serverId||!text(raw.scope.viewerFence,256)||!raw.scope.viewerFence||this.viewerFence&&this.viewerFence!==raw.scope.viewerFence)invalid();this.viewerFence=raw.scope.viewerFence;}
+ private fence(raw:unknown){if(!record(raw)||!record(raw.scope)||raw.scope.serverId!==this.scope.serverId||!text(raw.scope.viewerFence,256)||!raw.scope.viewerFence)invalid();/* A moved fence is the owner's access decided again, not a refusal (that is a 401/403). */}
  /** Ordinary mutations retain their exclusion through operation-id waits and
   * callbacks. Outside a choice, their existing admission/behavior is unchanged. */
  private ordinaryMutations=0;private activeWrites=0;

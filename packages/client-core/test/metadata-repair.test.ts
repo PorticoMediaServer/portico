@@ -35,8 +35,11 @@ test('conflicts retain review values while denial clears them and hides server e
 test('cancel/dispose fence ignoring-abort reads and late completions',async()=>{
  for(const dispose of [false,true]){const pending=deferred();const service=new MetadataRepairService({scope,api:{request:()=>pending.promise}});const read=service.load(target);if(dispose)service.dispose();else service.cancel();await read;pending.resolve(response());await Promise.resolve();assert.equal(service.getSnapshot().data,null);}
 });
-test('changed owner fence cannot reuse an old repair view',async()=>{
- let raw=response();const service=new MetadataRepairService({scope,api:{async request(){return raw as any;}}});await service.load(target);raw={...raw,viewerFence:'f'.repeat(64)};await service.load(target);assert.equal(service.getSnapshot().phase,'denied');assert.equal(service.getSnapshot().data,null);service.dispose();
+test('a moved owner fence shows the newer repair view; only a refusal denies it',async()=>{
+ let raw:any=response();const service=new MetadataRepairService({scope,api:{async request(){if(raw instanceof Error)throw raw;return raw as any;}}});await service.load(target);
+ raw={...raw,viewerFence:'f'.repeat(64),revision:'c'.repeat(64)};await service.load(target);
+ assert.equal(service.getSnapshot().phase,'ready');assert.equal(service.getSnapshot().data!.revision,'c'.repeat(64),'the newer view, not the old one');assert.equal(service.getSnapshot().preview,null);
+ raw=Object.assign(new Error('Forbidden'),{status:403});await service.load(target);assert.equal(service.getSnapshot().phase,'denied');assert.equal(service.getSnapshot().data,null);service.dispose();
 });
 test('merge preview is non-destructive, revision-bound and scoped to the requested target',async()=>{
  const calls:any[]=[];const service=new MetadataRepairService({scope,api:{async request(path,method,body){calls.push({path,method,body});if(path.includes('/preview'))return {revision:'b'.repeat(64),descendants:600,lockedFields:1,selectedImages:1,message:'Retained',merge:{target:{kind:'item',id:'other'},allowed:false,blockers:['Unregistered references'],references:{'progress.item_id':3}}} as any;return response() as any;}}});await service.load(target);await service.preview('other');assert.equal(service.getSnapshot().preview!.descendants,600);assert.equal(service.getSnapshot().preview!.merge!.allowed,false);assert.equal(calls.filter(c=>c.method==='POST').length,0);service.dispose();

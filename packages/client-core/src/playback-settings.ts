@@ -1,6 +1,8 @@
 import {routePath} from "../../contracts/src/route-paths.ts";
 import type {ContentScope} from './library-content.ts';
 import type {OperationsApi} from './server-operations.ts';
+/** The server's sealed fence: 64 hex digits. Only its shape is checked; a moved one is never a refusal. */
+const sealed=(value:unknown):value is string=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
 export type PlaybackDiagnostics={directConfigured:boolean;hlsConfigured:boolean;finiteHlsConfigured:boolean;lifecycle:'unavailable'|'running'|'stopping';activeConversionSessions:number|null;conversionSessionLimit:number|null;conversionLimitSource:'fixed_runtime'|'owner_policy'|'unavailable';outputPolicy:'per_session_plan'|'unavailable'};
 export type PlaybackObservation={observedAt:string;freshUntil:string;diagnostics:Readonly<PlaybackDiagnostics>};
 export type PlaybackSettingsSnapshot={phase:'idle'|'loading'|'ready'|'error'|'access-denied';observation:Readonly<PlaybackObservation>|null;error:string|null;canRefresh:boolean};
@@ -19,7 +21,7 @@ export function parsePlaybackObservation(raw:unknown):Readonly<PlaybackObservati
 }
 export class PlaybackSettingsService{
  private state:PlaybackSettingsSnapshot={phase:'idle',observation:null,error:null,canRefresh:true};
- private listeners=new Set<()=>void>();private disposed=false;private fenced=false;private fence?:string;private pending?:AbortController;
+ private listeners=new Set<()=>void>();private disposed=false;private fenced=false;private pending?:AbortController;
  private options:{api:OperationsApi;scope:ContentScope;timeoutMs?:number};
  constructor(options:{api:OperationsApi;scope:ContentScope;timeoutMs?:number}){if(!options.scope.serverId||!options.scope.viewerId)throw new Error('A selected server owner is required.');if(options.timeoutMs!==undefined&&(!Number.isFinite(options.timeoutMs)||options.timeoutMs<1||options.timeoutMs>30000))throw new Error('Invalid observation timeout.');this.options={...options,scope:{...options.scope}};}
  getSnapshot=()=>this.state;
@@ -33,8 +35,9 @@ export class PlaybackSettingsService{
   try{
    const raw=await Promise.race([this.options.api.requestBounded<unknown>(routePath("get_admin_playback_diagnostics"),8192,c.signal),new Promise<never>((_,reject)=>{timer=setTimeout(()=>{c.abort();reject(new Error('Playback observation timed out.'));},this.options.timeoutMs??7000);})]);
    if(this.disposed||this.fenced||c.signal.aborted)return;
-   if(!object(raw)||!object(raw.scope)||raw.scope.serverId!==this.options.scope.serverId||typeof raw.scope.viewerFence!=='string'||!/^[a-f0-9]{64}$/.test(raw.scope.viewerFence)||this.fence&&this.fence!==raw.scope.viewerFence){this.revoke();return;}
-   const observation=parsePlaybackObservation(raw);this.fence=raw.scope.viewerFence;this.publish({phase:'ready',observation,error:null,canRefresh:true});
+   if(!object(raw)||!object(raw.scope)||raw.scope.serverId!==this.options.scope.serverId||!sealed(raw.scope.viewerFence)){this.revoke();return;}
+   // A moved viewer fence only means access was decided again; the server answered, so this is current. A refusal is a 401/403.
+   const observation=parsePlaybackObservation(raw);this.publish({phase:'ready',observation,error:null,canRefresh:true});
   }catch(error){if(this.disposed||this.fenced)return;if(object(error)&&(error.status===401||error.status===403)){this.revoke();return;}this.publish({phase:'error',observation:previous,error:'Playback observations could not be refreshed. Try again.',canRefresh:true});}
   finally{if(timer)clearTimeout(timer);if(this.pending===c)this.pending=undefined;}
  }

@@ -102,13 +102,13 @@ export function validateRepair(raw:unknown,scope:RepairScope,target:RepairTarget
 }
 export class MetadataRepairService {
  private state:RepairView=Object.freeze({phase:'idle',data:null,error:null,preview:null});
- private listeners=new Set<()=>void>();private epoch=0;private controller?:AbortController;private fence?:string;private target?:RepairTarget;private disposed=false;
+ private listeners=new Set<()=>void>();private epoch=0;private controller?:AbortController;private target?:RepairTarget;private disposed=false;
  private options:{api:Api;scope:RepairScope;timeoutMs?:number};
  constructor(options:{api:Api;scope:RepairScope;timeoutMs?:number}){if(!id(options.scope.serverId)||!options.scope.viewerId)throw Error('A concrete viewer scope is required.');if(options.timeoutMs!==undefined&&(!num(options.timeoutMs)||options.timeoutMs<1||options.timeoutMs>30000))throw Error('Invalid deadline.');this.options={...options,scope:Object.freeze({...options.scope})};}
  getSnapshot=()=>this.state;
  subscribe=(fn:()=>void)=>{this.listeners.add(fn);return()=>{this.listeners.delete(fn);};};
  private publish(state:RepairView){if(this.disposed)return;this.state=Object.freeze(state);for(const fn of this.listeners)fn();}
- cancel(){this.epoch++;this.controller?.abort();this.target=undefined;this.fence=undefined;this.publish({phase:'idle',data:null,error:null,preview:null});}
+ cancel(){this.epoch++;this.controller?.abort();this.target=undefined;this.publish({phase:'idle',data:null,error:null,preview:null});}
  dispose(){this.cancel();this.disposed=true;this.listeners.clear();}
  private async request(target:RepairTarget,method:string,body?:unknown,suffix='',upload=false,explicitPath?:string,caller?:RepairCaller):Promise<unknown>{
   if(caller&&(caller.signal.aborted||!caller.current()))throw Error('Repair caller retired.');
@@ -124,7 +124,6 @@ export class MetadataRepairService {
  }
  async load(target:RepairTarget){
   if(this.disposed)throw Error('Repair view is closed.');if(!id(target.id)||!id(target.libraryId)||!['item','show','season','album','artist','book'].includes(target.kind))throw Error('Select a concrete entity.');
-  if(JSON.stringify(target)!==JSON.stringify(this.target))this.fence=undefined;
   this.target=Object.freeze({...target});const epoch=++this.epoch;this.publish({phase:'loading',data:null,error:null,preview:null});
   try{const raw=await this.request(target,'GET');if(epoch!==this.epoch||this.disposed)return;this.accept(raw,target);}
   catch(error){if(epoch===this.epoch&&!this.disposed)this.failure(error,false);}
@@ -135,7 +134,7 @@ export class MetadataRepairService {
   try{const raw=await this.request(target,'GET');if(epoch!==this.epoch||this.disposed||this.target!==target||this.state.data!==expectedData)return;this.accept(raw,target);}
   catch(error){if(epoch===this.epoch&&!this.disposed)this.failure(error,false);}
  }
- private accept(raw:unknown,target:RepairTarget){const data=validateRepair(raw,this.options.scope,target);if(this.fence&&this.fence!==data.viewerFence)throw Object.assign(new Error('Owner access changed.'),{status:403});this.fence=data.viewerFence;this.publish({phase:'ready',data,error:null,preview:null});}
+ private accept(raw:unknown,target:RepairTarget){const data=validateRepair(raw,this.options.scope,target);/* The answer is the owner's access now: a moved fence is newer, never a refusal (that is a 401/403). */this.publish({phase:'ready',data,error:null,preview:null});}
  async command(command:RepairCommand,expectedData?:RepairData,caller?:RepairCaller):Promise<boolean>{
   const callerCurrent=()=>!caller||!caller.signal.aborted&&caller.current();
   if(!callerCurrent())return false;

@@ -20,7 +20,7 @@ test('private connection body is never retained; lost response recovery reads on
  assert.equal(ids,1);assert.equal(calls.filter(c=>c.method==='POST').length,1);assert.equal(calls.find(c=>c.method==='POST')?.body && (calls.find(c=>c.method==='POST')!.body as any).password,input.password);
  assert(calls.some(c=>c.path.endsWith('/source-operations/'+op)&&c.method==='GET'&&c.body===undefined));service.dispose();
 });
-test('an unsafe source is never listed, and malformed lists and changed owner fences fail closed',async()=>{
+test('an unsafe source is never listed, malformed lists fail closed, and a moved owner fence shows the newer list',async()=>{
  for(const row of [source({password:'secret'}),source({root:'https://private/'}),source({origin:'https://user:secret@private.example'}),source({kind:'ftp'}),source({generation:0})]){
   const service=new RemoteSourceService(api(async()=>list([row,source({id:'other'})])),scope,async()=>op);await service.load();assert.deepEqual(service.getSnapshot().sources.map(s=>s.id),['other']);assert(!JSON.stringify(service.getSnapshot()).includes('secret'));service.dispose();
  }
@@ -32,8 +32,9 @@ test('an unsafe source is never listed, and malformed lists and changed owner fe
  const newer=new RemoteSourceService(api(async()=>({...list([source({state:'warming_up',rangeSupport:'invented',errorCode:'solar_flare',futureField:1}),source({name:'Again'})]),futureField:true})),scope,async()=>op);
  await newer.load();assert.equal(newer.getSnapshot().error,'');assert.deepEqual(newer.getSnapshot().sources,[{...source({state:'warming_up',rangeSupport:'unknown'})}]);newer.dispose();
  let changed=false;
- const service=new RemoteSourceService(api(async()=>changed?{...list(),scope:{...wire,viewerFence:'changed'}}:list()),scope,async()=>op);
- await service.load();assert.equal(service.getSnapshot().sources.length,1);changed=true;await service.load();assert.equal(service.getSnapshot().sources.length,0);service.dispose();
+ const service=new RemoteSourceService(api(async()=>changed?{...list([source({name:'Renamed'})]),scope:{...wire,viewerFence:'changed'}}:list()),scope,async()=>op);
+ // The server answered under the owner's access now: the fence moving is never a refusal (that is a 401/403).
+ await service.load();assert.equal(service.getSnapshot().sources.length,1);changed=true;await service.load();assert.equal(service.getSnapshot().error,'');assert.deepEqual(service.getSnapshot().sources.map(s=>s.name),['Renamed']);service.dispose();
 });
 test('late list response cannot repopulate disposed owner state or initiate writes',async()=>{
  const d=deferred();let writes=0;
