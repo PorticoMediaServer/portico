@@ -165,3 +165,22 @@ test('the same runtime and group binding admit the opening when the output is un
   assert.ok(opening.getSnapshot().page, 'the unchanged local control adopts a real canonical page');
   opening.dispose();
 });
+
+test('an ended queue still draws its Up next window: the last title, current, with nothing after it', async t => {
+  const f = queueRuntime(t);
+  await f.runtime.selectionPlayback(() => true).play({context: selectionContext, items: [leaf('only')], signal: new AbortController().signal});
+  await f.arrive();
+  const fence = f.runtime.getSnapshot().fence!;
+  f.video.finish(); await settle(); f.clock.advance(5000); await settle();
+  assert.equal(f.runtime.getSnapshot().playback.phase, 'ended', 'the queue\'s only title has ended, as at the end of a book');
+  const lifetime = {signal: new AbortController().signal, isCurrent: () => true};
+  const port = f.runtime.captureListening(fence, lifetime);
+  assert.ok(port?.queue, 'Up next is still offered for the ended queue');
+  const opening = port!.queue!.edit(port!.queue!.list.getSnapshot(), lifetime);
+  t.after(() => opening.dispose());
+  await opening.open();
+  const shown = opening.getSnapshot();
+  assert.equal(shown.phase, 'ready', 'the window draws instead of the page-failed banner');
+  assert.deepEqual(shown.page!.rows.map(row => [row.itemId, row.current]), [['only', true]]);
+  assert.equal(shown.page!.canNext, false);
+});
