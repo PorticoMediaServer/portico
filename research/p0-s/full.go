@@ -35,7 +35,7 @@ func save(p string, v any) {
 	must(os.Rename(p+".tmp", p))
 }
 
-var normalWrites, writeOnly bool
+var normalWrites, writeOnly, facetMode, frameMode bool
 
 func open(path string) (*sql.DB, *sql.Conn) {
 	db, e := sql.Open("sqlite", path)
@@ -160,6 +160,9 @@ func seedAndSweep(c *sql.Conn, target int, out, hash string) {
 		}
 	}
 	save(filepath.Join(out, "full-seed.json"), map[string]any{"ddl_sha256": hash, "entities": n, "batches": batches, "shape": "Basic movie acceptance: entity+asset+link+encoded own-title FTS+library revision/event. No provider metadata, staging, scanner IO, prepared-media or full production typed command."})
+	if facetMode || frameMode {
+		return
+	}
 	if !writeOnly {
 		for rep := 0; rep < 3; rep++ {
 			cmd := exec.Command(os.Args[0], "--ddl", ddlPathForChildren, "--db", dbPathForChildren, "--out", out, "--browse-child")
@@ -281,7 +284,11 @@ func main() {
 	target := flag.Int("seed", 1000000, "resident Basic movie facts")
 	normalFlag := flag.Bool("normal", false, "NORMAL writer and separate PASSIVE checkpoint")
 	writeFlag := flag.Bool("write-only", false, "seed and writer quanta only")
+	facetFlag := flag.Bool("facets", false, "rating-band counts and restricted indexes")
+	frameFlag := flag.Bool("frames", false, "max source-frame replacements")
 	flag.Parse()
+	facetMode = *facetFlag
+	frameMode = *frameFlag
 	normalWrites = *normalFlag
 	writeOnly = *writeFlag
 	ddlPathForChildren = *ddl
@@ -356,6 +363,9 @@ func main() {
 			}()
 		}
 		seedAndSweep(c, *target, *out, hash)
+		if facetMode {
+			facetExperiment(c, *out, hash)
+		}
 		if stop != nil {
 			close(stop)
 			wg.Wait()
@@ -404,4 +414,216 @@ func main() {
 		must(h.c.Close())
 		must(h.d.Close())
 	}
+}
+
+func readSample(c *sql.Conn, q string, deadline time.Duration) (float64, int, string, string) {
+	ctx, cancel := context.WithTimeout(context.Background(), deadline)
+	defer cancel()
+	t := time.Now()
+	rows, e := c.QueryContext(ctx, q)
+	if e != nil {
+		return float64(time.Since(t).Nanoseconds()) / 1e6, 0, "", e.Error()
+	}
+	defer rows.Close()
+	cols, e := rows.Columns()
+	must(e)
+	n := 0
+	h := sha256.New()
+	for rows.Next() {
+		v := make([]any, len(cols))
+		p := make([]any, len(cols))
+		for j := range v {
+			p[j] = &v[j]
+		}
+		if e = rows.Scan(p...); e != nil {
+			break
+		}
+		fmt.Fprintln(h, v)
+		n++
+	}
+	if e == nil {
+		e = rows.Err()
+	}
+	err := ""
+	if e != nil {
+		err = e.Error()
+	}
+	return float64(time.Since(t).Nanoseconds()) / 1e6, n, hex.EncodeToString(h.Sum(nil)), err
+}
+func readCohort(c *sql.Conn, q string, samples int, budget time.Duration) map[string]any {
+	good := []float64{}
+	bad := []float64{}
+	errors := map[string]int{}
+	var count int
+	var hash string
+	for j := 0; j < samples; j++ {
+		ms, n, h, e := readSample(c, q, budget)
+		if e != "" {
+			bad = append(bad, ms)
+			errors[e]++
+		} else {
+			good = append(good, ms)
+			count = n
+			hash = h
+		}
+	}
+	result := map[string]any{"samples_ms": good, "refused_ms": bad, "errors": errors, "completed": len(good), "refused": len(bad), "rows": count, "row_hash": hash, "sql": q, "budget_ms": budget.Milliseconds()}
+	if len(good) > 0 {
+		result["p50_ms"] = pct(good, .5)
+		result["p95_ms"] = pct(good, .95)
+		result["p99_ms"] = pct(good, .99)
+	}
+	if len(bad) > 0 {
+		result["refusal_p95_ms"] = pct(bad, .95)
+		result["refusal_max_ms"] = pct(bad, 1)
+	}
+	return result
+}
+func facetExperiment(c *sql.Conn, out, hash string) {
+	overlay := `ALTER TABLE catalog_entities ADD COLUMN age_any INTEGER NOT NULL DEFAULT -1; ALTER TABLE catalog_entities ADD COLUMN age_rated INTEGER;
+ ALTER TABLE catalog_scalar_contributions ADD COLUMN child_age_any INTEGER; ALTER TABLE catalog_scalar_contributions ADD COLUMN child_age_rated INTEGER;
+ CREATE INDEX scalar_age_any ON catalog_scalar_contributions(parent_id,child_age_any,contributor_id) WHERE child_age_any IS NOT NULL;
+ CREATE INDEX scalar_age_rated ON catalog_scalar_contributions(parent_id,child_age_rated,contributor_id) WHERE child_age_rated IS NOT NULL;
+ CREATE TABLE rating_band_facet_counts(library_id INTEGER NOT NULL,kind INTEGER NOT NULL,term_id INTEGER NOT NULL,mode INTEGER NOT NULL CHECK(mode IN(0,1)),rating_band INTEGER NOT NULL,total INTEGER NOT NULL CHECK(total>=0),PRIMARY KEY(library_id,kind,term_id,mode,rating_band)) WITHOUT ROWID,STRICT;`
+	_, e := c.ExecContext(context.Background(), overlay)
+	must(e)
+	_, e = c.ExecContext(context.Background(), `UPDATE catalog_entities SET age_any=CASE WHEN id%1000=0 THEN 0 WHEN id%1000=1 THEN 8 WHEN id%20=0 THEN -1 ELSE CASE id%3 WHEN 0 THEN 13 WHEN 1 THEN 17 ELSE 18 END END;UPDATE catalog_entities SET age_rated=CASE WHEN age_any>=0 THEN age_any END;WITH RECURSIVE n(id) AS(VALUES(1) UNION ALL SELECT id+1 FROM n WHERE id<30) INSERT INTO catalog_terms(id,vocab,key,label) SELECT id,1,printf('genre-%d',id),printf('Genre%d',id) FROM n;INSERT INTO catalog_entity_terms SELECT e.id,1+((e.id*7+v.column1)%30) FROM catalog_entities e CROSS JOIN (VALUES(0),(1),(2)) v;`)
+	must(e)
+	// Normalized rating eligibility is fixed-policy source-derived, never keyed by user/profile.
+	fill := `INSERT INTO rating_band_facet_counts SELECT e.library_id,e.kind,t.term_id,0,e.age_any,count(*) FROM catalog_entities e JOIN catalog_entity_terms t ON t.entity_id=e.id GROUP BY e.library_id,e.kind,t.term_id,e.age_any;
+ INSERT INTO rating_band_facet_counts SELECT e.library_id,e.kind,t.term_id,1,e.age_rated,count(*) FROM catalog_entities e JOIN catalog_entity_terms t ON t.entity_id=e.id WHERE e.age_rated IS NOT NULL GROUP BY e.library_id,e.kind,t.term_id,e.age_rated;`
+	_, e = c.ExecContext(context.Background(), fill)
+	must(e)
+	sorts := []string{"sort_key", "added_at", "year", "duration_key", "community_rating_key", "critic_rating_key", "file_size_key", "resolution_key", "release_key", "random_key"}
+	var before int64
+	must(c.QueryRowContext(context.Background(), "SELECT sum(pgsize) FROM dbstat").Scan(&before))
+	results := []any{}
+	samples := 500
+	if os.Getenv("GITHUB_RUN_ID") == "" {
+		samples = 2
+	}
+	budget := 100 * time.Millisecond
+	for _, mode := range []int{0, 1} {
+		field := "age_any"
+		if mode == 1 {
+			field = "age_rated"
+		}
+		for _, ceiling := range []int{8, 17} {
+			source := fmt.Sprintf("SELECT t.term_id,count(*) FROM catalog_entities e JOIN catalog_entity_terms t ON t.entity_id=e.id WHERE e.library_id=1 AND e.kind=1 AND e.%s IS NOT NULL AND e.%s<=%d GROUP BY t.term_id ORDER BY t.term_id", field, field, ceiling)
+			fast := fmt.Sprintf("SELECT term_id,sum(total) FROM rating_band_facet_counts WHERE library_id=1 AND kind=1 AND mode=%d AND rating_band<=%d GROUP BY term_id HAVING sum(total)>0 ORDER BY term_id", mode, ceiling)
+			raw := readCohort(c, source, 1, 120*time.Second)
+			quick := readCohort(c, fast, samples, budget)
+			if raw["row_hash"] != quick["row_hash"] {
+				panic("rating-band count mismatch")
+			}
+			results = append(results, map[string]any{"case": "facet", "mode": mode, "ceiling": ceiling, "source": raw, "candidate": quick})
+		}
+	}
+	// Add exact prefix indexes after baseline facets; size and extra per-change work are charged.
+	for _, field := range []string{"age_any", "age_rated"} {
+		for _, sortcol := range sorts {
+			q := fmt.Sprintf("CREATE INDEX restricted_%s_%s ON catalog_entities(library_id,kind,%s,%s,id)", field, sortcol, field, sortcol)
+			_, e = c.ExecContext(context.Background(), q)
+			must(e)
+			overlay += q + ";"
+		}
+	}
+	for _, mode := range []int{0, 1} {
+		field := "age_any"
+		if mode == 1 {
+			field = "age_rated"
+		}
+		for _, ceiling := range []int{8, 17} {
+			for _, sortcol := range sorts {
+				q := bandBrowse(field, ceiling, sortcol, "")
+				results = append(results, map[string]any{"case": "browse", "mode": mode, "ceiling": ceiling, "sort": sortcol, "candidate": readCohort(c, q, samples, budget)})
+			}
+		}
+	}
+	// Arbitrary label sets remain exact anti-joins over source membership, not another user catalogue.
+	_, e = c.ExecContext(context.Background(), `CREATE TABLE research_labels(item_id INTEGER NOT NULL,label_id INTEGER NOT NULL,PRIMARY KEY(item_id,label_id)) WITHOUT ROWID;`)
+	must(e)
+	for j, div := range []int{11, 23, 47, 97, 193} {
+		_, e = c.ExecContext(context.Background(), fmt.Sprintf("INSERT INTO research_labels SELECT id,%d FROM catalog_entities WHERE id%%%d=0", j+1, div))
+		must(e)
+	}
+	fallbackSamples := 21
+	if os.Getenv("GITHUB_RUN_ID") == "" {
+		fallbackSamples = 2
+	}
+	for _, labels := range []string{"1", "1,2,3", "1,2,3,4,5"} {
+		exclude := "NOT EXISTS(SELECT 1 FROM research_labels l WHERE l.item_id=e.id AND l.label_id IN(" + labels + "))"
+		for _, ceiling := range []int{8, 17} {
+			q := fmt.Sprintf("SELECT t.term_id,count(*) FROM catalog_entities e JOIN catalog_entity_terms t ON t.entity_id=e.id WHERE e.library_id=1 AND e.kind=1 AND e.age_rated IS NOT NULL AND e.age_rated<=%d AND %s GROUP BY t.term_id ORDER BY t.term_id", ceiling, exclude)
+			results = append(results, map[string]any{"case": "label-facet", "labels": labels, "ceiling": ceiling, "result": readCohort(c, q, fallbackSamples, budget)})
+			for _, sortcol := range []string{"sort_key", "added_at", "duration_key", "random_key"} {
+				results = append(results, map[string]any{"case": "label-browse", "labels": labels, "ceiling": ceiling, "sort": sortcol, "result": readCohort(c, bandBrowse("age_rated", ceiling, sortcol, exclude), fallbackSamples, budget)})
+			}
+		}
+	}
+	writes := []float64{}
+	changes := []int64{}
+	reps := 501
+	if os.Getenv("GITHUB_RUN_ID") == "" {
+		reps = 2
+	}
+	var resident int
+	must(c.QueryRowContext(context.Background(), "SELECT count(*) FROM catalog_entities").Scan(&resident))
+	for j := 0; j < reps; j++ {
+		item := 1 + (j*7919)%resident
+		var old int
+		must(c.QueryRowContext(context.Background(), fmt.Sprintf("SELECT age_any FROM catalog_entities WHERE id=%d", item)).Scan(&old))
+		next := 0
+		if old == 0 {
+			next = 8
+		}
+		sqltext := bandDeltaSQL(item, old, next) + fmt.Sprintf("UPDATE catalog_entities SET age_any=%d,age_rated=%d WHERE id=%d;INSERT INTO admin_receipts VALUES('band','%d','%s','applied',1);", next, next, item, j, strings.Repeat("0", 64))
+		var a, b int64
+		must(c.QueryRowContext(context.Background(), "SELECT total_changes()").Scan(&a))
+		_, e = c.ExecContext(context.Background(), "BEGIN IMMEDIATE")
+		must(e)
+		start := time.Now()
+		_, e = c.ExecContext(context.Background(), sqltext)
+		must(e)
+		_, e = c.ExecContext(context.Background(), "COMMIT")
+		must(e)
+		writes = append(writes, float64(time.Since(start).Nanoseconds())/1e6)
+		must(c.QueryRowContext(context.Background(), "SELECT total_changes()").Scan(&b))
+		changes = append(changes, b-a)
+	}
+	alloc := []any{}
+	rows, e := c.QueryContext(context.Background(), "SELECT name,sum(pgsize),sum(payload) FROM dbstat WHERE name LIKE 'restricted_%' OR name='rating_band_facet_counts' GROUP BY name")
+	must(e)
+	for rows.Next() {
+		var name string
+		var pages, payload int64
+		must(rows.Scan(&name, &pages, &payload))
+		alloc = append(alloc, []any{name, pages, payload})
+	}
+	must(rows.Close())
+	oh := sha256.Sum256([]byte(overlay))
+	save(filepath.Join(out, "band-facet-results.json"), map[string]any{"base_ddl_sha256": hash, "overlay_sha256": hex.EncodeToString(oh[:]), "overlay": overlay, "results": results, "allocation": alloc, "write_samples_ms": writes, "write_rows": changes, "write_p99_ms": pct(writes, .99), "write_max_ms": pct(writes, 1), "counter_before_index_bytes": before, "boundary": "Movie/per-item age-only fixed projections; arbitrary labels exact anti-join with100ms SQL deadline. No per-profile materialization. Container age propagation separate."})
+}
+func bandBrowse(field string, ceiling int, sortcol, exclude string) string {
+	parts := []string{}
+	for _, band := range []int{-1, 0, 8, 13, 17, 18} {
+		if band > ceiling {
+			continue
+		}
+		where := fmt.Sprintf("e.library_id=1 AND e.kind=1 AND e.%s=%d", field, band)
+		if exclude != "" {
+			where += " AND " + exclude
+		}
+		parts = append(parts, fmt.Sprintf("SELECT * FROM(SELECT e.id,e.%s AS value FROM catalog_entities e WHERE %s ORDER BY e.%s DESC,e.id DESC LIMIT40)", sortcol, where, sortcol))
+	}
+	q := "SELECT * FROM(" + strings.Join(parts, " UNION ALL ") + ") ORDER BY value DESC,id DESC LIMIT40"
+	return strings.ReplaceAll(q, "LIMIT40", "LIMIT 40")
+}
+func bandDeltaSQL(item, old, next int) string {
+	q := ""
+	for _, mode := range []int{0, 1} {
+		q += fmt.Sprintf("UPDATE rating_band_facet_counts SET total=total-1 WHERE library_id=1 AND kind=1 AND mode=%d AND rating_band=%d AND term_id IN(SELECT term_id FROM catalog_entity_terms WHERE entity_id=%d);", mode, old, item)
+		q += fmt.Sprintf("INSERT INTO rating_band_facet_counts SELECT1,1,term_id,%d,%d,1 FROM catalog_entity_terms WHERE entity_id=%d ON CONFLICT(library_id,kind,term_id,mode,rating_band) DO UPDATE SET total=total+1;", mode, next, item)
+	}
+	return strings.ReplaceAll(q, "SELECT1", "SELECT 1")
 }

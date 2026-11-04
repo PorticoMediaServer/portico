@@ -12,7 +12,7 @@ permissions:
   contents: read
 jobs:
   scale:
-    if: ${{ inputs.mode != 'sweep' && inputs.mode != 'fanout' && inputs.mode != 'supported' && inputs.mode != 'full' && inputs.mode != 'envelope' && inputs.mode != 'envelope2' && inputs.mode != 'selected' && inputs.mode != 'fullpair' && inputs.mode != 'widthpair' && inputs.mode != 'normal' }}
+    if: ${{ inputs.mode != 'sweep' && inputs.mode != 'fanout' && inputs.mode != 'supported' && inputs.mode != 'full' && inputs.mode != 'envelope' && inputs.mode != 'envelope2' && inputs.mode != 'selected' && inputs.mode != 'fullpair' && inputs.mode != 'widthpair' && inputs.mode != 'normal' && inputs.mode != 'facets' }}
     runs-on: ubuntu-24.04
     env:
       MODE: ${{ inputs.mode || 'churn' }}
@@ -85,7 +85,7 @@ jobs:
           retention-days: 14
 
   full:
-    if: ${{ inputs.mode == 'full' || inputs.mode == 'fullpair' || inputs.mode == 'widthpair' || inputs.mode == 'normal' }}
+    if: ${{ inputs.mode == 'full' || inputs.mode == 'fullpair' || inputs.mode == 'widthpair' || inputs.mode == 'normal' || inputs.mode == 'facets' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 80
     env:
@@ -96,6 +96,7 @@ jobs:
       matrix:
         profile: [standard, legacy8]
         repetition: ${{ fromJSON(inputs.mode == 'normal' && '[1,2,3]' || '[1]') }}
+        size: ${{ fromJSON(inputs.mode == 'facets' && '[400000,1000000]' || '[1000000]') }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {persist-credentials: false}
@@ -115,11 +116,11 @@ jobs:
           cd server
           go build -overlay="$RUNNER_TEMP/full-overlay.json" -o "$RUNNER_TEMP/p0-s-full" ./cmd/devhash
       - name: Exact full schema on bundled engine
-        run: bash research/p0-s/launch.sh "$RUNNER_TEMP/p0-s" 1000000 '${{ matrix.profile }}' "$MODE"
+        run: bash research/p0-s/launch.sh "$RUNNER_TEMP/p0-s" '${{ matrix.size }}' '${{ matrix.profile }}' "$MODE"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: p0-s-full-${{ matrix.profile }}-rep${{ matrix.repetition }}
+          name: p0-s-full-${{ matrix.profile }}-rep${{ matrix.repetition }}-${{ matrix.size }}
           path: |
             ${{ runner.temp }}/p0-s/**/*.json
             ${{ runner.temp }}/p0-s/*.txt

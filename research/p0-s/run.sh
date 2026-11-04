@@ -13,6 +13,10 @@ cg=$(awk -F: '$1=="0" {print $3}' /proc/self/cgroup)
    echo "$field"; cat "/sys/fs/cgroup$cg/$field"
  done
 } > "$out/host-$stage.txt"
+if [ "$stage" = facets ]; then
+  "$RUNNER_TEMP/p0-s-full" --ddl research/p0-s/full-09a972.sql --db "$out/full.db" --out "$out" --seed "$size" --normal --write-only --facets
+  exit
+fi
 if [ "$stage" = normal ]; then
   "$RUNNER_TEMP/p0-s-full" --ddl research/p0-s/full-09a972.sql --db "$out/full.db" --out "$out" --seed 1000000 --normal --write-only
   exit
