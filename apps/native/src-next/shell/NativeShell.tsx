@@ -109,7 +109,7 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     if (!routes.length && snapshot.contentVisible === false) routes.push('route:current');
     return tvLayerSpecs(routes, snapshot.mediaExpanded === true, tvListeningPresent, () => baseLayer.current, () => routeLayer.current, JSON.parse(presentedLayerKeys) as string[]);
   }, [routeLayerKeys, presentedLayerKeys, snapshot.contentVisible, snapshot.mediaExpanded, theme.isTV, tvListeningPresent]);
-  const topLayer = layerSpecs.at(-1)?.key;
+  const topLayer = layerSpecs.at(-1)?.key, presentedTop = !!topLayer?.startsWith('presented:');
   useLayoutEffect(() => {if (!runtime.retirementSignal?.aborted) layers?.sync(layerSpecs);}, [layers, layerSpecs, runtime]);
   useEffect(() => () => {railRelease.current?.();}, []);
   const [remembered, setRemembered] = useState<string>(), [memoryReady, setMemoryReady] = useState(false);
@@ -348,8 +348,15 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   </>;
   return <NativeStackSlotsProvider value={stacks ? slots : undefined}><View testID="native-shell" style={{flex: 1, backgroundColor: theme.colors.ink, overflow: 'hidden'}}>
     {theme.isTV ? <View style={{position: 'absolute', left: layout.left, top: layout.top, width: layout.width, height: layout.height, transformOrigin: 'top left', transform: [{scale: layout.scale}]}}>{content}</View> : content}
-    {runtime.playback && <NativePlaybackLayer adapter={runtime.playback} runtime={runtime} authority={snapshot.authority} contentInset={sideWidth} onTVListeningPresenceChange={theme.isTV ? setTVListeningPresent : undefined}/>}
-    {runtime.renderWatch && <View pointerEvents="box-none" style={{position: 'absolute', inset: 0, zIndex: theme.layers.player + 1}}>{runtime.renderWatch()}</View>}
+    {runtime.playback && (() => {
+      const playback = <NativePlaybackLayer adapter={runtime.playback} runtime={runtime} authority={snapshot.authority} contentInset={sideWidth} onTVListeningPresenceChange={theme.isTV ? setTVListeningPresent : undefined}/>;
+      // TV: a presented state (a refused link) over the player or the listening screen covers them, so nothing in
+      // them (the chrome's preferred picture as it hides) can take focus from under it. Same element either way.
+      return theme.isTV ? <View pointerEvents="box-none" style={{position: 'absolute', inset: 0, zIndex: theme.layers.player}}>
+        <CoveredLayer covered={presentedTop} inertWhenUncovered testID="native-shell-playback" style={{position: 'absolute', inset: 0}}>{playback}</CoveredLayer></View> : playback;
+    })()}
+    {runtime.renderWatch && <View pointerEvents="box-none" style={{position: 'absolute', inset: 0, zIndex: theme.layers.player + 1}}>
+      {theme.isTV ? <CoveredLayer covered={presentedTop} inertWhenUncovered testID="native-shell-watch" style={{position: 'absolute', inset: 0}}>{runtime.renderWatch()}</CoveredLayer> : runtime.renderWatch()}</View>}
     {theme.isTV ? runtime.renderRoutes({covered: !topLayer?.startsWith('route:'), hostRef: routeLayer}) : <Animated.View pointerEvents={initialPlayer ? 'none' : 'box-none'} accessibilityElementsHidden={!!initialPlayer}
       importantForAccessibility={initialPlayer ? 'no-hide-descendants' : 'auto'} style={[{position: 'absolute', inset: 0}, initialTitleStyle]}>{runtime.renderRoutes()}</Animated.View>}
     <ShellUnreachableLine reachability={runtime.reachability} serverName={snapshot.serverName} layout={layout}
