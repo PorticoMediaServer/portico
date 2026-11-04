@@ -12,17 +12,18 @@ type derivedCallableBinding struct {
 	info *types.Info
 }
 type derivedCallableOrigins struct {
-	writes   map[types.Object][]derivedCallableBinding
-	unstable map[types.Object]bool
-	captures map[*ast.FuncLit]bool
+	writes        map[types.Object][]derivedCallableBinding
+	unstable      map[types.Object]bool
+	captures      map[*ast.FuncLit]bool
+	providerHints map[types.Object]map[string]bool // diagnostics only; never closes a callable
 }
 
 // Function parameters, fields, heap/global slots and function-producing calls
 // cannot prove an ordinary target. Treat them as unknown writers. Only stable
 // local aliases of declared free functions/literals are closed. This rule does
 // not depend on finding a reflect import in the caller or guessing a method name.
-func derivedCallableFiles(loader *derivedTypeLoader, _ map[string]bool) (map[string]bool, error) {
-	origins := &derivedCallableOrigins{writes: map[types.Object][]derivedCallableBinding{}, unstable: map[types.Object]bool{}, captures: map[*ast.FuncLit]bool{}}
+func derivedCallableFiles(loader *derivedTypeLoader, _ map[string]bool, reports ...*derivedClearanceReport) (map[string]bool, error) {
+	origins := &derivedCallableOrigins{writes: map[types.Object][]derivedCallableBinding{}, unstable: map[types.Object]bool{}, captures: map[*ast.FuncLit]bool{}, providerHints: map[types.Object]map[string]bool{}}
 	type checkedFile struct {
 		file *ast.File
 		info *types.Info
@@ -86,6 +87,15 @@ func derivedCallableFiles(loader *derivedTypeLoader, _ map[string]bool) (map[str
 							var value ast.Expr
 							if len(node.Rhs) == len(node.Lhs) {
 								value = node.Rhs[i]
+							} else if len(reports) != 0 && reports[0] != nil && len(node.Rhs) == 1 {
+								if call, ok := node.Rhs[0].(*ast.CallExpr); ok {
+									if fn, ok := derivedFlowObject(call.Fun, info).(*types.Func); ok {
+										if origins.providerHints[object] == nil {
+											origins.providerHints[object] = map[string]bool{}
+										}
+										origins.providerHints[object][fn.FullName()] = true
+									}
+								}
 							}
 							origins.writes[object] = append(origins.writes[object], derivedCallableBinding{value, info})
 						}
@@ -132,6 +142,9 @@ func derivedCallableFiles(loader *derivedTypeLoader, _ map[string]bool) (map[str
 			_, parameter := types.Unalias(typ).(*types.TypeParam)
 			if parameter || ((derivedCallableType(typ) || typ == nil || typ == types.Typ[types.Invalid]) && !origins.closed(call.Fun, info, map[types.Object]bool{})) {
 				out[source.name] = true
+				if len(reports) != 0 {
+					reports[0].callable(source.name, call, info, origins)
+				}
 			}
 			return true
 		})

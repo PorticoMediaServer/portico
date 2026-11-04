@@ -46,8 +46,10 @@ type derivedSQLEffect struct {
 	Verb  string `json:"verb"`
 }
 type derivedSQLPin struct {
-	SHA256  string             `json:"sha256"`
-	Effects []derivedSQLEffect `json:"effects"`
+	SHA256   string             `json:"sha256"`
+	Effects  []derivedSQLEffect `json:"effects"`
+	Proof    *derivedSQLProof   `json:"proof,omitempty"`
+	verified bool               // in-memory receipt only; never accepted from the manifest
 }
 
 var updateDerivedWriters = flag.Bool("update-derived-writers", false, "rewrite the derived-writer census for deliberate review")
@@ -75,9 +77,27 @@ func TestDerivedTableWritersHaveDeclaredOwners(t *testing.T) {
 	for _, m := range on.FindAllStringSubmatch(BaselineSQL(), -1) {
 		tables[strings.ToLower(m[1])] = true
 	}
-	got, err := scanDerivedWritersLogged(root, tables, t.Logf)
+	db, err := OpenFresh(filepath.Join(t.TempDir(), "effects.sqlite"))
 	if err != nil {
 		t.Fatal(err)
+	}
+	graph, err := derivedSchemaEffects(db)
+	db.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	proofs := &derivedProofScan{graph: graph, pins: want.Dynamic}
+	if *derivedClearanceOutput != "" {
+		proofs.report = newDerivedClearanceReport()
+	}
+	got, err := scanDerivedWritersLogged(root, tables, t.Logf, proofs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if proofs.report != nil {
+		if err := proofs.report.write(*derivedClearanceOutput, got, "internal/compactcatalog"); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	got.Migrated = want.Migrated
@@ -85,16 +105,20 @@ func TestDerivedTableWritersHaveDeclaredOwners(t *testing.T) {
 		got.Migrated = map[string]string{}
 	}
 	for file, actual := range got.Dynamic {
-		pin := want.Dynamic[file]
-		if pin.SHA256 == actual.SHA256 {
-			actual.Effects = pin.Effects
-		}
 		// Regeneration never carries a stale narrowing across changed source.
 		// An unresolved file remains explicitly unknown until separately reviewed.
 		if *updateDerivedWriters && len(actual.Effects) == 0 {
 			actual.Effects = []derivedSQLEffect{{Table: "*", Verb: "*"}}
 		}
 		got.Dynamic[file] = actual
+		if actual.verified {
+			pin := want.Dynamic[file]
+			pin.verified = true
+			want.Dynamic[file] = pin
+		}
+	}
+	for _, problem := range proofs.problems {
+		t.Error(problem)
 	}
 
 	for _, problem := range derivedOwnershipProblems(got) {
@@ -143,12 +167,25 @@ func TestDerivedTableWritersHaveDeclaredOwners(t *testing.T) {
 // its callers), or be removed/narrowed to the owner first.
 func derivedOwnershipProblems(c writerCensus) []string {
 	var problems []string
+	fixtureProved, fixtureOpen := false, false
+	for file, pin := range c.Dynamic {
+		if filepath.ToSlash(filepath.Dir(file)) == "internal/catalogtest" {
+			if pin.verified && pin.Proof != nil && pin.Proof.Kind == "test_fixture" {
+				fixtureProved = true
+			} else {
+				fixtureOpen = true
+			}
+		}
+	}
 	for _, site := range c.UnresolvedReflection {
 		problems = append(problems, "unresolved reflective selection "+site+"; resolve its types, a source pin cannot waive this")
 	}
 	verbs := map[string]bool{"*": true, "SELECT": true, "EXPLAIN": true, "INSERT": true, "UPDATE": true, "DELETE": true, "REPLACE": true, "CREATE": true, "ALTER": true, "DROP": true, "PRAGMA": true, "VACUUM": true}
 	for file, pin := range c.Dynamic {
-		if len(pin.SHA256) != 64 || len(pin.Effects) == 0 {
+		if !derivedWildcard(pin) && !pin.verified {
+			problems = append(problems, "finite/non-SQL effects require a verified source proof: "+file)
+		}
+		if len(pin.SHA256) != 64 || len(pin.Effects) == 0 && (pin.Proof == nil || pin.Proof.Kind != "resolved_call") {
 			problems = append(problems, "unknown SQL writer "+file+" requires an explicit source pin naming table and verb")
 		}
 		for _, effect := range pin.Effects {
@@ -158,14 +195,23 @@ func derivedOwnershipProblems(c writerCensus) []string {
 		}
 	}
 	for table, owner := range c.Migrated {
-		if !reflect.DeepEqual(c.Tables[table], []string{owner}) {
-			problems = append(problems, fmt.Sprintf("migrated table %s must have sole owner %s, got %v", table, owner, c.Tables[table]))
+		runtimeOwners := []string{}
+		for _, writer := range c.Tables[table] {
+			if writer != "internal/catalogtest" || !fixtureProved || fixtureOpen {
+				runtimeOwners = append(runtimeOwners, writer)
+			}
+		}
+		if !reflect.DeepEqual(runtimeOwners, []string{owner}) {
+			problems = append(problems, fmt.Sprintf("migrated table %s must have sole owner %s, got %v", table, owner, runtimeOwners))
 		}
 		for file, pin := range c.Dynamic {
+			if pin.verified && pin.Proof != nil && pin.Proof.Kind == "test_fixture" {
+				continue // only after the existing runtime-import proof succeeds
+			}
 			if filepath.ToSlash(filepath.Dir(file)) == owner {
 				continue
 			}
-			mayWrite := len(pin.Effects) == 0
+			mayWrite := !pin.verified || len(pin.Effects) == 0 && (pin.Proof == nil || pin.Proof.Kind != "resolved_call")
 			for _, effect := range pin.Effects {
 				if (effect.Table == "*" || effect.Table == table) && effect.Verb != "SELECT" && effect.Verb != "EXPLAIN" {
 					mayWrite = true
@@ -184,7 +230,7 @@ func scanDerivedWriters(root string, tables map[string]bool) (writerCensus, erro
 	return scanDerivedWritersLogged(root, tables, nil)
 }
 
-func scanDerivedWritersLogged(root string, tables map[string]bool, logf func(string, ...any)) (writerCensus, error) {
+func scanDerivedWritersLogged(root string, tables map[string]bool, logf func(string, ...any), proofScans ...*derivedProofScan) (writerCensus, error) {
 	started := time.Now()
 	var sqlTypes, reflectionTypes, callableFlow time.Duration
 	out := writerCensus{Tables: map[string][]string{}, Dynamic: map[string]derivedSQLPin{}}
@@ -283,12 +329,17 @@ func scanDerivedWritersLogged(root string, tables map[string]bool, logf func(str
 		}
 	}
 	byName := map[string]sourceFile{}
+	var report *derivedClearanceReport
+	if len(proofScans) != 0 {
+		report = proofScans[0].report
+	}
 	importsReflect := map[string]bool{}
 	for _, source := range files {
 		byName[source.relative] = source
 		for _, spec := range source.file.Imports {
 			if path, err := strconv.Unquote(spec.Path.Value); err != nil || path == "reflect" {
 				importsReflect[source.relative] = true
+				report.add(source.relative, "reflect import")
 				markDynamic(source)
 			}
 		}
@@ -323,6 +374,7 @@ func scanDerivedWritersLogged(root string, tables map[string]bool, logf func(str
 				if expr, ok := node.(ast.Expr); ok {
 					if reflective, unresolved := derivedReflectionSurface(expr, info, reflectionMethods, signatures); reflective {
 						markDynamic(source)
+						report.add(source.relative, "typed reflection")
 						flagged[source.relative] = true
 						if unresolved {
 							pos := fset.Position(expr.Pos())
@@ -335,7 +387,7 @@ func scanDerivedWritersLogged(root string, tables map[string]bool, logf func(str
 		}
 		reflectionTypes += time.Since(profileStarted)
 		callableStarted := time.Now()
-		callers, err := derivedCallableFiles(loader, flagged)
+		callers, err := derivedCallableFiles(loader, flagged, report)
 		if err != nil {
 			return out, err
 		}
@@ -370,6 +422,23 @@ func scanDerivedWritersLogged(root string, tables map[string]bool, logf func(str
 					writers[table][owner] = true
 				}
 			}
+			// Apply the same FK/trigger closure to constant SQL as to narrowed
+			// builders. Fragments are handled at execution sites, never guessed.
+			if len(proofScans) != 0 {
+				graph := proofScans[0].graph
+				if direct, parseErr := graph.direct(sql); parseErr == nil {
+					if effects, closeErr := graph.expand(direct); closeErr == nil {
+						for _, effect := range effects {
+							if tables[effect.Table] {
+								writers[effect.Table][owner] = true
+							}
+						}
+					} else {
+						report.add(rel, "unmodelled schema/temporary target")
+						return true
+					}
+				}
+			}
 			return unknown
 		}
 		parents := map[ast.Node]ast.Node{}
@@ -389,13 +458,21 @@ func scanDerivedWritersLogged(root string, tables map[string]bool, logf func(str
 			if call, ok := node.(*ast.CallExpr); ok {
 				if index, sqlCall := derivedSQLSurface(call.Fun, info); sqlCall {
 					if index < 0 || index >= len(call.Args) {
+						report.add(rel, "unresolved SQL signature")
 						dynamic()
 					} else {
 						value := info.Types[call.Args[index]].Value
 						if value == nil || value.Kind() != constant.String {
+							report.sqlArgument(rel, call.Args[index], info)
 							dynamic()
 						} else if record(constant.StringVal(value)) {
 							dynamic()
+						}
+						if len(proofScans) != 0 && value != nil && value.Kind() == constant.String {
+							if _, effectErr := proofScans[0].graph.direct(constant.StringVal(value)); effectErr != nil {
+								report.add(rel, "unmodelled schema/temporary target")
+								dynamic()
+							}
 						}
 					}
 				}
@@ -431,6 +508,7 @@ func scanDerivedWritersLogged(root string, tables map[string]bool, logf func(str
 					declaration = true
 				}
 				if !declaration && (!isCall || call.Fun != current) {
+					report.add(rel, "escaped SQL executor")
 					dynamic()
 				}
 			}
@@ -456,11 +534,23 @@ func scanDerivedWritersLogged(root string, tables map[string]bool, logf func(str
 					}
 				}
 				if !inConstant {
+					report.add(rel, "SQL expression/fragment")
 					dynamic()
 				}
 			}
 			return false
 		})
+		if len(proofScans) != 0 {
+			if pin, exists := out.Dynamic[rel]; exists {
+				pin = proofScans[0].verify(typeLoader, file, rel, pin)
+				out.Dynamic[rel] = pin
+				for _, effect := range pin.Effects {
+					if tables[effect.Table] && effect.Verb != "SELECT" && effect.Verb != "EXPLAIN" {
+						writers[effect.Table][owner] = true
+					}
+				}
+			}
+		}
 	}
 
 	for table, owners := range writers {
@@ -814,6 +904,9 @@ func run(){(*sql.DB).QueryRowContext(db,ctx,query)}`,
 func pinDerivedSQL(c *writerCensus, file, table, verb string) {
 	pin := c.Dynamic[file]
 	pin.Effects = []derivedSQLEffect{{Table: table, Verb: verb}}
+	// These synthetic tests isolate ownership decisions from source proof
+	// validation. Real receipts are issued only by derivedProofScan.verify.
+	pin.verified = table != "*" || verb != "*"
 	c.Dynamic[file] = pin
 }
 func pinUnknownDerivedSQL(c *writerCensus) {

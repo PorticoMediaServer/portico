@@ -242,6 +242,13 @@
     },
     {
       "package": "server/internal/persistence",
+      "why": "Closed derived-writer proofs also bind workspace dependency checksums and the existing audited SQL callback boundary, including its test-only census policy",
+      "reads": ["apikit/go.*", "go.work*", "server/internal/dbwork/sql_callback_guard_test.go"],
+      "files": ["server/internal/persistence/derived_writers_test.go"],
+      "tests": ["TestDerivedTableWritersHaveDeclaredOwners"]
+    },
+    {
+      "package": "server/internal/persistence",
       "why": "Derived-table ownership scans SQL and resolved reflective callees across build profiles, checks module dependency types, and pins unknown writers after trigger removal",
       "reads": ["server/*.go", "server/go.mod", "server/go.sum", "apikit/*.go", "apikit/go.mod", "go.work", "server/internal/persistence/migrations/0001_baseline.sql"],
       "ignore": ["*_test.go", "*/thirdparty/*", "*/testdata/*"],

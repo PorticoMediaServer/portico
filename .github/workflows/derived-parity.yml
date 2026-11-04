@@ -1,11 +1,6 @@
 name: Derived data parity
 on:
   pull_request:
-    paths:
-      - server/**
-      - apikit/**
-      - go.work
-      - .github/workflows/derived-parity.yml
   merge_group:
   workflow_dispatch:
 permissions:
@@ -15,6 +10,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   parity:
+    name: Derived data parity
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
@@ -28,6 +24,9 @@ jobs:
       - name: Incremental equals rebuild from source
         working-directory: server
         run: go test -p 1 -v ./internal/derivedtest
+      - name: SQL callback boundary and negative controls
+        working-directory: server
+        run: go test -p 1 -run '^Test(NoArbitrarySQLCallbackSurfaces|SQLCallbackGuardCatchesSyntheticViolations|SearchMatchPureSQLCallback)$' ./internal/dbwork
       - name: Offline rebuild command
         working-directory: server
         run: go test -p 1 -run '^TestCatalogRebuildCommand' ./cmd/server

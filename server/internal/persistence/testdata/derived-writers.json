@@ -5,7 +5,8 @@
       "internal/identity"
     ],
     "access_limits": [
-      "internal/access"
+      "internal/access",
+      "internal/identity"
     ],
     "account_portico_links": [
       "internal/access",
@@ -41,6 +42,7 @@
     ],
     "api_credentials": [
       "internal/access",
+      "internal/hosted",
       "internal/identity"
     ],
     "artwork_blobs": [
@@ -67,6 +69,11 @@
     ],
     "audio_metadata_policies": [
       "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/httpapi/fixture",
+      "internal/livechannels/dvr",
       "internal/metadata"
     ],
     "audio_source_metadata": [
@@ -76,6 +83,8 @@
       "internal/catalog"
     ],
     "authorization_session_families": [
+      "internal/access",
+      "internal/hosted",
       "internal/identity",
       "internal/testauth"
     ],
@@ -110,7 +119,11 @@
       "internal/catalog/scalebench",
       "internal/compactcatalog"
     ],
-    "catalog_automatic_members": [],
+    "catalog_automatic_members": [
+      "internal/catalog",
+      "internal/catalogtest",
+      "internal/metadata"
+    ],
     "catalog_book_chapters": [
       "internal/compactcatalog"
     ],
@@ -132,14 +145,18 @@
     "catalog_browse_counted_rows": [
       "internal/compactcatalog"
     ],
-    "catalog_browse_groups": [],
+    "catalog_browse_groups": [
+      "internal/compactcatalog"
+    ],
     "catalog_browse_member_metrics": [
       "internal/compactcatalog"
     ],
     "catalog_browse_memberships": [
       "internal/compactcatalog"
     ],
-    "catalog_browse_memberships_previous": [],
+    "catalog_browse_memberships_previous": [
+      "internal/compactcatalog"
+    ],
     "catalog_browse_rows": [
       "internal/compactcatalog"
     ],
@@ -148,7 +165,10 @@
       "internal/catalog",
       "internal/compactcatalog"
     ],
-    "catalog_collections": [],
+    "catalog_collections": [
+      "internal/catalog",
+      "internal/compactcatalog"
+    ],
     "catalog_credit_labels": [
       "internal/catalog/scalebench",
       "internal/compactcatalog"
@@ -171,15 +191,27 @@
       "internal/compactcatalog"
     ],
     "catalog_dirty": [
-      "internal/catalog",
-      "internal/compactcatalog",
-      "internal/metadata"
-    ],
-    "catalog_entities": [
+      "internal/administration",
       "internal/catalog",
       "internal/catalog/scalebench",
       "internal/catalogtest",
-      "internal/compactcatalog"
+      "internal/compactcatalog",
+      "internal/enrichment",
+      "internal/httpapi/fixture",
+      "internal/ingestion",
+      "internal/livechannels/dvr",
+      "internal/mediaanalysis",
+      "internal/metadata",
+      "internal/reading",
+      "internal/remotesources"
+    ],
+    "catalog_entities": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/metadata"
     ],
     "catalog_entity_mutations": [
       "internal/catalog",
@@ -232,7 +264,10 @@
       "internal/compactcatalog"
     ],
     "catalog_info_changes": [
+      "internal/administration",
       "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
       "internal/compactcatalog"
     ],
     "catalog_info_input_families": [
@@ -260,12 +295,24 @@
     "catalog_info_new_subtitle_sidecars": [],
     "catalog_info_new_subtitles": [],
     "catalog_info_path_old": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
       "internal/compactcatalog"
     ],
     "catalog_info_scalar_old": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
       "internal/compactcatalog"
     ],
     "catalog_info_shapes": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
       "internal/compactcatalog"
     ],
     "catalog_item_attribute_edges": [
@@ -275,17 +322,28 @@
     "catalog_item_availability": [
       "internal/compactcatalog"
     ],
-    "catalog_item_availability_previous": [],
+    "catalog_item_availability_previous": [
+      "internal/compactcatalog"
+    ],
     "catalog_item_details": [
       "internal/catalog/scalebench",
       "internal/compactcatalog",
       "internal/metadata"
     ],
-    "catalog_item_version_counts": [],
+    "catalog_item_version_counts": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/compactcatalog"
+    ],
     "catalog_kinds": [],
     "catalog_libraries": [
       "internal/catalog",
-      "internal/compactcatalog"
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/httpapi/fixture",
+      "internal/livechannels/dvr"
     ],
     "catalog_missing_titles": [
       "internal/catalog",
@@ -310,10 +368,12 @@
     ],
     "catalog_playlist_entries": [
       "internal/catalog",
-      "internal/catalog/scalebench"
+      "internal/catalog/scalebench",
+      "internal/identity"
     ],
     "catalog_playlists": [
       "internal/catalog",
+      "internal/catalog/scalebench",
       "internal/identity"
     ],
     "catalog_rec_facets": [
@@ -348,7 +408,15 @@
     "catalog_seasons": [
       "internal/catalog/scalebench"
     ],
-    "catalog_selection_profile_epochs": [],
+    "catalog_selection_profile_epochs": [
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/httpapi/fixture",
+      "internal/personalstate",
+      "internal/playback"
+    ],
     "catalog_shows": [
       "internal/catalog/scalebench"
     ],
@@ -412,9 +480,19 @@
     ],
     "console_settings_revision": [
       "internal/administration",
+      "internal/audiofacts",
       "internal/backup",
+      "internal/catalog",
+      "internal/catalogtest",
+      "internal/hosted",
+      "internal/identity",
+      "internal/livechannels",
+      "internal/lyrics",
       "internal/metadata",
-      "internal/operations"
+      "internal/mounts",
+      "internal/networking",
+      "internal/operations",
+      "internal/persistence"
     ],
     "container_personal_state": [
       "internal/catalog"
@@ -441,6 +519,7 @@
     "detail_jobs": [],
     "direct_memberships": [
       "internal/access",
+      "internal/catalogtest",
       "internal/hosted",
       "internal/identity"
     ],
@@ -467,7 +546,8 @@
     ],
     "download_request_items": [
       "internal/catalog",
-      "internal/downloads"
+      "internal/downloads",
+      "internal/identity"
     ],
     "dvr_catalog_provenance": [
       "internal/livechannels/dvr"
@@ -550,7 +630,8 @@
       "internal/ingestion"
     ],
     "inventory_scan_issues": [
-      "internal/catalog"
+      "internal/catalog",
+      "internal/ingestion"
     ],
     "inventory_video_names": [
       "internal/catalog"
@@ -579,9 +660,20 @@
       "internal/livechannels/dvr"
     ],
     "library_configuration": [
-      "internal/catalog"
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/httpapi/fixture",
+      "internal/ingestion",
+      "internal/livechannels/dvr",
+      "internal/remotesources"
     ],
     "library_metadata_agents": [
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/httpapi/fixture",
+      "internal/livechannels/dvr",
       "internal/metadata"
     ],
     "library_navigation_revisions": [
@@ -593,26 +685,50 @@
     "library_revisions": [
       "internal/administration",
       "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
       "internal/compactcatalog",
+      "internal/httpapi/fixture",
       "internal/ingestion",
+      "internal/livechannels/dvr",
+      "internal/localmetadata",
+      "internal/mediaanalysis",
       "internal/metadata",
-      "internal/persistence"
+      "internal/persistence",
+      "internal/playbackdisc",
+      "internal/reading",
+      "internal/remotesources",
+      "internal/subtitles"
     ],
     "library_scan_policies": [
       "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/httpapi/fixture",
+      "internal/livechannels/dvr",
       "internal/remotesources"
     ],
     "library_sources": [
       "internal/catalog",
+      "internal/catalog/scalebench",
       "internal/catalogtest",
       "internal/httpapi/fixture",
       "internal/ingestion",
+      "internal/livechannels/dvr",
       "internal/remotesources"
     ],
     "listening_book_groups": [
       "internal/catalog"
     ],
-    "listening_metadata_attention": [],
+    "listening_metadata_attention": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/metadata",
+      "internal/reading"
+    ],
     "live_allocations": [
       "internal/livechannels"
     ],
@@ -660,6 +776,7 @@
       "internal/catalog"
     ],
     "lyric_fetch_runs": [
+      "internal/catalog",
       "internal/lyrics"
     ],
     "lyric_resources": [
@@ -676,7 +793,13 @@
       "internal/mbaccounting"
     ],
     "mb_album_heads": [
-      "internal/compactcatalog"
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/metadata",
+      "internal/reading"
     ],
     "mb_album_links": [
       "internal/catalogtest",
@@ -684,7 +807,13 @@
       "internal/metadata"
     ],
     "mb_album_reconciliations": [
-      "internal/metadata"
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/metadata",
+      "internal/reading"
     ],
     "mb_candidate_reasons": [
       "internal/metadata"
@@ -693,17 +822,30 @@
       "internal/metadata"
     ],
     "mb_jobs": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
       "internal/compactcatalog",
-      "internal/metadata"
+      "internal/metadata",
+      "internal/reading"
     ],
     "mb_provider_policies": [
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/httpapi/fixture",
+      "internal/livechannels/dvr",
       "internal/metadata"
     ],
     "mb_publication_operations": [
       "internal/metadata"
     ],
     "mb_recording_accounting_base": [
-      "internal/mbaccounting"
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/mbaccounting",
+      "internal/metadata"
     ],
     "mb_recording_aliases": [
       "internal/metadata"
@@ -712,7 +854,15 @@
     "mb_recording_evidence": [
       "internal/metadata"
     ],
-    "mb_release_accounting": [],
+    "mb_release_accounting": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/metadata",
+      "internal/reading"
+    ],
     "mb_release_aliases": [
       "internal/metadata"
     ],
@@ -761,11 +911,21 @@
       "internal/metadata"
     ],
     "metadata_provider_policies": [
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/httpapi/fixture",
+      "internal/livechannels/dvr",
       "internal/metadata"
     ],
     "metadata_publication_heads": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
       "internal/compactcatalog",
-      "internal/metadata"
+      "internal/metadata",
+      "internal/reading"
     ],
     "metadata_ratings": [
       "internal/catalogtest",
@@ -819,7 +979,9 @@
       "internal/ownedcapture"
     ],
     "personal_activity_revisions": [
-      "internal/catalog"
+      "internal/catalog",
+      "internal/catalogtest",
+      "internal/playbackv1"
     ],
     "personal_conflicts": [
       "internal/catalog"
@@ -909,14 +1071,66 @@
     "playback_marker_skips": [
       "internal/playbackv1"
     ],
-    "playback_origin_albums": [],
-    "playback_origin_assets": [],
-    "playback_origin_associations": [],
-    "playback_origin_books": [],
-    "playback_origin_items": [],
-    "playback_origin_roots": [],
-    "playback_origin_seasons": [],
-    "playback_origin_shows": [],
+    "playback_origin_albums": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/metadata"
+    ],
+    "playback_origin_assets": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog"
+    ],
+    "playback_origin_associations": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/compactcatalog"
+    ],
+    "playback_origin_books": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/metadata"
+    ],
+    "playback_origin_items": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/metadata"
+    ],
+    "playback_origin_roots": [
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/httpapi/fixture",
+      "internal/livechannels/dvr"
+    ],
+    "playback_origin_seasons": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/metadata"
+    ],
+    "playback_origin_shows": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/metadata"
+    ],
     "playback_owner_policy": [
       "internal/operations"
     ],
@@ -938,6 +1152,7 @@
       "internal/playback"
     ],
     "playback_sessions": [
+      "internal/access",
       "internal/catalog",
       "internal/hosted",
       "internal/identity",
@@ -968,7 +1183,11 @@
     "playback_v1_sessions": [
       "internal/playbackv1"
     ],
-    "playlist_directory_revisions": [],
+    "playlist_directory_revisions": [
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/identity"
+    ],
     "playlist_shares": [
       "internal/catalog",
       "internal/identity"
@@ -1015,17 +1234,52 @@
       "internal/playbackv1"
     ],
     "reading_attribution_members": [
+      "internal/catalog",
       "internal/compactcatalog"
     ],
     "reading_attribution_state": [
-      "internal/compactcatalog"
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/httpapi/fixture",
+      "internal/ingestion",
+      "internal/livechannels/dvr",
+      "internal/mediaanalysis",
+      "internal/metadata",
+      "internal/reading",
+      "internal/remotesources"
     ],
     "reading_path_availability_pending": [
-      "internal/catalog"
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/enrichment",
+      "internal/httpapi/fixture",
+      "internal/ingestion",
+      "internal/livechannels/dvr",
+      "internal/mediaanalysis",
+      "internal/metadata",
+      "internal/reading",
+      "internal/remotesources"
     ],
     "reading_path_dirty_work": [
+      "internal/administration",
       "internal/catalog",
-      "internal/compactcatalog"
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/enrichment",
+      "internal/httpapi/fixture",
+      "internal/ingestion",
+      "internal/livechannels/dvr",
+      "internal/mediaanalysis",
+      "internal/metadata",
+      "internal/reading",
+      "internal/remotesources"
     ],
     "reading_path_object_keys": [
       "internal/catalog",
@@ -1036,7 +1290,8 @@
     "reading_path_slot": [],
     "reading_path_source_barrier": [
       "internal/catalog",
-      "internal/compactcatalog"
+      "internal/compactcatalog",
+      "internal/ingestion"
     ],
     "reading_publication_types": [
       "internal/reading"
@@ -1058,11 +1313,20 @@
       "internal/reading"
     ],
     "rec_data_revision": [
+      "internal/catalog",
+      "internal/catalogtest",
       "internal/compactcatalog",
-      "internal/enrichment"
+      "internal/enrichment",
+      "internal/metadata"
     ],
     "rec_profile_jobs": [
-      "internal/compactcatalog"
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/httpapi/fixture",
+      "internal/personalstate",
+      "internal/playback"
     ],
     "rec_profile_revisions": [
       "internal/compactcatalog"
@@ -1095,7 +1359,8 @@
       "internal/catalog"
     ],
     "saved_resource_entries": [
-      "internal/catalog"
+      "internal/catalog",
+      "internal/identity"
     ],
     "saved_resource_shares": [
       "internal/catalog",
@@ -1105,20 +1370,38 @@
       "internal/catalog",
       "internal/identity"
     ],
-    "screen_metadata_attention": [],
+    "screen_metadata_attention": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/localmetadata",
+      "internal/metadata"
+    ],
     "screen_metadata_consent": [
       "internal/metadata"
     ],
     "screen_metadata_fields": [
+      "internal/catalog",
       "internal/catalogtest",
       "internal/metadata"
     ],
     "screen_metadata_policies": [
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/httpapi/fixture",
+      "internal/livechannels/dvr",
       "internal/metadata"
     ],
     "screen_metadata_work": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
       "internal/catalogtest",
       "internal/compactcatalog",
+      "internal/localmetadata",
       "internal/metadata"
     ],
     "segment_files": [
@@ -1169,6 +1452,7 @@
     "subtitle_resources": [
       "internal/catalog",
       "internal/compactcatalog",
+      "internal/playbackdisc",
       "internal/subtitles"
     ],
     "subtitle_revisions": [
@@ -1180,9 +1464,21 @@
       "internal/subtitles"
     ],
     "tvdb_episode_credit_evidence": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog",
       "internal/metadata"
     ],
-    "tvdb_episode_credit_pending": [],
+    "tvdb_episode_credit_pending": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/metadata"
+    ],
     "tvdb_episode_evidence": [
       "internal/metadata"
     ],
@@ -1193,13 +1489,30 @@
       "internal/metadata"
     ],
     "tvdb_jobs": [
-      "internal/metadata"
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/metadata",
+      "internal/reading"
     ],
     "tvdb_provider_policies": [
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/httpapi/fixture",
+      "internal/livechannels/dvr",
       "internal/metadata"
     ],
     "tvdb_publication_heads": [
-      "internal/compactcatalog"
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/metadata",
+      "internal/reading"
     ],
     "tvdb_publication_operations": [
       "internal/metadata"
@@ -1214,9 +1527,11 @@
       "internal/metadata"
     ],
     "user_mutation_accounts": [
+      "internal/identity",
       "internal/usermutation"
     ],
     "user_mutation_global": [
+      "internal/identity",
       "internal/usermutation"
     ],
     "user_mutation_receipts": [
@@ -1227,18 +1542,68 @@
       "internal/identity"
     ],
     "video_nfo_evidence": [
+      "internal/catalog",
       "internal/localmetadata"
     ],
     "viewer_revisions": [
-      "internal/catalog"
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/httpapi/fixture",
+      "internal/personalstate",
+      "internal/playback",
+      "internal/playbackv1"
     ],
     "webhook_deliveries": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/identity",
+      "internal/ingestion",
+      "internal/livechannels/dvr",
+      "internal/metadata",
+      "internal/notify",
+      "internal/operations",
+      "internal/playbackv1",
+      "internal/reading",
+      "internal/testauth",
       "internal/webhooks"
     ],
     "webhook_events": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/identity",
+      "internal/ingestion",
+      "internal/livechannels/dvr",
+      "internal/metadata",
+      "internal/notify",
+      "internal/operations",
+      "internal/playbackv1",
+      "internal/reading",
+      "internal/testauth",
       "internal/webhooks"
     ],
     "webhooks": [
+      "internal/administration",
+      "internal/catalog",
+      "internal/catalog/scalebench",
+      "internal/catalogtest",
+      "internal/compactcatalog",
+      "internal/identity",
+      "internal/ingestion",
+      "internal/livechannels/dvr",
+      "internal/metadata",
+      "internal/notify",
+      "internal/operations",
+      "internal/playbackv1",
+      "internal/reading",
+      "internal/testauth",
       "internal/webhooks"
     ]
   },
@@ -2064,6 +2429,15 @@
     },
     "internal/catalog/browse_engine.go": {
       "sha256": "b58d87183c13fa3cba979f557b4f9493d5bf71ea8565d03b6271e13de300b2b6",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/catalog/browse_exact_witness.go": {
+      "sha256": "0f470e9ae3e95ddb7a3790089051379b5c0f768e34cb202018588afdeac1e1d9",
       "effects": [
         {
           "table": "*",
@@ -4483,6 +4857,15 @@
         }
       ]
     },
+    "internal/compactcatalog/derive_browse_sorts.go": {
+      "sha256": "af342433cabb6ed0a6a6c07d2034e47836bd1db1f8b88b73c88cdb85c360a63f",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
     "internal/compactcatalog/derive_rec_facets.go": {
       "sha256": "bb076aa9009e3f80462d92c8dd03531b611c51982b53cb1f471fbe744cc80df6",
       "effects": [
@@ -4737,6 +5120,15 @@
     },
     "internal/compactcatalog/source_missing.go": {
       "sha256": "3124844ea8d9ecc8a5d7747ed3a73f36f9568e58faf2e1bae6557816ecafde90",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/compactcatalog/title_grams_maintenance.go": {
+      "sha256": "e4b6dc42b8fa41adcc854ea48f973281b459254f09357a1c2a00e7ecd2b51c23",
       "effects": [
         {
           "table": "*",
@@ -9316,6 +9708,15 @@
         }
       ]
     },
+    "internal/metadata/show_people.go": {
+      "sha256": "294bfdc1c4c4004417158c583670761784476b1e08c84f5f75cb8b49a9a81353",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
     "internal/metadata/tvdb_episode_credits.go": {
       "sha256": "59a27bc7707a6010272920c701686af1191f2614553bdce9c30e1e420fda8f41",
       "effects": [
@@ -9696,6 +10097,15 @@
     },
     "internal/networking/claim_http.go": {
       "sha256": "2564d1e5ef09bc76420be9f27aefc8bbbf717c447500bf6a22c33c9a1c7dd107",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/networking/claim_identity_store.go": {
+      "sha256": "a0a0902bc51caf93628363cd60be416a3883e202f56ef604bf5a1c3a70af6f70",
       "effects": [
         {
           "table": "*",
@@ -10198,6 +10608,15 @@
         }
       ]
     },
+    "internal/persistence/inspect.go": {
+      "sha256": "af87e8aa3c6e3b99f78442811357354f567edb3669027f77d7ab6899cd6114a1",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
     "internal/persistence/integrity.go": {
       "sha256": "263b5cbd880c423b1377182361f5877577547968bc7e7dfa4c02f5a186da48ff",
       "effects": [
@@ -10218,6 +10637,15 @@
     },
     "internal/persistence/metadata_discovery.go": {
       "sha256": "dc5711f2d781230f70ba7f0dcf5b1ab56173c4ccb50d3cc04dab344e6393fb62",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/persistence/networking_claims_current.go": {
+      "sha256": "d29bb92eadededda20c92b7816cca62bfea94cf7bac91e00fdd27ebdcf2f3cfd",
       "effects": [
         {
           "table": "*",
@@ -10272,6 +10700,24 @@
     },
     "internal/persistence/schema.go": {
       "sha256": "7a489130f4c33b6d6ebcb32c88253e8e1ab5ff866457e713ad9c288bb48d8685",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/persistence/storage_status.go": {
+      "sha256": "bb0d7131f7df78541e42063cb72e5ed91dc0fd473e8ed103eec5ab03746a9284",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/persistence/template.go": {
+      "sha256": "e6c55ff0eeb2f81a1ba115052b8c29a5e1b1ce087116f6ad5094d50d7a4427b6",
       "effects": [
         {
           "table": "*",
@@ -11739,6 +12185,15 @@
     },
     "internal/reading/text_count_prepare.go": {
       "sha256": "e09be5da957625b502b2c4832647ceb710fe6e86f63e8f39c9189c73a9f64358",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/reading/text_index.go": {
+      "sha256": "5d9051429c67ed382eedb514b48e6e135e7f8a552ac44b97122f58e4da75c83c",
       "effects": [
         {
           "table": "*",
