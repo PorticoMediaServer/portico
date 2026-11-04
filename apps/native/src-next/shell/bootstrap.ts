@@ -7,6 +7,7 @@ import {bindNativeTogether} from '../screens/settings-live/together-playback';
 import {audiobookPreferences} from '../../../../packages/client-core/src/audiobook-preferences';
 import {routePath, type RouteResponse} from '../../../../packages/contracts/src/routes';
 import {HomeService} from '../../../../packages/client-core/src/home-service';
+import {viewerQueryScope} from '../../../../packages/client-core/src/query/viewer-queries';
 import type {DirectSnapshot} from '../../../../packages/client-core/src/profile-management';
 import {IdentityClient} from '../../../../packages/client-core/src/identity-client';
 import {currentPreferenceSnapshot, type PreferenceSnapshot} from '../../../../packages/client-core/src/preferences';
@@ -157,7 +158,10 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
   const end = (error?: NativeIdentityFailure | NativeSignInEnded | NativeProfileGated) => {if (alive) {homeActionDiagnostics.lifetime?.('bootstrap-authority-ended', signal.signal, installation);dispose(); options.onAuthorityEnded(error);}};
   // Role-dependent services (owner pages, inbox audience, privileged actions) restart from the
   // committed selection through the ordinary renewal path; nothing privileged survives a demotion.
-  const rebuild = () => {if (!alive) return; homeActionDiagnostics.lifetime?.('bootstrap-role-changed', signal.signal, installation); if (options.onSessionRenewed) options.onSessionRenewed(); else end();};
+  // The viewer's cache is scoped by role (viewerQueryScope), and admin documents live in it: a role
+  // change empties it now, before anything restarts, so nothing read under the old role is shown.
+  let viewerCache: {dispose(): void} | undefined;
+  const rebuild = () => {if (!alive) return; viewerCache?.dispose(); homeActionDiagnostics.lifetime?.('bootstrap-role-changed', signal.signal, installation); if (options.onSessionRenewed) options.onSessionRenewed(); else end();};
   // A refused privileged read after a demotion is a role change, not a sign-out. Ask the
   // server who this viewer is now; only a changed role rebuilds, a proven refusal ends, and a
   // transient failure keeps the shell.
@@ -539,7 +543,8 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
         if (me.viewer.role !== session!.viewer.role || nextAccount.account.role !== currentAccount().account.role) {rebuild(); return;}
         readOrder.identity.apply(ticket, () => {account = nextAccount; avatars = nextAvatars; publish();});
       }),
-    }, {scope: {serverId: authority.serverId, viewerId: scopeIdentity}, api: readers, screensApi: local});
+    }, {scope: viewerQueryScope(session.viewer, scopeIdentity), api: readers, screensApi: local});
+    viewerCache = freshness.queries;
     const updateHomeFreshness = () => {
       if (!current()) return;
       const state = bound.getState();

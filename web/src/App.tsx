@@ -2,6 +2,7 @@ import {RouterProvider} from '@tanstack/react-router';
 import {useEffect, useSyncExternalStore} from 'react';
 import {IconSprite} from './kit/Icon';
 import {FreshnessProvider} from './platform/freshness';
+import {viewerQueryScope} from '@core/query/viewer-queries.ts';
 import {EntryMetadataHost} from './shell/entry-metadata';
 import {EntryActionHost} from './shell/entry-actions.tsx';
 import {bindWebAccountEntry} from './route-registry-lifecycle';
@@ -42,6 +43,6 @@ function BoundApp({binding, context, bootstrap, takeAccountReturn, takeAccountMo
     <EntryMetadataHost />
   </>;
   return <WebScreenProvider value={{binding, context, bootstrap, takeAccountReturn, takeAccountMove}}>
-    {viewer && binding ? <FreshnessProvider key={binding.scopeKey} api={binding.api} events={binding.events} serverId={viewer.serverId} viewerId={JSON.stringify([viewer.authority, viewer.accountId, viewer.profileId])}>{content}</FreshnessProvider> : content}
+    {viewer && binding ? <FreshnessProvider key={binding.scopeKey} api={binding.api} events={binding.events} serverId={viewer.serverId} viewerId={viewerQueryScope(viewer).viewerId}>{content}</FreshnessProvider> : content}
   </WebScreenProvider>;
 }

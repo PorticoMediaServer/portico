@@ -33,6 +33,7 @@ import {displayableTransportCode, launchFailure, retryDelayMs, savedSignInUnusab
 import {bootRecoveryDeadline, bootRecoveryDelay, documentStartedAt} from './boot-state';
 import {browserEventStream, browserFeedEnvironment} from '../platform/event-feed';
 import {freshnessFor, disposeFreshness, type FreshnessRuntime} from '../platform/freshness';
+import {viewerQueryScope} from '@core/query/viewer-queries.ts';
 import {authenticatedArtwork, type ShellArtwork} from './artwork';
 import type {ShellBindings} from './bindings';
 import type {ShellIdentity} from './Shell';
@@ -416,7 +417,8 @@ export class ShellBootstrap {
     // The feed's position before anything below is read: what changes meanwhile is replayed as hints.
     const primed = await events.prime(signal);
     if (!isCurrent()) return;
-    const freshness = freshnessFor(api, {serverId: session.viewer.serverId, viewerId: viewerId(session)});
+    // The viewer's role is part of its cache's scope (App.tsx keys the same cache the same way).
+    const freshness = freshnessFor(api, viewerQueryScope(session.viewer));
     cleanups.push(() => disposeFreshness(freshness));
     const preferences = new PreferencesReader(api, {serverId: session.viewer.serverId, viewerId: viewerId(session)});
     cleanups.push(() => preferences.dispose());
