@@ -35,7 +35,7 @@ func save(p string, v any) {
 	must(os.Rename(p+".tmp", p))
 }
 
-var normalWrites, writeOnly, facetMode, frameMode, gatesOnly, browseOnly, admissionSchema, attributionMode, localControl bool
+var normalWrites, writeOnly, facetMode, frameMode, gatesOnly, browseOnly, admissionSchema, attributionMode, localControl, identitySchema, omitFTS, ablationMode bool
 
 func open(path string) (*sql.DB, *sql.Conn) {
 	db, e := sql.Open("sqlite", path)
@@ -128,6 +128,24 @@ func acceptanceSQL(start, count int) string {
 		q = strings.Replace(q, "printf('%06x',97+id%26) FROM n;", "printf('%06x',97+id%26),-1 FROM n;", 1)
 		q += fmt.Sprintf("INSERT INTO catalog_age_item_counts(library_id,kind,block_unrated,admission_age,total) VALUES(1,1,0,-1,%d) ON CONFLICT(library_id,kind,block_unrated,admission_age) DO UPDATE SET total=total+excluded.total;", count)
 	}
+	if identitySchema {
+		q = fmt.Sprintf("INSERT INTO catalog_identities(library_id,source_key,subject_id) WITH RECURSIVE n(id) AS(VALUES(%d) UNION ALL SELECT id+1 FROM n WHERE id<%d) SELECT 1,printf('/synthetic/full/%%d',id),id FROM n;", start, end) + q
+		// Subjects must precede identity FK: move this statement after its subject INSERT.
+		sep := strings.Index(q, ";") + 1
+		identity := q[:sep]
+		q = q[sep:]
+		subjectEnd := strings.Index(q, ";") + 1
+		q = q[:subjectEnd] + identity + q[subjectEnd:]
+	}
+	if omitFTS {
+		parts := strings.Split(q, ";")
+		q = ""
+		for _, part := range parts {
+			if !strings.Contains(part, "INSERT INTO search_own_prefix") && strings.TrimSpace(part) != "" {
+				q += part + ";"
+			}
+		}
+	}
 	if normalWrites {
 		q += fmt.Sprintf("INSERT INTO admin_receipts(scope,operation_id,digest,result,created_ms) VALUES('research.ingest','%d-%d','%s','applied',1);", start, count, strings.Repeat("0", 64))
 	}
@@ -138,6 +156,7 @@ func seedAndSweep(c *sql.Conn, target int, out, hash string) {
 	var legacyOwn int
 	must(c.QueryRowContext(context.Background(), "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='search_own'").Scan(&legacyOwn))
 	foldedTitles = legacyOwn == 0
+	must(c.QueryRowContext(context.Background(), "SELECT count(*)>0 FROM sqlite_schema WHERE type='table' AND name='catalog_identities'").Scan(&identitySchema))
 	must(c.QueryRowContext(context.Background(), "SELECT count(*)>0 FROM pragma_table_info('catalog_entities') WHERE name='admission_allow_age'").Scan(&admissionSchema))
 	must(c.QueryRowContext(context.Background(), "SELECT count(*) FROM catalog_entities").Scan(&n))
 	if n == 0 {
@@ -303,12 +322,15 @@ func main() {
 	normalFlag := flag.Bool("normal", false, "NORMAL writer and separate PASSIVE checkpoint")
 	writeFlag := flag.Bool("write-only", false, "seed and writer quanta only")
 	facetFlag := flag.Bool("facets", false, "rating-band counts and restricted indexes")
+	omitFlag := flag.Bool("fts-excluded", false, "diagnostic ONLY omitFTS during measured cohort, never seed")
+	ablationFlag := flag.Bool("ablation", false, "one local batch8FTS control,501tx")
 	localFlag := flag.Bool("local-control", false, "authorized50k quiet-machine control; maximum82769 residents")
 	attributionFlag := flag.Bool("attribution", false, "small batch and per-statement writer phases")
 	gatesFlag := flag.Bool("gates", false, "exact schema open/memory only after small population")
 	browseFlag := flag.Bool("browse-only", false, "skip shaped write sweep after browse")
 	frameFlag := flag.Bool("frames", false, "max source-frame replacements")
 	flag.Parse()
+	ablationMode = *ablationFlag
 	localControl = *localFlag
 	attributionMode = *attributionFlag
 	gatesOnly = *gatesFlag
@@ -357,7 +379,7 @@ func main() {
 	}
 	db, c := open(*dbpath)
 	hash := hex.EncodeToString(sum[:])
-	if policy, err := os.ReadFile("research/p0-s/index-policy-42605a.json"); err == nil {
+	if policy, err := os.ReadFile("research/p0-s/index-policy-dabf44.json"); err == nil {
 		ph := sha256.Sum256(policy)
 		save(filepath.Join(*out, "index-policy.json"), map[string]any{"ddl_sha256": hash, "policy_sha256": hex.EncodeToString(ph[:]), "policy": json.RawMessage(policy)})
 	}
@@ -396,6 +418,7 @@ func main() {
 		}
 		seedAndSweep(c, *target, *out, hash)
 		if attributionMode {
+			omitFTS = *omitFlag
 			attribution(c, *out, hash)
 		}
 		if facetMode {
@@ -1014,7 +1037,7 @@ func quantizedFacet(c *sql.Conn, field string, ceiling int, exclude string) map[
 }
 
 func statementPhase(q string) string {
-	for _, p := range []struct{ needle, name string }{{"INSERT INTO catalog_subjects", "subject"}, {"INSERT INTO catalog_entities", "entity-indexes"}, {"INSERT INTO catalog_assets", "asset-indexes"}, {"INSERT INTO catalog_asset_links", "link-indexes"}, {"INSERT INTO search_own_prefix", "fts"}, {"UPDATE libraries", "library-revision"}, {"INSERT INTO api_events", "event"}, {"INSERT INTO catalog_age_item_counts", "age-counter"}, {"INSERT INTO admin_receipts", "receipt"}} {
+	for _, p := range []struct{ needle, name string }{{"INSERT INTO catalog_subjects", "subject"}, {"INSERT INTO catalog_identities", "identity-key"}, {"INSERT INTO catalog_entities", "entity-indexes"}, {"INSERT INTO catalog_assets", "asset-indexes"}, {"INSERT INTO catalog_asset_links", "link-indexes"}, {"INSERT INTO search_own_prefix", "fts"}, {"UPDATE libraries", "library-revision"}, {"INSERT INTO api_events", "event"}, {"INSERT INTO catalog_age_item_counts", "age-counter"}, {"INSERT INTO admin_receipts", "receipt"}} {
 		if strings.Contains(q, p.needle) {
 			return p.name
 		}
@@ -1044,6 +1067,10 @@ func attribution(c *sql.Conn, out, hash string) {
 	must(dr.Err())
 	must(dr.Close())
 	save(filepath.Join(out, "initial-btree-depths.json"), map[string]any{"ddl_sha256": hash, "residents": resident, "depth_edges": depths, "boundary": "Root depth0, max root-to-leaf edges; collected before timed writer cohorts"})
+	if ablationMode {
+		sizes = []int{8}
+		runs = 501
+	}
 	results := []any{}
 	measure := func(batch, reps int, control string) {
 		times := []float64{}
@@ -1091,15 +1118,17 @@ func attribution(c *sql.Conn, out, hash string) {
 		}
 		row := map[string]any{"ddl_sha256": hash, "control": control, "batch": batch, "n": reps, "p50_ms": pct(times, .5), "p95_ms": pct(times, .95), "p99_ms": pct(times, .99), "max_ms": pct(times, 1), "strict": pct(times, .99) <= 10 && pct(times, 1) <= 25, "max50": pct(times, 1) <= 50, "entities_per_s": float64(batch*reps) / time.Since(totalStart).Seconds(), "phase_summary": summaries, "samples": samples, "holds_over25_ms": tails}
 		results = append(results, row)
-		save(filepath.Join(out, "writer-attribution.json"), map[string]any{"ddl_sha256": hash, "results": results, "boundary": "One hosted benchmark job per VM, no concurrent child probes. NORMAL +PASSIVE100ms unless checkpoint-paused. Each statement separate ExecContext: parse/driver/index work charged to that statement, FTS deferred work may appear in COMMIT. Timestamps permit checkpoint overlap analysis; host scheduler/GC/IO are not individually attributed. No claim quiet physical host."})
+		save(filepath.Join(out, "writer-attribution.json"), map[string]any{"ddl_sha256": hash, "fts_excluded": omitFTS, "results": results, "boundary": "One hosted benchmark job per VM, no concurrent child probes. NORMAL +PASSIVE100ms unless checkpoint-paused. Each statement separate ExecContext: parse/driver/index work charged to that statement, FTS deferred work may appear in COMMIT. Timestamps permit checkpoint overlap analysis; host scheduler/GC/IO are not individually attributed. No claim quiet physical host."})
 		fmt.Println("attribution", batch, control, pct(times, .99), pct(times, 1))
 	}
 	for _, size := range sizes {
 		measure(size, runs, "normal-passive")
 	}
-	checkpointMu.Lock()
-	measure(1, runs, "checkpoint-paused")
-	checkpointMu.Unlock()
+	if !ablationMode {
+		checkpointMu.Lock()
+		measure(1, runs, "checkpoint-paused")
+		checkpointMu.Unlock()
+	}
 	// Snapshot index btree entries around one complete Basic, outside writer timing.
 	snapshot := func() map[string][3]int64 {
 		rows, e := c.QueryContext(context.Background(), "SELECT name,sum(ncell),sum(pgsize),max(length(path)-length(replace(path,'/','')))-1 FROM dbstat GROUP BY name")

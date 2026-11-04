@@ -7,7 +7,7 @@ on:
         default: churn
       ddl:
         description: 'Pinned full schema basename under research/p0-s'
-        default: full-d07d13.sql
+        default: full-dabf44.sql
 permissions:
   contents: read
 jobs:
@@ -89,7 +89,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 80
     env:
-      TARGET_DDL: ${{ inputs.ddl || 'full-d07d13.sql' }}
+      TARGET_DDL: ${{ inputs.ddl || 'full-dabf44.sql' }}
       MODE: ${{ inputs.mode }}
     strategy:
       fail-fast: false
