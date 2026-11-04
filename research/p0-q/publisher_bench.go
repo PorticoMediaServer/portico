@@ -82,12 +82,14 @@ func verifyPublished(db *sql.DB, docs []*pubDoc, tag string) []float64 {
 		if !matchOwn(db, d.entity, token, d.searchGen, true) {
 			panic("published native MATCH missing " + token)
 		}
-		lags = append(lags, time.Since(d.accepted).Seconds())
+		assertQ(!d.visible.IsZero(), "native visibility timestamp")
+		lags = append(lags, d.visible.Sub(d.accepted).Seconds())
 	}
 	emit("publisher_lag", map[string]any{"phase": tag, "lag_seconds": lags})
 	return lags
 }
 func publisherBench(db *sql.DB, n, rounds int) {
+	shortOnlyBench(db, 128)
 	publisherControls(db, n)
 	largest := 0
 	batches := []int{1, 2, 4, 8, 16, 32, 64, 128, 256}
@@ -155,27 +157,47 @@ func publisherFlow(db *sql.DB, n, batch int) {
 		rate = 40
 	}
 	duration := 100 * time.Second
+	if mixedEnabled {
+		duration = mixedDuration
+	}
 	if n < 10000 {
 		duration = 3 * time.Second
 	}
 	start := time.Now()
+	maxSourceQueue := 0
+	sourceAdmission := []float64{}
 	next := start
 	granted := start
 	total := 0
 	queue := []*pubDoc{}
 	lags := []float64{}
 	maxQueue := 0
-	for time.Since(start) < duration || len(queue) > 0 {
+	for time.Since(start) < duration || len(queue) > 0 || total < int(duration.Seconds()*rate) {
 		now := time.Now()
-		if now.Sub(start) < duration && !now.Before(next) {
-			id := (total * 7919) % n
-			t := renamedTitle(id, total) + " " + marker(90000000+total)
-			accepted := acceptChanges(db, []int{id}, []string{t}, []int{1}, "flow")
-			queue = append(queue, capturePub(db, id, 0, 1, t, accepted))
-			total++
+		scheduled := min(int(now.Sub(start).Seconds()*rate), int(duration.Seconds()*rate))
+		due := scheduled - total
+		maxSourceQueue = max(maxSourceQueue, due)
+		if due > 0 {
+			count := min(8, due)
+			ids := []int{}
+			titles := []string{}
+			for j := 0; j < count; j++ {
+				id := ((total + j) * 7919) % n
+				ids = append(ids, id)
+				titles = append(titles, renamedTitle(id, total+j)+" "+marker(90000000+total+j))
+			}
+			accepted := acceptChanges(db, ids, titles, []int{1}, "flow")
+			for j, id := range ids {
+				arrival := start.Add(time.Duration(float64(total+j) / rate * float64(time.Second)))
+				sourceAdmission = append(sourceAdmission, float64(accepted.Sub(arrival).Microseconds())/1000)
+				queue = append(queue, capturePub(db, id, 0, 1, titles[j], accepted))
+			}
+			total += count
 			next = start.Add(time.Duration(float64(total) / rate * float64(time.Second)))
 			maxQueue = max(maxQueue, len(queue))
 		}
+		_ = next
+
 		if len(queue) > 0 && !time.Now().Before(granted) {
 			admitPublication()
 			k := min(batch, len(queue))
@@ -188,7 +210,7 @@ func publisherFlow(db *sql.DB, n, batch int) {
 			time.Sleep(time.Millisecond)
 		}
 	}
-	emit("publisher_flow", map[string]any{"source_target_docs_per_s": rate, "accepted_documents": total, "elapsed_s": time.Since(start).Seconds(), "actual_docs_per_s": float64(total) / time.Since(start).Seconds(), "publisher_batch": batch, "publisher_grant_gap_ms": 2, "max_pending_subjects": maxQueue, "lag_seconds_raw": lags, "lag_seconds": map[string]float64{"p50": stats(lags).P50, "p95": stats(lags).P95, "p99": stats(lags).P99, "max": stats(lags).Max}, "scope": "single writer, continuously interleaved source acceptance and governed publisher; no separate write lock"})
+	emit("publisher_flow", map[string]any{"source_target_docs_per_s": rate, "accepted_documents": total, "elapsed_s": time.Since(start).Seconds(), "actual_docs_per_s": float64(total) / time.Since(start).Seconds(), "publisher_batch": batch, "publisher_grant_gap_ms": 2, "max_pending_subjects": maxQueue, "max_source_arrival_backlog": maxSourceQueue, "source_admission_ms": stats(sourceAdmission), "lag_seconds_raw": lags, "lag_seconds": map[string]float64{"p50": stats(lags).P50, "p95": stats(lags).P95, "p99": stats(lags).P99, "max": stats(lags).Max}, "scope": "single writer, continuously interleaved source acceptance and governed publisher; no separate write lock"})
 }
 func publisherIntegrity(db *sql.DB, phase string) {
 	start := time.Now()

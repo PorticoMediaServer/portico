@@ -264,3 +264,22 @@ func firstPageBench(db *sql.DB, n, samples int) {
 		emit("first_bounded", map[string]any{"query": q, "latency": stats(times), "raw_ms": times, "snapshots": stats(snaps), "candidates": candidates, "first_ids": first, "result_count": len(all), "membership_digest": idsDigest(all), "page_raw_ms": allPageSamples, "per_page": pageStats, "page_sample_n": 3, "all_page_snapshots": stats(allSnaps), "budget_p95_ms": 50, "formal_1m_p95_ms": 200, "oracle": "exact old single-term tier/id order and complete membership", "lead": "single token; no population count required", "context_candidate_limit_per_page": 4096, "read_chunk": 64, "context_frontier_limit": 8192, "first_budget_scope": "first ready result;warm DB;no wire count"})
 	}
 }
+
+func shortOnlyBench(db *sql.DB, samples int) {
+	for _, q := range []string{"a", "al", "jo", "東", "王"} {
+		times := []float64{}
+		snaps := []float64{}
+		var ids []int
+		for i := 0; i < samples+1; i++ {
+			t := time.Now()
+			r, s, e := shortSuggestion(context.Background(), db, q, false)
+			must(e)
+			if i > 0 {
+				times = append(times, float64(time.Since(t).Microseconds())/1000)
+				snaps = append(snaps, s.Max)
+			}
+			ids = r
+		}
+		emit("policy_short", map[string]any{"query": q, "latency": stats(times), "raw_ms": times, "snapshot_maxima": stats(snaps), "ids": ids, "ranking": "catalogue insertion sequence/entityID DESC", "raw_candidate_limit": 256, "dispatch": "Latin1–2 orCJK1:titles only"})
+	}
+}

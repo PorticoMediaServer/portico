@@ -56,6 +56,7 @@ func createPublished(db *sql.DB) {
 }
 
 type pubDoc struct {
+	visible                                                               time.Time
 	sourceVersion                                                         int
 	entity, person, job, doc, frag, version, searchGen, kind, lib, oldDoc int
 	oldFrags                                                              []int
@@ -180,6 +181,20 @@ func flipPub(db *sql.DB, docs []*pubDoc, tag string) {
 		}
 		native(db, tag+".flip.commit", "COMMIT")
 	})
+	for _, d := range docs {
+		if d.person == 0 {
+			idx := bankName("search_own_prefix", d.searchGen)
+			tokens := strings.Fields(d.p)
+			var id int
+			if len(tokens) > 0 {
+				must(db.QueryRow("SELECT rowid FROM "+idx+" WHERE "+idx+" MATCH ? AND rowid=?", "title_prefix_tokens:"+tokens[0], d.entity).Scan(&id))
+			} else {
+				must(db.QueryRow("SELECT id FROM "+idx+"_docsize WHERE id=?", d.entity).Scan(&id))
+			}
+			d.visible = time.Now()
+		}
+	}
+
 }
 func reclaimPub(db *sql.DB, docs []*pubDoc, tag string) {
 	measured(tag+".reclaim.tx", func() {
@@ -209,8 +224,14 @@ func bankName(name string, gen int) string {
 	return fmt.Sprintf("q_bank%d_%s", gen, name)
 }
 func publishDocs(db *sql.DB, docs []*pubDoc, tag string) {
+	admitPublication()
+	serviceForeground(db)
 	stagePub(db, docs, tag)
+	admitPublication()
+	serviceForeground(db)
 	flipPub(db, docs, tag)
+	admitPublication()
+	serviceForeground(db)
 	reclaimPub(db, docs, tag)
 	maintain(db, tag+".merge")
 }
