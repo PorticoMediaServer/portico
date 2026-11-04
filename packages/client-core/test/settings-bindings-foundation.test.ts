@@ -63,6 +63,12 @@ test('away quality uses canonical exact video bitrates, retaining arbitrary valu
  assert.throws(()=>settingsBindingPatch(b,'automatic'));
 });
 
+test('ST-7: the owner Quality page shows the same away-from-home server limit, read-only',()=>{
+ const b=settingsBinding('quality.awayLimit')!;
+ assert.equal(readSettingsBinding(b,{forms:{connectivity:{remoteBitrateLimitKbps:8000}}})?.current,readSettingsBinding(settingsBinding('streaming.awayQuality')!,{forms:{connectivity:{remoteBitrateLimitKbps:8000}}})?.current);
+ assert.throws(()=>settingsBindingPatch(b,'4k'),/read-only/,'it is changed only on the Streaming page');
+});
+
 test('missing-title preset writes both policy and exact days without rounding a custom grace period',()=>{
  const b=settingsBinding('storage.missingRule')!;
  assert.deepEqual(settingsBindingPatch(b,'7d'),{form:'runtime',values:{'library.missingTitles':'after_days','library.missingTitlesDays':7}});

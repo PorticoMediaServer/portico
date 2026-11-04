@@ -387,6 +387,11 @@ const accountPages: readonly AuthoredPage[] = [
         toggle('music.neverBoost', 'next.settingsSpec.account.music.advanced.groups.0.rows.1.label', {help: 'next.settingsSpec.account.music.advanced.groups.0.rows.1.help', needs: c => c.audioEffects !== false}),
         pref('music.dsdGainDb', 'next.settingsSpec.account.music.advanced.groups.0.rows.2.label', {type: 'choice', choices: [0, -3, -6, -9, -12].map((value, index) => ({value, label: `next.settingsSpec.account.music.advanced.groups.0.rows.2.control.options.${index}.label` as MessageId}))}, {help: 'next.settingsSpec.account.music.advanced.groups.0.rows.2.help'}),
       ]},
+      // ST-8, Pause when idle: the listening engine pauses music and audiobooks after this many
+      // quiet minutes (listening.ts passoutMinutes). The saved rule, not the in-player Sleep timer.
+      {id: 'listeningSessions', title: 'next.settingsSpec.account.music.advanced.groups.1.title', advanced: true, rows: [
+        pref('playback.sleepTimerMinutes', 'next.settingsSpec.account.music.advanced.groups.1.rows.0.label', {type: 'choice', choices: [0, 30, 60, 90, 120].map((value, index) => ({value, label: `next.settingsSpec.account.music.advanced.groups.1.rows.0.control.options.${index}.label` as MessageId}))}, {help: 'next.settingsSpec.account.music.advanced.groups.1.rows.0.help'}),
+      ]},
     ],
   },
   // The reader's own defaults: the real `reading.*` and `comics.*` preferences the reader

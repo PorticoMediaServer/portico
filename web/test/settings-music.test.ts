@@ -37,9 +37,10 @@ test('Account Music exposes only the rows with a real web or server consumer', (
   assert.equal(settingsBinding('music.qualityAway')?.scope, 'profile-device-class');
 });
 
-test('rows without a web consumer stay hidden', () => {
-  for (const id of ['playback.showSyncedLyrics', 'music.qualityMobile', 'music.downloadQuality', 'music.sampleRateMatching',
-    'music.idlePause']) {
+test('rows without a web consumer stay hidden; Synced lyrics and Pause when idle have one', () => {
+  // ST-5 and ST-8: the web Lyrics opening follows the switch, and the listening engine pauses after the idle minutes.
+  for (const id of ['playback.showSyncedLyrics', 'music.idlePause']) assert.equal(hasWebPreferenceEffect(row(id)), true, id);
+  for (const id of ['music.qualityMobile', 'music.downloadQuality', 'music.sampleRateMatching']) {
     assert.equal(hasWebPreferenceEffect(row(id)), false, id);
   }
 });
