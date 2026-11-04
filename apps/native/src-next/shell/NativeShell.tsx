@@ -12,7 +12,7 @@ import {useTheme} from '../kit/theme';
 import {useMotion} from '../kit/useMotion';
 import {registerTVMenuFallback} from '../platform/menu-key';
 import {useTVMenuCapture} from '../platform/tv-menu';
-import {CoveredLayer, createTVLayerStack, tvLayerSpecs, tvPresentedLayers, tvRouteLayerKeys, useFocusRegistry, type FocusSnapshot} from '../kit/focus';
+import {CoveredLayer, CoveredSignal, createTVLayerStack, provideTVPage, requestNativeFocus, tvLayerSpecs, tvPageModal, tvRouteLayerKeys, useFocusRegistry, type FocusSnapshot} from '../kit/focus';
 import {tvFocusIds, sameDestination} from './tv-focus';
 import {HomeScreen} from '../screens/home/HomeScreen';
 import {canYieldTVHomeMenu, homeStartModel, resolveTVHomeStart} from '../screens/home/home-start';
@@ -101,16 +101,16 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   useEffect(() => () => layers?.dispose(), [layers]);
   const navigationPort = runtime.navigation;
   const routeLayerKeys = useSyncExternalStore(navigationPort?.subscribe ?? noStacks, () => tvRouteLayerKeys(navigationPort), () => '[]');
-  // A full-screen state drawn beside the shell (a refused content link) covers everything while present.
-  const presentedLayerKeys = useSyncExternalStore(tvPresentedLayers?.subscribe ?? noStacks, () => tvPresentedLayers?.getSnapshot() ?? '[]', () => '[]');
+  // A TV page `Modal` over the shell (a refused content link): every layer under it is covered (context only).
+  const pageModalOpen = useSyncExternalStore(tvPageModal.subscribe, tvPageModal.getSnapshot, () => false) && theme.isTV;
   const layerSpecs = useMemo(() => {
     if (!theme.isTV) return [];
     const routes = JSON.parse(routeLayerKeys) as string[];
     // A runtime without the Back stack still says whether a route covers the page.
     if (!routes.length && snapshot.contentVisible === false) routes.push('route:current');
-    return tvLayerSpecs(routes, snapshot.mediaExpanded === true, tvListeningPresent, () => baseLayer.current, () => routeLayer.current, JSON.parse(presentedLayerKeys) as string[]);
-  }, [routeLayerKeys, presentedLayerKeys, snapshot.contentVisible, snapshot.mediaExpanded, theme.isTV, tvListeningPresent]);
-  const topLayer = layerSpecs.at(-1)?.key, presentedTop = !!topLayer?.startsWith('presented:');
+    return tvLayerSpecs(routes, snapshot.mediaExpanded === true, tvListeningPresent, () => baseLayer.current, () => routeLayer.current);
+  }, [routeLayerKeys, snapshot.contentVisible, snapshot.mediaExpanded, theme.isTV, tvListeningPresent]);
+  const topLayer = layerSpecs.at(-1)?.key;
   useLayoutEffect(() => {if (!runtime.retirementSignal?.aborted) layers?.sync(layerSpecs);}, [layers, layerSpecs, runtime]);
   useEffect(() => () => {railRelease.current?.();}, []);
   const [remembered, setRemembered] = useState<string>(), [memoryReady, setMemoryReady] = useState(false);
@@ -122,6 +122,13 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   const holdRailDim = useCallback((lease: Readonly<{retired: boolean}>) => setRailDim(lease), []);
   const releaseRailDim = useCallback((lease: Readonly<{retired: boolean}>) => setRailDim(current => current === lease ? undefined : current), []);
   const [homeScrolled, setHomeScrolled] = useState(false);
+  const homeStartNow = useCallback(() => {
+    const document = runtime.home.getSnapshot().document, mixes = runtime.mixes?.getSnapshot();
+    return resolveTVHomeStart(registry, homeStartModel(document, snapshot.authority, {
+      readLibraryIds: new Set(snapshot.libraries.filter(library => library.kind === 'books').map(library => library.id)),
+      mixesReady: mixes?.phase === 'ready' && mixes.rows.length > 0, playbackAvailable: !!runtime.playback,
+    }));
+  }, [registry, runtime, snapshot.authority, snapshot.libraries]);
   const getFocusSnapshot = useMemo(() => {
     let previous: Readonly<{regionId?: string; childId?: string; homeStart: boolean}> | undefined;
     return () => {
@@ -130,11 +137,7 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
       let homeStart = false;
       if (theme.isTV && snapshot.destination.kind === 'home' && snapshot.homeVisible && !snapshot.mediaExpanded && !tvListeningPresent
         && snapshot.contentVisible !== false) {
-        const document = runtime.home.getSnapshot().document, mixes = runtime.mixes?.getSnapshot();
-        const start = resolveTVHomeStart(registry, homeStartModel(document, snapshot.authority, {
-          readLibraryIds: new Set(snapshot.libraries.filter(library => library.kind === 'books').map(library => library.id)),
-          mixesReady: mixes?.phase === 'ready' && mixes.rows.length > 0, playbackAvailable: !!runtime.playback,
-        }));
+        const start = homeStartNow();
         homeStart = canYieldTVHomeMenu(start, focused, {home: true, visible: snapshot.homeVisible, obscured: snapshot.homeObscured,
           expanded: snapshot.mediaExpanded, listening: tvListeningPresent, scrolled: homeScrolled, account: accountOpen,
           rail: railExpanded || focused?.regionId === ids.rail, chromeHidden, contentVisible: true,
@@ -145,7 +148,24 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
       if (previous && previous.regionId === focused?.regionId && previous.childId === focused?.childId && previous.homeStart === homeStart) return previous;
       return previous = {regionId: focused?.regionId, childId: focused?.childId, homeStart};
     };
-  }, [accountOpen, chromeHidden, homeScrolled, ids.rail, railExpanded, registry, runtime, snapshot, theme.isTV, tvListeningPresent]);
+  }, [accountOpen, chromeHidden, homeScrolled, homeStartNow, ids.rail, railExpanded, registry, runtime, snapshot, theme.isTV, tvListeningPresent]);
+  // DS-427 (4 Nov amendment): a page that changed while a TV page `Modal` covered it (a profile switch, a route or
+  // the player opened under it) opens on its own entry once the Modal goes, not the old page's element. Asked when
+  // the Modal's hold ends, before this shell uncovers its layers: Home's declared start (#636), else the top layer's
+  // host (its first control). A control that declares its start asks for itself once uncovered, so it lands last
+  // and wins. The host is never asked when Home declares a start: that request would land first, and Home's own
+  // entry would then count it as already owned. The player and the listening screen claim themselves.
+  const pageIdentity = useRef(''), enterPage = useRef(() => {});
+  pageIdentity.current = JSON.stringify([authorityKey(snapshot.authority), snapshot.profile.id, destination, topLayer]);
+  enterPage.current = () => {
+    if (topLayer === 'page' && paintedDestination.kind === 'home') {
+      const start = homeStartNow();
+      // Not ready yet: Home's own entry takes it when it is.
+      if (start.kind === 'ready') registry.focus(start.address);
+    } else if (topLayer === 'page') requestNativeFocus(baseLayer.current);
+    else if (topLayer?.startsWith('route:')) requestNativeFocus(routeLayer.current);
+  };
+  useEffect(() => theme.isTV ? provideTVPage({identity: () => pageIdentity.current, enter: () => enterPage.current()}) : undefined, [theme.isTV]);
   const subscribeFocus = useCallback((listener: () => void) => {
     let previous = getFocusSnapshot();
     return registry.subscribe(() => {
@@ -322,7 +342,7 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     </Animated.View> : <>
     <Animated.View pointerEvents={settingsPage ? 'none' : 'auto'} accessibilityElementsHidden={baseHidden || settingsPage} importantForAccessibility={baseHidden || settingsPage ? 'no-hide-descendants' : 'auto'} style={[{flex: 1}, settingsPage && !settingsSheet ? {display: 'none'} : null, sideNavigation ? {paddingLeft: sideWidth} : null, settingsPage ? undefined : pageStyle]}>
       {/* A pushed TV route covers this page: nothing under it may take D-pad focus (CoveredLayer). */}
-      {theme.isTV ? <CoveredLayer covered={baseHidden} hostRef={baseLayer} style={{flex: 1}} testID="native-shell-base">{basePage}</CoveredLayer> : basePage}
+      {theme.isTV ? <CoveredSignal covered={pageModalOpen}><CoveredLayer covered={baseHidden} hostRef={baseLayer} style={{flex: 1}} testID="native-shell-base">{basePage}</CoveredLayer></CoveredSignal> : basePage}
     </Animated.View>
     {settingsPage && <Animated.View style={[{position: 'absolute', inset: 0, paddingLeft: sideNavigation ? sideWidth : 0, paddingBottom: settingsSheet ? 0 : pageBottom}, pageStyle]}>{runtime.renderDestination(destination, openLibrary)}</Animated.View>}
     </>}
@@ -354,14 +374,14 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     {theme.isTV ? <View style={{position: 'absolute', left: layout.left, top: layout.top, width: layout.width, height: layout.height, transformOrigin: 'top left', transform: [{scale: layout.scale}]}}>{content}</View> : content}
     {runtime.playback && (() => {
       const playback = <NativePlaybackLayer adapter={runtime.playback} runtime={runtime} authority={snapshot.authority} contentInset={sideWidth} onTVListeningPresenceChange={theme.isTV ? setTVListeningPresent : undefined}/>;
-      // TV: a presented state (a refused link) over the player or the listening screen covers them, so nothing in
-      // them (the chrome's preferred picture as it hides) can take focus from under it. Same element either way.
+      // TV: under a page `Modal` (a refused link) the player and the listening screen are covered (context only), so
+      // nothing in them (the chrome's preferred picture as it hides) asks for focus in its own window. No native view.
       return theme.isTV ? <View pointerEvents="box-none" style={{position: 'absolute', inset: 0, zIndex: theme.layers.player}}>
-        <CoveredLayer covered={presentedTop} inertWhenUncovered testID="native-shell-playback" style={{position: 'absolute', inset: 0}}>{playback}</CoveredLayer></View> : playback;
+        <CoveredSignal covered={pageModalOpen}>{playback}</CoveredSignal></View> : playback;
     })()}
     {runtime.renderWatch && <View pointerEvents="box-none" style={{position: 'absolute', inset: 0, zIndex: theme.layers.player + 1}}>
-      {theme.isTV ? <CoveredLayer covered={presentedTop} inertWhenUncovered testID="native-shell-watch" style={{position: 'absolute', inset: 0}}>{runtime.renderWatch()}</CoveredLayer> : runtime.renderWatch()}</View>}
-    {theme.isTV ? runtime.renderRoutes({covered: !topLayer?.startsWith('route:'), hostRef: routeLayer}) : <Animated.View pointerEvents={initialPlayer ? 'none' : 'box-none'} accessibilityElementsHidden={!!initialPlayer}
+      {theme.isTV ? <CoveredSignal covered={pageModalOpen}>{runtime.renderWatch()}</CoveredSignal> : runtime.renderWatch()}</View>}
+    {theme.isTV ? <CoveredSignal covered={pageModalOpen}>{runtime.renderRoutes({covered: !topLayer?.startsWith('route:'), hostRef: routeLayer})}</CoveredSignal> : <Animated.View pointerEvents={initialPlayer ? 'none' : 'box-none'} accessibilityElementsHidden={!!initialPlayer}
       importantForAccessibility={initialPlayer ? 'no-hide-descendants' : 'auto'} style={[{position: 'absolute', inset: 0}, initialTitleStyle]}>{runtime.renderRoutes()}</Animated.View>}
     <ShellUnreachableLine reachability={runtime.reachability} serverName={snapshot.serverName} layout={layout}
       hidden={!!snapshot.mediaExpanded || tvListeningPresent || (stacks ? immersiveRoute(stackTop) : false)}/>

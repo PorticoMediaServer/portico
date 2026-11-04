@@ -205,3 +205,60 @@ test('the real kit binds through the engine: FocusRegion edges and memory, and t
   await engine.press('down'); assert.equal(engine.focused, 'c3', 'cards remembers c3 through its guide destination');
   await engine.press('select'); assert.deepEqual(kit.presses, ['c3']);
 });
+
+// D12-D15: native Modal windows (the refused-link page, 4 Nov). Each is a device check in the PR's batch.
+const windowScene = (engine: any, {open = true, visible = true, ask}: {open?: boolean; visible?: boolean; ask?: string} = {}) => {
+  const e = engine.React.createElement, n = engine.native;
+  return e(n.View, {style: {flex: 1}}, row(e, n, ['a', 'b', 'c']),
+    e(n.Pressable, {testID: 'chrome', hasTVPreferredFocus: ask === 'chrome', style: {position: 'absolute', left: 0, top: 800, width: 200, height: 100}}),
+    open ? e(n.Modal, {testID: 'page', visible, onRequestClose: () => engine.log.push({why: 'request-close'}), onDismiss: () => engine.log.push({why: 'dismissed'})},
+      row(e, n, ['home', 'other'], 400)) : null);
+};
+test('D12: a visible Modal is its own window: it takes focus, the D-pad sees only it, and Back or Menu reach its onRequestClose', async () => {
+  for (const platform of ['android', 'tvos'] as const) {
+    const engine = await tvFocusEngine({platform});
+    await engine.render(windowScene(engine, {open: false}));
+    await engine.focus('b');
+    await engine.render(windowScene(engine));
+    assert.equal(engine.focused, 'home', `${platform}: the window's first focusable`);
+    assert.deepEqual(engine.windows(), [{testID: 'page', dismissing: false}]);
+    for (const key of ['up', 'down', 'left'] as const) {await engine.press(key); assert.equal(engine.focused, 'home', `${platform}: ${key} stays in the window`);}
+    await engine.press('right'); assert.equal(engine.focused, 'other');
+    assert.equal(engine.focusable('b'), false, `${platform}: nothing under it is a target`);
+    let handled = 0; const off = engine.native.BackHandler.addEventListener('hardwareBackPress', () => {handled++; return true;});
+    await engine.press(platform === 'android' ? 'back' : 'menu');
+    assert.equal(handled, 0, `${platform}: BackHandler never sees it`);
+    assert.ok(engine.log.some((step: any) => step.why === 'request-close'), `${platform}: onRequestClose`);
+    off.remove();
+  }
+});
+test('D13 (Android): a request under a Modal becomes that window\'s focus without key focus, and is what it gets back when the Modal closes', async () => {
+  const engine = await tvFocusEngine({platform: 'android'});
+  await engine.render(windowScene(engine, {open: false}));
+  await engine.focus('b');
+  await engine.render(windowScene(engine));
+  await engine.render(windowScene(engine, {ask: 'chrome'}));
+  assert.equal(engine.focused, 'home', 'key focus stays in the Modal');
+  assert.equal(engine.windowFocus(undefined), 'chrome', 'the app window now keeps the chrome');
+  await engine.render(windowScene(engine, {open: false, ask: 'chrome'}));
+  assert.equal(engine.focused, 'chrome', 'closing lands on it (the hidden-picture risk the shell\'s Covered signal prevents)');
+});
+test('D14 (tvOS): requests under a Modal move nothing; a dismissal keeps it on screen until UIKit finishes, then the opener, then onDismiss', async () => {
+  const engine = await tvFocusEngine({platform: 'tvos'});
+  await engine.render(windowScene(engine, {open: false}));
+  await engine.focus('b');
+  await engine.render(windowScene(engine));
+  await engine.render(windowScene(engine, {ask: 'chrome'}));
+  assert.equal(engine.focused, 'home', 'the request under it moved nothing');
+  await engine.render(windowScene(engine, {visible: false, ask: 'chrome'}));
+  assert.deepEqual(engine.windows(), [{testID: 'page', dismissing: true}], 'still on screen');
+  assert.equal(engine.focused, 'home');
+  await engine.press('left');
+  assert.equal(engine.focused, 'home', 'nothing moves during the dismissal');
+  assert.ok(!engine.log.some((step: any) => step.why === 'dismissed'));
+  await engine.finishDismissals();
+  assert.deepEqual(engine.windows(), []);
+  assert.equal(engine.focused, 'b', 'restoresFocusAfterTransition: the view focused when it opened');
+  const steps = engine.log.map((step: any) => step.why);
+  assert.ok(steps.lastIndexOf('window-close') < steps.lastIndexOf('dismissed'), 'focus is back before onDismiss');
+});

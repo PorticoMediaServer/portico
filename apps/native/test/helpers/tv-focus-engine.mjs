@@ -14,6 +14,24 @@
 //                                     re-runs setAutoFocusTV, which clears the guide's last-focused memory
 //                                     (ReactViewManager.kt:170-173, ReactViewGroup.kt:1515-1518; the same repeat is
 //                                     why setTVPreferredFocus guards itself, ReactViewManager.kt:150-160).
+//
+// Native `Modal` windows (refused-link page, 4 Nov). Always on; each is a device check (TV-FOCUS.md):
+//   D12 (both):    a visible Modal is its own window (Android: a Dialog window that owns key focus,
+//                  ReactModalHostView.kt; tvOS: a presented view controller whose focus environment excludes the
+//                  presenting hierarchy, RCTModalHostView.mm). The last one shown is on top. D-pad moves, OK and the
+//                  window's first focus see only the top window; Back (Android) and Menu (tvOS) call its
+//                  `onRequestClose` and never reach BackHandler.
+//   D13 (Android): a focus request in a lower window sets that window's focused view without key focus
+//                  (View.requestFocus on an unfocused window); it is what that window shows again when the Modal
+//                  closes (the hidden-picture risk the shell's `Covered` signal keeps away).
+//   D14 (tvOS):    requests outside the top window move nothing (the focus engine only searches the focused
+//                  environment) but still set the root's preferred view (focusSelf). `visible={false}` starts a
+//                  dismissal: the Modal stays on screen and every request is ignored until it ends
+//                  (`finishDismissals()`); then UIKit gives the presenting hierarchy back the view focused when the
+//                  Modal opened (`restoresFocusAfterTransition`), else the root's preferred view, else its first,
+//                  and only then RN fires `onDismiss`.
+//   D15 (tvOS):    a Modal presented at cold start reaches the window and reports its dismissal. The page's bounded
+//                  fallback (`useNativeDismissal`) covers the case where it never does.
 import {readFile} from 'node:fs/promises';
 import {createRequire} from 'node:module';
 import {compileFunction} from 'node:vm';
@@ -36,6 +54,9 @@ export async function tvFocusEngine({platform = 'android', width = 1920, height 
   const state = new Map();
   const nativeOf = tag => {let value = state.get(tag); if (!value) state.set(tag, value = {destinations: [], last: undefined, guide: false, rect: undefined}); return value;};
   let root = [], nodes = new Map(), parents = new Map(), order = [], focused, rootPreferred, commands = [], events = [], scheduled = false;
+  /** D12-D14: per Modal window, the focus it was opened over; per window (BASE for the app's own), its focused view;
+   *  the tvOS dismissals in progress. */
+  const BASE = 'app-window', presenting = new Map(), windowFocus = new Map(), dismissals = [];
 
   // ---------- host tree, layout ----------
   const rebuild = () => {
@@ -60,8 +81,42 @@ export async function tvFocusEngine({platform = 'android', width = 1920, height 
       if (!was.hasTVPreferredFocus && now.hasTVPreferredFocus) request(tag, 'preferred'); // both: on change to true
     }
     for (const tag of previous.keys()) if (!nodes.has(tag)) state.delete(tag);
-    if (focused !== undefined && !nodes.has(focused)) recoverRemoved(previous);
+    const closed = [...previous.keys()].filter(tag => previous.get(tag).type === MODAL && !nodes.has(tag));
+    if (closed.length && (focused === undefined || !nodes.has(focused))) closeWindows(closed);
+    else if (focused !== undefined && !nodes.has(focused)) recoverRemoved(previous);
     else if (focused !== undefined && !reachable(focused)) recoverBlocked();
+    for (const tag of closed) {presenting.delete(tag); windowFocus.delete(tag);}
+    for (const tag of windows()) if (!previous.has(tag)) openWindow(tag);
+  };
+  // ---------- windows (D12-D15) ----------
+  const MODAL = 'RCTModalHostView';
+  const isWindow = tag => nodes.get(tag)?.type === MODAL;
+  const windowOf = tag => tag === undefined ? undefined : [tag, ...ancestors(tag)].find(isWindow);
+  const windows = () => order.filter(isWindow);
+  const topWindow = () => windows().at(-1);
+  const dismissing = () => {const top = topWindow(); return top !== undefined && props(top).__dismissing === true;};
+  const firstInTop = () => {const top = topWindow(); return top === undefined ? firstInTree() : firstFocusable(top);};
+  const openWindow = tag => {
+    // The window takes focus: its first focusable (a preferred control inside asks for itself as well).
+    presenting.set(tag, focused);
+    const first = firstFocusable(tag);
+    if (first !== undefined) setFocus(first, 'window-open');
+  };
+  const closeWindows = closed => {
+    const was = focused; focused = undefined;
+    const top = topWindow(), inTop = tag => tag !== undefined && nodes.has(tag) && windowOf(tag) === top && reachable(tag);
+    let next;
+    if (android) {
+      // D13: the window under it gets key focus back on its own focused view.
+      const kept = windowFocus.get(top ?? BASE);
+      next = inTop(kept) ? kept : firstInTop();
+    } else {
+      // D14: restoresFocusAfterTransition, else the root's preferred view, else the first.
+      const opened = closed.map(tag => presenting.get(tag)).find(inTop);
+      next = opened ?? (inTop(rootPreferred) ? resolve(rootPreferred) : undefined) ?? firstInTop();
+    }
+    log.push({why: 'window-closed', from: was});
+    if (next !== undefined) setFocus(next, 'window-close');
   };
   const nodeState = tag => nativeOf(tag);
   const sameRect = (a, b) => !!a && !!b && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
@@ -140,6 +195,7 @@ export async function tvFocusEngine({platform = 'android', width = 1920, height 
   const collect = (tag, out, within = focused) => {
     const node = nodes.get(tag);
     if (!node || flatten(node.props.style).display === 'none') return;
+    if (node.type === MODAL) return; // its own window (D12)
     if (blocks(tag)) return;
     if (isGuide(tag) && !(within !== undefined && ancestors(within).includes(tag))) {
       if (android || hasFocusableInside(tag)) {out.push(tag); return;}
@@ -183,6 +239,7 @@ export async function tvFocusEngine({platform = 'android', width = 1920, height 
     if (next === focused) return;
     const previous = focused;
     focused = next;
+    if (next !== undefined) windowFocus.set(windowOf(next) ?? BASE, next);
     log.push({why, from: previous, to: next});
     if (next !== undefined) for (const at of ancestors(next)) if (props(at).__guide && props(at).autoFocus) nodeState(at).last = next; // requestChildFocus
     // Native focus changes reach JS as events, after the current JS work (the commit and its layout effects).
@@ -193,9 +250,18 @@ export async function tvFocusEngine({platform = 'android', width = 1920, height 
   const request = (tag, why = 'request') => {commands.push({tag, why}); schedule();};
   const runRequest = ({tag, why}) => {
     if (!nodes.has(tag)) return;
+    if (!android && dismissing()) {log.push({why: `${why}-ignored-dismissing`, target: tag}); return;} // D14
     if (!android) rootPreferred = tag; // focusSelf sets the root's preferred view (RCTViewComponentView.mm:198-211)
     const target = resolve(tag);
-    if (target !== undefined && reachable(target)) setFocus(target, why);
+    if (target === undefined || !reachable(target)) return;
+    const window = windowOf(target);
+    if (window !== topWindow()) {
+      // D13: Android keeps it as that window's focused view; D14: tvOS moves nothing.
+      if (android) windowFocus.set(window ?? BASE, target);
+      log.push({why: `${why}-lower-window`, target});
+      return;
+    }
+    setFocus(target, why);
   };
   const recoverRemoved = previousNodes => {
     // Android recoverFocus: the nearest parent focus guide still attached takes focus, then its first focusable
@@ -208,7 +274,7 @@ export async function tvFocusEngine({platform = 'android', width = 1920, height 
       for (let at = parentOfRemoved(was, previousNodes); at !== undefined; at = parentOfRemoved(at, previousNodes)) chain.push(at);
       const guide = chain.find(at => nodes.has(at) && isGuide(at) && !blocks(at) && !ancestors(at).some(blocks));
       if (guide !== undefined) {const landed = firstFocusable(guide); setFocus(landed ?? guide, 'recover'); return;}
-      setFocus(firstFocusable(undefined) ?? firstInTree(), 'recover-window');
+      setFocus(firstInTop(), 'recover-window');
       return;
     }
     setFocus(preferredOrFirst(), 'recover-preferred');
@@ -225,7 +291,7 @@ export async function tvFocusEngine({platform = 'android', width = 1920, height 
     setFocus(preferredOrFirst(), 'recover-blocked');
   };
   const firstInTree = () => {const out = []; root.forEach(node => collect(node.tag, out, undefined)); for (const tag of out) {const landed = resolve(tag); if (landed !== undefined) return landed;} return undefined;};
-  const preferredOrFirst = () => (rootPreferred !== undefined && nodes.has(rootPreferred) ? resolve(rootPreferred) : undefined) ?? firstInTree();
+  const preferredOrFirst = () => (rootPreferred !== undefined && nodes.has(rootPreferred) && windowOf(rootPreferred) === topWindow() ? resolve(rootPreferred) : undefined) ?? firstInTop();
   const handleFocusGuide = tag => {
     const native = nodeState(tag), p = props(tag);
     if (p.__guide !== true) return;
@@ -234,7 +300,7 @@ export async function tvFocusEngine({platform = 'android', width = 1920, height 
 
   /** Android FocusFinder, simplified to its beam rule and weighted distance (13·major² + minor²). */
   const search = direction => {
-    if (focused === undefined) return firstInTree();
+    if (focused === undefined || windowOf(focused) !== topWindow()) return firstInTop();
     const trap = ancestors(focused).find(at => props(at)[TRAP[direction]] && !blocks(at));
     const scope = trap ?? undefined;
     const user = props(focused)[NEXT[direction]];
@@ -243,7 +309,8 @@ export async function tvFocusEngine({platform = 'android', width = 1920, height 
       if (landed !== undefined) return landed;
     }
     const candidates = [];
-    if (scope !== undefined) nodes.get(scope).children.forEach(child => collect(child.tag, candidates));
+    const within = scope ?? topWindow();
+    if (within !== undefined) nodes.get(within).children.forEach(child => collect(child.tag, candidates));
     else root.forEach(node => collect(node.tag, candidates));
     const from = rect(focused);
     let best, bestScore = Infinity;
@@ -335,6 +402,22 @@ export async function tvFocusEngine({platform = 'android', width = 1920, height 
     return e('RCTScrollView', {...props, horizontal, ref, style: [{flexDirection: horizontal ? 'row' : 'column'}, style]},
       e('RCTView', {style: [{flexDirection: horizontal ? 'row' : 'column'}, contentContainerStyle]}, children));
   });
+  /** react-native Modal.js with the native side above (D12-D14): a visible Modal is one RCTModalHostView window; on
+   *  tvOS `visible={false}` keeps it on screen, dismissing, until `finishDismissals()`. */
+  const Modal = function Modal({visible = true, onDismiss, onRequestClose, onShow: _onShow, children, ...rest}) {
+    const [shown, setShown] = React.useState(visible), latest = React.useRef(onDismiss);
+    latest.current = onDismiss;
+    if (visible && !shown) setShown(true);
+    const leaving = !android && shown && !visible;
+    React.useEffect(() => {
+      if (!leaving) return;
+      const entry = {finish: () => setShown(false), onDismiss: () => latest.current?.()};
+      dismissals.push(entry);
+      return () => {const index = dismissals.indexOf(entry); if (index >= 0) dismissals.splice(index, 1);};
+    }, [leaving]);
+    if (!shown || android && !visible) return null;
+    return e(MODAL, {...rest, onDismiss, __dismissing: leaving, onRequestClose, style: {position: 'absolute', inset: 0}}, children);
+  };
   const BackHandler = {addEventListener: (name, handler) => {
     if (name !== 'hardwareBackPress') return {remove() {}};
     const entry = {handler}; backHandlers.push(entry);
@@ -342,7 +425,7 @@ export async function tvFocusEngine({platform = 'android', width = 1920, height 
   }};
   const TVEventHandler = {addListener: listener => {keyListeners.add(listener); return {remove: () => keyListeners.delete(listener)};}};
   const native = {
-    View, Text, Pressable, TVFocusGuideView, ScrollView, Image: () => null,
+    View, Text, Pressable, TVFocusGuideView, ScrollView, Modal, Image: () => null,
     Animated: {View, createAnimatedComponent: c => c},
     Platform: {OS: android ? 'android' : 'ios', isTV: true, Version: 35, select: options => options[android ? 'android' : 'ios'] ?? options.default},
     StyleSheet: {flatten, create: value => value, absoluteFill: {position: 'absolute', inset: 0}, hairlineWidth: 1},
@@ -395,15 +478,36 @@ export async function tvFocusEngine({platform = 'android', width = 1920, height 
     rect: testID => rect(byTestID(testID)),
     has: testID => byTestID(testID) !== undefined,
     /** Whether a host could take focus from the D-pad right now. */
-    focusable: testID => {const tag = byTestID(testID); return tag !== undefined && reachable(tag);},
+    focusable: testID => {const tag = byTestID(testID); return tag !== undefined && reachable(tag) && windowOf(tag) === topWindow() && !dismissing();},
+    /** The Modal windows bottom first (D12): each one's testID and whether it is dismissing (tvOS). */
+    windows: () => windows().map(tag => ({testID: props(tag).testID, dismissing: props(tag).__dismissing === true})),
+    /** Each Modal window's props as the app passed them (transparent, animationType, ...). */
+    windowProps: () => windows().map(tag => props(tag)),
+    /** Android (D13): the focused view a window keeps, by the testID of the Modal (undefined: the app's window). */
+    windowFocus: testID => {const tag = windowFocus.get(testID === undefined ? BASE : byTestID(testID)); return tag === undefined ? undefined : props(tag).testID ?? `#${tag}`;},
+    /** tvOS (D14): UIKit finishes every dismissal in progress, then RN fires each Modal's onDismiss. */
+    async finishDismissals() {
+      const batch = dismissals.splice(0);
+      for (const entry of batch) entry.finish();
+      await settle();
+      for (const entry of batch) entry.onDismiss();
+      await settle();
+    },
     /** Put focus on a host as a user would have left it there (a starting state for a sequence). */
     async focus(testID) {const tag = byTestID(testID); if (tag === undefined) throw new Error(`no host ${testID}`); const target = resolve(tag); if (target === undefined) throw new Error(`${testID} cannot take focus`); setFocus(target, 'test'); await settle();},
     async press(key, {repeat = 1} = {}) {
       for (let n = 0; n < repeat; n++) {
         for (const listener of [...keyListeners]) listener({eventType: key, eventKeyAction: 0, tag: focused});
+        if (!android && dismissing()) {log.push({why: `${key}-ignored-dismissing`}); await settle(); continue;}
+        const top = topWindow();
         if (DIRECTIONS.includes(key)) {const next = search(key); if (next !== undefined) setFocus(next, key);}
         else if (key === 'select') {if (focused !== undefined) fire(focused, 'onPress', {nativeEvent: {}});}
         else if (key === 'longSelect') {if (focused !== undefined) fire(focused, 'onLongPress', {nativeEvent: {}});}
+        else if (top !== undefined && (key === 'back' || key === 'menu' && !android)) {
+          // D12: the Modal's window takes Back / Menu; BackHandler never sees it.
+          fire(top, 'onRequestClose');
+          log.push({why: 'back', handled: true, window: true});
+        }
         else if (key === 'back' || key === 'menu' && !android) {
           // BackHandler: last registered first; the first true stops it (BackHandler.android.js:22-30, BackHandler.ios.js:73-112).
           let handled = false;

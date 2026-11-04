@@ -1,5 +1,5 @@
-import React, {createContext, useContext, useEffect, useRef} from 'react';
-import {Platform, TVFocusGuideView, View, type FocusGuideMethods, type StyleProp, type ViewStyle} from 'react-native';
+import React, {createContext, useContext} from 'react';
+import {TVFocusGuideView, View, type StyleProp, type ViewStyle} from 'react-native';
 import {useTheme} from '../theme';
 
 /**
@@ -25,38 +25,22 @@ import {useTheme} from '../theme';
 const Covered = createContext(false);
 export function useCovered(): boolean {return useContext(Covered);}
 
-export function CoveredLayer({covered, children, style, testID, hostRef, inertWhenUncovered = false}: {covered: boolean; children: React.ReactNode; style?: StyleProp<ViewStyle>; testID?: string;
+/** Says a subtree is covered without blocking it natively: the shell's layers while a TV page `Modal` is over them
+ * (`tv-page-modal`). The platform already keeps D-pad focus out of them; this keeps W-9 and the preferred asks
+ * quiet, so nothing under the page claims focus in its own window. Blocking natively under a `Modal` would move tvOS
+ * focus (D7). It adds no view. */
+export function CoveredSignal({covered, children}: {covered: boolean; children: React.ReactNode}) {
+  const outer = useContext(Covered);
+  return <Covered.Provider value={covered || outer}>{children}</Covered.Provider>;
+}
+
+export function CoveredLayer({covered, children, style, testID, hostRef}: {covered: boolean; children: React.ReactNode; style?: StyleProp<ViewStyle>; testID?: string;
   /** The layer's own native host, for a caller that claims focus into it (W-12: the shell's last fallback). */
-  hostRef?: React.Ref<View>;
-  /** A wrapper that only covers (the playback layer and the watch chrome under a presented state, #610): while
-   *  uncovered it is no focus guide at all on TV, so it never changes D-pad entry into what it holds. Android:
-   *  a view is a guide only with `autoFocus` or destinations. tvOS: the guide made while covered is removed by
-   *  asking for no destinations once `autoFocus` is off (`setFocusDestinations` re-runs `handleFocusGuide`,
-   *  which removes a guide with neither); a prop change alone would leave it, hiding the subtree.
-   *  Android (#616 review): uncovering sends `tvFocusable=true`, which also makes the wrapper itself focusable
-   *  (`ReactViewManager.setTvFocusable` calls `setFocusable`), and `FOCUS_AFTER_DESCENDANTS` offers it to the D-pad
-   *  whenever nothing inside is (nothing playing, chrome hidden): an invisible full-screen target with no way out.
-   *  No prop unblocks the subtree without that, so the layer always holds `AndroidSelfFocusStop`. */
-  inertWhenUncovered?: boolean}) {
+  hostRef?: React.Ref<View>}) {
   const {isTV} = useTheme();
-  const guide = useRef<View & FocusGuideMethods>(null);
-  useEffect(() => {if (isTV && inertWhenUncovered && !covered) guide.current?.setDestinations?.([]);}, [isTV, inertWhenUncovered, covered]);
   const outer = useContext(Covered), inside = covered || outer;
   const hidden = {accessibilityElementsHidden: covered, importantForAccessibility: covered ? 'no-hide-descendants' as const : 'auto' as const};
   const content = <Covered.Provider value={inside}>{children}</Covered.Provider>;
   if (!isTV) return <View ref={hostRef} style={style} testID={testID} pointerEvents={covered ? 'none' : 'auto'} {...hidden}>{content}</View>;
-  if (inertWhenUncovered) return <TVFocusGuideView ref={guide as never} style={style} testID={testID} focusable={!covered} autoFocus={covered} {...hidden}>
-    {content}{Platform.OS === 'android' && <AndroidSelfFocusStop/>}</TVFocusGuideView>;
   return <TVFocusGuideView ref={hostRef as never} style={style} testID={testID} focusable={!covered} autoFocus {...hidden}>{content}</TVFocusGuideView>;
 }
-
-/** Android TV only: an empty `autoFocus` guide, 1×1 and far off screen, inside an inert-when-uncovered layer. It is
- *  always one of the layer's focusables (`ReactViewGroup.addFocusables` adds a guide itself, focusable or not), so
- *  the layer never offers its own full-screen box; and it can never hold focus (a guide's `requestFocus` moves to
- *  its first focusable descendant and it has none). Off screen and out of every beam, it is picked only when there
- *  is no other target in that direction, where the move did nothing anyway. Covered, the layer blocks it too. */
-function AndroidSelfFocusStop() {
-  return <TVFocusGuideView autoFocus pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-    testID="covered-layer-focus-stop" style={offScreen}/>;
-}
-const offScreen = {position: 'absolute', left: -4096, top: -4096, width: 1, height: 1} as const;
