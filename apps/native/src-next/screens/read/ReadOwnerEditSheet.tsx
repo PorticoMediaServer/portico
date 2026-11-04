@@ -342,6 +342,10 @@ export function ReadOwnerEditSheet({context, lease, owner, itemId, libraryId, ma
         {coverPages?.opening === coverOpening && coverPages.phase === 'ready' && coverPages.pages.length ? <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false}
           contentContainerStyle={{gap: 8, paddingRight: 4}}>
           {coverPages.pages.map(page => {
+            if ('unreadable' in page) return <View key={page.index} accessible accessibilityLabel={`${t('next.reader.page')} ${page.index + 1}`} accessibilityState={{disabled: true}} style={{width: 84, gap: 4}}>
+              <View style={{width: 84, height: 118, borderRadius: 8, backgroundColor: theme.colors.raised}}/>
+              <Text style={[browseType(theme, 11.5, 600), {color: theme.colors.textSecondary, textAlign: 'center'}]}>{t('next.reader.page')} {page.index + 1}</Text>
+            </View>;
             const selected = pageInput.value.trim() === String(page.index + 1);
             return <Focusable key={page.index} accessibilityRole="button" accessibilityLabel={`${t('next.reader.page')} ${page.index + 1}`}
               onPress={() => {if (!coverBusy) setPage(String(page.index + 1));}} style={{width: 84, gap: 4}}>

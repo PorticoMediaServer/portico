@@ -7,6 +7,7 @@ import {Skeleton, StateView} from '../../kit/states';
 import type {ScreenContext} from '../detail/context';
 import {createReadBindings, type ReadBindingContext} from './bindings';
 import styles from './cover-pages.module.css';
+import {coverPagePreview, type CoverPagePreview} from './cover-page-preview';
 
 const {t} = defaultI18n;
 type Opening = Readonly<{controller: AbortController; isCurrent: () => boolean}>;
@@ -49,7 +50,7 @@ export function ReadCoverPages({reading, context, itemId, sourceId, upload, busy
   </>;
 }
 function Pages({session, context, opening, upload, busy, onChosen}: {session: ReadingSession; context: ScreenContext; opening: Opening; upload: (file: Blob) => Promise<boolean>; busy: boolean; onChosen: () => void}) {
-  const [start, setStart] = useState(0), [pages, setPages] = useState<readonly Readonly<{index: number; url: string}>[]>([]), [failed, setFailed] = useState(false), [choosing, setChoosing] = useState(false), [retry, setRetry] = useState(0);
+  const [start, setStart] = useState(0), [pages, setPages] = useState<readonly CoverPagePreview[]>([]), [failed, setFailed] = useState(false), [choosing, setChoosing] = useState(false), [retry, setRetry] = useState(0);
   const choice = useRef<AbortController | undefined>(undefined), requests = useRef(new Set<AbortController>()), pending = useRef(false);
   const count = session.manifest.pageNames!.length, end = Math.min(start + 6, count);
   useEffect(() => {const owned = requests.current; return () => {for (const request of owned) request.abort(); owned.clear();};}, []);
@@ -58,10 +59,10 @@ function Pages({session, context, opening, upload, busy, onChosen}: {session: Re
     void (async () => {
       for (let index = start; index < end; index++) {
         if (!opening.isCurrent()) return;
-        const image = await session.page(index, {width: 180, signal});
+        const preview = await coverPagePreview(session, index, signal);
+        if (preview.url) urls.push(preview.url);
         if (signal.aborted || !opening.isCurrent()) return;
-        const url = URL.createObjectURL(new Blob([image.bytes.slice() as Uint8Array<ArrayBuffer>], {type: image.mime})); urls.push(url);
-        setPages(previous => [...previous, {index, url}]);
+        setPages(previous => [...previous, preview]);
       }
     })().catch(error => {if (!signal.aborted && opening.isCurrent()) {setFailed(true); context.effects.reportError(error);}});
     return () => {operation.abort(); for (const url of urls) URL.revokeObjectURL(url);};
@@ -80,8 +81,8 @@ function Pages({session, context, opening, upload, busy, onChosen}: {session: Re
     } catch (error) {if (!signal.aborted && opening.isCurrent()) {setFailed(true); context.effects.reportError(error);}}
     finally {requests.current.delete(operation); if (choice.current === operation) {pending.current = false; if (!signal.aborted && opening.isCurrent()) setChoosing(false);}}
   };
-  return <><div className={styles.pages}>{pages.map(page => <button key={page.index} type="button" disabled={busy || choosing} onClick={() => {void choose(page.index);}}>
-    <img src={page.url} alt=""/><span>{t('next.reader.pageLabel', {page: defaultI18n.number(page.index + 1)})}</span></button>)}</div>
+  return <><div className={styles.pages}>{pages.map(page => <button key={page.index} type="button" disabled={busy || choosing || !page.url} onClick={() => {void choose(page.index);}}>
+    {page.url ? <img src={page.url} alt=""/> : <span className={styles.blank} aria-hidden="true"/>}<span>{t('next.reader.pageLabel', {page: defaultI18n.number(page.index + 1)})}</span></button>)}</div>
     {failed && <Button disabled={busy || choosing} onClick={() => setRetry(value => value + 1)}>{t('next.states.tryAgain')}</Button>}
     <div className={styles.navigation}><Button size="small" disabled={start === 0 || busy || choosing} onClick={() => setStart(value => Math.max(0, value - 6))}>{t('next.reader.previous')}</Button>
       <Button size="small" disabled={end >= count || busy || choosing} onClick={() => setStart(end)}>{t('next.reader.next')}</Button></div></>;

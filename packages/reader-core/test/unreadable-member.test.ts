@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {MEMBER_UNREADABLE, memberUnreadable, orUnreadable, unreadablePageSurface, unreadableSectionXhtml, unreadableEpubMember, UnreadableSections, settleUnreadableSection} from '../src/unreadable.ts';
+import {MEMBER_UNREADABLE, memberUnreadable, orUnreadable, unreadablePageSurface, unreadableSectionXhtml, unreadableEpubMember, unreadableEpubText, UnreadableSections, settleUnreadableSection} from '../src/unreadable.ts';
 import {rasterInfo} from '../src/comic/image.ts';
 
 // RD-2 (#669): the server rejects one EPUB asset or comic page as content with 422
@@ -80,4 +80,13 @@ test('#699 review: a placeholder\'s line can\'t be selected (so never highlighte
   assert.deepEqual(value('user-select'), ['user-select', 'none', 'important']);
   assert.deepEqual(value('-webkit-user-select'), ['-webkit-user-select', 'none', 'important']);
   assert.deepEqual(value('text-align'), ['text-align', 'center', 'important']);
+});
+
+test('#699 re-check: an unreadable SVG read as text is an empty SVG, not foliate\'s "null" src; markup is the placeholder; anything else is nothing', () => {
+  const svg = unreadableEpubText('OEBPS/images/map.svg', 'image/svg+xml', 'unused');
+  assert.ok(svg); assert.notEqual(svg, 'null');
+  assert.match(svg, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg"[^>]*\/>$/, 'a complete, empty SVG');
+  assert.equal(unreadableEpubText('OEBPS/images/map.svg', '', 'unused'), svg, 'by extension when the manifest has no type');
+  assert.match(unreadableEpubText('OEBPS/ch2.xhtml', 'application/xhtml+xml', 'Can’t be read.')!, /data-reader-unreadable="true"[^>]*>Can’t be read\.</);
+  assert.equal(unreadableEpubText('OEBPS/style.css', 'text/css', 'unused'), null);
 });

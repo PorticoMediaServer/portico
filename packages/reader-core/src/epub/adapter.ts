@@ -10,7 +10,7 @@ import type {ReaderAdapter, ReaderDocument, ReaderLocation, ReaderMetadata, Read
   ReaderNavigation, ReaderIndexedSearchHit, ReaderSearchOptions, ReaderSearchResult, ReaderTocItem, ReaderView, ReaderViewport} from '../ports.ts';
 import {openEpubArchive, safeArchivePath} from './archive.ts';
 import {resourceAssets} from './resources.ts';
-import {orUnreadable, unreadableEpubMember, unreadableSectionXhtml, UnreadableSections, settleUnreadableSection} from '../unreadable.ts';
+import {orUnreadable, unreadableEpubMember, unreadableEpubText, UnreadableSections, settleUnreadableSection} from '../unreadable.ts';
 import {rejectXmlEntities, secureMarkup, secureCss} from './security.ts';
 import {epubDisplay, type EpubDisplayPreferences} from './display.ts';
 import {validateEpubRaster} from './media.ts';
@@ -105,7 +105,7 @@ export function createBrowserEpubAdapter<P extends EpubDisplayPreferences>(optio
       try {throwIfAborted(active);unchanged();
       const entry=byPath.get(safeArchivePath(path));if(!entry)return null;
       const raw=await orUnreadable(()=>assets.read(path,active),standIn());throwIfAborted(active);unchanged();
-      if(raw===null){if(!markupPath(path,'mime' in entry?entry.mime??'':''))return null;unreadable.add(path);return unreadableSectionXhtml(options.unreadable!);}
+      if(raw===null){const kind='mime' in entry?entry.mime??'':'';if(markupPath(path,kind))unreadable.add(path);return unreadableEpubText(path,kind,options.unreadable!);}
       const text=decoder.decode(raw);
       const mime='mime' in entry ? entry.mime : '';
       return secureText(path,mime??'',text);

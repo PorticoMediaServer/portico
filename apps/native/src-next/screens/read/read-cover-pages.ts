@@ -7,7 +7,11 @@ const MAX_PAGES = 12, WIDTH = 160;
 
 /** One admitted page preview. The URI is the page's own returned bytes at a
  * bounded width; it is presentation-only and never an upload receipt. */
-export type NativeCoverPage = Readonly<{index: number; name: string; uri: string}>;
+export type NativeCoverPage = Readonly<{index: number; name: string; uri: string}>
+  /** RD-2: the server rejected this page as content (422 `reading_member_unreadable`). It draws
+   * as a plain tile that can't be chosen, and the other pages still load. */
+  | Readonly<{index: number; name: string; unreadable: true}>;
+const memberUnreadable = (error: unknown) => !!error && typeof error === 'object' && (error as {code?: unknown}).code === 'reading_member_unreadable';
 export type NativeCoverPagesOpening = Readonly<{itemId: string; sourceId: string; revision: string; pageCount: number; pageNames: readonly string[]}>;
 
 function base64(bytes: Uint8Array): string {
@@ -45,7 +49,13 @@ export async function loadNativeCoverPages(options: Readonly<{client: ReadingCli
     const pages: NativeCoverPage[] = [];
     for (let index = 0; index < Math.min(opening.pageCount, MAX_PAGES); index++) {
       if (!current()) throw cancelled();
-      const page = await session.page(index, {width: WIDTH, signal: options.signal});
+      let page;
+      try {page = await session.page(index, {width: WIDTH, signal: options.signal});}
+      catch (error) {
+        if (!memberUnreadable(error) || !current()) throw error;
+        pages.push(Object.freeze({index, name: pageNames[index]!, unreadable: true as const}));
+        continue;
+      }
       if (!current()) throw cancelled();
       if (page.index !== index || page.name !== pageNames[index]) throw invalid();
       // The same image formats the cover upload accepts; another format stays
