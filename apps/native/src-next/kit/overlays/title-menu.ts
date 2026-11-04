@@ -36,6 +36,8 @@ export type TitleMenuSurface = Readonly<{
   related?: readonly MenuAction[];
   /** The host's own rows in the order it draws them: Play a different version…, File info, Select… */
   surface?: readonly MenuAction[];
+  /** TV only: rows that sit right after Details (tv-more.html 2: "Select, Details, File info"; tv-detail.html 7: "Play a different version…" directly above File info). Without a Details row they follow the surface rows. */
+  afterDetails?: readonly MenuAction[];
   /** Rows after Details: a screen's own extras, and See all on TV. */
   trailing?: readonly MenuAction[];
 }>;
@@ -78,10 +80,14 @@ export function titleMenuItems(groups: readonly EntryActionGroup[], surface: Tit
     return at < 0 ? items.length : at;
   };
   if (surface.related?.length) items.splice(boundary(), 0, ...surface.related);
-  if (own.length) {
+  const tail = surface.afterDetails ?? [], details = items.findIndex(item => item.id === 'details');
+  // Without a Details row the tail follows the surface rows, under the same separator.
+  const drawn = details >= 0 ? own : [...own, ...tail];
+  if (drawn.length) {
     const at = boundary();
-    items.splice(at, 0, ...(at > 0 ? [{id: 'surface-separator', separator: true as const}] : []), ...own);
+    items.splice(at, 0, ...(at > 0 ? [{id: 'surface-separator', separator: true as const}] : []), ...drawn);
   }
+  if (details >= 0 && tail.length) items.splice(items.findIndex(item => item.id === 'details') + 1, 0, ...tail);
   items.push(...after);
   return items;
 }

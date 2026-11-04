@@ -149,8 +149,10 @@ export function NativeWatchOverlays({presenters, runtime, common}: {presenters: 
     }
   };
   const extras = (value.actions?.extraActions ?? []).map(action => ({...action, disabled: value.busy || action.disabled, onSelect: () => presenters.extraEntry(value, action.id)}));
-  const surface = (tv ? [version, fileInfo, artist, select, discs] : [version, select, fileInfo, discs]).filter((item): item is MenuAction => !!item);
-  const items = titleMenuItems(groups, {tv, run, busy: value.busy, afterPlay: radio ? [radio] : undefined, related: season ? [season] : undefined, surface, trailing: extras});
+  // TV follows tv-more.html 2 ("Add to collection…, Select, Details, File info") and 3 ("Select, Go to artist, File info"),
+  // with tv-detail.html 7's "Play a different version…" directly above File info. Disc titles are undrawn and keep their place after Select.
+  const surface = (tv ? [select, artist, discs] : [version, select, fileInfo, discs]).filter((item): item is MenuAction => !!item);
+  const items = titleMenuItems(groups, {tv, run, busy: value.busy, afterPlay: radio ? [radio] : undefined, related: season ? [season] : undefined, surface, afterDetails: tv ? [version, fileInfo].filter((item): item is MenuAction => !!item) : undefined, trailing: extras});
   // tv-detail.html frame 7 and playback-info.html frame 17 draw the side sheet's
   // small context line above the title, from the entry's own facts only.
   const series = tv && entry.kind === 'episode' ? entry.show?.name : undefined;
