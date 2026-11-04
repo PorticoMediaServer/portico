@@ -1,3 +1,4 @@
+import {openPlaybackGroupStream} from '../../../../../packages/client-core/src/query/playback';
 import {GroupSessionService, type GroupSessionSnapshot} from '../../../../../packages/client-core/src/group-session';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
@@ -27,8 +28,7 @@ export function nativeTogetherSession(context: Owner): GroupSessionService {
       if (!session) throw Object.assign(new Error('native_together_retired'), {name: 'AbortError'});
       // The group service owns this reader's AbortSignal and aborts it on room
       // leave/disposal. A one-request wrapper would close SSE as soon as opened.
-      const response = await openEventStream(context.api, path, {Accept: 'text/event-stream', Authorization: `Bearer ${session.accessToken}`,
-        ...(lastEventId ? {'Last-Event-ID': lastEventId} : {})}, signal);
+      const response = await openPlaybackGroupStream((path, headers, signal) => openEventStream(context.api, path, headers, signal), session.accessToken, path, lastEventId, signal);
       lifetime.assert(); return response;
     },
     key: () => {lifetime.assert(); return [...nativeRouteCrypto.random(24)].map(byte => byte.toString(16).padStart(2, '0')).join('');},

@@ -2,7 +2,7 @@ import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import {sameFence, type ChannelPlaybackFence} from '../../../../../packages/player-core/src';
 import {legacyChannel, legacyChannelRow, legacyGuideSource, type LegacyGuideOptions} from '../../../../../packages/client-core/src/guide/legacy-source';
 import {parseChannelGuide, type GuideRoute} from '../../../../../packages/client-core/src/channel-guide';
-import {routePath} from '../../../../../packages/contracts/src/routes';
+import {readPlaybackGuide} from '../../../../../packages/client-core/src/query/playback';
 import {fetchGuideSourceSummaries} from '../../../../../packages/client-core/src/guide/directory';
 import type {GuideChannelRow, GuideProgram} from '../../../../../packages/client-core/src/guide/types';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
@@ -112,7 +112,7 @@ export class NativeTVLiveGuide {
         const now = serverNow(), route: GuideRoute = {kind: opening.fence.channelKind, sourceId, timezone: opening.options.timezone, search: '',
           start: new Date(now).toISOString(), end: new Date(now + 3 * 3600_000).toISOString()};
         const query = new URLSearchParams({kind: route.kind, sourceId, timezone: route.timezone, search: route.search, start: route.start, end: route.end, channels: opening.fence.channelId, limit: '1', cursor: ''});
-        const guide = parseChannelGuide(await api.request<unknown>(`${routePath('get_guide')}?${query}`, 'GET', undefined, signal), opening.authority.serverId, route);
+        const guide = parseChannelGuide(await readPlaybackGuide(api, query, signal), opening.authority.serverId, route);
         if (!this.current(opening)) return;
         const channel = guide.channels[0];
         // The guide document and the sources directory compute different viewer fences (the guide's is the

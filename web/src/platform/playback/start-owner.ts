@@ -2,10 +2,7 @@ import {serverNow} from '@core/server-clock.ts';
 import type {HttpLocalApi, LocalSession} from '@core/index.ts';
 import {localV1Http} from '@core/playback-v1/local-http.ts';
 import {SessionsClient} from '@core/playback-v1/sessions.ts';
-import {decodeOpen} from '../../../../packages/contracts/src/runtime.ts';
-import type {GetPlaybackSessionResponse} from '../../../../packages/contracts/src/types.ts';
-import {encodedRoutePath} from '../../../../packages/contracts/src/routes.ts';
-import {call, enc} from '@core/playback-v1/http.ts';
+import {readPreparingChannel} from '@core/query/playback.ts';
 import {WebPreparingStarts} from './preparing-start';
 
 /** Captured once by the shell, before any Home/playback stack exists. A retired
@@ -54,9 +51,8 @@ export function createWebPreparingStarts(api: HttpLocalApi, session: LocalSessio
     const http = cleanupHttp(signal, uninstalled);
     // The general playable Session intentionally omits channelId. Read the
     // official view instead; never fabricate a Session from late response facts.
-    const response = await call(http, {method: 'GET', path: encodedRoutePath('get_playback_session', {id: enc(actual.id)}), signal});
     // O-159 open tier (R-09): a newer server's enum value in an optional member must not leave Stop doing nothing.
-    const observed = decodeOpen('GetPlaybackSessionResponse', response.body) as GetPlaybackSessionResponse;
+    const observed = await readPreparingChannel(http, actual.id, signal);
     if (observed.id !== actual.id || observed.presentation.generation !== actual.generation || observed.role !== 'local' ||
       observed.state === 'ended' || !['live', 'channel'].includes(observed.kind) || observed.channelId !== body.channelId ||
       observed.queue || observed.itemId || observed.versionId || observed.discTitle) return;
