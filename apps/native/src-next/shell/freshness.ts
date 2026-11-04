@@ -1,6 +1,6 @@
 import {dependsOn, FreshnessHub, titlesWithPersonalState, type FreshDocument, type FreshnessHubOptions, type RevalidateContext} from '../../../../packages/client-core/src/freshness-hub';
 import type {EventsClient} from '../../../../packages/client-core/src/playback-v1/events';
-import {createViewerQueries, type ViewerQueries, type ViewerQueryScope, type ViewerRequester} from '../../../../packages/client-core/src/query/viewer-queries';
+import {createViewerQueries, type ViewerQueries, type ViewerQueryScope, type ViewerRequester, type ViewerQueriesOptions} from '../../../../packages/client-core/src/query/viewer-queries';
 
 type Read = (context: RevalidateContext) => Promise<void>;
 export type NativeShellFreshnessReads = Readonly<{
@@ -43,9 +43,10 @@ export class NativeShellFreshness {
   private readonly unread: FreshDocument;
   private readonly guide: FreshDocument;
   private readonly libraries: FreshDocument;
-  constructor(reads: NativeShellFreshnessReads, viewer: Readonly<{scope: ViewerQueryScope; api: ViewerRequester; screensApi?: object}>, options: FreshnessHubOptions = {}) {
+  constructor(reads: NativeShellFreshnessReads, viewer: Readonly<{scope: ViewerQueryScope; api: ViewerRequester; screensApi?: object; writes?: ViewerQueriesOptions['writes']}>, options: FreshnessHubOptions = {}) {
     this.hub = new FreshnessHub(options);
-    this.queries = createViewerQueries({scope: viewer.scope, hub: this.hub, api: viewer.api});
+    // Every write the shell's API confirms moves what it changed, whoever made it.
+    this.queries = createViewerQueries({scope: viewer.scope, hub: this.hub, api: viewer.api, writes: viewer.writes});
     // Screens read with the shell's own API: they find this cache through it.
     if (viewer.screensApi) byApi.set(viewer.screensApi, this.queries);
     const document = (dependencies: readonly string[], revalidate: Read) => {

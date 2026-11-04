@@ -16,6 +16,7 @@
 import {QueryClient, hashKey, timeoutManager, type DefaultError, type DefaultedQueryObserverOptions, type Query, type QueryFunction, type QueryFunctionContext, type QueryKey, type QueryObserverOptions} from '@tanstack/query-core';
 import {finalAnswer, type FreshDocument, type FreshDocumentOptions, type FreshnessDependency, type FreshnessHub, type RevalidateContext} from '../freshness-hub.ts';
 import {linkAbortSignals, throwIfAborted} from '../abort-lifetime.ts';
+import {cachedLibraries, cachedTitle, writeDependencies, type ConfirmedWrite} from './write-dependencies.ts';
 
 /** What a query was built from: the hub dependencies it moves with. A function is asked again each time a hint arrives. */
 export type QueryDependencies = readonly FreshnessDependency[] | ((data: unknown) => readonly FreshnessDependency[]);
@@ -73,6 +74,12 @@ export type ViewerQueriesOptions = Readonly<{
   gcTimeMs?: number;
   /** The most documents kept that nobody shows; the least recently shown goes first. */
   maxInactive?: number;
+  /**
+   * Hear the writes the server confirmed on this device (`HttpLocalApi.onConfirmedWrite`): each one
+   * moves what it changed (query/write-dependencies.ts), so every page built from it reads again
+   * now, whoever made the write. Heard until the cache ends.
+   */
+  writes?: (listener: (write: ConfirmedWrite) => void) => () => void;
 }>;
 
 // The cache's own timers (collecting a document nobody shows) never keep a process alive: Node
@@ -171,6 +178,10 @@ export function createViewerQueries(options: ViewerQueriesOptions): ViewerQuerie
   };
 
   const freshness = bridge = new QueryFreshness(client, hub, settles, options.maxInactive ?? 64);
+  const unhear = options.writes?.(write => {
+    if (disposed) return;
+    for (const dependency of writeDependencies(write, {title: itemId => cachedTitle(client, itemId), libraries: () => cachedLibraries(client)})) hub.note(dependency);
+  });
 
   return Object.freeze({
     scope, client, api,
@@ -189,6 +200,7 @@ export function createViewerQueries(options: ViewerQueriesOptions): ViewerQuerie
     dispose() {
       if (disposed) return;
       disposed = true;
+      unhear?.();
       client.ended = true;
       life.abort(abortError());
       const all = client.getQueryCache().getAll();
