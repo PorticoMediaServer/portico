@@ -12,7 +12,7 @@ permissions:
   contents: read
 jobs:
   scale:
-    if: ${{ inputs.mode != 'sweep' && inputs.mode != 'fanout' && inputs.mode != 'supported' && inputs.mode != 'full' && inputs.mode != 'envelope' && inputs.mode != 'envelope2' && inputs.mode != 'selected' }}
+    if: ${{ inputs.mode != 'sweep' && inputs.mode != 'fanout' && inputs.mode != 'supported' && inputs.mode != 'full' && inputs.mode != 'envelope' && inputs.mode != 'envelope2' && inputs.mode != 'selected' && inputs.mode != 'fullpair' }}
     runs-on: ubuntu-24.04
     env:
       MODE: ${{ inputs.mode || 'churn' }}
@@ -39,7 +39,7 @@ jobs:
         with:
           name: p0-s-seed-${{ matrix.size }}-${{ matrix.profile }}
           path: |
-            ${{ runner.temp }}/p0-s/*.json
+            ${{ runner.temp }}/p0-s/**/*.json
             ${{ runner.temp }}/p0-s/*.txt
           retention-days: 14
       - name: Browse facets search writes opens memory
@@ -80,16 +80,17 @@ jobs:
         with:
           name: p0-s-${{ inputs.mode }}-${{ matrix.profile }}-rep${{ matrix.repetition }}
           path: |
-            ${{ runner.temp }}/p0-s/*.json
+            ${{ runner.temp }}/p0-s/**/*.json
             ${{ runner.temp }}/p0-s/*.txt
           retention-days: 14
 
   full:
-    if: ${{ inputs.mode == 'full' }}
+    if: ${{ inputs.mode == 'full' || inputs.mode == 'fullpair' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 80
     env:
       TARGET_DDL: ${{ inputs.ddl || 'full-d07d13.sql' }}
+      MODE: ${{ inputs.mode }}
     strategy:
       fail-fast: false
       matrix:
@@ -113,12 +114,12 @@ jobs:
           cd server
           go build -overlay="$RUNNER_TEMP/full-overlay.json" -o "$RUNNER_TEMP/p0-s-full" ./cmd/devhash
       - name: Exact full schema on bundled engine
-        run: bash research/p0-s/launch.sh "$RUNNER_TEMP/p0-s" 1000000 '${{ matrix.profile }}' full
+        run: bash research/p0-s/launch.sh "$RUNNER_TEMP/p0-s" 1000000 '${{ matrix.profile }}' "$MODE"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
           name: p0-s-full-${{ matrix.profile }}
           path: |
-            ${{ runner.temp }}/p0-s/*.json
+            ${{ runner.temp }}/p0-s/**/*.json
             ${{ runner.temp }}/p0-s/*.txt
           retention-days: 14

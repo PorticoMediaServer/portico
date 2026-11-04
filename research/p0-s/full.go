@@ -30,7 +30,7 @@ func must(e error) {
 func save(p string, v any) {
 	b, e := json.MarshalIndent(v, "", "  ")
 	must(e)
-	must(os.WriteFile(p+".tmp", b, 0600))
+	must(os.WriteFile(p+".tmp", b, 0644))
 	must(os.Rename(p+".tmp", p))
 }
 func open(path string) (*sql.DB, *sql.Conn) {
