@@ -9,7 +9,7 @@ const {NativeVersionChooser} = await screenModule(new URL('../src-next/screens/w
   react, 'react-native': {Modal: 'Modal', ScrollView: 'ScrollView', StyleSheet: {absoluteFill: {}}, Text: 'Text', View: 'View', useWindowDimensions: () => ({width, height})},
   'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},
   '../../../../../packages/i18n/src': {defaultI18n}, '../../shell/model': {shellLayout}, '../../kit/controls': {Focusable: 'Focusable'},
-  '../../kit/overlays/TVPanelMotion': {TVPanelSlide: 'TVPanelSlide', TVPanelScrim: 'TVPanelScrim', useTVPanelInteractive: () => true},
+  '../../kit/overlays/TVPanelMotion': {TVPanelSlide: 'TVPanelSlide', TVPanelScrim: 'TVPanelScrim', useTVPanelInteractive: () => true, useTVPanelModal: () => ({visible: true})},
   '../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../kit/overlays/surface': {FocusBoundary: 'FocusBoundary', PanelBackground: 'PanelBackground'},
   '../../kit/overlays/OverlayHost': {useOverlayLifecycle() {}}, '../../kit/theme': {nativeType: (value: unknown) => value, useTheme: () => ({isTV, colors: {}, type: {caption: {}}})},
 });
