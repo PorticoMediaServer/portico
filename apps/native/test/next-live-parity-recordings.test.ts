@@ -67,7 +67,7 @@ async function fixture({isTV = true, role = 'owner', primary = 'main', canManage
     BackHandler: {addEventListener: (_: string, fn: () => boolean) => {backs.add(fn); return {remove: () => backs.delete(fn)};}}, useWindowDimensions: () => ({width: theme.width, height: 1080})};
   const controls = {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable', Segmented: 'Segmented', Select: 'Select', Switch: 'Switch'};
   const focusRequests: unknown[] = []; let guideCalls = 0;
-  const focus = {FocusRegion: 'Region', FocusItem: 'FocusItem', useFocusRegistry: () => ({subscribe, cellPosition: () => undefined, focus: (target: unknown) => {focusRequests.push(target); return true;}})};
+  const focus = {FocusRegion: 'Region', FocusItem: 'FocusItem', useCovered: () => false, useFocusRegistry: () => ({subscribe, cellPosition: () => undefined, focus: (target: unknown) => {focusRequests.push(target); return true;}})};
   const handoff = await screenModule(new URL('../src-next/tv/auth/TVHandoff.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native': native, 'react-native-qrcode-svg': {default: 'QR'}, '../../../../../packages/i18n/src': {defaultI18n, catalogue, enUS},
     '../../kit/controls': controls, '../../kit/focus': focus, '../../kit/theme': {useTheme: () => theme, nativeType}, '../../kit/states/sentence-parts': {stateSentenceParts},
@@ -104,7 +104,7 @@ async function fixture({isTV = true, role = 'owner', primary = 'main', canManage
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, 'react-native-gesture-handler': {GestureDetector: 'GestureDetector'},
     'react-native-reanimated': {default: {View: 'AnimatedView'}, useAnimatedStyle: (fn: () => unknown) => fn()}, '../../../../../packages/client-core/src/channel-guide': channels,
     '../../../../../packages/client-core/src/guide': guide, '../../../../../packages/client-core/src/guide/directory': directory, './GuideLoadingMarker': {GuideLoadingMarker: 'Loading'},
-    '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, '../../shell/model': shellModel, './RecordingsScreen': recordingModule, '../../tv/layout/guide-focus': {},
+    '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, '../../platform/tv-keys': {useTVKeyEvent() {}}, '../../shell/model': shellModel, './RecordingsScreen': recordingModule, '../../tv/layout/guide-focus': {},
     '../destinations/useTVPageBack': {useTVPageBack: (_r: unknown, _d: unknown, enabled: boolean, page: any) => {pageBack.enabled = enabled; pageBack.page = page;}},
     '../destinations/useEntryFocus': {useDestinationEntryFocus: (...args: any[]) => entries.push(args)}, './guide-presentation': guidePresentation,
     '../../kit/useScreenReader': {useScreenReader: () => false},
