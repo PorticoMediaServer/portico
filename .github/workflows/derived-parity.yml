@@ -1,0 +1,33 @@
+name: Derived data parity
+on:
+  pull_request:
+    paths:
+      - server/**
+      - apikit/**
+      - go.work
+      - .github/workflows/derived-parity.yml
+  merge_group:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: derived-parity-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  parity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+      - name: Source ownership, including negative controls
+        working-directory: server
+        run: go test -v -p 1 -run '^TestDerived(TableWriters|WriterGuard)' ./internal/persistence
+      - name: Incremental equals rebuild from source
+        working-directory: server
+        run: go test -p 1 -v ./internal/derivedtest
+      - name: Offline rebuild command
+        working-directory: server
+        run: go test -p 1 -run '^TestCatalogRebuildCommand' ./cmd/server
