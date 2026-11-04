@@ -15,7 +15,7 @@ import {sameAuthority} from '../../shell/model';
 import {nativeDestinationLifetime} from '../destinations/lifetime';
 import {nativeShellRoutes, type NativeRouteRenderer} from '../../shell/route-registry';
 
-type Source = Readonly<{route: NativeShellRoute; key: number; controller: NativeHomeCustomizeController; views: PersonalSavedService; summaries: NativeHomeSavedViewSummaries; current: () => boolean; initialIntent?: HomeCustomizeViewIntent; remember: (views: readonly PersonalResource[]) => void; dropped: Readonly<{get: () => number; subscribe: (listener: () => void) => () => void}>; revalidate: () => void; readView: (id: string) => Promise<PersonalResource | undefined>}>;
+type Source = Readonly<{route: NativeShellRoute; key: number; controller: NativeHomeCustomizeController; views: PersonalSavedService; summaries: NativeHomeSavedViewSummaries; current: () => boolean; initialIntent?: HomeCustomizeViewIntent; remember: (views: readonly PersonalResource[]) => void; revalidate: () => void; readView: (id: string) => Promise<PersonalResource | undefined>}>;
 
 /** Authority-local route factory. Registration belongs to this screen module;
  * the shell only binds its factories to the restored context. */
@@ -103,18 +103,16 @@ export function createNativeHomeCustomization(context: NativeShellBootstrapConte
     // newer answer. Customize stays open: the views list is read again, and views added in this draft that it no longer
     // offers drop out with a notice. The layout write still pins the revision the server checks.
     const offer = () => JSON.stringify([context.home.getSnapshot().document?.viewerFence, context.libraries().map(library => library.id)]);
-    let offered = offer(), dropped = 0;
-    const droppedListeners = new Set<() => void>();
+    // The controller counts what dropped for the notice, and owes the drop while a Save or Reset is in flight.
+    let offered = offer();
     const revalidate = () => {
       const next = offer();if (!current() || next === offered) return;
       offered = next;remember(views.getSnapshot().resources);
       if (views.getSnapshot().resources.length || views.getSnapshot().error) void views.select({view: 'views'});
-      const count = controller.dropUnoffered();
-      if (count) {dropped = count;for (const listener of [...droppedListeners]) listener();}
+      controller.dropUnoffered();
     };
-    const droppedStore = {get: () => dropped, subscribe: (listener: () => void) => {droppedListeners.add(listener);return () => {droppedListeners.delete(listener);};}};
-    source = {route, key, controller, views, summaries, current, initialIntent, remember, readView, dropped: droppedStore, revalidate};
-    retireSource = () => {live = false;abort.abort();stopViews();stopRows();controller.dispose();views.dispose();summaries.dispose();records.clear();droppedListeners.clear();};
+    source = {route, key, controller, views, summaries, current, initialIntent, remember, readView, revalidate};
+    retireSource = () => {live = false;abort.abort();stopViews();stopRows();controller.dispose();views.dispose();summaries.dispose();records.clear();};
   };
   return {reconcile, owns: (route: NativeShellRoute) => source?.route === route,
     render: (runtime: NativeShellRuntime) => {
@@ -123,10 +121,14 @@ export function createNativeHomeCustomization(context: NativeShellBootstrapConte
     }, dispose: () => {alive = false;retire();}};
 }
 
+/** Both notices show: a Saved intent that couldn't be added never hides views that dropped after an access change. */
+export function customizeNotice(intentProblem: string | undefined, dropped: string | undefined): string | undefined {
+  return [intentProblem, dropped].filter(Boolean).join(' ') || undefined;
+}
+
 function Customization({source, runtime, close}: {source: Source; runtime: NativeShellRuntime; close: () => void}) {
   const state = useSyncExternalStore(source.controller.subscribe, source.controller.getSnapshot), views = useSyncExternalStore(source.views.subscribe, source.views.getSnapshot);
   useSyncExternalStore(source.summaries.subscribe, source.summaries.getSnapshot);
-  const dropped = useSyncExternalStore(source.dropped.subscribe, source.dropped.get);
   useEffect(() => {void source.controller.load();}, [source]);
   const summaryResources = useRef<readonly PersonalResource[]>([]);
   useEffect(() => {
@@ -162,7 +164,7 @@ function Customization({source, runtime, close}: {source: Source; runtime: Nativ
       if (!intentAdded.current) setIntentProblem(runtime.text.t('error.unavailable'));
     }, () => {if (source.current()) setIntentProblem(runtime.text.t('error.unavailable'));});
   }, [source, state.phase, runtime]);
-  return <HomeCustomize summary={view => source.summaries.line(view, labels)} controller={source.controller} copy={copy} i18n={labels} onClose={close} onAddView={retry} notice={intentProblem ?? (dropped ? runtime.text.t('next.home.viewsNoLongerAvailable', {count: dropped}) : undefined)} renderError={(error, again) => <StateView variant="centered" {...runtime.error(error, again, 'home')} testID="home-customize-error"/>} testID="home-customize"
+  return <HomeCustomize summary={view => source.summaries.line(view, labels)} controller={source.controller} copy={copy} i18n={labels} onClose={close} onAddView={retry} notice={customizeNotice(intentProblem, state.noLongerAvailable ? runtime.text.t('next.home.viewsNoLongerAvailable', {count: state.noLongerAvailable}) : undefined)} renderError={(error, again) => <StateView variant="centered" {...runtime.error(error, again, 'home')} testID="home-customize-error"/>} testID="home-customize"
       views={{items: views.resources, loading: views.loading, error: views.error, retry, hasMore: !!views.nextCursor,
         loadMore: () => {if (source.current()) void source.views.next().catch(error => {if (source.current()) runtime.reportError(error);});},
         renderError: (error, again) => <StateView variant="centered" {...runtime.error(error, again, 'home')} testID="home-customize-views-error"/>}}/>;
