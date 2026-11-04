@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"golang.org/x/sys/unix"
@@ -195,8 +196,16 @@ func cleanProbeSandbox(temp string) {
 
 var errProbeWorkerOutsideSandbox = errors.New("probe worker: not inside its sandbox's PID namespace")
 
+// inOwnPIDNamespace reports whether the worker runs as bubblewrap's command:
+// PID 2, whose parent is PID 1, and PID 1 is bubblewrap itself. The PID shape
+// alone could match an unrelated init's second process (a container's, say),
+// where the cleanup would reach every process that init can see.
 func inOwnPIDNamespace() bool {
-	return os.Getpid() == 2 && os.Getppid() == 1
+	if os.Getpid() != 2 || os.Getppid() != 1 {
+		return false
+	}
+	comm, err := os.ReadFile("/proc/1/comm")
+	return err == nil && strings.TrimSpace(string(comm)) == "bwrap"
 }
 
 func receivedFiles(oob []byte) ([]*os.File, error) {
