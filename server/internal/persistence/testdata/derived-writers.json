@@ -4448,7 +4448,7 @@
       ]
     },
     "internal/compactcatalog/derive.go": {
-      "sha256": "50df33b82a9aab9b9aa2bcd65134f7774d8afa324add4e91b121d7916b2905b5",
+      "sha256": "d0a7bb28c7c718c130d67800f79e4aab5d40e72c1806141867d834c74a190622",
       "effects": [
         {
           "table": "*",
@@ -4898,7 +4898,7 @@
       ]
     },
     "internal/dbwork/instrument.go": {
-      "sha256": "3c69eb143860fb5c8c2a07d36ad3ddf1ea66c17157600b39e1f3f91e4516599a",
+      "sha256": "ef9e4f59bd9a2d200b46ab3f0906ce723eafe976b5a0b336120c82d4d7150359",
       "effects": [
         {
           "table": "*",
@@ -5015,7 +5015,7 @@
       ]
     },
     "internal/dbwork/write.go": {
-      "sha256": "aec580ef8e0282007d684fc13c7a83889fcfce8406604fda880f2eab2dcca286",
+      "sha256": "da35e6e091c3c7c38b95a4482c8d9c2db8ab2ceeabc0d758f6ab964ce5913b2a",
       "effects": [
         {
           "table": "*",
