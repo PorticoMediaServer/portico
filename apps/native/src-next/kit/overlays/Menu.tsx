@@ -100,7 +100,7 @@ export function Popover({open, onOpenChange, anchorRef, title, headerContext, de
   </Animated.View>;
   const pointer = touchRect && <Animated.View pointerEvents="none" style={[backdropStyle, {position: 'absolute', left: touchRect.side === 'right' ? rect.x - 7 : rect.x + rect.width - 7, top: rect.y + touchRect.arrowY - 7, width: 14, height: 14, borderRadius: 3, backgroundColor: alpha('#162c3a', .97), transform: [{rotate: '45deg'}]}]}/>;
   const placedSurface = rightEnd ? <View pointerEvents="box-none" style={{position: 'absolute', left: rect.x - (modal ? 0 : hostFrame.x), top: rect.y - (modal ? 0 : hostFrame.y), width: rect.width / canvasScale, height: rect.height / canvasScale, transformOrigin: 'top left', transform: [{scale: canvasScale}]}}>{surface}</View> : surface;
-  return <OverlayPaintDescendants>{modal ? <Modal transparent visible={native.visible} onDismiss={native.onDismiss} animationType="none" onRequestClose={() => dismiss('back')} statusBarTranslucent navigationBarTranslucent>
+  return <OverlayPaintDescendants>{modal ? <Modal key={native.key} transparent visible={native.visible} onDismiss={native.onDismiss} animationType="none" onRequestClose={() => dismiss('back')} statusBarTranslucent navigationBarTranslucent>
     <View pointerEvents={paint.interactive ? 'auto' : 'none'} accessibilityElementsHidden={!paint.interactive} importantForAccessibility={paint.interactive ? 'auto' : 'no-hide-descendants'} style={{flex: 1}}><Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, backdropStyle]}>
       {touchContext ? [
         {left: 0, top: 0, right: 0, height: Math.max(0, anchor.y)},

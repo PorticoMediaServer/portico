@@ -149,7 +149,7 @@ export function BottomSheet({open, onOpenChange, title, description, children, f
         </FocusBoundary>
       </Animated.View>
     </View></View></TVDesignCanvas>;
-  return <OverlayPaintDescendants>{host === 'inline' ? surface : <Modal transparent visible={native.visible} onDismiss={native.onDismiss} animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={() => dismiss('back')} supportedOrientations={['portrait', 'landscape']}>{surface}</Modal>}</OverlayPaintDescendants>;
+  return <OverlayPaintDescendants>{host === 'inline' ? surface : <Modal key={native.key} transparent visible={native.visible} onDismiss={native.onDismiss} animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={() => dismiss('back')} supportedOrientations={['portrait', 'landscape']}>{surface}</Modal>}</OverlayPaintDescendants>;
 }
 const styles = StyleSheet.create({
   root: {flex: 1}, body: {flex: 1, minHeight: 0},

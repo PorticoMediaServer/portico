@@ -31,12 +31,12 @@ export function useTVPresentationCompletion() {
   }), []);
 }
 
-type PanelModal = Readonly<{visible: boolean; onDismiss?: () => void}>;
+type PanelModal = Readonly<{visible: boolean; onDismiss?: () => void; key?: number}>;
 type PanelMotion = {progress: SharedValue<number>; reduced: boolean; interactive: boolean; modal: PanelModal};
 const Context = createContext<PanelMotion | undefined>(undefined);
 export function useTVPanelInteractive() {return useContext(Context)?.interactive ?? true;}
 const SHOWN: PanelModal = Object.freeze({visible: true});
-/** A panel drawn as a native `Modal`: pass these as its `visible` and `onDismiss` (a `modal` TVPanelTransition). */
+/** A panel drawn as a native `Modal`: pass these as its `key`, `visible` and `onDismiss` (a `modal` TVPanelTransition). */
 export function useTVPanelModal(): PanelModal {return useContext(Context)?.modal ?? SHOWN;}
 
 /** motion.html 4.7: one interruptible UI-thread path for every custom TV panel. A `modal` panel (its own native
@@ -53,7 +53,7 @@ export function TVPanelTransition({open, onExited, modal = false, children}: {op
     if (!arrived) {if (modal) setOut(true); else exitRef.current();}
   }, [completion, modal]);
   useEffect(() => {if (out && !native.mounted) exitRef.current();}, [out, native.mounted]);
-  const shown = useMemo(() => modal ? {visible: native.visible, onDismiss: native.onDismiss} : SHOWN, [modal, native.visible, native.onDismiss]);
+  const shown = useMemo(() => modal ? {visible: native.visible, onDismiss: native.onDismiss, key: native.key} : SHOWN, [modal, native.visible, native.onDismiss, native.key]);
   useEffect(() => {
     const ticket = completion.begin();
     setLanded(false);

@@ -94,7 +94,7 @@ function CenteredDialog({open, onOpenChange, title, headerContext, description, 
   useOverlayLifecycle(native.mounted, true, dismiss, initialFocusRef ?? closeRef, returnFocusRef, animation.enterMs, testID, restoreFocus);
   if (!native.mounted || !paint.visible) return null;
   const width = suppliedWidth ?? (size === 'md' ? theme.isTV ? 900 : 480 : theme.spec.overlay.width[size][theme.platform]);
-  return <OverlayPaintDescendants><Modal transparent visible={native.visible} onDismiss={native.onDismiss} animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={() => dismiss('back')} supportedOrientations={['portrait', 'landscape']}>
+  return <OverlayPaintDescendants><Modal key={native.key} transparent visible={native.visible} onDismiss={native.onDismiss} animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={() => dismiss('back')} supportedOrientations={['portrait', 'landscape']}>
     <TVDesignCanvas><View pointerEvents={paint.interactive ? 'auto' : 'none'} accessibilityElementsHidden={!paint.interactive} style={styles.modalRoot} accessibilityViewIsModal importantForAccessibility={paint.interactive ? 'yes' : 'no-hide-descendants'} onAccessibilityEscape={() => dismiss('escape')}>
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: scrimColor ?? alpha(theme.isTV ? '#04090d' : '#03080c', theme.isTV ? 0.62 : 0.64)}, scrimStyle]}/>
       <Pressable accessible={false} focusable={false} style={StyleSheet.absoluteFill} onPress={() => {if (dismissOnOutsidePress) dismiss('outside');}}/>
