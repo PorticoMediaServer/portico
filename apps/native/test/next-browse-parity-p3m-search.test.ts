@@ -78,7 +78,7 @@ test('empty Search on a server with Live TV draws On now, a Guide link and the l
   assert.equal(shown.props.channel, 'Channel a');
   assert.ok(shown.props.progress > .3 && shown.props.progress < .4, 'twenty of sixty minutes in');
   assert.deepEqual(shown.props.flags.map((flag: any) => flag.id), ['live'], 'the Live tag');
-  assert.match(shown.props.range, /^Ends \d{1,2}:\d{2}/, 'Ends h:mm, as drawn');
+  assert.match(shown.props.range, /^Ends (?:[A-Za-z]+ \d{1,2}, \d{4}, )?\d{1,2}:\d{2}/, 'Ends h:mm, with the date when the programme crosses midnight');
   assert.equal(shown.props.number, undefined, 'no channel number');
   assert.equal(shown.props.caption, undefined, 'no remaining-time line');
   shown.props.onNavigate();
