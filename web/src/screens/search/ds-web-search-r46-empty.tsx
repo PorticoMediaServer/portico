@@ -29,7 +29,7 @@ if (params.get('capture') === '1') {
 }
 
 const serverId = 'specimen-server';
-const artPath = (id: string) => `/v1/metadata/item/${id}/art/backdrop?v=${'a'.repeat(64)}&w=1920`;
+const artPath = (id: string) => `/v1/metadata/item/${id}/art/backdrop?v=${'a'.repeat(64)}&sd=800x450.49940.${'b'.repeat(16)}&ld=1920x1080.162149.${'c'.repeat(16)}`;
 const genre = (value: string, label: string, count: number) => ({value, label, count,
   backdrop: {kind: 'item', id: value, path: artPath(value)}, covers: []});
 const genres = [

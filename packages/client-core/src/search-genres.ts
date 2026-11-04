@@ -8,6 +8,7 @@ import {ApiError, errorFieldPath, retryAfterSecondsFrom} from './index.ts';
 import {refuseUnknownVariant} from './tolerant.ts';
 import {readPreparation, type PreparationRequestPort, type PreparationResponse, type PreparationRuntime} from './read-preparation.ts';
 import {serverNow} from './server-clock.ts';
+import {isVersionedArtwork} from './artwork/versioned.ts';
 
 export type SearchGenreArt = Readonly<{kind: 'item' | 'show'; id: string; path: string}>;
 export type SearchGenre = Readonly<{
@@ -57,11 +58,11 @@ function art(value: unknown, role: 'backdrop' | 'poster'): SearchGenreArt {
   if (!object(value) || (value.kind !== 'item' && value.kind !== 'show') || typeof value.id !== 'string' || !/^[a-z0-9_-]{1,256}$/i.test(value.id) || !text(value.path, 2048)) invalid();
   const expected = routePath('get_metadata_kind_id_art_role', {kind: value.kind, id: value.id, role});
   if (!value.path.startsWith(`${expected}?`)) invalid();
-  // Only the selected-art route for this exact title and slot can be returned.
-  // A URL, provider locator, different subject, fragment or extra query is not
-  // an art reference. The query width requests a variant; it is not geometry.
+  // Only the selected-art route for this exact title and slot can be returned, as the server's artwork
+  // reference writes it: `?v={source}` and both slot descriptions (`&sd=…&ld=…`, artworkref). A URL,
+  // provider locator, different subject, fragment or any other query is not an art reference.
   const parsed = new URL(value.path, 'https://metadata.invalid');
-  if (parsed.origin !== 'https://metadata.invalid' || parsed.pathname !== expected || parsed.hash || parsed.searchParams.size !== 2 || !/^[a-f0-9]{64}$/.test(parsed.searchParams.get('v') ?? '') || parsed.searchParams.get('w') !== (role === 'backdrop' ? '1920' : '400')) invalid();
+  if (parsed.origin !== 'https://metadata.invalid' || parsed.pathname !== expected || parsed.hash || !isVersionedArtwork(value.path, `${expected}?v=`)) invalid();
   return Object.freeze({kind: value.kind, id: value.id, path: value.path});
 }
 
