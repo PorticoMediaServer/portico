@@ -13,10 +13,11 @@ const deferred = <T = void>() => {let resolve!: (value: T) => void; const promis
 
 async function load(role: 'owner' | 'member') {
   const h = hooks(), log: string[] = [], requests: [string, string | undefined][] = [], downloads: any[] = [], notices: string[] = [], reported: unknown[] = [];
+  const detailReads: string[] = [];
   const detail = {granted: ['rating'], rating: null as number | null, pending: [] as unknown[], mutationError: null as unknown, mutations: [] as unknown[], disposed: 0};
   class FakeDetail {
     private target: any;
-    async select(target: unknown) {this.target = target; log.push('detail-select');}
+    async select(target: unknown, options?: {related?: string}) {this.target = target; log.push('detail-select'); detailReads.push(options?.related ?? 'all');}
     getSnapshot() {
       return {phase: 'ready', data: {scope: {libraryId: this.target.libraryId, itemId: this.target.itemId}, item: {kind: this.target.itemId === film.id ? 'movie' : 'show'},
         actions: detail.granted.map(id => ({id, enabled: true})), personal: {rating: detail.rating}}, pending: detail.pending, mutationError: detail.mutationError, error: null};
@@ -62,7 +63,7 @@ async function load(role: 'owner' | 'member') {
   const handle = createNativeTitleActions(context);
   const lifetime = () => {const abort = new AbortController(); let current = true; return {abort, end: () => {current = false; for (const listener of navigation) listener();}, value: {signal: abort.signal, isCurrent: () => current}};};
   const element = () => handle.render({} as any) as any;
-  return {handle, detail, destinations, bulks, requests, downloads, notices, reported, lifetime, element, log, retire: () => {live = false;}};
+  return {handle, detail, detailReads, destinations, bulks, requests, downloads, notices, reported, lifetime, element, log, retire: () => {live = false;}};
 }
 
 test('offer: Rate and Download are for everyone; collection and the owner rows follow the entry kind and the viewer\'s role', async () => {
@@ -106,6 +107,7 @@ test('Rate… reads the title\'s own Detail, offers the stars only on a rating g
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(f.element().props.view().rating.phase, 'ready');
   assert.equal(f.element().props.view().rating.value, null);
+  assert.deepEqual(f.detailReads, ['none'], 'a film\'s Rate asks for Detail as its page does (no related rows), so it shares that read');
   f.element().props.rate.onRate(8);
   await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(f.detail.mutations, [{action: 'rating', value: 8}]);

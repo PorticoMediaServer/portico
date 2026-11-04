@@ -118,7 +118,8 @@ export function createNativeTitleActions(context: NativeShellBootstrapContext): 
       const detail = started.detail;
       void (async () => {
         try {
-          await detail.select({libraryId: entry.libraryId!, itemId: entry.id});
+          // Rate needs no related rows: ask as the title page does (a film's page holds Detail without them), so it shares that read.
+          await detail.select({libraryId: entry.libraryId!, itemId: entry.id}, {related: entry.kind === 'movie' ? 'none' : 'all'});
           if (open !== started || !live(lifetime)) return;
           const state = detail.getSnapshot(), data = state.data;
           // The detail is matched to the title by server, library, item and kind, and must still grant rating.

@@ -56,7 +56,7 @@ const {createNativeWatchScreens} = await screenModule(new URL('../src-next/scree
   './track-identity': {nativeWatchTracks}, './EpisodePanel': episodes,
   './title-controller': {NativeTitleController: class NativeTitleControllerStub {
     entry = show;
-    snapshot: any = {entry: show, episodes: [episode, related], detail: {data: detailProjection}, related: {}, retired: false, place: {}, workspace: {phase: 'idle', data: null}};
+    snapshot: any = {entry: show, episodes: pageEpisodes ?? [episode, related], detail: {data: detailProjection}, related: pageRelated, retired: false, place: {}, workspace: {phase: 'idle', data: null}};
     getSnapshot = () => this.snapshot;
     subscribe = () => () => {};
     dispose = () => {};
@@ -67,6 +67,8 @@ const {createNativeWatchScreens} = await screenModule(new URL('../src-next/scree
 });
 
 const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'viewer'};
+// What the stub title page holds in its More like this rows (every page read so far), and its episodes.
+let pageRelated: Record<string, {entries: readonly unknown[]}> = {}, pageEpisodes: unknown[] | undefined;
 const show = {id: 'show', kind: 'show', title: 'Actual show', libraryId: 'library'};
 const episode = {id: 'episode-1', kind: 'episode', title: 'Episode 1', libraryId: 'library'};
 const related = {id: 'related-film', kind: 'movie', title: 'Related film', libraryId: 'library'};
@@ -139,4 +141,19 @@ test('a surface that can neither select nor hand an entry draws no Select row (n
     await f.screens.menu({...show}, () => true);
     assert.equal((f.menus[0][1] as any).select, undefined, 'the show hero is not one of the page\'s cards');
   } finally {f.screens.dispose(); f.presenters.dispose();}
+});
+
+test('a card in a show\'s or film\'s recommendation rows, on any page read so far, opens its ⋯ menu from the title page', async () => {
+  const recommended = {id: 'recommended-film', kind: 'movie', title: 'Recommended', libraryId: 'library'};
+  const continued = {id: 'continued-film', kind: 'movie', title: 'From page two', libraryId: 'library'};
+  const elsewhere = {id: 'elsewhere', kind: 'movie', title: 'Not on this page', libraryId: 'library'};
+  pageRelated = {'more-like': {entries: [recommended, continued]}}; pageEpisodes = [];
+  const f = fixture();
+  try {
+    const element = renderTitle(f.screens);
+    element.props.more(recommended, {current: null}); element.props.more(continued, {current: null}); element.props.more(elsewhere, {current: null});
+    await settle();
+    assert.deepEqual(f.menus.map((args: any[]) => args[0].entry.id), ['recommended-film', 'continued-film'],
+      'recommendation rows and their later pages are the page\'s cards; a title not on the page opens nothing');
+  } finally {f.screens.dispose(); f.presenters.dispose(); pageRelated = {}; pageEpisodes = undefined;}
 });
