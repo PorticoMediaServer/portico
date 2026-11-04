@@ -140,13 +140,13 @@ test('online comics use only the authorised page provider, fence identity and va
 });
 
 // CBR format selection never enables a local RAR decoder or a ZIP fallback, UNRUN.
-test('CBR adapter requires an explicit raster provider even when localArchive is requested',async()=>{
+for(const format of ['cbr','cb7'] as const)test(`${format.toUpperCase()} adapter requires an explicit raster provider even when localArchive is requested (RD-10)`,async()=>{
   const input=source(new Uint8Array([0x52,0x61,0x72,0x21]));
-  await assert.rejects(createComicAdapter({format:'cbr',localArchive:true}).open({source:input,signal:signal()}),/comic_provider_required/);
+  await assert.rejects(createComicAdapter({format:format,localArchive:true}).open({source:input,signal:signal()}),/comic_provider_required/);
   assert.deepEqual(input.reads,[]);
-  const adapter=createComicAdapter({format:'cbr',pages:async()=>({id:input.id,revision:input.revision,pageCount:1,metadata:{direction:'rtl'},
+  const adapter=createComicAdapter({format:format,pages:async()=>({id:input.id,revision:input.revision,pageCount:1,metadata:{direction:'rtl'},
     async page(index){return {index,name:'page.png',bytes:png,image:rasterInfo(png)};},dispose(){}})});
   const document=await adapter.open({source:input,signal:signal()});
-  try{assert.equal(adapter.format,'cbr');assert.equal(document.format,'cbr');assert.equal((await document.page!(0,{width:320,signal:signal()})).mime,'image/png');assert.deepEqual(input.reads,[]);}
+  try{assert.equal(adapter.format,format);assert.equal(document.format,format);assert.equal((await document.page!(0,{width:320,signal:signal()})).mime,'image/png');assert.deepEqual(input.reads,[]);}
   finally{await document.dispose();}
 });

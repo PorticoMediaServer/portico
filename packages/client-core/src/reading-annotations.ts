@@ -26,7 +26,7 @@ function content(v: Record<string, unknown>, validate: ValidateLocation): Readin
     if (!text(l.cfi, 4096) || !l.cfi.startsWith('epubcfi(/') || !l.cfi.endsWith(')') || l.pageIndex !== undefined || l.section !== undefined && !text(l.section, 1024)) invalid();
     location = Object.freeze({format: 'epub', cfi: l.cfi, ...(l.section === undefined ? {} : {section: l.section}), progression: l.progression});
   } else {
-    if (l.format !== 'pdf' && l.format !== 'cbz' && l.format !== 'cbr' || !integer(l.pageIndex) || l.pageIndex > 1000000 || l.cfi !== undefined || l.section !== undefined) invalid();
+    if (l.format !== 'pdf' && l.format !== 'cbz' && l.format !== 'cbr' && l.format !== 'cb7' || !integer(l.pageIndex) || l.pageIndex > 1000000 || l.cfi !== undefined || l.section !== undefined) invalid();
     location = Object.freeze({format: l.format, pageIndex: l.pageIndex, progression: l.progression});
   }
   validate(location);

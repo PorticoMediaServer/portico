@@ -1,7 +1,7 @@
 import {ReaderHighlightsExport} from './ReaderHighlightsExport';
 import type {ReadingAnnotationPort} from '@core/reading-annotations.ts';
 import {randomId} from '@core/random-id.ts';
-import {readingLocationFromReader, readerErrorCode} from '@portico/reader-core';
+import {isReaderComicFormat, readingLocationFromReader, readerErrorCode} from '@portico/reader-core';
 import {ReaderAnnotationActions, ReaderAnnotationList, useReaderAnnotations, useAnnotationLease} from './ReaderAnnotations';
 import {readingSearchStepIndex} from './search-step';
 import {useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
@@ -82,7 +82,7 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
   const setPanel=(next:typeof panel)=>{annotationPanel.current.abort();annotationPanel.current=new AbortController();updatePanel(next);};
   const setFixedPane=(next:typeof fixedPane)=>{annotationPanel.current.abort();annotationPanel.current=new AbortController();updateFixedPane(next);};
   const zoomAnchor = useRef<HTMLButtonElement>(null), directionAnchor = useRef<HTMLButtonElement>(null), moreAnchor = useRef<HTMLButtonElement>(null);
-  const fixed = publication.format !== 'epub', comic = publication.format === 'cbz' || publication.format === 'cbr';
+  const fixed = publication.format !== 'epub', comic = isReaderComicFormat(publication.format);
   const notes = useReaderAnnotations(book.annotations, controller, authority, active, snapshot.status === 'ready');
   const annotationLease=useAnnotationLease(notes.service);
   const listSignal=annotationPanel.current.signal;

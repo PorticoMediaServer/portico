@@ -1,6 +1,6 @@
 import type {ReadingSession,ReadingLocation,ReadingProgress} from '@portico/client-core';
 import {releaseQuietly} from '@portico/client-core';
-import type {ReaderSource,ReaderFormat,ReaderMetadata,ReaderLocation,ReaderRange,ReaderContentsTarget} from './ports.ts';
+import {isReaderComicFormat,type ReaderSource,type ReaderFormat,type ReaderMetadata,type ReaderLocation,type ReaderRange,type ReaderContentsTarget} from './ports.ts';
 import type {ComicPageProvider} from './comic/archive.ts';
 import {rasterInfo} from './comic/image.ts';
 import {abortScope,abortReason} from './abort.ts';
@@ -25,7 +25,7 @@ export function readerLocationFromReading(location:ReadingLocation):ReaderLocati
   if(location.format==='epub') {
     if(typeof location.cfi!=='string'||location.pageIndex!==undefined)throw new ReaderError('invalid_location');
     result={format:'epub',cfi:location.cfi,progression:location.progression,...location.section===undefined?{}:{section:location.section}};
-  } else if(location.format==='pdf'||location.format==='cbz'||location.format==='cbr') {
+  } else if(location.format==='pdf'||isReaderComicFormat(location.format)) {
     if(location.pageIndex===undefined||location.cfi!==undefined||location.section!==undefined)throw new ReaderError('invalid_location');
     result={format:location.format,page:location.pageIndex,progression:location.progression};
   } else throw new ReaderError('invalid_location');
@@ -89,7 +89,7 @@ export async function createReadingPublication(session:ReaderSessionInput,caller
   }
   const dispose=()=>{life.abort();scope.dispose();};
   try {
-    current();const format=manifest.format,comic=format==='cbz'||format==='cbr';
+    current();const format=manifest.format,comic=isReaderComicFormat(format);
     if(format!=='epub'&&format!=='pdf'&&!comic)throw new ReaderError('unsupported_format');
     // A comic's pages are the server's enumerated names. Without them there is
     // nothing to draw, and a forced read would throw a TypeError instead of the
@@ -149,7 +149,7 @@ export async function createReadingPublication(session:ReaderSessionInput,caller
         if(progress.sourceId!==id)throw new ReaderError('invalid_source');
         if(progress.stale||progress.sourceRevision!==revision)return null;
         const location=readerLocationFromReading(progress.location);validateLocation(location,format);
-        if((location.format==='cbz'||location.format==='cbr')&&location.page>=pageNames.length)throw new ReaderError('invalid_location');return location;
+        if(location.format!=='epub'&&location.format!=='pdf'&&location.page>=pageNames.length)throw new ReaderError('invalid_location');return location;
       },
       ...comic?{async comicPages(candidate:ReaderSource,parent:AbortSignal):Promise<ComicPageProvider> {
         current();throwIfAborted(parent);if(candidate!==source)throw new ReaderError('invalid_source');
