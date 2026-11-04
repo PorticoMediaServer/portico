@@ -12,7 +12,7 @@ permissions:
   contents: read
 jobs:
   scale:
-    if: ${{ inputs.mode != 'sweep' && inputs.mode != 'fanout' && inputs.mode != 'supported' && inputs.mode != 'full' }}
+    if: ${{ inputs.mode != 'sweep' && inputs.mode != 'fanout' && inputs.mode != 'supported' && inputs.mode != 'full' && inputs.mode != 'envelope' }}
     runs-on: ubuntu-24.04
     env:
       MODE: ${{ inputs.mode || 'churn' }}
@@ -55,7 +55,7 @@ jobs:
           retention-days: 14
 
   adversarial:
-    if: ${{ inputs.mode == 'sweep' || inputs.mode == 'fanout' || inputs.mode == 'supported' }}
+    if: ${{ inputs.mode == 'sweep' || inputs.mode == 'fanout' || inputs.mode == 'supported' || inputs.mode == 'envelope' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
