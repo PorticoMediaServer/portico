@@ -62,7 +62,7 @@
   "web/src/platform/playback/runtime.ts": 73,
   "web/src/platform/playback/trickplay.ts": 8,
   "web/src/screens/browse/selection-editor.ts": 3,
-  "web/src/screens/browse/selection-picker.ts": 2,
+  "web/src/screens/browse/selection-picker.ts": 1,
   "web/src/screens/browse/selection-query-editor.ts": 2,
   "web/src/screens/live/live-chrome-model.ts": 5,
   "web/src/screens/live/use-live-chrome.ts": 3,

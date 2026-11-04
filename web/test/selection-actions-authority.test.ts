@@ -86,3 +86,43 @@ for (const [name, args] of [['J-14 My List', {watchlist: true}], ['Watched', {wa
     assert.deepEqual(bodies[0].args, args);
   });
 }
+
+// Ruling B (step 7 item 4): the picked leaves' detail reads must agree. A leaf read under an older fence (the viewer's
+// access was decided again while they were read) is read again once from the server; if the leaves still disagree,
+// the picker shows picker-selection-changed. Before, any disagreement ended the open at once.
+function leafApi(requests: {path: string; method?: string; body?: any}[], fenceFor: (read: number) => string) {
+  let reads = 0;
+  return {request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
+    requests.push({path, method, body});
+    if (path.includes('/detail')) {
+      const id = decodeURIComponent(path.split('/')[3]!), answer = structuredClone(fixture);
+      answer.item.id = id; answer.scope.itemId = id; answer.scope.viewerFence = fenceFor(++reads);
+      return answer as T;
+    }
+    if (path === '/v1/home/destination-picker') return destinationPage((body as {kind: string}).kind) as T;
+    throw new Error(`unexpected ${method} ${path}`);
+  }};
+}
+const pickedLeaf = (id: string) => ({kind: leaf.kind, id, libraryId: leaf.libraryId, capabilities: {play: true, queue: true, playlist: true, collection: true, myList: true, watched: true, favorite: true, download: false, edit: true, refresh: true, delete: true}});
+const leafPorts = (value: ReturnType<typeof leafApi>) => ({api: value, queries: testQueries(value, {serverId, viewerId: 'viewer'}), serverId, viewerId: '["local","account","profile"]',
+  isCurrent: () => true, requestId: async () => 'request-1', pickerIdentity: identity});
+test('B: a leaf read under an older fence is read again once, and the picker opens on the newer answer', async () => {
+  const requests: {path: string; method?: string; body?: any}[] = [], states: any[] = [];
+  const picker = new LibraryPickerProducer([pickedLeaf(leaf.id), pickedLeaf('second')] as never, 'collection',
+    leafPorts(leafApi(requests, read => read === 1 ? 'c'.repeat(64) : 'd'.repeat(64))) as never, true, state => states.push(state));
+  try {
+    await picker.open();
+    assert.deepEqual(states.at(-1)?.rows?.map((row: {id: string}) => row.id), ['destination-1']);
+    assert.deepEqual(requests.filter(request => request.path.includes('/detail')).map(request => decodeURIComponent(request.path.split('/')[3]!)), [leaf.id, 'second', leaf.id]);
+  } finally {picker.close();}
+});
+test('B: leaves that still disagree after the one re-read show picker-selection-changed, with no second re-read', async () => {
+  const requests: {path: string; method?: string; body?: any}[] = [];
+  const picker = new LibraryPickerProducer([pickedLeaf(leaf.id), pickedLeaf('second')] as never, 'collection',
+    leafPorts(leafApi(requests, read => String(read % 10).repeat(64))) as never, true, () => {});
+  try {
+    await assert.rejects(picker.open(), /picker-selection-changed/);
+    assert.equal(requests.filter(request => request.path.includes('/detail')).length, 3);
+    assert.equal(requests.some(request => request.path === '/v1/home/destination-picker' || request.path.includes('destination')), false);
+  } finally {picker.close();}
+});
