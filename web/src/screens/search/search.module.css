@@ -204,16 +204,13 @@
 .songTableRow[data-selected="true"] .songTitleCell b { color: var(--color-accent-strong); }
 .songTableRow[data-preview="true"] { background: color-mix(in srgb,var(--color-accent-strong) 12%,transparent); }
 .songIndex { display: grid; place-items: center; font-size: var(--type-caption-size); color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
-/* desktop-search #s-songs: the number at rest; the select circle on hover, focus, while selecting or when selected. */
+/* desktop-search #s-songs (lead ruling on #676): the number at rest and ▶ on the row's hover; the select circle only in
+   selection mode, in the number's place, and no space for it otherwise. */
 .songIndex { position: relative; }
-.songIndexNumber { display: none; }
-@media (hover: hover) {
-  .songIndexNumber { display: inline; }
-  .songIndex > [aria-pressed] { position: absolute; inset: 0; margin: auto; }
-  .songTableRow [data-variant][aria-pressed]:not([data-selected='true']):not([data-selecting='true']) { opacity: 0; }
-  .songTableRow:is(:hover, :focus-within) [data-variant][aria-pressed]:not([data-selected='true']):not([data-selecting='true']) { opacity: 1; }
-  .songTableRow:is(:hover, :focus-within) .songIndexNumber, .songIndex:has(> [data-selected='true'], > [data-selecting='true']) > .songIndexNumber { visibility: hidden; }
-}
+.songIndex > [aria-pressed]:not([data-selected='true'], [data-selecting='true']) { display: none; }
+.songIndex:has(> [data-selected='true'], > [data-selecting='true']) > .songIndexPlay { display: none; }
+.songTableRow:is(:hover, :focus-within) .songIndexPlay > span { display: none; }
+.songTableRow:is(:hover, :focus-within) .songIndexPlay > svg { display: block; }
 .songTitleCell { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
 .songTitleCell > :first-child { flex: none; width: 44px; height: 44px; border-radius: 6px; overflow: hidden; }
 .songTitleCell b { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--type-body-size); font-weight: var(--type-button-weight); }
