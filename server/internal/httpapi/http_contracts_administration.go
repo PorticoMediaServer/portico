@@ -135,15 +135,15 @@ func registerAdministrationHTTPContracts(registry *apikit.Registry) error {
 		return err
 	}
 	// internal/httpapi/admin_diagnostics.go:44
-	if err := apikit.RegisterHTTP[struct{}, servicelog.Result](registry, apikit.Metadata{Audience: apikit.Clients, ID: "get_admin_logs", Method: "GET", Path: "/v1/admin/logs", Summary: "Read server logs", Access: apikit.Owner, Requires: apikit.ScopeAdmin, Lane: apikit.Default, Admission: laneAdminHeavy, Cost: apikit.PageSized, BodyLimit: 0, Status: 200, Query: []string{"category", "cursor", "level", "limit"}, QueryIntegers: []apikit.QueryInteger{{Name: "limit", Minimum: 1, Default: 100, Maximum: 500, DefaultBelowMinimum: true, EmptyIsDefault: true}}, Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "internal"}}); err != nil {
+	if err := apikit.RegisterHTTP[struct{}, servicelog.Result](registry, apikit.Metadata{Audience: apikit.Clients, ID: "get_admin_logs", Method: "GET", Path: "/v1/admin/logs", Summary: "Read server logs", Access: apikit.Admin, AdminScope: "logs", Requires: apikit.ScopeAdmin, Lane: apikit.Default, Admission: laneAdminHeavy, Cost: apikit.PageSized, BodyLimit: 0, Status: 200, Query: []string{"category", "cursor", "level", "limit"}, QueryIntegers: []apikit.QueryInteger{{Name: "limit", Minimum: 1, Default: 100, Maximum: 500, DefaultBelowMinimum: true, EmptyIsDefault: true}}, Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "internal"}}); err != nil {
 		return err
 	}
 	// internal/httpapi/admin_diagnostics.go:66
-	if err := apikit.RegisterHTTP[struct{}, SubtitleBytesContract](registry, apikit.Metadata{Audience: apikit.Clients, ID: "get_admin_logs_events", Method: "GET", Path: "/v1/admin/logs/events", Summary: "Read server logs events", Access: apikit.Owner, Requires: apikit.ScopeAdmin, Lane: apikit.Realtime, Admission: laneRealtime, Cost: apikit.Constant, BodyLimit: 0, Status: 200, Query: []string{"level"}, ResponseContentType: "text/event-stream", Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "internal"}}); err != nil {
+	if err := apikit.RegisterHTTP[struct{}, SubtitleBytesContract](registry, apikit.Metadata{Audience: apikit.Clients, ID: "get_admin_logs_events", Method: "GET", Path: "/v1/admin/logs/events", Summary: "Read server logs events", Access: apikit.Admin, AdminScope: "logs", Requires: apikit.ScopeAdmin, Lane: apikit.Realtime, Admission: laneRealtime, Cost: apikit.Constant, BodyLimit: 0, Status: 200, Query: []string{"level"}, ResponseContentType: "text/event-stream", Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "internal"}}); err != nil {
 		return err
 	}
 	// internal/httpapi/admin_diagnostics.go:67
-	if err := apikit.RegisterHTTP[struct{}, LogSettings](registry, apikit.Metadata{Audience: apikit.Clients, ID: "get_admin_logs_settings", Method: "GET", Path: "/v1/admin/logs/settings", Summary: "Read server logs settings", Access: apikit.Owner, Requires: apikit.ScopeAdmin, Lane: apikit.Default, Admission: laneAdmin, Cost: apikit.Constant, BodyLimit: 0, Status: 200, Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "internal"}}); err != nil {
+	if err := apikit.RegisterHTTP[struct{}, LogSettings](registry, apikit.Metadata{Audience: apikit.Clients, ID: "get_admin_logs_settings", Method: "GET", Path: "/v1/admin/logs/settings", Summary: "Read server logs settings", Access: apikit.Admin, AdminScope: "logs", Requires: apikit.ScopeAdmin, Lane: apikit.Default, Admission: laneAdmin, Cost: apikit.Constant, BodyLimit: 0, Status: 200, Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "internal"}}); err != nil {
 		return err
 	}
 	// internal/httpapi/admin_diagnostics.go:79
@@ -160,7 +160,7 @@ func registerAdministrationHTTPContracts(registry *apikit.Registry) error {
 	if err := apikit.RegisterHTTP[struct {
 		Minutes     int    "json:\"minutes\""
 		OperationID string "json:\"operationId\""
-	}, LogSettings](registry, apikit.Metadata{Audience: apikit.Clients, ID: "post_admin_logs_debug_window", Method: "POST", Path: "/v1/admin/logs/debug-window", Summary: "Run server logs debug window", Access: apikit.Owner, Requires: apikit.ScopeAdmin, Lane: apikit.Default, Admission: laneAdmin, Cost: apikit.Constant, BodyLimit: 65536, Status: 200, Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "internal"}}); err != nil {
+	}, LogSettings](registry, apikit.Metadata{Audience: apikit.Clients, ID: "post_admin_logs_debug_window", Method: "POST", Path: "/v1/admin/logs/debug-window", Summary: "Run server logs debug window", Access: apikit.Admin, AdminScope: "logs", Requires: apikit.ScopeAdmin, Lane: apikit.Default, Admission: laneAdmin, Cost: apikit.Constant, BodyLimit: 65536, Status: 200, Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "internal"}}); err != nil {
 		return err
 	}
 	// internal/httpapi/admin_diagnostics.go:148

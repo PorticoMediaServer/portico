@@ -304411,7 +304411,7 @@
         "tags": [
           "Clients"
         ],
-        "x-access": "owner",
+        "x-access": "admin_scope",
         "x-admission": "admin-heavy",
         "x-audience": "Clients",
         "x-cost": "page_sized",
@@ -304566,7 +304566,7 @@
         "tags": [
           "Clients"
         ],
-        "x-access": "owner",
+        "x-access": "admin_scope",
         "x-admission": "admin",
         "x-audience": "Clients",
         "x-cost": "constant",
@@ -304644,7 +304644,7 @@
         "tags": [
           "Clients"
         ],
-        "x-access": "owner",
+        "x-access": "admin_scope",
         "x-admission": "realtime",
         "x-audience": "Clients",
         "x-cost": "constant",
@@ -304775,7 +304775,7 @@
         "tags": [
           "Clients"
         ],
-        "x-access": "owner",
+        "x-access": "admin_scope",
         "x-admission": "admin",
         "x-audience": "Clients",
         "x-cost": "constant",
