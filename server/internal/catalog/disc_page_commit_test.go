@@ -46,10 +46,30 @@ func TestDiscObservationCommitsWithSingleAndBatchedPages(t *testing.T) {
 					t.Fatal(err)
 				}
 				req := storage.InventoryRequest{Root: root, RelativePath: relative, RootIdentity: source.RootIdentity, Limit: 128}
-				page, err := storage.LocalInventoryPage(req)
-				if err != nil {
-					t.Fatal(err)
+				// This fixture commits one complete receipt per title. The name
+				// reader may report EOF on a following empty page, so consume it
+				// before testing atomic title batches and replaying their receipts.
+				var page storage.InventoryPage
+				var entries []storage.Snapshot
+				var issues []storage.InventoryIssue
+				var unstable bool
+				for {
+					page, err = storage.LocalInventoryPage(req)
+					if err != nil {
+						t.Fatal(err)
+					}
+					entries = append(entries, page.Entries...)
+					issues = append(issues, page.Issues...)
+					unstable = unstable || page.Unstable
+					if len(entries) > req.Limit {
+						t.Fatal("disc fixture exceeds one receipt's name budget")
+					}
+					if page.Complete {
+						break
+					}
+					req.Cursor, req.DirectoryRevision = page.NextCursor, page.DirectoryRevision
 				}
+				page.Entries, page.Issues, page.Unstable = entries, issues, unstable
 				v, err := storage.LocalInventoryDirectory(req)
 				if err != nil {
 					t.Fatal(err)
