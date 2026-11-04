@@ -1,8 +1,8 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {ScrollView, Text, useWindowDimensions, View} from 'react-native';
+import {ScrollView, Text, useWindowDimensions, View, type RefreshControlProps} from 'react-native';
 import type {PlaySummary} from '../../../../../../packages/client-core/src/play-history';
 import type {TelemetryReading} from '../../../../../../packages/client-core/src/telemetry';
-import {Button, Focusable} from '../../../kit/controls';
+import {Focusable} from '../../../kit/controls';
 import {Icon} from '../../../kit/Icon';
 import {BlurView} from '../../../platform/native-blur';
 import {ServerBand} from '../../../kit/shell';
@@ -42,7 +42,8 @@ export type OwnerDashboardPageProps = Readonly<{
   statisticsError?: unknown;
   viewingPeriod: OwnerViewingPeriod;
   onBack: () => void;
-  onRefresh: () => void;
+  /** owner-dashboard 2: pulling the page down refreshes it with the system ring (web keeps a Refresh button instead). */
+  refreshControl?: React.ReactElement<RefreshControlProps>;
   onRetry: () => void;
   onHealthWindow: (window: OwnerHealthWindow) => void;
   onViewingPeriod: (period: OwnerViewingPeriod) => void;
@@ -91,7 +92,7 @@ export function OwnerDashboardPage(props: OwnerDashboardPageProps) {
   };
   return <View style={{flex: 1}}><StandardBackdrop/>
     <ServerBand viewerRole={role} audience="administrators" height={400}/>
-    <ScrollView scrollEventThrottle={16} onScroll={onScroll} contentContainerStyle={{paddingTop: bar + 8, paddingBottom: 80}}>
+    <ScrollView testID="owner-dashboard-scroll" refreshControl={props.refreshControl} scrollEventThrottle={16} onScroll={onScroll} contentContainerStyle={{paddingTop: bar + 8, paddingBottom: 80}}>
       <OwnerHeader {...props}/>
       {props.error !== undefined && props.streams.length ? <View style={{paddingHorizontal: 16}}><OwnerCalm icon="i-warn" tone="error" title={t('next.shell.activityError')} action={{label: t('next.shell.tryAgain'), onPress: props.onRetry}}/></View> : null}
       <OwnerNowPlayingHeader t={t} people={props.people} count={count} expanded={expanded} onShowFewer={props.onShowFewer} hidden={stuck}
@@ -138,7 +139,7 @@ export function OwnerDashboardPage(props: OwnerDashboardPageProps) {
   </View>;
 }
 
-function OwnerHeader({t, role, serverName, health, updated, loading, onRefresh}: OwnerDashboardPageProps) {
+function OwnerHeader({t, role, serverName, health, updated}: OwnerDashboardPageProps) {
   const theme = useTheme();
   const audience = role === 'owner' ? t('next.shell.serverVisibility.ownerShared') : t('next.shell.serverVisibility.administrator');
   return <View style={{paddingHorizontal: 20}}>
@@ -160,7 +161,6 @@ function OwnerHeader({t, role, serverName, health, updated, loading, onRefresh}:
     {health.line ? <Text style={[shellType(13.5, 400), {color: theme.colors.textSecondary, marginTop: 6}]}>{health.line}</Text> : null}
     <View style={{flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10}}>
       {updated ? <Text numberOfLines={1} style={[shellType(12.5, 600), {color: theme.colors.textTertiary, flexShrink: 1}]}>{updated}</Text> : null}
-      <View style={{marginLeft: 'auto'}}><Button testID="owner-dashboard-refresh" variant="glass" size="xs" icon="i-refresh" iconSize={16} loading={loading} onPress={onRefresh}>{t('web.selection.refresh')}</Button></View>
     </View>
   </View>;
 }
