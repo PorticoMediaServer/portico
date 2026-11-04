@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
 )
 
@@ -45,7 +46,7 @@ func analysisProbeRecipe(kind AnalysisProbeKind) (probeRecipe, error) {
 }
 
 func (r probeRecipe) args(input string) []string {
-	args := []string{"-v", "error", "-threads", "1", "-protocol_whitelist", "http,tcp", "-format_whitelist", ordinaryProbeFormats, "-probesize", "8388608", "-analyzeduration", "5000000", "-select_streams", "v:0"}
+	args := []string{"-v", "error", "-threads", "1", "-protocol_whitelist", "http,tcp", "-format_whitelist", mediaexec.LocalInputFormats, "-probesize", "8388608", "-analyzeduration", "5000000", "-select_streams", "v:0"}
 	args = append(args, r.query...)
 	return append(args, input)
 }

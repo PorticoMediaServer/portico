@@ -24418,8 +24418,26 @@ var PorticoCastContracts = (function(exports) {
 				"policy": {
 					"properties": {
 						"operations": {
-							"items": { "type": "string" },
-							"type": "array"
+							"items": {
+								"enum": [
+									"probe",
+									"local_metadata",
+									"subtitles",
+									"playback_frames",
+									"checksum",
+									"chapter_images",
+									"trickplay",
+									"waveform",
+									"loudness",
+									"fingerprint",
+									"sonic",
+									"episode_thumbnail"
+								],
+								"type": "string"
+							},
+							"maxItems": 12,
+							"type": "array",
+							"uniqueItems": true
 						},
 						"revision": {
 							"maximum": 9007199254740991,
@@ -67540,8 +67558,26 @@ var PorticoCastContracts = (function(exports) {
 				"policy": {
 					"properties": {
 						"operations": {
-							"items": { "type": "string" },
-							"type": "array"
+							"items": {
+								"enum": [
+									"probe",
+									"local_metadata",
+									"subtitles",
+									"playback_frames",
+									"checksum",
+									"chapter_images",
+									"trickplay",
+									"waveform",
+									"loudness",
+									"fingerprint",
+									"sonic",
+									"episode_thumbnail"
+								],
+								"type": "string"
+							},
+							"maxItems": 12,
+							"type": "array",
+							"uniqueItems": true
 						},
 						"revision": {
 							"maximum": 9007199254740991,
@@ -106992,6 +107028,7 @@ var PorticoCastContracts = (function(exports) {
 									"probe",
 									"local_metadata",
 									"subtitle_discovery",
+									"playback_frames",
 									"loudness",
 									"audio_fingerprint",
 									"trickplay",
@@ -107001,7 +107038,7 @@ var PorticoCastContracts = (function(exports) {
 								],
 								"type": "string"
 							},
-							"maxItems": 9,
+							"maxItems": 10,
 							"type": "array",
 							"uniqueItems": true
 						},
@@ -107192,6 +107229,7 @@ var PorticoCastContracts = (function(exports) {
 									"probe",
 									"local_metadata",
 									"subtitle_discovery",
+									"playback_frames",
 									"loudness",
 									"audio_fingerprint",
 									"trickplay",
@@ -107201,7 +107239,7 @@ var PorticoCastContracts = (function(exports) {
 								],
 								"type": "string"
 							},
-							"maxItems": 9,
+							"maxItems": 10,
 							"type": "array",
 							"uniqueItems": true
 						},
@@ -187967,8 +188005,26 @@ var PorticoCastContracts = (function(exports) {
 					"type": "integer"
 				},
 				"operations": {
-					"items": { "type": "string" },
-					"type": "array"
+					"items": {
+						"enum": [
+							"probe",
+							"local_metadata",
+							"subtitles",
+							"playback_frames",
+							"checksum",
+							"chapter_images",
+							"trickplay",
+							"waveform",
+							"loudness",
+							"fingerprint",
+							"sonic",
+							"episode_thumbnail"
+						],
+						"type": "string"
+					},
+					"maxItems": 12,
+					"type": "array",
+					"uniqueItems": true
 				},
 				"tier": { "type": "string" }
 			},
@@ -187982,8 +188038,26 @@ var PorticoCastContracts = (function(exports) {
 		"PutAdminLibrariesIdScanPolicyResponse": {
 			"properties": {
 				"operations": {
-					"items": { "type": "string" },
-					"type": "array"
+					"items": {
+						"enum": [
+							"probe",
+							"local_metadata",
+							"subtitles",
+							"playback_frames",
+							"checksum",
+							"chapter_images",
+							"trickplay",
+							"waveform",
+							"loudness",
+							"fingerprint",
+							"sonic",
+							"episode_thumbnail"
+						],
+						"type": "string"
+					},
+					"maxItems": 12,
+					"type": "array",
+					"uniqueItems": true
 				},
 				"revision": {
 					"maximum": 9007199254740991,
@@ -190901,8 +190975,26 @@ var PorticoCastContracts = (function(exports) {
 				},
 				"mappingRevision": { "type": "string" },
 				"operations": {
-					"items": { "type": "string" },
-					"type": "array"
+					"items": {
+						"enum": [
+							"probe",
+							"local_metadata",
+							"subtitles",
+							"playback_frames",
+							"checksum",
+							"chapter_images",
+							"trickplay",
+							"waveform",
+							"loudness",
+							"fingerprint",
+							"sonic",
+							"episode_thumbnail"
+						],
+						"type": "string"
+					},
+					"maxItems": 12,
+					"type": "array",
+					"uniqueItems": true
 				},
 				"sessionId": { "type": "string" },
 				"sourceId": { "type": "string" },
@@ -190950,8 +191042,26 @@ var PorticoCastContracts = (function(exports) {
 		"PutItemsIdAnalysisPolicyResponse": {
 			"properties": {
 				"operations": {
-					"items": { "type": "string" },
-					"type": "array"
+					"items": {
+						"enum": [
+							"probe",
+							"local_metadata",
+							"subtitles",
+							"playback_frames",
+							"checksum",
+							"chapter_images",
+							"trickplay",
+							"waveform",
+							"loudness",
+							"fingerprint",
+							"sonic",
+							"episode_thumbnail"
+						],
+						"type": "string"
+					},
+					"maxItems": 12,
+					"type": "array",
+					"uniqueItems": true
 				},
 				"revision": {
 					"maximum": 9007199254740991,
@@ -191916,6 +192026,7 @@ var PorticoCastContracts = (function(exports) {
 									"probe",
 									"local_metadata",
 									"subtitle_discovery",
+									"playback_frames",
 									"loudness",
 									"audio_fingerprint",
 									"trickplay",
@@ -191925,7 +192036,7 @@ var PorticoCastContracts = (function(exports) {
 								],
 								"type": "string"
 							},
-							"maxItems": 9,
+							"maxItems": 10,
 							"type": "array",
 							"uniqueItems": true
 						},
@@ -192209,6 +192320,7 @@ var PorticoCastContracts = (function(exports) {
 									"probe",
 									"local_metadata",
 									"subtitle_discovery",
+									"playback_frames",
 									"loudness",
 									"audio_fingerprint",
 									"trickplay",
@@ -192218,7 +192330,7 @@ var PorticoCastContracts = (function(exports) {
 								],
 								"type": "string"
 							},
-							"maxItems": 9,
+							"maxItems": 10,
 							"type": "array",
 							"uniqueItems": true
 						},
@@ -192409,6 +192521,7 @@ var PorticoCastContracts = (function(exports) {
 									"probe",
 									"local_metadata",
 									"subtitle_discovery",
+									"playback_frames",
 									"loudness",
 									"audio_fingerprint",
 									"trickplay",
@@ -192418,7 +192531,7 @@ var PorticoCastContracts = (function(exports) {
 								],
 								"type": "string"
 							},
-							"maxItems": 9,
+							"maxItems": 10,
 							"type": "array",
 							"uniqueItems": true
 						},

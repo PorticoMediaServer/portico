@@ -23,6 +23,10 @@ type StreamBreadth struct {
 	DolbyVisionMetadataKnown   bool   `json:"dolbyVisionMetadataKnown,omitempty"`
 	DolbyVisionEnhancementType string `json:"dolbyVisionEnhancementType,omitempty"`
 	DolbyVisionCMVersion       string `json:"dolbyVisionCmVersion,omitempty"`
+	// PlaybackFramesRevision proves the recipe applied to this exact stream set;
+	// it does not assert an observation for any individual optional fact.
+	PlaybackFramesRevision string `json:"playbackFramesRevision,omitempty"`
+	PacketPeakRevision     string `json:"packetPeakRevision,omitempty"`
 }
 
 // AudioVariant names the bitstream, not the decoder family. The distinction is
@@ -70,7 +74,7 @@ type BreadthReader interface {
 }
 
 func ReadStreamBreadth(ctx context.Context, q BreadthReader, asset string) (map[int]StreamBreadth, error) {
-	rows, e := q.QueryContext(ctx, `SELECT stream_index,audio_description,audio_variant,chroma_subsampling,fps_numerator,fps_denominator,frame_rate_mode,interlace_analysis,telecine,dovi_rpu,dovi_base_layer,dovi_metadata_known,dovi_enhancement_type,dovi_cm_version FROM asset_stream_breadth WHERE asset_id=? ORDER BY stream_index`, asset)
+	rows, e := q.QueryContext(ctx, `SELECT stream_index,audio_description,audio_variant,chroma_subsampling,fps_numerator,fps_denominator,frame_rate_mode,interlace_analysis,telecine,dovi_rpu,dovi_base_layer,dovi_metadata_known,dovi_enhancement_type,dovi_cm_version,playback_frames_revision,packet_peak_revision FROM asset_stream_breadth WHERE asset_id=? ORDER BY stream_index`, asset)
 	if e != nil {
 		return nil, e
 	}
@@ -79,7 +83,7 @@ func ReadStreamBreadth(ctx context.Context, q BreadthReader, asset string) (map[
 	for rows.Next() {
 		var i int
 		var b StreamBreadth
-		if e = rows.Scan(&i, &b.AudioDescription, &b.AudioVariant, &b.ChromaSubsampling, &b.FrameRateNumerator, &b.FrameRateDenominator, &b.FrameRateMode, &b.InterlaceAnalysis, &b.Telecine, &b.DolbyVisionRPU, &b.DolbyVisionBaseLayer, &b.DolbyVisionMetadataKnown, &b.DolbyVisionEnhancementType, &b.DolbyVisionCMVersion); e != nil {
+		if e = rows.Scan(&i, &b.AudioDescription, &b.AudioVariant, &b.ChromaSubsampling, &b.FrameRateNumerator, &b.FrameRateDenominator, &b.FrameRateMode, &b.InterlaceAnalysis, &b.Telecine, &b.DolbyVisionRPU, &b.DolbyVisionBaseLayer, &b.DolbyVisionMetadataKnown, &b.DolbyVisionEnhancementType, &b.DolbyVisionCMVersion, &b.PlaybackFramesRevision, &b.PacketPeakRevision); e != nil {
 			return nil, e
 		}
 		out[i] = b
@@ -89,7 +93,7 @@ func ReadStreamBreadth(ctx context.Context, q BreadthReader, asset string) (map[
 
 func persistStreamBreadth(tx *sql.Tx, asset string, s Stream) error {
 	b := s.Detail.StreamBreadth
-	_, e := tx.Exec(`INSERT INTO asset_stream_breadth(asset_id,stream_index,audio_description,audio_variant,chroma_subsampling,fps_numerator,fps_denominator,frame_rate_mode,interlace_analysis,telecine,dovi_rpu,dovi_base_layer,dovi_metadata_known,dovi_enhancement_type,dovi_cm_version) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, asset, s.Index, b.AudioDescription, b.AudioVariant, b.ChromaSubsampling, b.FrameRateNumerator, b.FrameRateDenominator, b.FrameRateMode, b.InterlaceAnalysis, b.Telecine, b.DolbyVisionRPU, b.DolbyVisionBaseLayer, b.DolbyVisionMetadataKnown, b.DolbyVisionEnhancementType, b.DolbyVisionCMVersion)
+	_, e := tx.Exec(`INSERT INTO asset_stream_breadth(asset_id,stream_index,audio_description,audio_variant,chroma_subsampling,fps_numerator,fps_denominator,frame_rate_mode,interlace_analysis,telecine,dovi_rpu,dovi_base_layer,dovi_metadata_known,dovi_enhancement_type,dovi_cm_version,playback_frames_revision,packet_peak_revision) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, asset, s.Index, b.AudioDescription, b.AudioVariant, b.ChromaSubsampling, b.FrameRateNumerator, b.FrameRateDenominator, b.FrameRateMode, b.InterlaceAnalysis, b.Telecine, b.DolbyVisionRPU, b.DolbyVisionBaseLayer, b.DolbyVisionMetadataKnown, b.DolbyVisionEnhancementType, b.DolbyVisionCMVersion, b.PlaybackFramesRevision, b.PacketPeakRevision)
 	return e
 }
 

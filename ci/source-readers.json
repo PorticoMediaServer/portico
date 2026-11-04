@@ -2,6 +2,20 @@
   "version": 1,
   "readers": [
     {
+      "package": "server/internal/ingestion",
+      "why": "Measures Basic probe counts on the same generated Dolby Vision clip and procedural mixed media",
+      "reads": ["fixtures/video/dovi-probe-r40/"],
+      "files": ["server/internal/ingestion/playback_frames_probe_count_test.go"],
+      "tests": ["TestBasicMixedPlaybackProbeCounts"]
+    },
+    {
+      "package": "server/internal/subtitlevideo",
+      "why": "Runs closed analysis probes over retained generated Dolby Vision media",
+      "reads": ["fixtures/video/dovi-probe-r40/"],
+      "files": ["server/internal/subtitlevideo/analysis_probe_test.go"],
+      "tests": ["TestAnalysisProbeReadsRealFramesAndPacketsThroughRetainedBridge"]
+    },
+    {
       "package": "server/internal/dbwork",
       "why": "Source disciplines that walk every production Go file in the server",
       "reads": ["server/*.go"],

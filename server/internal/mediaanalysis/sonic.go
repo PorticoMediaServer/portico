@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/PorticoMediaServer/portico/server/internal/assets"
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/decoder"
@@ -77,6 +78,12 @@ func sonicRangeUS(seconds float64) (int64, error) {
 }
 
 func (s *Service) stageAlgorithm(b binding, stage string) string {
+	if stage == catalog.PlaybackFramesOperation {
+		return assets.PlaybackFramesRevision
+	}
+	if stage == packetPeakStage {
+		return assets.PacketPeakRevision
+	}
 	if stage != catalog.SonicOperation {
 		return Algorithm
 	}
@@ -88,6 +95,9 @@ func (s *Service) stageAlgorithm(b binding, stage string) string {
 	return Algorithm + ":sonic:" + token(model, b.SonicBinding)
 }
 func (s *Service) stageWorkAlgorithm(b binding, stage string) string {
+	if streamStage(stage) {
+		return b.WorkAlgorithm + ":" + s.stageAlgorithm(b, stage)
+	}
 	if stage != catalog.SonicOperation {
 		return b.WorkAlgorithm
 	}

@@ -138,7 +138,7 @@ func registerPlaybackHTTPContracts(registry *apikit.Registry) error {
 	if err := apikit.RegisterHTTP[struct {
 		mediaanalysis.Target
 		Tier             string                    `json:"tier"`
-		Operations       []string                  `json:"operations"`
+		Operations       catalog.ScanOperations    `json:"operations"`
 		Trickplay        catalog.TrickplaySettings `json:"trickplay"`
 		ExpectedRevision int64                     `json:"expectedRevision"`
 	}, catalog.ScanPolicy](registry, apikit.Metadata{Audience: apikit.Clients, ID: "put_items_id_analysis_policy", Method: "PUT", Path: "/v1/items/{id}/analysis/policy", Summary: "Save title analysis policy", Access: apikit.Owner, Requires: apikit.ScopeLibrary, Lane: apikit.Browsing, Admission: laneBrowsing, Cost: apikit.Constant, BodyLimit: 2097152, Status: 200, Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "internal"}}); err != nil {

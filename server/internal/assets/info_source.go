@@ -14,7 +14,7 @@ import (
 
 // streamInputFingerprint is shared by direct canonical fixtures and staged
 // production acceptance. Both validate and normalize precisely the same facts.
-func streamInputFingerprint(streams []Stream) (string, error) {
+func StreamInputFingerprint(streams []Stream) (string, error) {
 	if len(streams) > 128 {
 		return "", errors.New("stream facts exceed capacity")
 	}
@@ -42,7 +42,7 @@ func BuildInfoStreams(ctx context.Context, tx *sql.Tx, asset int64, token string
 	if streams == nil {
 		return nil, nil
 	}
-	fingerprint, err := streamInputFingerprint(streams)
+	fingerprint, err := StreamInputFingerprint(streams)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func BuildInfoStreams(ctx context.Context, tx *sql.Tx, asset int64, token string
 		{Number: 3, Count: int64(len(streams)), Row: func(_ context.Context, _ *sql.Tx, i int64) (compactcatalog.InfoStageRow, error) {
 			s := streams[i]
 			b := s.Detail.StreamBreadth
-			return compactcatalog.InfoStreamBreadthRow{InputOrdinal: i, AssetID: token, StreamIndex: int64(s.Index), AudioDescription: boolean(b.AudioDescription), AudioVariant: b.AudioVariant, ChromaSubsampling: b.ChromaSubsampling, FPSNumerator: int64(b.FrameRateNumerator), FPSDenominator: int64(b.FrameRateDenominator), FrameRateMode: b.FrameRateMode, InterlaceAnalysis: b.InterlaceAnalysis, Telecine: boolean(b.Telecine), DOVIRPU: boolean(b.DolbyVisionRPU), DOVIBaseLayer: boolean(b.DolbyVisionBaseLayer), DOVIMetadataKnown: boolean(b.DolbyVisionMetadataKnown), DOVIEnhancementType: b.DolbyVisionEnhancementType, DOVICMVersion: b.DolbyVisionCMVersion}, nil
+			return compactcatalog.InfoStreamBreadthRow{InputOrdinal: i, AssetID: token, StreamIndex: int64(s.Index), AudioDescription: boolean(b.AudioDescription), AudioVariant: b.AudioVariant, ChromaSubsampling: b.ChromaSubsampling, FPSNumerator: int64(b.FrameRateNumerator), FPSDenominator: int64(b.FrameRateDenominator), FrameRateMode: b.FrameRateMode, InterlaceAnalysis: b.InterlaceAnalysis, Telecine: boolean(b.Telecine), DOVIRPU: boolean(b.DolbyVisionRPU), DOVIBaseLayer: boolean(b.DolbyVisionBaseLayer), DOVIMetadataKnown: boolean(b.DolbyVisionMetadataKnown), DOVIEnhancementType: b.DolbyVisionEnhancementType, DOVICMVersion: b.DolbyVisionCMVersion, PlaybackFramesRevision: b.PlaybackFramesRevision, PacketPeakRevision: b.PacketPeakRevision}, nil
 		}},
 	}, nil
 }

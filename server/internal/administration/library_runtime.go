@@ -9,7 +9,7 @@ import (
 	"sort"
 )
 
-var analysisRuntime = map[string]string{"probe": "probe", "local_metadata": "local_metadata", "subtitle_discovery": "subtitles", "loudness": "loudness", "audio_fingerprint": "fingerprint", "trickplay": "trickplay", "chapter_images": "chapter_images", "checksum": "checksum", "waveform": "waveform"}
+var analysisRuntime = map[string]string{"playback_frames": "playback_frames", "probe": "probe", "local_metadata": "local_metadata", "subtitle_discovery": "subtitles", "loudness": "loudness", "audio_fingerprint": "fingerprint", "trickplay": "trickplay", "chapter_images": "chapter_images", "checksum": "checksum", "waveform": "waveform"}
 
 func libraryMediaKind(kind string) string {
 	switch kind {
@@ -240,10 +240,10 @@ func scanDepthFor(p catalog.ScanPolicy) string {
 		return "custom"
 	}
 	basic := containsOperation(p.Operations, "local_metadata") && containsOperation(p.Operations, "subtitles") && !containsOperation(p.Operations, "checksum") && !containsOperation(p.Operations, "fingerprint")
-	if basic && !containsOperation(p.Operations, "waveform") && !containsOperation(p.Operations, "loudness") {
+	if basic && !containsOperation(p.Operations, "waveform") && !containsOperation(p.Operations, "loudness") && !containsOperation(p.Operations, catalog.PlaybackFramesOperation) {
 		return "basic"
 	}
-	if basic && containsOperation(p.Operations, "waveform") && containsOperation(p.Operations, "loudness") {
+	if basic && containsOperation(p.Operations, "waveform") && containsOperation(p.Operations, "loudness") && containsOperation(p.Operations, catalog.PlaybackFramesOperation) {
 		return "complete"
 	}
 	return "custom"

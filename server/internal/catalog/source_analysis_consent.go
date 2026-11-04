@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
 )
@@ -64,4 +65,39 @@ func CheckSourceAnalysisConsentTx(ctx context.Context, tx *sql.Tx, original Sour
 		return storage.ErrRemoteChanged
 	}
 	return nil
+}
+
+// SourceScanOperationAllowedTx applies a source’s saved operation switches.
+func SourceScanOperationAllowedTx(ctx context.Context, tx *sql.Tx, librarySource, operation string) (bool, error) {
+	consent, err := SourceAnalysisConsentTx(ctx, tx, librarySource)
+	if err != nil || !consent.Allowed {
+		return false, err
+	}
+	switch operation {
+	case "trickplay", "chapter_images", "waveform", "loudness", "checksum":
+	default:
+		return true, nil
+	}
+	var seekPreviews, chapterImages, waveforms, loudness, checksums bool
+	err = tx.QueryRowContext(ctx, `SELECT st.seek_previews,st.chapter_images,st.waveforms,st.loudness,st.checksums FROM library_sources s JOIN remote_source_settings st ON st.source_id=s.remote_source_id WHERE s.id=?`, librarySource).
+		Scan(&seekPreviews, &chapterImages, &waveforms, &loudness, &checksums)
+	if errors.Is(err, sql.ErrNoRows) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	switch operation {
+	case "trickplay":
+		return seekPreviews, nil
+	case "chapter_images":
+		return chapterImages, nil
+	case "waveform":
+		return waveforms, nil
+	case "loudness":
+		return loudness, nil
+	case "checksum":
+		return checksums, nil
+	}
+	return true, nil
 }

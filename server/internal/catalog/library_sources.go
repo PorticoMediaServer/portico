@@ -61,7 +61,7 @@ type SourceSettings struct {
 type ScanPolicy struct {
 	Tier       string            `json:"tier"`
 	Revision   int64             `json:"revision"`
-	Operations []string          `json:"operations"`
+	Operations ScanOperations    `json:"operations"`
 	Trickplay  TrickplaySettings `json:"trickplay"`
 }
 
@@ -115,16 +115,18 @@ func validTrickplay(t TrickplaySettings) bool {
 	return t.MaxTiles == 0 || t.MaxTiles >= 16 && t.MaxTiles <= 20000
 }
 
+const PlaybackFramesOperation = "playback_frames"
+
 var BasicScanOperations = []string{"probe", "local_metadata", "subtitles"}
 
 // Intro and credits detection is not a scan stage: mediaanalysis runs it as
 // its own background work, compared across a show's episodes, under the
 // server's and each library's detection mode.
-var DeepScanOperations = []string{"checksum", "chapter_images", "trickplay", "waveform", "loudness", "fingerprint", SonicOperation, EpisodeThumbnailOperation}
+var DeepScanOperations = []string{PlaybackFramesOperation, "checksum", "chapter_images", "trickplay", "waveform", "loudness", "fingerprint", SonicOperation, EpisodeThumbnailOperation}
 
 // Complete prepares the navigation and audio features viewers can use. An owner
 // can explicitly request integrity reads or diagnostic fingerprints in Custom.
-var CompleteScanOperations = []string{"chapter_images", "trickplay", "waveform", "loudness", EpisodeThumbnailOperation}
+var CompleteScanOperations = []string{PlaybackFramesOperation, "chapter_images", "trickplay", "waveform", "loudness", EpisodeThumbnailOperation}
 
 func (p ScanPolicy) Allows(operation string) bool {
 	if p.Tier == "file_list_only" {
@@ -176,7 +178,7 @@ func ValidateScanPolicy(p ScanPolicy) (ScanPolicy, error) {
 		}
 		// Local extraction/subtitle timing requires a bounded probe. Do not silently
 		// broaden an owner's Custom content-read permission to satisfy dependencies.
-		if (seen["local_metadata"] || seen["subtitles"] || seen["chapter_images"] || seen["trickplay"] || seen["waveform"] || seen["loudness"] || seen["fingerprint"] || seen[SonicOperation] || seen[EpisodeThumbnailOperation]) && !seen["probe"] {
+		if (seen["local_metadata"] || seen["subtitles"] || seen["chapter_images"] || seen["trickplay"] || seen["waveform"] || seen["loudness"] || seen["fingerprint"] || seen[SonicOperation] || seen[EpisodeThumbnailOperation] || seen[PlaybackFramesOperation]) && !seen["probe"] {
 			return p, ErrAdminQuery
 		}
 		if p.Operations == nil {
