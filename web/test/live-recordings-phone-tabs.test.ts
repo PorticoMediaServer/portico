@@ -18,3 +18,7 @@ test('phone Recordings views are frame 12\'s five underline tabs (Upcoming, Reco
   assert.match(css.slice(phone), /\.phoneViews \{ display: block;[^}]*\}\n\s+\.chips \{ display: none; \}/);
   assert.match(live, /@media \(max-width: 599px\) \{ \.recordingsChips \{ display: none; \} \}/);
 });
+
+test('the five phone views sit 20px apart and the row fades at its end, so Storage reads as one scroll away (phone-app 12)', () => {
+  assert.match(read('../src/kit/dvr/rules.module.css'), /\.phoneViews \[role="tablist"\] \{ gap: 20px; -webkit-mask-image: linear-gradient\(90deg, #000 84%, transparent\); mask-image: linear-gradient\(90deg, #000 84%, transparent\); \}/);
+});
