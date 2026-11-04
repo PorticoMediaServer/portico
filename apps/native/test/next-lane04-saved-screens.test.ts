@@ -34,7 +34,10 @@ function fixture(phone = true) {
     '../../platform/offline-downloads': {groupOfflineEntries: () => []}, './model': {}, './SavedDownloadCard': {SavedDownloadCard: 'SavedDownloadCard'},
     '../downloads/playback': {openNativeSavedDownload() {}},
   };
-  return {host, modules, load: (name: string) => screenModule(new URL(`../src-next/screens/${name}.tsx`, import.meta.url), modules)};
+  // PersonScreen's TV credit refocus is a hook over this fixture's own React (#703).
+  const load = async (name: string) => screenModule(new URL(`../src-next/screens/${name}.tsx`, import.meta.url),
+    {...modules, './credit-refocus': await screenModule(new URL('../src-next/screens/people/credit-refocus.ts', import.meta.url), {react})});
+  return {host, modules, load};
 }
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children), ...nodes(node.props.ListHeaderComponent)] : [];
 const find = (tree: any, id: string) => nodes(tree).find(node => node.props.testID === id);
