@@ -1,4 +1,5 @@
 import {playbackFailurePermanent} from '@core/playback-messages.ts';
+import {readPlaybackTrickplay, type PlaybackTrickplaySelection} from './trickplay.ts';
 import {captureAppLogRecorder, type AppLogCode, type AppLogRecorder} from '../app-log';
 import {advancePendingChoice, takePendingTrackChoice, type PendingChoiceProgress} from '@core/pending-track-choice.ts';
 import {createWebQueueListPort, type WebQueueListPort, type WebQueueListLifetime} from './queue-list';
@@ -2065,6 +2066,15 @@ export class WebShellPlaybackRuntime {
           hidden: entryId => shown.entries.find(entry => entry.entryId === entryId)?.hidden === true});
       },
     });
+  }
+
+  /** The playing video's preview set (W1-A2, as PB-2 on TV): read when a scrub first asks, never at start.
+   * The selection rechecks this exact session, source and viewer before every use. */
+  trickplay(fence: PlaybackFence, signal: AbortSignal): Promise<PlaybackTrickplaySelection | null> {
+    const scope = this.snapshot.offers?.scope;
+    if (fence.kind !== 'queue' || !this.matches(fence) || this.stack.mode !== 'server' || !scope) return Promise.resolve(null);
+    return readPlaybackTrickplay({api: this.source.api, authority: this.authority, contentScope: this.source.contentScope,
+      isCurrent: () => !this.disposed && this.matches(fence), getSnapshot: this.getSnapshot}, fence, {libraryId: scope.libraryId, itemId: scope.itemId}, signal);
   }
 
   queueList(fence: PlaybackFence, selectionLife?: WebQueueListLifetime): WebQueueListPort | undefined {

@@ -4,6 +4,7 @@ import {ambientArtworkSource, artworkRenditionFor, type AmbientArtworkIdentity, 
 import {createArtworkRuntime, type ArtworkLoadRequest} from '../kit/artwork/source';
 import type {ArtworkImage} from '../kit/artwork/types';
 import type {ProfileAvatar} from '@core/identity-restrictions.ts';
+import {trickplayTileUrl, type TrickplaySet} from '@core/trickplay.ts';
 
 /** pixels is the painted width in device pixels and aspect its width ÷ height:
  * the box the picture covers. The slot whose actual pixels fill that box is
@@ -26,6 +27,17 @@ export function channelLogoArtwork(url: string, identity: AmbientArtworkIdentity
     const query = parts[1]!;if (!/^v=[1-9]\d{0,15}$/.test(query) || !Number.isSafeInteger(Number(query.slice(2)))) return undefined;
   }
   return {url, cacheKey: JSON.stringify([identity.serverId, identity.viewerId, identity.authorityKey, url])};
+}
+const trickplayTilePattern = new RegExp('^' + routePattern('get_v1_items_id_trickplay_set_tiles_tile_jpg').replace(/[.]/g, '\\.')
+  .replace('{id}', '([^/?#]{1,512})').replace('{set}', '[a-f0-9]{64}').replace('{tile}', '(?:0|[1-9]\\d{0,4})') + '$');
+/** A video's preview sheet (W1-A2): the server's own sprite, unscaled. The route takes no query, so it is never
+ * a rendition; the crop needs the sheet's real pixels. The set id and revision name its content. */
+export function trickplayTileArtwork(url: string, identity: AmbientArtworkIdentity, revision = '') {
+  if (url.length > 1024 || /[\s\\#\x00-\x1f\x7f]/.test(url) || ![identity.serverId, identity.viewerId, identity.authorityKey].every(value => typeof value === 'string' && value.length > 0 && value.length <= 512 && !/[\x00-\x1f\x7f]/.test(value))) return undefined;
+  const match = trickplayTilePattern.exec(url);
+  if (!match) return undefined;
+  try {const id = decodeURIComponent(match[1]!); if (!id || id === '.' || id === '..' || /[\x00-\x1f\x7f]/.test(id)) return undefined;} catch {return undefined;}
+  return {url, cacheKey: JSON.stringify([identity.serverId, identity.viewerId, identity.authorityKey, url, revision])};
 }
 /** People's pictures use their own authorized route and the upload receipt's
  * version. They enter the same foreground queue as other authenticated art. */
@@ -75,7 +87,7 @@ export function authenticatedArtwork(options: {
     scopeKey: JSON.stringify([identity.serverId, identity.viewerId, identity.authorityKey]),
     classify: artworkFailure,
     load: async (request: ArtworkLoadRequest, signal: AbortSignal): Promise<ArtworkImage> => {
-      if (!isCurrent() || !(ambientArtworkSource(request.url, identity) || request.kind === 'foreground' && (channelLogoArtwork(request.url, identity) || memberProfileAvatarArtwork(request.url, identity)))) throw Object.assign(new Error('Artwork authority changed.'), {status: 403});
+      if (!isCurrent() || !(ambientArtworkSource(request.url, identity) || request.kind === 'foreground' && (channelLogoArtwork(request.url, identity) || memberProfileAvatarArtwork(request.url, identity) || trickplayTileArtwork(request.url, identity)))) throw Object.assign(new Error('Artwork authority changed.'), {status: 403});
       const token = await auth.token(options.currentToken());
       signal.throwIfAborted();
       if (!isCurrent()) throw Object.assign(new Error('Artwork authority changed.'), {status: 403});
@@ -116,6 +128,14 @@ export function authenticatedArtwork(options: {
       const url = encodedRoutePath('get_library_channels_id_logo', {id: encodeURIComponent(id)}) + (revision === undefined ? '' : '?v=' + revision);
       const selected = channelLogoArtwork(url, identity);
       return selected ? runtime.source(selected) : undefined;
+    },
+    /** One sheet of a parsed preview set, by tile; the set is the server's (`readItemTrickplay`). */
+    trickplayTile(set: TrickplaySet, tileIndex: number) {
+      if (!isCurrent()) return undefined;
+      let url: string;
+      try {url = trickplayTileUrl(set, tileIndex);} catch {return undefined;}
+      const selected = trickplayTileArtwork(url, identity, set.revision);
+      return selected ? runtime.source(selected, {group: 'playback', priority: 'high'}) : undefined;
     },
     memberProfileAvatar(accountId: string, avatar: ProfileAvatar | undefined, pixels: number) {
       if (!isCurrent() || !avatar || !Number.isSafeInteger(avatar.version) || avatar.version < 1) return undefined;
