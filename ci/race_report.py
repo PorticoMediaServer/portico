@@ -10,7 +10,8 @@ import signal
 import subprocess
 
 from plan import ROOT
-from run import go
+from run import go, ensure_ffmpeg
+from race_plan import select as select_cohort
 
 
 TIMING = re.compile(r'context deadline exceeded|deadline exceeded|timed out|timeout', re.I)
@@ -57,11 +58,12 @@ def inspect(stdout, stderr, expected, returncode, timed_out=False):
 
 
 class RaceReport:
-    def __init__(self, plan, index, directory):
+    def __init__(self, plan, index, directory, selected=None):
         self.path = Path(directory)
         self.path.mkdir(parents=True, exist_ok=True)
         self.data = {'schema': 1, 'shard': index, 'tier': plan['tier'],
-                     'selected': plan['shards'][index], 'head': os.environ.get('GITHUB_SHA'),
+                     'selected': plan['shards'][index] if selected is None else selected,
+                     'selection_kind': 'normal-shard' if selected is None else 'race-cohort', 'head': os.environ.get('GITHUB_SHA'),
                      'plan_sha256': hashlib.sha256(json.dumps(plan, sort_keys=True).encode()).hexdigest(),
                      'complete': False, 'batches': []}
         self.save()
@@ -128,12 +130,23 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--plan', default='ci-plan.json')
     parser.add_argument('--index', type=int, required=True)
+    parser.add_argument('--cohort-plan')
     args = parser.parse_args()
     if os.environ.get('PORTICO_CI_GO_RACE') != '1':
         parser.error('PORTICO_CI_GO_RACE=1 is required for the race observer')
     plan = json.loads(Path(args.plan).read_text())
-    report = RaceReport(plan, args.index, ROOT / 'ci-race-results' / f'shard-{args.index}')
-    go(plan, args.index, report=report)
+    if args.cohort_plan:
+        race = json.loads(Path(args.cohort_plan).read_text())
+        selected = select_cohort(plan, race, args.index)
+        report = RaceReport(plan, args.index, ROOT / 'ci-race-results' / f'cohort-{args.index}', selected=selected)
+        # Keep the source digest and selected parents in the receipt. Only the
+        # report-only execution view changes; the deterministic plan is intact.
+        execution = dict(plan, shards=[selected])
+        ensure_ffmpeg(execution, 0)
+        go(execution, 0, report=report)
+    else:
+        report = RaceReport(plan, args.index, ROOT / 'ci-race-results' / f'shard-{args.index}')
+        go(plan, args.index, report=report)
     report.finish()
 
 

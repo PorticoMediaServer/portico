@@ -222,16 +222,40 @@ jobs:
         with:
           name: go-${{ matrix.index }}
           path: ci-results/
-  go_race:
-    name: Go race report (${{ matrix.index }})
+  race_plan:
+    name: Plan race cohorts (report-only)
     continue-on-error: true
     needs: planner
     if: needs.planner.outputs.go == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    outputs:
+      race_matrix: ${{ steps.plan.outputs.race_matrix }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: selection
+      - id: plan
+        run: python3 ci/race_plan.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: race-selection
+          path: ci-race-plan.json
+          if-no-files-found: warn
+  go_race:
+    name: Go race report (${{ matrix.index }})
+    continue-on-error: true
+    needs: [planner, go_build, race_plan]
+    if: needs.planner.outputs.go == 'true' && needs.race_plan.outputs.race_matrix != ''
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.planner.outputs.go_matrix) }}
+      matrix: ${{ fromJSON(needs.race_plan.outputs.race_matrix) }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 30
     steps:
       - name: Runner hardware
         if: ${{ matrix.index == 0 }}
@@ -248,6 +272,13 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: selection
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: race-selection
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: playback-helper
+          path: ci-tools
       - run: python3 ci/run.py download
       - name: FFmpeg package cache key
         id: aptkey
@@ -257,13 +288,11 @@ jobs:
           path: ${{ runner.temp }}/portico-apt-ffmpeg
           key: ${{ steps.aptkey.outputs.key }}
           restore-keys: apt-ffmpeg-
-      - env:
-          PORTICO_CI_APT_CACHE: ${{ runner.temp }}/portico-apt-ffmpeg
-        run: python3 ci/run.py ffmpeg --index '${{ matrix.index }}'
       - name: Observe races (timing and other diagnostics are separate)
         env:
           PORTICO_CI_GO_RACE: '1'
-        run: python3 ci/race_report.py --index '${{ matrix.index }}'
+          PORTICO_CI_APT_CACHE: ${{ runner.temp }}/portico-apt-ffmpeg
+        run: python3 ci/race_report.py --cohort-plan ci-race-plan.json --index '${{ matrix.index }}'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

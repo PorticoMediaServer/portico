@@ -118,16 +118,42 @@ class RaceObserver(unittest.TestCase):
                 with self.assertRaises(SystemExit): go(plan, 0)
                 self.assertNotIn('-race', command.call_args.args[0])
 
-    def test_nightly_observer_reuses_matrix_and_is_outside_required_aggregate(self):
+    def test_nightly_observer_uses_own_matrix_and_is_outside_required_aggregate(self):
         workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/nightly.yml').read_text()
         race = workflow.split('  go_race:\n')[1].split('  js:\n')[0]
         self.assertIn('continue-on-error: true', race)
-        self.assertIn('matrix: ${{ fromJSON(needs.planner.outputs.go_matrix) }}', race)
+        self.assertIn('matrix: ${{ fromJSON(needs.race_plan.outputs.race_matrix) }}', race)
         self.assertIn("PORTICO_CI_GO_RACE: '1'", race)
-        self.assertIn("ci/race_report.py --index '${{ matrix.index }}'", race)
+        self.assertIn("ci/race_report.py --cohort-plan ci-race-plan.json --index '${{ matrix.index }}'", race)
         self.assertIn('if: always()', race)
         self.assertNotIn('go_race', workflow.split('  merge:\n')[1])
 
 
 if __name__ == '__main__':
     unittest.main()
+
+class CohortExecution(unittest.TestCase):
+    def test_cohort_execution_preserves_source_digest_and_changes_only_execution_selection(self):
+        import sys
+        from race_plan import make_cohorts
+        from race_report import main
+        plan = {'tier': 'nightly', 'shards': [[{'module': 'server', 'package': 'p', 'name': 'TestA'}]],
+                'inventory': [{'module': 'server', 'package': 'p', 'name': 'TestA'}]}
+        race = make_cohorts(plan, {})
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            original = root / 'source.json'; original.write_text(json.dumps(plan))
+            cohorts = root / 'race.json'; cohorts.write_text(json.dumps(race))
+            argv = ['race_report.py', '--plan', str(original), '--cohort-plan', str(cohorts), '--index', '0']
+            with patch.object(sys, 'argv', argv), patch('race_report.ROOT', root), \
+                 patch.dict('os.environ', {'PORTICO_CI_GO_RACE': '1'}), \
+                 patch('race_report.ensure_ffmpeg') as ffmpeg, patch('race_report.go') as execute:
+                main()
+            execution, index = execute.call_args.args
+            self.assertEqual(execution['shards'], [race['cohorts'][0]['tests']])
+            self.assertEqual(index, 0)
+            ffmpeg.assert_called_once_with(execution, 0)
+            report = json.loads((root / 'ci-race-results/cohort-0/report.json').read_text())
+            self.assertEqual(report['plan_sha256'], race['source_plan_sha256'])
+            self.assertEqual(report['selection_kind'], 'race-cohort')
+            self.assertEqual(json.loads(original.read_text()), plan)
