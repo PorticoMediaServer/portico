@@ -231,18 +231,20 @@ func TestReadingPrivatePathCandidatesAndCurrentAssociation(t *testing.T) {
 	if _, err := r.f.db.Exec(`INSERT INTO reading_source_values(item_id,asset_id,field,text_value,source,inventory_object_id,source_revision) VALUES(?,?,'author','Embedded attribution','file-metadata',?,?)`, item, asset, object, revision); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := r.f.db.Exec(`UPDATE reading_path_head SET author='Previous path guess' WHERE item_id=? AND author_source='folder'`, item); err != nil {
+	var sequence int64
+	if err := r.f.db.QueryRow(`SELECT publisher_sequence FROM reading_path_head WHERE item_id=? AND asset_id=?`, item, asset).Scan(&sequence); err != nil {
 		t.Fatal(err)
 	}
 	readingTreeFile(t, r, "Attribution/Another.pdf")
 	readingScan(t, r.f, r.library)
 	v := automatic()
 	if v.Author == nil || v.Author.Value != "Embedded attribution" || v.Author.Source != compactcatalog.ReadingFileMetadata {
-		t.Fatal("path refresh overwrote higher source", v)
+		t.Fatal("sibling ingest overwrote higher source", v)
 	}
 	var pathValue string
-	if err := r.f.db.QueryRow(`SELECT author FROM reading_path_head WHERE item_id=? AND asset_id=? AND author_source='folder'`, item, asset).Scan(&pathValue); err != nil || pathValue != "Attribution" {
-		t.Fatal("real path refresh did not run", pathValue, err)
+	var afterSequence int64
+	if err := r.f.db.QueryRow(`SELECT author,publisher_sequence FROM reading_path_head WHERE item_id=? AND asset_id=? AND author_source='folder'`, item, asset).Scan(&pathValue, &afterSequence); err != nil || pathValue != "Attribution" || sequence != afterSequence {
+		t.Fatal("sibling ingest changed the accepted file's path bundle", pathValue, sequence, afterSequence, err)
 	}
 	if _, err := r.f.db.Exec(`INSERT INTO metadata_owner_fields(kind,entity_id,field,value,automatic_value,locked,actor,observed_at) VALUES('item',?,'author','A & B','Embedded attribution',1,?,datetime('now'))`, item, identity.PersonalKey(r.p.Viewer)); err != nil {
 		t.Fatal(err)

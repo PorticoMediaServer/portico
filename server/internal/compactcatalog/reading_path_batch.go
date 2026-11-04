@@ -216,8 +216,6 @@ func pathObjectWorkStep(ctx context.Context, tx *sql.Tx, w pathWork, limit int, 
 		return 0, err
 	}
 	group = group[:n]
-	var retire []int64
-	seen := map[int64]bool{}
 	for i := range group {
 		r := group[i]
 		if r.Requested != r.Captured {
@@ -231,16 +229,8 @@ func pathObjectWorkStep(ctx context.Context, tx *sql.Tx, w pathWork, limit int, 
 		if _, err = tx.ExecContext(ctx, `DELETE FROM reading_path_dirty_work WHERE library_id=? AND kind=? AND work_key=? AND requested=?`, r.Library, r.Kind, r.Key, r.Captured); err != nil {
 			return 0, err
 		}
-		if !seen[r.Library] {
-			seen[r.Library] = true
-			retire = append(retire, r.Library)
-		}
 	}
-	for _, library := range retire {
-		if err = pathRetireInput(ctx, tx, library); err != nil {
-			return 0, err
-		}
-	}
+
 	return max(1, n), nil
 }
 

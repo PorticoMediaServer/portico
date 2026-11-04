@@ -83,7 +83,7 @@ func closureUntil(t *testing.T, f *loopFixture, job Job, source catalog.LibraryS
 		}
 		closureStep(t, f, job, source)
 		closureWorker(t, f)
-		// Only the accepted D1 quiet gap may need real time in this package.
+		// Yield periodically while the real source/availability work settles.
 		if i%50 == 49 {
 			time.Sleep(50 * time.Millisecond)
 		}
@@ -129,37 +129,26 @@ func TestReadingClosurePublishesWhileOtherTopIsOpenAndReprovesLateCoverage(t *te
 	if closureSeries(t, f) != "" {
 		t.Fatal("listing alone published folder context")
 	}
-	// The real derivation worker settles actual library and availability debt.
-	closureUntil(t, f, job, source, func() bool { return f.count(`SELECT count(*) FROM reading_path_build WHERE phase='ready'`) > 0 })
+	// Lexical publication no longer waits for folder coverage. The scanner's
+	// independent seal still must renew after a late issue, with B left open.
+	closureUntil(t, f, job, source, func() bool {
+		return f.count(`SELECT count(*) FROM inventory_reading_seals WHERE job_id=? AND top_level='A'`, job.ID) > 0 && closureSeries(t, f) == "Series"
+	})
 	var old int
-	if e := f.db.QueryRow(`SELECT id FROM inventory_reading_seals WHERE job_id=? AND top_level='A'`, job.ID).Scan(&old); e != nil {
-		t.Fatal(e)
+	if err := f.db.QueryRow(`SELECT max(id) FROM inventory_reading_seals WHERE job_id=? AND top_level='A'`, job.ID).Scan(&old); err != nil {
+		t.Fatal(err)
 	}
 	closureIssue(t, f, job, "B/Bad")
-	// No reducer has run: raw coverage must already reject the READY build.
-	if e := dbwork.WithWriteTx(context.Background(), f.db, dbwork.ClassBackgroundMedia, func(tx *sql.Tx) error {
-		_, e := compactcatalog.StepReadingPaths(context.Background(), tx, 64)
-		return e
-	}); e != nil {
-		t.Fatal(e)
-	}
-	for i := 0; i < 20 && f.count(`SELECT count(*) FROM reading_path_build WHERE phase='ready'`) > 0; i++ {
-		closureWorker(t, f)
-	}
-	if closureSeries(t, f) != "" {
-		t.Fatal("late issue activated old READY seal")
-	}
-	closureUntil(t, f, job, source, func() bool { return closureSeries(t, f) == "Series" })
-	var next int
-	if e := f.db.QueryRow(`SELECT max(id) FROM inventory_reading_seals WHERE job_id=? AND top_level='A'`, job.ID).Scan(&next); e != nil || next <= old {
-		t.Fatalf("seal not renewed: %d -> %d %v", old, next, e)
+	closureUntil(t, f, job, source, func() bool {
+		return f.count(`SELECT count(*) FROM inventory_reading_seals WHERE job_id=? AND top_level='A' AND id>?`, job.ID, old) > 0
+	})
+	if closureSeries(t, f) != "Series" {
+		t.Fatal("late coverage changed accepted lexical facts")
 	}
 	if f.count(`SELECT count(*) FROM inventory_directories WHERE job_id=? AND relative_path='B' AND state='pending'`, job.ID) != 1 {
-		t.Fatal("publication waited for B")
+		t.Fatal("closure waited for unrelated B")
 	}
-	if f.count(`SELECT count(*) FROM reading_path_scope q JOIN reading_path_build b ON b.scope_id=q.id WHERE b.phase IN('capture','stage','ready') AND b.closure_seal<>q.closure_seal`) > 0 {
-		t.Fatal("build/scope proof mismatch")
-	}
+
 }
 
 func TestReadingClosureGenericDescendantAndIndependentBadTop(t *testing.T) {
@@ -223,58 +212,45 @@ func TestReadingClosureInterruptedFirstImportReconcilesRemovedDescendants(t *tes
 	}
 }
 
-func TestReadingClosureUnpublishedTurnsRejectSourceDrift(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
-	}
-
-	for _, change := range []string{"cancel", "generation", "root", "rootpath", "incarnation", "job", "coverage", "availability", "library", "desired", "global", "disabled"} {
-		for _, phase := range []string{"capture", "stage", "ready"} {
-			t.Run(change+"/"+phase, func(t *testing.T) {
-				f, job, source := closureStart(t, "A/Series/01 - First.epub", "A/Series/02 - Second.epub", "B/Later.epub")
-				closureList(t, f, job, source, ".", "A", "A/Series")
-				closureUntil(t, f, job, source, func() bool { return f.count(`SELECT count(*) FROM reading_path_build WHERE phase=?`, phase) > 0 })
-				switch change {
-				case "cancel":
-					if e := f.s.Cancel(job.ID); e != nil {
-						t.Fatal(e)
-					}
-				case "generation":
-					f.exec(`UPDATE library_sources SET generation=generation+1 WHERE id=?`, f.source)
-				case "rootpath":
-					f.exec(`UPDATE library_sources SET root=root||'/moved' WHERE id=?`, f.source)
-				case "availability":
-					f.exec(`INSERT INTO catalog_derivation_failures(domain,entity_id,reason,attempts,failed_ms) SELECT 20,item_id,'unsettled',1,1 FROM reading_publications LIMIT 1`)
-				case "library":
-					f.exec(`UPDATE reading_path_inputs SET revision=revision+1`)
-				case "desired":
-					f.exec(`UPDATE reading_path_scope SET desired=desired+1,queued=1 WHERE directory_key='A/Series'`)
-				case "global":
-					f.exec(`UPDATE catalog_derivations SET rebuilding=1 WHERE domain=28`)
-				case "disabled":
-					f.exec(`UPDATE library_sources SET enabled=0 WHERE id=?`, f.source)
-				case "root":
-					f.exec(`UPDATE library_sources SET root_identity='replacement' WHERE id=?`, f.source)
-				case "incarnation":
-					f.exec(`UPDATE library_sources SET incarnation='replacement' WHERE id=?`, f.source)
-				case "job":
-					f.exec(`UPDATE reading_path_source_barrier SET job_id='replacement' WHERE source_id=?`, f.source)
-				case "coverage":
-					closureIssue(t, f, job, "A/Series/Books")
+func TestReadingClosureUnsealedTraversalRejectsSourceDrift(t *testing.T) {
+	for _, change := range []string{"cancel", "generation", "root", "rootpath", "incarnation", "job", "coverage", "disabled"} {
+		t.Run(change, func(t *testing.T) {
+			f, job, source := closureStart(t, "A/Series/01 - First.epub", "A/Series/02 - Second.epub", "B/Later.epub")
+			closureList(t, f, job, source, ".", "A", "A/Series")
+			switch change {
+			case "cancel":
+				if err := f.s.Cancel(job.ID); err != nil {
+					t.Fatal(err)
 				}
-				for i := 0; i < 50; i++ {
-					if e := dbwork.WithWriteTx(context.Background(), f.db, dbwork.ClassBackgroundMedia, func(tx *sql.Tx) error {
-						_, e := compactcatalog.StepReadingPaths(context.Background(), tx, 64)
-						return e
-					}); e != nil {
-						t.Fatal(e)
-					}
+			case "generation":
+				f.exec(`UPDATE library_sources SET generation=generation+1 WHERE id=?`, f.source)
+			case "root":
+				f.exec(`UPDATE library_sources SET root_identity='replacement' WHERE id=?`, f.source)
+			case "rootpath":
+				f.exec(`UPDATE library_sources SET root=root||'/moved' WHERE id=?`, f.source)
+			case "incarnation":
+				f.exec(`UPDATE library_sources SET incarnation='replacement' WHERE id=?`, f.source)
+			case "job":
+				f.exec(`UPDATE reading_path_source_barrier SET job_id='replacement' WHERE source_id=?`, f.source)
+			case "coverage":
+				closureIssue(t, f, job, "A/Series/Books")
+			case "disabled":
+				f.exec(`UPDATE library_sources SET enabled=0 WHERE id=?`, f.source)
+			}
+			for range 50 {
+				err := f.s.readingClosureQuantum(context.Background(), job.ID, source)
+				if errors.Is(err, context.Canceled) {
+					break
 				}
-				if closureSeries(t, f) != "" {
-					t.Fatal("unpublished drift activated old proof")
+				if err != nil {
+					t.Fatal(err)
 				}
-			})
-		}
+				closureWorker(t, f)
+			}
+			if f.count(`SELECT count(*) FROM inventory_reading_seals WHERE job_id=?`, job.ID) != 0 {
+				t.Fatal("drifted traversal activated an old closure proof")
+			}
+		})
 	}
 }
 
@@ -302,8 +278,8 @@ func TestReadingClosureFallbackWithoutProofAndChangedDirectory(t *testing.T) {
 				closureStep(t, f, job, source)
 				closureWorker(t, f)
 			}
-			if f.count(`SELECT count(*) FROM inventory_reading_seals`) > 0 || closureSeriesOrEmpty(t, f) != "" {
-				t.Fatal("uncertain closure published")
+			if f.count(`SELECT count(*) FROM inventory_reading_seals`) > 0 {
+				t.Fatal("uncertain traversal sealed")
 			}
 			if mode == "changed" && f.count(`SELECT count(*) FROM inventory_reading_directories WHERE phase='blocked'`) == 0 {
 				t.Fatal("changed listing was accepted")
@@ -323,7 +299,7 @@ func TestReadingClosureCrashRestart(t *testing.T) {
 		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
 	}
 
-	for _, checkpoint := range []string{"edge", "verify", "coverage", "coverage-partial", "reconcile", "reconcile-partial", "absence", "absence-parent", "seal", "sealed", "capture", "stage", "ready", "renew"} {
+	for _, checkpoint := range []string{"edge", "verify", "coverage", "coverage-partial", "reconcile", "reconcile-partial", "absence", "absence-parent", "seal", "sealed", "renew"} {
 		t.Run(checkpoint, func(t *testing.T) {
 			f, old, source := closureStart(t, "A/Series/01 - First.epub", "A/Series/02 - Second.epub", "A/Series/Books/Old/03 - Gone.epub", "B/Later.epub")
 			closureList(t, f, old, source, ".", "A", "A/Series", "A/Series/Books", "A/Series/Books/Old")
@@ -365,7 +341,12 @@ func TestReadingClosureCrashRestart(t *testing.T) {
 			}
 			defer f.db.Close()
 			f.s = New(f.db, catalog.New(f.db), assets.Probe{})
-			closureUntil(t, f, job, source, func() bool { return closureSeries(t, f) == "Series" })
+			closureUntil(t, f, job, source, func() bool {
+				return f.count(`SELECT count(*) FROM inventory_reading_seals WHERE job_id=? AND top_level='A'`, job.ID) > 0 && f.count(`SELECT count(*) FROM inventory_objects WHERE relative_path LIKE '%Gone.epub' AND state='missing' AND last_missing_job=?`, job.ID) == 1 && closureSeries(t, f) == "Series"
+			})
+			if closureSeries(t, f) != "Series" {
+				t.Fatal("restarted publication lost lexical facts")
+			}
 			if f.count(`SELECT count(*) FROM inventory_objects WHERE relative_path LIKE '%Gone.epub' AND state='missing' AND last_missing_job=?`, job.ID) != 1 {
 				t.Fatal("crash lost absence work")
 			}
@@ -405,10 +386,8 @@ func TestReadingClosureCrashChild(t *testing.T) {
 			reached = f.count(`SELECT count(*) FROM inventory_reading_directories WHERE missing_object<>'' AND absence_parent<>''`) > 0
 		case "sealed":
 			reached = f.count(`SELECT count(*) FROM inventory_reading_seals WHERE job_id=?`, job.ID) > 0
-		case "capture", "stage", "ready":
-			reached = f.count(`SELECT count(*) FROM reading_path_build WHERE phase=?`, checkpoint) > 0
 		case "renew":
-			if f.count(`SELECT count(*) FROM reading_path_build WHERE phase='ready'`) > 0 {
+			if f.count(`SELECT count(*) FROM inventory_reading_seals WHERE job_id=?`, job.ID) > 0 {
 				closureIssue(t, f, job, "B/Bad")
 				closureStep(t, f, job, source)
 				reached = true

@@ -433,12 +433,9 @@ func (w *Worker) Run(ctx context.Context) {
 				return time.Millisecond
 			}
 		}
-		// Blocked Reading scopes are parked until a dependency write wakes
-		// this loop; only a quiet-gap hold needs the timer.
+		// All Reading publication debt is event-driven through the existing
+		// dirty feed; only derivation retries require a timer.
 		wait := w.retryWait()
-		if d := readingPathNextDue(ctx, w.db); d > 0 && (wait == 0 || d < wait) {
-			wait = d
-		}
 		return wait
 	})
 }
