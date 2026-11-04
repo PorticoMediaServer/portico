@@ -135,7 +135,8 @@ export class MetadataRepairService {
   try{const raw=await this.request(target,'GET');if(epoch!==this.epoch||this.disposed||this.target!==target||this.state.data!==expectedData)return;this.accept(raw,target);}
   catch(error){if(epoch===this.epoch&&!this.disposed)this.failure(error,false);}
  }
- private accept(raw:unknown,target:RepairTarget){const data=validateRepair(raw,this.options.scope,target);if(this.fence&&this.fence!==data.viewerFence)throw Object.assign(new Error('Owner access changed.'),{status:403});this.fence=data.viewerFence;this.publish({phase:'ready',data,error:null,preview:null});}
+ /** A read answered under a moved fence is the owner's access now: newer, never a refusal (that is a 401/403). A command's answer is still checked against the fence of the view it was made from. */
+ private accept(raw:unknown,target:RepairTarget,write=false){const data=validateRepair(raw,this.options.scope,target);if(write&&this.fence&&this.fence!==data.viewerFence)throw Object.assign(new Error('Owner access changed.'),{status:403});this.fence=data.viewerFence;this.publish({phase:'ready',data,error:null,preview:null});}
  async command(command:RepairCommand,expectedData?:RepairData,caller?:RepairCaller):Promise<boolean>{
   const callerCurrent=()=>!caller||!caller.signal.aborted&&caller.current();
   if(!callerCurrent())return false;
@@ -145,7 +146,7 @@ export class MetadataRepairService {
   const attempt=this.getSnapshot();
   if(this.disposed||epoch!==this.epoch||this.target!==target||attempt.phase!=='saving'||attempt.data!==data)return false;
   if(!callerCurrent()){this.failure(Error('Repair caller retired before submission.'),false);return false;}
-  try{const raw=await this.request(target,'POST',{...command,expectedRevision:data.revision},'',false,undefined,caller);if(epoch!==this.epoch||this.disposed)return false;if(!callerCurrent()){this.failure(Error('Repair caller retired after submission.'),true);return false;}this.accept(raw,target);return true;}
+  try{const raw=await this.request(target,'POST',{...command,expectedRevision:data.revision},'',false,undefined,caller);if(epoch!==this.epoch||this.disposed)return false;if(!callerCurrent()){this.failure(Error('Repair caller retired after submission.'),true);return false;}this.accept(raw,target,true);return true;}
   catch(error){if(epoch===this.epoch&&!this.disposed)this.failure(error,true);return false;}
  }
  async uploadArtwork(role:string,file:Blob,subject=''):Promise<boolean>{
@@ -158,7 +159,7 @@ export class MetadataRepairService {
   // Subscribers may synchronously retire this attempt while receiving the saving state.
   const attempt=this.getSnapshot();
   if(this.disposed||epoch!==this.epoch||this.target!==target||attempt.phase!=='saving'||attempt.data!==data)return false;
-  try{const raw=await this.request(target,'POST',body,path,true);if(epoch!==this.epoch||this.disposed)return false;this.accept(raw,target);return true;}
+  try{const raw=await this.request(target,'POST',body,path,true);if(epoch!==this.epoch||this.disposed)return false;this.accept(raw,target,true);return true;}
   catch(error){if(epoch===this.epoch&&!this.disposed)this.failure(error,true);return false;}
  }
  async removeUploadedArtwork(role:string,candidateId:string,expectedData?:RepairData):Promise<boolean>{
@@ -170,7 +171,7 @@ export class MetadataRepairService {
   const epoch=++this.epoch;this.publish({...this.state,phase:'saving',error:null});
   const attempt=this.getSnapshot();
   if(this.disposed||epoch!==this.epoch||this.target!==target||attempt.phase!=='saving'||attempt.data!==data)return false;
-  try{const raw=await this.request(target,'DELETE',undefined,'',false,path);if(epoch!==this.epoch||this.disposed)return false;this.accept(raw,target);return true;}
+  try{const raw=await this.request(target,'DELETE',undefined,'',false,path);if(epoch!==this.epoch||this.disposed)return false;this.accept(raw,target,true);return true;}
   catch(error){if(epoch===this.epoch&&!this.disposed)this.failure(error,true);return false;}
  }
  async preview(mergeId?:string):Promise<void>{

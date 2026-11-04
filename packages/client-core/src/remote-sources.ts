@@ -445,7 +445,8 @@ export class RemoteSourceService{
  private refuse(error:unknown){const code=this.refusalCode(error);if(code)this.retire(code);}
  private publish(value:Partial<RemoteState>){if(this.refused||!this.live())return;this.state=Object.freeze({...this.state,...value});for(const fn of this.listeners)fn();}
  dispose(){this.epoch++;this.disposed=true;this.choicePending=undefined;this.choiceFlight=undefined;this.settingsPending=undefined;this.intent=null;this.refused=false;this.refusedCode='';for(const c of this.controllers)c.abort();this.controllers.clear();this.listeners.clear();this.state={...this.state,sources:[],receipt:null,rclone:null,operationId:null,operationKind:''};}
- private fence(raw:unknown){if(!record(raw)||!record(raw.scope)||raw.scope.serverId!==this.scope.serverId||!text(raw.scope.viewerFence,256)||!raw.scope.viewerFence||this.viewerFence&&this.viewerFence!==raw.scope.viewerFence)invalid();this.viewerFence=raw.scope.viewerFence;}
+ /** A read answered under a moved fence is the owner's access decided again, not a refusal (that is a 401/403). A write's answer is still checked against the fence of the reads it was made from. */
+ private fence(raw:unknown,write=false){if(!record(raw)||!record(raw.scope)||raw.scope.serverId!==this.scope.serverId||!text(raw.scope.viewerFence,256)||!raw.scope.viewerFence||write&&this.viewerFence&&this.viewerFence!==raw.scope.viewerFence)invalid();this.viewerFence=raw.scope.viewerFence;}
  /** Ordinary mutations retain their exclusion through operation-id waits and
   * callbacks. Outside a choice, their existing admission/behavior is unchanged. */
  private ordinaryMutations=0;private activeWrites=0;
@@ -492,9 +493,9 @@ export class RemoteSourceService{
   */
  async revalidate(){if(!this.live()||this.state.busy||this.state.ambiguous||this.state.loading)return;const epoch=this.epoch,sequence=++this.read;const next=await this.readSources(epoch,sequence);if(next&&!this.state.busy)this.publish({...next,error:''});}
  async load(){if(!this.live())return;const epoch=this.epoch,sequence=++this.read;this.publish({loading:true,error:''});try{const next=await this.readSources(epoch,sequence);if(!next)return;this.publish(next);}catch(e){if(epoch===this.epoch&&sequence===this.read)this.publish({error:safeError(e),sources:[],receipt:null,rclone:null,mountSupported:false});}finally{if(epoch===this.epoch&&sequence===this.read)this.publish({loading:false});}}
- private parseReceipt(raw:unknown,op:string):RemoteReceipt{this.fence(raw);if(!record(raw)||!record(raw.receipt)||raw.receipt.operationId!==op||raw.receipt.accepted!==true||typeof raw.receipt.removed!=='boolean')invalid();return Object.freeze({operationId:op,accepted:true,removed:raw.receipt.removed,source:source(raw.receipt.source)});}
+ private parseReceipt(raw:unknown,op:string):RemoteReceipt{this.fence(raw,true);if(!record(raw)||!record(raw.receipt)||raw.receipt.operationId!==op||raw.receipt.accepted!==true||typeof raw.receipt.removed!=='boolean')invalid();return Object.freeze({operationId:op,accepted:true,removed:raw.receipt.removed,source:source(raw.receipt.source)});}
  /** The imported-source receipt holds identity only. `removed` is left out when false. */
- private parseRcloneReceipt(raw:unknown,intent:SourceCommandIntent):RcloneReceipt{this.fence(raw);if(!record(raw)||!record(raw.receipt))invalid();const r=raw.receipt;
+ private parseRcloneReceipt(raw:unknown,intent:SourceCommandIntent):RcloneReceipt{this.fence(raw,true);if(!record(raw)||!record(raw.receipt))invalid();const r=raw.receipt;
   if(r.operationId!==intent.operationId||r.accepted!==true||!text(r.sourceId,256)||!r.sourceId||!integer(r.generation)||r.generation<1||r.removed!==undefined&&typeof r.removed!=='boolean')invalid();
   const removed=r.removed===true;
   // The receipt must answer this command: its own source, its own posture, and
@@ -539,7 +540,7 @@ export class RemoteSourceService{
   const epoch=this.epoch;
   const raw=await this.request(routePath('post_storage_source_drive_oauth_start'),'POST',routeBody('post_storage_source_drive_oauth_start',{clientId:clientId.trim(),clientSecret}),guard);
   if(!this.live()||(guard&&!guard())||epoch!==this.epoch)throw new Error('Scope changed.');
-  this.fence(raw);
+  this.fence(raw,true);
   if(!record(raw)||!text(raw.authorizationUrl,8192)||!raw.authorizationUrl||!text(raw.state,128)||!raw.state)invalid();
   if(!/^https:\/\/accounts\.google\.com\/o\/oauth2\/v2\/auth\?/.test(raw.authorizationUrl))invalid();
   return Object.freeze({authorizationUrl:raw.authorizationUrl,state:raw.state});
@@ -550,7 +551,7 @@ export class RemoteSourceService{
   const epoch=this.epoch;
   const raw=await this.request(path,'POST',body,guard);
   if(!this.live()||(guard&&!guard())||epoch!==this.epoch)throw new Error('Scope changed.');
-  this.fence(raw);
+  this.fence(raw,true);
   if(!record(raw)||typeof raw.phase!=='string'||!['pending','ready','expired','denied'].includes(raw.phase))invalid();
   if(raw.phase==='ready'){if(!text(raw.token,16384)||!raw.token)invalid();return Object.freeze({phase:'ready',token:raw.token});}
   return Object.freeze({phase:raw.phase as DriveOAuthPhase,token:''});
@@ -571,7 +572,7 @@ export class RemoteSourceService{
   const epoch=this.epoch;
   const raw=await this.request(routePath('post_storage_source_drive_oauth_paste'),'POST',routeBody('post_storage_source_drive_oauth_paste',{state,redirectUrl:redirectUrl.trim()}),guard);
   if(!this.live()||(guard&&!guard())||epoch!==this.epoch)throw new Error('Scope changed.');
-  this.fence(raw);
+  this.fence(raw,true);
   if(!record(raw)||typeof raw.phase!=='string'||!['pending','ready','expired','denied'].includes(raw.phase))invalid();
   return Object.freeze({phase:raw.phase as DriveOAuthPhase,token:''});
 
@@ -622,7 +623,7 @@ export class RemoteSourceService{
   try{
    const raw=await this.request(routePath('test_storage_source_rclone'),'POST',routeBody('test_storage_source_rclone',{remote:input.remote,config:input.config}),guard);
    if(!this.live()||(guard&&!guard())||epoch!==this.epoch)throw new Error('Scope changed.');
-   this.fence(raw);
+   this.fence(raw,true);
    if(!record(raw))invalid();
    const result=raw.result;
    if(!record(result)||!text(result.version,200)||['remote','config','password','token'].some(key=>result[key]!==undefined))invalid();
@@ -684,7 +685,7 @@ export class RemoteSourceService{
   try{
    const raw=await this.request(routePath('test_storage_source_webdav'),'POST',routeBody('test_storage_source_webdav',{name:input.name,root:input.root,username:input.username,password:input.password,insecureLocal:input.insecureLocal}),guard);
    if(!this.live()||(guard&&!guard())||epoch!==this.epoch)throw new Error('Scope changed.');
-   this.fence(raw);
+   this.fence(raw,true);
    if(!record(raw)||!record(raw.result))invalid();
    const result=raw.result;
    if(!text(result.origin)||!sourceOrigin(result.origin,'webdav')||!['unknown','conditional','unsupported'].includes(String(result.rangeSupport))||['password','username','config','root'].some(key=>result[key]!==undefined))invalid();
@@ -790,10 +791,10 @@ export class RemoteSourceService{
  }finally{releaseChoiceExclusion();}
 }
  async policy(libraryId:string):Promise<AnalysisPolicy>{const epoch=this.epoch,raw=await this.request(encodedRoutePath("get_libraries_id_strm_analysis_policy", {"id": encodeURIComponent(libraryId)}));if(!this.live()||epoch!==this.epoch)throw new Error('Scope changed.');return this.parsePolicy(raw,libraryId);}
- private parsePolicy(raw:unknown,id:string):AnalysisPolicy{this.fence(raw);if(!record(raw)||!record(raw.policy)||raw.policy.libraryId!==id||typeof raw.policy.enabled!=='boolean'||!integer(raw.policy.revision))invalid();if(raw.policy.effective!==undefined&&typeof raw.policy.effective!=='boolean')invalid();const scanTier=['file_list_only','basic','complete','custom'].includes(String(raw.policy.scanTier))?raw.policy.scanTier as string:undefined;if(raw.policy.scanTier!==undefined&&scanTier===undefined)noteSkipped('remote-sources','policy.scanTier');return Object.freeze({libraryId:id,enabled:raw.policy.enabled,revision:raw.policy.revision,...(raw.policy.effective===undefined?{}:{effective:raw.policy.effective as boolean}),...(scanTier===undefined?{}:{scanTier})});}
+ private parsePolicy(raw:unknown,id:string,write=false):AnalysisPolicy{this.fence(raw,write);if(!record(raw)||!record(raw.policy)||raw.policy.libraryId!==id||typeof raw.policy.enabled!=='boolean'||!integer(raw.policy.revision))invalid();if(raw.policy.effective!==undefined&&typeof raw.policy.effective!=='boolean')invalid();const scanTier=['file_list_only','basic','complete','custom'].includes(String(raw.policy.scanTier))?raw.policy.scanTier as string:undefined;if(raw.policy.scanTier!==undefined&&scanTier===undefined)noteSkipped('remote-sources','policy.scanTier');return Object.freeze({libraryId:id,enabled:raw.policy.enabled,revision:raw.policy.revision,...(raw.policy.effective===undefined?{}:{effective:raw.policy.effective as boolean}),...(scanTier===undefined?{}:{scanTier})});}
  async setPolicy(policy:AnalysisPolicy,enabled:boolean):Promise<AnalysisPolicy>{
  const releaseChoiceExclusion=this.holdOrdinaryMutation();
- try{const epoch=this.epoch,raw=await this.request(encodedRoutePath("put_libraries_id_strm_analysis_policy", {"id": encodeURIComponent(policy.libraryId)}),'PUT',routeBody("put_libraries_id_strm_analysis_policy", {enabled,expectedRevision:policy.revision}));if(!this.live()||epoch!==this.epoch)throw new Error('Scope changed.');return this.parsePolicy(raw,policy.libraryId);
+ try{const epoch=this.epoch,raw=await this.request(encodedRoutePath("put_libraries_id_strm_analysis_policy", {"id": encodeURIComponent(policy.libraryId)}),'PUT',routeBody("put_libraries_id_strm_analysis_policy", {enabled,expectedRevision:policy.revision}));if(!this.live()||epoch!==this.epoch)throw new Error('Scope changed.');return this.parsePolicy(raw,policy.libraryId,true);
  }finally{releaseChoiceExclusion();}
 }
  async readProfile(id:string,expectedGeneration?:string,guard?:()=>boolean):Promise<SourceReadSettings>{
@@ -1041,7 +1042,7 @@ async networkPolicy(libraryId:string):Promise<NetworkPolicy>{const epoch=this.ep
    const raw=await this.request(pending.path,'PUT',body,guard);
    if(!this.live()||(guard&&!guard())||epoch!==this.epoch)throw new Error('Scope changed.');
    if(record(raw)&&record(raw.mutationReceipt))throw new UserMutationError('mutation_needs_review');
-   this.fence(raw);
+   this.fence(raw,true);
    if(!record(raw)||!record(raw.program)||!text(raw.program.executable)||!raw.program.executable||!text(raw.program.version,256))invalid();
    if(!integer(raw.program.revision)||raw.program.revision<expectedRevision)invalid();
    if(typeof raw.program.included!=='boolean')invalid();
@@ -1076,7 +1077,7 @@ async networkPolicy(libraryId:string):Promise<NetworkPolicy>{const epoch=this.ep
   try{
    const raw=await this.request(encodedRoutePath('put_storage_source_advanced',{id:encodeURIComponent(settings.sourceId)}),'PUT',{expectedGeneration:settings.generation,expectedRevision:settings.revision,values:sourceAdvanced(values)},guard);
    if(!this.live()||(guard&&!guard())||epoch!==this.epoch)throw new Error('Scope changed.');
-   this.fence(raw);
+   this.fence(raw,true);
    if(!record(raw)||!record(raw.settings))invalid();
    const next=sourceAdvancedSettings(raw.settings,settings.sourceId);
    if(next.revision<settings.revision||next.generation!==settings.generation)invalid();
@@ -1099,7 +1100,7 @@ async networkPolicy(libraryId:string):Promise<NetworkPolicy>{const epoch=this.ep
   const epoch=this.epoch;
   const raw=await this.request(encodedRoutePath('test_storage_source',{id:encodeURIComponent(id)}),'POST',undefined,guard);
   if(!this.live()||(guard&&!guard())||epoch!==this.epoch)throw new Error('Scope changed.');
-  this.fence(raw);
+  this.fence(raw,true);
   if(!record(raw)||!record(raw.result))invalid();
   const r=raw.result;
   if(!text(r.sourceId,256)||!r.sourceId||r.sourceId!==id||!text(r.generation,64)||!r.generation||typeof r.reachable!=='boolean')invalid();

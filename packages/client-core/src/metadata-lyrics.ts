@@ -11,7 +11,6 @@ export class MetadataLyricsService {
   private epoch = 0;
   private disposed = false;
   private controller?: AbortController;
-  private fence?: string;
   private readonly options: {api: Api; scope: RepairScope; target: RepairTarget; current: () => boolean};
   constructor(options: {api: Api; scope: RepairScope; target: RepairTarget; current: () => boolean}) {
     if (options.target.kind !== 'item') throw Error('Choose a song.');
@@ -35,9 +34,8 @@ export class MetadataLyricsService {
   private accept(raw: unknown, expectedSource?: LyricsView['source']) {
     const target = {itemId: this.options.target.id, libraryId: this.options.target.libraryId};
     const data = parseLyricsView(raw, this.options.scope, target);
-    if (!data.canShare || this.fence && data.scope.viewerFence !== this.fence) throw Object.assign(Error('Lyrics owner changed'), {status: 403});
+    if (!data.canShare) throw Object.assign(Error('Lyrics owner changed'), {status: 403});
     if (expectedSource && (data.source?.id !== expectedSource.id || data.source.version !== expectedSource.version)) throw Object.assign(Error('Lyrics source changed'), {status: 409});
-    this.fence = data.scope.viewerFence;
     this.publish({phase: 'ready', data, error: null});
   }
   private failure(error: unknown, writing: boolean) {

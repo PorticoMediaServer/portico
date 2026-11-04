@@ -93,7 +93,7 @@ export class MetadataReviewService {
  async reconcile():Promise<void>{const generation=this.generation;await this.refresh();if(!this.stopped&&generation===this.generation&&this.state.phase==='ready')this.publish({mutationError:null});}
  private async load(previous:MetadataReviewData|null=this.state.data):Promise<void>{
   const t=this.state.target;if(!t)return;this.readController?.abort();const c=new AbortController();this.readController=c;const gen=this.generation,read=++this.read,api=this.api,s=this.bound;this.publish({phase:'loading',data:null,error:null});
-  try{const raw=await this.request(api,path(t),'GET',undefined,c);if(this.stopped||gen!==this.generation||read!==this.read)return;const data=parse(raw,s,t);if(previous&&(data.scope.viewerFence!==previous.scope.viewerFence||data.revision<previous.revision))throw new Failure('metadata_scope_changed','Provider state changed scope or returned an older revision. Refresh required.',true);this.publish({phase:'ready',data,error:null});}
+  try{const raw=await this.request(api,path(t),'GET',undefined,c);if(this.stopped||gen!==this.generation||read!==this.read)return;const data=parse(raw,s,t);if(previous&&data.revision<previous.revision)throw new Failure('metadata_scope_changed','Provider state changed scope or returned an older revision. Refresh required.',true);this.publish({phase:'ready',data,error:null});}
   catch(e){if(!this.stopped&&gen===this.generation&&read===this.read)this.publish({phase:'error',data:null,error:info(e)});}
  }
  choose(candidateId:string,order?:string):Promise<void>{return this.run('select',candidateId,order);}

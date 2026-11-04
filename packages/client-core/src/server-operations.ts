@@ -1,6 +1,8 @@
 import {encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import type {ContentScope} from './library-content.ts';
 import {noteSkipped} from './tolerant.ts';
+/** The server's sealed fence: 64 hex digits. Only its shape is checked; a moved one is never a refusal. */
+const sealed=(value:unknown):value is string=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
 export const operationPanels=['memory','database','build'] as const;
 export type OperationPanelName=typeof operationPanels[number];
 type Build={version:string|null;buildId:string|null;sourceDigest:string|null;builtAt:string|null;targetOS:string;targetArch:string;goVersion:string|null};
@@ -33,7 +35,7 @@ export function parseOperationPanel(value:unknown,name:OperationPanelName):Opera
 const empty=():OperationPanelState=>({phase:'idle',panel:null,error:null});
 export class ServerOperationsService {
  private state:OperationsSnapshot={memory:empty(),database:empty(),build:empty()};
- private listeners=new Set<()=>void>();private disposed=false;private fenced=false;private fence?:string;
+ private listeners=new Set<()=>void>();private disposed=false;private fenced=false;
  private requests=new Map<OperationPanelName,AbortController>();
  private options:{api:OperationsApi;scope:ContentScope;timeoutMs?:number};
  constructor(options:{api:OperationsApi;scope:ContentScope;timeoutMs?:number}){
@@ -53,8 +55,9 @@ export class ServerOperationsService {
   try{
    const raw=await Promise.race([this.options.api.requestBounded<unknown>(encodedRoutePath("get_admin_operations_panel", {"panel": name}),8192,c.signal),new Promise<never>((_,reject)=>{timer=setTimeout(()=>{c.abort();reject(new Error('Observation timeout.'));},this.options.timeoutMs??7000);})]);
    if(this.disposed||this.fenced||c.signal.aborted)return;
-   if(!record(raw)||!record(raw.scope)||raw.scope.serverId!==this.options.scope.serverId||typeof raw.scope.viewerFence!=='string'||!/^[a-f0-9]{64}$/.test(raw.scope.viewerFence)||this.fence&&this.fence!==raw.scope.viewerFence){this.revoke();return;}
-   const panel=parseOperationPanel(raw.panel,name);this.fence=raw.scope.viewerFence;
+   if(!record(raw)||!record(raw.scope)||raw.scope.serverId!==this.options.scope.serverId||!sealed(raw.scope.viewerFence)){this.revoke();return;}
+   // A moved viewer fence only means the owner's access was decided again: the server answered, so the panel is current. A refusal is a 401/403.
+   const panel=parseOperationPanel(raw.panel,name);
    this.publish(name,{phase:'ready',panel,error:null});
   }catch(error){
    if(this.disposed||this.fenced)return;

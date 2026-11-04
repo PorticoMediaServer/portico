@@ -36,3 +36,21 @@ test('old view callbacks and a synchronously retired saving grant send no lyrics
   assert.equal(writes, 0);
   off(); service.dispose();
 });
+
+test('a lyrics view answered under a moved owner fence is shown; a refusal denies it', async () => {
+  let fence = 'a'.repeat(64), refused = false;
+  const service = new MetadataLyricsService({scope, target, current: () => true, api: {async request<T>() {
+    if (refused) throw Object.assign(new Error('Forbidden'), {status: 403});
+    const v = view(); return {...v, scope: {...v.scope, viewerFence: fence}} as T;
+  }}});
+  await service.load();
+  fence = 'd'.repeat(64);
+  await service.load();
+  assert.equal(service.getSnapshot().phase, 'ready');
+  assert.equal(service.getSnapshot().data!.scope.viewerFence, 'd'.repeat(64));
+  refused = true;
+  await service.load();
+  assert.equal(service.getSnapshot().phase, 'denied');
+  assert.equal(service.getSnapshot().data, null);
+  service.dispose();
+});
