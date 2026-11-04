@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {registerHooks} from 'node:module';
+import {readFileSync} from 'node:fs';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {transformTsx} from './transform-tsx.mjs';
@@ -39,6 +40,7 @@ registerHooks({
   },
 });
 const {Shell} = await import('../src/shell/Shell.tsx');
+const {defaultI18n} = await import('@i18n');
 function identity(username?: string, profileName = 'Evening profile'): ShellIdentity {
   return {username, profileName, serverName: 'Study server', profileArt: 'mint', primaryProfile: true,
     viewer: {serverId: 'server-a', accountId: 'account-a', profileId: 'profile-a', authority: 'local', role: 'owner'},
@@ -85,7 +87,8 @@ test('a new account/profile authority replaces the displayed username and preser
 test('non-main profile cannot receive Manage or Add actions from the actual Shell boundary',()=>{
  const source=identity('owner');const menu=render({...source,primaryProfile:false,canManageProfiles:false,capabilities:{manageAccount:false,managePeople:false,manageServer:false,manageSignIn:false}});
  assert.equal(menu.actions.manageProfiles,undefined);assert.equal(menu.actions.addProfile,undefined);assert.equal(menu.serverAction,undefined);
- assert.equal(menu.signOutLabel,'Sign out of Study server');
+ // desktop-search #menu draws a plain "Sign out"; the identity line above it already names the server.
+ assert.equal(menu.signOutLabel,undefined);
 });
 
 test('feedback uses the supplied dialog action and never navigates off the current page', () => {
@@ -94,4 +97,11 @@ test('feedback uses the supplied dialog action and never navigates off the curre
   const menu = render(identity('actual-user'), () => {}, () => {opened++;});
   const before = navigated.length;menu.actions.feedback?.();
   assert.equal(opened, 1);assert.equal(navigated.length, before);
+});
+
+test('the avatar menu\'s identity line names the server, then how this account signs in (desktop-search #menu)', () => {
+  const bootstrap = readFileSync(new URL('../src/shell/bootstrap.ts', import.meta.url), 'utf8');
+  assert.match(bootstrap, /accountFacts:\[\{id:'server',role:'context',text:system\.name\},\{id:'sign-in',role:'context',text:defaultI18n\.t\(system\.signIn==='portico'\?'account\.portico':'web\.shell\.localAccount'\)\}\],/);
+  assert.equal(defaultI18n.t('web.shell.localAccount'), 'Server account');
+  assert.equal(defaultI18n.t('account.portico'), 'Portico Account');
 });
