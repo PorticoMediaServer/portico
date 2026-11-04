@@ -67,7 +67,9 @@ func WithReadSnapshot(ctx context.Context, db *sql.DB, fn func(context.Context) 
 		// background snapshot permit for minutes. Waiting for a permit is
 		// bounded by the caller's deadline; the snapshot's own lifetime starts
 		// once it has one.
+		artworkAdmission := time.Now()
 		release, err := acquireSnapshot(ctx)
+		artworkPhase(ctx, db, "admission", artworkAdmission, err)
 		if err != nil {
 			return err
 		}
@@ -81,10 +83,16 @@ func WithReadSnapshot(ctx context.Context, db *sql.DB, fn func(context.Context) 
 	}
 	defer registerReadSnapshot(tx)()
 	defer retire()
-	if err = fn(withSnapshot(ctx, tx)); err != nil {
+	artworkExecution := time.Now()
+	err = fn(withSnapshot(ctx, tx))
+	artworkPhase(ctx, db, "execution", artworkExecution, err)
+	if err != nil {
 		return snapshotError(ctx, err)
 	}
-	return snapshotError(ctx, tx.Commit())
+	artworkCommit := time.Now()
+	err = tx.Commit()
+	artworkPhase(ctx, db, "commit", artworkCommit, err)
+	return snapshotError(ctx, err)
 }
 
 type snapshotOnceKey struct{}
@@ -161,11 +169,15 @@ func BeginRead(ctx context.Context, db *sql.DB) (*sql.Tx, func(), error) {
 // has returned. Tx.Rollback alone can report ErrTxDone while the cancellation
 // watchdog still owns that rollback; Conn.Close joins its outstanding operation.
 func beginReadConnection(ctx context.Context, db *sql.DB) (*sql.Tx, func(), error) {
+	artworkConnection := time.Now()
 	conn, err := ReadHandle(ctx, db).Conn(ctx)
+	artworkPhase(ctx, db, "connection", artworkConnection, err)
 	if err != nil {
 		return nil, nil, err
 	}
+	artworkBegin := time.Now()
 	tx, err := conn.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	artworkPhase(ctx, db, "begin", artworkBegin, err)
 	if err != nil {
 		conn.Close()
 		return nil, nil, err

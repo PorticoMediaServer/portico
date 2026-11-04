@@ -6,12 +6,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
+	"github.com/PorticoMediaServer/portico/server/internal/entityid"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
-	"github.com/PorticoMediaServer/portico/server/internal/entityid"
 	"strings"
 	"sync"
 	"testing"
@@ -316,6 +316,7 @@ func TestArtworkSlowPublicationDoesNotBlockReadsOrPreviews(t *testing.T) {
 	reads := make(chan error, 32)
 	for i := 0; i < 32; i++ {
 		go func(preview bool) {
+			ctx := dbwork.WithOwner(ctx, fmt.Sprintf("ARTWORK-%v-%02d", preview, i))
 			var file *os.File
 			var err error
 			if preview {

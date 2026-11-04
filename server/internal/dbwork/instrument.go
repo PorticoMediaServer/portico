@@ -324,10 +324,13 @@ type observedDriver struct{ inner driver.Driver }
 func (d observedDriver) Open(name string) (driver.Conn, error) {
 	name, role := connRoleOf(name)
 	readers := acquireReaderScope(name)
+	artworkOpenStarted := time.Now()
 	readers.opening.Lock()
+	artworkLockAcquired := time.Now()
 	generation := readers.plannerGeneration.Load()
 	inner, err := d.inner.Open(name)
 	readers.opening.Unlock()
+	artworkOpened(name, readers, role, artworkOpenStarted, artworkLockAcquired, err)
 	if err != nil {
 		releaseReaderScope(readers)
 		return nil, err
