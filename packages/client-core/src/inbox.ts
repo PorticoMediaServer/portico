@@ -22,6 +22,7 @@ import {serverNow} from './server-clock.ts';
 import {dependsOn} from './freshness-hub.ts';
 import {queryKeys} from './query/keys.ts';
 import type {ViewerQueries} from './query/viewer-queries.ts';
+import {until} from './query/until.ts';
 import type {ViewerQueryOptions} from './query/react.ts';
 
 export type InboxApi={request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>};
@@ -67,13 +68,6 @@ export function unreadCountQuery(api:InboxApi,audience:NotificationAudience):Vie
   queryFn:async({signal})=>parseNotificationSummary(data(await api.request<RouteResponse<"get_notifications_unread_count">>(routePath("get_notifications_unread_count") + "?audience=" + (encodeURIComponent(audience)),'GET',undefined,signal))).counts.unread,
   meta:{dependencies:[notificationsMoved]}};
 }
-/** `value`, or a rejection as soon as `signal` aborts: a shared read goes on for its other owners. */
-const until=<T,>(value:Promise<T>,signal:AbortSignal):Promise<T>=>new Promise<T>((resolve,reject)=>{
- const stop=()=>reject(Object.assign(new Error('aborted'),{name:'AbortError'}));
- if(signal.aborted){stop();return;}
- signal.addEventListener('abort',stop,{once:true});
- value.then(v=>{signal.removeEventListener('abort',stop);resolve(v);},e=>{signal.removeEventListener('abort',stop);reject(e);});
-});
 // A transport failure ("Failed to fetch") is not something to show a person; the server's own
 // words are.
 // X-04: what the viewer reads comes from the catalogue, never from `error.message`.

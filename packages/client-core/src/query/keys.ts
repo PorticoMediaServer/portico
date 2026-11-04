@@ -20,6 +20,12 @@ export const queryKeys = Object.freeze({
   notificationsInbox: (audience: string, view: string) => ['notifications', 'inbox', audience, view] as const,
   /** The viewer's unread notifications in one audience (`GET /v1/notifications/unread-count?audience=…`). */
   notificationsUnread: (audience: string) => ['notifications', 'unread', audience] as const,
+  /** An owner's view of one library: `GET /v1/admin/libraries/{id}` (its source, last scan and offered actions). */
+  adminLibraryManagement: (libraryId: string) => ['admin', 'library', libraryId, 'management'] as const,
+  /** A library's inventory, first page only (`GET …/inventory-config` with `GET …/inventory`, no cursor); later pages are direct reads. */
+  adminLibraryInventory: (libraryId: string, sourceId: string, state: string) => ['admin', 'library', libraryId, 'inventory', {sourceId, state}, 'cursor0'] as const,
+  /** Every owner document of the admin tree: what is dropped when the server refuses the viewer. */
+  adminLibraries: () => ['admin', 'library'] as const,
   /** A Home row's See all grid, as `libraryBrowse`. */
   homeRowBrowse: (rowId: string, query: string) => ['home', 'row', rowId, 'browse', query] as const,
 });

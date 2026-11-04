@@ -473,7 +473,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
     if (!manageServer || !isReadingLibrary(library.kind)) {setScanOffer(undefined); return;}
     const controller = new AbortController(), life = resources.life;
     const lease: ScanLease = {context, libraryId: library.id, life, signal: controller.signal, pending: {current: false},
-      service: new LibraryManagementService({scope: {serverId: context.scope.serverId, viewerId: context.scope.viewerId},
+      service: new LibraryManagementService({queries: context.queries, scope: {serverId: context.scope.serverId, viewerId: context.scope.viewerId},
         api: {request: <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal) =>
           life.api.request<T>(path, method, body, controller.signal.aborted ? controller.signal : AbortSignal.any([controller.signal, ...(signal ? [signal] : [])]))}})};
     let live = true;
@@ -526,7 +526,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
       if (tab.shows === 'unmatched') {navigate({unmatched: true});return;}
       if (tab.shows === 'playlists') {void router.navigate({to: '/saved', search: {view: 'playlists'}}).catch(context.effects.reportError);return;}
       navigate(libraryTabAddress(tabs, tab));}};
-  const empty = <LibraryEmpty api={resources.life.api} scope={context.scope} libraryId={library.id} libraryName={library.name}
+  const empty = <LibraryEmpty api={resources.life.api} queries={context.queries} scope={context.scope} libraryId={library.id} libraryName={library.name}
     owner={context.identity?.viewer.role === 'owner'} onActivity={() => {if (context.isCurrent()) void router.navigate({to: '/dashboard'}).catch(context.effects.reportError);}}/>;
   const bindings = {...header, controller, menuContext: context,
     unmatchedHelp: context.effects.editMetadata ? t('metadata.attention.browseHelp') : undefined,

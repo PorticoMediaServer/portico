@@ -6,6 +6,7 @@ import {routeBase64} from '../../../../../packages/client-core/src/route-identit
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import {NativeScreenLifetime} from '../settings-live/lifetime';
 import {NativeOwnerLibrariesController} from '../settings-live/owner-libraries/controller';
+import {viewerQueriesFor} from '../../shell/freshness';
 import {AddLibraryPage} from '../settings-live/owner-libraries/AddLibraryPage';
 import {nativeRouteCrypto} from '../../platform/server-connections';
 import {useTheme} from '../../kit/theme';
@@ -44,7 +45,7 @@ export function PhoneFirstLibrary({context, onDone}: {context: NativeShellBootst
       assertOwner(); return result;
     }};
     const scope = {serverId: lifetime.authority.serverId, viewerId: JSON.stringify([lifetime.authority.epoch, lifetime.authority.accountId, lifetime.authority.profileId])};
-    const controller = new NativeOwnerLibrariesController(api, scope, () => routeBase64(nativeRouteCrypto.random(24)));
+    const controller = new NativeOwnerLibrariesController(api, scope, () => routeBase64(nativeRouteCrypto.random(24)), viewerQueriesFor(context.api, {serverId: lifetime.authority.serverId}));
     ticket.retire = () => {ticket.active = false; controller.dispose(); lifetime.dispose();};
     return {ticket, lifetime, assertOwner, api, controller};
   }, [context]);
