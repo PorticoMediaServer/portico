@@ -182,6 +182,30 @@ export class NativeHomeCustomizeController {
     });
     if (changed) this.publish({rows: Object.freeze(rows)});
   };
+  /**
+   * Step 7 item 4, ruling C: the viewer's access was decided again while Customize is open, and it stays open. Views
+   * added in this draft that are no longer offered drop out; the count is returned for the notice. Rows already in the
+   * server's layout stay (dropping them would unpin them on Save) and lose a saved-view binding that is no longer
+   * current, so it cannot block Save. An unaccepted Save or Reset that captured the old rows is dropped, so Save works
+   * again; one in flight, or already accepted, is left to finish as before. Layout writes still pin the revision.
+   */
+  dropUnoffered = (): number => {
+    if (!this.current() || this.state.phase !== 'ready' || this.state.pending) return 0;
+    const offered = (view: PersonalResource) => !!this.ports.savedViews?.isCurrent(view);
+    let dropped = 0, picked = false;
+    for (const [id, view] of this.editor.getSnapshot().draft?.added ?? []) {
+      if (offered(view)) continue;
+      this.editor.remove(id); this.savedViews.delete(id); dropped++; picked ||= this.state.pickedId === id;
+    }
+    let unbound = false;
+    for (const [id, view] of [...this.savedViews]) if (!offered(view)) {this.savedViews.delete(id); unbound = true;}
+    const stale = !!this.command && !this.command.accepted;
+    if (stale) {this.command!.abort.abort(); this.command = undefined;}
+    if (!dropped && !unbound && !stale) return 0;
+    if (picked) {this.pickedOrder = undefined; this.pickedDraft = undefined;}
+    this.publish({rows: this.draftRows(), ...(stale ? {error: undefined, retry: undefined} : {}), ...(picked ? {pickedId: undefined, pickupOrder: undefined} : {})});
+    return dropped;
+  };
   save = async (): Promise<boolean> => {
     if (this.command) return this.command.kind === 'save' ? this.retry() : false;
     if (!this.editable() || this.state.conflict || !this.state.dirty || this.state.pickedId || !this.base) return false;

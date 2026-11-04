@@ -15,7 +15,7 @@ import {sameAuthority} from '../../shell/model';
 import {nativeDestinationLifetime} from '../destinations/lifetime';
 import {nativeShellRoutes, type NativeRouteRenderer} from '../../shell/route-registry';
 
-type Source = Readonly<{route: NativeShellRoute; key: number; controller: NativeHomeCustomizeController; views: PersonalSavedService; summaries: NativeHomeSavedViewSummaries; current: () => boolean; initialIntent?: HomeCustomizeViewIntent; remember: (views: readonly PersonalResource[]) => void; readView: (id: string) => Promise<PersonalResource | undefined>}>;
+type Source = Readonly<{route: NativeShellRoute; key: number; controller: NativeHomeCustomizeController; views: PersonalSavedService; summaries: NativeHomeSavedViewSummaries; current: () => boolean; initialIntent?: HomeCustomizeViewIntent; remember: (views: readonly PersonalResource[]) => void; dropped: Readonly<{get: () => number; subscribe: (listener: () => void) => () => void}>; revalidate: () => void; readView: (id: string) => Promise<PersonalResource | undefined>}>;
 
 /** Authority-local route factory. Registration belongs to this screen module;
  * the shell only binds its factories to the restored context. */
@@ -55,6 +55,7 @@ export function createNativeHomeCustomization(context: NativeShellBootstrapConte
     const route = context.navigation.getSnapshot().route;
     if (route === source?.route) {
       if (!source.current()) {const original = source;retire();if (context.current() && context.navigation.getSnapshot().route === original.route) context.navigation.back(context.authority());}
+      else source.revalidate();
       return;
     }
     retire();if (route.kind !== 'home-customize') return;
@@ -64,7 +65,7 @@ export function createNativeHomeCustomization(context: NativeShellBootstrapConte
     const abort = new AbortController();let live = true;
     const current = () => alive && live && !abort.signal.aborted && source?.key === key && owner.current()
       && sameAuthority(authority, context.authority()) && context.session()?.sessionFamilyId === family && context.navigation.getSnapshot().route === route
-      && context.home.getSnapshot().document?.serverId === document.serverId && context.home.getSnapshot().document?.viewerFence === document.viewerFence;
+      && context.home.getSnapshot().document?.serverId === document.serverId;
     const key = ++sequence;
     const api = {request: async <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
       if (!current()) throw Object.assign(new Error('Customize Home opening retired'), {name: 'AbortError'});
@@ -98,8 +99,22 @@ export function createNativeHomeCustomization(context: NativeShellBootstrapConte
       if (!eligible(view) || !controller.getSnapshot().rows.some(row => row.kind === 'saved_view' && row.id === `view:${id}`) && !views.getSnapshot().resources.some(row => row.id === id) && initialIntent?.resourceId !== id) return;
       records.set(view.id, view);controller.bindSavedViews([...records.values()]);return view;
     };
-    source = {route, key, controller, views, summaries, current, initialIntent, remember, readView};
-    retireSource = () => {live = false;abort.abort();stopViews();stopRows();controller.dispose();views.dispose();summaries.dispose();records.clear();};
+    // Step 7 item 4, ruling C: a moved viewer fence (the viewer's access decided again) or a changed library list is a
+    // newer answer. Customize stays open: the views list is read again, and views added in this draft that it no longer
+    // offers drop out with a notice. The layout write still pins the revision the server checks.
+    const offer = () => JSON.stringify([context.home.getSnapshot().document?.viewerFence, context.libraries().map(library => library.id)]);
+    let offered = offer(), dropped = 0;
+    const droppedListeners = new Set<() => void>();
+    const revalidate = () => {
+      const next = offer();if (!current() || next === offered) return;
+      offered = next;remember(views.getSnapshot().resources);
+      if (views.getSnapshot().resources.length || views.getSnapshot().error) void views.select({view: 'views'});
+      const count = controller.dropUnoffered();
+      if (count) {dropped = count;for (const listener of [...droppedListeners]) listener();}
+    };
+    const droppedStore = {get: () => dropped, subscribe: (listener: () => void) => {droppedListeners.add(listener);return () => {droppedListeners.delete(listener);};}};
+    source = {route, key, controller, views, summaries, current, initialIntent, remember, readView, dropped: droppedStore, revalidate};
+    retireSource = () => {live = false;abort.abort();stopViews();stopRows();controller.dispose();views.dispose();summaries.dispose();records.clear();droppedListeners.clear();};
   };
   return {reconcile, owns: (route: NativeShellRoute) => source?.route === route,
     render: (runtime: NativeShellRuntime) => {
@@ -111,6 +126,7 @@ export function createNativeHomeCustomization(context: NativeShellBootstrapConte
 function Customization({source, runtime, close}: {source: Source; runtime: NativeShellRuntime; close: () => void}) {
   const state = useSyncExternalStore(source.controller.subscribe, source.controller.getSnapshot), views = useSyncExternalStore(source.views.subscribe, source.views.getSnapshot);
   useSyncExternalStore(source.summaries.subscribe, source.summaries.getSnapshot);
+  const dropped = useSyncExternalStore(source.dropped.subscribe, source.dropped.get);
   useEffect(() => {void source.controller.load();}, [source]);
   const summaryResources = useRef<readonly PersonalResource[]>([]);
   useEffect(() => {
@@ -139,13 +155,14 @@ function Customization({source, runtime, close}: {source: Source; runtime: Nativ
     initialAttempt.current = true;
     void source.readView(intent.resourceId).then(view => {
       if (!source.current()) return;
-      if (!view || view.revision !== intent.revision || view.serverId !== intent.serverId || view.viewerFence !== intent.viewerFence) {setIntentProblem(runtime.text.t('error.unavailable'));return;}
+      // A pre-write gate on the view's revision and server only: a read under a moved fence is the newer answer (ruling C).
+      if (!view || view.revision !== intent.revision || view.serverId !== intent.serverId) {setIntentProblem(runtime.text.t('error.unavailable'));return;}
       if (view.onHome) {intentAdded.current = true;return;}
       intentAdded.current = source.controller.addSavedView(view, Platform.isTV);
       if (!intentAdded.current) setIntentProblem(runtime.text.t('error.unavailable'));
     }, () => {if (source.current()) setIntentProblem(runtime.text.t('error.unavailable'));});
   }, [source, state.phase, runtime]);
-  return <HomeCustomize summary={view => source.summaries.line(view, labels)} controller={source.controller} copy={copy} i18n={labels} onClose={close} onAddView={retry} notice={intentProblem} renderError={(error, again) => <StateView variant="centered" {...runtime.error(error, again, 'home')} testID="home-customize-error"/>} testID="home-customize"
+  return <HomeCustomize summary={view => source.summaries.line(view, labels)} controller={source.controller} copy={copy} i18n={labels} onClose={close} onAddView={retry} notice={intentProblem ?? (dropped ? runtime.text.t('next.home.viewsNoLongerAvailable', {count: dropped}) : undefined)} renderError={(error, again) => <StateView variant="centered" {...runtime.error(error, again, 'home')} testID="home-customize-error"/>} testID="home-customize"
       views={{items: views.resources, loading: views.loading, error: views.error, retry, hasMore: !!views.nextCursor,
         loadMore: () => {if (source.current()) void source.views.next().catch(error => {if (source.current()) runtime.reportError(error);});},
         renderError: (error, again) => <StateView variant="centered" {...runtime.error(error, again, 'home')} testID="home-customize-views-error"/>}}/>;

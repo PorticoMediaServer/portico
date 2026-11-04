@@ -45,6 +45,7 @@ export const homeMessages = {
   'next.home.layoutMoveAction': 'Move',
   'next.home.layoutDropAction': 'Drop',
   'next.home.layoutPutBackAction': 'Put it back',
+  'next.home.viewsNoLongerAvailable': '{count, plural, one {# saved view is no longer available.} other {# saved views are no longer available.}}',
   'next.home.picker.unknown': 'The outcome for {count, plural, one {# title} other {# titles}} could not be confirmed.',
   'next.home.picker.pendingJobs': '{count, plural, one {# task is still working.} other {# tasks are still working.}}',
   'next.home.picker.unresolvedJobs': '{count, plural, one {# task could not be confirmed.} other {# tasks could not be confirmed.}}',
