@@ -80,6 +80,7 @@ def create(db):
  db.exec((ROOT/'schema.sql').read_text())
 
 def seed(db,start,end,evict=None):
+ if end>10000 and not os.getenv("GITHUB_RUN_ID"):raise RuntimeError("Local smoke hard limit: 10k IDs; scale runs require hosted run ID")
  # Each 1000 entities: 150 movies; 10 shows, 40 seasons, 400 episodes;
  # 10 artists, 30 albums, 250 songs; 4 authors, 20 books, 60 audio parts;
  # 10 collections, 10 ebooks, 6 comics. Mix sums to 1000; same per small library.

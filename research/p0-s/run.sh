@@ -13,6 +13,10 @@ cg=$(awk -F: '$1=="0" {print $3}' /proc/self/cgroup)
    echo "$field"; cat "/sys/fs/cgroup$cg/$field"
  done
 } > "$out/host-$stage.txt"
+if [ "$stage" = sweep ] || [ "$stage" = fanout ]; then
+  python3 research/p0-s/adversarial.py --out "$out" --mode "$stage"
+  exit
+fi
 args=()
 if [ "$stage" = seed ]; then args+=(--seed-only); fi
 if [ "${MODE:-churn}" = growth ]; then args+=(--growth); fi

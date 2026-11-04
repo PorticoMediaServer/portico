@@ -9,6 +9,7 @@ permissions:
   contents: read
 jobs:
   scale:
+    if: ${{ inputs.mode != 'sweep' && inputs.mode != 'fanout' }}
     runs-on: ubuntu-24.04
     env:
       MODE: ${{ inputs.mode || 'churn' }}
@@ -48,4 +49,34 @@ jobs:
         with:
           name: p0-s-${{ matrix.size }}-${{ matrix.profile }}
           path: '${{ runner.temp }}/p0-s'
+          retention-days: 14
+
+  adversarial:
+    if: ${{ inputs.mode == 'sweep' || inputs.mode == 'fanout' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      MODE: ${{ inputs.mode }}
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [standard, legacy8]
+        repetition: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - name: Record immutable research pin
+        run: |
+          mkdir -p "$RUNNER_TEMP/p0-s"
+          git rev-parse HEAD > "$RUNNER_TEMP/p0-s/source.txt"
+          git archive HEAD | sha256sum >> "$RUNNER_TEMP/p0-s/source.txt"
+      - name: Repeated append sweep or scalar fanout
+        run: bash research/p0-s/launch.sh "$RUNNER_TEMP/p0-s" 0 '${{ matrix.profile }}' "$MODE"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: p0-s-${{ inputs.mode }}-${{ matrix.profile }}-rep${{ matrix.repetition }}
+          path: |
+            ${{ runner.temp }}/p0-s/*.json
+            ${{ runner.temp }}/p0-s/*.txt
           retention-days: 14
