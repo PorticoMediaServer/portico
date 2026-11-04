@@ -65,6 +65,33 @@ func readingCleanupBooks(t *testing.T, c *catalogtest.Catalog, library int64, ro
 	return books
 }
 
+func TestReadingRemovalPhaseFiveDrainsTextObjectResidue(t *testing.T) {
+	c := catalogtest.Open(t)
+	root := t.TempDir()
+	lib := c.Library("r", "Reading", "book", root)
+	books := readingCleanupBooks(t, c, lib, root, "Shelf", 1)
+	c.Exec(`UPDATE catalog_libraries SET retired=1 WHERE id=?`, lib)
+	// Resume at phase 5: the earlier removal phases cannot erase this
+	// retained per-object witness before its own residue unit sees the key.
+	c.Exec(`INSERT INTO catalog_removal_progress(kind,target,phase) VALUES('library','r',5)`)
+	if n := readingCleanupCount(t, c, `SELECT count(*) FROM reading_path_object_keys WHERE library_id=?`, lib); n != 1 {
+		t.Fatal("missing actual per-object residue", n, books)
+	}
+	for range 100 {
+		err := dbwork.WithWriteTx(context.Background(), c.DB, dbwork.ClassMaintenance, func(tx *sql.Tx) error {
+			_, err := removeLibraryBatchTx(context.Background(), tx, "r")
+			return err
+		})
+		if err != nil {
+			t.Fatal("phase-5 per-object residue cannot drain", err)
+		}
+		if readingCleanupCount(t, c, `SELECT count(*) FROM reading_path_object_keys WHERE library_id=?`, lib) == 0 {
+			return
+		}
+	}
+	t.Fatal("object residue retained")
+}
+
 func TestReadingRemovalOwnerDrainsRetiredLifetimeAndResidue(t *testing.T) {
 	c := catalogtest.Open(t)
 	keepRoot, root := t.TempDir(), t.TempDir()

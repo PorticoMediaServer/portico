@@ -400,7 +400,9 @@ func readingRemovalResidueRun(ctx context.Context, tx *sql.Tx, step readingRemov
 		}
 		args = []any{owner, kind, key}
 	case readingRemovalKeyThenOwner:
-		var key int64
+		// Entity/block keys are INTEGER, while object IDs are TEXT. Keep the
+		// selected SQL scalar type when binding the exact guarded delete.
+		var key any
 		err := tx.QueryRowContext(ctx, step.pick, owner).Scan(&key)
 		if errors.Is(err, sql.ErrNoRows) {
 			return phasedpurge.Outcome{Drained: true}, nil
