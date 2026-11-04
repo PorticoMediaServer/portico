@@ -207,9 +207,14 @@ func sandboxArgs(v linuxSpec, socket string, n int) ([]string, error) {
 	// caller passed: a caller that passed none (the audio render measurement,
 	// NEW-29) got a sandbox where a dynamically linked ffprobe couldn't load
 	// libm.so.6, and every measurement failed as "unreadable".
-	decoderLibs, e := ResolveLibraries(v.Executable, v.Executable, nil)
-	if e != nil {
-		return nil, e
+	var decoderLibs []string
+	if !v.Probe {
+		// The availability probe executes only the inner helper; it has no
+		// decoder executable whose dependencies could be resolved.
+		decoderLibs, e = ResolveLibraries(v.Executable, v.Executable, nil)
+		if e != nil {
+			return nil, e
+		}
 	}
 	files := append(append(append([]string{}, v.Libraries...), helperLibs...), decoderLibs...)
 	if !v.Probe {
