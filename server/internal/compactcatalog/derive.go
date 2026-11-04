@@ -395,6 +395,7 @@ func (w *Worker) retryWait() time.Duration {
 // Run is supervised by the server. It is change-driven: every catalogue write
 // reaches catalog_dirty or a job table, and that commit wakes it.
 func (w *Worker) Run(ctx context.Context) {
+	defer dumpPressureCosts()
 	w.mu.Lock()
 	if w.holdTarget == 0 {
 		w.holdTarget = BatchHoldTarget
@@ -549,9 +550,16 @@ func (w *Worker) Step(ctx context.Context, limit int) (int, error) {
 	if limit < 1 || limit > 500 {
 		return 0, fmt.Errorf("catalogue batch must contain 1..500 units")
 	}
+	stepStarted := time.Now()
+	if pressureCostEnabled {
+		ctx, _ = dbwork.Measure(ctx)
+	}
+	prepareStarted, prepareBefore := time.Now(), dbwork.CostFrom(ctx)
 	if err := w.prepare(ctx); err != nil {
 		return 0, err
 	}
+	notePressureCost("prepare", prepareStarted, prepareBefore, ctx, 0, 0)
+
 	w.mu.Lock()
 	unpaced := w.holdTarget <= 0
 	w.mu.Unlock()
@@ -569,6 +577,9 @@ func (w *Worker) Step(ctx context.Context, limit int) (int, error) {
 	// starting) through the commit.
 	var began time.Time
 	var rows int64
+	defer func() {
+		notePressureCost(fmt.Sprintf("domain-%02d-step-%02d", domain, step), stepStarted, dbwork.Cost{}, ctx, n, rows)
+	}()
 	cleaningSearch := false
 	err := dbwork.WithWriteTx(ctx, w.db, dbwork.ClassMaintenance, func(tx *sql.Tx) error {
 		began = time.Now()
@@ -1048,7 +1059,9 @@ func (w *Worker) runSteps(ctx context.Context, tx *sql.Tx, limit int) (int, int,
 				stepLimit = min(stepLimit, 4)
 			}
 		}
+		stepStarted, stepBefore := time.Now(), dbwork.CostFrom(ctx)
 		n, err := steps[kind](ctx, tx, stepLimit)
+		notePressureCost(fmt.Sprintf("family-%02d-empty-%t", kind, n == 0), stepStarted, stepBefore, ctx, n, 0)
 		if err != nil {
 			return 0, kind, err
 		}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -24,7 +25,7 @@ func TestDerivedWorkerCompletesWithForegroundPressure(t *testing.T) {
 	for i := 0; i < count; i++ {
 		c.Movie(movies, fmt.Sprintf("/m/%03d.mkv", i), fmt.Sprintf("Film %03d", i), 2000)
 	}
-	dbwork.RegisterForegroundProbe(t.Name(), func() bool { return true })
+	dbwork.RegisterForegroundProbe(t.Name(), func() bool { return os.Getenv("PORTICO_PRESSURE_IDLE") != "1" })
 	defer dbwork.RegisterForegroundProbe(t.Name(), nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	started := time.Now()
