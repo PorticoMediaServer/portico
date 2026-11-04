@@ -1,4 +1,5 @@
-import {browseCapabilitiesPath, parseBrowseCapabilities, type BrowseCapabilities} from '../../../../../packages/client-core/src/browse';
+import {readBrowseCapabilities} from '../../../../../packages/client-core/src/query/browse-reads';
+import type {BrowseCapabilities} from '../../../../../packages/client-core/src/browse';
 import {sameAuthority} from '../../shell/model';
 import type {NativeReadNavigationContext, NativeReadOrigin} from './eligibility';
 import {isReadingLibraryKind} from './platform';
@@ -48,9 +49,9 @@ export function nativeReadingPageOpening(context: NativeReadNavigationContext,
     isCurrent: current, dispose: () => life.abort(),
     async capabilities() {
       if (!current()) throw retired();
-      const raw = await api.request<unknown>(browseCapabilitiesPath(libraryId, kind === 'comic' ? 'comics' : 'books'), 'GET', undefined, life.signal);
+      const capabilities = await readBrowseCapabilities(api, libraryId, kind === 'comic' ? 'comics' : 'books', life.signal);
       if (!current()) throw retired();
-      const data = parseBrowseCapabilities(raw);
+      const data = capabilities;
       if (data.library.id !== libraryId || data.library.kind !== kind) throw new Error('native_reading_capability_scope');
       if (!current()) throw retired();
       return data;
