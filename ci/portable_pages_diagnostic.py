@@ -55,6 +55,13 @@ def run(label, package, parents, count, expected, replace=None):
 storage = ['TestRetainedProducerHonorsEachContinuationBudget', 'TestRetainedProducerRejectsOverBudgetRawNames', 'TestRetainedProducerUsesUnusedCreditToProveSmallDirectoryEOF']
 owners = ['TestPortableScanCancellationRetiresItsRegisteredProducer']
 http = ['TestReadingCompleteMultiPageScanAllowsRealHTTPSignIn', 'TestReadingDiscoverOperationStrictAndBounded', 'TestReadingEPUBOversizedMemberRefusedAtOpen', 'TestReadingInitialFacetRetryBacksOffAfterFirstPoll', 'TestReadingOpenSurvivesAFailedFactAdoption', 'TestReadingPrivatePathMovedFolderWithdrawsOldAttribution', 'TestReadingPrivatePathPublicationCoversEveryCandidate', 'TestRestrictedProfileWriteRouteMatrix']
+unused_credit = {}
+for path in paths:
+    target = out / 'before-unused-credit' / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(subprocess.check_output(['git', 'show', 'a65cd0816608484b43539c64443b4ef3757b52c2:' + path]))
+    unused_credit[str(root / path)] = str(target)
+run('before-unused-credit', 'storage', ['TestRetainedProducerUsesUnusedCreditToProveSmallDirectoryEOF'], 3, 'fail', overlay('before-unused-credit', unused_credit))
 for phase, replacements in [('before', before), ('fixed', {})]:
     original = overlay(phase, replacements)
     expected = 'fail' if phase == 'before' else 'pass'
