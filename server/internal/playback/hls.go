@@ -424,14 +424,14 @@ func (h *HLS) produce(ctx context.Context, id string, from, generation int, owne
 	delivery, e := loadDeliveryPlan(ctx, h.db, id)
 	if e != nil {
 		if e != nil {
-			println("AIRPLAY FAILED hls.go:426", e.Error())
+			println(id, ctx.Value(producerGenerationKey{}), "AIRPLAY FAILED hls.go:426", e.Error())
 		}
 		h.failed(ctx, id)
 		return
 	}
 	if e = h.refreshLegacyConversionProbe(ctx, id, generation, delivery); e != nil {
 		if e != nil {
-			println("AIRPLAY FAILED hls.go:430", e.Error())
+			println(id, ctx.Value(producerGenerationKey{}), "AIRPLAY FAILED hls.go:430", e.Error())
 		}
 		h.failed(ctx, id)
 		return
@@ -446,7 +446,7 @@ func (h *HLS) produce(ctx context.Context, id string, from, generation int, owne
 	if e != nil {
 		if !errors.Is(e, ErrSegmentPreparing) && ctx.Err() == nil {
 			if e != nil {
-				println("AIRPLAY FAILED hls.go:442", e.Error())
+				println(id, ctx.Value(producerGenerationKey{}), "AIRPLAY FAILED hls.go:442", e.Error())
 			}
 			h.failed(ctx, id)
 		}
@@ -458,7 +458,7 @@ func (h *HLS) produce(ctx context.Context, id string, from, generation int, owne
 	input, remoteInput, e := h.openWindowInput(ctx, id, delivery)
 	if e != nil {
 		if e != nil {
-			println("AIRPLAY FAILED hls.go:451", e.Error())
+			println(id, ctx.Value(producerGenerationKey{}), "AIRPLAY FAILED hls.go:451", e.Error())
 		}
 		h.failed(ctx, id)
 		return
@@ -473,7 +473,7 @@ func (h *HLS) produce(ctx context.Context, id string, from, generation int, owne
 	if delivery != nil {
 		if e = h.loadTextRenditions(ctx, id, delivery); e != nil {
 			if e != nil {
-				println("AIRPLAY FAILED hls.go:463", e.Error())
+				println(id, ctx.Value(producerGenerationKey{}), "AIRPLAY FAILED hls.go:463", e.Error())
 			}
 			h.failed(ctx, id)
 			return
@@ -540,7 +540,7 @@ func (h *HLS) produce(ctx context.Context, id string, from, generation int, owne
 	}
 	burn, cleanupBurn, burnErr := h.prepareBurnInput(ctx, id, dir, position, delivery, input, remoteInput)
 	if burnErr != nil {
-		println("AIRPLAY BURN INPUT", burnErr.Error())
+		println(id, ctx.Value(producerGenerationKey{}), "AIRPLAY BURN INPUT", burnErr.Error())
 		if h.retryMemoryPathError(id, dir, burnErr) {
 			return
 		}

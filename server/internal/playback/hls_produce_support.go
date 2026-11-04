@@ -148,7 +148,7 @@ var errHardwarePermitUnavailable = errors.New("hardware_permit_unavailable")
 
 // failedWith fails a session and records why, for the people who can read it.
 func (h *HLS) failedWith(ctx context.Context, id, code, diagnostic string) {
-	println("AIRPLAY CONVERSION FAILURE", code, diagnostic)
+	println(id, ctx.Value(producerGenerationKey{}), "AIRPLAY CONVERSION FAILURE", code, diagnostic)
 	if code == FailureOutOfSpace && h.retryMemoryOutput(id) {
 		return
 	}
