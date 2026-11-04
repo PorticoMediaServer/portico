@@ -24,19 +24,16 @@
 .listRow::after { content: ''; position: absolute; left: 12px; right: 12px; bottom: 0; height: 1px; background: var(--color-line); opacity: .55; }
 .listRow:hover, .listRow:focus-within { background: color-mix(in srgb, var(--color-text) 5.5%, transparent); }
 .listRow > span { text-align: right; white-space: nowrap; }
-/* desktop-browse #list, desktop-listen #songs: the select circle is a hover affordance. At rest a row shows nothing there
-   and a song row shows its number; hovering, focusing, selecting, or a selected row shows the circle. Touch keeps it. */
-.musicNumber { position: relative; }
-.musicNumber > .trackNumber { display: none; }
-.musicNumber:not(:has(> [aria-pressed])) > .trackNumber { display: inline; }
-@media (hover: hover) {
-  .musicNumber > .trackNumber { display: inline; }
-  .musicNumber > [aria-pressed] { position: absolute; inset: 0; margin: auto; }
-  .listRow [data-variant][aria-pressed]:not([data-selected='true']):not([data-selecting='true']) { opacity: 0; }
-  .listRow:is(:hover, :focus-within) [data-variant][aria-pressed]:not([data-selected='true']):not([data-selecting='true']) { opacity: 1; }
-  .listRow:is(:hover, :focus-within) .musicNumber:has(> [aria-pressed]) > .trackNumber,
-  .musicNumber:has(> [data-selected='true'], > [data-selecting='true']) > .trackNumber { visibility: hidden; }
-}
+/* desktop-browse #list, desktop-listen #songs (lead ruling on #676): the select circle exists only in selection mode
+   (selecting, or a selected row); outside it, it takes no space, on any device. A row's hover raises what its frame
+   draws: a song swaps its number for ▶; a title row raises Play and ⋯ (.listActions). */
+.listRow [data-variant][aria-pressed]:not([data-selected='true'], [data-selecting='true']) { display: none; }
+.musicNumber { display: grid; place-items: center; }
+.musicNumber > * { grid-area: 1 / 1; }
+.trackPlay { display: none; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--color-text); cursor: pointer; }
+.listRow:is(:hover, :focus-within) .musicNumber > .trackNumber { display: none; }
+.listRow:is(:hover, :focus-within) .musicNumber > .trackPlay { display: grid; }
+.musicNumber:has(> [data-selected='true'], > [data-selecting='true']) > :is(.trackNumber, .trackPlay) { display: none; }
 .listTitle { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .listTitle > button[data-layout-primary] { display: flex; align-items: center; gap: 16px; width: 100%; min-width: 0; padding: 0; border: 0; background: none; color: var(--color-text); font: inherit; font-size: var(--type-body-strong-size); font-weight: var(--type-body-strong-weight); text-align: left; cursor: pointer; }
 .listTitle > button[data-layout-primary] > .listName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
