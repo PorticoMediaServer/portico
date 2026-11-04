@@ -83,6 +83,36 @@ test('the directory\'s privacy fence keys the shell: a library added keeps it, a
   assert.equal(h.counts().retired,1);h.dispose();
 });
 
+test('library access is content scope, not authority: the account or profile library lists never retire the shell', () => {
+  const initial={system:system(),direct:parseDirectSnapshot({...direct(),account:{...direct().account,allowedLibraries:['films','shows']}})};
+  const restricted=(account:string[],profile?:string[])=>parseDirectSnapshot({...direct(),account:{...direct().account,allowedLibraries:account},
+    profiles:[{...direct().profiles[0],...(profile?{allowedLibraries:profile}:{})}]});
+  assert.equal(shellProofChanged(initial,{direct:restricted(['films'])},'profile'),false,'a library removed from the account');
+  assert.equal(shellProofChanged(initial,{direct:restricted(['films','shows','music'])},'profile'),false,'a library added');
+  assert.equal(shellProofChanged(initial,{direct:restricted(['films','shows'],['films'])},'profile'),false,'a profile restricted to fewer libraries');
+  const admin={...direct(),capabilities:{...direct().capabilities,manageSignIn:false},account:{...direct().account,role:'admin',allowedLibraries:['films','shows']}};
+  assert.equal(shellProofChanged(initial,{direct:parseDirectSnapshot(admin)},'profile'),true,'a role change still retires');
+  assert.equal(shellProofChanged(initial,{direct:parseDirectSnapshot({...direct(),account:{...direct().account,disabled:true,allowedLibraries:['films','shows']}})},'profile'),true,'so does a disable');
+  assert.equal(shellProofChanged(initial,{direct:parseDirectSnapshot({...direct(),canManage:false,capabilities:{manageAccount:false,managePeople:false,manageServer:false,manageSignIn:false},account:{...direct().account,allowedLibraries:['films','shows']}})},'profile'),true,'and a capability change');
+});
+test('a library removed keeps the web shell and re-validates content: the directory answers with the moved viewer fence', async () => {
+  const h=harness();
+  h.direct({...direct(),account:{...direct().account,allowedLibraries:['films']}});
+  h.libraryRead(async()=>({items:[{id:'films',name:'Films',kind:'movies'}],viewerFence:'directory-2',privacyFence:'privacy'}));
+  h.owner.request('members');await h.time.advance(1500);
+  assert.equal(h.counts().retired,0,'the shell and whatever it plays stay');
+  assert.equal(h.calls.filter(path=>path==='/v1/direct').length,1);
+  assert.deepEqual(h.owner.source.getSnapshot().identity.libraries.map(library=>library.id),['films'],'what is offered follows the directory');
+  assert.equal(h.owner.source.getSnapshot().identity.fences?.viewerFence,'directory-2','Home and selections re-validate against the moved fence (ruling D)');
+  h.dispose();
+});
+test('a role change on the same account witness still retires the web shell', async () => {
+  const h=harness();
+  h.direct({...direct(),capabilities:{...direct().capabilities,manageSignIn:false},account:{...direct().account,role:'admin'}});
+  h.owner.request('members');await h.time.advance(1500);
+  assert.equal(h.counts().retired,1);h.dispose();
+});
+
 test('online reconciles retained hidden authority without opening display or depending on a second first-connect', async () => {
   const h=harness();h.hub.setActive(false);h.owner.setRetained(true);let wakes=0;
   const page=new EventTarget(),browser=new EventTarget();Object.defineProperty(page,'hidden',{value:true});

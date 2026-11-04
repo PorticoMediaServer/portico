@@ -27,11 +27,14 @@ export function shellAccount(snapshot: DirectSnapshot, profileId: string): Shell
 }
 
 const systemAuthority = (value: ServerSignIn) => JSON.stringify([value.id, value.signIn, value.move, value.setupRequired, value.hostedConfigured, value.hostedAttached]);
+// Who the viewer is and what they may do. Library access (the account's and the profile's allowed
+// libraries) is content scope, not authority: it moves the viewer fence, the server filters what it
+// answers, and open selections re-validate (selection ruling D). It never retires the shell.
 function directAuthority(value: DirectSnapshot, profileId: string) {
   const profile = value.profiles.find(row => row.id === profileId);
   return JSON.stringify([value.serverId, value.authority, value.account.id, value.account.role, value.account.disabled,
-    value.account.primaryProfileId, [...value.account.allowedLibraries].sort(), value.account.hostedAccountId, value.capabilities, value.canManage,
-    value.custodyPending, value.twoStepSetupRequired, profile?.id, profile?.primary, Array.isArray(profile?.allowedLibraries) ? [...profile.allowedLibraries].sort() : profile?.allowedLibraries]);
+    value.account.primaryProfileId, value.account.hostedAccountId, value.capabilities, value.canManage,
+    value.custodyPending, value.twoStepSetupRequired, profile?.id, profile?.primary]);
 }
 export function shellProofChanged(initial: ShellFactWitnesses, next: Partial<ShellFactWitnesses>, profileId: string): boolean {
   return !!(next.system && systemAuthority(initial.system) !== systemAuthority(next.system)
