@@ -5,11 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"io"
-	"math"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"github.com/PorticoMediaServer/portico/server/internal/apievents"
 	"github.com/PorticoMediaServer/portico/server/internal/childprocess"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
@@ -22,6 +17,11 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/subtitles"
 	"github.com/PorticoMediaServer/portico/server/internal/supervise"
 	"github.com/PorticoMediaServer/portico/server/internal/worker"
+	"io"
+	"math"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -423,10 +423,16 @@ func (h *HLS) produce(ctx context.Context, id string, from, generation int, owne
 	ctx = h.occurrenceContext(withProducerGeneration(ctx, generation), id, entry, ownedRun)
 	delivery, e := loadDeliveryPlan(ctx, h.db, id)
 	if e != nil {
+		if e != nil {
+			println("AIRPLAY FAILED hls.go:426", e.Error())
+		}
 		h.failed(ctx, id)
 		return
 	}
 	if e = h.refreshLegacyConversionProbe(ctx, id, generation, delivery); e != nil {
+		if e != nil {
+			println("AIRPLAY FAILED hls.go:430", e.Error())
+		}
 		h.failed(ctx, id)
 		return
 	}
@@ -439,6 +445,9 @@ func (h *HLS) produce(ctx context.Context, id string, from, generation int, owne
 	dir, e := h.createStreamingOutput(ctx, id, delivery)
 	if e != nil {
 		if !errors.Is(e, ErrSegmentPreparing) && ctx.Err() == nil {
+			if e != nil {
+				println("AIRPLAY FAILED hls.go:442", e.Error())
+			}
 			h.failed(ctx, id)
 		}
 		return
@@ -448,6 +457,9 @@ func (h *HLS) produce(ctx context.Context, id string, from, generation int, owne
 	}
 	input, remoteInput, e := h.openWindowInput(ctx, id, delivery)
 	if e != nil {
+		if e != nil {
+			println("AIRPLAY FAILED hls.go:451", e.Error())
+		}
 		h.failed(ctx, id)
 		return
 	}
@@ -460,6 +472,9 @@ func (h *HLS) produce(ctx context.Context, id string, from, generation int, owne
 	path := input.Argument
 	if delivery != nil {
 		if e = h.loadTextRenditions(ctx, id, delivery); e != nil {
+			if e != nil {
+				println("AIRPLAY FAILED hls.go:463", e.Error())
+			}
 			h.failed(ctx, id)
 			return
 		}
@@ -525,6 +540,7 @@ func (h *HLS) produce(ctx context.Context, id string, from, generation int, owne
 	}
 	burn, cleanupBurn, burnErr := h.prepareBurnInput(ctx, id, dir, position, delivery, input, remoteInput)
 	if burnErr != nil {
+		println("AIRPLAY BURN INPUT", burnErr.Error())
 		if h.retryMemoryPathError(id, dir, burnErr) {
 			return
 		}
