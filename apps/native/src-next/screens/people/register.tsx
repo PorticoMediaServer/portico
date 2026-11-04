@@ -54,7 +54,7 @@ export function createNativePersonRenderer(context: NativeShellBootstrapContext)
       if (entry.snapshot !== snapshot) {releaseWindow(entry); entry.snapshot = snapshot;}
       if (snapshot.phase !== 'ready' || snapshot.pageOrigin !== 'initial' || entry.window || context.navigation.getSnapshot().route !== entry.route) continue;
       const window = createNativePersonCreditWindow(context, entry.route, entry.source); entry.window = window;
-      const departments = Platform.isTV && 'role' in snapshot.group && snapshot.group.role === 'all' ? personDepartments(snapshot.page) : [];
+      const departments = Platform.isTV && 'role' in snapshot.group ? personDepartments(snapshot.page, snapshot.group.role) : [];
       entry.groupWindows = departments.map(group => ({...group,
         window: createNativePersonCreditWindow(context, entry.route, entry.source, {...group, first: snapshot.departmentPages?.get(group.id)})}));
       entry.actions = createNativeEntryActions(context, {

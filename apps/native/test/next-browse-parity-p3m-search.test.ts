@@ -135,3 +135,13 @@ test('the On now row is read again once a programme it shows has ended, keeping 
   assert.equal(row.getSnapshot().until, ends);
   row.dispose();
 });
+
+test('until the re-read answers, a card whose programme has ended keeps that programme, at its end, never "No information"', async () => {
+  const ended = {id: 'old', channelId: 'a', title: 'Late news', start: now - 60 * 60_000, end: now - 1_000, flags: {live: true}};
+  const stale = {phase: 'ready', cards: [{...card('a', 'tuner'), programmes: [ended]}], at: now - 30 * 60_000, until: ended.end};
+  const page = await mountSearch({hasLiveTV: true, onNow: stale});
+  const body = page.paint(page.section);
+  const shown = page.paint(body.find(node => typeof node.type === 'function' && node.props.card)!).find(node => node.type === 'LiveCard');
+  assert.equal(shown.props.title, 'Late news');
+  assert.ok(shown.props.progress > .99, 'at its end');
+});

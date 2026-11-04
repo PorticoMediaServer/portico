@@ -19,10 +19,16 @@ export type NativePersonSnapshot = Readonly<{
   error?: unknown;
 }>;
 
+/** The server's own split of credits into Cast and Crew (catalog `personDepartmentFilter`): Cast is the acting (or
+ * cast) department, Crew every other one. */
+const castDepartment = (department: string) => ['acting', 'cast'].includes(department.toLowerCase());
+
 /** The departments the TV page draws a row each for (tv-detail frame 10, `f9`): the server groups all credits by
- * department only when a person has more than one. */
-export function personDepartments(page: PersonPage | undefined): readonly Readonly<{id: string; department: string; total: number}>[] {
-  return (page?.groups ?? []).flatMap(group => group.department && group.total > 0 ? [{id: group.id, department: group.department, total: group.total}] : []);
+ * department only when a person has more than one. Filters apply to every row (the frame's caption): Cast keeps the
+ * acting row, Crew the others. The groups are the person's whatever the filter, so the split is the client's. */
+export function personDepartments(page: PersonPage | undefined, role: PersonRole = 'all'): readonly Readonly<{id: string; department: string; total: number}>[] {
+  return (page?.groups ?? []).flatMap(group => group.department && group.total > 0 && (role === 'all' || castDepartment(group.department) === (role === 'cast'))
+    ? [{id: group.id, department: group.department, total: group.total}] : []);
 }
 
 /** One exact Person history object, with one bounded canonical credit page.
@@ -66,7 +72,7 @@ export function createNativePersonController(context: NativeShellBootstrapContex
       const page = await readPerson(context.api, lifetime.scope, target.personId, {...group, limit: 40, signal: controller.signal});
       if (!live()) return false;
       // TV's department rows replace theirs too: each is read with the page, so the replacement arrives with them.
-      const departments = options.departmentPages && 'role' in group && group.role === 'all' ? personDepartments(page) : [];
+      const departments = options.departmentPages && 'role' in group ? personDepartments(page, group.role) : [];
       const pages = await Promise.all(departments.map(department => readPerson(context.api, lifetime.scope, target.personId, {department: department.department, limit: 40, signal: controller.signal})
         .then(value => value.revision.catalog === page.revision.catalog && value.revision.viewer === page.revision.viewer && value.person.revision === page.person.revision
           ? [[department.id, value] as const] : [], () => [])));
