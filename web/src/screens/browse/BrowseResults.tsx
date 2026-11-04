@@ -145,7 +145,7 @@ function BrowseListRow({member, index, artwork, env, actions, reading, music}: B
   const resolution = entry.resolution === '4k' ? t('quality.4k') : entry.resolution === '1080p' ? t('downloads.quality.1080p') : entry.resolution === '720p' ? t('downloads.quality.720p') : entry.resolution === 'sd' ? t('quality.sd') : undefined;
   const select = action.selection && <SelectionCircle selected={action.selection.checked} selecting={action.selection.active} onSelectedChange={(_next, intent) => {if (!retained) action.selection?.onToggle({range: intent.intent === 'range' || intent.shiftKey === true, source: source.current});}} onKeyDownCapture={() => {source.current = 'keyboard';}} onPointerDownCapture={() => {source.current = 'pointer';}} accessibilityLabel={t('next.selection.select')} variant="row"/>;
   return <div ref={interactionRoot} className={styles.listRow} data-browse-entry={entry.id} data-selected={action.selection?.checked || undefined} data-preview={action.selection?.preview || undefined} {...range} onKeyDown={event => {range.onKeyDown(event);if (!retained && event.key === 'Escape' && action.selection?.active) {event.preventDefault();action.selection.onExit();}}}>
-    {music && <span className={styles.musicNumber}>{select ?? <span>{index + 1}</span>}</span>}
+    {music && <span className={styles.musicNumber}>{select}<span className={styles.trackNumber}>{index + 1}</span></span>}
     <div className={styles.listTitle}>{!music && select}
       <button type="button" data-layout-primary onClick={event => {if (!retained) activateCard(action.onOpen, action.selection, {range: event.shiftKey, source: event.detail === 0 ? 'keyboard' : 'pointer'});}}><span className={styles.listArt}><Artwork source={art} visible alt="" fallback={<GeneratedArt glyph={Array.from(title)[0] ?? ''}/>}/></span><span className={styles.listName}>{title}</span>{badges.map(badge => <span key={badge} className={styles.songBadge}>{badge}</span>)}</button></div>
     {music ? <>
@@ -163,7 +163,7 @@ function BrowseListRow({member, index, artwork, env, actions, reading, music}: B
     </> : <>
       <span>{entry.year}</span><span>{durationText(entry.duration, env.t)}</span><span>{entry.rating === undefined ? '–' : defaultI18n.number(entry.rating, {minimumFractionDigits: 1, maximumFractionDigits: 1})}</span>
       <span>{resolution && <span className={styles.resolution}>{resolution}</span>}</span><span>{added}</span>
-      <span className={styles.listWatched}>{entry.watched ? <Icon name="i-check" size={18}/> : progress !== undefined && <span className={styles.miniProgress}><span style={{width: `${progress * 100}%`}}/></span>}</span></>}
+      <span className={styles.listWatched}>{entry.watched ? <Icon name="i-check" size={18}/> : progress !== undefined && progress > 0 && <span className={styles.miniProgress}><span style={{width: `${progress * 100}%`}}/></span>}</span></>}
     <span className={styles.listActions}>{action.onPlay && !action.selection?.active && <Button variant="primary" size="small" icon="i-play" iconOnly onClick={() => {if (!retained) action.onPlay?.();}} aria-label={t('next.browse.play', {title})}/>}{action.onMore && <Button variant="icon" size="small" icon="i-more" iconOnly onClick={event => {if (!retained) action.onMore?.(event.currentTarget);}} aria-label={t('next.browse.moreFor', {title})}/>}</span>
   </div>;
 }

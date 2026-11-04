@@ -196,13 +196,24 @@
 .resultTotal { margin-left: 12px; font-size: var(--type-person-title-size); font-weight: var(--type-fixed-weight-400); color: var(--color-text-tertiary); }
 /* The header keeps the right inset rows reserve for their ⋯, so every column lines up. */
 .songColumns,.songTableRow { display: grid; grid-template-columns: 44px minmax(0,2.3fr) minmax(0,1.25fr) minmax(0,1.7fr) 64px 64px; align-items: center; gap: 14px; }
-.songColumns { padding: 0 48px 8px 6px; font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
+.songColumns { padding: 0 48px 10px 6px; font-size: var(--type-caption-size); color: var(--color-text-tertiary);
+  /* desktop-search #s-songs: a step below the heading, ruled off from the rows. */ margin-top: 22px; margin-bottom: 8px; border-bottom: 1px solid var(--color-line); }
 .songColumns > :nth-child(n+5) { text-align: right; }
 .songTableRow { position: relative; width: 100%; min-height: 58px; padding: 0 12px 0 6px; border-radius: 10px; }
 .songTableRow:hover { background: var(--color-raised); }
 .songTableRow[data-selected="true"] .songTitleCell b { color: var(--color-accent-strong); }
 .songTableRow[data-preview="true"] { background: color-mix(in srgb,var(--color-accent-strong) 12%,transparent); }
 .songIndex { display: grid; place-items: center; font-size: var(--type-caption-size); color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
+/* desktop-search #s-songs: the number at rest; the select circle on hover, focus, while selecting or when selected. */
+.songIndex { position: relative; }
+.songIndexNumber { display: none; }
+@media (hover: hover) {
+  .songIndexNumber { display: inline; }
+  .songIndex > [aria-pressed] { position: absolute; inset: 0; margin: auto; }
+  .songTableRow [data-variant][aria-pressed]:not([data-selected='true']):not([data-selecting='true']) { opacity: 0; }
+  .songTableRow:is(:hover, :focus-within) [data-variant][aria-pressed]:not([data-selected='true']):not([data-selecting='true']) { opacity: 1; }
+  .songTableRow:is(:hover, :focus-within) .songIndexNumber, .songIndex:has(> [data-selected='true'], > [data-selecting='true']) > .songIndexNumber { visibility: hidden; }
+}
 .songTitleCell { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
 .songTitleCell > :first-child { flex: none; width: 44px; height: 44px; border-radius: 6px; overflow: hidden; }
 .songTitleCell b { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--type-body-size); font-weight: var(--type-button-weight); }

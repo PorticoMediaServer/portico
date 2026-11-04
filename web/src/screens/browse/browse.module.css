@@ -24,6 +24,19 @@
 .listRow::after { content: ''; position: absolute; left: 12px; right: 12px; bottom: 0; height: 1px; background: var(--color-line); opacity: .55; }
 .listRow:hover, .listRow:focus-within { background: color-mix(in srgb, var(--color-text) 5.5%, transparent); }
 .listRow > span { text-align: right; white-space: nowrap; }
+/* desktop-browse #list, desktop-listen #songs: the select circle is a hover affordance. At rest a row shows nothing there
+   and a song row shows its number; hovering, focusing, selecting, or a selected row shows the circle. Touch keeps it. */
+.musicNumber { position: relative; }
+.musicNumber > .trackNumber { display: none; }
+.musicNumber:not(:has(> [aria-pressed])) > .trackNumber { display: inline; }
+@media (hover: hover) {
+  .musicNumber > .trackNumber { display: inline; }
+  .musicNumber > [aria-pressed] { position: absolute; inset: 0; margin: auto; }
+  .listRow [data-variant][aria-pressed]:not([data-selected='true']):not([data-selecting='true']) { opacity: 0; }
+  .listRow:is(:hover, :focus-within) [data-variant][aria-pressed]:not([data-selected='true']):not([data-selecting='true']) { opacity: 1; }
+  .listRow:is(:hover, :focus-within) .musicNumber:has(> [aria-pressed]) > .trackNumber,
+  .musicNumber:has(> [data-selected='true'], > [data-selecting='true']) > .trackNumber { visibility: hidden; }
+}
 .listTitle { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .listTitle > button[data-layout-primary] { display: flex; align-items: center; gap: 16px; width: 100%; min-width: 0; padding: 0; border: 0; background: none; color: var(--color-text); font: inherit; font-size: var(--type-body-strong-size); font-weight: var(--type-body-strong-weight); text-align: left; cursor: pointer; }
 .listTitle > button[data-layout-primary] > .listName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -36,6 +49,8 @@
 .results[data-music] .listRow { height: 56px; }
 .results[data-music] .listRow::after { display: none; }
 .results[data-music] .listHead > :first-child { text-align: center; }
+/* Title, Artist and Album read left, over their own text; the numbers stay right (survey A 10). */
+.results[data-music] .listHead > :nth-child(-n+4):not(:first-child) { text-align: left; }
 .results[data-music] .listArt { width: 40px; height: 40px; border-radius: 6px; }
 .results[data-music] .listName { font-size: var(--type-fixed-size-15px); font-weight: var(--type-fixed-weight-600); }
 .results[data-music] .musicMeta { overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-fixed-size-14px); color: var(--color-text-secondary); }
