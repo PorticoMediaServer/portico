@@ -288760,7 +288760,7 @@
         "tags": [
           "Clients"
         ],
-        "x-access": "device",
+        "x-access": "owner",
         "x-admission": "admin",
         "x-audience": "Clients",
         "x-cost": "page_sized",
@@ -289020,7 +289020,7 @@
         "tags": [
           "Clients"
         ],
-        "x-access": "device",
+        "x-access": "owner",
         "x-admission": "admin",
         "x-audience": "Clients",
         "x-cost": "page_sized",
@@ -289312,7 +289312,7 @@
         "tags": [
           "Clients"
         ],
-        "x-access": "device",
+        "x-access": "owner",
         "x-admission": "admin-heavy",
         "x-audience": "Clients",
         "x-cost": "page_sized",

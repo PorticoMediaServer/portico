@@ -90,7 +90,7 @@ func addProjection[Request, Response any](registry *apikit.Registry, mux *http.S
 		lane = apikit.Browsing
 	}
 	access := apikit.Device
-	if strings.HasPrefix(path, "/v1/admin/play-history") || path == "/v1/admin/dashboard/report" {
+	if strings.HasPrefix(path, "/v1/admin/play-history") || path == "/v1/admin/dashboard/report" || strings.HasPrefix(path, "/v1/admin/feedback/") {
 		access = apikit.Owner
 	}
 	bodyLimit := int64(0)
