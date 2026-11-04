@@ -553,7 +553,8 @@ func (w *Worker) Step(ctx context.Context, limit int) (int, error) {
 		return 0, err
 	}
 	w.mu.Lock()
-	unpaced := w.holdTarget <= 0
+	holdTarget := w.holdTarget
+	unpaced := holdTarget <= 0
 	w.mu.Unlock()
 	if unpaced {
 		// Only fixtures and tools step without pacing; the server's Run always
@@ -595,7 +596,16 @@ func (w *Worker) Step(ctx context.Context, limit int) (int, error) {
 		w.sourceTurn = !w.sourceTurn
 		if w.sourceTurn {
 			paced = -1
-			n, err = StepVisibilitySourceFanout(ctx, tx, min(limit, upstreamQuantum))
+			n, err = drainVisibilitySources(ctx, tx, min(limit, upstreamQuantum), func() (bool, error) {
+				if unpaced || time.Since(began) >= holdTarget {
+					return false, nil
+				}
+				var changed int64
+				if err := tx.QueryRowContext(ctx, `SELECT total_changes()`).Scan(&changed); err != nil {
+					return false, err
+				}
+				return changed-before < dbwork.DefaultPlan(dbwork.ClassMaintenance).Rows, nil
+			})
 			if err != nil {
 				return err
 			}
@@ -690,6 +700,33 @@ func (w *Worker) Step(ctx context.Context, limit int) (int, error) {
 		w.mu.Unlock()
 	}
 	return n, nil
+}
+
+// drainVisibilitySources shares one existing raw allowance across source jobs.
+// An empty acknowledgement costs one unit. Each source still captures and
+// advances its own cursor in StepVisibilitySourceFanout; no page gets wider.
+// The caller retains its hold/row policy and decides whether to add another job.
+func drainVisibilitySources(ctx context.Context, tx *sql.Tx, limit int, more func() (bool, error)) (int, error) {
+	budget := min(limit, upstreamQuantum)
+	total := 0
+	for total < budget {
+		used, err := StepVisibilitySourceFanout(ctx, tx, budget-total)
+		if err != nil {
+			return 0, err
+		}
+		total += used
+		if used == 0 || total == budget {
+			break
+		}
+		allowed, err := more()
+		if err != nil {
+			return 0, err
+		}
+		if !allowed {
+			break
+		}
+	}
+	return total, nil
 }
 
 // retryDue reports whether what was set aside may be tried again now.

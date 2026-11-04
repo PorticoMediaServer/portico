@@ -61,6 +61,9 @@ func TestDerivedWorkerCompletesWithForegroundPressure(t *testing.T) {
 				t.Fatal(err)
 			}
 			if dirty == 0 && derived == count {
+				if dbwork.Pressure().YieldWaitMillis == pressureBefore.YieldWaitMillis {
+					t.Fatal("derived batches stopped pausing for foreground work")
+				}
 				if err := compactcatalog.CheckBrowseBlocks(context.Background(), c.DB); err != nil {
 					t.Fatal(err)
 				}
