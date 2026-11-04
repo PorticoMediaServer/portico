@@ -69,7 +69,7 @@ test('an unconfirmed write retries with its own intent; a refused one rereads; a
   await store.choose('/srv/b');
   assert.equal(store.getSnapshot().uncertain, true);
   assert.equal(store.canChoose(), false);
-  await store.retry();
+  await store.retry(store.getSnapshot());
   assert.deepEqual(writes.map(write => write.operationId), ['op1', 'op1']);
   assert.equal(store.folder(), '/srv/b');
 
@@ -78,7 +78,7 @@ test('an unconfirmed write retries with its own intent; a refused one rereads; a
   assert.equal(store.getSnapshot().uncertain, false);
   assert.ok(store.getSnapshot().error);
   const before = reads;
-  await store.retry();
+  await store.retry(store.getSnapshot());
   assert.equal(reads, before + 1, 'Try again after a refusal rereads');
   assert.equal(writes.length, 3);
 
@@ -87,7 +87,7 @@ test('an unconfirmed write retries with its own intent; a refused one rereads; a
   assert.equal(writes.length, 4);
   assert.equal(store.getSnapshot().retired, true);
   assert.equal(reads, before + 2);
-  await store.retry();
+  await store.retry(store.getSnapshot());
   assert.equal(writes.length, 4, 'a retired write is never replayed');
 });
 
