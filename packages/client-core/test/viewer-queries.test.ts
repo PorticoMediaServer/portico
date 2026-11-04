@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {QueryObserver, type QueryObserverOptions} from '@tanstack/query-core';
 import {FreshnessHub, dependsOn} from '../src/freshness-hub.ts';
-import {createViewerQueries, type ViewerQueries} from '../src/query/viewer-queries.ts';
+import {createViewerQueries, viewerQueryScope, type ViewerQueries} from '../src/query/viewer-queries.ts';
 import {queryKeys} from '../src/query/keys.ts';
 
 /** A clock the test moves by hand; timers fire in order as it advances (the hub's own test clock). */
@@ -268,6 +268,16 @@ test('a scope needs a server and a viewer', () => {
   assert.throws(() => createViewerQueries({scope: {serverId: '', viewerId: 'alex'}, hub, api: server().api}));
   assert.throws(() => createViewerQueries({scope: {serverId: 'server', viewerId: ''}, hub, api: server().api}));
   hub.dispose();
+});
+
+test('privacy: the viewer\'s role is part of its cache\'s scope', () => {
+  const viewer = {serverId: 'server', authority: 'local', accountId: 'acct', profileId: 'alex'};
+  const owner = viewerQueryScope({...viewer, role: 'owner'}), member = viewerQueryScope({...viewer, role: 'member'});
+  assert.equal(owner.serverId, 'server');
+  assert.notEqual(owner.viewerId, member.viewerId, 'the same profile as owner and as member are two caches');
+  assert.deepEqual(viewerQueryScope({...viewer, role: 'owner'}), owner, 'and the same viewer and role are one');
+  assert.notEqual(viewerQueryScope({...viewer, role: 'owner'}, 'epoch 2').viewerId, owner.viewerId, 'whatever else the shell keys on narrows it further');
+  for (const missing of ['serverId', 'authority', 'accountId', 'profileId', 'role'] as const) assert.throws(() => viewerQueryScope({...viewer, role: 'owner', [missing]: ''}));
 });
 
 test('a quiet read waits for a pause in the person\'s input before its answer changes the screen', async () => {

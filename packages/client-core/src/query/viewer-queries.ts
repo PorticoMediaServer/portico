@@ -32,6 +32,18 @@ declare module '@tanstack/query-core' {
 }
 
 export type ViewerQueryScope = Readonly<{serverId: string; viewerId: string}>;
+/** Who a cache belongs to, as both shells build it. */
+export type ViewerScopeIdentity = Readonly<{serverId: string; authority: string; accountId: string; profileId: string; role: string}>;
+/**
+ * The scope of one viewer's cache: the server, then the viewer's authority, account, profile and
+ * role, then anything else the shell keys itself on (`more`). Owner and admin documents live in the
+ * same cache as everything else, so the role is part of the scope: a viewer whose role changes gets
+ * a new, empty cache even if nothing else restarted, and nothing read as an owner is shown to a member.
+ */
+export function viewerQueryScope(viewer: ViewerScopeIdentity, ...more: readonly unknown[]): ViewerQueryScope {
+  if (!viewer.serverId || !viewer.authority || !viewer.accountId || !viewer.profileId || !viewer.role) throw new Error('A viewer query scope needs a server, an authority, an account, a profile and a role.');
+  return Object.freeze({serverId: viewer.serverId, viewerId: JSON.stringify([viewer.authority, viewer.accountId, viewer.profileId, viewer.role, ...more])});
+}
 export type ViewerRequester = Readonly<{request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>}>;
 
 export type ViewerQueries = Readonly<{
