@@ -31,7 +31,10 @@ export class NativeRelatedRow {
     this.state = Object.freeze({entries: first.entries, hasMore: !!first.cursor, loading: false, failed: false, waitingId: this.waitingId(first.cursor)});
     this.off = pager.subscribe(() => {
       const next = pager.getSnapshot(), previous = this.state;
-      const added = next.entries.length > previous.entries.length ? next.entries[previous.entries.length] : undefined;
+      // A page appended after what was shown names its first title; a row read again from its first page (the server
+      // refused the cursor) replaced what was shown, so no title is "new" for focus to move to.
+      const appended = previous.entries.every((entry, index) => next.entries[index]?.id === entry.id);
+      const added = appended && next.entries.length > previous.entries.length ? next.entries[previous.entries.length] : undefined;
       const answered = previous.loading && !next.loading && !next.error;
       this.state = Object.freeze({entries: next.entries, hasMore: !!next.cursor, loading: next.loading, failed: !!next.error,
         waitingId: next.cursor ? this.waitingId(next.cursor) : previous.waitingId,
