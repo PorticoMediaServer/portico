@@ -132,6 +132,14 @@ test('MU-2: with the whole book known, the player lists every part\'s chapters n
   assert.equal(rows.filter(e => e.props['aria-current'] === 'true').length, 1);
 });
 
+test('the chapter arrows say Previous/Next chapter only when the book\'s list covers the part; else Previous/Next, as they move parts', () => {
+  const arrows = (snapshot: unknown) => elements(AudiobookListening(book({snapshot}))).filter(e => ['i-prev', 'i-next'].includes(e.props.icon)).map(e => e.props['aria-label']);
+  assert.deepEqual(arrows(playback), ['Previous', 'Next'], 'the part\'s own chapters don\'t make the arrows move by chapter');
+  assert.deepEqual(arrows({...playback, bookChapters: {bookId: 'book', itemId: 'part-b', phase: 'error', chapters: [], current: -1}}), ['Previous', 'Next']);
+  const ready = {bookId: 'book', itemId: 'part-b', phase: 'ready', current: 0, chapters: [{id: 'part-b:1', itemId: 'part-b', index: 1, number: 1, title: 'One', startSeconds: 0, endSeconds: 60}]};
+  assert.deepEqual(arrows({...playback, bookChapters: ready}), ['Previous chapter', 'Next chapter']);
+});
+
 test('published one-based chapter numbers stay exact on the first and later pages', () => {
   const first = elements(AudiobookListening(book()));
   assert.ok(first.some(e => e.type === 'span' && e.props.children === 1));

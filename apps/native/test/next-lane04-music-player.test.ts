@@ -121,6 +121,19 @@ test('audiobook controls use configured skips and canonical chapter/rate/sleep p
   f.retire(); speed.props.items[0].onSelect(); assert.deepEqual(f.rates, [1.5]);
 });
 
+test('the chapter arrows say Previous/Next chapter only when the book\'s list covers the part; else they move parts, as for a track', async () => {
+  const f = await fixture(true);
+  const labels = () => [f.button('previous-chapter').props.accessibilityLabel, f.button('next-chapter').props.accessibilityLabel];
+  assert.deepEqual(labels(), ['player.previous', 'player.next'], 'no book list: Previous and Next move the queue by part');
+  for (const phase of ['loading', 'error'] as const) {
+    f.props.audiobook = {...f.props.audiobook, bookChapters: () => ({bookId: 'book', itemId: 'item', phase, chapters: [], current: -1})}; f.render();
+    assert.deepEqual(labels(), ['player.previous', 'player.next'], phase);
+  }
+  f.props.audiobook = {...f.props.audiobook, bookChapters: () => ({bookId: 'book', itemId: 'item', phase: 'ready', current: 0,
+    chapters: [{id: 'item:1', itemId: 'item', index: 1, number: 1, title: 'One', startSeconds: 0, endSeconds: 60}]})}; f.render();
+  assert.deepEqual(labels(), ['next.dock.previousChapter', 'next.dock.nextChapter']);
+});
+
 test('landscape audiobook uses its horizontal cover/identity composition and a Chapters panel', async () => {
   const f = await fixture(true, 1180);
   assert.equal(f.column().props.cover, 250); assert.equal(f.column().props.horizontal, true);

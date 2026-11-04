@@ -26,6 +26,8 @@ export type DockPresentation = Readonly<{
   seekWindow?: Readonly<{startSeconds: number; endSeconds: number}>;
   controls: readonly DockControl[]; finished?: boolean;
   previousLabel?: string; nextLabel?: string; skipBackSeconds: number; skipForwardSeconds: number;
+  /** A book part whose Previous and Next move by chapter (the book's list covers it); else by part. */
+  byChapter?: boolean;
   shuffle?: boolean; repeat?: 'off' | 'all' | 'one'; rate?: number; sleepLabel?: string;
   volume?: number; muted?: boolean; deviceName?: string; remoteError?: string;
 }>;
