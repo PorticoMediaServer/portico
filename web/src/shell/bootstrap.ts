@@ -27,6 +27,7 @@ import {RouteError} from '@core/route-identity.ts';
 import {negotiateServer,parseServerSignIn,signInLabelKey} from '@core/sign-in.ts';
 import {defaultI18n} from '@i18n';
 import {lastKnownShell, rememberShell} from './last-known';
+import {settingsReturnAuthority} from './settings-return';
 import {browserAppSessionActions,signOutBrowserPorticoAccount,type BrowserAppSessionActions} from '../platform/app-sessions';
 import {mountBrowserUserMutations, browserConnectionEnvironment, restoreBrowserConnection, trackBrowserConnection, forgetBrowserConnection} from '../platform/server-connections';
 import {displayableTransportCode, launchFailure, retryDelayMs, savedSignInUnusable, serverIsStarting} from './connection-retry';
@@ -179,7 +180,13 @@ export class ShellBootstrap {
   }
   getSnapshot = () => this.state;
   subscribe = (listener: () => void) => { if (this.disposed) return () => {}; this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
-  private publish(next: ShellBootstrapSnapshot) { if (this.disposed && next.phase !== 'signed-out') return; this.state = Object.freeze(next); for (const listener of this.listeners) listener(); }
+  private publish(next: ShellBootstrapSnapshot) {
+    if (this.disposed && next.phase !== 'signed-out') return;
+    // Settings' Done destination belongs to this server/account/profile; any other authority, or a sign-out, forgets it.
+    const viewer = next.phase === 'ready' ? next.context?.session().viewer : undefined;
+    settingsReturnAuthority(viewer && JSON.stringify([viewer.serverId, viewer.authority, viewer.accountId, viewer.profileId]), next.phase === 'signed-out');
+    this.state = Object.freeze(next); for (const listener of this.listeners) listener();
+  }
   private fence() {
     ++this.epoch; this.controller?.abort(); this.controller = undefined;
     this.retire?.(); this.retire = undefined;
