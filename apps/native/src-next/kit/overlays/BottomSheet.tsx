@@ -11,6 +11,7 @@ import {useMotion} from '../useMotion';
 import {useKeyboardHeight} from '../../platform/keyboard';
 import {TVDesignCanvas} from './TVDesignCanvas';
 import {useOverlayLifecycle} from './OverlayHost';
+import {useNativeModalPresence} from './native-dismissal';
 import {releaseSheet, resistSheet, sheetHeights} from './geometry';
 import {alpha, FocusBoundary, PanelBackground, SurfaceHeader, usePresence} from './surface';
 import type {BottomSheetProps, OverlayReason} from './types';
@@ -70,7 +71,10 @@ export function BottomSheet({open, onOpenChange, title, description, children, f
   const releaseVelocity = useRef<{index: number; velocity: number} | undefined>(undefined);
   const closeVelocity = useRef(0);
   const sideProgress = useSharedValue(0);
-  const present = usePresence(open, motion.reduce ? 160 : theme.isTV ? 240 : 500);
+  // A modal sheet's Modal is gone (focus back, onExited) only once the platform says so (useNativeModalPresence); an
+  // inline sheet has no Modal.
+  const exiting = usePresence(open, motion.reduce ? 160 : theme.isTV ? 240 : 500), native = useNativeModalPresence(host !== 'inline' && exiting);
+  const present = host === 'inline' ? exiting : native.mounted;
   const exitedRef = useRef(onExited); exitedRef.current = onExited;
   const wasPresent = useRef(present);
   useEffect(() => {if (wasPresent.current && !present) exitedRef.current?.(); wasPresent.current = present;}, [present]);
@@ -145,7 +149,7 @@ export function BottomSheet({open, onOpenChange, title, description, children, f
         </FocusBoundary>
       </Animated.View>
     </View></View></TVDesignCanvas>;
-  return <OverlayPaintDescendants>{host === 'inline' ? surface : <Modal transparent visible animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={() => dismiss('back')} supportedOrientations={['portrait', 'landscape']}>{surface}</Modal>}</OverlayPaintDescendants>;
+  return <OverlayPaintDescendants>{host === 'inline' ? surface : <Modal transparent visible={native.visible} onDismiss={native.onDismiss} animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={() => dismiss('back')} supportedOrientations={['portrait', 'landscape']}>{surface}</Modal>}</OverlayPaintDescendants>;
 }
 const styles = StyleSheet.create({
   root: {flex: 1}, body: {flex: 1, minHeight: 0},

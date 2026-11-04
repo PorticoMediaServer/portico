@@ -15,6 +15,7 @@ import {popoverRect} from './geometry';
 import {rightEndMenuRect} from './anchored-menu-geometry';
 import {touchMenuRect} from '../browse/touch-menu-geometry';
 import {alpha, FocusBoundary, useSurfaceMotion} from './surface';
+import {useNativeModalPresence} from './native-dismissal';
 import type {MenuProps, MenuRowProps, OverlayReason, PopoverProps} from './types';
 
 /** select17's compact heading; the caller supplies only the captured item's real facts. */
@@ -63,7 +64,11 @@ export function Popover({open, onOpenChange, anchorRef, title, headerContext, de
   const [anchor, setAnchor] = useState<{x: number; y: number; width: number; height: number}>();
   const [height, setHeight] = useState(1);
   const dismiss = useCallback((reason: OverlayReason) => onOpenChange(false, reason), [onOpenChange]);
-  useOverlayLifecycle(animation.present, modal, dismiss, initialFocusRef, returnFocusRef ?? anchorRef, animation.enterMs, testID, restoreFocus);
+  // A modal popover hides its Modal as soon as it closes, and is gone (focus back) once the platform says so
+  // (useNativeModalPresence); an in-window one goes with its presence.
+  const native = useNativeModalPresence(modal && animation.present, open);
+  const present = modal ? native.mounted : animation.present;
+  useOverlayLifecycle(present, modal, dismiss, initialFocusRef, returnFocusRef ?? anchorRef, animation.enterMs, testID, restoreFocus);
   useEffect(() => {
     if (!open) return;
     let live = true, frame: number | undefined;
@@ -74,7 +79,7 @@ export function Popover({open, onOpenChange, anchorRef, title, headerContext, de
     measure();
     return () => {live = false; if (frame !== undefined) cancelAnimationFrame(frame);};
   }, [open, anchorRef, viewport.width, viewport.height, insets.top, insets.bottom, insets.left, insets.right, touchContext, placement]);
-  if (!animation.present || !paint.visible || !anchor) return null;
+  if (!present || !paint.visible || !anchor) return null;
   const touchRect = touchContext ? touchMenuRect(anchor, viewport, height, insets) : undefined;
   const canvasScale = theme.isTV && placement === 'right-end' ? Math.min(viewport.width / theme.layout.designWidth.tv, viewport.height / theme.layout.designHeight.tv) : 1;
   if (canvasScale <= 0) return null;
@@ -95,7 +100,7 @@ export function Popover({open, onOpenChange, anchorRef, title, headerContext, de
   </Animated.View>;
   const pointer = touchRect && <Animated.View pointerEvents="none" style={[backdropStyle, {position: 'absolute', left: touchRect.side === 'right' ? rect.x - 7 : rect.x + rect.width - 7, top: rect.y + touchRect.arrowY - 7, width: 14, height: 14, borderRadius: 3, backgroundColor: alpha('#162c3a', .97), transform: [{rotate: '45deg'}]}]}/>;
   const placedSurface = rightEnd ? <View pointerEvents="box-none" style={{position: 'absolute', left: rect.x - (modal ? 0 : hostFrame.x), top: rect.y - (modal ? 0 : hostFrame.y), width: rect.width / canvasScale, height: rect.height / canvasScale, transformOrigin: 'top left', transform: [{scale: canvasScale}]}}>{surface}</View> : surface;
-  return <OverlayPaintDescendants>{modal ? <Modal transparent visible={open} animationType="none" onRequestClose={() => dismiss('back')} statusBarTranslucent navigationBarTranslucent>
+  return <OverlayPaintDescendants>{modal ? <Modal transparent visible={native.visible} onDismiss={native.onDismiss} animationType="none" onRequestClose={() => dismiss('back')} statusBarTranslucent navigationBarTranslucent>
     <View pointerEvents={paint.interactive ? 'auto' : 'none'} accessibilityElementsHidden={!paint.interactive} importantForAccessibility={paint.interactive ? 'auto' : 'no-hide-descendants'} style={{flex: 1}}><Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, backdropStyle]}>
       {touchContext ? [
         {left: 0, top: 0, right: 0, height: Math.max(0, anchor.y)},
