@@ -18,7 +18,11 @@ try {
   first = await client.open({itemId: input.itemId, sourceId: input.sourceId});
   one = await createReadingPublication(first);
   assert.equal(one.source.id, input.sourceId); assert.equal(one.source.revision, first.manifest.revision);
-  assert.equal(one.format, input.format); assert.equal(one.metadata.title, first.manifest.metadata.title); assert.equal(one.metadata.author, undefined);
+  // The Go fixture's built-in EPUB and CBZ embed one creator (readingtest's <dc:creator> and
+  // ComicInfo <Writer>, its fixtureFileAuthor); its PDF embeds none.
+  const fileAuthor = {pdf: undefined, epub: 'Portico', cbz: 'Portico'}[input.format];
+  assert.equal(one.format, input.format); assert.equal(one.metadata.title, first.manifest.metadata.title);
+  assert.equal(first.manifest.metadata.author, fileAuthor); assert.equal(one.metadata.author, fileAuthor);
   const read = async publication => {
     const signal = publication.signal;
     if (publication.format === 'pdf') {
