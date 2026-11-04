@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
@@ -73,5 +74,96 @@ func TestPerLibraryChecksInOneRequestCostTheSameForOneLibraryOrMany(t *testing.T
 				t.Errorf("%s: %d statements for %d libraries, %d for one: the per-library reads are back", name, many, len(libraries), one)
 			}
 		}
+	}
+}
+
+type snapshotPolicyProbe func(context.Context, identity.Principal, string, *sql.Tx) error
+
+func (p snapshotPolicyProbe) AllowedTxContext(ctx context.Context, who identity.Principal, library string, tx *sql.Tx) error {
+	return p(ctx, who, library, tx)
+}
+
+func TestPolicyChecksCarryTheirReadSnapshotAndSeeRevocation(t *testing.T) {
+	for _, set := range []bool{false, true} {
+		name := "single"
+		if set {
+			name = "set"
+		}
+		t.Run(name, func(t *testing.T) {
+			db := newBatchFixture(t)
+			who := localViewer("member", "member-primary")
+			calls := 0
+			policy := Policy{Cached: snapshotPolicyProbe(func(ctx context.Context, who identity.Principal, library string, tx *sql.Tx) error {
+				calls++
+				if dbwork.Snapshot(ctx) != tx {
+					t.Fatal("policy lost its snapshot context; nested reads would open another transaction")
+				}
+				return dbwork.WithReadSnapshot(ctx, db, func(inner context.Context) error {
+					if dbwork.Snapshot(inner) != tx {
+						t.Fatal("nested policy read opened another snapshot")
+					}
+					return identity.DirectAllowed(tx, who, library)
+				})
+			})}
+			request, trace := dbwork.TraceStatements(context.Background())
+			request, cost := dbwork.Measure(request)
+			request, end := dbwork.WithRequestSnapshot(request)
+			defer end()
+			check := func() error {
+				if !set {
+					return policy.Allowed(request, db, who, "movies")
+				}
+				allowed, err := policy.AllowedSet(request, db, who, []string{"movies", "shows", "movies"})
+				if err != nil {
+					return err
+				}
+				if !allowed["movies"] || !allowed["shows"] {
+					return identity.ErrUnauthorized
+				}
+				return nil
+			}
+			if err := check(); err != nil {
+				t.Fatal(err)
+			}
+			if got := cost().Transactions; got != 1 {
+				t.Fatalf("nested policy reads opened %d transactions, want 1", got)
+			}
+			if calls == 0 {
+				t.Fatal("cached policy was skipped")
+			}
+			for _, query := range trace() {
+				if strings.Contains(strings.ToLower(query), "total_changes(") {
+					t.Fatalf("read-only policy incurred write probes: %s", query)
+				}
+			}
+			t.Logf("%s policy: transactions=%d statements=%d", name, cost().Transactions, cost().Statements)
+			if err := dbwork.WithWriteTx(context.Background(), db, dbwork.ClassInteractive, func(tx *sql.Tx) error {
+				_, err := tx.Exec(`UPDATE direct_memberships SET disabled=1 WHERE account_id='member'`)
+				return err
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if err := check(); !errors.Is(err, identity.ErrUnauthorized) {
+				t.Fatalf("request snapshot hid membership revocation: %v", err)
+			}
+			// A refused policy check inside a writer must still prevent the
+			// parent committing, even when its caller ignores the error.
+			err := dbwork.WithWriteTxContext(context.Background(), db, dbwork.ClassInteractive, func(ctx context.Context, tx *sql.Tx) error {
+				if _, err := tx.Exec(`UPDATE libraries SET name='must roll back' WHERE id='movies'`); err != nil {
+					return err
+				}
+				if err := policy.Allowed(ctx, db, who, "movies"); !errors.Is(err, identity.ErrUnauthorized) {
+					t.Fatalf("writer accepted revoked member: %v", err)
+				}
+				return nil // deliberately ignore the denied child
+			})
+			if !errors.Is(err, dbwork.ErrAborted) {
+				t.Fatalf("denied child did not abort its writer: %v", err)
+			}
+			var name string
+			if err := db.QueryRow(`SELECT name FROM libraries WHERE id='movies'`).Scan(&name); err != nil || name != "Movies" {
+				t.Fatalf("parent committed a refused policy check: name=%q err=%v", name, err)
+			}
+		})
 	}
 }
