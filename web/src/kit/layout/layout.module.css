@@ -157,3 +157,10 @@
 .row[data-size-class='medium'] { --layout-gutter: 28px; }
 .row[data-size-class='medium'] .rowHead { margin-bottom: 8px; }
 .row[data-size-class='medium'] .track { gap: 14px; padding-inline: 28px; scroll-padding-inline: 28px; }
+/* Survey 4 Nov: below 1280 the full-size strip (5 × 132 px) runs under My List; 104 px thumbnails keep it clear of the
+   actions down to 1024. Narrower windows use the rail layout, whose hero draws dots instead of a strip. */
+@media (max-width: 1279px) {
+  .hero:not([data-platform^='phone']):not([data-platform='tv']) .thumbnail, .hero:not([data-platform^='phone']):not([data-platform='tv']) .thumbnailImage,
+  .hero:not([data-platform^='phone']):not([data-platform='tv']) .thumbnailImage img { width: 104px; }
+  .hero:not([data-platform^='phone']):not([data-platform='tv']) .thumbnailImage, .hero:not([data-platform^='phone']):not([data-platform='tv']) .thumbnailImage img { height: 58px; }
+}
