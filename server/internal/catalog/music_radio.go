@@ -114,8 +114,10 @@ func (s *Service) MusicRadioBatch(viewer Viewer, request RadioBatchRequest) (Rad
 		return out, err
 	}
 	related := map[string]int{}
+	relatedKeys := []string{}
 	for i, item := range fallback.Entries {
 		related[item.ID] = len(fallback.Entries) - i
+		relatedKeys = append(relatedKeys, item.ID)
 	}
 	var center sonic.Embedding
 	hasCenter := false
@@ -179,9 +181,10 @@ func (s *Service) MusicRadioBatch(viewer Viewer, request RadioBatchRequest) (Rad
 	if err != nil {
 		return out, err
 	}
+	pivot := seed
 	if request.LastItem != "" {
 		var raw string
-		err = s.read().QueryRow(`SELECT `+radioArtistsSQL+` FROM catalog_entities item JOIN catalog_songs song ON song.entity_id=item.id JOIN catalog_albums album ON album.entity_id=song.album_id WHERE item.public_id=pid_blob(?) AND `+visible, append([]any{request.LastItem}, args...)...).Scan(&raw)
+		err = s.read().QueryRow(`SELECT item.id,`+radioArtistsSQL+` FROM catalog_entities item JOIN catalog_songs song ON song.entity_id=item.id JOIN catalog_albums album ON album.entity_id=song.album_id WHERE item.public_id=pid_blob(?) AND `+visible, append([]any{request.LastItem}, args...)...).Scan(&pivot, &raw)
 		if err != nil && err != sql.ErrNoRows {
 			return out, err
 		}
@@ -191,15 +194,36 @@ func (s *Service) MusicRadioBatch(viewer Viewer, request RadioBatchRequest) (Rad
 			}
 		}
 	}
+	first := seed
+	if request.Start {
+		// A song radio starts with the actual seed; an album/artist starts
+		// with its first permitted available song in canonical release order.
+		err = s.read().QueryRow(`SELECT item.id FROM catalog_entities item
+ JOIN catalog_libraries library ON library.id=item.library_id
+ JOIN catalog_songs song ON song.entity_id=item.id JOIN catalog_albums album ON album.entity_id=song.album_id
+ JOIN catalog_entities album_item ON album_item.id=album.entity_id AND album_item.retired=0
+ WHERE `+radioSeedMembershipSQL+`
+ AND `+visible+` AND `+currentSonicEligibleSQL+`
+ AND EXISTS(SELECT 1 FROM catalog_item_availability available WHERE available.entity_id=item.id AND available.available=1 AND available.retired=0)
+ ORDER BY album_item.year,album_item.sort_key,album_item.id,COALESCE(song.disc_number,1),COALESCE(song.track_number,0),item.id LIMIT 1`, append([]any{kind, seed, kind, seed, kind, seed, seed}, args...)...).Scan(&first)
+		if err != nil {
+			return out, err
+		}
+	}
+	candidateKeys, err := s.radioPool(viewer, first, pivot, genres, relatedKeys)
+	if err != nil {
+		return out, err
+	}
 	rows, err = s.read().Query(`SELECT item.id,pid(item.public_id),pid(album_item.public_id),pid(artist.public_id),`+radioArtistsSQL+`,(SELECT count(*) FROM catalog_rec_facets facet WHERE facet.entity_id=item.id AND facet.facet IN(SELECT value FROM json_each(?))),CASE WHEN ? AND COALESCE((SELECT enabled FROM library_sonic_settings settings WHERE settings.library_id=library.library_id),?)=1 THEN `+currentSonicVectorSQL+` END
- FROM catalog_entities item JOIN catalog_libraries library ON library.id=item.library_id
+ FROM json_each(?) candidate CROSS JOIN catalog_entities item ON item.public_id=pid_blob(candidate.value)
+ JOIN catalog_libraries library ON library.id=item.library_id
  JOIN libraries configured ON configured.id=library.library_id AND configured.kind='music'
  JOIN catalog_songs song ON song.entity_id=item.id JOIN catalog_albums album ON album.entity_id=song.album_id
  JOIN catalog_entities album_item ON album_item.id=album.entity_id AND album_item.retired=0
  JOIN catalog_entities artist ON artist.id=album.artist_id AND artist.retired=0
  WHERE item.kind=7 AND `+visible+` AND `+currentSonicEligibleSQL+`
  AND EXISTS(SELECT 1 FROM catalog_item_availability available WHERE available.entity_id=item.id AND available.available=1 AND available.retired=0)
-	 ORDER BY item.id`, append([]any{idsJSON(genres), hasCenter, SonicDefaultEnabled(), sonic.ModelID, sonic.ModelVersion, sonic.ModelSHA256}, args...)...)
+	 ORDER BY item.id`, append([]any{idsJSON(genres), hasCenter, SonicDefaultEnabled(), sonic.ModelID, sonic.ModelVersion, sonic.ModelSHA256, idsJSON(candidateKeys)}, args...)...)
 	if err != nil {
 		return out, err
 	}
@@ -267,20 +291,6 @@ func (s *Service) MusicRadioBatch(viewer Viewer, request RadioBatchRequest) (Rad
 		return a.id < b.id
 	})
 	if request.Start {
-		// A song radio starts with the actual seed; an album/artist starts
-		// with its first permitted available song in canonical release order.
-		var first int64
-		err = s.read().QueryRow(`SELECT item.id FROM catalog_entities item
- JOIN catalog_libraries library ON library.id=item.library_id
- JOIN catalog_songs song ON song.entity_id=item.id JOIN catalog_albums album ON album.entity_id=song.album_id
- JOIN catalog_entities album_item ON album_item.id=album.entity_id AND album_item.retired=0
- WHERE `+radioSeedMembershipSQL+`
- AND `+visible+` AND `+currentSonicEligibleSQL+`
- AND EXISTS(SELECT 1 FROM catalog_item_availability available WHERE available.entity_id=item.id AND available.available=1 AND available.retired=0)
- ORDER BY album_item.year,album_item.sort_key,album_item.id,COALESCE(song.disc_number,1),COALESCE(song.track_number,0),item.id LIMIT 1`, append([]any{kind, seed, kind, seed, kind, seed, seed}, args...)...).Scan(&first)
-		if err != nil {
-			return out, err
-		}
 		for i, item := range pool {
 			if item.id == first {
 				out.IDs = append(out.IDs, item.public)

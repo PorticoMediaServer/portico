@@ -1,12 +1,15 @@
 package catalog
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/catalogtest"
+	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
 )
 
@@ -31,11 +34,54 @@ func TestMusicRadioRankingUsesCurrentProfileHistoryVisibilityAndArtists(t *testi
 	c.Drain()
 	s := New(c.DB)
 	viewer := Viewer{Profile: identity.PersonalKey(identity.Viewer{Authority: "local", AccountID: "account", ProfileID: "profile"}), Libraries: []string{"music"}}
+	// Exercise both capped sources on the existing tiny fixture too. The
+	// hosted scale test below owns the actual 1024-key cutover.
+	indexed, err := s.radioIndexedPool(viewer, seed.ID, seed.ID, []string{"g:rock"}, []string{nearAlbum.Public})
+	if err != nil || len(indexed) != 4 {
+		t.Fatal("indexed candidate sources", indexed, err)
+	}
 	now := time.Date(2026, 10, 24, 0, 0, 0, 0, time.UTC)
 	request := RadioBatchRequest{Seed: seed.Public, LastItem: seed.Public, Limit: 1, Now: now}
 	read := func(want string, sound bool) {
 		t.Helper()
-		got, err := s.MusicRadioBatch(viewer, request)
+		ctx, trace := dbwork.TraceQueryPlans(context.Background())
+		started := time.Now()
+		got, err := s.WithContext(ctx).MusicRadioBatch(viewer, request)
+		elapsed := time.Since(started)
+		statements := trace()
+		t.Logf("radio fixture cycle=%d statements=%d elapsed=%s ids=%v sound=%v", request.Cycle, len(statements), elapsed, got.IDs, got.BySound)
+		for _, statement := range statements {
+			if !strings.Contains(statement, "pid(album_item.public_id)") {
+				continue
+			}
+			if !strings.Contains(statement, "FROM json_each(?) candidate") {
+				t.Error("radio scorer read the whole catalogue rather than selected candidate keys")
+				continue
+			}
+			plans, e := c.DB.Query("EXPLAIN QUERY PLAN "+statement, make([]any, strings.Count(statement, "?"))...)
+			if e != nil {
+				t.Fatal(e)
+			}
+			seek := false
+			for plans.Next() {
+				var id, parent, unused int
+				var detail string
+				if e = plans.Scan(&id, &parent, &unused, &detail); e != nil {
+					plans.Close()
+					t.Fatal(e)
+				}
+				if strings.Contains(detail, "SCAN item") {
+					t.Error("scorer scanned song entities", detail)
+				}
+				seek = seek || strings.Contains(detail, "SEARCH item USING INDEX")
+			}
+			e = plans.Err()
+			plans.Close()
+			if e != nil || !seek {
+				t.Fatal("scorer lost keyed entity seek", e)
+			}
+		}
+
 		if err != nil || len(got.IDs) != 1 || got.IDs[0] != want || got.BySound != sound {
 			t.Fatal("radio selection", got, err, "want", want, sound)
 		}
