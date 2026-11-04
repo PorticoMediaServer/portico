@@ -26,7 +26,7 @@ import {useCreditRefocus, useCreditRowRefocus} from './credit-refocus';
 export type NativePersonCreditGroup = Readonly<{id: string; department: string; total: number; collection: WindowedCollection<PersonCredit>}>;
 export type NativePersonScreenProps = Readonly<{
   focusScope: string; page: PersonPage; role: PersonRole; collection: WindowedCollection<PersonCredit>;
-  /** TV only: with all credits shown and the server grouping them by department, a row per department in the page's group order (frame 10, `f9`), instead of one flat row. */
+  /** TV only: with the server grouping the person's credits by department, a row per department the filter keeps in the page's group order (frame 10, `f9`), instead of one flat row. */
   groups?: readonly NativePersonCreditGroup[];
   runtime: NativeShellRuntime; actions: ReturnType<typeof createNativeEntryActions>; selection?: NativeSelection;
   onRole: (role: PersonRole) => void; onBack: () => void;
@@ -138,7 +138,7 @@ export function PersonScreen({focusScope, page, role, collection, groups, runtim
 
 /** tv-detail frame 10 (`f9`): the ten-foot person page. One blur mosaic circle,
  * the person's own facts and biography, then the real windowed credits as a
- * horizontal row per department (one flat row for Cast or Crew, or when the person has one department); Sort is not
+ * horizontal row per department, filtered by All, Cast or Crew (one flat row when the person has one department); Sort is not
  * produced by the person read, so only the real All/Cast/Crew filter is drawn. */
 export function TVPerson({focusScope, page, role, collection, groups, runtime, actions, selection, onRole, onBack}: {
   focusScope: string; page: PersonPage; role: PersonRole; collection: WindowedCollection<PersonCredit>; groups?: readonly NativePersonCreditGroup[];
@@ -172,7 +172,8 @@ export function TVPerson({focusScope, page, role, collection, groups, runtime, a
   const slots = useMemo(() => Array.from({length: total}, (_, index) => index), [total]);
   // A re-read replaces the page and its credit window: the shelf names where focus stays in the row (credit-refocus).
   const credits = useCreditRefocus(page, creditSlotKey);
-  const grouped = role === 'all' && !!groups?.length;
+  // Department rows for All, Cast and Crew alike (Filters apply to every row); one flat row when there are none.
+  const grouped = !!groups?.length;
   const filtersChip = <Chip testID="person-role-filter" selected={role !== 'all'} onPress={() => setFilters(true)}>{t('next.browse.native.filters')}</Chip>;
   const filterItems: MenuEntry[] = ([['all', 'title.creditsAll'], ['cast', 'web.person.cast'], ['crew', 'web.person.crew']] as const).map(([value, label]) =>
     ({id: value, label: t(label), selected: role === value, onSelect: () => onRole(value)}));

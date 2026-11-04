@@ -212,19 +212,24 @@ test('TV person credits are one row per department, each its own focus region, i
   } finally {await page.host.unmount();}
 });
 
-test('Cast or Crew, and a page with no department groups, keep the one flat credits row', async () => {
-  const crew = await mountTV({groups, role: 'crew'});
+test('Cast and Crew keep department rows too (Filters apply to every row, f9); a page with no department groups keeps the flat row', async () => {
+  const crew = await mountTV({groups: [groups[1]], role: 'crew'});
   try {
-    const shelves = descendants(crew.tree()).filter(node => node.type === 'TVShelf');
-    assert.equal(shelves.length, 1);
-    assert.deepEqual(shelves[0]!.props.items, [0, 1, 2]);
-    assert.match(shelves[0]!.props.focus?.id ?? '', /\.credits$/, 'the one flat row keeps its own region (main, credit-refocus), not a department row');
-    const heading = headingOf(crew.tree());
-    assert.deepEqual(descendants(heading).filter(node => node.type === 'Text').map(text), ['Credits', '3 titles'], 'the flat row keeps its Credits heading');
-    assert.equal(hasFilters(heading), true, 'with Filters on it');
+    const rows = descendants(crew.tree()).filter(node => typeof node.type === 'function' && node.props.group);
+    assert.deepEqual(rows.map(row => row.props.group.id), ['department:Production'], 'the rows the register kept for Crew');
+    assert.equal(descendants(crew.tree()).filter(node => node.type === 'TVShelf').length, 0, 'no flat row beside them');
+    assert.equal(rows[0]!.props.tools?.props.selected, true, 'Filters, on the first row, shows a filter is on');
   } finally {await crew.host.unmount();}
   const none = await mountTV({groups: []});
-  try {assert.equal(descendants(none.tree()).filter(node => node.type === 'TVShelf').length, 1);} finally {await none.host.unmount();}
+  try {
+    const shelves = descendants(none.tree()).filter(node => node.type === 'TVShelf');
+    assert.equal(shelves.length, 1);
+    assert.deepEqual(shelves[0]!.props.items, [0, 1, 2]);
+    assert.match(shelves[0]!.props.focus?.id ?? '', /\.credits$/, 'the one flat row keeps its own region (credit-refocus)');
+    const heading = headingOf(none.tree());
+    assert.deepEqual(descendants(heading).filter(node => node.type === 'Text').map(text), ['Credits', '3 titles'], 'the flat row keeps its Credits heading');
+    assert.equal(hasFilters(heading), true, 'with Filters on it');
+  } finally {await none.host.unmount();}
 });
 
 // #728 review: a re-read builds each department row's window again, seeded with the department's new first page. Like

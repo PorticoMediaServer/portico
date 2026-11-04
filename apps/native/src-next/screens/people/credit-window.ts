@@ -26,7 +26,9 @@ export function createNativePersonCreditWindow(context: NativeShellBootstrapCont
   if (seed.pageOrigin !== 'initial') throw new Error('native_person_initial_page_required');
   const first = seed.page, requestGroup = group ? {department: group.department} : seed.group, windowTotal = group ? group.total : first.pageInfo.total;
   // Page zero: the arrived page itself, or the department's own first page when it arrived with it (else none).
-  const seeded = group ? group.first : first;
+  // A department page is a seed only if it answered for that department (its total is the group's): a server that
+  // ignored `department` answers with All's page, which must never stand in for one row.
+  const seeded = group ? group.first && group.first.pageInfo.total === group.total ? group.first : undefined : first;
   // Selection uses real sparse offsets, never the compact order of resident pages.
   const positions = new WeakMap<PersonCredit, number>();
   seeded?.credits.forEach((credit, index) => positions.set(credit, index));

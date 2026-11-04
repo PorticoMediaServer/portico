@@ -84,6 +84,9 @@ export function SearchScreen({focusScope, destination, runtime, explore, onNow =
   // The row is read only on the empty page of a server with Live TV, and only while this page is showing; the clock
   // passing the first shown programme's end reads it again (on-now.ts `until`), as does showing the page after that.
   const onNowOffered = hasLiveTV && !typed && !theme.isTV, onNowDue = live.until !== undefined && now >= live.until;
+  // Until that read answers, the cards are drawn at the last moment the read covers, so a card keeps the programme it
+  // showed (at its end) instead of "No information" for the gap its end leaves in the old read.
+  const onNowAt = onNowDue ? Math.max(live.at, live.until! - 1) : now;
   useEffect(() => {
     if (activeRoute.visible && onNowOffered) run(onNow.load());
   }, [activeRoute.visible, onNow, onNowOffered, onNowDue, run]);
@@ -159,7 +162,7 @@ export function SearchScreen({focusScope, destination, runtime, explore, onNow =
       {emptyIn && <StateView testID="search-none-in" variant="search" title={t('web.search.nothingIn', {group: t(searchGroupLabel(emptyIn))})}
         primaryAction={{id: 'everything', label: t('web.search.everything'), onPress: () => destination.selectGroup('all')}} style={{paddingTop: 26, marginHorizontal: 20}}/>}
       {(!typed || emptyAll) && (emptyAll ? <>{genres}{history}</> : <>{history}{genres}</>)}
-      {onNowOffered && live.phase === 'ready' && live.cards.length > 0 && <SearchOnNow snapshot={live} runtime={runtime} width={surface} now={now} onGuide={() => runtime.onDestination({kind: 'live'})}/>}
+      {onNowOffered && live.phase === 'ready' && live.cards.length > 0 && <SearchOnNow snapshot={live} runtime={runtime} width={surface} now={onNowAt} onGuide={() => runtime.onDestination({kind: 'live'})}/>}
       {!wideSearch && top && <SearchTopResult entry={top.entry} group={top.group} runtime={runtime} actions={actions} selection={selection?.item(top.entry, top.group)} width={surface - 32}/>}
       {wideSearch ? groups.filter(group => group.items.length).map(group => <View key={group.id}>
         <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 8, marginHorizontal: 20, marginTop: 22, marginBottom: 10}}>
