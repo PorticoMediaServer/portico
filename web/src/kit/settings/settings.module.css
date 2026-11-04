@@ -184,7 +184,6 @@
   .pageHeading + .group { margin-top: 0; }
 }
 @media (max-width: 599px) {
-  .table { min-width: 720px; }
   .tableToolbar { padding: 12px; }
   .tableToolbar > div:first-child { width: 100%; }
   .tableCount { margin-left: 0; }
@@ -377,3 +376,23 @@
 .configurationNote {display: flex; gap: 12px; align-items: flex-start; padding: 14px 18px; border-radius: 12px; background: color-mix(in srgb, var(--color-accent) 8%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent-strong) 18%, transparent); font-size: 14px; line-height: 1.5; color: var(--color-text-secondary); margin-top: 22px;}
 .configurationNote svg {color: var(--color-accent-strong); margin-top: 1px; flex: none;}
 .configurationNote code {color: var(--color-text); background: color-mix(in srgb, var(--color-ink) 60%, transparent); padding: 1px 6px; border-radius: 5px;}
+/* Phone width (owner-people 24a, 33a): a table draws each row as a card, the main cell and its badge on the first
+   line (the badge right after the name), every other cell on its own line under the name, and the row's action at the right. Rows keep one height
+   (table-model settingsTablePhoneRowHeight) so the window of rendered rows stays exact. Selection is a desktop
+   affordance; a phone opens the row. (.tableScroll leads each rule to outrank the desktop column paddings.) */
+@media (max-width: 599px) {
+  .tableScroll .table, .tableScroll .table tbody { display: block; width: 100%; min-width: 0; }
+  .tableScroll .table colgroup { display: none; }
+  .tableScroll .table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .tableScroll .table tr[data-table-row] { display: grid; grid-template-columns: minmax(0, max-content) auto minmax(0, 1fr) auto; align-content: center; column-gap: 10px; row-gap: 3px; box-sizing: border-box; height: 112px; padding: 0 12px 0 16px; overflow: hidden; border-bottom: 1px solid var(--color-line-soft); }
+  .tableScroll .table tr[data-table-row] > td { display: block; height: auto; min-width: 0; padding: 0; border: 0; grid-column: 1 / 4; }
+  .tableScroll .table tr[data-table-row] > td:has(> input[type='checkbox']) { display: none; }
+  .tableScroll .table tr[data-table-row] > td[data-kind='main'] { grid-column: 1; grid-row: 1; }
+  .tableScroll .table tr[data-table-row] > td[data-kind='badge'] { grid-column: 2; grid-row: 1; align-self: center; justify-self: start; }
+  .tableScroll .table tr[data-table-row] > td:not([data-kind='main'], [data-kind='badge'], .actionCell) { padding-left: 46px; font-size: var(--type-caption-size); line-height: 1.35; color: var(--color-text-secondary); text-align: left; }
+  .tableScroll .table tr[data-table-row] > td:not([data-kind='main']) .cellText { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tableScroll .table tr[data-table-row] > td:not([data-kind='main']) .cellText > :is(span, b) { display: inline; font-size: inherit; font-weight: inherit; }
+  .tableScroll .table tr[data-table-row] > td:not([data-kind='main']) .cellText small { display: inline; margin: 0 0 0 10px; font-size: inherit; }
+  .tableScroll .table tr[data-table-row] > td.actionCell { grid-column: 4; grid-row: 1 / span 4; align-self: center; }
+  .tableScroll .table td.tableEmpty { display: block; height: auto; padding: 22px 16px; border: 0; }
+}

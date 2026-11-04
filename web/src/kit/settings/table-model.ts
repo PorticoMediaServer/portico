@@ -5,7 +5,13 @@ export type TableWindow = Readonly<{first: number; last: number; before: number;
 
 export const settingsTableRowHeight = 60;
 export const settingsTableHeaderHeight = 40;
-export function settingsTableWindow(count: number, scrollTop: number, height: number, overscan = 3): TableWindow {
+/** Phone width (owner-people 24a, 33a): each row is a card of up to four lines, at one fixed height so windowing stays exact; no header row. */
+export const settingsTablePhoneRowHeight = 112;
+export type TableMetrics = Readonly<{row: number; header: number}>;
+export const settingsTableMetrics: TableMetrics = {row: settingsTableRowHeight, header: settingsTableHeaderHeight};
+export const settingsTablePhoneMetrics: TableMetrics = {row: settingsTablePhoneRowHeight, header: 0};
+export function settingsTableWindow(count: number, scrollTop: number, height: number, overscan = 3, metrics: TableMetrics = settingsTableMetrics): TableWindow {
+  const {row: settingsTableRowHeight, header: settingsTableHeaderHeight} = metrics;
   const size = Math.max(0, Math.floor(count));
   if (!size) return {first: 0, last: -1, before: 0, after: 0};
   const first = Math.min(size - 1, Math.max(0, Math.floor(Math.max(0, scrollTop) / settingsTableRowHeight) - overscan));
