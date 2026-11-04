@@ -1,12 +1,16 @@
 package dbwork
 
 import (
+	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -15,6 +19,122 @@ import (
 )
 
 var updateDirectSnapshots = flag.Bool("update-direct-snapshot-census", false, "remove migrated sites from the direct snapshot baseline; never add sites")
+
+type directSnapshotPackage struct {
+	Dir, ImportPath                                   string
+	GoFiles, CgoFiles, IgnoredGoFiles, InvalidGoFiles []string
+}
+
+// Directory names choose initial package roots only. Go resolves every actual
+// production import, including imports into testdata, node_modules, hidden
+// directories, vendored code and locally replaced modules. Imports in inactive
+// platform/tag files are followed too, so the host's build tags cannot hide one.
+func directSnapshotProductionFiles(root string) ([]string, error) {
+	seeds := map[string]bool{}
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			if path != root {
+				if name := info.Name(); name == "testdata" || name == "vendor" || name == "node_modules" || strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") {
+					return filepath.SkipDir
+				}
+				if _, err := os.Stat(filepath.Join(path, "go.mod")); err == nil {
+					return filepath.SkipDir
+				} else if !os.IsNotExist(err) {
+					return err
+				}
+			}
+			return nil
+		}
+		if strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go") {
+			relative, err := filepath.Rel(root, filepath.Dir(path))
+			if err != nil {
+				return err
+			}
+			seeds["./"+filepath.ToSlash(relative)] = true
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	var queue []string
+	for seed := range seeds {
+		queue = append(queue, seed)
+	}
+	listed, scanned, files := map[string]bool{}, map[string]bool{}, map[string]bool{}
+	for len(queue) != 0 {
+		sort.Strings(queue)
+		cmd := exec.Command("go", append([]string{"list", "-deps", "-e", "-json"}, queue...)...)
+		cmd.Dir = root
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+		output, err := cmd.Output()
+		if err != nil {
+			return nil, fmt.Errorf("resolve production imports: %w\n%s", err, stderr.String())
+		}
+		var packages []directSnapshotPackage
+		decoder := json.NewDecoder(bytes.NewReader(output))
+		for {
+			var pkg directSnapshotPackage
+			if err := decoder.Decode(&pkg); err == io.EOF {
+				break
+			} else if err != nil {
+				return nil, err
+			}
+			if pkg.Dir == "" {
+				return nil, fmt.Errorf("cannot resolve production import %q", pkg.ImportPath)
+			}
+			listed[pkg.ImportPath] = true
+			packages = append(packages, pkg)
+		}
+		pending := map[string]bool{}
+		for _, pkg := range packages {
+			relative, err := filepath.Rel(root, pkg.Dir)
+			if err != nil {
+				return nil, err
+			}
+			if !filepath.IsLocal(relative) || scanned[pkg.Dir] {
+				continue
+			}
+			scanned[pkg.Dir] = true
+			names := append(append(append([]string{}, pkg.GoFiles...), pkg.CgoFiles...), pkg.IgnoredGoFiles...)
+			names = append(names, pkg.InvalidGoFiles...)
+			for _, name := range names {
+				if strings.HasSuffix(name, "_test.go") {
+					continue
+				}
+				path := filepath.Join(pkg.Dir, name)
+				files[path] = true
+				file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+				if err != nil {
+					return nil, err
+				}
+				for _, spec := range file.Imports {
+					importPath, err := strconv.Unquote(spec.Path.Value)
+					if err != nil {
+						return nil, err
+					}
+					if importPath != "C" && !listed[importPath] {
+						pending[importPath] = true
+					}
+				}
+			}
+		}
+		queue = nil
+		for importPath := range pending {
+			queue = append(queue, importPath)
+		}
+	}
+	var out []string
+	for path := range files {
+		out = append(out, path)
+	}
+	sort.Strings(out)
+	return out, nil
+}
 
 // Direct BeginSnapshot is a legacy API: it does not take snapshot admission or
 // request reuse. Some listed references are intentional borrows, but a new
@@ -34,44 +154,26 @@ func TestDirectBeginSnapshotCensus(t *testing.T) {
 
 func directSnapshotCensus(root, path string, update bool) (int, int, error) {
 	actual := map[string]int{}
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
+	files, err := directSnapshotProductionFiles(root)
+	if err != nil {
+		return 0, 0, err
+	}
+	for _, path := range files {
 		relative, err := filepath.Rel(root, path)
 		if err != nil {
-			return err
+			return 0, 0, err
 		}
 		relative = filepath.ToSlash(relative)
-		if info.IsDir() {
-			if relative != "." {
-				// Exclude the admission implementation, fixtures, dependencies,
-				// hidden scratch, and packages belonging to another Go module.
-				if relative == "internal/dbwork" || info.Name() == "testdata" || info.Name() == "vendor" || info.Name() == "node_modules" || strings.HasPrefix(info.Name(), ".") {
-					return filepath.SkipDir
-				}
-				if _, err := os.Stat(filepath.Join(path, "go.mod")); err == nil {
-					return filepath.SkipDir
-				} else if !os.IsNotExist(err) {
-					return err
-				}
-			}
-			return nil
-		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
+		if filepath.ToSlash(filepath.Dir(relative)) == "internal/dbwork" {
+			continue
 		}
 		found, err := directSnapshotReferences(path, nil)
 		if err != nil {
-			return err
+			return 0, 0, err
 		}
 		for function, count := range found {
 			actual[relative+"\t"+function] += count
 		}
-		return nil
-	})
-	if err != nil {
-		return 0, 0, err
 	}
 	previous, err := os.ReadFile(path)
 	if err != nil {
@@ -235,13 +337,18 @@ func TestDirectSnapshotBaselineCanOnlyShrink(t *testing.T) {
 
 func directSnapshotCensusFixture(t *testing.T) (root, baseline string) {
 	t.Helper()
+	t.Setenv("GOWORK", "off")
 	root = t.TempDir()
-	for _, dir := range []string{"internal/legacy", "cmd"} {
+	for _, dir := range []string{"internal/legacy", "internal/dbwork", "cmd"} {
 		if err := os.MkdirAll(filepath.Join(root, dir), 0700); err != nil {
 			t.Fatal(err)
 		}
 	}
 	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module github.com/PorticoMediaServer/portico/server\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	stub := `package dbwork; import ("context"; "database/sql"); type Write struct{}; func BeginSnapshot(context.Context,*sql.DB)(*Write,error){return nil,nil}; func WithReadSnapshot(){}`
+	if err := os.WriteFile(filepath.Join(root, "internal/dbwork/stub.go"), []byte(stub), 0600); err != nil {
 		t.Fatal(err)
 	}
 	legacy := `package legacy; import work "github.com/PorticoMediaServer/portico/server/internal/dbwork"; var Open = work.BeginSnapshot`
@@ -320,5 +427,79 @@ func TestDirectSnapshotUpdateRequiresPreviousBaseline(t *testing.T) {
 				t.Fatal("refused update changed the empty baseline", err)
 			}
 		})
+	}
+}
+
+func TestDirectSnapshotCensusFollowsProductionImports(t *testing.T) {
+	for _, tc := range []struct {
+		parent, directory string
+		tagged            bool
+	}{
+		{"internal/review755area", "node_modules", false},
+		{"internal/review755area", "testdata", false},
+		{"internal/review755area", ".hidden", false},
+		{"internal/review755area", ".hidden", true},
+		{"internal/dbwork", "nested", false},
+	} {
+		t.Run(fmt.Sprintf("%s/%s/tagged=%t", tc.parent, tc.directory, tc.tagged), func(t *testing.T) {
+			root, baseline := directSnapshotCensusFixture(t)
+			bridgePath := filepath.ToSlash(filepath.Join(tc.parent, tc.directory, "bridge"))
+			bridgeDir := filepath.Join(root, bridgePath)
+			consumerDir := filepath.Join(root, "internal/review755consumer")
+			for _, dir := range []string{bridgeDir, consumerDir} {
+				if err := os.MkdirAll(dir, 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			bridge := `package bridge; import work "github.com/PorticoMediaServer/portico/server/internal/dbwork"; var Open = work.BeginSnapshot`
+			consumer := fmt.Sprintf(`package consumer; import bridge "github.com/PorticoMediaServer/portico/server/%s"; var Open = bridge.Open`, bridgePath)
+			if tc.tagged {
+				consumer = "//go:build snapshot_census_witness\n\n" + consumer
+				if err := os.WriteFile(filepath.Join(consumerDir, "base.go"), []byte("package consumer\n"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for path, source := range map[string]string{filepath.Join(bridgeDir, "bridge.go"): bridge, filepath.Join(consumerDir, "consumer.go"): consumer} {
+				if err := os.WriteFile(path, []byte(source), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			cmd := exec.Command("go", "test", "-p", "1", "-tags", "snapshot_census_witness", "-run", "^$", "./internal/review755consumer")
+			cmd.Dir = root
+			if output, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("production witness does not compile: %v\n%s", err, output)
+			}
+			for _, update := range []bool{false, true} {
+				t.Run(fmt.Sprintf("update=%t", update), func(t *testing.T) {
+					before, err := os.ReadFile(baseline)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if _, _, err := directSnapshotCensus(root, baseline, update); err == nil {
+						t.Fatal("imported production package escaped the census", bridgePath)
+					}
+					after, err := os.ReadFile(baseline)
+					if err != nil || string(after) != string(before) {
+						t.Fatal("refused production import changed the baseline", err)
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestDirectSnapshotCensusIgnoresUnimportedFixtures(t *testing.T) {
+	root, baseline := directSnapshotCensusFixture(t)
+	fixture := filepath.Join(root, "testdata", "not-a-package")
+	if err := os.MkdirAll(fixture, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(fixture, "invalid.go"), []byte("deliberately invalid Go fixture\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, update := range []bool{false, true} {
+		if total, functions, err := directSnapshotCensus(root, baseline, update); err != nil || total != 1 || functions != 1 {
+			t.Fatalf("unimported test fixture became production: references=%d functions=%d err=%v", total, functions, err)
+		}
 	}
 }
