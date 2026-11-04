@@ -14,6 +14,8 @@ const series = (value: unknown): value is string => typeof value === 'string' &&
 const revision = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 const kind = (value: unknown): value is ReadingSavedGroupKind => value === 'series' || value === 'magazine' || value === 'newspaper';
 const bad = (): never => {throw new Error('invalid_reading_saved_group');};
+/** A viewer fence's shape: 64 lowercase hex characters. A shape check, not a comparison of two fences. */
+const fenceShaped = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 export function validReadingSavedGroupTarget(value: ReadingSavedGroupTarget): boolean {return identifier(value.libraryId) && kind(value.groupKind) && series(value.seriesId);}
 
 /** Official descriptors alone supply paths. Until the checkpoint publishes
@@ -37,7 +39,7 @@ export function readingSavedReferencePath(referenceId: string): string | undefin
 }
 export function parseReadingSavedGroupMembership(value: unknown, serverId: string, target: ReadingSavedGroupTarget, operationId?: string): ReadingSavedGroupMembership {
   if (!record(value) || !validReadingSavedGroupTarget(target) || value.serverId !== serverId || value.libraryId !== target.libraryId || value.groupKind !== target.groupKind || value.seriesId !== target.seriesId
-    || typeof value.listed !== 'boolean' || !revision(value.revision) || typeof value.viewerFence !== 'string' || !/^[a-f0-9]{64}$/.test(value.viewerFence) || value.operationId !== operationId
+    || typeof value.listed !== 'boolean' || !revision(value.revision) || !fenceShaped(value.viewerFence) || value.operationId !== operationId
     || (value.revision === 0 ? value.listed || value.referenceId !== undefined : !identifier(value.referenceId))) return bad();
   return Object.freeze({...target, listed: value.listed, revision: value.revision, viewerFence: value.viewerFence, ...(value.referenceId === undefined ? {} : {referenceId: value.referenceId as string}), ...(operationId === undefined ? {} : {operationId})});
 }

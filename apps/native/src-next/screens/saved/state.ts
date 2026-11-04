@@ -92,7 +92,8 @@ export function createNativeSavedState(context: NativeShellBootstrapContext) {
         const next = controller.source.getSnapshot();
         const loaded = route?.view === 'playlist' ? next.saved?.playlist : next.personal?.resource;
         return next.phase === 'ready' && !!loaded && loaded.id === resource.id && loaded.revision === resource.revision
-          && loaded.serverId === resource.serverId && loaded.viewerFence === resource.viewerFence && (!('status' in loaded) || loaded.status === 'ready');
+          // A moved fence is a newer answer for the same list: the server decides the play itself.
+          && loaded.serverId === resource.serverId && (!('status' in loaded) || loaded.status === 'ready');
       };
       const operation = {abort, current: isCurrent}; resourcePlay = operation;
       try {

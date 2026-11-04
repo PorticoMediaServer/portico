@@ -206,3 +206,17 @@ test('a saved view keeps the relative date operator verbatim through capture and
  assert.deepEqual(written.definition,definition);
  s.dispose();
 });
+
+test('step 7: a moved fence on a collection read is a newer answer; the server\'s old-cursor refusal restarts it; a 403 or a write answer under it still refuses',async()=>{
+ let fence='fence',denied='';const paths:string[]=[];
+ const s=setup(async p=>{paths.push(p);if(denied)throw Object.assign(new Error('Denied'),{code:denied});if(p.includes('cursor=')&&fence==='moved')throw Object.assign(new Error('Expired'),{code:'invalid_cursor'});return {...content(resource({viewerFence:fence}),[{id:'member',hidden:false,media:media()}]),nextCursor:p.includes('cursor=')?'':'next'};});
+ await s.select({view:'resource',resourceId:'collection'});fence='moved';await s.refresh();
+ assert.equal(s.getSnapshot().error,null);assert.equal(s.getSnapshot().viewerFence,'moved');
+ await s.revalidate();assert.equal(s.getSnapshot().error,null);assert.equal(s.getSnapshot().viewerFence,'moved');
+ // A cursor read before the move is the server's to refuse: back to the first page, quietly.
+ fence='fence';await s.refresh();fence='moved';await s.next();
+ assert.equal(s.getSnapshot().error,null);assert.equal(s.getSnapshot().cursor,null);assert.deepEqual(s.getSnapshot().history,[]);assert(!paths.at(-1)!.includes('cursor='));assert.equal(s.getSnapshot().viewerFence,'moved');
+ denied='forbidden';await s.refresh();assert.equal(s.getSnapshot().error?.code,'forbidden');assert.equal(s.getSnapshot().resource,null);s.dispose();
+ const write=setup(async(_p,m,b)=>m==='GET'?content():{serverId:'server',viewerFence:'moved',receipt:{operationId:b.operationId,resourceId:'collection',revision:2,deleted:false}});
+ await write.select({view:'resource',resourceId:'collection'});assert.equal(await write.mutate({action:'update',name:'Renamed'} as any),false);assert(write.getSnapshot().mutationError);write.dispose();
+});

@@ -4,6 +4,8 @@ export type ReadingListMembership = Readonly<{itemId: string; listed: boolean; r
 export type ReadingListCommand = Readonly<{operationId: string; expectedRevision: number; listed: boolean}>;
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const identifier = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value);
+/** A viewer fence's shape: 64 lowercase hex characters. A shape check, not a comparison of two fences. */
+const fenceShaped = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 
 /** The official descriptor is the only path source. Until Release publishes
  * both operations, the caller withholds the action rather than inventing a URL. */
@@ -20,7 +22,7 @@ export function readingSavedPath(method: 'GET' | 'PUT', itemId: string): string 
 export function parseReadingSavedMembership(value: unknown, serverId: string, itemId: string, operationId?: string): ReadingListMembership {
   if (!record(value) || value.serverId !== serverId || value.itemId !== itemId || typeof value.listed !== 'boolean'
     || typeof value.revision !== 'number' || !Number.isSafeInteger(value.revision) || value.revision < 0
-    || typeof value.viewerFence !== 'string' || !/^[a-f0-9]{64}$/.test(value.viewerFence)
+    || !fenceShaped(value.viewerFence)
     || value.operationId !== operationId) throw new Error('invalid_reading_saved');
   return Object.freeze({itemId, listed: value.listed, revision: value.revision, viewerFence: value.viewerFence, ...(operationId === undefined ? {} : {operationId})});
 }

@@ -339,8 +339,9 @@ export class SavedService {
    const [raw, rawResource] = await this.deadline(Promise.all([api.request<unknown>(path + '?' + params, 'GET', undefined, controller.signal), selected.view === 'playlist' ? api.request<RouteResponse<"get_playlists_id">>(encodedRoutePath("get_playlists_id", {"id": encodeURIComponent(selected.playlistId)}), 'GET', undefined, controller.signal) : Promise.resolve(null)]), controller);
    if (!live()) return;
    const parsed = projection(raw, bound, selected), playlist = selected.view === 'playlist' ? resource(rawResource, bound, selected.playlistId) : null;
-   // Two reads that disagree with each other, or one older than a change confirmed here, are not shown; the next hint reads again.
-   if (playlist && (playlist.viewerFence !== parsed.scope.viewerFence || playlist.revision !== parsed.playlistRevision || this.state.lastReceipt?.playlistId === playlist.id && playlist.revision < this.state.lastReceipt.revision)) return;
+   // Two reads of the playlist at different revisions, or one older than a change confirmed here, are not shown; the next hint reads again.
+   // A moved fence is only a newer answer: the server decided both reads for this viewer.
+   if (playlist && (playlist.revision !== parsed.playlistRevision || this.state.lastReceipt?.playlistId === playlist.id && playlist.revision < this.state.lastReceipt.revision)) return;
    if (!live()) return;
    await context?.settle?.();
    if (!live() || this.commands.length || this.state.phase !== 'ready') return;
@@ -376,7 +377,7 @@ export class SavedService {
   const [raw, rawResource] = await this.deadline(Promise.all([api.request<unknown>(pathOf(null), 'GET', undefined, controller.signal), selected.view === 'playlist' ? api.request<RouteResponse<"get_playlists_id">>(encodedRoutePath("get_playlists_id", {"id": encodeURIComponent(selected.playlistId)}), 'GET', undefined, controller.signal) : Promise.resolve(null)]), controller);
   if (!live()) return true;
   const first = projection(raw, bound, selected), playlist = selected.view === 'playlist' ? resource(rawResource, bound, selected.playlistId) : null;
-  if (playlist && (playlist.viewerFence !== first.scope.viewerFence || playlist.revision !== first.playlistRevision || this.state.lastReceipt?.playlistId === playlist.id && playlist.revision < this.state.lastReceipt.revision)) return false;
+  if (playlist && (playlist.revision !== first.playlistRevision || this.state.lastReceipt?.playlistId === playlist.id && playlist.revision < this.state.lastReceipt.revision)) return false;
   const sections = first.sections.map(section => ({ ...section, entries: [...section.entries] as SavedEntry[] }));
   const seen = new Set(sections.flatMap(section => section.entries.map(savedEntryKey)));
   let count = seen.size;
@@ -397,7 +398,8 @@ export class SavedService {
    throw error;
   }
    if (!live()) return true;
-   if (page.scope.viewerFence !== first.scope.viewerFence || page.savedRevision !== first.savedRevision || playlist && page.playlistRevision !== playlist.revision) return false;
+   // A cursor from before the fence moved is refused by the server (invalid_cursor, above); only the list's own revision is compared here.
+   if (page.savedRevision !== first.savedRevision || playlist && page.playlistRevision !== playlist.revision) return false;
    for (const part of page.sections) {
     const into = sections.find(section => section.id === part.id);
     const added = part.entries.filter(e => !seen.has(savedEntryKey(e)));
@@ -466,9 +468,10 @@ export class SavedService {
     if (this.disposed || generation !== this.generation || read !== this.readGeneration) return;
     const parsed = projection(raw, bound, selected), playlist = selected.view === 'playlist' ? resource(rawResource, bound, selected.playlistId) : null;
     if (playlist && this.state.lastReceipt?.playlistId === playlist.id && playlist.revision < this.state.lastReceipt.revision) throw new Failure('stale_continuation', 'The server returned a playlist older than the confirmed change. Refresh again.', true);
-    if (playlist && (playlist.viewerFence !== parsed.scope.viewerFence || playlist.revision !== parsed.playlistRevision)) throw new Failure('stale_continuation', 'The playlist changed while loading. Refresh its current order.', true);
-    // A later page read after the list moved is still a valid page; only another viewer's answer is refused.
-    if (cursor && previous && (parsed.scope.viewerFence !== previous.scope.viewerFence || parsed.savedRevision !== previous.savedRevision)) throw new Failure('stale_continuation', 'Saved results changed. Refresh the first page.', true);
+    if (playlist && playlist.revision !== parsed.playlistRevision) throw new Failure('stale_continuation', 'The playlist changed while loading. Refresh its current order.', true);
+    // A later page of a list whose revision moved restarts from the first page. A cursor from before the fence moved is the
+    // server's to refuse (invalid_cursor restarts below); a moved fence here is a newer answer.
+    if (cursor && previous && parsed.savedRevision !== previous.savedRevision) throw new Failure('stale_continuation', 'Saved results changed. Refresh the first page.', true);
     // What the viewer has on screen: the first page, and every page appended after it.
     const count = parsed.sections.reduce((n, section) => n + section.entries.length, 0);
     this.seen = cursor === null ? count : move === 'next' ? this.seen + count : this.seen;
@@ -637,9 +640,11 @@ export class SavedService {
    if (cursor) query.set('cursor', cursor);
    const raw = await this.deadline(this.api.request<RouteResponse<"get_playlist_order">>(encodedRoutePath("get_playlist_order", {"id": encodeURIComponent(p.id)}) + "?" + (query), 'GET', undefined, controller.signal), controller);
    if (this.disposed || generation !== this.generation || read !== this.orderGeneration) return;
-   if (!record(raw) || raw.serverId !== this.bound.serverId || raw.viewerFence !== p.viewerFence || raw.playlistId !== p.id || !int(raw.revision)) invalid();
+   // The order is checked against the playlist's own revision; a moved fence is a newer answer, and the reorder itself still
+   // has to match the playlist it was loaded for (allowed()).
+   if (!record(raw) || raw.serverId !== this.bound.serverId || !id(raw.viewerFence) || raw.playlistId !== p.id || !int(raw.revision)) invalid();
    const current = this.state.playlist;
-   if (!current || current.revision !== raw.revision || current.viewerFence !== raw.viewerFence || !current.actions.includes('reorder')) throw new Failure('stale_continuation', 'The playlist changed. Refresh it before loading its order.', true);
+   if (!current || current.revision !== raw.revision || !current.actions.includes('reorder')) throw new Failure('stale_continuation', 'The playlist changed. Refresh it before loading its order.', true);
    if (raw.nextCursor !== undefined && !text(raw.nextCursor, 4096)) invalid();
    const entryIds = firstOfEach('playlist-order', 'entryIds', list(raw.entryIds, limit ?? 100).map(value => { if (!id(value)) invalid(); return value; }), value => value);
    this.publish({ orderLoading: false, order: freeze({ serverId: this.bound.serverId, viewerFence: p.viewerFence, playlistId: p.id, revision: raw.revision, entryIds, nextCursor: String(raw.nextCursor ?? '') }) });
@@ -656,7 +661,7 @@ export class SavedService {
   try {
    const raw = await this.deadline(this.api.request<RouteResponse<"get_playlist_order">>(encodedRoutePath("get_playlist_order", {"id": encodeURIComponent(previous.playlistId)}) + "?limit=100&cursor=" + (encodeURIComponent(previous.nextCursor)), 'GET', undefined, controller.signal), controller);
    if (this.disposed || generation !== this.generation || read !== this.orderGeneration) return;
-   if (!record(raw) || raw.serverId !== this.bound.serverId || raw.viewerFence !== previous.viewerFence || raw.playlistId !== previous.playlistId || !int(raw.revision)) invalid();
+   if (!record(raw) || raw.serverId !== this.bound.serverId || !id(raw.viewerFence) || raw.playlistId !== previous.playlistId || !int(raw.revision)) invalid();
    if (raw.revision !== previous.revision) throw new Failure('stale_continuation', 'The playlist changed. Restart its order from the first page.', true);
    if (raw.nextCursor !== undefined && !text(raw.nextCursor, 4096)) invalid();
    const seen = new Set(previous.entryIds);
@@ -675,7 +680,7 @@ export class SavedService {
    const query = new URLSearchParams({ limit: '40' }); if (cursor) query.set('cursor', cursor);
    const raw = await this.deadline(this.api.request<RouteResponse<"get_playlists_id_share_candidates">>(encodedRoutePath("get_playlists_id_share_candidates", {"id": encodeURIComponent(selected.playlistId)}) + "?" + (query), 'GET', undefined, controller.signal), controller);
    if (this.disposed || generation !== this.generation || read !== this.candidateGeneration) return;
-   if (!record(raw) || raw.serverId !== this.bound.serverId || raw.viewerFence !== p.viewerFence || raw.playlistId !== p.id || !int(raw.revision) || !text(raw.nextCursor, 4096)) invalid();
+   if (!record(raw) || raw.serverId !== this.bound.serverId || !id(raw.viewerFence) || raw.playlistId !== p.id || !int(raw.revision) || !text(raw.nextCursor, 4096)) invalid();
    if (raw.revision !== this.state.playlist?.revision) throw new Failure('stale_continuation', 'The playlist changed. Reload its share candidates.', true);
    const candidates = firstOfEach('playlist-candidates', 'candidates', keepReadable('playlist-candidates', 'candidates', list(raw.candidates, 40), row => { if (!record(row) || !id(row.id) || !text(row.displayName)) invalid(); return { ...actor(row), id: row.id, displayName: row.displayName }; }), row => row.id);
    this.publish({ candidatesLoading: false, candidates: freeze({ serverId: this.bound.serverId, viewerFence: p.viewerFence, playlistId: p.id, revision: raw.revision, candidates, nextCursor: raw.nextCursor }) });

@@ -217,14 +217,16 @@ export class PersonalSavedService{
   const route=this.state.route,g=this.generation,ticket=++this.readTicket;if(!route||this.disposed||quiet?.signal?.aborted)return;if(!quiet)this.publish({loading:true,error:null});
   try{
    const patch=await this.page(route,cursor,history,quiet?.signal);if(!this.alive(g)||ticket!==this.readTicket||quiet?.signal?.aborted)return;
-   if(this.state.viewerFence&&this.state.viewerFence!==patch.viewerFence)throw Object.assign(new Error('Your access changed. Reopen Saved to continue.'),{code:'scope_changed'});
+   // A moved fence is a newer answer, not a refusal: the server decided this read for the viewer (CLIENT-DATA-REVIEW §4.4).
    if(quiet){await quiet.settle?.();if(!this.alive(g)||ticket!==this.readTicket||quiet.signal?.aborted||this.state.pending||this.command)return;}
    // What the viewer has on screen: the first page, and every page appended after it.
    const count=shownOf(route,patch).length;this.seen=cursor===null?count:cursor===this.state.nextCursor&&history.length>this.state.history.length?this.seen+count:this.seen;
    this.publish({...patch,loading:false});
   }catch(e){if(!this.alive(g)||ticket!==this.readTicket)return;const error=info(e);
    // A quiet read that failed leaves the page as it was; one the server answered with "gone" or "not yours" becomes the page's own state through an ordinary load.
-   if(quiet){if(quiet.signal?.aborted)return;if(['unauthorized','forbidden','not_found','scope_changed','invalid_saved','invalid_cursor','stale_continuation'].includes(error.code))return this.load(null,[]);throw e;}this.publish({loading:false,error,...(['unauthorized','forbidden','not_found','scope_changed','invalid_saved'].includes(error.code)?{resources:[],resource:null,entries:[],browse:null,viewerFence:''}:{})});}
+   if(quiet){if(quiet.signal?.aborted)return;if(['unauthorized','forbidden','not_found','scope_changed','invalid_saved','invalid_cursor','stale_continuation'].includes(error.code))return this.load(null,[]);throw e;}
+   // A later page the server no longer honours (its cursor was bound to the list or fence before they moved) starts the list again from its first page.
+   if(cursor!==null&&['invalid_cursor','stale_continuation'].includes(error.code))return this.load(null,[]);this.publish({loading:false,error,...(['unauthorized','forbidden','not_found','scope_changed','invalid_saved'].includes(error.code)?{resources:[],resource:null,entries:[],browse:null,viewerFence:''}:{})});}
  }
  /**
   * A list paged past its first page, read again quietly from the first page through everything on
@@ -245,11 +247,11 @@ export class PersonalSavedService{
    if(pages>=DEEP_PAGES)return false;
    let page:typeof first;try{page=await this.page(route,next,[],quiet.signal);}catch(e){if(!current())return true;if(['stale_continuation','invalid_cursor'].includes(info(e).code))return false;throw e;}
    if(!current())return true;
-   if(page.viewerFence!==first.viewerFence||page.revision!==first.revision)return false;
+   // A cursor from before the fence moved is refused by the server (invalid_cursor, above); only the list's own revision is compared.
+   if(page.revision!==first.revision)return false;
    for(const x of shownOf(route,page) as {id:string}[])if(!seen.has(x.id)){seen.add(x.id);all.push(x);}
    next=page.nextCursor===next?'':page.nextCursor;last=page;
   }
-  if(this.state.viewerFence&&this.state.viewerFence!==first.viewerFence)throw Object.assign(new Error('Your access changed. Reopen Saved to continue.'),{code:'scope_changed'});
   await quiet.settle?.();if(!this.alive(g)||ticket!==this.readTicket||quiet.signal?.aborted||this.state.pending||this.command)return true;
   const combined=route.view==='collections'||route.view==='views'?{resources:all as unknown as PersonalResource[]}:{entries:all as unknown as PersonalResourceEntry[],...(first.browse&&last.browse?{browse:freeze({...first.browse,entries:(all as unknown as PersonalResourceEntry[]).flatMap(e=>e.media?[e.media]:[]),pageInfo:last.browse.pageInfo})}:{})};
   // Read from the first page, so nothing precedes it: the last page read names what follows.
@@ -293,7 +295,7 @@ export class PersonalSavedService{
  async loadLibraries():Promise<void>{const g=this.generation;try{const raw=await this.request<RouteResponse<"get_libraries">>(routePath("get_libraries"));if(!this.alive(g))return;if(!obj(raw))bad();const libraries=distinct(keepReadable('personal-saved','libraries',rows(raw.items,2048),v=>{if(!obj(v)||!id(v.id)||!str(v.name,512)||!id(v.kind))bad();return{id:v.id,name:v.name,kind:v.kind};}),'libraries');this.publish({libraries});}catch(e){if(this.alive(g))this.publish({error:info(e)});}}
  async loadCandidates(cursor=''):Promise<void>{const r=this.state.resource,g=this.generation,ticket=++this.candidateTicket;if(!r?.actions.includes('share'))return;
   try{const raw=await this.request<RouteResponse<"get_saved_resources_id_share_candidates">>(encodedRoutePath("get_saved_resources_id_share_candidates", {"id": encodeURIComponent(r.id)}) + "?" + (new URLSearchParams({limit:'40',...(cursor?{cursor}:{})})));if(!this.alive(g)||ticket!==this.candidateTicket)return;
-   if(!obj(raw)||raw.serverId!==this.scope.serverId||raw.viewerFence!==r.viewerFence||raw.resourceId!==r.id||raw.revision!==r.revision||!str(raw.nextCursor,4096))bad();const candidates=distinct(keepReadable('personal-saved','candidates',rows(raw.candidates),c=>{if(!obj(c)||!id(c.id)||!str(c.displayName,512))bad();return {...actor(c),id:c.id,displayName:c.displayName};}),'candidates');this.publish({candidates,candidateCursor:raw.nextCursor});
+   if(!obj(raw)||raw.serverId!==this.scope.serverId||!id(raw.viewerFence)||raw.resourceId!==r.id||raw.revision!==r.revision||!str(raw.nextCursor,4096))bad();const candidates=distinct(keepReadable('personal-saved','candidates',rows(raw.candidates),c=>{if(!obj(c)||!id(c.id)||!str(c.displayName,512))bad();return {...actor(c),id:c.id,displayName:c.displayName};}),'candidates');this.publish({candidates,candidateCursor:raw.nextCursor});
   }catch(e){if(this.alive(g)&&ticket===this.candidateTicket)this.publish({error:info(e)});}}
  async mutate(intent:PersonalSavedIntent,rebased=false):Promise<boolean>{
   if(this.disposed||this.state.loading||this.state.pending||this.command)throw new Error('Finish or dismiss the outstanding change before starting another.');
