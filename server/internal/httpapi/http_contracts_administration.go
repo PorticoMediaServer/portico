@@ -160,7 +160,7 @@ func registerAdministrationHTTPContracts(registry *apikit.Registry) error {
 	if err := apikit.RegisterHTTP[struct {
 		Minutes     int    "json:\"minutes\""
 		OperationID string "json:\"operationId\""
-	}, LogSettings](registry, apikit.Metadata{Audience: apikit.Clients, ID: "post_admin_logs_debug_window", Method: "POST", Path: "/v1/admin/logs/debug-window", Summary: "Run server logs debug window", Access: apikit.Admin, AdminScope: "logs", Requires: apikit.ScopeAdmin, Lane: apikit.Default, Admission: laneAdmin, Cost: apikit.Constant, BodyLimit: 65536, Status: 200, Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "internal"}}); err != nil {
+	}, LogSettings](registry, apikit.Metadata{Audience: apikit.Clients, ID: "post_admin_logs_debug_window", Method: "POST", Path: "/v1/admin/logs/debug-window", Summary: "Run server logs debug window", Access: apikit.Owner, Requires: apikit.ScopeAdmin, Lane: apikit.Default, Admission: laneAdmin, Cost: apikit.Constant, BodyLimit: 65536, Status: 200, Errors: []string{"invalid_request", "unauthorized", "not_permitted", "not_found", "internal"}}); err != nil {
 		return err
 	}
 	// internal/httpapi/admin_diagnostics.go:148

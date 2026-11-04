@@ -379,7 +379,7 @@ func TestMessageLogReadsFilterStreamAndOpenADebugWindow(t *testing.T) {
 	// The debug window raises the effective level without moving the settings
 	// revision, which is what makes it runtime state rather than a setting.
 	before := f.call("GET", "/v1/admin/logs/settings", f.admin, "").Body.String()
-	w = f.call("POST", "/v1/admin/logs/debug-window", f.admin, `{"minutes":5,"operationId":"debug-window-1"}`)
+	w = f.call("POST", "/v1/admin/logs/debug-window", f.owner, `{"minutes":5,"operationId":"debug-window-1"}`)
 	if w.Code != 200 {
 		t.Fatalf("debug window: %d %s", w.Code, w.Body)
 	}
@@ -391,7 +391,7 @@ func TestMessageLogReadsFilterStreamAndOpenADebugWindow(t *testing.T) {
 	if e := json.Unmarshal([]byte(before), &earlier); e != nil || earlier.Revision != settings.Revision {
 		t.Fatalf("a debug window moved the settings revision: %v %d %d", e, earlier.Revision, settings.Revision)
 	}
-	if w = f.call("POST", "/v1/admin/logs/debug-window", f.admin, `{"minutes":9999,"operationId":"debug-window-2"}`); w.Code != 400 {
+	if w = f.call("POST", "/v1/admin/logs/debug-window", f.owner, `{"minutes":9999,"operationId":"debug-window-2"}`); w.Code != 400 {
 		t.Fatalf("an unbounded window was accepted: %d", w.Code)
 	}
 }

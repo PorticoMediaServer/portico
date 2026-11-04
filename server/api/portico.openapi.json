@@ -304566,7 +304566,7 @@
         "tags": [
           "Clients"
         ],
-        "x-access": "admin_scope",
+        "x-access": "owner",
         "x-admission": "admin",
         "x-audience": "Clients",
         "x-cost": "constant",
