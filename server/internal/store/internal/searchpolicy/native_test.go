@@ -11,7 +11,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/searchpolicy"
 	"github.com/PorticoMediaServer/portico/server/internal/store/schema"
-	_ "modernc.org/sqlite"
+	_ "github.com/PorticoMediaServer/portico/server/internal/thirdparty/sqlite"
 )
 
 func TestBundledNativeProfile(t *testing.T) {
