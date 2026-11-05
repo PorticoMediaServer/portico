@@ -9,6 +9,13 @@
       "tests": ["TestPreparationSourcePin"]
     },
     {
+      "package": "server/internal/store/internal/searchmanifest",
+      "why": "Verifies the shared portable manifest protocol against the unchanged preparation wire vectors and restart traces",
+      "reads": ["server/internal/store/search/testdata/manifest-v1.json"],
+      "files": ["server/internal/store/internal/searchmanifest/vectors_test.go"],
+      "tests": ["TestManifestIndependentVectorsAndRestart"]
+    },
+    {
       "package": "server/internal/store/qual/cmd/host",
       "why": "Host protocol CLI tests retain invalid shared-fixture receipts and execute actual workflow hash bodies with failing producers",
       "reads": [".github/workflows/store-qualification-host.yml", "server/internal/store/qual/testdata/host-valid.json"],
