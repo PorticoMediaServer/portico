@@ -754,6 +754,10 @@ func main() {
 		emit("seed_completed", map[string]any{"items": *n})
 		return
 	}
+	if *mode == "maximum-chunks" {
+		chunkBench(db, *n, *rounds)
+		return
+	}
 	if *mode == "maximum-body" {
 		maxBodyBench(db, *n, *rounds)
 		return

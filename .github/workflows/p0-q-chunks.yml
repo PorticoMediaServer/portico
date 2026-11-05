@@ -1,0 +1,54 @@
+name: Phase 0 exact4158 bounded staged fragment controls
+on:
+  push:
+    branches: ['schema-v1/p0-q-fragment-chunks']
+    paths: ['research/p0-q/**', '.github/workflows/p0-q-chunks.yml']
+permissions: {contents: read}
+env: {GOWORK: 'off'}
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: research/p0-q/go.mod, cache-dependency-path: research/p0-q/go.sum}
+      - run: go build -o "$RUNNER_TEMP/p0-q-bench" .
+        working-directory: research/p0-q
+      - run: bash research/p0-q/run-experiment.sh
+        env: {MODE: maximum-chunks, N: 1000, PROFILE: standard, CONFIG: normal-passive, CJK_SHARE: 30, ROUNDS: 2}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with: {name: q-4158-chunks-smoke, path: '${{ runner.temp }}/p0-q-experiment/out', retention-days: 30}
+  maximum:
+    needs: smoke
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [standard, old8g]
+        n: [100000, 400000, 1000000]
+        share: [5, 30]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: research/p0-q/go.mod, cache-dependency-path: research/p0-q/go.sum}
+      - run: go build -o "$RUNNER_TEMP/p0-q-bench" .
+        working-directory: research/p0-q
+      - run: bash research/p0-q/run-experiment.sh
+        env:
+          MODE: maximum-chunks
+          N: ${{ matrix.n }}
+          PROFILE: ${{ matrix.profile }}
+          CJK_SHARE: ${{ matrix.share }}
+          CONFIG: normal-passive
+          ROUNDS: 32
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: q-4158-chunks-${{ matrix.profile }}-${{ matrix.n }}-cjk${{ matrix.share }}
+          path: '${{ runner.temp }}/p0-q-experiment/out'
+          retention-days: 30
