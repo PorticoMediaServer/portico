@@ -20,12 +20,33 @@ installs atomically and refuses every non-empty database. It opens no handles,
 adds no seeds and performs no migration. Runtime write authority stays with the
 private typed writer. This package is not yet wired into server startup.
 
+For a restart, call `AssertExisting(ctx, conn)` on the exclusive opening
+connection before starting runtime users. It requires FK-on and the pinned
+bundled engine, then compares every native `main.sqlite_schema` object against
+`NativeLayoutSHA256` and `NativeLayoutObjects`. Missing, modified, extra and
+legacy layouts fail closed. It executes no bootstrap DDL, ANALYZE, migration,
+repair or seed. It does not inspect user data, prove its integrity or authorize
+access; those are separate startup responsibilities.
+
+The fingerprint recipe is `portico-native-layout-sha256-v1` plus NUL, then
+length-prefixed schema SHA and SQLite version, followed by every object sorted
+by BINARY `(type,name,tbl_name)`. Each tuple contains those three length-prefixed
+UTF-8 strings and SQL: byte 0 for NULL, or byte 1 and the length-prefixed native
+SQL text. Lengths are unsigned 64-bit big endian byte counts. It includes native
+autoindexes, FTS shadow objects and views; table contents and physical root-page
+numbers are excluded. This proves the exact stored native layout, not the bytes
+of an unavailable historical bootstrap script. New indexes, statistics tables,
+bank declarations or engine changes require an INT-reviewed pin update. Runtime
+code must not create unregistered layout objects. DDL/engine changes regenerate
+the pins from a fresh canonical bootstrap; the restart and mutation controls
+must pass on the new exact bytes. No version PRAGMA or compiled SQL hash alone
+substitutes for this existing-file check.
 
 INT-CHANGE-001 adds scan/search/enrichment operation receipts and acknowledgement
 floors, per-image search seal/reclaim custody, exact own-play quarter/day/month
 and exact playing-span edges, a bounded pending occurrence cursor, and six
-admin-only event/cohort time access paths. This candidate
-requires R review. Receipt result IDs do not pin retired mutable work resources;
+admin-only event/cohort time access paths. It is adopted after R review.
+Receipt result IDs do not pin retired mutable work resources;
 private writer commands enforce immutable results, complete CAS and acknowledgement
 ordering. The package initializer does not implement those commands. Effective
 credit images are a separate INT-CHANGE-002 change; no performance pass follows.
