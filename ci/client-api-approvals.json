@@ -1811,5 +1811,23 @@
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6647211850",
     "reviewedCommit": "5bc2a1fec6e84931c652c3b8c3f4cdbf36c88924"
+  },
+  "apps/native/src-next/screens/settings/remote-sources/controller.ts#026a47a1481bc5cf": {
+    "category": "platform-transport",
+    "reason": "Named core services build the complete request; this recognized guard forwards incoming path, method and body unchanged with only screen-lifetime admission, linked cancellation, currentness checks and retirement on terminal refusal.",
+    "condition": "The exact complete canonical function span must retain the approved guardHash. Incoming path, method and body are forwarded unchanged to originalApi.request; only lifetime.request, admitted/guard/assertAllowed checks, linked signal and terminal-refusal retirement are permitted. No request construction, selection or rewriting. Any span change voids this approval and requires the standing re-hash review.",
+    "guardHash": "d1ab9fefe7dce9004e393c528dfa1f15f3f670cebb15de0d75872a5fc930e9eb",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648585982",
+    "reviewedCommit": "ba39d565a20ff03981db0d22117f911f74fc219e"
+  },
+  "apps/native/src-next/screens/settings/remote-sources/controller.ts#d9266fd94920163a": {
+    "category": "platform-transport",
+    "reason": "Named core services build the complete request; this recognized guard forwards incoming path, method and body unchanged with only screen-lifetime admission, linked cancellation, currentness checks and retirement on terminal refusal.",
+    "condition": "The exact complete canonical function span must retain the approved guardHash. Incoming path, method and body are forwarded unchanged to originalApi.request; only lifetime.request, admitted/guard/assertAllowed checks, linked signal and terminal-refusal retirement are permitted. No request construction, selection or rewriting. Any span change voids this approval and requires the standing re-hash review.",
+    "guardHash": "515549c7e47aade035dc22720c4e2f0fd7e7ed4f79d40c66385a1b173e4cb90b",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648585982",
+    "reviewedCommit": "ba39d565a20ff03981db0d22117f911f74fc219e"
   }
 }
