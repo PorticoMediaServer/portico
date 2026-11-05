@@ -1,3 +1,4 @@
+import {readBrowseCapabilitiesResponse} from '@core/query/browse-reads.ts';
 import {ShowWorkspaceService, saveShowSettings, type ShowSettings, type ShowWorkspaceData, type ShowWorkspaceRoute, type ShowWorkspaceSnapshot, type WorkspaceShow} from '@core/show-workspace.ts';
 import type {ContentEntry} from '@core/library-content.ts';
 import {createDetailBindings} from './bindings';
@@ -6,7 +7,7 @@ import {getContainerState, setContainerFlag, setContainerState, type ContainerSt
 import {createRecommendations} from './recommendations';
 import {titleView} from './view-state';
 import {openGenre} from './genre-binding';
-import {browseCapabilitiesPath, parseBrowseCapabilities, validateBrowseQuery, type BrowseNode} from '@core/browse.ts';
+import {parseBrowseCapabilities, validateBrowseQuery, type BrowseNode} from '@core/browse.ts';
 import {preferenceValue} from '@core/preferences.ts';
 
 export function createShowBindings(context: ScreenContext) {
@@ -44,7 +45,7 @@ export function createShowBindings(context: ScreenContext) {
       const actual = field === 'network' ? data.show.network : data.show.studio;
       if (actual !== value) throw new DOMException('Show fact changed', 'AbortError');
       if (!context.effects.openBrowse) throw new DOMException('Browse destination unavailable', 'AbortError');
-      const active = life.signal(), capabilities = parseBrowseCapabilities(await life.api.request(browseCapabilitiesPath(data.scope.libraryId, ''), 'GET', undefined, active));
+      const active = life.signal(), capabilities = parseBrowseCapabilities(await readBrowseCapabilitiesResponse(life.api, data.scope.libraryId, '', active));
       current(data); active.throwIfAborted();
       if (capabilities.library.id !== data.scope.libraryId) throw new DOMException('Browse vocabulary changed', 'AbortError');
       const query: BrowseNode = {variant: 'predicate', field, operator: 'equals', value};

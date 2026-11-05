@@ -374,3 +374,19 @@ test('P2-74 E-web-02: after the list re-reads under a press, the same title is f
   assert.equal(controller.resident({...pressed, id: 'gone'}), undefined, 'a title that left the list is not invented');
  } finally {controller.dispose();}
 });
+
+test('parity: a retired counts request rejects malformed late data as scope cancellation before parsing', async () => {
+ let current = true, resolveCount!: (value: unknown) => void;
+ const countReply = new Promise<unknown>(resolve => {resolveCount = resolve;});
+ const controller = new BrowseController({async request<T>(path: string, _method?: string, body?: unknown) {
+  if (path.includes('/browse-capabilities')) return caps as T;
+  if (path.includes('/browse/counts')) return countReply as Promise<T>;
+  return payload((body as {range: {start: number}}).range.start, 1) as T;
+ }}, {libraryId: 'lib', pivot: 'movies'}, () => current);
+ try {
+  await controller.load();
+  const pending = controller.counts([{id: 'draft', predicates: []}], new AbortController().signal);
+  current = false; resolveCount(null);
+  await assert.rejects(pending, {name: 'AbortError', message: 'browse-scope-closed'});
+ } finally {controller.dispose();}
+});
