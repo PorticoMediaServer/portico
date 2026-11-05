@@ -30,6 +30,7 @@ type Quantum struct {
 	start     time.Time
 	last      time.Time
 	end       time.Time
+	finished  bool
 }
 
 // NewQuantum reserves the full terminal COMMIT/rollback-and-return cost before
@@ -47,7 +48,7 @@ func NewQuantum(limit, terminal Work, start time.Time) (*Quantum, error) {
 // cumulative forecast and the actual remaining wall time. A refusal changes no
 // ledger fields. Call immediately before starting the indivisible operation.
 func (q *Quantum) TryStep(step Work, now time.Time) error {
-	if q == nil || step.Hold <= 0 || now.Before(q.last) || !fits(step, q.remaining) {
+	if q == nil || q.finished || step.Hold <= 0 || now.Before(q.last) || !fits(step, q.remaining) {
 		return ErrQuantum
 	}
 	after := subtract(q.remaining, step)
@@ -64,6 +65,19 @@ func (q *Quantum) TryStep(step Work, now time.Time) error {
 	}
 	q.remaining = after
 	q.last = now
+	return nil
+}
+
+// TryFinish consumes the reserved terminal forecast exactly once. After this
+// succeeds no more body work can start. Physical completion is still measured
+// by the private driver; this forecast is not proof that fsync met the budget.
+func (q *Quantum) TryFinish(now time.Time) error {
+	if q == nil || q.finished || q.terminal.Hold <= 0 || now.Before(q.last) || !fits(q.terminal, q.remaining) || now.After(q.end) || q.end.Sub(now) < q.terminal.Hold {
+		return ErrQuantum
+	}
+	q.remaining = subtract(q.remaining, q.terminal)
+	q.last = now
+	q.finished = true
 	return nil
 }
 
