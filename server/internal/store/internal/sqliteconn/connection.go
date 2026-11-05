@@ -40,6 +40,7 @@ type Config struct {
 	Connections int
 	CacheKiB    int32
 	Synchronous SyncMode
+	ReadLimits  ReadLimits
 }
 
 var ErrPolicy = errors.New("schema-v1 connection policy mismatch")
@@ -49,12 +50,15 @@ func (c Config) validate() error {
 		(c.Role != Reader && c.Connections != 1) || (c.Synchronous != Normal && c.Synchronous != Full) {
 		return ErrPolicy
 	}
+	if c.ReadLimits != (ReadLimits{}) && (c.Role != Reader || c.ReadLimits.LengthBytes <= 0 || c.ReadLimits.Columns <= 0) {
+		return fmt.Errorf("%w: read limits require Reader and two positive limits", ErrPolicy)
+	}
 	return nil
 }
 
 // Connector accepts an absolute file path, never a caller-supplied DSN or SQL.
-// All per-connection settings are in the connector's immutable DSN. No global
-// connection hook is installed and no existing pool is modified.
+// PRAGMAs are in the immutable DSN; opt-in read limits are set once on each
+// raw physical Connect. No global hook or existing pool is modified.
 func Connector(path string, c Config) (driver.Connector, error) {
 	if err := c.validate(); err != nil {
 		return nil, err
@@ -91,7 +95,11 @@ func Connector(path string, c Config) (driver.Connector, error) {
 	// spill policy, not a disk quota: GV still governs scratch bytes and IO.
 	q.Add("_pragma", "temp_store(FILE)")
 	u.RawQuery = q.Encode()
-	return sqlite.NewConnector(u.String())
+	base, err := sqlite.NewConnector(u.String())
+	if err != nil || c.ReadLimits == (ReadLimits{}) {
+		return base, err
+	}
+	return &limitConnector{Connector: base, limits: c.ReadLimits}, nil
 }
 
 // fileURI encodes local absolute paths independently of the build host, so the
@@ -163,6 +171,9 @@ type Settings struct {
 	MmapSize       int64
 	QueryOnly      int
 	TempStore      int
+	// ReadLimits is actual native evidence when configured, otherwise zero
+	// (unobserved). The zero policy neither changes nor asserts native defaults.
+	ReadLimits ReadLimits
 }
 
 // Assert reads, never repairs, policy. Call outside a transaction and after a
@@ -201,6 +212,16 @@ func Assert(ctx context.Context, conn *sql.Conn, c Config) (Settings, error) {
 	if s.JournalMode != "wal" || s.Synchronous != int(c.Synchronous) ||
 		s.AutoCheckpoint != 0 || s.CacheSize != -int(c.CacheKiB) || s.BusyTimeout != 0 || s.MmapSize != 0 || s.QueryOnly != queryOnly || s.TempStore != 1 {
 		return s, ErrPolicy
+	}
+	if c.ReadLimits != (ReadLimits{}) {
+		limits, err := readLimits(conn)
+		s.ReadLimits = limits
+		if err != nil {
+			return s, err
+		}
+		if limits != c.ReadLimits {
+			return s, fmt.Errorf("%w: native read limits: got %+v want %+v", ErrPolicy, limits, c.ReadLimits)
+		}
 	}
 	return s, nil
 }

@@ -1319,13 +1319,16 @@ func collationTrampoline(tls *libc.TLS, pApp uintptr, nLeft int32, zLeft uintptr
 // configured default values.
 func Limit(c *sql.Conn, id int, newVal int) (r int, err error) {
 	err = c.Raw(func(driverConn any) error {
-		switch dc := driverConn.(type) {
-		case *conn:
-			r = dc.limit(id, newVal)
-			return nil
-		default:
-			return fmt.Errorf("unexpected driverConn type: %T", driverConn)
+		// Owned connector wrappers can forward this optional interface without
+		// exposing their native connection. Negative newVal only reads a limit.
+		if dc, ok := driverConn.(interface {
+			SQLiteLimit(id int, newVal int) (int, error)
+		}); ok {
+			var limitErr error
+			r, limitErr = dc.SQLiteLimit(id, newVal)
+			return limitErr
 		}
+		return fmt.Errorf("unexpected driverConn type: %T", driverConn)
 	})
 	return r, err
 
