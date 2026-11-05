@@ -1,0 +1,246 @@
+package governor
+
+import (
+	"context"
+	"database/sql/driver"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
+)
+
+func nativeCheckpointGovernor(t *testing.T) (Governor, *Authority, *WALGate) {
+	t.Helper()
+	wal := gate(t)
+	cfg := Config{Now: time.Now, MaxGrantsPerClass: 8, WAL: wal}
+	for i := range cfg.Partitions {
+		cfg.Partitions[i] = Amounts{Reader: 2, MemoryBytes: 4 << 20, CPUMilli: 1000, IOBytes: 4 << 20, WALBytes: 4 << 20}
+	}
+	g, a, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return g, a, wal
+}
+func nativeCheckpointRequest() Request {
+	return Request{Key: JobKey{Domain: 1, ID: "native-checkpoint"}, Owner: 1, Class: Recovery, Need: Amounts{Reader: 1, MemoryBytes: 64 << 10, CPUMilli: 1000, IOBytes: 2 << 20}, Budget: UnitBudget{RawRows: 1, VMOps: 10000, Pages: 512}, MaxHold: 25 * time.Millisecond, Deadline: time.Now().Add(time.Second)}
+}
+func nativeCheckpointer(t *testing.T, path string, g Governor, a *Authority) *Checkpointer {
+	t.Helper()
+	cfg := sqliteconn.Config{Role: sqliteconn.Checkpointer, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Normal}
+	connector, err := sqliteconn.Connector(path, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cp, err := NewCheckpointer(connector, cfg, g, a, CheckpointPolicy{DatabasePath: path, Interval: 50 * time.Millisecond, MaxHold: 25 * time.Millisecond})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := cp.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	return cp
+}
+
+func TestNativePassiveBoundedReaderAndObservedFixtureReuse(t *testing.T) {
+	path, writer := snapshotFixture(t)
+	g, a, wal := nativeCheckpointGovernor(t)
+	snapshots, _, _ := snapshotReaderDriver(t, path, g, a)
+	entered, release := make(chan struct{}), make(chan struct{})
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	released := false
+	defer func() {
+		if !released {
+			close(release)
+		}
+	}()
+	done := make(chan error, 1)
+	go func() {
+		_, err := snapshots.Read(ctx, snapshotRequest(), time.Second, func(scope *ReadScope) error {
+			if err := snapshotQueryOne(scope); err != nil {
+				return err
+			}
+			close(entered)
+			<-release
+			return nil
+		})
+		done <- err
+	}()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("reader did not pin")
+	}
+	if _, err := writer.ExecContext(t.Context(), "UPDATE source SET value='after'"); err != nil {
+		t.Fatal(err)
+	}
+	cp := nativeCheckpointer(t, path, g, a)
+	first, err := cp.Step(t.Context(), nativeCheckpointRequest())
+	if err != nil || first.Refusal != nil || first.Busy != 0 || first.Frames <= first.Backfilled || !first.DatabaseMatched || !first.PhysicalSafe {
+		t.Fatal("pinned PASSIVE", first, err)
+	}
+	if first.Settings.Engine != "3.53.4" || first.Settings.TempStore != 1 || first.NativeStarted.IsZero() || first.NativeEnded.Before(first.NativeStarted) || first.PhysicalReturned.Before(first.NativeEnded) || first.RetiredAt.Before(first.PhysicalReturned) || first.SampleStarted.Before(first.RetiredAt) {
+		t.Fatal("physical/native/sample evidence", first)
+	}
+	if _, err := cp.Step(t.Context(), nativeCheckpointRequest()); !errors.Is(err, ErrCheckpointCadence) {
+		t.Fatal("pressure bypassed shared start spacing", err)
+	}
+	close(release)
+	released = true
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(max(0, time.Until(first.NativeStarted.Add(50*time.Millisecond))))
+	second, err := cp.Step(t.Context(), nativeCheckpointRequest())
+	if err != nil || second.Frames != second.Backfilled || second.NativeStarted.Sub(first.NativeStarted) < 50*time.Millisecond {
+		t.Fatal("unpinned PASSIVE", second, err)
+	}
+	if wal.ResetCount() != 0 {
+		t.Fatal("copy mislabeled reset")
+	}
+	// A governed real fixture mutation, NOT a production maintenance command.
+	// No scheduled-reset experiment or borrowed domain effect is implied.
+	r := nativeCheckpointRequest()
+	r.Class = Foreground
+	r.Writer = true
+	r.Need[WALBytes] = 32 << 10
+	p := grant(t, g, r)
+	if err := a.Check(p, r); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := writer.ExecContext(t.Context(), "UPDATE source SET value='new-cycle'"); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	retire(t, a, p)
+	token := wal.Observation()
+	after, err := ReadWAL(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = wal.Publish(token, after, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if after.Salt == second.After.Salt || after.Frames >= second.After.Frames || wal.ResetCount() != 1 {
+		t.Fatal("actual salt/frame reuse missing", second.After, after, wal.ResetCount())
+	}
+	if a.Usage() != [4]Amounts{} {
+		t.Fatal("native custody leaked", a.Usage())
+	}
+}
+
+func TestNativePassiveRejectsWrongFileAndIncompleteForecast(t *testing.T) {
+	path, _ := snapshotFixture(t)
+	other, _ := snapshotFixture(t)
+	g, a, wal := nativeCheckpointGovernor(t)
+	cp := nativeCheckpointer(t, path, g, a)
+	for _, pages := range []bool{false, true} {
+		small := nativeCheckpointRequest()
+		if pages {
+			small.Budget.Pages = 1
+		} else {
+			small.Need[IOBytes] = 1
+		}
+		out, err := cp.Step(t.Context(), small)
+		if !errors.Is(err, ErrCheckpointBudget) || !out.NativeStarted.IsZero() || a.Usage() != [4]Amounts{} {
+			t.Fatal("incomplete native forecast", pages, out, err, a.Usage())
+		}
+	}
+	cfg := sqliteconn.Config{Role: sqliteconn.Checkpointer, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Normal}
+	connector, err := sqliteconn.Connector(other, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrong, err := NewCheckpointer(connector, cfg, g, a, cp.policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer wrong.Close()
+	out, err := wrong.Step(t.Context(), nativeCheckpointRequest())
+	if !errors.Is(err, sqliteconn.ErrPolicy) || out.DatabaseMatched || !out.SampleStarted.IsZero() || !out.NativeStarted.IsZero() {
+		t.Fatal("other DB qualified this WAL prefix", out, err)
+	}
+	r := nativeCheckpointRequest()
+	r.Class = Foreground
+	r.Writer = true
+	r.Need[WALBytes] = 32
+	refused(t, g, r, FailSafe)
+	if wal.ResetCount() != 0 {
+		t.Fatal("failed checkpoint invented reset")
+	}
+}
+
+var checkpointInjectedPanic = errors.New("injected native checkpoint panic")
+
+type checkpointPanicStmt struct{ driver.Stmt }
+
+func (s *checkpointPanicStmt) QueryContext(context.Context, []driver.NamedValue) (driver.Rows, error) {
+	panic(checkpointInjectedPanic)
+}
+func (c *snapshotConn) PrepareContext(ctx context.Context, q string) (driver.Stmt, error) {
+	st, err := c.Conn.(driver.ConnPrepareContext).PrepareContext(ctx, q)
+	if err == nil && q == "PRAGMA wal_checkpoint(PASSIVE)" && c.owner.checkpointPanic.Load() {
+		st = &checkpointPanicStmt{st}
+	}
+	return st, err
+}
+func TestNativePassivePanicFailedDiscardRetainsTurn(t *testing.T) {
+	path, _ := snapshotFixture(t)
+	g, a, _ := nativeCheckpointGovernor(t)
+	cfg := sqliteconn.Config{Role: sqliteconn.Checkpointer, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Normal}
+	connector, err := sqliteconn.Connector(path, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	counted := &snapshotConnector{Connector: connector}
+	counted.checkpointPanic.Store(true)
+	counted.failClose.Store(true)
+	cp, err := NewCheckpointer(counted, cfg, g, a, CheckpointPolicy{DatabasePath: path, Interval: 50 * time.Millisecond, MaxHold: 25 * time.Millisecond})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { counted.failClose.Store(false); cp.Close() }()
+	r := nativeCheckpointRequest()
+	var caught any
+	func() { defer func() { caught = recover() }(); _, _ = cp.Step(t.Context(), r) }()
+	if caught != checkpointInjectedPanic || cp.pending == nil || a.Usage()[Recovery] != r.Need {
+		t.Fatal("panic lost native custody", caught, cp.pending, a.Usage())
+	}
+	writer := nativeCheckpointRequest()
+	writer.Class = Foreground
+	writer.Writer = true
+	writer.Need[WALBytes] = 32
+	refused(t, g, writer, Capacity)
+	if err := cp.Close(); err == nil || a.Usage()[Recovery] != r.Need {
+		t.Fatal("failed close erased custody", err, a.Usage())
+	}
+	counted.failClose.Store(false)
+	if err := cp.Close(); err != nil || a.Usage() != [4]Amounts{} || cp.pending != nil {
+		t.Fatal("owned retry failed", err, a.Usage())
+	}
+	refused(t, g, writer, FailSafe)
+}
+
+func TestNativePassiveOverrunFencesAndRefusesReuse(t *testing.T) {
+	path, _ := snapshotFixture(t)
+	g, a, _ := nativeCheckpointGovernor(t)
+	cp := nativeCheckpointer(t, path, g, a)
+	r := nativeCheckpointRequest()
+	r.MaxHold = time.Nanosecond
+	out, err := cp.Step(t.Context(), r)
+	if !errors.Is(err, ErrCheckpointOverrun) || !out.PhysicalSafe || out.PhysicalReturned.IsZero() || !out.NativeStarted.IsZero() || a.Usage() != [4]Amounts{} {
+		t.Fatal("over-budget physical attempt was hidden/refunded without return", out, err, a.Usage())
+	}
+	if _, err = cp.Step(t.Context(), nativeCheckpointRequest()); !errors.Is(err, ErrCheckpointOverrun) {
+		t.Fatal("unqualified checkpoint reused", err)
+	}
+	if g.(*ledger).state.Load()&1 == 0 {
+		t.Fatal("overrun did not fence")
+	}
+}
