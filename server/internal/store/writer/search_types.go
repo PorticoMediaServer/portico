@@ -1,5 +1,7 @@
 package writer
 
+import "math"
+
 // These are writer-private source effects, constructed only after the source
 // command has allocated and read back a genuinely new retained subject/entity.
 // They are not caller-provided file metadata or a separate publication command.
@@ -16,7 +18,11 @@ type searchInputChange struct {
 
 // Initial InventoryAccept admits one ordinary movie. Increasing this is a
 // recipe/qualification change, not permission to truncate an input cohort.
-const maxNewSearchInputEntities = 1
+const (
+	maxNewSearchInputEntities        = 1
+	firstSearchInputGeneration int64 = 1
+	firstSearchInputPhase            = "capture"
+)
 
 func validateNewSearchInput(change *searchInputChange) error {
 	if change == nil || change.AcceptedAtMS < 0 {
@@ -32,4 +38,13 @@ func validateNewSearchInput(change *searchInputChange) error {
 		}
 	}
 	return nil
+}
+
+// The handler computes every expected->next native counter before binding SQL.
+// Empty source cohorts do not call this: they must not advance any input clock.
+func nextSearchInputCounter(expected, delta int64) (int64, error) {
+	if expected < 0 || delta <= 0 || expected > math.MaxInt64-delta {
+		return 0, invalid("search_input_counter")
+	}
+	return expected + delta, nil
 }
