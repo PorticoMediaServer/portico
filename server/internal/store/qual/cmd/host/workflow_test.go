@@ -13,7 +13,11 @@ import (
 // This proves the step's own pipefail, independent of the runner's shell defaults.
 func workflowBody(t *testing.T, name string) string {
 	t.Helper()
-	b, e := os.ReadFile("../../../../../../.github/workflows/store-qualification-host.yml")
+	repoRoot, e := filepath.Abs("../../../../../..")
+	if e != nil {
+		t.Fatal(e)
+	}
+	b, e := os.ReadFile(filepath.Join(repoRoot, ".github", "workflows", "store-qualification-host.yml"))
 	if e != nil {
 		t.Fatal(e)
 	}
