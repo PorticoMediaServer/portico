@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Compile the production avatar decoder and check canonical image bytes/bounds.
+"""Compile the production avatar decoder and check image bytes and pre-codec refusals.
 
-Run under portico-heavy. Java's base64 decoder supplies the Android value boundary
-for canonical inputs; this does not establish device or malformed-codec parity.
+Run under portico-heavy. A counted, permissive Java MIME codec is the allocating
+boundary; malformed inputs must never reach it. This does not establish device
+parity with Android's codec.
 """
 import argparse
 import os
