@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"hash"
 	"io"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 )
 
 // These pins describe the native main.sqlite_schema produced by SQL() on the
@@ -19,6 +21,12 @@ const (
 	NativeSQLiteVersion = "3.53.4"
 	NativeLayoutSHA256  = "8097c1ea92353e2306b21d8eede8908d06c1d447728832e4c0a0e59f1366b309"
 	NativeLayoutObjects = 2063
+
+	// Adopted002 bootstrap header values. These remain zero deliberately;
+	// native layout verification, not a version PRAGMA, proves the layout.
+	ApplicationID    = 0
+	UserVersion      = 0
+	DatabaseEncoding = "UTF-8"
 )
 
 var (
@@ -32,12 +40,8 @@ var (
 // must configure every physical connection and prevent concurrent DDL. This is
 // a layout check, not an integrity, contents or authority check.
 func AssertExisting(ctx context.Context, conn *sql.Conn) error {
-	var foreignKeys int
-	if err := conn.QueryRowContext(ctx, "PRAGMA foreign_keys").Scan(&foreignKeys); err != nil {
-		return fmt.Errorf("schema: check existing foreign keys: %w", err)
-	}
-	if foreignKeys != 1 {
-		return ErrForeignKeysDisabled
+	if _, err := sqliteconn.AssertEnforcement(ctx, conn); err != nil {
+		return err
 	}
 	var version string
 	if err := conn.QueryRowContext(ctx, "SELECT sqlite_version()").Scan(&version); err != nil {
@@ -46,12 +50,36 @@ func AssertExisting(ctx context.Context, conn *sql.Conn) error {
 	if version != NativeSQLiteVersion {
 		return fmt.Errorf("%w: got %s, want %s", ErrUnsupportedEngine, version, NativeSQLiteVersion)
 	}
+	if err := assertDatabaseHeader(ctx, conn); err != nil {
+		return err
+	}
 	got, count, err := nativeLayout(ctx, conn)
 	if err != nil {
 		return fmt.Errorf("schema: inspect existing layout: %w", err)
 	}
 	if got != NativeLayoutSHA256 || count != NativeLayoutObjects {
 		return fmt.Errorf("%w: SQL %s, native %s (%d objects), want %s (%d objects)", ErrLayoutMismatch, SHA256, got, count, NativeLayoutSHA256, NativeLayoutObjects)
+	}
+	return nil
+}
+
+func assertDatabaseHeader(ctx context.Context, conn *sql.Conn) error {
+	var applicationID, userVersion int64
+	var encoding string
+	for _, query := range []struct {
+		sql  string
+		dest any
+	}{
+		{"PRAGMA main.application_id", &applicationID},
+		{"PRAGMA main.user_version", &userVersion},
+		{"PRAGMA main.encoding", &encoding},
+	} {
+		if err := conn.QueryRowContext(ctx, query.sql).Scan(query.dest); err != nil {
+			return fmt.Errorf("schema: inspect database header: %w", err)
+		}
+	}
+	if applicationID != ApplicationID || userVersion != UserVersion || encoding != DatabaseEncoding {
+		return fmt.Errorf("%w: header application_id=%d user_version=%d encoding=%q, want %d/%d/%q", ErrLayoutMismatch, applicationID, userVersion, encoding, ApplicationID, UserVersion, DatabaseEncoding)
 	}
 	return nil
 }

@@ -5,11 +5,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 )
 
 var (
 	ErrNotEmpty            = errors.New("schema: bootstrap requires an empty database")
-	ErrForeignKeysDisabled = errors.New("schema: bootstrap requires foreign_keys=ON")
+	ErrForeignKeysDisabled = sqliteconn.ErrForeignKeysDisabled
 )
 
 // InitializeEmpty installs the complete DDL atomically on a caller-owned,
@@ -18,12 +20,11 @@ var (
 // This is a fresh-file bootstrap, never an upgrade, seed or accepting command.
 // Existing databases are refused, even when their schema matches this version.
 func InitializeEmpty(ctx context.Context, conn *sql.Conn) error {
-	var foreignKeys int
-	if err := conn.QueryRowContext(ctx, "PRAGMA foreign_keys").Scan(&foreignKeys); err != nil {
-		return fmt.Errorf("schema: check foreign keys: %w", err)
+	if _, err := sqliteconn.AssertEnforcement(ctx, conn); err != nil {
+		return err
 	}
-	if foreignKeys != 1 {
-		return ErrForeignKeysDisabled
+	if err := assertDatabaseHeader(ctx, conn); err != nil {
+		return err
 	}
 	tx, err := conn.BeginTx(ctx, nil)
 	if err != nil {
