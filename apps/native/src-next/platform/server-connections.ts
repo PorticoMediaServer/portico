@@ -1,3 +1,6 @@
+import {createNativeCertificateFetch} from '../../../../packages/client-core/src/query/certificate-fetch';
+import {createOwnerRecoveryFetch} from '../../../../packages/client-core/src/query/owner-recovery-fetch';
+import {readConnectionFacts} from '../../../../packages/client-core/src/query/connection-operations';
 import {clockOrigin, observeResponseClock} from '../../../../packages/client-core/src/server-clock';
 import {accountExpectation, nativeAccountRead} from './account-work';
 import type {CredentialAccessExpectation} from '../../../../packages/client-core/src/credentials';
@@ -122,76 +125,24 @@ const nativeRequest: typeof fetch = async (input, options = {}) => {
  * network is refused here with the reason (the system would refuse it anyway). A request that
  * meets the owner's own certificate settles it (`certificate-trust.ts`) and is retried once.
  */
-function nativeFetchForIdentity(expected?: string): typeof fetch {return revisionRequiredFetch(async (input, options = {}) => {
-  if (Platform.OS === 'ios' && typeof input === 'string') checkApplePlainHttp(input);
-  const origin = typeof input === 'string' && !isAccountAuthority(input) ? certificateOrigin(input) : undefined;
-  if (origin && certificateTrustAvailable()) ensureMonitoring();
-  const networkRevision = revision;
-  const decision: CertificateContext = async (proof, fingerprint) => {
-    const state = await nativeAppSessions.read();
-    if (options.signal?.aborted) throw new RouteError('cancelled', 'certificate_decision_cancelled');
-    const knownRoutes = knownServerRoutes(state);
-    assertFirstContactIdentity(origin!, proof, {linkId: expected, knownRoutes});
-    // Only the exact proof's native TLS observation can qualify current-network
-    // discovery. TXT fp remains the identity-key hash; a private address alone
-    // never grants home trust (and CGNAT stays on the away path).
-    const records = await browseNearby('servers', options.signal ?? new AbortController().signal).catch(() => []);
-    if (options.signal?.aborted || networkRevision !== revision) throw new RouteError('cancelled', 'certificate_network_changed');
-    const home = bonjourProvesHome(origin!, proof, fingerprint, records as readonly DiscoveryRoute[]);
-    return {expected, home, knownServerIds: state.servers.map(value => value.connection.pin.serverId)};
-  };
-  // A pending code decision permits no normal request, including a public name
-  // read. The proof client below is separate and has one fixed method/path.
-  if (origin && pendingCertificate(origin)) throw new RouteError('identity_code_needed', 'identity_code_needed');
-  try {
-    const result = await nativeRequest(input, options);
-    // A Portico-pinned leaf can complete TLS while the system still refuses it. It must
-    // pass the same identity decision, rather than masquerade as system trust.
-    if (origin && certificateTrustAvailable() && await nativeCertificatePlatform.refused(origin))
-      await settleCertificate(origin, nativeCertificatePlatform, nativeRouteCrypto, decision, options.signal ?? undefined);
-    return result;
-  } catch (error) {
-    // An owner's own certificate is settled only for the owner's server, never the account service (NS-02).
-    if (!origin || (error as {code?: unknown})?.code !== 'certificate_untrusted' || !certificateTrustAvailable()) throw error;
-    await settleCertificate(origin, nativeCertificatePlatform, nativeRouteCrypto, decision, options.signal ?? undefined);
-    return nativeRequest(input, options);
-  }
-});}
+function nativeFetchForIdentity(expected?: string): typeof fetch {
+  return createNativeCertificateFetch({
+    fetcher: nativeRequest, checkPlainHttp: input => {if (Platform.OS === 'ios') checkApplePlainHttp(input);}, isAccountAuthority,
+    available: certificateTrustAvailable, monitor: ensureMonitoring, networkRevision: () => revision,
+    readSessions: () => nativeAppSessions.read(), browse: signal => browseNearby('servers', signal),
+    certificate: () => nativeCertificatePlatform, crypto: () => nativeRouteCrypto,
+  }, expected);
+}
+
 /** Root47's credential-free contact never enters certificate settlement, discovery,
  * route refresh or ordinary connection admission. Only the two canonical public exchanges
  * at the originally captured origin are permitted; existing native TLS validation remains. */
 export function nativeOwnerRecoveryFetch(capturedOrigin: string, isCurrent: () => boolean): typeof fetch {
-  const origin = routeOrigin(capturedOrigin);
-  if (isAccountAuthority(origin)) throw new RouteError('invalid_address', 'Choose the server address.');
-  const check = (signal?: AbortSignal | null) => {
-    if (!signal || signal.aborted || !isCurrent()) throw new RouteError('cancelled', 'Owner recovery contact cancelled.');
-    if (pendingCertificate(origin)) throw new RouteError('identity_code_needed', 'identity_code_needed');
-  };
-  return async (input, options = {}) => {
-    check(options.signal);
-    const method = options.method ?? 'GET';
-    if (typeof input !== 'string' ||
-        !(input === origin + routePath('prove_network_identity') && method === 'POST' ||
-          input === origin + routePath('get_system') && method === 'GET' && options.body == null))
-      throw new RouteError('invalid_address', 'Owner recovery contact is limited to the captured server.');
-    const headers = new Headers(options.headers);
-    headers.forEach((_value, name) => {
-      if (name !== 'accept' && name !== 'content-type')
-        throw new RouteError('invalid_request', 'Owner recovery contact carries no credentials.');
-    });
-    if (Platform.OS === 'ios') checkApplePlainHttp(input);
-    const response = await nativeRequest(input, {...options, headers, credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer'});
-    try {
-      check(options.signal);
-      // The strict path cannot settle an OS-refused leaf or install new native certificate trust.
-      if (certificateTrustAvailable()) {
-        const refused = await nativeCertificatePlatform.refused(origin);
-        check(options.signal);
-        if (refused) throw new RouteError('certificate_untrusted', 'The server certificate is not trusted.');
-      }
-      return response;
-    } catch (error) {void response.body?.cancel().catch(() => {}); throw error;}
-  };
+  return createOwnerRecoveryFetch(capturedOrigin, isCurrent, nativeRequest, {
+    isAccountAuthority, pendingCertificate, certificateTrustAvailable,
+    ...(Platform.OS === 'ios' ? {checkPlainHttp: checkApplePlainHttp} : {}),
+    refused: origin => nativeCertificatePlatform.refused(origin),
+  });
 }
 
 export const nativeNetworkFetch = nativeFetchForIdentity();
@@ -240,7 +191,7 @@ export const nativeCertificatePlatform: CertificatePlatform = {
     if (options.signal?.aborted) throw new RouteError('cancelled', 'certificate_proof_cancelled');
     if (typeof input !== 'string' || input !== origin + routePath('prove_network_identity') || options.method !== 'POST' || typeof options.body !== 'string')
       throw new RouteError('cancelled', 'Connection request cancelled.');
-    const raw = await NativeModules.PorticoNetwork.proofRequest(origin, fingerprint, options.body);
+    const raw = await NativeModules.PorticoNetwork.proofRequest(origin, fingerprint, input, options.method, options.body);
     if (options.signal?.aborted) throw new RouteError('cancelled', 'Connection request cancelled.');
     const response = new Response(raw.body, {status: raw.status, headers: raw.headers});
     if (typeof raw.tlsLeafFingerprint !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(raw.tlsLeafFingerprint) || raw.tlsLeafFingerprint !== fingerprint)
@@ -305,10 +256,7 @@ void loadConnectionPreference();
 /** `/v1/networking/connection` without credentials, for connection details and an insecure route's
  * home check (route-connection.ts `readConnection`). */
 async function readNativeConnection(origin: string, signal: AbortSignal): Promise<unknown> {
-  const sentAt = Date.now();
-  const response = await nativeNetworkFetch(routeOrigin(origin) + routePath('get_connection'), {method: 'GET', signal, credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer', headers: {Accept: 'application/json'}});
-  observeResponseClock(clockOrigin(origin), response, sentAt);
-  return routeJSON(response, signal, 8192);
+  return readConnectionFacts(origin, signal, nativeNetworkFetch, true);
 }
 const nativeEnvironment = {
   fetcher: nativeNetworkFetch,

@@ -104,8 +104,16 @@ test('certificate settlement retries the same RN descriptors once through networ
     boundaries[name] = name === 'react-native' ? await import('./react-native-stub.mjs') : await import(new URL(name.endsWith('.ts') ? name : name + '.ts', source).href);
   }));
   const settlements: unknown[][] = [];
-  boundaries['./certificate-trust'] = {...boundaries['./certificate-trust'] as object,
+  // Settlement now lives behind the real core transport factory. Inject the
+  // same decision boundary there, retaining its real retry and descriptor IO.
+  const factory = new URL('../../../packages/client-core/src/query/certificate-fetch.ts', import.meta.url);
+  const coreParsed = parseSync(readFileSync(factory, 'utf8'), {babelrc: false, configFile: false, parserOpts: {plugins: ['typescript']}});
+  const coreImports: string[] = coreParsed.program.body.filter((node: {type: string}) => node.type === 'ImportDeclaration').map((node: {source: {value: string}}) => node.source.value);
+  const coreBoundaries: Record<string, unknown> = {react: {default: {}}};
+  await Promise.all(coreImports.map(async name => {coreBoundaries[name] = await import(new URL(name, factory).href);}));
+  coreBoundaries['../certificate-trust.ts'] = {...coreBoundaries['../certificate-trust.ts'] as object,
     settleCertificate: async (...args: unknown[]) => {settlements.push(args);}};
+  boundaries['../../../../packages/client-core/src/query/certificate-fetch'] = await screenModule(factory, coreBoundaries);
   // The test stub has no certificate monitor; this run supplies its one refusal read.
   const network = NativeModules.PorticoNetwork as typeof NativeModules.PorticoNetwork & {refusedCertificate?: () => Promise<unknown>};
   const before = network.refusedCertificate;

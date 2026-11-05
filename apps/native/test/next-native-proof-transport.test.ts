@@ -16,7 +16,7 @@ test('native TLS metadata belongs only to the exact proof response, never a head
   network.proofRequest = async (...args: unknown[]) => {calls.push(args); return {status: 200, body: '{}', headers: {'TLS-Leaf-Fingerprint': other}, tlsLeafFingerprint: leaf};};
   const fetcher = nativeCertificatePlatform.proofFetcher(origin, leaf);
   const response = await fetcher(path, {method: 'POST', body});
-  assert.deepEqual(calls, [[origin, leaf, body]]);
+  assert.deepEqual(calls, [[origin, leaf, path, 'POST', body]]);
   assert.equal(nativeProofTLSLeaf(response), leaf);
   assert.equal(response.headers.get('TLS-Leaf-Fingerprint'), other);
   assert.equal(nativeProofTLSLeaf(response.clone()), undefined);
@@ -55,7 +55,7 @@ test('a Portico route source opens its captured account only when requested and 
   t.after(() => {runtime.networkRequest = before;});
   let acquired = 0, synchronized = 0, requested = 0, accountId = 'captured-account';
   const snapshot = () => ({account: {id: accountId}, familyId: 'captured-family', accessToken: 'synthetic-hosted-access'});
-  const credentials = {subscribe: () => () => {}, getSnapshot: () => ({session: snapshot()}),
+  const credentials = {authorityOrigin: () => 'https://web.getportico.tv', subscribe: () => () => {}, getSnapshot: () => ({session: snapshot()}),
     synchronize: async () => {synchronized++;}, accessSession: async () => snapshot()} as unknown as CredentialSessionService;
   runtime.networkRequest = async (_id: string, url: string, _method: string, headers: Record<string, string>) => {
     requested++; assert.equal(url, 'https://web.getportico.tv/v1/servers/synthetic/routes');
