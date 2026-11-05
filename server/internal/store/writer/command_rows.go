@@ -12,12 +12,15 @@ type commandRows struct {
 	turn *commandTurn
 }
 type commandRow struct{ rows *commandRows }
-type guardedScanner struct{ sql.Scanner }
+type guardedScanner struct {
+	sql.Scanner
+	log *driverPanicLog
+}
 
 func (s guardedScanner) Scan(value any) (err error) {
 	defer func() {
 		if p := recover(); p != nil {
-			err = &driverPanicError{"scan callback", p}
+			err = s.log.add("scan callback", p)
 		}
 	}()
 	return s.Scanner.Scan(value)
@@ -36,7 +39,7 @@ func (r *commandRows) Scan(dest ...any) error {
 			return invalid("raw_scan_destination")
 		}
 		if scanner, ok := d.(sql.Scanner); ok {
-			protected[i] = guardedScanner{scanner}
+			protected[i] = guardedScanner{scanner, r.turn.transaction.writer.driverPanics}
 		} else {
 			protected[i] = d
 		}
@@ -93,16 +96,17 @@ func (t *commandTurn) closeRowsRaw() error {
 }
 func (t *commandTurn) panicAfter(err error) {
 	events := t.transaction.writer.driverPanics.take()
-	if len(events) == 0 {
-		if fault := panicFrom(err); fault != nil {
-			events = append(events, fault)
-		}
+	primary := panicFrom(err)
+	if primary == nil && len(events) > 0 {
+		primary = events[0]
 	}
-	if len(events) == 0 {
+	if primary == nil {
 		return
 	}
-	primary := events[0]
-	for _, fault := range events[1:] {
+	for _, fault := range events {
+		if fault == primary {
+			continue
+		}
 		t.transaction.cleanupPanics = append(t.transaction.cleanupPanics, terminalPanic{fault.phase, fault.value})
 	}
 	// This never rethrows through a database/sql callback. Its driver methods
