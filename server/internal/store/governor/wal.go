@@ -57,6 +57,22 @@ func ReadWAL(path string) (WALState, error) {
 	if w.PageSize == 1 {
 		w.PageSize = 65536
 	}
+	// SQLite recreates an empty WAL after a clean open/TRUNCATE. Its index
+	// legitimately has no page size yet. Validate the database/header rather
+	// than requiring an ungoverned first write to bootstrap admission.
+	if w.Frames == 0 && w.Backfill == 0 && (w.PhysicalBytes == 0 || w.PhysicalBytes == 32) {
+		var header [32]byte
+		page, err := emptyWALPageSize(path, wal, w.PhysicalBytes, &header)
+		if err != nil || (w.PageSize != 0 && w.PageSize != page) {
+			return w, ErrWALObservation
+		}
+		w.PageSize = page
+		copy(w.Salt[:], first[32:40])
+		if w.PhysicalBytes == 32 {
+			copy(w.Salt[:], header[16:24])
+		}
+		return w, nil // physical allocation is distinct; active/debt are zero
+	}
 	if w.Backfill > w.Frames || w.PageSize < 512 || w.PageSize > 65536 || w.PageSize&(w.PageSize-1) != 0 {
 		return w, ErrWALObservation
 	}
@@ -67,6 +83,63 @@ func ReadWAL(path string) (WALState, error) {
 		return w, ErrWALObservation
 	}
 	return w, nil
+}
+
+// Only the empty-WAL bootstrap reads the fixed database header. Missing files,
+// non-WAL databases and short/torn/invalid headers still fail closed.
+func emptyWALPageSize(path string, wal *os.File, size int64, header *[32]byte) (uint32, error) {
+	db, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer db.Close()
+	var a, b [100]byte
+	if _, err = db.ReadAt(a[:], 0); err != nil {
+		return 0, err
+	}
+	if _, err = db.ReadAt(b[:], 0); err != nil {
+		return 0, err
+	}
+	page := uint32(binary.BigEndian.Uint16(a[16:18]))
+	if page == 1 {
+		page = 65536
+	}
+	if a != b || string(a[:16]) != "SQLite format 3\x00" || a[18] != 2 || a[19] != 2 ||
+		page < 512 || page > 65536 || page&(page-1) != 0 {
+		return 0, ErrWALObservation
+	}
+	if size == 32 {
+		var x, y [32]byte
+		if _, err = wal.ReadAt(x[:], 0); err != nil {
+			return 0, err
+		}
+		if _, err = wal.ReadAt(y[:], 0); err != nil {
+			return 0, err
+		}
+		magic := binary.BigEndian.Uint32(x[:4])
+		if x != y || (magic != 0x377f0682 && magic != 0x377f0683) ||
+			binary.BigEndian.Uint32(x[4:8]) != 3007000 || binary.BigEndian.Uint32(x[8:12]) != page {
+			return 0, ErrWALObservation
+		}
+		var order binary.ByteOrder = binary.LittleEndian
+		if magic&1 != 0 {
+			order = binary.BigEndian
+		}
+		var s0, s1 uint32
+		for i := 0; i < 24; i += 8 {
+			s0 += order.Uint32(x[i:i+4]) + s1
+			s1 += order.Uint32(x[i+4:i+8]) + s0
+		}
+		if s0 != binary.BigEndian.Uint32(x[24:28]) || s1 != binary.BigEndian.Uint32(x[28:32]) {
+			return 0, ErrWALObservation
+		}
+		*header = x
+	}
+	info, err := wal.Stat()
+	if err != nil || info.Size() != size {
+		return 0, ErrWALObservation
+	}
+	return page, nil
 }
 
 type WALPolicy struct {
@@ -114,7 +187,7 @@ func (w *WALGate) Publish(token uint64, s WALState, at time.Time) error {
 	if !validWAL(s) || at.IsZero() {
 		return ErrWALObservation
 	}
-	if w.previous.PageSize != 0 && (s.Salt != w.previous.Salt || s.Frames < w.previous.Frames) {
+	if w.previous.Frames != 0 && (s.Salt != w.previous.Salt || s.Frames < w.previous.Frames) {
 		w.resets++
 	}
 	w.previous = s
@@ -125,6 +198,10 @@ func (w *WALGate) Publish(token uint64, s WALState, at time.Time) error {
 }
 
 func validWAL(s WALState) bool {
+	if s.Frames == 0 && s.ActiveBytes == 0 {
+		return s.PageSize >= 512 && s.PageSize <= 65536 && s.PageSize&(s.PageSize-1) == 0 &&
+			s.Backfill == 0 && s.UncheckpointedBytes == 0 && (s.PhysicalBytes == 0 || s.PhysicalBytes == 32)
+	}
 	return s.PageSize >= 512 && s.PageSize <= 65536 && s.PageSize&(s.PageSize-1) == 0 && s.Backfill <= s.Frames &&
 		s.ActiveBytes == 32+int64(s.Frames)*(int64(s.PageSize)+24) && s.PhysicalBytes >= s.ActiveBytes &&
 		s.UncheckpointedBytes == int64(s.Frames-s.Backfill)*(int64(s.PageSize)+24)
@@ -153,7 +230,11 @@ func (w *WALGate) reserve(r Request, now time.Time) RefusalCode {
 			return Capacity
 		}
 	}
-	if r.Need[WALBytes] <= 0 || r.Need[WALBytes] > limit-s.ActiveBytes {
+	header := int64(0)
+	if s.ActiveBytes == 0 {
+		header = 32
+	}
+	if r.Need[WALBytes] <= 0 || header > limit-s.ActiveBytes || r.Need[WALBytes] > limit-s.ActiveBytes-header {
 		return Capacity
 	}
 	w.writer = true

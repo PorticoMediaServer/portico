@@ -181,3 +181,32 @@ func TestWALRejectsMalformedStateAndPolicy(t *testing.T) {
 		}
 	}
 }
+
+func TestEmptyWALReservesInitialHeader(t *testing.T) {
+	for _, class := range []Class{Foreground, Recovery, ScanMinimum, Background} {
+		w, err := NewWALGate(WALPolicy{HardBytes: 100, ReserveBytes: 20, SoftDebtBytes: 50, ActivePressureBytes: 50, MaxSampleAge: time.Second})
+		if err != nil {
+			t.Fatal(err)
+		}
+		s := WALState{PageSize: 4096}
+		r := Request{Class: class}
+		limit := int64(100)
+		if class == ScanMinimum || class == Background {
+			limit -= 20
+		}
+		for _, physical := range []int64{0, 32} {
+			s.PhysicalBytes = physical
+			publish(t, w, s, time.Now())
+			r.Need[WALBytes] = limit - 32 + 1
+			if w.reserve(r, time.Now()) != Capacity {
+				t.Fatal("first header growth was not reserved", class, physical)
+			}
+			publish(t, w, s, time.Now())
+			r.Need[WALBytes] = limit - 32
+			if w.reserve(r, time.Now()) != 0 {
+				t.Fatal("exact empty headroom refused", class, physical)
+			}
+			w.returned()
+		}
+	}
+}
