@@ -1,7 +1,7 @@
 name: Schema writer Windows connection control (temporary)
 on:
   push:
-    branches: [schema-v1/p1-w-windows-controls-r1]
+    branches: [schema-v1/p1-w-windows-controls-r2]
 permissions:
   contents: read
 jobs:
@@ -11,6 +11,12 @@ jobs:
     env:
       GOMAXPROCS: '2'
     steps:
+      - name: Preserve source paths and bytes on the disposable runner
+        shell: pwsh
+        run: |
+          git config --global core.longpaths true
+          git config --global core.autocrlf false
+          git config --global core.eol lf
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
