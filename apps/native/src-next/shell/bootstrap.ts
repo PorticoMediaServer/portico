@@ -20,6 +20,7 @@ import {EventsClient} from '../../../../packages/client-core/src/playback-v1/eve
 import {localV1Http} from '../../../../packages/client-core/src/playback-v1/local-http';
 import {runEventFeed} from '../../../../packages/client-core/src/event-feed';
 import {ambientArtworkSource} from '../../../../packages/client-core/src/artwork';
+import {resolveShellMediaUrl} from '../../../../packages/client-core/src/shell-media';
 import type {HttpLocalApi, LocalSession, Library} from '../../../../packages/client-core/src';
 import {beginRestoreTrace, markRestore} from './restore-trace';
 import {noteHomeRead} from './home-read-log';
@@ -600,7 +601,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
       if (current()) void rememberNativeReadingPreferences(context, currentPreferences()).catch(() => {});
     };
     cleanups.push(context.subscribePreferences(rememberReadingSettings)); rememberReadingSettings();
-    const resolve = (path: string) => current() ? local.mediaUrl(path) : undefined;
+    const resolve = (path: string) => current() ? resolveShellMediaUrl(local, path) : undefined;
     const skipBackMs = currentPreferences().effective['playback.skipBackMs'];
     if (typeof skipBackMs !== 'number' || !Number.isFinite(skipBackMs) || skipBackMs < 0) throw Object.assign(new Error('invalid_playback_preference'), {code: 'invalid_response'});
     const playbackSkipSeconds = (direction: 'back' | 'forward') => {
