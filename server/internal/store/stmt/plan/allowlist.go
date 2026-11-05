@@ -14,7 +14,7 @@ type sqlToken struct {
 	text string
 }
 
-// LintSQL recognizes a closed SELECT grammar. Unknown syntax is flagged; this
+// LintSQL recognizes a closed SELECT/DML grammar. Unknown syntax is flagged; this
 // lint never attempts to infer the safety of arbitrary SQLite expressions.
 // SQLite's independently checked EQP remains authoritative.
 func LintSQL(sql string) []LintIssue {
@@ -161,6 +161,7 @@ var sqliteKeywords = func() map[string]bool {
 type lintParser struct {
 	tokens    []sqlToken
 	at, depth int
+	dml       *dmlShape
 }
 
 func (p *lintParser) peek(text string) bool {
@@ -379,6 +380,26 @@ func (p *lintParser) boolean() error {
 	return nil
 }
 func (p *lintParser) statement() error {
+	var err error
+	switch {
+	case p.peek("SELECT"):
+		err = p.selectStatement()
+	case p.peek("INSERT"), p.peek("UPDATE"), p.peek("DELETE"):
+		err = p.dmlStatement()
+	default:
+		err = p.fail("expected SELECT, INSERT, UPDATE or DELETE")
+	}
+	if err != nil {
+		return err
+	}
+	p.take(";")
+	if p.at != len(p.tokens) {
+		return p.fail("syntax outside the closed grammar")
+	}
+	return nil
+}
+
+func (p *lintParser) selectStatement() error {
 	if err := p.need("SELECT"); err != nil {
 		return err
 	}
@@ -441,10 +462,6 @@ func (p *lintParser) statement() error {
 			return p.fail("LIMIT requires a parameter or nonnegative integer")
 		}
 		p.at++
-	}
-	p.take(";")
-	if p.at != len(p.tokens) {
-		return p.fail("syntax outside the closed grammar")
 	}
 	return nil
 }

@@ -48,15 +48,17 @@ type Environment struct {
 	Collations        Rows                `json:"collations"`
 }
 type Golden struct {
-	Environment Environment     `json:"environment"`
-	Manifest    []stmt.Entry    `json:"manifest"`
-	Plans       []StatementPlan `json:"plans"`
+	Environment Environment      `json:"environment"`
+	Manifest    []stmt.Entry     `json:"manifest"`
+	Plans       []StatementPlan  `json:"plans"`
+	ForeignKeys *ForeignKeyAudit `json:"foreignKeys,omitempty"`
 }
 type StatementPlan struct {
-	ID        stmt.ID `json:"id"`
-	Cohort    string  `json:"cohort"`
-	Explain   Rows    `json:"explain"`
-	QueryPlan Rows    `json:"queryPlan"`
+	ID        stmt.ID      `json:"id"`
+	Cohort    string       `json:"cohort"`
+	Explain   Rows         `json:"explain"`
+	QueryPlan Rows         `json:"queryPlan"`
+	Insert    *InsertAudit `json:"insert,omitempty"`
 }
 
 // Capture uses one caller-owned connection to prevent pool PRAGMA/statistics
@@ -93,14 +95,36 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 			if err != nil {
 				return g, fmt.Errorf("plan %s/%s EQP: %w", entry.ID, cohort.Name, err)
 			}
-			if err := Check(entry.Definition, eqp); err != nil {
+			var insert *InsertAudit
+			shape, shapeErr := dmlSQL(entry.SQL)
+			if shape != nil && shape.kind == "INSERT" {
+				if shapeErr != nil {
+					return g, fmt.Errorf("plan %s: unrecognized INSERT structure cannot skip destination/conflict audits", entry.ID)
+				}
+				if err := checkBase(entry.Definition, eqp); err != nil {
+					return g, err
+				}
+				insert, err = auditInsert(ctx, conn, entry.Definition, shape, cohort.Bindings, full)
+				if err != nil {
+					return g, fmt.Errorf("plan %s/%s INSERT audit: %w", entry.ID, cohort.Name, err)
+				}
+				if g.ForeignKeys == nil {
+					audit, err := ForeignKeys(ctx, conn, fixture.ConnectionPolicy)
+					if err != nil {
+						return g, err
+					}
+					g.ForeignKeys = &audit
+				}
+			} else if shape == nil && writesDatabase(full) {
+				return g, fmt.Errorf("plan %s: unrecognized write structure cannot skip DML audits", entry.ID)
+			} else if err := Check(entry.Definition, eqp); err != nil {
 				return g, err
 			}
 			full, err = canonicalVM(full, roots)
 			if err != nil {
 				return g, fmt.Errorf("plan %s/%s VM: %w", entry.ID, cohort.Name, err)
 			}
-			g.Plans = append(g.Plans, StatementPlan{ID: entry.ID, Cohort: cohort.Name, Explain: full, QueryPlan: eqp})
+			g.Plans = append(g.Plans, StatementPlan{ID: entry.ID, Cohort: cohort.Name, Explain: full, QueryPlan: eqp, Insert: insert})
 		}
 	}
 	return g, nil
@@ -109,6 +133,20 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 // Check enforces hot-path properties in addition to the exact full-plan golden.
 // Required indexes must appear in both the compiled SQL and SQLite's actual EQP.
 func Check(d stmt.Definition, eqp Rows) error {
+	if err := checkBase(d, eqp); err != nil {
+		return err
+	}
+	shape, _ := dmlSQL(d.SQL)
+	if shape != nil && shape.kind == "INSERT" {
+		return fmt.Errorf("plan %s: INSERT requires Capture destination/conflict audit", d.ID)
+	}
+	if !d.Plan.Hot && shape == nil {
+		return nil
+	}
+	return checkSearch(d, eqp)
+}
+
+func checkBase(d stmt.Definition, eqp Rows) error {
 	if err := CheckEQP(d, eqp); err != nil {
 		return err
 	}
@@ -117,9 +155,10 @@ func Check(d stmt.Definition, eqp Rows) error {
 			return fmt.Errorf("plan %s: unapproved SQL lint %s: %s", d.ID, issue.Form, issue.Detail)
 		}
 	}
-	if !d.Plan.Hot {
-		return nil
-	}
+	return nil
+}
+
+func checkSearch(d stmt.Definition, eqp Rows) error {
 	if len(d.Plan.Indexes) == 0 && len(d.Plan.PrimaryKeys) == 0 {
 		return fmt.Errorf("plan %s: hot statement has no intended index", d.ID)
 	}

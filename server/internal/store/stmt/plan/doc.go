@@ -2,11 +2,23 @@
 //
 // Serving hot paths use forced indexes or an asserted native primary-key seek,
 // exact INT partial predicates and equality-tail/next-key cursors. SQL lint uses
-// a closed SELECT grammar: column/parameter/literal comparisons, AND/OR,
+// a closed SELECT/DML grammar: column/parameter/literal comparisons, AND/OR,
 // IS [NOT] NULL, scalar parameter/integer/string IN lists, BETWEEN, explicit
 // known scalar calls (at most 16 levels), column collations and ORDER BY/LIMIT
 // keysets. Unknown predicates, grouped expressions, CASE, windows, CTEs and
 // subqueries are flagged; the lint never infers safety from arbitrary SQL.
+// INSERT accepts one explicit column/parameter VALUES row, optional named
+// ON CONFLICT(columns) DO NOTHING/DO UPDATE SET column=excluded.column|?,
+// and plain-column RETURNING. UPDATE requires SET and WHERE, DELETE requires
+// WHERE. SET accepts the scalar subset plus up to eight +/- scalar terms;
+// WHERE uses the unchanged predicate grammar. UPDATE/DELETE may force INDEXED BY.
+// Their WHERE seeks require expected index/PK contracts even if Hot is false.
+// INSERT destinations require Capture's index/column and full FK audits instead
+// of a nonexistent destination SEARCH. UPSERT requires one expected full unique
+// index or PK whose ordered conflict columns are explicit bound INSERT inputs;
+// its separately labelled point-probe EQP must SEARCH that key. Native INSERT
+// EQP and canonical VM remain separate from this probe. No routine DML waiver
+// or registration confers accepting-command authority.
 //
 // Independently, SQLite's EQP rejects SUBQUERY, CO-ROUTINE, MATERIALIZE,
 // MULTI-INDEX OR, USE TEMP B-TREE and automatic indexes for every statement,
