@@ -1,6 +1,7 @@
+import {readBrowseCapabilitiesResponse} from '@core/query/browse-reads.ts';
 import {LibraryContentService, readListeningSimilar, type ContentEntry, type ContentProjection} from '@core/library-content.ts';
 import {getContainerState, setContainerFlag, setContainerState} from '@core/container-state.ts';
-import {browseCapabilitiesPath, parseBrowseCapabilities, validateBrowseQuery, type BrowseCapabilities} from '@core/browse.ts';
+import {parseBrowseCapabilities, validateBrowseQuery, type BrowseCapabilities} from '@core/browse.ts';
 import {RelationRowPager, type RelationPage} from '@core/relation-rows.ts';
 import {screenLifetime, type ScreenContext} from '../context';
 
@@ -82,7 +83,7 @@ export function createAudiobookBindings(context: ScreenContext, input: Audiobook
       const none = Object.freeze({narrator: false, series: false});
       current(page);
       if (target.view !== 'book' || !context.effects.openBrowse) return none;
-      const capabilities = parseBrowseCapabilities(await life.api.request<unknown>(browseCapabilitiesPath(target.libraryId, 'books')));
+      const capabilities = parseBrowseCapabilities(await readBrowseCapabilitiesResponse(life.api, target.libraryId, 'books'));
       current(page);
       if (capabilities.library.id !== target.libraryId || capabilities.library.kind !== page.scope.libraryKind) return none;
       const pivot = capabilities.resolvedPivot;
