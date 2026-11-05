@@ -1,6 +1,6 @@
+import {readCatalogueItemResponse} from '../../../../../packages/client-core/src/query/catalogue-reads';
 import type {MediaItem} from '../../../../../packages/client-core/src';
 import {parseMediaItem} from '../../../../../packages/client-core/src/media-item';
-import {encodedRoutePath} from '../../../../../packages/contracts/src/routes';
 import {NativeScreenLifetime, NativeScreenStore} from './lifetime';
 
 type Api = Readonly<{request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>}>;
@@ -52,7 +52,7 @@ export class NativeTogetherMedia extends NativeScreenStore<Snapshot> {
       if (index < 0) return;
       const [id] = this.queue.splice(index, 1), abort = new AbortController();
       this.pending.set(id, abort);
-      void this.lifetime.request(signal => this.api.request(encodedRoutePath('get_items_id', {id: encodeURIComponent(id)}), 'GET', undefined, signal).then(parseMediaItem), abort.signal)
+      void this.lifetime.request(signal => readCatalogueItemResponse(this.api, id, signal).then(parseMediaItem), abort.signal)
         .then(item => {
           if (item.id !== id) throw new Error('native_together_media_identity_mismatch');
           this.accept(id, abort, {phase: 'ready', item});

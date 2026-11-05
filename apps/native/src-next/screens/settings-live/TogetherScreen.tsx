@@ -1,3 +1,4 @@
+import {readCatalogueItemResponse} from '../../../../../packages/client-core/src/query/catalogue-reads';
 import React, {forwardRef, useCallback, useEffect, useLayoutEffect, useId, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {ScrollView, Share, Text, View, type TextInput} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -6,7 +7,6 @@ import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {GroupEnterLifetime} from '../../../../../packages/client-core/src/group-session';
 import type {MediaItem} from '../../../../../packages/client-core/src';
 import {parseMediaItem} from '../../../../../packages/client-core/src/media-item';
-import {encodedRoutePath} from '../../../../../packages/contracts/src/routes';
 import {groupTargetPositionUs, type GroupHostAuthority} from '../../../../../packages/client-core/src/social-playback';
 import {Button, Focusable, Segmented, TextField} from '../../kit/controls';
 import {FocusRegion} from '../../kit/focus';
@@ -215,7 +215,7 @@ function TogetherLobbyArt({itemId, controller, ports, runtime}: {itemId?: string
     setItem(undefined);
     if (!itemId) return;
     const abort = new AbortController();
-    void controller.lifetime.request(signal => ports.context.api.request(encodedRoutePath('get_items_id', {id: encodeURIComponent(itemId)}), 'GET', undefined, signal).then(parseMediaItem), abort.signal)
+    void controller.lifetime.request(signal => readCatalogueItemResponse(ports.context.api, itemId, signal).then(parseMediaItem), abort.signal)
       .then(value => {if (!abort.signal.aborted && controller.lifetime.current() && value.id === itemId && value.available) setItem(value);}, () => {});
     return () => abort.abort();
   }, [itemId, controller, ports]);
@@ -238,7 +238,7 @@ function TogetherRoom({controller, ports, runtime}: {controller: NativeTogetherC
   const key = JSON.stringify([...new Set([group.timeline.itemId, ...(state.queue?.entries.filter(value => !value.unavailable).map(value => value.itemId) ?? [])].filter((id): id is string => !!id))]);
   useEffect(() => {
     let active = true;
-    for (const id of JSON.parse(key) as string[]) void controller.lifetime.request(signal => ports.context.api.request(encodedRoutePath('get_items_id', {id: encodeURIComponent(id)}), 'GET', undefined, signal).then(parseMediaItem)).then(item => {if (active) setItems(value => ({...value, [id]: item}));}, () => {if (active && controller.lifetime.current()) setItems(value => ({...value, [id]: null}));});
+    for (const id of JSON.parse(key) as string[]) void controller.lifetime.request(signal => readCatalogueItemResponse(ports.context.api, id, signal).then(parseMediaItem)).then(item => {if (active) setItems(value => ({...value, [id]: item}));}, () => {if (active && controller.lifetime.current()) setItems(value => ({...value, [id]: null}));});
     return () => {active = false;};
   }, [key, controller, ports]);
   useEffect(() => {void controller.refreshQueue().catch(error => {if (controller.lifetime.current()) runtime.reportError(error);});}, [controller, runtime, group.queueRevision]);
