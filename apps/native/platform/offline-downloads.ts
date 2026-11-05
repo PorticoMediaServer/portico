@@ -1,10 +1,11 @@
+import {refreshOfflineReadingProgressResponse, syncOfflineReadingObservationResponse} from '../../../packages/client-core/src/reading-offline-coordination';
 import {readOfflineDownloadBundleResponse, readDownloadReceiptKeysResponse, issueDownloadReceiptsResponse, revalidateDownloadReceiptsResponse, revokeRemovedDownloadReceipt, syncOfflineDownloadPlaysResponse} from '../../../packages/client-core/src/download-coordination';
 import {stepNativeSelectionActionDownloads, type NativeSelectionActionDownloadIntent} from '../src-next/screens/library/selection-action-downloads';
 import type {NativeOfflinePublicationLease} from './offline-reading-authority';
 import {serverNow} from '../../../packages/client-core/src/server-clock';
 import {publicationUTF8, openOfflineReadingSession, publicationBinding, nativePublicationReadsAvailable, type OfflineReadingSession, type PublicationBinding} from './offline-reading';
 import {decodeGetReadingSessionsSessionIdProgressResponse, decodePutReadingSessionsSessionIdProgressResponse} from '../../../packages/contracts/src';
-import {parseReadingOfflineRefresh, readingOfflineRefreshLimit, readingOfflineRefreshPath} from '../../../packages/client-core/src/reading-offline-refresh';
+import {parseReadingOfflineRefresh, readingOfflineRefreshLimit} from '../../../packages/client-core/src/reading-offline-refresh';
 import type {ReadingLocation, ReadingProgress, ReadingSavedProgress} from '../../../packages/client-core/src/reading';
 import {storedSubtitle, subtitleExtraFiles, type StoredSubtitle} from './offline-subtitle-files';
 import {receiptTime, serverReceiptFloor} from './receipt-clock';
@@ -1761,7 +1762,7 @@ export class OfflineDownloads {
       if (!batch.length) continue;
       let results: ReturnType<typeof parseReadingOfflineRefresh>;
       try {
-        const raw = await api.request<unknown>(readingOfflineRefreshPath, 'POST', {receipts: batch.map(value => value.receipt)});
+        const raw = await refreshOfflineReadingProgressResponse(api, batch.map(value => value.receipt));
         if (!current()) return;
         results = parseReadingOfflineRefresh(raw, batch.map(value => ({receiptId: value.receipt.receiptId, itemId: value.sent.itemId, sourceId: value.sent.sourceId, sourceRevision: value.sent.revision})));
       } catch {return;} // A transport, authority or malformed answer ends this pass; the next one retries.
@@ -1811,7 +1812,7 @@ export class OfflineDownloads {
           const key = this.stored.keys[decoded.receipt.keyId], originalKey = this.stored.keys[original.receipt.keyId];
           if (!key || !originalKey || !await nativeRouteCrypto.verify(base64url(key), decoded.signatureBytes, decoded.signedBytes) || !await nativeRouteCrypto.verify(base64url(originalKey), original.signatureBytes, original.signedBytes) || !current()) continue;
           if (records[id]?.syncBlocked) continue;
-          const raw = await api.request<unknown>('/v1/reading/offline/progress', 'POST', {receipt: decoded.receipt, observationReceipt: original.receipt, expectedRevision: sent.serverRevision, observedAt: sent.pending.observedAt, startedAt: sent.pending.startedAt, location: sent.pending.location});
+          const raw = await syncOfflineReadingObservationResponse(api, decoded.receipt, original.receipt, sent.serverRevision, sent.pending.observedAt, sent.pending.startedAt, sent.pending.location);
           if (!current() || !object(raw) || (raw.outcome !== 'applied' && raw.outcome !== 'history_paused' && raw.outcome !== 'stale_observation' && raw.outcome !== 'superseded_online')) return;
           if (Object.keys(raw).some(key => key !== 'progress' && key !== 'saved' && key !== 'outcome') || !Object.prototype.hasOwnProperty.call(raw, 'progress') || typeof raw.saved !== 'boolean') return;
           const result = decodePutReadingSessionsSessionIdProgressResponse({progress: raw.progress, saved: raw.saved});
