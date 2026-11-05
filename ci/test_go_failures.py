@@ -90,6 +90,13 @@ class LiveFailureReporting(unittest.TestCase):
             self.assertIn('p TestA/child failed:', output.getvalue())
             self.assertIn('x_test.go:42: got 3, want 4', output.getvalue())
 
+    def test_build_events_print_compiler_output_by_import_path(self):
+        reporter = FailureOutput()
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            reporter.feed(json.dumps({'ImportPath': 'dependency', 'Action': 'build-output', 'Output': 'x.go:3: undefined: symbol\n'}))
+            reporter.feed(json.dumps({'ImportPath': 'dependency', 'Action': 'build-fail'}))
+            self.assertIn('dependency failed:\nx.go:3: undefined: symbol', output.getvalue())
+
     def test_watchdog_keeps_budget_and_kills_process_group(self):
         process = Mock(pid=123, returncode=-9)
         process.stdout = iter(())

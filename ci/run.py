@@ -80,10 +80,10 @@ class FailureOutput:
         except ValueError:
             print(line,end='',flush=True)
             return
-        key=(event.get('Package',''),event.get('Test',''))
+        key=(event.get('Package') or event.get('ImportPath',''),event.get('Test',''))
         if event.get('Output'):
             self.output.setdefault(key,[]).append(event['Output'])
-        if event.get('Action')=='fail':
+        if event.get('Action') in ('fail','build-fail'):
             output=''.join(self.output.pop(key,[]))
             print(' '.join(x for x in key if x)+' failed:\n'+output,end='' if output.endswith('\n') else '\n',flush=True)
         elif event.get('Action') in ('pass','skip'):
@@ -160,6 +160,7 @@ def go(plan,index,report=None):
                 if not isinstance(event,dict): raise ValueError('not an event')
                 events.append(event)
             except ValueError: incomplete=True
+        build_events=[e for e in events if e.get('Action') in ('build-output','build-fail')]
         blocked=False; lines=[]
         requested={package for package,tests in groups}
         unexpected=any(e.get('Package') not in requested for e in events)
@@ -173,13 +174,14 @@ def go(plan,index,report=None):
             stem=package.replace('/','_')
             (out/(stem+'.jsonl')).write_text(''.join(json.dumps(e)+'\n' for e in own))
             (out/(stem+'.stderr')).write_text(result.stderr)
+            if build_events:
+                (out/(stem+'.build.jsonl')).write_text(''.join(json.dumps(e)+'\n' for e in build_events))
             permitted={test for (pkg,test) in allowed if pkg==package}
             # A sibling may fail a batched command: use each package's terminal,
             # but never hide a tool/infrastructure exit outside Go's 0/1 contract.
             terminal=next((e['Action'] for e in reversed(own) if not e.get('Test') and e.get('Action') in ['pass','fail','skip']),None)
             code=(0 if terminal in ['pass','skip'] else 1) if result.returncode in [0,1] else result.returncode
             required={t['name'] for t in tests if (package,t['name']) in mandatory}
-            build_events=[e for e in events if e.get('Action')=='build-fail']
             status=classify(own+build_events,[t['name'] for t in tests],code,permitted,required_pass=required,
                             stderr=result.stderr,timed_out=getattr(result,'timed_out',False),
                             incomplete=incomplete,infrastructure=unexpected or missing_failure)
