@@ -5,7 +5,8 @@ import type {HomeEntry} from '@core/home.ts';
 import type {SearchEntry} from '@core/search.ts';
 import {homeEntryCapabilities} from '@core/home-selection.ts';
 import {presentError} from '@core/presentation/errors.ts';
-import {refreshMetadataPath, type EntryActionId, type EntryCapabilities} from '@core/presentation/entry-actions.ts';
+import type {EntryActionId, EntryCapabilities} from '@core/presentation/entry-actions.ts';
+import {refreshAvailableCatalogueMetadata} from '@core/query/catalogue-menu.ts';
 import {detailMenuCapabilities, isAggregateKind, isLeafKind, limitMenuCapabilities, titleMenuPlatform, type TitleMenuPorts} from '@core/presentation/title-menu.ts';
 import {entryStartDisplay} from '../platform/playback/subject';
 import {screenLifetime, type ScreenContext} from '../screens/detail/context';
@@ -165,8 +166,8 @@ export class TitleMenuHost {
       case 'editMetadata': act(() => target ? effects.editMetadata?.(target, element)
         : entry.libraryId && isAggregateKind(entry.kind) ? effects.editMetadata?.({entityKind: entry.kind as 'show' | 'season' | 'album' | 'artist' | 'book', entityId: entry.id, libraryId: entry.libraryId, title: subject.title}, element) : undefined); break;
       case 'refreshMetadata': act(() => {
-        const path = refreshMetadataPath(entry.kind, entry.id), life = this.life();
-        if (path) return life.api.request(path, 'POST', {}, life.signal());
+        const kind = entry.kind, id = entry.id, life = this.life();
+        return refreshAvailableCatalogueMetadata(life.api, kind, id, life.signal());
       }); break;
       default: break;
     }
