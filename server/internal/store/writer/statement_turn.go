@@ -3,7 +3,6 @@ package writer
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
@@ -28,7 +27,7 @@ type commandTurn struct {
 	transaction *transaction
 	registry    *stmt.Registry
 	steps       map[stmt.ID]registeredStep
-	rows        []*sql.Rows
+	rows        []*commandRows
 }
 
 func newCommandTurn(tx *transaction, registry *stmt.Registry, steps []statementStep) (*commandTurn, error) {
@@ -90,41 +89,42 @@ func (t *commandTurn) exec(ctx context.Context, step statementStep, args ...any)
 	defer t.transaction.guardPanic()
 	// Always use the frame-owned deadline/cancellation. A handler cannot
 	// extend the admitted hold by passing a longer-lived statement context.
-	return bound.ExecContext(t.transaction.ctx, t.transaction.conn)
+	result, err := bound.ExecContext(t.transaction.ctx, t.transaction.conn)
+	t.panicAfter(err)
+	if result == nil {
+		return nil, err
+	}
+	return commandResult{result, t}, err
 }
 
-func (t *commandTurn) query(ctx context.Context, step statementStep, args ...any) (*sql.Rows, error) {
+func (t *commandTurn) query(ctx context.Context, step statementStep, args ...any) (*commandRows, error) {
 	bound, err := t.bind(ctx, step, false, args)
 	if err != nil {
 		return nil, err
 	}
 	defer t.transaction.guardPanic()
 	rows, err := bound.QueryContext(t.transaction.ctx, t.transaction.conn)
+	t.panicAfter(err)
 	if err != nil {
 		return nil, err
 	}
 	// Each query costs at least one raw row, bounding this bookkeeping by
 	// the already admitted recipe. Rows still close in the handler; the
 	// dispatcher also drains these references before terminal execution.
-	t.rows = append(t.rows, rows)
-	return rows, nil
+	owned := &commandRows{rows: rows, turn: t}
+	t.rows = append(t.rows, owned)
+	return owned, nil
 }
 
-func (t *commandTurn) queryRow(ctx context.Context, step statementStep, args ...any) (stmt.Row, error) {
-	bound, err := t.bind(ctx, step, false, args)
-	if err != nil {
-		return stmt.Row{}, err
-	}
-	defer t.transaction.guardPanic()
-	return bound.QueryRowContext(t.transaction.ctx, t.transaction.conn), nil
+func (t *commandTurn) queryRow(ctx context.Context, step statementStep, args ...any) (commandRow, error) {
+	rows, err := t.query(ctx, step, args...)
+	return commandRow{rows}, err
 }
 
 func (t *commandTurn) closeRows() error {
-	var err error
-	for _, rows := range t.rows {
-		err = errors.Join(err, rows.Close())
-	}
-	t.rows = nil
+	defer t.transaction.guardPanic()
+	err := t.closeRowsRaw()
+	t.panicAfter(err)
 	if err != nil {
 		return fmt.Errorf("close command rows: %w", err)
 	}
