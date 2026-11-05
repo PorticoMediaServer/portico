@@ -714,7 +714,10 @@ func TestSnapshotNativeReservationPrecedesConnectionAndSQL(t *testing.T) {
 			}
 			counted := &snapshotConnector{Connector: connector}
 			expression := "SELECT " + strings.TrimSuffix(strings.Repeat("randomblob(12000),", int(columns)), ",")
-			registry, err := stmt.New([]stmt.Definition{{ID: "aggregate", SQL: expression, Kind: stmt.Read, Owner: "test", CallSites: []string{"native-reserve"}, Cohorts: []stmt.Cohort{{Name: "all"}}}})
+			registry, err := stmt.New([]stmt.Definition{
+				{ID: "aggregate", SQL: expression, Kind: stmt.Read, Owner: "test", CallSites: []string{"native-reserve"}, Cohorts: []stmt.Cohort{{Name: "all"}}},
+				{ID: "go-aggregate", SQL: strings.ReplaceAll(expression, "12000", "6000"), Kind: stmt.Read, Owner: "test", CallSites: []string{"copy-reserve"}, Cohorts: []stmt.Cohort{{Name: "all"}}},
+			})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -744,6 +747,19 @@ func TestSnapshotNativeReservationPrecedesConnectionAndSQL(t *testing.T) {
 			})
 			if !errors.Is(err, ErrSnapshotBudget) || out.NativeReservedBytes != native || out.GoReservedBytes != 64<<10 {
 				t.Fatal(out, err)
+			}
+			out, err = s.Read(t.Context(), r, time.Second, func(scope *ReadScope) error {
+				var before, after runtime.MemStats
+				runtime.ReadMemStats(&before)
+				_, err := scope.Query("go-aggregate")
+				runtime.ReadMemStats(&after)
+				if after.TotalAlloc-before.TotalAlloc > 64<<10 {
+					return errors.New("native reservation was reused for Go copies")
+				}
+				return err
+			})
+			if !errors.Is(err, ErrSnapshotBudget) || out.GoReservedBytes != 64<<10 {
+				t.Fatal("Go copies consumed native reservation", out, err)
 			}
 			if a.Usage() != [4]Amounts{} {
 				t.Fatal("native reservation leaked")
