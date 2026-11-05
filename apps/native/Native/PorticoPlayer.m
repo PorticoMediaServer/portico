@@ -116,16 +116,14 @@ static OSStatus PorticoPrepareInstallationStorage(void) {
  });
 }
 
-// HttpLocalApi's avatar upload is JSON only across the JS/native bridge. Decode at this
-// fixed endpoint so the existing redirect-refusing transport sends the original image bytes.
+// Core selects the avatar payload. Native validates and decodes its image bytes;
+// no JSON envelope or avatar request fields are interpreted here.
 static BOOL PorticoAvatarUploadPath(NSString *path, NSString *method) {
  return [method isEqualToString:@"POST"]&&[path rangeOfString:@"^/v1/(direct/profiles/[A-Za-z0-9_-]{1,128}|admin/access/members/[A-Za-z0-9_-]{1,128}/profiles/[A-Za-z0-9_-]{1,128})/avatar$" options:NSRegularExpressionSearch].location!=NSNotFound;
 }
 static NSData *PorticoAvatarUploadBody(NSString *body) {
  if(![body isKindOfClass:NSString.class]||body.length>5592448)return nil;
- id envelope=[NSJSONSerialization JSONObjectWithData:[body dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil];
- if(![envelope isKindOfClass:NSDictionary.class]||[envelope count]!=1||![envelope[@"nativeAvatarBase64"] isKindOfClass:NSString.class])return nil;
- NSData *data=[[NSData alloc]initWithBase64EncodedString:envelope[@"nativeAvatarBase64"] options:0];
+ NSData *data=[[NSData alloc]initWithBase64EncodedString:body options:0];
  return data.length>0&&data.length<=4194304?data:nil;
 }
 // The upload bridge carries only staged file references. Read and bound bytes natively.
