@@ -122,7 +122,7 @@ func generationBench(db *sql.DB, n, batch int) {
 	pr := &policyReader{db: db}
 	for after := -1; ; {
 		count := 0
-		e := pr.read(context.Background(), `SELECT e.id,e.revision,j.source_revision,j.input_generation,j.published_generation,e.title,p.title FROM q_source_entities e JOIN q_items q ON q.id=e.id JOIN search_publish_jobs j ON j.entity_id=e.id AND j.search_generation_id=2 JOIN search_publications p ON p.id=j.published_document_id WHERE e.id>? ORDER BY e.id LIMIT 128`, []any{after}, func(r *sql.Rows) error {
+		e := pr.read(context.Background(), `WITH candidates AS MATERIALIZED(SELECT id FROM q_items WHERE id>? ORDER BY id LIMIT 128) SELECT e.id,e.revision,j.source_revision,j.input_generation,j.published_generation,e.title,p.title FROM candidates c CROSS JOIN catalog_entities e ON e.id=c.id CROSS JOIN search_publish_jobs j ON j.entity_id=e.id AND j.search_generation_id=2 CROSS JOIN search_publications p ON p.id=j.published_document_id ORDER BY c.id`, []any{after}, func(r *sql.Rows) error {
 			var id, source, job, input, published int
 			var liveTitle, pubTitle string
 			if e := r.Scan(&id, &source, &job, &input, &published, &liveTitle, &pubTitle); e != nil {

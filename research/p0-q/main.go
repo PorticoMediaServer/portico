@@ -754,6 +754,12 @@ func main() {
 		emit("seed_completed", map[string]any{"items": *n})
 		return
 	}
+	if *mode == "generation-only" {
+		generationBench(db, *n, 8)
+		publisherIntegrity(db, "generation-final")
+		emit("generation_completed", map[string]any{"items": *n})
+		return
+	}
 	if *mode == "maximum-chunks" {
 		chunkBench(db, *n, *rounds)
 		return
