@@ -30,6 +30,10 @@ export function metadataPreviewTargets(identities: readonly SelectionIdentity[])
     return {kind, contentKind: identity.kind, id: identity.id, libraryId: identity.libraryId};
   });
 }
+/** Explicit editors supply selected identities; core owns the preview envelope. */
+export function catalogueSelectionPreviewRequest(identities: readonly SelectionIdentity[]): BulkMetadataPreviewRequest {
+  return {targets: metadataPreviewTargets(identities)};
+}
 const record = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 const text = (value: unknown): value is string => typeof value === 'string' && value.length <= 65536 && !/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value);
 const id = (value: unknown): value is string => text(value) && !!value && value.length <= 256 && !/[\r\n\t]/.test(value);
