@@ -34,7 +34,7 @@ async function fixture({hosted = true, matching = true, hasPassword = true, prov
   const lifetime = new NativeScreenLifetime(context), calls: any[] = [], controllers: any[] = [], presented: any[] = [];
   let credentialReads = 0, reply: () => Promise<unknown> = async () => ({accountId: 'portico-account', familyId: 'portico-family', contactAddress: '', privateEmail: false,
     hasPassword, mfaEnabled: true, recoveryCodesRemaining: 3, providers: hasPassword ? [] : [{id: 'provider-link', provider: 'google'}]});
-  const credentials = {getSnapshot: () => ({session}),
+  const credentials = {authorityOrigin: () => 'https://accounts.example.invalid', getSnapshot: () => ({session}),
     subscribe: (listener: () => void) => {listeners.add(listener); return () => listeners.delete(listener);},
     synchronize: async () => {}, accessSession: async () => session};
   const bridge = {canOpenBrowser: providerReady}, theme = {isTV: false, colors: {danger: 'red', textSecondary: 'grey'}};

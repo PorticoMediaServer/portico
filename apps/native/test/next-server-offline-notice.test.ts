@@ -22,7 +22,7 @@ async function fixture({hosted = true, matching = true, tv = false}: {hosted?: b
   const lifetime: any = {current: () => lifetimeCurrent, signal: lifetimeAbort.signal};
   const calls: any[][] = [], signals: AbortSignal[] = [];
   let stored = false, failSave = false, failRead = false, saveGate: Promise<void> | undefined;
-  const credentials = {getSnapshot: () => ({session}), subscribe: (listener: () => void) => {listeners.add(listener); return () => listeners.delete(listener);},
+  const credentials = {authorityOrigin: () => 'https://accounts.example.invalid', getSnapshot: () => ({session}), subscribe: (listener: () => void) => {listeners.add(listener); return () => listeners.delete(listener);},
     synchronize: async () => {}, accessSession: async () => session};
   const {NativeServerOfflineNoticeRow} = await screenModule(new URL('../src-next/screens/settings-live/NativeServerOfflineNoticeRow.tsx', import.meta.url), {
     react: host.react, 'react-native': {View: 'View'},

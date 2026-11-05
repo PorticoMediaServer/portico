@@ -1,3 +1,5 @@
+import {createNativeAccountWorkspaceRequest} from '../../../../packages/client-core/src/query/hosted-account-transport';
+import {readHostedSecurity, readHostedServers} from '../../../../packages/client-core/src/query/connection-operations';
 import {HttpLocalApi, parseServerPresence, type HostedServer} from '../../../../packages/client-core/src';
 import {AccountSessionReviewService, type AccountSessionRow, type AccountSessionScope, type AccountSessionReviewSnapshot} from '../../../../packages/client-core/src/account-sessions';
 import {AccountNotificationsClient, type AccountNotification} from '../../../../packages/client-core/src/account-notifications';
@@ -49,30 +51,18 @@ export class NativeAccountWorkspace {
   private retireReads() {this.notificationView = undefined; this.sessionReview?.service.dispose(); this.sessionReview = undefined; this.securityView?.dispose(); this.securityView = undefined; this.requests.forEach(request => request.abort()); this.requests.clear(); this.mutation = false;}
   menu() {this.assert(); ++this.epoch; this.retireReads(); this.publish({page: 'menu', phase: 'idle'});}
   private assertEpoch(epoch: number) {this.assert(); if (epoch !== this.epoch) throw changed();}
-  private requestFor = (epoch: number, commands = false) => async <T,>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> => {
-    this.assertEpoch(epoch); if (!commands && (method !== 'GET' || body !== undefined) || method === 'GET' && body !== undefined) throw changed();
-    const request = new AbortController(), abort = () => request.abort(); this.requests.add(request);
-    this.controller.signal.addEventListener('abort', abort, {once: true}); signal?.addEventListener('abort', abort, {once: true});
-    if (signal?.aborted) abort(); const timer = setTimeout(abort, 15000);
-    try {
-      const original = this.credentials.getSnapshot().session;
-      if (!original) throw changed();
-      const work = method === 'GET' ? nativeAccountRead : nativeAccountWork;
-      const result = await work(this.credentials, session =>
-        new HttpLocalApi(hostedUrl, session.accessToken, nativeNetworkFetch).request<T>(path, method, body, request.signal),
-        {expected: accountExpectation(original), signal: request.signal, isCurrent: () => this.current() && epoch === this.epoch});
-      this.assertEpoch(epoch);
-      if (epoch !== this.epoch || request.signal.aborted) throw changed(); return result;
-    } finally {this.requests.delete(request); clearTimeout(timer); this.controller.signal.removeEventListener('abort', abort); signal?.removeEventListener('abort', abort);}
-  };
+  private requestFor = (epoch: number, commands = false) => createNativeAccountWorkspaceRequest(this.credentials, nativeNetworkFetch, {
+    assertCurrent: () => this.assertEpoch(epoch), current: () => this.current() && epoch === this.epoch, sameEpoch: () => epoch === this.epoch,
+    signal: this.controller.signal, requests: this.requests, changed,
+  }, commands);
   async open(page: Exclude<AccountWorkspacePage, 'menu'>) {
     this.assert(); const epoch = ++this.epoch; this.retireReads(); this.publish({page, phase: 'loading'});
     try {
       this.assertEpoch(epoch); const request = this.requestFor(epoch);
       let content: Pick<AccountWorkspaceSnapshot, 'security' | 'sessions' | 'servers' | 'notifications'>;
-      if (page === 'security') content = {security: parseSecurityState(await request(routePath('account_security_get')), this.scope)};
+      if (page === 'security') content = {security: parseSecurityState(await readHostedSecurity({request}), this.scope)};
       else if (page === 'servers') {
-        const answer = await request<{items: HostedServer[]}>(routePath('servers_list'));
+        const answer = await readHostedServers<{items: HostedServer[]}>({request});
         if (!answer || !Array.isArray(answer.items) || answer.items.some(row => !row || typeof row.id !== 'string' || !row.id || typeof row.name !== 'string' || !row.name)) throw new Error('native_account_servers_invalid');
         content = {servers: Object.freeze(answer.items.map(row => Object.freeze({...row, presence: parseServerPresence(row.presence)})))};
       }
