@@ -37,6 +37,7 @@ func TestVerifyCompositionRequiresExactNonNilTriple(t *testing.T) {
 		{"foreign-authority", otherAuthority, g, w},
 		{"foreign-gate", a, g, otherGate},
 		{"missing-config-gate", missingAuthority, missing, w},
+		{"both-gates-missing", missingAuthority, missing, nil},
 		{"delegating-proxy", a, compositionProxy{g}, w},
 	} {
 		t.Run(test.name, func(t *testing.T) {
