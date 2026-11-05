@@ -1173,7 +1173,7 @@
   },
   "apps/native/src-next/screens/settings-live/SettingsRoute.tsx#61f58e82e29749c3": {
     "category": "platform-transport",
-    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
     "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
     "guardHash": "4ad9e4864fac58d20b1b678a6a2cac84fa0e3ccbf4e837cb1e3e81d05a1b4c0c",
     "occurrences": 2,
@@ -1227,7 +1227,7 @@
   },
   "apps/native/src-next/screens/settings-live/owner-dashboard/reader.ts#b004e93f490d749f": {
     "category": "platform-transport",
-    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
     "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
     "guardHash": "1c47014c69fd19cc6360b79c85c60e9a29001eb4aee21637072f38fdce1de3ac",
     "occurrences": 1,
@@ -1236,7 +1236,7 @@
   },
   "apps/native/src-next/screens/settings-live/owner-dashboard/reader.ts#05505c3d7d771e30": {
     "category": "platform-transport",
-    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
     "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
     "guardHash": "1c47014c69fd19cc6360b79c85c60e9a29001eb4aee21637072f38fdce1de3ac",
     "occurrences": 1,
@@ -1623,7 +1623,7 @@
   },
   "web/src/screens/settings/Settings.route.tsx#c93d5da364f8a7c4": {
     "category": "platform-transport",
-    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
     "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
     "guardHash": "c53abc05b8fb40814f3cf12718e79234db56909aa562f1bfde99732df49dcb6c",
     "occurrences": 1,
@@ -1632,7 +1632,7 @@
   },
   "web/src/screens/settings/Settings.route.tsx#79a7bc500aa905ba": {
     "category": "platform-transport",
-    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
     "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
     "guardHash": "abeb6b04553854a065cbbbb7a62b814c080d04b34f7297ba98455f3693b37a52",
     "occurrences": 1,
@@ -1650,7 +1650,7 @@
   },
   "web/src/screens/settings/Settings.route.tsx#c0a9b0fe63b3e5a5": {
     "category": "platform-transport",
-    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
     "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
     "guardHash": "14df79fe9203b1eb53e9141344287e3bf18b549ef2b0e21272666e4f65aab57a",
     "occurrences": 1,
@@ -1745,6 +1745,51 @@
     "guardHash": "f0bdaad6e44a2961d5c7b6198234f0dcc4bf67e9d832877678044cf7a85e33bd",
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/SettingsRoute.tsx#32ee3e8586b61f52": {
+    "category": "platform-transport",
+    "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
+    "condition": "Original core-built V1Request or path/method/body/byte-budget is forwarded unchanged; only the original linked signal, lifetime assertions and GET-only readEventState resync scheduling are retained; no construction or selection.",
+    "guardHash": "4ad9e4864fac58d20b1b678a6a2cac84fa0e3ccbf4e837cb1e3e81d05a1b4c0c",
+    "occurrences": 2,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646427108",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/owner-dashboard/reader.ts#32ee3e8586b61f52": {
+    "category": "platform-transport",
+    "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
+    "condition": "Original core-built V1Request or path/method/body/byte-budget is forwarded unchanged; only the original linked signal, lifetime assertions and GET-only readEventState resync scheduling are retained; no construction or selection.",
+    "guardHash": "1c47014c69fd19cc6360b79c85c60e9a29001eb4aee21637072f38fdce1de3ac",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646427108",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/settings/Settings.route.tsx#7393699cf50b5a29": {
+    "category": "platform-transport",
+    "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
+    "condition": "Original core-built V1Request or path/method/body/byte-budget is forwarded unchanged; only the original linked signal, lifetime assertions and GET-only readEventState resync scheduling are retained; no construction or selection.",
+    "guardHash": "db73d45c8a8cbd06f001274296fd39d96438472eec47a8f6a911a98fef3ed269",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646427108",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/settings/Settings.route.tsx#4a0ed0f9855c7d2e": {
+    "category": "platform-transport",
+    "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
+    "condition": "Original core-built V1Request or path/method/body/byte-budget is forwarded unchanged; only the original linked signal, lifetime assertions and GET-only readEventState resync scheduling are retained; no construction or selection.",
+    "guardHash": "b1cc6f1f5ac239fa96f789192948dc704b5ecf1aac4cf425cc4525cab97bcc71",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646427108",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/settings/Settings.route.tsx#7c87dc11818a60a0": {
+    "category": "platform-transport",
+    "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
+    "condition": "Original core-built V1Request or path/method/body/byte-budget is forwarded unchanged; only the original linked signal, lifetime assertions and GET-only readEventState resync scheduling are retained; no construction or selection.",
+    "guardHash": "e63bbe67f702525fbc3cc526dac7a0b388fea88ee6ff7c8eb8a15534e53754fd",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646427108",
     "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
   }
 }

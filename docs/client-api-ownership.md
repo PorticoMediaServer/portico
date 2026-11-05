@@ -106,3 +106,21 @@ bounded requests and the core V1 request-object seam. Native URL readers require
 java.net.URL bindings, async Swift reads require URLSession receivers, and fluent
 HTTP calls require known HTTP constructors/types/modules. Local files, model
 methods, diagnostics and decoder streams are negative fixtures.
+
+A byte-identical forwarding call whose enclosing function changes can use the
+[standing re-hash ruling](https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646375725).
+The editing PR carries the ledger record and complete function-span evidence,
+and an independent review must confirm no added construction or selection.
+`identity-rehash` records keep the site direct: they consume an old baseline
+occurrence and replace only its identity, with no total increase. They cannot
+approve an exception. A `platform-transport` re-hash must originate from an
+already-approved transport with the same reason and condition.
+
+Each new-ID record adds `previousSiteId`, `previousGuardHash`, `previousCommit`,
+`reviewedCommit`, `pullRequest`, `reviewUrl` and `spanEvidence` to the usual
+reason/condition/hash/count/ruling fields. `spanEvidence` names a checked-in
+`docs/client-api-rehashes/*.json` with exact `oldSpan` and `newSpan` strings.
+CI verifies their full hashes, immutable source/review ancestry, identical call
+bytes and occurrence conservation. The independent review URL must belong to
+the editing PR. No re-hash is installed merely because an author calls a change
+unrelated; the linked independent review must assess that condition.

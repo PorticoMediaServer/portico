@@ -273,7 +273,7 @@ def native_sites(path, source):
         shape = native_forwarding_shape(path,policy)
         found.append({'file':path,'line':source.count('\n',0,offset)+1,
                       'kind':'url' if is_url else 'request','owner':'<native>',
-                      'callee':value,'operations':[], 'expression':expression, 'constructionHash': construction_hash,
+                      'callee':value,'operations':[], 'expression':expression, 'callText':source[ts[start][2]:ts[end][2]+len(ts[end][1])], 'constructionHash': construction_hash,
                       **({'forwardedRequest':True,'forwardingShape':shape,'guardHash':construction_hash} if shape else {})})
     return found
 
@@ -408,16 +408,79 @@ def validate_approvals(approvals):
     for key, entry in approvals.items():
         if (not re.fullmatch(r'.+#[a-f0-9]{16}', key) or not entry.get('reason', '').strip()
                 or not entry.get('condition', '').strip() or type(entry.get('occurrences')) is not int or entry['occurrences'] < 1
-                or entry.get('category') not in {'platform-transport','platform-url','native-extension','native-listening','separate-product'}
+                or entry.get('category') not in {'platform-transport','platform-url','native-extension','native-listening','separate-product','identity-rehash'}
                 or not isinstance(entry.get('rulingUrl'),str)
                 or not re.fullmatch(r'https://github\.com/PorticoMediaServer/portico/(?:pull|issues)/[1-9]\d*#issuecomment-[1-9]\d*',entry['rulingUrl'])
-                or entry['category']=='platform-transport' and not re.fullmatch(r'[a-f0-9]{64}',entry.get('guardHash',''))):
+                or entry['category'] in {'platform-transport','identity-rehash'} and not re.fullmatch(r'[a-f0-9]{64}',entry.get('guardHash',''))):
             raise ValueError(f'{key}: approval requires an exact site, condition, positive multiplicity, category/source binding and lead-ruling URL')
+        if entry['category']=='identity-rehash' or 'previousSiteId' in entry:
+            if (entry['category'] not in {'identity-rehash','platform-transport'}
+                    or not re.fullmatch(r'.+#[a-f0-9]{16}',entry.get('previousSiteId',''))
+                    or key.split('#')[0]!=entry['previousSiteId'].split('#')[0]
+                    or not re.fullmatch(r'[a-f0-9]{64}',entry.get('previousGuardHash',''))
+                    or not re.fullmatch(r'[a-f0-9]{40}',entry.get('previousCommit',''))
+                    or not re.fullmatch(r'[a-f0-9]{40}',entry.get('reviewedCommit',''))
+                    or not re.fullmatch(r'https://github\.com/PorticoMediaServer/portico/pull/[1-9]\d*',entry.get('pullRequest',''))
+                    or not re.fullmatch(re.escape(entry.get('pullRequest',''))+r'#(?:issuecomment-|pullrequestreview-|discussion_r)[1-9]\d*',entry.get('reviewUrl',''))
+                    or not re.fullmatch(r'docs/client-api-rehashes/[A-Za-z0-9._-]+\.json',entry.get('spanEvidence',''))):
+                raise ValueError(f'{key}: re-hash requires old/new hashes, immutable commits, editing PR, independent review and complete span evidence')
 
 
-def base_guard(baseline, exceptions, old_baseline, old_exceptions, approvals=None, detections=None):
+def verify_rehashes(root, base, sites, approvals, old_approvals, old_baseline=None, old_exceptions=None):
+    """Standing re-hash rulings never authorize a new request or an exception.
+
+    Direct identities can relocate only against a removed base occurrence. A
+    transport pin can re-hash only from an already-approved transport pin.
+    Review links are checked by independent human review, as for all ledger rows.
+    """
+    moves={};snapshots={}
+    for key,entry in approvals.items():
+        if 'previousSiteId' not in entry:continue
+        current=[s for s in sites if s['id']==key]
+        if not current:continue  # A reviewed future source entry grants no active allowance.
+        if entry==old_approvals.get(key):
+            old_pin=exception_pins((old_exceptions or {}).get(current[0]['file'],{'sites':[]})).get(key,{})
+            active=(old_baseline or {}).get(key,0)>=len(current) or old_pin.get('guardHash')==entry['guardHash']
+            if active and all(s.get('guardHash')==entry['guardHash'] for s in current):continue
+        previous=entry['previousSiteId'];commit=entry['previousCommit']
+        for ancestor,descendant in [(commit,base),(entry['reviewedCommit'],'HEAD')]:
+            if subprocess.run(['git','merge-base','--is-ancestor',ancestor,descendant],cwd=root).returncode:
+                raise ValueError(f'{key}: re-hash source/review commit is outside its immutable ancestry')
+        if commit not in snapshots:snapshots[commit]=scan_snapshot(root,commit)
+        old=[s for s in snapshots[commit] if s['id']==previous]
+        reviewed_commit=entry['reviewedCommit']
+        if reviewed_commit not in snapshots:snapshots[reviewed_commit]=scan_snapshot(root,reviewed_commit)
+        reviewed=[s for s in snapshots[reviewed_commit] if s['id']==key and s.get('guardHash')==entry['guardHash']]
+        try:proof=json.loads((root/entry['spanEvidence']).read_text())
+        except (OSError,ValueError) as error:raise ValueError(f'{key}: complete re-hash span evidence is missing or unreadable') from error
+        if (not old or len(reviewed)<len(current) or any(s.get('guardHash')!=entry['previousGuardHash'] for s in old)
+                or any(s.get('guardHash')!=entry['guardHash'] for s in current)
+                or {s.get('callText') for s in old}!={s.get('callText') for s in current}
+                or not isinstance(proof,dict) or any(not isinstance(proof.get(field),str) for field in ['oldSpan','newSpan'])
+                or any(hashlib.sha256(proof.get(field,'').encode()).hexdigest()!=entry[hash_field]
+                       for field,hash_field in [('oldSpan','previousGuardHash'),('newSpan','guardHash')])):
+            raise ValueError(f'{key}: re-hash changed forwarding bytes, source hashes or complete span evidence')
+        if entry['category']=='platform-transport':
+            original=old_approvals.get(previous,{})
+            if (original.get('category')!='platform-transport' or original.get('guardHash')!=entry['previousGuardHash']
+                    or original.get('reason')!=entry['reason'] or original.get('condition')!=entry['condition']):
+                raise ValueError(f'{key}: re-hash cannot create a new transport approval')
+        else:moves[key]=(previous,min(entry['occurrences'],len(old),len(current)))
+    return moves
+
+
+def rehash_counts(baseline, old_baseline, moves):
+    available={key:max(0,n-baseline.get(key,0)) for key,n in old_baseline.items()};permitted={}
+    for key,(previous,n) in sorted(moves.items()):
+        moved=min(n,available.get(previous,0));available[previous]=available.get(previous,0)-moved
+        permitted[key]=old_baseline.get(key,0)+moved
+    return permitted
+
+
+def base_guard(baseline, exceptions, old_baseline, old_exceptions, approvals=None, detections=None, rehashes=None):
     permitted={**old_baseline}
     for key,count in (detections or {}).items():permitted[key]=max(permitted.get(key,0),count)
+    for key,count in rehash_counts(baseline,old_baseline,rehashes or {}).items():permitted[key]=max(permitted.get(key,0),count)
     errors, _ = compare(baseline, permitted)
     # New/changed allowances require a reviewed ruling for this exact site,
     # source hash, reason/category and complete multiplicity. Ledger edits are
@@ -466,13 +529,15 @@ def main(argv=None, root=ROOT):
         if old_baseline is not None:
             try:
                 manifest=json.loads((root/DETECTIONS).read_text()) if (root/DETECTIONS).exists() else {}
+                moves=verify_rehashes(root,a.base,sites,approvals,old(APPROVALS) or {},old_baseline,old_exceptions or {})
                 proposed={key:max(n,actual.get(key,0)) for key,n in baseline.items()}
                 proposed.update({key:n for key,n in actual.items() if key not in proposed})
                 detections=verified_detection_counts(root,a.base,proposed,old_baseline,old_exceptions or {},manifest)
                 permitted={**baseline}
                 for key,count in detections.items():permitted[key]=max(permitted.get(key,0),count)
+                for key,count in rehash_counts(actual,old_baseline,moves).items():permitted[key]=max(permitted.get(key,0),count)
                 new,_=compare(actual,permitted)
-                new+=base_guard(actual if a.update else baseline,exceptions,old_baseline,old_exceptions or {},approvals,detections)
+                new+=base_guard(actual if a.update else baseline,exceptions,old_baseline,old_exceptions or {},approvals,detections,moves)
             except ValueError as error: new.append(str(error))
     pinned = sum((Counter(e['sites']) + Counter(e.get('additionalSites', {}).keys()) for e in exceptions.values()), Counter())
     stale_exceptions = list((pinned - Counter(counts(exempt))).elements())

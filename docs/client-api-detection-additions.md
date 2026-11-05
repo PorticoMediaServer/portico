@@ -1,6 +1,6 @@
 # Client API detection additions (F4/F5)
 
-Detection-only changes over the initial ownership census source `66d64e8cd154441cb81762fc5884e89a9db0d91a`. No product code added. [Lead ruling](https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885) approves exactly these **29 existing occurrences (533 → 562)** as direct sites, with no new exception. Exact added occurrences below; The machine-checked manifest records the immutable source commit used to verify each addition. F5 adds Java URL readers, Swift async URLSession and fluent HTTP coverage with positive/negative fixtures; no additional current F5 sites found. F4 includes resolved HttpLocalApi methods and V1Request send ports, including layered app implementations. Nested executors remain separate sites, preserving runtime.ts:1314.
+Detection-only changes over the initial ownership census source `0ecb62138e9091894448b3514cd77b1a6e90b466`. No product code added. [Lead ruling](https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885) approves exactly these **29 existing occurrences (533 → 562)** as initially direct sites. A [separate ruling](https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646427108) then approves the six CC-4 forwarding occurrences as exact transport exceptions: 60 other CC-4 guard occurrences also match the reviewed source already on main, so the final inventory is **496 direct / 223 exempt**, while the detection manifest still records all 29 existing occurrences. Exact added occurrences below; The machine-checked manifest records the immutable source commit used to verify each addition. F5 adds Java URL readers, Swift async URLSession and fluent HTTP coverage with positive/negative fixtures; no additional current F5 sites found. F4 includes resolved HttpLocalApi methods and V1Request send ports, including layered app implementations. Nested executors remain separate sites, preserving runtime.ts:1314.
 
 ## CC-1: 2 occurrences
 
@@ -35,7 +35,7 @@ Detection-only changes over the initial ownership census source `66d64e8cd154441
 | `web/src/platform/playback/runtime.ts:1160` | `stack.http.send({...value, signal: value.signal ? AbortSignal.any([value.signal, request.signal]) : request.signal})` | `web/src/platform/playback/runtime.ts#d08cac842cd1705e` |
 | `web/src/platform/playback/start-owner.ts:36` | `original.send({...request, signal})` | `web/src/platform/playback/start-owner.ts#6c05124bbe8c6d46` |
 
-## CC-4: 6 occurrences
+## CC-4: 6 occurrences (separately approved transport exceptions)
 
 | Exact site | Request | ID |
 |---|---|---|

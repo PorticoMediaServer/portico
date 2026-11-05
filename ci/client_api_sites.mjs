@@ -131,8 +131,7 @@ try {
       // A block-bodied parameter guard is the complete reviewed guard. A bare
       // forwarding callback uses its containing policy; chapter comparisons also
       // bind the outer factory that creates the comparison-only capability.
-      const guard=chapterGuard ? outerPolicy : parameterGuard?.body?.kind===K.Block ? parameterGuard : outerPolicy;
-      const guardText=guard ? text(guard) : '';
+      let guard=chapterGuard ? outerPolicy : parameterGuard?.body?.kind===K.Block ? parameterGuard : outerPolicy;
       let forwardingShape;
       if ((callName==='request' || aliases.has(callName)) && [3,4].includes(args.length) && sameNames(['path','method','body'])) forwardingShape=args.length===3 ? 'request-without-signal' : 'request';
       if (callName==='requestRaw' && args.length===3 && sameNames(['path','method','options'])) forwardingShape='requestRaw';
@@ -152,12 +151,17 @@ try {
       }
       if (contract?.body) tupleBindings(contract.body);
       const parameter = name => parameters.has(name);
+      if (['requestMetadataUpload','requestBounded'].includes(callName) && contract?.body?.kind===K.Block) guard=contract;
+      const guardText=guard ? text(guard) : '';
       const signalOptions = n => n?.kind===K.ObjectLiteralExpression && n.properties.length===2
         && n.properties[0].kind===K.SpreadAssignment && n.properties[0].expression.kind===K.Identifier && parameter(n.properties[0].expression.text)
         && [K.PropertyAssignment,K.ShorthandPropertyAssignment].includes(n.properties[1].kind) && nameOf(n.properties[1].name)==='signal';
       if (callName==='requestRaw' && args.length===3 && sameNames(['path','method']) && ['path','method'].every(parameter) && signalOptions(args[2])) forwardingShape='raw-signal-options';
       if (callName==='requestConsole' && args.length===4 && sameNames(['path','method','body']) && ['path','method','body'].every(parameter)) forwardingShape='console';
       if (callName==='request' && args.length===5 && sameNames(['path','method','body']) && ['path','method','body'].every(parameter) && args[4]?.kind===K.Identifier && parameter(args[4].text)) forwardingShape='request-options';
+      if (callName==='requestLyrics' && args.length===4 && sameNames(['path','method','body']) && ['path','method','body'].every(parameter)) forwardingShape='lyrics';
+      if (callName==='requestMetadataUpload' && args.length===3 && sameNames(['path','body']) && ['path','body'].every(parameter)) forwardingShape='metadata-upload';
+      if (callName==='requestBounded' && args.length===3 && sameNames(['path','maxBytes']) && ['path','maxBytes'].every(parameter)) forwardingShape='bounded';
       if (callName==='routeFetch' && args.length===2 && args[0]?.kind===K.Identifier && parameter(args[0].text) && signalOptions(args[1])) forwardingShape='fetch-signal-options';
       if (callName==='send' && args.length===1 && (args[0]?.kind===K.Identifier && parameter(args[0].text) || signalOptions(args[0]))) forwardingShape='request-object';
       if (callName==='request' && args.length===4 && args[0]?.kind===K.Identifier && args[0].text==='path' && parameter('path')
@@ -166,7 +170,7 @@ try {
       if (chapterGuard && builders.has(callName) && literal(args[0])==='get_playback_sessions_id_chapters') forwardingShape='chapter-capability';
       const forwardedRequest=forwardingShape!==undefined;
       const guardHash = guard ? createHash('sha256').update(guardText).digest('hex') : undefined;
-      sites.push({file:path,line,kind,forwardedRequest,forwardingShape,guardHash,owner:owner?text(owner.name):'<module>',callee,operations:[...new Set(operations)].sort(),expression:text(c).replace(/\s+/g,' ')});
+      sites.push({file:path,line,kind,forwardedRequest,forwardingShape,guardHash,owner:owner?text(owner.name):'<module>',callee,operations:[...new Set(operations)].sort(),callText:text(c),expression:text(c).replace(/\s+/g,' ')});
     }
   }
 } finally {api.close();rmSync(scratch,{recursive:true,force:true});}

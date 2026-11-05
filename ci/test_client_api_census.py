@@ -161,13 +161,15 @@ async fn load(client: Client, url: &str) {
 
 
 class ClientApiCensusEndToEnd(unittest.TestCase):
-    def fixture(self, source, filename='web/src/guard.ts', category='platform-transport'):
+    def fixture(self, source, filename='web/src/guard.ts', category='platform-transport', dependencies=None):
         import os
         from contextlib import ExitStack
         self.stack = ExitStack(); self.addCleanup(self.stack.close)
         root=Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
         (root/filename).parent.mkdir(parents=True)
         (root/filename).write_text(source)
+        for name,body in (dependencies or {}).items():
+            (root/name).parent.mkdir(parents=True,exist_ok=True);(root/name).write_text(body)
         (root/'ci').mkdir()
         self.env = dict(os.environ, GIT_AUTHOR_NAME='Justin Ehler', GIT_AUTHOR_EMAIL='justin@justinehler.com', GIT_COMMITTER_NAME='Justin Ehler', GIT_COMMITTER_EMAIL='justin@justinehler.com')
         subprocess.run(['git','init','-q',str(root)],check=True,env=self.env)
@@ -278,12 +280,17 @@ function guarded(target: {sessionId: string}) {
             (root/filename).write_text(source.replace(before,after));self.assertEqual(self.check(root)[0],1)
 
     def test_cc4_forwarding_shapes_reject_path_body_and_options_construction(self):
-        declarations='''declare const api: {
+        core='''export declare class HttpLocalApi {
  request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal, options?: unknown): Promise<T>;
  requestConsole<T>(path: string, method: string, body: unknown, signal: AbortSignal): Promise<T>;
  requestRaw(path: string, method: string, options: unknown): Promise<unknown>;
  routeFetch(input: string, options: unknown): Promise<unknown>;
-};\n'''
+ requestLyrics<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>;
+ requestMetadataUpload<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T>;
+ requestBounded<T>(path: string, maxBytes: number, signal: AbortSignal): Promise<T>;
+ send(request: object): Promise<unknown>;
+}\n'''
+        declarations="import type {HttpLocalApi} from '../../packages/client-core/src/index';\ndeclare const api: HttpLocalApi;\n"
         cases=[
             ('raw-signal-options', 'function guard(path: string, method: string, options: object, signal: AbortSignal) {return api.requestRaw(path,method,{...options,signal});}',
              'api.requestRaw(path,','api.requestRaw(path+"/built",','{...options,signal}','{...options,body:{built:true},signal}'),
@@ -297,11 +304,19 @@ function guarded(target: {sessionId: string}) {
              'api.request(path,','api.request(path+"/built",',"'GET',undefined,","'GET',{built:true},"),
             ('fetch-signal-options', 'function guard(input: string, options: object, signal: AbortSignal) {return api.routeFetch(input,{...options,signal});}',
              'api.routeFetch(input,','api.routeFetch(input+"/built",','{...options,signal}','{...options,body:{built:true},signal}'),
+            ('lyrics', 'function guard(path: string, method: string, body: unknown, signal: AbortSignal) {return api.requestLyrics(path,method,body,signal);}',
+             'api.requestLyrics(path,','api.requestLyrics(path+"/built",','method,body,','method,{built:true},'),
+            ('metadata-upload', 'function guard(path: string, body: unknown, signal: AbortSignal) {return api.requestMetadataUpload(path,body,signal);}',
+             'api.requestMetadataUpload(path,','api.requestMetadataUpload(path+"/built",','path,body,','path,{built:true},'),
+            ('bounded', 'function guard(path: string, maxBytes: number, signal: AbortSignal) {return api.requestBounded(path,maxBytes,signal);}',
+             'api.requestBounded(path,','api.requestBounded(path+"/built",','path,maxBytes,','path,maxBytes+1,'),
+            ('request-object', 'function guard(request: object, signal: AbortSignal) {return api.send({...request,signal});}',
+             '{...request,signal}','{...request,path:"/built",signal}','{...request,signal}','{...request,body:{built:true},signal}'),
         ]
         for shape,guard,p0,p1,b0,b1 in cases:
             with self.subTest(shape=shape):
                 source=declarations+guard
-                root,filename,sites,entry=self.fixture(source)
+                root,filename,sites,entry=self.fixture(source,dependencies={'packages/client-core/src/index.ts':core})
                 self.assertEqual(sites[0].get('forwardingShape'),shape)
                 self.assertEqual(self.check(root)[0],0)
                 for changed in [source.replace(p0,p1),source.replace(b0,b1)]:
@@ -377,6 +392,52 @@ function load(kind: string) {return api.request(kindMetadataAgentsPath(kind));}
         self.git(root,'add','.');self.git(root,'commit','-qm','Remove the URL request')
         (root/filename).write_text(source);(root/BASELINE).write_text(json.dumps({key:1}))
         self.assertEqual(self.check(root)[0],1)
+
+    def test_direct_rehash_is_review_bound_byte_identical_and_one_for_one(self):
+        root,filename,old_sites,_=self.fixture(self.GUARD)
+        (root/ALLOWLIST).write_text('{}');(root/BASELINE).write_text(json.dumps(counts(old_sites)))
+        self.git(root,'add','.');self.git(root,'commit','-qm','Keep the existing forwarding site direct')
+        previous=self.git(root,'rev-parse','HEAD').strip();old=old_sites[0]
+        source=self.GUARD.replace('  const value','  // An unrelated catalogue read moved into core.\n  const value')
+        (root/filename).write_text(source)
+        self.git(root,'add',filename);self.git(root,'commit','-qm','Change unrelated enclosing function source')
+        reviewed=self.git(root,'rev-parse','HEAD').strip();new=scan(root)[0]
+        evidence='docs/client-api-rehashes/901-guard.json';(root/evidence).parent.mkdir(parents=True)
+        (root/evidence).write_text(json.dumps({'oldSpan':self.GUARD[self.GUARD.index('async function'):].strip(),
+                                              'newSpan':source[source.index('async function'):].strip()}))
+        entry={'category':'identity-rehash','reason':'Reviewed unrelated function edit','condition':'Byte-identical forwarding, no construction or selection',
+               'guardHash':new['guardHash'],'occurrences':1,
+               'rulingUrl':'https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646375725',
+               'previousSiteId':old['id'],'previousGuardHash':old['guardHash'],'previousCommit':previous,
+               'reviewedCommit':reviewed,'pullRequest':'https://github.com/PorticoMediaServer/portico/pull/901',
+               'reviewUrl':'https://github.com/PorticoMediaServer/portico/pull/901#issuecomment-123','spanEvidence':evidence}
+        (root/APPROVALS).write_text(json.dumps({new['id']:entry}))
+        self.assertEqual(main(['--update','--base',previous],root=root),0)
+        self.assertEqual(json.loads((root/BASELINE).read_text()),{new['id']:1})
+        # A re-hash must consume the old baseline occurrence, never keep both.
+        (root/BASELINE).write_text(json.dumps({old['id']:1,new['id']:1}))
+        self.assertEqual(main(['--base',previous],root=root),1)
+        (root/BASELINE).write_text(json.dumps({new['id']:1}))
+        bad={**entry,'reviewedCommit':previous};(root/APPROVALS).write_text(json.dumps({new['id']:bad}))
+        self.assertEqual(main(['--base',previous],root=root),1,'the reviewed source must contain the new full guard')
+        bad=dict(entry);bad.pop('reviewUrl');(root/APPROVALS).write_text(json.dumps({new['id']:bad}))
+        self.assertEqual(main(['--base',previous],root=root),1)
+        # Direct identity authorization cannot be used as a transport allowance.
+        pin={filename:{'category':'platform-transport','reason':entry['reason'],'sites':[new['id']],
+                       'guardHashes':{new['id']:new['guardHash']}}}
+        self.assertTrue(base_guard({},pin,{new['id']:1},{},{new['id']:entry}))
+        (root/APPROVALS).write_text(json.dumps({new['id']:entry}))
+        self.git(root,'add','.');self.git(root,'commit','-qm','Record the reviewed direct identity replacement')
+        self.assertEqual(main(['--base','HEAD'],root=root),0,'an already active unchanged record stays valid')
+        # Rebinding hashes/evidence to a path-construction edit still fails the
+        # byte-for-byte forwarding test, even with otherwise valid metadata.
+        changed=source.replace('api.request<unknown>(path,','api.request<unknown>(path+"/built",')
+        (root/filename).write_text(changed);self.git(root,'add',filename);self.git(root,'commit','-qm','Change the forwarded path')
+        mutated=scan(root)[0];bad={**entry,'guardHash':mutated['guardHash'],'reviewedCommit':self.git(root,'rev-parse','HEAD').strip()}
+        (root/evidence).write_text(json.dumps({'oldSpan':self.GUARD[self.GUARD.index('async function'):].strip(),
+                                              'newSpan':changed[changed.index('async function'):].strip()}))
+        (root/APPROVALS).write_text(json.dumps({mutated['id']:bad}));(root/BASELINE).write_text(json.dumps({mutated['id']:1}))
+        self.assertEqual(main(['--base',previous],root=root),1)
 
 
     def test_exception_expansion_requires_exact_ledger_ruling_and_multiplicity(self):
