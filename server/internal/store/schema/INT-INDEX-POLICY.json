@@ -909,6 +909,12 @@
       "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
     },
     {
+      "index": "search_reclaim_due",
+      "predicate": "job_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared exact predicate; intended INDEXED BY; bundled EQP no temp Btree; bounded two-stream keyset"
+    },
+    {
       "index": "security_purge_jobs_governor_due",
       "predicate": "job_due_ms IS NOT NULL",
       "choice": "repeat_exact_predicate",

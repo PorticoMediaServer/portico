@@ -1,5 +1,5 @@
 {
-  "ddl_sha256": "291ab3ac4b78338227923e090174b562726d3f7cddb36669e94cb14e05747fdd",
+  "ddl_sha256": "5785482ac840ebbfa456f9a805b0ff2f23b964ca9b5cd3c1e1e3913674088744",
   "scope": "Conservative10M+capable repeated/high-fanout/time grains at1Mitems, not a claim every server reaches this density. Full release index set includes declared/implicit UNIQUE/PK/rowid paths. No post-release populated-table index addition; new justified empty access relation online.",
   "tables": [
     {
@@ -20,7 +20,7 @@
             }
           ],
           "sql": "CREATE INDEX analysis_artifact_digest ON analysis_artifacts(digest)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "analysis_artifact_result",
@@ -40,7 +40,7 @@
             }
           ],
           "sql": "CREATE INDEX analysis_artifact_result ON analysis_artifacts(result_id,ordinal)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_analysis_artifacts_1",
@@ -55,7 +55,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -87,7 +87,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -119,7 +119,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -151,7 +151,7 @@
             }
           ],
           "sql": "CREATE INDEX analysis_marker_source ON analysis_markers(object_id,source_revision,start_us)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_analysis_markers_1",
@@ -166,7 +166,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -193,7 +193,7 @@
             }
           ],
           "sql": "CREATE INDEX analysis_stage_job ON analysis_stage_runs(job_id,state)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_analysis_stage_runs_1",
@@ -233,7 +233,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -284,7 +284,7 @@
             }
           ],
           "sql": "CREATE INDEX api_events_activity_progress ON api_events(audience,type,resource_kind,resource_id,at_ms DESC)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "api_events_audience",
@@ -304,7 +304,7 @@
             }
           ],
           "sql": "CREATE INDEX api_events_audience ON api_events(audience,id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "api_events_expiry",
@@ -324,7 +324,7 @@
             }
           ],
           "sql": "CREATE INDEX api_events_expiry ON api_events(at_ms,id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -346,7 +346,7 @@
             }
           ],
           "sql": "CREATE INDEX api_idempotency_expiry ON api_idempotency(expires_at)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_api_idempotency_1",
@@ -366,7 +366,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -393,7 +393,7 @@
             }
           ],
           "sql": "CREATE INDEX artwork_blobs_created ON artwork_blobs(created_at,digest)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_artwork_blobs_1",
@@ -408,7 +408,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -430,7 +430,7 @@
             }
           ],
           "sql": "CREATE INDEX artwork_discovery_governor_due ON artwork_discovery(job_due_ms) WHERE job_due_ms IS NOT NULL",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_artwork_discovery_1",
@@ -455,7 +455,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -477,7 +477,7 @@
             }
           ],
           "sql": "CREATE INDEX artwork_selections_digest ON artwork_selections(digest)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "artwork_selections_source",
@@ -502,7 +502,7 @@
             }
           ],
           "sql": "CREATE INDEX artwork_selections_source ON artwork_selections(provider,origin,digest)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_artwork_selections_1",
@@ -532,7 +532,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -554,7 +554,7 @@
             }
           ],
           "sql": "CREATE INDEX artwork_sources_ambient ON artwork_sources(ambient_blob)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "artwork_sources_created",
@@ -574,7 +574,7 @@
             }
           ],
           "sql": "CREATE INDEX artwork_sources_created ON artwork_sources(created_at,digest)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "artwork_sources_large",
@@ -589,7 +589,7 @@
             }
           ],
           "sql": "CREATE INDEX artwork_sources_large ON artwork_sources(large_blob)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "artwork_sources_large_edge",
@@ -609,7 +609,7 @@
             }
           ],
           "sql": "CREATE INDEX artwork_sources_large_edge ON artwork_sources(large_edge,digest)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "artwork_sources_small",
@@ -624,7 +624,7 @@
             }
           ],
           "sql": "CREATE INDEX artwork_sources_small ON artwork_sources(small_blob)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_artwork_sources_1",
@@ -639,7 +639,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -661,7 +661,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -688,7 +688,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -710,7 +710,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -737,7 +737,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -759,7 +759,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -781,7 +781,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -808,7 +808,7 @@
             }
           ],
           "sql": "CREATE INDEX asset_subtitles_asset ON asset_subtitles(asset_id,id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "asset_subtitles_language",
@@ -828,7 +828,7 @@
             }
           ],
           "sql": "CREATE INDEX asset_subtitles_language ON asset_subtitles(language,asset_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "asset_subtitles_sidecar_id_fk",
@@ -843,7 +843,7 @@
             }
           ],
           "sql": "CREATE INDEX asset_subtitles_sidecar_id_fk ON asset_subtitles(sidecar_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_asset_subtitles_1",
@@ -858,7 +858,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_asset_subtitles_2",
@@ -883,7 +883,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -915,7 +915,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -942,7 +942,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -974,7 +974,7 @@
             }
           ],
           "sql": "CREATE INDEX audio_tag_evidence_asset ON audio_tag_evidence(asset_id,field,value)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "audio_tag_evidence_genre_value",
@@ -994,7 +994,7 @@
             }
           ],
           "sql": "CREATE INDEX audio_tag_evidence_genre_value ON audio_tag_evidence(library_id,value COLLATE NOCASE) WHERE field='genre'",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_audio_tag_evidence_1",
@@ -1019,7 +1019,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -1061,7 +1061,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_age_facet_term ON catalog_age_facet_counts(term_id,library_id,kind,block_unrated,admission_age)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "fk_child_catalog_age_facet_counts_1",
@@ -1076,7 +1076,7 @@
             }
           ],
           "sql": "CREATE INDEX \"fk_child_catalog_age_facet_counts_1\" ON \"catalog_age_facet_counts\"(\"kind\")",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_age_facet_counts_1",
@@ -1111,7 +1111,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -1138,7 +1138,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_asset_authored ON catalog_asset_contributions(asset_id,parent_id) WHERE authored_refs>0",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_asset_contribution_size",
@@ -1163,7 +1163,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_asset_contribution_size ON catalog_asset_contributions(parent_id,file_size DESC,asset_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_asset_contribution_source",
@@ -1183,7 +1183,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_asset_contribution_source ON catalog_asset_contributions(asset_id,parent_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_asset_contributions_1",
@@ -1203,7 +1203,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -1235,7 +1235,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_asset_delta_size ON catalog_asset_deltas(publication_id,file_size DESC,asset_id) WHERE action='upsert'",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_asset_delta_source",
@@ -1260,7 +1260,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_asset_delta_source ON catalog_asset_deltas(asset_id,parent_id,publication_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_asset_deltas_1",
@@ -1280,7 +1280,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -1316,7 +1316,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_attribute_ambiguous_restrictions ON catalog_attribute_terms(field_id,id) WHERE instr(value_key,'|')>0",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_attribute_terms_1",
@@ -1336,7 +1336,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -1372,7 +1372,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_book_chapters_end_ms ON catalog_book_chapters(file_id,CAST(round(end_seconds*1000) AS INTEGER))",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_book_chapters_1",
@@ -1392,7 +1392,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -1419,7 +1419,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_collection_members_item ON catalog_collection_members(item_id,collection_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_collection_members_page",
@@ -1444,7 +1444,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_collection_members_page ON catalog_collection_members(collection_id,order_key,item_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_collection_members_1",
@@ -1464,7 +1464,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -1495,7 +1495,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -1522,7 +1522,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_credits_department ON catalog_credits(department_id,entity_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_credits_name",
@@ -1542,7 +1542,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_credits_name ON catalog_credits(credited_name,entity_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_credits_owner_entry",
@@ -1562,7 +1562,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_credits_owner_entry ON catalog_credits(owner_entry_id,entity_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_credits_person",
@@ -1582,7 +1582,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_credits_person ON catalog_credits(person_id,entity_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_credits_provider_person",
@@ -1607,7 +1607,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_credits_provider_person ON catalog_credits(provider,provider_person_id,entity_id) WHERE provider_person_id<>''",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_credits_role",
@@ -1627,7 +1627,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_credits_role ON catalog_credits(role_id,entity_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_credits_source_row",
@@ -1647,7 +1647,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_credits_source_row ON catalog_credits(source_row_id,entity_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_credits_1",
@@ -1667,7 +1667,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -1694,7 +1694,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -1721,7 +1721,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_term_entities ON catalog_entity_terms(term_id,entity_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_entity_terms_1",
@@ -1741,7 +1741,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -1768,7 +1768,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_info_new_chapter_facts_2",
@@ -1788,7 +1788,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -1820,7 +1820,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_info_new_chapters_2",
@@ -1840,7 +1840,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -1877,7 +1877,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_info_new_disc_chapters_2",
@@ -1897,7 +1897,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -1929,7 +1929,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_info_new_disc_media_members_2",
@@ -1949,7 +1949,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -1986,7 +1986,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_info_new_disc_streams_2",
@@ -2006,7 +2006,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -2038,7 +2038,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_info_new_disc_title_media_2",
@@ -2058,7 +2058,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -2095,7 +2095,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_info_new_disc_title_media_members_2",
@@ -2115,7 +2115,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -2152,7 +2152,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_info_new_disc_title_media_streams_2",
@@ -2172,7 +2172,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -2204,7 +2204,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_info_new_disc_titles_2",
@@ -2229,7 +2229,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_info_new_disc_titles_3",
@@ -2249,7 +2249,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_info_new_disc_titles_4",
@@ -2269,7 +2269,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -2296,7 +2296,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_info_new_stream_facts_2",
@@ -2316,7 +2316,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -2348,7 +2348,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_info_new_streams_2",
@@ -2368,7 +2368,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -2395,7 +2395,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_info_new_subtitle_facts_2",
@@ -2415,7 +2415,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -2442,7 +2442,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_info_new_subtitle_sidecars_2",
@@ -2462,7 +2462,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_info_new_subtitle_sidecars_3",
@@ -2482,7 +2482,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -2509,7 +2509,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_info_new_subtitles_sidecar ON catalog_info_new_subtitles(change_id,sidecar_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_info_new_subtitles_1",
@@ -2539,7 +2539,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_info_new_subtitles_2",
@@ -2559,7 +2559,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_info_new_subtitles_3",
@@ -2579,7 +2579,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -2611,7 +2611,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_item_attribute_edges_first ON catalog_item_attribute_edges(item_id,source_rowid,term_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_item_attribute_edges_term",
@@ -2631,7 +2631,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_item_attribute_edges_term ON catalog_item_attribute_edges(term_id,item_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_item_attribute_edges_1",
@@ -2651,7 +2651,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -2673,7 +2673,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_people_aliases_person ON catalog_people_aliases(person_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_people_aliases_1",
@@ -2688,7 +2688,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -2719,7 +2719,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_playlist_entries_item ON catalog_playlist_entries(item_id) WHERE item_id IS NOT NULL",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_playlist_entries_page",
@@ -2744,7 +2744,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_playlist_entries_page ON catalog_playlist_entries(playlist_id,order_key,id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_playlist_entries_1",
@@ -2759,7 +2759,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_playlist_entries_2",
@@ -2779,7 +2779,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -2816,7 +2816,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_scalar_admission ON catalog_scalar_contributions(parent_id,admission_age,contributor_id,source) WHERE admission_age IS NOT NULL",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_scalar_contributor",
@@ -2841,7 +2841,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_scalar_contributor ON catalog_scalar_contributions(contributor_id,parent_id,source)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_scalar_critic",
@@ -2871,7 +2871,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_scalar_critic ON catalog_scalar_contributions(parent_id,critic_rating DESC,contributor_id,source) WHERE critic_rating IS NOT NULL",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_scalar_duration",
@@ -2901,7 +2901,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_scalar_duration ON catalog_scalar_contributions(parent_id,duration DESC,contributor_id,source) WHERE duration IS NOT NULL",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_scalar_latest_aired",
@@ -2931,7 +2931,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_scalar_latest_aired ON catalog_scalar_contributions(parent_id,latest_aired_key DESC,contributor_id,source) WHERE latest_aired_key IS NOT NULL",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_scalar_membership",
@@ -2961,7 +2961,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_scalar_membership ON catalog_scalar_contributions(parent_id,membership_sequence,contributor_id,source)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_scalar_rating",
@@ -2991,7 +2991,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_scalar_rating ON catalog_scalar_contributions(parent_id,community_rating DESC,contributor_id,source) WHERE community_rating IS NOT NULL",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_scalar_resolution",
@@ -3021,7 +3021,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_scalar_resolution ON catalog_scalar_contributions(parent_id,resolution DESC,contributor_id,source) WHERE resolution IS NOT NULL",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_scalar_contributions_1",
@@ -3046,7 +3046,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -3073,7 +3073,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_scalar_delta_contributor ON catalog_scalar_deltas(contributor_id,publication_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_scalar_delta_duration",
@@ -3103,7 +3103,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_scalar_delta_duration ON catalog_scalar_deltas(publication_id,duration DESC,contributor_id,source) WHERE action='upsert' AND duration IS NOT NULL",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_scalar_delta_parent",
@@ -3133,7 +3133,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_scalar_delta_parent ON catalog_scalar_deltas(parent_id,publication_id,contributor_id,source)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_scalar_delta_rating",
@@ -3163,7 +3163,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_scalar_delta_rating ON catalog_scalar_deltas(publication_id,community_rating DESC,contributor_id,source) WHERE action='upsert' AND community_rating IS NOT NULL",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_scalar_deltas_1",
@@ -3188,7 +3188,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -3215,7 +3215,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_song_artists_artist ON catalog_song_artists(artist_id,song_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_song_artists_1",
@@ -3235,7 +3235,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -3262,7 +3262,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_term_source_membership ON catalog_term_sources(entity_id,term_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_term_sources_name_seek",
@@ -3282,7 +3282,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_term_sources_name_seek ON catalog_term_sources(source_name COLLATE NOCASE,entity_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_term_sources_overrides",
@@ -3307,7 +3307,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_term_sources_overrides ON catalog_term_sources(label_override,entity_id,term_id) WHERE label_override IS NOT NULL",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_term_sources_provider",
@@ -3332,7 +3332,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_term_sources_provider ON catalog_term_sources(provider,source_id,entity_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "catalog_term_sources_term",
@@ -3352,7 +3352,7 @@
             }
           ],
           "sql": "CREATE INDEX catalog_term_sources_term ON catalog_term_sources(term_id,entity_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_catalog_term_sources_1",
@@ -3377,7 +3377,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -3413,7 +3413,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -3445,7 +3445,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -3472,7 +3472,7 @@
             }
           ],
           "sql": "CREATE INDEX container_personal_undo_items_item ON container_personal_undo_items(item_id,token)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_container_personal_undo_items_1",
@@ -3492,7 +3492,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -3519,7 +3519,7 @@
             }
           ],
           "sql": "CREATE UNIQUE INDEX credit_owner_entries_entity_id ON credit_owner_entries(entry_id,entity_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "credit_owner_entries_source",
@@ -3539,7 +3539,7 @@
             }
           ],
           "sql": "CREATE UNIQUE INDEX credit_owner_entries_source ON credit_owner_entries(entity_id,source_row_id) WHERE source_row_id IS NOT NULL",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "credit_owner_entries_source_row_id_entity_id_fk",
@@ -3559,7 +3559,7 @@
             }
           ],
           "sql": "CREATE INDEX credit_owner_entries_source_row_id_entity_id_fk ON credit_owner_entries(source_row_id,entity_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_credit_owner_entries_1",
@@ -3574,7 +3574,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_credit_owner_entries_2",
@@ -3594,7 +3594,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -3626,7 +3626,7 @@
             }
           ],
           "sql": "CREATE INDEX credit_source_publication_members_publication_id_entity_id_provider_fk ON credit_source_publication_members(publication_id,entity_id,provider)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "credit_source_publication_members_source",
@@ -3646,7 +3646,7 @@
             }
           ],
           "sql": "CREATE INDEX credit_source_publication_members_source ON credit_source_publication_members(source_row_id,publication_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "credit_source_publication_members_source_row_id_entity_id_provider_fk",
@@ -3671,7 +3671,7 @@
             }
           ],
           "sql": "CREATE INDEX credit_source_publication_members_source_row_id_entity_id_provider_fk ON credit_source_publication_members(source_row_id,entity_id,provider)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_credit_source_publication_members_1",
@@ -3691,7 +3691,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_credit_source_publication_members_2",
@@ -3711,7 +3711,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -3733,7 +3733,7 @@
             }
           ],
           "sql": "CREATE INDEX credit_source_publications_entity ON credit_source_publications(entity_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_credit_source_publications_1",
@@ -3748,7 +3748,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_credit_source_publications_2",
@@ -3773,7 +3773,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -3800,7 +3800,7 @@
             }
           ],
           "sql": "CREATE INDEX credit_source_rows_person_reference ON credit_source_rows(original_person_identity_key,original_person_token)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "credit_source_rows_tuple",
@@ -3825,7 +3825,7 @@
             }
           ],
           "sql": "CREATE INDEX credit_source_rows_tuple ON credit_source_rows(entity_id,provider,tuple_digest)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_credit_source_rows_1",
@@ -3840,7 +3840,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_credit_source_rows_2",
@@ -3865,7 +3865,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_credit_source_rows_3",
@@ -3885,7 +3885,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -3907,7 +3907,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -3929,7 +3929,7 @@
             }
           ],
           "sql": "CREATE INDEX download_receipts_item ON download_receipts(item_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "download_receipts_key_id_fk",
@@ -3944,7 +3944,7 @@
             }
           ],
           "sql": "CREATE INDEX download_receipts_key_id_fk ON download_receipts(key_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "download_receipts_preparation",
@@ -3959,7 +3959,7 @@
             }
           ],
           "sql": "CREATE INDEX download_receipts_preparation ON download_receipts(preparation_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "download_receipts_retirement",
@@ -3979,7 +3979,7 @@
             }
           ],
           "sql": "CREATE INDEX download_receipts_retirement ON download_receipts(item_id,id) WHERE revoked_ms=0",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "download_receipts_revocations",
@@ -3999,7 +3999,7 @@
             }
           ],
           "sql": "CREATE INDEX download_receipts_revocations ON download_receipts(revoked_ms,sequence)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "download_receipts_viewer",
@@ -4024,7 +4024,7 @@
             }
           ],
           "sql": "CREATE INDEX download_receipts_viewer ON download_receipts(profile_key,item_id,issued_ms DESC)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "separate_preparation_receipts",
@@ -4049,7 +4049,7 @@
             }
           ],
           "sql": "CREATE INDEX separate_preparation_receipts ON download_receipts(preparation_id,item_id,id) WHERE revoked_ms=0",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_download_receipts_1",
@@ -4064,7 +4064,69 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "enrichment_command_receipts",
+      "grain": "INT-CHANGE-001: own-play time counters or per-image/per-operation durable receipt/preparation/reclaim; conservative10M+ lifetime grain",
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "enrichment_receipt_subject",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX enrichment_receipt_subject ON enrichment_command_receipts(entity_id)",
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "sqlite_autoindex_enrichment_command_receipts_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "provider_operation_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "sqlite_autoindex_enrichment_command_receipts_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -4096,7 +4158,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -4123,7 +4185,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -4155,7 +4217,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -4182,7 +4244,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -4214,7 +4276,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -4246,7 +4308,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -4268,7 +4330,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_inventory_disc_titles_2",
@@ -4288,7 +4350,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_inventory_disc_titles_3",
@@ -4308,7 +4370,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -4345,7 +4407,7 @@
             }
           ],
           "sql": "CREATE INDEX inventory_sidecars_directory ON inventory_sidecars(source_id,incarnation,directory_path,relative_path)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_inventory_sidecars_1",
@@ -4370,7 +4432,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -4392,7 +4454,7 @@
             }
           ],
           "sql": "CREATE INDEX inventory_version_links_item ON inventory_version_links(item_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_inventory_version_links_1",
@@ -4412,7 +4474,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -4458,7 +4520,7 @@
             }
           ],
           "sql": "CREATE INDEX lc_play_events_item_fk ON lc_play_events(item_id,channel_id,occurrence_start_ms,event_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "lc_play_events_item_snapshot",
@@ -4483,7 +4545,7 @@
             }
           ],
           "sql": "CREATE INDEX lc_play_events_item_snapshot ON lc_play_events(channel_id,item_id,event_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_lc_play_events_1",
@@ -4508,7 +4570,223 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "listening_item_buckets",
+      "grain": "INT-CHANGE-001: own-play time counters or per-image/per-operation durable receipt/preparation/reclaim; conservative10M+ lifetime grain",
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "listening_item_subject",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "subject_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "activity_generation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "grain",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "bucket_ms",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX listening_item_subject ON listening_item_buckets(subject_id,profile_id,activity_generation,grain,bucket_ms)",
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "listening_item_window",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "activity_generation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "subject_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "grain",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "bucket_ms",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX listening_item_window ON listening_item_buckets(profile_id,activity_generation,subject_id,grain,bucket_ms)",
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "sqlite_autoindex_listening_item_buckets_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "activity_generation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "grain",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "bucket_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "subject_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "listening_play_instants",
+      "grain": "INT-CHANGE-001: own-play time counters or per-image/per-operation durable receipt/preparation/reclaim; conservative10M+ lifetime grain",
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "listening_instant_subject",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "subject_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "activity_generation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "started_ms",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX listening_instant_subject ON listening_play_instants(subject_id,profile_id,activity_generation,started_ms)",
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "sqlite_autoindex_listening_play_instants_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "activity_generation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "started_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "subject_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "listening_profile_buckets",
+      "grain": "INT-CHANGE-001: own-play time counters or per-image/per-operation durable receipt/preparation/reclaim; conservative10M+ lifetime grain",
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_listening_profile_buckets_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "activity_generation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "grain",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "bucket_ms",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -4530,7 +4808,7 @@
             }
           ],
           "sql": "CREATE INDEX live_programme_images_large ON live_programme_images(large_digest)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "live_programme_images_small",
@@ -4545,7 +4823,7 @@
             }
           ],
           "sql": "CREATE INDEX live_programme_images_small ON live_programme_images(small_digest)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_live_programme_images_1",
@@ -4560,7 +4838,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -4582,7 +4860,7 @@
             }
           ],
           "sql": "CREATE INDEX live_programmes_icon ON live_programmes(icon_url) WHERE has_live_programme_icons=1",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "live_programmes_lineage",
@@ -4602,7 +4880,7 @@
             }
           ],
           "sql": "CREATE INDEX live_programmes_lineage ON live_programmes(provider_key,generation_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "live_programmes_provider_key",
@@ -4622,7 +4900,7 @@
             }
           ],
           "sql": "CREATE UNIQUE INDEX live_programmes_provider_key ON live_programmes(generation_id,provider_key)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "live_programmes_window",
@@ -4652,7 +4930,7 @@
             }
           ],
           "sql": "CREATE INDEX live_programmes_window ON live_programmes(generation_id,channel_id,start_utc,end_utc)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_live_programmes_1",
@@ -4672,7 +4950,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -4699,7 +4977,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -4726,7 +5004,7 @@
             }
           ],
           "sql": "CREATE INDEX metadata_accounting_next_evidence ON metadata_accounting_next(evidence_id,transition_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "metadata_accounting_next_namespace",
@@ -4751,7 +5029,7 @@
             }
           ],
           "sql": "CREATE INDEX metadata_accounting_next_namespace ON metadata_accounting_next(provider,evidence_kind,evidence_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_metadata_accounting_next_1",
@@ -4771,7 +5049,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -4798,7 +5076,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -4825,7 +5103,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -4862,7 +5140,7 @@
             }
           ],
           "sql": "CREATE INDEX metadata_entity_external_lookup ON metadata_entity_external_ids(provider,subject_kind,provider_id,entity_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_metadata_entity_external_ids_1",
@@ -4892,7 +5170,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -4919,7 +5197,7 @@
             }
           ],
           "sql": "CREATE INDEX metadata_evidence_subject ON metadata_evidence(subject_id,id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_metadata_evidence_1",
@@ -4934,7 +5212,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_metadata_evidence_2",
@@ -4979,7 +5257,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_metadata_evidence_3",
@@ -5009,7 +5287,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_metadata_evidence_4",
@@ -5029,7 +5307,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_metadata_evidence_5",
@@ -5054,7 +5332,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_metadata_evidence_6",
@@ -5074,7 +5352,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -5101,7 +5379,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -5133,7 +5411,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -5170,7 +5448,7 @@
             }
           ],
           "sql": "CREATE INDEX metadata_evidence_collection_members ON metadata_evidence_collections(provider,collection_kind,collection_id,evidence_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_metadata_evidence_collections_1",
@@ -5195,7 +5473,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -5232,7 +5510,7 @@
             }
           ],
           "sql": "CREATE INDEX metadata_credit_track_namespace ON metadata_evidence_credits(provider,evidence_kind,evidence_id,track_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_metadata_evidence_credits_1",
@@ -5257,7 +5535,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -5289,7 +5567,7 @@
             }
           ],
           "sql": "CREATE INDEX metadata_episode_child_namespace ON metadata_evidence_episodes(provider,episode_kind,episode_evidence_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "metadata_episode_parent_namespace",
@@ -5314,7 +5592,7 @@
             }
           ],
           "sql": "CREATE INDEX metadata_episode_parent_namespace ON metadata_evidence_episodes(provider,evidence_kind,evidence_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "metadata_evidence_episode_absolute",
@@ -5339,7 +5617,7 @@
             }
           ],
           "sql": "CREATE INDEX metadata_evidence_episode_absolute ON metadata_evidence_episodes(evidence_id,episode_order,absolute_number)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "metadata_evidence_episode_position",
@@ -5369,7 +5647,7 @@
             }
           ],
           "sql": "CREATE INDEX metadata_evidence_episode_position ON metadata_evidence_episodes(evidence_id,episode_order,season_number,episode_number)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "metadata_evidence_episode_reverse",
@@ -5389,7 +5667,7 @@
             }
           ],
           "sql": "CREATE INDEX metadata_evidence_episode_reverse ON metadata_evidence_episodes(episode_evidence_id,evidence_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_metadata_evidence_episodes_1",
@@ -5409,7 +5687,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_metadata_evidence_episodes_2",
@@ -5434,7 +5712,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -5471,7 +5749,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -5498,7 +5776,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_metadata_evidence_media_2",
@@ -5528,7 +5806,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -5560,7 +5838,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -5592,7 +5870,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -5624,7 +5902,7 @@
             }
           ],
           "sql": "CREATE INDEX metadata_evidence_track_recording ON metadata_evidence_tracks(recording_evidence_id,evidence_id,track_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "metadata_track_media_namespace",
@@ -5654,7 +5932,7 @@
             }
           ],
           "sql": "CREATE INDEX metadata_track_media_namespace ON metadata_evidence_tracks(provider,evidence_kind,evidence_id,medium_position)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "metadata_track_recording_namespace",
@@ -5679,7 +5957,7 @@
             }
           ],
           "sql": "CREATE INDEX metadata_track_recording_namespace ON metadata_evidence_tracks(provider,recording_kind,recording_evidence_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_metadata_evidence_tracks_1",
@@ -5699,7 +5977,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_metadata_evidence_tracks_2",
@@ -5724,7 +6002,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_metadata_evidence_tracks_3",
@@ -5754,7 +6032,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -5781,7 +6059,7 @@
             }
           ],
           "sql": "CREATE INDEX metadata_field_origin_evidence ON metadata_field_origins(evidence_id,entity_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "metadata_field_origin_publication",
@@ -5801,7 +6079,7 @@
             }
           ],
           "sql": "CREATE INDEX metadata_field_origin_publication ON metadata_field_origins(publication_id,entity_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_metadata_field_origins_1",
@@ -5821,7 +6099,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -5848,7 +6126,7 @@
             }
           ],
           "sql": "CREATE INDEX metadata_operation_artist_entity ON metadata_operation_artists(artist_id,operation_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_metadata_operation_artists_1",
@@ -5868,7 +6146,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -5900,7 +6178,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -5941,7 +6219,7 @@
             }
           ],
           "sql": "CREATE INDEX metadata_owner_history_entity ON metadata_owner_history(kind,entity_id,id DESC)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -5973,7 +6251,7 @@
             }
           ],
           "sql": "CREATE INDEX metadata_person_external_lookup ON metadata_person_external_ids(provider,provider_id,person_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_metadata_person_external_ids_1",
@@ -5998,7 +6276,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -6025,7 +6303,7 @@
             }
           ],
           "sql": "CREATE INDEX metadata_operation_source_asset ON metadata_provider_operation_sources(asset_id,operation_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_metadata_provider_operation_sources_1",
@@ -6045,7 +6323,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -6077,7 +6355,7 @@
             }
           ],
           "sql": "CREATE INDEX metadata_page_evidence_namespace ON metadata_publication_page_members(provider,subject_kind,evidence_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "metadata_page_member_evidence",
@@ -6097,7 +6375,7 @@
             }
           ],
           "sql": "CREATE INDEX metadata_page_member_evidence ON metadata_publication_page_members(evidence_id,set_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "metadata_page_member_namespace",
@@ -6122,7 +6400,7 @@
             }
           ],
           "sql": "CREATE INDEX metadata_page_member_namespace ON metadata_publication_page_members(set_id,provider,subject_kind)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_metadata_publication_page_members_1",
@@ -6147,7 +6425,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_metadata_publication_page_members_2",
@@ -6167,7 +6445,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -6194,7 +6472,7 @@
             }
           ],
           "sql": "CREATE INDEX notification_ack_notice ON notification_acknowledgments(notice_sequence,principal_key)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_notification_acknowledgments_1",
@@ -6214,7 +6492,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -6236,7 +6514,7 @@
             }
           ],
           "sql": "CREATE INDEX personal_activity_receipts_expiry ON personal_activity_receipts(created_at)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_personal_activity_receipts_1",
@@ -6256,7 +6534,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -6278,7 +6556,7 @@
             }
           ],
           "sql": "CREATE INDEX personal_batch_receipts_expiry ON personal_batch_receipts(created_at)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_personal_batch_receipts_1",
@@ -6298,7 +6576,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -6330,7 +6608,7 @@
             }
           ],
           "sql": "CREATE UNIQUE INDEX personal_conflict_open ON personal_conflicts(profile_id,item_id,field) WHERE resolved=0",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "personal_conflicts_item_id_fk",
@@ -6345,7 +6623,7 @@
             }
           ],
           "sql": "CREATE INDEX personal_conflicts_item_id_fk ON personal_conflicts(item_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "personal_conflicts_profile",
@@ -6365,7 +6643,7 @@
             }
           ],
           "sql": "CREATE INDEX personal_conflicts_profile ON personal_conflicts(profile_id,id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_personal_conflicts_1",
@@ -6380,7 +6658,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -6417,7 +6695,7 @@
             }
           ],
           "sql": "CREATE INDEX personal_event_ancestor ON personal_explicit_events(profile_id,item_id,field,base_revision)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "personal_explicit_events_expiry",
@@ -6432,7 +6710,7 @@
             }
           ],
           "sql": "CREATE INDEX personal_explicit_events_expiry ON personal_explicit_events(created_at)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "personal_explicit_events_item_id_fk",
@@ -6447,7 +6725,7 @@
             }
           ],
           "sql": "CREATE INDEX personal_explicit_events_item_id_fk ON personal_explicit_events(item_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_personal_explicit_events_1",
@@ -6467,7 +6745,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_personal_explicit_events_2",
@@ -6492,7 +6770,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -6538,7 +6816,7 @@
             }
           ],
           "sql": "CREATE INDEX personal_current_activity ON personal_items(profile_id,activity_visible,activity_at DESC,item_public_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "personal_current_completed",
@@ -6568,7 +6846,7 @@
             }
           ],
           "sql": "CREATE INDEX personal_current_completed ON personal_items(profile_id,activity_visible,last_completed_at DESC,item_public_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "personal_current_library",
@@ -6593,7 +6871,7 @@
             }
           ],
           "sql": "CREATE INDEX personal_current_library ON personal_items(library_id,profile_id,item_public_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "personal_current_live",
@@ -6613,7 +6891,7 @@
             }
           ],
           "sql": "CREATE UNIQUE INDEX personal_current_live ON personal_items(profile_id,item_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "personal_current_live_item",
@@ -6633,7 +6911,7 @@
             }
           ],
           "sql": "CREATE INDEX personal_current_live_item ON personal_items(item_id,profile_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "personal_current_plays",
@@ -6658,7 +6936,7 @@
             }
           ],
           "sql": "CREATE INDEX personal_current_plays ON personal_items(profile_id,play_count DESC,item_public_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "personal_current_radio",
@@ -6683,7 +6961,7 @@
             }
           ],
           "sql": "CREATE INDEX personal_current_radio ON personal_items(profile_id,radio_last_started_at DESC,item_public_id) WHERE radio_last_started_at IS NOT NULL",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "personal_current_rating",
@@ -6708,7 +6986,7 @@
             }
           ],
           "sql": "CREATE INDEX personal_current_rating ON personal_items(profile_id,rating,item_public_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "personal_current_recent",
@@ -6738,7 +7016,7 @@
             }
           ],
           "sql": "CREATE INDEX personal_current_recent ON personal_items(profile_id,activity_visible,last_played_at DESC,item_public_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "personal_current_retained",
@@ -6763,7 +7041,7 @@
             }
           ],
           "sql": "CREATE INDEX personal_current_retained ON personal_items(profile_id,retained_at_ms,id) WHERE retained_at_ms IS NOT NULL",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -6790,7 +7068,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_personal_job_items_2",
@@ -6810,7 +7088,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -6837,7 +7115,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -6859,7 +7137,7 @@
             }
           ],
           "sql": "CREATE INDEX personal_receipts_expiry ON personal_receipts(created_at)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "personal_receipts_item_id_fk",
@@ -6874,7 +7152,7 @@
             }
           ],
           "sql": "CREATE INDEX personal_receipts_item_id_fk ON personal_receipts(item_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "personal_receipts_profile",
@@ -6889,7 +7167,7 @@
             }
           ],
           "sql": "CREATE INDEX personal_receipts_profile ON personal_receipts(profile_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_personal_receipts_1",
@@ -6919,7 +7197,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -6941,7 +7219,7 @@
             }
           ],
           "sql": "CREATE INDEX personal_snapshots_expiry ON personal_snapshots(created_at)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "personal_snapshots_item_id_fk",
@@ -6956,7 +7234,7 @@
             }
           ],
           "sql": "CREATE INDEX personal_snapshots_item_id_fk ON personal_snapshots(item_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_personal_snapshots_1",
@@ -6981,7 +7259,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -7022,7 +7300,7 @@
             }
           ],
           "sql": "CREATE INDEX play_history_admin_item ON play_history(subject_id,occurred_at DESC,id DESC)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "play_history_admin_time",
@@ -7042,7 +7320,7 @@
             }
           ],
           "sql": "CREATE INDEX play_history_admin_time ON play_history(occurred_at DESC,id DESC)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "play_history_admin_user",
@@ -7067,7 +7345,7 @@
             }
           ],
           "sql": "CREATE INDEX play_history_admin_user ON play_history(account_key,occurred_at DESC,id DESC)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -7094,7 +7372,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -7126,7 +7404,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -7158,7 +7436,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -7180,7 +7458,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -7207,7 +7485,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_playback_disc_snapshot_streams_2",
@@ -7227,7 +7505,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -7254,7 +7532,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_playback_disc_snapshot_titles_2",
@@ -7274,7 +7552,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -7296,7 +7574,7 @@
             }
           ],
           "sql": "CREATE INDEX playlist_receipts_expiry ON playlist_receipts(created_at)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_playlist_receipts_1",
@@ -7326,7 +7604,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -7373,7 +7651,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -7415,7 +7693,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -7437,7 +7715,7 @@
             }
           ],
           "sql": "CREATE INDEX reading_source_values_inventory_object ON reading_source_values(inventory_object_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_reading_source_values_1",
@@ -7467,7 +7745,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -7503,7 +7781,7 @@
             }
           ],
           "sql": "CREATE INDEX reading_text_sections_publication ON reading_text_sections(publication_id,id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_reading_text_sections_1",
@@ -7528,7 +7806,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -7550,7 +7828,7 @@
             }
           ],
           "sql": "CREATE INDEX saved_entry_undo_expiry ON saved_entry_undo(expires_ms)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "saved_entry_undo_item_id_fk",
@@ -7565,7 +7843,7 @@
             }
           ],
           "sql": "CREATE INDEX saved_entry_undo_item_id_fk ON saved_entry_undo(item_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "saved_entry_undo_list",
@@ -7590,7 +7868,7 @@
             }
           ],
           "sql": "CREATE INDEX saved_entry_undo_list ON saved_entry_undo(owner_key,kind,resource_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_saved_entry_undo_1",
@@ -7610,7 +7888,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -7642,7 +7920,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -7664,7 +7942,7 @@
             }
           ],
           "sql": "CREATE INDEX saved_resource_entries_item_id_fk ON saved_resource_entries(item_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "saved_resource_entries_order",
@@ -7689,7 +7967,7 @@
             }
           ],
           "sql": "CREATE INDEX saved_resource_entries_order ON saved_resource_entries(resource_id,order_key,id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_saved_resource_entries_1",
@@ -7704,7 +7982,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_saved_resource_entries_2",
@@ -7724,7 +8002,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -7746,7 +8024,7 @@
             }
           ],
           "sql": "CREATE INDEX saved_resource_receipts_expiry ON saved_resource_receipts(created_at)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_saved_resource_receipts_1",
@@ -7766,7 +8044,141 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "scan_command_receipts",
+      "grain": "INT-CHANGE-001: own-play time counters or per-image/per-operation durable receipt/preparation/reclaim; conservative10M+ lifetime grain",
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_scan_command_receipts_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "run_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "sqlite_autoindex_scan_command_receipts_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "scan_command_results",
+      "grain": "INT-CHANGE-001: own-play time counters or per-image/per-operation durable receipt/preparation/reclaim; conservative10M+ lifetime grain",
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "scan_result_asset",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "library_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "asset_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX scan_result_asset ON scan_command_results(library_id,asset_id)",
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "scan_result_subject",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "library_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "subject_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX scan_result_subject ON scan_command_results(library_id,subject_id)",
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "sqlite_autoindex_scan_command_results_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "run_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "input_ordinal",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "child_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "child_ordinal",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -7817,7 +8229,7 @@
             }
           ],
           "sql": "CREATE UNIQUE INDEX search_fragment_entity ON search_fragments(owner_entity,search_generation_id,generation,field,ordinal) WHERE owner_entity IS NOT NULL",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "search_fragment_person",
@@ -7852,7 +8264,52 @@
             }
           ],
           "sql": "CREATE UNIQUE INDEX search_fragment_person ON search_fragments(owner_person,search_generation_id,generation,field,ordinal) WHERE owner_person IS NOT NULL",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "search_fragment_publication",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "publication_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "field",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ordinal",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX search_fragment_publication ON search_fragments(publication_id,field,ordinal)",
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "search_fragment_reclaim",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "publication_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX search_fragment_reclaim ON search_fragments(publication_id,id)",
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "search_fragments_generation",
@@ -7872,7 +8329,76 @@
             }
           ],
           "sql": "CREATE INDEX search_fragments_generation ON search_fragments(search_generation_id,id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "search_generation_receipts",
+      "grain": "INT-CHANGE-001: own-play time counters or per-image/per-operation durable receipt/preparation/reclaim; conservative10M+ lifetime grain",
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_search_generation_receipts_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "search_generation_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "sqlite_autoindex_search_generation_receipts_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "search_image_seals",
+      "grain": "INT-CHANGE-001: own-play time counters or per-image/per-operation durable receipt/preparation/reclaim; conservative10M+ lifetime grain",
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_search_image_seals_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "publication_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -7908,7 +8434,7 @@
             }
           ],
           "sql": "CREATE INDEX search_publications_entity ON search_publications(entity_id,id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "search_publications_exact",
@@ -7948,7 +8474,7 @@
             }
           ],
           "sql": "CREATE INDEX search_publications_exact ON search_publications(search_generation_id,library_id,kind,title_fold,entity_id,id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "search_publications_generation",
@@ -7968,7 +8494,7 @@
             }
           ],
           "sql": "CREATE INDEX search_publications_generation ON search_publications(search_generation_id,id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_search_publications_1",
@@ -7993,7 +8519,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_search_publications_2",
@@ -8018,7 +8544,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_search_publications_3",
@@ -8048,7 +8574,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_search_publications_4",
@@ -8078,7 +8604,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -8109,7 +8635,7 @@
             }
           ],
           "sql": "CREATE INDEX search_publish_document_fk ON search_publish_jobs(document_id) WHERE document_id IS NOT NULL",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "search_publish_due",
@@ -8129,7 +8655,7 @@
             }
           ],
           "sql": "CREATE INDEX search_publish_due ON search_publish_jobs(job_due_ms,id) WHERE job_due_ms IS NOT NULL",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "search_publish_generation",
@@ -8149,7 +8675,7 @@
             }
           ],
           "sql": "CREATE INDEX search_publish_generation ON search_publish_jobs(search_generation_id,id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "search_publish_published_doc",
@@ -8164,7 +8690,7 @@
             }
           ],
           "sql": "CREATE INDEX search_publish_published_doc ON search_publish_jobs(published_document_id) WHERE published_document_id IS NOT NULL",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_search_publish_jobs_1",
@@ -8184,7 +8710,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_search_publish_jobs_2",
@@ -8204,7 +8730,207 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "sqlite_autoindex_search_publish_jobs_3",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "search_publish_receipts",
+      "grain": "INT-CHANGE-001: own-play time counters or per-image/per-operation durable receipt/preparation/reclaim; conservative10M+ lifetime grain",
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_search_publish_receipts_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "publish_job_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "sqlite_autoindex_search_publish_receipts_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "search_reclaim_jobs",
+      "grain": "INT-CHANGE-001: own-play time counters or per-image/per-operation durable receipt/preparation/reclaim; conservative10M+ lifetime grain",
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "INTEGER PRIMARY KEY rowid",
+          "keys": [
+            {
+              "column": "id"
+            }
+          ],
+          "origin": "rowid"
+        },
+        {
+          "name": "search_reclaim_due",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "job_due_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX search_reclaim_due ON search_reclaim_jobs(job_due_ms,id) WHERE job_due_ms IS NOT NULL",
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "sqlite_autoindex_search_reclaim_jobs_1",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "publication_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "sqlite_autoindex_search_reclaim_jobs_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "live_publication_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "sqlite_autoindex_search_reclaim_jobs_3",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "search_reclaim_receipts",
+      "grain": "INT-CHANGE-001: own-play time counters or per-image/per-operation durable receipt/preparation/reclaim; conservative10M+ lifetime grain",
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_search_reclaim_receipts_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "reclaim_job_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "sqlite_autoindex_search_reclaim_receipts_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -8236,7 +8962,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "subtitle_inventory_entries_association",
@@ -8271,7 +8997,7 @@
             }
           ],
           "sql": "CREATE INDEX subtitle_inventory_entries_association ON subtitle_inventory_entries(source_id,incarnation,job_id,directory_key,name COLLATE NOCASE)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "subtitle_inventory_entries_job",
@@ -8286,7 +9012,7 @@
             }
           ],
           "sql": "CREATE INDEX subtitle_inventory_entries_job ON subtitle_inventory_entries(job_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -8308,7 +9034,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "subtitle_candidates_expiry",
@@ -8323,7 +9049,7 @@
             }
           ],
           "sql": "CREATE INDEX subtitle_candidates_expiry ON subtitle_provider_candidates(expires_at)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "subtitle_provider_candidates_item_id_fk",
@@ -8338,7 +9064,7 @@
             }
           ],
           "sql": "CREATE INDEX subtitle_provider_candidates_item_id_fk ON subtitle_provider_candidates(item_id)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -8365,7 +9091,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "subtitle_revisions_digest",
@@ -8380,7 +9106,7 @@
             }
           ],
           "sql": "CREATE INDEX subtitle_revisions_digest ON subtitle_revisions(digest)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "subtitle_revisions_original_object",
@@ -8395,7 +9121,7 @@
             }
           ],
           "sql": "CREATE INDEX subtitle_revisions_original_object ON subtitle_revisions(original_object_digest) WHERE has_subtitle_original_revisions=1",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -8417,7 +9143,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "sqlite_autoindex_subtitle_sidecars_2",
@@ -8432,7 +9158,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -8454,7 +9180,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "user_mutation_receipts_expiry",
@@ -8474,7 +9200,7 @@
             }
           ],
           "sql": "CREATE INDEX user_mutation_receipts_expiry ON user_mutation_receipts(issued_ms,key)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "user_mutation_receipts_family",
@@ -8504,7 +9230,7 @@
             }
           ],
           "sql": "CREATE INDEX user_mutation_receipts_family ON user_mutation_receipts(scope_id,family_id,issued_ms,key)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "user_mutation_receipts_profile",
@@ -8534,7 +9260,7 @@
             }
           ],
           "sql": "CREATE INDEX user_mutation_receipts_profile ON user_mutation_receipts(scope_id,profile_id,profile_incarnation,key)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "user_mutation_receipts_root",
@@ -8554,7 +9280,7 @@
             }
           ],
           "sql": "CREATE INDEX user_mutation_receipts_root ON user_mutation_receipts(root_id,key)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "user_mutation_receipts_scope_expiry",
@@ -8579,7 +9305,7 @@
             }
           ],
           "sql": "CREATE INDEX user_mutation_receipts_scope_expiry ON user_mutation_receipts(scope_id,issued_ms,key)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -8601,7 +9327,7 @@
             }
           ],
           "sql": null,
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "webhook_deliveries_governor_due",
@@ -8616,7 +9342,7 @@
             }
           ],
           "sql": "CREATE INDEX webhook_deliveries_governor_due ON webhook_deliveries(job_due_ms) WHERE job_due_ms IS NOT NULL",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "webhook_deliveries_log",
@@ -8641,7 +9367,7 @@
             }
           ],
           "sql": "CREATE INDEX webhook_deliveries_log ON webhook_deliveries(webhook_id,created_ms DESC,id DESC)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
           "name": "webhook_deliveries_queue",
@@ -8661,7 +9387,7 @@
             }
           ],
           "sql": "CREATE INDEX webhook_deliveries_queue ON webhook_deliveries(webhook_id,state)",
-          "access": "Equality-prefix/range/order on declared key columns; source/current/replay and FK custody remain independently indexed as declared."
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
     },
@@ -8672,12 +9398,5 @@
       "complete_release_indexes": []
     }
   ],
-  "research_provenance": {
-    "commit": "0e291e3cf44b15f92845436b38f5bb26123f82af",
-    "branch": "schema-v1/p0-int-assembly",
-    "archive_sha256": "3fb8f24ebc0aac9ac3021ae94d445026bd090177acd904f7ca2bcdf0f3cb1035",
-    "archive_path": "/home/justin/projects/Portico/.private/archives/p0-int/research-0e291e3c.tar",
-    "rule": "Research never merge. Exact in-memory shape/access/type tests, not a performance qualification.",
-    "R_fixture_source_commit": "be667f58c4d3d8f83baf982371a3ce34d1902123"
-  }
+  "change_control": "INT-CHANGE-001 candidate; exact-SHA R review required"
 }
