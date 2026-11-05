@@ -44,10 +44,9 @@ type rows struct {
 	parseFmtIdx []int8
 	pstmt       uintptr
 
-	doStep       bool
-	empty        bool
-	reuseStmt    bool // If true, Close() resets instead of finalizing
-	restoreLimit func()
+	doStep    bool
+	empty     bool
+	reuseStmt bool // If true, Close() resets instead of finalizing
 }
 
 // VMSteps reports and resets the virtual-machine steps this statement has
@@ -108,12 +107,6 @@ func newRows(c *conn, pstmt uintptr, allocs *[]uintptr, empty bool, ctx context.
 
 // Close closes the rows iterator.
 func (r *rows) Close() (err error) {
-	defer func() {
-		if r.restoreLimit != nil {
-			r.restoreLimit()
-			r.restoreLimit = nil
-		}
-	}()
 	r.c.freeAllocs(r.allocs)
 	r.allocs = nil
 
@@ -150,15 +143,11 @@ func (r *rows) Next(dest []driver.Value) (err error) {
 
 	rc := sqlite3.SQLITE_ROW
 	if r.doStep {
-		if b := budgetFrom(r.ctx); b != nil {
-			// Tighten before the VM fetches another value as the window fills.
-			r.c.limit(sqlite3.SQLITE_LIMIT_LENGTH, min(r.c.limit(sqlite3.SQLITE_LIMIT_LENGTH, -1), b.lengthLimit()))
-		}
 		if rc, err = r.c.step(r.pstmt); err != nil {
 			if r.ctx != nil && r.ctx.Err() != nil {
 				return r.ctx.Err()
 			}
-			return budgetError(r.ctx, err)
+			return err
 		}
 	}
 

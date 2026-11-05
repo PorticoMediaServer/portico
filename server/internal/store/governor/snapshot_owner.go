@@ -101,3 +101,15 @@ func (c *snapshotOwnedConn) ReadBudgetSupported() bool {
 	native, ok := c.Conn.(interface{ ReadBudgetSupported() bool })
 	return ok && native.ReadBudgetSupported()
 }
+
+// Snapshot owners expose only read-only limit queries after physical Connect.
+func (c *snapshotOwnedConn) SQLiteLimit(id int, newVal int) (int, error) {
+	if newVal != -1 {
+		return 0, errors.New("snapshot pool limits are fixed")
+	}
+	native, ok := c.Conn.(interface{ SQLiteLimit(int, int) (int, error) })
+	if !ok {
+		return 0, errors.New("native limit query unsupported")
+	}
+	return native.SQLiteLimit(id, -1)
+}

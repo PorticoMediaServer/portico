@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -57,7 +58,7 @@ func snapshotGovernor(t *testing.T) (Governor, *Authority) {
 }
 
 func snapshotRequest() Request {
-	return Request{Key: JobKey{Domain: 1, ID: "page"}, Owner: 1, Class: Foreground, Need: Amounts{Reader: 1, MemoryBytes: 64 << 10}, Budget: UnitBudget{RawRows: 32, VMOps: 10000, Pages: 128}, Deadline: time.Now().Add(2 * time.Second)}
+	return Request{Key: JobKey{Domain: 1, ID: "page"}, Owner: 1, Class: Foreground, Need: Amounts{Reader: 1, MemoryBytes: (16 * 16384) + (64 << 10)}, Budget: UnitBudget{RawRows: 32, VMOps: 10000, Pages: 128}, Deadline: time.Now().Add(2 * time.Second)}
 }
 
 func snapshotRegistry(t *testing.T) *stmt.Registry {
@@ -100,6 +101,9 @@ func (c *snapshotConn) ReadBudgetSupported() bool {
 	native, ok := c.Conn.(interface{ ReadBudgetSupported() bool })
 	return ok && native.ReadBudgetSupported()
 }
+func (c *snapshotConn) SQLiteLimit(id int, newVal int) (int, error) {
+	return c.Conn.(interface{ SQLiteLimit(int, int) (int, error) }).SQLiteLimit(id, newVal)
+}
 func (c *snapshotConn) QueryContext(ctx context.Context, q string, args []driver.NamedValue) (driver.Rows, error) {
 	return c.Conn.(driver.QueryerContext).QueryContext(ctx, q, args)
 }
@@ -131,7 +135,7 @@ func (c *snapshotConn) Close() error {
 }
 func snapshotReaderDriver(t *testing.T, path string, g Governor, a *Authority) (*Snapshots, *sql.DB, *snapshotConnector) {
 	t.Helper()
-	cfg := sqliteconn.Config{Role: sqliteconn.Reader, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Normal}
+	cfg := sqliteconn.Config{Role: sqliteconn.Reader, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Normal, ReadLimits: sqliteconn.ReadLimits{LengthBytes: 16384, Columns: 16}}
 	connector, err := sqliteconn.Connector(path, cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -279,7 +283,7 @@ func TestSnapshotRawBytesAndBlockedScannerCannotPinPastDeadline(t *testing.T) {
 			if n == 0 || k != n {
 				t.Fatal("expired consumer still pins WAL", n, k)
 			}
-			if db.Stats().InUse != 0 || a.Usage()[Foreground][MemoryBytes] != 64<<10 {
+			if db.Stats().InUse != 0 || a.Usage()[Foreground][MemoryBytes] != (16*16384)+(64<<10) {
 				t.Fatal("physical disposal or retained-buffer custody incorrect", db.Stats(), a.Usage())
 			}
 			closed := make(chan struct{})
@@ -417,7 +421,7 @@ func TestSnapshotClosedStatementsAndOutputBudgets(t *testing.T) {
 		t.Fatal("row overflow accepted", err)
 	}
 	r = snapshotRequest()
-	r.Need[MemoryBytes] = 512
+	r.Need[MemoryBytes] = s.NativeRowReservation() + 512
 	if _, err = s.Read(t.Context(), r, time.Second, func(scope *ReadScope) error { _, err := scope.Query("large"); return err }); !errors.Is(err, ErrSnapshotBudget) {
 		t.Fatal("byte overflow accepted", err)
 	}
@@ -496,7 +500,7 @@ func TestSnapshotUnprovenDiscardRetainsOwnershipAndCustody(t *testing.T) {
 		_, err := writer.ExecContext(t.Context(), "UPDATE source SET value='after'")
 		return err
 	})
-	if err == nil || a.Usage()[Foreground][Reader] != 1 || a.Usage()[Foreground][MemoryBytes] != 64<<10 {
+	if err == nil || a.Usage()[Foreground][Reader] != 1 || a.Usage()[Foreground][MemoryBytes] != (16*16384)+(64<<10) {
 		t.Fatal("failed disposal refunded physical/output custody", err, a.Usage())
 	}
 	n, k := snapshotCheckpoint(t, path)
@@ -606,7 +610,7 @@ func TestSnapshotSupersedeClosesNativeBeforeConsumerReturns(t *testing.T) {
 	cancel()
 	waitSnapshotPhysical(t, s)
 	n, k = snapshotCheckpoint(t, path)
-	if k != n || db.Stats().InUse != 0 || a.Usage()[Foreground][MemoryBytes] != 64<<10 {
+	if k != n || db.Stats().InUse != 0 || a.Usage()[Foreground][MemoryBytes] != (16*16384)+(64<<10) {
 		t.Fatal("supersede native/output custody", n, k, db.Stats(), a.Usage())
 	}
 	close(release)
@@ -646,7 +650,7 @@ func TestSnapshotOversizedStoredValuesRefuseBeforeAllocation(t *testing.T) {
 				runtime.ReadMemStats(&after)
 				allocated := after.TotalAlloc - before.TotalAlloc
 				t.Logf("%s grant=%d allocated=%d", kind, r.Need[MemoryBytes], allocated)
-				if allocated > uint64(r.Need[MemoryBytes]) {
+				if allocated > uint64(r.Need[MemoryBytes]-s.NativeRowReservation()) {
 					return errors.New("oversized value allocated beyond grant before rejection")
 				}
 				if !errors.Is(err, ErrSnapshotBudget) {
@@ -695,5 +699,55 @@ func TestSnapshotBadConnRollbackKeepsDisposalOwnership(t *testing.T) {
 	n, k = snapshotCheckpoint(t, path)
 	if n != k || a.Usage() != [4]Amounts{} {
 		t.Fatal("retried disposal failed", n, k, a.Usage())
+	}
+}
+
+func TestSnapshotNativeReservationPrecedesConnectionAndSQL(t *testing.T) {
+	for _, columns := range []int32{16, 128} {
+		t.Run(fmt.Sprint(columns), func(t *testing.T) {
+			path, _ := snapshotFixture(t)
+			g, a := snapshotGovernor(t)
+			cfg := sqliteconn.Config{Role: sqliteconn.Reader, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Normal, ReadLimits: sqliteconn.ReadLimits{LengthBytes: 16384, Columns: columns}}
+			connector, err := sqliteconn.Connector(path, cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			counted := &snapshotConnector{Connector: connector}
+			expression := "SELECT " + strings.TrimSuffix(strings.Repeat("randomblob(12000),", int(columns)), ",")
+			registry, err := stmt.New([]stmt.Definition{{ID: "aggregate", SQL: expression, Kind: stmt.Read, Owner: "test", CallSites: []string{"native-reserve"}, Cohorts: []stmt.Cohort{{Name: "all"}}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			s, err := NewSnapshots(counted, cfg, g, a, registry)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer s.Close()
+			r := snapshotRequest()
+			r.Need[MemoryBytes] = 64 << 10
+			called := false
+			out, err := s.Read(t.Context(), r, time.Second, func(scope *ReadScope) error { called = true; _, err := scope.Query("aggregate"); return err })
+			if !errors.Is(err, ErrSnapshotBudget) || called || counted.opened.Load() != 0 || a.Usage() != [4]Amounts{} {
+				t.Fatal("native floor was not reserved first", out, err, called, counted.opened.Load(), a.Usage())
+			}
+			native := int64(columns) * 16384
+			r.Need[MemoryBytes] = native + (64 << 10)
+			out, err = s.Read(t.Context(), r, time.Second, func(scope *ReadScope) error {
+				var before, after runtime.MemStats
+				runtime.ReadMemStats(&before)
+				_, err := scope.Query("aggregate")
+				runtime.ReadMemStats(&after)
+				if after.TotalAlloc-before.TotalAlloc > 64<<10 {
+					return errors.New("Go aggregate over-allocated")
+				}
+				return err
+			})
+			if !errors.Is(err, ErrSnapshotBudget) || out.NativeReservedBytes != native || out.GoReservedBytes != 64<<10 {
+				t.Fatal(out, err)
+			}
+			if a.Usage() != [4]Amounts{} {
+				t.Fatal("native reservation leaked")
+			}
+		})
 	}
 }
