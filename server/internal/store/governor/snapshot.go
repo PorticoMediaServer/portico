@@ -32,7 +32,7 @@ type Snapshots struct {
 	watchers  sync.WaitGroup
 	running   map[*ReadScope]context.CancelFunc
 	uncertain map[*ReadScope]struct{}
-	db        *sql.DB
+	db        snapshotPool
 	owner     *snapshotOwnedConnector
 	config    sqliteconn.Config
 	governor  Governor
@@ -73,9 +73,7 @@ func NewSnapshots(connector driver.Connector, c sqliteconn.Config, g Governor, a
 		reads[entry.ID] = statement
 	}
 	owner := &snapshotOwnedConnector{Connector: connector, failed: make(map[*snapshotOwnedConn]error)}
-	db := sql.OpenDB(owner)
-	db.SetMaxOpenConns(c.Connections)
-	db.SetMaxIdleConns(c.Connections)
+	db := newSnapshotPool(owner, c.Connections)
 	return &Snapshots{db: db, owner: owner, config: c, governor: g, authority: a, slots: make(chan struct{}, c.Connections), running: make(map[*ReadScope]context.CancelFunc), uncertain: make(map[*ReadScope]struct{}), reads: reads}, nil
 }
 
