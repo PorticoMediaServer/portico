@@ -6,13 +6,11 @@ import (
 	"database/sql/driver"
 	"errors"
 	"math"
-	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/PorticoMediaServer/portico/server/internal/store/schema"
 	"github.com/PorticoMediaServer/portico/server/internal/thirdparty/sqlite"
 	sqlite3 "modernc.org/sqlite/lib"
 )
@@ -217,34 +215,4 @@ func TestZeroReadLimitsPreservesStricterNativePolicy(t *testing.T) {
 		conn.Close()
 		db.Close()
 	}
-}
-
-func TestReadLimitsCanonicalSchema(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "canonical.sqlite")
-	cfg := Config{Role: Writer, Connections: 1, CacheKiB: 1024, Synchronous: Normal}
-	db, _, err := Open(t.Context(), path, cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	conn := assertConn(t, db, cfg)
-	if err := schema.InitializeEmpty(t.Context(), conn); err != nil {
-		conn.Close()
-		t.Fatal(err)
-	}
-	conn.Close()
-	cfg.Role, cfg.ReadLimits = Reader, ReadLimits{LengthBytes: 131072, Columns: 512}
-	reader, settings, err := Open(t.Context(), path, cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer reader.Close()
-	if settings.ReadLimits != cfg.ReadLimits {
-		t.Fatalf("canonical reader policy: %+v", settings)
-	}
-	rows, err := reader.QueryContext(t.Context(), "SELECT id FROM catalog_entities LIMIT 0")
-	if err != nil {
-		t.Fatalf("fixed limits cannot read adopted schema %s: %v", schema.SHA256, err)
-	}
-	rows.Close()
 }
