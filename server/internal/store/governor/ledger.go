@@ -80,13 +80,13 @@ func New(c Config) (Governor, *Authority, error) {
 	return g, &Authority{g}, nil
 }
 
-func (g *ledger) Try(r Request) Decision { return g.try(r, false) }
+func (g *ledger) Try(r Request) Decision { return g.try(r, false, nil) }
 
 // tryCheckpoint is reserved for the governor's private PASSIVE driver. The
 // ordinary worker/admission interface cannot select a checkpoint turn.
-func (a *Authority) tryCheckpoint(r Request) Decision { return a.ledger.try(r, true) }
+func (a *Authority) tryCheckpoint(r Request) Decision { return a.ledger.try(r, true, nil) }
 
-func (g *ledger) try(r Request, checkpoint bool) Decision {
+func (g *ledger) try(r Request, checkpoint bool, ticket *checkpointTicket) Decision {
 	now := g.config.Now()
 	refuse := func(code RefusalCode) Decision {
 		return Decision{Refusal: &Refusal{Code: code, RetryAt: now.Add(100 * time.Millisecond)}}
@@ -104,6 +104,9 @@ func (g *ledger) try(r Request, checkpoint bool) Decision {
 	if checkpoint && (r.Writer || r.Class != Recovery || g.config.WAL == nil ||
 		r.Need[Reader] != 1 || r.Need[MemoryBytes] <= 0 || r.Need[CPUMilli] <= 0 || r.Need[IOBytes] <= 0 || r.Need[WALBytes] != 0) {
 		return refuse(Unqualified)
+	}
+	if ticket != nil && ticket.owner != g {
+		return refuse(Invalid)
 	}
 	// Admission never queues behind another caller or performs external IO.
 	if !g.mu.TryLock() {
@@ -140,7 +143,7 @@ func (g *ledger) try(r Request, checkpoint bool) Decision {
 		}
 	}
 	if checkpoint {
-		if code := g.config.WAL.reserveCheckpoint(); code != 0 {
+		if code := g.config.WAL.reserveCheckpoint(ticket, now); code != 0 {
 			return refuse(code)
 		}
 	}

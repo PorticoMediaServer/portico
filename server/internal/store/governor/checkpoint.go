@@ -26,9 +26,12 @@ type CheckpointPolicy struct {
 	DatabasePath string
 	Interval     time.Duration // timer and pressure calls share this >=50ms spacing
 	MaxHold      time.Duration // qualification forecast, not native preemption
+	MaxWait      time.Duration // bounded metadata wait incl <=25ms writer + dispatch guard
 }
 
 type CheckpointResult struct {
+	Requested                                                        time.Time
+	EligibleInterval                                                 time.Duration
 	Sequence                                                         uint64
 	Key                                                              JobKey
 	Budget                                                           UnitBudget
@@ -69,7 +72,7 @@ func NewCheckpointer(connector driver.Connector, cfg sqliteconn.Config, g Govern
 		a.VerifyComposition(g, a.ledger.config.WAL) != nil || cfg.Role != sqliteconn.Checkpointer || cfg.Connections != 1 ||
 		cfg.CacheKiB <= 0 || cfg.Synchronous != sqliteconn.Normal || cfg.ReadLimits != (sqliteconn.ReadLimits{}) ||
 		!filepath.IsAbs(policy.DatabasePath) || strings.ContainsRune(policy.DatabasePath, 0) ||
-		policy.Interval < 50*time.Millisecond || policy.MaxHold <= 0 || policy.MaxHold > 25*time.Millisecond {
+		policy.Interval < 50*time.Millisecond || policy.MaxHold <= 0 || policy.MaxHold > 25*time.Millisecond || policy.MaxWait < 50*time.Millisecond || policy.MaxWait > 75*time.Millisecond {
 		return nil, sqliteconn.ErrPolicy
 	}
 	owner := &snapshotOwnedConnector{Connector: connector, failed: make(map[*snapshotOwnedConn]error)}
@@ -98,15 +101,34 @@ func (c *Checkpointer) Step(parent context.Context, r Request) (out CheckpointRe
 	if r.MaxHold > c.policy.MaxHold {
 		return out, ErrCheckpointBudget
 	}
-	if !c.lastStart.IsZero() && time.Now().Before(c.lastStart.Add(c.policy.Interval)) {
-		return out, ErrCheckpointCadence
+	out.Requested = time.Now()
+	out.EligibleInterval = checkpointSpacing(c.policy)
+	until := minTime(out.Requested.Add(c.policy.MaxWait), r.Deadline)
+	if parentDeadline, ok := parent.Deadline(); ok {
+		until = minTime(until, parentDeadline)
 	}
-	d := c.authority.tryCheckpoint(r)
+	ticket, ticketErr := c.authority.queueCheckpoint(until, out.EligibleInterval)
+	if ticketErr != nil {
+		return out, ticketErr
+	}
+	defer c.authority.cancelCheckpointTicket(ticket)
+	wait, stopWait := context.WithDeadline(parent, until)
+	defer stopWait()
+	select {
+	case <-ticket.ready:
+	case <-wait.Done():
+		return out, wait.Err()
+	}
+	if err = wait.Err(); err != nil {
+		return out, err
+	}
+	turnStart := time.Now()
+	d := c.authority.tryCheckpointTurn(r, ticket)
 	if d.Refusal != nil {
 		out.Refusal = d.Refusal
 		return out, nil
 	}
-	out.Started = time.Now()
+	out.Started = turnStart
 	deadline := minTime(out.Started.Add(r.MaxHold), r.Deadline)
 	ctx, stop := context.WithDeadline(parent, deadline)
 	defer stop()
