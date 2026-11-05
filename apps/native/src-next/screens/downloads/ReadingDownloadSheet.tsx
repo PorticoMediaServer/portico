@@ -1,3 +1,4 @@
+import {readDownloadOptionsResponse, prepareItemDownloadResponse} from '../../../../../packages/client-core/src/download-coordination';
 import React, {useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
@@ -74,7 +75,7 @@ export function NativeReadingDownloadSheet({context, request}: {context: NativeS
       await Promise.all(Array.from({length: Math.min(4, supported.length)}, async () => {
         while (next < supported.length) {
           const index = next++, version = supported[index]; if (!version || !current()) return;
-          const raw = await context.api.request<unknown>(`/v1/items/${encodeURIComponent(itemId)}/download-options?versionId=${encodeURIComponent(version.sourceId)}`, 'GET', undefined, signal);
+          const raw = await readDownloadOptionsResponse(context.api, itemId, signal, version.sourceId);
           if (!current()) return;
           const policy = parseDownloadOptions(raw, itemId);
           if (policy.source.bytes !== version.size || policy.source.available && policy.source.container !== version.format) throw new Error('reading_source_changed');
@@ -97,7 +98,7 @@ export function NativeReadingDownloadSheet({context, request}: {context: NativeS
       // The same version tried again resends the identical body under the same id (download-attempt).
       const operationId = opening.attempts.operationFor(JSON.stringify([request.itemId, version.sourceId, 'original']));
       if (!opening.current()) return;
-      const raw = await context.api.request<unknown>('/v1/downloads/preparations', 'POST', {operationId, mediaId: request.itemId, versionId: version.sourceId, quality: 'original'}, opening.signal);
+      const raw = await prepareItemDownloadResponse(context.api, {operationId, mediaId: request.itemId, versionId: version.sourceId, quality: 'original'}, opening.signal);
       opening.attempts.settle();
       if (!opening.current()) return;
       const result = parseDownloadBatch(raw);

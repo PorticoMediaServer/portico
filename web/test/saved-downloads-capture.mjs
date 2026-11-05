@@ -41,9 +41,11 @@ try {
   });
   await dialog.screenshot({path: join(process.env.PORTICO_RUNNER_OUTPUT, 'downloads-load-failure-dialog.jpg'), type: 'jpeg', quality: 95});
   await page.screenshot({path: join(process.env.PORTICO_RUNNER_OUTPUT, 'downloads-load-failure-panel.jpg'), type: 'jpeg', quality: 95, clip: {x: 510, y: 270, width: 420, height: 360}});
-  const before = responses.length;
+  // Count the same response stream as the failed-read proof. Resource Timing may
+  // omit failed requests, and its count need not match Playwright's response count.
+  const retryResponse = page.waitForResponse(response => response.url().includes('/v1/downloads/preparations') && response.status() >= 500);
   await dialog.getByRole('button', {name: 'Try again', exact: true}).click();
-  await page.waitForFunction(count => performance.getEntriesByType('resource').filter(entry => entry.name.includes('/v1/downloads/')).length > count, before);
+  await retryResponse;
   await dialog.waitFor({state: 'visible'});
   await dialog.getByRole('button', {name: 'Close', exact: true}).last().click();
   await dialog.waitFor({state: 'hidden'});
