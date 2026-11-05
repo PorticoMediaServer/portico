@@ -2,9 +2,45 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createSelectionEditor} from '../src/screens/browse/selection-editor.ts';
 import {LibraryDeleteProducer} from '../src/screens/browse/selection-delete.ts';
+import {HttpLocalApi} from '../../packages/client-core/src/index.ts';
+import {screenLifetime} from '../src/screens/detail/context.ts';
 
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const draft = {fields: {contentRating: 'G'}, lists: {tags: {add: [' X '], remove: []}, genres: {add: ['Drama'], remove: []}}, lockEdited: false};
+
+test('web explicit preview preserves envelope bytes and core HTTP/auth policy for leaf and aggregate identities', async () => {
+  for (const kind of ['movie', 'show', 'season', 'album', 'artist', 'book']) {
+    for (const renew of [false, true]) {
+      const wire: {url: string; method?: string; body?: string; headers: Record<string, string>}[] = [];
+      const identities = ['second /é', 'first'].map(id => ({kind, id, libraryId: 'library', capabilities: {edit: true}}));
+      const picks = identities.map(item => ({key: item.id, item}));
+      const operation = {target: {mode: 'explicit', context: {}, items: picks, displayItems: picks}} as never;
+      const expected = {targets: identities.map(({kind, id, libraryId}) => ({kind: kind === 'movie' ? 'item' : kind, contentKind: kind, id, libraryId}))};
+      const http = new HttpLocalApi('https://wire.example', 'preview-token', async (url, init) => {
+        wire.push({url: String(url), method: init?.method, body: init?.body as string, headers: Object.fromEntries(new Headers(init?.headers))});
+        if (renew && wire.length === 1) return new Response(JSON.stringify({error: {code: 'unauthorized', message: 'Expired'}}), {status: 401});
+        return new Response(JSON.stringify({variant: 'ready', serverId: 'server', viewerFence: 'a'.repeat(64), contentKind: kind,
+          kind: kind === 'movie' ? 'item' : kind, total: 2, schema: [], singleItemFields: [], excludedFields: [], fields: {},
+          targets: expected.targets.map(({contentKind: _, ...target}) => ({...target, expectedRevision: 'b'.repeat(64)}))}), {headers: {'Content-Type': 'application/json'}});
+      });
+      if (renew) http.setAuthRecovery({token: async token => token, recover: async () => 'renewed-token'});
+      const life = screenLifetime({api: http, isCurrent: () => true} as never);
+      const editor = createSelectionEditor({api: {request: life.api.request}, events: {on: () => () => {}},
+        requestId: async () => {throw new Error('preview must not mint an operation ID');}, isCurrent: life.current, serverId: 'server'});
+      try {
+        const result = await editor.preview(operation);
+        assert.deepEqual(result.targets.map(target => target.id), identities.map(item => item.id));
+        assert.equal(wire.length, renew ? 2 : 1);
+        for (let index = 0; index < wire.length; index++) {
+          assert.equal(wire[index].url, 'https://wire.example/v1/metadata/bulk/preview');
+          assert.equal(wire[index].method, 'POST'); assert.equal(wire[index].body, JSON.stringify(expected));
+          assert.equal(wire[index].headers['content-type'], 'application/json');
+          assert.equal(wire[index].headers.authorization, `Bearer ${index ? 'renewed-token' : 'preview-token'}`);
+        }
+      } finally {life.dispose();}
+    }
+  }
+});
 function editing(count: number, options: {loseTail?: boolean; retireOnSecondId?: boolean} = {}) {
   const events: string[] = [], writes: any[] = []; let ids = 0, live = true;
   const targets = Array.from({length: count}, (_, index) => ({kind: 'item', id: `m${index}`, libraryId: 'library', expectedRevision: 'b'.repeat(64)}));

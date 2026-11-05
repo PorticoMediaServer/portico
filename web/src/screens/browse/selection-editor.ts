@@ -1,6 +1,7 @@
 import {readCatalogueItemResponse} from '@core/query/catalogue-reads.ts';
 import {readMetadataResponse, submitMetadataBulk} from '@core/query/catalogue-actions.ts';
 import {catalogueSelectionBulkEdit} from '@core/catalogue-bulk-commands.ts';
+import {catalogueSelectionPreviewRequest} from '@core/home-selection/metadata-preview.ts';
 import type {ShellArtwork} from '../../shell/artwork';
 import {validateRepair} from '@core/metadata-repair.ts';
 import {parseMediaItem} from '@core/media-item.ts';
@@ -43,7 +44,7 @@ export class SelectionEditorError extends Error {
  * exist yet, so a whole view is refused rather than approximated with loaded ids. */
 export function editorPreviewRequest(target: BrowseTarget): BulkMetadataPreviewRequest {
   if (target.mode !== 'explicit' || !target.displayItems.length) throw new SelectionEditorError('whole-view-editor-unavailable');
-  return {targets: metadataPreviewTargets(target.displayItems.map(pick => pick.item))};
+  return catalogueSelectionPreviewRequest(target.displayItems.map(pick => pick.item));
 }
 
 export function createSelectionEditor({api, events, requestId, isCurrent, serverId, viewerId, signal: lifetime}: SelectionEditorOptions) {
