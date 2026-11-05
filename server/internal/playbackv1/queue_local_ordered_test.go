@@ -40,6 +40,7 @@ func (it *localQueueTestIterator) CheckBasis(context.Context, *sql.Tx) error { i
 func TestQueueLocalOrderedPreparingReturnsWithoutRetainingCapture(t *testing.T) {
 	c := catalogtest.Open(t)
 	s := New(c.DB, nil, nil)
+	cleanupPlaybackService(t, s)
 	it := &localQueueTestIterator{preparing: true}
 	s.QueryKeys = func(context.Context, *sql.Tx, identity.Principal, Selector) (catalog.QueueSelection, error) {
 		return catalog.QueueSelection{Iterator: it, Revision: "r", CheckBasis: func(context.Context, *sql.Tx) error { return nil }}, nil
@@ -71,6 +72,7 @@ func TestQueueLocalOrderedRestartReconcilesAndExtendsPartialChunk(t *testing.T) 
 	}
 	c.Drain()
 	s := New(c.DB, nil, nil)
+	cleanupPlaybackService(t, s)
 	s.HoldQueueBuilds()
 	p := identity.Principal{Viewer: identity.Viewer{Authority: "local", AccountID: "a", ProfileID: "p"}}
 	s.QueryKeys = func(context.Context, *sql.Tx, identity.Principal, Selector) (catalog.QueueSelection, error) {
@@ -152,6 +154,7 @@ func TestQueueLocalOrderedRestartRejectsDifferentAcceptedSequence(t *testing.T) 
 	b := c.Movie(lib, "/a/b.mkv", "B", 2000)
 	c.Drain()
 	s := New(c.DB, nil, nil)
+	cleanupPlaybackService(t, s)
 	if _, err := c.DB.Exec(`INSERT INTO queues_v1(id,owner_kind,owner_id,authority,account_id,profile_id,revision,created_ms,updated_ms) VALUES('q','device','device','local','a','p',1,0,0)`); err != nil {
 		t.Fatal(err)
 	}

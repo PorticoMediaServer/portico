@@ -45,7 +45,7 @@ func TestJourneyCaptureIsFiniteImmutableAndNeverDropsRefusedSongs(t *testing.T) 
 	}
 	c.Drain()
 	s := New(c.DB, nil, nil)
-	t.Cleanup(func() { releaseCaptures(s) })
+	cleanupPlaybackService(t, s)
 	actor := identity.Principal{Viewer: identity.Viewer{Authority: "local", AccountID: "account", ProfileID: "profile"}}
 	journey := JourneySelector{From: ids[0], To: ids[4], Length: 5}
 	s.JourneyKeys = func(ctx context.Context, tx *sql.Tx, p identity.Principal, request JourneySelector) ([]string, error) {

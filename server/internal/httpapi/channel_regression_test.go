@@ -15,13 +15,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/PorticoMediaServer/portico/server/internal/testtier"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/testtier"
 	"strconv"
 	"strings"
 	"testing"
@@ -187,7 +187,9 @@ func tl11CurrentPlaybackHTTPWith(t *testing.T, beforeStart func(rt *playbackrunt
 		}
 	})
 	d := Dependencies{Origins: []string{"http://127.0.0.1:19412"}, DB: db, Identity: ident, Catalog: catalog.New(db), Hosted: host, Storage: store, Mounts: managed, PlaybackRuntime: rt}
-	return &tl11CurrentPlaybackHTTPFixture{d: d, h: New(d), token: session.AccessToken, t: t, catalog: c, item: item}
+	handler := New(d)
+	cleanupRouterPlayback(t, handler)
+	return &tl11CurrentPlaybackHTTPFixture{d: d, h: handler, token: session.AccessToken, t: t, catalog: c, item: item}
 }
 
 func (f *tl11CurrentPlaybackHTTPFixture) call(method, path string, body any) *httptest.ResponseRecorder {

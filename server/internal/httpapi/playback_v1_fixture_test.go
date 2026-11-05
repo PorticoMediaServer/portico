@@ -75,18 +75,13 @@ func newV1Fixture(t *testing.T, films int) *v1Fixture {
 		t.Fatal(err)
 	}
 	f := &v1Fixture{t: t, db: db, id: id, cat: cat, root: root, v1: &playbackv1.Service{}, names: catalogtest.Names{}}
+	cleanupPlaybackService(t, f.v1)
 	// Install once, before any session can start a background sweeper. Tests
 	// advance only the atomic offset, never the shared callback itself.
 	f.v1.Now = func() time.Time { return time.Now().Add(time.Duration(f.clockOffset.Load())) }
 	f.deps = Dependencies{DB: db, Identity: id, Catalog: cat, Ingestion: ingestion.New(db, cat, assets.Probe{}), Playback: playback.New(db), Hosted: host, Storage: storage.New(helperBinary), PlaybackV1: f.v1}
 	f.handler = New(f.deps)
-	t.Cleanup(func() {
-		stop, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := f.v1.Shutdown(stop); err != nil {
-			t.Error(err)
-		}
-	})
+
 	f.deps.v1 = f.v1
 	secret, err := os.ReadFile(storagepaths.Path(root, "setup-token"))
 	if err != nil {

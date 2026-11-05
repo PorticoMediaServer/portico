@@ -30,7 +30,7 @@ func queryBuildFixture(t *testing.T) (*Service, *catalogtest.Catalog, snapshot) 
 	// Every read a build still holds is let go when the test ends, however it
 	// ends: the two capture slots are process-wide, and a test that stops
 	// early must not leave the next one without one.
-	t.Cleanup(func() { releaseCaptures(s) })
+	cleanupPlaybackService(t, s)
 	snap, err := s.buildSnapshot(context.Background(), p, "q_test", in, "source", MaxQueueKeys, nil, scanBudget{keys: 256})
 	if err != nil {
 		t.Fatal(err)

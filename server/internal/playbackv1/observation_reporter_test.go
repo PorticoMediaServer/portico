@@ -19,15 +19,7 @@ type reporter struct {
 }
 
 func newReporter(t testing.TB, s *Service, c Caller) *reporter {
-	t.Cleanup(func() {
-		// Let the batch worker exit with the test.
-		if o := s.obs; o != nil {
-			o.mu.Lock()
-			o.entries = map[string]*observer{}
-			o.wakeLocked()
-			o.mu.Unlock()
-		}
-	})
+	cleanupPlaybackService(t, s)
 	return &reporter{t: t, s: s, c: c, epochs: map[string]string{}, seq: map[string]int64{}}
 }
 

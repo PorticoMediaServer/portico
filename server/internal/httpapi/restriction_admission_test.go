@@ -53,6 +53,7 @@ func newTL11AdmissionFixture(t *testing.T, kind string) *tl11AdmissionFixture {
 		t.Fatal(err)
 	}
 	d := Dependencies{DB: db, Identity: ident, Catalog: catalog.New(db), Playback: playback.New(db), Hosted: host, PlaybackV1: &playbackv1.Service{}}
+	cleanupPlaybackService(t, d.PlaybackV1)
 	h := New(d)
 	secret, err := os.ReadFile(storagepaths.Path(root, "setup-token"))
 	if err != nil {
