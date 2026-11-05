@@ -1,3 +1,4 @@
+import {readCatalogueItemResponse} from '@core/query/catalogue-reads.ts';
 import type {ShellArtwork} from '../../shell/artwork';
 import {validateRepair} from '@core/metadata-repair.ts';
 import {parseMediaItem} from '@core/media-item.ts';
@@ -68,7 +69,7 @@ export function createSelectionEditor({api, events, requestId, isCurrent, server
         if (!('libraryId' in pick.item)) throw new SelectionEditorError('metadata-target-unavailable');
         const target = metadataPreviewTargets([pick.item])[0];
         if (target.kind === 'item') {
-          const item = parseMediaItem(await api.request(encodedRoutePath('get_items_id', {id: encodeURIComponent(pick.item.id)}), 'GET', undefined, routeSignal)); current();
+          const item = parseMediaItem(await readCatalogueItemResponse(api, pick.item.id, routeSignal)); current();
           if (item.id !== pick.item.id || item.libraryId !== pick.item.libraryId || item.kind !== pick.item.kind) throw new SelectionEditorError('metadata-target-mismatch');
           result.push({id: item.id, title: item.title, ...(typeof item.posterUrl === 'string' && item.posterUrl ? {posterUrl: item.posterUrl} : {})});
         } else {
