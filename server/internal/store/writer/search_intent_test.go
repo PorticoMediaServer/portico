@@ -1,7 +1,6 @@
 package writer
 
 import (
-	"bytes"
 	"database/sql"
 	"errors"
 	"math"
@@ -64,9 +63,8 @@ func TestSearchInputCounterBoundaries(t *testing.T) {
 	}
 }
 
-// These tests exercise the literal SQL through the merged private frame. They
-// are statement/atomicity controls, not InventoryAccept or helper integration:
-// W's commandTurn/common receipt implementation is not on main yet.
+// Tests use the merged W frame and protected commandTurn. They prove the private
+// helper and statement contracts, not full Inventory receipt/physical qualification.
 func searchInputFixture(t *testing.T) (*executor, *stmt.Registry) {
 	t.Helper()
 	w, _, _ := testExecutor(t)
@@ -121,76 +119,31 @@ func searchInputFixtureStep(t *testing.T, tx *transaction) {
 
 func TestSearchInputNativeStatements(t *testing.T) {
 	w, registry := searchInputFixture(t)
-	tx, err := w.begin(t.Context(), InventoryAccept, testRecipe(), &testCustody{})
-	if err != nil {
+	// The source has no authority over this independently leased cursor. Even
+	// exhaustion of that driver's revision cannot prevent RAW accounting.
+	if _, err := w.db.ExecContext(t.Context(), `UPDATE search_generations SET
+job_revision=?,job_lease_owner=41,job_lease_generation=43,job_lease_expires_ms=2000,
+phase='reading',after_entity_id=13,after_person_id=17,after_reading_id=19,after_table=23,
+captured_input_sequence=29,last_command_sequence=61,acknowledged_command_sequence=60,
+job_attempts=53,job_next_attempt_ms=59,indexed_rows=67,indexed_bytes=71 WHERE id=1`, int64(math.MaxInt64)); err != nil {
 		t.Fatal(err)
 	}
-	defer tx.rollback(nil)
-	searchInputFixtureStep(t, tx)
-	var revision, sequence int64
-	var active, building sql.NullInt64
-	if err := searchInputBound(t, registry, searchInputHead).QueryRowContext(tx.ctx, tx.conn).Scan(&revision, &active, &building, &sequence); err != nil {
+	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO search_generation_receipts(
+search_generation_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,
+accepted_revision,applied_ms,active_generation_id,building_generation_id,input_sequence,
+after_entity_id,after_person_id,after_reading_id,after_table)
+SELECT id,command_incarnation,61,zeroblob(16),zeroblob(32),'advance',1,900,1,NULL,0,13,17,19,23
+FROM search_generations WHERE id=1`); err != nil {
 		t.Fatal(err)
 	}
-	if revision != 1 || active.Int64 != 1 || !active.Valid || building.Valid || sequence != 0 {
-		t.Fatal("wrong source-input head")
-	}
-	searchInputFixtureStep(t, tx)
-	var bankKey, recipe, engine, unicode, state string
-	var pending, bankRevision int64
-	if err := searchInputBound(t, registry, searchInputBank, active.Int64).QueryRowContext(tx.ctx, tx.conn).
-		Scan(&bankKey, &recipe, &engine, &unicode, &state, &pending, &bankRevision); err != nil {
+	driverBefore := searchInputGenerationDriverBytes(t, w)
+	turn := searchInputTestTurn(t, w, registry, &testCustody{})
+	tx := turn.transaction
+	if err := applySearchInputIntent(t.Context(), turn, searchInputTestChange()); err != nil {
 		t.Fatal(err)
 	}
-	if bankKey != "v1" || recipe != "A-CJK-uni-bi-v1" || engine != searchpolicy.EngineVersion || unicode != searchInputExampleFingerprint || state != "active" || pending != 0 || bankRevision != 1 {
-		t.Fatal("bank lookup must preserve the complete stored identity and pending CAS witness")
-	}
-	// Fixture-only physical attestation, separate from the eight RAW-helper
-	// statements. A stale tuple must not be mistaken for fresh-init authority.
-	searchInputFixtureStep(t, tx)
-	var actual searchpolicy.Engine
-	if err := tx.conn.QueryRowContext(tx.ctx, `SELECT sqlite_version(),sqlite_source_id()`).Scan(&actual.Version, &actual.SourceID); err != nil {
+	if err := turn.closeRows(); err != nil {
 		t.Fatal(err)
-	}
-	compatibility := searchpolicy.Compare(searchpolicy.Profile{RecipeVersion: recipe, EngineVersion: engine, UnicodeFingerprint: unicode}, actual)
-	if compatibility.State != searchpolicy.Stale || !compatibility.EngineAttested {
-		t.Fatal("RAW statement fixture must exercise a well-formed stale bank on the actual native engine")
-	}
-	searchInputFixtureStep(t, tx)
-	var incarnation []byte
-	var sourceRevision int64
-	if err := searchInputBound(t, registry, searchInputEntity, int64(1), int64(1), int64(1)).QueryRowContext(tx.ctx, tx.conn).Scan(&incarnation, &sourceRevision); err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(incarnation, []byte{9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}) || sourceRevision != 1 {
-		t.Fatal("intent must use exact metadata incarnation/entity revision, not other counters")
-	}
-	searchInputFixtureStep(t, tx)
-	var subject int64
-	if err := searchInputBound(t, registry, searchInputSubject, int64(1), int64(1), int64(1)).QueryRowContext(tx.ctx, tx.conn).Scan(&subject); err != nil || subject != 1 {
-		t.Fatal("retained subject must independently match the same source library/kind")
-	}
-	searchInputFixtureStep(t, tx)
-	var existingJob int64
-	if err := searchInputBound(t, registry, searchInputExisting, int64(1)).QueryRowContext(tx.ctx, tx.conn).Scan(&existingJob); !errors.Is(err, sql.ErrNoRows) {
-		t.Fatal("new subject must have no earlier publisher")
-	}
-	for _, step := range []struct {
-		id   stmt.ID
-		args []any
-	}{
-		{searchInputInsert, []any{int64(1), int64(1), int64(1), incarnation, sourceRevision, "A-CJK-uni-bi-v1", "capture", int64(1000)}},
-		{searchInputPending, []any{int64(1), int64(2), int64(1), "active", searchpolicy.RecipeV1, searchpolicy.EngineVersion, searchInputExampleFingerprint, int64(0), int64(1)}},
-		{searchInputSequence, []any{int64(1), int64(1), int64(1), int64(0)}},
-	} {
-		searchInputFixtureStep(t, tx)
-		r, err := searchInputBound(t, registry, step.id, step.args...).ExecContext(tx.ctx, tx.conn)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if n, err := r.RowsAffected(); err != nil || n != 1 {
-			t.Fatal("fresh source effect must change exactly one row")
-		}
 	}
 	result, err := tx.commit()
 	if err != nil || result.state != committed {
@@ -210,11 +163,16 @@ AND last_command_sequence=0 AND acknowledged_command_sequence=0 FROM search_publ
 	if err := w.db.QueryRowContext(t.Context(), `SELECT revision=1 AND input_sequence=1 AND active_generation_id=1 AND building_generation_id IS NULL FROM search_revision`).Scan(&exact); err != nil || !exact {
 		t.Fatal("input clock must not publish or change accepted head/revision")
 	}
-	if err := w.db.QueryRowContext(t.Context(), `SELECT pending_subjects=1 AND job_revision=2 FROM search_generations WHERE id=1`).Scan(&exact); err != nil || !exact {
-		t.Fatal("bank pending/cursor revision did not advance together")
+	if err := w.db.QueryRowContext(t.Context(), `SELECT pending_subjects=1 FROM search_generations WHERE id=1`).Scan(&exact); err != nil || !exact {
+		t.Fatal("source pending counter did not advance")
 	}
+	t.Run("generation_driver_unchanged", func(t *testing.T) {
+		if driverAfter := searchInputGenerationDriverBytes(t, w); driverBefore != driverAfter {
+			t.Fatalf("source changed generation driver bytes:\nbefore %s\nafter  %s", driverBefore, driverAfter)
+		}
+	})
 	var storedFingerprint string
-	if err := w.db.QueryRowContext(t.Context(), `SELECT unicode_fingerprint FROM search_generations WHERE id=1`).Scan(&storedFingerprint); err != nil || storedFingerprint != unicode {
+	if err := w.db.QueryRowContext(t.Context(), `SELECT unicode_fingerprint FROM search_generations WHERE id=1`).Scan(&storedFingerprint); err != nil || storedFingerprint != searchInputExampleFingerprint {
 		t.Fatal("RAW acceptance must preserve the immutable stale tuple")
 	}
 	var nativeRows int
@@ -226,6 +184,25 @@ AND last_command_sequence=0 AND acknowledged_command_sequence=0 FROM search_publ
 +(SELECT count(*) FROM catalog_people_names_docsize)`).Scan(&nativeRows); err != nil || nativeRows != 0 {
 		t.Fatal("source intent must not write native FTS")
 	}
+}
+
+func searchInputGenerationDriverBytes(t *testing.T, w *executor) string {
+	t.Helper()
+	var encoded string
+	// Fixed native JSON preserves integer/text/NULL values and exact nonce
+	// bytes. Pending is deliberately excluded: it belongs to the source CAS.
+	if err := w.db.QueryRowContext(t.Context(), `SELECT json_array(
+job_revision,job_lease_owner,job_lease_generation,job_lease_expires_ms,phase,
+after_entity_id,after_person_id,after_reading_id,after_table,captured_input_sequence,
+last_command_sequence,acknowledged_command_sequence,job_attempts,job_next_attempt_ms,
+job_due_ms,indexed_rows,indexed_bytes,hex(command_incarnation),
+(SELECT json_array(search_generation_id,hex(command_incarnation),command_sequence,
+hex(operation_id),hex(request_digest),command_kind,accepted_revision,applied_ms,
+active_generation_id,building_generation_id,input_sequence,after_entity_id,after_person_id,after_reading_id,after_table)
+FROM search_generation_receipts WHERE search_generation_id=1)) FROM search_generations WHERE id=1`).Scan(&encoded); err != nil {
+		t.Fatal(err)
+	}
+	return encoded
 }
 
 func TestSearchInputClockCAS(t *testing.T) {
@@ -340,13 +317,13 @@ VALUES(2,'clock_fixture_only','fixture_recipe','fixture_engine','fixture_unicode
 
 func TestSearchInputPendingCAS(t *testing.T) {
 	w, registry := searchInputFixture(t)
-	good := []any{int64(1), int64(2), int64(1), "active", searchpolicy.RecipeV1, searchpolicy.EngineVersion, searchInputExampleFingerprint, int64(0), int64(1)}
+	good := []any{int64(1), int64(1), "active", "v1", searchpolicy.RecipeV1, searchpolicy.EngineVersion, searchInputExampleFingerprint, int64(0)}
 	for _, tt := range []struct {
 		at    int
 		value any
 	}{
-		{2, int64(2)}, {3, "building"}, {4, "wrong-recipe"}, {5, "wrong-engine"},
-		{6, "wrong-unicode"}, {7, int64(1)}, {8, int64(2)},
+		{1, int64(2)}, {2, "building"}, {3, "wrong-bank-key"}, {4, "wrong-recipe"}, {5, "wrong-engine"},
+		{6, "wrong-unicode"}, {7, int64(1)},
 	} {
 		args := append([]any(nil), good...)
 		args[tt.at] = tt.value
@@ -367,34 +344,23 @@ func TestSearchInputPendingCAS(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, field := range []string{"pending_subjects", "job_revision"} {
-		// Closed fixture alternatives, not runtime SQL construction.
-		query := `UPDATE search_generations SET pending_subjects=? WHERE id=1`
-		args := append([]any(nil), good...)
-		args[7] = int64(math.MaxInt64)
-		if field == "job_revision" {
-			query = `UPDATE search_generations SET pending_subjects=0,job_revision=? WHERE id=1`
-			args[7], args[8] = int64(0), int64(math.MaxInt64)
-		}
-		if _, err := w.db.ExecContext(t.Context(), query, int64(math.MaxInt64)); err != nil {
-			t.Fatal(err)
-		}
-		tx, err := w.begin(t.Context(), InventoryAccept, testRecipe(), &testCustody{})
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer tx.rollback(nil)
-		searchInputFixtureStep(t, tx)
-		r, err := searchInputBound(t, registry, searchInputPending, args...).ExecContext(tx.ctx, tx.conn)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if n, _ := r.RowsAffected(); n != 0 {
-			t.Fatal("generation counter overflow admitted")
-		}
-		if _, err := tx.rollback(nil); err != nil {
-			t.Fatal(err)
-		}
+	if _, err := w.db.ExecContext(t.Context(), `UPDATE search_generations SET pending_subjects=? WHERE id=1`, int64(math.MaxInt64)); err != nil {
+		t.Fatal(err)
+	}
+	args := append([]any(nil), good...)
+	args[7] = int64(math.MaxInt64)
+	tx, err := w.begin(t.Context(), InventoryAccept, testRecipe(), &testCustody{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.rollback(nil)
+	searchInputFixtureStep(t, tx)
+	r, err := searchInputBound(t, registry, searchInputPending, args...).ExecContext(tx.ctx, tx.conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, err := r.RowsAffected(); err != nil || n != 0 {
+		t.Fatal("source pending counter overflow admitted")
 	}
 }
 
@@ -405,7 +371,7 @@ func TestSearchInputEffectsRollbackTogether(t *testing.T) {
 		args []any
 	}{
 		{searchInputInsert, []any{int64(1), int64(1), int64(1), []byte{9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, int64(1), "A-CJK-uni-bi-v1", "capture", int64(1000)}},
-		{searchInputPending, []any{int64(1), int64(2), int64(1), "active", searchpolicy.RecipeV1, searchpolicy.EngineVersion, searchInputExampleFingerprint, int64(0), int64(1)}},
+		{searchInputPending, []any{int64(1), int64(1), "active", "v1", searchpolicy.RecipeV1, searchpolicy.EngineVersion, searchInputExampleFingerprint, int64(0)}},
 		{searchInputSequence, []any{int64(1), int64(1), int64(1), int64(0)}},
 	}
 	for stop := 0; stop <= len(steps); stop++ {
