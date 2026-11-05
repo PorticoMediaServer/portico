@@ -35,7 +35,7 @@ func maxBodyBench(db *sql.DB, n, rounds int) {
 		cjk, person, body bool
 	}
 	cases := []test{{"title-latin1000", 1000, false, false, false}, {"person-latin1000", 1000, false, true, false}, {"person-cjk1000", 1000, true, true, false}, {"fragment-latin4096", 4096, false, false, true}, {"fragment-latin16384", 16384, false, false, true}, {"fragment-latin65536", 65536, false, false, true}, {"fragment-cjk65536-runes", 65536, true, false, true}}
-	emit("maximum_body_scope", map[string]any{"source": "high-entropy deterministic payloads; catalogue synopsis witnesses and accepted native fragment data; People raw name uses original SearchDocument CJK recipe", "limits": "lexical/prefix SearchDocument clips input to65536bytes; normalized legacy SQL substr limit65536characters; these are deliberately separate", "fixture": "one fragment per document as current harness; negative does not rule out bounded fragment subdivision", "canonical": candidateSHA(), "previous_schema": "97dc083d437e4da0aaab9b277bdc9c8f5dace1450a2a5e754579867916352393"})
+	emit("maximum_body_scope", map[string]any{"source": "high-entropy deterministic payloads; catalogue overview witnesses and accepted native fragment data; People raw name uses original SearchDocument CJK recipe", "limits": "lexical/prefix SearchDocument clips input to65536bytes; normalized legacy SQL substr limit65536characters; these are deliberately separate", "fixture": "one fragment per document as current harness; negative does not rule out bounded fragment subdivision", "canonical": candidateSHA(), "previous_schema": "97dc083d437e4da0aaab9b277bdc9c8f5dace1450a2a5e754579867916352393"})
 	for ci, c := range cases {
 		tag := "maximum." + c.name
 		id := (ci * 7919) % n
@@ -59,7 +59,7 @@ func maxBodyBench(db *sql.DB, n, rounds int) {
 					if c.body {
 						body = value
 					}
-					exec(db, "UPDATE catalog_entities SET title=?,sort_key=?,sort_key_keep_articles=?,synopsis=?,revision=revision+1 WHERE id=?", title, facettext.SearchFold(title), facettext.SearchFold(title), body, id)
+					exec(db, "UPDATE catalog_entities SET title=?,sort_key=?,sort_key_keep_articles=?,overview=?,revision=revision+1 WHERE id=?", title, facettext.SearchFold(title), facettext.SearchFold(title), body, id)
 					witness(db, id, 0, 1, time.Now())
 					exec(db, "UPDATE search_revision SET input_sequence=input_sequence+1 WHERE singleton=1")
 					native(db, tag+".accept.commit", "COMMIT")
