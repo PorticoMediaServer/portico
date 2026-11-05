@@ -2,6 +2,13 @@
   "version": 1,
   "readers": [
     {
+      "package": "server/internal/store/internal/searchpolicy",
+      "why": "Pins the production search preparation source closure and its normalization/SQLite dependency identities",
+      "reads": ["server/internal/facettext/prefix.go", "server/internal/facettext/search.go", "server/internal/sorttext/sort.go", "server/internal/store/search/fragments.go", "server/internal/store/search/recipe.go", "server/go.mod", "server/go.sum"],
+      "files": ["server/internal/store/internal/searchpolicy/profile_test.go"],
+      "tests": ["TestPreparationSourcePin"]
+    },
+    {
       "package": "server/internal/store/qual/cmd/host",
       "why": "Host protocol CLI tests retain invalid shared-fixture receipts and execute actual workflow hash bodies with failing producers",
       "reads": [".github/workflows/store-qualification-host.yml", "server/internal/store/qual/testdata/host-valid.json"],
