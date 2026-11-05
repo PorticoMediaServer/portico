@@ -140,7 +140,7 @@ func (c *snapshotConn) Close() error {
 	}
 	return c.Conn.Close()
 }
-func snapshotReaderDriver(t *testing.T, path string, g Governor, a *Authority) (*Snapshots, *sql.DB, *snapshotConnector) {
+func snapshotReaderDriver(t *testing.T, path string, g Governor, a *Authority) (*Snapshots, snapshotPool, *snapshotConnector) {
 	t.Helper()
 	cfg := sqliteconn.Config{Role: sqliteconn.Reader, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Normal, ReadLimits: sqliteconn.ReadLimits{LengthBytes: 16384, Columns: 16}}
 	connector, err := sqliteconn.Connector(path, cfg)
