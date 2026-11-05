@@ -347,7 +347,7 @@
   "web/src/screens/detail/Album.tsx": 1,
   "web/src/screens/detail/Artist.tsx": 1,
   "web/src/screens/detail/audiobooks/bindings.ts": 2,
-  "web/src/screens/detail/bindings.ts": 3,
+  "web/src/screens/detail/bindings.ts": 2,
   "web/src/screens/detail/context.ts": 2,
   "web/src/screens/detail/genre-binding.ts": 1,
   "web/src/screens/detail/show-bindings.ts": 3,

@@ -74,7 +74,8 @@ async function run(engine) {
     await page.waitForURL(/\/sign-in/, {timeout: 30000});
     await page.getByLabel('Username').fill('e2e-owner');
     await page.getByLabel('Password', {exact: true}).fill('not-a-password');
-    const home = page.waitForResponse(response => new URL(response.url()).pathname === '/v1/home' && response.ok(), {timeout: 30000});
+    // The zero-library Home does not fetch shelves; the signed-in directory is its bootstrap.
+    const home = page.waitForResponse(response => new URL(response.url()).pathname === '/v1/libraries' && response.ok(), {timeout: 30000});
     // A failure says where the page went, not only where it was at one instant.
     const paths = [], started = Date.now(), track = setInterval(() => {const path = new URL(page.url()).pathname; if (paths.at(-1)?.path !== path) paths.push({path, ms: Date.now() - started});}, 25);
     const responses = [];
