@@ -23,12 +23,21 @@ import {readEventStream} from './sse.ts';
 import {parseRetryAfter} from './timer.ts';
 import type {EventsClient, RawStreamEvent, StreamOpener} from './playback-v1/events.ts';
 import type {FreshnessHub} from './freshness-hub.ts';
+import type {HttpLocalApi} from './index.ts';
+import {routePath} from '../../contracts/src/route-paths.ts';
 
 type Timers = Readonly<{setTimer?: (fn: () => void, ms: number) => unknown; clearTimer?: (timer: unknown) => void}>;
 const setT = (t: Timers | undefined) => t?.setTimer ?? ((fn: () => void, ms: number) => setTimeout(fn, ms));
 const clearT = (t: Timers | undefined) => t?.clearTimer ?? ((timer: unknown) => clearTimeout(timer as ReturnType<typeof setTimeout>));
 
 export type EventStreamFetch = (headers: Readonly<Record<string, string>>, signal: AbortSignal) => Promise<Response>;
+
+/** Browser SSE request policy. Stream sharing, visibility and reconnect remain
+ * with the existing feed; read the current route and bearer at each opening. */
+export function openBrowserEventFeed(api: Pick<HttpLocalApi, 'routeFetch' | 'baseUrl'>, token: () => string,
+  headers: Readonly<Record<string, string>>, signal: AbortSignal): Promise<Response> {
+  return api.routeFetch(api.baseUrl + routePath('get_events'), {signal, cache: 'no-store', headers: {...headers, Authorization: 'Bearer ' + token()}});
+}
 
 export type EventStreamOpenerOptions = Timers & Readonly<{
   /** The longest the first bytes may take once the response has begun. */

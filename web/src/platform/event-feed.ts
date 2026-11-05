@@ -1,5 +1,4 @@
-import {routePath} from '../../../packages/contracts/src/routes.ts';
-import {eventStreamOpener, sharedStreamOpener, type EventFeedEnvironment, type SharedStreamEnvironment} from '@core/event-feed.ts';
+import {eventStreamOpener, openBrowserEventFeed, sharedStreamOpener, type EventFeedEnvironment, type SharedStreamEnvironment} from '@core/event-feed.ts';
 import type {StreamOpener} from '@core/playback-v1/events.ts';
 import type {HttpLocalApi} from '@core/index.ts';
 import {browserLeaseEnvironment, leaseLock} from './tab-lease';
@@ -47,7 +46,7 @@ function sharing(): SharedStreamEnvironment | undefined {
 export function browserEventStream(api: HttpLocalApi, viewer: string, token: () => string): StreamOpener | undefined {
   const shared = sharing();
   if (!shared) return undefined;
-  const open = eventStreamOpener((headers, signal) => api.routeFetch(api.baseUrl + routePath('get_events'), {signal, cache: 'no-store', headers: {...headers, Authorization: 'Bearer ' + token()}}));
+  const open = eventStreamOpener((headers, signal) => openBrowserEventFeed(api, token, headers, signal));
   return sharedStreamOpener('portico.events.' + viewer, open, shared);
 }
 

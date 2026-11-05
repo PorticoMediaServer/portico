@@ -8,10 +8,11 @@ class Request {
   static made: Request[] = [];
   readyState = 0; status = 200; responseText = ''; responseURL = ''; responseType = ''; timeout = 0; withCredentials = true;
   url = ''; method = ''; body: string | undefined; aborted = false; headers: Record<string, string> = {};
+  headerCalls: [string, string][] = [];
   onload?: () => void; onerror?: () => void; ontimeout?: () => void; onabort?: () => void; onreadystatechange?: () => void; onprogress?: () => void;
   constructor() { Request.made.push(this); }
   open(method: string, url: string) { this.method = method; this.url = url; }
-  setRequestHeader(name: string, value: string) { this.headers[name] = value; }
+  setRequestHeader(name: string, value: string) { this.headerCalls.push([name, value]); this.headers[name] = value; }
   contentLength: string | null = null;
   getResponseHeader(_name: string) { return this.contentLength; }
   getAllResponseHeaders() { return 'Content-Type: application/json'; }
@@ -26,6 +27,14 @@ const last = () => Request.made.at(-1)!;
 let counter = 0;
 const send = (url: string, method = 'GET', headers = {}, body: string | null = null, limit = 1024) => submit({identifier: String(++counter), url, method, headers, body, limit, domain: 'queue_transport', busy: 'busy'});
 const code = (e: unknown) => (e as {code?: string}).code;
+
+test('SDK dispatch retains caller header order/casing and appends no-store without replacing a caller entry', async () => {
+  const response = send('https://header-policy.test/v1/system', 'GET', {Accept: 'application/json', 'cache-control': 'private', 'Cache-Control': 'max-age=0'});
+  assert.deepEqual(last().headerCalls, [
+    ['Accept', 'application/json'], ['cache-control', 'private'], ['Cache-Control', 'max-age=0'], ['Cache-Control', 'no-store'],
+  ]);
+  last().respond(); await response;
+});
 
 test('SDK headers-before-URL ordering keeps a public system read pending until validated completion', async () => {
   const response = send('http://sdk-order.test/v1/system');
