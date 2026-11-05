@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -252,6 +253,116 @@ VALUES(1,1,1,X'09000000000000000000000000000000',1,'A-CJK-uni-bi-v1','capture')`
 				t.Fatalf("wrong disposition: %v", err)
 			}
 			_ = turn.closeRows()
+			_, _ = turn.transaction.rollback(nil)
+			searchInputAssertRolledBack(t, w)
+		})
+	}
+}
+
+func TestSearchInputHelperMalformedCapturedProfiles(t *testing.T) {
+	w, registry := searchInputFixture(t)
+	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO search_generations(
+id,bank_key,recipe_version,engine_version,unicode_fingerprint,state,created_ms)
+VALUES(2,'raw_only_fixture','old_recipe','old_engine',?,'building',1000)`, searchInputExampleFingerprint); err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range []struct {
+		name string
+		edit func(*searchpolicy.Profile)
+	}{
+		{"empty recipe", func(p *searchpolicy.Profile) { p.RecipeVersion = "" }},
+		{"oversized recipe", func(p *searchpolicy.Profile) { p.RecipeVersion = strings.Repeat("r", 129) }},
+		{"empty engine", func(p *searchpolicy.Profile) { p.EngineVersion = "" }},
+		{"oversized engine", func(p *searchpolicy.Profile) { p.EngineVersion = strings.Repeat("e", 513) }},
+		{"empty fingerprint", func(p *searchpolicy.Profile) { p.UnicodeFingerprint = "" }},
+		{"wrong prefix", func(p *searchpolicy.Profile) { p.UnicodeFingerprint = "wrong:" + strings.Repeat("0", 64) }},
+		{"short fingerprint", func(p *searchpolicy.Profile) {
+			p.UnicodeFingerprint = searchpolicy.ProfileAlgorithm + ":" + strings.Repeat("0", 63)
+		}},
+		{"long fingerprint", func(p *searchpolicy.Profile) {
+			p.UnicodeFingerprint = searchpolicy.ProfileAlgorithm + ":" + strings.Repeat("0", 65)
+		}},
+		{"uppercase hex", func(p *searchpolicy.Profile) {
+			p.UnicodeFingerprint = searchpolicy.ProfileAlgorithm + ":" + strings.Repeat("A", 64)
+		}},
+		{"invalid hex", func(p *searchpolicy.Profile) {
+			p.UnicodeFingerprint = searchpolicy.ProfileAlgorithm + ":" + strings.Repeat("g", 64)
+		}},
+	} {
+		for _, bankID := range []int64{1, 2} {
+			t.Run(tt.name+"/"+string(rune('0'+bankID)), func(t *testing.T) {
+				profile := searchpolicy.Profile{RecipeVersion: "different_recipe", EngineVersion: "different_engine", UnicodeFingerprint: searchInputExampleFingerprint}
+				tt.edit(&profile)
+				custody := &testCustody{}
+				turn := searchInputTestTurn(t, w, registry, custody)
+				if bankID == 2 {
+					if _, err := turn.transaction.conn.ExecContext(turn.transaction.ctx,
+						`UPDATE search_revision SET building_generation_id=2 WHERE singleton=1`); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if _, err := turn.transaction.conn.ExecContext(turn.transaction.ctx,
+					`UPDATE search_generations SET recipe_version=?,engine_version=?,unicode_fingerprint=? WHERE id=?`,
+					profile.RecipeVersion, profile.EngineVersion, profile.UnicodeFingerprint, bankID); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := turn.transaction.conn.ExecContext(turn.transaction.ctx,
+					`UPDATE catalog_entities SET title='proposed' WHERE id=1`); err != nil {
+					t.Fatal(err)
+				}
+				before := custody.checks
+				err := applySearchInputIntent(t.Context(), turn, searchInputTestChange())
+				if !errors.Is(err, errSearchInputConfiguration) || custody.checks-before != int(bankID)+1 {
+					t.Fatalf("captured bank shape did not refuse before effects: %v; steps=%d", err, custody.checks-before)
+				}
+				if err := turn.closeRows(); err != nil {
+					t.Fatal(err)
+				}
+				_, _ = turn.transaction.rollback(err)
+				searchInputAssertRolledBack(t, w)
+			})
+		}
+	}
+}
+
+func TestSearchInputHelperWellFormedProfilesRemainAdmissible(t *testing.T) {
+	w, registry := searchInputFixture(t)
+	for _, tt := range []struct {
+		name    string
+		profile searchpolicy.Profile
+	}{
+		{"current", searchpolicy.Compiled()},
+		{"different recipe engine fingerprint", searchpolicy.Profile{
+			RecipeVersion: strings.Repeat("r", 128), EngineVersion: strings.Repeat("e", 512),
+			UnicodeFingerprint: searchpolicy.ProfileAlgorithm + ":" + strings.Repeat("f", 64),
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			turn := searchInputTestTurn(t, w, registry, &testCustody{})
+			if _, err := turn.transaction.conn.ExecContext(turn.transaction.ctx,
+				`UPDATE search_generations SET recipe_version=?,engine_version=?,unicode_fingerprint=? WHERE id=1`,
+				tt.profile.RecipeVersion, tt.profile.EngineVersion, tt.profile.UnicodeFingerprint); err != nil {
+				t.Fatal(err)
+			}
+			if err := applySearchInputIntent(t.Context(), turn, searchInputTestChange()); err != nil {
+				t.Fatal("well-formed captured tuple refused:", err)
+			}
+			var exact bool
+			if err := turn.transaction.conn.QueryRowContext(turn.transaction.ctx, `SELECT
+(SELECT recipe_version=? FROM search_publish_jobs WHERE entity_id=1 AND search_generation_id=1)
+AND (SELECT pending_subjects=1 AND recipe_version=? AND engine_version=? AND unicode_fingerprint=? FROM search_generations WHERE id=1)
+AND (SELECT input_sequence=1 AND revision=1 FROM search_revision)
+AND (SELECT count(*)=0 FROM search_own_prefix_docsize)
+AND (SELECT count(*)=0 FROM search_fragment_prefix_docsize)
+AND (SELECT count(*)=0 FROM search_fragment_lexical_docsize)
+AND (SELECT count(*)=0 FROM search_fragment_grams_docsize)
+AND (SELECT count(*)=0 FROM catalog_people_names_docsize)`, tt.profile.RecipeVersion,
+				tt.profile.RecipeVersion, tt.profile.EngineVersion, tt.profile.UnicodeFingerprint).Scan(&exact); err != nil || !exact {
+				t.Fatalf("stored tuple, RAW delta/clock or zero-native state changed: %v", err)
+			}
+			if err := turn.closeRows(); err != nil {
+				t.Fatal(err)
+			}
 			_, _ = turn.transaction.rollback(nil)
 			searchInputAssertRolledBack(t, w)
 		})
