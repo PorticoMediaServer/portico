@@ -1,0 +1,909 @@
+{
+  "algorithm": "portico-search-manifest-sha256-chain-v1",
+  "domains_hex": {
+    "seed": "706f727469636f2e7365617263682e6d616e69666573742e736565642e763100",
+    "leaf": "706f727469636f2e7365617263682e6d616e69666573742e6c6561662e763100",
+    "step": "706f727469636f2e7365617263682e6d616e69666573742e737465702e763100"
+  },
+  "positive": [
+    {
+      "name": "zero-fragments",
+      "seed": {
+        "recipe_version": "A-CJK-uni-bi-v1",
+        "subject_kind": 1,
+        "subject_id": 42,
+        "library_id": 5,
+        "catalog_kind": 1,
+        "search_generation_id": 1,
+        "bank_key": "v1",
+        "engine_version": "modernc1.58.0-SQLite3.53.4",
+        "unicode_fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
+        "input_generation": 7,
+        "source_incarnation_hex": "000102030405060708090a0b0c0d0e0f",
+        "source_revision": 9,
+        "expected_fragment_count": 0,
+        "expected_prepared_bytes": 0
+      },
+      "rows": [],
+      "seed_tuple_hex": "000000000000000f412d434a4b2d756e692d62692d763101000000000000002a00000000000000050000000000000001000000000000000100000000000000027631000000000000001a6d6f6465726e63312e35382e302d53514c697465332e35332e340000000000000040303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030300000000000000007000102030405060708090a0b0c0d0e0f000000000000000900000000000000000000000000000000",
+      "chain0_hex": "b744c43dc7007c8aad0966be90cb4aadce142be5a6d198bbced03d13a0978889",
+      "steps": [],
+      "final_chain_hex": "b744c43dc7007c8aad0966be90cb4aadce142be5a6d198bbced03d13a0978889",
+      "actual_count": 0,
+      "actual_prepared_bytes": 0,
+      "canonical_order": true
+    },
+    {
+      "name": "one-empty-fragment",
+      "seed": {
+        "recipe_version": "A-CJK-uni-bi-v1",
+        "subject_kind": 1,
+        "subject_id": 42,
+        "library_id": 5,
+        "catalog_kind": 1,
+        "search_generation_id": 1,
+        "bank_key": "v1",
+        "engine_version": "modernc1.58.0-SQLite3.53.4",
+        "unicode_fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
+        "input_generation": 7,
+        "source_incarnation_hex": "000102030405060708090a0b0c0d0e0f",
+        "source_revision": 9,
+        "expected_fragment_count": 1,
+        "expected_prepared_bytes": 0
+      },
+      "rows": [
+        {
+          "field": 1,
+          "ordinal": 0,
+          "source_revision": "9",
+          "prefix_tokens": "",
+          "lexical_tokens": "",
+          "normalized": ""
+        }
+      ],
+      "seed_tuple_hex": "000000000000000f412d434a4b2d756e692d62692d763101000000000000002a00000000000000050000000000000001000000000000000100000000000000027631000000000000001a6d6f6465726e63312e35382e302d53514c697465332e35332e340000000000000040303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030300000000000000007000102030405060708090a0b0c0d0e0f000000000000000900000000000000010000000000000000",
+      "chain0_hex": "8970ce4297693482469f51542998964786fdaae39867833e48456386a6f76f65",
+      "steps": [
+        {
+          "leaf_tuple_hex": "00010000000000000000000000000000000139000000000000000000000000000000000000000000000000",
+          "leaf_hex": "6f53227f247f32e3322edd263553e6483b8930db707cd2146ada5ac1b8848fb2",
+          "chain_hex": "ce2eb3806d10c8268cb1540011aac2362f663517561039b2e4d0c722cdd9eebc",
+          "verified_count": 1,
+          "verified_prepared_bytes": 0
+        }
+      ],
+      "final_chain_hex": "ce2eb3806d10c8268cb1540011aac2362f663517561039b2e4d0c722cdd9eebc",
+      "actual_count": 1,
+      "actual_prepared_bytes": 0,
+      "canonical_order": true
+    },
+    {
+      "name": "entity-multiple-fields",
+      "seed": {
+        "recipe_version": "A-CJK-uni-bi-v1",
+        "subject_kind": 1,
+        "subject_id": 42,
+        "library_id": 5,
+        "catalog_kind": 1,
+        "search_generation_id": 1,
+        "bank_key": "v1",
+        "engine_version": "modernc1.58.0-SQLite3.53.4",
+        "unicode_fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
+        "input_generation": 7,
+        "source_incarnation_hex": "000102030405060708090a0b0c0d0e0f",
+        "source_revision": 9,
+        "expected_fragment_count": 3,
+        "expected_prepared_bytes": 59
+      },
+      "rows": [
+        {
+          "field": 1,
+          "ordinal": 0,
+          "source_revision": "9",
+          "prefix_tokens": "000061 000062",
+          "lexical_tokens": "a b",
+          "normalized": "a b"
+        },
+        {
+          "field": 1,
+          "ordinal": 1,
+          "source_revision": "9",
+          "prefix_tokens": "006771004eac",
+          "lexical_tokens": "東京 東 京",
+          "normalized": "東京"
+        },
+        {
+          "field": 3,
+          "ordinal": 0,
+          "source_revision": "provider:\u0000r2",
+          "prefix_tokens": "000063",
+          "lexical_tokens": "c",
+          "normalized": "c"
+        }
+      ],
+      "seed_tuple_hex": "000000000000000f412d434a4b2d756e692d62692d763101000000000000002a00000000000000050000000000000001000000000000000100000000000000027631000000000000001a6d6f6465726e63312e35382e302d53514c697465332e35332e340000000000000040303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030300000000000000007000102030405060708090a0b0c0d0e0f00000000000000090000000000000003000000000000003b",
+      "chain0_hex": "b4aea0c792780b6f9c7f266b22379773bff04ee0caf3bbfcc0bd4a96184cb81e",
+      "steps": [
+        {
+          "leaf_tuple_hex": "00010000000000000000000000000000000139000000000000000d3030303036312030303030363200000000000000036120620000000000000003612062",
+          "leaf_hex": "43e7498f9d99a0d5483d9351a6f3cc59dee100164137bc7856d9690aa0282837",
+          "chain_hex": "1b185836c28112f6850be8908f858ece54eeef0f6ab5e7d188c3646b4b1667c6",
+          "verified_count": 1,
+          "verified_prepared_bytes": 19
+        },
+        {
+          "leaf_tuple_hex": "00010000000000000001000000000000000139000000000000000c303036373731303034656163000000000000000ee69db1e4baac20e69db120e4baac0000000000000006e69db1e4baac",
+          "leaf_hex": "846fd4c2aea3dc095b936e507f9335ea888d52a9c7dd73f656d1485dd398eeac",
+          "chain_hex": "8355f371de8d50090694fd4b644057dcc81a57d1cc9ee7e6e0c32c4174c2de5a",
+          "verified_count": 2,
+          "verified_prepared_bytes": 51
+        },
+        {
+          "leaf_tuple_hex": "00030000000000000000000000000000000c70726f76696465723a0072320000000000000006303030303633000000000000000163000000000000000163",
+          "leaf_hex": "db857dd0e693dfb2c25479e806224a9a2277c6f811f9e47c7be5661473cdd440",
+          "chain_hex": "29261134859c6f057c474e38ce099f2e7d68c15dd8407b5ea520bdd90a3642bc",
+          "verified_count": 3,
+          "verified_prepared_bytes": 59
+        }
+      ],
+      "final_chain_hex": "29261134859c6f057c474e38ce099f2e7d68c15dd8407b5ea520bdd90a3642bc",
+      "actual_count": 3,
+      "actual_prepared_bytes": 59,
+      "canonical_order": true
+    },
+    {
+      "name": "person",
+      "seed": {
+        "recipe_version": "A-CJK-uni-bi-v1",
+        "subject_kind": 2,
+        "subject_id": 101,
+        "library_id": null,
+        "catalog_kind": null,
+        "search_generation_id": 1,
+        "bank_key": "v1",
+        "engine_version": "modernc1.58.0-SQLite3.53.4",
+        "unicode_fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
+        "input_generation": 7,
+        "source_incarnation_hex": "000102030405060708090a0b0c0d0e0f",
+        "source_revision": 9,
+        "expected_fragment_count": 2,
+        "expected_prepared_bytes": 51
+      },
+      "rows": [
+        {
+          "field": 1,
+          "ordinal": 0,
+          "source_revision": "9",
+          "prefix_tokens": "000061 000062",
+          "lexical_tokens": "a b",
+          "normalized": "a b"
+        },
+        {
+          "field": 1,
+          "ordinal": 1,
+          "source_revision": "9",
+          "prefix_tokens": "006771004eac",
+          "lexical_tokens": "東京 東 京",
+          "normalized": "東京"
+        }
+      ],
+      "seed_tuple_hex": "000000000000000f412d434a4b2d756e692d62692d7631020000000000000065000000000000000100000000000000027631000000000000001a6d6f6465726e63312e35382e302d53514c697465332e35332e340000000000000040303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030300000000000000007000102030405060708090a0b0c0d0e0f000000000000000900000000000000020000000000000033",
+      "chain0_hex": "cdb34c6d301d19f674d46f7b0071f945ef938d757c7dee24ec876174a7200897",
+      "steps": [
+        {
+          "leaf_tuple_hex": "00010000000000000000000000000000000139000000000000000d3030303036312030303030363200000000000000036120620000000000000003612062",
+          "leaf_hex": "43e7498f9d99a0d5483d9351a6f3cc59dee100164137bc7856d9690aa0282837",
+          "chain_hex": "7355fe1ddbacaf1ecb92113818c732fd312347b2ad0e07475a2c52f423224902",
+          "verified_count": 1,
+          "verified_prepared_bytes": 19
+        },
+        {
+          "leaf_tuple_hex": "00010000000000000001000000000000000139000000000000000c303036373731303034656163000000000000000ee69db1e4baac20e69db120e4baac0000000000000006e69db1e4baac",
+          "leaf_hex": "846fd4c2aea3dc095b936e507f9335ea888d52a9c7dd73f656d1485dd398eeac",
+          "chain_hex": "1646e3ee41aef46940a842bb5ba39f2661b886d783683199c3d7503eb2b8b845",
+          "verified_count": 2,
+          "verified_prepared_bytes": 51
+        }
+      ],
+      "final_chain_hex": "1646e3ee41aef46940a842bb5ba39f2661b886d783683199c3d7503eb2b8b845",
+      "actual_count": 2,
+      "actual_prepared_bytes": 51,
+      "canonical_order": true
+    },
+    {
+      "name": "length-boundary-a",
+      "seed": {
+        "recipe_version": "A-CJK-uni-bi-v1",
+        "subject_kind": 1,
+        "subject_id": 42,
+        "library_id": 5,
+        "catalog_kind": 1,
+        "search_generation_id": 1,
+        "bank_key": "v1",
+        "engine_version": "modernc1.58.0-SQLite3.53.4",
+        "unicode_fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
+        "input_generation": 7,
+        "source_incarnation_hex": "000102030405060708090a0b0c0d0e0f",
+        "source_revision": 9,
+        "expected_fragment_count": 1,
+        "expected_prepared_bytes": 16
+      },
+      "rows": [
+        {
+          "field": 1,
+          "ordinal": 0,
+          "source_revision": "r",
+          "prefix_tokens": "000061",
+          "lexical_tokens": "alpha",
+          "normalized": "alpha"
+        }
+      ],
+      "seed_tuple_hex": "000000000000000f412d434a4b2d756e692d62692d763101000000000000002a00000000000000050000000000000001000000000000000100000000000000027631000000000000001a6d6f6465726e63312e35382e302d53514c697465332e35332e340000000000000040303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030300000000000000007000102030405060708090a0b0c0d0e0f000000000000000900000000000000010000000000000010",
+      "chain0_hex": "62be5694a1c5c3874ef159ed425a8b8ff34cab4dc3ec17ba396341fc652e6377",
+      "steps": [
+        {
+          "leaf_tuple_hex": "0001000000000000000000000000000000017200000000000000063030303036310000000000000005616c7068610000000000000005616c706861",
+          "leaf_hex": "aa6d801fdb3d9321365e354840f4b508cb6686c5eabc462f252b9bc29165c5a3",
+          "chain_hex": "46b0f5a14f8cdb040254c2acdf89d3f1c900e68b33067ee4a20d00bd84325ff1",
+          "verified_count": 1,
+          "verified_prepared_bytes": 16
+        }
+      ],
+      "final_chain_hex": "46b0f5a14f8cdb040254c2acdf89d3f1c900e68b33067ee4a20d00bd84325ff1",
+      "actual_count": 1,
+      "actual_prepared_bytes": 16,
+      "canonical_order": true
+    },
+    {
+      "name": "length-boundary-b",
+      "seed": {
+        "recipe_version": "A-CJK-uni-bi-v1",
+        "subject_kind": 1,
+        "subject_id": 42,
+        "library_id": 5,
+        "catalog_kind": 1,
+        "search_generation_id": 1,
+        "bank_key": "v1",
+        "engine_version": "modernc1.58.0-SQLite3.53.4",
+        "unicode_fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
+        "input_generation": 7,
+        "source_incarnation_hex": "000102030405060708090a0b0c0d0e0f",
+        "source_revision": 9,
+        "expected_fragment_count": 1,
+        "expected_prepared_bytes": 10
+      },
+      "rows": [
+        {
+          "field": 1,
+          "ordinal": 0,
+          "source_revision": "r000061",
+          "prefix_tokens": "",
+          "lexical_tokens": "alpha",
+          "normalized": "alpha"
+        }
+      ],
+      "seed_tuple_hex": "000000000000000f412d434a4b2d756e692d62692d763101000000000000002a00000000000000050000000000000001000000000000000100000000000000027631000000000000001a6d6f6465726e63312e35382e302d53514c697465332e35332e340000000000000040303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030300000000000000007000102030405060708090a0b0c0d0e0f00000000000000090000000000000001000000000000000a",
+      "chain0_hex": "a0b585dd7b04b3d45455cd2d1b24de1c0eac03c335b712cea520a6b473cae137",
+      "steps": [
+        {
+          "leaf_tuple_hex": "0001000000000000000000000000000000077230303030363100000000000000000000000000000005616c7068610000000000000005616c706861",
+          "leaf_hex": "7d0ed50340a3668e2781916e9b8c55d0cf35c77d97dea8a45c6579cadd8e5218",
+          "chain_hex": "0a19bbff001ceeedeed06b83bee6a2758845979ae0d0423d8b0be4673aa0bc33",
+          "verified_count": 1,
+          "verified_prepared_bytes": 10
+        }
+      ],
+      "final_chain_hex": "0a19bbff001ceeedeed06b83bee6a2758845979ae0d0423d8b0be4673aa0bc33",
+      "actual_count": 1,
+      "actual_prepared_bytes": 10,
+      "canonical_order": true
+    }
+  ],
+  "negative_baseline": "entity-multiple-fields",
+  "negative": [
+    {
+      "name": "missing",
+      "rows": [
+        {
+          "field": 1,
+          "ordinal": 0,
+          "source_revision": "9",
+          "prefix_tokens": "000061 000062",
+          "lexical_tokens": "a b",
+          "normalized": "a b"
+        },
+        {
+          "field": 1,
+          "ordinal": 1,
+          "source_revision": "9",
+          "prefix_tokens": "006771004eac",
+          "lexical_tokens": "東京 東 京",
+          "normalized": "東京"
+        }
+      ],
+      "expected_valid": false,
+      "seed_tuple_hex": "000000000000000f412d434a4b2d756e692d62692d763101000000000000002a00000000000000050000000000000001000000000000000100000000000000027631000000000000001a6d6f6465726e63312e35382e302d53514c697465332e35332e340000000000000040303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030300000000000000007000102030405060708090a0b0c0d0e0f00000000000000090000000000000003000000000000003b",
+      "chain0_hex": "b4aea0c792780b6f9c7f266b22379773bff04ee0caf3bbfcc0bd4a96184cb81e",
+      "steps": [
+        {
+          "leaf_tuple_hex": "00010000000000000000000000000000000139000000000000000d3030303036312030303030363200000000000000036120620000000000000003612062",
+          "leaf_hex": "43e7498f9d99a0d5483d9351a6f3cc59dee100164137bc7856d9690aa0282837",
+          "chain_hex": "1b185836c28112f6850be8908f858ece54eeef0f6ab5e7d188c3646b4b1667c6",
+          "verified_count": 1,
+          "verified_prepared_bytes": 19
+        },
+        {
+          "leaf_tuple_hex": "00010000000000000001000000000000000139000000000000000c303036373731303034656163000000000000000ee69db1e4baac20e69db120e4baac0000000000000006e69db1e4baac",
+          "leaf_hex": "846fd4c2aea3dc095b936e507f9335ea888d52a9c7dd73f656d1485dd398eeac",
+          "chain_hex": "8355f371de8d50090694fd4b644057dcc81a57d1cc9ee7e6e0c32c4174c2de5a",
+          "verified_count": 2,
+          "verified_prepared_bytes": 51
+        }
+      ],
+      "final_chain_hex": "8355f371de8d50090694fd4b644057dcc81a57d1cc9ee7e6e0c32c4174c2de5a",
+      "actual_count": 2,
+      "actual_prepared_bytes": 51,
+      "canonical_order": true
+    },
+    {
+      "name": "extra",
+      "rows": [
+        {
+          "field": 1,
+          "ordinal": 0,
+          "source_revision": "9",
+          "prefix_tokens": "000061 000062",
+          "lexical_tokens": "a b",
+          "normalized": "a b"
+        },
+        {
+          "field": 1,
+          "ordinal": 1,
+          "source_revision": "9",
+          "prefix_tokens": "006771004eac",
+          "lexical_tokens": "東京 東 京",
+          "normalized": "東京"
+        },
+        {
+          "field": 3,
+          "ordinal": 0,
+          "source_revision": "provider:\u0000r2",
+          "prefix_tokens": "000063",
+          "lexical_tokens": "c",
+          "normalized": "c"
+        },
+        {
+          "field": 4,
+          "ordinal": 0,
+          "source_revision": "9",
+          "prefix_tokens": "",
+          "lexical_tokens": "d",
+          "normalized": "d"
+        }
+      ],
+      "expected_valid": false,
+      "seed_tuple_hex": "000000000000000f412d434a4b2d756e692d62692d763101000000000000002a00000000000000050000000000000001000000000000000100000000000000027631000000000000001a6d6f6465726e63312e35382e302d53514c697465332e35332e340000000000000040303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030300000000000000007000102030405060708090a0b0c0d0e0f00000000000000090000000000000003000000000000003b",
+      "chain0_hex": "b4aea0c792780b6f9c7f266b22379773bff04ee0caf3bbfcc0bd4a96184cb81e",
+      "steps": [
+        {
+          "leaf_tuple_hex": "00010000000000000000000000000000000139000000000000000d3030303036312030303030363200000000000000036120620000000000000003612062",
+          "leaf_hex": "43e7498f9d99a0d5483d9351a6f3cc59dee100164137bc7856d9690aa0282837",
+          "chain_hex": "1b185836c28112f6850be8908f858ece54eeef0f6ab5e7d188c3646b4b1667c6",
+          "verified_count": 1,
+          "verified_prepared_bytes": 19
+        },
+        {
+          "leaf_tuple_hex": "00010000000000000001000000000000000139000000000000000c303036373731303034656163000000000000000ee69db1e4baac20e69db120e4baac0000000000000006e69db1e4baac",
+          "leaf_hex": "846fd4c2aea3dc095b936e507f9335ea888d52a9c7dd73f656d1485dd398eeac",
+          "chain_hex": "8355f371de8d50090694fd4b644057dcc81a57d1cc9ee7e6e0c32c4174c2de5a",
+          "verified_count": 2,
+          "verified_prepared_bytes": 51
+        },
+        {
+          "leaf_tuple_hex": "00030000000000000000000000000000000c70726f76696465723a0072320000000000000006303030303633000000000000000163000000000000000163",
+          "leaf_hex": "db857dd0e693dfb2c25479e806224a9a2277c6f811f9e47c7be5661473cdd440",
+          "chain_hex": "29261134859c6f057c474e38ce099f2e7d68c15dd8407b5ea520bdd90a3642bc",
+          "verified_count": 3,
+          "verified_prepared_bytes": 59
+        },
+        {
+          "leaf_tuple_hex": "000400000000000000000000000000000001390000000000000000000000000000000164000000000000000164",
+          "leaf_hex": "63bee0a91a8a2045548a2c40ab8ba8b5d1e449a1487935c2a9bbdfa4878f76d6",
+          "chain_hex": "e7a1a0463587842ef2e05c7b5f5a8ebadd2c2042a283e252f8e17572fb51f918",
+          "verified_count": 4,
+          "verified_prepared_bytes": 61
+        }
+      ],
+      "final_chain_hex": "e7a1a0463587842ef2e05c7b5f5a8ebadd2c2042a283e252f8e17572fb51f918",
+      "actual_count": 4,
+      "actual_prepared_bytes": 61,
+      "canonical_order": true
+    },
+    {
+      "name": "duplicate",
+      "rows": [
+        {
+          "field": 1,
+          "ordinal": 0,
+          "source_revision": "9",
+          "prefix_tokens": "000061 000062",
+          "lexical_tokens": "a b",
+          "normalized": "a b"
+        },
+        {
+          "field": 1,
+          "ordinal": 0,
+          "source_revision": "9",
+          "prefix_tokens": "000061 000062",
+          "lexical_tokens": "a b",
+          "normalized": "a b"
+        },
+        {
+          "field": 1,
+          "ordinal": 1,
+          "source_revision": "9",
+          "prefix_tokens": "006771004eac",
+          "lexical_tokens": "東京 東 京",
+          "normalized": "東京"
+        },
+        {
+          "field": 3,
+          "ordinal": 0,
+          "source_revision": "provider:\u0000r2",
+          "prefix_tokens": "000063",
+          "lexical_tokens": "c",
+          "normalized": "c"
+        }
+      ],
+      "expected_valid": false,
+      "seed_tuple_hex": "000000000000000f412d434a4b2d756e692d62692d763101000000000000002a00000000000000050000000000000001000000000000000100000000000000027631000000000000001a6d6f6465726e63312e35382e302d53514c697465332e35332e340000000000000040303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030300000000000000007000102030405060708090a0b0c0d0e0f00000000000000090000000000000003000000000000003b",
+      "chain0_hex": "b4aea0c792780b6f9c7f266b22379773bff04ee0caf3bbfcc0bd4a96184cb81e",
+      "steps": [
+        {
+          "leaf_tuple_hex": "00010000000000000000000000000000000139000000000000000d3030303036312030303030363200000000000000036120620000000000000003612062",
+          "leaf_hex": "43e7498f9d99a0d5483d9351a6f3cc59dee100164137bc7856d9690aa0282837",
+          "chain_hex": "1b185836c28112f6850be8908f858ece54eeef0f6ab5e7d188c3646b4b1667c6",
+          "verified_count": 1,
+          "verified_prepared_bytes": 19
+        },
+        {
+          "leaf_tuple_hex": "00010000000000000000000000000000000139000000000000000d3030303036312030303030363200000000000000036120620000000000000003612062",
+          "leaf_hex": "43e7498f9d99a0d5483d9351a6f3cc59dee100164137bc7856d9690aa0282837",
+          "chain_hex": "e27f1a3f4a34a549538d0e76fa198d8b3733c92314dac5696f55e2c517f5b0aa",
+          "verified_count": 2,
+          "verified_prepared_bytes": 38
+        },
+        {
+          "leaf_tuple_hex": "00010000000000000001000000000000000139000000000000000c303036373731303034656163000000000000000ee69db1e4baac20e69db120e4baac0000000000000006e69db1e4baac",
+          "leaf_hex": "846fd4c2aea3dc095b936e507f9335ea888d52a9c7dd73f656d1485dd398eeac",
+          "chain_hex": "d3f8970c27a9f04863fefa8530f7486dfd4fe951871169c932ebea9a7f7dd47e",
+          "verified_count": 3,
+          "verified_prepared_bytes": 70
+        },
+        {
+          "leaf_tuple_hex": "00030000000000000000000000000000000c70726f76696465723a0072320000000000000006303030303633000000000000000163000000000000000163",
+          "leaf_hex": "db857dd0e693dfb2c25479e806224a9a2277c6f811f9e47c7be5661473cdd440",
+          "chain_hex": "ddf14a54ac4dd588526abf71ccb9713dc9f721bbc042e57e54e2ede8e1b2417b",
+          "verified_count": 4,
+          "verified_prepared_bytes": 78
+        }
+      ],
+      "final_chain_hex": "ddf14a54ac4dd588526abf71ccb9713dc9f721bbc042e57e54e2ede8e1b2417b",
+      "actual_count": 4,
+      "actual_prepared_bytes": 78,
+      "canonical_order": false
+    },
+    {
+      "name": "reordered",
+      "rows": [
+        {
+          "field": 1,
+          "ordinal": 1,
+          "source_revision": "9",
+          "prefix_tokens": "006771004eac",
+          "lexical_tokens": "東京 東 京",
+          "normalized": "東京"
+        },
+        {
+          "field": 1,
+          "ordinal": 0,
+          "source_revision": "9",
+          "prefix_tokens": "000061 000062",
+          "lexical_tokens": "a b",
+          "normalized": "a b"
+        },
+        {
+          "field": 3,
+          "ordinal": 0,
+          "source_revision": "provider:\u0000r2",
+          "prefix_tokens": "000063",
+          "lexical_tokens": "c",
+          "normalized": "c"
+        }
+      ],
+      "expected_valid": false,
+      "seed_tuple_hex": "000000000000000f412d434a4b2d756e692d62692d763101000000000000002a00000000000000050000000000000001000000000000000100000000000000027631000000000000001a6d6f6465726e63312e35382e302d53514c697465332e35332e340000000000000040303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030300000000000000007000102030405060708090a0b0c0d0e0f00000000000000090000000000000003000000000000003b",
+      "chain0_hex": "b4aea0c792780b6f9c7f266b22379773bff04ee0caf3bbfcc0bd4a96184cb81e",
+      "steps": [
+        {
+          "leaf_tuple_hex": "00010000000000000001000000000000000139000000000000000c303036373731303034656163000000000000000ee69db1e4baac20e69db120e4baac0000000000000006e69db1e4baac",
+          "leaf_hex": "846fd4c2aea3dc095b936e507f9335ea888d52a9c7dd73f656d1485dd398eeac",
+          "chain_hex": "f5a6f1798031d3e6d08f0b90bfa31216039b22cdb02ef0a57b3968f434a1261a",
+          "verified_count": 1,
+          "verified_prepared_bytes": 32
+        },
+        {
+          "leaf_tuple_hex": "00010000000000000000000000000000000139000000000000000d3030303036312030303030363200000000000000036120620000000000000003612062",
+          "leaf_hex": "43e7498f9d99a0d5483d9351a6f3cc59dee100164137bc7856d9690aa0282837",
+          "chain_hex": "185199e31db030344e7db672bf604d0ae651497a556aff82310608974b6a705c",
+          "verified_count": 2,
+          "verified_prepared_bytes": 51
+        },
+        {
+          "leaf_tuple_hex": "00030000000000000000000000000000000c70726f76696465723a0072320000000000000006303030303633000000000000000163000000000000000163",
+          "leaf_hex": "db857dd0e693dfb2c25479e806224a9a2277c6f811f9e47c7be5661473cdd440",
+          "chain_hex": "b82c0136ec55237d6fda4502627ee1f8adf29ee3df2dcd4bb3627ee601e360d4",
+          "verified_count": 3,
+          "verified_prepared_bytes": 59
+        }
+      ],
+      "final_chain_hex": "b82c0136ec55237d6fda4502627ee1f8adf29ee3df2dcd4bb3627ee601e360d4",
+      "actual_count": 3,
+      "actual_prepared_bytes": 59,
+      "canonical_order": false
+    },
+    {
+      "name": "mutated-same-byte-length",
+      "rows": [
+        {
+          "field": 1,
+          "ordinal": 0,
+          "source_revision": "9",
+          "prefix_tokens": "000061 000062",
+          "lexical_tokens": "a b",
+          "normalized": "b a"
+        },
+        {
+          "field": 1,
+          "ordinal": 1,
+          "source_revision": "9",
+          "prefix_tokens": "006771004eac",
+          "lexical_tokens": "東京 東 京",
+          "normalized": "東京"
+        },
+        {
+          "field": 3,
+          "ordinal": 0,
+          "source_revision": "provider:\u0000r2",
+          "prefix_tokens": "000063",
+          "lexical_tokens": "c",
+          "normalized": "c"
+        }
+      ],
+      "expected_valid": false,
+      "seed_tuple_hex": "000000000000000f412d434a4b2d756e692d62692d763101000000000000002a00000000000000050000000000000001000000000000000100000000000000027631000000000000001a6d6f6465726e63312e35382e302d53514c697465332e35332e340000000000000040303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030300000000000000007000102030405060708090a0b0c0d0e0f00000000000000090000000000000003000000000000003b",
+      "chain0_hex": "b4aea0c792780b6f9c7f266b22379773bff04ee0caf3bbfcc0bd4a96184cb81e",
+      "steps": [
+        {
+          "leaf_tuple_hex": "00010000000000000000000000000000000139000000000000000d3030303036312030303030363200000000000000036120620000000000000003622061",
+          "leaf_hex": "f7eb146151efc128a41e04b4fe146a4dbabbe473ce135aef6a736530b59988bd",
+          "chain_hex": "cf0bc4cf448536dc0b3970cf69afeb96e00b83fee87ad415c05812a1b3fea6d8",
+          "verified_count": 1,
+          "verified_prepared_bytes": 19
+        },
+        {
+          "leaf_tuple_hex": "00010000000000000001000000000000000139000000000000000c303036373731303034656163000000000000000ee69db1e4baac20e69db120e4baac0000000000000006e69db1e4baac",
+          "leaf_hex": "846fd4c2aea3dc095b936e507f9335ea888d52a9c7dd73f656d1485dd398eeac",
+          "chain_hex": "07c5000438a07c1910dbe2f170ecae05da4ae455bf597c9b6c2d575ed754bc07",
+          "verified_count": 2,
+          "verified_prepared_bytes": 51
+        },
+        {
+          "leaf_tuple_hex": "00030000000000000000000000000000000c70726f76696465723a0072320000000000000006303030303633000000000000000163000000000000000163",
+          "leaf_hex": "db857dd0e693dfb2c25479e806224a9a2277c6f811f9e47c7be5661473cdd440",
+          "chain_hex": "5835b2c4e44ef1bf9d95cd66cba4bf4b8c6b5a2dbeea47dc7eadbbbb249ad96c",
+          "verified_count": 3,
+          "verified_prepared_bytes": 59
+        }
+      ],
+      "final_chain_hex": "5835b2c4e44ef1bf9d95cd66cba4bf4b8c6b5a2dbeea47dc7eadbbbb249ad96c",
+      "actual_count": 3,
+      "actual_prepared_bytes": 59,
+      "canonical_order": true
+    },
+    {
+      "name": "changed-native-text-revision",
+      "rows": [
+        {
+          "field": 1,
+          "ordinal": 0,
+          "source_revision": "09",
+          "prefix_tokens": "000061 000062",
+          "lexical_tokens": "a b",
+          "normalized": "a b"
+        },
+        {
+          "field": 1,
+          "ordinal": 1,
+          "source_revision": "9",
+          "prefix_tokens": "006771004eac",
+          "lexical_tokens": "東京 東 京",
+          "normalized": "東京"
+        },
+        {
+          "field": 3,
+          "ordinal": 0,
+          "source_revision": "provider:\u0000r2",
+          "prefix_tokens": "000063",
+          "lexical_tokens": "c",
+          "normalized": "c"
+        }
+      ],
+      "expected_valid": false,
+      "seed_tuple_hex": "000000000000000f412d434a4b2d756e692d62692d763101000000000000002a00000000000000050000000000000001000000000000000100000000000000027631000000000000001a6d6f6465726e63312e35382e302d53514c697465332e35332e340000000000000040303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030300000000000000007000102030405060708090a0b0c0d0e0f00000000000000090000000000000003000000000000003b",
+      "chain0_hex": "b4aea0c792780b6f9c7f266b22379773bff04ee0caf3bbfcc0bd4a96184cb81e",
+      "steps": [
+        {
+          "leaf_tuple_hex": "0001000000000000000000000000000000023039000000000000000d3030303036312030303030363200000000000000036120620000000000000003612062",
+          "leaf_hex": "727dd6c5d2dba2fc8bb22d3ef7696bff70d5324ae3f342d344ae47377a0c4284",
+          "chain_hex": "095a08c0939579a23f364fc6764c65c43b26a0cc835287c392ff96ca6f786857",
+          "verified_count": 1,
+          "verified_prepared_bytes": 19
+        },
+        {
+          "leaf_tuple_hex": "00010000000000000001000000000000000139000000000000000c303036373731303034656163000000000000000ee69db1e4baac20e69db120e4baac0000000000000006e69db1e4baac",
+          "leaf_hex": "846fd4c2aea3dc095b936e507f9335ea888d52a9c7dd73f656d1485dd398eeac",
+          "chain_hex": "f89156b9444ddc9e0d360fc30da186c263aa81728a7aff53590a23cd8958c3c2",
+          "verified_count": 2,
+          "verified_prepared_bytes": 51
+        },
+        {
+          "leaf_tuple_hex": "00030000000000000000000000000000000c70726f76696465723a0072320000000000000006303030303633000000000000000163000000000000000163",
+          "leaf_hex": "db857dd0e693dfb2c25479e806224a9a2277c6f811f9e47c7be5661473cdd440",
+          "chain_hex": "46e3ee428593d363950408d3ca68cd22ed984262066228691d31700fde41b7fe",
+          "verified_count": 3,
+          "verified_prepared_bytes": 59
+        }
+      ],
+      "final_chain_hex": "46e3ee428593d363950408d3ca68cd22ed984262066228691d31700fde41b7fe",
+      "actual_count": 3,
+      "actual_prepared_bytes": 59,
+      "canonical_order": true
+    },
+    {
+      "name": "seed-recipe_version",
+      "seed": {
+        "recipe_version": "A-CJK-uni-bi-v2",
+        "subject_kind": 1,
+        "subject_id": 42,
+        "library_id": 5,
+        "catalog_kind": 1,
+        "search_generation_id": 1,
+        "bank_key": "v1",
+        "engine_version": "modernc1.58.0-SQLite3.53.4",
+        "unicode_fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
+        "input_generation": 7,
+        "source_incarnation_hex": "000102030405060708090a0b0c0d0e0f",
+        "source_revision": 9,
+        "expected_fragment_count": 3,
+        "expected_prepared_bytes": 59
+      },
+      "rows": [
+        {
+          "field": 1,
+          "ordinal": 0,
+          "source_revision": "9",
+          "prefix_tokens": "000061 000062",
+          "lexical_tokens": "a b",
+          "normalized": "a b"
+        },
+        {
+          "field": 1,
+          "ordinal": 1,
+          "source_revision": "9",
+          "prefix_tokens": "006771004eac",
+          "lexical_tokens": "東京 東 京",
+          "normalized": "東京"
+        },
+        {
+          "field": 3,
+          "ordinal": 0,
+          "source_revision": "provider:\u0000r2",
+          "prefix_tokens": "000063",
+          "lexical_tokens": "c",
+          "normalized": "c"
+        }
+      ],
+      "expected_valid": false,
+      "seed_tuple_hex": "000000000000000f412d434a4b2d756e692d62692d763201000000000000002a00000000000000050000000000000001000000000000000100000000000000027631000000000000001a6d6f6465726e63312e35382e302d53514c697465332e35332e340000000000000040303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030300000000000000007000102030405060708090a0b0c0d0e0f00000000000000090000000000000003000000000000003b",
+      "chain0_hex": "fba0e51ff64abc1bc0bf3eb7b0d0b8f6d1a0361417d450ebf82f88c1b37974a1",
+      "steps": [
+        {
+          "leaf_tuple_hex": "00010000000000000000000000000000000139000000000000000d3030303036312030303030363200000000000000036120620000000000000003612062",
+          "leaf_hex": "43e7498f9d99a0d5483d9351a6f3cc59dee100164137bc7856d9690aa0282837",
+          "chain_hex": "c3dd904de0f243e7758062e87741b14f1752c166abc4669ca7f5421834051209",
+          "verified_count": 1,
+          "verified_prepared_bytes": 19
+        },
+        {
+          "leaf_tuple_hex": "00010000000000000001000000000000000139000000000000000c303036373731303034656163000000000000000ee69db1e4baac20e69db120e4baac0000000000000006e69db1e4baac",
+          "leaf_hex": "846fd4c2aea3dc095b936e507f9335ea888d52a9c7dd73f656d1485dd398eeac",
+          "chain_hex": "37288a384e8647683f35a5d896709c57613e780f7f45524e8b2ec9e44282edd4",
+          "verified_count": 2,
+          "verified_prepared_bytes": 51
+        },
+        {
+          "leaf_tuple_hex": "00030000000000000000000000000000000c70726f76696465723a0072320000000000000006303030303633000000000000000163000000000000000163",
+          "leaf_hex": "db857dd0e693dfb2c25479e806224a9a2277c6f811f9e47c7be5661473cdd440",
+          "chain_hex": "5d471d8582bf90580e4183da2b5e6ca0f3051042dce02f82d5cdfe56989ce214",
+          "verified_count": 3,
+          "verified_prepared_bytes": 59
+        }
+      ],
+      "final_chain_hex": "5d471d8582bf90580e4183da2b5e6ca0f3051042dce02f82d5cdfe56989ce214",
+      "actual_count": 3,
+      "actual_prepared_bytes": 59,
+      "canonical_order": true
+    },
+    {
+      "name": "seed-input_generation",
+      "seed": {
+        "recipe_version": "A-CJK-uni-bi-v1",
+        "subject_kind": 1,
+        "subject_id": 42,
+        "library_id": 5,
+        "catalog_kind": 1,
+        "search_generation_id": 1,
+        "bank_key": "v1",
+        "engine_version": "modernc1.58.0-SQLite3.53.4",
+        "unicode_fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
+        "input_generation": 8,
+        "source_incarnation_hex": "000102030405060708090a0b0c0d0e0f",
+        "source_revision": 9,
+        "expected_fragment_count": 3,
+        "expected_prepared_bytes": 59
+      },
+      "rows": [
+        {
+          "field": 1,
+          "ordinal": 0,
+          "source_revision": "9",
+          "prefix_tokens": "000061 000062",
+          "lexical_tokens": "a b",
+          "normalized": "a b"
+        },
+        {
+          "field": 1,
+          "ordinal": 1,
+          "source_revision": "9",
+          "prefix_tokens": "006771004eac",
+          "lexical_tokens": "東京 東 京",
+          "normalized": "東京"
+        },
+        {
+          "field": 3,
+          "ordinal": 0,
+          "source_revision": "provider:\u0000r2",
+          "prefix_tokens": "000063",
+          "lexical_tokens": "c",
+          "normalized": "c"
+        }
+      ],
+      "expected_valid": false,
+      "seed_tuple_hex": "000000000000000f412d434a4b2d756e692d62692d763101000000000000002a00000000000000050000000000000001000000000000000100000000000000027631000000000000001a6d6f6465726e63312e35382e302d53514c697465332e35332e340000000000000040303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030300000000000000008000102030405060708090a0b0c0d0e0f00000000000000090000000000000003000000000000003b",
+      "chain0_hex": "8ef4a97967752e9518a8d6db2218fd31b9ec902afe75f96dc59ac5c2ecd96736",
+      "steps": [
+        {
+          "leaf_tuple_hex": "00010000000000000000000000000000000139000000000000000d3030303036312030303030363200000000000000036120620000000000000003612062",
+          "leaf_hex": "43e7498f9d99a0d5483d9351a6f3cc59dee100164137bc7856d9690aa0282837",
+          "chain_hex": "cb776fcdd47d444c8ff1cd196978b6fbc5131d5596b852ec7f6b42c45a41b534",
+          "verified_count": 1,
+          "verified_prepared_bytes": 19
+        },
+        {
+          "leaf_tuple_hex": "00010000000000000001000000000000000139000000000000000c303036373731303034656163000000000000000ee69db1e4baac20e69db120e4baac0000000000000006e69db1e4baac",
+          "leaf_hex": "846fd4c2aea3dc095b936e507f9335ea888d52a9c7dd73f656d1485dd398eeac",
+          "chain_hex": "1a3e915a69fbfa95ff3c43485cb93655eef9dc87c982675165804d1d220071ba",
+          "verified_count": 2,
+          "verified_prepared_bytes": 51
+        },
+        {
+          "leaf_tuple_hex": "00030000000000000000000000000000000c70726f76696465723a0072320000000000000006303030303633000000000000000163000000000000000163",
+          "leaf_hex": "db857dd0e693dfb2c25479e806224a9a2277c6f811f9e47c7be5661473cdd440",
+          "chain_hex": "917451a57d920464efd554f4373cef3cbb5d4b633c6182067ca7825e9dda3b47",
+          "verified_count": 3,
+          "verified_prepared_bytes": 59
+        }
+      ],
+      "final_chain_hex": "917451a57d920464efd554f4373cef3cbb5d4b633c6182067ca7825e9dda3b47",
+      "actual_count": 3,
+      "actual_prepared_bytes": 59,
+      "canonical_order": true
+    },
+    {
+      "name": "seed-bank_key",
+      "seed": {
+        "recipe_version": "A-CJK-uni-bi-v1",
+        "subject_kind": 1,
+        "subject_id": 42,
+        "library_id": 5,
+        "catalog_kind": 1,
+        "search_generation_id": 1,
+        "bank_key": "v2",
+        "engine_version": "modernc1.58.0-SQLite3.53.4",
+        "unicode_fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
+        "input_generation": 7,
+        "source_incarnation_hex": "000102030405060708090a0b0c0d0e0f",
+        "source_revision": 9,
+        "expected_fragment_count": 3,
+        "expected_prepared_bytes": 59
+      },
+      "rows": [
+        {
+          "field": 1,
+          "ordinal": 0,
+          "source_revision": "9",
+          "prefix_tokens": "000061 000062",
+          "lexical_tokens": "a b",
+          "normalized": "a b"
+        },
+        {
+          "field": 1,
+          "ordinal": 1,
+          "source_revision": "9",
+          "prefix_tokens": "006771004eac",
+          "lexical_tokens": "東京 東 京",
+          "normalized": "東京"
+        },
+        {
+          "field": 3,
+          "ordinal": 0,
+          "source_revision": "provider:\u0000r2",
+          "prefix_tokens": "000063",
+          "lexical_tokens": "c",
+          "normalized": "c"
+        }
+      ],
+      "expected_valid": false,
+      "seed_tuple_hex": "000000000000000f412d434a4b2d756e692d62692d763101000000000000002a00000000000000050000000000000001000000000000000100000000000000027632000000000000001a6d6f6465726e63312e35382e302d53514c697465332e35332e340000000000000040303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030300000000000000007000102030405060708090a0b0c0d0e0f00000000000000090000000000000003000000000000003b",
+      "chain0_hex": "60ffc4c7045882a81a1d1c8f025858e2ea7eb7cbea5e97d8c7281155a27dada6",
+      "steps": [
+        {
+          "leaf_tuple_hex": "00010000000000000000000000000000000139000000000000000d3030303036312030303030363200000000000000036120620000000000000003612062",
+          "leaf_hex": "43e7498f9d99a0d5483d9351a6f3cc59dee100164137bc7856d9690aa0282837",
+          "chain_hex": "f08531f82b3de43ef32fd221b48639150cc78ef1475b352de710164cc04155b5",
+          "verified_count": 1,
+          "verified_prepared_bytes": 19
+        },
+        {
+          "leaf_tuple_hex": "00010000000000000001000000000000000139000000000000000c303036373731303034656163000000000000000ee69db1e4baac20e69db120e4baac0000000000000006e69db1e4baac",
+          "leaf_hex": "846fd4c2aea3dc095b936e507f9335ea888d52a9c7dd73f656d1485dd398eeac",
+          "chain_hex": "d4fbb277d78a2e02f06240968e52f005673fadce066d23e111c2138e30a34da8",
+          "verified_count": 2,
+          "verified_prepared_bytes": 51
+        },
+        {
+          "leaf_tuple_hex": "00030000000000000000000000000000000c70726f76696465723a0072320000000000000006303030303633000000000000000163000000000000000163",
+          "leaf_hex": "db857dd0e693dfb2c25479e806224a9a2277c6f811f9e47c7be5661473cdd440",
+          "chain_hex": "445b8c86aaaf517f5c93a41d0a5976a00ceaebdae3480e104a4933705188b0ff",
+          "verified_count": 3,
+          "verified_prepared_bytes": 59
+        }
+      ],
+      "final_chain_hex": "445b8c86aaaf517f5c93a41d0a5976a00ceaebdae3480e104a4933705188b0ff",
+      "actual_count": 3,
+      "actual_prepared_bytes": 59,
+      "canonical_order": true
+    }
+  ],
+  "resume": {
+    "case": "entity-multiple-fields",
+    "after_count": 1,
+    "chain_hex": "1b185836c28112f6850be8908f858ece54eeef0f6ab5e7d188c3646b4b1667c6",
+    "verified_prepared_bytes": 19,
+    "after_field": 1,
+    "after_ordinal": 0,
+    "after_fragment_id": 7001,
+    "expected_final_chain_hex": "29261134859c6f057c474e38ce099f2e7d68c15dd8407b5ea520bdd90a3642bc"
+  }
+}

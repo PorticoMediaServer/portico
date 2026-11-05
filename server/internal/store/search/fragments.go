@@ -1,8 +1,6 @@
 package search
 
 import (
-	"crypto/sha256"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"strings"
@@ -92,17 +90,15 @@ func (f Fragment) TokenWork() int {
 	return work
 }
 
-// FragmentPlan owns a complete immutable prepared field and ordered manifest.
+// FragmentPlan owns a complete immutable prepared field.
 // Callers persist/stage one fragment per admitted writer turn, never the plan
 // in a single transaction. Count/hash do not substitute for the writer's CAS.
 type FragmentPlan struct {
 	fragments []Fragment
-	digest    [32]byte
 }
 
 func (p FragmentPlan) Len() int          { return len(p.fragments) }
 func (p FragmentPlan) At(i int) Fragment { return p.fragments[i] }
-func (p FragmentPlan) Digest() [32]byte  { return p.digest }
 
 // PrepareFragments preserves Q's exact prepared token sequences and 512+512
 // folded windows. SearchDocument's frozen 65536-byte input clip is preserved;
@@ -157,20 +153,7 @@ func PrepareFragments(value string, budget FragmentBudget) (FragmentPlan, error)
 		}
 		fragments = append(fragments, f)
 	}
-	// Length prefixes and coordinates make the ordered manifest unambiguous,
-	// including empty columns. Domain/source/bank/recipe fences remain separate.
-	h := sha256.New()
-	for _, f := range fragments {
-		for _, s := range []string{f.prefix, f.lexical, f.normalized} {
-			_ = binary.Write(h, binary.BigEndian, uint64(len(s)))
-			_, _ = h.Write([]byte(s))
-		}
-		_ = binary.Write(h, binary.BigEndian, uint64(f.start))
-		_ = binary.Write(h, binary.BigEndian, uint64(f.end))
-	}
-	var digest [32]byte
-	copy(digest[:], h.Sum(nil))
-	return FragmentPlan{fragments, digest}, nil
+	return FragmentPlan{fragments}, nil
 }
 
 func packTokens(words []string, after, bytes, work int, cost func(string) int) (string, int) {

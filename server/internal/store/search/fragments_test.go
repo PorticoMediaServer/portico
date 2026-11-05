@@ -3,6 +3,7 @@ package search_test
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -32,7 +33,7 @@ func TestFragmentsRefuseBeforeWholeFieldAllocation(t *testing.T) {
 				}
 			}
 			plan, err, allocated := prepareAllocated(tt.value, budget)
-			if !errors.Is(err, search.ErrFragmentBudget) || plan.Len() != 0 || plan.Digest() != [32]byte{} {
+			if !errors.Is(err, search.ErrFragmentBudget) || plan.Len() != 0 {
 				t.Fatalf("must refuse without a partial plan: len=%d err=%v", plan.Len(), err)
 			}
 			if errors.Is(err, search.ErrPreparationBudget) == tt.reserve {
@@ -173,8 +174,8 @@ func TestFragmentsReconstructExactStreams(t *testing.T) {
 			t.Fatal("complete prefix or lexical sequence changed")
 		}
 		again, err := search.PrepareFragments(value, search.DefaultFragmentBudget())
-		if err != nil || again.Digest() != plan.Digest() {
-			t.Fatal("manifest is not deterministic")
+		if err != nil || !reflect.DeepEqual(again, plan) {
+			t.Fatal("fragment plan is not deterministic")
 		}
 	}
 }
@@ -204,7 +205,7 @@ func TestFragmentsEnforceBytesAndAmplifiedTokens(t *testing.T) {
 		{strings.Repeat("abc ", 400), search.FragmentBudget{Bytes: 6144, TokenWork: 1, PreparationBytes: 32 << 20}},
 	} {
 		plan, err := search.PrepareFragments(tt.value, tt.budget)
-		if !errors.Is(err, search.ErrFragmentBudget) || plan.Len() != 0 || plan.Digest() != [32]byte{} {
+		if !errors.Is(err, search.ErrFragmentBudget) || plan.Len() != 0 {
 			t.Fatalf("must refuse without partial plan: len=%d err=%v", plan.Len(), err)
 		}
 	}
@@ -233,20 +234,6 @@ func TestFragmentsCrossBoundaryMembership(t *testing.T) {
 				t.Fatalf("lost boundary phrase at %d width %d", start, width)
 			}
 		}
-	}
-}
-
-func TestFragmentManifestDistinguishesImagesAndBoundaries(t *testing.T) {
-	a, err := search.PrepareFragments("alpha beta", search.DefaultFragmentBudget())
-	if err != nil {
-		t.Fatal(err)
-	}
-	b, err := search.PrepareFragments("alphabeta", search.DefaultFragmentBudget())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if a.Digest() == b.Digest() {
-		t.Fatal("manifest did not bind column boundaries")
 	}
 }
 
