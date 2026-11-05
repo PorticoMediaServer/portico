@@ -48,8 +48,8 @@ func TestPlanCanonicalSchemaFKAndStatementContracts(t *testing.T) {
 		t.Fatal(err)
 	}
 	// All 28 cohorts were independently regenerated on approved 291ab3ac,
-	// 567267b7 and adopted 5f3c7f67 with the same VM canonicalization. Stop before
-	// recording if any opcode/operand/EQP beyond physical identifiers changes.
+	// 567267b7, 5f3c7f67 and adopted abf43774 with the same VM canonicalization.
+	// Stop before recording if any opcode/operand/EQP beyond physical identifiers changes.
 	const retainedPlansSHA256 = "d7345d9db96ad79c3e80138da3733e6928209e4fbf232f2640aa3230d92c2da5"
 	plansJSON, err := json.Marshal(golden.Plans)
 	if err != nil {
