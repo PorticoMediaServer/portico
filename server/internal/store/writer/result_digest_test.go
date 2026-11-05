@@ -294,3 +294,73 @@ func TestEffectiveStagePurposeAndOriginalRequestBinding(t *testing.T) {
 		t.Fatal("effective purpose aliases credit stage", err)
 	}
 }
+
+type countedResultHash struct {
+	hash.Hash
+	writes int
+	bytes  int
+}
+
+func (h *countedResultHash) Write(p []byte) (int, error) {
+	h.writes++
+	h.bytes += len(p)
+	return h.Hash.Write(p)
+}
+
+func TestCanonicalResultPreflightBeforeAnyHashWrite(t *testing.T) {
+	f := resultAnswers(t)
+	i, q, base := resultFixtureValues(t, f.Positive[0].Input)
+	for name, change := range map[string]func(*effectiveBeginResult){
+		"aggregate32MiB": func(v *effectiveBeginResult) {
+			v.ProviderOperationID = strings.Repeat("a", 16<<20)
+			v.AfterItem = strings.Repeat("b", 16<<20)
+		},
+		"ownerUTF8":  func(v *effectiveBeginResult) { v.ProviderOperationID = string([]byte{0xff}) },
+		"cursorUTF8": func(v *effectiveBeginResult) { v.AfterItem = string([]byte{0xff}) },
+		"shape":      func(v *effectiveBeginResult) { v.ResultCount = 1 },
+	} {
+		t.Run(name, func(t *testing.T) {
+			v := base
+			change(&v)
+			h := &countedResultHash{Hash: sha256.New()}
+			e := requestEncoder{h: h}
+			if err := encodeCanonicalResult(&e, i, q, v); !errors.Is(err, ErrInvalid) || h.writes != 0 || h.bytes != 0 || e.written != 0 {
+				t.Fatalf("invalid result fed hash: writes%d bytes%d err%v", h.writes, h.bytes, err)
+			}
+			if d, err := canonicalResultDigest(i, q, v); !errors.Is(err, ErrInvalid) || d != (ResultDigest{}) {
+				t.Fatal("invalid public helper result", err)
+			}
+		})
+	}
+}
+
+func TestCanonicalResultLiteral32MiBBoundaries(t *testing.T) {
+	// Literal product preparation ceiling and independently counted fixed wire
+	// bytes. Scaling an implementation constant cannot scale these witnesses.
+	const ceiling = 32 << 20
+	const fixed = 238
+	f := resultAnswers(t)
+	i, q, base := resultFixtureValues(t, f.Positive[0].Input)
+	base.ProviderOperationID = "p"
+	text := strings.Repeat("c", ceiling-fixed) // one byte over with the owner
+	for _, size := range []int{ceiling - 1, ceiling, ceiling + 1} {
+		v := base
+		v.AfterItem = text[:size-fixed-1]
+		h := &countedResultHash{Hash: sha256.New()}
+		e := requestEncoder{h: h}
+		err := encodeCanonicalResult(&e, i, q, v)
+		if size > ceiling {
+			if !errors.Is(err, ErrInvalid) || h.writes != 0 || h.bytes != 0 {
+				t.Fatalf("literal ceiling+1 hashed: %d %d %v", h.writes, h.bytes, err)
+			}
+			continue
+		}
+		if err != nil || h.bytes != size || e.written != uint64(size) {
+			t.Fatalf("literal boundary%d: %d %v", size, h.bytes, err)
+		}
+		d, err := effectiveBeginResultDigest(i, q, v)
+		if err != nil || !bytes.Equal(d[:], h.Sum(nil)) {
+			t.Fatalf("literal helper boundary%d: %x %v", size, d, err)
+		}
+	}
+}
