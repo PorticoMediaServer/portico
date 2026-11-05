@@ -42,15 +42,22 @@ passwords and PINs remain one-way hashes. TV shared screens never display these
 secrets. Revoking an app password also revokes its derived integration tokens.
 Disabling compatibility prevents those tokens from being used.
 
+### Qualification status
+
+These are bounded adapter recipes, not a claim that arbitrary Jellyfin tools or
+players work. Released-tool qualification is still pending; see the
+[qualification matrix](integration-qualification.md) for the required actual
+clients, pins and request evidence. A successful connection check or HTTP 200
+alone does not qualify a tool. Keep today's registered aliases until that
+matrix proves which spellings a supported released recipe needs.
+
 ### Reported version
 
 Compatibility clients ask the server for its version before signing in
 (`System/Info/Public`). Portico never publishes its own build before sign-in, so
 it reports the fixed compatibility version **10.10.0** (product name "Portico").
-The tools covered here (Sonarr, Radarr, Lidarr, Bazarr, Jellyseerr/Seerr and
-Home Assistant) don't gate on a server version; the Jellyfin SDKs treat
-anything older than 10.10.0 as unsupported, so this is the lowest value they
-accept. Signed-in people see Portico's real version in About.
+This reported value is an adapter identity convention, not evidence of player
+or tool compatibility. Signed-in people see Portico's real version in About.
 
 Setup instructions sometimes name the connection type offered by another tool.
 That label describes which option to select in that tool, rather than changing
@@ -69,12 +76,16 @@ when it can preserve strict targeting; it never substitutes a full-library scan.
 
 ### Lidarr
 
-Select its **Emby / Jellyfin** connection. Its legacy `/mediabrowser` URL prefix
-is accepted. The inspected Lidarr version can send a collection label such as
-`music` instead of an actual path, or request an untargeted refresh. Those requests
-are refused: Portico has no verified cheap no-path change check to substitute.
-Use the native changed-path recipe below for reliable notifications from that
-version. A successful connection test does not establish that updates are targeted.
+The stock **Emby / Jellyfin** connection is not yet qualified. The current
+adapter accepts `/mediabrowser` spellings, but the inspected Lidarr source does
+not itself demonstrate that prefix; configured base URLs can introduce it.
+Real changed paths retain strict targeting. A collection label such as `music`
+is not a filesystem path. The stock no-path `/Library/Refresh` fallback currently
+invokes native `/v1/integrations/refresh` and may queue broader refresh work when
+authorized; it is not refused unconditionally and is not an exact changed-path
+notification. Use the native recipe below when strict targeting is required.
+Qualify a released Lidarr Custom Script invocation separately before claiming
+that named recipe works with its actual import/move/delete environment paths.
 
 ### Bazarr
 
@@ -84,7 +95,7 @@ Validation-only refresh rereads eligible subtitle sidecars without enriching
 metadata or replacing artwork. Unavailable stored media evidence is an explicit
 refusal, not permission to run a broader scan or media probe.
 
-### Jellyseerr
+### Seerr and Jellyseerr
 
 For the initial administrator wizard, select its **Jellyfin** connection and enter
 Portico's URL, username and a dedicated app password bound to a genuine owner or
@@ -93,17 +104,26 @@ The wizard can create and retrieve a key within that grant's authority; it canno
 retrieve a different grant's keys or acquire broader scopes.
 
 Pre-issued-key configuration remains an alternative where the tool provides it.
-For end users, use Jellyseerr's own local accounts. Signing in to Jellyseerr with
-Portico account passwords is not supported. Quick Connect is not provided.
+For end users, use the tool's own local accounts. Portico account passwords
+are not compatibility credentials. Quick Connect is not provided. Seerr is the
+current combined project; a supported Jellyseerr release needs its own reviewed
+pin and trace. Legacy Overseerr and Tautulli are Plex tools and are outside this
+adapter. Optional avatar fallback is not full account parity.
 
 ### Home Assistant
+
+Stock Home Assistant entity/session monitoring is supported by the
+[session repair merged in #882](https://github.com/PorticoMediaServer/portico/pull/882).
+Qualification against a released Home Assistant version and its declared Python
+dependency remains pending.
 
 Choose the **Jellyfin** integration and enter Portico's URL, username and dedicated
 app password with `read` and `playback` scopes. The stock integration exposes
 **session monitoring only**, within the bound account/profile's authority.
 Server-wide monitoring requires native administrator authority and appropriate
-scope. App version and position update time come from the stored native device
-and session facts. An unknown app version is an empty string.
+scope. App version comes from the stored device fact; position, state and check-in
+time come from one consistent native session sample. An unknown app version
+is an empty string.
 
 The adapter deliberately reports nested `SupportsMediaControl=false`: Home
 Assistant couples transport controls to browse, search and playback-start, which
@@ -120,6 +140,12 @@ Configure Portico's URL and a suitable scoped API key. Use REST polling:
 administrator authority; a limited grant must not acquire global sessions or
 counts. Polling observes activity from the time Jellystat is configured and may
 miss activity between polls. It does not import a complete historical ledger.
+
+The inspected Jellystat client requests `/Items/{id}/playbackinfo`. That exact
+mixed-case path is absent: the adapter has `/Items/{id}/PlaybackInfo` and an
+entirely lowercase path, with their existing prefixed aliases. Routing is case
+sensitive. This Jellystat recipe is **not qualified** while that request fails;
+REST polling configuration alone does not resolve it. No endpoint is added here.
 
 No Playback Reporting plugin, plugin SQL endpoint or WebSocket protocol is
 provided. The plugin list is empty. Read-only media facts are not playback URLs.

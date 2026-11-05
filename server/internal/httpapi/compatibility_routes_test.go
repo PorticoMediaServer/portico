@@ -382,3 +382,26 @@ func TestCompatibilityHomeAssistantDeviceVersions(t *testing.T) {
 		})
 	}
 }
+
+// Jellystat's inspected source requests the mixed-case spelling. Keep this gap
+// explicit while the approved compatibility route vocabulary stays unchanged.
+func TestJellystatMixedCaseMediaFactsRemainUnqualified(t *testing.T) {
+	f := integrationFixture(t)
+	c := catalogtest.New(t, f.deps.DB)
+	lib := c.Library("jellystat", "Movies", "movie", "/movies")
+	item := c.Movie(lib, "/movies/Film.mkv", "Film", 2000)
+	c.Drain()
+	guid, err := (integrationids.Store{DB: f.deps.DB}).Encode(context.Background(), "item", item.Public)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		path   string
+		status int
+	}{{"/Items/" + guid + "/PlaybackInfo", 200}, {"/Items/" + guid + "/playbackinfo", 404}} {
+		w := compatibilityCall(f, "GET", tc.path, f.owner, "")
+		if w.Code != tc.status {
+			t.Fatalf("documented Jellystat spelling %s: %d %s", tc.path, w.Code, w.Body)
+		}
+	}
+}

@@ -5,15 +5,14 @@
   },
   "status": 200,
   "body": {
-    "id": "srv_7sWWdcN9umujBzM2AlDkD--4cuPxXxauxkI6fcBZgm8",
-    "name": "Smoke",
+    "id": "srv_57MkdGEKGCnAB9a66c0O9-xdsk5s1sPnT4_SjF9LMLs",
+    "name": "Local test",
     "signIn": "local",
     "move": null,
     "moveEndsAt": null,
     "setupRequired": false,
     "hostedConfigured": false,
     "hostedAttached": false,
-    "version": "0.1.0-dev",
     "apiLevel": 1,
     "apiVersion": "1.0",
     "apiMajors": [

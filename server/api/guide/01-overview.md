@@ -32,8 +32,12 @@ strings (not SPKI or PEM hashes). These come only from the server's managed
 active/previous certificates and owner-provided TLS files. With no serving
 material the field is omitted, including for proxy-only TLS installations.
 Clients accept at most eight fingerprints and reject unknown payload fields or
-versions. All existing origin, nonce, key-derived server ID, signature and
-30-second proof lifetime checks still apply.
+versions. Each connection attempt uses a fresh random 32-byte client nonce. Verify the
+exact origin, returned nonce, key-derived server ID and signature; do not reuse a
+proof as a session. The proof has no timestamps or lifetime fields and requires
+no comparison of client and server clocks. Bound the request with a timeout.
+Signed route-directory documents have their own validity periods; those periods
+are separate from this per-connection nonce proof.
 
 A verified route identity alone cannot authorize an untrusted TLS certificate:
 automatic native pinning also requires its exact fingerprint in this signed list
