@@ -1,6 +1,8 @@
 # Engineering rules
 
-Short rules that keep Portico from repeating old bugs. Each one says how it's enforced. Where a check only stops things getting worse, its counts live in `ci/engineering-rules-baseline.json`: a count may fall, never rise. When yours falls, run `python3 ci/engineering_rules.py --update` and commit the new baseline.
+Short rules that keep Portico from repeating old bugs. Each one says how it's enforced. Where a check only stops things getting worse, its counts live in `ci/engineering-rules-baseline.json` as upper bounds. PR and merge-queue checks also scan the actual comparison base: no per-file count may grow, even below a stale-high bound. Decreases pass without editing the baseline; lowering it with `python3 ci/engineering_rules.py --update` is optional.
+
+Both count ratchets share the planner's comparison range. PRs use their merge base with the target; queue groups compare both with the target branch tip and their validated immediate predecessor. Earlier queued removals cannot offset a later group's additions, and inherited growth cannot escape the aggregate check. Full/nightly runs enforce the checked-in upper bounds. Exceptions and approval ledgers remain exact per PR. Periodic baseline-only refresh PRs run `python3 ci/engineering_rules.py --update` and `python3 ci/client_api_census.py --update` on current main, review the decreases, and use normal CI/review/merge-queue approval.
 
 ## Sign-in and authority
 

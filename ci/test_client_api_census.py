@@ -172,6 +172,27 @@ async fn load<'a>(client: {binding}, url: &str) {{
                 self.assertEqual([s['callee'] for s in sites],['get'])
                 self.assertIn('client . get',sites[0]['expression'])
 
+    def test_swift_async_http_receivers_include_qualified_inline_and_grouped_chains(self):
+        receivers=['URLSession.shared','Foundation.URLSession.shared','FoundationNetworking.URLSession.shared',
+                   'URLSession(configuration: .ephemeral)','Foundation.URLSession(configuration: .ephemeral)',
+                   '(URLSession.shared)','((Foundation.URLSession(configuration: .ephemeral)))',
+                   'URLSession(configuration: .ephemeral).delegateQueue.session()',
+                   'session','(session)','((session))','self.session','optionalSession?']
+        for method in ['bytes','data','upload','download']:
+            for receiver in receivers:
+                call=f'{receiver}.{method}(for: request)'
+                source=f'''import Foundation
+func load(session: Foundation.URLSession, optionalSession: URLSession?, request: RequestValue) async throws {{
+ let value = try await {call}
+}}'''
+                with self.subTest(method=method,receiver=receiver):
+                    sites=native_sites('apps/native/Stream.swift',source)
+                    self.assertEqual([s['callee']for s in sites],[method])
+                    self.assertEqual(sites[0]['callText'],call)
+        for receiver in ['model','(model)','factory(URLSession.shared)','factory("URLSession.shared")']:
+            for method in ['bytes','data','upload','download']:
+                self.assertEqual(native_sites('apps/native/Stream.swift',f'let value = try await {receiver}.{method}(for: request)'),[])
+
     def test_objc_call_bytes_include_complete_receiver_message(self):
         for receiver in ['session','otherSession','[factory session]']:
             call=f'[{receiver} dataTaskWithRequest:request completionHandler:handler]'
@@ -438,6 +459,22 @@ function owner(api: HttpLocalApi) {
                     rebound={filename:{**entry,'sites':[s['id']for s in mutated],
                                       'guardHashes':{s['id']:s['constructionHash']for s in mutated}}}
                     with self.assertRaises(ValueError):classify(mutated,rebound)
+
+    def test_new_swift_session_receivers_cannot_escape_a_zero_baseline(self):
+        for method in ['bytes','data','upload','download']:
+            source=f'''import Foundation
+func stream(session: Foundation.URLSession, request: RequestValue) async throws {{
+ let inline = try await URLSession(configuration: .ephemeral).{method}(for: request)
+ let qualified = try await Foundation.URLSession.shared.{method}(for: request)
+ let grouped = try await ((session)).{method}(for: request)
+ let chained = try await (Foundation.URLSession(configuration: .ephemeral)).delegateQueue.session().{method}(for: request)
+}}'''
+            root,filename,sites,_=self.fixture(source,'apps/native/Stream.swift','platform-url')
+            self.assertEqual(len(sites),4)
+            (root/ALLOWLIST).write_text('{}')
+            self.git(root,'add','.');self.git(root,'commit','-qm','Retain a zero baseline without byte exceptions')
+            code,output=self.check(root)
+            self.assertEqual(code,1);self.assertIn('new/increased',output)
 
     def test_detection_growth_requires_exact_reviewed_existing_base_sites(self):
         source='import java.net.URL\nval link = URL(input)\nval text = link.readText()\n'
