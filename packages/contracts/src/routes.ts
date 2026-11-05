@@ -20368,46 +20368,6 @@ export const routes = [
   },
   {
     "audience": "Clients",
-    "id": "get_books_id_files",
-    "method": "GET",
-    "path": "/v1/books/{id}/files",
-    "summary": "Read book files",
-    "access": "device",
-    "requires": "read",
-    "lane": "default",
-    "cost": "page_sized",
-    "bodyLimit": 0,
-    "query": [
-      "cursor",
-      "limit"
-    ],
-    "queryIntegers": [
-      {
-        "name": "limit",
-        "minimum": 1,
-        "default": 40,
-        "maximum": 100,
-        "clamped": true,
-        "defaultBelowMinimum": true,
-        "defaultOnInvalid": true,
-        "emptyIsDefault": true,
-        "description": "Absent, empty, non-integer syntax and values below 1 use the default. Integer overflow saturates to the host integer bound before applying the default or upper clamp."
-      }
-    ],
-    "errors": [
-      "invalid_request",
-      "unauthorized",
-      "not_permitted",
-      "not_found",
-      "internal",
-      "database_busy"
-    ],
-    "status": 200,
-    "http": true,
-    "admission": "default"
-  },
-  {
-    "audience": "Clients",
     "id": "get_books_id_timeline",
     "method": "GET",
     "path": "/v1/books/{id}/timeline",
@@ -23942,86 +23902,6 @@ export const routes = [
   },
   {
     "audience": "Clients",
-    "id": "get_libraries_id_artists",
-    "method": "GET",
-    "path": "/v1/libraries/{id}/artists",
-    "summary": "Read library artist",
-    "access": "device",
-    "requires": "read",
-    "lane": "browsing",
-    "cost": "page_sized",
-    "bodyLimit": 0,
-    "query": [
-      "cursor",
-      "limit"
-    ],
-    "queryIntegers": [
-      {
-        "name": "limit",
-        "minimum": 1,
-        "default": 40,
-        "maximum": 100,
-        "clamped": true,
-        "defaultBelowMinimum": true,
-        "defaultOnInvalid": true,
-        "emptyIsDefault": true,
-        "description": "Absent, empty, non-integer syntax and values below 1 use the default. Integer overflow saturates to the host integer bound before applying the default or upper clamp."
-      }
-    ],
-    "errors": [
-      "invalid_request",
-      "unauthorized",
-      "not_permitted",
-      "not_found",
-      "internal",
-      "database_busy"
-    ],
-    "status": 200,
-    "http": true,
-    "admission": "browsing"
-  },
-  {
-    "audience": "Clients",
-    "id": "get_libraries_id_books",
-    "method": "GET",
-    "path": "/v1/libraries/{id}/books",
-    "summary": "Read library book",
-    "access": "device",
-    "requires": "read",
-    "lane": "browsing",
-    "cost": "page_sized",
-    "bodyLimit": 0,
-    "query": [
-      "cursor",
-      "limit"
-    ],
-    "queryIntegers": [
-      {
-        "name": "limit",
-        "minimum": 1,
-        "default": 40,
-        "maximum": 100,
-        "clamped": true,
-        "defaultBelowMinimum": true,
-        "defaultOnInvalid": true,
-        "emptyIsDefault": true,
-        "description": "Absent, empty, non-integer syntax and values below 1 use the default. Integer overflow saturates to the host integer bound before applying the default or upper clamp."
-      }
-    ],
-    "errors": [
-      "invalid_request",
-      "unauthorized",
-      "not_permitted",
-      "not_found",
-      "internal",
-      "database_busy"
-    ],
-    "status": 200,
-    "http": true,
-    "admission": "browsing"
-  },
-  {
-    "audience": "Clients",
     "id": "get_libraries_id_browse",
     "method": "GET",
     "path": "/v1/libraries/{id}/browse",
@@ -24422,46 +24302,6 @@ export const routes = [
       "seasonId",
       "selectedSeasonId",
       "showId"
-    ],
-    "errors": [
-      "invalid_request",
-      "unauthorized",
-      "not_permitted",
-      "not_found",
-      "internal",
-      "database_busy"
-    ],
-    "status": 200,
-    "http": true,
-    "admission": "browsing"
-  },
-  {
-    "audience": "Clients",
-    "id": "get_libraries_id_shows",
-    "method": "GET",
-    "path": "/v1/libraries/{id}/shows",
-    "summary": "Read library show",
-    "access": "device",
-    "requires": "read",
-    "lane": "browsing",
-    "cost": "page_sized",
-    "bodyLimit": 0,
-    "query": [
-      "cursor",
-      "limit"
-    ],
-    "queryIntegers": [
-      {
-        "name": "limit",
-        "minimum": 1,
-        "default": 40,
-        "maximum": 100,
-        "clamped": true,
-        "defaultBelowMinimum": true,
-        "defaultOnInvalid": true,
-        "emptyIsDefault": true,
-        "description": "Absent, empty, non-integer syntax and values below 1 use the default. Integer overflow saturates to the host integer bound before applying the default or upper clamp."
-      }
     ],
     "errors": [
       "invalid_request",

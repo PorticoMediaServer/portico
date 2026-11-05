@@ -124,6 +124,52 @@ def ack(seq):
     return FakeResponse({"acceptedSeq": seq, "leaseUntil": LEASE})
 
 
+class AudiobookLibraryItemsContractTests(unittest.TestCase):
+    def test_short_section_page_keeps_every_playable_part_for_profile_seeding(self):
+        parts = [{"id": "part-1", "kind": "audiobook_file", "libraryId": "audio",
+                  "durationMs": 90000, "progressMs": 1200, "available": True,
+                  "playback": {"itemId": "part-1"}},
+                 {"id": "part-2", "kind": "part", "libraryId": "audio",
+                  "durationMs": 120000, "progressMs": 0, "available": True,
+                  "playback": {"itemId": "part-2"}}]
+        def section(entries, cursor):
+            return {"scope": {"libraryId": "audio", "entityId": "book"},
+                    "sections": [{"id": "files", "totalCount": 2,
+                                  "entries": entries, "nextCursor": cursor}]}
+        client = fixture_client([
+            FakeResponse({"entries": [{"id": "book"}], "pageInfo": {"nextCursor": ""}}),
+            FakeResponse({"data": section(parts[:1], "opaque+/=")}),
+            FakeResponse(section(parts[1:], "")),
+        ])
+        report = {}
+        catalogue = seed_state.profile_catalogue(
+            client, [{"id": "audio", "name": "Synthetic Audiobooks", "kind": "audiobook"}], report)
+        self.assertEqual(catalogue, {"audiobook_file": parts[:1], "part": parts[1:]})
+        self.assertEqual(report, {})
+        first, *pages = client.opener.requests
+        self.assertEqual(first.method, "POST")
+        self.assertEqual(sent_path(first), "/v1/libraries/audio/browse")
+        self.assertEqual(sent_body(first)["pivot"], "books")
+        self.assertEqual(len(pages), 2, "a short page with a cursor is not exhaustion")
+        for index, request in enumerate(pages):
+            self.assertEqual(sent_path(request), "/v1/libraries/audio/content")
+            expected = {"view": ["book"], "entityId": ["book"], "section": ["files"],
+                        "limit": ["100"]}
+            if index:
+                expected["cursor"] = ["opaque+/="]
+            self.assertEqual(sent_query(request), expected)
+
+    def test_audiobook_section_refusal_is_not_an_empty_inventory(self):
+        client = fixture_client([
+            FakeResponse({"entries": [{"id": "book"}], "pageInfo": {"nextCursor": ""}}),
+            FakeResponse({"error": {"code": "not_found"}}, status=404),
+        ])
+        with self.assertRaises(seed_state.Refusal) as refused:
+            seed_state.library_items(client, {"id": "audio", "kind": "audiobook"})
+        self.assertEqual(refused.exception.status, 404)
+        self.assertEqual(sent_path(client.opener.requests[-1]), "/v1/libraries/audio/content")
+
+
 class SavedResourcesContractTests(unittest.TestCase):
     def test_pages_with_the_accepted_limit_and_the_top_level_cursor(self):
         client = fixture_client([

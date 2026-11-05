@@ -68,6 +68,8 @@ HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
+from verify import content_section
+
 MAX_BODY = 16 * 1024 * 1024
 PREFIX = "Synthetic "
 DEFAULT_BASE = "http://127.0.0.1:49300"
@@ -568,12 +570,9 @@ def library_items(client, library, maximum=25000):
         books = browse(client, library_id, "books", 200)
         parts = []
         for book in books[:48]:
-            try:
-                page = client.read("/v1/books/" + urllib.parse.quote(book["id"], safe="") +
-                                   "/files?limit=100")
-            except Refusal:
-                continue
-            for part in page.get("files") or []:
+            # Exhaust the canonical section, retaining playable metadata. A
+            # refused or incomplete traversal must not look like an empty book.
+            for part in content_section(client, library_id, "book", book["id"], "files"):
                 part.setdefault("kind", "audiobook_file")
                 parts.append(part)
         return parts

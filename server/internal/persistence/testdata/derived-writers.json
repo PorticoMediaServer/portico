@@ -5744,7 +5744,7 @@
       ]
     },
     "internal/httpapi/audio.go": {
-      "sha256": "69c60a66977065fd474364db8ccb44b912ed21b833c5b0202910a136c78f93d4",
+      "sha256": "253e84a5cc3db6d69f24cbbf75c42f27a36925076a702a29c192215b1c593562",
       "effects": [
         {
           "table": "*",
@@ -6050,7 +6050,7 @@
       ]
     },
     "internal/httpapi/episodes.go": {
-      "sha256": "b5b21aa16c6e0367cd8af78b5bb8bb2b0b04f1368d22d8608e6a1be5d4ca0cea",
+      "sha256": "e4c00fadc7502f19f85c2c198a1d7f7b4ef03c85faf37887079f13636859b12c",
       "effects": [
         {
           "table": "*",
@@ -6221,7 +6221,7 @@
       ]
     },
     "internal/httpapi/http_contracts_browse.go": {
-      "sha256": "115ea0810e22c7ced9e255c09733acf90de6669e8d385d95c1ff046bade8790e",
+      "sha256": "20ccf1f0e386c930ddec604366905deeaa043de1353352bf867100946b5a578a",
       "effects": [
         {
           "table": "*",
