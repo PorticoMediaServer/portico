@@ -6,8 +6,8 @@ Read-only.  It uses the current registered surfaces only:
 * ``POST /v1/libraries/{id}/browse`` for movies, shows, episodes, artists,
   albums and songs (paged by ``pageInfo.nextCursor``);
 * ``GET /v1/reading/items?libraryId=`` for book/comic publications;
-* ``GET /v1/libraries/{id}/shows``, ``/artists`` and ``/books`` for structure;
-* ``GET /v1/books/{id}/files`` for audiobook parts.
+* ``GET /v1/libraries/{id}/content`` for structure and audiobook parts,
+  exhausting each section cursor and retaining exact entry identities.
 
 It never reads generated media locally.  ``--reading`` opens short real reading
 sessions to read back stored progress and annotations, then closes them.
@@ -237,6 +237,43 @@ def browse(client, library_id, pivot, maximum=26000):
     return out
 
 
+def content_section(client, library_id, view, entity_id, section_id):
+    """Exhaust one canonical section; refuse duplicate IDs or stuck cursors."""
+    out, cursor, seen_cursors, seen_ids = [], "", set(), set()
+    expected = None
+    while True:
+        query = {"view": view, "entityId": entity_id, "section": section_id, "limit": "100"}
+        if cursor:
+            query["cursor"] = cursor
+        page = client.read("/v1/libraries/" + urllib.parse.quote(library_id, safe="") +
+                           "/content?" + urllib.parse.urlencode(query))
+        document = page.get("data", page)
+        scope = document.get("scope") or {}
+        if scope.get("libraryId") != library_id or scope.get("entityId") != entity_id:
+            raise ValueError("content hierarchy changed")
+        sections = [s for s in document.get("sections", []) if s["id"] == section_id]
+        if len(sections) != 1:
+            raise ValueError("missing or duplicate content section")
+        section = sections[0]
+        if expected is None:
+            expected = section["totalCount"]
+        if section["totalCount"] != expected:
+            raise ValueError("content section changed during traversal")
+        for entry in section["entries"]:
+            if not entry.get("id") or entry["id"] in seen_ids:
+                raise ValueError("missing or repeated content identity")
+            seen_ids.add(entry["id"])
+            out.append(entry)
+        cursor = section.get("nextCursor") or ""
+        if not cursor:
+            if len(out) != expected:
+                raise ValueError("incomplete content section")
+            return out
+        if cursor in seen_cursors:
+            raise ValueError("content cursor did not advance")
+        seen_cursors.add(cursor)
+
+
 def reading_items(client, library_id, maximum=12000):
     out, cursor = [], ""
     while len(out) < maximum:
@@ -339,12 +376,8 @@ def canonical_counts(client, library):
         books = browse(client, library_id, "books")
         parts = 0
         for book in books:
-            try:
-                files = client.read("/v1/books/" + urllib.parse.quote(book["id"], safe="") +
-                                    "/files?limit=100")
-            except Refusal:
-                continue
-            parts += len(files.get("files") or [])
+            files = content_section(client, library_id, "book", book["id"], "files")
+            parts += len(files)
         return {"books": len(books), "parts": parts}
     if kind in ("book", "comic"):
         found = reading_items(client, library_id)
@@ -508,22 +541,18 @@ def main(argv=None):
                 except Refusal:
                     pass
             if entry["kind"] in ("tv", "anime"):
-                shows = owner.read("/v1/libraries/" + urllib.parse.quote(library["id"], safe="") +
-                                   "/shows?limit=100")
-                entry["shows"] = len(shows.get("shows") or [])
-                if shows.get("shows"):
-                    show_id = shows["shows"][0]["id"]
-                    seasons = owner.read("/v1/shows/" + urllib.parse.quote(show_id, safe="") +
-                                         "/seasons")
-                    entry["sampleSeasons"] = len(seasons.get("seasons") or [])
+                shows = browse(owner, library["id"], "shows")
+                entry["shows"] = len(shows)
+                if shows:
+                    show_id = shows[0]["id"]
+                    seasons = content_section(owner, library["id"], "show", show_id, "seasons")
+                    entry["sampleSeasons"] = len(seasons)
                     check("seasons:" + name, entry["sampleSeasons"] > 0, entry["sampleSeasons"])
             if entry["kind"] == "audiobook":
-                books = items(owner.read("/v1/libraries/" + urllib.parse.quote(library["id"], safe="") +
-                                         "/books?limit=100"))
+                books = browse(owner, library["id"], "books")
                 if books:
-                    files = owner.read("/v1/books/" + urllib.parse.quote(books[0]["id"], safe="") +
-                                       "/files?limit=100")
-                    entry["sampleBookParts"] = len(files.get("files") or [])
+                    files = content_section(owner, library["id"], "book", books[0]["id"], "files")
+                    entry["sampleBookParts"] = len(files)
                     check("audiobook-parts:" + name, entry["sampleBookParts"] > 0,
                           entry["sampleBookParts"])
                     timeline = owner.read("/v1/books/" + urllib.parse.quote(books[0]["id"], safe="") +

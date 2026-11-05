@@ -2,9 +2,9 @@ package httpapi
 
 import (
 	"errors"
-	"net/http"
 	"github.com/PorticoMediaServer/portico/server/internal/catalog"
 	"github.com/PorticoMediaServer/portico/server/internal/identity"
+	"net/http"
 	"strconv"
 )
 
@@ -34,30 +34,6 @@ func (d Dependencies) episodeRoutes(mux *http.ServeMux) {
 		}
 		return p, true
 	}
-	d.httpHandle(mux, "GET /v1/libraries/{id}/shows", func(w http.ResponseWriter, r *http.Request) {
-		lib := r.PathValue("id")
-		p, ok := access(w, r, lib, nil)
-		if !ok {
-			return
-		}
-		viewer, err := d.catalogViewer(r, p, []string{lib}, "")
-		if err != nil {
-			failure(w, err)
-			return
-		}
-		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-		tag := d.gridTag(r, p, gridTagBucket)
-		if gridNotModified(w, r, tag) {
-			return
-		}
-		rows, next, err := d.Catalog.WithContext(r.Context()).Shows(viewer, lib, r.URL.Query().Get("cursor"), limit)
-		if err != nil {
-			failure(w, err)
-			return
-		}
-		setGridTag(w, tag)
-		write(w, 200, map[string]any{"shows": rows, "nextCursor": next})
-	})
 	d.httpHandle(mux, "GET /v1/shows/{id}/seasons", func(w http.ResponseWriter, r *http.Request) {
 		lib, err := d.Catalog.WithContext(r.Context()).LibraryForShow(r.PathValue("id"))
 		p, ok := access(w, r, lib, err)

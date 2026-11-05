@@ -57,9 +57,8 @@ func TestLegacyAudioRoutesUseCurrentViewer(t *testing.T) {
 	h := New(d)
 	cached := map[string]string{}
 	for _, path := range []string{
-		"/v1/libraries/music/artists", "/v1/libraries/books/books",
 		"/v1/artists/" + artist.Public + "/albums", "/v1/albums/" + album.Public + "/songs",
-		"/v1/books/" + book.Public + "/files", "/v1/books/" + book.Public + "/chapters",
+		"/v1/books/" + book.Public + "/chapters",
 	} {
 		w := editorRequest(t, h, "GET", path, session.AccessToken, "", nil)
 		if w.Code != 200 || w.Header().Get("ETag") == "" {
@@ -80,11 +79,8 @@ func TestLegacyAudioRoutesUseCurrentViewer(t *testing.T) {
 		}
 	}
 	for _, route := range []struct{ path, collection, first string }{
-		{"/v1/libraries/music/artists", "artists", artist.Public},
-		{"/v1/libraries/books/books", "books", book.Public},
 		{"/v1/artists/" + artist.Public + "/albums", "albums", album.Public},
 		{"/v1/albums/" + album.Public + "/songs", "songs", song.Public},
-		{"/v1/books/" + book.Public + "/files", "files", part.Public},
 		{"/v1/books/" + book.Public + "/chapters", "chapters", part.Public + ":0"},
 	} {
 		w := editorRequest(t, h, "GET", route.path+"?limit=1", session.AccessToken, "", nil)
@@ -109,7 +105,6 @@ func TestLegacyAudioRoutesUseCurrentViewer(t *testing.T) {
 	for _, path := range []string{
 		"/v1/artists/" + hiddenArtist.Public + "/albums",
 		"/v1/albums/" + hiddenAlbum.Public + "/songs",
-		"/v1/books/" + hiddenBook.Public + "/files",
 		"/v1/books/" + hiddenBook.Public + "/chapters",
 	} {
 		w := editorRequest(t, h, "GET", path, session.AccessToken, "", nil)
@@ -145,9 +140,8 @@ func TestLegacyAudioPagesReauthorizeBeforeNotModified(t *testing.T) {
 	c.Drain()
 	h := New(d)
 	paths := []string{
-		"/v1/libraries/music/artists", "/v1/libraries/books/books",
 		"/v1/artists/" + artist.Public + "/albums", "/v1/albums/" + album.Public + "/songs",
-		"/v1/books/" + book.Public + "/files", "/v1/books/" + book.Public + "/chapters",
+		"/v1/books/" + book.Public + "/chapters",
 	}
 	cached := make(map[string]string)
 	for _, path := range paths {
