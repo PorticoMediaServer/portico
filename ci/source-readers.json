@@ -2,6 +2,13 @@
   "version": 1,
   "readers": [
     {
+      "package": "server/internal/store/internal/sqliteconn",
+      "why": "Checks every store Go source and test for connection openings that bypass the shared physical connection policy",
+      "reads": ["server/internal/store/"],
+      "files": ["server/internal/store/internal/sqliteconn/openings_test.go"],
+      "tests": ["TestStoreOpeningsUseSharedPolicy"]
+    },
+    {
       "package": "server/internal/store/internal/searchpolicy",
       "why": "Pins the production search preparation source closure and its normalization/SQLite dependency identities",
       "reads": ["server/internal/facettext/prefix.go", "server/internal/facettext/search.go", "server/internal/sorttext/sort.go", "server/internal/store/search/fragments.go", "server/internal/store/search/recipe.go", "server/go.mod", "server/go.sum"],
