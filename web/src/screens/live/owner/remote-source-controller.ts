@@ -1,3 +1,4 @@
+import {previewOwnerRemoteSource, saveOwnerRemoteSource} from '@core/owner-requests.ts';
 import {serverNow} from '@core/server-clock.ts';
 import type {LibraryContentApi} from '@core/library-content.ts';
 import {lanConfirmationRoots, remoteSourceDraft, withConfirmedLanRoots, type RemoteSourceDraft, type RemoteSourcePreview} from '@core/linear-api.ts';
@@ -30,7 +31,7 @@ export class RemoteSourceController extends OwnerStore<RemoteSourceSnapshot> {
       if (confirm) {if (!this.snapshot.confirm?.length) return;draft = withConfirmedLanRoots(draft, confirmRoots([...new Set([...draft.confirmedLanRoots, ...this.snapshot.confirm])]));}
       if (draft.kind === 'hdhomerun') draft = {...draft, locator: normalizeHdHomerunLocator(draft.locator)};
       this.publish({draft, busy: true});if (!this.valid(attempt)) return;
-      const raw = await this.api.request('/v1/admin/live-sources/remote/preview', 'POST', draft, attempt.abort.signal);
+      const raw = await previewOwnerRemoteSource(this.api, draft, attempt.abort.signal);
       if (!this.valid(attempt)) return;
       this.publish({draft, busy: false, preview: remotePreview(raw, this.serverId)});
     } catch (error) {
@@ -49,7 +50,7 @@ export class RemoteSourceController extends OwnerStore<RemoteSourceSnapshot> {
     this.publish({...this.snapshot, busy: true, error: undefined});
     try {
       if (!this.valid(attempt)) return false;
-      const receipt = await this.api.request('/v1/admin/live-sources/remote/save', 'POST', {previewId: preview.previewId, requestId: this.operations.forPayload(preview.previewId)}, attempt.abort.signal);
+      const receipt = await saveOwnerRemoteSource(this.api, {previewId: preview.previewId, requestId: this.operations.forPayload(preview.previewId)}, attempt.abort.signal);
       if (!this.valid(attempt)) return false;
       sourceReceipt(receipt, this.serverId, sourceId);
       this.operations.release();this.publish({draft: remoteSourceDraft(''), busy: false});return this.valid(attempt);

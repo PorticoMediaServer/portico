@@ -1,6 +1,6 @@
+import {readOwnerCertificate, readOwnerConnectivity, readOwnerRemoteAccess, readOwnerSecuritySummary} from '../../../../../../packages/client-core/src/owner-requests';
 import React, {useEffect, useState} from 'react';
 import {Text, View} from 'react-native';
-import {routePath} from '../../../../../../packages/contracts/src/routes';
 import {parseRemoteAccess, type RemoteAccess} from '../../../../../../packages/client-core/src/remote-access';
 import {parseConnectivityStatus, type ConnectivityStatus} from '../../../../../../packages/client-core/src/server-administration';
 import {parseCertificateStatus, type CertificateStatus} from '../../../../../../packages/client-core/src/certificates';
@@ -17,7 +17,6 @@ import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeScreenLifetime} from '../lifetime';
 import type {NativeSettingsLivePorts} from '../ports';
 import {createTVServerReader} from './tv-server-reader';
-
 type Snapshot = {remote: RemoteAccess; connectivity: ConnectivityStatus; certificate?: CertificateStatus; security?: SecuritySummary};
 const words = {t: defaultI18n.t as never, time: defaultI18n.time, dateTime: defaultI18n.dateTime};
 /** TV38 exposes only selected public settings. Certificate material, mapping internals,
@@ -29,16 +28,16 @@ export function TVRemoteAccessPanel({ports, runtime, lifetime, statusOnly = fals
     const abort = new AbortController();
     const api = createTVServerReader(ports.context, lifetime);
     setState(undefined); setError(undefined);
-    const certificate = api.request<unknown>(routePath('get_networking_certificate'), 'GET', undefined, abort.signal).then(parseCertificateStatus).catch(error => {
+    const certificate = readOwnerCertificate<unknown>(api, abort.signal).then(parseCertificateStatus).catch(error => {
       if (error && typeof error === 'object' && 'status' in error && error.status === 404) return undefined;
       throw error;
     });
     void Promise.all([
-      api.request<unknown>(routePath('get_networking_remote'), 'GET', undefined, abort.signal).then(parseRemoteAccess),
-      api.request<unknown>(routePath('get_connectivity_status'), 'GET', undefined, abort.signal).then(parseConnectivityStatus),
+      readOwnerRemoteAccess<unknown>(api, abort.signal).then(parseRemoteAccess),
+      readOwnerConnectivity<unknown>(api, abort.signal).then(parseConnectivityStatus),
       certificate,
       // Security is read-only here; an unreadable summary leaves its rows out rather than failing the page.
-      statusOnly ? Promise.resolve(undefined) : api.request<unknown>(routePath('get_admin_security_summary'), 'GET', undefined, abort.signal).then(parseSecuritySummary).catch(() => undefined),
+      statusOnly ? Promise.resolve(undefined) : readOwnerSecuritySummary<unknown>(api, abort.signal).then(parseSecuritySummary).catch(() => undefined),
     ]).then(([remote, connectivity, certificate, security]) => {if (!abort.signal.aborted && lifetime.current()) setState({remote, connectivity, certificate, security});}, error => {if (!abort.signal.aborted && lifetime.current()) setError(error);});
     const retire = () => {abort.abort(); setState(undefined); setError(undefined);};
     lifetime.signal.addEventListener('abort', retire, {once: true});

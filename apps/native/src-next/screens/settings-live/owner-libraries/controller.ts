@@ -1,4 +1,5 @@
-import {encodedRoutePath, routeBody, type RouteResponse} from '../../../../../../packages/contracts/src/routes';
+import {readOwnerMetadataAgent, fetchOwnerLibraryLyricsContract} from '../../../../../../packages/client-core/src/owner-library-requests';
+import {type RouteResponse} from '../../../../../../packages/contracts/src/routes';
 import {RemoteSourceService, type AnalysisPolicy} from '../../../../../../packages/client-core/src/remote-sources';
 import type {ExpectedRemoteSource} from '../../../../../../packages/client-core/src/remote-source-selection';
 import {LibraryManagementService, type LibraryManagementSnapshot, type ManagedLibrary} from '../../../../../../packages/client-core/src/library-management';
@@ -8,14 +9,12 @@ import type {ViewerQueries} from '../../../../../../packages/client-core/src/que
 import {readLibrarySettings, reorderLibraries, saveLibrarySettings} from '../../../../../../packages/client-core/src/server-admin/libraries';
 import {readScanIssues, type ScanIssues} from '../../../../../../packages/client-core/src/scan-issues';
 import {removeLibrary} from '../../../../../../packages/client-core/src/title-identity';
-import {metadataAgentPath, parseMetadataAgent, saveMetadataAgent, type LibraryMetadataAgent} from '../../../../../../packages/client-core/src/server-admin/metadata-agent';
+import {parseMetadataAgent, saveMetadataAgent, type LibraryMetadataAgent} from '../../../../../../packages/client-core/src/server-admin/metadata-agent';
 import type {LibraryAdminDocument, LibrarySettings} from '../../../../../../packages/client-core/src/administration';
 import {readLibrarySonic, retryLibrarySonic, saveLibrarySonic, type LibrarySonicDocument} from '../../../../../../packages/client-core/src/server-admin/library-sonic';
 import {patchLibrarySonicSettingsBinding, readLibrarySonicSettingsBinding} from '../../../../../../packages/client-core/src/presentation/settings-bindings';
 import type {ContentScope, LibraryContentApi} from '../../../../../../packages/client-core/src/library-content';
-
 import {sameUserMutationScope, UserMutationError, type UserMutationScope} from '../../../../../../packages/client-core/src/user-mutations';
-
 type PendingSettings = {document: LibraryAdminDocument; settings: string; patch: string; operationId: string; scope?: UserMutationScope; dispatched: boolean};
 
 export type NativeOwnerLibrariesSnapshot = Readonly<{
@@ -144,7 +143,7 @@ export class NativeOwnerLibrariesController {
       await this.management.selectLibrary(libraryId);
       if (this.disposed || generation !== this.generation) return;
       const [document, , , metadata] = await Promise.all([readLibrarySettings(this.api, libraryId), inventory.refresh(false), this.loadUnmatched(libraryId, '', generation),
-        this.api.request<unknown>(metadataAgentPath(libraryId)).then(parseMetadataAgent, () => undefined)]);
+        readOwnerMetadataAgent(this.api, libraryId).then(parseMetadataAgent, () => undefined)]);
       if (this.disposed || generation !== this.generation) return;
       this.publish({document, metadata, detail: 'ready'});
       void this.loadSonic(document, generation);
@@ -299,7 +298,7 @@ export class NativeOwnerLibrariesController {
     this.publish({lyricsBusy: true, lyricsError: undefined, lyricsJob: undefined});
     try {
       if (!owns()) return;
-      const job = await this.api.request<RouteResponse<'post_libraries_id_lyrics_fetch'>>(encodedRoutePath('post_libraries_id_lyrics_fetch', {id: encodeURIComponent(document.libraryId)}), 'POST', routeBody('post_libraries_id_lyrics_fetch', {idempotencyKey: key}));
+      const job = await fetchOwnerLibraryLyricsContract<RouteResponse<'post_libraries_id_lyrics_fetch'>>(this.api, document.libraryId, key);
       if (!job || typeof job.id !== 'string' || !job.id || typeof job.state !== 'string') throw new Error('Invalid lyrics job response.');
       this.lyricsKeys.delete(document.libraryId);
       if (!owns()) return;
@@ -456,7 +455,7 @@ export class NativeOwnerLibrariesController {
   private async reloadAgent(): Promise<void> {
     const id = this.state.selectedId;
     if (!id) return;
-    try {const metadata = parseMetadataAgent(await this.api.request<unknown>(metadataAgentPath(id))); this.publish({metadata});}
+    try {const metadata = parseMetadataAgent(await readOwnerMetadataAgent(this.api, id)); this.publish({metadata});}
     catch (error) {this.publish({error});}
   }
 

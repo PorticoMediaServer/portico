@@ -1,6 +1,5 @@
+import {readOwnerDataUsage, readOwnerStorageUsage} from '@core/owner-requests.ts';
 import {decodeGetAdminStorageUsageResponse, decodeGetDataStorageUsageResponse} from '../../../../../packages/contracts/src/decoders.ts';
-import {routePath} from '../../../../../packages/contracts/src/routes.ts';
-
 export type StorageCategory = Readonly<{
   id: string; name: string; description: string; bytes: number; bytesText: string;
   cleanable: boolean; regenerable: boolean; present: boolean; fileCount: number; oldestDays: number; retentionKey: string;
@@ -66,8 +65,8 @@ export class SettingsStorageSource {
       if (!this.current()) return;
       try {
         const [value, layout] = await Promise.all([
-          this.transport.request<unknown>(routePath('get_admin_storage_usage'), 'GET', undefined, this.lifetime.signal),
-          this.transport.request<unknown>(routePath('get_data_storage_usage'), 'GET', undefined, this.lifetime.signal),
+          readOwnerStorageUsage<unknown>(this.transport, this.lifetime.signal),
+          readOwnerDataUsage<unknown>(this.transport, this.lifetime.signal),
         ]);
         if (!this.current()) return;
         const report = storageReport(value, this.serverId);

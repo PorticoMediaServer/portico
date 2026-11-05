@@ -1,3 +1,4 @@
+import {broadcastOwnerNotification} from '../../../../../../packages/client-core/src/owner-requests';
 import React, {useCallback, useLayoutEffect, useRef, useState} from 'react';
 import {Text, View} from 'react-native';
 import {broadcastBody, broadcastProblem, utf8Length} from '../../../../../../packages/client-core/src/server-admin/panel-logic';
@@ -10,7 +11,6 @@ import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeSettingsLivePorts} from '../ports';
 import {useSettingsRequestScope} from '../use-settings-request-scope';
 import {nativeStorageOwner} from './storage/space-source';
-
 type BroadcastDraft = Readonly<{title: string; body: string; audience: 'profile' | 'account-admin'; severity: 'info' | 'warning' | 'critical'}>;
 type Opening = {
   readonly ports: NativeSettingsLivePorts;
@@ -63,7 +63,7 @@ export function NativeBroadcastSheet({ports, runtime, open, onOpenChange}: {port
     const owns = () => current() && target.draft === original && target.flight === request && !request.signal.aborted;
     try {
       if (!owns()) return;
-      await api.request('/v1/admin/notifications/broadcast', 'POST', broadcastBody(ports.requestId(), original), request.signal);
+      await broadcastOwnerNotification(api, broadcastBody(ports.requestId(), original), request.signal);
       if (owns()) {retire(target); changed(); onOpenChange(false);}
     } catch (error) {
       if (owns()) {target.problem = presentError(error, 'server-console').body; changed();}

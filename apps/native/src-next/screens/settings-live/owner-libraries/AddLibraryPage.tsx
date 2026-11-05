@@ -1,8 +1,9 @@
+import {readOwnerKindMetadataAgents} from '../../../../../../packages/client-core/src/owner-library-requests';
 import React, {useEffect, useMemo, useState} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import type {LibraryContentApi} from '../../../../../../packages/client-core/src/library-content';
 import type {ManagedLibrary} from '../../../../../../packages/client-core/src/library-management';
-import {kindMetadataAgentsPath, parseKindMetadataAgents, type MetadataAgentOption} from '../../../../../../packages/client-core/src/server-admin/metadata-agent';
+import {parseKindMetadataAgents, type MetadataAgentOption} from '../../../../../../packages/client-core/src/server-admin/metadata-agent';
 import type {MessageId} from '../../../../../../packages/i18n/src/index';
 import {defaultI18n} from '../../../../../../packages/i18n/src/index';
 import {Button} from '../../../kit/controls/Button';
@@ -34,7 +35,7 @@ export function AddLibraryPage({api, serverName, onCreate, onCancel, busy, error
   useEffect(() => {
     if (firstRun) return;
     let alive = true;
-    api.request<unknown>(kindMetadataAgentsPath(kind)).then(parseKindMetadataAgents).then(
+    readOwnerKindMetadataAgents(api, kind).then(parseKindMetadataAgents).then(
       value => {if (!alive) return; setAgents(value.agents); const chosen = value.agents.find(option => option.id === 'online') ?? value.agents[0];
         if (chosen) {setAgent(current => value.agents.some(option => option.id === current) ? current : chosen.id); setLanguage(chosen.defaultLanguage);}},
       () => {if (alive) setAgents([]);});

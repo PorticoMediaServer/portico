@@ -1,3 +1,5 @@
+import {readOwnerDashboardSessions} from '@core/owner-diagnostics-requests.ts';
+import {ownerCertificateRequest} from '@core/owner-requests.ts';
 import type {EventsClient} from '@core/playback-v1/events.ts';
 import type {SessionControls} from '@core/playback-controls.ts';
 import type {HttpLocalApi} from '@core/index.ts';
@@ -7,8 +9,6 @@ import {parseReportContext, type ReportContext} from '@core/report-context.ts';
 import {parseDashboardSessions} from '@core/admin/activity-summary/parser.ts';
 import type {DashboardSessionsPage} from '@core/admin/activity-summary/types.ts';
 import {parseAdminSession, type AdminSession} from '@core/playback-v1/types.ts';
-import {call} from '@core/playback-v1/http.ts';
-import {routePath} from '../../../../packages/contracts/src/routes.ts';
 import {AdminSessionsClient} from '@core/playback-v1/admin-sessions.ts';
 import {localV1Http} from '@core/playback-v1/local-http.ts';
 import {playbackControlsService} from '@core/playback-controls.ts';
@@ -23,7 +23,6 @@ import type {FactPart} from '@core/presentation/kit-model/index.ts';
 import {settingsServerHeader} from '../settings/server-header';
 import type {ArtworkSource} from '../../kit/artwork/types';
 import {DASHBOARD_SESSION_PAGE_SIZE} from './session-window';
-
 export type DashboardEvents = Pick<EventsClient, 'on'> & Partial<Pick<EventsClient, 'onResync' | 'onResyncRead' | 'resyncReads'>>;
 export type DashboardAlert = DashboardStatus['alerts'][number];
 export type DashboardSession = AdminSession & Pick<DashboardSessionsPage['items'][number], 'channel' | 'programme'>;
@@ -117,8 +116,7 @@ export function createDashboardBindings(options: DashboardBindingOptions): Dashb
   const controls = playbackControlsService(api.request.bind(api));
   const certificates: CertificateApi = {requestCertificate: <T>(action: CertificateAction, body: unknown, signal: AbortSignal): Promise<T> => {
     assert();
-    const path = routePath(action === 'status' ? 'get_networking_certificate' : action === 'config' ? 'post_networking_certificate_config' : 'post_networking_certificate_retry');
-    return options.api.request<T>(path, action === 'status' ? 'GET' : 'POST', body, signal ? AbortSignal.any([signal, life.signal]) : life.signal).then(value => {assert(); return value;});
+    return ownerCertificateRequest<T>(options.api, action, body, signal ? AbortSignal.any([signal, life.signal]) : life.signal).then(value => {assert(); return value;});
   }};
   const operationControls = (signal: AbortSignal) => {
     const service = playbackControlsService(async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
@@ -140,7 +138,7 @@ export function createDashboardBindings(options: DashboardBindingOptions): Dashb
     read: {
       sessions: async (cursor, signal) => {
         assert(); const query = new URLSearchParams({limit: String(DASHBOARD_SESSION_PAGE_SIZE)}); if (cursor) query.set('cursor', cursor);
-        const raw = parseDashboardSessions((await call(http, {method: 'GET', path: routePath('list_admin_sessions') + '?' + query, signal})).body); assert();
+        const raw = parseDashboardSessions((await readOwnerDashboardSessions(http, query, signal)).body); assert();
         if (raw.scope.serverId !== options.scope.serverId || observed !== undefined && Date.parse(raw.observedAt) < Date.parse(observed)) {close(); throw new DOMException('Dashboard authority changed', 'AbortError');}
         observed = raw.observedAt;
         return {items: raw.items.map(item => ({...parseAdminSession(item), channel: item.channel, programme: item.programme})), nextCursor: raw.page.nextCursor ?? '', scope: raw.scope, totals: raw.totals};

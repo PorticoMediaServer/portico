@@ -1,7 +1,7 @@
+import {ownerItemArtworkPath} from '@core/owner-upload-requests.ts';
 import {useShellFacts} from '../../shell/fact-hooks';
 import {useEffect, useState, useSyncExternalStore} from 'react';
 import {captureReportContext} from '@core/report-context.ts';
-import {encodedRoutePath} from '../../../../packages/contracts/src/routes.ts';
 import {SettingsOwnerOnly, SettingsPageFailure} from '../../kit/settings';
 import {router} from '../../router';
 import {useProtectedWebScreenContext} from '../../route-registry-view';
@@ -10,7 +10,6 @@ import {shellLanguage} from '../../shell/settings';
 import {createDashboardBindings, type DashboardBindings} from './bindings';
 import {DashboardScreen} from './Dashboard';
 import {PhonePage, type DashboardPhoneChrome} from './phone';
-
 const noPreferences = () => () => {};
 
 /** The drawn mobile-web Dashboard is its own page, not a Settings section: same bindings and guards, phone chrome. */
@@ -33,7 +32,7 @@ export function DashboardPhoneEntry() {
     const openSettings = (section: string) => {if (current()) void router.navigate({to: '/settings', search: () => ({scope: 'server', section})});};
     const dashboard = createDashboardBindings({api: context.api, queries: context.freshness?.queries, events: context.events, scope: {serverId: context.session().viewer.serverId, viewerId: JSON.stringify([context.session().viewer.authority, context.session().viewer.accountId, context.session().viewer.profileId])},
       context: captureReportContext(timeZone), role: permittedRole, isCurrent: current, isMainProfile: () => current() && context.facts.identity.primaryProfile === true,
-      artwork: (id, kind, revision) => revision ? context.artwork.foreground(encodedRoutePath('get_items_id_art_kind', {id: encodeURIComponent(id), kind}) + '?' + new URLSearchParams({v: revision}), kind === 'backdrop' ? 800 : 400, kind === 'poster' ? 2 / 3 : kind === 'backdrop' ? 16 / 9 : 1) : undefined,
+      artwork: (id, kind, revision) => revision ? context.artwork.foreground(ownerItemArtworkPath(encodeURIComponent(id), kind) + '?' + new URLSearchParams({v: revision}), kind === 'backdrop' ? 800 : 400, kind === 'poster' ? 2 / 3 : kind === 'backdrop' ? 16 / 9 : 1) : undefined,
       effects: {openHome, openSettings, reportError: error => {if (current()) setFailure({error});}, openHistory: () => openSettings('history')}});
     setFailure(false);
     setOwned({context, dashboard, chrome: {get serverName() {return context.facts.identity.serverName;}, audience: permittedRole === 'owner' ? 'owner' : 'administrators'}});

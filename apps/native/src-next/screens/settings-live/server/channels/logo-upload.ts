@@ -1,5 +1,5 @@
+import {ownerChannelLogoPath, ownerChannelLogoMultipart, sendOwnerChannelLogo} from '../../../../../../../packages/client-core/src/owner-upload-requests';
 import {NativeModules} from 'react-native';
-import {encodedRoutePath} from '../../../../../../../packages/contracts/src/routes';
 import {ConsoleClient} from '../../../../../../../packages/client-core/src/console';
 import type {NativeShellBootstrapContext} from '../../../../shell/bootstrap';
 import {NativeScreenLifetime,screenScopeEnded} from '../../lifetime';
@@ -29,11 +29,11 @@ export function nativeChannelLogoUpload(context:NativeShellBootstrapContext,life
   return async(channelId:string,image:NativeLogoImage,operationId:string,caller:AbortSignal):Promise<unknown>=>{
     if(!current()||caller.aborted)throw screenScopeEnded();
     if(!/^[A-Za-z0-9_-]{1,128}$/.test(channelId)||!/^[a-f0-9]{48}$/.test(operationId)||!Object.isFrozen(image)||image.type!=='image/jpeg'||image.name!=='channel-logo.jpg'||!Number.isSafeInteger(image.size)||image.size<1||image.size>2*1024*1024||image.base64.length!==4*Math.ceil(image.size/3)||!/^[A-Za-z0-9+/]*={0,2}$/.test(image.base64))throw new Error('invalid_channel_logo_image');
-    const boundary='portico-'+operationId,path=encodedRoutePath('post_admin_library_channels_id_logo',{id:encodeURIComponent(channelId)});
-    const body=`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="channel-logo.jpg"\r\nContent-Type: image/jpeg\r\nContent-Transfer-Encoding: base64\r\n\r\n${image.base64}\r\n--${boundary}\r\nContent-Disposition: form-data; name="operationId"\r\n\r\n${operationId}\r\n--${boundary}--\r\n`; // lint-strings-allow: exact MIME wire framing, never rendered UI copy.
+    const boundary='portico-'+operationId,path=ownerChannelLogoPath(channelId);
+    const body=ownerChannelLogoMultipart(image.base64,operationId,boundary);
     return lifetime.request(async signal=>{
       const session=context.session();if(!current()||signal.aborted||!session)throw screenScopeEnded();
-      const response=await context.api.routeFetch(context.api.baseUrl+path,{method:'POST',body,signal,redirect:'error',credentials:'omit',referrerPolicy:'no-referrer',headers:{Authorization:'Bearer '+session.accessToken,Accept:'application/json','Content-Type':'multipart/form-data; boundary='+boundary}});
+      const response=await sendOwnerChannelLogo(context.api,path,session.accessToken,body,signal,'multipart/form-data; boundary='+boundary);
       if(!current()||signal.aborted){await response.body?.cancel();throw screenScopeEnded();}
       if(!response.ok){await response.body?.cancel();throw {status:response.status,code:response.status===401?'unauthorized':response.status===403?'not_permitted':'write_failed'};}
       const reader=response.body?.getReader();if(!reader)throw new Error('invalid_channel_logo_receipt');

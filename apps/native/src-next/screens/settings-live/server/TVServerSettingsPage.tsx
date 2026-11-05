@@ -1,6 +1,6 @@
+import {readOwnerTranscodeCapacity, readOwnerConfiguration} from '../../../../../../packages/client-core/src/owner-requests';
 import React, {useCallback, useEffect, useState} from 'react';
 import {Text, View} from 'react-native';
-import {routePath} from '../../../../../../packages/contracts/src/routes';
 import {parseSettingsConfiguration, type SettingsConfiguration} from '../../../../../../packages/client-core/src/settings-configuration';
 import {applySettingsBindingPatch, settingsBinding, settingsBindingPatch} from '../../../../../../packages/client-core/src/presentation/settings-bindings';
 import {settingsSpec, type SettingsRow as SpecRow} from '../../../../../../packages/client-core/src/presentation/settings-spec';
@@ -19,7 +19,6 @@ import {TVChoiceRow, TVEntryRow, TVSwitchRow, type TVChoice} from './TVSettingRo
 import {TVFolderRow} from './TVFolderPicker';
 import {parseTranscodeCapacity, type TranscodeCapacity} from '../../../../../../packages/client-core/src/telemetry';
 import {tvCustomChoiceValue, tvPageForms, tvServerSettingFact, tvServerSettingGroups, tvServerSettingsSources, type TVChoiceModel, type TVEditablePage, type TVServerSettingsState, type TVSettingGroup, type TVSettingItem} from './tv-server-settings-model';
-
 type FormView = Readonly<{draft?: Readonly<Record<string, unknown>>; loading: boolean; loadError?: unknown}>;
 
 /** Owner-only: the page's spec rows that have a client-core binding, drawn with the TV kit.
@@ -50,7 +49,7 @@ function Page({page, group, ports, runtime}: {page: TVEditablePage; group: Stora
   const [advanced, setAdvanced] = useState(false), [custom, setCustom] = useState<ReadonlySet<string>>(new Set());
   const loadConfiguration = useCallback(() => {
     if (!lifetime.current()) return;
-    void api.request(routePath('get_settings_configuration')).then(parseSettingsConfiguration).then(value => {if (lifetime.current()) {setConfiguration(value); setConfigurationError(undefined);}}, error => {if (lifetime.current()) setConfigurationError(error);});
+    void readOwnerConfiguration(api).then(parseSettingsConfiguration).then(value => {if (lifetime.current()) {setConfiguration(value); setConfigurationError(undefined);}}, error => {if (lifetime.current()) setConfigurationError(error);});
   }, [api, lifetime]);
   useEffect(loadConfiguration, [loadConfiguration]);
   // Capacity supplies memory admission and the adapters this host found.
@@ -59,7 +58,7 @@ function Page({page, group, ports, runtime}: {page: TVEditablePage; group: Stora
   useEffect(() => {
     if (page !== 'streaming' || !lifetime.current()) return;
     const read = new AbortController();
-    void api.request(routePath('get_admin_transcode_capacity'), 'GET', undefined, read.signal).then(parseTranscodeCapacity)
+    void readOwnerTranscodeCapacity(api, read.signal).then(parseTranscodeCapacity)
       .then(value => {if (!read.signal.aborted && lifetime.current()) setCapacity(value);}, () => {/* memory remains unavailable until measured */});
     return () => read.abort();
   }, [api, lifetime, page]);

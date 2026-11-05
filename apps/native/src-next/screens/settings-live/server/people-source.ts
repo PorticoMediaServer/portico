@@ -1,4 +1,4 @@
-import {routePath} from '../../../../../../packages/contracts/src/routes';
+import {readOwnerLibraries, readOwnerAccessDevices} from '../../../../../../packages/client-core/src/owner-requests';
 import {parseLibraryList} from '../../../../../../packages/client-core/src/library-list';
 import type {Library} from '../../../../../../packages/client-core/src';
 import {SettingsPeopleClient, type SettingsPeoplePage, type SettingsPeopleQuery, type SettingsPersonRow} from '../../../../../../packages/client-core/src/settings-people';
@@ -7,7 +7,6 @@ import {deleteMember, previewMemberDeletion, parseAccessDevicePage, signOutMembe
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
 import {NativeScreenLifetime, screenScopeEnded} from '../lifetime';
 import {nativeStorageOwner} from './storage/space-source';
-
 export const nativePeopleQuery: SettingsPeopleQuery = Object.freeze({search: '', role: 'all', status: 'all', sort: 'person', direction: 'asc'});
 /** `ready` is the Invitation ready card: right after creating (a short code is
  * issued with it), or opened again to share a waiting invitation. */
@@ -122,7 +121,7 @@ export class NativePeopleSource {
     if (!this.current() || this.state.librariesLoading) return;
     const flight = this.libraryFlight = new AbortController(); this.publish({librariesLoading: true, librariesError: undefined});
     const owns = () => this.current() && this.libraryFlight === flight && !flight.signal.aborted;
-    try {const page = parseLibraryList(await this.api.request(routePath('get_libraries'), 'GET', undefined, flight.signal)); if (owns()) this.publish({libraries: page.items});}
+    try {const page = parseLibraryList(await readOwnerLibraries(this.api, flight.signal)); if (owns()) this.publish({libraries: page.items});}
     catch (error) {if (owns()) {this.publish({librariesError: error}); if ([401, 403].includes((error as {status: number})?.status)) this.fail(error);}}
     finally {if (owns()) this.publish({librariesLoading: false}); if (this.libraryFlight === flight) this.libraryFlight = undefined;}
   };
@@ -141,7 +140,7 @@ export class NativePeopleSource {
     this.publish({devicesLoading: true, devicesError: undefined, ...(!more ? {devices: undefined} : {})});
     try {
       const params = new URLSearchParams({account: person.accountId, limit: '40', ...(cursor ? {cursor} : {})});
-      const page = parseAccessDevicePage(await this.api.request(routePath('get_admin_access_devices') + '?' + params, 'GET', undefined, flight.signal));
+      const page = parseAccessDevicePage(await readOwnerAccessDevices(this.api, '?' + params, flight.signal));
       if (!owns()) return;
       if (page.items.some(device => device.accountId !== person.accountId)) throw new Error('native_people_device_scope_mismatch');
       const items = [...(previous?.items ?? [])], seen = new Set(items.map(device => device.id));
