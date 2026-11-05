@@ -1,0 +1,31 @@
+name: Phase 0 search chunk candidate pairing control
+on:
+  push:
+    branches: ['schema-v1/p0-q-semantic-audit']
+    paths: ['research/p0-q/**', '.github/workflows/p0-q-semantic-audit.yml']
+permissions: {contents: read}
+env: {GOWORK: 'off'}
+jobs:
+  control:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: research/p0-q/go.mod, cache-dependency-path: research/p0-q/go.sum}
+      - run: |
+          go build -o "$RUNNER_TEMP/q-bench" .
+          go build -o "$RUNNER_TEMP/q-candidate-control" ./chunk-candidate-control
+        working-directory: research/p0-q
+      - name: Native fragment quantum fixture and exact candidate pairing
+        run: |
+          mkdir -p "$RUNNER_TEMP/q-out" "$RUNNER_TEMP/q-work"
+          git rev-parse HEAD > "$RUNNER_TEMP/q-out/head.txt"
+          git archive HEAD | sha256sum > "$RUNNER_TEMP/q-out/archive.sha256"
+          go version -m "$RUNNER_TEMP/q-bench" > "$RUNNER_TEMP/q-out/build.txt"
+          "$RUNNER_TEMP/q-bench" -n 1000 -variant A -profile hosted-small -mode maximum-chunks -config normal-passive -rounds 1 -cjk-share 30 -dir "$RUNNER_TEMP/q-work" > "$RUNNER_TEMP/q-out/result.jsonl" 2> "$RUNNER_TEMP/q-out/result.stderr"
+          "$RUNNER_TEMP/q-candidate-control" "$RUNNER_TEMP/q-work/search.sqlite" > "$RUNNER_TEMP/q-out/candidate-pairing.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with: {name: q-4158-candidate-pairing, path: '${{ runner.temp }}/q-out', retention-days: 30}
