@@ -1,3 +1,4 @@
+import {readOwnerConfiguration, readOwnerUpdates} from '../../../../../../packages/client-core/src/owner-requests';
 import {serverNow} from '../../../../../../packages/client-core/src/server-clock';
 import {useSettingsRequestScope} from '../use-settings-request-scope';
 import React, {useCallback, useEffect, useState} from 'react';
@@ -5,7 +6,6 @@ import {ScrollView, Text, View} from 'react-native';
 import {parseUpdateReport, type UpdateReport} from '../../../../../../packages/client-core/src/administration';
 import {pauseBackgroundWork, type AlertThresholds, type MaintenanceDocument, type MaintenanceSettings} from '../../../../../../packages/client-core/src/server-admin/server-forms';
 import {restartServer} from '../../../../../../packages/client-core/src/backups';
-import {routePath} from '../../../../../../packages/contracts/src/routes';
 import {parseSettingsConfiguration, type SettingsConfiguration} from '../../../../../../packages/client-core/src/settings-configuration';
 import {applySettingsBindingPatch, readSettingsBinding, settingsBinding, settingsBindingPatch, type SettingsBindingSources} from '../../../../../../packages/client-core/src/presentation/settings-bindings';
 import {settingsSpec, settingsRowIndex, type SettingsRow as SpecRow} from '../../../../../../packages/client-core/src/presentation/settings-spec';
@@ -31,7 +31,6 @@ import type {NativeSettingsLivePorts} from '../ports';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import {useFormState, useStorageForms, useStorageSet, type StorageForms} from './storage/forms';
 import {settingsPageHeading, settingsPageInset} from './page-layout';
-
 type Translate = typeof defaultI18n.t;
 type ViewerRole = 'owner' | 'administrator' | 'member';
 const IDS = ['runtime', 'maintenance', 'alerts'] as const;
@@ -54,7 +53,7 @@ function General({ports, runtime, compactHeader = false, group}: {ports: NativeS
   const [configuration, setConfiguration] = useState<SettingsConfiguration>(), [configurationError, setConfigurationError] = useState<unknown>();
   const loadConfiguration = useCallback(() => {
     if (!lifetime.current()) return;
-    void api.request(routePath('get_settings_configuration')).then(parseSettingsConfiguration).then(value => {if (lifetime.current()) {setConfiguration(value); setConfigurationError(undefined);}}, error => {if (lifetime.current()) setConfigurationError(error);});
+    void readOwnerConfiguration(api).then(parseSettingsConfiguration).then(value => {if (lifetime.current()) {setConfiguration(value); setConfigurationError(undefined);}}, error => {if (lifetime.current()) setConfigurationError(error);});
   }, [api, lifetime]);
   useEffect(loadConfiguration, [loadConfiguration]);
   useEffect(() => setCustomUpdate(false), [runtimeState.saved]);
@@ -88,7 +87,7 @@ function General({ports, runtime, compactHeader = false, group}: {ports: NativeS
   const loadUpdates = useCallback(() => {
     if (!lifetime.current()) return;
     setChecking(true); setUpdateError(undefined);
-    void api.request<unknown>('/v1/admin/updates').then(raw => {if (lifetime.current()) setUpdates(parseUpdateReport(raw));})
+    void readOwnerUpdates(api).then(raw => {if (lifetime.current()) setUpdates(parseUpdateReport(raw));})
       .catch(error => {if (lifetime.current()) setUpdateError(error);}).finally(() => {if (lifetime.current()) setChecking(false);});
   }, [api, lifetime]);
   useEffect(() => {loadUpdates();}, [loadUpdates]);

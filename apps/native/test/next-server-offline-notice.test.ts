@@ -26,21 +26,26 @@ async function fixture({hosted = true, matching = true, tv = false}: {hosted?: b
     synchronize: async () => {}, accessSession: async () => session};
   const {NativeServerOfflineNoticeRow} = await screenModule(new URL('../src-next/screens/settings-live/NativeServerOfflineNoticeRow.tsx', import.meta.url), {
     react: host.react, 'react-native': {View: 'View'},
-    '../../../../../packages/client-core/src': {HttpLocalApi: class {
-      constructor(readonly origin: string, readonly token: string) {}
-      async request(path: string, method: string, body: unknown, signal?: AbortSignal) {
-        calls.push([this.origin, this.token, path, method, body]); if (signal) signals.push(signal);
-        if (method === 'GET') {if (failRead) throw new Error('read failed'); return {serverOffline: stored};}
-        if (saveGate) await saveGate;
-        if (failSave) throw new Error('save failed');
-        stored = (body as {serverOffline: boolean}).serverOffline; return {serverOffline: stored};
-      }}},
     '../../../../../packages/client-core/src/account-notifications': notifications,
     '../../kit/controls': {Switch: 'Switch'}, '../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../kit/states': {StateView: 'StateView'},
     '../../kit/theme': {useTheme: () => ({isTV: tv})},
     '../../platform/accounts': {nativeAccounts: {accountCredentials: () => {credentialReads++; return credentials;}}},
     '../../platform/account-authority': {hostedUrl: 'https://accounts.example.invalid'},
-    '../../platform/account-work': accountWork, '../../platform/server-connections': {nativeNetworkFetch: () => {}},
+    '../../platform/account-work': accountWork, '../../platform/server-connections': {nativeNetworkFetch: async (input: string, init: RequestInit) => {
+      const url = new URL(input), token = new Headers(init.headers).get('Authorization')?.replace(/^Bearer /, '');
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : undefined, signal = init.signal;
+      calls.push([url.origin, token, url.pathname + url.search, init.method, body]); if (signal) signals.push(signal);
+      if (init.method === 'GET') {if (failRead) throw new Error('read failed'); return Response.json({serverOffline: stored});}
+      if (saveGate) {
+        let abort: (() => void) | undefined;
+        try {await Promise.race([saveGate, new Promise<never>((_resolve, reject) => {
+          abort = () => reject(new DOMException('Aborted', 'AbortError'));
+          signal?.addEventListener('abort', abort, {once: true}); if (signal?.aborted) abort();
+        })]);} finally {if (abort) signal?.removeEventListener('abort', abort);}
+      }
+      if (failSave) throw new Error('save failed');
+      stored = body.serverOffline; return Response.json({serverOffline: stored});
+    }},
   });
   const runtime: any = {text: {t: (key: string) => key}, error: (error: unknown, dismiss: () => void) => ({error, dismiss})};
   let tree: any;

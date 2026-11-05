@@ -1,3 +1,4 @@
+import {discoverOwnerTuners} from '@core/owner-requests.ts';
 import type {LibraryContentApi} from '@core/library-content.ts';
 import {discovery} from './checked';
 import {OwnerStore, errorFacts} from './lifetime';
@@ -8,7 +9,7 @@ export class DiscoveryController extends OwnerStore<Readonly<{busy: boolean; res
     if (!this.isActive() || this.snapshot.busy) return;
     const attempt = this.begin();this.publish({busy: true});if (!this.valid(attempt)) return;
     try {
-      const raw = await this.api.request('/v1/admin/live-sources/discover', 'POST', {windowMs: 5000}, attempt.abort.signal);
+      const raw = await discoverOwnerTuners(this.api, {windowMs: 5000}, attempt.abort.signal);
       if (this.valid(attempt)) this.publish({busy: false, result: discovery(raw, this.serverId)});
     } catch (error) {if (this.valid(attempt)) this.fail(error, {busy: false, error: errorFacts(error)});}
   }

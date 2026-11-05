@@ -1,8 +1,7 @@
-import {accessListPath} from '@core/server-admin/panel-logic.ts';
+import {readOwnerMemberDevices} from '@core/owner-requests.ts';
 import {parseAccessDevicePage, signOutMemberDevice, signOutMemberDevices} from '@core/server-administration.ts';
 import type {SettingsPeopleApi} from '@core/settings-people.ts';
 import type {PeopleDevicesApi} from './people-devices-source';
-
 /** Reuse the shared canonical routes, strict access parser and sign-out commands.
  * The account filter stays on every bounded page, including continuations. */
 export function createPeopleDevicesApi(api: SettingsPeopleApi, isCurrent: () => boolean): PeopleDevicesApi {
@@ -14,7 +13,7 @@ export function createPeopleDevicesApi(api: SettingsPeopleApi, isCurrent: () => 
     signal?.throwIfAborted(); return value;
   }};
   return {
-    list: async (accountId, cursor, signal) => parseAccessDevicePage(await captured.request(accessListPath('devices', cursor) + '&account=' + encodeURIComponent(accountId), 'GET', undefined, signal)),
+    list: async (accountId, cursor, signal) => parseAccessDevicePage(await readOwnerMemberDevices(captured, accountId, cursor, signal)),
     signOut: (accountId, deviceId, signal) => deviceId === undefined ? signOutMemberDevices(captured, accountId, signal) : signOutMemberDevice(captured, accountId, deviceId, signal),
   };
 }

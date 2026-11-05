@@ -1,6 +1,6 @@
+import {readOwnerSignInSettings, readOwnerMetadataSettings, readOwnerLiveSources, readOwnerUpdates, readOwnerConfiguration} from '../../../../../../packages/client-core/src/owner-requests';
 import React, {useEffect, useMemo, useState} from 'react';
 import {Text, View} from 'react-native';
-import {routePath} from '../../../../../../packages/contracts/src/routes';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {settingsSpec} from '../../../../../../packages/client-core/src/presentation/settings-spec';
 import {settingsBinding, readSettingsBinding} from '../../../../../../packages/client-core/src/presentation/settings-bindings';
@@ -27,7 +27,6 @@ import {createTVServerReader} from './tv-server-reader';
 import type {TVServerPage} from './TVServerPageMenu';
 import {tvServerCredentialCount, tvServerSettingsFacts, type TVServerFact} from './tv-server-values';
 import {TVDiskUsage} from './TVDiskUsage';
-
 type Page = Exclude<TVServerPage, 'dashboard' | 'libraries' | 'people' | 'remote'>;
 type Snapshot = Readonly<{facts: readonly TVServerFact[]; nextCursor?: string}>;
 
@@ -46,7 +45,7 @@ export function TVServerReadOnlyPanel({page, ports, runtime, lifetime, statusOnl
   useEffect(() => {
     const abort = new AbortController(), api = createTVServerReader(ports.context, lifetime);
     const current = () => !abort.signal.aborted && lifetime.current();
-    const read = (path: string) => api.request<unknown>(path, 'GET', undefined, abort.signal);
+    const read = <T,>(path: string) => api.request<T>(path, 'GET', undefined, abort.signal);
     const section = settingsSpec.find(value => value.scope === 'server' && value.id === page);
     const label = (id: string) => {
       const row = section?.groups?.flatMap(group => group.rows).find(value => value.id === id);
@@ -56,7 +55,7 @@ export function TVServerReadOnlyPanel({page, ports, runtime, lifetime, statusOnl
     setSnapshot(undefined); setError(undefined);
     const load = async (): Promise<Snapshot> => {
       if (page === 'signin') {
-        const settings = parseSignInSettings(await read(routePath('get_sign_in_settings')));
+        const settings = parseSignInSettings(await readOwnerSignInSettings({request:read}));
         return {facts: [
           {id: 'signin.method', label: label(settings.signIn === 'local' ? 'signin.methodLocal' : 'signin.method'), value: t(signInLabelKey(settings.signIn))},
           {id: 'signin.owner', label: label(settings.signIn === 'local' ? 'signin.ownerLocal' : 'signin.owner'), value: settings.owner.username},
@@ -86,17 +85,17 @@ export function TVServerReadOnlyPanel({page, ports, runtime, lifetime, statusOnl
         } finally {service.dispose();}
       }
       if (page === 'live') {
-        const list = parseLiveSources(await read('/v1/admin/live-sources'), lifetime.authority.serverId);
+        const list = parseLiveSources(await readOwnerLiveSources({request:read}), lifetime.authority.serverId);
         return {facts: list.sources.map(source => ({id: source.id, label: source.name, value: t(liveSourceState(source, list.refresh.find(value => value.sourceId === source.id)).id)}))};
       }
       if (!section) throw new Error('native_tv_server_page_missing');
       if (statusOnly) {
         if (page !== 'general') return {facts: []};
-        const updates = parseUpdateReport(await read('/v1/admin/updates'));
+        const updates = parseUpdateReport(await readOwnerUpdates({request:read}));
         return {facts: [{id: 'general.version', label: label('general.version'), value: updates.current.version}]};
       }
-      const configuration = parseSettingsConfiguration(await read(routePath('get_settings_configuration')));
-      const metadata = page === 'metadata' ? parseMetadataSettings(await read(routePath('get_metadata_settings'))) : undefined;
+      const configuration = parseSettingsConfiguration(await readOwnerConfiguration({request:read}));
+      const metadata = page === 'metadata' ? parseMetadataSettings(await readOwnerMetadataSettings({request:read})) : undefined;
       const extra: Readonly<Record<string, unknown>> = metadata ? {
         'metadata.online': metadata.onlineLookups, 'metadata.adult': metadata.includeAdult,
         'metadata.language': metadata.defaultLanguage, 'metadata.region': metadata.defaultRegion,
@@ -109,7 +108,7 @@ export function TVServerReadOnlyPanel({page, ports, runtime, lifetime, statusOnl
           : configuration.fields.find(field => field.id === id)?.effective;
       }, t, value => defaultI18n.number(value))];
       if (page === 'general') {
-        const updates = parseUpdateReport(await read('/v1/admin/updates'));
+        const updates = parseUpdateReport(await readOwnerUpdates({request:read}));
         facts.splice(1, 0, {id: 'general.version', label: label('general.version'), value: updates.current.version});
       }
       return {facts};

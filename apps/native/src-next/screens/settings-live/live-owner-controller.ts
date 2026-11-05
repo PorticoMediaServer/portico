@@ -1,3 +1,4 @@
+import {changeOwnerLiveSource, deleteOwnerRecordingRule, discoverOwnerTuners, importOwnerSourceLogos, previewOwnerSourceFiles, readOwnerChannelMap, readOwnerDvrDefaults, readOwnerLiveDefaults, readOwnerLiveSources, readOwnerRecordingGuide, readOwnerRecordingOwners, readOwnerRecordingPermissions, readOwnerRecordingRules, readOwnerSourceConfiguration, readOwnerTuners, saveOwnerRemoteSource, saveOwnerSourceFiles, writeOwnerChannelMap, writeOwnerDvrDefaults, writeOwnerLiveDefaults, writeOwnerRecordingPermission, ownerRecordingRuleChange, sendOwnerRecordingRuleCommand, writeOwnerSourceConfiguration} from '../../../../../packages/client-core/src/owner-requests';
 import {setServerChannelHidden} from '../../../../../packages/client-core/src/server-channel-visibility';
 import {clonePortableDto} from '../../../../../packages/client-core/src';
 import {liveSourceChoicesService, parseEnvelope, type LiveSourceChoicePage} from '../../../../../packages/client-core/src/administration';
@@ -16,7 +17,6 @@ import {parseChannelGuide} from '../../../../../packages/client-core/src/channel
 import {readRecordingRoot, saveRecordingRoot, type RecordingRootIntent} from '../../../../../packages/client-core/src/server-admin/recording-root';
 import {routePath} from '../../../../../packages/contracts/src/route-paths';
 import type {LibraryContentApi} from '../../../../../packages/client-core/src/library-content';
-
 export type LiveOwnerSnapshot = Readonly<{
   list?: LiveSources; loading: boolean; busy: boolean; checkedAt?: number; error?: unknown; notice?: string;
 }>;
@@ -25,7 +25,6 @@ export type LiveOwnerApi = Readonly<{request: <T>(path: string, method?: string,
 export type NativeRecordingCommandLifetime = Readonly<{signal: AbortSignal; isCurrent: () => boolean}>;
 type Request = <T>(path: string, method?: string, body?: unknown) => Promise<T>;
 
-const sourcePath = (id: string, rest: string) => `/v1/admin/live-sources/${encodeURIComponent(id)}${rest}`;
 
 /** One owner's genuine live-source administration: reads and fenced writes through the screen's
  * single lifetime. Nothing is written optimistically; a row shows what the server returned. */
@@ -46,7 +45,7 @@ export class NativeLiveOwnerController extends NativeScreenStore<LiveOwnerSnapsh
     if (!this.current()) return Promise.resolve();
     const ticket = ++this.loadTicket;
     if (!quiet) this.publish({...this.getSnapshot(), loading: true, error: undefined});
-    return this.request<unknown>('/v1/admin/live-sources').then(raw => {
+    return readOwnerLiveSources({request: this.request}).then(raw => {
       if (!this.current() || ticket !== this.loadTicket) return;
       this.publish({list: parseLiveSources(raw, this.lifetime.authority.serverId), loading: false, busy: this.getSnapshot().busy, checkedAt: Date.now(), error: undefined});
     }, error => {
@@ -84,20 +83,20 @@ export class NativeLiveOwnerController extends NativeScreenStore<LiveOwnerSnapsh
   nextId = (): string => this.operationId();
   private row = (id: string) => this.getSnapshot().list?.sources.find(value => value.id === id);
   private freshRow = async (id: string) => {
-    const raw = await this.request<unknown>('/v1/admin/live-sources');
+    const raw = await readOwnerLiveSources({request: this.request});
     const list = parseLiveSources(raw, this.lifetime.authority.serverId);
     return list.sources.find(value => value.id === id);
   };
   refreshSource = (id: string) => this.act(async () => {
     const row = this.row(id); if (!row) throw new Error('missing_source');
-    const result = await sendWithFreshRecord(row, (fresh, retries) => this.request<unknown>(sourcePath(fresh.id, '/refresh'), 'POST', {expectedRevision: fresh.revision, ...(retries ? {} : {})}), {reread: () => this.freshRow(id), applies: now => now.state !== 'disabled'});
+    const result = await sendWithFreshRecord(row, (fresh, retries) => changeOwnerLiveSource({request: this.request}, fresh.id, 'refresh', {expectedRevision: fresh.revision, ...(retries ? {} : {})}), {reread: () => this.freshRow(id), applies: now => now.state !== 'disabled'});
     if (result === ALREADY_DONE) return;
     await this.load(true);
   }, () => undefined);
   setEnabled = (id: string, enabled: boolean) => this.act(async () => {
     const row = this.row(id); if (!row) throw new Error('missing_source');
     const key = this.operationId();
-    const result = await sendWithFreshRecord(row, fresh => this.request<unknown>(sourcePath(fresh.id, '/enabled'), 'POST', {expectedRevision: fresh.revision, enabled, requestId: key}),
+    const result = await sendWithFreshRecord(row, fresh => changeOwnerLiveSource({request: this.request}, fresh.id, 'enabled', {expectedRevision: fresh.revision, enabled, requestId: key}),
       {reread: () => this.freshRow(id), applies: now => (now.state !== 'disabled') !== enabled});
     if (result === ALREADY_DONE) return;
     await this.load(true);
@@ -105,14 +104,14 @@ export class NativeLiveOwnerController extends NativeScreenStore<LiveOwnerSnapsh
   removeSource = (id: string) => this.act(async () => {
     const row = this.row(id); if (!row) throw new Error('missing_source');
     const key = this.operationId();
-    const result = await sendWithFreshRecord(row, fresh => this.request<unknown>(sourcePath(fresh.id, '/remove'), 'POST', {expectedRevision: fresh.revision, requestId: key}), {reread: () => this.freshRow(id), applies: () => false});
+    const result = await sendWithFreshRecord(row, fresh => changeOwnerLiveSource({request: this.request}, fresh.id, 'remove', {expectedRevision: fresh.revision, requestId: key}), {reread: () => this.freshRow(id), applies: () => false});
     if (result === ALREADY_DONE) return;
     await this.load(true);
   }, () => undefined);
-  importLogos = (id: string) => this.act(async () => parseLogoImport(await this.request<unknown>(sourcePath(id, '/logos'), 'POST', {operationId: this.operationId()}), this.lifetime.authority.serverId), () => undefined);
-  document = async (id: string) => parseSourceDocument(await this.request<unknown>(sourcePath(id, '/configuration')), this.lifetime.authority.serverId);
+  importLogos = (id: string) => this.act(async () => parseLogoImport(await importOwnerSourceLogos({request: this.request}, id, {operationId: this.operationId()}), this.lifetime.authority.serverId), () => undefined);
+  document = async (id: string) => parseSourceDocument(await readOwnerSourceConfiguration({request: this.request}, id), this.lifetime.authority.serverId);
   saveDocument = async (mark: Readonly<{sourceId: string; revision: number; settings: LiveSourceSettings}>, draft: LiveSourceSettings) => this.act(async () => {
-    const put = (revision: number, value: LiveSourceSettings) => this.request<unknown>(sourcePath(mark.sourceId, '/configuration'), 'PUT', {expectedRevision: revision, operationId: this.operationId(), settings: value});
+    const put = (revision: number, value: LiveSourceSettings) => writeOwnerSourceConfiguration({request: this.request}, mark.sourceId, {expectedRevision: revision, operationId: this.operationId(), settings: value});
     let current = mark;
     try { await put(current.revision, draft); }
     catch (error) {
@@ -126,14 +125,14 @@ export class NativeLiveOwnerController extends NativeScreenStore<LiveOwnerSnapsh
     await this.load(true);
     return current;
   }, () => undefined);
-  channelMap = async (id: string, cursor = '') => parseChannelMapPage(await this.request<unknown>(sourcePath(id, `/channel-map?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)), this.lifetime.authority.serverId);
+  channelMap = async (id: string, cursor = '') => parseChannelMapPage(await readOwnerChannelMap({request: this.request}, id, `?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`), this.lifetime.authority.serverId);
   saveChannelMap = async (id: string, revision: number, edits: readonly Readonly<{channelId: string; override: ChannelMapEdit}>[]) => this.act(async () => {
     const batches: typeof edits[number][][] = [];
     for (let index = 0; index < edits.length; index += 200) batches.push(edits.slice(index, index + 200));
     let current = revision, saved = 0;
     for (const batch of batches) {
       try {
-        const page = await this.request<unknown>(sourcePath(id, '/channel-map'), 'PUT', {expectedRevision: current, operationId: this.operationId(), overrides: batch.map(value => ({channelId: value.channelId, number: value.override.number.trim(), guideChannelId: value.override.guideChannelId.trim(), hidden: value.override.hidden}))});
+        const page = await writeOwnerChannelMap({request: this.request}, id, {expectedRevision: current, operationId: this.operationId(), overrides: batch.map(value => ({channelId: value.channelId, number: value.override.number.trim(), guideChannelId: value.override.guideChannelId.trim(), hidden: value.override.hidden}))});
         parseChannelMapPage(page, this.lifetime.authority.serverId);
         saved += batch.length; current += 1;
       } catch (error) {
@@ -150,39 +149,39 @@ export class NativeLiveOwnerController extends NativeScreenStore<LiveOwnerSnapsh
     this.lifetime.assert();
     return value;
   };
-  discover = async (): Promise<TunerDiscovery> => parseTunerDiscovery(await this.request<unknown>('/v1/admin/live-sources/discover', 'POST', {windowMs: 5000}), this.lifetime.authority.serverId);
-  liveDefaults = async () => parseLiveDefaults(await this.request<unknown>('/v1/admin/live/settings'), this.lifetime.authority.serverId);
-  saveLiveDefaults = async (revision: number, value: LiveDefaults) => parseLiveDefaults(await this.request<unknown>('/v1/admin/live/settings', 'PUT', {expectedRevision: revision, operationId: this.operationId(), settings: value}), this.lifetime.authority.serverId);
+  discover = async (): Promise<TunerDiscovery> => parseTunerDiscovery(await discoverOwnerTuners({request: this.request}, {windowMs: 5000}), this.lifetime.authority.serverId);
+  liveDefaults = async () => parseLiveDefaults(await readOwnerLiveDefaults({request: this.request}), this.lifetime.authority.serverId);
+  saveLiveDefaults = async (revision: number, value: LiveDefaults) => parseLiveDefaults(await writeOwnerLiveDefaults({request: this.request}, {expectedRevision: revision, operationId: this.operationId(), settings: value}), this.lifetime.authority.serverId);
   previewRemote = async (draft: RemoteSourceDraft): Promise<RemoteSourcePreview> => {
     const normalized = draft.kind === 'hdhomerun' ? {...draft, locator: normalizeHdHomerunLocator(draft.locator)} : draft;
     return previewRemoteSource({request: this.request}, this.lifetime.authority.serverId, normalized);
   };
-  saveRemote = (previewId: string) => this.act(async () => parseSourceDocument(await this.request<unknown>('/v1/admin/live-sources/remote/save', 'POST', {previewId, requestId: this.operationId()}), this.lifetime.authority.serverId), () => undefined);
-  private uploadRequest = <T,>(path: string, draft: LiveSourceInput, caller?: Readonly<{isCurrent: () => boolean; signal?: AbortSignal}>) =>
-    this.lifetime.request(signal => this.api.request<T>(path, 'POST', draft, signal), caller?.signal);
+  saveRemote = (previewId: string) => this.act(async () => parseSourceDocument(await saveOwnerRemoteSource({request: this.request}, {previewId, requestId: this.operationId()}), this.lifetime.authority.serverId), () => undefined);
+  private uploadRequest = <T,>(action: 'preview' | 'save', draft: LiveSourceInput, caller?: Readonly<{isCurrent: () => boolean; signal?: AbortSignal}>) =>
+    this.lifetime.request(signal => (action === 'preview' ? previewOwnerSourceFiles<T> : saveOwnerSourceFiles<T>)(this.api, draft, signal), caller?.signal);
   previewFiles = async (draft: LiveSourceInput, caller?: Readonly<{isCurrent: () => boolean; signal?: AbortSignal}>): Promise<UploadPreview> => {
     this.lifetime.assert();
     if (caller && (!caller.isCurrent() || caller.signal?.aborted === true)) throw new Error('cancelled');
-    const raw = await this.uploadRequest<unknown>('/v1/admin/live-sources/preview', draft, caller);
+    const raw = await this.uploadRequest<unknown>('preview', draft, caller);
     if (caller && (!caller.isCurrent() || caller.signal?.aborted === true)) throw new Error('cancelled');
     return parseUploadPreview(raw, this.lifetime.authority.serverId);
   };
   saveFiles = (draft: LiveSourceInput, caller?: Readonly<{isCurrent: () => boolean; signal?: AbortSignal}>) =>
     this.act(async () => {
       if (caller && (!caller.isCurrent() || caller.signal?.aborted === true)) throw new Error('cancelled');
-      const raw = await this.uploadRequest<unknown>('/v1/admin/live-sources', draft, caller);
+      const raw = await this.uploadRequest<unknown>('save', draft, caller);
       if (caller && (!caller.isCurrent() || caller.signal?.aborted === true)) throw new Error('cancelled');
       return parseLiveSourceReceipt(raw, this.lifetime.authority.serverId);
     }, () => undefined, caller);
-  tuners = async (): Promise<TunerView> => parseTunerView(await this.request<unknown>('/v1/admin/dvr/tuners'), this.lifetime.authority.serverId);
+  tuners = async (): Promise<TunerView> => parseTunerView(await readOwnerTuners({request: this.request}), this.lifetime.authority.serverId);
   policy = async (cursor = ''): Promise<RecordingPolicy> => {
-    const [owners, grants] = await Promise.all([this.request<unknown>('/v1/admin/dvr/recording-owners?' + new URLSearchParams({limit: '200', cursor})), this.request<unknown>('/v1/admin/dvr/recording-permissions')]);
+    const [owners, grants] = await Promise.all([readOwnerRecordingOwners({request: this.request}, '?' + new URLSearchParams({limit: '200', cursor})), readOwnerRecordingPermissions({request: this.request})]);
     return parseRecordingPolicy(owners, grants, this.lifetime.authority.serverId);
   };
   setPermission = async (owner: RecordingOwner, enabled: boolean, revision: number) => {
-    await this.request('/v1/admin/dvr/recording-permissions', 'PUT', {owner, enabled, revision});
+    await writeOwnerRecordingPermission({request: this.request}, {owner, enabled, revision});
   };
-  rules = async (cursor = '') => parseAdminRulePage(await this.request<unknown>('/v1/admin/dvr/recording-groups?' + new URLSearchParams({limit: '100', cursor})), this.lifetime.authority.serverId);
+  rules = async (cursor = '') => parseAdminRulePage(await readOwnerRecordingRules({request: this.request}, '?' + new URLSearchParams({limit: '100', cursor})), this.lifetime.authority.serverId);
   private async recordingMutation(draft: Parameters<typeof recordingRulePayload>[0], grants: readonly RecordingGrant[], caller?: NativeRecordingCommandLifetime): Promise<AdminRule> {
     const callerSignal=caller?.signal,callerCurrent=caller?.isCurrent;
     const current = () => {
@@ -197,10 +196,10 @@ export class NativeLiveOwnerController extends NativeScreenStore<LiveOwnerSnapsh
     const payload = clonePortableDto(recordingRulePayload(original, grants, this.operationId()));
     const expected = clonePortableDto(payload);
     if (!current()) throw screenScopeEnded();
-    const path = original.id ? `/v1/admin/dvr/recording-groups/${encodeURIComponent(original.id)}` : '/v1/admin/dvr/recording-groups';
+    const command = ownerRecordingRuleChange(original.id, payload);
     const response = await this.lifetime.request(async signal => {
       if (!current()) throw screenScopeEnded();
-      const value = await this.api.request<unknown>(path, original.id ? 'PUT' : 'POST', payload, signal);
+      const value = await sendOwnerRecordingRuleCommand(this.api, command, signal);
       if (!current()) throw screenScopeEnded();
       return value;
     }, callerSignal);
@@ -227,18 +226,18 @@ export class NativeLiveOwnerController extends NativeScreenStore<LiveOwnerSnapsh
     return this.recordingMutation({id: rule.id, revision: rule.revision, owner: rule.owner, anchor: rule.anchor, kind: rule.kind, name: rule.name, match: rule.match, sourceId: rule.sourceId, enabled, options: rule.options}, grants, caller);
   };
   deleteRule = async (rule: AdminRule) => {
-    await this.request(`/v1/admin/dvr/recording-groups/${encodeURIComponent(rule.id)}?expectedRevision=${rule.revision}&operationId=${encodeURIComponent(this.operationId())}`, 'DELETE');
+    await deleteOwnerRecordingRule({request: this.request}, rule.id, `expectedRevision=${rule.revision}&operationId=${encodeURIComponent(this.operationId())}`);
   };
   guideSeries = async (day: string, sourceId: string): Promise<readonly RecordingSeries[]> => {
     const route = recordingGuideRoute(day, sourceId);
     if (!route) throw new Error('invalid_guide_date');
     const query = new URLSearchParams({kind: route.kind, start: route.start, end: route.end, timezone: route.timezone, search: route.search, sourceId: route.sourceId, limit: '30'});
-    const guide = parseChannelGuide(await this.request<unknown>(`/v1/guide?${query.toString()}`), this.lifetime.authority.serverId, route);
+    const guide = parseChannelGuide(await readOwnerRecordingGuide({request: this.request}, query.toString()), this.lifetime.authority.serverId, route);
     return recordingSeries(guide, true);
   };
   createRule = (draft: Parameters<typeof recordingRulePayload>[0], grants: readonly RecordingGrant[], caller?: NativeRecordingCommandLifetime) => this.recordingMutation(draft, grants, caller);
-  dvrSettings = async (): Promise<DVRDocument> => parseDVRDocument(await this.request<unknown>('/v1/admin/dvr/settings'), this.lifetime.authority.serverId);
-  saveDvrSettings = async (revision: number, value: DVRDefaults) => parseDVRDocument(await this.request<unknown>('/v1/admin/dvr/settings', 'PUT', {expectedRevision: revision, operationId: this.operationId(), settings: value}), this.lifetime.authority.serverId);
+  dvrSettings = async (): Promise<DVRDocument> => parseDVRDocument(await readOwnerDvrDefaults({request: this.request}), this.lifetime.authority.serverId);
+  saveDvrSettings = async (revision: number, value: DVRDefaults) => parseDVRDocument(await writeOwnerDvrDefaults({request: this.request}, {expectedRevision: revision, operationId: this.operationId(), settings: value}), this.lifetime.authority.serverId);
   /** live-owner 10/16c: the recordings folder (a bare registered outcome, not the console envelope). */
   recordingRoot = (signal?: AbortSignal) => this.lifetime.request(next => readRecordingRoot(this.api, next), signal);
   saveRecordingRoot = (intent: RecordingRootIntent, signal?: AbortSignal) => this.lifetime.request(next => saveRecordingRoot(this.api, intent, next), signal);

@@ -1,11 +1,11 @@
+import {readOwnerMetadataAgent, writeOwnerMetadataAgent} from '@core/owner-library-requests.ts';
 import {useEffect, useRef, useState} from 'react';
 import {defaultI18n} from '@i18n';
 import type {LibraryContentApi} from '@core/library-content.ts';
-import {metadataAgentPath, metadataAgentChange, parseMetadataAgent, type LibraryMetadataAgent} from '@core/server-admin/metadata-agent.ts';
+import {metadataAgentChange, parseMetadataAgent, type LibraryMetadataAgent} from '@core/server-admin/metadata-agent.ts';
 import {Button} from '../../../kit/controls';
 import {Dialog} from '../../../kit/overlays/Dialog';
 import styles from './libraries.module.css';
-
 /** Explicit per-library consent only; changing a source never starts a refresh. */
 export function MetadataSource({libraryId, api, isCurrent}: Readonly<{
   libraryId: string; api: LibraryContentApi; isCurrent: () => boolean;
@@ -16,7 +16,7 @@ export function MetadataSource({libraryId, api, isCurrent}: Readonly<{
   useEffect(() => {
     const capture = {request: new AbortController(), running: false}; lifetime.current = capture;
     setDocument(undefined); setChoice(undefined); setFailed(false); setBusy(true);
-    void api.request<unknown>(metadataAgentPath(libraryId), 'GET', undefined, capture.request.signal).then(raw => {
+    void readOwnerMetadataAgent(api, libraryId, capture.request.signal).then(raw => {
       const next = parseMetadataAgent(raw);
       if (next.libraryId !== libraryId) throw new Error('library_changed');
       if (lifetime.current === capture && isCurrent()) setDocument(next);
@@ -29,7 +29,7 @@ export function MetadataSource({libraryId, api, isCurrent}: Readonly<{
     if (!capture || capture.running || !isCurrent() || !before || !selected || selected === before.agent || !before.agents.some(agent => agent.id === selected)) return;
     capture.running = true; setBusy(true); setFailed(false);
     try {
-      const raw = await api.request<unknown>(metadataAgentPath(libraryId), 'PUT', metadataAgentChange(before, selected), capture.request.signal);
+      const raw = await writeOwnerMetadataAgent(api, libraryId, metadataAgentChange(before, selected), capture.request.signal);
       const next = parseMetadataAgent(raw);
       if (next.libraryId !== libraryId || next.libraryKind !== before.libraryKind || next.agent !== selected || next.revision <= before.revision) throw new Error('metadata_unconfirmed');
       if (lifetime.current === capture && isCurrent()) {setDocument(next);setChoice(undefined);}
