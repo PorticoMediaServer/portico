@@ -231,6 +231,7 @@ RCT_REMAP_METHOD(prepareSecureRecords,prepareSecureRecordsWithResolver:(RCTPromi
 }
 - (NSDictionary *)constantsToExport{
  NSMutableDictionary *values=[@{@"launchId":NSUUID.UUID.UUIDString} mutableCopy];
+ values[@"avatarWireBase64"]=@YES;
  values[@"launchStartedAt"]=@(PorticoLaunchStartedAt());
 #if !TARGET_OS_TV
  values[@"pictureInPictureSupported"]=@([AVPictureInPictureController isPictureInPictureSupported]);

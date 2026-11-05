@@ -1,7 +1,9 @@
 /** The legacy avatar envelope is internal to HttpLocalApi's JSON path. Select its
  * wire payload in core; the native executor receives only encoded image bytes.
  * Keep native URL, base64 and byte validation at the execution boundary. */
-export function nativeAvatarWireBody(url: string, method: string, body: string | null, applePath: boolean): string | null {
+export function nativeAvatarWireBody(url: string, method: string, body: string | null, applePath: boolean, base64Wire = true): string | null {
+  // Vega and older native providers retain their existing bridge representation.
+  if (!base64Wire) return body;
   let path: string;
   try {
     path = new URL(url).pathname;

@@ -32,6 +32,13 @@ test('non-avatar bodies, methods and URLs are forwarded without reconstruction',
   }
 });
 
+test('providers without the new native codec retain their exact original bridge bodies', () => {
+  for (const body of [null, '{"nativeAvatarBase64":"AA=="}', 'invalid', '{}']) {
+    assert.equal(nativeAvatarWireBody(own, 'POST', body, false, false), body);
+    assert.equal(nativeAvatarWireBody(managed, 'POST', body, true, false), body);
+  }
+});
+
 test('Apple decoded paths and Android encoded paths keep their existing distinction; base64 validation stays native', () => {
   const body = '{"nativeAvatarBase64":"AA=="}', encoded = own.replace('/profile/', '/%70rofile/');
   assert.equal(nativeAvatarWireBody(encoded, 'POST', body, true), 'AA==');

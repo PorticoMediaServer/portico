@@ -96,7 +96,7 @@ const nativeRequest: typeof fetch = async (input, options = {}) => {
         input,
         options.method ?? 'GET',
         headers,
-        nativeAvatarWireBody(input, options.method ?? 'GET', typeof options.body === 'string' ? options.body : null, Platform.OS === 'ios'),
+        nativeAvatarWireBody(input, options.method ?? 'GET', typeof options.body === 'string' ? options.body : null, Platform.OS === 'ios', NativeModules.PorticoRuntime.avatarWireBase64 === true),
       );
     } catch (error) {
       homeActionDiagnostics.rejected(diagnostic, error);
