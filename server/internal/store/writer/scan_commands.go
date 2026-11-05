@@ -90,6 +90,14 @@ RETURNING id,metadata_incarnation,revision,playback_origin_incarnation,playback_
 		definitions[i].Owner = "store/writer scan owner adapter"
 		definitions[i].CallSites = []string{"store/writer/scan_commands.go"}
 		definitions[i].Plan = stmt.Plan{Hot: true}
+		switch definitions[i].ID {
+		case scanInventoryIdentity:
+			definitions[i].Plan.PrimaryKeys = []string{"catalog_identities"}
+			definitions[i].Plan.Seeks = []string{"library_id=? AND source_key=?"}
+		case scanInventoryAsset:
+			definitions[i].Plan.Indexes = []string{"sqlite_autoindex_catalog_assets_3"}
+			definitions[i].Plan.Seeks = []string{"library_id=? AND path=?"}
+		}
 	}
 	return definitions
 }

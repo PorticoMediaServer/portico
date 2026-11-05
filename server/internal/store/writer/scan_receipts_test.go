@@ -11,7 +11,20 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/schema"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 )
+
+func TestScanStatementClosedGrammar(t *testing.T) {
+	for _, d := range append(scanReceiptDefinitions(), scanInventoryDefinitions()...) {
+		t.Run(string(d.ID), func(t *testing.T) {
+			if issues := plan.LintSQL(d.SQL); len(issues) != 0 {
+				t.Fatalf("scan statement escaped merged closed grammar: %v", issues)
+			}
+		})
+	}
+	// This checks the registered SQL's grammar only. Native destination/FK/EQP
+	// capture and reviewed full goldens remain HN's separate qualification.
+}
 
 func TestScanReceiptDefinitionsNativeCompile(t *testing.T) {
 	definitions := append(scanReceiptDefinitions(), scanInventoryDefinitions()...)
