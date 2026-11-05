@@ -211,4 +211,5 @@ func TestEvidenceStatementsCompileOnChange001(t *testing.T) {
 	if absent[5] != "opaque:001" || absent[9] != hex.EncodeToString(v.ObservationDigest[:]) {
 		t.Fatal("native ID or source digest binding changed")
 	}
+	evidenceSQLReadback(t, conn, registry)
 }
