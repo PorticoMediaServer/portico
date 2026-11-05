@@ -1,4 +1,5 @@
 import {readBrowseCapabilitiesResponse} from '@core/query/browse-reads.ts';
+import {readLibraryMetadataAgentResponse} from '@core/query/catalogue-actions.ts';
 import {createBrowserQueryActions, type BrowserQueryActionHost} from './selection-action-host';
 import {entryStartDisplay} from '../../platform/playback/subject';
 import {createSelectionActionHostBridge} from './selection-action-lifetime';
@@ -20,7 +21,7 @@ import type {ContentEntry, ContentRoute, ContentSection, ContentView} from '@cor
 import {LibraryManagementService} from '@core/library-management.ts';
 import {libraryTabs, readingTabModel, type LibraryTab} from '@core/presentation/library-tabs.ts';
 import {parseBrowseCapabilities, type BrowseCapabilities} from '@core/browse.ts';
-import {metadataAgentPath, parseMetadataAgent} from '@core/server-admin/metadata-agent.ts';
+import {parseMetadataAgent} from '@core/server-admin/metadata-agent.ts';
 import type {SavedDefinition} from '@core/personal-saved.ts';
 import {randomId} from '@core/random-id.ts';
 import {defineWebScreen} from '../../route-registry';
@@ -334,7 +335,7 @@ function ContextLibrary(props: BoundLibraryProps & {context: ScreenContext; pres
     if (!resources?.life.current()) return;
     let live = true;
     const withhold = () => {if (live && resources.life.current()) setAgentFact({key: agentKey, context, online: false});};
-    void resources.life.api.request(metadataAgentPath(library.id), 'GET').then(raw => {
+    void readLibraryMetadataAgentResponse(resources.life.api, library.id).then(raw => {
       if (!live || !resources.life.current()) return;
       let agent;
       try {agent = parseMetadataAgent(raw);} catch {withhold(); return;}
