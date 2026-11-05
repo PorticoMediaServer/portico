@@ -16,13 +16,18 @@ type statementStep struct {
 	work Work
 }
 
+type registeredStep struct {
+	statementStep
+	kind stmt.Kind
+}
+
 // commandTurn shares the existing private transaction's custody and quantum.
 // It cannot open, admit, commit, ACK or retire a command. The sole dispatcher
 // composes its finite statement definitions/steps; there is no public builder.
 type commandTurn struct {
 	transaction *transaction
 	registry    *stmt.Registry
-	steps       map[stmt.ID]statementStep
+	steps       map[stmt.ID]registeredStep
 	rows        []*sql.Rows
 }
 
@@ -30,7 +35,7 @@ func newCommandTurn(tx *transaction, registry *stmt.Registry, steps []statementS
 	if tx == nil || tx.done || !tx.begun || registry == nil || len(steps) == 0 {
 		return nil, ErrInvalid
 	}
-	t := &commandTurn{transaction: tx, registry: registry, steps: make(map[stmt.ID]statementStep, len(steps))}
+	t := &commandTurn{transaction: tx, registry: registry, steps: make(map[stmt.ID]registeredStep, len(steps))}
 	for _, step := range steps {
 		if _, duplicate := t.steps[step.id]; duplicate || step.work.Rows == 0 || step.work.VMOps == 0 {
 			return nil, invalid("statement_step")
@@ -46,7 +51,7 @@ func newCommandTurn(tx *transaction, registry *stmt.Registry, steps []statementS
 		if definition.Kind == stmt.DDL {
 			return nil, invalid("command_ddl")
 		}
-		t.steps[step.id] = step
+		t.steps[step.id] = registeredStep{step, definition.Kind}
 	}
 	return t, nil
 }
@@ -58,19 +63,16 @@ func (t *commandTurn) bind(ctx context.Context, step statementStep, exec bool, a
 	if err := ctx.Err(); err != nil {
 		return stmt.Bound{}, err
 	}
-	if allowed, ok := t.steps[step.id]; !ok || allowed != step {
+	allowed, ok := t.steps[step.id]
+	if !ok || allowed.statementStep != step {
 		return stmt.Bound{}, invalid("unregistered_command_step")
+	}
+	if exec && allowed.kind == stmt.Read {
+		return stmt.Bound{}, invalid("read_step_exec")
 	}
 	statement, err := t.registry.Lookup(step.id)
 	if err != nil {
 		return stmt.Bound{}, err
-	}
-	definition, err := statement.Definition()
-	if err != nil {
-		return stmt.Bound{}, err
-	}
-	if exec && definition.Kind == stmt.Read {
-		return stmt.Bound{}, invalid("read_step_exec")
 	}
 	// Reserve/check before binding copies or entering SQLite. The forecast
 	// includes binding/result bookkeeping, not only the changed row count.
