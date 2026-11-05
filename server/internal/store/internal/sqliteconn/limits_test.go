@@ -18,6 +18,7 @@ import (
 // Preserve the driver's contextual methods while interposing on the optional
 // limit interface, as the owned snapshot connector does in production.
 type limitTestConn interface {
+	SQLiteDQS() (ddl, dml int, err error)
 	driver.Conn
 	driver.ConnPrepareContext
 	driver.ConnBeginTx

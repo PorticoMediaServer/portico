@@ -24,6 +24,8 @@ func (p *carrierProbe) hit(name string) {
 
 type carrierConn struct{ p *carrierProbe }
 
+func (c carrierConn) SQLiteDQS() (int, int, error) { c.p.hit("conn.dqs"); return 0, 0, nil }
+
 func (c carrierConn) Prepare(string) (driver.Stmt, error) {
 	c.p.hit("conn.prepare")
 	return carrierStmt{c.p}, nil
@@ -91,6 +93,10 @@ func TestDriverCarrierPanicPermutation(t *testing.T) {
 	}
 	ctx := t.Context()
 	cases := []testCase{
+		{"DQS", "conn.dqs", func(s *driverSafety, p *carrierProbe) error {
+			_, _, e := (&safeWriterConn{carrierConn{p}, s}).SQLiteDQS()
+			return e
+		}},
 		{"Prepare", "conn.prepare", func(s *driverSafety, p *carrierProbe) error {
 			_, e := (&safeWriterConn{carrierConn{p}, s}).Prepare("")
 			return e
