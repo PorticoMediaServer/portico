@@ -223,6 +223,7 @@ func (c *faultConnector) wrap(conn driver.Conn) driver.Conn {
 
 // Preserve the bundled driver's contextual operations when interposing faults.
 type testDriverConn interface {
+	SQLiteDQS() (ddl, dml int, err error)
 	driver.Conn
 	driver.ConnPrepareContext
 	driver.ConnBeginTx

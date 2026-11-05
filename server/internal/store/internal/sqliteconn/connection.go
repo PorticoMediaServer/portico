@@ -78,6 +78,7 @@ func Connector(path string, c Config) (driver.Connector, error) {
 	q.Set("mode", mode)
 	q.Set("_busy_timeout", "0") // refusal, never wait in SQLite's busy handler
 	q.Set("_foreign_keys", "1")
+	q.Set("_dqs", "0") // disable BOTH legacy DDL/DML string fallbacks before preparation
 	q.Set("_journal_mode", "WAL")
 	q.Set("_synchronous", strconv.Itoa(int(c.Synchronous)))
 	q.Set("_query_only", "0")
@@ -171,6 +172,10 @@ type Settings struct {
 	MmapSize       int64
 	QueryOnly      int
 	TempStore      int
+	// OFF is zero and preserves existing plan-golden JSON. Nonzero drift is
+	// retained as evidence, and Assert refuses it rather than repairing it.
+	DQSDDL int `json:",omitempty"`
+	DQSDML int `json:",omitempty"`
 	// ReadLimits is actual native evidence when configured, otherwise zero
 	// (unobserved). The zero policy neither changes nor asserts native defaults.
 	ReadLimits ReadLimits `json:",omitzero"`
@@ -185,6 +190,11 @@ func Assert(ctx context.Context, conn *sql.Conn, c Config) (Settings, error) {
 	}
 	if err := c.validate(); err != nil {
 		return s, err
+	}
+	var err error
+	s.DQSDDL, s.DQSDML, err = sqlite.DQS(conn)
+	if err != nil || s.DQSDDL != 0 || s.DQSDML != 0 {
+		return s, errors.Join(fmt.Errorf("%w: DQS DDL=%d DML=%d", ErrPolicy, s.DQSDDL, s.DQSDML), err)
 	}
 	enforcement, err := AssertEnforcement(ctx, conn)
 	s.ForeignKeys = enforcement.ForeignKeys

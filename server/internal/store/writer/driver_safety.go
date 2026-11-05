@@ -155,6 +155,14 @@ type safeWriterConn struct {
 	scope *driverSafety
 }
 
+func (c *safeWriterConn) SQLiteDQS() (ddl, dml int, err error) {
+	values, err := safeDriver(c.scope, "DQS", true, func() ([2]int, error) {
+		ddl, dml, err := c.writerDriverConn.SQLiteDQS()
+		return [2]int{ddl, dml}, err
+	})
+	return values[0], values[1], err
+}
+
 func (c *safeWriterConn) Prepare(q string) (driver.Stmt, error) {
 	return c.PrepareContext(context.Background(), q)
 }
