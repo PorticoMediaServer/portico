@@ -61,7 +61,6 @@ var permittedOpenings = map[openingSite]bool{
 	{"writer/transaction_test.go", openingStore + "writer.installFaultPool", "database/sql.OpenDB"}:                                              true, // held-source overlay
 	// Raw is confined to exact discard-only controls and the frame's discard.
 	{"internal/sqliteconn/connection_test.go", openingStore + "internal/sqliteconn.TestReplacementRestoresEveryConnectionSetting", "database/sql.Conn.Raw"}:        true,
-	{"internal/sqliteconn/connection_test.go", openingStore + "internal/sqliteconn.TestCancelledReadReopensWithPolicy", "database/sql.Conn.Raw"}:                   true,
 	{"internal/sqliteconn/connection_test.go", openingStore + "internal/sqliteconn.TestReadersAndCheckpointerSharePolicy", "database/sql.Conn.Raw"}:                true,
 	{"internal/sqliteconn/connection_test.go", openingStore + "internal/sqliteconn.TestReaderPoolGrowthAssertsEveryPhysicalConnection", "database/sql.Conn.Raw"}:   true,
 	{"internal/sqliteconn/dqs_test.go", openingStore + "internal/sqliteconn.TestDQSAllRolesReplacementAndReaderGrowth", "database/sql.Conn.Raw"}:                   true,
@@ -141,25 +140,36 @@ func prohibitedOpening(obj types.Object) bool {
 // literals still resolve to these objects. Fully adversarial unsafe, linkname,
 // cgo and assembly are residuals outside this source guard. sql.Register and
 // driver extraction/reflected method dispatch are forbidden here.
-func forbiddenOpenings(file string, syntax *ast.File, info *types.Info) []string {
-	var bad []string
+func resolvedOpeningSites(file string, syntax *ast.File, info *types.Info) []openingSite {
+	sites := interfaceOpeningSites(file, syntax, info)
 	for id, obj := range info.Uses {
 		if id.Pos() < syntax.Pos() || id.End() > syntax.End() || !prohibitedOpening(obj) {
 			continue
 		}
-		owner := ""
-		for _, decl := range syntax.Decls {
-			if f, ok := decl.(*ast.FuncDecl); ok && id.Pos() >= f.Pos() && id.End() <= f.End() {
-				owner = openingObject(info.Defs[f.Name])
-			}
-		}
-		site := openingSite{file, owner, openingObject(obj)}
+		sites = append(sites, openingSite{file, openingOwner(syntax, info, id.Pos()), openingObject(obj)})
+	}
+	return sites
+}
+
+func forbiddenOpenings(file string, syntax *ast.File, info *types.Info) []string {
+	var bad []string
+	for _, site := range resolvedOpeningSites(file, syntax, info) {
 		if !permittedOpenings[site] || site.object == "database/sql.Register" {
-			bad = append(bad, fmt.Sprintf("%s#%s: %s bypasses shared opener", file, owner, site.object))
+			bad = append(bad, fmt.Sprintf("%s#%s: %s bypasses shared opener", site.file, site.owner, site.object))
 		}
 	}
 	sort.Strings(bad)
 	return bad
+}
+
+func unusedOpeningPermits(permits, used map[openingSite]bool) []openingSite {
+	var unused []openingSite
+	for site, enabled := range permits {
+		if enabled && !used[site] {
+			unused = append(unused, site)
+		}
+	}
+	return unused
 }
 
 type openingImports map[string]*types.Package
@@ -214,6 +224,7 @@ func loadOpeningPackages(t *testing.T) ([]*packages.Package, openingImports, str
 func TestStoreOpeningsUseSharedPolicy(t *testing.T) {
 	pkgs, _, root := loadOpeningPackages(t)
 	seen := map[string]bool{}
+	used := map[openingSite]bool{}
 	for _, p := range pkgs {
 		for _, f := range p.Syntax {
 			if syntheticOpeningTestMain(p) {
@@ -223,6 +234,9 @@ func TestStoreOpeningsUseSharedPolicy(t *testing.T) {
 			if err != nil || !filepath.IsLocal(rel) {
 				t.Fatalf("unmapped store syntax %s: %v", p.ID, err)
 			}
+			for _, site := range resolvedOpeningSites(filepath.ToSlash(rel), f, p.TypesInfo) {
+				used[site] = true
+			}
 			for _, bad := range forbiddenOpenings(filepath.ToSlash(rel), f, p.TypesInfo) {
 				if !seen[bad] {
 					t.Error(bad)
@@ -231,10 +245,40 @@ func TestStoreOpeningsUseSharedPolicy(t *testing.T) {
 			}
 		}
 	}
+	for _, site := range unusedOpeningPermits(permittedOpenings, used) {
+		t.Errorf("unused opening exception: %s#%s: %s", site.file, site.owner, site.object)
+	}
+}
+
+func TestStoreOpeningsRejectUnusedPermits(t *testing.T) {
+	site := openingSite{"file.go", "owner", "database/sql.Conn.Raw"}
+	permits := map[openingSite]bool{site: true}
+	if len(unusedOpeningPermits(permits, map[openingSite]bool{})) != 1 {
+		t.Fatal("stale exception accepted")
+	}
+	if len(unusedOpeningPermits(permits, map[openingSite]bool{site: true})) != 0 {
+		t.Fatal("actual resolved use rejected")
+	}
 }
 
 func TestStoreOpeningsRejectTypedBypasses(t *testing.T) {
 	_, imports, _ := loadOpeningPackages(t)
+	// This interface is declared OUTSIDE store: declaration policing cannot
+	// justify rejecting transfers to it. Its actual method set must be checked.
+	foreignFset := token.NewFileSet()
+	foreignSource, err := parser.ParseFile(foreignFset, "foreign.go", `package foreign;import "database/sql/driver";type HasDriver interface{Driver()driver.Driver};type HasRaw interface{Raw(func(any)error)error}`, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign, err := (&types.Config{Importer: imports}).Check("guard.example/foreign", foreignFset, []*ast.File{foreignSource}, nil)
+	if err != nil {
+		t.Fatal("foreign interface fixture must type-check", err)
+	}
+	fixtureImports := openingImports{}
+	for path, p := range imports {
+		fixtureImports[path] = p
+	}
+	fixtureImports[foreign.Path()] = foreign
 	for _, c := range []struct {
 		name, file, pkg, source string
 		want                    int
@@ -244,7 +288,40 @@ func TestStoreOpeningsRejectTypedBypasses(t *testing.T) {
 		{"telemetry_sql_and_wrong_receiver", "qual/host.go", openingStore + "qual", `package qual; import "database/sql"; func recordFile(){_,_=sql.Open("sqlite","")}; func telemetryDirectory(){_=sql.Open}; type unrelated struct{};func(unrelated)Open(){_=sql.Open}`, 3},
 		{"reflection", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import("reflect";sqlite "` + openingNative + `");func bypass(){reflect.ValueOf(&sqlite.Driver{}).MethodByName("Open")}`, 2},
 		{"existing_pool_reflection", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import("database/sql";"reflect");func bypass(db *sql.DB){reflect.ValueOf(db.Driver()).MethodByName("Open")}`, 2},
-		{"reflected_pool_extraction", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import("database/sql";"reflect");func bypass(db *sql.DB){reflect.ValueOf(db).MethodByName("Driver")}`, 1},
+		{"reflected_pool_extraction", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import("database/sql";"reflect");func bypass(db *sql.DB){reflect.ValueOf(db).MethodByName("Driver")}`, 2},
+		{"local_driver_conversion", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import("database/sql";"database/sql/driver");type local interface{Driver() driver.Driver};func bypass(db *sql.DB){_=local(db).Driver()}`, 2},
+		{"local_raw_conversion", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import "database/sql";type local interface{Raw(func(any)error)error};func bypass(c *sql.Conn){_=local(c).Raw(func(any)error{return nil})}`, 2},
+		{"anonymous_raw", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;var local interface{Raw(func(any)error)error}`, 1},
+		{"embedded_raw", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;type local interface{Raw(func(any)error)error};type nested interface{local}`, 2},
+		{"interface_assignment", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import "database/sql";func bypass(db *sql.DB){var hidden any;hidden=db;_=hidden}`, 1},
+		{"interface_declaration", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import "database/sql";func bypass(db *sql.DB){var hidden any=db;_=hidden}`, 1},
+		{"interface_conversion", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import "database/sql";func bypass(db *sql.DB){_=any(db)}`, 1},
+		{"interface_argument", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import "database/sql";func sink(any){};func bypass(db *sql.DB){sink(db)}`, 1},
+		{"interface_variadic_argument", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import "database/sql";func sink(...any){};func bypass(c *sql.Conn){sink(c)}`, 1},
+		{"interface_return", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import "database/sql";func bypass(db *sql.DB)any{return db}`, 1},
+		{"interface_literal", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import "database/sql";func bypass(db *sql.DB){_=struct{Hidden any}{db};_=map[any]any{db:db};_=[]any{db}}`, 4},
+		{"review_interface_reflection", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import("database/sql";"reflect");type reviewMethods interface{MethodByName(string)reflect.Value};func bypass(db *sql.DB){extracted:=reviewMethods(reflect.ValueOf(db)).MethodByName("Driver").Call(nil)[0];_=reviewMethods(extracted).MethodByName("Open").Call([]reflect.Value{reflect.ValueOf(":memory:")})}`, 1},
+		{"review_exact_runtime_source", "internal/sqliteconn/review_probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn
+import("reflect";"database/sql";"database/sql/driver";"testing")
+func fixture(*testing.T)(int,*sql.DB,int){return 0,nil,0}
+type reviewMethods interface { MethodByName(string) reflect.Value }
+func TestReviewInterfaceReflectionDQS(t *testing.T) {
+ _, db, _ := fixture(t)
+ extracted := reviewMethods(reflect.ValueOf(db)).MethodByName("Driver").Call(nil)[0]
+ out := reviewMethods(extracted).MethodByName("Open").Call([]reflect.Value{reflect.ValueOf(":memory:")})
+ if !out[1].IsNil() { t.Fatal(out[1].Interface()) }
+ raw := out[0].Interface().(driver.Conn)
+ defer raw.Close()
+ ddl,dml,err := raw.(interface{ SQLiteDQS()(int,int,error) }).SQLiteDQS()
+ if err != nil || ddl != 1 || dml != 1 { t.Fatalf("DQS %d/%d: %v",ddl,dml,err) }
+ statement,err := raw.Prepare(` + "`SELECT \"misspelled_column\"`" + `)
+ if err != nil { t.Fatal(err) }
+ statement.Close()
+}`, 1},
+		{"foreign_driver_interface", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import("database/sql";"guard.example/foreign");func sink(foreign.HasDriver){};func bypass(db *sql.DB){sink(db)}`, 1},
+		{"foreign_raw_interface", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import("database/sql";"guard.example/foreign");func bypass(c *sql.Conn){_=foreign.HasRaw(c)}`, 1},
+		{"any_then_interface_reflection", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import("database/sql";"reflect");type hidden interface{MethodByName(string)reflect.Value};func sink(v any){_=hidden(reflect.ValueOf(v)).MethodByName("Driver")};func bypass(db *sql.DB){sink(db)}`, 1},
+		{"closed_statement_interfaces", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import("context";"database/sql";"` + openingStore + `stmt");func allowed(db *sql.DB,c *sql.Conn,b stmt.Bound){_,_=b.ExecContext(context.Background(),db);_,_=b.QueryContext(context.Background(),c);var _ stmt.RowQueryer=db}`, 0},
 		{"raw_connection", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import "database/sql";func bypass(c *sql.Conn){_=c.Raw}`, 1},
 		{"wrong_receiver_owner", "writer/transaction.go", openingStore + "writer", `package writer;import "database/sql";type unrelated struct{};func(unrelated)openPool(){_=sql.OpenDB}`, 1},
 		{"register_and_function_values", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import s "database/sql";var registration=s.Register;var open=s.Open;var pool=s.OpenDB`, 3},
@@ -256,8 +333,8 @@ func TestStoreOpeningsRejectTypedBypasses(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			info := &types.Info{Defs: map[*ast.Ident]types.Object{}, Uses: map[*ast.Ident]types.Object{}}
-			if _, err := (&types.Config{Importer: imports}).Check(c.pkg, fset, []*ast.File{f}, info); err != nil {
+			info := &types.Info{Defs: map[*ast.Ident]types.Object{}, Uses: map[*ast.Ident]types.Object{}, Types: map[ast.Expr]types.TypeAndValue{}}
+			if _, err := (&types.Config{Importer: fixtureImports}).Check(c.pkg, fset, []*ast.File{f}, info); err != nil {
 				t.Fatal("fixture must type-check", err)
 			}
 			bad := forbiddenOpenings(c.file, f, info)
