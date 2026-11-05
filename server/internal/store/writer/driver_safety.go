@@ -32,8 +32,9 @@ func (l *driverPanicLog) add(phase string, value any) *driverPanicError {
 	e := &driverPanicError{phase, value}
 	l.mu.Lock()
 	l.events = append(l.events, e)
+	first := l.events[0]
 	l.mu.Unlock()
-	return e
+	return first
 }
 func (l *driverPanicLog) take() []*driverPanicError {
 	if l == nil {
@@ -65,8 +66,9 @@ func (s *driverSafety) fault(phase string, value any) error {
 	if s.pending == nil {
 		s.pending = e
 	}
+	first := s.pending
 	s.mu.Unlock()
-	return e
+	return first
 }
 func (s *driverSafety) blocked() error {
 	s.mu.Lock()
@@ -173,7 +175,9 @@ func (c *safeWriterConn) ExecContext(ctx context.Context, q string, a []driver.N
 func (c *safeWriterConn) QueryContext(ctx context.Context, q string, a []driver.NamedValue) (driver.Rows, error) {
 	r, err := safeDriver(c.scope, "query", true, func() (driver.Rows, error) { return c.writerDriverConn.QueryContext(ctx, q, a) })
 	if r != nil {
-		r = &safeWriterRows{Rows: r, scope: c.scope}
+		var metadataErr error
+		r, metadataErr = newSafeWriterRows(r, c.scope, false)
+		err = errors.Join(err, metadataErr)
 	}
 	return r, err
 }
@@ -270,11 +274,9 @@ func (s *safeWriterStmt) QueryContext(ctx context.Context, a []driver.NamedValue
 		return s.Stmt.Query(v)
 	})
 	if r != nil {
-		out := &safeWriterRows{Rows: r, scope: s.scope}
-		if s.owned != nil {
-			out.owned = s.scope.own(true, r.Close)
-		}
-		r = out
+		var metadataErr error
+		r, metadataErr = newSafeWriterRows(r, s.scope, s.owned != nil)
+		err = errors.Join(err, metadataErr)
 	}
 	return r, err
 }
@@ -284,10 +286,25 @@ type safeWriterRows struct {
 	scope      *driverSafety
 	owned      *nativeCloser
 	afterClose func() error
+	columns    []string
 }
 
+// Capture while Query still has an error return. Columns is invariant for a
+// statement: never call a driver again from Scan's locked error formatter.
+func newSafeWriterRows(rows driver.Rows, scope *driverSafety, owned bool) (driver.Rows, error) {
+	r := &safeWriterRows{Rows: rows, scope: scope}
+	if owned {
+		r.owned = scope.own(true, rows.Close)
+	}
+	columns, err := safeDriver(scope, "columns", true, func() ([]string, error) { return rows.Columns(), nil })
+	if err != nil {
+		return nil, errors.Join(err, r.Close())
+	}
+	r.columns = append([]string(nil), columns...)
+	return r, nil
+}
 func (r *safeWriterRows) Columns() []string {
-	return safeValue(r.scope, "columns", []string(nil), r.Rows.Columns)
+	return r.columns
 }
 func (r *safeWriterRows) Next(v []driver.Value) error {
 	return safeVoid(r.scope, "next", true, func() error { return r.Rows.Next(v) })
@@ -369,16 +386,18 @@ func panicFrom(err error) *driverPanicError {
 }
 func (t *transaction) raiseDriverPanic(err error) {
 	events := t.writer.driverPanics.take()
-	if len(events) == 0 {
-		if fault := panicFrom(err); fault != nil {
-			events = append(events, fault)
-		}
+	primary := panicFrom(err)
+	if primary == nil && len(events) > 0 {
+		primary = events[0]
 	}
-	if len(events) == 0 {
+	if primary == nil {
 		return
 	}
-	for _, fault := range events[1:] {
+	for _, fault := range events {
+		if fault == primary {
+			continue
+		}
 		t.cleanupPanics = append(t.cleanupPanics, terminalPanic{fault.phase, fault.value})
 	}
-	panic(events[0].value)
+	panic(primary.value)
 }

@@ -25,6 +25,7 @@ type queryPanicConn struct {
 	primary, secondary any
 	closed             *atomic.Int64
 	clockFault         *atomic.Bool
+	columnsCalls       *atomic.Int64
 }
 
 func (c *queryPanicConn) ExecContext(ctx context.Context, q string, a []driver.NamedValue) (driver.Result, error) {
@@ -78,7 +79,7 @@ func (c *queryPanicConn) QueryContext(ctx context.Context, q string, a []driver.
 	if err != nil {
 		return nil, err
 	}
-	return &queryPanicRows{Rows: rows, mode: c.mode, primary: c.primary, secondary: c.secondary}, nil
+	return &queryPanicRows{Rows: rows, mode: c.mode, primary: c.primary, secondary: c.secondary, columnsCalls: c.columnsCalls}, nil
 }
 func (c *queryPanicConn) PrepareContext(ctx context.Context, q string) (driver.Stmt, error) {
 	st, err := c.testDriverConn.PrepareContext(ctx, q)
@@ -105,9 +106,13 @@ type queryPanicRows struct {
 	driver.Rows
 	mode               string
 	primary, secondary any
+	columnsCalls       *atomic.Int64
 }
 
 func (r *queryPanicRows) Columns() []string {
+	if strings.HasPrefix(r.mode, "late-columns") && r.columnsCalls.Add(1) > 1 {
+		panic(r.secondary)
+	}
 	if r.mode == "columns" {
 		panic(r.primary)
 	}
@@ -120,7 +125,7 @@ func (r *queryPanicRows) Next(v []driver.Value) error {
 	return r.Rows.Next(v)
 }
 func (r *queryPanicRows) Close() error {
-	if r.secondary != nil {
+	if r.mode == "scanRow" && r.secondary != nil {
 		panic(r.secondary)
 	}
 	if r.mode == "close" {
@@ -130,7 +135,7 @@ func (r *queryPanicRows) Close() error {
 }
 
 func TestStatementPanicHardTimeout(t *testing.T) {
-	for _, mode := range []string{"query", "queryRow", "scanRow", "scanRows", "prepare", "next", "columns", "close", "scanRow-secondary", "query-retire", "exec", "affected", "insertid", "commit-clock"} {
+	for _, mode := range []string{"query", "queryRow", "scanRow", "scanRows", "prepare", "next", "columns", "close", "scanRow-secondary", "query-retire", "exec", "affected", "insertid", "commit-clock", "late-columns-conversion", "late-columns-scanner"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 			defer cancel()
@@ -158,6 +163,7 @@ func TestStatementPanicChild(t *testing.T) {
 	w := &executor{config: cfg, now: time.Now}
 	var closes atomic.Int64
 	var clockFault atomic.Bool
+	var columnsCalls atomic.Int64
 	primary := errors.New("original body panic")
 	secondary := errors.New("secondary cleanup panic")
 	var native *ownedPhysicalConn
@@ -172,7 +178,10 @@ func TestStatementPanicChild(t *testing.T) {
 		if mode == "query-retire" {
 			which = "query"
 		}
-		return &queryPanicConn{testDriverConn: conn.(testDriverConn), mode: which, primary: primary, secondary: second, closed: &closes, clockFault: &clockFault}
+		if strings.HasPrefix(mode, "late-columns") {
+			second = secondary
+		}
+		return &queryPanicConn{testDriverConn: conn.(testDriverConn), mode: which, primary: primary, secondary: second, closed: &closes, clockFault: &clockFault, columnsCalls: &columnsCalls}
 	})
 	defer w.close()
 	if _, err := w.db.ExecContext(t.Context(), "CREATE TABLE search_revision(singleton INTEGER PRIMARY KEY,revision INTEGER NOT NULL);INSERT INTO search_revision VALUES(1,1)"); err != nil {
@@ -191,8 +200,12 @@ func TestStatementPanicChild(t *testing.T) {
 	if mode == "commit-clock" {
 		wantState = commitUnknown
 	}
+	wantCloses, wantOpen := int64(1), 0
+	if mode == "late-columns-conversion" {
+		wantCloses, wantOpen = 0, 1
+	}
 	custody.retireHook = func() {
-		if tx == nil || !tx.done || tx.result.state != wantState || closes.Load() != 1 {
+		if tx == nil || !tx.done || tx.result.state != wantState || closes.Load() != wantCloses {
 			t.Errorf("retirement before frozen outcome/physical return: tx%+v closes%d", tx, closes.Load())
 		}
 		if mode == "query-retire" {
@@ -218,6 +231,17 @@ func TestStatementPanicChild(t *testing.T) {
 		defer func() { recovered = recover() }()
 		defer tx.rollback(nil)
 		switch mode {
+		case "late-columns-conversion":
+			row, err := turn.queryRow(t.Context(), steps[0], int64(1))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var invalidBool bool
+			err = row.Scan(&invalidBool)
+			if err == nil || !strings.Contains(err.Error(), "couldn't convert") || !strings.Contains(err.Error(), "bool") {
+				t.Fatalf("wanted ordinary conversion error, got %v", err)
+			}
+			_, _ = tx.rollback(err)
 		case "commit-clock":
 			_, _ = tx.commit()
 		case "exec", "affected", "insertid":
@@ -249,7 +273,7 @@ func TestStatementPanicChild(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if mode == "scanRow" || mode == "scanRow-secondary" {
+			if mode == "scanRow" || mode == "scanRow-secondary" || mode == "late-columns-scanner" {
 				_ = row.Scan(panicScanner{primary})
 			} else {
 				var revision int64
@@ -257,18 +281,25 @@ func TestStatementPanicChild(t *testing.T) {
 			}
 		}
 	}()
-	if recovered != primary {
+	wantPanic := any(primary)
+	if mode == "late-columns-conversion" {
+		wantPanic = nil
+	}
+	if recovered != wantPanic {
 		t.Fatalf("primary replaced or swallowed: got%v want%v", recovered, primary)
 	}
-	if !tx.done || tx.result.state != wantState || closes.Load() != 1 || custody.returns != 1 {
+	if !tx.done || tx.result.state != wantState || closes.Load() != wantCloses || custody.returns != 1 {
 		t.Fatalf("stranded terminal/custody: done%v state%v closes%d retirement%d", tx.done, tx.result.state, closes.Load(), custody.returns)
 	}
 	if !w.mu.TryLock() {
 		t.Fatal("writer mutex stranded")
 	}
 	w.mu.Unlock()
-	if stats := w.db.Stats(); stats.InUse != 0 || stats.OpenConnections != 0 {
+	if stats := w.db.Stats(); stats.InUse != 0 || stats.OpenConnections != wantOpen {
 		t.Fatalf("SQL borrow stranded: %+v", stats)
+	}
+	if strings.HasPrefix(mode, "late-columns") && columnsCalls.Load() != 1 {
+		t.Fatalf("Columns called after creation: %d", columnsCalls.Load())
 	}
 	if inventory, ok := any(native).(interface{ nativeResourcesRemaining() int }); ok && inventory.nativeResourcesRemaining() != 0 {
 		t.Fatalf("native rows/statements stranded: %d", inventory.nativeResourcesRemaining())
