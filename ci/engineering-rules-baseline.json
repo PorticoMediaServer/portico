@@ -399,8 +399,7 @@
   "packages/client-core/src/server-admin/messages-source.ts": 1,
   "packages/client-core/src/user-mutations.ts": 1,
   "packages/contracts/src/routes.ts": 26,
-  "web/src/platform/account.ts": 2,
-  "web/src/shell/artwork.ts": 1
+  "web/src/platform/account.ts": 2
  },
  "set-interval": {
   "apps/desktop/src/player.ts": 1,
