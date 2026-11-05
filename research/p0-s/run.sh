@@ -13,6 +13,10 @@ cg=$(awk -F: '$1=="0" {print $3}' /proc/self/cgroup)
    echo "$field"; cat "/sys/fs/cgroup$cg/$field"
  done
 } > "$out/host-$stage.txt"
+if [ "$stage" = enrichstage ]; then
+  "$RUNNER_TEMP/p0-s-full" --ddl "research/p0-s/$TARGET_DDL" --db "$out/full.db" --out "$out" --seed "$size" --normal --write-only --enrichment-staged --bounded-wal --checkpoint-ms 50 --cpu-profile
+  exit
+fi
 if [ "$stage" = enrichment ]; then
   "$RUNNER_TEMP/p0-s-full" --ddl "research/p0-s/$TARGET_DDL" --db "$out/full.db" --out "$out" --seed "$size" --normal --write-only --enrichment --bounded-wal --checkpoint-ms 50 --cpu-profile
   exit

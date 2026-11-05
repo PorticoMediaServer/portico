@@ -44,7 +44,7 @@ func save(p string, v any) {
 }
 
 var normalWrites, writeOnly, facetMode, frameMode, gatesOnly, browseOnly, admissionSchema, attributionMode, localControl, identitySchema, omitFTS, ablationMode, capsMode bool
-var qualificationMode, scalarMode, diagnosticMode, cueMode, enrichMode bool
+var qualificationMode, scalarMode, diagnosticMode, cueMode, enrichMode, stagedEnrichment bool
 var traceIO, boundedWAL bool
 var checkpointEvery = 50 * time.Millisecond
 var walGovernor *walControl
@@ -373,6 +373,7 @@ func main() {
 	scalarFlag := flag.Bool("scalar-primitives", false, "bundled complete-DDL extrema and reverse10/100")
 	cueFlag := flag.Bool("cue-primitives", false, "bundled255CUE/8episode change/delete plusasset-keyed100collections")
 	enrichFlag := flag.Bool("enrichment", false, "whole150credit max-to-max enrichment replacement, existing/newpeople")
+	enrichStageFlag := flag.Bool("enrichment-staged", false, "prestage immutable observations/sourcecreditmembers in16rowquanta before atomicacceptance")
 	cpuFlag := flag.Bool("cpu-profile", false, "sampled CPU attribution with native_sql labels; diagnostic scope")
 	qualificationFlag := flag.Bool("qualification", false, "pre-registered1000holds/size, host witnesses, sizes1–128")
 	capsFlag := flag.Bool("caps-product", false, "shared100collections/255CUE size contribution collapse")
@@ -396,6 +397,10 @@ func main() {
 	scalarMode = *scalarFlag
 	cueMode = *cueFlag
 	enrichMode = *enrichFlag
+	stagedEnrichment = *enrichStageFlag
+	if stagedEnrichment {
+		enrichMode = true
+	}
 	qualificationMode = *qualificationFlag
 	capsMode = *capsFlag
 	ablationMode = *ablationFlag
@@ -2013,10 +2018,16 @@ func enrichment(c *sql.Conn, out, hash string) {
 		_, e := c.ExecContext(context.Background(), fmt.Sprintf("INSERT INTO metadata_provider_operations(id,entity_id,provider,phase,status,generation,lease,lease_until,entity_incarnation,source_revision,identity_revision,metadata_revision,hierarchy_revision,selection_revision,descriptive_revision,policy_incarnation,policy_revision,consent_revision,algorithm,refresh_mode,query_title,query_artist,query_year,query_digest,input_digest,selected_id,manual,review_search,qualification,created_at) SELECT '%s',e.id,'tmdb','accept','ready',1,'fixture','2026-11-04T01:00:00Z',e.metadata_incarnation,e.source_revision,e.identity_revision,e.metadata_revision,1,1,1,p.incarnation,p.revision,1,'fixture','replace_unlocked','accepted','',2026,'%s','%s','%s',0,0,'fixture','2026-11-04T00:00:00Z' FROM catalog_entities e JOIN metadata_provider_policy p ON p.library_id=e.library_id AND p.provider='tmdb' WHERE e.id=%d;", a.operation, a.digest, a.digest, a.key, a.entity))
 		must(e)
 	}
-	credits := func(a enrichmentInput) {
-		_, e := c.ExecContext(context.Background(), fmt.Sprintf("INSERT INTO credit_source_publications(publication_id,entity_id,provider,accepted_record_reference,observed_at,member_count) VALUES('%s',%d,'tmdb','%s','2026-11-04T00:00:00Z',150);DELETE FROM catalog_credits WHERE entity_id=%d;", a.creditpub, a.entity, a.evidence, a.entity))
-		must(e)
-		for i := 0; i < 150; i++ {
+	credits := func(a enrichmentInput, part string, lo, hi int) {
+		if part != "copy" && lo == 0 {
+			_, e := c.ExecContext(context.Background(), fmt.Sprintf("INSERT INTO credit_source_publications(publication_id,entity_id,provider,accepted_record_reference,observed_at,member_count) VALUES('%s',%d,'tmdb','%s','2026-11-04T00:00:00Z',150);", a.creditpub, a.entity, a.evidence))
+			must(e)
+		}
+		if part != "stage" {
+			_, e := c.ExecContext(context.Background(), "DELETE FROM catalog_credits WHERE entity_id=?", a.entity)
+			must(e)
+		}
+		for i := lo; i < hi; i++ {
 			person := a.people + i
 			name := fmt.Sprintf("Accepted Person %d", person)
 			kind, role, department, roleID, deptID := "cast", "Actor", "Acting", 1, 3
@@ -2027,15 +2038,26 @@ func enrichment(c *sql.Conn, out, hash string) {
 			row := syntheticID(credit)
 			tuple := sha256.Sum256([]byte(credit + name + role + department))
 			token := fmt.Sprintf("person-%d", person)
-			x("evidence-credit", kind, a.evidence, i, strconv.Itoa(person), name, role, department, credit)
-			x("source-credit", row, a.entity, hex.EncodeToString(tuple[:]), a.evidence, credit, strconv.Itoa(person), token, token, token, name, role, department, kind, i)
-			x("credit-member", a.creditpub, a.entity, i, row)
-			x("effective-credit", a.entity, i, person, roleID, deptID, name, credit, strconv.Itoa(person), i, row)
+			if part != "copy" {
+				x("evidence-credit", kind, a.evidence, i, strconv.Itoa(person), name, role, department, credit)
+				x("source-credit", row, a.entity, hex.EncodeToString(tuple[:]), a.evidence, credit, strconv.Itoa(person), token, token, token, name, role, department, kind, i)
+				x("credit-member", a.creditpub, a.entity, i, row)
+			}
+			if part != "stage" {
+				x("effective-credit", a.entity, i, person, roleID, deptID, name, credit, strconv.Itoa(person), i, row)
+			}
 		}
-		_, e = c.ExecContext(context.Background(), fmt.Sprintf("UPDATE credit_source_publications SET sealed=1 WHERE publication_id='%s';INSERT INTO credit_source_heads(entity_id,provider,publication_id,revision) VALUES(%d,'tmdb','%s',1) ON CONFLICT(entity_id,provider) DO UPDATE SET publication_id=excluded.publication_id,revision=revision+1;", a.creditpub, a.entity, a.creditpub))
-		must(e)
+		if part != "copy" && hi == 150 {
+			_, e := c.ExecContext(context.Background(), "UPDATE credit_source_publications SET sealed=1 WHERE publication_id=?", a.creditpub)
+			must(e)
+		}
+		if part != "stage" {
+			_, e := c.ExecContext(context.Background(), fmt.Sprintf("INSERT INTO credit_source_heads(entity_id,provider,publication_id,revision) VALUES(%d,'tmdb','%s',1) ON CONFLICT(entity_id,provider) DO UPDATE SET publication_id=excluded.publication_id,revision=revision+1;", a.entity, a.creditpub))
+			must(e)
+		}
 	}
 	apply := func(a enrichmentInput, newPeople bool) []actionPhase {
+		preStaged := stagedEnrichment && !a.old
 		rating, critic := 8, 90
 		if a.old {
 			rating, critic = 5, 50
@@ -2047,6 +2069,9 @@ func enrichment(c *sql.Conn, out, hash string) {
 				panic("enrichment captured source fence drift")
 			}
 		}}, {"observation", func() {
+			if preStaged {
+				return
+			}
 			x("evidence", a.evidence, a.entity, a.key, a.digest, a.title, a.title, a.overview)
 			x("rating", a.evidence, "community", rating, 10)
 			x("rating", a.evidence, "critic", critic, 100)
@@ -2054,8 +2079,23 @@ func enrichment(c *sql.Conn, out, hash string) {
 			if newPeople {
 				peopleRows(a.people)
 			}
-		}}, {"150-four-credit-relations", func() { credits(a) }}, {"seal-publication-binding-accounting", func() {
+		}}, {"150-credit-replacement", func() {
+			part := "all"
+			if preStaged {
+				part = "copy"
+			}
+			credits(a, part, 0, 150)
+		}}, {"seal-publication-binding-accounting", func() {
 			q := fmt.Sprintf("UPDATE metadata_evidence SET sealed=1 WHERE id='%s';UPDATE metadata_evidence_accounting SET direct_refs=direct_refs-1,retention_refs=retention_refs+1 WHERE evidence_id=(SELECT accepted_evidence_id FROM metadata_subject_providers WHERE entity_id=%d AND provider='tmdb' AND role='primary');INSERT INTO metadata_evidence_accounting VALUES('%s',262144,'2026-11-04T00:00:00Z',0,1,0);INSERT INTO metadata_evidence_totals VALUES('tmdb',0,0,1,262144) ON CONFLICT(provider) DO UPDATE SET other_evidence=other_evidence+1,charge=charge+262144;INSERT INTO metadata_publications(id,operation_id,entity_id,provider,subject_kind,provider_id,evidence_id,selection_revision,generation,decision,observed_at) VALUES('%s','%s',%d,'tmdb','movie','%s','%s',1,1,'accepted','2026-11-04T00:00:00Z');UPDATE metadata_provider_subjects SET accepted_evidence_id='%s',revision=revision+1 WHERE id=%d;INSERT INTO metadata_subject_providers(entity_id,provider,role,incarnation,revision,subject_kind,provider_id,accepted_evidence_id,accepted_publication_id,status,observed_at) VALUES(%d,'tmdb','primary',randomblob(16),1,'movie','%s','%s','%s','accepted','2026-11-04T00:00:00Z') ON CONFLICT(entity_id,provider,role) DO UPDATE SET revision=revision+1,accepted_evidence_id=excluded.accepted_evidence_id,accepted_publication_id=excluded.accepted_publication_id;UPDATE metadata_provider_operations SET phase='complete',status='applied',finished_at='2026-11-04T00:00:00Z' WHERE id='%s';", a.evidence, a.entity, a.evidence, a.publication, a.operation, a.entity, a.key, a.evidence, a.evidence, a.entity, a.entity, a.key, a.evidence, a.publication, a.operation)
+			if preStaged {
+				q = strings.SplitN(q, ";", 2)[1]
+				start := strings.Index(q, "INSERT INTO metadata_evidence_accounting")
+				end := strings.Index(q, "INSERT INTO metadata_publications")
+				if start < 0 || end < start {
+					panic("staged accounting SQL boundary")
+				}
+				q = q[:start] + fmt.Sprintf("UPDATE metadata_evidence_accounting SET direct_refs=direct_refs+1,retention_refs=retention_refs-1 WHERE evidence_id='%s';UPDATE metadata_evidence_builds SET state='done',phase='complete' WHERE evidence_id='%s';", a.evidence, a.evidence) + q[end:]
+			}
 			_, e := c.ExecContext(context.Background(), q)
 			must(e)
 		}}, {"entity-and-field-origins", func() {
@@ -2112,11 +2152,82 @@ func enrichment(c *sql.Conn, out, hash string) {
 		}
 	}
 	fixtureTx(c, fmt.Sprintf("UPDATE catalog_entities SET admission_member_count=%d,admission_unrated_members=0,admission_allow_age=13,admission_known_age=13 WHERE id=%d;", 2*reps, parent)+ageCountsFill())
+	stageVisibility := []any{}
+	stageHolds := map[string][]float64{}
+	stageSamples := []any{}
+	stageTx := func(a enrichmentInput, label string, step int, run func()) {
+		admitWAL()
+		var before, after int64
+		must(c.QueryRowContext(context.Background(), "SELECT total_changes()").Scan(&before))
+		_, e := c.ExecContext(context.Background(), "BEGIN IMMEDIATE")
+		must(e)
+		start := time.Now()
+		pprof.Do(context.Background(), pprof.Labels("native_sql", "enrichment-stage."+label), func(ctx context.Context) { run() })
+		_, e = c.ExecContext(context.Background(), "INSERT INTO admin_receipts VALUES('research.enrich-stage',?,?, 'staged',1)", a.evidence+"-"+strconv.Itoa(step), a.digest)
+		must(e)
+		t := time.Now()
+		pprof.Do(context.Background(), pprof.Labels("native_sql", "enrichment-stage."+label+".commit"), func(ctx context.Context) { _, e = c.ExecContext(ctx, "COMMIT") })
+		must(e)
+		end := time.Now()
+		ms := float64(end.Sub(start).Nanoseconds()) / 1e6
+		observeWALCommit()
+		must(c.QueryRowContext(context.Background(), "SELECT total_changes()").Scan(&after))
+		stageHolds[label] = append(stageHolds[label], ms)
+		stageSamples = append(stageSamples, map[string]any{"entity": a.entity, "step": step, "phase": label, "start_ns": start.UnixNano(), "end_ns": end.UnixNano(), "hold_ms": ms, "commit_ms": float64(end.Sub(t).Nanoseconds()) / 1e6, "rows_changed": after - before})
+	}
+	stage := func(a enrichmentInput) {
+		stageTx(a, "header", 0, func() {
+			x("evidence", a.evidence, a.entity, a.key, a.digest, a.title, a.title, a.overview)
+			x("rating", a.evidence, "community", 8, 10)
+			x("rating", a.evidence, "critic", 90, 100)
+			_, e := c.ExecContext(context.Background(), fmt.Sprintf("INSERT INTO metadata_evidence_builds(id,evidence_id,generation,owner_operation,state,phase,expected_rows,materialized_rows,expected_shape_digest,materialized_digest,materialized_charge,expires_at) VALUES('%s','%s',1,'%s','building','credits',153,3,'%s','',32768,'2026-11-05T00:00:00Z');INSERT INTO metadata_evidence_accounting VALUES('%s',262144,'2026-11-04T00:00:00Z',1,0,0);INSERT INTO metadata_evidence_totals VALUES('tmdb',0,0,1,262144) ON CONFLICT(provider) DO UPDATE SET other_evidence=other_evidence+1,charge=charge+262144;", a.evidence, a.evidence, a.operation, a.digest, a.evidence))
+			must(e)
+		})
+		for lo := 0; lo < 150; lo += 16 {
+			hi := lo + 16
+			if hi > 150 {
+				hi = 150
+			}
+			label := "credit16"
+			if hi-lo != 16 {
+				label = "credit6"
+			}
+			stageTx(a, label, lo+1, func() {
+				credits(a, "stage", lo, hi)
+				_, e := c.ExecContext(context.Background(), "UPDATE metadata_evidence_builds SET cursor=?,materialized_rows=materialized_rows+?,materialized_charge=materialized_charge+? WHERE evidence_id=? AND state='building'", hi, hi-lo, (hi-lo)*512, a.evidence)
+				must(e)
+			})
+		}
+		stageTx(a, "seal", 151, func() {
+			var evidenceRows, members, sourceRows int
+			must(c.QueryRowContext(context.Background(), "SELECT count(*) FROM metadata_evidence_credits WHERE evidence_id=?", a.evidence).Scan(&evidenceRows))
+			must(c.QueryRowContext(context.Background(), "SELECT count(*),count(CASE WHEN r.original_record_reference=? THEN 1 END) FROM credit_source_publication_members m JOIN credit_source_rows r ON r.source_row_id=m.source_row_id WHERE m.publication_id=?", a.evidence, a.creditpub).Scan(&members, &sourceRows))
+			if evidenceRows != 150 || members != 150 || sourceRows != 150 {
+				panic("staged150creditseal drift")
+			}
+			_, e := c.ExecContext(context.Background(), "UPDATE metadata_evidence SET sealed=1 WHERE id=?", a.evidence)
+			must(e)
+			_, e = c.ExecContext(context.Background(), "UPDATE metadata_evidence_builds SET state='ready',phase='accept',materialized_digest=expected_shape_digest WHERE evidence_id=? AND materialized_rows=expected_rows", a.evidence)
+			must(e)
+		})
+		var binding, head string
+		var servingNew int
+		must(c.QueryRowContext(context.Background(), "SELECT accepted_evidence_id FROM metadata_subject_providers WHERE entity_id=? AND provider='tmdb' AND role='primary'", a.entity).Scan(&binding))
+		must(c.QueryRowContext(context.Background(), "SELECT publication_id FROM credit_source_heads WHERE entity_id=? AND provider='tmdb'", a.entity).Scan(&head))
+		must(c.QueryRowContext(context.Background(), "SELECT count(*) FROM catalog_credits c JOIN credit_source_rows r ON r.source_row_id=c.source_row_id WHERE c.entity_id=? AND r.original_record_reference=?", a.entity, a.evidence).Scan(&servingNew))
+		if binding == a.evidence || head == a.creditpub || servingNew != 0 {
+			panic("staged enrichment leaked serving image")
+		}
+		stageVisibility = append(stageVisibility, map[string]any{"entity": a.entity, "new_evidence_bound": false, "new_credit_head_bound": false, "new_effective_rows": servingNew})
+	}
 	for _, name := range []string{"existing-people", "new-people"} {
 		samples := []any{}
 		times := []float64{}
 		rowsTouched := []int64{}
 		for j, a := range inputs[name] {
+			if stagedEnrichment {
+				stage(a)
+			}
 			phases := apply(a, name == "new-people")
 			admitWAL()
 			var before, after int64
@@ -2147,10 +2258,26 @@ func enrichment(c *sql.Conn, out, hash string) {
 			if count != 150 {
 				panic("150credit replacement drift")
 			}
+			must(c.QueryRowContext(context.Background(), "SELECT count(*) FROM catalog_credits c JOIN credit_source_rows r ON r.source_row_id=c.source_row_id WHERE c.entity_id=? AND r.original_record_reference=?", a.entity, a.evidence).Scan(&count))
+			if count != 150 {
+				panic("new150creditpublication drift")
+			}
 		}
 		upper, rank := quantileUpper(times, .99, .95)
-		save(filepath.Join(out, "enrichment-"+name+".json"), map[string]any{"ddl_sha256": hash, "n": reps, "p50_ms": pct(times, .5), "p95_ms": pct(times, .95), "p99_ms": pct(times, .99), "p99_upper_95_ms": upper, "p99_upper_rank": rank, "hosted_p99_upper_95_pass": rank > 0 && upper <= 10, "hosted_max_directional_ms": pct(times, 1), "rows_changed": rowsTouched, "samples": samples})
+		prefix := "enrichment-"
+		if stagedEnrichment {
+			prefix = "enrichment-staged-"
+		}
+		save(filepath.Join(out, prefix+name+".json"), map[string]any{"ddl_sha256": hash, "immutable_inputs_staged": stagedEnrichment, "n": reps, "p50_ms": pct(times, .5), "p95_ms": pct(times, .95), "p99_ms": pct(times, .99), "p99_upper_95_ms": upper, "p99_upper_rank": rank, "hosted_p99_upper_95_pass": rank > 0 && upper <= 10, "hosted_max_directional_ms": pct(times, 1), "rows_changed": rowsTouched, "samples": samples})
 		fmt.Println("enrichment", name, pct(times, .99), pct(times, 1))
+	}
+	if stagedEnrichment {
+		summary := map[string]any{}
+		for name, xs := range stageHolds {
+			upper, rank := quantileUpper(xs, .99, .95)
+			summary[name] = map[string]any{"n": len(xs), "p50_ms": pct(xs, .5), "p99_ms": pct(xs, .99), "p99_upper_95_ms": upper, "rank": rank, "max_ms": pct(xs, 1)}
+		}
+		save(filepath.Join(out, "enrichment-stage-quanta.json"), map[string]any{"ddl_sha256": hash, "phases": summary, "samples": stageSamples, "serving_visibility_witnesses": stageVisibility, "boundary": "Immutable observation/source-credit/publication members staged in16credit quanta with typed build progress+private receipts,source heads/current effective credits stay old until acceptance. No public revisions/events beforeaccept. Final150effectivecopy+head/meta/art/scalars/receipt staysatomic. This is a SQLcost prototype, not full quota/lease/identity-claim/authority oracle."})
 	}
 	save(filepath.Join(out, "enrichment-fixture.json"), map[string]any{"ddl_sha256": hash, "initial_basic_residents": resident, "target_entities": 2 * reps, "credits_old_and_new_per_entity": 150, "retained_credit_relations": []string{"metadata_evidence_credits", "credit_source_rows", "credit_source_publication_members", "catalog_credits"}, "cast": 100, "crew": 50, "title_characters": 1000, "overview_characters": 20000, "selected_art_roles": 4, "authored_parents_per_entity": 1, "incoming_facts": "Pretrimmed accepted fixture. Provider operation/policy captured before acceptance;150oldcredits seeded. Whole newimmutableevidence+credits/current replacement/seal/publication/binding/accounting/9fieldorigins+entity+4selectedreadyart+oneparentcontribution/extrema+searchintent/revisions/event/receipt/COMMIT measured. Secondcell creates150newpeople+providerIDs+searchjobs insideacceptance. Samegenre/ratingband13, no facet/classchange; changes there are separate age gates. Existingreadyart blobs/physicalIO outside writer; noFTS. Basic1Mcorpus has no credits outside2000targettitles, so fullproductioncredit-density/referencehardware/authority/policyselection/immutablequota-transition protocols remainOPEN. Source/tokenssynthetic; exactFKgraphon. No ownereditrows created because source acceptance is not an owneredit."})
 }
