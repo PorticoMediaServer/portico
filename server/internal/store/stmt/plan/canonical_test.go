@@ -48,7 +48,7 @@ func TestPlanCanonicalSchemaFKAndStatementContracts(t *testing.T) {
 		t.Fatal(err)
 	}
 	// All 28 cohorts were independently regenerated on approved 291ab3ac,
-	// 567267b7 and adopted 5f3c7f67 with the same VM canonicalization. EQP
+	// 567267b7, 5f3c7f67 and adopted abf43774 with the same VM canonicalization. EQP
 	// notused is now also a placeholder; removing forced autoindex names
 	// changes no other field. Stop before
 	// recording if any opcode/operand/EQP beyond physical identifiers changes.
