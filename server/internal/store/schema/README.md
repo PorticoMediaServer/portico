@@ -23,7 +23,8 @@ private typed writer. This package is not yet wired into server startup.
 
 INT-CHANGE-001 adds scan/search/enrichment operation receipts and acknowledgement
 floors, per-image search seal/reclaim custody, exact own-play quarter/day/month
-and instant-edge counters, and admin-only raw time/label facts. This candidate
+and exact playing-span edges, a bounded pending occurrence cursor, and six
+admin-only event/cohort time access paths. This candidate
 requires R review. Receipt result IDs do not pin retired mutable work resources;
 private writer commands enforce immutable results, complete CAS and acknowledgement
 ordering. The package initializer does not implement those commands. Effective

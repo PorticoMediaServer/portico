@@ -729,6 +729,24 @@
       "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
     },
     {
+      "index": "play_history_admin_item_start",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control",
+      "predicate": "started_ms IS NOT NULL"
+    },
+    {
+      "index": "play_history_admin_start",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control",
+      "predicate": "started_ms IS NOT NULL"
+    },
+    {
+      "index": "play_history_admin_user_start",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control",
+      "predicate": "started_ms IS NOT NULL"
+    },
+    {
       "index": "playback_channel_sessions_live",
       "predicate": "ended_ms=0",
       "choice": "repeat_exact_predicate",
@@ -739,6 +757,12 @@
       "predicate": "execution_id<>''",
       "choice": "repeat_exact_predicate",
       "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "playback_time_pending",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control",
+      "predicate": "pending_time_from_ms IS NOT NULL"
     },
     {
       "index": "playback_v1_prepared_queue",

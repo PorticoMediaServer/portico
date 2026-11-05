@@ -7592,6 +7592,13 @@ CREATE TABLE playback_personal_claims(
  completion_counted INTEGER NOT NULL DEFAULT 0 CHECK(completion_counted IN(0,1)),
  history_terminal_written INTEGER NOT NULL DEFAULT 0 CHECK(history_terminal_written IN(0,1)),
  last_accepted_sequence INTEGER NOT NULL DEFAULT -1 CHECK(typeof(last_accepted_sequence)='integer' AND last_accepted_sequence>=-1),
+ pending_time_from_ms INTEGER,
+ pending_time_until_ms INTEGER,
+ pending_time_cursor_ms INTEGER,
+ pending_time_activity_generation INTEGER,
+ pending_time_remember_generation INTEGER,
+ pending_time_clock_incarnation BLOB CHECK(pending_time_clock_incarnation IS NULL OR length(pending_time_clock_incarnation)=16),
+ pending_time_sequence INTEGER NOT NULL DEFAULT 0 CHECK(pending_time_sequence>=0),
  CHECK(typeof("playback_id")IN('null','text')),
  CHECK(typeof("profile_key")IN('null','text')),
  CHECK(typeof("item_id")IN('null','integer')),
@@ -7599,7 +7606,16 @@ CREATE TABLE playback_personal_claims(
  CHECK(typeof("start_counted")IN('null','integer')),
  CHECK(typeof("completion_counted")IN('null','integer')),
  CHECK(typeof("history_terminal_written")IN('null','integer')),
- CHECK(typeof("last_accepted_sequence")IN('null','integer'))
+ CHECK(typeof("last_accepted_sequence")IN('null','integer')),
+ CHECK((pending_time_from_ms IS NULL)=(pending_time_until_ms IS NULL) AND (pending_time_from_ms IS NULL)=(pending_time_cursor_ms IS NULL) AND (pending_time_from_ms IS NULL)=(pending_time_activity_generation IS NULL) AND (pending_time_from_ms IS NULL)=(pending_time_remember_generation IS NULL) AND (pending_time_from_ms IS NULL)=(pending_time_clock_incarnation IS NULL)),
+ CHECK(pending_time_from_ms IS NULL OR (pending_time_from_ms>=0 AND pending_time_until_ms>pending_time_from_ms AND pending_time_cursor_ms>=pending_time_from_ms AND pending_time_cursor_ms<=pending_time_until_ms AND pending_time_activity_generation>0 AND pending_time_remember_generation>0)),
+ CHECK(typeof("pending_time_from_ms")IN('null','integer')),
+ CHECK(typeof("pending_time_until_ms")IN('null','integer')),
+ CHECK(typeof("pending_time_cursor_ms")IN('null','integer')),
+ CHECK(typeof("pending_time_activity_generation")IN('null','integer')),
+ CHECK(typeof("pending_time_remember_generation")IN('null','integer')),
+ CHECK(typeof("pending_time_clock_incarnation")IN('null','blob')),
+ CHECK(typeof("pending_time_sequence")IN('null','integer'))
 );
 
 CREATE TABLE playback_personal_fences(
@@ -14266,3 +14282,35 @@ CREATE TABLE listening_play_instants(
 ) WITHOUT ROWID;
 
 CREATE INDEX listening_instant_subject ON listening_play_instants(subject_id,profile_id,activity_generation,started_ms);
+
+CREATE TABLE listening_time_spans(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ profile_id TEXT NOT NULL,
+ activity_generation INTEGER NOT NULL CHECK(activity_generation>0),
+ subject_id INTEGER NOT NULL REFERENCES catalog_subjects(id),
+ from_ms INTEGER NOT NULL CHECK(from_ms>=0),
+ until_ms INTEGER NOT NULL CHECK(until_ms>from_ms),
+ copies INTEGER NOT NULL DEFAULT 1 CHECK(copies>0),
+ CHECK(from_ms/900000=(until_ms-1)/900000),
+ CHECK(typeof("id")IN('null','integer')),
+ CHECK(typeof("profile_id")IN('null','text')),
+ CHECK(typeof("activity_generation")IN('null','integer')),
+ CHECK(typeof("subject_id")IN('null','integer')),
+ CHECK(typeof("from_ms")IN('null','integer')),
+ CHECK(typeof("until_ms")IN('null','integer')),
+ CHECK(typeof("copies")IN('null','integer'))
+) ;
+
+CREATE UNIQUE INDEX listening_time_span_identity ON listening_time_spans(profile_id,activity_generation,subject_id,until_ms,from_ms);
+
+CREATE INDEX listening_time_span_profile ON listening_time_spans(profile_id,activity_generation,from_ms,id);
+
+CREATE INDEX listening_time_span_subject ON listening_time_spans(subject_id,profile_id,activity_generation,from_ms,id);
+
+CREATE INDEX playback_time_pending ON playback_personal_claims(profile_key,pending_time_activity_generation,pending_time_cursor_ms,playback_id) WHERE pending_time_from_ms IS NOT NULL;
+
+CREATE INDEX play_history_admin_start ON play_history(started_ms,id) WHERE started_ms IS NOT NULL;
+
+CREATE INDEX play_history_admin_user_start ON play_history(account_key,started_ms,id) WHERE started_ms IS NOT NULL;
+
+CREATE INDEX play_history_admin_item_start ON play_history(subject_id,started_ms,id) WHERE started_ms IS NOT NULL;

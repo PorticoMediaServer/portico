@@ -186,7 +186,7 @@ SEARCH-FRONTIER-SPILL keeps typed source IDs/heads in a private bounded ephemera
 
 ## INT-CHANGE-001: durable operations, exact user charts and bounded admin reporting
 
-Current change-controlled candidate SHA5785482ac840ebbfa456f9a805b0ff2f23b964ca9b5cd3c1e1e3913674088744; R review pending. See phase1/INT-CHANGE-001.md and PB-MANIFEST-V1.md. These are static statement contracts for HN/W, not runtime command implementations or an authority grant.
+Current change-controlled candidate SHA567267b78205ab47b7efe0be764286b29d14f99ad476c5acdb44c65ac9f8bd3f; R review pending. See phase1/INT-CHANGE-001.md and PB-MANIFEST-V1.md. These are static statement contracts for HN/W, not runtime command implementations or an authority grant.
 
 Receipt resolution: current permission first; read actual owner's incarnation/last/ack. An acknowledged sequence is ResultRetired before any partially drained result cohort is read. An absent unacknowledged receipt at sequence<=last is ResolveRequired; an unavailable owner without floor proof is ResolveRequired. Only a not-yet-applied next sequence may be Pending/Superseded. A matching historical receipt is returned before mutable source/lease/cursor checks. Use point keys, never a reconstructed current head.
 
@@ -230,7 +230,7 @@ ORDER BY job_due_ms,id LIMIT :admitted_rows;
 
 Reclaimer has its own receipt/incarnation/sequence. Historical image/fragment/change result IDs have no resource FKs. Its live_publication_id is detached only in the final physically complete image-retirement command; publication_id and its unacknowledged receipt survive. Native delete reads retained old strings before deleting source rows. Publisher document_id changes cannot strand retirement.
 
-User-facing listening/Discover/music charts read only own-play counters under current personal epoch. UTCquarter/day/month rows provide exact historical windows; fine instants handle the two partial quarter edges of rolling30days. Counter selection never rounds the requested millisecond cutoff. Current artist/album attribution is joined at read, with current permission and retained identity/merge semantics. Profile totals avoid scanning Ditems for a scalar timeline; per-item attribution/ranking uses the item relation under the read work budget. No item/provider change fans out per user.
+User-facing listening/Discover/music charts read only own-play counters under current personal epoch. UTCquarter/day/month rows provide exact historical windows; fine instants handle started/completed edges and quarter-contained exact spans handle played-time edges. Counter selection never rounds the requested millisecond cutoff. Current artist/album attribution is joined at read, with current permission and retained identity/merge semantics. Profile totals avoid scanning Ditems for a scalar timeline; per-item attribution/ranking uses the item relation under the read work budget. No item/provider change fans out per user.
 
 ```sql
 SELECT b.bucket_ms,b.started_count,b.completed_count,b.played_ms
@@ -248,19 +248,111 @@ ORDER BY started_ms,subject_id LIMIT :admitted_rows;
 
 Any cursor over tied instant rows uses equality-tail then next-time streams; no row-value comparisons. All-time output uses existing reportwindow's<=1201months with exact timezone/DST boundary corrections. No fixed lifetime retention or approximate counts. Read/VM/deadline exhaustion refuses instead of returning a partial total.
 
-**Admin-only history** keeps the raw start-window×time-bucket and historical title/user/device-string semantics. Each request requires a time window, current admin/audience authority, bounded indexed keyset pages and the snapshot/deadline cap. The three existing admin time/user/item indexes serve the corresponding static variants. String search is a bounded scan within that indexed window, not a global string index or a user-chart path. Literal predicates below are compiled variants, never assembled from untrusted text. Time facts capture started_ms,time_bucket_ms and exact played_ms; append-only time events never update previous events.
+**R-23 complete admin cohort streams.** Six admin paths ship: three event-time paging paths plus global/account/item start-cohort paths. The report below is ordered by start, independent of occurred_at. Cohort and bucket windows are both mandatory. Current admin/audience authority is checked before disclosure. Scope is a closed compiled variant; user text is a bound value, never SQL. Every non-index eligibility test is a CASE projection: unmatched raw candidates still count against LIMIT and the overall candidate/VM/deadline budget. Started metrics have no bucket requirement. Time metrics use the independently required bucket interval. Fully consumed candidate pages combine into finite report bins outside the writer, with no global SQL GROUP BY/sort or retained snapshot. Refuse incomplete totals. Every keyset uses equality-tail then next-start with a stable revision fence and <=1s snapshot. These are static contracts, not a runtime adapter qualification.
+
+Bound fixture global ASC equal; cohort/bucket2026-05-01..02UTC, text needle, limit4. Expected indexed SEARCH through play_history_admin_start, no USE TEMP B-TREE.
 
 ```sql
--- Descending equality tail. The next stream uses occurred_at<:after_at instead.
-SELECT id,occurred_at,started_ms,time_bucket_ms,played_ms,event_kind,
-       user_name,profile_name,device_name,item_title
-FROM play_history INDEXED BY play_history_admin_time
-WHERE occurred_at>=:window_from AND occurred_at<:window_until
-  AND occurred_at=:after_at AND id<:after_id
-  AND started_ms>=:cohort_from AND started_ms<:cohort_until
-  AND (instr(lower(item_title),:text)>0 OR instr(lower(user_name),:text)>0
-       OR instr(lower(device_name),:text)>0)
-ORDER BY occurred_at DESC,id DESC LIMIT :admitted_rows;
+SELECT id,started_ms,CASE WHEN event_kind='time' AND time_bucket_ms>=1777593600000 AND time_bucket_ms<1777680000000 AND library_public_id='lib' AND item_kind=7 AND ('needle'='' OR instr(lower(item_title),'needle')>0 OR instr(lower(user_name),'needle')>0 OR instr(lower(device_name),'needle')>0) THEN played_ms ELSE 0 END AS eligible_ms,CASE WHEN event_kind='started' AND library_public_id='lib' AND item_kind=7 AND ('needle'='' OR instr(lower(item_title),'needle')>0 OR instr(lower(user_name),'needle')>0 OR instr(lower(device_name),'needle')>0) THEN 1 ELSE 0 END AS eligible_play FROM play_history INDEXED BY play_history_admin_start WHERE started_ms IS NOT NULL AND started_ms>=1777593600000 AND started_ms<1777680000000 AND started_ms=1777593601000 AND id>0 ORDER BY started_ms ASC,id ASC LIMIT 4;
 ```
 
-The typed event writer encodes occurred_at in fixed-width UTCnanoseconds and captures a time event at the logical bucket/time boundary so its required admin time path is complete. W/V must qualify interrupted, late/replayed and cross-midnight/DST donations; schema shape alone does not establish that producer contract. Admin report aggregation processes bounded pages and can refuse on its overall budget; no retained cursor/snapshot across pages or a UI event-log escape.
+Bound fixture global ASC next; cohort/bucket2026-05-01..02UTC, text needle, limit4. Expected indexed SEARCH through play_history_admin_start, no USE TEMP B-TREE.
+
+```sql
+SELECT id,started_ms,CASE WHEN event_kind='time' AND time_bucket_ms>=1777593600000 AND time_bucket_ms<1777680000000 AND library_public_id='lib' AND item_kind=7 AND ('needle'='' OR instr(lower(item_title),'needle')>0 OR instr(lower(user_name),'needle')>0 OR instr(lower(device_name),'needle')>0) THEN played_ms ELSE 0 END AS eligible_ms,CASE WHEN event_kind='started' AND library_public_id='lib' AND item_kind=7 AND ('needle'='' OR instr(lower(item_title),'needle')>0 OR instr(lower(user_name),'needle')>0 OR instr(lower(device_name),'needle')>0) THEN 1 ELSE 0 END AS eligible_play FROM play_history INDEXED BY play_history_admin_start WHERE started_ms IS NOT NULL AND started_ms>=1777593600000 AND started_ms<1777680000000 AND started_ms>1777593600999 ORDER BY started_ms ASC,id ASC LIMIT 4;
+```
+
+Bound fixture global DESC equal; cohort/bucket2026-05-01..02UTC, text needle, limit4. Expected indexed SEARCH through play_history_admin_start, no USE TEMP B-TREE.
+
+```sql
+SELECT id,started_ms,CASE WHEN event_kind='time' AND time_bucket_ms>=1777593600000 AND time_bucket_ms<1777680000000 AND library_public_id='lib' AND item_kind=7 AND ('needle'='' OR instr(lower(item_title),'needle')>0 OR instr(lower(user_name),'needle')>0 OR instr(lower(device_name),'needle')>0) THEN played_ms ELSE 0 END AS eligible_ms,CASE WHEN event_kind='started' AND library_public_id='lib' AND item_kind=7 AND ('needle'='' OR instr(lower(item_title),'needle')>0 OR instr(lower(user_name),'needle')>0 OR instr(lower(device_name),'needle')>0) THEN 1 ELSE 0 END AS eligible_play FROM play_history INDEXED BY play_history_admin_start WHERE started_ms IS NOT NULL AND started_ms>=1777593600000 AND started_ms<1777680000000 AND started_ms=1777593601000 AND id<9223372036854775807 ORDER BY started_ms DESC,id DESC LIMIT 4;
+```
+
+Bound fixture global DESC next; cohort/bucket2026-05-01..02UTC, text needle, limit4. Expected indexed SEARCH through play_history_admin_start, no USE TEMP B-TREE.
+
+```sql
+SELECT id,started_ms,CASE WHEN event_kind='time' AND time_bucket_ms>=1777593600000 AND time_bucket_ms<1777680000000 AND library_public_id='lib' AND item_kind=7 AND ('needle'='' OR instr(lower(item_title),'needle')>0 OR instr(lower(user_name),'needle')>0 OR instr(lower(device_name),'needle')>0) THEN played_ms ELSE 0 END AS eligible_ms,CASE WHEN event_kind='started' AND library_public_id='lib' AND item_kind=7 AND ('needle'='' OR instr(lower(item_title),'needle')>0 OR instr(lower(user_name),'needle')>0 OR instr(lower(device_name),'needle')>0) THEN 1 ELSE 0 END AS eligible_play FROM play_history INDEXED BY play_history_admin_start WHERE started_ms IS NOT NULL AND started_ms>=1777593600000 AND started_ms<1777680000000 AND started_ms<1777593601001 ORDER BY started_ms DESC,id DESC LIMIT 4;
+```
+
+Bound fixture account ASC equal; cohort/bucket2026-05-01..02UTC, text needle, limit4. Expected indexed SEARCH through play_history_admin_user_start, no USE TEMP B-TREE.
+
+```sql
+SELECT id,started_ms,CASE WHEN event_kind='time' AND time_bucket_ms>=1777593600000 AND time_bucket_ms<1777680000000 AND library_public_id='lib' AND item_kind=7 AND ('needle'='' OR instr(lower(item_title),'needle')>0 OR instr(lower(user_name),'needle')>0 OR instr(lower(device_name),'needle')>0) THEN played_ms ELSE 0 END AS eligible_ms,CASE WHEN event_kind='started' AND library_public_id='lib' AND item_kind=7 AND ('needle'='' OR instr(lower(item_title),'needle')>0 OR instr(lower(user_name),'needle')>0 OR instr(lower(device_name),'needle')>0) THEN 1 ELSE 0 END AS eligible_play FROM play_history INDEXED BY play_history_admin_user_start WHERE account_key='r23-account' AND started_ms IS NOT NULL AND started_ms>=1777593600000 AND started_ms<1777680000000 AND started_ms=1777593601000 AND id>0 ORDER BY started_ms ASC,id ASC LIMIT 4;
+```
+
+Bound fixture account ASC next; cohort/bucket2026-05-01..02UTC, text needle, limit4. Expected indexed SEARCH through play_history_admin_user_start, no USE TEMP B-TREE.
+
+```sql
+SELECT id,started_ms,CASE WHEN event_kind='time' AND time_bucket_ms>=1777593600000 AND time_bucket_ms<1777680000000 AND library_public_id='lib' AND item_kind=7 AND ('needle'='' OR instr(lower(item_title),'needle')>0 OR instr(lower(user_name),'needle')>0 OR instr(lower(device_name),'needle')>0) THEN played_ms ELSE 0 END AS eligible_ms,CASE WHEN event_kind='started' AND library_public_id='lib' AND item_kind=7 AND ('needle'='' OR instr(lower(item_title),'needle')>0 OR instr(lower(user_name),'needle')>0 OR instr(lower(device_name),'needle')>0) THEN 1 ELSE 0 END AS eligible_play FROM play_history INDEXED BY play_history_admin_user_start WHERE account_key='r23-account' AND started_ms IS NOT NULL AND started_ms>=1777593600000 AND started_ms<1777680000000 AND started_ms>1777593600999 ORDER BY started_ms ASC,id ASC LIMIT 4;
+```
+
+Bound fixture account DESC equal; cohort/bucket2026-05-01..02UTC, text needle, limit4. Expected indexed SEARCH through play_history_admin_user_start, no USE TEMP B-TREE.
+
+```sql
+SELECT id,started_ms,CASE WHEN event_kind='time' AND time_bucket_ms>=1777593600000 AND time_bucket_ms<1777680000000 AND library_public_id='lib' AND item_kind=7 AND ('needle'='' OR instr(lower(item_title),'needle')>0 OR instr(lower(user_name),'needle')>0 OR instr(lower(device_name),'needle')>0) THEN played_ms ELSE 0 END AS eligible_ms,CASE WHEN event_kind='started' AND library_public_id='lib' AND item_kind=7 AND ('needle'='' OR instr(lower(item_title),'needle')>0 OR instr(lower(user_name),'needle')>0 OR instr(lower(device_name),'needle')>0) THEN 1 ELSE 0 END AS eligible_play FROM play_history INDEXED BY play_history_admin_user_start WHERE account_key='r23-account' AND started_ms IS NOT NULL AND started_ms>=1777593600000 AND started_ms<1777680000000 AND started_ms=1777593601000 AND id<9223372036854775807 ORDER BY started_ms DESC,id DESC LIMIT 4;
+```
+
+Bound fixture account DESC next; cohort/bucket2026-05-01..02UTC, text needle, limit4. Expected indexed SEARCH through play_history_admin_user_start, no USE TEMP B-TREE.
+
+```sql
+SELECT id,started_ms,CASE WHEN event_kind='time' AND time_bucket_ms>=1777593600000 AND time_bucket_ms<1777680000000 AND library_public_id='lib' AND item_kind=7 AND ('needle'='' OR instr(lower(item_title),'needle')>0 OR instr(lower(user_name),'needle')>0 OR instr(lower(device_name),'needle')>0) THEN played_ms ELSE 0 END AS eligible_ms,CASE WHEN event_kind='started' AND library_public_id='lib' AND item_kind=7 AND ('needle'='' OR instr(lower(item_title),'needle')>0 OR instr(lower(user_name),'needle')>0 OR instr(lower(device_name),'needle')>0) THEN 1 ELSE 0 END AS eligible_play FROM play_history INDEXED BY play_history_admin_user_start WHERE account_key='r23-account' AND started_ms IS NOT NULL AND started_ms>=1777593600000 AND started_ms<1777680000000 AND started_ms<1777593601001 ORDER BY started_ms DESC,id DESC LIMIT 4;
+```
+
+Bound fixture item ASC equal; cohort/bucket2026-05-01..02UTC, text needle, limit4. Expected indexed SEARCH through play_history_admin_item_start, no USE TEMP B-TREE.
+
+```sql
+SELECT id,started_ms,CASE WHEN event_kind='time' AND time_bucket_ms>=1777593600000 AND time_bucket_ms<1777680000000 AND library_public_id='lib' AND item_kind=7 AND ('needle'='' OR instr(lower(item_title),'needle')>0 OR instr(lower(user_name),'needle')>0 OR instr(lower(device_name),'needle')>0) THEN played_ms ELSE 0 END AS eligible_ms,CASE WHEN event_kind='started' AND library_public_id='lib' AND item_kind=7 AND ('needle'='' OR instr(lower(item_title),'needle')>0 OR instr(lower(user_name),'needle')>0 OR instr(lower(device_name),'needle')>0) THEN 1 ELSE 0 END AS eligible_play FROM play_history INDEXED BY play_history_admin_item_start WHERE subject_id=1 AND started_ms IS NOT NULL AND started_ms>=1777593600000 AND started_ms<1777680000000 AND started_ms=1777593601000 AND id>0 ORDER BY started_ms ASC,id ASC LIMIT 4;
+```
+
+Bound fixture item ASC next; cohort/bucket2026-05-01..02UTC, text needle, limit4. Expected indexed SEARCH through play_history_admin_item_start, no USE TEMP B-TREE.
+
+```sql
+SELECT id,started_ms,CASE WHEN event_kind='time' AND time_bucket_ms>=1777593600000 AND time_bucket_ms<1777680000000 AND library_public_id='lib' AND item_kind=7 AND ('needle'='' OR instr(lower(item_title),'needle')>0 OR instr(lower(user_name),'needle')>0 OR instr(lower(device_name),'needle')>0) THEN played_ms ELSE 0 END AS eligible_ms,CASE WHEN event_kind='started' AND library_public_id='lib' AND item_kind=7 AND ('needle'='' OR instr(lower(item_title),'needle')>0 OR instr(lower(user_name),'needle')>0 OR instr(lower(device_name),'needle')>0) THEN 1 ELSE 0 END AS eligible_play FROM play_history INDEXED BY play_history_admin_item_start WHERE subject_id=1 AND started_ms IS NOT NULL AND started_ms>=1777593600000 AND started_ms<1777680000000 AND started_ms>1777593600999 ORDER BY started_ms ASC,id ASC LIMIT 4;
+```
+
+Bound fixture item DESC equal; cohort/bucket2026-05-01..02UTC, text needle, limit4. Expected indexed SEARCH through play_history_admin_item_start, no USE TEMP B-TREE.
+
+```sql
+SELECT id,started_ms,CASE WHEN event_kind='time' AND time_bucket_ms>=1777593600000 AND time_bucket_ms<1777680000000 AND library_public_id='lib' AND item_kind=7 AND ('needle'='' OR instr(lower(item_title),'needle')>0 OR instr(lower(user_name),'needle')>0 OR instr(lower(device_name),'needle')>0) THEN played_ms ELSE 0 END AS eligible_ms,CASE WHEN event_kind='started' AND library_public_id='lib' AND item_kind=7 AND ('needle'='' OR instr(lower(item_title),'needle')>0 OR instr(lower(user_name),'needle')>0 OR instr(lower(device_name),'needle')>0) THEN 1 ELSE 0 END AS eligible_play FROM play_history INDEXED BY play_history_admin_item_start WHERE subject_id=1 AND started_ms IS NOT NULL AND started_ms>=1777593600000 AND started_ms<1777680000000 AND started_ms=1777593601000 AND id<9223372036854775807 ORDER BY started_ms DESC,id DESC LIMIT 4;
+```
+
+Bound fixture item DESC next; cohort/bucket2026-05-01..02UTC, text needle, limit4. Expected indexed SEARCH through play_history_admin_item_start, no USE TEMP B-TREE.
+
+```sql
+SELECT id,started_ms,CASE WHEN event_kind='time' AND time_bucket_ms>=1777593600000 AND time_bucket_ms<1777680000000 AND library_public_id='lib' AND item_kind=7 AND ('needle'='' OR instr(lower(item_title),'needle')>0 OR instr(lower(user_name),'needle')>0 OR instr(lower(device_name),'needle')>0) THEN played_ms ELSE 0 END AS eligible_ms,CASE WHEN event_kind='started' AND library_public_id='lib' AND item_kind=7 AND ('needle'='' OR instr(lower(item_title),'needle')>0 OR instr(lower(user_name),'needle')>0 OR instr(lower(device_name),'needle')>0) THEN 1 ELSE 0 END AS eligible_play FROM play_history INDEXED BY play_history_admin_item_start WHERE subject_id=1 AND started_ms IS NOT NULL AND started_ms>=1777593600000 AND started_ms<1777680000000 AND started_ms<1777593601001 ORDER BY started_ms DESC,id DESC LIMIT 4;
+```
+
+Production bindings replace only the fixture literals: `:cohort_from`, `:cohort_until`, `:bucket_from`, `:bucket_until`, `:text_fold`, `:library`, `:item_kind`, `:account` or `:subject`, `:after_start`, `:after_id`, `:admitted_rows`. Cursor values are not windows. Start-play eligibility checks kind, library and historical strings; it never requires time_bucket_ms. Time eligibility additionally checks bucket_from<=time_bucket_ms<bucket_until. No occurred_at predicate may exclude late-recorded facts. No eligibility predicate may migrate into WHERE without a new bounded-work proof and HN golden. Initial page uses next-key form with an explicit boundary variant; never subtract one from minimum timestamps in application code. Tied-group, nonmatch, late-record and missing-index controls live in INT-CHANGE-001-R23-R24-CONTROLS.json.
+
+**R-24 exact played-time edge.** For edge[a,b), quarter containment makes `[max(0,a-900000),b)` a complete from_ms candidate range. Stream raw rows (including nonoverlaps) and clip with checked integer arithmetic outside SQL. Sum independent occurrences through copies, not a union across devices. No double-count between these edges and complete coarse blocks. Current epoch/pending/revision/permission preflight precedes a complete result; overlapping undrained source means Pending/refusal, not partial exactness.
+
+```sql
+-- Equality tail, ascending. Descending uses id<:after_id and DESC.
+SELECT id,from_ms,until_ms,copies,subject_id
+FROM listening_time_spans INDEXED BY listening_time_span_profile
+WHERE profile_id=:profile AND activity_generation=:epoch
+  AND from_ms>=:lookback AND from_ms<:until
+  AND from_ms=:after_from AND id>:after_id
+ORDER BY from_ms,id LIMIT :admitted_rows;
+-- Next keys; descending uses from_ms<:after_from and DESC.
+SELECT id,from_ms,until_ms,copies,subject_id
+FROM listening_time_spans INDEXED BY listening_time_span_profile
+WHERE profile_id=:profile AND activity_generation=:epoch
+  AND from_ms>=:lookback AND from_ms<:until AND from_ms>:after_from
+ORDER BY from_ms,id LIMIT :admitted_rows;
+-- One indexed adjacent-tail candidate, including copies!=1; no hidden filter scan.
+-- Extend only if that one candidate has copies=1, else exact-geometry UPSERT.
+SELECT id,from_ms,copies FROM listening_time_spans INDEXED BY listening_time_span_identity
+WHERE profile_id=:profile AND activity_generation=:epoch AND subject_id=:subject
+  AND until_ms=:piece_from AND from_ms>=:quarter_start
+ORDER BY from_ms DESC LIMIT 1;
+-- Pending exact-chart preflight: consume raw candidates and test until>from,
+-- cursor<until. Eligibility must not hide unbounded scans before LIMIT.
+SELECT playback_id,pending_time_cursor_ms,pending_time_until_ms
+FROM playback_personal_claims INDEXED BY playback_time_pending
+WHERE profile_key=:profile AND pending_time_activity_generation=:epoch
+  AND pending_time_from_ms IS NOT NULL AND pending_time_cursor_ms<:until
+ORDER BY pending_time_cursor_ms,playback_id LIMIT :admitted_rows;
+```
+
+Pending preflight keysets split tied cursor values by playback_id with the exact BINARY collation. One drain piece ends at min(pending_until,nextUTCquarter(cursor)). It changes at most one span plus six counter rows, one claim cursor and the complete admitted receipt/audit/revision effect set. A piece receipt never claims the whole report. Refusal/ambiguous COMMIT preserves the exact captured remainder. See INT-CHANGE-001 for long-session, gaps, clock discontinuity, overlap, forever retention and growth. All48actual reportwindow intervals from R are inputs to exact-overlap controls, including Monrovia's fractional boundary and a negative preepoch window start. Producer/runtime work remains unqualified.

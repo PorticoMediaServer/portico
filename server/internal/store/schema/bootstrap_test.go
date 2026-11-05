@@ -61,8 +61,8 @@ func TestFreshFileBootstrap(t *testing.T) {
 	}
 	defer reopened.Close()
 	var tables int
-	if err := reopened.QueryRow("SELECT count(*) FROM sqlite_schema WHERE type='table'").Scan(&tables); err != nil || tables != 693 {
-		t.Fatalf("persisted tables = %d, %v; want 693", tables, err)
+	if err := reopened.QueryRow("SELECT count(*) FROM sqlite_schema WHERE type='table'").Scan(&tables); err != nil || tables != 694 {
+		t.Fatalf("persisted tables = %d, %v; want 694", tables, err)
 	}
 }
 
