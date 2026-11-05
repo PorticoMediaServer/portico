@@ -170,11 +170,12 @@ class PorticoNetwork(context: ReactApplicationContext) : PorticoEventModule(cont
    * The returned TLS fingerprint comes from this response's handshake, never its headers.
    */
   @ReactMethod
-  fun proofRequest(origin: String?, fingerprint: String?, body: String?, promise: Promise) {
+  fun proofRequest(origin: String?, fingerprint: String?, requestUrl: String?, method: String?, body: String?, promise: Promise) {
     val base = origin?.toHttpUrlOrNull()
     val target = if (base?.scheme == "https" && base.username.isEmpty() && base.password.isEmpty() &&
         base.encodedPath == "/" && base.query == null && base.fragment == null &&
-        origin == base.toString().removeSuffix("/")) base.newBuilder().encodedPath("/v1/networking/identity-proof").build() else null
+        origin == base.toString().removeSuffix("/") && method == "POST" &&
+        requestUrl == origin + "/v1/networking/identity-proof") requestUrl?.toHttpUrlOrNull() else null
     val validBody = if (body == null || body.toByteArray(Charsets.UTF_8).size > 4096) false else try {
       val document = JSONObject(body ?: "")
       val nonce = document.optString("nonce", "")
@@ -189,7 +190,7 @@ class PorticoNetwork(context: ReactApplicationContext) : PorticoEventModule(cont
     val client = PorticoServerTrust.proofClient(OkHttpClient.Builder().followRedirects(false).followSslRedirects(false).cache(null)
         .retryOnConnectionFailure(false).cookieJar(okhttp3.CookieJar.NO_COOKIES).callTimeout(5, TimeUnit.SECONDS), origin, fingerprint)
     val request = Request.Builder().url(target).header("Accept", "application/json; portico-route-proof=2")
-        .post(body.toByteArray(Charsets.UTF_8).toRequestBody("application/json".toMediaType())).build()
+        .method(method!!, body.toByteArray(Charsets.UTF_8).toRequestBody("application/json".toMediaType())).build()
     client.newCall(request).enqueue(object : Callback {
       override fun onFailure(call: Call, e: IOException) = promise.reject("certificate_proof", "certificate_proof")
       override fun onResponse(call: Call, response: Response) {

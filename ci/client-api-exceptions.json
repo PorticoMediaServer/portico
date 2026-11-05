@@ -1234,5 +1234,29 @@
       "apps/native/src-next/screens/settings/remote-sources/controller.ts#026a47a1481bc5cf": "d1ab9fefe7dce9004e393c528dfa1f15f3f670cebb15de0d75872a5fc930e9eb",
       "apps/native/src-next/screens/settings/remote-sources/controller.ts#d9266fd94920163a": "515549c7e47aade035dc22720c4e2f0fd7e7ed4f79d40c66385a1b173e4cb90b"
     }
+  },
+  "apps/native/Native/PorticoServerTrust.m": {
+    "category": "platform-transport",
+    "reason": "native executes a core-built request verbatim under platform TLS/bounds policy; constructs nothing",
+    "sites": [
+      "apps/native/Native/PorticoServerTrust.m#b986506ae9d48725",
+      "apps/native/Native/PorticoServerTrust.m#5768ac884a3915b4"
+    ],
+    "guardHashes": {
+      "apps/native/Native/PorticoServerTrust.m#b986506ae9d48725": "7bde6a559ea9f24145cb67ed9b0bd0d1450d78eb0d92770c8e5f7d8521f2e890",
+      "apps/native/Native/PorticoServerTrust.m#5768ac884a3915b4": "7bde6a559ea9f24145cb67ed9b0bd0d1450d78eb0d92770c8e5f7d8521f2e890"
+    }
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoNetwork.kt": {
+    "category": "platform-transport",
+    "reason": "native executes a core-built request verbatim under platform TLS/bounds policy; constructs nothing",
+    "sites": [
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoNetwork.kt#4b50cacb05538818",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoNetwork.kt#1ccb2cf59526ba16"
+    ],
+    "guardHashes": {
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoNetwork.kt#4b50cacb05538818": "1b70800fd7d6bf4783357aa7acf9ea8e4805db8bc2327a8c7e12c91437bce22d",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoNetwork.kt#1ccb2cf59526ba16": "1b70800fd7d6bf4783357aa7acf9ea8e4805db8bc2327a8c7e12c91437bce22d"
+    }
   }
 }
