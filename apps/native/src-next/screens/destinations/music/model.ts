@@ -1,12 +1,12 @@
 import {DetailService} from '../../../../../../packages/client-core/src/detail';
+import {readBrowseCapabilitiesResponse, readImmediateBrowsePageResponse, createArtistAlbumPageRead} from '../../../../../../packages/client-core/src/query/browse-reads';
 import type {ContentProjection, ContentEntry} from '../../../../../../packages/client-core/src/library-content';
 import {
   BrowseQueryBuilder, browseCapabilitiesPath, browsePath, parseBrowseCapabilities, parseBrowseResult, type BrowseCapabilities,
 } from '../../../../../../packages/client-core/src/browse';
 import {getContainerState, setContainerFlag, type ContainerState} from '../../../../../../packages/client-core/src/container-state';
-import {readListeningSimilar, LibraryContentService} from '../../../../../../packages/client-core/src/library-content';
+import {readListeningSimilar, listeningSimilarPath, LibraryContentService} from '../../../../../../packages/client-core/src/library-content';
 import {nativeSimilarRow, type NativeRelatedRow, type NativeRelatedRowSnapshot} from '../../watch/title-related';
-import {encodedRoutePath} from '../../../../../../packages/contracts/src/routes';
 import {unreadableServerResponse} from '../../../../../../packages/client-core/src/server-messages';
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
 import type {NativeShellPlaybackAdapter} from '../../../shell/playback';
@@ -86,11 +86,6 @@ const album = (value: unknown): MusicAlbumRow | undefined => {
     ...(role ? {role} : {}), ...(text(value.posterUrl) && value.posterUrl.startsWith('/') ? {posterUrl: value.posterUrl} : {}),
     ...(obj(value.homeActions) ? {homeActions: value.homeActions as ContentEntry['homeActions']} : {})});
 };
-const request = async <T>(api: Pick<NativeShellBootstrapContext['api'], 'request'>, path: string, method: 'GET' | 'POST', body: unknown, signal: AbortSignal): Promise<T> => {
-  const value = await api.request<T>(path, method, body, signal);
-  return value;
-};
-
 /** One authority-local album or artist page. The server owns every list, count and order. */
 export class NativeTVMusicController {
   private options: Options;
@@ -271,21 +266,21 @@ export class NativeTVMusicController {
   private async capabilities(pivot: string, signal: AbortSignal): Promise<BrowseCapabilities> {
     const libraryId = this.options.entry.libraryId;
     if (!libraryId) throw new Error('music_library_required');
-    return parseBrowseCapabilities(await request(this.api, browseCapabilitiesPath(libraryId, pivot), 'GET', undefined, signal));
+    return parseBrowseCapabilities(await readBrowseCapabilitiesResponse(this.api, libraryId, pivot, signal));
   }
   private async browse(capabilities: BrowseCapabilities, build: (builder: BrowseQueryBuilder) => BrowseQueryBuilder, signal: AbortSignal) {
     const libraryId = this.options.entry.libraryId;
     if (!libraryId) throw new Error('music_library_required');
     const body = build(new BrowseQueryBuilder(capabilities)).build();
-    return parseBrowseResult(await request(this.api, browsePath(libraryId), 'POST', body, signal));
+    return parseBrowseResult(await readImmediateBrowsePageResponse(this.api, libraryId, body, signal));
   }
   private songSection(capabilities: BrowseCapabilities, build: (builder: BrowseQueryBuilder) => BrowseQueryBuilder, generation: number, all = false) {
-    const path=browsePath(this.options.entry.libraryId!),original=build(new BrowseQueryBuilder(capabilities)).build();
+    const libraryId=this.options.entry.libraryId!,path=browsePath(libraryId),original=build(new BrowseQueryBuilder(capabilities)).build();
     if (all) this.allSongQuery = JSON.stringify([path, original]); else this.songQuery = JSON.stringify([path, original]);
     const pager = new MusicSectionPager<ContentEntry>({
       current: () => this.current() && generation === this.generation,
       read: async (cursor, signal) => {
-        const page=parseBrowseResult(await request(this.api,path,'POST',{...original,...(cursor?{cursor}:{})},signal));
+        const page=parseBrowseResult(await readImmediateBrowsePageResponse(this.api,libraryId,{...original,...(cursor?{cursor}:{})},signal));
         if (page.entries.some(entry => entry.kind !== 'song')) throw membershipFailure('music_section_unreadable');
         return {items:page.entries,nextCursor:page.pageInfo.hasMore?page.pageInfo.nextCursor:'',revision:page.pageInfo.revision,
           offset:page.pageInfo.start,total:page.pageInfo.total,totalIsLowerBound:page.pageInfo.totalIsLowerBound};
@@ -326,7 +321,7 @@ export class NativeTVMusicController {
     }
   }
   private async loadSimilar(signal:AbortSignal):Promise<void>{
-    const witness=this.entityWitness,path=encodedRoutePath('get_items_id_similar',{id:encodeURIComponent(this.options.entry.id)})+'?limit=12&by=sound';
+    const witness=this.entityWitness,path=listeningSimilarPath(this.options.entry.id,{limit:12,by:'sound'});
     try{
       if(!witness||!this.entityCurrent(witness))throw membershipFailure('invalid_projection');
       const value=await readListeningSimilar(this.api,this.options.similarScope,this.options.entry.id,{limit:12,by:'sound',signal});
@@ -379,8 +374,8 @@ export class NativeTVMusicController {
     ]);
     if (!this.current() || signal.aborted) return;
     const original = new BrowseQueryBuilder(capabilities).where('artist', 'equals', this.options.entry.title).sort('playCount', 'desc').limit(Math.min(5, capabilities.queryLimits.maximumLimit)).build();
-    const path = browsePath(this.options.entry.libraryId!);
-    const page = parseBrowseResult(await request(this.api, path, 'POST', original, signal));
+    const libraryId = this.options.entry.libraryId!, path = browsePath(libraryId);
+    const page = parseBrowseResult(await readImmediateBrowsePageResponse(this.api, libraryId, original, signal));
     if (!this.current() || signal.aborted) return;
     if (page.entries.some(entry => entry.kind !== 'song')) throw new Error(unreadableServerResponse);
     this.songQuery = JSON.stringify([path, original]); this.topSongsRevision = page.pageInfo.revision;
@@ -427,12 +422,11 @@ export class NativeTVMusicController {
     }
   }
   private async artistAlbums(signal: AbortSignal): Promise<void> {
-    const generation=this.generation,originalPath=encodedRoutePath('get_artists_id_albums',{id:encodeURIComponent(this.options.entry.id)})+'?limit=100';
+    const generation=this.generation,read=createArtistAlbumPageRead(this.api,this.options.entry.id);
     const pager=new MusicSectionPager<MusicAlbumRow>({
       current:()=>this.current()&&generation===this.generation&&!signal.aborted,
       read:async(cursor,input)=>{
-        const raw=await request<{albums?:unknown;nextCursor?:unknown}>(this.api,
-          originalPath+(cursor?`&cursor=${encodeURIComponent(cursor)}`:''),'GET',undefined,input);
+        const raw=await read(cursor,input);
         if(!text(raw?.nextCursor,4096))throw membershipFailure('music_section_unreadable');
         const items=list(raw?.albums,100).flatMap(row=>{const value=album(row);return value?[value]:[];});
         return {items,nextCursor:raw.nextCursor};
@@ -461,7 +455,7 @@ export class NativeTVMusicController {
       let revision = '', total = 0, maxPages = 1;
       for (let pageNumber = 0; pageNumber < maxPages; pageNumber++) {
         if (!this.current() || signal.aborted) throw retired();
-        const page = parseBrowseResult(await request(this.api, browsePath(libraryId), 'POST', builder.build(), signal));
+        const page = parseBrowseResult(await readImmediateBrowsePageResponse(this.api, libraryId, builder.build(), signal));
         if (!this.current() || signal.aborted) throw retired();
         if (page.pageInfo.totalIsLowerBound) throw membershipFailure('album_membership_incomplete');
         if (pageNumber === 0) {
