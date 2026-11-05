@@ -1,3 +1,4 @@
+import {createNativeHostedSource} from '../../../../packages/client-core/src/query/hosted-directory-source';
 import {createNativeCertificateFetch} from '../../../../packages/client-core/src/query/certificate-fetch';
 import {createOwnerRecoveryFetch} from '../../../../packages/client-core/src/query/owner-recovery-fetch';
 import {readConnectionFacts} from '../../../../packages/client-core/src/query/connection-operations';
@@ -359,28 +360,10 @@ export function onNetworkChange(listener: (online: boolean | undefined) => void)
     networkListeners.delete(listener);
   };
 }
-export function nativeHostedSource(
-  origin: string,
-  credentials: CredentialSessionService | (() => CredentialSessionService),
-  accountId: string,
-  expected?: CredentialAccessExpectation,
-): HostedConnectionSource {
-  const captured = expected && Object.freeze({...expected});
-  return {
-    origin,
-    accountId,
-    request: async <T>(path: string, signal: AbortSignal) => {
-      if (signal.aborted) throw new RouteError('cancelled', 'account_route_cancelled');
-      const owner = typeof credentials === 'function' ? credentials() : credentials;
-      const original = owner.getSnapshot().session;
-      if (!original || original.account.id !== accountId || captured && (captured.accountId !== accountId || original.familyId !== captured.familyId))
-        throw new RouteError('account_changed', 'Your Portico Account changed.');
-      return nativeAccountRead(owner, session => new HttpLocalApi(origin, session.accessToken, nativeNetworkFetch)
-        .request<T>(path, 'GET', undefined, signal), {expected: captured ?? accountExpectation(original), signal,
-          isCurrent: () => !signal.aborted});
-    },
-  };
+export function nativeHostedSource(origin: string, credentials: CredentialSessionService | (() => CredentialSessionService), accountId: string, expected?: CredentialAccessExpectation): HostedConnectionSource {
+  return createNativeHostedSource(origin, nativeNetworkFetch, credentials, accountId, expected);
 }
+
 export async function restoreNativeConnection(
   origin: string,
   credentials: CredentialSessionService | (() => CredentialSessionService) | undefined,

@@ -39,7 +39,7 @@ async function fixture() {
   let record: CredentialRecord<string> | undefined, holdLoad: Awaited<ReturnType<typeof storageHold>> | undefined;
   let renewal: () => Promise<core.HostedSession> = async () => grant('family', 'account', 'renewed-access');
   const renewals: string[] = [], revocations: string[] = [];
-  const owner = new CredentialSessionService({authorityFromSession: value => value.refreshToken!,
+  const owner = new CredentialSessionService({origin: hostedUrl, authorityFromSession: value => value.refreshToken!,
     refresh: async authority => {renewals.push(authority); return renewal();}, revoke: async authority => {revocations.push(authority);}},
   {load: async () => {const hold = holdLoad; holdLoad = undefined; if (hold) {hold.entered.resolve(); await hold.promise;} return structuredClone(record);},
     save: async value => {record = structuredClone(value);}}, async () => 'fixture-renewal-request');

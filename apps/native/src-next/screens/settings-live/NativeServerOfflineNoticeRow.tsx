@@ -1,4 +1,4 @@
-import {ownerHostedNotifications} from '../../../../../packages/client-core/src/owner-account-clients';
+import {createHostedNotificationClient} from '../../../../../packages/client-core/src/query/hosted-account-transport';
 import React, {useLayoutEffect, useRef, useState} from 'react';
 import {View} from 'react-native';
 import {AccountNotificationsClient, type NotificationPreferences} from '../../../../../packages/client-core/src/account-notifications';
@@ -7,7 +7,6 @@ import {SettingsRow} from '../../kit/shell';
 import {StateView} from '../../kit/states';
 import {useTheme} from '../../kit/theme';
 import {nativeAccounts} from '../../platform/accounts';
-import {hostedUrl} from '../../platform/account-authority';
 import {accountExpectation, nativeAccountRead, nativeAccountWork} from '../../platform/account-work';
 import {nativeNetworkFetch} from '../../platform/server-connections';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
@@ -49,7 +48,7 @@ export function NativeServerOfflineNoticeRow({context, runtime, lifetime}: {cont
       try {
         const session = credentials.getSnapshot().session;
         if (!session || !current()) throw Object.assign(new Error('native_account_changed'), {code: 'account_changed'});
-        return await (write ? nativeAccountWork : nativeAccountRead)(credentials, live => work(ownerHostedNotifications(hostedUrl, live.accessToken, nativeNetworkFetch, request.signal), request.signal), // query-read: kept (a Portico Account preference over the hosted API, not a server document in the viewer's cache)
+        return await (write ? nativeAccountWork : nativeAccountRead)(credentials, live => work(createHostedNotificationClient(credentials, live, nativeNetworkFetch, request.signal), request.signal), // query-read: kept (a Portico Account preference over the hosted API, not a server document in the viewer's cache)
         {expected: accountExpectation(session), signal: request.signal, isCurrent: current});
       } finally {clearTimeout(timer); requests.delete(request);}
     };

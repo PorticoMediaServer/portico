@@ -412,7 +412,7 @@ for (const kind of ['local', 'portico'] as const) {
 async function approvedAccounts() {
   const calls: string[] = [], tokens: string[] = [], activeWrites: HostedSession[] = []; let record: CredentialRecord<string> | undefined, verificationError: unknown;
   let verificationHold: ReturnType<typeof deferred<void>> | undefined;
-  const credentials = new CredentialSessionService({authorityFromSession: session => session.familyId, refresh: async () => approvedGrant(), revoke: async family => {calls.push(`revoke:${family}`);}},
+  const credentials = new CredentialSessionService({origin: 'https://accounts.example', authorityFromSession: session => session.familyId, refresh: async () => approvedGrant(), revoke: async family => {calls.push(`revoke:${family}`);}},
     {load: async () => record, save: async value => {if (value.active) activeWrites.push(structuredClone(value.active.session)); record = structuredClone(value);}}, async () => 'test-request');
   await credentials.synchronize();
   const modules: Record<string, unknown> = {

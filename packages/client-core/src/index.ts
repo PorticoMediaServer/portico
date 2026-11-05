@@ -190,6 +190,11 @@ export function retryAfterSecondsFrom(value: string | null, now = Date.now()): n
   return ms !== undefined ? ms / 1000 : value && /^\s*\d*[1-9]\d*\s*$/.test(value) ? Number(value) : undefined;
 }
 
+/** The same whole-second retry floor for transports holding response headers. */
+export function retryAfterSecondsFromHeaders(headers: Readonly<{get(name: string): string | null}>, now?: number): number | undefined {
+  return retryAfterSecondsFrom(headers.get("Retry-After"), now);
+}
+
 /** A refusal to wait out and resend: the server said nothing ran. */
 function writerRefusal(error: unknown): {retryAfterMs?: number} | undefined {
   if (!(error instanceof ApiError) || !resendableRefusal(error.code) || !error.retryable) return undefined;
