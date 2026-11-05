@@ -33,6 +33,9 @@ type Config struct {
 	// so background descriptors cannot exhaust protected classes.
 	MaxGrantsPerClass int
 	Now               func() time.Time
+	// WAL is required by the serving writer composition. Nil permits pure
+	// resource-ledger simulations only; it makes no WAL-BOUND claim.
+	WAL *WALGate
 }
 
 type holding struct {
@@ -118,6 +121,11 @@ func (g *ledger) Try(r Request) Decision {
 					return refuse(Capacity)
 				}
 			}
+		}
+	}
+	if r.Writer && g.config.WAL != nil {
+		if code := g.config.WAL.reserve(r, now); code != 0 {
+			return refuse(code)
 		}
 	}
 	// Only admitted, bounded metadata is copied. Work buffers are allocated by
@@ -214,6 +222,9 @@ func (a *Authority) Retired(p *Grant) error {
 	h := g.find(p)
 	if h == nil {
 		return ErrRetirement
+	}
+	if h.request.Writer && g.config.WAL != nil {
+		g.config.WAL.returned()
 	}
 	for k, n := range h.request.Need {
 		g.used[h.request.Class][k] -= n
