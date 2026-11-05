@@ -1,5 +1,5 @@
 {
-  "ddl_sha256": "5f3c7f676ba3e751487ab92a1fced313a583df49eedbe5c2e438031574418a73",
+  "ddl_sha256": "abf437746dfbffa23ce5c61f198e0b9a5659bf57bf2d8d0b60288de5d8d2ea7f",
   "scope": "Conservative10M+capable repeated/high-fanout/time grains at1Mitems, not a claim every server reaches this density. Full release index set includes declared/implicit UNIQUE/PK/rowid paths. No post-release populated-table index addition; new justified empty access relation online.",
   "tables": [
     {
@@ -10061,5 +10061,5 @@
       "complete_release_indexes": []
     }
   ],
-  "change_control": "Separate Change002 candidate; R/W review required, not canonical/embedded"
+  "change_control": "Adopted CHANGE-003; R agreement and lead adoption. Complete inherited release index sets unchanged."
 }
