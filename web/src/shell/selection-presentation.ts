@@ -1,4 +1,5 @@
 import type {BulkEdit, BulkReceipt} from '@core/metadata-bulk.ts';
+export {catalogueSelectionBulkDraft as editorCoreDraft} from '@core/catalogue-bulk-commands.ts';
 import type {BulkMetadataPreview, HomeSelectionMember, HomeSelectionPicker} from '@core/home-selection/index.ts';
 import type {BulkEditorDraft, BulkFieldValues, BulkResultView, PickerResult} from '../kit/selection';
 import {bulkReceiptView} from '../kit/selection/presentation';
@@ -31,12 +32,6 @@ export function editorUiDraft(draft: Pick<BulkEdit, 'fields' | 'lists' | 'genres
   return {fields: Object.fromEntries(Object.entries(draft.fields ?? {}).flatMap(([key, edit]) => edit.value !== undefined ? [[key, edit.value]] : [])),
     lists: {...Object.fromEntries(Object.entries(draft.lists ?? {}).map(([key, edit]) => [key, list(edit)])), ...(draft.genres ? {genres: list(draft.genres)} : {})}, lockEdited: draft.lockEdited ?? true};
 }
-export function editorCoreDraft(draft: BulkEditorDraft): Pick<BulkEdit, 'fields' | 'lists' | 'genres' | 'lockEdited'> {
-  const {genres, ...lists} = draft.lists;
-  return {fields: Object.fromEntries(Object.entries(draft.fields).map(([key, value]) => [key, {value}])), lists,
-    ...(genres ? {genres} : {}), lockEdited: draft.lockEdited};
-}
-
 /** Expanded failure leaves are returned by the authorized receipt read, independently of selected parents. */
 export function pickerResultView(picker: HomeSelectionPicker, reason: (code: string) => string, jobFacts: PickerResult['jobFacts'] = []): PickerResult | undefined {
   const {destination, receipt} = picker;

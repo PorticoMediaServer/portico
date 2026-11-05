@@ -1,11 +1,12 @@
 import {readCatalogueItemResponse} from '@core/query/catalogue-reads.ts';
 import {readMetadataResponse, submitMetadataBulk} from '@core/query/catalogue-actions.ts';
+import {catalogueSelectionBulkEdit} from '@core/catalogue-bulk-commands.ts';
 import type {ShellArtwork} from '../../shell/artwork';
 import {validateRepair} from '@core/metadata-repair.ts';
 import {parseMediaItem} from '@core/media-item.ts';
 import {encodedRoutePath} from '../../../../packages/contracts/src/routes.ts';
 import type {BulkEdit, BulkReceipt} from '@core/metadata-bulk.ts';
-import {validBulkEdit, validateBulkReceipt} from '@core/metadata-bulk.ts';
+import {bulkTargetLimit, validBulkEdit, validateBulkReceipt} from '@core/metadata-bulk.ts';
 import {fetchBulkMetadataPreview, metadataPreviewTargets, type BulkMetadataPreview, type BulkMetadataPreviewRequest} from '@core/home-selection/index.ts';
 import type {HomeApi} from '@core/home.ts';
 import type {EventsClient} from '@core/playback-v1/events.ts';
@@ -109,8 +110,9 @@ export function createSelectionEditor({api, events, requestId, isCurrent, server
         const targets = preview.targets;
         const bodies = (async () => {
           const result: BulkEdit[] = [];
-          for (let start = 0; start < targets.length; start += 200) {
-            const body: BulkEdit = {operationId: await requestId(), targets: targets.slice(start, start + 200).map(({kind, id, expectedRevision}) => ({kind, id, expectedRevision})), ...core};
+          for (let start = 0; start < targets.length; start += bulkTargetLimit) {
+            const operationId = await requestId();
+            const body = catalogueSelectionBulkEdit(core, targets, start, operationId);
             current(caller); if (!validBulkEdit(body, preview.schema)) throw new SelectionEditorError('invalid-bulk-edit');
             result.push(body);
           }
