@@ -6,16 +6,27 @@ revision/cursor recovery, request budgets and cache/freshness semantics. App
 screens own view state and actions and subscribe to core documents. A generic
 `request(path, method)` wrapper in a screen does not satisfy this boundary.
 
-Run `python3 ci/client_api_census.py`. After a move, run
-`python3 ci/client_api_census.py --update` and commit the smaller
-`ci/client-api-baseline.json`. The update command refuses additions. Use
+Run `python3 ci/client_api_census.py`. The checked-in
+`ci/client-api-baseline.json` is an upper bound: a move passes without editing it.
+Optionally run `python3 ci/client_api_census.py --update` to lower it; the update command refuses additions. Use
 `--report /path/to/report.json` for every exact file, line, enclosing owner,
 callee, operation ID and expression, including approved exceptions. Source line
 numbers are navigation aids; baseline identities survive line shifts outside reviewed guard/native method bodies. Identical
 expressions are a multiset, so adding another identical call still fails.
 `--base <sha>` also rejects checked-in baseline increases and unapproved exception changes
-against the review base. IDs cannot overlap `sites` and `additionalSites`; their complete combined allowance multiset is checked, including duplicate occurrences. It runs on every PR/merge-queue hygiene job; nightly
-checks the checked-in baseline against all current sources. `--initialize` is
+against the review base. Live checks also scan actual source at each comparison
+base, so stale-high JSON cannot authorize additions. PRs compare with their merge
+base; merge groups check both the target-tip aggregate range and the validated
+immediate predecessor range. A later group cannot spend an earlier group's
+removal credit; inherited growth also fails. Every first-parent increment is
+additionally checked using that entry’s own immutable source against its parent,
+so a clean final entry cannot carry an earlier failed entry. Incomplete queue
+boundaries fail closed. Historical source uses current checker code and never
+changes the live checkout or index. Historical source/metadata read
+failures fail closed. Manual live checks require a genuine earlier comparison
+base. IDs cannot overlap `sites` and `additionalSites`; their complete combined allowance multiset is checked, including duplicate occurrences. It runs on every PR/merge-queue hygiene job; nightly
+checks the checked-in upper bounds. Periodic baseline-only refresh PRs lower
+both count baselines on current main; exceptions and approvals remain exact per PR. `--initialize` is
 only for the foundation: it refuses an existing baseline.
 
 The scanner starts from lane G's all-route evidence census and replaces literal
@@ -110,7 +121,11 @@ PRs still only shrink it. Regenerate approved coverage with `--update --base
 
 The detector resolves core HTTP methods and aliases, including multipart and
 bounded requests and the core V1 request-object seam. Native URL readers require
-java.net.URL bindings, async Swift reads require URLSession receivers, and fluent
+java.net.URL bindings, async Swift reads require URLSession receivers (including
+module-qualified bindings, inline constructors, grouping and call/property chains
+for data/bytes/upload/download). Swift ordinary, multiline and extended-delimiter
+string payloads stay opaque; executable interpolation is tokenized recursively,
+including nested strings/comments, while enclosing request identities stay stable. Fluent
 HTTP calls require known HTTP constructors/types/modules, including borrowed Rust
 clients with mutable/lifetime-qualified references. Local files, model
 methods, diagnostics and decoder streams are negative fixtures.
