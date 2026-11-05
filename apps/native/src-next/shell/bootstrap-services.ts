@@ -1,3 +1,4 @@
+import {readDirectAccount} from '../../../../packages/client-core/src/query/connection-operations.ts';
 import {HomeService, type HomeSnapshot} from '../../../../packages/client-core/src/home-service';
 import {InboxService} from '../../../../packages/client-core/src/inbox';
 import {parseNotificationSummary} from '../../../../packages/client-core/src/notifications';
@@ -183,7 +184,7 @@ export class NativeShellBootstrapServices {
     await this.assertAccountBinding();
     this.assertCurrent();
     const viewer = this.options.viewer;
-    const raw = await this.request(routePath('get_direct_account'), 'GET', undefined, signal);
+    const raw = await readDirectAccount(this, signal);
     if (object(raw) && (typeof raw.serverId === 'string' && raw.serverId !== viewer.serverId
       || typeof raw.authority === 'string' && raw.authority !== viewer.authority
       || object(raw.account) && typeof raw.account.id === 'string' && raw.account.id !== viewer.accountId)) this.retire();

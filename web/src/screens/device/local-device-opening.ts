@@ -1,6 +1,6 @@
 import {serverNow} from '@core/server-clock.ts';
 import type {HttpLocalApi, LocalSession} from '@core/index.ts';
-import {routePath} from '../../../../packages/contracts/src/routes.ts';
+import {createLocalDeviceApprovalTransport} from '@core/query/connection-operations.ts';
 
 export type LocalDeviceLocation = Readonly<{pathname: string; href: string; state: Readonly<{__TSR_key?: unknown}>}>;
 type Api = Pick<HttpLocalApi, 'baseUrl' | 'getRouteConnection' | 'request'>;
@@ -12,7 +12,6 @@ export type LocalDeviceOpening = Readonly<{
   dispose(): void;
 }>;
 const retired = () => new DOMException('Device approval entry retired', 'AbortError');
-const paths = new Set<string>([routePath('post_quick_connect_review'), routePath('post_quick_connect_decision')]);
 
 /** Original local page/API/session only. This creates no session or approval and
  * cannot substitute the Hosted DevicePage or another selected server. */
@@ -55,14 +54,7 @@ export function captureLocalDeviceOpening(input: Readonly<{
     if (!valid) dispose();return valid;
   };
   const check = () => {if (!current()) throw retired();};
-  const scoped = Object.freeze({request: async <T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> => {
-    check();
-    if (method !== 'POST' || !paths.has(path)) throw retired();
-    const stop = signal ? AbortSignal.any([life.signal, signal]) : life.signal;
-    stop.throwIfAborted();
-    const value = await request<T>(path, method, body, stop);
-    check();stop.throwIfAborted();return value;
-  }});
+  const scoped = createLocalDeviceApprovalTransport(request, {signal: life.signal, check, retired});
   if (!current()) return;
   return Object.freeze({identity: Object.freeze({}), api: scoped, signal: life.signal, current, dispose});
 }

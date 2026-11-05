@@ -10,7 +10,7 @@ function rig(over: Partial<NativeTopShelfOwner> = {}) {
   const calls: unknown[][] = [], requests: unknown[][] = [], timers: {run: () => void; ms: number}[] = [], listeners = new Set<() => void>();
   let alive = true, key: string | undefined = 'item:one';
   const owner: NativeTopShelfOwner = {current: () => alive, viewer: () => viewer, baseUrl: 'https://media.example:32400',
-    request: async (...args) => {requests.push(args); return {token, expiresAt, feedUrl: '/v1/topshelf'};},
+    tokenApi: {request: async (...args) => {requests.push(args); return {token, expiresAt, feedUrl: '/v1/topshelf'};}},
     subscribePlayback: listener => {listeners.add(listener); return () => listeners.delete(listener);}, playbackKey: () => key, ...over};
   const port = {configure: async (...args: unknown[]) => {calls.push(['configure', ...args]);}, clear: async () => {calls.push(['clear']);}, changed: () => {calls.push(['changed']);}};
   const dispose = bindTopShelf(owner, port, error => {throw error;}, {set: (run, ms) => {timers.push({run, ms}); return timers.length;}, clear: () => {}});
@@ -53,7 +53,7 @@ test('a hosted account, a server under a path, or no installation leaves the she
 
 test('a viewer retired while the token was being issued never configures the shelf', async () => {
   let release!: (value: unknown) => void;
-  const {calls, retire, dispose} = rig({request: () => new Promise(resolve => {release = resolve;})});
+  const {calls, retire, dispose} = rig({tokenApi: {request: () => new Promise(resolve => {release = resolve;})}});
   retire(); dispose(); release({token, expiresAt, feedUrl: '/v1/topshelf'}); await settle();
   assert.deepEqual(calls, [['clear']]);
 });
@@ -74,7 +74,7 @@ test('televisions bind the shelf (Apple TV, Android TV, Fire TV); phones and tab
   const {bindNativeTopShelf} = await import('../src-next/platform/top-shelf.ts');
   const before = {...Platform}, module = NativeModules.PorticoTopShelf, cleared: string[] = [];
   NativeModules.PorticoTopShelf = {configure: async () => {}, clear: async () => {cleared.push(Platform.OS);}, changed() {}};
-  const owner: NativeTopShelfOwner = {current: () => true, viewer: () => undefined, baseUrl: 'https://example.com', request: async () => ({}), subscribePlayback: () => () => {}, playbackKey: () => undefined};
+  const owner: NativeTopShelfOwner = {current: () => true, viewer: () => undefined, baseUrl: 'https://example.com', tokenApi: {request: async () => ({})}, subscribePlayback: () => () => {}, playbackKey: () => undefined};
   try {
     for (const [OS, isTV, bound] of [['ios', true, true], ['android', true, true], ['ios', false, false], ['android', false, false]] as const) {
       Object.assign(Platform, {OS, isTV});
