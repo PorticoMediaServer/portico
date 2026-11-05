@@ -113,3 +113,13 @@ func (c *snapshotOwnedConn) SQLiteLimit(id int, newVal int) (int, error) {
 	}
 	return native.SQLiteLimit(id, -1)
 }
+
+// SQLiteDQS forwards the helper's read-only policy evidence. Enforcement and
+// physical initialization remain in sqliteconn; there is no setter here.
+func (c *snapshotOwnedConn) SQLiteDQS() (ddl int, dml int, err error) {
+	native, ok := c.Conn.(interface{ SQLiteDQS() (int, int, error) })
+	if !ok {
+		return 0, 0, errors.New("native DQS getter unsupported")
+	}
+	return native.SQLiteDQS()
+}
