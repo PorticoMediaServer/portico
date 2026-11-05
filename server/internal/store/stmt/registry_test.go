@@ -6,12 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
-	_ "github.com/PorticoMediaServer/portico/server/internal/thirdparty/sqlite"
 )
 
 func definition() stmt.Definition {
@@ -232,11 +233,26 @@ func TestRegistryExecReturningAndContext(t *testing.T) {
 }
 func database(t *testing.T) *sql.DB {
 	t.Helper()
-	db, err := sql.Open("sqlite", ":memory:?"+connectionPragmas)
+	cfg := sqliteconn.Config{Role: sqliteconn.Writer, Connections: 1, CacheKiB: 2048, Synchronous: sqliteconn.Normal}
+	db, settings, err := sqliteconn.Open(context.Background(), filepath.Join(t.TempDir(), "registry.db"), cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	db.SetMaxOpenConns(1)
+	t.Logf("registry startup settings: %+v", settings)
 	t.Cleanup(func() { db.Close() })
 	return db
+}
+
+func TestRegistryManifestHasExplicitEmptyBindings(t *testing.T) {
+	r, err := stmt.New([]stmt.Definition{{ID: "no.parameters", SQL: "SELECT 1", Owner: "test", CallSites: []string{"registry_test.go"}, Kind: stmt.Read, Cohorts: []stmt.Cohort{{Name: "empty"}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bytes, err := json.Marshal(r.Manifest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(bytes), `"params":[]`) || !strings.Contains(string(bytes), `"bindings":[]`) {
+		t.Fatalf("no-argument bindings must be explicit empty lists: %s", bytes)
+	}
 }
