@@ -45,9 +45,12 @@ func (c *snapshotOwnedConnector) retry() error {
 
 type snapshotOwnedConn struct {
 	driver.Conn
-	owner   *snapshotOwnedConnector
-	closeMu sync.Mutex
-	closed  bool
+	owner     *snapshotOwnedConnector
+	closeMu   sync.Mutex
+	closed    bool
+	safetyMu  sync.Mutex
+	fault     *snapshotDriverPanic
+	resources map[*snapshotCloser]struct{}
 }
 
 func (c *snapshotOwnedConn) Close() error {
@@ -56,7 +59,10 @@ func (c *snapshotOwnedConn) Close() error {
 	if c.closed {
 		return nil
 	}
-	err := c.Conn.Close()
+	err := c.closeResources()
+	if err == nil {
+		_, err = snapshotCall(c, "connection close", func() (struct{}, error) { return struct{}{}, c.Conn.Close() })
+	}
 	c.owner.mu.Lock()
 	defer c.owner.mu.Unlock()
 	if err != nil {
@@ -69,21 +75,42 @@ func (c *snapshotOwnedConn) Close() error {
 }
 func (c *snapshotOwnedConn) ExecContext(ctx context.Context, q string, args []driver.NamedValue) (driver.Result, error) {
 	if native, ok := c.Conn.(driver.ExecerContext); ok {
-		return native.ExecContext(ctx, q, args)
+		result, err := snapshotCall(c, "exec", func() (driver.Result, error) { return native.ExecContext(ctx, q, args) })
+		return result, err
 	}
 	return nil, driver.ErrSkip
 }
 func (c *snapshotOwnedConn) QueryContext(ctx context.Context, q string, args []driver.NamedValue) (driver.Rows, error) {
-	if native, ok := c.Conn.(driver.QueryerContext); ok {
-		return native.QueryContext(ctx, q, args)
+	// Retain the prepared handle before stepping; Conn.QueryContext would hide it
+	// if a scalar panicked before returning Rows.
+	st, err := c.PrepareContext(ctx, q)
+	if err != nil {
+		return nil, err
 	}
-	return nil, driver.ErrSkip
+	rows, err := st.(*snapshotOwnedStmt).QueryContext(ctx, args)
+	if err != nil {
+		return nil, errors.Join(err, c.closeResources())
+	}
+	rows.(*snapshotOwnedRows).afterClose = st.Close
+	return rows, nil
+}
+func (c *snapshotOwnedConn) Prepare(q string) (driver.Stmt, error) {
+	return c.PrepareContext(context.Background(), q)
 }
 func (c *snapshotOwnedConn) PrepareContext(ctx context.Context, q string) (driver.Stmt, error) {
-	if native, ok := c.Conn.(driver.ConnPrepareContext); ok {
-		return native.PrepareContext(ctx, q)
+	if fault := c.panicError(); fault != nil {
+		return nil, fault
 	}
-	return c.Conn.Prepare(q)
+	st, err := snapshotCall(c, "prepare", func() (driver.Stmt, error) {
+		if native, ok := c.Conn.(driver.ConnPrepareContext); ok {
+			return native.PrepareContext(ctx, q)
+		}
+		return c.Conn.Prepare(q)
+	})
+	if st != nil {
+		st = &snapshotOwnedStmt{Stmt: st, c: c, close: c.track(false, st.Close)}
+	}
+	return st, err
 }
 func (c *snapshotOwnedConn) ResetSession(ctx context.Context) error {
 	if native, ok := c.Conn.(driver.SessionResetter); ok {
