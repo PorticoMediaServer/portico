@@ -54,6 +54,10 @@ type Cohort struct {
 type Plan struct {
 	Hot     bool     `json:"hot"`
 	Indexes []string `json:"indexes"`
+	// PrimaryKeys names EQP table/alias targets for native PK paths that have no named INDEXED BY path.
+	PrimaryKeys []string `json:"primaryKeys"`
+	// Seeks pins the actual prefix/range constraints, including a separate tie seek.
+	Seeks []string `json:"seeks"`
 	// AllowedScans names exact tiny tables or coroutine outputs, never a wildcard.
 	AllowedScans []string `json:"allowedScans"`
 }
@@ -238,6 +242,9 @@ func validate(params []Param, args []any) error {
 }
 func cloneArgs(args []any) []any {
 	result := slices.Clone(args)
+	if result == nil {
+		result = []any{}
+	}
 	for i, v := range result {
 		if bytes, ok := v.([]byte); ok {
 			result[i] = slices.Clone(bytes)
@@ -248,7 +255,12 @@ func cloneArgs(args []any) []any {
 func cloneDefinition(d Definition) Definition {
 	d.CallSites = slices.Clone(d.CallSites)
 	d.Params = slices.Clone(d.Params)
+	if d.Params == nil {
+		d.Params = []Param{}
+	}
 	d.Plan.Indexes = slices.Clone(d.Plan.Indexes)
+	d.Plan.PrimaryKeys = slices.Clone(d.Plan.PrimaryKeys)
+	d.Plan.Seeks = slices.Clone(d.Plan.Seeks)
 	d.Plan.AllowedScans = slices.Clone(d.Plan.AllowedScans)
 	d.Cohorts = slices.Clone(d.Cohorts)
 	for i := range d.Cohorts {

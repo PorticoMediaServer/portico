@@ -5,18 +5,14 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
-	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
-
-// Temporary test DSN until store/internal/sqliteconn lands. Every replacement
-// physical connection inherits these settings; no one-off PRAGMA setup is used.
-const connectionPragmas = "_pragma=foreign_keys(1)&_pragma=synchronous(1)&_pragma=wal_autocheckpoint(0)&_pragma=cache_size(-2048)&_pragma=busy_timeout(0)&_pragma=mmap_size(0)&_pragma=query_only(0)"
 
 func TestRegistryBundledEngineAndIterationCancellation(t *testing.T) {
 	db := database(t)
@@ -60,7 +56,13 @@ func TestRegistryBundledEngineAndIterationCancellation(t *testing.T) {
 	if err := rows.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.QueryRow("SELECT 42").Scan(&value); err != nil || value != 42 {
+	connection, err := db.Conn(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connection.Close()
+	assertConnection(t, connection, sqliteconn.Config{Role: sqliteconn.Writer, Connections: 1, CacheKiB: 2048, Synchronous: sqliteconn.Normal})
+	if err := connection.QueryRowContext(context.Background(), "SELECT 42").Scan(&value); err != nil || value != 42 {
 		t.Fatalf("connection not reusable: %d %v", value, err)
 	}
 }
@@ -69,28 +71,35 @@ func TestRegistryReaderCleanupReleasesWAL(t *testing.T) {
 		t.Run(cleanup, func(t *testing.T) {
 			ctx := context.Background()
 			path := filepath.Join(t.TempDir(), "registry.db")
-			uri := url.URL{Scheme: "file", Path: path}
-			db, err := sql.Open("sqlite", uri.String()+"?"+connectionPragmas+"&_pragma=journal_mode(WAL)")
+			writerCfg := sqliteconn.Config{Role: sqliteconn.Writer, Connections: 1, CacheKiB: 2048, Synchronous: sqliteconn.Normal}
+			db, startup, err := sqliteconn.Open(ctx, path, writerCfg)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer db.Close()
-			db.SetMaxOpenConns(2)
+			t.Logf("writer startup settings: %+v", startup)
 			writer, err := db.Conn(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer writer.Close()
-			assertConnection(t, writer)
+			assertConnection(t, writer, writerCfg)
 			if _, err := writer.ExecContext(ctx, "CREATE TABLE items(id INTEGER PRIMARY KEY,value TEXT); INSERT INTO items VALUES(1,'not-an-integer'),(2,'next')"); err != nil {
 				t.Fatal(err)
 			}
-			reader, err := db.Conn(ctx)
+			readerCfg := sqliteconn.Config{Role: sqliteconn.Reader, Connections: 1, CacheKiB: 2048, Synchronous: sqliteconn.Normal}
+			readers, readerStartup, err := sqliteconn.Open(ctx, path, readerCfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer readers.Close()
+			t.Logf("reader startup settings: %+v", readerStartup)
+			reader, err := readers.Conn(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer reader.Close()
-			assertConnection(t, reader)
+			assertConnection(t, reader, readerCfg)
 			d := stmt.Definition{ID: "read.window", SQL: "SELECT value FROM items ORDER BY id", Owner: "test", CallSites: []string{"lifetime_test.go"}, Kind: stmt.Read, Cohorts: []stmt.Cohort{{Name: "two-rows"}}}
 			registry, err := stmt.New([]stmt.Definition{d})
 			if err != nil {
@@ -168,21 +177,20 @@ func TestRegistryReaderCleanupReleasesWAL(t *testing.T) {
 				t.Fatalf("replace connection: %v", err)
 			}
 			reader.Close()
-			replacement, err := db.Conn(ctx)
+			replacement, err := readers.Conn(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer replacement.Close()
-			assertConnection(t, replacement)
+			assertConnection(t, replacement, readerCfg)
 		})
 	}
 }
-func assertConnection(t *testing.T, conn *sql.Conn) {
+func assertConnection(t *testing.T, conn *sql.Conn, cfg sqliteconn.Config) {
 	t.Helper()
-	for name, want := range map[string]int64{"foreign_keys": 1, "synchronous": 1, "wal_autocheckpoint": 0, "cache_size": -2048, "busy_timeout": 0, "mmap_size": 0, "query_only": 0} {
-		var got int64
-		if err := conn.QueryRowContext(context.Background(), "PRAGMA "+name).Scan(&got); err != nil || got != want {
-			t.Fatalf("connection %s: got %d, want %d: %v", name, got, want, err)
-		}
+	settings, err := sqliteconn.Assert(context.Background(), conn, cfg)
+	if err != nil {
+		t.Fatal(err)
 	}
+	t.Logf("acquired settings: %+v", settings)
 }
