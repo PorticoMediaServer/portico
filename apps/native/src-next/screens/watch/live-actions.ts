@@ -1,5 +1,5 @@
 import {serverNow} from '../../../../../packages/client-core/src/server-clock';
-import {routePath} from '../../../../../packages/contracts/src/routes';
+import {readPlaybackGuide} from '../../../../../packages/client-core/src/query/playback';
 import {parseChannelGuide, type GuideRoute, type ChannelGuide} from '../../../../../packages/client-core/src/channel-guide';
 import {legacyChannel, legacyChannelRow, legacyProgramme, legacyProgram} from '../../../../../packages/client-core/src/guide/legacy-source';
 import type {GuideChannelRow, GuideProgram} from '../../../../../packages/client-core/src/guide/types';
@@ -78,7 +78,7 @@ export class NativeTVLiveActions {
     const query = new URLSearchParams({kind: route.kind, sourceId: route.sourceId, timezone: route.timezone, search: route.search,
       start: route.start, end: route.end, channels: target.channelId, limit: '1', cursor: ''});
     if (route.favorites !== undefined) query.set('favorites', String(route.favorites));if (route.includeHidden) query.set('includeHidden', 'true');if (route.group) query.set('group', route.group);
-    const response = await opening.source.api.request<unknown>(`${routePath('get_guide')}?${query}`, 'GET', undefined, signal);
+    const response = await readPlaybackGuide(opening.source.api, query, signal);
     if (!this.current(opening) || signal.aborted) throw retired();
     const guide = parseChannelGuide(response, opening.source.authority.serverId, route);
     const {channel, programme} = liveActionOffer(guide, target, opening.projected);
