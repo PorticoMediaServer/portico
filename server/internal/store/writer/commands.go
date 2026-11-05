@@ -22,6 +22,7 @@ const (
 	PeopleHeadPublish
 	SearchImageStage
 	SearchSeal
+	EffectiveStage
 )
 
 type Durability uint8
@@ -77,6 +78,8 @@ func Describe(id CommandID) (Descriptor, error) {
 		name = "search_image_stage"
 	case SearchSeal:
 		name = "search_seal"
+	case EffectiveStage:
+		name = "effective_stage"
 	default:
 		return Descriptor{}, invalid("command")
 	}
