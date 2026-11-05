@@ -3,10 +3,10 @@
   "readers": [
     {
       "package": "server/internal/store/internal/sqliteconn",
-      "why": "Checks every store Go source and test for connection openings that bypass the shared physical connection policy",
-      "reads": ["server/internal/store/"],
+      "why": "Type-resolves store Go sources and tests and their imports to reject connection openings that bypass the shared physical connection policy",
+      "reads": ["server/*.go", "server/go.mod", "server/go.sum", "go.work"],
       "files": ["server/internal/store/internal/sqliteconn/openings_test.go"],
-      "tests": ["TestStoreOpeningsUseSharedPolicy"]
+      "tests": ["TestStoreOpeningsRejectTypedBypasses", "TestStoreOpeningsUseSharedPolicy"]
     },
     {
       "package": "server/internal/store/internal/searchpolicy",
