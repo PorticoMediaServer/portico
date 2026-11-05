@@ -1,3 +1,4 @@
+import {farewellPlaybackSession} from '@core/query/playback.ts';
 /**
  * The web's one playback path.
  *
@@ -796,14 +797,14 @@ export class WebPlayback implements PlaybackAdapter {
     // ends it too, so its tuner (or its conversion) is free at once instead of when its lease lapses.
     const tuned = this.service?.getSnapshot();
     if (final && this.host.farewell && tuned?.channel && tuned.session?.id && !held.session) {
-      this.host.farewell(`/v1/playback/sessions/${encodeURIComponent(tuned.session.id)}`, 'DELETE', {generation: tuned.session.generation});
+      farewellPlaybackSession((path, method, body) => this.host.farewell!(path, method, body), tuned.session.id, tuned.session.generation);
       return;
     }
     if (!held.session || held.phase === 'ended') return;
     if (!final || !this.host.farewell) { void this.controller.flush().catch(() => {}); return; }
     const service = this.service?.getSnapshot();
     const positionMs = this.render && service?.session?.id === held.session.id ? service.positionSeconds * 1000 : held.observation?.positionMs;
-    this.host.farewell(`/v1/playback/sessions/${encodeURIComponent(held.session.id)}`, 'DELETE', {generation: held.session.presentation.generation, ...(positionMs !== undefined ? {positionMs: Math.max(0, Math.round(positionMs))} : {})});
+    farewellPlaybackSession((path, method, body) => this.host.farewell!(path, method, body), held.session.id, held.session.presentation.generation, positionMs);
   }
 
   // ── PlaybackApi and the queue player's transport ────────────────────────

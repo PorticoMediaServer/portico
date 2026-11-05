@@ -1,3 +1,4 @@
+import {readPlaybackCapabilities, readPlaybackItem, readPlaybackSubtitleFonts, readPlaybackSubtitleLines} from '../../../../../packages/client-core/src/query/playback';
 import {downloadTrickplaySet, preferredTrickplaySet, readItemTrickplay, type TrickplaySet} from '../../../../../packages/client-core/src/trickplay';
 import {AppState, NativeModules, type View} from 'react-native';
 import type {RefObject} from 'react';
@@ -502,7 +503,7 @@ export class NativePlaybackRuntime {
       this.assertSelection(request.context, scoped.signal, current); if (!valid()) throw new Error('stale_selection_context');
       await this.o.capabilitiesReady();
       this.assertSelection(request.context, scoped.signal, current); if (!valid()) throw new Error('stale_selection_context');
-      const capabilities = await this.request<unknown>(routePath('get_capabilities'), 'GET', undefined, scoped.signal);
+      const capabilities = await readPlaybackCapabilities({request: this.request}, scoped.signal);
       if (!valid()) throw new Error('stale_selection_context');
       this.serverKinds = serverPlaybackV1Kinds(capabilities); this.transitions = serverSupportsQueueTransitions(capabilities);
       this.rememberCurrent();
@@ -569,7 +570,7 @@ export class NativePlaybackRuntime {
       if (!valid()) throw new Error('stale_selection_context');
       await this.o.capabilitiesReady();
       if (!valid()) throw new Error('stale_selection_context');
-      const capabilities = await this.request<unknown>(routePath('get_capabilities'), 'GET', undefined, scoped.signal);
+      const capabilities = await readPlaybackCapabilities({request: this.request}, scoped.signal);
       if (!valid()) throw new Error('stale_selection_context');
       if (!serverSupportsV1Channels(capabilities)) throw new Error('channel_playback_unavailable');
       this.rememberCurrent(); this.channel = channel; this.expanded = true;
@@ -608,8 +609,8 @@ export class NativePlaybackRuntime {
       this.connect(); if (!expected) await this.queue.cancel(); if (!current()) return;
       await this.o.capabilitiesReady(); if (!current()) return;
       const [capabilities, directory] = await Promise.all([
-        this.request<unknown>(routePath('get_capabilities'), 'GET', undefined, scoped.signal),
-        fetchGuideSourceSummaries({request: (path, method, body, signal) => this.request(path, method, body, signal)}, this.bound.serverId, input.timezone, scoped.signal),
+        readPlaybackCapabilities({request: this.request}, scoped.signal),
+        fetchGuideSourceSummaries({request: this.request}, this.bound.serverId, input.timezone, scoped.signal),
       ]);
       if (!current()) return;
       if (!serverSupportsV1Channels(capabilities)) throw new Error('channel_playback_unavailable');
@@ -749,7 +750,7 @@ export class NativePlaybackRuntime {
       await this.o.capabilitiesReady(); if (!current()) throw Object.assign(new Error('Playback start retired'), {name: 'AbortError'});
       const [offered, capabilities] = await Promise.all([
         this.optionsClient.options(input.target.itemId, {}, scoped.signal),
-        this.request<unknown>(routePath('get_capabilities'), 'GET', undefined, scoped.signal),
+        readPlaybackCapabilities({request: this.request}, scoped.signal),
       ]);
       if (!current()) throw Object.assign(new Error('Playback start retired'), {name: 'AbortError'});
       // A returning Cast title keeps the edition the receiver reported, when it is still offered.
@@ -875,7 +876,7 @@ export class NativePlaybackRuntime {
       this.connect();
       await this.queue.cancel(); assertCurrent();
       await this.o.capabilitiesReady(); assertCurrent();
-      const capabilities = await this.request<unknown>(routePath('get_capabilities'), 'GET', undefined, scoped.signal); assertCurrent();
+      const capabilities = await readPlaybackCapabilities({request: this.request}, scoped.signal); assertCurrent();
       this.serverKinds = serverPlaybackV1Kinds(capabilities); this.transitions = serverSupportsQueueTransitions(capabilities);
       this.rememberCurrent(); assertCurrent();
       this.entry = undefined; this.subject = undefined; this.options = undefined;
@@ -936,7 +937,7 @@ export class NativePlaybackRuntime {
       this.connect();
       await this.queue.cancel(); assertCurrent();
       await this.o.capabilitiesReady(); assertCurrent();
-      const capabilities = await this.request<unknown>(routePath('get_capabilities'), 'GET', undefined, scoped.signal); assertCurrent();
+      const capabilities = await readPlaybackCapabilities({request: this.request}, scoped.signal); assertCurrent();
       this.serverKinds = serverPlaybackV1Kinds(capabilities); this.transitions = serverSupportsQueueTransitions(capabilities);
       this.rememberCurrent(); assertCurrent();
       this.entry = undefined; this.subject = undefined; this.options = undefined;
@@ -982,7 +983,7 @@ export class NativePlaybackRuntime {
       if (!current()) return;
       const [offered, capabilities] = await Promise.all([
         this.optionsClient.options(input.target.itemId, discTitle ? {versionId, discTitle} : {}, scoped.signal),
-        this.request<unknown>(routePath('get_capabilities'), 'GET', undefined, scoped.signal),
+        readPlaybackCapabilities({request: this.request}, scoped.signal),
       ]);
       if (!current()) return;
       if (offered.itemId !== input.target.itemId || offered.versions.filter(value => value.id === versionId).length !== 1) throw new Error(serviceText('queuePlayer.unsupported'));
@@ -1274,7 +1275,7 @@ export class NativePlaybackRuntime {
       });
     };
     readOptions(false);
-    void this.request<unknown>(encodedRoutePath('get_items_id', {id: encodeURIComponent(itemId)}), 'GET', undefined, controller.signal).then(raw => {
+    void readPlaybackItem({request: this.request}, itemId, controller.signal).then(raw => {
       if (!valid()) return;
       const item = parseMediaItem(raw);
       if (item.id !== itemId) return;
@@ -1398,7 +1399,7 @@ export class NativePlaybackRuntime {
     const listUrl = fontsUrlOf(plan, session);
     if (visible && listUrl && listUrl !== this.fontsKey) {
       this.fontsKey = listUrl; this.fonts = 'pending'; const epoch = this.sourceEpoch;
-      void this.request<unknown>(listUrl, 'GET', undefined, this.sourceController?.signal).then(raw => {
+      void readPlaybackSubtitleFonts({request: this.request}, listUrl, this.sourceController?.signal).then(raw => {
         if (this.active() && epoch === this.sourceEpoch && this.fontsKey === listUrl) { this.fonts = parseSubtitleFonts(raw, listUrl); this.applyOptions(); }
       }).catch(() => { if (this.active() && epoch === this.sourceEpoch && this.fontsKey === listUrl) { this.fonts = parseSubtitleFonts(null, listUrl); this.applyOptions(); } });
     }
@@ -1451,7 +1452,7 @@ export class NativePlaybackRuntime {
     const abort = () => read.controller.abort(); source.addEventListener('abort', abort, {once: true});
     const current = () => this.active() && this.forcedImage === read && read.epoch === this.sourceEpoch
       && !read.controller.signal.aborted && this.matches(fence);
-    void this.request<unknown>(path, 'GET', undefined, read.controller.signal).then(raw => {
+    void readPlaybackSubtitleLines({request: this.request}, path, read.controller.signal).then(raw => {
       if (!current()) return;
       read.mixed = forcedChoiceOf(parseSubtitleLines(raw)); this.applyOptions(); this.publish();
     }).catch(() => { if (current()) {read.mixed = false; this.publish();} })
