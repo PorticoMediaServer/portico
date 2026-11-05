@@ -42,6 +42,27 @@ func TestSearchInputChangeAdmission(t *testing.T) {
 	}
 }
 
+func TestSearchInputCounterBoundaries(t *testing.T) {
+	for _, tt := range []struct {
+		expected, delta, want int64
+	}{
+		{0, 1, 1}, {1, 1, 2}, {math.MaxInt64 - 1, 1, math.MaxInt64},
+		{math.MaxInt64 - 2, 2, math.MaxInt64}, {0, math.MaxInt64, math.MaxInt64},
+	} {
+		if got, err := nextSearchInputCounter(tt.expected, tt.delta); err != nil || got != tt.want {
+			t.Fatalf("exact expected->next counter: got %d, %v, want %d", got, err, tt.want)
+		}
+	}
+	for _, tt := range []struct{ expected, delta int64 }{
+		{-1, 1}, {0, 0}, {1, -1}, {0, math.MinInt64},
+		{math.MaxInt64, 1}, {math.MaxInt64 - 1, 2}, {1, math.MaxInt64},
+	} {
+		if got, err := nextSearchInputCounter(tt.expected, tt.delta); !errors.Is(err, ErrInvalid) || got != 0 {
+			t.Fatal("empty, invalid or overflowing source-clock increment admitted")
+		}
+	}
+}
+
 // These tests exercise the literal SQL through the merged private frame. They
 // are statement/atomicity controls, not InventoryAccept or helper integration:
 // W's commandTurn/common receipt implementation is not on main yet.
@@ -127,6 +148,11 @@ func TestSearchInputNativeStatements(t *testing.T) {
 		t.Fatal("intent must use exact metadata incarnation/entity revision, not other counters")
 	}
 	searchInputFixtureStep(t, tx)
+	var subject int64
+	if err := searchInputBound(t, registry, searchInputSubject, int64(1), int64(1), int64(1)).QueryRowContext(tx.ctx, tx.conn).Scan(&subject); err != nil || subject != 1 {
+		t.Fatal("retained subject must independently match the same source library/kind")
+	}
+	searchInputFixtureStep(t, tx)
 	var existingJob int64
 	if err := searchInputBound(t, registry, searchInputExisting, int64(1)).QueryRowContext(tx.ctx, tx.conn).Scan(&existingJob); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatal("new subject must have no earlier publisher")
@@ -135,9 +161,9 @@ func TestSearchInputNativeStatements(t *testing.T) {
 		id   stmt.ID
 		args []any
 	}{
-		{searchInputInsert, []any{int64(1), int64(1), incarnation, sourceRevision, "A-CJK-uni-bi-v1", int64(1000)}},
-		{searchInputPending, []any{int64(1), int64(1), "active", "A-CJK-uni-bi-v1", "engine", "unicode", int64(0), int64(1), int64(1)}},
-		{searchInputSequence, []any{int64(1), int64(1), nil, int64(0)}},
+		{searchInputInsert, []any{int64(1), int64(1), int64(1), incarnation, sourceRevision, "A-CJK-uni-bi-v1", "capture", int64(1000)}},
+		{searchInputPending, []any{int64(1), int64(2), int64(1), "active", "A-CJK-uni-bi-v1", "engine", "unicode", int64(0), int64(1)}},
+		{searchInputSequence, []any{int64(1), int64(1), int64(1), int64(0)}},
 	} {
 		searchInputFixtureStep(t, tx)
 		r, err := searchInputBound(t, registry, step.id, step.args...).ExecContext(tx.ctx, tx.conn)
@@ -183,10 +209,9 @@ AND last_command_sequence=0 AND acknowledged_command_sequence=0 FROM search_publ
 func TestSearchInputClockCAS(t *testing.T) {
 	w, registry := searchInputFixture(t)
 	for _, args := range [][]any{
-		{int64(2), int64(1), nil, int64(0)},
-		{int64(1), int64(2), nil, int64(0)},
+		{int64(1), int64(2), int64(1), int64(0)},
 		{int64(1), int64(1), int64(2), int64(0)},
-		{int64(1), int64(1), nil, int64(1)},
+		{int64(1), int64(1), int64(1), int64(1)},
 	} {
 		tx, err := w.begin(t.Context(), InventoryAccept, testRecipe(), &testCustody{})
 		if err != nil {
@@ -214,7 +239,7 @@ func TestSearchInputClockCAS(t *testing.T) {
 	}
 	defer tx.rollback(nil)
 	searchInputFixtureStep(t, tx)
-	r, err := searchInputBound(t, registry, searchInputSequence, int64(1), int64(1), nil, int64(math.MaxInt64)).ExecContext(tx.ctx, tx.conn)
+	r, err := searchInputBound(t, registry, searchInputSequence, int64(1), int64(1), int64(1), int64(math.MaxInt64)).ExecContext(tx.ctx, tx.conn)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,15 +248,83 @@ func TestSearchInputClockCAS(t *testing.T) {
 	}
 }
 
+func TestSearchInputBuildingClockCAS(t *testing.T) {
+	w, registry := searchInputFixture(t)
+	// Metadata-only clock-CAS fixture: no second native bank/DDL or compatible
+	// generation is asserted. The actual helper must reject unsupported banks.
+	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO search_generations(id,bank_key,recipe_version,engine_version,unicode_fingerprint,state,created_ms)
+VALUES(2,'clock_fixture_only','fixture_recipe','fixture_engine','fixture_unicode','building',1000)`); err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range []struct {
+		building bool
+		id       stmt.ID
+		args     []any
+		want     int64
+	}{
+		{false, searchInputBuilding, []any{int64(1), int64(1), int64(1), int64(2), int64(0)}, 0},
+		{true, searchInputSequence, []any{int64(1), int64(1), int64(1), int64(0)}, 0},
+		{true, searchInputBuilding, []any{int64(1), int64(1), int64(1), int64(3), int64(0)}, 0},
+		{true, searchInputBuilding, []any{int64(1), int64(2), int64(1), int64(2), int64(0)}, 0},
+		{true, searchInputBuilding, []any{int64(1), int64(1), int64(3), int64(2), int64(0)}, 0},
+		{true, searchInputBuilding, []any{int64(1), int64(1), int64(1), int64(2), int64(1)}, 0},
+		{true, searchInputBuilding, []any{int64(1), int64(1), int64(1), int64(2), int64(0)}, 1},
+	} {
+		var building any
+		if tt.building {
+			building = int64(2)
+		}
+		if _, err := w.db.ExecContext(t.Context(), `UPDATE search_revision SET building_generation_id=? WHERE singleton=1`, building); err != nil {
+			t.Fatal(err)
+		}
+		tx, err := w.begin(t.Context(), InventoryAccept, testRecipe(), &testCustody{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.rollback(nil)
+		searchInputFixtureStep(t, tx)
+		r, err := searchInputBound(t, registry, tt.id, tt.args...).ExecContext(tx.ctx, tx.conn)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n, err := r.RowsAffected(); err != nil || n != tt.want {
+			t.Fatal("active-only/building variant failed exact head CAS")
+		}
+		var exact bool
+		if err := tx.conn.QueryRowContext(tx.ctx, `SELECT revision=1 AND active_generation_id=1 AND input_sequence=? FROM search_revision WHERE singleton=1`, tt.want).Scan(&exact); err != nil || !exact {
+			t.Fatal("clock variant changed serving revision or incremented more than once")
+		}
+		if _, err := tx.rollback(nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := w.db.ExecContext(t.Context(), `UPDATE search_revision SET input_sequence=? WHERE singleton=1`, int64(math.MaxInt64)); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := w.begin(t.Context(), InventoryAccept, testRecipe(), &testCustody{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.rollback(nil)
+	searchInputFixtureStep(t, tx)
+	r, err := searchInputBound(t, registry, searchInputBuilding, int64(1), int64(1), int64(1), int64(2), int64(math.MaxInt64)).ExecContext(tx.ctx, tx.conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, err := r.RowsAffected(); err != nil || n != 0 {
+		t.Fatal("building clock sequence overflow admitted")
+	}
+}
+
 func TestSearchInputPendingCAS(t *testing.T) {
 	w, registry := searchInputFixture(t)
-	good := []any{int64(1), int64(1), "active", "A-CJK-uni-bi-v1", "engine", "unicode", int64(0), int64(1), int64(1)}
+	good := []any{int64(1), int64(2), int64(1), "active", "A-CJK-uni-bi-v1", "engine", "unicode", int64(0), int64(1)}
 	for _, tt := range []struct {
 		at    int
 		value any
 	}{
-		{1, int64(2)}, {2, "building"}, {3, "wrong-recipe"}, {4, "wrong-engine"},
-		{5, "wrong-unicode"}, {6, int64(1)}, {7, int64(2)},
+		{2, int64(2)}, {3, "building"}, {4, "wrong-recipe"}, {5, "wrong-engine"},
+		{6, "wrong-unicode"}, {7, int64(1)}, {8, int64(2)},
 	} {
 		args := append([]any(nil), good...)
 		args[tt.at] = tt.value
@@ -256,10 +349,10 @@ func TestSearchInputPendingCAS(t *testing.T) {
 		// Closed fixture alternatives, not runtime SQL construction.
 		query := `UPDATE search_generations SET pending_subjects=? WHERE id=1`
 		args := append([]any(nil), good...)
-		args[6] = int64(math.MaxInt64)
+		args[7] = int64(math.MaxInt64)
 		if field == "job_revision" {
 			query = `UPDATE search_generations SET pending_subjects=0,job_revision=? WHERE id=1`
-			args[6], args[7] = int64(0), int64(math.MaxInt64)
+			args[7], args[8] = int64(0), int64(math.MaxInt64)
 		}
 		if _, err := w.db.ExecContext(t.Context(), query, int64(math.MaxInt64)); err != nil {
 			t.Fatal(err)
@@ -289,9 +382,9 @@ func TestSearchInputEffectsRollbackTogether(t *testing.T) {
 		id   stmt.ID
 		args []any
 	}{
-		{searchInputInsert, []any{int64(1), int64(1), []byte{9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, int64(1), "A-CJK-uni-bi-v1", int64(1000)}},
-		{searchInputPending, []any{int64(1), int64(1), "active", "A-CJK-uni-bi-v1", "engine", "unicode", int64(0), int64(1), int64(1)}},
-		{searchInputSequence, []any{int64(1), int64(1), nil, int64(0)}},
+		{searchInputInsert, []any{int64(1), int64(1), int64(1), []byte{9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, int64(1), "A-CJK-uni-bi-v1", "capture", int64(1000)}},
+		{searchInputPending, []any{int64(1), int64(2), int64(1), "active", "A-CJK-uni-bi-v1", "engine", "unicode", int64(0), int64(1)}},
+		{searchInputSequence, []any{int64(1), int64(1), int64(1), int64(0)}},
 	}
 	for stop := 0; stop <= len(steps); stop++ {
 		tx, err := w.begin(t.Context(), InventoryAccept, testRecipe(), &testCustody{})
@@ -348,10 +441,24 @@ func TestSearchInputNativeSourceBoundary(t *testing.T) {
 	}
 }
 
+func TestSearchInputNativeSubjectBoundary(t *testing.T) {
+	w, registry := searchInputFixture(t)
+	for _, args := range [][]any{
+		{int64(2), int64(1), int64(1)},
+		{int64(1), int64(2), int64(1)},
+		{int64(1), int64(1), int64(2)},
+	} {
+		var subject int64
+		if err := searchInputBound(t, registry, searchInputSubject, args...).QueryRowContext(t.Context(), w.db).Scan(&subject); !errors.Is(err, sql.ErrNoRows) {
+			t.Fatal("foreign or absent retained subject passed its independent point proof")
+		}
+	}
+}
+
 func TestSearchInputExistingIntentBoundary(t *testing.T) {
 	w, registry := searchInputFixture(t)
-	if _, err := searchInputBound(t, registry, searchInputInsert, int64(1), int64(1),
-		[]byte{9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, int64(1), "A-CJK-uni-bi-v1", int64(1000)).ExecContext(t.Context(), w.db); err != nil {
+	if _, err := searchInputBound(t, registry, searchInputInsert, int64(1), int64(1), int64(1),
+		[]byte{9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, int64(1), "A-CJK-uni-bi-v1", "capture", int64(1000)).ExecContext(t.Context(), w.db); err != nil {
 		t.Fatal(err)
 	}
 	for _, tt := range []struct {
@@ -392,7 +499,7 @@ func TestSearchInputNativeAccessPlans(t *testing.T) {
 			if err := rows.Close(); err != nil {
 				t.Fatal(err)
 			}
-			if entry.ID == searchInputExisting && !strings.Contains(strings.Join(plans, "\n"), "SEARCH search_publish_jobs USING COVERING INDEX") {
+			if entry.ID == searchInputExisting && !strings.Contains(strings.Join(plans, "\n"), "SEARCH search_publish_jobs USING COVERING INDEX sqlite_autoindex_search_publish_jobs_1 (entity_id=?)") {
 				t.Fatal("intent existence must use subject-leading unique index")
 			}
 		}
