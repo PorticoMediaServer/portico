@@ -1,5 +1,4 @@
 {
-  "apps/desktop/src/downloads-host.ts#95733f592b6f24b3": 1,
   "apps/native/Native/PorticoPlayer.m#3eb0d343200c7dfc": 1,
   "apps/native/Native/PorticoPlayer.m#d956248af6e5129b": 1,
   "apps/native/Native/PorticoReadingByteStream.swift#6883b41f25750372": 1,
@@ -34,8 +33,6 @@
   "apps/native/src-next/platform/playback/runtime.ts#f0a2d245dacf0916": 2,
   "apps/native/src-next/platform/playback/scope-http.ts#21d1e987785bc408": 1,
   "apps/native/src-next/platform/portico-sign-in.ts#20f159f32617ea27": 1,
-  "apps/native/src-next/platform/profile-avatars.ts#6401a8a4aa635f0d": 1,
-  "apps/native/src-next/platform/profile-avatars.ts#da8e3f9a64d6f66f": 1,
   "apps/native/src-next/platform/revision-required-fetch.ts#0dd50c6453ab9bd1": 1,
   "apps/native/src-next/platform/revision-required-fetch.ts#4a639f616ea50baa": 1,
   "apps/native/src-next/platform/revision-required-fetch.ts#a68b5a05e51668b5": 2,
