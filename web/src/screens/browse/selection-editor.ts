@@ -1,4 +1,5 @@
 import {readCatalogueItemResponse} from '@core/query/catalogue-reads.ts';
+import {readMetadataResponse, submitMetadataBulk} from '@core/query/catalogue-actions.ts';
 import type {ShellArtwork} from '../../shell/artwork';
 import {validateRepair} from '@core/metadata-repair.ts';
 import {parseMediaItem} from '@core/media-item.ts';
@@ -11,7 +12,6 @@ import type {EventsClient} from '@core/playback-v1/events.ts';
 import type {BrowseSelectionContext, SelectionOperation, SelectionTarget} from '@core/selection-model/index.ts';
 import type {BulkEditorDraft} from '../../kit/selection';
 import {editorCoreDraft} from '../../shell/selection-presentation';
-import {routePath} from '../../../../packages/contracts/src/routes.ts';
 
 /** The library selection's bulk editor data path. It reuses the same preview
  * parser and job planner the Home editor uses, so a library edit and a Home edit
@@ -74,7 +74,7 @@ export function createSelectionEditor({api, events, requestId, isCurrent, server
           result.push({id: item.id, title: item.title, ...(typeof item.posterUrl === 'string' && item.posterUrl ? {posterUrl: item.posterUrl} : {})});
         } else {
           if (!viewerId) throw new SelectionEditorError('metadata-authority-unavailable');
-          const raw = await api.request(encodedRoutePath('get_metadata_kind_id', {kind: encodeURIComponent(target.kind), id: encodeURIComponent(target.id)}), 'GET', undefined, routeSignal); current();
+          const raw = await readMetadataResponse(api, target.kind, target.id, routeSignal); current();
           const data = validateRepair(raw, {serverId, viewerId}, target);
           if (data.snapshot.fields.title === undefined) throw new SelectionEditorError('metadata-target-mismatch');
           const roles = target.kind === 'artist' ? ['portrait', 'square'] : target.kind === 'album' || target.kind === 'book' ? ['cover', 'square', 'poster'] : ['poster'];
@@ -125,7 +125,7 @@ export function createSelectionEditor({api, events, requestId, isCurrent, server
           for (let index = captured.receipts.length; index < bodies.length; index++) {
             current(caller); if (editingFence !== preview.viewerFence) throw new SelectionEditorError('metadata-authority-changed');
             const body = bodies[index];
-            const raw = await api.request(routePath('post_metadata_bulk'), 'POST', body, caller ? AbortSignal.any([routeSignal, caller]) : routeSignal);
+            const raw = await submitMetadataBulk(api, body, caller ? AbortSignal.any([routeSignal, caller]) : routeSignal);
             current(caller); if (editingFence !== preview.viewerFence) throw new SelectionEditorError('metadata-authority-changed');
             captured.receipts.push(validateBulkReceipt(raw, body));
           }
