@@ -13,6 +13,7 @@ import (
 	"math"
 	"slices"
 	"sort"
+	"strings"
 )
 
 type ID string
@@ -50,12 +51,26 @@ type Cohort struct {
 	Bindings []any  `json:"bindings"`
 }
 
+type Waiver struct {
+	StatementID ID     `json:"statementId"`
+	Stage       string `json:"stage"` // "sql-lint" or "eqp"; neither waives the other
+	Form        string `json:"form"`
+	Match       string `json:"match"` // entire exact SQL for lint; entire EQP detail for EQP
+	Reason      string `json:"reason"`
+}
+
 // Plan is consumed by the plan harness; a SQL hash alone is not qualification.
 type Plan struct {
 	Hot     bool     `json:"hot"`
 	Indexes []string `json:"indexes"`
-	// AllowedScans names exact tiny tables or coroutine outputs, never a wildcard.
+	// PrimaryKeys names EQP table/alias targets for native PK paths that have no named INDEXED BY path.
+	PrimaryKeys []string `json:"primaryKeys"`
+	// Seeks pins the actual prefix/range constraints, including a separate tie seek.
+	Seeks []string `json:"seeks"`
+	// AllowedScans is retained as legacy manifest metadata; it grants no waiver.
+	// An exceptional scan now requires a statement-specific EQP waiver.
 	AllowedScans []string `json:"allowedScans"`
+	Waivers      []Waiver `json:"waivers,omitempty"`
 }
 type Definition struct {
 	ID        ID       `json:"id"`
@@ -94,6 +109,17 @@ func New(definitions []Definition) (*Registry, error) {
 		case Read, Write, Maintenance, DDL:
 		default:
 			return nil, fmt.Errorf("stmt %q: invalid kind", d.ID)
+		}
+		seenWaivers := map[string]bool{}
+		for _, w := range d.Plan.Waivers {
+			key := w.Stage + "\x00" + w.Form + "\x00" + w.Match
+			if w.StatementID != d.ID || strings.TrimSpace(w.Form) == "" || strings.TrimSpace(w.Match) == "" || strings.TrimSpace(w.Reason) == "" || seenWaivers[key] {
+				return nil, fmt.Errorf("stmt %q: invalid/duplicate statement waiver", d.ID)
+			}
+			if w.Stage != "sql-lint" && w.Stage != "eqp" || w.Stage == "sql-lint" && w.Match != d.SQL {
+				return nil, fmt.Errorf("stmt %q: waiver stage/SQL binding invalid", d.ID)
+			}
+			seenWaivers[key] = true
 		}
 		count, err := parameters(d.SQL)
 		if err != nil {
@@ -238,6 +264,9 @@ func validate(params []Param, args []any) error {
 }
 func cloneArgs(args []any) []any {
 	result := slices.Clone(args)
+	if result == nil {
+		result = []any{}
+	}
 	for i, v := range result {
 		if bytes, ok := v.([]byte); ok {
 			result[i] = slices.Clone(bytes)
@@ -248,8 +277,14 @@ func cloneArgs(args []any) []any {
 func cloneDefinition(d Definition) Definition {
 	d.CallSites = slices.Clone(d.CallSites)
 	d.Params = slices.Clone(d.Params)
+	if d.Params == nil {
+		d.Params = []Param{}
+	}
 	d.Plan.Indexes = slices.Clone(d.Plan.Indexes)
+	d.Plan.PrimaryKeys = slices.Clone(d.Plan.PrimaryKeys)
+	d.Plan.Seeks = slices.Clone(d.Plan.Seeks)
 	d.Plan.AllowedScans = slices.Clone(d.Plan.AllowedScans)
+	d.Plan.Waivers = slices.Clone(d.Plan.Waivers)
 	d.Cohorts = slices.Clone(d.Cohorts)
 	for i := range d.Cohorts {
 		d.Cohorts[i].Bindings = cloneArgs(d.Cohorts[i].Bindings)
