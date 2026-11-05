@@ -157,12 +157,21 @@ func (s *Snapshots) Read(parent context.Context, r Request, budget time.Duration
 		<-done
 	}
 	defer func() {
+		consumerPanic := recover()
 		finish()
 		err = errors.Join(err, physicalErr, ctx.Err())
 		if scope.grant != nil {
 			s.governor.Cancel(scope.grant)
 			scope.consumerDone.Store(true)
 			err = errors.Join(err, scope.retire())
+		}
+		if consumerPanic != nil {
+			panic(consumerPanic)
+		}
+		if scope.owned != nil {
+			if fault := scope.owned.panicError(); fault != nil {
+				panic(fault.value)
+			}
 		}
 	}()
 	select {
@@ -433,6 +442,15 @@ func (s *ReadScope) closeNative(forceDiscard bool) (err error, safe bool) {
 	s.cancel()
 	s.op.Lock()
 	defer s.op.Unlock()
+	if s.owned != nil {
+		s.owned.safetyMu.Lock()
+		pending := len(s.owned.resources) != 0
+		s.owned.safetyMu.Unlock()
+		if s.owned.panicError() != nil || pending {
+			s.authority.EnterStatic()
+			forceDiscard = true
+		}
+	}
 	s.discard = s.discard || forceDiscard
 	if s.conn == nil {
 		return nil, true
