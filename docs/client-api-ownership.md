@@ -6,16 +6,20 @@ revision/cursor recovery, request budgets and cache/freshness semantics. App
 screens own view state and actions and subscribe to core documents. A generic
 `request(path, method)` wrapper in a screen does not satisfy this boundary.
 
-Run `python3 ci/client_api_census.py`. After a move, run
-`python3 ci/client_api_census.py --update` and commit the smaller
-`ci/client-api-baseline.json`. The update command refuses additions. Use
+Run `python3 ci/client_api_census.py`. The checked-in
+`ci/client-api-baseline.json` is an upper bound: a move passes without editing it.
+Optionally run `python3 ci/client_api_census.py --update` to lower it; the update command refuses additions. Use
 `--report /path/to/report.json` for every exact file, line, enclosing owner,
 callee, operation ID and expression, including approved exceptions. Source line
 numbers are navigation aids; baseline identities survive line shifts outside reviewed guard/native method bodies. Identical
 expressions are a multiset, so adding another identical call still fails.
 `--base <sha>` also rejects checked-in baseline increases and unapproved exception changes
-against the review base. IDs cannot overlap `sites` and `additionalSites`; their complete combined allowance multiset is checked, including duplicate occurrences. It runs on every PR/merge-queue hygiene job; nightly
-checks the checked-in baseline against all current sources. `--initialize` is
+against the review base. It also scans the actual source at that merge base and
+rejects any new/increased direct identity, even if a stale-high baseline would
+allow it. PR/queue hygiene uses the planner's range: queue groups compare against
+the target branch tip, including changes from earlier queued PRs. IDs cannot overlap `sites` and `additionalSites`; their complete combined allowance multiset is checked, including duplicate occurrences. Nightly
+checks the checked-in upper bounds. Periodic baseline-only refresh PRs lower both
+count baselines on current main; exception/approval changes remain exact per PR. `--initialize` is
 only for the foundation: it refuses an existing baseline.
 
 The scanner starts from lane G's all-route evidence census and replaces literal

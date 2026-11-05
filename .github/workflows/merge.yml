@@ -45,10 +45,19 @@ jobs:
       - run: python3 -m unittest discover -s ci -p 'test_*.py'
       - run: python3 ci/source_guard.py
       - run: bash ci/secret-scan.sh
-      - run: python3 ci/engineering_rules.py
+      - name: Live ratchet comparison base
+        id: ratchet_base
+        env:
+          CI_BASE: ${{ inputs.base }}
+          CI_FULL_PLAN: ${{ inputs.full }}
+        run: python3 ci/ratchet_base.py >> "$GITHUB_OUTPUT"
+      - name: Engineering count ratchets
+        env:
+          RATCHET_BASE: ${{ steps.ratchet_base.outputs.base }}
+        run: python3 ci/engineering_rules.py ${RATCHET_BASE:+--base "$RATCHET_BASE"}
       - name: Client-core API ownership ratchet
         env:
-          CENSUS_BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || inputs.base }}
+          CENSUS_BASE: ${{ steps.ratchet_base.outputs.base }}
         run: python3 ci/client_api_census.py ${CENSUS_BASE:+--base "$CENSUS_BASE"}
   planner:
     runs-on: ubuntu-24.04

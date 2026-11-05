@@ -12,6 +12,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+from ratchet_base import merge_base, source_snapshot
 
 ROOT = Path(__file__).resolve().parent.parent
 SCANNER = ROOT / 'ci/client_api_sites.mjs'
@@ -215,8 +216,8 @@ def native_sites(path, source):
     return found
 
 
-def scan(root=ROOT):
-    paths = subprocess.check_output(['git','ls-files','-z'],cwd=root).decode().split('\0')
+def scan(root=ROOT, paths=None):
+    if paths is None: paths = subprocess.check_output(['git','ls-files','-z'],cwd=root).decode().split('\0')
     paths = sorted(p for p in paths if p and production(p))
     js = [p for p in paths if Path(p).suffix in {'.ts','.tsx','.js','.jsx','.mjs','.cjs'}]
     if js:
@@ -331,6 +332,7 @@ def main(argv=None, root=ROOT):
     baseline=json.loads(baseline_path.read_text())
     new,stale=compare(actual,baseline)
     if a.base:
+        a.base=merge_base(root,a.base)
         def old(path):
             r=subprocess.run(['git','show',a.base+':'+path],cwd=root,text=True,capture_output=True)
             if r.returncode:
@@ -340,7 +342,11 @@ def main(argv=None, root=ROOT):
             return json.loads(r.stdout)
         old_baseline,old_exceptions=old(BASELINE),old(ALLOWLIST)
         if old_baseline is not None:
-            try: new+=base_guard(baseline,exceptions,old_baseline,old_exceptions or {},approvals)
+            try:
+                with source_snapshot(root,a.base) as (snapshot,paths):
+                    previous,_=classify(scan(snapshot,paths),old_exceptions or {})
+                new+=compare(actual,counts(previous))[0]
+                new+=base_guard(baseline,exceptions,old_baseline,old_exceptions or {},approvals)
             except ValueError as error: new.append(str(error))
     pinned = sum((Counter(e['sites']) + Counter(e.get('additionalSites', {}).keys()) for e in exceptions.values()), Counter())
     stale_exceptions = list((pinned - Counter(counts(exempt))).elements())
@@ -352,9 +358,6 @@ def main(argv=None, root=ROOT):
         print('Move URL/request/body policy into named client-core domain operations; do not raise the baseline or use a generic screen request wrapper.',file=sys.stderr)
         return 1
     if a.update and stale:baseline_path.write_text(json.dumps(actual,indent=2)+'\n')
-    elif stale:
-        print(f'Client-core ownership fell by {sum(baseline.values())-sum(actual.values())} site(s). Lock it in: python3 ci/client_api_census.py --update',file=sys.stderr)
-        return 1
     print(f'Client-core ownership holds: {len(direct)} direct sites; {len(exempt)} pinned approved exception sites.')
     return 0
 

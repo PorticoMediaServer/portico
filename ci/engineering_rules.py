@@ -1,12 +1,15 @@
 """Ratchets for docs/ENGINEERING-RULES.md: per-file counts of known-bad patterns may fall, never rise.
 
-python3 ci/engineering_rules.py            check tracked client sources against the baseline
-python3 ci/engineering_rules.py --update   rewrite the baseline after a count fell
+python3 ci/engineering_rules.py            check tracked sources against baseline upper bounds
+python3 ci/engineering_rules.py --base SHA also forbid growth against live merge-base counts
+python3 ci/engineering_rules.py --update   optionally lower the baseline after a count fell
 """
 import json
+import argparse
 import re
 import sys
 from pathlib import Path
+from ratchet_base import merge_base, source_snapshot
 
 ROOT = Path(__file__).resolve().parent.parent
 BASELINE = ROOT / 'ci' / 'engineering-rules-baseline.json'
@@ -126,9 +129,9 @@ def exempt(path, allowed):
     return any(path == home or home.endswith('/') and path.startswith(home) for home in allowed)
 
 
-def tracked():
+def tracked(root=ROOT):
     import subprocess
-    out = subprocess.run(['git', 'ls-files', '-z'], cwd=ROOT, check=True, capture_output=True).stdout.decode()
+    out = subprocess.run(['git', 'ls-files', '-z'], cwd=root, check=True, capture_output=True).stdout.decode()
     return [p for p in out.split('\0') if p and SOURCES.match(p) and not TESTS.search(p)]
 
 
@@ -221,7 +224,7 @@ def counts(paths, read=lambda p: (ROOT / p).read_text(encoding='utf-8', errors='
 
 def compare(found, baseline):
     """Problems as (rule, path, now, allowed) for every count above the baseline, and a separate
-    list of counts that fell below it (the baseline must then be lowered)."""
+    list of counts that fell below it (baseline refreshes are optional)."""
     risen, fallen = [], []
     for rule, _, _ in RULES:
         now, was = found.get(rule, {}), baseline.get(rule, {})
@@ -234,20 +237,31 @@ def compare(found, baseline):
     return risen, fallen
 
 
-def main(argv):
-    found = counts(tracked())
-    if '--update' in argv:
-        BASELINE.write_text(json.dumps(found, indent=1, sort_keys=True) + '\n')
+def source_counts(root, paths=None, configs=QUERY_READ_CONFIGS):
+    paths=tracked(root) if paths is None else [p for p in paths if SOURCES.match(p) and not TESTS.search(p)]
+    reads=query_reads([p for p in paths if not exempt(p,dict((r,a)for r,a,_ in RULES)['query-read'])],root=root,configs=configs)
+    return counts(paths,read=lambda p:(root/p).read_text(encoding='utf-8',errors='replace'),reads=reads)
+
+
+def main(argv, root=ROOT):
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--update',action='store_true');parser.add_argument('--base')
+    args=parser.parse_args(argv)
+    found=source_counts(root)
+    baseline_path=root/BASELINE.relative_to(ROOT)
+    baseline=json.loads(baseline_path.read_text())
+    risen,_=compare(found,baseline)
+    if args.base:
+        with source_snapshot(root,merge_base(root,args.base)) as (snapshot,paths):
+            previous=source_counts(snapshot,paths)
+        risen+=compare(found,previous)[0]
+    for rule, path, a, b in sorted(set(risen)):
+        print(f'{path}: {rule} {a} (allowed {b}). See docs/ENGINEERING-RULES.md: {GUIDE[rule]}.')
+    if risen:return 1
+    if args.update:
+        baseline_path.write_text(json.dumps(found, indent=1, sort_keys=True) + '\n')
         print(f'engineering-rules baseline written ({sum(len(v) for v in found.values())} files)')
         return 0
-    baseline = json.loads(BASELINE.read_text())
-    risen, fallen = compare(found, baseline)
-    for rule, path, a, b in risen:
-        print(f'{path}: {rule} {a} (baseline {b}). See docs/ENGINEERING-RULES.md: {GUIDE[rule]}.')
-    for rule, path, a, b in fallen:
-        print(f'{path}: {rule} fell to {a} (baseline {b}). Lock it in: python3 ci/engineering_rules.py --update')
-    if risen or fallen:
-        return 1
     print('engineering rules hold')
     return 0
 
