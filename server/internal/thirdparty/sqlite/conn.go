@@ -499,8 +499,9 @@ func (c *conn) retry(pstmt uintptr) error {
 }
 
 func (c *conn) bind(pstmt uintptr, n int, args []driver.NamedValue) (allocs []uintptr, err error) {
+	complete := false
 	defer func() {
-		if err == nil {
+		if complete && err == nil {
 			return
 		}
 
@@ -614,6 +615,7 @@ func (c *conn) bind(pstmt uintptr, n int, args []driver.NamedValue) (allocs []ui
 			allocs = append(allocs, p)
 		}
 	}
+	complete = true
 	return allocs, nil
 }
 
@@ -637,11 +639,17 @@ func (c *conn) bindText(pstmt uintptr, idx1 int, value string) (uintptr, error) 
 		return 0, err
 	}
 
+	transferred := false
+	defer func() {
+		if !transferred {
+			c.free(p)
+		}
+	}()
 	if rc := sqlite3.Xsqlite3_bind_text(c.tls, pstmt, int32(idx1), p, int32(len(value)), 0); rc != sqlite3.SQLITE_OK {
-		c.free(p)
 		return 0, c.errstr(rc)
 	}
 
+	transferred = true
 	return p, nil
 }
 
@@ -1339,14 +1347,20 @@ func (c *conn) bindBlob(pstmt uintptr, idx1 int, value []byte) (uintptr, error) 
 	if err != nil {
 		return 0, err
 	}
+	transferred := false
+	defer func() {
+		if !transferred {
+			c.free(p)
+		}
+	}()
 	if len(value) != 0 {
 		copy((*libc.RawMem)(unsafe.Pointer(p))[:len(value):len(value)], value)
 	}
 	if rc := sqlite3.Xsqlite3_bind_blob(c.tls, pstmt, int32(idx1), p, int32(len(value)), 0); rc != sqlite3.SQLITE_OK {
-		c.free(p)
 		return 0, c.errstr(rc)
 	}
 
+	transferred = true
 	return p, nil
 }
 

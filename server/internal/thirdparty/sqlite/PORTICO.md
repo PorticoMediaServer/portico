@@ -8,6 +8,7 @@ Only its handwritten top-level Go driver files are copied here. SQLite's generat
 Portico additions:
 
 - `context_progress.go`: scoped cancellation progress callbacks, including later row iteration, with reusable per-connection state and closure cleanup.
+- `conn.go`, `stmt.go`: own STATIC text/blob binding allocations before native calls can panic, with one release on failure or transfer to returned rows. Cached queries retain binding custody through the first step.
 - `stmt.go`: recheck context after binding and before initial execution; preserve the query context in returned rows; expose retained VM allocations through SQLite's public `SQLITE_STMTSTATUS_MEMUSED` diagnostic.
 - `rows.go`: restore that context during each `Next` call; report a statement's VM steps through SQLite's public `SQLITE_STMTSTATUS_VM_STEP` diagnostic, so tests can assert how much work a read does; harvest every statement's steps into a per-connection total when it is reset or finalized (`VMOperations`), which the write gate's per-transaction work budget reads.
 - `conn.go`: own and release progress callback state; hold the VM step total and harvest it on finalize.
