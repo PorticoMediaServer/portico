@@ -7,6 +7,7 @@ import (
 	"go/token"
 	"go/types"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"sync"
 	"testing"
@@ -262,6 +263,7 @@ func TestStoreOpeningsRejectUnusedPermits(t *testing.T) {
 }
 
 func TestStoreOpeningsRejectTypedBypasses(t *testing.T) {
+	fixtureTestHeader := regexp.MustCompile(`(?m)^func\s+(?:Test|Fuzz|Example)[A-Za-z0-9_]*\s*\(`)
 	_, imports, _ := loadOpeningPackages(t)
 	// This interface is declared OUTSIDE store: declaration policing cannot
 	// justify rejecting transfers to it. Its actual method set must be checked.
@@ -305,7 +307,7 @@ func TestStoreOpeningsRejectTypedBypasses(t *testing.T) {
 import("reflect";"database/sql";"database/sql/driver";"testing")
 func fixture(*testing.T)(int,*sql.DB,int){return 0,nil,0}
 type reviewMethods interface { MethodByName(string) reflect.Value }
-func TestReviewInterfaceReflectionDQS(t *testing.T) {
+ func TestReviewInterfaceReflectionDQS(t *testing.T) {
  _, db, _ := fixture(t)
  extracted := reviewMethods(reflect.ValueOf(db)).MethodByName("Driver").Call(nil)[0]
  out := reviewMethods(extracted).MethodByName("Open").Call([]reflect.Value{reflect.ValueOf(":memory:")})
@@ -328,6 +330,9 @@ func TestReviewInterfaceReflectionDQS(t *testing.T) {
 		{"filesystem_is_not_a_database", "qual/host.go", openingStore + "qual", `package qual;import "io/fs";func recordFile(root fs.FS){_,_=root.Open("file")}`, 0},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			if fixtureTestHeader.MatchString(c.source) {
+				t.Fatal("fixture source contains a line-start test declaration")
+			}
 			fset := token.NewFileSet()
 			f, err := parser.ParseFile(fset, c.file, c.source, 0)
 			if err != nil {
