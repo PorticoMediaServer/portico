@@ -4,6 +4,32 @@ import type {RepairFieldSpec} from './metadata-repair.ts';
 
 export type CatalogueBulkChanges = Readonly<Record<string, {value: string} | {add: readonly string[]; remove: readonly string[]}>>;
 export type CatalogueBulkBase = Omit<BulkEdit, 'operationId' | 'targets'>;
+export type CatalogueSelectionDraft = Readonly<{
+  fields: Readonly<Record<string, string>>;
+  lists: Readonly<Record<string, Readonly<{add: readonly string[]; remove: readonly string[]}>>>;
+  lockEdited: boolean;
+}>;
+
+/** Preserve the existing web editor's field/list/genre projection and key order. */
+export function catalogueSelectionBulkDraft(draft: CatalogueSelectionDraft): Pick<BulkEdit, 'fields' | 'lists' | 'genres' | 'lockEdited'> {
+  const {genres, ...lists} = draft.lists;
+  return {fields: Object.fromEntries(Object.entries(draft.fields).map(([key, value]) => [key, {value}])), lists,
+    ...(genres ? {genres} : {}), lockEdited: draft.lockEdited};
+}
+
+/** The web editor's existing wire order places its ID and targets before changes.
+ * Its owner allocates IDs and retains this exact body across uncertain retries. */
+export function catalogueSelectionBulkEdit(base: CatalogueBulkBase, targets: readonly BulkTarget[], start: number, operationId: string): BulkEdit {
+  return {operationId, targets: targets.slice(start, start + bulkTargetLimit).map(({kind, id, expectedRevision}) => ({kind, id, expectedRevision})), ...base};
+}
+
+/** Web deletion uses the captured selection order, which can differ from preview
+ * order, and freezes both the ID array and its retained command. */
+export function catalogueSelectionDeletionCommand(targets: readonly Readonly<{itemId: string}>[], preview: Pick<DeletePreview, 'revision'>,
+  choice: Readonly<{confirmation: string; removeFiles: boolean}>, operationId: string) {
+  return Object.freeze({itemIds: Object.freeze(targets.map(item => item.itemId)), expectedRevision: preview.revision,
+    confirmation: choice.confirmation, deleteFiles: choice.removeFiles, operationId});
+}
 
 /** Build the captured change set before its owner mints any operation IDs. */
 export function catalogueBulkBase(schema: readonly RepairFieldSpec[], changes: CatalogueBulkChanges, lockEdited: boolean): CatalogueBulkBase | undefined {

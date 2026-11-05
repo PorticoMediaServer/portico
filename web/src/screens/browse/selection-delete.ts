@@ -1,4 +1,5 @@
 import {previewCatalogueDeletion, deleteCatalogueItems} from '@core/query/catalogue-actions.ts';
+import {catalogueSelectionDeletionCommand} from '@core/catalogue-bulk-commands.ts';
 import {deletionAllowed, parseDeletePreview, parseDeleteResult, type DeletePreview, type DeleteResult} from '@core/administration.ts';
 import type {EntryActionPorts, EntryActionTarget} from '../../shell/entry-actions';
 
@@ -79,8 +80,7 @@ export class LibraryDeleteProducer {
       try {
         const operationId = await ports.requestId();
         if (!this.live(attempt) || controller?.signal.aborted || this.state.confirmation !== preview.confirmation || !deletionAllowed(preview)) return;
-        this.body = Object.freeze({itemIds: Object.freeze(target.map(item => item.itemId)), expectedRevision: preview.revision,
-          confirmation: this.state.confirmation, deleteFiles: this.state.removeFiles, operationId});
+        this.body = catalogueSelectionDeletionCommand(target, preview, this.state, operationId);
       } catch { if (this.live(attempt)) { this.state = {...this.state, phase: 'ready'}; this.fail('delete_not_ready'); } return; }
     }
     await this.send(attempt);
