@@ -148,8 +148,8 @@ func TestPlanNativeGuardAndStatementWaivers(t *testing.T) {
 		t.Fatal("EQP waiver bypassed SQL allow-list")
 	}
 	d.Plan.Waivers = []stmt.Waiver{{StatementID: d.ID, Stage: "sql-lint", Form: "sql:outside-grammar", Match: d.SQL, Reason: "Synthetic exact SQL waiver for postfix NULL syntax"}}
-	if err := plan.Check(d, row("SEARCH items USING INTEGER PRIMARY KEY (rowid=?)")); err != nil {
-		t.Fatal(err)
+	if err := plan.Check(d, row("SEARCH items USING INTEGER PRIMARY KEY (rowid=?)")); err == nil {
+		t.Fatal("SQL lint waiver was honored")
 	}
 	d.SQL += " AND id=?"
 	if err := plan.Check(d, row("SEARCH items USING INTEGER PRIMARY KEY (rowid=?)")); err == nil {
@@ -203,13 +203,20 @@ func TestPlanSQLiteSubqueryGuardCannotBeWaivedByLint(t *testing.T) {
 		{StatementID: d.ID, Stage: "sql-lint", Form: "sql:SELECT", Match: d.SQL, Reason: "Synthetic test-only outside-grammar waiver; no native permission"},
 		{StatementID: d.ID, Stage: "sql-lint", Form: "sql:outside-grammar", Match: d.SQL, Reason: "Synthetic test-only subquery syntax; native guard must still refuse"},
 	}
+	if _, err := stmt.New([]stmt.Definition{d}); err == nil {
+		t.Fatal("SQL lint waiver accepted by registry")
+	}
+	eqp := reviewRawEQP(t, conn, d.SQL, d.Cohorts[0].Bindings...)
+	if err := plan.CheckEQP(d, eqp); err == nil || !strings.Contains(err.Error(), "forbidden plan SUBQUERY") {
+		t.Fatalf("native guard bypassed: %v", err)
+	}
+	d.Plan.Waivers = nil
 	registry, err := stmt.New([]stmt.Definition{d})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = plan.Capture(context.Background(), conn, registry, f, indexPolicy(t))
-	if err == nil || !strings.Contains(err.Error(), "forbidden plan SUBQUERY") {
-		t.Fatalf("native SQLite guard was bypassed: %v", err)
+	if _, err := plan.Capture(context.Background(), conn, registry, f, indexPolicy(t)); err == nil {
+		t.Fatal("outside grammar qualified")
 	}
 }
 

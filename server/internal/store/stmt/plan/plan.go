@@ -86,6 +86,20 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 		if err := policy.CheckPredicates(entry.Definition, env.Schema); err != nil {
 			return g, err
 		}
+		if err := checkSyntax(entry.Definition); err != nil {
+			return g, err
+		}
+		shape, err := dmlSQL(entry.SQL)
+		if err != nil {
+			return g, fmt.Errorf("plan %s parse: %w", entry.ID, err)
+		}
+		var table *dmlTable
+		if shape != nil {
+			table, err = inspectDMLTable(ctx, conn, shape)
+			if err != nil {
+				return g, fmt.Errorf("plan %s columns: %w", entry.ID, err)
+			}
+		}
 		for _, cohort := range entry.Cohorts {
 			full, err := query(ctx, conn, "EXPLAIN "+entry.SQL, cohort.Bindings...)
 			if err != nil {
@@ -96,15 +110,14 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 				return g, fmt.Errorf("plan %s/%s EQP: %w", entry.ID, cohort.Name, err)
 			}
 			var insert *InsertAudit
-			shape, shapeErr := dmlSQL(entry.SQL)
+			if table != nil && !mainWriteRoot(full, table.root) {
+				return g, fmt.Errorf("plan %s: native destination does not match audited main table", entry.ID)
+			}
 			if shape != nil && shape.kind == "INSERT" {
-				if shapeErr != nil {
-					return g, fmt.Errorf("plan %s: unrecognized INSERT structure cannot skip destination/conflict audits", entry.ID)
-				}
 				if err := checkBase(entry.Definition, eqp); err != nil {
 					return g, err
 				}
-				insert, err = auditInsert(ctx, conn, entry.Definition, shape, cohort.Bindings, full)
+				insert, err = auditInsert(ctx, conn, entry.Definition, shape, table, cohort.Bindings, full)
 				if err != nil {
 					return g, fmt.Errorf("plan %s/%s INSERT audit: %w", entry.ID, cohort.Name, err)
 				}
@@ -141,7 +154,10 @@ func Check(d stmt.Definition, eqp Rows) error {
 	if err := checkBase(d, eqp); err != nil {
 		return err
 	}
-	shape, _ := dmlSQL(d.SQL)
+	shape, err := dmlSQL(d.SQL)
+	if err != nil {
+		return fmt.Errorf("plan %s parse: %w", d.ID, err)
+	}
 	if shape != nil && shape.kind == "INSERT" {
 		return fmt.Errorf("plan %s: INSERT requires Capture destination/conflict audit", d.ID)
 	}
@@ -155,10 +171,12 @@ func checkBase(d stmt.Definition, eqp Rows) error {
 	if err := CheckEQP(d, eqp); err != nil {
 		return err
 	}
+	return checkSyntax(d)
+}
+
+func checkSyntax(d stmt.Definition) error {
 	for _, issue := range LintSQL(d.SQL) {
-		if !waived(d, "sql-lint", issue.Form, d.SQL) {
-			return fmt.Errorf("plan %s: unapproved SQL lint %s: %s", d.ID, issue.Form, issue.Detail)
-		}
+		return fmt.Errorf("plan %s: unapproved SQL lint %s: %s", d.ID, issue.Form, issue.Detail)
 	}
 	if index := forcedAutoindex(d.SQL); index != "" {
 		return fmt.Errorf("plan %s: generated index %s must be asserted in Plan.Indexes, not forced in SQL", d.ID, index)
@@ -232,6 +250,9 @@ func environment(ctx context.Context, conn *sql.Conn, f Fixture) (Environment, e
 		return env, fmt.Errorf("plan: unqualified connection: %w", err)
 	}
 	env.Connection = settings
+	if err := assertNoTriggers(ctx, conn); err != nil {
+		return env, err
+	}
 	if decoded, err := hex.DecodeString(f.SHA256); err != nil || len(decoded) != 32 || f.Implementations == "" {
 		return env, fmt.Errorf("plan: fixture SHA256 and implementation identity required")
 	}

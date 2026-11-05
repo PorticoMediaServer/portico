@@ -259,7 +259,7 @@ func TestRegistryManifestHasExplicitEmptyBindings(t *testing.T) {
 
 func TestRegistryWaiversAreStatementBoundAndImmutable(t *testing.T) {
 	d := definition()
-	w := stmt.Waiver{StatementID: d.ID, Stage: "sql-lint", Form: "sql:outside-grammar", Match: d.SQL, Reason: "Synthetic test metadata only"}
+	w := stmt.Waiver{StatementID: d.ID, Stage: "eqp", Form: "SCAN", Match: "SCAN tiny_control", Reason: "Synthetic test metadata only"}
 	d.Plan.Waivers = []stmt.Waiver{w}
 	r, err := stmt.New([]stmt.Definition{d})
 	if err != nil {
@@ -271,7 +271,7 @@ func TestRegistryWaiversAreStatementBoundAndImmutable(t *testing.T) {
 	if r.Manifest()[0].Plan.Waivers[0].Reason != w.Reason {
 		t.Fatal("waiver manifest was mutable")
 	}
-	for _, change := range []func(*stmt.Waiver){func(w *stmt.Waiver) { w.StatementID = "another" }, func(w *stmt.Waiver) { w.Reason = " " }, func(w *stmt.Waiver) { w.Form = "" }, func(w *stmt.Waiver) { w.Stage = "*" }, func(w *stmt.Waiver) { w.Match = "SELECT" }} {
+	for _, change := range []func(*stmt.Waiver){func(w *stmt.Waiver) { w.StatementID = "another" }, func(w *stmt.Waiver) { w.Reason = " " }, func(w *stmt.Waiver) { w.Form = "" }, func(w *stmt.Waiver) { w.Stage = "*" }, func(w *stmt.Waiver) { w.Match = "" }, func(w *stmt.Waiver) { w.Stage = "sql-lint" }} {
 		invalid := w
 		change(&invalid)
 		d.Plan.Waivers = []stmt.Waiver{invalid}

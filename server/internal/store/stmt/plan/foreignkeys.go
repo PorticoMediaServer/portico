@@ -36,6 +36,9 @@ func ForeignKeys(ctx context.Context, conn *sql.Conn, policy sqliteconn.Config) 
 	if err != nil {
 		return ForeignKeyAudit{}, fmt.Errorf("plan: unqualified FK connection: %w", err)
 	}
+	if err := assertNoTriggers(ctx, conn); err != nil {
+		return ForeignKeyAudit{}, err
+	}
 	tables, err := query(ctx, conn, "SELECT name FROM sqlite_schema WHERE type='table' ORDER BY name")
 	if err != nil {
 		return ForeignKeyAudit{}, err
