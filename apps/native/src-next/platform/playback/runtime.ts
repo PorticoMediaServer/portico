@@ -31,6 +31,7 @@ import type {PlaybackChoices} from '../../../../../packages/client-core/src/play
 import type {SegmentInput} from '../../../../../packages/client-core/src/playback-v1/queue';
 import {qualityOptionRequest, type QualityOption} from '../../../../../packages/client-core/src/playback-v1/quality';
 import {SubtitleService} from '../../../../../packages/client-core/src/subtitles';
+import {uploadPlaybackSubtitle} from '../../../../../packages/client-core/src/playback-v1/subtitle-upload';
 import {forcedChoiceOf, parseSubtitleLines} from '../../../../../packages/client-core/src/subtitle-originals';
 import {forcedImageLinesPath} from './forced-image';
 import type {PlaybackSubject, CardSubject} from '../../../../../packages/client-core/src/presentation/kit-model';
@@ -1308,14 +1309,8 @@ export class NativePlaybackRuntime {
     }).catch(() => {});
     if (state.session && session?.kind === 'vod') {
       const service = new SubtitleService({request: this.request, ...(typeof this.o.api.requestSubtitleUpload === 'function' ? {
-        requestSubtitleUpload: async <T>(path: string, method: 'POST' | 'PUT', body: FormData, signal?: AbortSignal): Promise<T> => {
-          // Use the same authority guard, abort registration and late-response fence as JSON,
-          // while the API owns the single-attempt multipart transport and its deadline.
-          const response = await this.http.send({path, method, body, signal}, {send: async request => ({
-            status: 200, headers: {}, body: await this.o.api.requestSubtitleUpload(request.path, method, body, request.signal),
-          })});
-          return response.body as T;
-        },
+        requestSubtitleUpload: <T>(path: string, method: 'POST' | 'PUT', body: FormData, signal?: AbortSignal): Promise<T> =>
+          uploadPlaybackSubtitle<T>(this.http, this.o.api, path, method, body, signal),
       } : {})}, {itemId, sessionId: state.session.id, generation: state.session.generation}, this.o.requestId,
         {install: presentation => valid() && this.playback.installSubtitlePresentation(presentation)});
       this.subtitleService = service;

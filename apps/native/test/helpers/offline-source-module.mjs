@@ -1,5 +1,6 @@
 import * as playbackQueries from '../../../../packages/client-core/src/query/playback.ts';
 import * as receiverQueries from '../../../../packages/client-core/src/query/receiver.ts';
+import * as subtitleUploads from '../../../../packages/client-core/src/playback-v1/subtitle-upload.ts';
 import {readFile} from 'node:fs/promises';
 import {stripTypeScriptTypes} from 'node:module';
 import {SourceTextModule, SyntheticModule, createContext} from 'node:vm';
@@ -17,7 +18,8 @@ export async function sourceModule(file, modules, globals = {}) {
   const module = new SourceTextModule(code, {context, identifier: String(file)});
   const linked = new Map();
   await module.link(specifier => {
-    const builtIn = /client-core\/src\/query\/receiver(?:\.ts)?$/.test(specifier) ? receiverQueries : /client-core\/src\/query\/playback(?:\.ts)?$/.test(specifier) ? playbackQueries : undefined;
+    const builtIn = /client-core\/src\/playback-v1\/subtitle-upload(?:\.ts)?$/.test(specifier) ? subtitleUploads
+      : /client-core\/src\/query\/receiver(?:\.ts)?$/.test(specifier) ? receiverQueries : /client-core\/src\/query\/playback(?:\.ts)?$/.test(specifier) ? playbackQueries : undefined;
     if (!Object.hasOwn(modules, specifier) && !builtIn) throw new Error(`Missing offline boundary: ${specifier}`);
     if (linked.has(specifier)) return linked.get(specifier);
     const namespace = Object.hasOwn(modules, specifier) ? modules[specifier] : builtIn;

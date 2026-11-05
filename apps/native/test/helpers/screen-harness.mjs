@@ -1,5 +1,6 @@
 import * as playbackQueries from '../../../../packages/client-core/src/query/playback.ts';
 import * as preparingCleanup from '../../../../packages/client-core/src/playback-v1/preparing-cleanup.ts';
+import * as subtitleUploads from '../../../../packages/client-core/src/playback-v1/subtitle-upload.ts';
 import * as ownerSettingsPolicy from '../../../../packages/client-core/src/owner-settings-policy.ts';
 import * as ownerRequests from '../../../../packages/client-core/src/owner-requests.ts';
 import * as ownerLibraryRequests from '../../../../packages/client-core/src/owner-library-requests.ts';
@@ -53,6 +54,7 @@ function railHoldLeaf(react) {
 }
 const leaf = (source, react, native) => /client-core\/src\/query\/playback(\.ts)?$/.test(source) ? playbackQueries
   : /client-core\/src\/playback-v1\/preparing-cleanup(\.ts)?$/.test(source) ? preparingCleanup
+  : /client-core\/src\/playback-v1\/subtitle-upload(\.ts)?$/.test(source) ? subtitleUploads
   : /client-core\/src\/query\/receiver(\.ts)?$/.test(source) ? receiverQueries
   : /(^|\/)server-clock(\.ts)?$/.test(source) && /client-core\/src\/server-clock|^\.\/server-clock/.test(source) ? serverClock
   : /(^|\/)owner-settings-policy(?:\.ts)?$/.test(source) ? ownerSettingsPolicy
