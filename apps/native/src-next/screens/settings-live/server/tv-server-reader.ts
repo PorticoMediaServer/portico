@@ -1,7 +1,7 @@
+import {readOwnerPeoplePage} from '../../../../../../packages/client-core/src/owner-requests';
 import type {DirectSnapshot} from '../../../../../../packages/client-core/src/profile-management';
 import {routePath} from '../../../../../../packages/contracts/src/routes';
 import type {NativeScreenLifetime} from '../lifetime';
-
 type Context = {account: DirectSnapshot; api: {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>}};
 
 /** The same primary-profile membership boundary applies to both Server destinations. */
@@ -30,11 +30,7 @@ export function createTVServerReader(context: Context, lifetime: NativeScreenLif
   return {peoplePage: <T,>(section: keyof typeof peopleRoutes, cursor?: string, signal?: AbortSignal): Promise<T> => {
     if (!Object.hasOwn(peopleRoutes, section) || cursor !== undefined && (typeof cursor !== 'string' || cursor.length > (section === 'invitations' ? 2048 : 4096) || (section === 'invitations' ? /[\p{Cc}\p{Cf}]/u : /[\x00-\x1f]/).test(cursor))) return Promise.reject(new Error('native_tv_server_read_denied'));
     if (nativeServerAdmission(context.account, lifetime) === 'denied') return Promise.reject(new Error('native_tv_server_read_denied'));
-    const params = new URLSearchParams({limit: '50'});
-    if (section === 'invitations') params.set('state', 'pending');
-    if (cursor) params.set('cursor', cursor);
-    const path = routePath(peopleRoutes[section]) + '?' + params.toString();
-    return lifetime.request(next => context.api.request<T>(path, 'GET', undefined, next), signal);
+    return lifetime.request(next => readOwnerPeoplePage<T>(context.api, section, cursor, next), signal);
   }, request: <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
     const admission = nativeServerAdmission(context.account, lifetime);
     const base = path.split('?')[0];

@@ -1,3 +1,4 @@
+import {routePath} from '../../../packages/contracts/src/route-paths.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {screenModule, hooks} from './helpers/screen-harness.mjs';
@@ -23,11 +24,11 @@ test('General exposes backed Advanced controls and one Background speed setting,
   const feed = 'https://example.invalid/releases';
   const fixture = await formsFixture({runtime: {name: 'Server', 'updates.feedUrl': feed}, maintenance: maintenance(), alerts: {storageWarningPercent: 15, storageCriticalPercent: 5, certificateWarningDays: 14, noticeAudience: {scan: 'both', storage: 'both', certificate: 'both', recording: 'off', feedback: 'both'}}}), host = lifecycleHooks();
   const configuration = {path: '/config/portico.toml', fields: [{id: 'general.updateFeed', current: feed, effective: feed, default: feed, configOnly: false}]};
-  const api = {request: async (path: string) => path === 'get_settings_configuration' ? configuration : {current: {version: '0.0-test'}, updateAvailable: false, message: 'Current', checkedAt: '2026-10-01T00:00:00Z'}};
+  const api = {request: async (path: string) => path === routePath('get_settings_configuration') ? configuration : {current: {version: '0.0-test'}, updateAvailable: false, message: 'Current', checkedAt: '2026-10-01T00:00:00Z'}};
   const module = await screenModule(new URL('../src-next/screens/settings-live/server/GeneralPage.tsx', import.meta.url), {
     ...chrome, react: host.react, '../use-settings-request-scope': {useSettingsRequestScope: () => ({api, lifetime: {current: fixture.group.context.current}})},
     '../../../../../../packages/client-core/src/administration': {parseUpdateReport: (value: unknown) => value}, '../../../../../../packages/client-core/src/server-admin/server-forms': {pauseBackgroundWork: assert.fail}, '../../../../../../packages/client-core/src/backups': {restartServer: assert.fail},
-    '../../../../../../packages/contracts/src/routes': {routePath: (id: string) => id}, '../../../../../../packages/client-core/src/settings-configuration': {parseSettingsConfiguration: (value: unknown) => value}, '../../../../../../packages/client-core/src/presentation/settings-bindings': bindings, '../../../../../../packages/client-core/src/presentation/settings-spec': specification,
+    '../../../../../../packages/contracts/src/routes': {routePath}, '../../../../../../packages/client-core/src/settings-configuration': {parseSettingsConfiguration: (value: unknown) => value}, '../../../../../../packages/client-core/src/presentation/settings-bindings': bindings, '../../../../../../packages/client-core/src/presentation/settings-spec': specification,
     '../../../../../../packages/i18n/src': {defaultI18n: i18n}, '../../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'Error'})}, '../../../../../../packages/client-core/src/server-admin/console-words': {when: String},
     '../../../kit/controls/Button': {Button: 'Button'}, '../../../kit/controls/TextField': {TextField: 'TextField'}, '../../../kit/overlays/BottomSheet': {BottomSheet: 'BottomSheet'}, './HeavyWorkControls': {HeavyWorkControls: 'Heavy'}, './BroadcastSheet': {NativeBroadcastSheet: 'Broadcast'}, './storage/forms': fixture.hooks,
   });
@@ -73,11 +74,11 @@ test('Remote access edits the certificate switch, keeps own address on main, and
   const connectivity = {ownAddressEnabled: false, customCertificateDomain: '', customCertificatePath: '', customCertificateKeyPath: '', remoteSignInPolicy: 'allow', lanDiscoveryEnabled: true, dlnaEnabled: false, accessUrls: [], trustedProxies: [], advertiseUrl: '', lanNetworks: [], connectionLimit: 0};
   const fixture = await formsFixture({remote: {enabled: true, publicPort: 32500, gateway: '', mapping: true, pcp: true, natpmp: true, upnp: true}, connectivity, certificate: {...certificate.config, claimed: true}}, {connectivity: {tls: {}}, certificate}), host = lifecycleHooks();
   let retries = 0, finish: ((value: unknown) => void) | undefined;
-  const api = {request: async (path: string) => {assert.equal(path, 'post_networking_certificate_retry');retries++;return new Promise(resolve => {finish = resolve;});}};
+  const api = {request: async (path: string) => {assert.equal(path, routePath('post_networking_certificate_retry'));retries++;return new Promise(resolve => {finish = resolve;});}};
   const module = await screenModule(new URL('../src-next/screens/settings-live/server/RemoteAccessPage.tsx', import.meta.url), {
     ...chrome, react: host.react, '../../../../../../packages/client-core/src/server-admin/secure-connection': {secureConnectionView}, '../../../../../../packages/client-core/src/server-admin/status-words': {remoteStatusLine: () => ({tone: 'neutral', text: 'Route status'}), ownCertificateLine: () => undefined},
     '../../../../../../packages/client-core/src/remote-access': {remoteWarningLines: () => []},
-    '../../../../../../packages/client-core/src/certificates': {certificateProblemMessage, retryCertificate}, '../../../../../../packages/contracts/src/routes': {routePath: (id: string) => id}, '../use-settings-request-scope': {useSettingsRequestScope: () => ({api, lifetime: {current: fixture.group.context.current}})},
+    '../../../../../../packages/client-core/src/certificates': {certificateProblemMessage, retryCertificate}, '../../../../../../packages/contracts/src/routes': {routePath}, '../use-settings-request-scope': {useSettingsRequestScope: () => ({api, lifetime: {current: fixture.group.context.current}})},
     '../../../../../../packages/client-core/src/presentation/settings-spec': specification, '../../../../../../packages/client-core/src/presentation/settings-bindings': bindings, './storage/forms': fixture.hooks,
   });
   const render = () => host.render(() => {const outer = module.NativeRemoteAccessPage({ports: {context: fixture.group.context}, runtime});return outer.type(outer.props);});
@@ -104,7 +105,7 @@ async function backupsFixture(translate = t) {
   }
   class Lifetime {current = () => active;request = (run: any) => run(new AbortController().signal);dispose() {active = false;}}
   const module = await screenModule(new URL('../src-next/screens/settings-live/server/storage/BackupsTab.tsx', import.meta.url), {
-    react: host.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../../../packages/client-core/src/server-admin/backup-source': {SettingsBackupSource: Source}, '../../../../../../../packages/client-core/src/backups': {isAuthenticationFailure: () => false, restoreRecoveryDetails, restoreRecoveryNotice}, '../../../../../../../packages/contracts/src/routes': {routePath: (id: string) => id}, '../../../../../../../packages/client-core/src/presentation/settings-spec': specification,
+    react: host.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../../../packages/client-core/src/server-admin/backup-source': {SettingsBackupSource: Source}, '../../../../../../../packages/client-core/src/backups': {isAuthenticationFailure: () => false, restoreRecoveryDetails, restoreRecoveryNotice}, '../../../../../../../packages/contracts/src/routes': {routePath}, '../../../../../../../packages/client-core/src/presentation/settings-spec': specification,
     '../../../../../../../packages/client-core/src/administration': {backupProgressFraction: (value: any) => value.bytesTotal > 0 ? value.bytesDone / value.bytesTotal : undefined}, '../../../../../../../packages/client-core/src/server-admin/console-words': {sentence: (value: string) => value.replaceAll('_', ' '), when: String}, '../../../../../../../packages/i18n/src': {defaultI18n: i18n},
     '../../../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'TextField'}, '../../../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'}, '../../owner-libraries/FolderExplorer': {FolderExplorer: 'FolderExplorer'}, '../AdvancedSection': {NativeAdvancedSection: 'Advanced'}, '../../../../kit/shell/visual': {shellType: () => ({})}, '../../../../kit/theme': {useTheme: () => theme}, '../../lifetime': {NativeScreenLifetime: Lifetime, screenScopeEnded: () => new Error('ended')}, './space-source': {nativeStorageOwner: () => active}, './BackupFolder': {NativeBackupFolder: 'BackupFolder'}, './BackupProtection': {NativeBackupProtection: 'Protection'},
   });
@@ -194,7 +195,7 @@ for (const memoryAvailable of [true, false]) test(`Streaming keeps memory prefer
   class Console {transcodeCapacity = async () => capacity;dispose() {}}
   const {FormSet} = await import('../../../packages/client-core/src/server-admin/draft-form.ts');
   const module = await screenModule(new URL('../src-next/screens/settings-live/server/StreamingPage.tsx', import.meta.url), {
-    ...chrome, react: host.react, '../../../../../../packages/contracts/src/routes': {routePath: (id: string) => id}, '../../../../../../packages/client-core/src/settings-configuration': {parseSettingsConfiguration: (value: unknown) => value}, '../../../platform/server-connections': {nativeRouteCrypto: {random: () => new Uint8Array(24)}},
+    ...chrome, react: host.react, '../../../../../../packages/contracts/src/routes': {routePath}, '../../../../../../packages/client-core/src/settings-configuration': {parseSettingsConfiguration: (value: unknown) => value}, '../../../platform/server-connections': {nativeRouteCrypto: {random: () => new Uint8Array(24)}},
     '../../../../../../packages/client-core/src/hardware': {testHardware: () => {hardwareTests++;return new Promise(resolve => {finish = resolve;});}}, '../../../../../../packages/i18n/src': {defaultI18n: i18n}, '../../../../../../packages/client-core/src/console': {ConsoleClient: Console}, '../../../../../../packages/client-core/src/server-admin/draft-form': {FormSet},
     '../../../../../../packages/client-core/src/server-admin/server-forms': {createServerForm: (id: string) => fixture.group.forms[id], withFormValue: (draft: object, key: string, value: unknown) => ({...draft, [key]: value})}, '../../../../../../packages/client-core/src/presentation/settings-bindings': bindings, '../../../../../../packages/client-core/src/presentation/settings-spec': specification,
     './StreamingHardware': {NativeStreamingHardware: 'Hardware'}, '../lifetime': {NativeScreenLifetime: Lifetime},
@@ -272,11 +273,11 @@ for (const memoryAvailable of [true, false]) test(`TV Streaming saves its explic
   const allRows = [...section.groups!, ...section.advanced!.groups!].flatMap((group: any) => values.settingRows(group.rows));
   const configuration = {fields: allRows.map((row: any) => ({id: row.id, configOnly: false}))};
   const capacity = {hardware: {devices: []}, temporaryDirectory: {path: '/disk', memoryPath: '/dev/shm', memoryAvailable}};
-  const api = {request: async (path: string) => path === 'get_settings_configuration' ? configuration : capacity};
+  const api = {request: async (path: string) => path === routePath('get_settings_configuration') ? configuration : capacity};
   const model = await import('../src-next/screens/settings-live/server/tv-server-settings-model.ts');
   const module = await screenModule(new URL('../src-next/screens/settings-live/server/TVServerSettingsPage.tsx', import.meta.url), {
     ...chrome, react: host.react,
-    '../../../../../../packages/contracts/src/routes': {routePath: (id: string) => id},
+    '../../../../../../packages/contracts/src/routes': {routePath},
     '../../../../../../packages/client-core/src/settings-configuration': {parseSettingsConfiguration: (value: unknown) => value},
     '../../../../../../packages/client-core/src/presentation/settings-bindings': bindings,
     '../../../../../../packages/client-core/src/presentation/settings-spec': specification,

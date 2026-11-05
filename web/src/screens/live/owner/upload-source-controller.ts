@@ -1,3 +1,4 @@
+import {previewOwnerSourceFiles, saveOwnerSourceFiles} from '@core/owner-requests.ts';
 import type {LibraryContentApi} from '@core/library-content.ts';
 import {LiveSourceDraft, type LiveSourceInput} from '@core/live-source-draft.ts';
 import {OwnerStore, errorFacts} from './lifetime';
@@ -33,7 +34,7 @@ export class UploadSourceController extends OwnerStore<UploadSnapshot> {
     this.publish({...this.snapshot, busy: true, error: undefined, preview: undefined});
     if (!this.valid(attempt)) return;
     try {
-      const raw = await this.api.request('/v1/admin/live-sources/preview', 'POST', draft, attempt.abort.signal);
+      const raw = await previewOwnerSourceFiles(this.api, draft, attempt.abort.signal);
       if (this.valid(attempt)) this.publish({...this.snapshot, busy: false, preview: uploadPreview(raw, this.serverId)});
     } catch (error) {if (this.valid(attempt)) this.fail(error, {...this.snapshot, busy: false, error: errorFacts(error)});}
   }
@@ -43,7 +44,7 @@ export class UploadSourceController extends OwnerStore<UploadSnapshot> {
     this.publish({...this.snapshot, busy: true, error: undefined});
     try {
       if (!this.valid(attempt)) return false;
-      const raw = await this.api.request('/v1/admin/live-sources', 'POST', draft, attempt.abort.signal);
+      const raw = await saveOwnerSourceFiles(this.api, draft, attempt.abort.signal);
       if (!this.valid(attempt)) return false;
       sourceReceipt(raw, this.serverId, draft.id);
       this.publish({...this.snapshot, busy: false, preview: undefined});return this.valid(attempt);

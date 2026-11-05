@@ -55,13 +55,16 @@ async function fixture({hosted = true, matching = true, hasPassword = true, prov
   let openFails = false;
   const {NativeHostedSignInPanel} = await screenModule(new URL('../src-next/screens/settings-live/NativeHostedSignInPanel.tsx', import.meta.url), {
     react: host.react, 'react-native': {NativeModules: {PorticoAccountAuth: bridge}, Text: 'Text', View: 'View', Linking: {openURL: async (url: string) => {if (openFails) throw new Error('no_browser'); opened.push(url);}}},
-    '../../../../../packages/client-core/src': {HttpLocalApi: class {constructor(readonly origin: string, readonly token: string) {} async request(...args: any[]) {calls.push([this.origin, this.token, ...args]); return reply();}}},
     '../../../../../packages/client-core/src/hosted-security': hostedSecurity, '../../../../../packages/client-core/src/presentation/errors': {presentError: (error: unknown, audience: string) => {presented.push([error, audience]); return {body: 'Security read failed'};}},
     '../../../../../packages/contracts/src/hosted/routes': {routePath},
     '../../kit/controls': {Button: 'Button'}, '../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../kit/shell/visual': {shellType: () => ({})}, '../../kit/theme': {useTheme: () => theme},
     '../../platform/accounts': {nativeAccounts: {accountCredentials: () => {credentialReads++; return credentials;}}},
     '../../platform/account-authority': {hostedUrl: 'https://accounts.example.invalid'}, '../../platform/account-security': {NativeAccountSecurity: Controller},
-    '../../platform/account-work': accountWork, '../../platform/server-connections': {nativeNetworkFetch: () => {}},
+    '../../platform/account-work': accountWork,  '../../platform/server-connections': {nativeNetworkFetch: async (input: string, init: RequestInit) => {
+      const url = new URL(input), token = new Headers(init.headers).get('Authorization')?.replace(/^Bearer /, '');
+      calls.push([url.origin, token, url.pathname + url.search, init.method, undefined, init.signal]);
+      return new Response(JSON.stringify(await reply()), {status: 200, headers: {'Content-Type': 'application/json'}});
+    }},
     '../accounts/PhoneAccountSecurity': {AccountSecuritySheet: 'AccountSecuritySheet', accountSecurityAvailability: shared.accountSecurityAvailability}, './native-account-security': securityScope,
   });
   let tree: any;

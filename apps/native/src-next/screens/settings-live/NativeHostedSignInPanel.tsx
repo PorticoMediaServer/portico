@@ -1,9 +1,8 @@
+import {readOwnerHostedSecurity} from '../../../../../packages/client-core/src/owner-account-clients';
 import React, {useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {Linking, NativeModules, Text, View} from 'react-native';
-import {HttpLocalApi} from '../../../../../packages/client-core/src';
 import {parseSecurityState, providerOnlySignIn} from '../../../../../packages/client-core/src/hosted-security';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
-import {routePath} from '../../../../../packages/contracts/src/hosted/routes';
 import {Button} from '../../kit/controls';
 import {SettingsRow} from '../../kit/shell';
 import {shellType} from '../../kit/shell/visual';
@@ -17,7 +16,6 @@ import type {NativeShellRuntime} from '../../shell/runtime';
 import {AccountSecuritySheet, accountSecurityAvailability} from '../accounts/PhoneAccountSecurity';
 import {createNativeAccountSecurityScope, nativeAccountSecurityAllowed} from './native-account-security';
 import type {NativeSettingsPanelDeps} from './settings-panels';
-
 type Opening = Readonly<{current: () => boolean; refresh: () => Promise<void>}>;
 const noSubscription = () => () => {};
 
@@ -71,7 +69,7 @@ export function NativeHostedSignInPanel({kind, context, lifetime, t, runtime}: N
       try {
         const session = credentials.getSnapshot().session!;
         const state = await nativeAccountRead(credentials, async value => parseSecurityState(
-          await new HttpLocalApi(hostedUrl, value.accessToken, nativeNetworkFetch).request(routePath('account_security_get'), 'GET', undefined, request.signal), scope),
+          await readOwnerHostedSecurity(hostedUrl, value.accessToken, nativeNetworkFetch, request.signal), scope),
         {expected: accountExpectation(session), signal: request.signal, isCurrent: current});
         if (!current()) return;
         controller = new NativeAccountSecurity(nativeAccounts, scope, state, current); setSource(controller);

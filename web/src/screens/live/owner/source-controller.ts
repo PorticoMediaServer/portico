@@ -1,3 +1,4 @@
+import {readOwnerLiveSources, changeOwnerLiveSource} from '@core/owner-requests.ts';
 import type {QuietRefreshOutcome} from '@core/freshness-actions.ts';
 import type {LibraryContentApi} from '@core/library-content.ts';
 import type {RefreshStatus} from '@core/linear-api.ts';
@@ -5,7 +6,6 @@ import {canRefreshSource} from '@core/server-admin/panel-logic.ts';
 import {channelRequestID} from '@core/live-source-draft.ts';
 import {OwnerStore, errorFacts, terminal} from './lifetime';
 import {sourceDocument, actionReceipt} from './checked';
-
 export type OwnerLiveSource = Readonly<{
   id: string; name: string; revision: number; state: string; acquisition?: 'upload' | 'remote'; tunerCount: number;
   tunerCountMode: string; generation: string; publishedAt: string; channels: number;
@@ -13,7 +13,6 @@ export type OwnerLiveSource = Readonly<{
 }>;
 export type SourceDocument = Readonly<{sources: readonly OwnerLiveSource[]; refresh: readonly RefreshStatus[]}>;
 export type SourceSnapshot = Readonly<{document?: SourceDocument; loading: boolean; busy?: string; error?: unknown; checkedAt?: number}>;
-const sourcePath = '/v1/admin/live-sources';
 
 /** Uncertain commands retain their immutable body and id across A/B/A. */
 export class LiveSourceController extends OwnerStore<SourceSnapshot> {
@@ -28,7 +27,7 @@ export class LiveSourceController extends OwnerStore<SourceSnapshot> {
     this.invalidateQuiet();const read = this.quietRead = new AbortController(), serial = this.quietSerial;
     const owns = () => this.isActive() && !read.signal.aborted && this.quietSerial === serial;
     try {
-      const raw = await this.api.request(sourcePath, 'GET', undefined, read.signal);
+      const raw = await readOwnerLiveSources(this.api, read.signal);
       if (!owns()) return {kind: 'deferred'};
       const document = sourceDocument(raw, this.serverId);
       this.publish({...this.snapshot, document, checkedAt: Date.now()});
@@ -44,7 +43,7 @@ export class LiveSourceController extends OwnerStore<SourceSnapshot> {
     this.invalidateQuiet();const attempt = this.begin();this.publish({...this.snapshot, loading: true, error: undefined});
     if (!this.valid(attempt)) return;
     try {
-      const raw = await this.api.request(sourcePath, 'GET', undefined, attempt.abort.signal);
+      const raw = await readOwnerLiveSources(this.api, attempt.abort.signal);
       if (!this.valid(attempt)) return;
       const document = sourceDocument(raw, this.serverId);
       this.publish({...this.snapshot, document, checkedAt: Date.now(), loading: false});
@@ -62,7 +61,7 @@ export class LiveSourceController extends OwnerStore<SourceSnapshot> {
     this.invalidateQuiet();const attempt = this.begin();this.publish({...this.snapshot, busy: stored.id, error: undefined});
     if (!this.valid(attempt)) return false;
     try {
-      const receipt = await this.api.request(`${sourcePath}/${encodeURIComponent(stored.id)}/${action === 'toggle' ? 'enabled' : action}`, 'POST', body, attempt.abort.signal);
+      const receipt = await changeOwnerLiveSource(this.api, stored.id, action === 'toggle' ? 'enabled' : action, body, attempt.abort.signal);
       if (!this.valid(attempt)) return false;
       actionReceipt(receipt, this.serverId, action);
       this.publish({...this.snapshot, busy: undefined});

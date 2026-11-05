@@ -1,3 +1,4 @@
+import {readOwnerRecordingRules, readOwnerRecordingGuide, ownerRecordingRuleChange, ownerRecordingRuleRemoval, sendOwnerRecordingRuleCommand} from '@core/owner-requests.ts';
 import type {LibraryContentApi} from '@core/library-content.ts';
 import {parseChannelGuide} from '@core/channel-guide.ts';
 import {recordingAllowed, recordingGuideRoute, recordingOwnerKey, recordingRulePayload, recordingSeries, type RecordingOwner, type RecordingAnchor, type RecordingSeries} from '@core/server-admin/recording-policy.ts';
@@ -35,13 +36,13 @@ export const needsRuleOwner = (rule: OwnerRule) => rule.status === 'needs-owner-
 const empty: State = Object.freeze({loading: false, saving: false, guideLoading: false, rules: Object.freeze([]), cursor: '', series: Object.freeze([]), guideCursor: '', day: '', sourceId: ''});
 export class RecordingRulesController extends OwnerStore<State> {
   private ids = new Map<string, string>();
-  private pending?: {key: string; path: string; method: string; body?: unknown};
+  private pending?: {key: string} & ReturnType<typeof ownerRecordingRuleChange>;
   constructor(private api: LibraryContentApi, private serverId: string, private permissions: RecordingPermissionsController, current: () => boolean, reportError: (error: unknown) => void) {super(empty, current, reportError);}
   async load(more = false) {
     if (!this.isActive() || this.snapshot.loading || this.snapshot.saving || this.snapshot.draft || this.pending || more && !this.snapshot.cursor) return;
     const attempt = this.begin(), head = this.snapshot;this.publish({...head, loading: true, error: undefined});if (!this.valid(attempt)) return;
     try {
-      const raw = envelope(await this.api.request('/v1/admin/dvr/recording-groups?' + new URLSearchParams({limit: '100', cursor: more ? head.cursor : ''}), 'GET', undefined, attempt.abort.signal), this.serverId).result;
+      const raw = envelope(await readOwnerRecordingRules(this.api, '?' + new URLSearchParams({limit: '100', cursor: more ? head.cursor : ''}), attempt.abort.signal), this.serverId).result;
       if (!this.valid(attempt)) return;const page = record(raw);if (!Array.isArray(page.items) || page.items.length > 100) throw {code: 'invalid_response'};
       const rows = page.items.map(parseRule);if (more && head.rules.length + rows.length > 10000 || new Set(rows.map(row => row.id)).size !== rows.length) throw {code: 'invalid_response'};
       const rules = more ? [...head.rules, ...rows.filter(row => !head.rules.some(prior => prior.id === row.id))] : rows;
@@ -78,7 +79,7 @@ export class RecordingRulesController extends OwnerStore<State> {
     if (!route || !this.valid(attempt)) return;
     try {
       const params = new URLSearchParams({kind: route.kind, start: route.start, end: route.end, timezone: route.timezone, search: route.search, sourceId: route.sourceId, limit: '30', cursor});
-      const raw = await this.api.request('/v1/guide?' + params, 'GET', undefined, attempt.abort.signal);if (!this.valid(attempt)) return;
+      const raw = await readOwnerRecordingGuide(this.api, params.toString(), attempt.abort.signal);if (!this.valid(attempt)) return;
       const guide = parseChannelGuide(raw, this.serverId, route);
       if (cursor && guide.nextCursor === cursor) throw {code: 'invalid_response'};
       this.publish({...this.snapshot, guideLoading: false, series: Object.freeze(recordingSeries(guide, true)), guideCursor: guide.nextCursor});
@@ -94,9 +95,9 @@ export class RecordingRulesController extends OwnerStore<State> {
     try {
       const key = JSON.stringify(draft);if (this.pending && this.pending.key !== key) throw {code: 'conflict'};
       const body = recordingRulePayload(draft, policy.grants, this.id(key));
-      const request = this.pending ?? {key, path: '/v1/admin/dvr/recording-groups' + (draft.id ? '/' + encodeURIComponent(draft.id) : ''), method: draft.id ? 'PUT' : 'POST', body};this.pending = request;
+      const request = this.pending ?? {key, ...ownerRecordingRuleChange(draft.id, body)};this.pending = request;
       if (!this.valid(attempt)) return false;
-      const raw = await this.api.request(request.path, request.method, request.body, attempt.abort.signal);if (!this.valid(attempt)) return false;
+      const raw = await sendOwnerRecordingRuleCommand(this.api, request, attempt.abort.signal);if (!this.valid(attempt)) return false;
       const saved = parseRule(envelope(raw, this.serverId).result);
       if (draft.id && saved.id !== draft.id || recordingOwnerKey(saved.owner) !== recordingOwnerKey(draft.owner) || saved.match !== draft.match || saved.sourceId !== draft.sourceId || saved.name !== draft.name.trim() || saved.enabled !== draft.enabled || saved.kind !== draft.kind || saved.revision <= (draft.revision ?? 0) || !matchesOptions(saved.options, draft.options)) throw {code: 'invalid_response'};
       this.pending = undefined;this.publish({...this.snapshot, saving: false, draft: undefined, uncertain: false, series: [], rules: [saved, ...this.snapshot.rules.filter(row => row.id !== saved.id)]});return this.valid(attempt);
@@ -109,8 +110,8 @@ export class RecordingRulesController extends OwnerStore<State> {
     this.publish({...this.snapshot, saving: true, error: undefined});if (!this.valid(attempt)) return false;
     try {
       const operationId = this.id(key);
-      const request = this.pending ?? {key, path: '/v1/admin/dvr/recording-groups/' + encodeURIComponent(rule.id) + '?' + new URLSearchParams({expectedRevision: String(rule.revision), operationId}), method: 'DELETE'};this.pending = request;
-      const raw = await this.api.request(request.path, request.method, undefined, attempt.abort.signal);
+      const request = this.pending ?? {key, ...ownerRecordingRuleRemoval(rule.id, rule.revision, operationId)};this.pending = request;
+      const raw = await sendOwnerRecordingRuleCommand(this.api, request, attempt.abort.signal);
       if (!this.valid(attempt)) return false;const result = record(envelope(raw, this.serverId).result);if (result.deleted !== true || result.id !== rule.id) throw {code: 'invalid_response'};
       this.pending = undefined;this.publish({...this.snapshot, saving: false, uncertain: false, rules: this.snapshot.rules.filter(row => row.id !== rule.id)});return this.valid(attempt);
     } catch (error) {if (this.valid(attempt)) this.fail(error, {...this.snapshot, saving: false, uncertain: !!this.pending, error: errorFacts(error)});return false;}

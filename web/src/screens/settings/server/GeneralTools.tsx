@@ -1,16 +1,15 @@
+import {broadcastOwnerNotification} from '@core/owner-requests.ts';
 import {useLayoutEffect, useRef, useState} from 'react';
 import {defaultI18n} from '@i18n';
 import {restartServer} from '@core/backups.ts';
 import type {HttpLocalApi} from '@core/index.ts';
 import {randomId} from '@core/random-id.ts';
 import {broadcastBody, broadcastProblem, utf8Length, type BroadcastProblem} from '@core/server-admin/panel-logic.ts';
-import {routePath} from '../../../../../packages/contracts/src/routes.ts';
 import {Button, TextField} from '../../../kit/controls';
 import {Segmented} from '../../../kit/controls/Choices';
 import {Dialog} from '../../../kit/overlays/Dialog';
 import {SettingsAction} from '../../../kit/settings';
 import styles from './server.module.css';
-
 const t = defaultI18n.t;
 type Api = Pick<HttpLocalApi, 'request'>;
 type ToolsProps = Readonly<{api: Api; isCurrent: () => boolean; reportError: (error: unknown) => void; disabled?: boolean}>;
@@ -39,7 +38,7 @@ export function GeneralMessage({api, isCurrent, reportError, disabled, label}: T
     if (issue || !title.trim() || !body.trim()) return;
     const id = operation.current || (operation.current = randomId());
     setBusy(true); setFailed(false);
-    void api.request(routePath('post_admin_notifications_broadcast'), 'POST', broadcastBody(id, {audience, severity, title, body}))
+    void broadcastOwnerNotification(api, broadcastBody(id, {audience, severity, title, body}))
       .then(() => {
         if (!alive.current) return;
         setSent(true); setOpen(false); setTitle(''); setBody('');

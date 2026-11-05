@@ -1,3 +1,4 @@
+import {ownerCertificateRequest} from '../../../../../../packages/client-core/src/owner-requests';
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {remoteWarningLines, type RemoteAccess, type RemoteConfiguration} from '../../../../../../packages/client-core/src/remote-access';
@@ -6,7 +7,6 @@ import {secureConnectionView} from '../../../../../../packages/client-core/src/s
 import {ownCertificateLine, remoteStatusLine} from '../../../../../../packages/client-core/src/server-admin/status-words';
 import type {CertificateDraft, ConnectivityDraft} from '../../../../../../packages/client-core/src/server-admin/server-forms';
 import {certificateProblemMessage, retryCertificate, type CertificateApi, type CertificateStatus} from '../../../../../../packages/client-core/src/certificates';
-import {routePath} from '../../../../../../packages/contracts/src/routes';
 import {useSettingsRequestScope} from '../use-settings-request-scope';
 import {settingsSpec} from '../../../../../../packages/client-core/src/presentation/settings-spec';
 import {readSettingsBinding, settingsBinding} from '../../../../../../packages/client-core/src/presentation/settings-bindings';
@@ -24,7 +24,6 @@ import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeSettingsLivePorts} from '../ports';
 import {useFormState, useStorageForms, useStorageSet, type StorageForms} from './storage/forms';
 import {settingsPageHeading, settingsPageInset} from './page-layout';
-
 const IDS = ['remote', 'connectivity', 'certificate'] as const;
 
 /** Settings › Server › Remote access on the phone and tablet. Every status and field
@@ -48,7 +47,7 @@ function RemoteAccessPage({group, ports, runtime, compactHeader}: {group: Storag
   const retry = async () => {
     if (!lifetime.current() || retryFlight.current || state.saving || state.dirty || !context.account.account.hostedAccountId || !certificateState.draft?.claimed || !certificateState.draft.enabled) return;
     const request = new AbortController(); retryFlight.current = request; setRetrying(true); setRetryError(undefined);
-    const certificateApi: CertificateApi = {requestCertificate: (action, body, signal) => api.request(routePath(action === 'status' ? 'get_networking_certificate' : action === 'config' ? 'post_networking_certificate_config' : 'post_networking_certificate_retry'), action === 'status' ? 'GET' : 'POST', body, signal)};
+    const certificateApi: CertificateApi = {requestCertificate: (action, body, signal) => ownerCertificateRequest(api, action, body, signal)};
     try {await retryCertificate(certificateApi, request.signal); if (lifetime.current() && !request.signal.aborted) await forms.certificate.load();}
     catch (error) {if (lifetime.current() && !request.signal.aborted) setRetryError(error);}
     finally {if (retryFlight.current === request) {retryFlight.current = undefined; if (lifetime.current()) setRetrying(false);}}

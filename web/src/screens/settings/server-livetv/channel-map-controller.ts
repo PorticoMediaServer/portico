@@ -1,3 +1,4 @@
+import {readOwnerChannelMap, readOwnerSourceConfiguration, writeOwnerChannelMap} from '@core/owner-requests.ts';
 import type {LibraryContentApi} from '@core/library-content.ts';
 import {parseEnvelope, parseChannelMapPage, parseLiveSourceDocument, type ChannelMapEntry} from '@core/administration.ts';
 import {channelRequestID} from '@core/live-source-draft.ts';
@@ -13,7 +14,6 @@ export class ChannelMapController extends OwnerStore<MapSnapshot> {
   constructor(private api: LibraryContentApi, private serverId: string, readonly sourceId: string, current: () => boolean, reportError: (error: unknown) => void) {
     super(empty, current, reportError);if (!/^[a-f0-9]{48}$/.test(sourceId)) throw new Error('live_source_identity_invalid');
   }
-  private path(part: string) {return `/v1/admin/live-sources/${encodeURIComponent(this.sourceId)}/${part}`;}
   private page(raw: unknown) {
     const page = parseEnvelope(raw, this.serverId, parseChannelMapPage).result;
     if (page.sourceId !== this.sourceId || !/^[a-f0-9]{48}$/.test(page.generation)) throw {code: 'invalid_response'};return page;
@@ -23,7 +23,7 @@ export class ChannelMapController extends OwnerStore<MapSnapshot> {
     const head = this.snapshot, attempt = this.begin(), cursor = more ? head.cursor : '';
     this.publish({...head, loading: true, error: undefined});if (!this.valid(attempt)) return;
     try {
-      const raw = await this.api.request(this.path('channel-map') + '?' + new URLSearchParams({limit: '100', cursor}), 'GET', undefined, attempt.abort.signal);
+      const raw = await readOwnerChannelMap(this.api, this.sourceId, '?' + new URLSearchParams({limit: '100', cursor}), attempt.abort.signal);
       if (!this.valid(attempt)) return;const page = this.page(raw);
       if (head.generation && head.generation !== page.generation && (more || Object.keys(head.edits).length)) throw {code: 'revision_mismatch'};
       const rows = more ? [...head.rows, ...page.items.filter(row => !head.rows.some(prior => prior.channelId === row.channelId))] : page.items;
@@ -45,9 +45,9 @@ export class ChannelMapController extends OwnerStore<MapSnapshot> {
     try {
       if (!this.valid(attempt)) return false;
       if (!this.queue) {
-        const rawPage = await this.api.request(this.path('channel-map') + '?limit=1', 'GET', undefined, attempt.abort.signal);if (!this.valid(attempt)) return false;
+        const rawPage = await readOwnerChannelMap(this.api, this.sourceId, '?limit=1', attempt.abort.signal);if (!this.valid(attempt)) return false;
         if (this.page(rawPage).generation !== this.snapshot.generation) throw {code: 'revision_mismatch'};
-        const raw = await this.api.request(this.path('configuration'), 'GET', undefined, attempt.abort.signal);if (!this.valid(attempt)) return false;
+        const raw = await readOwnerSourceConfiguration(this.api, this.sourceId, attempt.abort.signal);if (!this.valid(attempt)) return false;
         const doc = parseEnvelope(raw, this.serverId, parseLiveSourceDocument).result;if (doc.sourceId !== this.sourceId) throw {code: 'invalid_response'};
         const remaining = Object.entries(this.snapshot.edits).map(([channelId, value]) => Object.freeze({channelId, ...value}));
         this.queue = {remaining: Object.freeze(remaining), revision: doc.revision, saved: 0, total: remaining.length};
@@ -56,7 +56,7 @@ export class ChannelMapController extends OwnerStore<MapSnapshot> {
         const queue = this.queue;
         queue.pending ??= Object.freeze({expectedRevision: queue.revision, operationId: channelRequestID(), overrides: Object.freeze(queue.remaining.slice(0, 200))});
         if (!this.valid(attempt)) return false;
-        const raw = await this.api.request(this.path('channel-map'), 'PUT', queue.pending, attempt.abort.signal);if (!this.valid(attempt)) return false;
+        const raw = await writeOwnerChannelMap(this.api, this.sourceId, queue.pending, attempt.abort.signal);if (!this.valid(attempt)) return false;
         const page = this.page(raw);if (page.generation !== this.snapshot.generation) throw {code: 'revision_mismatch'};
         const edits = {...this.snapshot.edits};for (const row of queue.pending.overrides) delete edits[row.channelId];
         queue.saved += queue.pending.overrides.length;queue.remaining = queue.remaining.slice(queue.pending.overrides.length);queue.revision++;queue.pending = undefined;

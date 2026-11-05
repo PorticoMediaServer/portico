@@ -1,3 +1,4 @@
+import {ownerAwayLimitForm} from '@core/owner-settings-policy.ts';
 import type {ViewerQueries} from '@core/query/viewer-queries.ts';
 import {troubleshootingParts, troubleshootingRowShown} from './server/troubleshooting/parts';
 import type {QuietRefreshOutcome} from '@core/freshness-actions.ts';
@@ -27,7 +28,6 @@ import {SettingsSectionReads} from './section-loading';
 import {SettingsLibrarySource} from './library-source';
 import {SettingsLibraryFoldersSource} from './library-folders-source';
 import {SettingsBackupSource} from './backup-source';
-
 type DocumentForm = Readonly<{
   invalidateQuiet: () => void; refresh: () => Promise<QuietRefreshOutcome>; subscribe: (listener: () => void) => () => void; blocked: () => boolean; settlement: () => unknown;
   load: () => Promise<void>; dispose: () => void;
@@ -163,7 +163,7 @@ export class SettingsController {
       // ST-7: the owner Quality page's away-limit row reads the same value through its own form, quietly:
       // a refusal (a remembered owner past the management hour) leaves that row out, never asks for the
       // PIN and never fails the page (FB-10 regression).
-      this.awayLimit = documentForm(connectivityForm({...deps, api: {request: (path, method, body, signal) => options.api.request(path, method, body, signal, {manageGate: false})}}));
+      this.awayLimit = documentForm(ownerAwayLimitForm(deps, options.api));
       this.forms.maintenance = documentForm(maintenanceForm(deps));
       this.forms.alerts = documentForm(alertsForm(deps));
       this.forms.logs = documentForm(logsForm(deps));
