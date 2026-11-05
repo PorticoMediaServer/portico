@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -107,28 +108,44 @@ func (f *observationFixture) tick(id, epoch string, seq int64, state string) (Ob
 	})
 }
 
-// waitApplied waits until the worker has written every listed session.
+// waitApplied advances the fake clock to pending flush/retry deadlines and
+// wakes the real worker. Wall-clock polling alone cannot make fake time due.
 func (f *observationFixture) waitApplied(ids ...string) {
 	f.t.Helper()
 	o := f.service.observations()
 	deadline := time.Now().Add(10 * time.Second)
 	for {
 		o.mu.Lock()
-		o.wakeLocked()
 		pending := 0
+		var next time.Time
+		var details []string
 		for _, id := range ids {
 			if e := o.entries[id]; e != nil && (e.dirty || e.busy || e.credited() != e.applied) {
 				pending++
+				due := e.due()
+				// A busy capture owns its apply time; let it finish before advancing
+				// to the next due time computed from that apply.
+				if !e.busy && !due.IsZero() && (next.IsZero() || due.Before(next)) {
+					next = due
+				}
+				details = append(details, fmt.Sprintf("%s: dirty=%t busy=%t credited=%d applied=%d lastApply=%s due=%s retryAt=%s failures=%d",
+					id, e.dirty, e.busy, e.credited(), e.applied, e.lastApply.Format(time.RFC3339Nano), due.Format(time.RFC3339Nano), e.retryAt.Format(time.RFC3339Nano), e.failures))
 			}
 		}
+		now := f.clock.now()
+		if next.After(now) {
+			f.clock.add(next.Sub(now))
+		}
+		o.wakeLocked()
+		batchFailures := o.counts.batchesFailed.Load()
 		o.mu.Unlock()
 		if pending == 0 {
 			return
 		}
 		if time.Now().After(deadline) {
-			f.t.Fatalf("%d of %d sessions still unwritten", pending, len(ids))
+			f.t.Fatalf("%d of %d sessions still unwritten (now=%s batchFailures=%d):\n%s", pending, len(ids), f.clock.now().Format(time.RFC3339Nano), batchFailures, strings.Join(details, "\n"))
 		}
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(time.Millisecond)
 	}
 }
 
