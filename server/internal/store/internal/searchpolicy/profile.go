@@ -106,7 +106,7 @@ func Compare(stored Profile, actual Engine) Compatibility {
 		result.Reason = StoredMissing
 		return result
 	}
-	if !wellFormed(stored) {
+	if !StoredWellFormed(stored) {
 		result.Reason = StoredMalformed
 		return result
 	}
@@ -118,7 +118,11 @@ func Compare(stored Profile, actual Engine) Compatibility {
 	return result
 }
 
-func wellFormed(p Profile) bool {
+// StoredWellFormed validates only the stored tuple's encoding and bounds.
+// It does not compare Compiled, consult an engine or attest compatibility.
+// RAW source admission may use it while preserving a well-formed stale profile;
+// normalization, native publication and serving require separate eligibility.
+func StoredWellFormed(p Profile) bool {
 	if p.RecipeVersion == "" || len(p.RecipeVersion) > 128 || p.EngineVersion == "" || len(p.EngineVersion) > 512 {
 		return false
 	}
