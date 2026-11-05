@@ -1,0 +1,146 @@
+name: Phase 0 exact4158 People bank and changed publisher
+on:
+  push:
+    branches: ['schema-v1/p0-q-4158-people']
+    paths: ['research/p0-q/**', '.github/workflows/p0-q-4158-people.yml']
+permissions:
+  contents: read
+env:
+  GOWORK: 'off'
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: research/p0-q/go.mod, cache-dependency-path: research/p0-q/go.sum}
+      - name: Build bundled engine
+        working-directory: research/p0-q
+        run: go build -o "$RUNNER_TEMP/p0-q-bench" .
+      - name: People CJK quality custody empty rollback and bank flip
+        env: {MODE: people, N: 1000, PROFILE: standard, CONFIG: normal-passive, CJK_SHARE: 30, ROUNDS: 16, SAMPLES: 16}
+        run: bash research/p0-q/run-experiment.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: q-4158-people-smoke
+          path: '${{ runner.temp }}/p0-q-experiment/out'
+          retention-days: 30
+  people:
+    needs: smoke
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [standard, old8g]
+        n: [100000, 400000, 1000000]
+        share: [5, 30]
+        replica: [0,1,2]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: research/p0-q/go.mod, cache-dependency-path: research/p0-q/go.sum}
+      - name: Build
+        working-directory: research/p0-q
+        run: go build -o "$RUNNER_TEMP/p0-q-bench" .
+      - name: People queries source publication throughput and lag
+        env:
+          MODE: people
+          N: ${{ matrix.n }}
+          PROFILE: ${{ matrix.profile }}
+          CONFIG: normal-passive
+          CJK_SHARE: ${{ matrix.share }}
+          ROUNDS: 1000
+          SAMPLES: 128
+          GENERATION: ${{ matrix.replica == 0 && '1' || '0' }}
+        run: bash research/p0-q/run-experiment.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: q-4158-people-${{ matrix.profile }}-${{ matrix.n }}-cjk${{ matrix.share }}-vm${{ matrix.replica }}
+          path: '${{ runner.temp }}/p0-q-experiment/out'
+          retention-days: 30
+  changed_entity:
+    needs: smoke
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [standard, old8g]
+        n: [100000, 400000, 1000000]
+        share: [5, 30]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: research/p0-q/go.mod, cache-dependency-path: research/p0-q/go.sum}
+      - name: Build
+        working-directory: research/p0-q
+        run: go build -o "$RUNNER_TEMP/p0-q-bench" .
+      - name: Entity publication regression on changed image and checks
+        env: {MODE: publisher, N: '${{ matrix.n }}', PROFILE: '${{ matrix.profile }}', CONFIG: normal-passive, CJK_SHARE: '${{ matrix.share }}', ROUNDS: 1000, GENERATION: 0}
+        run: bash research/p0-q/run-experiment.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: q-4158-entity-${{ matrix.profile }}-${{ matrix.n }}-cjk${{ matrix.share }}
+          path: '${{ runner.temp }}/p0-q-experiment/out'
+          retention-days: 30
+  dense_people:
+    needs: smoke
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [standard, old8g]
+        share: [5, 30]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: research/p0-q/go.mod, cache-dependency-path: research/p0-q/go.sum}
+      - name: Build
+        working-directory: research/p0-q
+        run: go build -o "$RUNNER_TEMP/p0-q-bench" .
+      - name: Denser200k People at1M catalogue items
+        env: {MODE: people, N: 1000000, PROFILE: '${{ matrix.profile }}', CONFIG: normal-passive, CJK_SHARE: '${{ matrix.share }}', PEOPLE_DIVISOR: 5, ROUNDS: 1000, SAMPLES: 128, GENERATION: 0}
+        run: bash research/p0-q/run-experiment.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: q-4158-dense-${{ matrix.profile }}-1000000-cjk${{ matrix.share }}
+          path: '${{ runner.temp }}/p0-q-experiment/out'
+          retention-days: 30
+  people_wal:
+    needs: smoke
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [standard, old8g]
+        n: [100000, 1000000]
+        config: [normal-passive, normal-passive-250]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: research/p0-q/go.mod, cache-dependency-path: research/p0-q/go.sum}
+      - name: Build
+        working-directory: research/p0-q
+        run: go build -o "$RUNNER_TEMP/p0-q-bench" .
+      - name: People publication under bounded reader and FULL auth
+        env: {MODE: people-wal, N: '${{ matrix.n }}', PROFILE: '${{ matrix.profile }}', CONFIG: '${{ matrix.config }}', CJK_SHARE: 30, MIXED: 1, BOUNDED: 1, SNAPSHOT_CAP: 250}
+        run: bash research/p0-q/run-experiment.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: q-4158-wal-${{ matrix.profile }}-${{ matrix.n }}-${{ matrix.config }}
+          path: '${{ runner.temp }}/p0-q-experiment/out'
+          retention-days: 30

@@ -661,6 +661,7 @@ func main() {
 	v := flag.String("variant", "A", "A or B")
 	profile := flag.String("profile", "smoke", "hardware profile")
 	dir := flag.String("dir", "", "scratch output")
+	peopleD := flag.Int("people-divisor", 50, "items per independent person; density control")
 	genRun := flag.Bool("generation", true, "run full generation backfill for designated cell")
 	samples := flag.Int("samples", 16, "query samples excluding warmup")
 	rounds := flag.Int("rounds", 2048, "churn transactions")
@@ -672,6 +673,7 @@ func main() {
 	mixed := flag.Bool("mixed", false, "mixed security/progress traffic")
 	minimum := flag.Duration("mixed-duration", 600*time.Second, "minimum mixed observation")
 	flag.Parse()
+	peopleDivisor = *peopleD
 	generationRun = *genRun
 	profileName = *profile
 	cjkShare = *share
@@ -710,7 +712,7 @@ func main() {
 	var sqliteSourceID string
 	must(db.QueryRow("SELECT sqlite_source_id()").Scan(&sqliteSourceID))
 	engineFingerprint = frozenFingerprint(sqliteSourceID)
-	emit("environment", map[string]any{"sqlite": version, "engine": "bundled-modernc", "driver_module": "modernc.org/sqlite", "driver_version": driverVersion, "sqlite_source_id": sqliteSourceID, "unicode_fingerprint": engineFingerprint, "go": runtime.Version(), "cpus": runtime.NumCPU(), "profile": *profile, "variant": *v, "items": *n, "pid": os.Getpid(), "mode": *mode, "config": *config, "automerge": autoMerge, "crisismerge": crisisMerge, "batch": buildBatch, "merge_pages": mergePages, "synchronous": durability, "candidate_sha256": candidateSHA(), "candidate_fk_checks": publishedSchema, "cjk_share_percent": cjkShare, "old_cjk_recipe": oldCJKRecipe, "token_recipe": "CJK-NGRAM-RECIPE", "previous_candidate_sha256": "ef4b74ad542e0951c23760d15a3e60f295210d3bf0a1c29a9f9b944f1a4b722c"})
+	emit("environment", map[string]any{"sqlite": version, "engine": "bundled-modernc", "driver_module": "modernc.org/sqlite", "driver_version": driverVersion, "sqlite_source_id": sqliteSourceID, "unicode_fingerprint": engineFingerprint, "go": runtime.Version(), "cpus": runtime.NumCPU(), "profile": *profile, "variant": *v, "items": *n, "pid": os.Getpid(), "mode": *mode, "config": *config, "automerge": autoMerge, "crisismerge": crisisMerge, "batch": buildBatch, "merge_pages": mergePages, "synchronous": durability, "candidate_sha256": candidateSHA(), "candidate_fk_checks": publishedSchema, "cjk_share_percent": cjkShare, "old_cjk_recipe": oldCJKRecipe, "token_recipe": "CJK-NGRAM-RECIPE", "people_divisor": peopleDivisor, "people_bank": peopleBank, "previous_candidate_sha256": "97dc083d437e4da0aaab9b277bdc9c8f5dace1450a2a5e754579867916352393"})
 	if *mode == "reclaim-plan-fk-index" {
 		ddl := "CREATE INDEX search_publish_document_fk ON search_publish_jobs(document_id) WHERE document_id IS NOT NULL"
 		exec(db, ddl)
@@ -750,6 +752,18 @@ func main() {
 	emit("debt_base", debt(db))
 	if *mode == "seed-only" {
 		emit("seed_completed", map[string]any{"items": *n})
+		return
+	}
+	if *mode == "people-wal" {
+		var count int
+		must(db.QueryRow("SELECT count(*) FROM catalog_people").Scan(&count))
+		peopleFlow(db, count, 8, *n)
+		finishMixed(db)
+		emit("people_wal_completed", map[string]any{"items": *n, "people": count})
+		return
+	}
+	if *mode == "people" {
+		peopleBench(db, *n, *rounds, *samples)
 		return
 	}
 	if *mode == "publisher-wal" {

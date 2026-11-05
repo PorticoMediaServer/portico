@@ -11,6 +11,8 @@ import (
 var publishedSchema = strings.Contains(candidateSQL, "CREATE TABLE search_publications(")
 var currentSearchGeneration = 1
 var generationRun = true
+var peopleDivisor = 50
+var peopleBank = strings.Contains(candidateSQL, "person_name_tokens")
 
 const recipeVersion = "A-CJK-uni-bi-v1"
 
@@ -46,6 +48,9 @@ func createPublished(db *sql.DB) {
 	exec(db, `CREATE VIEW q_search_entities AS SELECT e.*,p.title_fold,p.title_prefix_tokens,p.initial_prefix_tokens FROM catalog_entities e JOIN q_items q ON q.id=e.id JOIN search_publish_jobs j ON j.entity_id=e.id AND j.search_generation_id=(SELECT active_generation_id FROM search_revision WHERE singleton=1) JOIN search_publications p ON p.id=j.published_document_id`)
 	exec(db, `CREATE VIEW edges AS SELECT f.id fragment,x.entity FROM search_fragments f JOIN search_publish_jobs j ON j.person_id=f.owner_person AND j.search_generation_id=f.search_generation_id AND j.published_generation=f.generation JOIN q_edges x ON x.owner_person=f.owner_person WHERE f.owner_person IS NOT NULL AND f.search_generation_id=(SELECT active_generation_id FROM search_revision WHERE singleton=1) UNION ALL SELECT f.id fragment,x.entity FROM search_fragments f JOIN search_publish_jobs j ON j.entity_id=f.owner_entity AND j.search_generation_id=f.search_generation_id AND j.published_generation=f.generation JOIN q_edges x ON x.owner_entity=f.owner_entity WHERE f.owner_entity IS NOT NULL AND f.search_generation_id=(SELECT active_generation_id FROM search_revision WHERE singleton=1)`)
 
+	if peopleBank {
+		indexes = append(indexes, "catalog_people_names")
+	}
 	for _, x := range indexes {
 		for _, kv := range []struct {
 			k string
@@ -62,6 +67,7 @@ type pubDoc struct {
 	entity, person, job, doc, frag, version, searchGen, kind, lib, oldDoc int
 	oldFrags                                                              []int
 	title, p, init, fold, lex, fragPrefix                                 string
+	nameTokens, oldName                                                   string
 	oldP, oldInit                                                         string
 	accepted                                                              time.Time
 }
@@ -102,12 +108,18 @@ func capturePub(db *sql.DB, entity, person, gen int, title string, accepted time
 	if person > 0 {
 		col, id = "person_id", person
 		d.fragPrefix = d.p
+		d.nameTokens = d.lex
+		d.p = ""
+		d.init = ""
 	}
 	var old sql.NullInt64
 	must(db.QueryRow("SELECT id,input_generation,published_document_id,source_revision FROM search_publish_jobs WHERE "+col+"=? AND search_generation_id=?", id, gen).Scan(&d.job, &d.version, &old, &d.sourceVersion))
 	if old.Valid {
 		d.oldDoc = int(old.Int64)
 		must(db.QueryRow("SELECT title_prefix_tokens,initial_prefix_tokens FROM search_publications WHERE id=?", d.oldDoc).Scan(&d.oldP, &d.oldInit))
+		if peopleBank && person > 0 {
+			must(db.QueryRow("SELECT person_name_tokens FROM search_publications WHERE id=?", d.oldDoc).Scan(&d.oldName))
+		}
 		rows, e := db.Query("SELECT id FROM search_fragments WHERE "+strings.Replace("owner_"+col, "_id", "", 1)+"=? AND search_generation_id=? AND generation=(SELECT published_generation FROM search_publish_jobs WHERE id=?)", id, gen, d.job)
 		must(e)
 		for rows.Next() {
@@ -142,12 +154,12 @@ func stagePub(db *sql.DB, docs []*pubDoc, tag string) {
 					field = 3
 				}
 			}
-			r, err := db.Exec(`INSERT INTO search_publications(entity_id,person_id,search_generation_id,title,library_id,kind,generation,source_incarnation,source_revision,recipe_version,title_fold,title_prefix_tokens,initial_prefix_tokens) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`, e, p, d.searchGen, d.title, lib, kind, d.version, subjectBytes(max(d.entity, d.person)), d.sourceVersion, recipeVersion, d.fold, d.p, d.init)
+			r, err := db.Exec(`INSERT INTO search_publications(entity_id,person_id,search_generation_id,title,person_name_tokens,library_id,kind,generation,source_incarnation,source_revision,recipe_version,title_fold,title_prefix_tokens,initial_prefix_tokens) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, e, p, d.searchGen, d.title, d.nameTokens, lib, kind, d.version, subjectBytes(max(d.entity, d.person)), d.sourceVersion, recipeVersion, d.fold, d.p, d.init)
 			must(err)
 			id, err := r.LastInsertId()
 			must(err)
 			d.doc = int(id)
-			r, err = db.Exec(`INSERT INTO search_fragments(owner_entity,owner_person,field,ordinal,source_revision,prefix_tokens,lexical_tokens,normalized,generation,search_generation_id) VALUES(?,?,?,0,?,?,?,?,?,?)`, e, p, field, fmt.Sprint(d.version), d.fragPrefix, d.lex, d.fold, d.version, d.searchGen)
+			r, err = db.Exec(`INSERT INTO search_fragments(owner_entity,owner_person,field,ordinal,source_revision,prefix_tokens,lexical_tokens,normalized,generation,search_generation_id) VALUES(?,?,?,0,?,?,?,?,?,?)`, e, p, field, fmt.Sprint(d.sourceVersion), d.fragPrefix, d.lex, d.fold, d.version, d.searchGen)
 			must(err)
 			id, err = r.LastInsertId()
 			must(err)
@@ -166,6 +178,10 @@ func flipPub(db *sql.DB, docs []*pubDoc, tag string) {
 		exec(db, "BEGIN IMMEDIATE")
 		for _, d := range docs {
 			idx := bankName("search_own_prefix", d.searchGen)
+			if d.person > 0 && d.oldDoc > 0 && peopleBank {
+				idx := bankName("catalog_people_names", d.searchGen)
+				native(db, tag+".person.delete", "INSERT INTO "+idx+"("+idx+",rowid,name) VALUES('delete',?,?)", d.person, d.oldName)
+			}
 			if d.person == 0 && d.oldDoc > 0 {
 				native(db, tag+".own.delete", "INSERT INTO "+idx+"("+idx+",rowid,title_prefix_tokens,initial_prefix_tokens) VALUES('delete',?,?,?)", d.entity, d.oldP, d.oldInit)
 			}
@@ -176,6 +192,10 @@ func flipPub(db *sql.DB, docs []*pubDoc, tag string) {
 			if n != 1 {
 				panic("stale publisher CAS")
 			}
+			if d.person > 0 && peopleBank {
+				idx := bankName("catalog_people_names", d.searchGen)
+				native(db, tag+".person.insert", "INSERT INTO "+idx+"(rowid,name) VALUES(?,?)", d.person, d.nameTokens)
+			}
 			if d.person == 0 {
 				native(db, tag+".own.insert", "INSERT INTO "+idx+"(rowid,title_prefix_tokens,initial_prefix_tokens) VALUES(?,?,?)", d.entity, d.p, d.init)
 			}
@@ -183,6 +203,17 @@ func flipPub(db *sql.DB, docs []*pubDoc, tag string) {
 		native(db, tag+".flip.commit", "COMMIT")
 	})
 	for _, d := range docs {
+		if d.person > 0 && peopleBank {
+			idx := bankName("catalog_people_names", d.searchGen)
+			tokens := strings.Fields(d.nameTokens)
+			var id int
+			if len(tokens) > 0 {
+				must(db.QueryRow("SELECT rowid FROM "+idx+" WHERE "+idx+" MATCH ? AND rowid=?", `"`+tokens[0]+`"*`, d.person).Scan(&id))
+			} else {
+				must(db.QueryRow("SELECT id FROM "+idx+"_docsize WHERE id=?", d.person).Scan(&id))
+			}
+			d.visible = time.Now()
+		}
 		if d.person == 0 {
 			idx := bankName("search_own_prefix", d.searchGen)
 			tokens := strings.Fields(d.p)
@@ -237,7 +268,7 @@ func publishDocs(db *sql.DB, docs []*pubDoc, tag string) {
 	maintain(db, tag+".merge")
 }
 func buildPublished(db *sql.DB, n int) {
-	shared := max(128, n/50)
+	shared := max(128, n/peopleDivisor)
 	start := time.Now()
 	for i := 1; i <= shared+max(1, shared/10); i++ {
 		person, entity, t := i, -1, personName(i)

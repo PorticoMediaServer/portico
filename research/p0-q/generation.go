@@ -20,8 +20,16 @@ func createBank(db *sql.DB, gen int) {
 		}
 		ddl += ");"
 	}
+	if peopleBank {
+		personView := fmt.Sprintf("q_bank%d_person_content", gen)
+		ddl += fmt.Sprintf(`CREATE VIEW %s AS SELECT j.person_id id,p.person_name_tokens name FROM search_publish_jobs j JOIN search_publications p ON p.id=j.published_document_id WHERE j.person_id IS NOT NULL AND j.search_generation_id=%d AND p.generation=j.published_generation; CREATE VIRTUAL TABLE %s USING fts5(name,content='%s',content_rowid='id',tokenize='unicode61 remove_diacritics 2',prefix='2 3 4');`, personView, gen, bankName("catalog_people_names", gen), personView)
+	}
 	measured("generation.create_bank.tx", func() { exec(db, ddl) })
-	for _, base := range []string{"search_own_prefix", "search_fragment_prefix", "search_fragment_lexical", "search_fragment_grams"} {
+	bases := []string{"search_own_prefix", "search_fragment_prefix", "search_fragment_lexical", "search_fragment_grams"}
+	if peopleBank {
+		bases = append(bases, "catalog_people_names")
+	}
+	for _, base := range bases {
 		idx := bankName(base, gen)
 		indexes = append(indexes, idx)
 		for _, kv := range []struct {
@@ -174,6 +182,9 @@ func generationBench(db *sql.DB, n, batch int) {
 		admitPublication()
 		for _, d := range docs {
 			must(db.QueryRow("SELECT title_prefix_tokens,initial_prefix_tokens FROM search_publications WHERE id=?", d.oldDoc).Scan(&d.oldP, &d.oldInit))
+			if d.person > 0 && peopleBank {
+				must(db.QueryRow("SELECT person_name_tokens FROM search_publications WHERE id=?", d.oldDoc).Scan(&d.oldName))
+			}
 			col, id := "owner_entity", d.entity
 			if d.person > 0 {
 				col, id = "owner_person", d.person
@@ -190,6 +201,9 @@ func generationBench(db *sql.DB, n, batch int) {
 		measured("generation.retire_head.tx", func() {
 			exec(db, "BEGIN IMMEDIATE")
 			for _, d := range docs {
+				if d.person > 0 && peopleBank {
+					exec(db, `INSERT INTO catalog_people_names(catalog_people_names,rowid,name) VALUES('delete',?,?)`, d.person, d.oldName)
+				}
 				if d.person == 0 {
 					exec(db, `INSERT INTO search_own_prefix(search_own_prefix,rowid,title_prefix_tokens,initial_prefix_tokens) VALUES('delete',?,?,?)`, d.entity, d.oldP, d.oldInit)
 				}
