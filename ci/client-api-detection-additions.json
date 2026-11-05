@@ -1,0 +1,125 @@
+{
+  "sourceCommit": "0ecb62138e9091894448b3514cd77b1a6e90b466",
+  "sites": {
+    "apps/native/src-next/platform/playback/capacity-retry.ts#749ca04919a11a85": {
+      "occurrences": 1,
+      "reason": "F4: resolved core V1Request send transport, including existing app layers.",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885"
+    },
+    "apps/native/src-next/platform/playback/capacity-retry.ts#f33d21145457958f": {
+      "occurrences": 2,
+      "reason": "F4: resolved core V1Request send transport, including existing app layers.",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885"
+    },
+    "apps/native/src-next/platform/playback/runtime.ts#0b0d0f25f152f5e8": {
+      "occurrences": 1,
+      "reason": "F4: resolved existing HttpLocalApi method previously omitted by the callee filter.",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885"
+    },
+    "apps/native/src-next/platform/playback/runtime.ts#6eaf5d1ad651ca99": {
+      "occurrences": 2,
+      "reason": "F4: resolved core V1Request send transport, including existing app layers.",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885"
+    },
+    "apps/native/src-next/platform/playback/runtime.ts#9a5956e7ca7d1e8b": {
+      "occurrences": 1,
+      "reason": "F4: resolved core V1Request send transport, including existing app layers.",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885"
+    },
+    "apps/native/src-next/platform/playback/runtime.ts#b93c2b0e400ec9e1": {
+      "occurrences": 1,
+      "reason": "F4: resolved core V1Request send transport, including existing app layers.",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885"
+    },
+    "apps/native/src-next/platform/playback/runtime.ts#f0a2d245dacf0916": {
+      "occurrences": 2,
+      "reason": "F4: resolved core V1Request send transport, including existing app layers.",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885"
+    },
+    "apps/native/src-next/platform/playback/scope-http.ts#21d1e987785bc408": {
+      "occurrences": 1,
+      "reason": "F4: resolved core V1Request send transport, including existing app layers.",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885"
+    },
+    "apps/native/src-next/screens/read/ReadOwnerEditSheet.tsx#dcf70cf97a348b63": {
+      "occurrences": 1,
+      "reason": "F4: resolved existing HttpLocalApi method previously omitted by the callee filter.",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885"
+    },
+    "apps/native/src-next/screens/settings-live/SettingsRoute.tsx#32ee3e8586b61f52": {
+      "occurrences": 2,
+      "reason": "F4: resolved core V1Request send transport, including existing app layers.",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885"
+    },
+    "apps/native/src-next/screens/settings-live/owner-dashboard/reader.ts#32ee3e8586b61f52": {
+      "occurrences": 1,
+      "reason": "F4: resolved core V1Request send transport, including existing app layers.",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885"
+    },
+    "web/src/platform/playback/capacity-retry.ts#749ca04919a11a85": {
+      "occurrences": 1,
+      "reason": "F4: resolved core V1Request send transport, including existing app layers.",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885"
+    },
+    "web/src/platform/playback/capacity-retry.ts#f33d21145457958f": {
+      "occurrences": 2,
+      "reason": "F4: resolved core V1Request send transport, including existing app layers.",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885"
+    },
+    "web/src/platform/playback/runtime.ts#53df8861a53fc1ec": {
+      "occurrences": 1,
+      "reason": "F4: resolved core V1Request send transport, including existing app layers.",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885"
+    },
+    "web/src/platform/playback/runtime.ts#692bd4c5a755f009": {
+      "occurrences": 1,
+      "reason": "F4: resolved core V1Request send transport, including existing app layers.",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885"
+    },
+    "web/src/platform/playback/runtime.ts#6b285d4646a96382": {
+      "occurrences": 1,
+      "reason": "F4: resolved core V1Request send transport, including existing app layers.",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885"
+    },
+    "web/src/platform/playback/runtime.ts#78dc8210c398edf9": {
+      "occurrences": 1,
+      "reason": "F4: resolved existing HttpLocalApi method previously omitted by the callee filter.",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885"
+    },
+    "web/src/platform/playback/runtime.ts#d08cac842cd1705e": {
+      "occurrences": 1,
+      "reason": "F4: resolved core V1Request send transport, including existing app layers.",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885"
+    },
+    "web/src/platform/playback/runtime.ts#ea423be48cb3f904": {
+      "occurrences": 1,
+      "reason": "F4: resolved core V1Request send transport, including existing app layers.",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885"
+    },
+    "web/src/platform/playback/start-owner.ts#6c05124bbe8c6d46": {
+      "occurrences": 1,
+      "reason": "F4: resolved core V1Request send transport, including existing app layers.",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885"
+    },
+    "web/src/screens/read/ReadMetadata.tsx#e85721b4e94e1386": {
+      "occurrences": 1,
+      "reason": "F4: resolved existing HttpLocalApi method previously omitted by the callee filter.",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885"
+    },
+    "web/src/screens/settings/Settings.route.tsx#4a0ed0f9855c7d2e": {
+      "occurrences": 1,
+      "reason": "F4: resolved existing HttpLocalApi method previously omitted by the callee filter.",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885"
+    },
+    "web/src/screens/settings/Settings.route.tsx#7393699cf50b5a29": {
+      "occurrences": 1,
+      "reason": "F4: resolved existing HttpLocalApi method previously omitted by the callee filter.",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885"
+    },
+    "web/src/screens/settings/Settings.route.tsx#7c87dc11818a60a0": {
+      "occurrences": 1,
+      "reason": "F4: resolved existing HttpLocalApi method previously omitted by the callee filter.",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885"
+    }
+  }
+}
