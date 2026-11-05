@@ -83,6 +83,8 @@ type snapshotConnector struct {
 	rollbackBadConn           atomic.Bool
 	failClose                 atomic.Bool
 	checkpointPanic           atomic.Bool
+	checkpointError           atomic.Bool
+	checkpointCancelEntered   chan struct{}
 	closeEntered              chan struct{}
 	releaseClose              chan struct{}
 }

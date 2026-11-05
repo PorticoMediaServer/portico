@@ -154,16 +154,18 @@ type WALPolicy struct {
 // The recipe's WALBytes forecast must include the whole native/receipt/commit
 // operation. An underestimated forecast cannot be repaired by a timer.
 type WALGate struct {
-	mu         sync.Mutex
-	policy     WALPolicy
-	version    uint64
-	writer     bool
-	checkpoint bool
-	valid      bool
-	state      WALState
-	at         time.Time
-	previous   WALState
-	resets     uint64
+	mu                sync.Mutex
+	policy            WALPolicy
+	version           uint64
+	writer            bool
+	checkpoint        bool
+	pendingCheckpoint *checkpointTicket
+	nextCheckpoint    time.Time
+	valid             bool
+	state             WALState
+	at                time.Time
+	previous          WALState
+	resets            uint64
 }
 
 func NewWALGate(p WALPolicy) (*WALGate, error) {
@@ -214,7 +216,8 @@ func (w *WALGate) reserve(r Request, now time.Time) RefusalCode {
 		return Capacity
 	}
 	defer w.mu.Unlock()
-	if w.writer || w.checkpoint {
+	w.expireCheckpointTicket(now)
+	if w.writer || w.checkpoint || w.pendingCheckpoint != nil {
 		return Capacity
 	}
 	if !w.valid || now.Before(w.at) || now.Sub(w.at) > w.policy.MaxSampleAge {
@@ -251,6 +254,7 @@ func (w *WALGate) returned() {
 	w.writer = false
 	w.valid = false
 	w.version++
+	w.signalCheckpointTicket()
 }
 
 // ResetCount counts actual observed salt/frame reuse, never PASSIVE completions.
@@ -259,14 +263,22 @@ func (w *WALGate) ResetCount() uint64 { w.mu.Lock(); defer w.mu.Unlock(); return
 // A checkpoint may repay pressure even while WAL observations are stale. Its
 // driver still needs a whole-prefix forecast and a fresh same-file observation
 // before native entry. This is an exclusion primitive, not a service policy.
-func (w *WALGate) reserveCheckpoint() RefusalCode {
+func (w *WALGate) reserveCheckpoint(ticket *checkpointTicket, now time.Time) RefusalCode {
 	if !w.mu.TryLock() {
 		return Capacity
 	}
 	defer w.mu.Unlock()
+	w.expireCheckpointTicket(now)
 	if w.writer || w.checkpoint {
 		return Capacity
 	}
+	if w.pendingCheckpoint != ticket {
+		return Capacity
+	}
+	if ticket != nil && (ticket.gate != w || !now.Before(ticket.expires)) {
+		return Deadline
+	}
+	w.pendingCheckpoint = nil
 	w.checkpoint = true
 	w.valid = false
 	w.version++
