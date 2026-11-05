@@ -6122,7 +6122,7 @@
       ]
     },
     "internal/httpapi/foundation.go": {
-      "sha256": "9db424914a575d71651e14d8e98540c0ee23106abfab1fab009791907c7b35b3",
+      "sha256": "d2ab5eb59c6fc653f3a702e444da46f6a5dab4bb3a8548fe47460999dc428d07",
       "effects": [
         {
           "table": "*",

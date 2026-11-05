@@ -254,9 +254,6 @@ func TestFoundationContractAndReplay(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if value := os.Getenv("PORTICO_CONTRACT_UPDATE"); value == "1" || value == "get-bootstrap" {
-
-	}
 	if value := os.Getenv("PORTICO_CONTRACT_UPDATE"); value == "1" || value == "get-direct-account" {
 		if err := contract.Record("../../testdata/contracts/get-direct-account.json", "GetDirectAccountResponse", "GET", "/v1/direct", nil, direct, "owner"); err != nil {
 			t.Fatal(err)
