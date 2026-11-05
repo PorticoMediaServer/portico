@@ -1222,5 +1222,17 @@
     "guardHashes": {
       "apps/native/src-next/screens/settings-live/server/TVServerReadOnlyPanel.tsx#9cd2f6f16d40c740": "829743b8eba5fe2c2eb9ceac1d56e9c4ffcb5e3fd59ee02f36eaf460b5734295"
     }
+  },
+  "apps/native/src-next/screens/settings/remote-sources/controller.ts": {
+    "category": "platform-transport",
+    "reason": "Named core services build the complete request; this recognized guard forwards incoming path, method and body unchanged with only screen-lifetime admission, linked cancellation, currentness checks and retirement on terminal refusal.",
+    "sites": [
+      "apps/native/src-next/screens/settings/remote-sources/controller.ts#026a47a1481bc5cf",
+      "apps/native/src-next/screens/settings/remote-sources/controller.ts#d9266fd94920163a"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/settings/remote-sources/controller.ts#026a47a1481bc5cf": "d1ab9fefe7dce9004e393c528dfa1f15f3f670cebb15de0d75872a5fc930e9eb",
+      "apps/native/src-next/screens/settings/remote-sources/controller.ts#d9266fd94920163a": "515549c7e47aade035dc22720c4e2f0fd7e7ed4f79d40c66385a1b173e4cb90b"
+    }
   }
 }
