@@ -3,7 +3,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
-from client_api_census import ROOT, production, native_sites, classify, compare, base_guard, scan, counts, main, BASELINE, ALLOWLIST, APPROVALS
+from client_api_census import ROOT, production, native_sites, classify, compare, base_guard, scan, counts, main, transport_rehash_budgets, BASELINE, ALLOWLIST, APPROVALS, DETECTIONS
 
 
 class ClientApiCensus(unittest.TestCase):
@@ -95,15 +95,115 @@ TrackStream.open('/v1/decoder', 'GET');
             self.assertEqual([s['kind'] for s in sites],['request','request','request','url'],sites)
             self.assertEqual([s['line'] for s in sites],[9,10,12,13])
 
+    def test_resolved_core_generic_and_multipart_methods_and_aliases(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);(root/'web/src').mkdir(parents=True);(root/'packages/client-core/src').mkdir(parents=True)
+            (root/'packages/client-core/src/index.ts').write_text('''export declare class HttpLocalApi {
+ requestBounded<T>(path: string, maxBytes: number, signal: AbortSignal): Promise<T>;
+ requestMetadataUpload<T>(path: string, body: FormData, signal?: AbortSignal): Promise<T>;
+ requestSubtitleUpload<T>(path: string, method: string, body: FormData, signal?: AbortSignal): Promise<T>;
+}''')
+            (root/'packages/client-core/src/playback-v1').mkdir()
+            (root/'packages/client-core/src/playback-v1/http.ts').write_text('''export type V1Request = Readonly<{path: string; method: string; body?: unknown}>;
+export interface V1Http {send(request: V1Request): Promise<unknown>;}''')
+            (root/'web/src/x.ts').write_text('''import {HttpLocalApi as Transport} from '../../packages/client-core/src/index';
+import type {V1Http, V1Request} from '../../packages/client-core/src/playback-v1/http';
+declare const api: Transport, path: string, signal: AbortSignal, body: FormData;
+api.requestBounded(path, 100, signal);
+api.requestMetadataUpload(path, body, signal);
+api.requestSubtitleUpload(path, 'PUT', body, signal);
+const bounded = api.requestBounded.bind(api); bounded(path, 100, signal);
+const upload = api.requestMetadataUpload; upload(path, body, signal);
+const {requestSubtitleUpload: renamed} = api; renamed(path, 'PUT', body, signal);
+declare const wire: V1Http;
+wire.send({path,method:'GET'});
+class LocalGuard {send(request: V1Request) {return wire.send(request);}}
+new LocalGuard().send({path,method:'GET'});
+wire.send({path,method:'POST',body:()=>api.requestSubtitleUpload(path,'PUT',body,signal)});
+declare const mailbox: {send(request: {message: string}): void};
+mailbox.send({message: 'local event'});
+declare const disk: {requestBounded(path: string, bytes: number): string};
+disk.requestBounded(path, 100);
+''')
+            result=subprocess.run(['node',str(ROOT/'ci/client_api_sites.mjs')],input=json.dumps({'root':str(root),'files':['web/src/x.ts']}),text=True,capture_output=True,check=True)
+            sites=json.loads(result.stdout)
+            self.assertEqual([s['callee'] for s in sites],['api.requestBounded','api.requestMetadataUpload','api.requestSubtitleUpload','bounded','upload','renamed','wire.send','wire.send','new LocalGuard().send','wire.send','api.requestSubtitleUpload'])
+
+    def test_native_url_readers_async_sessions_and_fluent_http_require_transport_evidence(self):
+        kotlin='''import java.net.URL
+fun read(link: URL, input: String) {
+ val saved = URL(input)
+ val a = saved.readText()
+ val b = URL(input).readBytes()
+ val c = link.inputStream()
+ file.readText(); file.readBytes(); cache.get(input)
+}
+'''
+        self.assertEqual([s['callee'] for s in native_sites('apps/native/Read.kt',kotlin)],['readText','readBytes','inputStream'])
+        swift='''func load(session: URLSession, url: URL, request: URLRequest) async {
+ let a = try await URLSession.shared.data(from: url)
+ let b = try await session.data(for: request)
+ let c = try await session.bytes(from: url)
+ model.data(from: url); model.bytes(for: request); secret.bytes()
+}
+'''
+        self.assertEqual([s['callee'] for s in native_sites('apps/native/Read.swift',swift)],['data','data','bytes'])
+        rust='''use reqwest::Client;
+async fn load(client: Client, url: &str) {
+ let a = client.get(url).header("Accept", "application/json").send().await;
+ let b = reqwest::get(url).await;
+ cache.get(url); mailbox.send(event);
+}
+'''
+        sites=native_sites('apps/desktop/src-tauri/src/read.rs',rust)
+        self.assertEqual([s['callee'] for s in sites],['get','get'])
+        self.assertIn('. header ( "Accept" , "application/json" ) . send ( ) . await',sites[0]['expression'])
+
+    def test_borrowed_rust_http_clients_cannot_bypass_detection(self):
+        for binding in ['&Client','&mut Client',"&'a Client", "&'a mut Client", '&reqwest::Client',
+                        "&'a reqwest::Client",'&reqwest::blocking::Client',"&'a mut reqwest::blocking::Client"]:
+            source=f'''use reqwest::Client;
+async fn load<'a>(client: {binding}, url: &str) {{
+ let response = client.get(url).header("Accept", "application/json").send().await;
+ cache.get(url); mailbox.send(event);
+}}'''
+            with self.subTest(binding=binding):
+                sites=native_sites('apps/desktop/src-tauri/src/read.rs',source)
+                self.assertEqual([s['callee'] for s in sites],['get'])
+                self.assertIn('client . get',sites[0]['expression'])
+
+    def test_objc_call_bytes_include_complete_receiver_message(self):
+        for receiver in ['session','otherSession','[factory session]']:
+            call=f'[{receiver} dataTaskWithRequest:request completionHandler:handler]'
+            sites=native_sites('apps/native/Bridge.m',f'static void Fetch(void) {{ {call}; }}')
+            self.assertEqual(sites[0]['callText'],call)
+
+    def test_transport_rehash_budget_is_shared_with_retained_and_split_pins(self):
+        def approval(guard,**extra):return dict(category='platform-transport',guardHash=guard,occurrences=1,**extra)
+        old={'old':approval('a')}
+        new={**old,'new':approval('b',previousSiteId='old',previousGuardHash='a')}
+        def pins(keys):return {'web/x.ts':{'sites':keys,'category':'platform-transport','reason':'core request only',
+            'guardHashes':{key:new[key]['guardHash']for key in keys}}}
+        transport_rehash_budgets(new,old,pins(['new']))
+        for keys in [['old','new'],['new','new']]:
+            with self.assertRaises(ValueError):transport_rehash_budgets(new,old,pins(keys))
+        new['second']=approval('c',previousSiteId='old',previousGuardHash='a')
+        with self.assertRaises(ValueError):transport_rehash_budgets(new,old,pins(['new','second']))
+        new['old']['occurrences']=2;new['new']['occurrences']=2
+        # Editing the original row alongside the re-hash cannot raise its budget.
+        with self.assertRaises(ValueError):transport_rehash_budgets(new,{'old':approval('a')},pins(['new','new']))
+
 
 class ClientApiCensusEndToEnd(unittest.TestCase):
-    def fixture(self, source, filename='web/src/guard.ts', category='platform-transport'):
+    def fixture(self, source, filename='web/src/guard.ts', category='platform-transport', dependencies=None):
         import os
         from contextlib import ExitStack
         self.stack = ExitStack(); self.addCleanup(self.stack.close)
         root=Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
         (root/filename).parent.mkdir(parents=True)
         (root/filename).write_text(source)
+        for name,body in (dependencies or {}).items():
+            (root/name).parent.mkdir(parents=True,exist_ok=True);(root/name).write_text(body)
         (root/'ci').mkdir()
         self.env = dict(os.environ, GIT_AUTHOR_NAME='Justin Ehler', GIT_AUTHOR_EMAIL='justin@justinehler.com', GIT_COMMITTER_NAME='Justin Ehler', GIT_COMMITTER_EMAIL='justin@justinehler.com')
         subprocess.run(['git','init','-q',str(root)],check=True,env=self.env)
@@ -212,6 +312,274 @@ function guarded(target: {sessionId: string}) {
             self.assertTrue(sites[0].get('constructionHash'))
             self.assertEqual(self.check(root)[0],0)
             (root/filename).write_text(source.replace(before,after));self.assertEqual(self.check(root)[0],1)
+
+    def test_cc4_forwarding_shapes_reject_path_body_and_options_construction(self):
+        core='''export declare class HttpLocalApi {
+ request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal, options?: unknown): Promise<T>;
+ requestConsole<T>(path: string, method: string, body: unknown, signal: AbortSignal): Promise<T>;
+ requestRaw(path: string, method: string, options: unknown): Promise<unknown>;
+ routeFetch(input: string, options: unknown): Promise<unknown>;
+ requestLyrics<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>;
+ requestMetadataUpload<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T>;
+ requestBounded<T>(path: string, maxBytes: number, signal: AbortSignal): Promise<T>;
+ send(request: object): Promise<unknown>;
+}\n'''
+        declarations="import type {HttpLocalApi} from '../../packages/client-core/src/index';\ndeclare const api: HttpLocalApi;\n"
+        cases=[
+            ('raw-signal-options', 'function guard(path: string, method: string, options: object, signal: AbortSignal) {return api.requestRaw(path,method,{...options,signal});}',
+             'api.requestRaw(path,','api.requestRaw(path+"/built",','{...options,signal}','{...options,body:{built:true},signal}'),
+            ('raw-signal-options', 'function guard(...args: [string,string,object]) {const [path,method,init]=args;return api.requestRaw(path,method,{...init,signal:undefined});}',
+             'api.requestRaw(path,','api.requestRaw(path+"/built",','{...init,signal:undefined}','{...init,body:{built:true},signal:undefined}'),
+            ('console', 'function guard(path: string, method: string, body: unknown, signal: AbortSignal) {return api.requestConsole(path,method,body,signal);}',
+             'api.requestConsole(path,','api.requestConsole(path+"/built",','method,body,','method,{built:true},'),
+            ('request-options', 'function guard(path: string, method: string, body: unknown, signal: AbortSignal, options: object) {return api.request(path,method,body,signal,options);}',
+             'api.request(path,','api.request(path+"/built",','method,body,','method,{built:true},'),
+            ('read-only', "function guard(path: string, method: string, body: unknown, signal: AbortSignal) {if(method!=='GET'||body!==undefined)throw Error();return api.request(path,'GET',undefined,signal);}",
+             'api.request(path,','api.request(path+"/built",',"'GET',undefined,","'GET',{built:true},"),
+            ('fetch-signal-options', 'function guard(input: string, options: object, signal: AbortSignal) {return api.routeFetch(input,{...options,signal});}',
+             'api.routeFetch(input,','api.routeFetch(input+"/built",','{...options,signal}','{...options,body:{built:true},signal}'),
+            ('lyrics', 'function guard(path: string, method: string, body: unknown, signal: AbortSignal) {return api.requestLyrics(path,method,body,signal);}',
+             'api.requestLyrics(path,','api.requestLyrics(path+"/built",','method,body,','method,{built:true},'),
+            ('metadata-upload', 'function guard(path: string, body: unknown, signal: AbortSignal) {return api.requestMetadataUpload(path,body,signal);}',
+             'api.requestMetadataUpload(path,','api.requestMetadataUpload(path+"/built",','path,body,','path,{built:true},'),
+            ('bounded', 'function guard(path: string, maxBytes: number, signal: AbortSignal) {return api.requestBounded(path,maxBytes,signal);}',
+             'api.requestBounded(path,','api.requestBounded(path+"/built",','path,maxBytes,','path,maxBytes+1,'),
+            ('request-object', 'function guard(request: object, signal: AbortSignal) {return api.send({...request,signal});}',
+             '{...request,signal}','{...request,path:"/built",signal}','{...request,signal}','{...request,body:{built:true},signal}'),
+        ]
+        for shape,guard,p0,p1,b0,b1 in cases:
+            with self.subTest(shape=shape):
+                source=declarations+guard
+                root,filename,sites,entry=self.fixture(source,dependencies={'packages/client-core/src/index.ts':core})
+                self.assertEqual(sites[0].get('forwardingShape'),shape)
+                self.assertEqual(self.check(root)[0],0)
+                for changed in [source.replace(p0,p1),source.replace(b0,b1)]:
+                    (root/filename).write_text(changed)
+                    self.assertEqual(self.check(root)[0],1)
+                    site=scan(root)[0];self.assertFalse(site.get('forwardedRequest'),site)
+                    with self.assertRaises(ValueError):
+                        classify([site],{filename:{**entry,'sites':[site['id']],'guardHashes':{site['id']:site['guardHash']}}})
+                if shape=='request-options':
+                    (root/filename).write_text(source.replace('signal,options)','signal,{...options})'))
+                    self.assertFalse(scan(root)[0].get('forwardedRequest'))
+
+    def test_a_domain_read_using_a_core_url_helper_is_not_a_transport_guard(self):
+        source='''declare const api: {request<T>(path: string, method?: string, body?: unknown): Promise<T>};
+declare function kindMetadataAgentsPath(kind: string): string;
+function load(kind: string) {return api.request(kindMetadataAgentsPath(kind));}
+'''
+        root,_,sites,_=self.fixture(source)
+        self.assertFalse(sites[0].get('forwardedRequest'))
+        self.assertEqual(self.check(root)[0],1)
+
+    def test_upload_and_bounded_pins_bind_captured_api_selection_in_the_full_policy(self):
+        core='''export declare class HttpLocalApi {
+ requestMetadataUpload<T>(path: string, body: FormData, signal?: AbortSignal): Promise<T>;
+ requestBounded<T>(path: string, maxBytes: number, signal: AbortSignal): Promise<T>;
+}'''
+        for method,parameters,arguments in [('requestMetadataUpload','body: FormData','body'),('requestBounded','maxBytes: number','maxBytes')]:
+            source=f'''import type {{HttpLocalApi}} from '../../packages/client-core/src/index';
+function SettingsEntry(context: {{api: HttpLocalApi; account: {{api: HttpLocalApi}}}}) {{
+ const originalApi = context.api;
+ return async <T>(path: string, {parameters}, input: AbortSignal) => {{
+  return originalApi.{method}<T>(path, {arguments}, input);
+ }};
+}}'''
+            with self.subTest(method=method):
+                root,filename,sites,entry=self.fixture(source,dependencies={'packages/client-core/src/index.ts':core})
+                self.assertNotEqual(sites[0]['guardHash'],sites[0]['forwardingHash'])
+                self.assertEqual(self.check(root)[0],0)
+                changed=source.replace('const originalApi = context.api;','const originalApi = context.account.api;')
+                (root/filename).write_text(changed)
+                mutated=scan(root)[0]
+                self.assertEqual(mutated['forwardingHash'],sites[0]['forwardingHash'])
+                self.assertNotEqual(mutated['guardHash'],sites[0]['guardHash'])
+                self.assertEqual(self.check(root)[0],1)
+
+    def test_exact_callback_span_needs_an_explicit_matching_ruling_scope(self):
+        core='export declare class HttpLocalApi {requestMetadataUpload<T>(path: string, body: FormData, signal?: AbortSignal): Promise<T>;} '
+        source='''import type {HttpLocalApi} from '../../packages/client-core/src/index';
+function owner(api: HttpLocalApi) {
+ return async <T>(path: string, body: FormData, signal?: AbortSignal) => {return api.requestMetadataUpload<T>(path,body,signal);};
+}'''
+        root,filename,sites,pin=self.fixture(source,dependencies={'packages/client-core/src/index.ts':core})
+        site=sites[0];key=site['id']
+        pin['guardHashes'][key]=site['forwardingHash']
+        (root/ALLOWLIST).write_text(json.dumps({filename:pin}));self.assertEqual(self.check(root)[0],1)
+        pin['guardSpans']={key:'forwarding-function'}
+        (root/ALLOWLIST).write_text(json.dumps({filename:pin}));self.assertEqual(self.check(root)[0],1)
+        approval={'category':'platform-transport','reason':pin['reason'],'condition':'Separately approved complete forwarding callback',
+                  'guardHash':site['forwardingHash'],'guardSpan':'forwarding-function','occurrences':1,
+                  'rulingUrl':'https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6647211850'}
+        (root/APPROVALS).write_text(json.dumps({key:approval}));self.assertEqual(self.check(root)[0],0)
+
+    def test_native_verbatim_proof_transports_bind_full_spans_and_require_parameters(self):
+        kotlin='''fun proofRequest(origin: String?, requestUrl: String?, method: String?, body: String?) {
+ val target = requestUrl?.toHttpUrlOrNull()
+ val request = Request.Builder().url(target).method(method!!, body.toByteArray(Charsets.UTF_8).toRequestBody("application/json".toMediaType())).build()
+ client.newCall(request)
+}'''
+        objc='''+ (void)prove:(NSString *)origin fingerprint:(NSString *)fingerprint url:(NSString *)requestURL method:(NSString *)method body:(NSString *)body completion:(void (^)(NSDictionary *))completion {
+ NSURL *url = [NSURL URLWithString:requestURL];
+ NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+ request.HTTPMethod = method; request.HTTPBody = [body dataUsingEncoding:NSUTF8StringEncoding];
+ [[session dataTaskWithRequest:request] resume];
+}'''
+        for filename,source,path_before,path_after,body_before,body_after in [
+                ('apps/native/Proof.kt',kotlin,'.url(target)','.url(target+"/built")','body.toByteArray','replacement.toByteArray'),
+                ('apps/native/Proof.m',objc,'URLWithString:requestURL','URLWithString:replacement','[body dataUsingEncoding','[replacement dataUsingEncoding')]:
+            with self.subTest(filename=filename):
+                root,filename,sites,entry=self.fixture(source,filename)
+                self.assertTrue(all(s.get('forwardingShape')=='native-proof' for s in sites))
+                self.assertEqual(self.check(root)[0],0)
+                for changed in [source.replace(path_before,path_after),source.replace(body_before,body_after)]:
+                    (root/filename).write_text(changed);self.assertEqual(self.check(root)[0],1)
+                    mutated=scan(root);self.assertTrue(all(not s.get('forwardedRequest') for s in mutated))
+                    rebound={filename:{**entry,'sites':[s['id']for s in mutated],
+                                      'guardHashes':{s['id']:s['constructionHash']for s in mutated}}}
+                    with self.assertRaises(ValueError):classify(mutated,rebound)
+
+    def test_detection_growth_requires_exact_reviewed_existing_base_sites(self):
+        source='import java.net.URL\nval link = URL(input)\nval text = link.readText()\n'
+        root,filename,sites,_=self.fixture(source,'apps/native/Read.kt','platform-url')
+        # The old detector did not see this existing java.net.URL read.
+        (root/ALLOWLIST).write_text('{}');(root/BASELINE).write_text('{}')
+        self.git(root,'add','.');self.git(root,'commit','-qm','Record the existing URL reader before detection improves')
+        self.assertEqual(self.check(root)[0],1)
+        key=sites[0]['id'];source_commit=self.git(root,'rev-parse','HEAD').strip()
+        manifest={'sourceCommit':source_commit,'sites':{key:{'occurrences':1,'reason':'Reviewed F5 coverage of the existing URL reader',
+            'rulingUrl':'https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645692710'}}}
+        (root/DETECTIONS).write_text(json.dumps(manifest))
+        self.assertEqual(main(['--update','--base','HEAD'],root=root),0)
+        self.assertEqual(json.loads((root/BASELINE).read_text()),counts(sites))
+        self.assertEqual(self.check(root)[0],0)
+        # Neither raising the manifest cap nor editing the baseline permits a new
+        # duplicate request introduced only by the product patch.
+        (root/filename).write_text(source+'link.readText()\n')
+        self.assertEqual(self.check(root)[0],1)
+        manifest['sites'][key]['occurrences']=2;(root/DETECTIONS).write_text(json.dumps(manifest))
+        (root/BASELINE).write_text(json.dumps({key:2}))
+        self.assertEqual(self.check(root)[0],1)
+        # A historical detection ruling cannot resurrect a request removed from
+        # the current PR base, even though sourceCommit remains its ancestor.
+        (root/filename).write_text(source.replace('val text = link.readText()\n',''))
+        (root/BASELINE).write_text('{}')
+        self.git(root,'add','.');self.git(root,'commit','-qm','Remove the URL request')
+        (root/filename).write_text(source);(root/BASELINE).write_text(json.dumps({key:1}))
+        self.assertEqual(self.check(root)[0],1)
+
+    def test_direct_rehash_is_review_bound_byte_identical_and_one_for_one(self):
+        root,filename,old_sites,_=self.fixture(self.GUARD)
+        (root/ALLOWLIST).write_text('{}');(root/BASELINE).write_text(json.dumps(counts(old_sites)))
+        self.git(root,'add','.');self.git(root,'commit','-qm','Keep the existing forwarding site direct')
+        previous=self.git(root,'rev-parse','HEAD').strip();old=old_sites[0]
+        source=self.GUARD.replace('  const value','  // An unrelated catalogue read moved into core.\n  const value')
+        (root/filename).write_text(source)
+        self.git(root,'add',filename);self.git(root,'commit','-qm','Change unrelated enclosing function source')
+        reviewed=self.git(root,'rev-parse','HEAD').strip();new=scan(root)[0]
+        # Linear rebuilds retain the independently reviewed source certificate,
+        # even when that old review commit is no longer an ancestor of HEAD.
+        self.git(root,'checkout','-q',previous)
+        (root/filename).write_text(source)
+        self.git(root,'add',filename);self.git(root,'commit','-qm','Rebuild the same reviewed function on main')
+        self.assertNotEqual(self.git(root,'rev-parse','HEAD').strip(),reviewed)
+        evidence='docs/client-api-rehashes/901-guard.json';(root/evidence).parent.mkdir(parents=True)
+        (root/evidence).write_text(json.dumps({'oldSpan':self.GUARD[self.GUARD.index('async function'):].strip(),
+                                              'newSpan':source[source.index('async function'):].strip()}))
+        entry={'category':'identity-rehash','reason':'Reviewed unrelated function edit','condition':'Byte-identical forwarding, no construction or selection',
+               'guardHash':new['guardHash'],'occurrences':1,
+               'rulingUrl':'https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646375725',
+               'previousSiteId':old['id'],'previousGuardHash':old['guardHash'],'previousCommit':previous,
+               'reviewedCommit':reviewed,'pullRequest':'https://github.com/PorticoMediaServer/portico/pull/901',
+               'reviewUrl':'https://github.com/PorticoMediaServer/portico/pull/901#issuecomment-123','spanEvidence':evidence}
+        (root/APPROVALS).write_text(json.dumps({new['id']:entry}))
+        self.assertEqual(main(['--update','--base',previous],root=root),0)
+        self.assertEqual(json.loads((root/BASELINE).read_text()),{new['id']:1})
+        # A re-hash must consume the old baseline occurrence, never keep both.
+        (root/BASELINE).write_text(json.dumps({old['id']:1,new['id']:1}))
+        self.assertEqual(main(['--base',previous],root=root),1)
+
+        (root/BASELINE).write_text(json.dumps({new['id']:1}))
+        bad={**entry,'reviewedCommit':previous};(root/APPROVALS).write_text(json.dumps({new['id']:bad}))
+        self.assertEqual(main(['--base',previous],root=root),1,'the reviewed source must contain the new full guard')
+        bad=dict(entry);bad.pop('reviewUrl');(root/APPROVALS).write_text(json.dumps({new['id']:bad}))
+        self.assertEqual(main(['--base',previous],root=root),1)
+        # Direct identity authorization cannot be used as a transport allowance.
+        pin={filename:{'category':'platform-transport','reason':entry['reason'],'sites':[new['id']],
+                       'guardHashes':{new['id']:new['guardHash']}}}
+        self.assertTrue(base_guard({},pin,{new['id']:1},{},{new['id']:entry}))
+        (root/APPROVALS).write_text(json.dumps({new['id']:entry}))
+        self.git(root,'add','.');self.git(root,'commit','-qm','Record the reviewed direct identity replacement')
+        self.assertEqual(main(['--base','HEAD'],root=root),0,'an already active unchanged record stays valid')
+        # Rebinding hashes/evidence to a path-construction edit still fails the
+        # byte-for-byte forwarding test, even with otherwise valid metadata.
+        changed=source.replace('api.request<unknown>(path,','api.request<unknown>(path+"/built",')
+        (root/filename).write_text(changed);self.git(root,'add',filename);self.git(root,'commit','-qm','Change the forwarded path')
+        mutated=scan(root)[0];bad={**entry,'guardHash':mutated['guardHash'],'reviewedCommit':self.git(root,'rev-parse','HEAD').strip()}
+        (root/evidence).write_text(json.dumps({'oldSpan':self.GUARD[self.GUARD.index('async function'):].strip(),
+                                              'newSpan':changed[changed.index('async function'):].strip()}))
+        (root/APPROVALS).write_text(json.dumps({mutated['id']:bad}));(root/BASELINE).write_text(json.dumps({mutated['id']:1}))
+        self.assertEqual(main(['--base',previous],root=root),1)
+
+
+    def test_transport_rehash_cannot_duplicate_an_original_single_occurrence(self):
+        root,filename,old_sites,pin=self.fixture(self.GUARD)
+        old=old_sites[0]
+        original={'category':'platform-transport','reason':pin['reason'],'condition':'Original core-built request with lifetime only',
+                  'guardHash':old['guardHash'],'occurrences':1,
+                  'rulingUrl':'https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082'}
+        (root/APPROVALS).write_text(json.dumps({old['id']:original}))
+        self.git(root,'add','.');self.git(root,'commit','-qm','Bind the original single transport approval')
+        previous=self.git(root,'rev-parse','HEAD').strip()
+        for duplicate in [False,True]:
+            source=self.GUARD.replace('  const value','  // Unrelated catalogue extraction.\n  const value')
+            if duplicate:source=source.replace('await api.request<unknown>(path, method, body, signal)',
+                'await Promise.all([api.request<unknown>(path, method, body, signal), api.request<unknown>(path, method, body, signal)])')
+            (root/filename).write_text(source);self.git(root,'add',filename);self.git(root,'commit','-qm','Review the changed enclosing function')
+            sites=scan(root);site=sites[0];reviewed=self.git(root,'rev-parse','HEAD').strip()
+            evidence='docs/client-api-rehashes/transport.json';(root/evidence).parent.mkdir(parents=True,exist_ok=True)
+            (root/evidence).write_text(json.dumps({'oldSpan':self.GUARD[self.GUARD.index('async function'):].strip(),
+                                                 'newSpan':source[source.index('async function'):].strip()}))
+            row={**original,'guardHash':site['guardHash'],'occurrences':len(sites),'previousSiteId':old['id'],
+                 'previousGuardHash':old['guardHash'],'previousCommit':previous,'reviewedCommit':reviewed,
+                 'rulingUrl':'https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646375725',
+                 'pullRequest':'https://github.com/PorticoMediaServer/portico/pull/912',
+                 'reviewUrl':'https://github.com/PorticoMediaServer/portico/pull/912#issuecomment-123','spanEvidence':evidence}
+            (root/APPROVALS).write_text(json.dumps({old['id']:original,site['id']:row}))
+            (root/ALLOWLIST).write_text(json.dumps({filename:{**pin,'sites':[s['id']for s in sites],
+                'guardHashes':{site['id']:site['guardHash']}}}))
+            with self.subTest(duplicate=duplicate):
+                self.assertEqual(main(['--base',previous],root=root),int(duplicate))
+
+    def test_objc_rehash_cannot_substitute_the_message_receiver(self):
+        source='''+ (void)prove:(NSString *)origin fingerprint:(NSString *)fingerprint url:(NSString *)requestURL method:(NSString *)method body:(NSString *)body completion:(void (^)(NSDictionary *))completion {
+ NSURL *url = [NSURL URLWithString:requestURL];
+ NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+ request.HTTPMethod = method; request.HTTPBody = [body dataUsingEncoding:NSUTF8StringEncoding];
+ [[session dataTaskWithRequest:request] resume];
+}'''
+        root,filename,old_sites,pin=self.fixture(source,'apps/native/Proof.m')
+        original={s['id']:{'category':'platform-transport','reason':pin['reason'],'condition':'Core-built proof executed verbatim',
+                  'guardHash':s['guardHash'],'occurrences':1,
+                  'rulingUrl':'https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645692710'}for s in old_sites}
+        (root/APPROVALS).write_text(json.dumps(original));self.git(root,'add','.');self.git(root,'commit','-qm','Approve original proof receiver')
+        previous=self.git(root,'rev-parse','HEAD').strip()
+        changed=source.replace('[session dataTaskWithRequest:request]','[otherSession dataTaskWithRequest:request]')
+        (root/filename).write_text(changed);self.git(root,'add',filename);self.git(root,'commit','-qm','Substitute transport receiver')
+        reviewed=self.git(root,'rev-parse','HEAD').strip();new_sites=scan(root);ledger=dict(original)
+        for number,site in enumerate(new_sites):
+            old=next(s for s in old_sites if s['callee']==site['callee'])
+            evidence=f'docs/client-api-rehashes/objc-{number}.json';(root/evidence).parent.mkdir(parents=True,exist_ok=True)
+            (root/evidence).write_text(json.dumps({'oldSpan':source,'newSpan':changed}))
+            ledger[site['id']]={**original[old['id']],'guardHash':site['guardHash'],'previousSiteId':old['id'],
+                'previousGuardHash':old['guardHash'],'previousCommit':previous,'reviewedCommit':reviewed,
+                'rulingUrl':'https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646375725',
+                'pullRequest':'https://github.com/PorticoMediaServer/portico/pull/912',
+                'reviewUrl':'https://github.com/PorticoMediaServer/portico/pull/912#issuecomment-123','spanEvidence':evidence}
+        (root/APPROVALS).write_text(json.dumps(ledger))
+        (root/ALLOWLIST).write_text(json.dumps({filename:{**pin,'sites':[s['id']for s in new_sites],
+            'guardHashes':{s['id']:s['guardHash']for s in new_sites}}}))
+        self.assertEqual(main(['--base',previous],root=root),1)
 
 
     def test_exception_expansion_requires_exact_ledger_ruling_and_multiplicity(self):

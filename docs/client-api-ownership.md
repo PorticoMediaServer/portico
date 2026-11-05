@@ -54,13 +54,20 @@ allowance. Approved categories are:
   is suspended;
 - Cast receiver, website and Hosted as separate products;
 - individually approved platform transport guards: core fully builds path, method,
-  body and auth; the wrapper adds only lifetime/authority/abort and constructs
-  nothing. The scanner requires unchanged path/method/body identifiers and only
-  a fourth signal argument at these pinned calls, plus the SHA-256 of the complete
-  enclosing reviewed guard function in both its identity and allowance. Any edit
-  invalidates the pin and needs re-approval. Native identities include the full
+  body and auth; the wrapper adds only the checks authorized by its linked ruling
+  and constructs nothing. The scanner checks unchanged arguments, including the
+  approved raw/Console, read-only, signal-only options and fifth-options shapes.
+  Every allowance binds the SHA-256 of the complete reviewed guard function or
+  enclosing policy, including captured API selection for upload/bounded ports. Any edit invalidates the pin and needs re-approval. Native identities include the full
   receiver/fluent construction chain and enclosing method body hash, so changes
   to URL, method, body or bound inputs invalidate byte-only allowances.
+
+The two separately approved metadata-artwork callbacks use an explicit
+`guardSpan: "forwarding-function"` in both pin and ledger (`guardSpans` maps
+primary pin IDs). Their complete callback/method hashes are recorded by the
+ruling. An emitted `forwardingHash` never narrows a policy pin implicitly; changing
+span scope requires an exact fresh ledger approval. CC-4 upload/bounded pins bind
+the complete approved SettingsEntry policy, including the captured originalApi.
 
 Native byte-transport executors which take an already constructed core request
 are reported too; their migration disposition must preserve platform IO and
@@ -85,3 +92,48 @@ reviewed: every edit needs a fresh review verifying each entry against its linke
 ruling. CI validates the binding/schema; it does not infer approval from arbitrary
 source text or fetch comments during a build. Existing approved standing
 categories and CC-0/CC-2/CC-3 sites cite the initial lead ruling.
+
+Ledger entries can precede their reviewed source commit landing. They grant no
+active allowance by themselves: the slice must install the exact matching pin
+and lower its direct-site baseline when that source is present. The refreshed
+CC-4 entries and verbatim native proof executors record their reviewed commit.
+
+Detection improvements use `ci/client-api-detection-additions.json`, separately
+from exception approvals. Each exact addition records its maximum occurrence
+count, reason and lead-ruling URL, together with an immutable source commit.
+For any baseline growth, CI re-runs the new detector on that commit and the PR
+base. Only the minimum matching count in both snapshots is permitted. A request
+added by the product patch, a larger duplicate count or a previously deleted
+request cannot grow the baseline using a historical approval. Ordinary slice
+PRs still only shrink it. Regenerate approved coverage with `--update --base
+<base-sha>`; a bare `--update` never permits growth.
+
+The detector resolves core HTTP methods and aliases, including multipart and
+bounded requests and the core V1 request-object seam. Native URL readers require
+java.net.URL bindings, async Swift reads require URLSession receivers, and fluent
+HTTP calls require known HTTP constructors/types/modules, including borrowed Rust
+clients with mutable/lifetime-qualified references. Local files, model
+methods, diagnostics and decoder streams are negative fixtures.
+
+A byte-identical forwarding call whose enclosing function changes can use the
+[standing re-hash ruling](https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646375725).
+The editing PR carries the ledger record and complete function-span evidence,
+and an independent review must confirm no added construction or selection.
+`identity-rehash` records keep the site direct: they consume an old baseline
+occurrence and replace only its identity, with no total increase. They cannot
+approve an exception. A `platform-transport` re-hash must originate from an
+already-approved transport with the same reason, condition and span scope.
+Retained and replacement pins share the original approval’s occurrence budget,
+including multiple replacement rows. Copying or splitting a guard cannot expand it.
+
+Each new-ID record adds `previousSiteId`, `previousGuardHash`, `previousCommit`,
+`reviewedCommit`, `pullRequest`, `reviewUrl` and `spanEvidence` to the usual
+reason/condition/hash/count/ruling fields. `spanEvidence` names a checked-in
+`docs/client-api-rehashes/*.json` with exact `oldSpan` and `newSpan` strings.
+CI verifies their full hashes and immutable source certificates, identical complete
+call bytes (including Objective-C receivers) as multisets, and occurrence conservation.
+The old source commit must belong to the comparison base’s ancestry. A linear
+rebuild may retain a non-ancestor independently reviewed commit only when that
+commit contains the exact current full span and matching call multiplicity. The independent review URL must belong to
+the editing PR. No re-hash is installed merely because an author calls a change
+unrelated; the linked independent review must assess that condition.
