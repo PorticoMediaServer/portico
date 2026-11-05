@@ -1,0 +1,24 @@
+{
+  "id": "PB-RD-01",
+  "query": "辛哫",
+  "source_offset_runes": 200,
+  "prefix_query_token": "008f9b0054eb",
+  "source": "椻蕚佾冁夤婡靡薘癬詺飑穘殧苖梪甎沆摓潟澙貘暔掳逃冦嚦弝膰鞻嚃蕦辨峯瓞毭媙奠猟圕词与蘱乑貋雬鉟璃轟奶紇纖菫湯茘犦假瑦礳縊绵聻竵戳川坉緬卣懋培领竒髓跦倳觱郚郋荆嵓綅卒鋛挂皶樊梖撀岿幹幼慢卯鞤資驿邒覸冽梘翲灮毀膁竸褕谓嫟骎審敊懖鞑峍锛愛俛丛籬砥托諲滹螬懊蚪繜鰂仂啖启樄敳穠輎釦膆烬瓥鏺籚儓箊荑咪駌蕴壌奢祉镳犾骱滣蓴棐嘥蔻鎍紘韍遤俆鉗仉饳媲跏簛曆瀦爳蟷唿呭橝藟己辅善鉨嗒溚璠娪轵氭閏淟颏銬軻襽灉釔跢軂篴彐聉右辛哫單巍或謇葂并举奻胓鎙缪薋濛漿鬺晧苆诿帇扡娛纘航鞀晦窝镅媨庡梻褝嶭缍谚瓹哥歩臼蜐岺頥扃宲碵埱噇骝鐁耉凕鎅寷踌糅嶥琓挨沈裒耸敶檝碿嵖角秮锔搱靈陻匚漩虽涔莾孆瞯湪籥主飤鬌葕累荼賨朹驍榫敢鐙謱圶堽蟄毀寗濬",
+  "source_sha256": "53f5aad5805841291d8e51eb80cd78078854d5462da2ee26382489b13438fcfd",
+  "logical_sources": 1,
+  "source_runes": 300,
+  "source_utf8_bytes": 900,
+  "expected": {
+    "prefix_candidate_rows": 1,
+    "same_fragment_substring_rows": 0,
+    "accepted_sibling_substring_rows": 1,
+    "logical_matches": 1
+  },
+  "q_provenance": {
+    "run": 41950305294,
+    "code": "e0cde4236a6ae9b0d05bf148a65c6455905ede61",
+    "schema": "4158892e55858944b84beee38a8d95704a7d2d3f95fcefded4291240dcff7224",
+    "receipt_gzip_sha256": "39287a7d5853a6511cba83b22b85d332429a06f5601b31aa06d07244485a58b1"
+  },
+  "scope": "300-rune legal-size reduction from Q stressText(65536,200000,true); current prepared-plan fixture only; real read/authority oracle still required"
+}

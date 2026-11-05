@@ -249,3 +249,36 @@ func TestManifestPreparedFieldsAndMutation(t *testing.T) {
 		}
 	}
 }
+
+func TestManifestMatchesRejectsCursorOnlyCorruption(t *testing.T) {
+	row := search.ManifestRow{Field: 1, Ordinal: 0, Revision: "9", Normalized: "東京"}
+	in := search.ManifestInput{Subject: search.ManifestPerson, SearchGenerationID: 1, InputGeneration: 1, SourceRevision: 1}
+	m, err := search.PrepareManifest(in, []search.ManifestRow{row})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cp, err := search.AdvanceManifest(search.ManifestCheckpoint{Chain: m.Seed()}, row)
+	if err != nil || !m.Matches(cp) {
+		t.Fatal("control checkpoint must be complete and valid")
+	}
+	for _, tt := range []struct {
+		name string
+		edit func(*search.ManifestCheckpoint)
+	}{
+		{"field-zero", func(c *search.ManifestCheckpoint) { c.AfterField = 0 }},
+		{"field-65", func(c *search.ManifestCheckpoint) { c.AfterField = 65 }},
+		{"ordinal-negative", func(c *search.ManifestCheckpoint) { c.AfterOrdinal = -1 }},
+		{"ordinal-count", func(c *search.ManifestCheckpoint) { c.AfterOrdinal = c.Count }},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			bad := cp
+			tt.edit(&bad)
+			if bad.Chain != cp.Chain || bad.Count != cp.Count || bad.PreparedBytes != cp.PreparedBytes {
+				t.Fatal("test must mutate only cursor")
+			}
+			if m.Matches(bad) {
+				t.Fatal("invalid final cursor accepted with unchanged chain/count/bytes")
+			}
+		})
+	}
+}
