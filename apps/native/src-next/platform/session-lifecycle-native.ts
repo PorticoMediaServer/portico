@@ -1,3 +1,4 @@
+import {readDirectAccount} from '../../../../packages/client-core/src/query/connection-operations.ts';
 import {serverNow} from '../../../../packages/client-core/src/server-clock';
 import {ApiError, HttpLocalApi, type LocalSession} from '../../../../packages/client-core/src';
 import type {AppServerSession, AppSessionStorage, AppSessionStore} from '../../../../packages/client-core/src/app-sessions';
@@ -211,7 +212,7 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
       const routeFailure = route ? nativeRouteIdentityFailure(route, server) : undefined;
       if (routeFailure) throw routeFailure;
 
-      const snapshot = parseDirectSnapshot(await restored.api.request(routePath('get_direct_account'), 'GET', undefined, signal),
+      const snapshot = parseDirectSnapshot(await readDirectAccount(restored.api, signal),
         {authority: 'local', serverId, accountId: restored.session.viewer.accountId}, true); check();
       const profiles: readonly PickerProfile[] = Object.freeze(snapshot.profiles.map(value => Object.freeze({
         id: value.id, name: value.name, primary: value.primary, pinRequired: value.pinRequired})));
@@ -278,7 +279,7 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
       api.setAccessToken(issued.accessToken);
       // Selection returns a session, not an account snapshot. Read the actual
       // account under that fresh grant before allowing it into protected storage.
-      const account = parseDirectSnapshot(await api.request(routePath('get_direct_account'), 'GET', undefined, abort.signal),
+      const account = parseDirectSnapshot(await readDirectAccount(api, abort.signal),
         {authority: 'local', serverId, accountId: record.session.viewer.accountId}, true);
       // E-tv-41: identity only. The snapshot was read under the new profile's session, so its account
       // role is that session's role; the issued session's role is checked against it just below.

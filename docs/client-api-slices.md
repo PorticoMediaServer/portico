@@ -6,10 +6,14 @@ The census merges before slices. Each slice moves reads and writes across every 
 
 Reproduce current exact identities, full expressions, source hashes, operation IDs and file:line with `python3 ci/client_api_census.py --report <json>`. Lines below refer to the product snapshot. The checked-in allowlist and approvals ledger, rather than this planning snapshot, own exceptions. Guards include the approved raw/alias/three-argument/chapter-equality shapes; all bind the complete reviewed function/method span. The chapter comparison URL never issues a request.
 
-## slice 1: Connection/auth/setup (101 sites)
+## slice 1: Connection/auth/setup (121 sites)
 
 | Exact file:line | Kind / callee | Operation IDs / dynamic disposition |
 |---|---|---|
+| `apps/native/Native/PorticoServerTrust.m:337` | request `requestWithURL` | dynamic/wrapper: inspect enclosing <native> |
+| `apps/native/Native/PorticoServerTrust.m:340` | request `dataTaskWithRequest` | dynamic/wrapper: inspect enclosing <native> |
+| `apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoNetwork.kt:191` | request `Builder` | dynamic/wrapper: inspect enclosing <native> |
+| `apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoNetwork.kt:193` | request `newCall` | dynamic/wrapper: inspect enclosing <native> |
 | `apps/native/src-next/platform/account-client.ts:21` | request `nativeNetworkFetch` | dynamic/wrapper: inspect enclosing response |
 | `apps/native/src-next/platform/account-security.ts:117` | request `new HttpLocalApi(hostedUrl, token, nativeNetworkFetch).request` | dynamic/wrapper: inspect enclosing job |
 | `apps/native/src-next/platform/account-workspace.ts:62` | request `new HttpLocalApi(hostedUrl, session.accessToken, nativeNetworkFetch).request` | dynamic/wrapper: inspect enclosing result |
@@ -46,6 +50,7 @@ Reproduce current exact identities, full expressions, source hashes, operation I
 | `apps/native/src-next/screens/accounts/AccountRoutes.tsx:146` | request `context.api.requestRaw` | dynamic/wrapper: inspect enclosing raw |
 | `apps/native/src-next/screens/accounts/AccountRoutes.tsx:185` | request `context.api.request` | get_direct_account |
 | `apps/native/src-next/screens/settings-live/DeviceAboutPanel.tsx:20` | request `context.api.request` | get_system |
+| `apps/native/src-next/screens/settings-live/NativeHostedSignInPanel.tsx:74` | request `new HttpLocalApi(hostedUrl, value.accessToken, nativeNetworkFetch).request` | dynamic/wrapper: inspect enclosing state |
 | `apps/native/src-next/shell/bootstrap-services.ts:186` | request `this.request` | get_direct_account |
 | `apps/native/src-next/shell/bootstrap.ts:171` | request `api.request` | get_me |
 | `apps/native/src-next/shell/bootstrap.ts:463` | request `readers.request` | get_me |
@@ -85,7 +90,6 @@ Reproduce current exact identities, full expressions, source hashes, operation I
 | `web/src/platform/server-connections.ts:133` | request `globalThis.fetch` | get_connection |
 | `web/src/platform/server-connections.ts:154` | request `central.api.send` | dynamic/wrapper: inspect enclosing request |
 | `web/src/platform/server-display.ts:39` | request `paired.api.request` | get_system |
-| `web/src/screens/account/feedback-controller.ts:52` | request `this.api.request` | dynamic/wrapper: inspect enclosing answer |
 | `web/src/screens/accounts/Profiles.route.tsx:52` | request `account.api.send` | dynamic/wrapper: inspect enclosing response |
 | `web/src/screens/settings/account-profile/security-transport.ts:9` | url `routePath` | post_direct_two_factor_enrol |
 | `web/src/screens/settings/account-profile/security-transport.ts:9` | url `routePath` | post_direct_password |
@@ -96,6 +100,8 @@ Reproduce current exact identities, full expressions, source hashes, operation I
 | `web/src/screens/settings/account-profile/source.ts:54` | request `this.api.request` | get_direct_account |
 | `web/src/screens/settings/owner-switch.ts:57` | request `temporary.request` | delete_sessions_current |
 | `web/src/screens/setup/browser-setup.ts:16` | request `connected.api.request` | get_system |
+| `web/src/services/auth-flow.ts:161` | request `this.account.client.request` | dynamic/wrapper: inspect enclosing cancelProvider |
+| `web/src/services/auth-flow.ts:215` | request `this.account.client.request` | dynamic/wrapper: inspect enclosing recover |
 | `web/src/services/invitation-account.ts:16` | request `account.api.send` | dynamic/wrapper: inspect enclosing request |
 | `web/src/services/owner-claim.ts:109` | request `account.api.send` | dynamic/wrapper: inspect enclosing raw |
 | `web/src/services/owner-claim.ts:175` | request `account.api.send` | dynamic/wrapper: inspect enclosing raw |
@@ -111,8 +117,22 @@ Reproduce current exact identities, full expressions, source hashes, operation I
 | `web/src/shell/bootstrap.ts:364` | request `api.request` | get_direct_account |
 | `web/src/shell/facts.ts:151` | request `o.api.request` | get_system |
 | `web/src/shell/facts.ts:187` | request `o.api.request` | get_direct_account |
+| `web/src/screens/device/local-device-opening.ts:15` | url `routePath` | post_quick_connect_decision |
+| `web/src/screens/device/local-device-opening.ts:15` | url `routePath` | post_quick_connect_review |
+| `web/src/screens/device/local-device-opening.ts:63` | request `request` | dynamic/wrapper: inspect enclosing value |
+| `web/src/services/ServersPanel.tsx:61` | request `api.request` | dynamic/wrapper: inspect enclosing leave |
+| `web/src/services/link-effects.ts:9` | request `account.client.request` | dynamic/wrapper: inspect enclosing resetPassword |
+| `web/src/services/link-effects.ts:36` | request `account.client.request` | dynamic/wrapper: inspect enclosing value |
+| `web/src/services/link-effects.ts:69` | request `account.client.request` | dynamic/wrapper: inspect enclosing result |
+| `web/src/services/link-effects.ts:82` | request `account.client.request` | dynamic/wrapper: inspect enclosing value |
+| `apps/native/src-next/platform/top-shelf.ts:62` | request `owner.request` | post_topshelf_token |
+| `apps/native/src-next/shell/bootstrap.ts:652` | request `local.request` | dynamic/wrapper: inspect enclosing request |
+| `web/src/services/OriginalAccountSecurityWorkspace.tsx:23` | request `super.send` | dynamic/wrapper: inspect enclosing send |
+| `web/src/services/OriginalAccountSecurityWorkspace.tsx:35` | request `api.send` | dynamic/wrapper: inspect enclosing client |
+| `web/src/services/session.ts:10` | request `account.api.send` | dynamic/wrapper: inspect enclosing client |
+| `web/src/services/workspace-api.ts:12` | request `account.api.send` | dynamic/wrapper: inspect enclosing request |
 
-## CC-1: Catalogue/browse/search/reading (136 sites)
+## CC-1: Catalogue/browse/search/reading (134 sites)
 
 | Exact file:line | Kind / callee | Operation IDs / dynamic disposition |
 |---|---|---|
@@ -129,7 +149,6 @@ Reproduce current exact identities, full expressions, source hashes, operation I
 | `apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt:228` | request `newCall` | dynamic/wrapper: inspect enclosing <native> |
 | `apps/native/src-next/platform/profile-avatars.ts:38` | url `api.mediaUrl` | dynamic/wrapper: inspect enclosing uri |
 | `apps/native/src-next/platform/profile-avatars.ts:57` | request `api.requestRaw` | dynamic/wrapper: inspect enclosing response |
-| `apps/native/src-next/platform/top-shelf.ts:62` | request `owner.request` | post_topshelf_token |
 | `apps/native/src-next/screens/destinations/bulk-media.ts:119` | request `this.options.api.request` | dynamic/wrapper: inspect enclosing value |
 | `apps/native/src-next/screens/destinations/bulk-media.ts:194` | request `this.request` | post_metadata_bulk |
 | `apps/native/src-next/screens/destinations/bulk-media.ts:257` | request `this.request` | post_admin_media_delete_preview |
@@ -174,6 +193,9 @@ Reproduce current exact identities, full expressions, source hashes, operation I
 | `apps/native/src-next/screens/search/loaded-destinations.ts:63` | request `options.api.request` | dynamic/wrapper: inspect enclosing result |
 | `apps/native/src-next/screens/search/loaded-destinations.ts:116` | request `this.api.request` | dynamic/wrapper: inspect enclosing request |
 | `apps/native/src-next/screens/search/register.tsx:60` | request `context.api.request` | dynamic/wrapper: inspect enclosing value |
+| `apps/native/src-next/screens/settings-live/RecordingsScreen.tsx:164` | request `ports.context.api.request` | get_items_id |
+| `apps/native/src-next/screens/settings-live/owner-libraries/IntroCreditsReview.tsx:49` | request `context.api.request` | get_items_id |
+| `apps/native/src-next/screens/settings-live/owner-libraries/IntroCreditsReview.tsx:104` | request `context.api.request` | get_items_id |
 | `apps/native/src-next/screens/share/NativeContentLinks.tsx:35` | request `context.api.request` | dynamic/wrapper: inspect enclosing read |
 | `apps/native/src-next/screens/share/NativeShareLinks.tsx:31` | request `context.api.request` | dynamic/wrapper: inspect enclosing read |
 | `apps/native/src-next/screens/share/share-open.ts:39` | url `encodedRoutePath` | get_items_id |
@@ -182,7 +204,6 @@ Reproduce current exact identities, full expressions, source hashes, operation I
 | `apps/native/src-next/shell/bootstrap.ts:356` | request `readers.request` | get_libraries |
 | `apps/native/src-next/shell/bootstrap.ts:464` | request `readers.request` | get_libraries |
 | `apps/native/src-next/shell/bootstrap.ts:601` | url `local.mediaUrl` | dynamic/wrapper: inspect enclosing resolve |
-| `apps/native/src-next/shell/bootstrap.ts:652` | request `local.request` | dynamic/wrapper: inspect enclosing request |
 | `apps/native/src-next/shell/listening-song-detail.ts:82` | request `context.api.request` | dynamic/wrapper: inspect enclosing request |
 | `apps/native/src-next/shell/music-discover-navigation.tsx:30` | request `context.api.request` | get_libraries |
 | `apps/vega/src/bridge/transport.ts:75` | request `xhr.open` | dynamic/wrapper: inspect enclosing start |
@@ -223,9 +244,6 @@ Reproduce current exact identities, full expressions, source hashes, operation I
 | `web/src/screens/detail/genre-binding.ts:9` | request `api.request` | dynamic/wrapper: inspect enclosing capabilities |
 | `web/src/screens/detail/show-bindings.ts:47` | request `life.api.request` | dynamic/wrapper: inspect enclosing capabilities |
 | `web/src/screens/detail/show-bindings.ts:160` | request `life.api.request` | dynamic/wrapper: inspect enclosing request |
-| `web/src/screens/device/local-device-opening.ts:15` | url `routePath` | post_quick_connect_decision |
-| `web/src/screens/device/local-device-opening.ts:15` | url `routePath` | post_quick_connect_review |
-| `web/src/screens/device/local-device-opening.ts:63` | request `request` | dynamic/wrapper: inspect enclosing value |
 | `web/src/screens/live/bindings.ts:17` | request `life.api.request` | dynamic/wrapper: inspect enclosing request |
 | `web/src/screens/live/bindings.ts:53` | url `routePath` | get_guide |
 | `web/src/screens/live/recordings-controller.ts:98` | request `sourceApi.request` | dynamic/wrapper: inspect enclosing value |
@@ -251,8 +269,7 @@ Reproduce current exact identities, full expressions, source hashes, operation I
 | `web/src/shell/entry-delete.ts:94` | request `ports.api.request` | post_admin_media_delete |
 | `web/src/shell/entry-picker.ts:19` | request `ports.api.request` | dynamic/wrapper: inspect enclosing value |
 | `web/src/shell/facts.ts:133` | request `o.api.request` | get_libraries |
-| `web/src/shell/title-menu-host.ts:169` | request `life.api.request` | dynamic/wrapper: inspect enclosing /** Run a row. Resolves once the effect it started has finished (for tests); the menu is already closed. */
-  choose |
+| `web/src/shell/title-menu-host.ts:169` | request `life.api.request` | dynamic/wrapper: inspect enclosing choose |
 
 ## CC-2: Saved/personal/downloads (23 sites)
 
@@ -282,16 +299,12 @@ Reproduce current exact identities, full expressions, source hashes, operation I
 | `web/src/screens/watch/collection-next.ts:29` | url `encodedRoutePath` | get_collections_id_items |
 | `web/src/screens/watch/collection-next.ts:31` | request `api.request` | dynamic/wrapper: inspect enclosing raw |
 
-## CC-3: Playback/group/receiver (63 sites)
+## CC-3: Playback/group/receiver (68 sites)
 
 | Exact file:line | Kind / callee | Operation IDs / dynamic disposition |
 |---|---|---|
 | `apps/native/Native/PorticoPlayer.m:378` | request `requestWithURL` | dynamic/wrapper: inspect enclosing <native> |
 | `apps/native/Native/PorticoPlayer.m:387` | request `requestWithURL` | dynamic/wrapper: inspect enclosing <native> |
-| `apps/native/Native/PorticoServerTrust.m:337` | request `requestWithURL` | dynamic/wrapper: inspect enclosing <native> |
-| `apps/native/Native/PorticoServerTrust.m:340` | request `dataTaskWithRequest` | dynamic/wrapper: inspect enclosing <native> |
-| `apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoNetwork.kt:191` | request `Builder` | dynamic/wrapper: inspect enclosing <native> |
-| `apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoNetwork.kt:193` | request `newCall` | dynamic/wrapper: inspect enclosing <native> |
 | `apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt:190` | request `request` | dynamic/wrapper: inspect enclosing <native> |
 | `apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt:200` | request `request` | dynamic/wrapper: inspect enclosing <native> |
 | `apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt:242` | request `request` | dynamic/wrapper: inspect enclosing <native> |
@@ -322,7 +335,16 @@ Reproduce current exact identities, full expressions, source hashes, operation I
 | `apps/native/src-next/platform/playback/runtime.ts:1277` | request `this.request` | get_items_id |
 | `apps/native/src-next/platform/playback/runtime.ts:1401` | request `this.request` | dynamic/wrapper: inspect enclosing applyOptions |
 | `apps/native/src-next/platform/playback/runtime.ts:1454` | request `this.request` | dynamic/wrapper: inspect enclosing readForcedImage |
+| `apps/native/src-next/screens/settings-live/LiveRoute.tsx:17` | request `context.api.request` | dynamic/wrapper: inspect enclosing request |
+| `apps/native/src-next/screens/settings-live/NativeTVReceiver.tsx:65` | request `context.api.request` | dynamic/wrapper: inspect enclosing value |
+| `apps/native/src-next/screens/settings-live/NativeTVReceiver.tsx:77` | request `context.api.request` | get_items_id |
+| `apps/native/src-next/screens/settings-live/TogetherScreen.tsx:218` | request `ports.context.api.request` | get_items_id |
+| `apps/native/src-next/screens/settings-live/TogetherScreen.tsx:241` | request `ports.context.api.request` | get_items_id |
+| `apps/native/src-next/screens/settings-live/live-controller.ts:44` | request `api.request` | dynamic/wrapper: inspect enclosing value |
+| `apps/native/src-next/screens/settings-live/live-controller.ts:147` | request `this.api.request` | dynamic/wrapper: inspect enclosing value |
 | `apps/native/src-next/screens/settings-live/server/troubleshooting/playback-problems-source.ts:20` | request `this.context.api.request` | dynamic/wrapper: inspect enclosing request |
+| `apps/native/src-next/screens/settings-live/settings-panels.tsx:124` | request `context.api.request` | dynamic/wrapper: inspect enclosing controls |
+| `apps/native/src-next/screens/settings-live/together-media.ts:55` | request `this.api.request` | get_items_id |
 | `apps/native/src-next/screens/settings-live/together-playback.ts:95` | request `context.api.request` | get_items_id |
 | `apps/native/src-next/screens/watch/disc-titles.ts:69` | request `api.request` | dynamic/wrapper: inspect enclosing raw |
 | `apps/native/src-next/screens/watch/disc-titles.ts:80` | request `api.request` | dynamic/wrapper: inspect enclosing raw |
@@ -341,24 +363,8 @@ Reproduce current exact identities, full expressions, source hashes, operation I
 | `web/src/platform/playback/start-owner.ts:57` | url `encodedRoutePath` | get_playback_session |
 | `web/src/platform/playback/trickplay.ts:38` | request `source.api.request` | get_items_id_analysis |
 | `web/src/platform/playback/trickplay.ts:45` | request `source.api.request` | dynamic/wrapper: inspect enclosing view |
-| `web/src/platform/playback/web-playback.ts:799` | request `this.host.farewell` | dynamic/wrapper: inspect enclosing // ── The page going away ─────────────────────────────────────────────────
-
-  /**
-   * The page is being hidden. `final`: it is going for good (a close, a reload, a navigation),
-   * so the session is stopped with its position in a request that outlives the page; the stream
-   * slot and any converter are released at once instead of when the lease runs out. Otherwise
-   * (a hidden tab, a page kept for Back) the newest position is reported and playback stays.
-   */
-  pageHidden |
-| `web/src/platform/playback/web-playback.ts:806` | request `this.host.farewell` | dynamic/wrapper: inspect enclosing // ── The page going away ─────────────────────────────────────────────────
-
-  /**
-   * The page is being hidden. `final`: it is going for good (a close, a reload, a navigation),
-   * so the session is stopped with its position in a request that outlives the page; the stream
-   * slot and any converter are released at once instead of when the lease runs out. Otherwise
-   * (a hidden tab, a page kept for Back) the newest position is reported and playback stays.
-   */
-  pageHidden |
+| `web/src/platform/playback/web-playback.ts:799` | request `this.host.farewell` | dynamic/wrapper: inspect enclosing pageHidden |
+| `web/src/platform/playback/web-playback.ts:806` | request `this.host.farewell` | dynamic/wrapper: inspect enclosing pageHidden |
 | `web/src/screens/together/bindings.ts:29` | request `context.api.routeFetch` | dynamic/wrapper: inspect enclosing value |
 | `web/src/screens/together/bindings.ts:39` | request `api.request` | get_items_id |
 | `web/src/screens/watch/cast-metadata.ts:14` | request `api.request` | get_items_id |
@@ -366,26 +372,17 @@ Reproduce current exact identities, full expressions, source hashes, operation I
 | `web/src/screens/watch/receivers.ts:143` | request `api.request` | post_quick_connect_review |
 | `web/src/screens/watch/receivers.ts:151` | request `api.request` | post_quick_connect_decision |
 
-## CC-4: Owner/settings/admin (210 sites)
+## CC-4: Owner/settings/admin (187 sites)
 
 | Exact file:line | Kind / callee | Operation IDs / dynamic disposition |
 |---|---|---|
-| `apps/native/src-next/screens/settings-live/LiveRoute.tsx:17` | request `context.api.request` | dynamic/wrapper: inspect enclosing request |
-| `apps/native/src-next/screens/settings-live/NativeAccountSecurityPanels.tsx:250` | request `scope.request` | dynamic/wrapper: inspect enclosing request |
-| `apps/native/src-next/screens/settings-live/NativeHostedSignInPanel.tsx:74` | request `new HttpLocalApi(hostedUrl, value.accessToken, nativeNetworkFetch).request` | dynamic/wrapper: inspect enclosing state |
 | `apps/native/src-next/screens/settings-live/NativeServerOfflineNoticeRow.tsx:54` | request `new HttpLocalApi(hostedUrl, live.accessToken, nativeNetworkFetch).request` | dynamic/wrapper: inspect enclosing run |
-| `apps/native/src-next/screens/settings-live/NativeTVReceiver.tsx:65` | request `context.api.request` | dynamic/wrapper: inspect enclosing value |
-| `apps/native/src-next/screens/settings-live/NativeTVReceiver.tsx:77` | request `context.api.request` | get_items_id |
-| `apps/native/src-next/screens/settings-live/RecordingsScreen.tsx:164` | request `ports.context.api.request` | get_items_id |
+| `apps/native/src-next/screens/settings-live/NativeAccountSecurityPanels.tsx:250` | request `scope.request` | dynamic/wrapper: inspect enclosing request |
 | `apps/native/src-next/screens/settings-live/SettingsRoute.tsx:38` | request `context.api.request` | dynamic/wrapper: inspect enclosing request |
 | `apps/native/src-next/screens/settings-live/SettingsRoute.tsx:38` | request `context.api.request` | dynamic/wrapper: inspect enclosing request |
 | `apps/native/src-next/screens/settings-live/SettingsScreen.tsx:149` | request `ports.context.api.request` | get_settings_configuration |
 | `apps/native/src-next/screens/settings-live/SettingsScreen.tsx:228` | request `ports.context.api.request` | dynamic/wrapper: inspect enclosing request |
 | `apps/native/src-next/screens/settings-live/SettingsScreen.tsx:332` | request `ports.context.api.request` | get_admin_updates |
-| `apps/native/src-next/screens/settings-live/TogetherScreen.tsx:218` | request `ports.context.api.request` | get_items_id |
-| `apps/native/src-next/screens/settings-live/TogetherScreen.tsx:241` | request `ports.context.api.request` | get_items_id |
-| `apps/native/src-next/screens/settings-live/live-controller.ts:44` | request `api.request` | dynamic/wrapper: inspect enclosing value |
-| `apps/native/src-next/screens/settings-live/live-controller.ts:147` | request `this.api.request` | dynamic/wrapper: inspect enclosing value |
 | `apps/native/src-next/screens/settings-live/live-owner-controller.ts:43` | request `this.api.request` | dynamic/wrapper: inspect enclosing <module> |
 | `apps/native/src-next/screens/settings-live/live-owner-controller.ts:49` | request `this.request` | dynamic/wrapper: inspect enclosing load |
 | `apps/native/src-next/screens/settings-live/live-owner-controller.ts:81` | request `this.api.request` | dynamic/wrapper: inspect enclosing request |
@@ -419,8 +416,6 @@ Reproduce current exact identities, full expressions, source hashes, operation I
 | `apps/native/src-next/screens/settings-live/owner-dashboard/reader.ts:46` | request `context.api.request` | dynamic/wrapper: inspect enclosing controls |
 | `apps/native/src-next/screens/settings-live/owner-libraries/AddLibraryPage.tsx:37` | request `api.request` | dynamic/wrapper: inspect enclosing AddLibraryPage |
 | `apps/native/src-next/screens/settings-live/owner-libraries/IntroCreditsReview.tsx:23` | request `context.api.request` | dynamic/wrapper: inspect enclosing request |
-| `apps/native/src-next/screens/settings-live/owner-libraries/IntroCreditsReview.tsx:49` | request `context.api.request` | get_items_id |
-| `apps/native/src-next/screens/settings-live/owner-libraries/IntroCreditsReview.tsx:104` | request `context.api.request` | get_items_id |
 | `apps/native/src-next/screens/settings-live/owner-libraries/OwnerLibrariesPanel.tsx:70` | request `originalApi.request` | dynamic/wrapper: inspect enclosing value |
 | `apps/native/src-next/screens/settings-live/owner-libraries/OwnerLibrariesPanel.tsx:70` | request `originalApi.request` | dynamic/wrapper: inspect enclosing value |
 | `apps/native/src-next/screens/settings-live/owner-libraries/controller.ts:147` | request `this.api.request` | dynamic/wrapper: inspect enclosing [document, , , metadata] |
@@ -485,11 +480,10 @@ Reproduce current exact identities, full expressions, source hashes, operation I
 | `apps/native/src-next/screens/settings-live/server/tv-server-reader.ts:37` | request `context.api.request` | dynamic/wrapper: inspect enclosing peoplePage |
 | `apps/native/src-next/screens/settings-live/server/tv-server-reader.ts:44` | request `context.api.request` | dynamic/wrapper: inspect enclosing request |
 | `apps/native/src-next/screens/settings-live/settings-controller.ts:50` | request `api.request` | dynamic/wrapper: inspect enclosing request |
-| `apps/native/src-next/screens/settings-live/settings-panels.tsx:124` | request `context.api.request` | dynamic/wrapper: inspect enclosing controls |
-| `apps/native/src-next/screens/settings-live/together-media.ts:55` | request `this.api.request` | get_items_id |
 | `apps/native/src-next/screens/settings-live/use-settings-request-scope.ts:15` | request `context.api.request` | dynamic/wrapper: inspect enclosing request |
 | `apps/native/src-next/screens/settings/remote-sources/controller.ts:60` | request `originalApi.request` | dynamic/wrapper: inspect enclosing result |
 | `apps/native/src-next/screens/settings/remote-sources/controller.ts:149` | request `originalApi.request` | dynamic/wrapper: inspect enclosing result |
+| `web/src/screens/account/feedback-controller.ts:52` | request `this.api.request` | dynamic/wrapper: inspect enclosing answer |
 | `web/src/screens/dashboard/bindings.ts:94` | request `options.api.request` | dynamic/wrapper: inspect enclosing request |
 | `web/src/screens/dashboard/bindings.ts:100` | request `options.api.requestRaw` | dynamic/wrapper: inspect enclosing request |
 | `web/src/screens/dashboard/bindings.ts:107` | request `queries.api.request` | dynamic/wrapper: inspect enclosing request |
@@ -565,19 +559,11 @@ Reproduce current exact identities, full expressions, source hashes, operation I
 | `web/src/screens/settings/settings-request.ts:17` | request `original.request` | dynamic/wrapper: inspect enclosing value |
 | `web/src/screens/settings/settings-request.ts:17` | request `original.request` | dynamic/wrapper: inspect enclosing value |
 | `web/src/screens/settings/settings-request.ts:34` | request `original.request` | dynamic/wrapper: inspect enclosing request |
-| `web/src/services/OriginalAccountSecurityWorkspace.tsx:23` | request `super.send` | dynamic/wrapper: inspect enclosing send |
-| `web/src/services/OriginalAccountSecurityWorkspace.tsx:35` | request `api.send` | dynamic/wrapper: inspect enclosing client |
-| `web/src/services/ServersPanel.tsx:61` | request `api.request` | dynamic/wrapper: inspect enclosing leave |
-| `web/src/services/auth-flow.ts:161` | request `this.account.client.request` | dynamic/wrapper: inspect enclosing cancelProvider |
-| `web/src/services/auth-flow.ts:215` | request `this.account.client.request` | dynamic/wrapper: inspect enclosing /** One field names the account: its username or the email on it, never both. */
-  recover |
-| `web/src/services/link-effects.ts:9` | request `account.client.request` | dynamic/wrapper: inspect enclosing resetPassword |
-| `web/src/services/link-effects.ts:36` | request `account.client.request` | dynamic/wrapper: inspect enclosing value |
-| `web/src/services/link-effects.ts:69` | request `account.client.request` | dynamic/wrapper: inspect enclosing result |
-| `web/src/services/link-effects.ts:82` | request `account.client.request` | dynamic/wrapper: inspect enclosing value |
-| `web/src/services/session.ts:10` | request `account.api.send` | dynamic/wrapper: inspect enclosing client |
-| `web/src/services/workspace-api.ts:12` | request `account.api.send` | dynamic/wrapper: inspect enclosing request |
 | `web/src/shell/entry-metadata.tsx:41` | request `value.ports.api.request` | dynamic/wrapper: inspect enclosing result |
 | `web/src/shell/entry-metadata.tsx:57` | request `api.request` | dynamic/wrapper: inspect enclosing result |
 | `web/src/shell/entry-metadata.tsx:86` | request `value.ports.api.request` | dynamic/wrapper: inspect enclosing result |
 | `web/src/shell/entry-metadata.tsx:109` | request `api.request` | dynamic/wrapper: inspect enclosing request |
+
+The slice-1 completion audit assigns local-device-opening (the two quick-connect routes and its restricted transport), ServersPanel server_leave, and all four link-effects recovery/email-confirmation requests to CC-0. Their table rows above are moved out of the initial path grouping. Receiver-link operations remain CC-3; profile-avatar byte/upload policy belongs to media delivery (M / CC-3).
+
+The Top Shelf token request and bootstrap token delegate, OriginalAccountSecurityWorkspace transports, and service session/workspace adapters are likewise CC-0. Their six rows are moved into slice 1 exactly once; catalogue library reads and shared non-domain transport sites keep their existing owners.

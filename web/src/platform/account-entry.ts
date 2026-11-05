@@ -1,3 +1,5 @@
+import {createHostedDirectoryReadPort} from '@core/query/hosted-directory-source.ts';
+import {acceptLocalInvitation, previewLocalInvitation, readDirectAccount, readServerSystem, revokeCurrentSession} from '../../../packages/client-core/src/query/connection-operations.ts';
 import {HttpLocalApi, type HostedServer, type LocalSession} from '@core/index.ts';
 import {serverNow} from '@core/server-clock.ts';
 import {firstAnswering, serverAddressCandidates} from '@core/server-address.ts';
@@ -177,10 +179,10 @@ export class BrowserAccountEntry {
     const result=await account.request<T>(path,method,body,signal);
     if(!guard.current())throw new CodedError('cancelled','The Portico Account changed.');return result;
    };
-   connected=await(this.ports.connectHosted??connectHostedServer)(server,{origin:account.origin,accountId:account.accountId,request:(path,signal)=>request(path,'GET',undefined,signal)},this.ports.environment(server.id),op.signal);
+   connected=await(this.ports.connectHosted??connectHostedServer)(server,{origin:account.origin,accountId:account.accountId,request:createHostedDirectoryReadPort(request)},this.ports.environment(server.id),op.signal);
    if(!guard.current())return false;
    const api=connected.api,pin=connected.connection.pin,origin=api.baseUrl;
-   const verified=parseServerSignIn(await api.request(routePath('get_system'),'GET',undefined,op.signal));
+   const verified=parseServerSignIn(await readServerSystem(api, op.signal));
    if(!guard.current())return false;
    if(pin.serverId!==server.id||pin.publicKey!==server.publicKey||connected.hosted.origin!==account.origin||connected.hosted.accountId!==account.accountId||verified.id!==server.id||verified.signIn!=='portico'||verified.setupRequired)throw new RouteError('identity_mismatch','The server identity or sign-in changed.');
    negotiateServer(verified);
@@ -228,7 +230,7 @@ export class BrowserAccountEntry {
    if(!op.current()){connected.connection.dispose();return;}
    // A second kind read on the verified connection closes a change between discovery and entry.
    this.api=connected.api;
-   const verified=parseServerSignIn(await connected.api.request(routePath('get_system'),'GET',undefined,op.signal));
+   const verified=parseServerSignIn(await readServerSystem(connected.api, op.signal));
    if(!op.current())return;if(verified.id!==server.id||verified.signIn!==server.signIn)throw new RouteError('identity_mismatch','The server sign-in changed.');
    assertFirstContactIdentity(origin,pin,{linkId,knownRoutes:knownServerRoutes(await this.ports.store.read())});
    if(!op.current())return;
@@ -244,7 +246,7 @@ export class BrowserAccountEntry {
  private async retire(api:HttpLocalApi,session:LocalSession){
   if(this.ports.retire)return this.ports.retire(api,session);
   const cleanup=this.temporary(api,session);
-  await cleanup.request(routePath('delete_sessions_current'),'DELETE',undefined,AbortSignal.timeout(5000)).catch(()=>{});
+  await revokeCurrentSession(cleanup, AbortSignal.timeout(5000)).catch(()=>{});
  }
  private async accept(result:DirectSignIn,api:HttpLocalApi,revision:number,op:ReturnType<BrowserAccountEntry['operation']>,hosted?:RememberedServer['hosted'],memberMove=false){
   if(result.kind==='challenge'){if(op.current()){this.challenge=result;this.challengeRevision=revision;this.watchAuthority();this.publish({...this.state,phase:'challenge',busy:false,...(memberMove?{memberMovePending:true as const}:{})});}return;}
@@ -326,7 +328,7 @@ export class BrowserAccountEntry {
   if(!api||!state.server||!['password','portico'].includes(state.phase))return;
   const op=this.operation();this.publish({...state,busy:true,error:undefined});
   try{
-   const preview=decodePreviewInvitationResponse(await api.request(routePath('preview_invitation'),'POST',capability,op.signal));
+   const preview=decodePreviewInvitationResponse(await previewLocalInvitation(api, capability, op.signal));
    if(!op.current())return;
    if(preview.signInMethod!==state.server.signIn||!['member','admin'].includes(preview.role))throw new CodedError('invalid_response','The invitation sign-in method changed.');
    this.invitationCapability=capability;this.publish({...state,invitation:preview,busy:false});
@@ -341,7 +343,7 @@ export class BrowserAccountEntry {
    const revision=(await this.ports.store.read()).revision;if(!op.current())return;
    if(this.joinedUsername!==undefined&&this.joinedUsername!==trimmed)throw new CodedError('invitation_used','Continue with the account already created.');
    if(this.joinedUsername===undefined){
-    const member=decodePostAccessInvitationsAcceptResponse(await api.request(routePath('post_access_invitations_accept'),'POST',{...capability,username:trimmed,password,...(name.trim()?{name:name.trim()}:{})},op.signal));
+    const member=decodePostAccessInvitationsAcceptResponse(await acceptLocalInvitation(api, capability, trimmed, password, name, op.signal));
     if(!op.current())return;
     if('unknownVariant' in member)throw new NeedsNewerAppError(String(member.variant));
     if(!('accountId' in member)||!member.accountId||member.username!==trimmed)throw new CodedError('invalid_response','The invitation account could not be read.');
@@ -361,7 +363,7 @@ export class BrowserAccountEntry {
    const check=()=>{if(!guard.current())throw new CodedError('cancelled','The Portico Account changed.');};
    const request:HostedRequestApi['request']=async<T,>(path:string,method?:string,body?:unknown,signal?:AbortSignal)=>{check();const result=await account.request<T>(path,method,body,signal);check();return result;};
    paired=await (this.ports.connectPortico??connectPairedPorticoServer)(state.origin,state.pin,
-    {origin:account.origin,accountId:account.accountId,request:(path,signal)=>request(path,'GET',undefined,signal)},this.ports.environment(state.server.id),op.signal);
+    {origin:account.origin,accountId:account.accountId,request:createHostedDirectoryReadPort(request)},this.ports.environment(state.server.id),op.signal);
    if(!guard.current()){paired.connection.dispose();return;}
    const server=paired.api;
    const short='shortCode' in capability,acceptInvitation=short?acceptShortPorticoInvitation:acceptPorticoInvitation;
@@ -627,7 +629,7 @@ export class BrowserAccountEntry {
   }};
   const client=new IdentityClient(guarded);
   this.publish({...state,busy:true,error:undefined});
-  return {state,op,client,readSnapshot:async()=>parseDirectSnapshot(await guarded.request(routePath('get_direct_account'),'GET'),{authority:'local',serverId:snapshot.serverId,accountId:snapshot.account.id})};
+  return {state,op,client,readSnapshot:async()=>parseDirectSnapshot(await readDirectAccount(guarded),{authority:'local',serverId:snapshot.serverId,accountId:snapshot.account.id})};
  }
  async beginRequiredTwoStep(password:string):Promise<TwoFactorEnrolment|undefined>{
   if(!password)return;
@@ -687,7 +689,7 @@ export class BrowserAccountEntry {
   if(!op.current()){api.getRouteConnection()?.dispose();return;}
   this.api=api;const pin=api.getRouteConnection()?.pin;
   if(!pin)throw new CodedError('invalid_return',unreadableServerResponse);
-  const [server,selection]=await Promise.all([api.request(routePath('get_system'),'GET',undefined,op.signal).then(parseServerSignIn),this.ports.store.read()]);
+  const [server,selection]=await Promise.all([readServerSystem(api, op.signal).then(parseServerSignIn),this.ports.store.read()]);
   if(!op.current()){api.getRouteConnection()?.dispose();return;}
   if(server.id!==pin.serverId||server.signIn!=='portico')throw new CodedError('invalid_return',unreadableServerResponse);
   this.api=api;this.registeredChallenge=controller;this.challengeRevision=selection.revision;
@@ -801,8 +803,8 @@ export class BrowserAccountEntry {
    if(!op.current()){restored?.api.getRouteConnection()?.dispose();return;}if(!restored)throw new Error('This server sign-in has ended.');
    this.api=restored.api;this.session=restored.session;
    const [server,snapshot]=await Promise.all([
-    restored.api.request(routePath('get_system'),'GET',undefined,op.signal).then(parseServerSignIn),
-    restored.api.request(routePath('get_direct_account'),'GET',undefined,op.signal).then(raw=>parseDirectSnapshot(raw,{authority:'local',accountId:restored.session.viewer.accountId,serverId:entry.connection.pin.serverId})),
+    readServerSystem(restored.api, op.signal).then(parseServerSignIn),
+    readDirectAccount(restored.api, op.signal).then(raw=>parseDirectSnapshot(raw,{authority:'local',accountId:restored.session.viewer.accountId,serverId:entry.connection.pin.serverId})),
    ]);
    if(!op.current())return;if(server.id!==entry.connection.pin.serverId||server.signIn!==entry.signIn)throw new Error('The server sign-in changed.');
    if(expected&&!matches(await this.ports.store.selected()))throw new CodedError('cancelled','The server selection changed.');
@@ -859,7 +861,7 @@ export class BrowserAccountEntry {
   };
   try{
    const before=await this.ports.store.read();if(!current())return;if(!selected(before))throw new CodedError('cancelled','The server selection changed.');
-   const fresh=parseDirectSnapshot(await api.request(routePath('get_direct_account'),'GET',undefined,op.signal),{authority:'local',accountId:snapshot.account.id,serverId:snapshot.serverId});
+   const fresh=parseDirectSnapshot(await readDirectAccount(api, op.signal),{authority:'local',accountId:snapshot.account.id,serverId:snapshot.serverId});
    if(!current())return;
    const target=fresh.profiles.find(profile=>profile.id===profileId);
    if(fresh.account.revision!==snapshot.account.revision||fresh.account.disabled||fresh.twoStepSetupRequired||!target||target.pinRevision<=original.pinRevision||target.revision<original.revision)throw new CodedError('cancelled','The profile changed. Choose it again.');

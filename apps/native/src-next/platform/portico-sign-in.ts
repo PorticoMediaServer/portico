@@ -1,3 +1,4 @@
+import {requestHostedRecovery} from '../../../../packages/client-core/src/query/connection-operations.ts';
 import {serverNow} from '../../../../packages/client-core/src/server-clock';
 import {NativeModules} from 'react-native';
 import {MFARequiredError, parseAccountReturn, parseNativeAccountContinuation,
@@ -145,9 +146,7 @@ export class NativePorticoSignIn {
    * on any device. One field names the account, its username or the email on it,
    * never both. The service answers the same way whether or not it matched. */
   async forgot(usernameOrEmail: string) {
-    return this.api().request(hostedPath('account_recovery_request'), 'POST',
-      hostedBody('account_recovery_request', {identifier: usernameOrEmail.trim().toLowerCase(),
-        requestId: await this.bridge.newRequestId()}), this.abort.signal);
+    return requestHostedRecovery(this.api(), usernameOrEmail.trim().toLowerCase(), await this.bridge.newRequestId(), this.abort.signal);
   }
   async provider(provider: IdentityProvider, callerCurrent?: () => boolean) {
     const current = () => {this.check(); if (callerCurrent && !callerCurrent()) throw new CodedError('cancelled', 'native_provider_changed'); this.check();};

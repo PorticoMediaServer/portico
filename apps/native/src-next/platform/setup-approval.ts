@@ -1,3 +1,5 @@
+import {createHostedAccountApi} from '../../../../packages/client-core/src/query/hosted-account-transport';
+import {lookupHostedClaim, approveHostedClaim} from '../../../../packages/client-core/src/query/connection-operations.ts';
 import {serverNow} from '../../../../packages/client-core/src/server-clock';
 import {HttpLocalApi, throwIfAborted} from '../../../../packages/client-core/src';
 import {currentUTCTimestamp} from '../../../../packages/client-core/src/local-session';
@@ -52,8 +54,7 @@ export class NativeSetupApproval {
     const session = await this.access();
     this.account ??= {id: session.account.id, family: session.familyId, name: session.account.displayName || session.account.username};
     await this.current();
-    const raw = await new HttpLocalApi(hostedUrl, session.accessToken, nativeNetworkFetch)
-      .request(routePath('server_claim_lookup'), 'POST', {code: this.expected.code}, this.signal);
+    const raw = await lookupHostedClaim(createHostedAccountApi(nativeAccounts.accountCredentials(), session, nativeNetworkFetch), this.expected.code, this.signal);
     await this.current();
     const value = decodeServerClaimLookupResponse(raw), expected = this.expected, now = serverNow();
     if (value.code !== expected.code || value.purpose !== 'setup' || value.ownerTransactionId !== undefined
@@ -83,8 +84,7 @@ export class NativeSetupApproval {
     const value = await this.lookup();
     if (value.status !== 'pending' || value.requestedAt !== previous.requestedAt || value.expiresAt !== previous.expiresAt) throw invalid();
     const session = await this.access(); await this.current();
-    const raw = await new HttpLocalApi(hostedUrl, session.accessToken, nativeNetworkFetch)
-      .request(routePath('server_claim_approve_code'), 'POST', {code: this.expected.code}, this.signal);
+    const raw = await approveHostedClaim(createHostedAccountApi(nativeAccounts.accountCredentials(), session, nativeNetworkFetch), this.expected.code, this.signal);
     await this.current();
     const result = decodeServerClaimApproveCodeResponse(raw);
     if (result.status !== 'decided' || result.code !== 'claim_decided') throw invalid();

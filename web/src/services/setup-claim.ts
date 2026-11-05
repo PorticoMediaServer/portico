@@ -1,3 +1,4 @@
+import {lookupBrowserHostedClaim, decideBrowserHostedClaim, completeBrowserHostedReturn} from '../../../packages/client-core/src/query/connection-operations.ts';
 import {serverNow} from '@core/server-clock.ts';
 import {ApiError} from '@core/index.ts';
 import {currentUTCTimestamp} from '@core/local-session.ts';
@@ -76,7 +77,7 @@ async function lookup(account: ServicesAccount, request: HostedSetupClaimLink, s
   claimCode(request.code); signal.throwIfAborted();
   return currentAccountWork(account, async session => {
     signal.throwIfAborted();
-    const raw = await account.api.send(routePath('server_claim_lookup'), 'POST', {code: request.code}, signal, session.accessToken);
+    const raw = await lookupBrowserHostedClaim(account.api, request.code, signal, session.accessToken);
     signal.throwIfAborted();
     const claim = decodeServerClaimLookupResponse(raw), now = serverNow(account.api.origin);
     if (claim.code !== request.code || claim.transitionMode !== undefined || claim.purpose !== 'setup' || claim.ownerTransactionId !== undefined || !claim.setupTransactionId || !identifier(claim.setupTransactionId) ||
@@ -123,7 +124,7 @@ export async function decideHostedSetupClaim(account: ServicesAccount, review: H
   if (current.status !== 'pending') throw unavailable();
   await currentAccountWork(account, async session => {
     signal.throwIfAborted(); fresh(current);
-    const raw = await account.api.send(routePath(decision === 'approve' ? 'server_claim_approve_code' : 'server_claim_deny'), 'POST', {code: current.request.code}, signal, session.accessToken);
+    const raw = await decideBrowserHostedClaim(account.api, decision, current.request.code, signal, session.accessToken);
     signal.throwIfAborted(); fresh(current);
     const result = decision === 'approve' ? decodeServerClaimApproveCodeResponse(raw) : decodeServerClaimDenyResponse(raw);
     if (result.status !== 'decided' || result.code !== 'claim_decided') throw invalid();
@@ -153,7 +154,7 @@ export async function completeHostedSetupClaim(account: ServicesAccount, review:
   if (current.status !== 'approved' || !current.installed) return;
   const location = await currentAccountWork(account, async session => {
     signal.throwIfAborted(); fresh(current);
-    const raw = await account.api.send(encodedRoutePath('server_return_complete', {id: encodeURIComponent(current.transactionId)}), 'POST', {}, signal, session.accessToken);
+    const raw = await completeBrowserHostedReturn(account.api, current.transactionId, signal, session.accessToken);
     signal.throwIfAborted(); fresh(current);
     return validateHostedSetupReturn(decodeServerReturnCompleteResponse(raw).location, current);
   }, review.identity);
