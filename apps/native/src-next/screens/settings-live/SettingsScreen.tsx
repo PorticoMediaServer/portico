@@ -1,3 +1,5 @@
+import {readOwnerOptionalConfiguration} from '../../../../../packages/client-core/src/owner-settings-policy';
+import {readOwnerUpdates} from '../../../../../packages/client-core/src/owner-requests';
 import {useTVVoiceSearch} from './use-tv-voice-search';
 import {tvGroupEdges, tvSettingsResultGroups} from './tv-settings-focus';
 import {passthroughFormats} from '../../platform/playback/passthrough-formats';
@@ -41,7 +43,6 @@ import {setNativeScreenChromeHidden} from '../../shell/chrome';
 import {Screen, useScreenBack, useScreenEntry} from './Screen';
 import {registerBack} from '../../kit/navigation/back';
 import {nativeSettingsActionTarget} from './settings-actions';
-import {routePath} from '../../../../../packages/contracts/src/routes';
 import {parseUpdateReport} from '../../../../../packages/client-core/src/administration';
 import type {NativeShellRoute} from '../../shell/routes';
 import {parseSettingsConfiguration} from '../../../../../packages/client-core/src/settings-configuration';
@@ -73,7 +74,6 @@ import type {NativeDashboardController} from './dashboard-controller';
 import QRCode from 'react-native-qrcode-svg';
 import {nativeEqualizer} from '../../platform/playback/equalizer';
 import {publicTVHandoffAddress} from '../../tv/auth/TVHandoff';
-
 const SKIP_KEYS: readonly string[] = ['playback.introSkip', 'playback.creditsSkip', 'playback.recapSkip'];
 
 const noFocusSubscription = () => () => {};
@@ -146,7 +146,7 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
   useEffect(() => {
     if (!managesServer) return;
     let alive = true;
-    void controller.lifetime.request(next => ports.context.api.request<unknown>(routePath('get_settings_configuration'), 'GET', undefined, next, {manageGate: false}))
+    void controller.lifetime.request(next => readOwnerOptionalConfiguration<unknown>(ports.context.api, next))
       .then(parseSettingsConfiguration).then(configuration => {
         const binding = settingsBinding('streaming.awayQuality');
         const value = binding ? readSettingsBinding(binding, {configuration}) : undefined;
@@ -329,7 +329,7 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
   useEffect(() => {
     if (!dashboardCard || !managesServer) {setUpdatePending(false); return;}
     let live = true;
-    void controller.lifetime.request(next => ports.context.api.request<unknown>(routePath('get_admin_updates'), 'GET', undefined, next))
+    void controller.lifetime.request(next => readOwnerUpdates<unknown>(ports.context.api, next))
       .then(raw => {if (live && controller.lifetime.current()) setUpdatePending(parseUpdateReport(raw).updateAvailable);}, () => {});
     return () => {live = false;};
   }, [controller, dashboardCard, managesServer, ports]);

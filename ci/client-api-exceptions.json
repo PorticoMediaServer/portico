@@ -719,13 +719,24 @@
       "web/src/screens/settings/Settings.route.tsx#7c87dc11818a60a0",
       "web/src/screens/settings/Settings.route.tsx#c93d5da364f8a7c4",
       "web/src/screens/settings/Settings.route.tsx#79a7bc500aa905ba",
-      "web/src/screens/settings/Settings.route.tsx#c0a9b0fe63b3e5a5"
+      "web/src/screens/settings/Settings.route.tsx#c0a9b0fe63b3e5a5",
+      "web/src/screens/settings/Settings.route.tsx#7393699cf50b5a29",
+      "web/src/screens/settings/Settings.route.tsx#4a0ed0f9855c7d2e"
     ],
     "guardHashes": {
       "web/src/screens/settings/Settings.route.tsx#7c87dc11818a60a0": "e63bbe67f702525fbc3cc526dac7a0b388fea88ee6ff7c8eb8a15534e53754fd",
       "web/src/screens/settings/Settings.route.tsx#c93d5da364f8a7c4": "c53abc05b8fb40814f3cf12718e79234db56909aa562f1bfde99732df49dcb6c",
       "web/src/screens/settings/Settings.route.tsx#79a7bc500aa905ba": "abeb6b04553854a065cbbbb7a62b814c080d04b34f7297ba98455f3693b37a52",
-      "web/src/screens/settings/Settings.route.tsx#c0a9b0fe63b3e5a5": "14df79fe9203b1eb53e9141344287e3bf18b549ef2b0e21272666e4f65aab57a"
+      "web/src/screens/settings/Settings.route.tsx#c0a9b0fe63b3e5a5": "14df79fe9203b1eb53e9141344287e3bf18b549ef2b0e21272666e4f65aab57a",
+      "web/src/screens/settings/Settings.route.tsx#7393699cf50b5a29": "1cb25b152865b88b4ad83ce0ee787fce88d5f259d9bb35475b2fc033b157fca8",
+      "web/src/screens/settings/Settings.route.tsx#4a0ed0f9855c7d2e": "1cb25b152865b88b4ad83ce0ee787fce88d5f259d9bb35475b2fc033b157fca8"
+    },
+    "additionalSites": {
+      "web/src/screens/settings/Settings.route.tsx#ce4f350e188d007f": {
+        "category": "platform-transport",
+        "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+        "guardHash": "1cb25b152865b88b4ad83ce0ee787fce88d5f259d9bb35475b2fc033b157fca8"
+      }
     }
   },
   "apps/native/src-next/screens/settings-live/live-owner-controller.ts": {
@@ -1042,12 +1053,14 @@
     "sites": [
       "web/src/screens/dashboard/bindings.ts#d0f8e82148426ef6",
       "web/src/screens/dashboard/bindings.ts#62afec8cb0b7622d",
-      "web/src/screens/dashboard/bindings.ts#83c98d8bdb8cb594"
+      "web/src/screens/dashboard/bindings.ts#83c98d8bdb8cb594",
+      "web/src/screens/dashboard/bindings.ts#de4b43329275cb5e"
     ],
     "guardHashes": {
       "web/src/screens/dashboard/bindings.ts#d0f8e82148426ef6": "8cc507e26d6097fcad11342f4b7fa7a19fbbf5c57327fd3c849fa70a4c648508",
       "web/src/screens/dashboard/bindings.ts#62afec8cb0b7622d": "ddaa7366946f409d45da155c90ed62d0e5a4f5692e02bc10599cdfef19b1d5db",
-      "web/src/screens/dashboard/bindings.ts#83c98d8bdb8cb594": "838d75169ed2e6f117eeb43aafbb40afc11491dbc016ac39446ca4cce6298629"
+      "web/src/screens/dashboard/bindings.ts#83c98d8bdb8cb594": "838d75169ed2e6f117eeb43aafbb40afc11491dbc016ac39446ca4cce6298629",
+      "web/src/screens/dashboard/bindings.ts#de4b43329275cb5e": "fc29e07b8ac8c71ccff6a5ec41b06c167fd567cc1933c3bc585b8c5029bd5292"
     }
   },
   "web/src/screens/live/owner/OwnerSourcesPage.tsx": {
@@ -1178,6 +1191,36 @@
     },
     "guardSpans": {
       "web/src/screens/read/ReadMetadata.tsx#e85721b4e94e1386": "forwarding-function"
+    }
+  },
+  "apps/native/src-next/screens/settings-live/SettingsScreen.tsx": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "sites": [
+      "apps/native/src-next/screens/settings-live/SettingsScreen.tsx#75fe1029eda2b5bf"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/settings-live/SettingsScreen.tsx#75fe1029eda2b5bf": "3f9e089ae171786afb895fa55e88e554148c74d759f3404f92699f51adba819b"
+    }
+  },
+  "apps/native/src-next/screens/settings-live/server/StreamingPage.tsx": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "sites": [
+      "apps/native/src-next/screens/settings-live/server/StreamingPage.tsx#d27cb29300ca731f"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/settings-live/server/StreamingPage.tsx#d27cb29300ca731f": "46af544f7fa20c06394b7d56333f5ff59410dd3bde27635708ff9d55c1d245eb"
+    }
+  },
+  "apps/native/src-next/screens/settings-live/server/TVServerReadOnlyPanel.tsx": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "sites": [
+      "apps/native/src-next/screens/settings-live/server/TVServerReadOnlyPanel.tsx#9cd2f6f16d40c740"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/settings-live/server/TVServerReadOnlyPanel.tsx#9cd2f6f16d40c740": "829743b8eba5fe2c2eb9ceac1d56e9c4ffcb5e3fd59ee02f36eaf460b5734295"
     }
   }
 }

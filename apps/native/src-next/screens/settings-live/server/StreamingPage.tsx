@@ -1,6 +1,6 @@
+import {readOwnerConfiguration} from '../../../../../../packages/client-core/src/owner-requests';
 import React, {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {ScrollView, Text, View} from 'react-native';
-import {routePath} from '../../../../../../packages/contracts/src/routes';
 import {parseSettingsConfiguration, type SettingsConfiguration} from '../../../../../../packages/client-core/src/settings-configuration';
 import {nativeRouteCrypto} from '../../../platform/server-connections';
 import {testHardware} from '../../../../../../packages/client-core/src/hardware';
@@ -26,7 +26,6 @@ import type {NativeShellRuntime} from '../../../shell/runtime';
 import {settingsPageHeading, settingsPageInset} from './page-layout';
 import {hardwareSelectionChoices} from '../../../../../../packages/client-core/src/presentation/hardware-selection';
 import {transcodeLocationChoice} from '../../../../../../packages/client-core/src/presentation/transcode-location';
-
 /** Phone Streaming borrows checked revisioned runtime/connectivity documents, never delivery policy state. */
 export function NativeServerStreaming({ports, runtime, compactHeader = false}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; compactHeader?: boolean}) {
   const theme = useTheme(), t = runtime.text.t, context = ports.context;
@@ -58,7 +57,7 @@ export function NativeServerStreaming({ports, runtime, compactHeader = false}: {
   // Capacity can probe FFmpeg on a cache miss: one page read, never a polling loop or a test result.
   useEffect(() => {capacityAlive.current = true; loadCapacity(); return () => {capacityAlive.current = false;};}, [loadCapacity]);
   const [configuration, setConfiguration] = useState<SettingsConfiguration>(), [configurationError, setConfigurationError] = useState<unknown>();
-  useEffect(() => {const read = new AbortController(); void owned.api.request(routePath('get_settings_configuration'), 'GET', undefined, read.signal).then(parseSettingsConfiguration).then(value => {if (!read.signal.aborted) setConfiguration(value);}, error => {if (!read.signal.aborted) setConfigurationError(error);}); return () => read.abort();}, [owned]);
+  useEffect(() => {const read = new AbortController(); void readOwnerConfiguration(owned.api, read.signal).then(parseSettingsConfiguration).then(value => {if (!read.signal.aborted) setConfiguration(value);}, error => {if (!read.signal.aborted) setConfigurationError(error);}); return () => read.abort();}, [owned]);
   useEffect(() => {for (const form of Object.values(owned.forms)) void form.load(); return () => {for (const form of Object.values(owned.forms)) form.dispose(); owned.console.dispose(); owned.set.discard(); owned.lifetime.dispose();};}, [owned]);
   const runtimeState = useSyncExternalStore(owned.forms.runtime.subscribe, owned.forms.runtime.getSnapshot);
   const connectivityState = useSyncExternalStore(owned.forms.connectivity.subscribe, owned.forms.connectivity.getSnapshot);
@@ -126,7 +125,7 @@ export function NativeServerStreaming({ports, runtime, compactHeader = false}: {
   return <View style={{flex: 1}}><ScrollView contentContainerStyle={{...settingsPageInset(theme, compactHeader), gap: 18}}>
     <ServerHeader serverName={context.serverName} viewerRole="owner" audience="owner" variant="phone"/>
     {!compactHeader && <Text accessibilityRole="header" style={[settingsPageHeading(theme), {color: theme.colors.text}]}>{section ? t(section.title) : t('settings.server.playback')}</Text>}
-    {configurationError !== undefined && <StateView variant="inline" {...runtime.error(configurationError, () => {void owned.api.request(routePath('get_settings_configuration')).then(parseSettingsConfiguration).then(value => {setConfiguration(value); setConfigurationError(undefined);}, setConfigurationError);}, 'server-console')}/>}
+    {configurationError !== undefined && <StateView variant="inline" {...runtime.error(configurationError, () => {void readOwnerConfiguration(owned.api).then(parseSettingsConfiguration).then(value => {setConfiguration(value); setConfigurationError(undefined);}, setConfigurationError);}, 'server-console')}/>}
     {[runtimeState, connectivityState].map((form, index) => form.loadError !== undefined ? <StateView key={index} variant="inline" {...runtime.error(form.loadError, () => {void Object.values(owned.forms)[index]!.load();}, 'server-console')}/> : null)}
     {state.saveError !== undefined && <StateView variant="inline" {...runtime.error(state.saveError, () => {if (!invalid.size && owned.lifetime.current()) void owned.set.save();}, 'server-console')}/>}
     {state.problem && <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.record}]}>{t(state.problem as Parameters<typeof t>[0])}</Text>}

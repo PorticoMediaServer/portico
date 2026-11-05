@@ -1,6 +1,5 @@
+import {fetchOwnerLibraryLyrics} from '@core/owner-library-requests.ts';
 import type {LibraryContentApi} from '@core/library-content.ts';
-import {encodedRoutePath} from '../../../../../packages/contracts/src/routes.ts';
-
 type Receipt = Readonly<{id: string; state: string}>;
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const states = new Set(['queued', 'running', 'cancellation-requested', 'reconciling', 'paused', 'succeeded', 'failed', 'cancelled']);
@@ -27,7 +26,7 @@ export class LibraryLyricsFetch {
     const key = this.key;
     const request = async (): Promise<Receipt | undefined> => {
       try {
-        const raw: unknown = await this.options.api.request(encodedRoutePath('post_libraries_id_lyrics_fetch', {id: encodeURIComponent(this.options.libraryId)}), 'POST', {idempotencyKey: key}, this.lifetime.signal);
+        const raw: unknown = await fetchOwnerLibraryLyrics(this.options.api, this.options.libraryId, key, this.lifetime.signal);
         if (this.lifetime.signal.aborted || !this.options.isCurrent()) return undefined;
         if (!object(raw) || typeof raw.id !== 'string' || !raw.id || raw.id.length > 256 || /[\x00-\x1f\x7f]/.test(raw.id) ||
             raw.kind !== 'library-lyrics-fetch' || raw.resource !== this.options.libraryId || typeof raw.state !== 'string' || !states.has(raw.state)) throw new Error('invalid_lyrics_job');

@@ -1,7 +1,6 @@
-import {routePath} from '../../../../packages/contracts/src/routes.ts';
+import {readOwnerConnectivity, readOwnerRemoteAccess} from '@core/owner-requests.ts';
 import {parseRemoteAccess, type RemoteAccess} from '@core/remote-access.ts';
 import {parseConnectivityStatus, type ConnectivityStatus} from '@core/server-administration.ts';
-
 /** The bounded transport shape this read needs; the Settings build's own captured
  * proxy satisfies it, so the read keeps that screen's fence and authentication. */
 export type SecureAddressReader = Readonly<{
@@ -65,8 +64,8 @@ export async function loadSecureAddress(api: SecureAddressReader, isCurrent: () 
   let status: unknown, remote: unknown;
   try {
     [status, remote] = await Promise.all([
-      api.request<unknown>(routePath('get_connectivity_status'), 'GET', undefined, signal),
-      api.request<unknown>(routePath('get_networking_remote'), 'GET', undefined, signal),
+      readOwnerConnectivity<unknown>(api, signal),
+      readOwnerRemoteAccess<unknown>(api, signal),
     ]);
   } catch (error) {
     if (signal.aborted || !live()) return null;

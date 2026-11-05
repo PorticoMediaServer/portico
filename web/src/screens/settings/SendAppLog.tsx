@@ -1,3 +1,4 @@
+import {readOwnerReportRecipient, sendOwnerAppReport} from '@core/owner-diagnostics-requests.ts';
 import {useCallback, useLayoutEffect, useRef, useState, type RefObject} from 'react';
 import type {HttpLocalApi} from '@core/index.ts';
 import {defaultI18n} from '@i18n';
@@ -5,7 +6,6 @@ import {Dialog} from '../../kit/overlays';
 import {Button} from '../../kit/controls';
 import {captureAppLog, type AppLogEntry} from '../../platform/app-log';
 import styles from './app-log.module.css';
-
 const t = defaultI18n.t;
 type Recipient = Readonly<{displayName: string; revision: string}>;
 type Body = Readonly<{recipientRevision: string; entries: readonly AppLogEntry[]}>;
@@ -41,7 +41,7 @@ export function SendAppLog({api, isCurrent, onClose, returnFocusRef}: {
     if (!current(lease)) {setState(undefined);retire();return;}
     const publish = (phase: Phase) => {if (current(lease)) setState({lease, phase});};
     publish(capture.sent ? 'done' : capture.owner || !capture.log.entries.length ? 'idle' : 'loading');
-    if (!capture.owner && capture.log.entries.length) void capture.api.request('/v1/app-reports/recipient', 'GET', undefined, lease.life.signal)
+    if (!capture.owner && capture.log.entries.length) void readOwnerReportRecipient(capture.api, lease.life.signal)
       .then(value => {
         if (!current(lease)) return;
         capture.owner = recipient(value);
@@ -61,7 +61,7 @@ export function SendAppLog({api, isCurrent, onClose, returnFocusRef}: {
     if (!capture.log.sendable() || new TextEncoder().encode(JSON.stringify(body)).byteLength > 16384) {publish('failed');return;}
     lease.busy = true;publish('busy');
     try {
-      const response = await capture.api.requestRaw('/v1/app-reports', 'POST', {headers: {'Idempotency-Key': capture.key}, body, signal: lease.life.signal});
+      const response = await sendOwnerAppReport(capture.api, capture.key, body, lease.life.signal);
       if (!current(lease)) return;
       const receipt = response.body as {id?: unknown; entryCount?: unknown} | null;
       if ((response.status !== 200 && response.status !== 201) || !receipt || typeof receipt.id !== 'string' || !receipt.id || receipt.entryCount !== body.entries.length) throw new Error('app_report_not_acknowledged');

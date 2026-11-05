@@ -1,3 +1,4 @@
+import {readOwnerMetadataAgent} from '@core/owner-library-requests.ts';
 import {dependsOn} from '@core/freshness-hub.ts';
 import {useFreshness} from '../../../platform/freshness';
 import {mountQuietInput, SettingsOpenContext} from '../quiet-refresh';
@@ -6,7 +7,7 @@ import {defaultI18n} from '@i18n';
 import type {LibraryContentApi} from '@core/library-content.ts';
 import {LibraryManagementService, type ManagedLibrary} from '@core/library-management.ts';
 import {reorderLibraries} from '@core/server-admin/libraries.ts';
-import {metadataAgentPath, parseMetadataAgent} from '@core/server-admin/metadata-agent.ts';
+import {parseMetadataAgent} from '@core/server-admin/metadata-agent.ts';
 import {Button} from '../../../kit/controls';
 import {Menu} from '../../../kit/overlays/Popover';
 import {Icon, type IconName} from '../../../kit/Icon';
@@ -18,7 +19,6 @@ import styles from './libraries.module.css';
 import {libraryRows, movedIds, movedLibraryIds, type LibraryKind} from './model';
 import {AddLibrary} from './AddLibrary';
 import {libraryCountText} from '@core/presentation/library-counts.ts';
-
 const t = defaultI18n.t;
 const kindIcons: Readonly<Record<LibraryKind, IconName>> = {movie: 'i-film', tv: 'i-tvlib', anime: 'i-tvlib', music: 'i-music', audiobook: 'i-headph', book: 'i-sbook', comic: 'i-page'};
 
@@ -54,7 +54,7 @@ export function LibrariesPanel({api, service, onEdit, onError, serverName, artwo
   useEffect(() => {
     if (!menuLibrary) return;
     let live = true;
-    void api.request<unknown>(metadataAgentPath(menuLibrary.id), 'GET').then(raw => {
+    void readOwnerMetadataAgent(api, menuLibrary.id).then(raw => {
       if (!live) return;
       const agent = parseMetadataAgent(raw);
       setAgentFact({api, library: menuLibrary, online: agent.libraryId === menuLibrary.id && agent.libraryKind === menuLibrary.kind && agent.agent === 'online'});

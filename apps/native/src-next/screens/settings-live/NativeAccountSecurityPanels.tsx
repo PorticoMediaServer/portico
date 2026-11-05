@@ -1,3 +1,4 @@
+import {ownerAccessTokenApi} from '../../../../../packages/client-core/src/owner-account-clients';
 import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import React, {useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {ScrollView, Text, View, useWindowDimensions} from 'react-native';
@@ -247,7 +248,7 @@ export function NativeAccessTokensPanel({context, lifetime, t, runtime}: NativeS
     close(); setNotice('');
     let scope: NativeAccessTokenScope;
     try {scope = createNativeAccessTokenScope(context, lifetime);} catch (failure) {if ((failure as {name?: string})?.name === 'AbortError') return; throw failure;}
-    const transport: ApiAccessTransport = {request: <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => scope.request<T>(path, method ?? 'GET', body, signal)};
+    const transport = ownerAccessTokenApi(scope);
     const held = {scope, transport};
     openingRef.current = held; setOpening(held); load(held);
   };

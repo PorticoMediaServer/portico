@@ -1,3 +1,4 @@
+import {readOwnerRecordingOwners, readOwnerRecordingPermissions, writeOwnerRecordingPermission} from '@core/owner-requests.ts';
 import type {LibraryContentApi} from '@core/library-content.ts';
 import {parseRecordingOwners, parseRecordingGrants, recordingOwnerKey, type RecordingOwnerChoice, type RecordingGrant} from '@core/server-admin/recording-policy.ts';
 import {OwnerStore, errorFacts, terminal} from '../../../live/owner/lifetime';
@@ -23,13 +24,13 @@ export class RecordingPermissionsController extends OwnerStore<State> {
     const attempt = this.begin(), head = this.snapshot;
     this.publish({...head, loading: true, error: undefined});if (!this.valid(attempt)) return;
     try {
-      const raw = await this.api.request('/v1/admin/dvr/recording-owners?' + new URLSearchParams({limit: '100', cursor: more ? head.cursor : ''}), 'GET', undefined, attempt.abort.signal);if (!this.valid(attempt)) return;
+      const raw = await readOwnerRecordingOwners(this.api, '?' + new URLSearchParams({limit: '100', cursor: more ? head.cursor : ''}), attempt.abort.signal);if (!this.valid(attempt)) return;
       const result = envelope(raw, this.serverId).result;
       const page = parseRecordingOwners(result);if (page.items.length > 100 || page.nextCursor.length > 4096 || more && page.nextCursor && page.nextCursor === head.cursor) throw {code: 'invalid_response'};
       const items = page.items.map(row => Object.freeze({owner: checkedOwner(row.owner), accountName: text(row.accountName, 512), profileName: text(row.profileName, 512), canRecord: row.canRecord, revision: row.revision}));
       const owners = more ? [...head.owners, ...items.filter(row => !head.owners.some(prior => recordingOwnerKey(prior.owner) === recordingOwnerKey(row.owner)))] : items;
       if (!this.valid(attempt)) return;
-      const grants = this.grants(await this.api.request('/v1/admin/dvr/recording-permissions', 'GET', undefined, attempt.abort.signal));if (!this.valid(attempt)) return;
+      const grants = this.grants(await readOwnerRecordingPermissions(this.api, attempt.abort.signal));if (!this.valid(attempt)) return;
       this.publish({loading: false, saving: false, owners: Object.freeze(owners), grants, cursor: page.nextCursor, edits: Object.freeze({})});
     } catch (error) {if (this.valid(attempt)) this.fail(error, {...this.snapshot, loading: false, error: errorFacts(error)});}
   }
@@ -59,12 +60,12 @@ export class RecordingPermissionsController extends OwnerStore<State> {
         let receipt: RecordingGrant;
         try {
           if (!this.valid(attempt)) return;
-          const raw = await this.api.request('/v1/admin/dvr/recording-permissions', 'PUT', body, attempt.abort.signal);if (!this.valid(attempt)) return;
+          const raw = await writeOwnerRecordingPermission(this.api, body, attempt.abort.signal);if (!this.valid(attempt)) return;
           receipt = this.grants({protocolVersion: '1.0', serverId: this.serverId, result: [envelope(raw, this.serverId).result]})[0];
           if (!receipt || !same(receipt, body)) throw {code: 'invalid_response'};
         } catch (error) {
           if (!this.valid(attempt) || terminal(error)) throw error;
-          const raw = await this.api.request('/v1/admin/dvr/recording-permissions', 'GET', undefined, attempt.abort.signal);if (!this.valid(attempt)) return;
+          const raw = await readOwnerRecordingPermissions(this.api, attempt.abort.signal);if (!this.valid(attempt)) return;
           // The list names only profiles that may record, so a switch turned off
           // landed exactly when the profile is no longer in it.
           const listed = this.grants(raw).find(row => recordingOwnerKey(row.owner) === key);

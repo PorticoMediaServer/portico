@@ -1,6 +1,6 @@
+import {ownerHostedNotifications} from '../../../../../packages/client-core/src/owner-account-clients';
 import React, {useLayoutEffect, useRef, useState} from 'react';
 import {View} from 'react-native';
-import {HttpLocalApi} from '../../../../../packages/client-core/src';
 import {AccountNotificationsClient, type NotificationPreferences} from '../../../../../packages/client-core/src/account-notifications';
 import {Switch} from '../../kit/controls';
 import {SettingsRow} from '../../kit/shell';
@@ -13,7 +13,6 @@ import {nativeNetworkFetch} from '../../platform/server-connections';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import type {NativeScreenLifetime} from './lifetime';
-
 export const nativeServerOfflineNoticeId = 'settings-notice-server-offline';
 const label = 'next.settingsSpec.account.profile.groups.7.rows.1.label';
 
@@ -50,8 +49,7 @@ export function NativeServerOfflineNoticeRow({context, runtime, lifetime}: {cont
       try {
         const session = credentials.getSnapshot().session;
         if (!session || !current()) throw Object.assign(new Error('native_account_changed'), {code: 'account_changed'});
-        return await (write ? nativeAccountWork : nativeAccountRead)(credentials, live => work(new AccountNotificationsClient((path, method, body, signal) =>
-          new HttpLocalApi(hostedUrl, live.accessToken, nativeNetworkFetch).request(path, method, body, signal ?? request.signal)), request.signal), // query-read: kept (a Portico Account preference over the hosted API, not a server document in the viewer's cache)
+        return await (write ? nativeAccountWork : nativeAccountRead)(credentials, live => work(ownerHostedNotifications(hostedUrl, live.accessToken, nativeNetworkFetch, request.signal), request.signal), // query-read: kept (a Portico Account preference over the hosted API, not a server document in the viewer's cache)
         {expected: accountExpectation(session), signal: request.signal, isCurrent: current});
       } finally {clearTimeout(timer); requests.delete(request);}
     };

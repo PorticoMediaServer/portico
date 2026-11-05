@@ -1,12 +1,11 @@
+import {ownerCertificateRequest} from '@core/owner-requests.ts';
 import type {QuietRefreshOutcome} from '@core/freshness-actions.ts';
 import {defaultI18n} from '@i18n';
-import {routePath} from '../../../../../packages/contracts/src/routes.ts';
 import {certificateForm} from '@core/server-admin/server-forms.ts';
 import {secureConnectionView} from '@core/server-admin/secure-connection.ts';
 import {retryCertificate, type CertificateApi} from '@core/certificates.ts';
 import type {SettingsRow, SettingsValue} from '@core/presentation/settings-spec.ts';
 import type {SettingPresentation} from '../../../kit/settings';
-
 type Form = ReturnType<typeof certificateForm>;
 type Api = Parameters<typeof certificateForm>[0]['api'];
 const rows = new Set(['remote.secure', 'remote.secureStatus', 'remote.secureAddress', 'remote.certificate']);
@@ -40,7 +39,7 @@ export class CertificateFormSource {
       } finally {clearTimeout(timer);if (stop) bounded.removeEventListener('abort', stop);}
     };
     this.form = certificateForm({api: {request}} as Parameters<typeof certificateForm>[0]);
-    this.certificates = {requestCertificate: (action, body, signal) => request(routePath(action === 'status' ? 'get_networking_certificate' : action === 'config' ? 'post_networking_certificate_config' : 'post_networking_certificate_retry'), action === 'status' ? 'GET' : 'POST', body, signal)};
+    this.certificates = {requestCertificate: (action, body, signal) => ownerCertificateRequest({request}, action, body, signal)};
   }
   current = () => {
     if (this.disposed || this.life.signal.aborted) return false;

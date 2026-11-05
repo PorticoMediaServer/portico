@@ -1,3 +1,5 @@
+import {ownerItemArtworkPath, uploadOwnerProfileAvatar, uploadOwnerMemberAvatar} from '@core/owner-upload-requests.ts';
+import {openOwnerLogEvents} from '@core/owner-diagnostics-requests.ts';
 import {dependsOn} from '@core/freshness-hub.ts';
 import {forwardFacts, subscribeFacts} from '../../shell/fact-source';
 import {mountQuietInput, type QuietInput} from './quiet-refresh';
@@ -9,7 +11,6 @@ import {peopleStreamLimits, settingsBinding} from '@core/presentation/settings-b
 import {settingsRowIndex, settingsSpec} from '@core/presentation/settings-spec.ts';
 import {captureReportContext, type ReportContext} from '@core/report-context.ts';
 import {SettingsPeopleClient} from '@core/settings-people.ts';
-import {encodedRoutePath} from '../../../../packages/contracts/src/routes.ts';
 import {defineWebScreen} from '../../route-registry';
 import {useProtectedWebScreenContext} from '../../route-registry-view';
 import {router} from '../../router';
@@ -117,7 +118,6 @@ import {ProfilePINDialog, type ProfilePINRequest} from './account-profile/Profil
 import {ProfileForgetDevices} from './account-profile/ProfileForgetDevices';
 import {ProfileSignIn, type ProfileSecurityFacts} from './account-profile/ProfileSignIn';
 import {profileSecurityTransport} from './account-profile/security-transport';
-
 // A carry contains calendar bounds only. The captured session object owns its lifetime.
 const historyContexts = new WeakMap<ShellAssemblyContext, ReportContext>();
 /** A confirmed transfer permanently spends this owner Settings context. Only
@@ -249,7 +249,7 @@ export function SettingsEntry() {
     const profiles = route.scope === 'account' && route.section === 'profile' && viewer.authority === 'local'
       ? new ProfileSettingsSource(api, {serverId: viewer.serverId, accountId: viewer.accountId, profileId: viewer.profileId}, current, async (path, body, contentType, signal) => {
         if (!current()) throw new Error('shell_authority_retired');
-        const response = await api.routeFetch(api.baseUrl + path, {method: 'POST', signal, headers: {Authorization: 'Bearer ' + context.session().accessToken, 'Content-Type': contentType}, body: body as BodyInit});
+        const response = await uploadOwnerProfileAvatar(api, path, context.session().accessToken, body as BodyInit, contentType, signal);
         if (!response.ok) throw Object.assign(new Error('Profile picture could not be saved.'), {status: response.status});
         return response.json();
       }, buildContext.observeDirect) : undefined;
@@ -403,8 +403,7 @@ export function SettingsEntry() {
       (role === 'owner' || role === 'admin') && (viewer.authority === 'local' || viewer.authority === 'hosted') ? {
         inputActivity, client: new SettingsPeopleClient(api, current), devices: createPeopleDevicesApi(api, current), memberProfiles: createPeopleMemberProfilesApi(api, current, async (path, body, contentType) => {
           assert();
-          const response = await api.routeFetch(api.baseUrl + path, {method: 'POST', redirect: 'error', credentials: 'omit', referrerPolicy: 'no-referrer',
-            headers: {Authorization: 'Bearer ' + context.session().accessToken, 'Content-Type': contentType}, body: body as BodyInit});
+          const response = await uploadOwnerMemberAvatar(api, path, context.session().accessToken, body as BodyInit, contentType);
           if (!response.ok) throw Object.assign(new Error('Profile picture could not be saved.'), {status: response.status});
           return response.json();
         }, context.artwork), get serverName() {return buildContext.facts.serverName;}, get libraries() {return buildContext.facts.identity.libraries;}, subscribe: listener => subscribeFacts(buildContext, listener), memberResetCodes,
@@ -437,7 +436,7 @@ export function SettingsEntry() {
       reportCarry.current = {inputs: carryInputs, report};
       dashboard = createDashboardBindings({api: api, queries: context.freshness?.queries, events: context.events, scope: {serverId: viewer.serverId, viewerId: options.viewerId},
         context: report, role, isCurrent: current, isMainProfile: () => current() && context.facts.identity.primaryProfile === true,
-        artwork: (id, kind, revision) => revision ? context.artwork.foreground(encodedRoutePath('get_items_id_art_kind', {id: encodeURIComponent(id), kind}) + '?' + new URLSearchParams({v: revision}), kind === 'backdrop' ? 800 : 400, kind === 'poster' ? 2 / 3 : kind === 'backdrop' ? 16 / 9 : 1) : undefined,
+        artwork: (id, kind, revision) => revision ? context.artwork.foreground(ownerItemArtworkPath(encodeURIComponent(id), kind) + '?' + new URLSearchParams({v: revision}), kind === 'backdrop' ? 800 : 400, kind === 'poster' ? 2 / 3 : kind === 'backdrop' ? 16 / 9 : 1) : undefined,
         effects: {openHome, openSettings, reportError, openHistory: report => {if (current()) {historyContexts.set(context, report);openSettings('history');}}}});
     }
     // Server › Streaming › Hardware draws measured adapters, formats and probes:
@@ -474,7 +473,7 @@ export function SettingsEntry() {
       viewerId: options.viewerId, downloadBase: api.baseUrl, isCurrent: current, subscribe: controller.subscribe, reportError,
       messageConnection: {open: (headers, signal) => {
         if (!current()) return Promise.reject(new DOMException('The settings scope ended.', 'AbortError'));
-        return api.routeFetch(api.baseUrl + '/v1/admin/logs/events', {headers: {...headers, Authorization: 'Bearer ' + context.session().accessToken}, signal});
+        return openOwnerLogEvents(api, headers, context.session().accessToken, signal);
       }}}) : undefined;
     const playbackProblems = troubleshooting?.parts.has('problems') ? new PlaybackProblemsSource({transport:api,isCurrent:current,reportError,subscribe:listener=>{authorityListeners.add(listener);return()=>{authorityListeners.delete(listener);};}}) : undefined;
     const previewLife = new AbortController();
@@ -532,7 +531,7 @@ export function SettingsEntry() {
           disabled={state.disabled} api={api} onChange={path => {if (current()) controller.change(settingsRowIndex.get('streaming.transcodeFolder')!.row, path, rowContext);}} />;
         if (row.id === 'streaming.hwDevices' && hardware) return <HardwareDevices source={hardware} />;
         if (row.id === 'streaming.hwTest' && hardware) return <TestHardware source={hardware} />;
-        if (row.id === 'storage.missingNow' && missing) return <MissingTitles source={missing} isCurrent={current} artwork={id => context.artwork.foreground(encodedRoutePath('get_items_id_art_kind', {id: encodeURIComponent(id), kind: 'poster'}), 80, 2 / 3)} />;
+        if (row.id === 'storage.missingNow' && missing) return <MissingTitles source={missing} isCurrent={current} artwork={id => context.artwork.foreground(ownerItemArtworkPath(encodeURIComponent(id), 'poster'), 80, 2 / 3)} />;
         const storageControl = server?.special(row, state);
         if (storageControl !== undefined) return storageControl;
         const privacyControl = privacy.special(row, state);

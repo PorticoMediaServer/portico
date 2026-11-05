@@ -1,7 +1,6 @@
+import {readOwnerSkippedFiles} from '@core/owner-library-requests.ts';
 import type {LibraryContentApi} from '@core/library-content.ts';
-import {encodedRoutePath} from '../../../../../packages/contracts/src/routes.ts';
 import type {MessageId} from '@i18n';
-
 export type SkippedFile = Readonly<{sequence: number; path: string; reason: MessageId}>;
 export type SkippedPage = Readonly<{items: readonly SkippedFile[]; count: number; hasMore: boolean; next: number}>;
 const reasons: Readonly<Record<string, MessageId>> = {
@@ -14,8 +13,7 @@ const integer = (value: unknown): value is number => Number.isSafeInteger(value)
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 /** Only the server's unplayable-file page is shown; unmatched titles never enter this list. */
 export async function skippedFiles(api: LibraryContentApi, libraryId: string, jobId: string, after: number, signal: AbortSignal): Promise<SkippedPage> {
-  const path = encodedRoutePath('get_scan_issues', {id: encodeURIComponent(libraryId), job: encodeURIComponent(jobId)});
-  const raw: unknown = await api.request(path + '?' + new URLSearchParams({after: String(after), limit: '40'}), 'GET', undefined, signal);
+  const raw: unknown = await readOwnerSkippedFiles(api, libraryId, jobId, after, signal);
   if (!object(raw) || raw.jobId !== jobId || !Array.isArray(raw.items) || raw.items.length > 40 || !integer(raw.count) ||
       typeof raw.hasMore !== 'boolean' || !integer(raw.nextSequence) || raw.nextSequence < after || (raw.hasMore && raw.nextSequence <= after)) throw new Error('invalid_skipped_files');
   const items: SkippedFile[] = [];

@@ -1,3 +1,4 @@
+import {readOwnerSourceConfiguration, writeOwnerSourceConfiguration, importOwnerSourceLogos} from '@core/owner-requests.ts';
 import type {LibraryContentApi} from '@core/library-content.ts';
 import {parseEnvelope, parseLiveSourceDocument, type LiveSourceDocument, type LiveSourceSettings} from '@core/administration.ts';
 import {sameUserMutationScope, type UserMutationCoordinator, type UserMutationScope} from '@core/user-mutations.ts';
@@ -57,7 +58,7 @@ export class SourceSettingsController extends OwnerStore<SourceSettingsSnapshot>
     this.invalidateQuiet();const serial = this.quietSerial, read = this.quietRead = new AbortController(), base = this.snapshot.document;
     const owns = () => this.isActive() && !read.signal.aborted && serial === this.quietSerial && !this.quietBlocked() && this.snapshot.document === base;
     try {
-      const raw = await this.api.request(this.path(), 'GET', undefined, read.signal);
+      const raw = await readOwnerSourceConfiguration(this.api, this.sourceId, read.signal);
       if (!owns()) return {kind: 'deferred'};
       const document = this.checked(raw), local = this.snapshot.draft;
       const rebased = base && local ? rebaseDraft(base.settings, local, document.settings) : {merged: document.settings, conflict: false};
@@ -76,7 +77,7 @@ export class SourceSettingsController extends OwnerStore<SourceSettingsSnapshot>
     try {
       await this.reconcileCommand();if (!this.valid(attempt)) return;
       if (this.command) {this.publish({...this.snapshot, loading: false});return;}
-      const raw = await this.api.request(this.path(), 'GET', undefined, attempt.abort.signal);if (!this.valid(attempt)) return;
+      const raw = await readOwnerSourceConfiguration(this.api, this.sourceId, attempt.abort.signal);if (!this.valid(attempt)) return;
       const document = this.checked(raw);this.publish({loading: false, saving: false, document, draft: document.settings});
     } catch (error) {if (this.valid(attempt)) this.fail(error, {...this.snapshot, loading: false, error: errorFacts(error)});}
   }
@@ -103,7 +104,7 @@ export class SourceSettingsController extends OwnerStore<SourceSettingsSnapshot>
       if (!this.valid(attempt)) return false;
       const released = await this.reconcileCommand();if (!this.valid(attempt)) return false;
       if (released === 'released') {
-        const fresh = this.checked(await this.api.request(this.path(), 'GET', undefined, attempt.abort.signal));
+        const fresh = this.checked(await readOwnerSourceConfiguration(this.api, this.sourceId, attempt.abort.signal));
         if (this.valid(attempt)) this.publish({loading: false, saving: false, document: fresh, draft: fresh.settings});
         return false; // Review current state before authoring a replacement.
       }
@@ -116,7 +117,7 @@ export class SourceSettingsController extends OwnerStore<SourceSettingsSnapshot>
       if (this.command && JSON.stringify({expectedRevision: document.revision, settings: draft}) !== JSON.stringify({expectedRevision: this.command.body.expectedRevision, settings: this.command.body.settings})) throw {code: 'mutation_needs_review'};
       if (!this.command) this.command = {body: freeze(JSON.parse(JSON.stringify({expectedRevision: document.revision, operationId: this.makeId(), settings: draft}))), ...(scope ? {binding: {...scope}} : {}), retained: false};
       const command = this.command;
-      const saved = this.checked(await this.api.request(this.path(), 'PUT', command.body, attempt.abort.signal));
+      const saved = this.checked(await writeOwnerSourceConfiguration(this.api, this.sourceId, command.body, attempt.abort.signal));
       command.retained = true;
       if (!this.valid(attempt)) return false;
       const live = this.api.getUserMutationScope?.();
@@ -141,7 +142,7 @@ export class SourceSettingsController extends OwnerStore<SourceSettingsSnapshot>
     let operationId = this.operations.get(key);if (!operationId) {operationId = this.makeId();this.operations.set(key, operationId);}
     this.publish({...this.snapshot, logoBusy: true, logoResult: undefined, error: undefined});if (!this.valid(attempt)) return;
     try {
-      const raw = await this.api.request(`/v1/admin/live-sources/${encodeURIComponent(this.sourceId)}/logos`, 'POST', {operationId}, attempt.abort.signal);
+      const raw = await importOwnerSourceLogos(this.api, this.sourceId, {operationId}, attempt.abort.signal);
       if (!this.valid(attempt)) return;
       const result = parseEnvelope(raw, this.serverId, value => {
         if (!value || typeof value !== 'object') throw {code: 'invalid_response'};
