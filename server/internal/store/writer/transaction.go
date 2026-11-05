@@ -60,6 +60,7 @@ type executor struct {
 	ambiguous      bool
 	fenced         bool
 	physicalFaults *physicalCloseFaults
+	driverPanics   *driverPanicLog
 }
 
 // These are the bundled driver's contextual interfaces. Interposing only Close
@@ -113,10 +114,21 @@ func (f *physicalCloseFaults) recordError(err error) {
 type writerConnector struct {
 	driver.Connector
 	faults   *physicalCloseFaults
+	panics   *driverPanicLog
 	decorate func(driver.Conn) driver.Conn // private fault instrumentation only
 }
 
-func (c *writerConnector) Connect(ctx context.Context) (driver.Conn, error) {
+func (c *writerConnector) Connect(ctx context.Context) (out driver.Conn, err error) {
+	var native *ownedPhysicalConn
+	defer func() {
+		if value := recover(); value != nil {
+			err = c.panics.add("connect", value)
+			if native != nil {
+				err = errors.Join(err, native.Close())
+			}
+			out = nil
+		}
+	}()
 	c.faults.mu.Lock()
 	failed := c.faults.failed
 	c.faults.mu.Unlock()
@@ -127,12 +139,14 @@ func (c *writerConnector) Connect(ctx context.Context) (driver.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	native := &ownedPhysicalConn{writerDriverConn: conn.(writerDriverConn), faults: c.faults}
+	scope := &driverSafety{log: c.panics}
+	native = &ownedPhysicalConn{writerDriverConn: conn.(writerDriverConn), faults: c.faults, scope: scope}
 	var wrapped driver.Conn = native
 	if c.decorate != nil {
 		wrapped = c.decorate(native)
 	}
-	return &physicalCloseBoundary{writerDriverConn: wrapped.(writerDriverConn), native: native, faults: c.faults}, nil
+	boundary := &physicalCloseBoundary{writerDriverConn: wrapped.(writerDriverConn), native: native, faults: c.faults}
+	return &safeWriterConn{writerDriverConn: boundary, scope: scope}, nil
 }
 
 func (c *writerConnector) Close() (err error) {
@@ -150,6 +164,7 @@ func (c *writerConnector) Close() (err error) {
 type ownedPhysicalConn struct {
 	writerDriverConn
 	faults *physicalCloseFaults
+	scope  *driverSafety
 	once   sync.Once
 	err    error
 }
@@ -161,7 +176,10 @@ func (c *ownedPhysicalConn) Close() error {
 				c.err = errors.Join(c.err, c.faults.record("native close", value))
 			}
 		}()
-		c.err = c.writerDriverConn.Close()
+		c.err = func() (err error) {
+			defer func() { err = errors.Join(err, c.writerDriverConn.Close()) }()
+			return c.scope.closeAll()
+		}()
 		if c.err != nil {
 			c.faults.recordError(c.err)
 		}
@@ -191,7 +209,8 @@ func (c *physicalCloseBoundary) Close() (err error) {
 
 func (w *executor) openPool(connector driver.Connector, decorate func(driver.Conn) driver.Conn) {
 	w.physicalFaults = &physicalCloseFaults{}
-	w.db = sql.OpenDB(&writerConnector{Connector: connector, faults: w.physicalFaults, decorate: decorate})
+	w.driverPanics = &driverPanicLog{}
+	w.db = sql.OpenDB(&writerConnector{Connector: connector, faults: w.physicalFaults, panics: w.driverPanics, decorate: decorate})
 	w.db.SetMaxOpenConns(w.config.Connections)
 	w.db.SetMaxIdleConns(w.config.Connections)
 }
@@ -283,6 +302,7 @@ func (w *executor) begin(ctx context.Context, id CommandID, r turnRecipe, c turn
 	t = &transaction{writer: w, ctx: turnCtx, cancel: cancel, custody: c, quantum: q, start: start, limit: r.limit.Hold, descriptor: desc}
 	conn, err := w.db.Conn(turnCtx)
 	t.conn = conn
+	t.raiseDriverPanic(err)
 	if err != nil {
 		return nil, err
 	}
@@ -302,6 +322,7 @@ func (w *executor) begin(ctx context.Context, id CommandID, r turnRecipe, c turn
 	if err == nil {
 		_, err = conn.ExecContext(turnCtx, "BEGIN IMMEDIATE")
 	}
+	t.raiseDriverPanic(err)
 	if err != nil {
 		return nil, err
 	}
@@ -391,6 +412,7 @@ func (t *transaction) commit() (turnResult, error) {
 	start := t.writer.now()
 	t.commitAttempted = true
 	_, err = t.conn.ExecContext(t.ctx, "COMMIT")
+	t.raiseDriverPanic(err)
 	t.commitElapsed = t.writer.now().Sub(start)
 	if err != nil {
 		return t.unknown(err)
@@ -467,6 +489,13 @@ func (t *transaction) rollbackOwned(cause error) (turnResult, error) {
 		defer cancel()
 		_, err := t.conn.ExecContext(cleanup, "ROLLBACK")
 		cancel()
+		if t.primaryPanic == nil {
+			t.raiseDriverPanic(err)
+		} else {
+			for _, fault := range t.writer.driverPanics.take() {
+				t.cleanupPanics = append(t.cleanupPanics, terminalPanic{fault.phase, fault.value})
+			}
+		}
 		if err != nil {
 			cause = errors.Join(cause, err)
 			discard = true
@@ -500,6 +529,10 @@ func (t *transaction) cleanupCall(phase string, call func() error) (err error) {
 			panics, closeErr := t.writer.physicalFaults.take()
 			t.cleanupPanics = append(t.cleanupPanics, panics...)
 			err = errors.Join(err, closeErr)
+		}
+		for _, fault := range t.writer.driverPanics.take() {
+			t.cleanupPanics = append(t.cleanupPanics, terminalPanic{fault.phase, fault.value})
+			err = errors.Join(err, errTerminalCleanup, fault)
 		}
 	}()
 	err = call()
