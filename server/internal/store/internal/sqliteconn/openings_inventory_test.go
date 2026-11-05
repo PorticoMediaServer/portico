@@ -16,11 +16,13 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-// These are the ONLY reviewed constrained store sources. Both bodies must be
-// type-resolved: host plus the opposite Linux/non-Linux configuration below.
+// These are the ONLY reviewed constrained store sources. All bodies must be
+// type-resolved: host, opposite Linux/non-Linux, and GV's tagged binding audit.
 var openingConstraints = map[string]string{
-	"qual/namespace_linux.go": "", // implicit _linux filename constraint
-	"qual/namespace_other.go": "//go:build !linux",
+	"qual/namespace_linux.go":                    "", // implicit _linux filename constraint
+	"qual/namespace_other.go":                    "//go:build !linux",
+	"governor/snapshot_binding_audit_test.go":    "//go:build libc.memgrind",
+	"governor/snapshot_binding_counters_test.go": "//go:build memory.counters && !libc.memgrind",
 }
 
 func openingPhysicalSources(root string) (map[string]bool, error) {
@@ -151,10 +153,22 @@ func loadOpeningSourceUniverse(root string) ([]*packages.Package, error) {
 	}
 	metadata, typed := map[string]bool{}, map[string]bool{}
 	var all []*packages.Package
-	for _, env := range [][]string{os.Environ(), openingEnv(other)} {
-		pkgs, err := packages.Load(&packages.Config{Dir: filepath.Join(root, "../.."), Tests: true, Env: env, BuildFlags: []string{"-p=1"},
+	profiles := []struct {
+		env     []string
+		flags   []string
+		pattern string
+	}{
+		{os.Environ(), []string{"-p=1"}, "./internal/store/..."},
+		{openingEnv(other), []string{"-p=1"}, "./internal/store/..."},
+		// Listing the audit as ignored is insufficient: load its actual body and
+		// dependencies with the exact reviewed tag, then scan the same references.
+		{os.Environ(), []string{"-p=1", "-tags=libc.memgrind"}, "./internal/store/governor"},
+		{os.Environ(), []string{"-p=1", "-tags=memory.counters"}, "./internal/store/governor"},
+	}
+	for _, profile := range profiles {
+		pkgs, err := packages.Load(&packages.Config{Dir: filepath.Join(root, "../.."), Tests: true, Env: profile.env, BuildFlags: profile.flags,
 			Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedForTest | packages.NeedImports | packages.NeedDeps | packages.NeedTypes | packages.NeedSyntax | packages.NeedTypesInfo,
-		}, "./internal/store/...")
+		}, profile.pattern)
 		if err != nil {
 			return nil, err
 		}
@@ -184,7 +198,7 @@ func loadOpeningSourceUniverse(root string) ([]*packages.Package, error) {
 			}
 		}
 		// Dependency errors were checked above. Their AST/type-use maps are not
-		// store inputs to scan; release those before loading the second profile.
+		// store inputs to scan; release those before loading the next profile.
 		packages.Visit(pkgs, nil, func(p *packages.Package) {
 			if !strings.HasPrefix(p.PkgPath, openingStore) {
 				p.Syntax = nil
