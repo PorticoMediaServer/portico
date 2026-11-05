@@ -2,6 +2,19 @@ package plan
 
 import "testing"
 
+func TestAutoindexForcingTokens(t *testing.T) {
+	for _, sql := range []string{`SELECT id FROM t INDEXED BY sqlite_autoindex_t_1`, `SELECT id FROM t indexed /*x*/ by "sqlite_autoindex_t_1"`, "SELECT id FROM t INDEXED BY [sqlite_autoindex_t_1]"} {
+		if forcedAutoindex(sql) == "" {
+			t.Fatalf("forced generated index missed: %s", sql)
+		}
+	}
+	for _, sql := range []string{`SELECT 'INDEXED BY sqlite_autoindex_t_1'`, `SELECT "INDEXED BY sqlite_autoindex_t_1" FROM t`, `SELECT id FROM t /* INDEXED BY sqlite_autoindex_t_1 */`, `SELECT id FROM t INDEXED BY stable_index`} {
+		if forcedAutoindex(sql) != "" {
+			t.Fatalf("nonclause flagged: %s", sql)
+		}
+	}
+}
+
 func TestNativeConflictRootCannotUseOtherCursorsOrSubprograms(t *testing.T) {
 	open := func(db, flags int64) []any {
 		return []any{int64(1), "OpenWrite", int64(3), int64(21), db, nil, flags, nil}

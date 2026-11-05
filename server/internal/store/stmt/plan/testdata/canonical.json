@@ -14708,7 +14708,7 @@
   "manifest": [
     {
       "id": "asset.by_path",
-      "sql": "SELECT id,token FROM catalog_assets INDEXED BY sqlite_autoindex_catalog_assets_3 WHERE library_id=? AND path=?",
+      "sql": "SELECT id,token FROM catalog_assets WHERE library_id=? AND path=?",
       "owner": "schema-contract-harness",
       "callSites": [
         "canonical_test.go"
@@ -14753,7 +14753,7 @@
         ],
         "allowedScans": null
       },
-      "sqlSha256": "b20dc3435831abbdf42254833b6c09a2d9ac7d8e51f4bf1d1377dea6a0d48f1d"
+      "sqlSha256": "d40081e41dde0e7faced77ba2bbc7c3e31f8150762b951cc7537ce4fc486b6d9"
     },
     {
       "id": "authored.asset_union",
@@ -16232,7 +16232,7 @@
           [
             3,
             0,
-            46,
+            "\u003cnotused\u003e",
             "SEARCH catalog_assets USING INDEX sqlite_autoindex_catalog_assets_3 (library_id=? AND path=?)"
           ]
         ]
@@ -16436,7 +16436,7 @@
           [
             3,
             0,
-            46,
+            "\u003cnotused\u003e",
             "SEARCH catalog_assets USING INDEX sqlite_autoindex_catalog_assets_3 (library_id=? AND path=?)"
           ]
         ]
@@ -16690,7 +16690,7 @@
           [
             7,
             0,
-            61,
+            "\u003cnotused\u003e",
             "SEARCH catalog_asset_contributions USING INDEX catalog_asset_authored (asset_id=?)"
           ]
         ]
@@ -16944,7 +16944,7 @@
           [
             6,
             0,
-            51,
+            "\u003cnotused\u003e",
             "SEARCH catalog_entities USING COVERING INDEX catalog_entities_added_v1 (library_id=? AND kind=? AND added_at\u003e?)"
           ]
         ]
@@ -17208,7 +17208,7 @@
           [
             6,
             0,
-            46,
+            "\u003cnotused\u003e",
             "SEARCH catalog_entities USING COVERING INDEX catalog_entities_added_v1 (library_id=? AND kind=? AND added_at\u003e?)"
           ]
         ]
@@ -17492,7 +17492,7 @@
           [
             6,
             0,
-            45,
+            "\u003cnotused\u003e",
             "SEARCH catalog_entities USING COVERING INDEX catalog_entities_added_v1 (library_id=? AND kind=? AND added_at=? AND id\u003e?)"
           ]
         ]
@@ -17756,7 +17756,7 @@
           [
             6,
             0,
-            51,
+            "\u003cnotused\u003e",
             "SEARCH catalog_entities USING COVERING INDEX catalog_entities_added_v1 (library_id=? AND kind=? AND added_at\u003e?)"
           ]
         ]
@@ -18030,7 +18030,7 @@
           [
             6,
             0,
-            46,
+            "\u003cnotused\u003e",
             "SEARCH catalog_entities USING COVERING INDEX catalog_entities_added_v1 (library_id=? AND kind=? AND added_at\u003c?)"
           ]
         ]
@@ -18324,7 +18324,7 @@
           [
             6,
             0,
-            45,
+            "\u003cnotused\u003e",
             "SEARCH catalog_entities USING COVERING INDEX catalog_entities_added_v1 (library_id=? AND kind=? AND added_at=? AND id\u003c?)"
           ]
         ]
@@ -18568,7 +18568,7 @@
           [
             4,
             0,
-            53,
+            "\u003cnotused\u003e",
             "SEARCH catalog_scalar_contributions USING COVERING INDEX catalog_scalar_duration (parent_id=? AND duration\u003e?)"
           ]
         ]
@@ -18772,7 +18772,7 @@
           [
             4,
             0,
-            54,
+            "\u003cnotused\u003e",
             "SEARCH catalog_asset_contributions USING COVERING INDEX catalog_asset_contribution_size (parent_id=?)"
           ]
         ]
@@ -18946,7 +18946,7 @@
           [
             2,
             0,
-            39,
+            "\u003cnotused\u003e",
             "SEARCH catalog_identities USING PRIMARY KEY (library_id=? AND source_key=?)"
           ]
         ]
@@ -19120,7 +19120,7 @@
           [
             2,
             0,
-            39,
+            "\u003cnotused\u003e",
             "SEARCH catalog_identities USING PRIMARY KEY (library_id=? AND source_key=?)"
           ]
         ]
@@ -19314,7 +19314,7 @@
           [
             3,
             0,
-            55,
+            "\u003cnotused\u003e",
             "SEARCH catalog_identities USING COVERING INDEX catalog_identities_subject (subject_id=? AND library_id=?)"
           ]
         ]
@@ -19808,7 +19808,7 @@
           [
             30,
             0,
-            50,
+            "\u003cnotused\u003e",
             "SEARCH catalog_entities USING COVERING INDEX catalog_entities_resolution (library_id=? AND kind=? AND resolution_key\u003e?)"
           ]
         ]
@@ -20312,7 +20312,7 @@
           [
             30,
             0,
-            45,
+            "\u003cnotused\u003e",
             "SEARCH catalog_entities USING COVERING INDEX catalog_entities_resolution (library_id=? AND kind=? AND resolution_key\u003e?)"
           ]
         ]
@@ -20826,7 +20826,7 @@
           [
             30,
             0,
-            46,
+            "\u003cnotused\u003e",
             "SEARCH catalog_entities USING COVERING INDEX catalog_entities_resolution (library_id=? AND kind=? AND resolution_key=? AND id\u003e?)"
           ]
         ]
@@ -21350,7 +21350,7 @@
           [
             30,
             0,
-            44,
+            "\u003cnotused\u003e",
             "SEARCH catalog_entities USING COVERING INDEX catalog_entities_resolution (library_id=? AND kind=? AND resolution_key=? AND id\u003e?)"
           ]
         ]
@@ -21854,7 +21854,7 @@
           [
             30,
             0,
-            50,
+            "\u003cnotused\u003e",
             "SEARCH catalog_entities USING COVERING INDEX catalog_entities_resolution (library_id=? AND kind=? AND resolution_key\u003e?)"
           ]
         ]
@@ -22368,7 +22368,7 @@
           [
             30,
             0,
-            45,
+            "\u003cnotused\u003e",
             "SEARCH catalog_entities USING COVERING INDEX catalog_entities_resolution (library_id=? AND kind=? AND resolution_key\u003c?)"
           ]
         ]
@@ -22892,7 +22892,7 @@
           [
             30,
             0,
-            46,
+            "\u003cnotused\u003e",
             "SEARCH catalog_entities USING COVERING INDEX catalog_entities_resolution (library_id=? AND kind=? AND resolution_key=? AND id\u003c?)"
           ]
         ]
@@ -23426,7 +23426,7 @@
           [
             30,
             0,
-            44,
+            "\u003cnotused\u003e",
             "SEARCH catalog_entities USING COVERING INDEX catalog_entities_resolution (library_id=? AND kind=? AND resolution_key=? AND id\u003c?)"
           ]
         ]
@@ -23670,7 +23670,7 @@
           [
             6,
             0,
-            52,
+            "\u003cnotused\u003e",
             "SEARCH catalog_entities USING COVERING INDEX catalog_entities_title (library_id=? AND kind=?)"
           ]
         ]
@@ -23934,7 +23934,7 @@
           [
             6,
             0,
-            46,
+            "\u003cnotused\u003e",
             "SEARCH catalog_entities USING COVERING INDEX catalog_entities_title (library_id=? AND kind=? AND sort_key\u003e?)"
           ]
         ]
@@ -24218,7 +24218,7 @@
           [
             6,
             0,
-            45,
+            "\u003cnotused\u003e",
             "SEARCH catalog_entities USING COVERING INDEX catalog_entities_title (library_id=? AND kind=? AND sort_key=? AND id\u003e?)"
           ]
         ]
@@ -24462,7 +24462,7 @@
           [
             6,
             0,
-            52,
+            "\u003cnotused\u003e",
             "SEARCH catalog_entities USING COVERING INDEX catalog_entities_title (library_id=? AND kind=?)"
           ]
         ]
@@ -24726,7 +24726,7 @@
           [
             6,
             0,
-            46,
+            "\u003cnotused\u003e",
             "SEARCH catalog_entities USING COVERING INDEX catalog_entities_title (library_id=? AND kind=? AND sort_key\u003c?)"
           ]
         ]
@@ -25020,7 +25020,7 @@
           [
             6,
             0,
-            45,
+            "\u003cnotused\u003e",
             "SEARCH catalog_entities USING COVERING INDEX catalog_entities_title (library_id=? AND kind=? AND sort_key=? AND id\u003c?)"
           ]
         ]
