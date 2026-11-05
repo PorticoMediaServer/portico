@@ -106,3 +106,36 @@ func TestClosedCommandDurability(t *testing.T) {
 		t.Fatal("caller changed registry")
 	}
 }
+
+func TestQuantumTerminalConsumesReserveExactlyOnce(t *testing.T) {
+	start := time.Now()
+	limit := Work{10, 100, 10, 1000, 10 * time.Millisecond}
+	terminal := Work{1, 10, 1, 100, 2 * time.Millisecond}
+	q, err := NewQuantum(limit, terminal, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := q.Remaining()
+	if err := q.TryFinish(start.Add(9 * time.Millisecond)); !errors.Is(err, ErrQuantum) {
+		t.Fatal(err)
+	}
+	if q.Remaining() != before {
+		t.Fatal("terminal refusal mutated state")
+	}
+	if err := q.TryFinish(start.Add(8 * time.Millisecond)); err != nil {
+		t.Fatal(err)
+	}
+	after := q.Remaining()
+	if after != subtract(limit, terminal) {
+		t.Fatal(after)
+	}
+	if err := q.TryFinish(start.Add(8 * time.Millisecond)); !errors.Is(err, ErrQuantum) {
+		t.Fatal(err)
+	}
+	if err := q.TryStep(Work{Hold: time.Nanosecond}, start.Add(8*time.Millisecond)); !errors.Is(err, ErrQuantum) {
+		t.Fatal(err)
+	}
+	if q.Remaining() != after {
+		t.Fatal("finished quantum changed")
+	}
+}
