@@ -1,6 +1,7 @@
+import {readBrowseCapabilitiesResponse} from '../../../../../packages/client-core/src/query/browse-reads';
 import type {Library} from '../../../../../packages/client-core/src';
 import type {SavedDefinition} from '../../../../../packages/client-core/src/personal-saved';
-import {BrowseTotalsMemory, browseCapabilitiesPath, completeBrowseNode, parseBrowseCapabilities, type BrowseCapabilities, type BrowseNode, type BrowseRememberedTotal, type BrowseSortSelection, type BrowseWholeSelection, type BrowseWholeSelectionUnavailable} from '../../../../../packages/client-core/src/browse';
+import {BrowseTotalsMemory, completeBrowseNode, parseBrowseCapabilities, type BrowseCapabilities, type BrowseNode, type BrowseRememberedTotal, type BrowseSortSelection, type BrowseWholeSelection, type BrowseWholeSelectionUnavailable} from '../../../../../packages/client-core/src/browse';
 import {BrowseSession, browseSessionBuilder, type BrowseSessionQuery} from '../../../../../packages/client-core/src/browse-session';
 import {createWindowedCollection, type WindowedCollection} from '../../../../../packages/client-core/src/collections/windowed';
 import {isStaleAnswer} from '../../../../../packages/client-core/src/freshness-actions';
@@ -164,7 +165,7 @@ export class NativeLibraryDestination {
         return;
       }
       if (!tab.pivot) throw new Error('native_library_tab_producer_required');
-      const capabilities = parseBrowseCapabilities(await this.request(browseCapabilitiesPath(this.options.library.id, tab.pivot), 'GET', undefined, controller.signal));
+      const capabilities = parseBrowseCapabilities(await readBrowseCapabilitiesResponse({request: this.request.bind(this)}, this.options.library.id, tab.pivot, controller.signal));
       if (revision !== this.operation || controller.signal.aborted) return;
       if (capabilities.library.id !== this.options.library.id || capabilities.library.kind !== this.options.library.kind) throw new Error('native_library_scope_mismatch');
       const pivot = capabilities.pivots.find(value => value.id === tab.pivot && value.browsable);

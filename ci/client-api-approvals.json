@@ -1811,5 +1811,20 @@
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6647211850",
     "reviewedCommit": "5bc2a1fec6e84931c652c3b8c3f4cdbf36c88924"
+  },
+  "web/src/screens/browse/Library.route.tsx#ed07a650668d4637": {
+    "category": "identity-rehash",
+    "reason": "The unchanged Library route forwarding call receives a new census identity when its capability read moves into a named core operation; this is no transport exception.",
+    "condition": "The complete reviewed enclosing function and forwarding call are preserved; no added path, method, body, header or credential selection. The site remains DIRECT at count 1.",
+    "guardHash": "32cacc3746d2930054f99bbfc196670ec2c987bb847e4ba6488e50eedd91f984",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646375725",
+    "previousSiteId": "web/src/screens/browse/Library.route.tsx#e08475db422b5e2e",
+    "previousGuardHash": "898885f2283dcca3dfdc1e257fe9681d5bd5b9d35f89341e75d47fb902744a1b",
+    "previousCommit": "0ecb62138e9091894448b3514cd77b1a6e90b466",
+    "reviewedCommit": "4a6c10dc900dd8c8801862a7f7d7b21ed0045ac6",
+    "pullRequest": "https://github.com/PorticoMediaServer/portico/pull/924",
+    "reviewUrl": "https://github.com/PorticoMediaServer/portico/pull/924#issuecomment-6647296104",
+    "spanEvidence": "docs/client-api-rehashes/924-library-route.json"
   }
 }
