@@ -97,7 +97,7 @@ export function NeedsAttention({libraryId, libraryName, api, onOpen, onEdit, art
     if (busy) return false;
     setBusy(entry.entityId); setNotice(undefined); setError(undefined);
     try {
-      await service.act({kind: entry.kind, entityId: entry.entityId, expectedRevision: entry.revision, ...command});
+      await service.actOnEntry(entry, command);
       setNotice(done); setSearching(undefined); setIdentifying(undefined);
       if (admission) await load(admission, shown?.cursor ?? '');
       return true;
