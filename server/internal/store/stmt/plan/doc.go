@@ -13,6 +13,8 @@
 // WHERE. SET accepts the scalar subset plus up to eight +/- scalar terms;
 // WHERE uses the unchanged predicate grammar. UPDATE/DELETE may force INDEXED BY.
 // Their WHERE seeks require expected index/PK contracts even if Hot is false.
+// Generated sqlite_autoindex_* names are asserted in Plan.Indexes and actual
+// EQP only; INDEXED BY must not embed them. Explicit names remain forced.
 // INSERT destinations require Capture's index/column and full FK audits instead
 // of a nonexistent destination SEARCH. UPSERT requires one expected full unique
 // index or PK whose ordered conflict columns are explicit bound INSERT inputs;
@@ -31,7 +33,9 @@
 // Each cohort retains the full EXPLAIN VM and exact EQP. Only Transaction's
 // checked schema cookie is replaced with a placeholder, and literal b-tree
 // roots become database-qualified object names from sqlite_schema. All other
-// operands, registers, flags and jump targets remain exact. Unknown roots fail
+// operands, registers, flags and jump targets remain exact. EQP replaces only
+// SQLite's notused field with a placeholder; IDs, parents and detail stay exact.
+// Unknown roots fail
 // closed. Raw schema/root-page metadata remains in the environment evidence.
 // Planner statistics do not permit a different serving access path.
 //

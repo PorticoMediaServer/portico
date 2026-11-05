@@ -48,9 +48,11 @@ func TestPlanCanonicalSchemaFKAndStatementContracts(t *testing.T) {
 		t.Fatal(err)
 	}
 	// All 28 cohorts were independently regenerated on approved 291ab3ac,
-	// 567267b7 and adopted 5f3c7f67 with the same VM canonicalization. Stop before
+	// 567267b7 and adopted 5f3c7f67 with the same VM canonicalization. EQP
+	// notused is now also a placeholder; removing forced autoindex names
+	// changes no other field. Stop before
 	// recording if any opcode/operand/EQP beyond physical identifiers changes.
-	const retainedPlansSHA256 = "d7345d9db96ad79c3e80138da3733e6928209e4fbf232f2640aa3230d92c2da5"
+	const retainedPlansSHA256 = "6473c4cff5b8aa01db48d7eb91663f19c72f43523aaf705fa24dec419641800c"
 	plansJSON, err := json.Marshal(golden.Plans)
 	if err != nil {
 		t.Fatal(err)
@@ -98,7 +100,7 @@ func canonicalRegistry(t *testing.T, policy plan.IndexPolicy) *stmt.Registry {
 	}
 	add("identity.by_source", "SELECT subject_id FROM catalog_identities WHERE library_id=? AND source_key=?", []stmt.Param{integer("library"), text("source")}, []stmt.Cohort{{Name: "overlapping-library-1", Bindings: []any{int64(1), "same/path"}}, {Name: "overlapping-library-2", Bindings: []any{int64(2), "same/path"}}}, stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_identities"}, Seeks: []string{"library_id=? AND source_key=?"}})
 	add("identity.by_subject", "SELECT source_key FROM catalog_identities INDEXED BY catalog_identities_subject WHERE subject_id=? AND library_id=? ORDER BY source_key", []stmt.Param{integer("subject"), integer("library")}, []stmt.Cohort{{Name: "retained", Bindings: []any{int64(1), int64(1)}}}, stmt.Plan{Hot: true, Indexes: []string{"catalog_identities_subject"}, Seeks: []string{"subject_id=? AND library_id=?"}})
-	add("asset.by_path", "SELECT id,token FROM catalog_assets INDEXED BY sqlite_autoindex_catalog_assets_3 WHERE library_id=? AND path=?", []stmt.Param{integer("library"), text("path")}, []stmt.Cohort{{Name: "overlapping-library-1", Bindings: []any{int64(1), "same/path"}}, {Name: "overlapping-library-2", Bindings: []any{int64(2), "same/path"}}}, stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_catalog_assets_3"}, Seeks: []string{"library_id=? AND path=?"}})
+	add("asset.by_path", "SELECT id,token FROM catalog_assets WHERE library_id=? AND path=?", []stmt.Param{integer("library"), text("path")}, []stmt.Cohort{{Name: "overlapping-library-1", Bindings: []any{int64(1), "same/path"}}, {Name: "overlapping-library-2", Bindings: []any{int64(2), "same/path"}}}, stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_catalog_assets_3"}, Seeks: []string{"library_id=? AND path=?"}})
 	add("contribution.top_size", "SELECT file_size,asset_id FROM catalog_asset_contributions INDEXED BY catalog_asset_contribution_size WHERE parent_id=? ORDER BY file_size DESC,asset_id LIMIT 1", []stmt.Param{integer("parent")}, []stmt.Cohort{{Name: "empty", Bindings: []any{int64(1)}}}, stmt.Plan{Hot: true, Indexes: []string{"catalog_asset_contribution_size"}, Seeks: []string{"parent_id=?"}})
 	add("contribution.top_duration", "SELECT duration,contributor_id,source FROM catalog_scalar_contributions INDEXED BY catalog_scalar_duration WHERE parent_id=? AND "+partial("catalog_scalar_duration")+" ORDER BY duration DESC,contributor_id,source LIMIT 1", []stmt.Param{integer("parent")}, []stmt.Cohort{{Name: "nonnull-extrema", Bindings: []any{int64(1)}}}, stmt.Plan{Hot: true, Indexes: []string{"catalog_scalar_duration"}, Seeks: []string{"parent_id=?"}})
 	add("authored.asset_union", "SELECT parent_id FROM catalog_asset_contributions INDEXED BY catalog_asset_authored WHERE asset_id=? AND "+partial("catalog_asset_authored")+" ORDER BY parent_id LIMIT ?", []stmt.Param{integer("asset"), integer("limit")}, []stmt.Cohort{{Name: "cap-plus-one", Bindings: []any{int64(1), int64(101)}}}, stmt.Plan{Hot: true, Indexes: []string{"catalog_asset_authored"}, Seeks: []string{"asset_id=?"}})

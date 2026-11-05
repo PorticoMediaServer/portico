@@ -119,6 +119,13 @@ func ForeignKeys(ctx context.Context, conn *sql.Conn, policy sqliteconn.Config) 
 					return ForeignKeyAudit{}, err
 				}
 			}
+			for _, probe := range []*Rows{&g.Delete, &g.Update, &g.Lookup} {
+				canonical, err := canonicalEQP(*probe)
+				if err != nil {
+					return ForeignKeyAudit{}, err
+				}
+				*probe = canonical
+			}
 
 			result = append(result, *g)
 		}
