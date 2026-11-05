@@ -56,6 +56,7 @@ export const NativeModules = {
   // Open-ended: a test installs (and removes) the runtime methods the bridge under test calls.
   /** @type {Record<string, any>} */
   PorticoRuntime: {
+    avatarWireBase64: true,
     playbackRequestId: () => 'req',
     playbackRandomBytes: n => Array.from({length: n}, () => 0),
     cancelQueueRequest() {},

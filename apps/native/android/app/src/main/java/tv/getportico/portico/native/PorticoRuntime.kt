@@ -45,6 +45,7 @@ class PorticoRuntime(context: ReactApplicationContext) : ReactContextBaseJavaMod
   override fun getConstants(): Map<String, Any> {
     val values = HashMap<String, Any>()
     values["launchId"] = launchId
+    values["avatarWireBase64"] = true
     // Boot's t = 0 (DESIGN "Ready, and what boot waits for"): when the person started the app.
     values["launchStartedAt"] = PorticoBoot.startedAt.toDouble()
     values["pictureInPictureSupported"] = android.os.Build.VERSION.SDK_INT >= 26 && reactApplicationContext.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
