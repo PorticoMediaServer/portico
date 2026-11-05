@@ -464,9 +464,13 @@ export function parseCreditPage(raw: unknown, itemId: string, group: 'cast' | 'c
   return Object.freeze({ revision:Object.freeze({catalog:raw.revision.catalog,viewer:raw.revision.viewer}),group, credits: Object.freeze(credits), total: Math.max(integer(raw.total) ? raw.total : 0, credits.length), ...(raw.nextCursor ? { nextCursor: raw.nextCursor as string } : {}) });
 }
 
-export async function readCreditPage(api:DetailApi,itemId:string,group:'cast'|'crew',options:{cursor?:string;limit?:number}={},signal?:AbortSignal):Promise<CreditPage> {
+/** Keep the original transport promise for callers with their own admission and parsing order. */
+export function readCreditPageResponse(api:DetailApi,itemId:string,group:'cast'|'crew',options:{cursor?:string;limit?:number}={},signal?:AbortSignal) {
  const query=new URLSearchParams({group,limit:String(options.limit??37)});if(options.cursor)query.set('cursor',options.cursor);
- return parseCreditPage(await api.request<RouteResponse<'get_items_id_credits'>>(encodedRoutePath('get_items_id_credits',{id:encodeURIComponent(itemId)})+'?'+query,'GET',undefined,signal),itemId,group);
+ return api.request<RouteResponse<'get_items_id_credits'>>(encodedRoutePath('get_items_id_credits',{id:encodeURIComponent(itemId)})+'?'+query,'GET',undefined,signal);
+}
+export async function readCreditPage(api:DetailApi,itemId:string,group:'cast'|'crew',options:{cursor?:string;limit?:number}={},signal?:AbortSignal):Promise<CreditPage> {
+ return parseCreditPage(await readCreditPageResponse(api,itemId,group,options,signal),itemId,group);
 }
 export type FileInfoDiscTitle = Readonly<{number: number; durationMs: number; chapters: number; angles: number}>;
 export type FileInfoDisc = Readonly<{fileId: string; kind: 'bluray' | 'dvd'; titles: readonly FileInfoDiscTitle[]}>;
