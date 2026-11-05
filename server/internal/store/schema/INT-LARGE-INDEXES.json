@@ -1,5 +1,5 @@
 {
-  "ddl_sha256": "567267b78205ab47b7efe0be764286b29d14f99ad476c5acdb44c65ac9f8bd3f",
+  "ddl_sha256": "5f3c7f676ba3e751487ab92a1fced313a583df49eedbe5c2e438031574418a73",
   "scope": "Conservative10M+capable repeated/high-fanout/time grains at1Mitems, not a claim every server reaches this density. Full release index set includes declared/implicit UNIQUE/PK/rowid paths. No post-release populated-table index addition; new justified empty access relation online.",
   "tables": [
     {
@@ -255,7 +255,7 @@
             }
           ],
           "sql": null,
-          "access": "Native integer primary key point/range path; no extra B-tree."
+          "access": "Native primary point/range path; no extra B-tree."
         },
         {
           "name": "api_events_activity_progress",
@@ -1308,7 +1308,7 @@
             }
           ],
           "sql": null,
-          "access": "Native integer primary key point/range path; no extra B-tree."
+          "access": "Native primary point/range path; no extra B-tree."
         },
         {
           "name": "catalog_attribute_ambiguous_restrictions",
@@ -1370,7 +1370,7 @@
             }
           ],
           "sql": null,
-          "access": "Native integer primary key point/range path; no extra B-tree."
+          "access": "Native primary point/range path; no extra B-tree."
         },
         {
           "name": "catalog_book_chapters_end_ms",
@@ -1487,6 +1487,118 @@
       ]
     },
     {
+      "table": "catalog_credit_images",
+      "grain": "Effective image per retained subject/generation or its actual retirement replay outcome; repeated10M+ lifetime grain",
+      "policy": "ordinary +full typeof +nonrowid key NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "INTEGER PRIMARY KEY rowid",
+          "unique": true,
+          "origin": "rowid",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Native primary point/range path; no extra B-tree."
+        },
+        {
+          "name": "catalog_credit_images_due",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "job_due_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX catalog_credit_images_due ON catalog_credit_images(job_due_ms,id) WHERE job_due_ms IS NOT NULL",
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "catalog_credit_images_entity",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "entity_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_revision",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX catalog_credit_images_entity ON catalog_credit_images(entity_id,entity_incarnation,owner_revision,id)",
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "sqlite_autoindex_catalog_credit_images_1",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "sqlite_autoindex_catalog_credit_images_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
       "table": "catalog_credit_labels",
       "grain": "credit/source150-per-item or retained cohort",
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -1504,7 +1616,7 @@
             }
           ],
           "sql": null,
-          "access": "Native integer primary key point/range path; no extra B-tree."
+          "access": "Native primary point/range path; no extra B-tree."
         },
         {
           "name": "sqlite_autoindex_catalog_credit_labels_1",
@@ -1543,9 +1655,44 @@
               "column": "entity_id",
               "collation": "BINARY",
               "descending": false
+            },
+            {
+              "column": "ord",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "image_id",
+              "collation": "BINARY",
+              "descending": false
             }
           ],
-          "sql": "CREATE INDEX catalog_credits_department ON catalog_credits(department_id,entity_id)",
+          "sql": "CREATE INDEX catalog_credits_department ON catalog_credits(department_id,entity_id,ord,image_id)",
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "catalog_credits_entity",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "image_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ord",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX catalog_credits_entity ON catalog_credits(entity_id,image_id,ord)",
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
@@ -1563,9 +1710,19 @@
               "column": "entity_id",
               "collation": "BINARY",
               "descending": false
+            },
+            {
+              "column": "ord",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "image_id",
+              "collation": "BINARY",
+              "descending": false
             }
           ],
-          "sql": "CREATE INDEX catalog_credits_name ON catalog_credits(credited_name,entity_id)",
+          "sql": "CREATE INDEX catalog_credits_name ON catalog_credits(credited_name,entity_id,ord,image_id)",
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
@@ -1583,9 +1740,29 @@
               "column": "entity_id",
               "collation": "BINARY",
               "descending": false
+            },
+            {
+              "column": "owner_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_revision",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ord",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "image_id",
+              "collation": "BINARY",
+              "descending": false
             }
           ],
-          "sql": "CREATE INDEX catalog_credits_owner_entry ON catalog_credits(owner_entry_id,entity_id)",
+          "sql": "CREATE INDEX catalog_credits_owner_entry ON catalog_credits(owner_entry_id,entity_id,owner_incarnation,owner_revision,ord,image_id)",
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
@@ -1603,9 +1780,19 @@
               "column": "entity_id",
               "collation": "BINARY",
               "descending": false
+            },
+            {
+              "column": "ord",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "image_id",
+              "collation": "BINARY",
+              "descending": false
             }
           ],
-          "sql": "CREATE INDEX catalog_credits_person ON catalog_credits(person_id,entity_id)",
+          "sql": "CREATE INDEX catalog_credits_person ON catalog_credits(person_id,entity_id,ord,image_id)",
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
@@ -1628,9 +1815,19 @@
               "column": "entity_id",
               "collation": "BINARY",
               "descending": false
+            },
+            {
+              "column": "ord",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "image_id",
+              "collation": "BINARY",
+              "descending": false
             }
           ],
-          "sql": "CREATE INDEX catalog_credits_provider_person ON catalog_credits(provider,provider_person_id,entity_id) WHERE provider_person_id<>''",
+          "sql": "CREATE INDEX catalog_credits_provider_person ON catalog_credits(provider,provider_person_id,entity_id,ord,image_id) WHERE provider_person_id<>''",
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
@@ -1648,9 +1845,19 @@
               "column": "entity_id",
               "collation": "BINARY",
               "descending": false
+            },
+            {
+              "column": "ord",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "image_id",
+              "collation": "BINARY",
+              "descending": false
             }
           ],
-          "sql": "CREATE INDEX catalog_credits_role ON catalog_credits(role_id,entity_id)",
+          "sql": "CREATE INDEX catalog_credits_role ON catalog_credits(role_id,entity_id,ord,image_id)",
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
@@ -1668,9 +1875,19 @@
               "column": "entity_id",
               "collation": "BINARY",
               "descending": false
+            },
+            {
+              "column": "ord",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "image_id",
+              "collation": "BINARY",
+              "descending": false
             }
           ],
-          "sql": "CREATE INDEX catalog_credits_source_row ON catalog_credits(source_row_id,entity_id)",
+          "sql": "CREATE INDEX catalog_credits_source_row ON catalog_credits(source_row_id,entity_id,ord,image_id)",
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
@@ -1680,7 +1897,7 @@
           "partial": false,
           "keys": [
             {
-              "column": "entity_id",
+              "column": "image_id",
               "collation": "BINARY",
               "descending": false
             },
@@ -2734,7 +2951,7 @@
             }
           ],
           "sql": null,
-          "access": "Native integer primary key point/range path; no extra B-tree."
+          "access": "Native primary point/range path; no extra B-tree."
         },
         {
           "name": "catalog_playlist_entries_item",
@@ -3429,7 +3646,7 @@
             }
           ],
           "sql": null,
-          "access": "Native integer primary key point/range path; no extra B-tree."
+          "access": "Native primary point/range path; no extra B-tree."
         },
         {
           "name": "sqlite_autoindex_catalog_terms_1",
@@ -3533,6 +3750,53 @@
       ]
     },
     {
+      "table": "credit_image_reclaim_receipts",
+      "grain": "Effective image per retained subject/generation or its actual retirement replay outcome; repeated10M+ lifetime grain",
+      "policy": "ordinary +full typeof +nonrowid key NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_credit_image_reclaim_receipts_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "image_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "sqlite_autoindex_credit_image_reclaim_receipts_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
       "table": "credit_owner_entries",
       "grain": "credit/source150-per-item or retained cohort",
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -3552,9 +3816,49 @@
               "column": "entity_id",
               "collation": "BINARY",
               "descending": false
+            },
+            {
+              "column": "owner_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_revision",
+              "collation": "BINARY",
+              "descending": false
             }
           ],
-          "sql": "CREATE UNIQUE INDEX credit_owner_entries_entity_id ON credit_owner_entries(entry_id,entity_id)",
+          "sql": "CREATE UNIQUE INDEX credit_owner_entries_entity_id ON credit_owner_entries(entry_id,entity_id,owner_incarnation,owner_revision)",
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "credit_owner_entries_input",
+          "unique": true,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_revision",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "input_ordinal",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX credit_owner_entries_input ON credit_owner_entries(entity_id,owner_incarnation,owner_revision,input_ordinal) WHERE input_ordinal IS NOT NULL",
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
@@ -3569,12 +3873,22 @@
               "descending": false
             },
             {
+              "column": "owner_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_revision",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
               "column": "source_row_id",
               "collation": "BINARY",
               "descending": false
             }
           ],
-          "sql": "CREATE UNIQUE INDEX credit_owner_entries_source ON credit_owner_entries(entity_id,source_row_id) WHERE source_row_id IS NOT NULL",
+          "sql": "CREATE UNIQUE INDEX credit_owner_entries_source ON credit_owner_entries(entity_id,owner_incarnation,owner_revision,source_row_id) WHERE source_row_id IS NOT NULL",
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
@@ -3607,6 +3921,16 @@
               "column": "entry_id",
               "collation": "BINARY",
               "descending": false
+            },
+            {
+              "column": "owner_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_revision",
+              "collation": "BINARY",
+              "descending": false
             }
           ],
           "sql": null,
@@ -3620,6 +3944,16 @@
           "keys": [
             {
               "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_revision",
               "collation": "BINARY",
               "descending": false
             },
@@ -4532,7 +4866,7 @@
             }
           ],
           "sql": null,
-          "access": "Native integer primary key point/range path; no extra B-tree."
+          "access": "Native primary point/range path; no extra B-tree."
         },
         {
           "name": "lc_play_events_item_fk",
@@ -4850,7 +5184,7 @@
             }
           ],
           "sql": null,
-          "access": "Native integer primary key point/range path; no extra B-tree."
+          "access": "Native primary point/range path; no extra B-tree."
         },
         {
           "name": "listening_time_span_identity",
@@ -6364,7 +6698,7 @@
             }
           ],
           "sql": null,
-          "access": "Native integer primary key point/range path; no extra B-tree."
+          "access": "Native primary point/range path; no extra B-tree."
         },
         {
           "name": "metadata_owner_history_entity",
@@ -6610,6 +6944,53 @@
             },
             {
               "column": "evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "metadata_repair_command_receipts",
+      "grain": "Effective image per retained subject/generation or its actual retirement replay outcome; repeated10M+ lifetime grain",
+      "policy": "ordinary +full typeof +nonrowid key NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_metadata_repair_command_receipts_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "repair_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "sqlite_autoindex_metadata_repair_command_receipts_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "operation_id",
               "collation": "BINARY",
               "descending": false
             }
@@ -6962,7 +7343,7 @@
             }
           ],
           "sql": null,
-          "access": "Native integer primary key point/range path; no extra B-tree."
+          "access": "Native primary point/range path; no extra B-tree."
         },
         {
           "name": "personal_current_activity",
@@ -7457,7 +7838,7 @@
             }
           ],
           "sql": null,
-          "access": "Native integer primary key point/range path; no extra B-tree."
+          "access": "Native primary point/range path; no extra B-tree."
         },
         {
           "name": "play_history_admin_item",
@@ -8019,7 +8400,7 @@
             }
           ],
           "sql": null,
-          "access": "Native integer primary key point/range path; no extra B-tree."
+          "access": "Native primary point/range path; no extra B-tree."
         },
         {
           "name": "reading_text_sections_publication",
@@ -8458,7 +8839,7 @@
             }
           ],
           "sql": null,
-          "access": "Native integer primary key point/range path; no extra B-tree."
+          "access": "Native primary point/range path; no extra B-tree."
         },
         {
           "name": "search_fragment_entity",
@@ -8684,7 +9065,7 @@
             }
           ],
           "sql": null,
-          "access": "Native integer primary key point/range path; no extra B-tree."
+          "access": "Native primary point/range path; no extra B-tree."
         },
         {
           "name": "search_publications_entity",
@@ -8896,7 +9277,7 @@
             }
           ],
           "sql": null,
-          "access": "Native integer primary key point/range path; no extra B-tree."
+          "access": "Native primary point/range path; no extra B-tree."
         },
         {
           "name": "search_publish_document_fk",
@@ -9095,7 +9476,7 @@
             }
           ],
           "sql": null,
-          "access": "Native integer primary key point/range path; no extra B-tree."
+          "access": "Native primary point/range path; no extra B-tree."
         },
         {
           "name": "search_reclaim_due",
@@ -9680,5 +10061,5 @@
       "complete_release_indexes": []
     }
   ],
-  "change_control": "INT-CHANGE-001 R-23/R-24 correction candidate; exact-SHA R review required"
+  "change_control": "Separate Change002 candidate; R/W review required, not canonical/embedded"
 }

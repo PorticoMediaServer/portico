@@ -93,6 +93,12 @@
       "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
     },
     {
+      "index": "catalog_credit_images_due",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared exact predicate +forced INDEXED BY where supported, bundled EXPLAIN intended index/no temp B-tree; two-stream keysets.",
+      "predicate": "job_due_ms IS NOT NULL"
+    },
+    {
       "index": "catalog_credits_provider_person",
       "predicate": "provider_person_id<>''",
       "choice": "repeat_exact_predicate",
@@ -441,6 +447,12 @@
       "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
     },
     {
+      "index": "credit_owner_entries_input",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared exact predicate +forced INDEXED BY where supported, bundled EXPLAIN intended index/no temp B-tree; two-stream keysets.",
+      "predicate": "input_ordinal IS NOT NULL"
+    },
+    {
       "index": "credit_owner_entries_source",
       "predicate": "source_row_id IS NOT NULL",
       "choice": "repeat_exact_predicate",
@@ -675,10 +687,28 @@
       "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
     },
     {
+      "index": "metadata_operation_credit_image",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared exact predicate +forced INDEXED BY where supported, bundled EXPLAIN intended index/no temp B-tree; two-stream keysets.",
+      "predicate": "credit_image_id IS NOT NULL"
+    },
+    {
       "index": "metadata_repair_cascades_governor_due",
       "predicate": "job_due_ms IS NOT NULL",
       "choice": "repeat_exact_predicate",
       "build_gate": "Shared generated predicate; hot statement forces intended INDEXED BY where supported; bundled EXPLAIN golden names intended index, no USE TEMP B-TREE; tied-key two-stream cursor control"
+    },
+    {
+      "index": "metadata_repair_credit_image",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared exact predicate +forced INDEXED BY where supported, bundled EXPLAIN intended index/no temp B-tree; two-stream keysets.",
+      "predicate": "credit_image_id IS NOT NULL"
+    },
+    {
+      "index": "metadata_repair_credit_request",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Shared exact predicate +forced INDEXED BY where supported, bundled EXPLAIN intended index/no temp B-tree; two-stream keysets.",
+      "predicate": "intent='credit-owner-single-v1' AND credit_phase IN('credit_capture','credit_prepare','credit_stage','credit_seal','credit_ready','credit_published')"
     },
     {
       "index": "networking_claim_one_active",
