@@ -9,7 +9,7 @@ if [ -n "${CJK_SHARE:-}" ]; then mixed_args+=(-cjk-share "$CJK_SHARE"); fi
 if [ "${OLD_RECIPE:-0}" = 1 ]; then mixed_args+=(-old-cjk-recipe); fi
 if [ "${SNAPSHOT_CAP:-0}" != 0 ]; then mixed_args+=(-snapshot-cap "${SNAPSHOT_CAP}ms"); fi
 if [ "${BOUNDED:-0}" = 1 ]; then mixed_args+=(-bounded-readers); fi
-if [ "${MIXED:-0}" = 1 ]; then mixed_args+=(-mixed -mixed-duration 600s); fi
+if [ "${MIXED:-0}" = 1 ]; then mixed_args+=(-mixed -mixed-duration "${MIXED_DURATION:-600s}"); fi
 cleanup() { sudo python3 -c 'import shutil,sys; shutil.rmtree(sys.argv[1],ignore_errors=True)' "$root/work"; }
 trap cleanup EXIT
 lscpu > "$root/out/cpu.txt"

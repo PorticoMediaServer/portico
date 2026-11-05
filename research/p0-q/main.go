@@ -766,6 +766,12 @@ func main() {
 	} else {
 		create(db, *v)
 	}
+	steadyMixed := *mode == "publisher-wal-steady" || *mode == "people-wal-steady"
+	steadySnapshotCap := snapshotCap
+	if steadyMixed {
+		mixedEnabled = false
+		snapshotCap = 0
+	}
 	setupExperiment(db, path)
 	defer stopExperiment()
 	defer dumpOperations()
@@ -773,6 +779,17 @@ func main() {
 		buildPublished(db, *n)
 	} else {
 		build(db, *n)
+	}
+	if steadyMixed {
+		if *mode == "publisher-wal-steady" {
+			shortOnlyBench(db, 128)
+		}
+		snapshotCap = steadySnapshotCap
+		startSnapshotProbe()
+		mixedEnabled = true
+		startMixed(db)
+		connectionState(db, "post-fixture-steady-begin")
+		emit("steady_window_begin", map[string]any{"items": *n, "snapshot_cap_ms": snapshotCap.Milliseconds(), "arrival_origin": "after fixture build; no seed auth samples or controlled pinner", "duration_s": mixedDuration.Seconds()})
 	}
 	dumpOperations() // preserve source/build distributions before long/cancelled phases
 	emit("allocation_base", allocation(db, path))
@@ -800,7 +817,7 @@ func main() {
 		maxBodyBench(db, *n, *rounds)
 		return
 	}
-	if *mode == "people-wal" {
+	if *mode == "people-wal" || *mode == "people-wal-steady" {
 		var count int
 		must(db.QueryRow("SELECT count(*) FROM catalog_people").Scan(&count))
 		peopleFlow(db, count, 8, *n)
@@ -812,8 +829,10 @@ func main() {
 		peopleBench(db, *n, *rounds, *samples)
 		return
 	}
-	if *mode == "publisher-wal" {
-		shortOnlyBench(db, 128)
+	if *mode == "publisher-wal" || *mode == "publisher-wal-steady" {
+		if !steadyMixed {
+			shortOnlyBench(db, 128)
+		}
 		publisherFlow(db, *n, 8)
 		finishMixed(db)
 		emit("publisher_wal_completed", map[string]any{"items": *n})

@@ -1,0 +1,63 @@
+name: Phase 0 exact4158 post-fixture mixed durability
+on:
+  push:
+    branches: ['schema-v1/p0-q-steady-mixed']
+    paths: ['research/p0-q/**', '.github/workflows/p0-q-steady-mixed.yml']
+permissions: {contents: read}
+env: {GOWORK: 'off'}
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: research/p0-q/go.mod, cache-dependency-path: research/p0-q/go.sum}
+      - run: go build -o "$RUNNER_TEMP/p0-q-bench" .
+        working-directory: research/p0-q
+      - run: bash research/p0-q/run-experiment.sh
+        env: {MODE: publisher-wal-steady, N: 1000, PROFILE: standard, CONFIG: normal-passive, CJK_SHARE: 30, MIXED: 1, MIXED_DURATION: 3s, BOUNDED: 1, SNAPSHOT_CAP: 250}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with: {name: q-4158-steady-smoke, path: '${{ runner.temp }}/p0-q-experiment/out', retention-days: 30}
+  steady:
+    needs: smoke
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [standard, old8g]
+        case:
+          - {n: 100000, cap: 250, config: normal-passive, mode: publisher-wal-steady}
+          - {n: 400000, cap: 250, config: normal-passive, mode: publisher-wal-steady}
+          - {n: 1000000, cap: 250, config: normal-passive, mode: publisher-wal-steady}
+          - {n: 1000000, cap: 1000, config: normal-passive, mode: publisher-wal-steady}
+          - {n: 100000, cap: 250, config: normal-passive-250, mode: publisher-wal-steady}
+          - {n: 1000000, cap: 250, config: normal-passive-250, mode: publisher-wal-steady}
+          - {n: 1000000, cap: 250, config: normal-passive, mode: people-wal-steady}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: research/p0-q/go.mod, cache-dependency-path: research/p0-q/go.sum}
+      - run: go build -o "$RUNNER_TEMP/p0-q-bench" .
+        working-directory: research/p0-q
+      - run: bash research/p0-q/run-experiment.sh
+        env:
+          MODE: ${{ matrix.case.mode }}
+          N: ${{ matrix.case.n }}
+          PROFILE: ${{ matrix.profile }}
+          CONFIG: ${{ matrix.case.config }}
+          CJK_SHARE: 30
+          MIXED: 1
+          MIXED_DURATION: 600s
+          BOUNDED: 1
+          SNAPSHOT_CAP: ${{ matrix.case.cap }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: q-4158-steady-${{ matrix.profile }}-${{ matrix.case.n }}-cap${{ matrix.case.cap }}-${{ matrix.case.config }}-${{ matrix.case.mode }}
+          path: '${{ runner.temp }}/p0-q-experiment/out'
+          retention-days: 30

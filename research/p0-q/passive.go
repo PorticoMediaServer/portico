@@ -193,25 +193,29 @@ func setupExperiment(db *sql.DB, path string) {
 		}()
 	}
 	if mixedEnabled {
-		exec(db, "CREATE TABLE q_security(id INTEGER PRIMARY KEY,value INTEGER NOT NULL)")
-		exec(db, "CREATE TABLE q_progress(id INTEGER PRIMARY KEY,value INTEGER NOT NULL)")
-		mixedStart = time.Now()
-		rng := rand.New(rand.NewSource(41041))
-		for _, class := range []struct {
-			full bool
-			mean float64
-		}{{true, 60}, {false, 1}} {
-			at := time.Duration(0)
-			for at < mixedDuration+time.Hour {
-				at += time.Duration(rng.ExpFloat64() * class.mean * float64(time.Second))
-				fgEvents = append(fgEvents, struct {
-					at   time.Duration
-					full bool
-				}{at, class.full})
-			}
-		}
-		sortForeground()
+		startMixed(db)
 	}
+}
+func startMixed(db *sql.DB) {
+	exec(db, "CREATE TABLE q_security(id INTEGER PRIMARY KEY,value INTEGER NOT NULL)")
+	exec(db, "CREATE TABLE q_progress(id INTEGER PRIMARY KEY,value INTEGER NOT NULL)")
+	mixedStart = time.Now()
+	rng := rand.New(rand.NewSource(41041))
+	for _, class := range []struct {
+		full bool
+		mean float64
+	}{{true, 60}, {false, 1}} {
+		at := time.Duration(0)
+		for at < mixedDuration+time.Hour {
+			at += time.Duration(rng.ExpFloat64() * class.mean * float64(time.Second))
+			fgEvents = append(fgEvents, struct {
+				at   time.Duration
+				full bool
+			}{at, class.full})
+		}
+	}
+	sortForeground()
+
 }
 func sortForeground() {
 	for i := 1; i < len(fgEvents); i++ {
