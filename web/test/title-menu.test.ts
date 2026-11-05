@@ -31,12 +31,12 @@ function fakeDetail(read: () => Promise<ReturnType<typeof detailData> | undefine
 }
 
 function harness(options: {role?: 'owner' | 'member'; read?: (entry: ContentEntry) => Promise<ReturnType<typeof detailData> | undefined>; enabled?: readonly string[]} = {}) {
-  const log = {errors: [] as unknown[], opened: [] as unknown[], playlists: [] as unknown[], collections: [] as unknown[], edits: [] as unknown[], deletes: [] as unknown[], requests: [] as string[]};
+  const log = {errors: [] as unknown[], opened: [] as unknown[], playlists: [] as unknown[], collections: [] as unknown[], edits: [] as unknown[], deletes: [] as unknown[], requests: [] as string[], wire: [] as {path: string; method?: string; body?: unknown; signal?: AbortSignal}[]};
   const state = {live: true};
   const details: Detail[] = [];
   const owner = options.role !== 'member';
   const context = withQueries({
-    api: {request: async (path: string, method?: string) => { log.requests.push(`${method ?? 'GET'} ${path}`); return {}; }, requestRaw: async () => ({}), acknowledgeUserMutation: async () => {}},
+    api: {request: async (path: string, method?: string, body?: unknown, signal?: AbortSignal) => { log.requests.push(`${method ?? 'GET'} ${path}`); log.wire.push({path, method, body, signal}); return {}; }, requestRaw: async () => ({}), acknowledgeUserMutation: async () => {}},
     scope: {serverId: 'server', viewerId: 'viewer'}, isCurrent: () => state.live,
     identity: {viewer: {role: options.role ?? 'owner', authority: 'local'}},
     effects: {reportError: (error: unknown) => { log.errors.push(error); }, openEntry: (entry: unknown) => { log.opened.push(entry); }, play: async () => {},
@@ -132,6 +132,21 @@ test('rows run the screen\'s own effects with the exact title', async () => {
   await h.host.choose(h.menuOf(), 'details');
   assert.equal(h.log.opened.length, 1);
   assert.deepEqual(h.log.errors, []);
+});
+
+test('menu refresh writes exactly once for its captured title and retains the screen lifetime', async () => {
+  const h = harness(), entry = {...movie, id: 'movie /?'};
+  try {
+    await h.host.open(anchor, h.subject(entry));
+    await h.host.choose(h.menuOf(), 'refreshMetadata');
+    assert.equal(h.log.wire.length, 1);
+    const request = h.log.wire[0];
+    assert.equal(request.path, '/v1/items/movie%20%2F%3F/metadata/refresh');
+    assert.equal(request.method, 'POST'); assert.deepEqual(request.body, {});
+    assert.equal(request.signal?.aborted, false);
+    h.host.dispose(); assert.equal(request.signal?.aborted, true);
+    assert.deepEqual(h.log.errors, []);
+  } finally {h.host.dispose();}
 });
 
 test('an aggregate edits as an aggregate and a leaf as itself', async () => {

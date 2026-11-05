@@ -1,6 +1,5 @@
 import {selectionQuerySelector} from '@core/selection-model/index.ts';
-import {routePath} from '../../../../packages/contracts/src/routes.ts';
-import {fetchDestinationAuthority, parseHomeDestinationPicker} from '@core/home-selection/destination-picker.ts';
+import {fetchDestinationAuthority, parseHomeDestinationPicker, readQueryDestinationPickerResponse} from '@core/home-selection/destination-picker.ts';
 import {DetailService} from '@core/detail.ts';
 import {HomeSelectionDestinations} from '@core/home-selection/destinations.ts';
 import type {HomeSelectionPicker} from '@core/home-selection/types.ts';
@@ -55,7 +54,7 @@ export class LibraryPickerProducer {
       if (!queryDestinationTarget(this.targets, this.kind)) throw new Error('query-destination-unavailable');
       const selected = structuredClone(this.targets);
       const request = {kind: this.kind, query: '', limit: 40};
-      const raw = await this.api.request<unknown>(routePath('post_home_destination_picker'), 'POST', request, this.lifetime.signal); this.check();
+      const raw = await readQueryDestinationPickerResponse(this.api, request, this.lifetime.signal); this.check();
       if (!raw || typeof raw !== 'object' || !('viewerFence' in raw) || typeof raw.viewerFence !== 'string' || !/^[a-f0-9]{64}$/.test(raw.viewerFence)) throw new Error('picker-authority-required');
       const page = parseHomeDestinationPicker(raw, request, this.ports.serverId, raw.viewerFence);
       const viewId = await this.ports.requestId(); this.check();

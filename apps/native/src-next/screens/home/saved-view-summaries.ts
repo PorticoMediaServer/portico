@@ -1,4 +1,5 @@
-import {browseCapabilitiesPath, parseBrowseCapabilities, type BrowseCapabilities} from '../../../../../packages/client-core/src/browse';
+import {parseBrowseCapabilities, type BrowseCapabilities} from '../../../../../packages/client-core/src/browse';
+import {readBrowseCapabilitiesResponse} from '../../../../../packages/client-core/src/query/browse-reads.ts';
 import type {LibraryContentApi} from '../../../../../packages/client-core/src/library-content';
 import type {PersonalResource} from '../../../../../packages/client-core/src/personal-saved';
 import {savedViewSummary, type SavedViewSummaryText} from '../../../../../packages/client-core/src/presentation/saved-view-summary';
@@ -37,7 +38,7 @@ export class NativeHomeSavedViewSummaries {
         const target = targets[next++]; if (!target) return;
         const [id, definition] = target;
         try {
-          const raw = await this.ports.api.request<unknown>(browseCapabilitiesPath(definition.libraryId, definition.pivot), 'GET', undefined, read.signal);
+          const raw = await readBrowseCapabilitiesResponse(this.ports.api, definition.libraryId, definition.pivot, read.signal);
           if (!current() || !this.ports.libraryIds().includes(definition.libraryId)) continue;
           const capabilities = parseBrowseCapabilities(raw);
           if (capabilities.library.id !== definition.libraryId) continue;

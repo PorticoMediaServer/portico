@@ -5,6 +5,11 @@ import type {HomeSelectionPickerRow} from './types.ts';
 import {selectionExecutionError} from './execution.ts';
 export type HomeDestinationPickerRequest = Readonly<{kind: 'playlist' | 'collection'; query: string; cursor?: string; limit: number; itemIds?: readonly string[]}>;
 export type HomeDestinationPickerPage = Readonly<{rows: readonly HomeSelectionPickerRow[]; nextCursor: string; revision: Readonly<{catalog: number; viewer: number}>}>;
+/** The query-selection opening reads its own destination authority before the
+ * session starts. Its existing owner validates the fence and captured page. */
+export function readQueryDestinationPickerResponse(api: HomeApi, request: HomeDestinationPickerRequest, signal?: AbortSignal): Promise<unknown> {
+  return api.request(routePath('post_home_destination_picker'), 'POST', request, signal);
+}
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const count = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 const id = (value: unknown): value is string => typeof value === 'string' && !!value && value.length <= 256 && !/[\x00-\x1f\x7f]/.test(value);
