@@ -85,6 +85,14 @@ AND pending_subjects=1 FROM search_generations WHERE id=1`, int64(math.MaxInt64)
 }
 
 func TestSearchInputHelperWitnessFailuresRollbackWholeCohort(t *testing.T) {
+	w, registry := searchInputFixture(t)
+	// Serial subcases roll back completely and reuse this adopted fixture.
+	// Avoid repeating the entire canonical bootstrap under the race detector.
+	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO search_generations(
+ id,bank_key,recipe_version,engine_version,unicode_fingerprint,state,created_ms)
+ VALUES(2,'new_raw_target','old_recipe','old_engine',?,'building',1000)`, searchInputExampleFingerprint); err != nil {
+		t.Fatal(err)
+	}
 	for _, tt := range []struct {
 		name string
 		at   int
@@ -107,14 +115,6 @@ func TestSearchInputHelperWitnessFailuresRollbackWholeCohort(t *testing.T) {
 		{"retained subject", 4, `UPDATE catalog_subjects SET kind=2 WHERE id=1`},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			w, registry := searchInputFixture(t)
-			if tt.name == "building head" {
-				if _, err := w.db.ExecContext(t.Context(), `INSERT INTO search_generations(
-id,bank_key,recipe_version,engine_version,unicode_fingerprint,state,created_ms)
-VALUES(2,'new_raw_target','old_recipe','old_engine',?,'building',1000)`, searchInputExampleFingerprint); err != nil {
-					t.Fatal(err)
-				}
-			}
 			custody := &testCustody{}
 			turn := searchInputTestTurn(t, w, registry, custody)
 			if tt.name == "retained subject" {
@@ -229,6 +229,7 @@ AND (SELECT count(*)=0 FROM catalog_people_names_docsize)`).Scan(&exact); err !=
 }
 
 func TestSearchInputHelperConfigAndExistingOwner(t *testing.T) {
+	w, registry := searchInputFixture(t)
 	for _, tt := range []struct {
 		name, sql string
 		want      error
@@ -243,7 +244,6 @@ func TestSearchInputHelperConfigAndExistingOwner(t *testing.T) {
 VALUES(1,1,1,X'09000000000000000000000000000000',1,'A-CJK-uni-bi-v1','capture')`, errSearchInputConflict},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			w, registry := searchInputFixture(t)
 			turn := searchInputTestTurn(t, w, registry, &testCustody{})
 			if _, err := turn.transaction.conn.ExecContext(turn.transaction.ctx, tt.sql); err != nil {
 				t.Fatal(err)
@@ -259,10 +259,10 @@ VALUES(1,1,1,X'09000000000000000000000000000000',1,'A-CJK-uni-bi-v1','capture')`
 }
 
 func TestSearchInputHelperCancellationAndProspectiveRefusal(t *testing.T) {
+	w, registry := searchInputFixture(t)
 	for _, failure := range []string{"cancel", "grant", "quantum"} {
 		for _, at := range []int{1, 6, 7, 8} {
 			t.Run(failure+"/"+string(rune('0'+at)), func(t *testing.T) {
-				w, registry := searchInputFixture(t)
 				custody := &testCustody{}
 				turn := searchInputTestTurn(t, w, registry, custody)
 				ctx, cancel := context.WithCancel(turn.transaction.ctx)
