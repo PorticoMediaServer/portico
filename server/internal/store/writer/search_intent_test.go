@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/searchpolicy"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
@@ -75,13 +76,19 @@ func searchInputFixture(t *testing.T) (*executor, *stmt.Registry) {
 		`INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(1,zeroblob(16),1,1)`,
 		`INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,source_revision,metadata_revision)
 VALUES(1,zeroblob(16),1,1,'A','a','A','a','A',0,X'09000000000000000000000000000000',zeroblob(16),7,11)`,
-		`INSERT INTO search_generations(id,bank_key,recipe_version,engine_version,unicode_fingerprint,state,created_ms)
-VALUES(1,'v1','A-CJK-uni-bi-v1','engine','unicode','active',1000)`,
-		`UPDATE search_revision SET active_generation_id=1 WHERE singleton=1`,
 	} {
 		if _, err := w.db.ExecContext(t.Context(), sql); err != nil {
 			t.Fatal(err)
 		}
+	}
+	// This well-formed stale tuple tests RAW acceptance, not W's fresh-bank
+	// initializer, which must use Compiled plus physical attestation instead.
+	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO search_generations(id,bank_key,recipe_version,engine_version,unicode_fingerprint,state,created_ms)
+VALUES(1,'v1',?,?,?,'active',1000)`, searchpolicy.RecipeV1, searchpolicy.EngineVersion, searchInputExampleFingerprint); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.db.ExecContext(t.Context(), `UPDATE search_revision SET active_generation_id=1 WHERE singleton=1`); err != nil {
+		t.Fatal(err)
 	}
 	r, err := stmt.New(searchInputIntentDefinitions())
 	if err != nil {
@@ -135,8 +142,19 @@ func TestSearchInputNativeStatements(t *testing.T) {
 		Scan(&bankKey, &recipe, &engine, &unicode, &state, &pending, &bankRevision); err != nil {
 		t.Fatal(err)
 	}
-	if bankKey != "v1" || recipe != "A-CJK-uni-bi-v1" || engine != "engine" || unicode != "unicode" || state != "active" || pending != 0 || bankRevision != 1 {
+	if bankKey != "v1" || recipe != "A-CJK-uni-bi-v1" || engine != searchpolicy.EngineVersion || unicode != searchInputExampleFingerprint || state != "active" || pending != 0 || bankRevision != 1 {
 		t.Fatal("bank lookup must preserve the complete stored identity and pending CAS witness")
+	}
+	// Fixture-only physical attestation, separate from the eight RAW-helper
+	// statements. A stale tuple must not be mistaken for fresh-init authority.
+	searchInputFixtureStep(t, tx)
+	var actual searchpolicy.Engine
+	if err := tx.conn.QueryRowContext(tx.ctx, `SELECT sqlite_version(),sqlite_source_id()`).Scan(&actual.Version, &actual.SourceID); err != nil {
+		t.Fatal(err)
+	}
+	compatibility := searchpolicy.Compare(searchpolicy.Profile{RecipeVersion: recipe, EngineVersion: engine, UnicodeFingerprint: unicode}, actual)
+	if compatibility.State != searchpolicy.Stale || !compatibility.EngineAttested {
+		t.Fatal("RAW statement fixture must exercise a well-formed stale bank on the actual native engine")
 	}
 	searchInputFixtureStep(t, tx)
 	var incarnation []byte
@@ -162,7 +180,7 @@ func TestSearchInputNativeStatements(t *testing.T) {
 		args []any
 	}{
 		{searchInputInsert, []any{int64(1), int64(1), int64(1), incarnation, sourceRevision, "A-CJK-uni-bi-v1", "capture", int64(1000)}},
-		{searchInputPending, []any{int64(1), int64(2), int64(1), "active", "A-CJK-uni-bi-v1", "engine", "unicode", int64(0), int64(1)}},
+		{searchInputPending, []any{int64(1), int64(2), int64(1), "active", searchpolicy.RecipeV1, searchpolicy.EngineVersion, searchInputExampleFingerprint, int64(0), int64(1)}},
 		{searchInputSequence, []any{int64(1), int64(1), int64(1), int64(0)}},
 	} {
 		searchInputFixtureStep(t, tx)
@@ -194,6 +212,10 @@ AND last_command_sequence=0 AND acknowledged_command_sequence=0 FROM search_publ
 	}
 	if err := w.db.QueryRowContext(t.Context(), `SELECT pending_subjects=1 AND job_revision=2 FROM search_generations WHERE id=1`).Scan(&exact); err != nil || !exact {
 		t.Fatal("bank pending/cursor revision did not advance together")
+	}
+	var storedFingerprint string
+	if err := w.db.QueryRowContext(t.Context(), `SELECT unicode_fingerprint FROM search_generations WHERE id=1`).Scan(&storedFingerprint); err != nil || storedFingerprint != unicode {
+		t.Fatal("RAW acceptance must preserve the immutable stale tuple")
 	}
 	var nativeRows int
 	if err := w.db.QueryRowContext(t.Context(), `SELECT
@@ -318,7 +340,7 @@ VALUES(2,'clock_fixture_only','fixture_recipe','fixture_engine','fixture_unicode
 
 func TestSearchInputPendingCAS(t *testing.T) {
 	w, registry := searchInputFixture(t)
-	good := []any{int64(1), int64(2), int64(1), "active", "A-CJK-uni-bi-v1", "engine", "unicode", int64(0), int64(1)}
+	good := []any{int64(1), int64(2), int64(1), "active", searchpolicy.RecipeV1, searchpolicy.EngineVersion, searchInputExampleFingerprint, int64(0), int64(1)}
 	for _, tt := range []struct {
 		at    int
 		value any
@@ -383,7 +405,7 @@ func TestSearchInputEffectsRollbackTogether(t *testing.T) {
 		args []any
 	}{
 		{searchInputInsert, []any{int64(1), int64(1), int64(1), []byte{9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, int64(1), "A-CJK-uni-bi-v1", "capture", int64(1000)}},
-		{searchInputPending, []any{int64(1), int64(2), int64(1), "active", "A-CJK-uni-bi-v1", "engine", "unicode", int64(0), int64(1)}},
+		{searchInputPending, []any{int64(1), int64(2), int64(1), "active", searchpolicy.RecipeV1, searchpolicy.EngineVersion, searchInputExampleFingerprint, int64(0), int64(1)}},
 		{searchInputSequence, []any{int64(1), int64(1), int64(1), int64(0)}},
 	}
 	for stop := 0; stop <= len(steps); stop++ {
