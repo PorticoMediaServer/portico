@@ -130,9 +130,12 @@ WHERE run_id=? AND command_incarnation=? AND command_sequence=?`,
 		definitions[i].CallSites = []string{"store/writer/scan_receipts.go"}
 		definitions[i].Plan = stmt.Plan{Hot: true}
 		switch definitions[i].ID {
-		case scanReceiptOwner, scanReceiptAck:
+		case scanReceiptOwner:
 			definitions[i].Plan.Indexes = []string{"sqlite_autoindex_inventory_runs_1"}
 			definitions[i].Plan.Seeks = []string{"job_id=?"}
+		case scanReceiptAck:
+			definitions[i].Plan.Indexes = []string{"sqlite_autoindex_inventory_runs_2"}
+			definitions[i].Plan.Seeks = []string{"job_id=? AND command_incarnation=?"}
 		case scanReceiptLookup:
 			definitions[i].Plan.PrimaryKeys = []string{"scan_command_receipts"}
 			definitions[i].Plan.Seeks = []string{"run_id=? AND command_incarnation=? AND command_sequence=?"}
