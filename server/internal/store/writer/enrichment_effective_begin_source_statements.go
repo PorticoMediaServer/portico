@@ -75,7 +75,7 @@ func enrichmentEffectiveProducerDefinitions() []stmt.Definition {
 		{
 			ID: enrichmentEffectiveEvidence, Owner: "writer.enrichment", Kind: stmt.Read,
 			CallSites: []string{"writer/enrichment_effective_begin_source.go:effectiveBeginReadProducer"},
-			SQL:       `SELECT subject_id,provider,subject_kind,provider_id,language,region,request_shape,digest,sealed FROM metadata_evidence WHERE id=?`,
+			SQL:       `SELECT subject_id,provider,subject_kind,provider_id,language,region,request_shape,digest,observed_at,sealed FROM metadata_evidence WHERE id=?`,
 			Params:    []stmt.Param{{Name: "evidence_id", Type: stmt.Text}},
 			Cohorts:   []stmt.Cohort{{Name: "native_evidence_shape", Bindings: []any{"evidence-source"}}},
 			Plan:      stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_metadata_evidence_1"}, Seeks: []string{"id=?"}},
@@ -83,7 +83,7 @@ func enrichmentEffectiveProducerDefinitions() []stmt.Definition {
 		{
 			ID: enrichmentEffectiveSubject, Owner: "writer.enrichment", Kind: stmt.Read,
 			CallSites: []string{"writer/enrichment_effective_begin_source.go:effectiveBeginReadProducer"},
-			SQL:       `SELECT incarnation,revision,provider,subject_kind,provider_id,language,region,request_shape FROM metadata_provider_subjects WHERE id=?`,
+			SQL:       `SELECT incarnation,revision,provider,subject_kind,provider_id,language,region,request_shape,accepted_evidence_id FROM metadata_provider_subjects WHERE id=?`,
 			Params:    []stmt.Param{{Name: "subject_id", Type: stmt.Integer}},
 			Cohorts:   []stmt.Cohort{{Name: "native_subject_shape", Bindings: []any{int64(601)}}},
 			Plan:      stmt.Plan{Hot: true, PrimaryKeys: []string{"metadata_provider_subjects"}, Seeks: []string{"rowid=?"}},
@@ -93,7 +93,7 @@ func enrichmentEffectiveProducerDefinitions() []stmt.Definition {
 			CallSites: []string{"writer/enrichment_effective_begin_source.go:effectiveBeginReadProducer"},
 			SQL:       `SELECT entity_id,provider,accepted_record_reference,observed_at,member_count,sealed FROM credit_source_publications WHERE publication_id=?`,
 			Params:    []stmt.Param{{Name: "publication_id", Type: stmt.Text}},
-			Cohorts:   []stmt.Cohort{{Name: "native_source_publication_shape", Bindings: []any{"aabbccddeeff00112233445566778899aa"}}},
+			Cohorts:   []stmt.Cohort{{Name: "native_source_publication_shape", Bindings: []any{"aabbccddeeff00112233445566778899"}}},
 			Plan:      stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_credit_source_publications_1"}, Seeks: []string{"publication_id=?"}},
 		},
 		{

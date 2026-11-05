@@ -43,6 +43,19 @@ type EffectiveStageBeginResult struct {
 // Called under W preparation custody BEFORE any writer hold. It performs no SQL
 // and creates no durable allocation. Replay can discard this unused candidate.
 func newEffectiveStageBeginCommand(identity CommandIdentity, in effectiveStageBeginRequest) (*effectiveStageBeginCommand, error) {
+	// Preflight the complete retained TEXT envelope before comparing, deriving a
+	// manifest seed, cloning, or hashing any potentially large caller value.
+	var bytes uint64
+	text := []*string{&in.variant, &in.ownerID, &in.evidenceID, &in.publicationID, &in.objectID, &in.owner.provider, &in.owner.phase, &in.owner.status, &in.owner.lease, &in.owner.leaseUntil, &in.owner.algorithm, &in.owner.refreshMode, &in.owner.inputDigest, &in.owner.selectedID, &in.owner.afterItem, &in.entity.language, &in.header.language}
+	for _, p := range text {
+		if uint64(len(*p)) > maxCanonicalRequestBytes-bytes || !utf8.ValidString(*p) {
+			return nil, invalid("effective_begin_text")
+		}
+		bytes += uint64(len(*p))
+	}
+	if err := effectiveBeginOwnProducer(reflect.ValueOf(&in.producer).Elem(), false, &bytes); err != nil {
+		return nil, err
+	}
 	if identity.Sequence <= 0 || !in.owner.exists || in.variant != "begin" || in.ownerID == "" || in.evidenceID == "" || in.publicationID == "" || in.objectID == "" || in.objectID != in.producer.Object.ID ||
 		in.owner.phase != effectiveBeginPhase || in.owner.status != "staged" || in.owner.incarnation != identity.Incarnation || in.owner.imageID.Valid ||
 		in.owner.lastSequence < 0 || in.owner.lastSequence != in.owner.acknowledgedSequence || identity.Sequence <= in.owner.lastSequence || identity.Sequence-in.owner.lastSequence != 1 ||
@@ -65,25 +78,13 @@ func newEffectiveStageBeginCommand(identity CommandIdentity, in effectiveStageBe
 	if err != nil || in.owner.lease == "" {
 		return nil, invalid("effective_begin_lease")
 	}
-	var bytes uint64
-	text := []*string{&in.variant, &in.ownerID, &in.evidenceID, &in.publicationID, &in.objectID, &in.owner.provider, &in.owner.phase, &in.owner.status, &in.owner.lease, &in.owner.leaseUntil, &in.owner.algorithm, &in.owner.refreshMode, &in.owner.inputDigest, &in.owner.selectedID, &in.owner.afterItem, &in.entity.language, &in.header.language}
-	for _, p := range text {
-		if uint64(len(*p)) > maxCanonicalRequestBytes-bytes || !utf8.ValidString(*p) {
-			return nil, invalid("effective_begin_text")
-		}
-		bytes += uint64(len(*p))
-	}
 	// Producer fields are all native values/structs with exported scalar fields;
 	// fail closed if a future opaque/unowned field is added. No request codec is
 	// duplicated: this is only string ownership before the shared full digest.
-	walk := func(v reflect.Value, clone bool) error { return effectiveBeginOwnProducer(v, clone, &bytes) }
-	if err := walk(reflect.ValueOf(&in.producer).Elem(), false); err != nil {
-		return nil, err
-	}
 	for _, p := range text {
 		*p = strings.Clone(*p)
 	}
-	if err := walk(reflect.ValueOf(&in.producer).Elem(), true); err != nil {
+	if err := effectiveBeginOwnProducer(reflect.ValueOf(&in.producer).Elem(), true, &bytes); err != nil {
 		return nil, err
 	}
 	digest, err := canonicalRequestDigest(EffectiveStage, 1, identity, in)

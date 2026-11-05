@@ -121,7 +121,7 @@ func effectiveBeginFactTurn(t *testing.T, w *executor) (*commandTurn, map[stmt.I
 }
 
 func TestEffectiveBeginNativeFactsKeepEveryCoordinate(t *testing.T) {
-	for _, nullable := range []string{"null_publication", "present_empty_zero"} {
+	for _, nullable := range []string{"null_publication", "present_empty_zero", "distinct_tv_fields"} {
 		t.Run(nullable, func(t *testing.T) {
 			w, _, _ := testExecutor(t)
 			owner, receipt, entity := effectiveBeginNativePopulation(t, w)
@@ -130,6 +130,19 @@ func TestEffectiveBeginNativeFactsKeepEveryCoordinate(t *testing.T) {
 					t.Fatal(err)
 				}
 				receipt.publicationID, receipt.imageID, receipt.imageRevision = sql.NullString{String: "", Valid: true}, sql.NullInt64{Valid: true}, sql.NullInt64{Valid: true}
+			}
+			if nullable == "distinct_tv_fields" {
+				for i := range entity.tvIncarnation.value {
+					entity.tvIncarnation.value[i] = byte(224 + i)
+				}
+				entity.tvIncarnation.present = true
+				entity.tvSourceRevision = sql.NullInt64{Int64: 71, Valid: true}
+				entity.tvHierarchyRevision = sql.NullInt64{Int64: 73, Valid: true}
+				entity.tvSelectionRevision = sql.NullInt64{Int64: 79, Valid: true}
+				entity.tvDescriptiveRevision = sql.NullInt64{Int64: 83, Valid: true}
+				if _, err := w.db.ExecContext(t.Context(), `UPDATE catalog_entities SET tv_incarnation=?,tv_source_revision=71,tv_hierarchy_revision=73,tv_selection_revision=79,tv_descriptive_revision=83 WHERE id=101`, entity.tvIncarnation.value[:]); err != nil {
+					t.Fatal(err)
+				}
 			}
 			turn, steps := effectiveBeginFactTurn(t, w)
 			gotOwner, err := effectiveBeginOwnerFacts(t.Context(), turn, steps[enrichmentEffectiveOwner], "operation-one")
@@ -179,9 +192,8 @@ func TestEffectiveBeginNativeFactsMissingAndRefused(t *testing.T) {
 }
 
 func TestEffectiveBeginFactPlansUseActualNativeKeys(t *testing.T) {
-	w, _, _ := testExecutor(t)
-	effectiveBeginNativePopulation(t, w)
-	turn, _ := effectiveBeginFactTurn(t, w)
+	w, _, _, _ := effectiveBeginWholeFixture(t)
+	turn, _ := effectiveBeginWholeTurn(t, w)
 	data, err := schema.ReadContract("INT-INDEX-POLICY.json")
 	if err != nil {
 		t.Fatal(err)
@@ -194,7 +206,7 @@ func TestEffectiveBeginFactPlansUseActualNativeKeys(t *testing.T) {
 	config.Synchronous = sqliteconn.Normal
 	// Immutable source/fixture identity for this component capture; no golden
 	// recording or accepting statement executes through plan.Capture.
-	fixtureSource, err := os.ReadFile("enrichment_effective_begin_facts_test.go")
+	fixtureSource, err := os.ReadFile("enrichment_effective_begin_handler_test.go")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,11 +222,14 @@ func TestEffectiveBeginFactPlansUseActualNativeKeys(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(golden.Plans) != 9 || len(golden.Manifest) != 6 {
+	if len(golden.Plans) != 24 || len(golden.Manifest) != 21 {
 		t.Fatal("incomplete native fact capture", len(golden.Plans), len(golden.Manifest))
 	}
 	if err := turn.transaction.conn.QueryRowContext(t.Context(), "SELECT total_changes()").Scan(&changesAfter); err != nil || changesAfter != changesBefore {
 		t.Fatal("plan capture executed effects", changesBefore, changesAfter, err)
 	}
 	t.Logf("native fact plans: %d cohorts; asserted FK=%d synchronous=%d", len(golden.Plans), golden.Environment.Connection.ForeignKeys, golden.Environment.Connection.Synchronous)
+	for _, captured := range golden.Plans {
+		t.Logf("static native plan %s/%s: %d EXPLAIN instructions (not runtime VM steps)", captured.ID, captured.Cohort, len(captured.Explain.Values))
+	}
 }
