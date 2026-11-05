@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -36,14 +38,25 @@ func TestPlanCanonicalSchemaFKAndStatementContracts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(fk.Plans) != 625 {
-		t.Fatalf("FK coverage: %d, want 625; review schema change and full enforcement audit", len(fk.Plans))
+	if len(fk.Plans) != 642 {
+		t.Fatalf("FK coverage: %d, want 642; review schema change and full enforcement audit", len(fk.Plans))
 	}
 	checkFKGolden(t, fk)
 	registry := canonicalRegistry(t, policy)
 	golden, err := plan.Capture(ctx, conn, registry, plan.Fixture{ConnectionPolicy: f.ConnectionPolicy, SHA256: schema.SHA256, Statistics: plan.Unanalyzed, Implementations: "bundled SQLite 3.53.4; builtin functions/collations; empty canonical schema"}, policy)
 	if err != nil {
 		t.Fatal(err)
+	}
+	// All 28 cohorts were independently regenerated on both approved schemas
+	// (291ab3ac and 567267b7) with the same VM canonicalization. Stop before
+	// recording if any opcode/operand/EQP beyond physical identifiers changes.
+	const retainedPlansSHA256 = "d7345d9db96ad79c3e80138da3733e6928209e4fbf232f2640aa3230d92c2da5"
+	plansJSON, err := json.Marshal(golden.Plans)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fmt.Sprintf("%x", sha256.Sum256(plansJSON)); got != retainedPlansSHA256 {
+		t.Fatalf("STOP: retained 28-cohort VM/EQP changed: expected %s, actual %s", retainedPlansSHA256, got)
 	}
 	path := filepath.Join("testdata", "canonical.json")
 	if *record {

@@ -76,6 +76,10 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 	}
 	env.IndexPolicySHA256 = policy.sha256
 	g.Environment = env
+	roots, err := readRoots(ctx, conn)
+	if err != nil {
+		return g, err
+	}
 	for _, entry := range g.Manifest {
 		if err := policy.CheckPredicates(entry.Definition, env.Schema); err != nil {
 			return g, err
@@ -91,6 +95,10 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 			}
 			if err := Check(entry.Definition, eqp); err != nil {
 				return g, err
+			}
+			full, err = canonicalVM(full, roots)
+			if err != nil {
+				return g, fmt.Errorf("plan %s/%s VM: %w", entry.ID, cohort.Name, err)
 			}
 			g.Plans = append(g.Plans, StatementPlan{ID: entry.ID, Cohort: cohort.Name, Explain: full, QueryPlan: eqp})
 		}
