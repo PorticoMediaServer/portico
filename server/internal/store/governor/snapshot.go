@@ -14,11 +14,12 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/supervise"
 	"github.com/PorticoMediaServer/portico/server/internal/thirdparty/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 var ErrSnapshotClosed = errors.New("read snapshot is closed")
 var ErrSnapshotOverrun = errors.New("physical read snapshot exceeded deadline")
-var ErrSnapshotBudget = errors.New("copied read values exceed window budget")
+var ErrSnapshotBudget = errors.New("read window exceeds memory or fixed pool limits")
 
 // Snapshots owns native read lifetimes, independently of consumer cooperation.
 // Composition owns helper pool/cache/native memory until Close succeeds. The
@@ -44,10 +45,12 @@ type SnapshotResult struct {
 	Started, Ended        time.Time // physical acquisition through connection return
 	Deadline, SQLDeadline time.Time
 	Refusal               *Refusal
+	NativeReservedBytes   int64
+	GoReservedBytes       int64
 }
 
 func NewSnapshots(connector driver.Connector, c sqliteconn.Config, g Governor, a *Authority, registry *stmt.Registry) (*Snapshots, error) {
-	if connector == nil || g == nil || a == nil || g != a.ledger || c.Role != sqliteconn.Reader || c.Connections <= 0 || c.CacheKiB <= 0 || registry == nil {
+	if connector == nil || g == nil || a == nil || g != a.ledger || c.Role != sqliteconn.Reader || c.Connections <= 0 || c.CacheKiB <= 0 || c.ReadLimits.LengthBytes <= 0 || c.ReadLimits.Columns <= 0 || c.ReadLimits.Columns > 128 || registry == nil {
 		return nil, sqliteconn.ErrPolicy
 	}
 	manifest := registry.Manifest()
@@ -76,6 +79,13 @@ func NewSnapshots(connector driver.Connector, c sqliteconn.Config, g Governor, a
 	return &Snapshots{db: db, owner: owner, config: c, governor: g, authority: a, slots: make(chan struct{}, c.Connections), running: make(map[*ReadScope]context.CancelFunc), uncertain: make(map[*ReadScope]struct{}), reads: reads}, nil
 }
 
+// NativeRowReservation is the fixed upper bound for one result row's decode:
+// configured columns times the pool's per-value limit. VM/temp/cache workspace
+// is separate qualified custody; this does not claim a tighter native bound.
+func (s *Snapshots) NativeRowReservation() int64 {
+	return int64(s.config.ReadLimits.Columns) * int64(s.config.ReadLimits.LengthBytes)
+}
+
 // Read keeps output/consumer custody until the callback returns (including a
 // panic). Expiry independently interrupts, rolls back and returns/discards the
 // physical connection. No sql.Rows, borrowed bytes or Scanner enters a consumer.
@@ -85,6 +95,11 @@ func NewSnapshots(connector driver.Connector, c sqliteconn.Config, g Governor, a
 func (s *Snapshots) Read(parent context.Context, r Request, budget time.Duration, read func(*ReadScope) error) (out SnapshotResult, err error) {
 	if read == nil || r.Writer || r.Need[Reader] != 1 || r.Need[MemoryBytes] <= 0 || budget <= 0 || r.Budget.RawRows == 0 || r.Budget.RawRows > 4096 {
 		return out, ErrGrant
+	}
+	out.NativeReservedBytes = s.NativeRowReservation()
+	out.GoReservedBytes = r.Need[MemoryBytes] - out.NativeReservedBytes
+	if out.GoReservedBytes <= 0 {
+		return out, ErrSnapshotBudget
 	}
 	deadline := time.Now().Add(min(budget, time.Second))
 	if r.Deadline.Before(deadline) {
@@ -165,7 +180,7 @@ func (s *Snapshots) Read(parent context.Context, r Request, budget time.Duration
 		return out, nil
 	}
 	scope.grant = d.Grant
-	scope.nativeBudget, err = sqlite.NewRowBudget(r.Budget.RawRows, r.Need[MemoryBytes])
+	scope.copyBudget, err = sqlite.NewRowBudget(r.Budget.RawRows, out.GoReservedBytes)
 	if err != nil {
 		return out, ErrSnapshotBudget
 	}
@@ -275,7 +290,7 @@ type ReadScope struct {
 	calls                    int
 	failedRaw                driver.Conn
 	owned                    *snapshotOwnedConn
-	nativeBudget             *sqlite.RowBudget
+	copyBudget               *sqlite.RowBudget
 	nativeSafe, consumerDone atomic.Bool
 	retireMu                 sync.Mutex
 	retired                  bool
@@ -294,7 +309,7 @@ func (s *ReadScope) retire() error {
 
 func (s *ReadScope) Context() context.Context { return s.ctx }
 func (s *ReadScope) charge(n int64) error {
-	if err := s.nativeBudget.ReserveBytes(n); err != nil {
+	if err := s.copyBudget.ReserveBytes(n); err != nil {
 		return errors.Join(ErrSnapshotBudget, err)
 	}
 	return nil
@@ -308,7 +323,8 @@ func (s *ReadScope) Query(id stmt.ID, args ...any) (values [][]any, err error) {
 	s.op.Lock()
 	defer s.op.Unlock()
 	defer func() {
-		if errors.Is(err, sqlite.ErrRowBudget) {
+		var native *sqlite.Error
+		if errors.Is(err, sqlite.ErrRowBudget) || (errors.As(err, &native) && native.Code()&255 == sqlite3.SQLITE_TOOBIG) {
 			err = errors.Join(ErrSnapshotBudget, err)
 		}
 	}()
@@ -345,7 +361,7 @@ func (s *ReadScope) Query(id stmt.ID, args ...any) (values [][]any, err error) {
 		}
 	}
 	// Fixed query/row/context overhead is reserved before database/sql or the
-	// driver allocates it; per-column and four-copy payload peak follow natively.
+	// driver allocates it; per-column Go-copy peak is checked before copying.
 	if err = s.charge(4096); err != nil {
 		return nil, err
 	}
@@ -353,7 +369,7 @@ func (s *ReadScope) Query(id stmt.ID, args ...any) (values [][]any, err error) {
 	if err != nil {
 		return nil, err
 	}
-	rows, err := bound.QueryContext(sqlite.WithRowBudget(s.ctx, s.nativeBudget), s.conn)
+	rows, err := bound.QueryContext(sqlite.WithRowBudget(s.ctx, s.copyBudget), s.conn)
 	if err != nil {
 		return nil, err
 	}

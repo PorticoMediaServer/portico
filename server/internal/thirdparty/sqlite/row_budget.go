@@ -3,7 +3,6 @@ package sqlite
 import (
 	"context"
 	"errors"
-	"math"
 	"sync"
 
 	"modernc.org/libc"
@@ -16,8 +15,9 @@ var ErrRowBudget = errors.New("SQLite read window exceeds materialization budget
 
 type rowBudgetKey struct{}
 
-// RowBudget counts the entire read window, including metadata and peak live
-// copies: SQLite value, driver value, database/sql Scan and the owner's copy.
+// RowBudget counts Go allocations over a read window: driver, Scan and owner
+// payload copies plus metadata. It does not cap or claim native VM/result memory.
+// A dedicated pool must separately reserve columns times its fixed value limit.
 // It never calls consumer code while the database/sql/native locks are held.
 type RowBudget struct {
 	mu    sync.Mutex
@@ -50,11 +50,6 @@ func (b *RowBudget) ReserveBytes(n int64) error {
 	b.bytes -= n
 	return nil
 }
-func (b *RowBudget) lengthLimit() int {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return int(max(1, min(b.bytes/4, math.MaxInt32)))
-}
 func (b *RowBudget) metadata(c *conn, pstmt uintptr, count int) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -63,10 +58,10 @@ func (b *RowBudget) metadata(c *conn, pstmt uintptr, count int) error {
 		for _, p := range []uintptr{sqlite3.Xsqlite3_column_name(c.tls, pstmt, int32(i)), sqlite3.Xsqlite3_column_decltype(c.tls, pstmt, int32(i))} {
 			if p != 0 {
 				n := int64(libc.Xstrlen(c.tls, p))
-				if need > b.bytes || n > (b.bytes-need)/4 {
+				if need > b.bytes || n > (b.bytes-need)/3 {
 					return ErrRowBudget
 				}
-				need += 4 * n
+				need += 3 * n
 			}
 		}
 	}
@@ -87,10 +82,10 @@ func (b *RowBudget) preflight(r *rows) error {
 		kind := sqlite3.Xsqlite3_column_type(r.c.tls, r.pstmt, int32(i))
 		if kind == sqlite3.SQLITE_TEXT || kind == sqlite3.SQLITE_BLOB {
 			n := int64(sqlite3.Xsqlite3_column_bytes(r.c.tls, r.pstmt, int32(i)))
-			if need > b.bytes || n < 0 || n > (b.bytes-need)/4 {
+			if need > b.bytes || n < 0 || n > (b.bytes-need)/3 {
 				return ErrRowBudget
 			}
-			need += 4 * n
+			need += 3 * n
 		}
 	}
 	if need > b.bytes {
@@ -100,15 +95,6 @@ func (b *RowBudget) preflight(r *rows) error {
 	b.rows--
 	return nil
 }
-func budgetError(ctx context.Context, err error) error {
-	if budgetFrom(ctx) != nil {
-		var e *Error
-		if errors.As(err, &e) && e.Code()&255 == sqlite3.SQLITE_TOOBIG {
-			return errors.Join(ErrRowBudget, err)
-		}
-	}
-	return err
-}
 
-// ReadBudgetSupported identifies this opt-in native pre-materialization path.
+// ReadBudgetSupported identifies the opt-in Go pre-copy check.
 func (c *conn) ReadBudgetSupported() bool { return true }

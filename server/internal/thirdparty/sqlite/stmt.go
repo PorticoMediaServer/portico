@@ -301,22 +301,6 @@ func (s *stmt) Query(args []driver.Value) (driver.Rows, error) { //TODO StmtQuer
 }
 
 func (s *stmt) query(ctx context.Context, args []driver.NamedValue) (r driver.Rows, err error) {
-	if b := budgetFrom(ctx); b != nil {
-		old := s.c.limit(sqlite3.SQLITE_LIMIT_LENGTH, b.lengthLimit())
-		restore := func() {
-			if s.c.db != 0 {
-				s.c.limit(sqlite3.SQLITE_LIMIT_LENGTH, old)
-			}
-		}
-		defer func() {
-			err = budgetError(ctx, err)
-			if rr, ok := r.(*rows); ok && err == nil {
-				rr.restoreLimit = restore
-			} else {
-				restore()
-			}
-		}()
-	}
 	defer s.c.watchProgress(ctx).restore()
 	var pstmt uintptr
 	var done int32
