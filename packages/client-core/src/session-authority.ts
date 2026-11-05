@@ -110,3 +110,9 @@ export function bindAuthority(source: AuthoritySource): AuthorityBinding {
     dispose: end,
   });
 }
+
+/** Whether an account command still observes its exact issuing bearer. Callers
+ * separately retain their captured account/family authority and renewal policy. */
+export function hasCapturedAccessToken(session: {accessToken: string} | undefined, token: string): boolean {
+  return session?.accessToken === token;
+}

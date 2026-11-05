@@ -1,3 +1,4 @@
+import {requestHostedAccountExport} from '../../../../packages/client-core/src/query/hosted-account-transport';
 import {serverNow} from '../../../../packages/client-core/src/server-clock';
 import {NativeModules} from 'react-native';
 import {ApiError, HttpLocalApi} from '../../../../packages/client-core/src';
@@ -113,8 +114,10 @@ export class NativeAccountSecurity {
         await this.owner.signOutPorticoAccount(this.scope); return;
       }
       if (kind === 'export') {
-        const job = await this.work(opening, token => new AccountNotificationsClient((path, method, body, requestSignal) =>
-          new HttpLocalApi(hostedUrl, token, nativeNetworkFetch).request(path, method, body, requestSignal)).requestExport(opening.operationId!, signal));
+        this.assert(opening); const session = this.credentials.getSnapshot().session;
+        if (!session || !opening.client) throw changed();
+        const job = await requestHostedAccountExport(this.credentials, nativeNetworkFetch,
+          {expected: accountExpectation(session), signal: opening.controller.signal, isCurrent: () => this.owns(opening)}, opening.operationId!, signal);
         this.assert(opening); this.publish({kind, step: 'export', busy: true, exportJob: job}); return;
       }
       if (this.state.step === 'email' || this.state.step === 'mfa') {
