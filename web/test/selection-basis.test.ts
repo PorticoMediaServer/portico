@@ -152,8 +152,11 @@ test('the container-only download dispatcher refuses a proof-bearing query inste
 
 async function deleteResolver() {
   const details: string[] = [];
-  const module = await componentModule(new URL('../src/screens/browse/selection-delete-query.ts', import.meta.url), {
-    '@core/catalogue-selection.ts': {readCatalogueSelectionItem: async (_options: unknown, entry: {id: string}) => {details.push(entry.id); return {capabilities: {delete: true}};}},
+  const module = await componentModule(new URL('../../packages/client-core/src/query/catalogue-query-delete.ts', import.meta.url), {
+    '../selection-basis.ts': await import('../../packages/client-core/src/selection-basis.ts'),
+    '../browse.ts': await import('../../packages/client-core/src/browse.ts'),
+    '../selection-model/index.ts': await import('../../packages/client-core/src/selection-model/index.ts'),
+    '../catalogue-selection.ts': {readCatalogueSelectionItem: async (_options: unknown, entry: {id: string}) => {details.push(entry.id); return {capabilities: {delete: true}};}},
   });
   return {resolve: module.resolveQueryDelete as typeof resolveQueryDelete, details};
 }
