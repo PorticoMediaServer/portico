@@ -1,6 +1,7 @@
 package writer
 
 import (
+	"database/sql"
 	"fmt"
 	"reflect"
 	"strings"
@@ -149,6 +150,14 @@ func TestEffectiveBeginRequestRefusesUnsupportedAndMalformedShape(t *testing.T) 
 		func(r *effectiveStageBeginRequest) { r.owner.imageID.Valid = true },
 		func(r *effectiveStageBeginRequest) { r.owner.acknowledgedSequence-- },
 		func(r *effectiveStageBeginRequest) { r.owner.leaseUntil = "not-a-time" },
+		func(r *effectiveStageBeginRequest) { r.owner.episodeOrder = "aired" },
+		func(r *effectiveStageBeginRequest) { r.owner.setID = sql.NullString{String: "set:179", Valid: true} },
+		func(r *effectiveStageBeginRequest) {
+			r.owner.setSubjectKind = sql.NullString{String: "movie", Valid: true}
+		},
+		func(r *effectiveStageBeginRequest) {
+			r.owner.setProviderID = sql.NullString{String: "set-provider:181", Valid: true}
+		},
 		func(r *effectiveStageBeginRequest) { r.header.expectedManifest[0] ^= 1 },
 		func(r *effectiveStageBeginRequest) { r.header.expectedBytes = 1 },
 		func(r *effectiveStageBeginRequest) { r.header.language = "en\x00CA" },

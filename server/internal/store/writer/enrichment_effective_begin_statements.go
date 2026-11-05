@@ -22,7 +22,9 @@ func enrichmentEffectiveBeginDefinitions() []stmt.Definition {
  entity_id,provider,phase,status,generation,lease,lease_until,entity_incarnation,
  source_revision,identity_revision,metadata_revision,hierarchy_revision,selection_revision,
  descriptive_revision,policy_incarnation,policy_revision,consent_revision,algorithm,
- refresh_mode,input_digest,selected_id,page,after_item,credit_image_id
+ refresh_mode,input_digest,selected_id,page,after_item,credit_image_id,
+ query_title,query_artist,query_year,query_digest,manual,review_search,
+ hint_id,hint_problem,qualification,episode_order,set_id,set_subject_kind,set_provider_id
  FROM metadata_provider_operations WHERE id=?`,
 			Params: []stmt.Param{{Name: "provider_operation_id", Type: stmt.Text}},
 			Cohorts: []stmt.Cohort{

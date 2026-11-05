@@ -22,6 +22,10 @@ type effectiveBeginOwner struct {
 	page                                                      int64
 	afterItem                                                 string
 	imageID                                                   sql.NullInt64
+	queryTitle, queryArtist, queryDigest                      string
+	queryYear, manual, reviewSearch                           int64
+	hintID, hintProblem, qualification, episodeOrder          string
+	setID, setSubjectKind, setProviderID                      sql.NullString
 }
 
 type effectiveBeginReceipt struct {
@@ -75,7 +79,10 @@ func effectiveBeginOwnerFacts(ctx context.Context, turn *commandTurn, step state
 		&out.identityRevision, &out.metadataRevision, &out.hierarchyRevision,
 		&out.selectionRevision, &out.descriptiveRevision, &policyIncarnation,
 		&out.policyRevision, &out.consentRevision, &out.algorithm, &out.refreshMode,
-		&out.inputDigest, &out.selectedID, &out.page, &out.afterItem, &out.imageID)
+		&out.inputDigest, &out.selectedID, &out.page, &out.afterItem, &out.imageID,
+		&out.queryTitle, &out.queryArtist, &out.queryYear, &out.queryDigest,
+		&out.manual, &out.reviewSearch, &out.hintID, &out.hintProblem,
+		&out.qualification, &out.episodeOrder, &out.setID, &out.setSubjectKind, &out.setProviderID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return out, nil // No owner is never an implicit fresh allocation.
 	}

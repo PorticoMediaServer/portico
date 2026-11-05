@@ -46,7 +46,10 @@ func newEffectiveStageBeginCommand(identity CommandIdentity, in effectiveStageBe
 	// Preflight the complete retained TEXT envelope before comparing, deriving a
 	// manifest seed, cloning, or hashing any potentially large caller value.
 	var bytes uint64
-	text := []*string{&in.variant, &in.ownerID, &in.evidenceID, &in.publicationID, &in.objectID, &in.owner.provider, &in.owner.phase, &in.owner.status, &in.owner.lease, &in.owner.leaseUntil, &in.owner.algorithm, &in.owner.refreshMode, &in.owner.inputDigest, &in.owner.selectedID, &in.owner.afterItem, &in.entity.language, &in.header.language}
+	text := []*string{&in.variant, &in.ownerID, &in.evidenceID, &in.publicationID, &in.objectID, &in.owner.provider, &in.owner.phase, &in.owner.status, &in.owner.lease, &in.owner.leaseUntil, &in.owner.algorithm, &in.owner.refreshMode, &in.owner.inputDigest, &in.owner.selectedID, &in.owner.afterItem, &in.entity.language, &in.header.language,
+		&in.owner.queryTitle, &in.owner.queryArtist, &in.owner.queryDigest,
+		&in.owner.hintID, &in.owner.hintProblem, &in.owner.qualification, &in.owner.episodeOrder,
+		&in.owner.setID.String, &in.owner.setSubjectKind.String, &in.owner.setProviderID.String}
 	for _, p := range text {
 		if uint64(len(*p)) > maxCanonicalRequestBytes-bytes || !utf8.ValidString(*p) {
 			return nil, invalid("effective_begin_text")
@@ -58,6 +61,7 @@ func newEffectiveStageBeginCommand(identity CommandIdentity, in effectiveStageBe
 	}
 	if identity.Sequence <= 0 || !in.owner.exists || in.variant != "begin" || in.ownerID == "" || in.evidenceID == "" || in.publicationID == "" || in.objectID == "" || in.objectID != in.producer.Object.ID ||
 		in.owner.phase != effectiveBeginPhase || in.owner.status != "staged" || in.owner.incarnation != identity.Incarnation || in.owner.imageID.Valid ||
+		in.owner.episodeOrder != "" || in.owner.setID.Valid || in.owner.setSubjectKind.Valid || in.owner.setProviderID.Valid ||
 		in.owner.lastSequence < 0 || in.owner.lastSequence != in.owner.acknowledgedSequence || identity.Sequence <= in.owner.lastSequence || identity.Sequence-in.owner.lastSequence != 1 ||
 		in.entity.id != in.owner.entityID || in.entity.incarnation != in.owner.entityIncarnation || in.entity.sourceRevision != in.owner.sourceRevision || in.entity.identityRevision != in.owner.identityRevision || in.entity.metadataRevision != in.owner.metadataRevision ||
 		in.header.entityID != in.entity.id || in.header.entityIncarnation != in.entity.incarnation || in.header.sourceRevision != in.entity.sourceRevision || in.header.identityRevision != in.entity.identityRevision || in.header.metadataRevision != in.entity.metadataRevision || in.header.ownerRevision != in.entity.ownerRevision ||
