@@ -2,7 +2,7 @@ import {defaultI18n} from '../../../../../packages/i18n/src';
 import {GroupFollower, type GroupPlayer} from '../../../../../packages/client-core/src/group-session';
 import {contentEntryKind, type ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import {parseMediaItem} from '../../../../../packages/client-core/src/media-item';
-import {encodedRoutePath} from '../../../../../packages/contracts/src/routes';
+import {readTogetherPlaybackItem} from '../../../../../packages/client-core/src/query/receiver';
 import {playbackUserMessage} from '../../../../../packages/client-core/src/playback-messages';
 import {sameFence, sameScope, type PlaybackFence, type QueueScope} from '../../../../../packages/player-core/src';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
@@ -92,7 +92,7 @@ export function bindNativeTogether(context: NativeTogetherPlaybackContext, telev
         && live.viewerMemberId === original.viewer && live.timeline.currentEntryId === original.entryId && live.timeline.itemId === itemId;};
       pendingCurrent = current;
       void (async () => {
-        const item = parseMediaItem(await context.api.request(encodedRoutePath('get_items_id', {id: encodeURIComponent(itemId)}), 'GET', undefined, abort.signal));
+        const item = parseMediaItem(await readTogetherPlaybackItem(context.api, itemId, abort.signal));
         if (!current()) return;
         if (item.id !== itemId || !item.available || !contentEntryKind(item.kind)) throw new Error('together_media_unavailable');
         const entry: ContentEntry = {...item, kind: item.kind, playback: {itemId}};
