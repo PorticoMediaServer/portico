@@ -63,6 +63,12 @@ func effectiveBeginNativePopulation(t *testing.T, w *executor) (effectiveBeginOw
  '2026-11-05T10:00:00.000000000Z',?,11,10,59,'opaque-page:61')`, entityInc[:], policyInc[:], inc[:]); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := w.db.ExecContext(t.Context(), `UPDATE metadata_provider_operations SET
+ query_title='Native query:149',query_artist='Native artist:151',query_digest='native-query-digest:157',
+ hint_id='opaque-hint:163',hint_problem='hint-problem:167',qualification='native-qualification:173'
+ WHERE id='operation-one'`); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO enrichment_command_receipts(
  provider_operation_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,
  accepted_revision,applied_ms,entity_id,after_item,after_ordinal,publication_id,
@@ -79,6 +85,9 @@ func effectiveBeginNativePopulation(t *testing.T, w *executor) (effectiveBeginOw
 		hierarchyRevision: 43, selectionRevision: 47, descriptiveRevision: 53,
 		policyRevision: 37, consentRevision: 41, algorithm: "native-algorithm", refreshMode: "fill_missing",
 		inputDigest: "native-input-digest", selectedID: "opaque:selection", page: 59, afterItem: "opaque-page:61",
+		queryTitle: "Native query:149", queryArtist: "Native artist:151", queryYear: 2001,
+		queryDigest: "native-query-digest:157", manual: 1, reviewSearch: 0,
+		hintID: "opaque-hint:163", hintProblem: "hint-problem:167", qualification: "native-qualification:173",
 	}
 	receipt := effectiveBeginReceipt{
 		exists: true, identity: receiptIdentity{CommandIdentity{inc, 11, operation}, request}, kind: "effective_stage",
