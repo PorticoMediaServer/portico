@@ -12,12 +12,16 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import tarfile
+import tempfile
 
 ROOT = Path(__file__).resolve().parent.parent
 SCANNER = ROOT / 'ci/client_api_sites.mjs'
 BASELINE = 'ci/client-api-baseline.json'
 ALLOWLIST = 'ci/client-api-exceptions.json'
 APPROVALS = 'ci/client-api-approvals.json'
+DETECTIONS = 'ci/client-api-detection-additions.json'
+REHASH_RULING = 'https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646375725'
 SOURCE_ROOTS = ('web/', 'apps/native/', 'apps/desktop/', 'apps/vega/',
                 'packages/player-core/', 'packages/reader-core/', 'website/', 'server/receiver/cast/')
 EXTENSIONS = {'.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.kt', '.java', '.swift', '.m', '.mm', '.rs'}
@@ -30,7 +34,7 @@ def production(path):
             and not re.search(r'/(?:ds-[^/]+|.*\.specimen)\.tsx$', path))
 
 
-def tokens(source):
+def tokens(source, rust=False):
     """Native lexical tokens with offsets. Strings/comments cannot masquerade as calls.
 
     Handles nested block comments (Kotlin/Swift/Rust), raw Rust strings, Kotlin/Swift
@@ -60,7 +64,8 @@ def tokens(source):
             out.append(('string', source[start:i], start)); continue
         if source[i] in ('"', "'"):
             # Rust lifetimes are identifiers, not unterminated character strings.
-            if source[i] == "'" and re.match(r"'[A-Za-z_]\w*(?!')\b", source[i:]) and not re.match(r"'[^'\n]+'",source[i:]):
+            lifetime=re.match(r"'[A-Za-z_]\w*",source[i:]) if rust else None
+            if lifetime and not source.startswith("'",i+lifetime.end()):
                 i += 1; out.append(('punct', "'", start)); continue
             quote = source[i]; i += 1
             while i < len(source):
@@ -130,11 +135,32 @@ def native_chain(ts, start, end):
     return start,end
 
 
+def native_forwarding_shape(path, body):
+    """The two reviewed certificate executors consume URL/method/body parameters.
+
+    These are admission shapes, not an immutability proof. The full native method
+    hash is mandatory in the pin and ledger; any policy edit requires re-review.
+    """
+    if path.endswith('.kt') and all(re.search(p,body) for p in [
+            r'fun\s+proofRequest\([^)]*requestUrl:\s*String\?[^)]*method:\s*String\?[^)]*body:\s*String\?',
+            r'requestUrl\?\.toHttpUrlOrNull\(\)', r'\.url\(target\)',
+            r'\.method\(method!!,\s*body\.toByteArray\(Charsets\.UTF_8\)\.toRequestBody\("application/json"\.toMediaType\(\)\)\)']):
+        return 'native-proof'
+    if path.endswith(('.m','.mm')) and all(re.search(p,body) for p in [
+            r'prove:\(NSString\s*\*\)origin\s+fingerprint:',
+            r'url:\(NSString\s*\*\)requestURL\s+method:\(NSString\s*\*\)method\s+body:\(NSString\s*\*\)body',
+            r'NSURL\s*\*url\s*=\s*\[NSURL\s+URLWithString:requestURL\]',
+            r'requestWithURL:url\]', r'request\.HTTPMethod\s*=\s*method\s*;',
+            r'request\.HTTPBody\s*=\s*\[body\s+dataUsingEncoding:NSUTF8StringEncoding\]']):
+        return 'native-proof'
+    return None
+
+
 def native_sites(path, source):
     if path.endswith('.rs'):
         # Skip each test module's balanced body, preserving later production source.
         ranges = []
-        lexical = tokens(source)
+        lexical = tokens(source,rust=True)
         for match in re.finditer(r'#\[cfg\(test\)\]\s*(?:pub\s+)?mod\s+\w+\s*\{', source):
             depth = 1
             for _, value, offset in lexical:
@@ -148,13 +174,46 @@ def native_sites(path, source):
             source = source[:start]+re.sub(r'[^\n]', ' ', source[start:end])+source[end:]
     if path.endswith(('.m','.mm')):
         source = re.sub(r'^#if DEBUG\b[\s\S]*?^#endif\b', lambda m: re.sub(r'[^\n]',' ',m[0]), source, flags=re.M)
-    ts = tokens(source)
+    ts = tokens(source,rust=path.endswith('.rs'))
+    # Transport evidence comes from native imports, declared types and constructor
+    # bindings. A file's readText/readBytes/data/get methods alone prove no HTTP.
+    code = ' '.join(value if kind != 'string' else '""' for kind,value,_ in ts)
+    java_url = bool(re.search(r'\b(?:import\s+java\s*\.\s*net\s*\.\s*URL|java\s*\.\s*net\s*\.\s*URL\b)', code))
+    url_names = set()
+    if java_url:
+        url_names.update(re.findall(r'\b(\w+)\s*:\s*(?:java\s*\.\s*net\s*\.\s*)?URL\b',code))
+        url_names.update(re.findall(r'\bURL\s+(\w+)\s*(?:=|,|\))',code))
+        url_names.update(re.findall(r'\b(?:val|var|let)\s+(\w+)\s*(?::[^=;{}]+)?=\s*(?:new\s+)?(?:java\s*\.\s*net\s*\.\s*)?URL\s*\(',code))
+    session_names = set(re.findall(r'\b(\w+)\s*:\s*URLSession\b',code))
+    session_names.update(re.findall(r'\b(?:let|var)\s+(\w+)\s*(?::[^=;{}]+)?=\s*URLSession\b',code))
+    http_type = r'(?:reqwest\s*:\s*:\s*(?:blocking\s*:\s*:\s*)?Client|OkHttpClient|HttpClient)'
+    rust_borrow = r'(?:&\s*(?:\x27\s*\w+\s+)?(?:mut\s+)?)?'
+    http_names = set(re.findall(r'\b(\w+)\s*:\s*'+rust_borrow+http_type+r'\b',code))
+    http_names.update(re.findall(r'\b(?:let|val|var)\s+(\w+)\s*(?::[^=;{}]+)?=\s*(?:new\s+)?'+http_type+r'\b',code))
+    if re.search(r'\buse\s+reqwest\s*:\s*:\s*(?:blocking\s*:\s*:\s*)?Client\b',code):
+        http_names.update(re.findall(r'\b(?:let|val|var)\s+(\w+)\s*(?::[^=;{}]+)?=\s*Client\s*:\s*:',code))
+        http_names.update(re.findall(r'\b(\w+)\s*:\s*'+rust_borrow+r'Client\b',code))
+    def receiver_at(i):
+        return ts[i-2][1] if i>=2 and ts[i-1][1]=='.' else None
+    def url_receiver(i):
+        if receiver_at(i) in url_names: return True
+        if not java_url or i<2 or ts[i-1][1]!='.' or ts[i-2][1]!=')': return False
+        depth=1
+        for j in range(i-3,-1,-1):
+            if ts[j][1]==')': depth+=1
+            elif ts[j][1]=='(':
+                depth-=1
+                if not depth:return j>0 and ts[j-1][1]=='URL'
+        return False
+    def session_receiver(i):
+        return receiver_at(i) in session_names or ''.join(t[1] for t in ts[max(0,i-4):i])=='URLSession.shared.'
     found = []
     function_spans = native_function_spans(ts, source, path)
-    brackets, enclosing = [], {}
+    brackets, enclosing, opening_offsets = [], {}, {}
     for n, token in enumerate(ts):
-        enclosing[n] = list(brackets)
-        if token[1] in ('[', '('): brackets.append(token[1])
+        enclosing[n] = [kind for kind,_ in brackets]
+        opening_offsets[n] = [index for kind,index in brackets if kind=='[']
+        if token[1] in ('[', '('): brackets.append((token[1],n))
         elif token[1] in (']', ')') and brackets: brackets.pop()
     native_calls = {'openConnection', 'openStream', 'URLRequest', 'requestWithURL',
                     'dataTaskWithURL', 'dataTaskWithRequest', 'downloadTaskWithRequest',
@@ -169,12 +228,16 @@ def native_sites(path, source):
         if after == ':' and '[' not in enclosing[i]: continue
         # Function declarations are not calls.
         if i and ts[i - 1][1] in ('fun', 'func', 'fn'): continue
-        if value == 'bytes' and (after != '(' or ts[i+2][1] != 'for'): continue
+        url_read = value in {'readText','readBytes','readLines','inputStream'} and url_receiver(i)
+        session_read = value in {'data','bytes','download','upload'} and session_receiver(i) and after=='(' and ts[i+2][1] in {'for','from','with'}
+        fluent = value in {'get','post','put','patch','delete','head'} and (receiver_at(i) in http_names
+                    or ''.join(t[1] for t in ts[max(0,i-3):i]) in {'reqwest::','ureq::','isahc::'})
+        if value == 'bytes' and not session_read: continue
         if value == 'execute' and (i < 2 or ts[i-1][1] != '.' or not re.search(r'(?:client|http|request|call)',ts[i-2][1],re.I)): continue
         before = [t[1] for t in ts[max(0,i-3):i]]
         is_builder = value == 'Builder' and 'Request' in before
         is_url = value in ('stringWithFormat','stringByAppendingString','format')
-        if value not in native_calls and not is_builder and not is_url: continue
+        if value not in native_calls and not is_builder and not is_url and not url_read and not session_read and not fluent: continue
         if value in ('send', 'execute', 'Request', 'request', 'wire', 'exchange'):
             # Only network receivers, HTTP method arguments or API-path-bearing calls;
             # exclude map lookups, playback commands, DB requests and FFI request structs.
@@ -200,23 +263,29 @@ def native_sites(path, source):
                     depth -= 1
                 elif ts[end][1] == ';' and depth == 0: break
         start, end = native_chain(ts, i, end) if after == '(' else (i, end)
+        message_start=opening_offsets[i][-1] if after==':' and opening_offsets[i] else start
         call = ts[start:end+1]
         if is_url and not any(t[0]=='string' and '/v1/' in t[1] for t in call): continue
         if value == 'Request' and is_builder: continue
         expression = ' '.join(t[1] for t in call)
         spans = [(a,b) for a,b in function_spans if a<=i<=b]
         construction_hash = None
+        policy = ''
         if spans:
             a,b = min(spans,key=lambda span:span[1]-span[0])
-            construction_hash = hashlib.sha256(source[ts[a][2]:ts[b][2]+1].encode()).hexdigest()
+            policy = source[ts[a][2]:ts[b][2]+1]
+            construction_hash = hashlib.sha256(policy.encode()).hexdigest()
+        shape = native_forwarding_shape(path,policy)
         found.append({'file':path,'line':source.count('\n',0,offset)+1,
                       'kind':'url' if is_url else 'request','owner':'<native>',
-                      'callee':value,'operations':[], 'expression':expression, 'constructionHash': construction_hash})
+                      'callee':value,'operations':[], 'expression':expression, 'callText':source[ts[message_start][2]:ts[end][2]+len(ts[end][1])], 'constructionHash': construction_hash,
+                      **({'forwardedRequest':True,'forwardingShape':shape,'guardHash':construction_hash} if shape else {})})
     return found
 
 
-def scan(root=ROOT):
-    paths = subprocess.check_output(['git','ls-files','-z'],cwd=root).decode().split('\0')
+def scan(root=ROOT, paths=None):
+    if paths is None:
+        paths = subprocess.check_output(['git','ls-files','-z'],cwd=root).decode().split('\0')
     paths = sorted(p for p in paths if p and production(p))
     js = [p for p in paths if Path(p).suffix in {'.ts','.tsx','.js','.jsx','.mjs','.cjs'}]
     if js:
@@ -230,10 +299,67 @@ def scan(root=ROOT):
         # Stable across line moves. Multisets preserve identical calls on the same line.
         identity = [site['kind'],site['owner'],site['callee'],site['expression']]
         if 'constructionHash' in site: identity.append(site['constructionHash'])
-        if site.get('forwardedRequest') and site.get('guardHash'): identity.append(site['guardHash'])
+        # Existing guard identities stay stable. Newly recognized adapters already
+        # counted as direct keep their identity; every allowance still binds its
+        # complete guardHash in classify/base_guard, independently of this ID.
+        if site.get('forwardingShape') in {'request','requestRaw','request-without-signal','chapter-read','chapter-capability'} and site.get('guardHash'):
+            identity.append(site['guardHash'])
         identity = json.dumps(identity, separators=(',',':'))
         site['id'] = site['file']+'#'+hashlib.sha256(identity.encode()).hexdigest()[:16]
     return sorted(sites,key=lambda s:(s['file'],s['line'],s['id']))
+
+
+def scan_snapshot(root, ref):
+    """Run the new detector on immutable base sources, without checking out a branch.
+
+    Copy tracked source/config only, never symlinks, dependencies or Git state.
+    Core/contracts sources accompany apps so resolved symbols keep their origin.
+    """
+    paths=subprocess.check_output(['git','ls-tree','-rz','--name-only',ref],cwd=root).decode().split('\0')
+    roots=[prefix for prefix in ('web','apps','packages','website','server/receiver/cast')
+           if any(path.startswith(prefix+'/') for path in paths)]
+    with tempfile.TemporaryDirectory(prefix='client-api-base-',dir=os.environ.get('TMPDIR')) as directory:
+        snapshot=Path(directory)
+        process=subprocess.Popen(['git','archive',ref,'--',*roots],cwd=root,stdout=subprocess.PIPE)
+        try:
+            with tarfile.open(fileobj=process.stdout,mode='r|') as archive:
+                for member in archive:
+                    if not member.isfile() or Path(member.name).suffix not in EXTENSIONS | {'.json'}: continue
+                    target=snapshot/member.name
+                    if not target.resolve().is_relative_to(snapshot):raise ValueError('Unsafe source archive path')
+                    target.parent.mkdir(parents=True,exist_ok=True)
+                    target.write_bytes(archive.extractfile(member).read())
+            if process.wait():raise ValueError(f'Cannot read census base source {ref}')
+        finally:
+            process.stdout.close()
+            if process.poll() is None:process.terminate();process.wait()
+        return scan(snapshot,paths)
+
+
+def verified_detection_counts(root, base, baseline, old_baseline, old_exceptions, manifest):
+    """Growth needs both a reviewed exact-site ruling and the same site in base.
+
+    The manifest authorizes a detection improvement, never a product addition:
+    re-scan both its immutable source commit and the PR base using this detector.
+    A deleted request cannot be reintroduced using an old manifest entry.
+    """
+    rising={key:n for key,n in baseline.items() if n>old_baseline.get(key,0)}
+    if not rising or not manifest:return {}
+    source=manifest.get('sourceCommit','');entries=manifest.get('sites',{})
+    if not re.fullmatch(r'[a-f0-9]{40}',source):raise ValueError('Detection additions require an immutable sourceCommit')
+    for key,entry in entries.items():
+        if (not re.fullmatch(r'.+#[a-f0-9]{16}',key) or type(entry.get('occurrences')) is not int or entry['occurrences']<1
+                or not entry.get('reason','').strip() or not isinstance(entry.get('rulingUrl'),str)
+                or not re.fullmatch(r'https://github\.com/PorticoMediaServer/portico/(?:pull|issues)/[1-9]\d*#issuecomment-[1-9]\d*',entry['rulingUrl'])):
+            raise ValueError(f'{key}: detection addition requires exact count, reason and lead-ruling URL')
+    if subprocess.run(['git','merge-base','--is-ancestor',source,base],cwd=root).returncode:
+        raise ValueError('Detection sourceCommit must be an ancestor of the PR base')
+    old_pins={key for entry in old_exceptions.values() for key in exception_pins(entry)}
+    candidates=set(rising)&entries.keys()-old_pins
+    if not candidates:return {}
+    original=counts(scan_snapshot(root,source))
+    at_base=original if subprocess.check_output(['git','rev-parse',base],cwd=root,text=True).strip()==source else counts(scan_snapshot(root,base))
+    return {key:min(entries[key]['occurrences'],original.get(key,0),at_base.get(key,0)) for key in candidates}
 
 
 def counts(sites):
@@ -249,8 +375,14 @@ def compare(actual, baseline):
 def exception_pins(entry):
     if set(entry['sites']) & set(entry.get('additionalSites', {})):
         raise ValueError('Exception ID overlap between sites and additionalSites is forbidden')
-    return {**{key: {'category': entry['category'], 'reason': entry['reason'], **({'guardHash': entry.get('guardHashes', {}).get(key)} if entry['category']=='platform-transport' else {})} for key in entry['sites']},
+    return {**{key: {'category': entry['category'], 'reason': entry['reason'], **({'guardHash': entry.get('guardHashes', {}).get(key),
+                **({'guardSpan':entry['guardSpans'][key]} if key in entry.get('guardSpans',{}) else {})} if entry['category']=='platform-transport' else {})} for key in entry['sites']},
             **entry.get('additionalSites', {})}
+
+
+def matches_guard(site, expected, span=None):
+    field={None:'guardHash','forwarding-function':'forwardingHash'}.get(span)
+    return field is not None and expected is not None and expected==site.get(field)
 
 
 def classify(sites, exceptions):
@@ -266,7 +398,7 @@ def classify(sites, exceptions):
         pin = exception_pins(entry).get(site['id']) if entry else None
         allowed = pin is not None and remaining[site['file']][site['id']] > 0
         if allowed: remaining[site['file']][site['id']] -= 1
-        if allowed and pin['category']=='platform-transport' and (not pin.get('guardHash') or pin['guardHash'] != site.get('guardHash')):
+        if allowed and pin['category']=='platform-transport' and not matches_guard(site,pin.get('guardHash'),pin.get('guardSpan')):
             raise ValueError(f"{site['file']}:{site['line']}: reviewed guard source changed or is unbound; re-approval and a new guardHash are required")
         if allowed and pin['category']=='platform-transport' and not site.get('forwardedRequest'):
             raise ValueError(f"{site['file']}:{site['line']}: platform transport must match an approved unchanged request/raw/chapter forwarding shape")
@@ -278,6 +410,7 @@ def approval_for(approvals, key, pin, count):
     entry = approvals.get(key, {})
     return (entry.get('reason') == pin['reason'] and entry.get('condition', '').strip()
             and entry.get('category') == pin['category'] and entry.get('guardHash') == pin.get('guardHash')
+            and entry.get('guardSpan')==pin.get('guardSpan')
             and type(entry.get('occurrences')) is int and entry['occurrences'] >= count
             and isinstance(entry.get('rulingUrl'), str)
             and re.fullmatch(r'https://github\.com/PorticoMediaServer/portico/(?:pull|issues)/[1-9]\d*#issuecomment-[1-9]\d*', entry['rulingUrl']))
@@ -287,15 +420,114 @@ def validate_approvals(approvals):
     for key, entry in approvals.items():
         if (not re.fullmatch(r'.+#[a-f0-9]{16}', key) or not entry.get('reason', '').strip()
                 or not entry.get('condition', '').strip() or type(entry.get('occurrences')) is not int or entry['occurrences'] < 1
-                or entry.get('category') not in {'platform-transport','platform-url','native-extension','native-listening','separate-product'}
+                or entry.get('category') not in {'platform-transport','platform-url','native-extension','native-listening','separate-product','identity-rehash'}
                 or not isinstance(entry.get('rulingUrl'),str)
                 or not re.fullmatch(r'https://github\.com/PorticoMediaServer/portico/(?:pull|issues)/[1-9]\d*#issuecomment-[1-9]\d*',entry['rulingUrl'])
-                or entry['category']=='platform-transport' and not re.fullmatch(r'[a-f0-9]{64}',entry.get('guardHash',''))):
+                or entry['category'] in {'platform-transport','identity-rehash'} and not re.fullmatch(r'[a-f0-9]{64}',entry.get('guardHash',''))):
             raise ValueError(f'{key}: approval requires an exact site, condition, positive multiplicity, category/source binding and lead-ruling URL')
+        if 'guardSpan' in entry and (entry['category']!='platform-transport' or entry['guardSpan']!='forwarding-function'):
+            raise ValueError(f'{key}: invalid explicitly reviewed forwarding span')
+        if entry['category']=='identity-rehash' or entry['rulingUrl']==REHASH_RULING or 'previousSiteId' in entry:
+            if (entry['category'] not in {'identity-rehash','platform-transport'}
+                    or not re.fullmatch(r'.+#[a-f0-9]{16}',entry.get('previousSiteId',''))
+                    or key.split('#')[0]!=entry['previousSiteId'].split('#')[0]
+                    or not re.fullmatch(r'[a-f0-9]{64}',entry.get('previousGuardHash',''))
+                    or not re.fullmatch(r'[a-f0-9]{40}',entry.get('previousCommit',''))
+                    or not re.fullmatch(r'[a-f0-9]{40}',entry.get('reviewedCommit',''))
+                    or not re.fullmatch(r'https://github\.com/PorticoMediaServer/portico/pull/[1-9]\d*',entry.get('pullRequest',''))
+                    or not re.fullmatch(re.escape(entry.get('pullRequest',''))+r'#(?:issuecomment-|pullrequestreview-|discussion_r)[1-9]\d*',entry.get('reviewUrl',''))
+                    or not re.fullmatch(r'docs/client-api-rehashes/[A-Za-z0-9._-]+\.json',entry.get('spanEvidence',''))):
+                raise ValueError(f'{key}: re-hash requires old/new hashes, immutable commits, editing PR, independent review and complete span evidence')
 
 
-def base_guard(baseline, exceptions, old_baseline, old_exceptions, approvals=None):
-    errors, _ = compare(baseline, old_baseline)
+def transport_rehash_budgets(approvals, old_approvals, exceptions):
+    """Every retained/replacement allowance consumes its original shared budget."""
+    nodes={};limits={};affected=set()
+    for ledger in [old_approvals,approvals]:
+        for key,entry in ledger.items():
+            if entry['category']=='platform-transport':
+                node=(key,entry['guardHash']);nodes[node]=entry
+                limits[node]=min(limits.get(node,entry['occurrences']),entry['occurrences'])
+    for key,entry in approvals.items():
+        if entry['category']!='platform-transport' or 'previousSiteId' not in entry:continue
+        previous=nodes.get((entry['previousSiteId'],entry['previousGuardHash']),{})
+        if not previous or entry['occurrences']>limits[entry['previousSiteId'],entry['previousGuardHash']]:
+            raise ValueError(f'{key}: transport re-hash expands the original occurrence budget; a new ruling is required')
+    used=Counter()
+    for entry in exceptions.values():
+        counts=Counter(entry['sites'])+Counter(entry.get('additionalSites',{}).keys())
+        for key,pin in exception_pins(entry).items():
+            if pin['category']!='platform-transport':continue
+            node=(key,pin['guardHash']);seen=set();lineage=[]
+            while node in nodes:
+                if node in seen:raise ValueError(f'{key}: cyclic transport re-hash lineage')
+                seen.add(node);lineage.append(node);used[node]+=counts[key];parent=nodes[node]
+                if 'previousSiteId' not in parent:break
+                node=(parent['previousSiteId'],parent['previousGuardHash'])
+            if len(lineage)>1:affected.update(lineage)
+    for node,count in used.items():
+        if node in affected and count>limits[node]:
+            raise ValueError(f'{node[0]}: retained and replacement transport pins exceed their shared occurrence budget')
+
+
+def verify_rehashes(root, base, sites, approvals, old_approvals, old_baseline=None, old_exceptions=None, exceptions=None):
+    """Standing re-hash rulings never authorize a new request or an exception.
+
+    Direct identities can relocate only against a removed base occurrence. A
+    transport pin can re-hash only from an already-approved transport pin.
+    Review links are checked by independent human review, as for all ledger rows.
+    """
+    moves={};snapshots={}
+    transport_rehash_budgets(approvals,old_approvals,exceptions or {})
+    for key,entry in approvals.items():
+        if 'previousSiteId' not in entry:continue
+        current=[s for s in sites if s['id']==key]
+        if not current:continue  # A reviewed future source entry grants no active allowance.
+        if entry==old_approvals.get(key):
+            old_pin=exception_pins((old_exceptions or {}).get(current[0]['file'],{'sites':[]})).get(key,{})
+            active=(old_baseline or {}).get(key,0)>=len(current) or old_pin.get('guardHash')==entry['guardHash']
+            if active and all(matches_guard(s,entry['guardHash'],entry.get('guardSpan')) for s in current):continue
+        previous=entry['previousSiteId'];commit=entry['previousCommit']
+        for ancestor,descendant in [(commit,base)]:
+            if subprocess.run(['git','merge-base','--is-ancestor',ancestor,descendant],cwd=root).returncode:
+                raise ValueError(f'{key}: re-hash source/review commit is outside its immutable ancestry')
+        if commit not in snapshots:snapshots[commit]=scan_snapshot(root,commit)
+        old=[s for s in snapshots[commit] if s['id']==previous]
+        reviewed_commit=entry['reviewedCommit']
+        if reviewed_commit not in snapshots:snapshots[reviewed_commit]=scan_snapshot(root,reviewed_commit)
+        reviewed=[s for s in snapshots[reviewed_commit] if s['id']==key and matches_guard(s,entry['guardHash'],entry.get('guardSpan'))]
+        try:proof=json.loads((root/entry['spanEvidence']).read_text())
+        except (OSError,ValueError) as error:raise ValueError(f'{key}: complete re-hash span evidence is missing or unreadable') from error
+        if (not old or len(reviewed)<len(current) or any(not matches_guard(s,entry['previousGuardHash'],entry.get('guardSpan')) for s in old)
+                or any(not matches_guard(s,entry['guardHash'],entry.get('guardSpan')) for s in current)
+                or Counter(s.get('callText') for s in old)!=Counter(s.get('callText') for s in current)
+                or not isinstance(proof,dict) or any(not isinstance(proof.get(field),str) for field in ['oldSpan','newSpan'])
+                or any(hashlib.sha256(proof.get(field,'').encode()).hexdigest()!=entry[hash_field]
+                       for field,hash_field in [('oldSpan','previousGuardHash'),('newSpan','guardHash')])):
+            raise ValueError(f'{key}: re-hash changed forwarding bytes, source hashes or complete span evidence')
+        if entry['category']=='platform-transport':
+            original=old_approvals.get(previous,{})
+            if (original.get('category')!='platform-transport' or original.get('guardHash')!=entry['previousGuardHash']
+                    or original.get('guardSpan')!=entry.get('guardSpan')
+                    or original.get('reason')!=entry['reason'] or original.get('condition')!=entry['condition']):
+                raise ValueError(f'{key}: re-hash cannot create a new transport approval')
+        else:moves[key]=(previous,min(entry['occurrences'],len(old),len(current)))
+    return moves
+
+
+def rehash_counts(baseline, old_baseline, moves):
+    available={key:max(0,n-baseline.get(key,0)) for key,n in old_baseline.items()};permitted={}
+    for key,(previous,n) in sorted(moves.items()):
+        moved=min(n,available.get(previous,0));available[previous]=available.get(previous,0)-moved
+        permitted[key]=old_baseline.get(key,0)+moved
+    return permitted
+
+
+def base_guard(baseline, exceptions, old_baseline, old_exceptions, approvals=None, detections=None, rehashes=None):
+    permitted={**old_baseline}
+    for key,count in (detections or {}).items():permitted[key]=max(permitted.get(key,0),count)
+    for key,count in rehash_counts(baseline,old_baseline,rehashes or {}).items():permitted[key]=max(permitted.get(key,0),count)
+    errors, _ = compare(baseline, permitted)
     # New/changed allowances require a reviewed ruling for this exact site,
     # source hash, reason/category and complete multiplicity. Ledger edits are
     # themselves reviewable; an old approval cannot authorize a larger count.
@@ -330,6 +562,7 @@ def main(argv=None, root=ROOT):
         baseline_path.write_text(json.dumps(actual,indent=2)+'\n')
     baseline=json.loads(baseline_path.read_text())
     new,stale=compare(actual,baseline)
+    detections={}
     if a.base:
         def old(path):
             r=subprocess.run(['git','show',a.base+':'+path],cwd=root,text=True,capture_output=True)
@@ -340,7 +573,17 @@ def main(argv=None, root=ROOT):
             return json.loads(r.stdout)
         old_baseline,old_exceptions=old(BASELINE),old(ALLOWLIST)
         if old_baseline is not None:
-            try: new+=base_guard(baseline,exceptions,old_baseline,old_exceptions or {},approvals)
+            try:
+                manifest=json.loads((root/DETECTIONS).read_text()) if (root/DETECTIONS).exists() else {}
+                moves=verify_rehashes(root,a.base,sites,approvals,old(APPROVALS) or {},old_baseline,old_exceptions or {},exceptions)
+                proposed={key:max(n,actual.get(key,0)) for key,n in baseline.items()}
+                proposed.update({key:n for key,n in actual.items() if key not in proposed})
+                detections=verified_detection_counts(root,a.base,proposed,old_baseline,old_exceptions or {},manifest)
+                permitted={**baseline}
+                for key,count in detections.items():permitted[key]=max(permitted.get(key,0),count)
+                for key,count in rehash_counts(actual,old_baseline,moves).items():permitted[key]=max(permitted.get(key,0),count)
+                new,_=compare(actual,permitted)
+                new+=base_guard(actual if a.update else baseline,exceptions,old_baseline,old_exceptions or {},approvals,detections,moves)
             except ValueError as error: new.append(str(error))
     pinned = sum((Counter(e['sites']) + Counter(e.get('additionalSites', {}).keys()) for e in exceptions.values()), Counter())
     stale_exceptions = list((pinned - Counter(counts(exempt))).elements())
@@ -351,9 +594,9 @@ def main(argv=None, root=ROOT):
         print('\n'.join(new),file=sys.stderr)
         print('Move URL/request/body policy into named client-core domain operations; do not raise the baseline or use a generic screen request wrapper.',file=sys.stderr)
         return 1
-    if a.update and stale:baseline_path.write_text(json.dumps(actual,indent=2)+'\n')
-    elif stale:
-        print(f'Client-core ownership fell by {sum(baseline.values())-sum(actual.values())} site(s). Lock it in: python3 ci/client_api_census.py --update',file=sys.stderr)
+    if a.update and actual!=baseline:baseline_path.write_text(json.dumps(actual,indent=2)+'\n')
+    elif actual!=baseline:
+        print(f'Client-core ownership counts changed ({sum(baseline.values())} -> {sum(actual.values())}). Lock it in: python3 ci/client_api_census.py --update'+(f' --base {a.base}' if detections else ''),file=sys.stderr)
         return 1
     print(f'Client-core ownership holds: {len(direct)} direct sites; {len(exempt)} pinned approved exception sites.')
     return 0
