@@ -1,11 +1,10 @@
 import {FileInfoSession} from '@core/file-info-session.ts';
-import {DetailService, parseCreditPage, type DetailProjection, type DetailSnapshot, type DetailTarget, type PersonalIntent} from '@core/detail.ts';
+import {DetailService, parseCreditPage, readCreditPageResponse, type DetailProjection, type DetailSnapshot, type DetailTarget, type PersonalIntent} from '@core/detail.ts';
 import type {FileInfoFileRow} from '@core/file-info-pages.ts';
 import {readListeningSimilar} from '@core/library-content.ts';
 import type {ListeningViewerScope} from '@core/listening.ts';
 import {PlaybackOptionsClient} from '@core/playback-v1/options.ts';
 import {localV1Http} from '@core/playback-v1/local-http.ts';
-import {encodedRoutePath} from '../../../../packages/contracts/src/routes.ts';
 import {readTitleIdentity} from '../../platform/title-identity';
 import {screenLifetime, type ScreenContext} from './context';
 import {createRecommendations} from './recommendations';
@@ -188,9 +187,7 @@ export function createDetailBindings(context: ScreenContext) {
     },
     async readCredits(data: DetailProjection, group: 'cast' | 'crew', cursor?: string, signal?: AbortSignal) {
       current(data);
-      const query = new URLSearchParams({group, limit: '40', ...(cursor ? {cursor} : {})});
-      const path = encodedRoutePath('get_items_id_credits', {id: encodeURIComponent(data.item.id)});
-      const page = parseCreditPage(await life.api.request(path + '?' + query, 'GET', undefined, signal), data.item.id, group);
+      const page = parseCreditPage(await readCreditPageResponse(life.api, data.item.id, group, {limit: 40, cursor}, signal), data.item.id, group);
       current(data);
       if (page.revision.catalog !== data.revision.catalog || page.revision.viewer !== data.revision.viewer) throw new DOMException('Credits revision changed', 'AbortError');
       return page;
