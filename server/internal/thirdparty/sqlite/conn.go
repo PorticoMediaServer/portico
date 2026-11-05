@@ -1305,6 +1305,25 @@ func (c *conn) limit(id int, newVal int) int {
 	return int(sqlite3.Xsqlite3_limit(c.tls, c.db, int32(id), int32(newVal)))
 }
 
+// SQLiteLimit is the optional connection interface used by Limit. Wrappers
+// should forward it to the owned connection. A negative newVal reads only;
+// fixed connection policies set limits before exposing a physical connection.
+func (c *conn) SQLiteLimit(id int, newVal int) (int, error) {
+	if int(int32(id)) != id || int(int32(newVal)) != newVal {
+		return 0, fmt.Errorf("sqlite limit arguments exceed int32")
+	}
+	c.Lock()
+	defer c.Unlock()
+	if c.db == 0 {
+		return 0, driver.ErrBadConn
+	}
+	previous := c.limit(id, newVal)
+	if previous < 0 {
+		return 0, fmt.Errorf("unknown sqlite limit: %d", id)
+	}
+	return previous, nil
+}
+
 // C documentation
 //
 //	int sqlite3_bind_blob(sqlite3_stmt*, int, const void*, int n, void(*)(void*));
