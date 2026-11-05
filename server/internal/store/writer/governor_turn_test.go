@@ -1,0 +1,169 @@
+package writer
+
+import (
+	"context"
+	"errors"
+	"math"
+	"testing"
+	"time"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
+)
+
+func governedFixture(t *testing.T, now func() time.Time) (governor.Governor, *governor.Authority, *governor.WALGate, governor.Request) {
+	t.Helper()
+	wal, err := governor.NewWALGate(governor.WALPolicy{HardBytes: 1 << 29, ReserveBytes: 1 << 20, SoftDebtBytes: 1 << 26, ActivePressureBytes: 1 << 28, MaxSampleAge: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := governor.Request{Key: governor.JobKey{Domain: uint16(InventoryAccept), ID: "synthetic/run"}, Owner: 1, Class: governor.ScanMinimum, Writer: true, MaxHold: testRecipe().limit.Hold, Deadline: now().Add(time.Second),
+		Budget: governor.UnitBudget{RawRows: 100, VMOps: 10000, Pages: 100}, Footprint: []governor.Scope{{Library: 1, Domain: 1, Source: 1}}}
+	r.Need[governor.WALBytes] = int64(testRecipe().limit.WALBytes)
+	r.Need[governor.MemoryBytes] = 65536
+	var partitions [4]governor.Amounts
+	for i := range partitions {
+		partitions[i] = r.Need
+	}
+	g, a, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 4, Now: now, WAL: wal})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return g, a, wal, r
+}
+
+func TestGovernedTurnNativeReturnAndWALRefresh(t *testing.T) {
+	// One canonical fixture, virtual protocol clock: no latency qualification.
+	w, path, clock := testExecutor(t)
+	now := func() time.Time { return *clock }
+	g, a, wal, r := governedFixture(t, now)
+	if err := refreshWriterWAL(path, wal, now); err != nil {
+		t.Fatal(err)
+	}
+	d := g.Try(r)
+	if d.Grant == nil {
+		t.Fatal(d.Refusal)
+	}
+	c, err := bindGovernedTurn(InventoryAccept, testRecipe().limit, g, a, wal, d.Grant, r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The ledger and W both retain the original footprint despite mutation.
+	r.Footprint[0].Library = 99
+	if err := c.check(); err != nil {
+		t.Fatal("mutable caller footprint rebased grant", err)
+	}
+	r.Footprint[0].Library = 1
+	tx, err := w.begin(t.Context(), InventoryAccept, testRecipe(), c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.rollback(nil)
+	if a.Usage()[governor.ScanMinimum][governor.MemoryBytes] != r.Need[governor.MemoryBytes] {
+		t.Fatal("physical turn refunded before return")
+	}
+	mutateFixture(t, tx)
+	physical, err := tx.commit()
+	if err != nil || physical.state != committed {
+		t.Fatalf("synthetic commit: %+v %v", physical, err)
+	}
+	if w.db.Stats().InUse != 0 || a.Usage()[governor.ScanMinimum] != (governor.Amounts{}) {
+		t.Fatal("physical/ledger custody remained")
+	}
+	if err := c.retired(); err != nil {
+		t.Fatal("exact retirement not idempotent", err)
+	}
+	if err := c.check(); !errors.Is(err, governor.ErrGrant) {
+		t.Fatal("retired grant reusable", err)
+	}
+	if d := g.Try(r); d.Grant != nil || d.Refusal == nil || d.Refusal.Code != governor.FailSafe {
+		t.Fatal("reused pre-return WAL observation", d)
+	}
+	if err := refreshWriterWAL(path, wal, now); err != nil {
+		t.Fatal(err)
+	}
+	d = g.Try(r)
+	if d.Grant == nil {
+		t.Fatal("fresh post-return sample refused", d.Refusal)
+	}
+	c, err = bindGovernedTurn(InventoryAccept, testRecipe().limit, g, a, wal, d.Grant, r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.Cancel(d.Grant)
+	if a.Usage()[governor.ScanMinimum][governor.MemoryBytes] == 0 {
+		t.Fatal("cancel refunded capacity")
+	}
+	if _, err := w.begin(context.Background(), InventoryAccept, testRecipe(), c); !errors.Is(err, governor.ErrGrant) {
+		t.Fatal("cancelled grant entered writer", err)
+	}
+	if a.Usage()[governor.ScanMinimum] != (governor.Amounts{}) || w.db.Stats().InUse != 0 {
+		t.Fatal("cancelled pre-BEGIN holding stranded")
+	}
+}
+
+func TestGovernedTurnExactCompositionPurposeAndForecast(t *testing.T) {
+	clock := time.Now().Add(time.Hour)
+	now := func() time.Time { return clock }
+	g, a, wal, r := governedFixture(t, now)
+	if err := wal.Publish(wal.Observation(), governor.WALState{PageSize: 4096}, now()); err != nil {
+		t.Fatal(err)
+	}
+	d := g.Try(r)
+	if d.Grant == nil {
+		t.Fatal(d.Refusal)
+	}
+	defer a.Retired(d.Grant) // binder failures retain ownership with this driver
+	other, _, otherWAL, _ := governedFixture(t, now)
+	for _, test := range []struct {
+		g   governor.Governor
+		wal *governor.WALGate
+	}{{other, wal}, {g, otherWAL}, {g, nil}} {
+		if _, err := bindGovernedTurn(InventoryAccept, testRecipe().limit, test.g, a, test.wal, d.Grant, r); !errors.Is(err, governor.ErrComposition) {
+			t.Fatal("unbound composition", err)
+		}
+	}
+	if _, err := bindGovernedTurn(SecurityAccept, testRecipe().limit, g, a, wal, d.Grant, r); !errors.Is(err, ErrInvalid) {
+		t.Fatal("scan grant acquired security class", err)
+	}
+	for _, change := range []func(*Work){
+		func(v *Work) { v.Rows++ }, func(v *Work) { v.Pages++ }, func(v *Work) { v.VMOps++ }, func(v *Work) { v.WALBytes++ }, func(v *Work) { v.Hold++ },
+		func(v *Work) { v.Rows = uint64(math.MaxUint32) + 1 }, func(v *Work) { v.Pages = uint64(math.MaxUint32) + 1 }, func(v *Work) { v.WALBytes = uint64(math.MaxInt64) + 1 },
+	} {
+		v := testRecipe().limit
+		change(&v)
+		if _, err := bindGovernedTurn(InventoryAccept, v, g, a, wal, d.Grant, r); !errors.Is(err, ErrInvalid) {
+			t.Fatal("forecast mismatch accepted", v, err)
+		}
+	}
+	wrong := r
+	wrong.Owner++
+	if _, err := bindGovernedTurn(InventoryAccept, testRecipe().limit, g, a, wal, d.Grant, wrong); !errors.Is(err, governor.ErrGrant) {
+		t.Fatal("foreign expected owner accepted", err)
+	}
+	c, err := bindGovernedTurn(InventoryAccept, testRecipe().limit, g, a, wal, d.Grant, r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.fence()
+	if err := c.check(); !errors.Is(err, governor.ErrGrant) {
+		t.Fatal("fenced grant still authorizes", err)
+	}
+	if a.Usage()[governor.ScanMinimum][governor.MemoryBytes] == 0 {
+		t.Fatal("fence refunded physical holding")
+	}
+}
+
+func TestGovernedTurnWALReadFailureInvalidatesOldSample(t *testing.T) {
+	clock := time.Now().Add(time.Hour)
+	now := func() time.Time { return clock }
+	g, _, wal, request := governedFixture(t, now)
+	if err := wal.Publish(wal.Observation(), governor.WALState{PageSize: 4096}, now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := refreshWriterWAL(t.TempDir()+"/missing", wal, now); err == nil {
+		t.Fatal("missing physical WAL files accepted")
+	}
+	if d := g.Try(request); d.Grant != nil || d.Refusal == nil || d.Refusal.Code != governor.FailSafe {
+		t.Fatal("failed read left old WAL headroom usable", d)
+	}
+}
