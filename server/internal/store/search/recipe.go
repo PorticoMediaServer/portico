@@ -8,9 +8,10 @@ import (
 	"unicode/utf8"
 
 	"github.com/PorticoMediaServer/portico/server/internal/facettext"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/searchpolicy"
 )
 
-const RecipeVersion = "A-CJK-uni-bi-v1"
+const RecipeVersion = searchpolicy.RecipeV1
 
 // OwnTitle is an immutable publication image, independent of the live title.
 // Native deletion must retain the old image until physical completion.
