@@ -1,3 +1,5 @@
+import {createHostedAccountApi} from '../../../../packages/client-core/src/query/hosted-account-transport';
+import {readHostedAccountIdentity} from '../../../../packages/client-core/src/query/connection-operations.ts';
 import {captureTVApprovalGrant} from './tv-approval-grant';
 import {NativeModules} from 'react-native';
 import {HttpLocalApi, type HostedSession, type LocalSession} from '../../../../packages/client-core/src';
@@ -178,7 +180,7 @@ export class NativeAccounts {
     const original = captureTVApprovalGrant(session), admitted = original.session;
     const current = () => original.current() && (!callerCurrent || callerCurrent()) && original.current();
     return this.authenticatePorticoAccount(async signal => {
-      const me = decodeMeGetResponse(await new HttpLocalApi(hostedUrl, admitted.accessToken, nativeNetworkFetch).request(hostedPath('me_get'), 'GET', undefined, signal));
+      const me = decodeMeGetResponse(await readHostedAccountIdentity(createHostedAccountApi(this.accountCredentials(), admitted, nativeNetworkFetch), signal));
       if (me.account.id !== admitted.account.id) throw Object.assign(new Error('native_account_identity_mismatch'), {code: 'identity_mismatch'});
       // The canonical coordinator receives the original immutable issued family,
       // even when current() now refuses it, so its exact compensation still runs.
@@ -204,7 +206,7 @@ export class NativeAccounts {
     const account = await credentials.accessSession(); this.assertCurrent(generation);
     const authority = (value: typeof account): TVConsentAuthority => ({kind: 'portico', origin: hostedUrl,
       accountId: value.account.id, sessionFamilyId: value.familyId});
-    return new TVConsentApprover(new HttpLocalApi(hostedUrl, account.accessToken, nativeNetworkFetch), authority(account), () => {
+    return new TVConsentApprover(createHostedAccountApi(this.accountCredentials(), account, nativeNetworkFetch), authority(account), () => {
       const value = credentials.getSnapshot().session;
       return !this.disposed && generation === this.generation && value ? authority(value) : undefined;
     });

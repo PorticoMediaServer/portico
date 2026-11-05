@@ -1,3 +1,4 @@
+import {createOriginalBrowserSecurityClient as originalSecurityClient} from '@core/query/hosted-account-transport.ts';
 import {HostedAccountClient, type AccountScope, type RecentProof, type SecurityState} from '@core/hosted-security.ts';
 import type {HostedSession, LocalSession} from '@core/index.ts';
 import {serverNow} from '@core/server-clock.ts';
@@ -26,12 +27,8 @@ export function securityReturnDeadline(now: number, accountExpiresAt: string): n
   if (Number.isNaN(account)) return now;
   return Math.min(now + 300_000, account);
 }
-export function originalSecurityClient(origin: string) {
-  // Inert transport only. The protected return never starts the singleton's
-  // synchronize/accessSession/refresh/keepAlive or a sign-in admission path.
-  const api = new BrowserAccountApi(origin);
-  return new HostedAccountClient(origin, 'browser', (path, method, body, signal, token) => api.send(path, method, body, signal, token));
-}
+export {createOriginalBrowserSecurityClient as originalSecurityClient} from '@core/query/hosted-account-transport.ts';
+
 const identity = (o: OriginalSecurityAccount): AccountScope => ({accountId: o.session.account.id, familyId: o.session.familyId!});
 
 /** Capture happens on the existing Account Settings opening before any prepare
