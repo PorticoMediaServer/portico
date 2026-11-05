@@ -2,6 +2,7 @@ package plan_test
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"testing"
 
@@ -43,18 +44,16 @@ func TestPlanOptimizedINNeedsNativeWaiver(t *testing.T) {
 			if len(issues) == 0 {
 				t.Fatal("review form unexpectedly inside the SQL grammar")
 			}
-			for _, issue := range issues {
-				d.Plan.Waivers = append(d.Plan.Waivers, stmt.Waiver{
-					StatementID: d.ID, Stage: "sql-lint", Form: issue.Form, Match: d.SQL,
-					Reason: "Synthetic native-guard regression only; no EQP permission",
-				})
+			eqp := reviewRawEQP(t, conn, d.SQL, int64(1))
+			if err := plan.CheckEQP(d, eqp); err == nil || !strings.Contains(err.Error(), "forbidden plan FOR IN-OPERATOR") {
+				t.Fatalf("optimized IN native guard failed: %v", err)
 			}
 			r, err := stmt.New([]stmt.Definition{d})
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := plan.Capture(ctx, conn, r, f, indexPolicy(t)); err == nil || !strings.Contains(err.Error(), "forbidden plan FOR IN-OPERATOR") {
-				t.Fatalf("optimized IN qualified with lint-only permission: %v", err)
+			if _, err := plan.Capture(ctx, conn, r, f, indexPolicy(t)); err == nil {
+				t.Fatal("outside grammar qualified")
 			}
 		})
 	}
@@ -137,4 +136,32 @@ func TestPlanNativeEQPClosedShapes(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Compile only: this keeps the independent native guard exercised even when
+// the closed grammar rejects a statement before Capture prepares it.
+func reviewRawEQP(t *testing.T, conn *sql.Conn, sql string, args ...any) plan.Rows {
+	t.Helper()
+	rows, err := conn.QueryContext(context.Background(), "EXPLAIN QUERY PLAN "+sql, args...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	cols, err := rows.Columns()
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := plan.Rows{Columns: cols, Values: [][]any{}}
+	for rows.Next() {
+		var id, parent, unused int64
+		var detail string
+		if err := rows.Scan(&id, &parent, &unused, &detail); err != nil {
+			t.Fatal(err)
+		}
+		result.Values = append(result.Values, []any{id, parent, unused, detail})
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return result
 }

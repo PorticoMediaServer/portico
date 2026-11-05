@@ -17,18 +17,22 @@
 // EQP only; INDEXED BY must not embed them. Explicit names remain forced.
 // INSERT destinations require Capture's index/column and full FK audits instead
 // of a nonexistent destination SEARCH. UPSERT requires one expected full unique
-// index or PK whose ordered conflict columns are explicit bound INSERT inputs;
-// its separately labelled point-probe EQP must SEARCH that key. Native INSERT
-// EQP and canonical VM remain separate from this probe. No routine DML waiver
-// or registration confers accepting-command authority.
+// index or PK resolved unambiguously by the exact conflict column set. Partial
+// targets and explicit target collations are outside the grammar. The probe
+// retains the resolved key's collations and requires explicit bound INSERT
+// inputs; its separately labelled EQP must SEARCH that key. Native INSERT EQP
+// and canonical VM remain separate from this probe. DML column references are
+// resolved against main.table_xinfo before preparing SQL. No registration
+// confers accepting-command authority. Any user trigger in main, TEMP or an
+// attached schema rejects qualification, including an unrelated trigger.
 //
 // Independently, SQLite's EQP rejects SUBQUERY, CO-ROUTINE, MATERIALIZE,
 // MULTI-INDEX OR, USE TEMP B-TREE and automatic indexes for every statement,
 // and scans on declared hot paths. Legacy AllowedScans grants no permission.
-// An exceptional form requires a registry waiver bound to the statement ID,
-// form, exact SQL (lint) or exact detail (EQP), and reason. Stages are independent;
-// a lint waiver cannot bypass the native guard. Waivers are immutable manifest
-// data for explicit PR approval; the current baseline inventory is empty.
+// An exceptional EQP form requires a registry waiver bound to the statement ID,
+// form, exact detail and reason. Grammar failures are never waivable. Waivers
+// are immutable manifest data for explicit PR approval; the current baseline
+// inventory is empty.
 //
 // Each cohort retains the full EXPLAIN VM and exact EQP. Only Transaction's
 // checked schema cookie is replaced with a placeholder, and literal b-tree

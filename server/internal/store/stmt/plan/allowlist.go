@@ -159,9 +159,10 @@ var sqliteKeywords = func() map[string]bool {
 }()
 
 type lintParser struct {
-	tokens    []sqlToken
-	at, depth int
-	dml       *dmlShape
+	tokens     []sqlToken
+	at, depth  int
+	dml        *dmlShape
+	columnRole string
 }
 
 func (p *lintParser) peek(text string) bool {
@@ -216,8 +217,16 @@ func (p *lintParser) qualifiedName() error {
 	return nil
 }
 func (p *lintParser) column() error {
+	start := p.at
 	if err := p.qualifiedName(); err != nil {
 		return err
+	}
+	if p.dml != nil {
+		var parts []string
+		for at := start; at < p.at; at += 2 {
+			parts = append(parts, p.tokens[at].text)
+		}
+		p.dml.references = append(p.dml.references, columnReference{parts, p.columnRole})
 	}
 	if p.take("COLLATE") {
 		if !p.take("NOCASE") && !p.take("BINARY") {

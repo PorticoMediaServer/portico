@@ -53,9 +53,9 @@ type Cohort struct {
 
 type Waiver struct {
 	StatementID ID     `json:"statementId"`
-	Stage       string `json:"stage"` // "sql-lint" or "eqp"; neither waives the other
+	Stage       string `json:"stage"` // only "eqp"; grammar errors are never waivable
 	Form        string `json:"form"`
-	Match       string `json:"match"` // entire exact SQL for lint; entire EQP detail for EQP
+	Match       string `json:"match"` // entire exact EQP detail
 	Reason      string `json:"reason"`
 }
 
@@ -116,8 +116,8 @@ func New(definitions []Definition) (*Registry, error) {
 			if w.StatementID != d.ID || strings.TrimSpace(w.Form) == "" || strings.TrimSpace(w.Match) == "" || strings.TrimSpace(w.Reason) == "" || seenWaivers[key] {
 				return nil, fmt.Errorf("stmt %q: invalid/duplicate statement waiver", d.ID)
 			}
-			if w.Stage != "sql-lint" && w.Stage != "eqp" || w.Stage == "sql-lint" && w.Match != d.SQL {
-				return nil, fmt.Errorf("stmt %q: waiver stage/SQL binding invalid", d.ID)
+			if w.Stage != "eqp" {
+				return nil, fmt.Errorf("stmt %q: only exact EQP waivers are permitted", d.ID)
 			}
 			seenWaivers[key] = true
 		}

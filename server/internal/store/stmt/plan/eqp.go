@@ -30,7 +30,7 @@ func waived(d stmt.Definition, stage, form, match string) bool {
 // CheckEQP allows only reviewed SEARCH shapes from SQLite's own parse/planner
 // output, independently of the lint. All other rows, including scans, flag.
 // Exact per-statement detail waivers are the only exceptions, including scans;
-// legacy AllowedScans metadata and a SQL-lint waiver confer no EQP permission.
+// legacy AllowedScans metadata grants no permission. Grammar is never waivable.
 func CheckEQP(d stmt.Definition, eqp Rows) error {
 	for _, row := range eqp.Values {
 		if len(row) != 4 {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
@@ -24,6 +23,7 @@ type ConflictProbe struct {
 	SQL       string `json:"sql"`
 	Bindings  []any  `json:"bindings"`
 	QueryPlan Rows   `json:"queryPlan"`
+	Index     string `json:"index"`
 }
 
 func nameKey(name string) string {
@@ -47,32 +47,16 @@ func foldName(name string) string {
 	}, name)
 }
 
-func auditInsert(ctx context.Context, conn *sql.Conn, d stmt.Definition, shape *dmlShape, bindings []any, vm Rows) (*InsertAudit, error) {
-	table := nameKey(shape.table)
-	var objectType string
-	var root int64
-	if err := conn.QueryRowContext(ctx, "SELECT type,rootpage FROM sqlite_schema WHERE name=? COLLATE NOCASE", table).Scan(&objectType, &root); err != nil {
-		return nil, err
-	}
-	if objectType != "table" || root <= 0 {
-		return nil, fmt.Errorf("destination must be an ordinary table")
-	}
-	if !mainWriteRoot(vm, root) {
-		return nil, fmt.Errorf("native destination does not match audited main table")
-	}
-	a := &InsertAudit{Table: table, IndexColumns: map[string]Rows{}}
+func auditInsert(ctx context.Context, conn *sql.Conn, d stmt.Definition, shape *dmlShape, table *dmlTable, bindings []any, vm Rows) (*InsertAudit, error) {
+	a := &InsertAudit{Table: table.name, Columns: table.columns, IndexColumns: map[string]Rows{}}
 	var err error
-	a.Columns, err = query(ctx, conn, "PRAGMA table_xinfo("+identifier(table)+")")
-	if err != nil {
-		return nil, err
-	}
-	a.Indexes, err = query(ctx, conn, "PRAGMA index_list("+identifier(table)+")")
+	a.Indexes, err = query(ctx, conn, "PRAGMA main.index_list("+identifier(table.name)+")")
 	if err != nil {
 		return nil, err
 	}
 	for _, index := range a.Indexes.Values {
 		name := index[1].(string)
-		info, err := query(ctx, conn, "PRAGMA index_xinfo("+identifier(name)+")")
+		info, err := query(ctx, conn, "PRAGMA main.index_xinfo("+identifier(name)+")")
 		if err != nil {
 			return nil, err
 		}
@@ -87,11 +71,16 @@ func auditInsert(ctx context.Context, conn *sql.Conn, d stmt.Definition, shape *
 	if len(d.Plan.Indexes)+len(d.Plan.PrimaryKeys) != 1 {
 		return nil, fmt.Errorf("UPSERT requires exactly one expected conflict index or PK")
 	}
-	var key []string
+	target, err := resolveConflict(a, table, shape)
+	if err != nil {
+		return nil, err
+	}
+	conflictRoot := table.root
 	if len(d.Plan.Indexes) == 1 {
 		wanted := d.Plan.Indexes[0]
-		// Match the existing forced-index contract's plain identifier spelling;
-		// never interpolate an unchecked metadata string into the probe SQL.
+		if target.nativePrimary || wanted != target.index {
+			return nil, fmt.Errorf("expected index %s differs from resolved conflict target %s", wanted, target.index)
+		}
 		tokens, err := lintTokens(wanted)
 		if err != nil || len(tokens) != 1 || tokens[0].kind != 'w' {
 			return nil, fmt.Errorf("conflict index must be a plain identifier")
@@ -100,53 +89,17 @@ func auditInsert(ctx context.Context, conn *sql.Conn, d stmt.Definition, shape *
 		if err := p.name(); err != nil {
 			return nil, err
 		}
-		for _, index := range a.Indexes.Values {
-			if index[1] == wanted && index[2] == int64(1) && index[4] == int64(0) {
-				for _, col := range a.IndexColumns[wanted].Values {
-					if col[5] == int64(1) {
-						name, ok := col[2].(string)
-						if !ok {
-							return nil, fmt.Errorf("conflict expression indexes are outside the grammar")
-						}
-						key = append(key, foldName(name))
-					}
-				}
-			}
-		}
-	} else {
-		if nameKey(d.Plan.PrimaryKeys[0]) != table {
-			return nil, fmt.Errorf("conflict PK names the wrong table")
-		}
-		for order := int64(1); ; order++ {
-			found := false
-			for _, col := range a.Columns.Values {
-				if col[5] == order {
-					key = append(key, foldName(col[1].(string)))
-					found = true
-				}
-			}
-			if !found {
-				break
-			}
-		}
-	}
-	conflict := make([]string, len(shape.conflict))
-	for i, col := range shape.conflict {
-		conflict[i] = nameKey(col)
-	}
-	if len(key) == 0 || !slices.Equal(key, conflict) {
-		return nil, fmt.Errorf("conflict columns do not match expected full unique index/PK")
-	}
-	conflictRoot := root
-	if len(d.Plan.Indexes) == 1 {
-		if err := conn.QueryRowContext(ctx, "SELECT rootpage FROM sqlite_schema WHERE type='index' AND name=?", d.Plan.Indexes[0]).Scan(&conflictRoot); err != nil {
+		if err := conn.QueryRowContext(ctx, "SELECT rootpage FROM main.sqlite_schema WHERE type='index' AND name=?", target.index).Scan(&conflictRoot); err != nil {
 			return nil, err
 		}
+	} else if !target.nativePrimary || foldName(d.Plan.PrimaryKeys[0]) != foldName(table.name) {
+		return nil, fmt.Errorf("expected PK differs from resolved conflict target %s", target.index)
 	}
 	if !nativeConflictRoot(vm, conflictRoot) {
-		return nil, fmt.Errorf("expected conflict key is not checked by native INSERT VM")
+		return nil, fmt.Errorf("resolved conflict key is not checked by native INSERT VM")
 	}
-	probe := &ConflictProbe{SQL: "SELECT 1 FROM " + shape.table, Bindings: []any{}}
+
+	probe := &ConflictProbe{SQL: "SELECT 1 FROM " + shape.table, Bindings: []any{}, Index: target.index}
 	if len(d.Plan.Indexes) == 1 && !isAutoindex(d.Plan.Indexes[0]) {
 		probe.SQL += " INDEXED BY " + d.Plan.Indexes[0]
 	}
@@ -162,7 +115,17 @@ func auditInsert(ctx context.Context, conn *sql.Conn, d stmt.Definition, shape *
 		if position < 0 {
 			return nil, fmt.Errorf("conflict key must have an explicit bound INSERT value")
 		}
-		predicates = append(predicates, col+"=?")
+		collation := ""
+		for _, key := range target.columns {
+			if key.name == nameKey(col) {
+				collation = key.collation
+				break
+			}
+		}
+		if collation != "BINARY" && collation != "NOCASE" {
+			return nil, fmt.Errorf("unsupported conflict collation %q", collation)
+		}
+		predicates = append(predicates, col+" COLLATE "+collation+"=?")
 		probe.Bindings = append(probe.Bindings, bindings[position])
 	}
 	probe.SQL += " WHERE " + strings.Join(predicates, " AND ")

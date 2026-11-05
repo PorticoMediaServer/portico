@@ -9,11 +9,16 @@ type dmlShape struct {
 	kind, table string
 	columns     []string
 	conflict    []string
+	references  []columnReference
 }
 
-// Retain a parsed UPDATE/DELETE head on failure so approved predicate waivers
-// still require read seeks. INSERT auditing requires a completely parsed shape;
-// partial recognition can never grant its destination-SEARCH exemption.
+type columnReference struct {
+	parts []string
+	role  string
+}
+
+// Only a completely parsed statement can be qualified. No partial DML shape
+// or waiver can confer a destination exemption or legitimize unsupported syntax.
 func dmlSQL(sql string) (*dmlShape, error) {
 	tokens, err := lintTokens(sql)
 	if err != nil {
@@ -21,10 +26,13 @@ func dmlSQL(sql string) (*dmlShape, error) {
 	}
 	p := lintParser{tokens: tokens}
 	err = p.statement()
+	if err != nil {
+		return nil, err
+	}
 	return p.dml, err
 }
 
-func (p *lintParser) nameList() ([]string, error) {
+func (p *lintParser) nameList(role string) ([]string, error) {
 	var names []string
 	for {
 		at := p.at
@@ -37,6 +45,7 @@ func (p *lintParser) nameList() ([]string, error) {
 			}
 		}
 		names = append(names, p.tokens[at].text)
+		p.dml.references = append(p.dml.references, columnReference{[]string{p.tokens[at].text}, role})
 		if !p.take(",") {
 			return names, nil
 		}
@@ -84,12 +93,13 @@ func (p *lintParser) dmlStatement() error {
 		if err := p.need("WHERE"); err != nil {
 			return err
 		}
+		p.columnRole = "WHERE"
 		if err := p.boolean(); err != nil {
 			return err
 		}
 	}
 	if p.take("RETURNING") {
-		_, err := p.nameList()
+		_, err := p.nameList("RETURNING")
 		return err
 	}
 	return nil
@@ -99,7 +109,7 @@ func (p *lintParser) insertBody() error {
 	if err := p.need("("); err != nil {
 		return err
 	}
-	cols, err := p.nameList()
+	cols, err := p.nameList("INSERT columns")
 	if err != nil {
 		return err
 	}
@@ -133,7 +143,7 @@ func (p *lintParser) insertBody() error {
 			return err
 		}
 	}
-	p.dml.conflict, err = p.nameList()
+	p.dml.conflict, err = p.nameList("conflict target")
 	if err != nil {
 		return err
 	}
@@ -155,9 +165,12 @@ func (p *lintParser) insertBody() error {
 
 func (p *lintParser) assignments(upsert bool) error {
 	for {
+		at := p.at
 		if err := p.name(); err != nil {
 			return err
 		}
+		p.dml.references = append(p.dml.references, columnReference{[]string{p.tokens[at].text}, "SET target"})
+		p.columnRole = "SET expression"
 		if err := p.need("="); err != nil {
 			return err
 		}
@@ -171,6 +184,7 @@ func (p *lintParser) assignments(upsert bool) error {
 				if err := p.name(); err != nil {
 					return err
 				}
+				p.dml.references = append(p.dml.references, columnReference{[]string{p.tokens[p.at-1].text}, "excluded value"})
 			}
 		} else {
 			// SET expressions use the existing scalar subset, plus at most eight

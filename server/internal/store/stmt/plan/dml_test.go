@@ -151,12 +151,16 @@ func TestPlanDMLNativeLookupsAndInsertAudit(t *testing.T) {
 		for _, issue := range plan.LintSQL(sql) {
 			d.Plan.Waivers = append(d.Plan.Waivers, stmt.Waiver{StatementID: d.ID, Stage: "sql-lint", Form: issue.Form, Match: sql, Reason: "Synthetic regression; no destination audit permission"})
 		}
+		if _, err := stmt.New([]stmt.Definition{d}); err == nil {
+			t.Fatal("SQL lint waiver accepted")
+		}
+		d.Plan.Waivers = nil
 		r, err := stmt.New([]stmt.Definition{d})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if _, err := plan.Capture(ctx, conn, r, f, indexPolicy(t)); err == nil {
-			t.Fatal("lint-only permission bypassed destination audit")
+			t.Fatal("unrecognized write qualified")
 		}
 	}
 	if _, err := conn.ExecContext(ctx, "CREATE TEMP TABLE dml_items(id INTEGER PRIMARY KEY,key TEXT,parent_id INTEGER)"); err != nil {
