@@ -101,6 +101,13 @@ func (c *snapshotConn) ReadBudgetSupported() bool {
 	native, ok := c.Conn.(interface{ ReadBudgetSupported() bool })
 	return ok && native.ReadBudgetSupported()
 }
+func (c *snapshotConn) SQLiteDQS() (int, int, error) {
+	native, ok := c.Conn.(interface{ SQLiteDQS() (int, int, error) })
+	if !ok {
+		return 0, 0, errors.New("test native DQS getter unsupported")
+	}
+	return native.SQLiteDQS()
+}
 func (c *snapshotConn) SQLiteLimit(id int, newVal int) (int, error) {
 	return c.Conn.(interface{ SQLiteLimit(int, int) (int, error) }).SQLiteLimit(id, newVal)
 }
