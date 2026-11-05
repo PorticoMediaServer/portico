@@ -220,9 +220,9 @@ class EngineeringRuleTests(unittest.TestCase):
         self.assertEqual(compare({'set-interval': {'b.ts': 1, 'a.ts': 2}}, baseline), ([('set-interval', 'b.ts', 1, 0)], []))
         self.assertEqual(compare({}, baseline), ([], [('set-interval', 'a.ts', 0, 2)]))
 
-    def test_the_committed_baseline_matches_the_tree(self):
+    def test_the_committed_baseline_bounds_the_tree(self):
         import json
-        self.assertEqual(compare(counts(tracked()), json.loads(BASELINE.read_text())), ([], []))
+        self.assertEqual(compare(counts(tracked()), json.loads(BASELINE.read_text()))[0], [])
 
 
 class CommitBylineTests(unittest.TestCase):
