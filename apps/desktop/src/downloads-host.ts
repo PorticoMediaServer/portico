@@ -1,3 +1,4 @@
+import {resolvePublishedDownloadUrl} from '../../../packages/client-core/src/media-sources.ts';
 import type {SavedDownloadsBinder,SavedDownloadsBinding} from '../../../web/src/screens/saved/native-binding.ts';
 import type {WebPlaybackEnvironment,WebLocalQueueController} from '../../../web/src/platform/playback/types.ts';
 import {localPlaybackScope,type LocalPlaybackScope} from '../../../packages/player-core/src/index.ts';
@@ -54,7 +55,7 @@ export function createDesktopDownloadsHost(options:Readonly<{
       if(!current())throw aborted();
       const routes=input.api.getRouteConnection();
       offline=createDesktopOfflineSession({store,downloads:input.runtime.downloads,api:input.api,
-        resolvePublishedPath:path=>input.api.mediaUrl(path),serverOrigin:input.api.baseUrl,fetcher:input.api.routeFetch,
+        resolvePublishedPath:path=>resolvePublishedDownloadUrl(input.api,path),serverOrigin:input.api.baseUrl,fetcher:input.api.routeFetch,
         // Only the captured canonical route connection may admit its proved
         // physical origin. A replacement connection cannot widen this transfer.
         isPublishedOrigin:origin=>input.api.getRouteConnection()===routes&&routes?.acceptsOrigin(origin)===true,
