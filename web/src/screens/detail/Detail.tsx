@@ -1,3 +1,4 @@
+import {refreshCatalogueMetadata} from '@core/query/catalogue-actions.ts';
 import {t, locale, environment as env} from './text';
 import {useId, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject} from 'react';
 import type {DetailProjection} from '@core/detail.ts';
@@ -300,10 +301,11 @@ function TitleMore({binding, data}: {binding: DetailBindings; data: DetailProjec
   const loadTitles = () => { setFileOpen(false); setTitlesOpen(true); };
   const viewer = binding.context.identity?.viewer, owner = viewer?.role === 'owner' && viewer.authority === 'local';
   const offered = (id: string) => data.actions.some(action => action.id === id && action.enabled);
-  const refreshPath = owner ? refreshMetadataPath(data.item.kind, data.item.id) : undefined;
+  const refreshItem = owner ? {kind: data.item.kind, id: data.item.id} : undefined;
+  const refreshPath = refreshItem ? refreshMetadataPath(refreshItem.kind, refreshItem.id) : undefined;
   const refresh = () => {
-    if (!refreshPath) return;
-    void binding.context.api.request(refreshPath, 'POST', {}).then(() => binding.service.refresh()).catch(binding.context.effects.reportError);
+    if (!refreshPath || !refreshItem) return;
+    void refreshCatalogueMetadata(binding.context.api, refreshItem.kind, refreshItem.id).then(() => binding.service.refresh()).catch(binding.context.effects.reportError);
   };
   const differentVersion = versions?.data === data && !versions.request.signal.aborted && versions.options.versions.length > 1;
   const personal = (phone && offered('watched')) || offered('favorite') || offered('rating');

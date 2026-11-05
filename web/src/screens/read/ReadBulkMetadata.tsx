@@ -1,8 +1,8 @@
+import {submitMetadataBulk} from '@core/query/catalogue-actions.ts';
 import {useEffect, useRef, useState, type RefObject} from 'react';
 import {defaultI18n} from '@i18n';
 import {fetchBulkMetadataPreview, type BulkMetadataPreview} from '@core/home-selection/metadata-preview.ts';
 import {bulkTargetLimit, validBulkEdit, validateBulkReceipt, type BulkEdit, type BulkReceipt} from '@core/metadata-bulk.ts';
-import {routePath} from '../../../../packages/contracts/src/routes.ts';
 import {BulkEditor, type BulkEditorDraft} from '../../kit/selection';
 import {Button} from '../../kit/controls';
 import {Dialog} from '../../kit/overlays';
@@ -39,7 +39,7 @@ export function ReadBulkMetadata({context, items, kind, anchor, onClose}: {conte
       while (pendingOperation.next < pendingOperation.capture.bodies.length) {
         if (!held.life.current() || operation.current !== pendingOperation) return;
         const body = pendingOperation.capture.bodies[pendingOperation.next];
-        const raw = await held.life.api.request(routePath('post_metadata_bulk'), 'POST', body, held.life.signal());
+        const raw = await submitMetadataBulk(held.life.api, body, held.life.signal());
         if (!held.life.current() || operation.current !== pendingOperation) return;
         const receipt = validateBulkReceipt(raw, body);
         pendingOperation.next++; setReceipts(previous => [...previous, receipt]);

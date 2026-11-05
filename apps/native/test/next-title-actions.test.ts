@@ -92,6 +92,15 @@ test('Refresh metadata posts the title\'s own refresh route for an owner, under 
   assert.deepEqual(member.requests, []);
 });
 
+test('Refresh metadata retains the target captured before checking the opening', async () => {
+  const owner = await load('owner'), entry = {...film};
+  await owner.handle.refreshMetadata(entry, {signal: new AbortController().signal, isCurrent: () => {
+    entry.id = 'replacement';
+    return true;
+  }});
+  assert.deepEqual(owner.requests, [[refreshMetadataPath('movie', 'film'), 'POST']]);
+});
+
 test('Download raises the title page\'s own download request under the menu\'s opening', async () => {
   const f = await load('member'), opening = f.lifetime();
   f.handle.download(film, opening.value);
