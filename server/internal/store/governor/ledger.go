@@ -1,0 +1,276 @@
+package governor
+
+import (
+	"errors"
+	"math"
+	"slices"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+)
+
+const (
+	maxDevices     = 8
+	maxScopes      = 16
+	maxKeyBytes    = 1024
+	maxDeviceBytes = 128
+)
+
+var (
+	ErrBusy       = errors.New("governor busy")
+	ErrGrant      = errors.New("invalid or revoked governor grant")
+	ErrRetirement = errors.New("unknown or already retired physical holding")
+	ErrIO         = errors.New("unknown or already completed device IO")
+)
+
+// Config assigns conservative, disjoint, nonloanable class partitions. These are
+// resource capacities, not a service/fairness schedule or hardware qualification.
+// Now must be a bounded monotonic clock, safe for concurrent calls.
+type Config struct {
+	Partitions [4]Amounts
+	// MaxGrantsPerClass bounds retained metadata independently for each class,
+	// so background descriptors cannot exhaust protected classes.
+	MaxGrantsPerClass int
+	Now               func() time.Time
+}
+
+type holding struct {
+	grant   *Grant
+	request Request
+}
+
+type ledger struct {
+	mu       sync.Mutex
+	config   Config
+	used     [4]Amounts
+	counts   [4]int
+	live     map[uint64]*holding
+	sequence uint64
+	// Low bit is static mode; remaining bits are the epoch. Fencing does not
+	// acquire the admission mutex and never clears physical debt.
+	state atomic.Uint64
+}
+
+// Authority is a driver/supervisor capability. Keep it out of worker interfaces:
+// a worker cannot attest that its own native operation or helper has exited.
+type Authority struct{ ledger *ledger }
+
+// New returns separate admission and driver capabilities. No defaults imply a
+// qualified hardware envelope. In particular, zero capacity admits no resource.
+func New(c Config) (Governor, *Authority, error) {
+	if c.Now == nil || c.MaxGrantsPerClass < 1 || c.MaxGrantsPerClass > 4096 {
+		return nil, nil, errors.New("invalid governor configuration")
+	}
+	var total Amounts
+	for _, partition := range c.Partitions {
+		for k, n := range partition {
+			if n < 0 || n > math.MaxInt64-total[k] {
+				return nil, nil, errors.New("invalid governor partition")
+			}
+			total[k] += n
+		}
+	}
+	g := &ledger{config: c, live: make(map[uint64]*holding, 4*c.MaxGrantsPerClass)}
+	g.state.Store(2)
+	return g, &Authority{g}, nil
+}
+
+func (g *ledger) Try(r Request) Decision {
+	now := g.config.Now()
+	refuse := func(code RefusalCode) Decision {
+		return Decision{Refusal: &Refusal{Code: code, RetryAt: now.Add(100 * time.Millisecond)}}
+	}
+	if !validRequest(r) {
+		return refuse(Invalid)
+	}
+	if !r.Deadline.After(now) {
+		return refuse(Deadline)
+	}
+	if r.Writer && (r.MaxHold <= 0 || r.MaxHold > 25*time.Millisecond ||
+		r.Budget.RawRows == 0 || r.Budget.VMOps == 0 || r.Budget.Pages == 0 || r.Need[WALBytes] == 0) {
+		return refuse(Unqualified)
+	}
+	// Admission never queues behind another caller or performs external IO.
+	if !g.mu.TryLock() {
+		return refuse(Capacity)
+	}
+	defer g.mu.Unlock()
+	state := g.state.Load()
+	if state&1 != 0 && r.Class == Background {
+		return refuse(FailSafe)
+	}
+	if g.counts[r.Class] == g.config.MaxGrantsPerClass || g.sequence == math.MaxUint64 {
+		return refuse(Capacity)
+	}
+	for k, n := range r.Need {
+		if n > g.config.Partitions[r.Class][k]-g.used[r.Class][k] {
+			return refuse(Capacity)
+		}
+	}
+	for _, h := range g.live {
+		if r.Writer && h.request.Writer {
+			return refuse(Capacity)
+		}
+		for _, want := range r.IO {
+			for _, held := range h.request.IO {
+				if want.DeviceID == held.DeviceID {
+					return refuse(Capacity)
+				}
+			}
+		}
+	}
+	// Only admitted, bounded metadata is copied. Work buffers are allocated by
+	// the driver after Check, under the granted byte custody.
+	r.Key.ID = strings.Clone(r.Key.ID)
+	r.IO = slices.Clone(r.IO)
+	for i := range r.IO {
+		r.IO[i].DeviceID = strings.Clone(r.IO[i].DeviceID)
+	}
+	r.Footprint = slices.Clone(r.Footprint)
+	g.sequence++
+	p := &Grant{id: g.sequence, epoch: state, issuer: g}
+	g.live[p.id] = &holding{grant: p, request: r}
+	g.counts[r.Class]++
+	for k, n := range r.Need {
+		g.used[r.Class][k] += n
+	}
+	return Decision{Grant: p}
+}
+
+func validRequest(r Request) bool {
+	if r.Class > Background || r.Owner == 0 || len(r.Key.ID) > maxKeyBytes ||
+		len(r.IO) > maxDevices || len(r.Footprint) > maxScopes {
+		return false
+	}
+	for _, n := range r.Need {
+		if n < 0 {
+			return false
+		}
+	}
+	var ioBytes int64
+	for i, io := range r.IO {
+		if io.DeviceID == "" || len(io.DeviceID) > maxDeviceBytes || io.Class > NetworkIO ||
+			io.Outstanding != 1 || io.Bytes <= 0 || io.Bytes > r.Need[IOBytes]-ioBytes {
+			return false
+		}
+		ioBytes += io.Bytes
+		for _, previous := range r.IO[:i] {
+			if previous.DeviceID == io.DeviceID {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (g *ledger) Cancel(p *Grant) {
+	if p != nil && p.issuer == g {
+		p.cancelled.Store(true)
+	}
+}
+
+// Check verifies exact remaining authority at a private backend entry point.
+// The expected request must come from a closed purpose registry, not a worker's
+// priority string. Cancellation/fencing during a running operation revokes new
+// operations; it cannot preempt an fsync or refund that operation's custody.
+func (a *Authority) Check(p *Grant, expected Request) error {
+	g := a.ledger
+	if !g.mu.TryLock() {
+		return ErrBusy
+	}
+	defer g.mu.Unlock()
+	h := g.find(p)
+	if h == nil || p.cancelled.Load() || p.epoch != g.state.Load() ||
+		!h.request.Deadline.After(g.config.Now()) || !sameRequest(h.request, expected) {
+		return ErrGrant
+	}
+	return nil
+}
+
+func sameRequest(x, y Request) bool {
+	return x.Key == y.Key && x.Owner == y.Owner && x.Class == y.Class && x.Need == y.Need &&
+		x.Writer == y.Writer && x.Budget == y.Budget && x.MaxHold == y.MaxHold &&
+		x.Deadline.Equal(y.Deadline) && slices.Equal(x.IO, y.IO) && slices.Equal(x.Footprint, y.Footprint)
+}
+
+func (g *ledger) find(p *Grant) *holding {
+	if p == nil || p.issuer != g {
+		return nil
+	}
+	h := g.live[p.id]
+	if h == nil || h.grant != p {
+		return nil
+	}
+	return h
+}
+
+// Retired requires physical close/Wait/return of every remaining resource. Old
+// epochs may retire their exact holding, but cannot authorize new work.
+func (a *Authority) Retired(p *Grant) error {
+	g := a.ledger
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	h := g.find(p)
+	if h == nil {
+		return ErrRetirement
+	}
+	for k, n := range h.request.Need {
+		g.used[h.request.Class][k] -= n
+	}
+	g.counts[h.request.Class]--
+	delete(g.live, p.id)
+	return nil
+}
+
+// IOCompleted is for the trusted IO broker only, after every read capability for
+// this device has closed/joined. It releases no helper, memory or CPU custody.
+// Until a broker can prove that seam, retain IO through whole-helper Wait.
+func (a *Authority) IOCompleted(p *Grant, device string) error {
+	g := a.ledger
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	h := g.find(p)
+	if h == nil {
+		return ErrIO
+	}
+	for i, io := range h.request.IO {
+		if io.DeviceID != device {
+			continue
+		}
+		h.request.IO = slices.Delete(h.request.IO, i, i+1)
+		h.request.Need[IOBytes] -= io.Bytes
+		g.used[h.request.Class][IOBytes] -= io.Bytes
+		return nil
+	}
+	return ErrIO
+}
+
+// EnterStatic independently fences backend entry without waiting for the
+// admission mutex. Physical holdings remain charged. This is an epoch primitive,
+// not a claim that the physical inventory/watchdog integration is complete.
+func (a *Authority) EnterStatic() {
+	for {
+		old := a.ledger.state.Load()
+		if a.ledger.state.CompareAndSwap(old, (old+2)|1) {
+			return
+		}
+	}
+}
+
+// Recover uses the conservative all-holdings-retired condition. Real supervisor
+// recovery additionally requires independently verified driver/WAL health.
+func (a *Authority) Recover() bool {
+	g := a.ledger
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	old := g.state.Load()
+	return old&1 != 0 && len(g.live) == 0 && g.state.CompareAndSwap(old, (old+2)&^1)
+}
+
+// Usage is a diagnostic snapshot, including cancelled, expired and old epochs.
+func (a *Authority) Usage() [4]Amounts {
+	a.ledger.mu.Lock()
+	defer a.ledger.mu.Unlock()
+	return a.ledger.used
+}
