@@ -1,6 +1,6 @@
+import {readMetadataResponse} from '@core/query/catalogue-actions.ts';
 import {useEffect, useState, type RefObject} from 'react';
 import {defaultI18n} from '@i18n';
-import {encodedRoutePath} from '../../../../packages/contracts/src/routes.ts';
 import {validateRepair, type RepairTarget} from '@core/metadata-repair.ts';
 import {Dialog} from '../../kit/overlays';
 import {Skeleton, StateView} from '../../kit/states';
@@ -17,7 +17,7 @@ export function ReadMetadata({context, itemId, libraryId: expectedLibraryId, onC
     setReady(undefined); setFailed(false);
     const viewer = context.identity?.viewer;
     if (viewer?.authority !== 'local' || viewer.role !== 'owner') {life.dispose(); return;}
-    void life.api.request<unknown>(encodedRoutePath('get_metadata_kind_id', {kind: 'item', id: encodeURIComponent(itemId)}), 'GET', undefined, life.signal()).then(raw => {
+    void readMetadataResponse(life.api, 'item', itemId, life.signal()).then(raw => {
       if (!active || !life.current()) return;
       const libraryId = (raw as {libraryId?: unknown} | null)?.libraryId;
       if (typeof libraryId !== 'string' || !libraryId || libraryId.length > 256 || expectedLibraryId !== undefined && libraryId !== expectedLibraryId) throw new Error('invalid_metadata_target');

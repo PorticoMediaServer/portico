@@ -1,3 +1,4 @@
+import * as catalogueActions from '../../../../packages/client-core/src/query/catalogue-actions.ts';
 import * as catalogueReads from '../../../../packages/client-core/src/query/catalogue-reads.ts';
 import * as playbackQueries from '../../../../packages/client-core/src/query/playback.ts';
 import * as preparingCleanup from '../../../../packages/client-core/src/playback-v1/preparing-cleanup.ts';
@@ -54,6 +55,7 @@ function railHoldLeaf(react) {
   return hooks;
 }
 const leaf = (source, react, native) => /client-core\/src\/query\/playback(\.ts)?$/.test(source) ? playbackQueries
+  : /client-core\/src\/query\/catalogue-actions(?:\.ts)?$/.test(source) ? catalogueActions
   : /client-core\/src\/query\/catalogue-reads(?:\.ts)?$/.test(source) ? catalogueReads
   : /client-core\/src\/playback-v1\/preparing-cleanup(\.ts)?$/.test(source) ? preparingCleanup
   : /client-core\/src\/playback-v1\/subtitle-upload(\.ts)?$/.test(source) ? subtitleUploads
