@@ -59,6 +59,43 @@ func TestListeningStorageRetainsExactEdgesAndSubjects(t *testing.T) {
 	}
 }
 
+func TestListeningPlayedEdgesRetainFractionalTimezoneBoundary(t *testing.T) {
+	conn := change001Fixture(t)
+	ctx := context.Background()
+	// reportwindow's accepted historical Monrovia day begins at 00:44:30Z.
+	// Identical UTC-quarter totals cannot distinguish these two contributions.
+	const from, until = int64(31538670000), int64(31538700000)
+	for _, row := range []struct {
+		profile string
+		start   int64
+	}{{"before", from - 10000}, {"after", from + 10000}} {
+		if _, err := conn.ExecContext(ctx, `INSERT INTO listening_profile_buckets(profile_id,activity_generation,grain,bucket_ms,played_ms) VALUES(?,1,'quarter',?,1000)`, row.profile, from-from%900000); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := conn.ExecContext(ctx, `INSERT INTO listening_time_spans(profile_id,activity_generation,subject_id,from_ms,until_ms) VALUES(?,1,1,?,?)`, row.profile, row.start, row.start+1000); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for profile, want := range map[string]int64{"before": 0, "after": 1000} {
+		var got int64
+		if err := conn.QueryRowContext(ctx, `SELECT sum(max(0,min(until_ms,?)-max(from_ms,?))*copies) FROM listening_time_spans INDEXED BY listening_time_span_profile WHERE profile_id=? AND activity_generation=1 AND from_ms>=? AND from_ms<?`, until, from, profile, from-900000, until).Scan(&got); err != nil || got != want {
+			t.Fatalf("%s exact played edge = %d, %v; want %d", profile, got, err, want)
+		}
+	}
+	// Independent occurrences sum; replay exclusion belongs to W's receipt CAS.
+	if _, err := conn.ExecContext(ctx, `UPDATE listening_time_spans SET copies=copies+1 WHERE profile_id='after'`); err != nil {
+		t.Fatal(err)
+	}
+	var total int64
+	if err := conn.QueryRowContext(ctx, `SELECT (until_ms-from_ms)*copies FROM listening_time_spans WHERE profile_id='after'`).Scan(&total); err != nil || total != 2000 {
+		t.Fatalf("independent occurrence sum = %d, %v", total, err)
+	}
+	// This is a representation-unit check, not a play-duration admission cap.
+	if _, err := conn.ExecContext(ctx, `INSERT INTO listening_time_spans(profile_id,activity_generation,subject_id,from_ms,until_ms) VALUES('cross',1,1,?,?)`, until-1, until+1); err == nil {
+		t.Fatal("span crossed the UTC-quarter boundary")
+	}
+}
+
 func TestSearchRetirementKeepsHistoricalReceipt(t *testing.T) {
 	conn := change001Fixture(t)
 	ctx := context.Background()

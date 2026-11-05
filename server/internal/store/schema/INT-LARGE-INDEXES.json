@@ -1,5 +1,5 @@
 {
-  "ddl_sha256": "5785482ac840ebbfa456f9a805b0ff2f23b964ca9b5cd3c1e1e3913674088744",
+  "ddl_sha256": "567267b78205ab47b7efe0be764286b29d14f99ad476c5acdb44c65ac9f8bd3f",
   "scope": "Conservative10M+capable repeated/high-fanout/time grains at1Mitems, not a claim every server reaches this density. Full release index set includes declared/implicit UNIQUE/PK/rowid paths. No post-release populated-table index addition; new justified empty access relation online.",
   "tables": [
     {
@@ -244,12 +244,18 @@
       "complete_release_indexes": [
         {
           "name": "INTEGER PRIMARY KEY rowid",
+          "unique": true,
+          "origin": "rowid",
+          "partial": false,
           "keys": [
             {
-              "column": "id"
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
             }
           ],
-          "origin": "rowid"
+          "sql": null,
+          "access": "Native integer primary key point/range path; no extra B-tree."
         },
         {
           "name": "api_events_activity_progress",
@@ -1291,12 +1297,18 @@
       "complete_release_indexes": [
         {
           "name": "INTEGER PRIMARY KEY rowid",
+          "unique": true,
+          "origin": "rowid",
+          "partial": false,
           "keys": [
             {
-              "column": "id"
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
             }
           ],
-          "origin": "rowid"
+          "sql": null,
+          "access": "Native integer primary key point/range path; no extra B-tree."
         },
         {
           "name": "catalog_attribute_ambiguous_restrictions",
@@ -1347,12 +1359,18 @@
       "complete_release_indexes": [
         {
           "name": "INTEGER PRIMARY KEY rowid",
+          "unique": true,
+          "origin": "rowid",
+          "partial": false,
           "keys": [
             {
-              "column": "id"
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
             }
           ],
-          "origin": "rowid"
+          "sql": null,
+          "access": "Native integer primary key point/range path; no extra B-tree."
         },
         {
           "name": "catalog_book_chapters_end_ms",
@@ -1475,12 +1493,18 @@
       "complete_release_indexes": [
         {
           "name": "INTEGER PRIMARY KEY rowid",
+          "unique": true,
+          "origin": "rowid",
+          "partial": false,
           "keys": [
             {
-              "column": "id"
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
             }
           ],
-          "origin": "rowid"
+          "sql": null,
+          "access": "Native integer primary key point/range path; no extra B-tree."
         },
         {
           "name": "sqlite_autoindex_catalog_credit_labels_1",
@@ -2699,12 +2723,18 @@
       "complete_release_indexes": [
         {
           "name": "INTEGER PRIMARY KEY rowid",
+          "unique": true,
+          "origin": "rowid",
+          "partial": false,
           "keys": [
             {
-              "column": "id"
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
             }
           ],
-          "origin": "rowid"
+          "sql": null,
+          "access": "Native integer primary key point/range path; no extra B-tree."
         },
         {
           "name": "catalog_playlist_entries_item",
@@ -3388,12 +3418,18 @@
       "complete_release_indexes": [
         {
           "name": "INTEGER PRIMARY KEY rowid",
+          "unique": true,
+          "origin": "rowid",
+          "partial": false,
           "keys": [
             {
-              "column": "id"
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
             }
           ],
-          "origin": "rowid"
+          "sql": null,
+          "access": "Native integer primary key point/range path; no extra B-tree."
         },
         {
           "name": "sqlite_autoindex_catalog_terms_1",
@@ -4485,12 +4521,18 @@
       "complete_release_indexes": [
         {
           "name": "INTEGER PRIMARY KEY rowid",
+          "unique": true,
+          "origin": "rowid",
+          "partial": false,
           "keys": [
             {
-              "column": "event_id"
+              "column": "event_id",
+              "collation": "BINARY",
+              "descending": false
             }
           ],
-          "origin": "rowid"
+          "sql": null,
+          "access": "Native integer primary key point/range path; no extra B-tree."
         },
         {
           "name": "lc_play_events_item_fk",
@@ -4786,6 +4828,128 @@
             }
           ],
           "sql": null,
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "listening_time_spans",
+      "grain": "INT-CHANGE-001 own-play lifetime metrics or repeated image/operation preparation, replay and reclaim; potentially10M+ over lifetime",
+      "policy": "non-STRICT + full typeof + explicit nonrowid PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "INTEGER PRIMARY KEY rowid",
+          "unique": true,
+          "origin": "rowid",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Native integer primary key point/range path; no extra B-tree."
+        },
+        {
+          "name": "listening_time_span_identity",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "activity_generation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "subject_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "until_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "from_ms",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX listening_time_span_identity ON listening_time_spans(profile_id,activity_generation,subject_id,until_ms,from_ms)",
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "listening_time_span_profile",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "activity_generation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "from_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX listening_time_span_profile ON listening_time_spans(profile_id,activity_generation,from_ms,id)",
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "listening_time_span_subject",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "subject_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "activity_generation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "from_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX listening_time_span_subject ON listening_time_spans(subject_id,profile_id,activity_generation,from_ms,id)",
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
@@ -6189,12 +6353,18 @@
       "complete_release_indexes": [
         {
           "name": "INTEGER PRIMARY KEY rowid",
+          "unique": true,
+          "origin": "rowid",
+          "partial": false,
           "keys": [
             {
-              "column": "id"
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
             }
           ],
-          "origin": "rowid"
+          "sql": null,
+          "access": "Native integer primary key point/range path; no extra B-tree."
         },
         {
           "name": "metadata_owner_history_entity",
@@ -6781,12 +6951,18 @@
       "complete_release_indexes": [
         {
           "name": "INTEGER PRIMARY KEY rowid",
+          "unique": true,
+          "origin": "rowid",
+          "partial": false,
           "keys": [
             {
-              "column": "id"
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
             }
           ],
-          "origin": "rowid"
+          "sql": null,
+          "access": "Native integer primary key point/range path; no extra B-tree."
         },
         {
           "name": "personal_current_activity",
@@ -7270,12 +7446,18 @@
       "complete_release_indexes": [
         {
           "name": "INTEGER PRIMARY KEY rowid",
+          "unique": true,
+          "origin": "rowid",
+          "partial": false,
           "keys": [
             {
-              "column": "id"
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
             }
           ],
-          "origin": "rowid"
+          "sql": null,
+          "access": "Native integer primary key point/range path; no extra B-tree."
         },
         {
           "name": "play_history_admin_item",
@@ -7300,6 +7482,51 @@
             }
           ],
           "sql": "CREATE INDEX play_history_admin_item ON play_history(subject_id,occurred_at DESC,id DESC)",
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "play_history_admin_item_start",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "subject_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "started_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX play_history_admin_item_start ON play_history(subject_id,started_ms,id) WHERE started_ms IS NOT NULL",
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "play_history_admin_start",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "started_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX play_history_admin_start ON play_history(started_ms,id) WHERE started_ms IS NOT NULL",
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         },
         {
@@ -7345,6 +7572,31 @@
             }
           ],
           "sql": "CREATE INDEX play_history_admin_user ON play_history(account_key,occurred_at DESC,id DESC)",
+          "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "play_history_admin_user_start",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "account_key",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "started_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX play_history_admin_user_start ON play_history(account_key,started_ms,id) WHERE started_ms IS NOT NULL",
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
         }
       ]
@@ -7756,12 +8008,18 @@
       "complete_release_indexes": [
         {
           "name": "INTEGER PRIMARY KEY rowid",
+          "unique": true,
+          "origin": "rowid",
+          "partial": false,
           "keys": [
             {
-              "column": "id"
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
             }
           ],
-          "origin": "rowid"
+          "sql": null,
+          "access": "Native integer primary key point/range path; no extra B-tree."
         },
         {
           "name": "reading_text_sections_publication",
@@ -8189,12 +8447,18 @@
       "complete_release_indexes": [
         {
           "name": "INTEGER PRIMARY KEY rowid",
+          "unique": true,
+          "origin": "rowid",
+          "partial": false,
           "keys": [
             {
-              "column": "id"
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
             }
           ],
-          "origin": "rowid"
+          "sql": null,
+          "access": "Native integer primary key point/range path; no extra B-tree."
         },
         {
           "name": "search_fragment_entity",
@@ -8409,12 +8673,18 @@
       "complete_release_indexes": [
         {
           "name": "INTEGER PRIMARY KEY rowid",
+          "unique": true,
+          "origin": "rowid",
+          "partial": false,
           "keys": [
             {
-              "column": "id"
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
             }
           ],
-          "origin": "rowid"
+          "sql": null,
+          "access": "Native integer primary key point/range path; no extra B-tree."
         },
         {
           "name": "search_publications_entity",
@@ -8615,12 +8885,18 @@
       "complete_release_indexes": [
         {
           "name": "INTEGER PRIMARY KEY rowid",
+          "unique": true,
+          "origin": "rowid",
+          "partial": false,
           "keys": [
             {
-              "column": "id"
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
             }
           ],
-          "origin": "rowid"
+          "sql": null,
+          "access": "Native integer primary key point/range path; no extra B-tree."
         },
         {
           "name": "search_publish_document_fk",
@@ -8808,12 +9084,18 @@
       "complete_release_indexes": [
         {
           "name": "INTEGER PRIMARY KEY rowid",
+          "unique": true,
+          "origin": "rowid",
+          "partial": false,
           "keys": [
             {
-              "column": "id"
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
             }
           ],
-          "origin": "rowid"
+          "sql": null,
+          "access": "Native integer primary key point/range path; no extra B-tree."
         },
         {
           "name": "search_reclaim_due",
@@ -9398,5 +9680,5 @@
       "complete_release_indexes": []
     }
   ],
-  "change_control": "INT-CHANGE-001 candidate; exact-SHA R review required"
+  "change_control": "INT-CHANGE-001 R-23/R-24 correction candidate; exact-SHA R review required"
 }

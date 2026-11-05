@@ -162,6 +162,7 @@
     "listening_item_buckets",
     "listening_play_instants",
     "listening_profile_buckets",
+    "listening_time_spans",
     "live_programme_images",
     "live_programmes",
     "lyric_candidates",
@@ -3247,48 +3248,52 @@
       "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied"
     },
     "search_image_seals": {
-      "policy": "ordinary + full typeof + explicit key NOT NULL",
-      "grain": "own-play lifetime time/item counters or per-image/per-operation durable preparation/replay/retirement; plausibly >100k; INT-CHANGE-001"
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
     },
     "search_reclaim_jobs": {
-      "policy": "ordinary + full typeof + explicit key NOT NULL",
-      "grain": "own-play lifetime time/item counters or per-image/per-operation durable preparation/replay/retirement; plausibly >100k; INT-CHANGE-001"
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
     },
     "scan_command_receipts": {
-      "policy": "ordinary + full typeof + explicit key NOT NULL",
-      "grain": "own-play lifetime time/item counters or per-image/per-operation durable preparation/replay/retirement; plausibly >100k; INT-CHANGE-001"
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
     },
     "scan_command_results": {
-      "policy": "ordinary + full typeof + explicit key NOT NULL",
-      "grain": "own-play lifetime time/item counters or per-image/per-operation durable preparation/replay/retirement; plausibly >100k; INT-CHANGE-001"
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
     },
     "search_publish_receipts": {
-      "policy": "ordinary + full typeof + explicit key NOT NULL",
-      "grain": "own-play lifetime time/item counters or per-image/per-operation durable preparation/replay/retirement; plausibly >100k; INT-CHANGE-001"
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
     },
     "search_generation_receipts": {
-      "policy": "ordinary + full typeof + explicit key NOT NULL",
-      "grain": "own-play lifetime time/item counters or per-image/per-operation durable preparation/replay/retirement; plausibly >100k; INT-CHANGE-001"
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
     },
     "search_reclaim_receipts": {
-      "policy": "ordinary + full typeof + explicit key NOT NULL",
-      "grain": "own-play lifetime time/item counters or per-image/per-operation durable preparation/replay/retirement; plausibly >100k; INT-CHANGE-001"
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
     },
     "enrichment_command_receipts": {
-      "policy": "ordinary + full typeof + explicit key NOT NULL",
-      "grain": "own-play lifetime time/item counters or per-image/per-operation durable preparation/replay/retirement; plausibly >100k; INT-CHANGE-001"
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
     },
     "listening_item_buckets": {
-      "policy": "ordinary + full typeof + explicit key NOT NULL",
-      "grain": "own-play lifetime time/item counters or per-image/per-operation durable preparation/replay/retirement; plausibly >100k; INT-CHANGE-001"
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
     },
     "listening_profile_buckets": {
-      "policy": "ordinary + full typeof + explicit key NOT NULL",
-      "grain": "own-play lifetime time/item counters or per-image/per-operation durable preparation/replay/retirement; plausibly >100k; INT-CHANGE-001"
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
     },
     "listening_play_instants": {
-      "policy": "ordinary + full typeof + explicit key NOT NULL",
-      "grain": "own-play lifetime time/item counters or per-image/per-operation durable preparation/replay/retirement; plausibly >100k; INT-CHANGE-001"
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
+    },
+    "listening_time_spans": {
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
     }
   },
   "future_add": "Plain nullable ADD with no new validating constraint; typed writer validates; no startup backfill"
