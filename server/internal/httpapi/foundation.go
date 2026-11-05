@@ -38,9 +38,6 @@ type CapabilitiesDocument struct {
 	Features map[string]string `json:"features"`
 	Limits   map[string]int    `json:"limits"`
 }
-type BootstrapViewer struct {
-	Viewer identity.Viewer `json:"viewer"`
-}
 type RatingSystemsDocument struct {
 	Items []identity.RatingSystem `json:"items"`
 }
