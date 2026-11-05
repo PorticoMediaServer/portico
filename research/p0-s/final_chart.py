@@ -25,6 +25,7 @@ fig.tight_layout(pad=.6,w_pad=1.3)
 p=E/'S-OPEN-291.svg';fig.savefig(p,transparent=True,metadata={'Date':None,'Creator':'Portico scale research'})
 s=p.read_text();s=s[s.index('<svg'):]
 for color,var in [('#111827','--foreground'),('#64748b','--muted-foreground'),('#cbd5e1','--border'),('#9ca3af','--muted-foreground'),('#cf5c50','--destructive'),('#24815b','--success')]:s=s.replace(color,f'var({var},{color})')
+s="\n".join(line.rstrip() for line in s.splitlines())+"\n"
 p.write_text(s)
 html='''<!doctype html><html><head><meta charset="utf-8"><style>:root{font-family:var(--font-sans)}body{margin:0;color:var(--foreground)}svg{display:block;width:100%;min-width:650px;height:auto;flex:0 0 auto}p{font-size:12px;line-height:1.5;color:var(--muted-foreground);margin:8px 0 0} .plot{width:100%;height:220px;display:flex;align-items:center;overflow-x:auto}</style></head><body><div class="plot">'''+s+'''</div><p>Open: largest process p95; 3 VMs/profile × 3 fresh processes × 100 physical opens. Complete DDL, required PRAGMAs and a 40-row read. Dashed lines show the accepted limits. Run 41939826702; bundled SQLite 3.53.4.</p></body></html>'''
 (E/'S-FINAL-GATES.html').write_text(html)
