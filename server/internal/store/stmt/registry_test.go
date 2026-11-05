@@ -240,3 +240,17 @@ func database(t *testing.T) *sql.DB {
 	t.Cleanup(func() { db.Close() })
 	return db
 }
+
+func TestRegistryManifestHasExplicitEmptyBindings(t *testing.T) {
+	r, err := stmt.New([]stmt.Definition{{ID: "no.parameters", SQL: "SELECT 1", Owner: "test", CallSites: []string{"registry_test.go"}, Kind: stmt.Read, Cohorts: []stmt.Cohort{{Name: "empty"}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bytes, err := json.Marshal(r.Manifest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(bytes), `"params":[]`) || !strings.Contains(string(bytes), `"bindings":[]`) {
+		t.Fatalf("no-argument bindings must be explicit empty lists: %s", bytes)
+	}
+}
