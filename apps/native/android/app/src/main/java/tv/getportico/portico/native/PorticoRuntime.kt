@@ -218,16 +218,13 @@ class PorticoRuntime(context: ReactApplicationContext) : ReactContextBaseJavaMod
   @ReactMethod
   fun cancelNetworkStream(identifier: String?) = PorticoEventStream.cancel(identifier)
 
-  // The JSON envelope exists only on the JS/native bridge, never on the wire.
+  // Core selects the avatar payload; native only validates and decodes its bytes.
   private fun avatarUploadPath(path: String, method: String?) =
       method == "POST" && Regex("^/v1/(direct/profiles/[A-Za-z0-9_-]{1,128}|admin/access/members/[A-Za-z0-9_-]{1,128}/profiles/[A-Za-z0-9_-]{1,128})/avatar$").matches(path)
 
   private fun avatarUploadBody(body: String?): ByteArray? = try {
     if (body == null || body.length > 5592448) null else {
-      val envelope = JSONObject(body)
-      val encoded = envelope.opt("nativeAvatarBase64")
-      if (envelope.length() != 1 || encoded !is String) null else
-        Base64.decode(encoded, Base64.NO_WRAP).takeIf { it.isNotEmpty() && it.size <= 4194304 }
+      Base64.decode(body, Base64.NO_WRAP).takeIf { it.isNotEmpty() && it.size <= 4194304 }
     }
   } catch (_: Exception) { null }
 

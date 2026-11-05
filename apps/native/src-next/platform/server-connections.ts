@@ -2,6 +2,7 @@ import {createNativeCertificateFetch} from '../../../../packages/client-core/src
 import {createOwnerRecoveryFetch} from '../../../../packages/client-core/src/query/owner-recovery-fetch';
 import {readConnectionFacts} from '../../../../packages/client-core/src/query/connection-operations';
 import {clockOrigin, observeResponseClock} from '../../../../packages/client-core/src/server-clock';
+import {nativeAvatarWireBody} from '../../../../packages/client-core/src/native-avatar-wire';
 import {accountExpectation, nativeAccountRead} from './account-work';
 import type {CredentialAccessExpectation} from '../../../../packages/client-core/src/credentials';
 import {nativeReadingPolicy, nativeReadingResponse, nativeReadingStreamResponse} from './reading-response';
@@ -95,7 +96,7 @@ const nativeRequest: typeof fetch = async (input, options = {}) => {
         input,
         options.method ?? 'GET',
         headers,
-        options.body ?? null,
+        nativeAvatarWireBody(input, options.method ?? 'GET', typeof options.body === 'string' ? options.body : null, Platform.OS === 'ios'),
       );
     } catch (error) {
       homeActionDiagnostics.rejected(diagnostic, error);
