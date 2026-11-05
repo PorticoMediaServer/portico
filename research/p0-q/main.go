@@ -754,6 +754,10 @@ func main() {
 		emit("seed_completed", map[string]any{"items": *n})
 		return
 	}
+	if *mode == "maximum-body" {
+		maxBodyBench(db, *n, *rounds)
+		return
+	}
 	if *mode == "people-wal" {
 		var count int
 		must(db.QueryRow("SELECT count(*) FROM catalog_people").Scan(&count))
