@@ -185,6 +185,11 @@ func TestDeliveryIsSignedRetriedAndLogged(t *testing.T) {
 	if err = store.Emit(ctx, "made.up", "", nil); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("unknown event: %v", err)
 	}
+	// Make the first event sort before a later event when their log timestamps
+	// tie. Random delivery IDs must not decide which event the test inspects.
+	if _, err = db.Exec(`UPDATE webhook_deliveries SET id=? WHERE webhook_id=? AND type=?`, strings.Repeat("f", 32), made.Webhook.ID, ServerStarted); err != nil {
+		t.Fatal(err)
+	}
 	dispatcher.Step(ctx)
 	if target.count() != 1 {
 		t.Fatalf("deliveries: %d", target.count())
@@ -217,13 +222,38 @@ func TestDeliveryIsSignedRetriedAndLogged(t *testing.T) {
 	if err = store.Emit(ctx, BackupFailed, "", map[string]any{"kind": "scheduled"}); err != nil {
 		t.Fatal(err)
 	}
+	// Fan-out timestamps come from SQLite's wall clock, so two events can
+	// share a millisecond. Force that case before sending, keeping the payload
+	// identical on retry. The server.started row will lead the delivery log.
+	if _, err = db.Exec(`UPDATE webhook_deliveries SET created_ms=(SELECT created_ms FROM webhook_deliveries WHERE id=?) WHERE webhook_id=? AND type=?`, envelope.ID, made.Webhook.ID, BackupFailed); err != nil {
+		t.Fatal(err)
+	}
+	// Step joins its send workers after their log transactions commit.
 	dispatcher.Step(ctx)
 	failed := target.last()
+	if target.count() != 2 || failed.header.Get(HeaderEvent) != BackupFailed || failed.header.Get(HeaderEventID) == "" || failed.header.Get(HeaderEventID) == envelope.ID || failed.header.Get(HeaderAttempt) != "1" || !verify(made.Secret, failed.header, failed.body) {
+		t.Fatalf("failed delivery: %d %v", target.count(), failed.header)
+	}
+	findDelivery := func(page DeliveryPage, id string) Delivery {
+		t.Helper()
+		for _, delivery := range page.Items {
+			if delivery.ID == id {
+				return delivery
+			}
+		}
+		t.Fatalf("delivery %s missing from log: %+v", id, page.Items)
+		return Delivery{}
+	}
 	log, err := store.Deliveries(ctx, nil, made.Webhook.ID, "", 0)
-	if err != nil || len(log.Items) != 2 || log.Items[0].State != "pending" || log.Items[0].Attempts != 1 || log.Items[0].Error != "status_500" || log.Items[0].Status != 500 || log.Items[0].NextAttempt == "" || log.Items[1].State != "delivered" {
+	if err != nil || len(log.Items) != 2 {
 		t.Fatalf("log after a failure: %v %+v", err, log.Items)
 	}
-	if strings.Contains(log.Items[0].Error, "127.0.0.1") {
+	pending := findDelivery(log, failed.header.Get(HeaderEventID))
+	started := findDelivery(log, envelope.ID)
+	if pending.Event != BackupFailed || pending.State != "pending" || pending.Attempts != 1 || pending.Error != "status_500" || pending.Status != 500 || pending.NextAttempt == "" || started.Event != ServerStarted || started.State != "delivered" || started.Attempts != 1 || started.Status != 204 {
+		t.Fatalf("log after a failure: pending=%+v started=%+v", pending, started)
+	}
+	if strings.Contains(pending.Error, "127.0.0.1") {
 		t.Fatal("the log carries the address")
 	}
 	// Not due yet, and the webhook is resting: nothing is sent.
@@ -241,6 +271,14 @@ func TestDeliveryIsSignedRetriedAndLogged(t *testing.T) {
 	}
 	if string(retried.body) != string(failed.body) {
 		t.Fatal("a retry changed the body")
+	}
+	log, err = store.Deliveries(ctx, nil, made.Webhook.ID, "", 0)
+	if err != nil || len(log.Items) != 2 {
+		t.Fatalf("log after retry: %v %+v", err, log.Items)
+	}
+	delivered := findDelivery(log, failed.header.Get(HeaderEventID))
+	if delivered.Event != BackupFailed || delivered.State != "delivered" || delivered.Attempts != 2 || delivered.Status != 200 || delivered.Error != "" || delivered.NextAttempt != "" || delivered.FinishedAt == "" {
+		t.Fatalf("log after retry: %+v", delivered)
 	}
 	// A redirect is never followed, and after the last delay the delivery is
 	// given up and says so.
@@ -265,13 +303,8 @@ func TestDeliveryIsSignedRetriedAndLogged(t *testing.T) {
 	if err != nil || len(all.Items) != 3 {
 		t.Fatalf("complete log: %v %+v", err, all)
 	}
-	var exhausted *Delivery
-	for i := range all.Items {
-		if all.Items[i].ID == redirectID {
-			exhausted = &all.Items[i]
-		}
-	}
-	if exhausted == nil || exhausted.State != "failed" || exhausted.Attempts != len(retryDelays)+1 || exhausted.Error != "redirect_not_followed" {
+	exhausted := findDelivery(all, redirectID)
+	if exhausted.State != "failed" || exhausted.Attempts != len(retryDelays)+1 || exhausted.Error != "redirect_not_followed" {
 		t.Fatalf("given up: %+v", exhausted)
 	}
 	// Every tied row must appear once across one-item cursor pages, in the
