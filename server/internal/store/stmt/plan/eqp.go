@@ -2,10 +2,21 @@ package plan
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
+
+// These are the four SEARCH shapes in the reviewed 3.53.4 baselines. Match the
+// entire row, including simple bound constraints: new planner wording, skip
+// scans, expression indexes and trailing operators require explicit approval.
+const eqpName = `[A-Z_][A-Z_0-9]*`
+const eqpConstraint = eqpName + `(?:=|>=|<=|>|<)\?`
+
+var expectedSearch = regexp.MustCompile(`^SEARCH ` + eqpName +
+	` USING (?:(?:COVERING )?INDEX ` + eqpName + `|(?:INTEGER )?PRIMARY KEY)` +
+	` \(` + eqpConstraint + `(?: AND ` + eqpConstraint + `)*\)$`)
 
 func waived(d stmt.Definition, stage, form, match string) bool {
 	for _, w := range d.Plan.Waivers {
@@ -16,7 +27,8 @@ func waived(d stmt.Definition, stage, form, match string) bool {
 	return false
 }
 
-// CheckEQP trusts SQLite's own parse/planner output independently of the lint.
+// CheckEQP allows only reviewed SEARCH shapes from SQLite's own parse/planner
+// output, independently of the lint. All other rows, including scans, flag.
 // Exact per-statement detail waivers are the only exceptions, including scans;
 // legacy AllowedScans metadata and a SQL-lint waiver confer no EQP permission.
 func CheckEQP(d stmt.Definition, eqp Rows) error {
@@ -30,16 +42,22 @@ func CheckEQP(d stmt.Definition, eqp Rows) error {
 		}
 		upper := strings.ToUpper(detail)
 		forms := []string{}
-		for _, form := range []string{"SUBQUERY", "CO-ROUTINE", "MATERIALIZE", "MULTI-INDEX OR", "USE TEMP B-TREE"} {
+		for _, form := range []string{"SUBQUERY", "FOR IN-OPERATOR", "BLOOM FILTER", "CO-ROUTINE", "MATERIALIZE", "MULTI-INDEX OR", "USE TEMP B-TREE"} {
 			if strings.Contains(upper, form) {
 				forms = append(forms, form)
 			}
 		}
-		if strings.Contains(upper, "USING AUTOMATIC") {
+		if strings.Contains(upper, "CORRELATED") && !strings.Contains(upper, "SUBQUERY") {
+			forms = append(forms, "CORRELATED")
+		}
+		if strings.Contains(upper, "USING AUTOMATIC") || strings.Contains(upper, "AUTOMATIC INDEX") {
 			forms = append(forms, "AUTOMATIC INDEX")
 		}
-		if d.Plan.Hot && strings.HasPrefix(upper, "SCAN ") {
+		if strings.HasPrefix(upper, "SCAN ") {
 			forms = append(forms, "SCAN")
+		}
+		if len(forms) == 0 && !expectedSearch.MatchString(upper) {
+			forms = append(forms, "UNRECOGNIZED EQP")
 		}
 		for _, form := range forms {
 			if !waived(d, "eqp", form, detail) {
