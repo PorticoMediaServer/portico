@@ -74,7 +74,7 @@ func effectiveBeginWholeFixture(t *testing.T) (*executor, *time.Time, effectiveS
 	exec(`INSERT INTO metadata_provider_subjects(id,provider,subject_kind,provider_id,language,region,request_shape,incarnation,revision) VALUES(601,'fixture','movie','opaque:selection','en-CA','CA','detail-v1',?,73)`, subjectInc[:])
 	digest := sha256.Sum256([]byte("native source observation"))
 	exec(`INSERT INTO metadata_evidence(id,subject_id,parser_version,provider,subject_kind,provider_id,language,region,request_shape,digest,observed_at,source_url,sealed) VALUES('evidence-source',601,'parser/v1','fixture','movie','opaque:selection','en-CA','CA','detail-v1',lower(hex(?)),'2026-11-05T10:00:00.000000000Z','fixture://source',1)`, digest[:])
-	exec(`INSERT INTO credit_source_publications(publication_id,entity_id,provider,accepted_record_reference,observed_at,member_count,sealed) VALUES('aabbccddeeff00112233445566778899',101,'fixture','fixture/movie/opaque:selection','2026-11-05T10:00:00.000000000Z',0,1)`)
+	exec(`INSERT INTO credit_source_publications(publication_id,entity_id,provider,accepted_record_reference,observed_at,member_count,sealed) VALUES('aabbccddeeff00112233445566778899',101,'fixture','opaque-sealed-source://record/239','2026-11-05T09:57:13.000000000Z',0,1)`)
 	// Capture a deterministic native fixture, not the eventual governed external
 	// producer/read-snapshot or current-disclosure bridge. Roll back this separate
 	// preparatory control turn BEFORE entropy preparation and the tested command.
@@ -101,7 +101,7 @@ func effectiveBeginWholeFixture(t *testing.T) (*executor, *time.Time, effectiveS
 		Selection:   effectiveBeginSelection{Incarnation: selectionInc, Revision: 71, Role: "primary", Kind: "movie", ID: "opaque:selection", Status: "selected"},
 		Evidence:    effectiveBeginEvidence{SubjectID: 601, Provider: "fixture", Kind: "movie", ID: "opaque:selection", Language: "en-CA", Region: "CA", Shape: "detail-v1", Digest: hex.EncodeToString(digest[:]), Observed: "2026-11-05T10:00:00.000000000Z", Sealed: 1},
 		Subject:     effectiveBeginSubject{Incarnation: subjectInc, Revision: 73, Provider: "fixture", Kind: "movie", ID: "opaque:selection", Language: "en-CA", Region: "CA", Shape: "detail-v1"},
-		Publication: effectiveBeginPublication{EntityID: 101, Provider: "fixture", Record: "fixture/movie/opaque:selection", Observed: "2026-11-05T10:00:00.000000000Z", Count: 0, Sealed: 1},
+		Publication: effectiveBeginPublication{EntityID: 101, Provider: "fixture", Record: "opaque-sealed-source://record/239", Observed: "2026-11-05T09:57:13.000000000Z", Count: 0, Sealed: 1},
 		Capture:     effectiveBeginCapture{Ordinal: 0, AssetID: 701, Incarnation: assetInc, Part: 3, Start: 1.25, End: sql.NullFloat64{Float64: 9.5, Valid: true}, Path: "namespace/movie.mkv", Size: 123456, Modified: 1793860000111, Available: 1, SourceID: "source-native", Generation: 97, Root: "root-incarnation:native", ObjectRevision: "object-revision:107"},
 		Association: effectiveBeginAssociation{AssetID: 701, LibraryID: 7, Part: 3, Available: 1, Start: 1.25, End: sql.NullFloat64{Float64: 9.5, Valid: true}},
 		Asset:       effectiveBeginAsset{Token: "asset-token:native", Path: "namespace/movie.mkv", Size: 123456, Modified: 1793860000111, Available: 1, LibraryID: 7, Incarnation: assetInc, InfoOwner: sql.NullString{String: "object-native", Valid: true}, InfoRevision: sql.NullString{String: "object-revision:107", Valid: true}},
@@ -478,7 +478,6 @@ func TestEffectiveBeginProducerKeepsNullableHeadsAndRanges(t *testing.T) {
 	expected.Selection.Evidence = sql.NullString{String: "evidence-source", Valid: true}
 	expected.Selection.Set = sql.NullString{String: "set-native:127", Valid: true}
 	expected.Selection.Publication = sql.NullString{String: "publication-native:131", Valid: true}
-	expected.Subject.AcceptedEvidence = sql.NullString{String: "evidence-source", Valid: true}
 	expected.CreditHead = effectiveBeginCreditHead{Exists: true, PublicationID: "aabbccddeeff00112233445566778899", Revision: 113}
 	for _, variant := range []string{"populated_heads", "null_range_info", "present_empty_revision"} {
 		t.Run(variant, func(t *testing.T) {
@@ -511,5 +510,33 @@ func TestEffectiveBeginProducerKeepsNullableHeadsAndRanges(t *testing.T) {
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+func TestEffectiveBeginIgnoresUnrelatedGlobalCacheHead(t *testing.T) {
+	w, _, request, identity := effectiveBeginWholeFixture(t)
+	input, err := newEffectiveStageBeginCommand(identity, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A different sealed candidate in the same global cache subject is not the
+	// current primary binding or the credit source head for this entity. Neither
+	// candidate=current-cache-head nor a timestamp TTL is a BEGIN predicate.
+	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO metadata_evidence(id,subject_id,parser_version,provider,subject_kind,provider_id,language,region,request_shape,digest,observed_at,source_url,sealed)
+ SELECT 'unrelated-cache-evidence',subject_id,parser_version,provider,subject_kind,provider_id,language,region,request_shape,lower(hex(zeroblob(32))),'2026-11-05T11:00:00Z','fixture://unrelated-cache',1 FROM metadata_evidence WHERE id='evidence-source'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.db.ExecContext(t.Context(), `UPDATE metadata_provider_subjects SET accepted_evidence_id='unrelated-cache-evidence' WHERE id=601`); err != nil {
+		t.Fatal(err)
+	}
+	turn, _ := effectiveBeginWholeTurn(t, w)
+	if _, err := applyEffectiveStageBegin(t.Context(), turn, input); err != nil {
+		t.Fatal("unrelated global cache head refused BEGIN", err)
+	}
+	if err := turn.closeRows(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := turn.transaction.rollback(nil); err != nil {
+		t.Fatal(err)
 	}
 }

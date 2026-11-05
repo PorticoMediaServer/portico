@@ -83,7 +83,7 @@ func enrichmentEffectiveProducerDefinitions() []stmt.Definition {
 		{
 			ID: enrichmentEffectiveSubject, Owner: "writer.enrichment", Kind: stmt.Read,
 			CallSites: []string{"writer/enrichment_effective_begin_source.go:effectiveBeginReadProducer"},
-			SQL:       `SELECT incarnation,revision,provider,subject_kind,provider_id,language,region,request_shape,accepted_evidence_id FROM metadata_provider_subjects WHERE id=?`,
+			SQL:       `SELECT incarnation,revision,provider,subject_kind,provider_id,language,region,request_shape FROM metadata_provider_subjects WHERE id=?`,
 			Params:    []stmt.Param{{Name: "subject_id", Type: stmt.Integer}},
 			Cohorts:   []stmt.Cohort{{Name: "native_subject_shape", Bindings: []any{int64(601)}}},
 			Plan:      stmt.Plan{Hot: true, PrimaryKeys: []string{"metadata_provider_subjects"}, Seeks: []string{"rowid=?"}},
