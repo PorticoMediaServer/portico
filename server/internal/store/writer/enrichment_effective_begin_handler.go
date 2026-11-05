@@ -11,6 +11,10 @@ var errEffectiveBeginResultRetired = errors.New("enrichment BEGIN result retired
 // turn BEFORE calling this private entry. It owns finite composition, production
 // recipe, terminal/ambiguity/physical release and public outcome mapping. No
 // current source/lease/policy check may hide the ORIGINAL historical receipt.
+// Production dispatch additionally waits for the actual typed source-stage/seal
+// operation/receipt/frozen-request proof. The sealed source rows checked here
+// fence captured native intent; flags and supplied digests do not prove the
+// evidence-to-source link or a verified image. No public dispatcher exists here.
 func applyEffectiveStageBegin(ctx context.Context, turn *commandTurn, input *effectiveStageBeginCommand) (EffectiveStageBeginResult, error) {
 	var zero EffectiveStageBeginResult
 	if turn == nil || input == nil || !input.valid || turn.transaction == nil || turn.transaction.descriptor.ID != EffectiveStage {

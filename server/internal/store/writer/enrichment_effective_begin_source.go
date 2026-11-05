@@ -58,7 +58,6 @@ type effectiveBeginSubject struct {
 	Incarnation                                 [16]byte
 	Revision                                    int64
 	Provider, Kind, ID, Language, Region, Shape string
-	AcceptedEvidence                            sql.NullString
 }
 type effectiveBeginPublication struct {
 	EntityID                   int64
@@ -166,7 +165,7 @@ func effectiveBeginReadProducer(ctx context.Context, turn *commandTurn, ownerID 
 	if err = p(enrichmentEffectiveEvidence, []any{evidenceID}, &out.Evidence.SubjectID, &out.Evidence.Provider, &out.Evidence.Kind, &out.Evidence.ID, &out.Evidence.Language, &out.Evidence.Region, &out.Evidence.Shape, &out.Evidence.Digest, &out.Evidence.Observed, &out.Evidence.Sealed); err != nil {
 		return
 	}
-	if err = p(enrichmentEffectiveSubject, []any{out.Evidence.SubjectID}, &raw, &out.Subject.Revision, &out.Subject.Provider, &out.Subject.Kind, &out.Subject.ID, &out.Subject.Language, &out.Subject.Region, &out.Subject.Shape, &out.Subject.AcceptedEvidence); err != nil {
+	if err = p(enrichmentEffectiveSubject, []any{out.Evidence.SubjectID}, &raw, &out.Subject.Revision, &out.Subject.Provider, &out.Subject.Kind, &out.Subject.ID, &out.Subject.Language, &out.Subject.Region, &out.Subject.Shape); err != nil {
 		return
 	}
 	if len(raw) != 16 {
@@ -246,6 +245,9 @@ func effectiveBeginSingle(ctx context.Context, turn *commandTurn, id stmt.ID, ow
 }
 
 func effectiveBeginProducerShape(p effectiveBeginProducer, e effectiveBeginEntity, o effectiveBeginOwner, h effectiveBeginHeader) bool {
+	// Record is opaque sealed-source provenance, not an encoded provider identity.
+	// Each observation time is retained against its own frozen row. No TTL or
+	// equality with the global subject cache's accepted evidence is introduced.
 	return e.kind == 1 && e.retired == 0 && e.tvAbsent() && o.hierarchyRevision == 0 && o.selectionRevision == 0 && o.descriptiveRevision == 0 &&
 		p.Library.ID == e.libraryID && p.Library.Retired == 0 && p.Library.Kind == "movie" && h.language == p.Library.Language &&
 		p.Policy.Enabled == 1 && p.Policy.CreditEnabled == 1 && p.Policy.Incarnation == o.policyIncarnation && p.Policy.Revision == o.policyRevision && p.Policy.Algorithm == o.algorithm && p.Policy.RefreshMode == o.refreshMode && p.ConsentRevision == o.consentRevision && p.Provider.Enabled == 1 &&
