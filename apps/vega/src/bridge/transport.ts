@@ -1,3 +1,4 @@
+import {vegaControlHeaderEntries} from '../../../../packages/client-core/src/vega-control-transport';
 import {failure} from './events';
 import {checkResponse, forgetSession, jsonValue, onCredentialExposure, rememberCredentials, requestCredentials} from './credential-boundary';
 
@@ -76,8 +77,7 @@ function start(pending: Pending): void {
     xhr.timeout = limitFor(pending.url);
     xhr.withCredentials = false;
     xhr.responseType = 'text';
-    for (const [key, value] of Object.entries(pending.headers)) xhr.setRequestHeader(key, value);
-    xhr.setRequestHeader('Cache-Control', 'no-store');
+    for (const [key, value] of vegaControlHeaderEntries(pending.headers)) xhr.setRequestHeader(key, value);
     const over = () => {
       const declared = Number(xhr.getResponseHeader('Content-Length'));
       return (Number.isFinite(declared) && declared > pending.limit) || (xhr.responseText?.length ?? 0) > pending.limit;
