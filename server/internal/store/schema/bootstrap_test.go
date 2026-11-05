@@ -4,17 +4,17 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"net/url"
 	"path/filepath"
 	"testing"
 
-	_ "github.com/PorticoMediaServer/portico/server/internal/thirdparty/sqlite"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
+	"github.com/PorticoMediaServer/portico/server/internal/thirdparty/sqlite"
 )
 
 func TestFreshFileBootstrap(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "fresh.sqlite")
-	db, err := sql.Open("sqlite", fixtureDSN(path, true))
+	db, err := openFixture(path, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestFreshFileBootstrap(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The installed schema survives closing and reopening the fresh file.
-	reopened, err := sql.Open("sqlite", fixtureDSN(path, true))
+	reopened, err := openFixture(path, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestFreshFileBootstrap(t *testing.T) {
 
 func TestExistingFileIsUntouched(t *testing.T) {
 	ctx := context.Background()
-	db, err := sql.Open("sqlite", fixtureDSN(filepath.Join(t.TempDir(), "existing.sqlite"), true))
+	db, err := openFixture(filepath.Join(t.TempDir(), "existing.sqlite"), true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,25 +94,22 @@ func TestExistingFileIsUntouched(t *testing.T) {
 	}
 }
 
-// Every physical connection gets the same policy, including replacements after
-// cancellation. This is a test fixture; W/sqliteconn owns runtime connections.
-func fixtureDSN(path string, foreignKeys bool) string {
-	u := url.URL{Scheme: "file", Path: path}
-	q := u.Query()
-	fk := "1"
-	if !foreignKeys {
-		fk = "0"
+// Runtime and fixtures share the physical policy, including replacements.
+func openFixture(path string, foreignKeys bool) (*sql.DB, error) {
+	db, _, err := sqliteconn.Open(context.Background(), path, sqliteconn.Config{Role: sqliteconn.Writer, Connections: 1, CacheKiB: 4096, Synchronous: sqliteconn.Normal})
+	if err == nil && !foreignKeys {
+		// Deliberate negative control on the sole acquired physical connection.
+		_, err = db.Exec("PRAGMA foreign_keys=OFF")
+		if err != nil {
+			db.Close()
+		}
 	}
-	for _, pragma := range []string{"foreign_keys(" + fk + ")", "journal_mode(WAL)", "synchronous(NORMAL)", "wal_autocheckpoint(0)", "cache_size(-4096)", "busy_timeout(0)", "mmap_size(0)"} {
-		q.Add("_pragma", pragma)
-	}
-	u.RawQuery = q.Encode()
-	return u.String()
+	return db, err
 }
 
 func TestForeignKeysRequired(t *testing.T) {
 	ctx := context.Background()
-	db, err := sql.Open("sqlite", fixtureDSN(filepath.Join(t.TempDir(), "fk-off.sqlite"), false))
+	db, err := openFixture(filepath.Join(t.TempDir(), "fk-off.sqlite"), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,5 +125,35 @@ func TestForeignKeysRequired(t *testing.T) {
 	var objects int
 	if err := conn.QueryRowContext(ctx, "SELECT count(*) FROM sqlite_schema").Scan(&objects); err != nil || objects != 0 {
 		t.Fatalf("FK-disabled schema = %d, %v", objects, err)
+	}
+}
+
+func TestSchemaFixturesRejectQuotedTypos(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "fixture-policy.sqlite")
+	for range 2 { // fresh open and clean reopen use the same policy
+		db, err := openFixture(path, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		conn, err := db.Conn(t.Context())
+		if err != nil {
+			db.Close()
+			t.Fatal(err)
+		}
+		ddl, dml, err := sqlite.DQS(conn)
+		if err != nil || ddl != 0 || dml != 0 {
+			t.Fatalf("fixture flags %d/%d: %v", ddl, dml, err)
+		}
+		for _, q := range []string{`SELECT "fixture_missing_literal"`, `CREATE TABLE bad_fixture(v TEXT CHECK(v <> "fixture_missing_literal"))`} {
+			st, err := conn.PrepareContext(t.Context(), q)
+			if st != nil {
+				st.Close()
+			}
+			if err == nil {
+				t.Fatalf("fixture accepted typo: %s", q)
+			}
+		}
+		conn.Close()
+		db.Close()
 	}
 }

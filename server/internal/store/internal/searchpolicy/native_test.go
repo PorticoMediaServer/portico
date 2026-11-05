@@ -3,20 +3,20 @@ package searchpolicy_test
 import (
 	"context"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/binary"
 	"encoding/hex"
 	"path/filepath"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/searchpolicy"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/schema"
-	_ "github.com/PorticoMediaServer/portico/server/internal/thirdparty/sqlite"
+	"github.com/PorticoMediaServer/portico/server/internal/thirdparty/sqlite"
 )
 
 func TestBundledNativeProfile(t *testing.T) {
 	ctx := context.Background()
-	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "profile.db")+"?_pragma=foreign_keys(1)")
+	db, _, err := sqliteconn.Open(ctx, filepath.Join(t.TempDir(), "profile.db"), sqliteconn.Config{Role: sqliteconn.Writer, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Normal})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,6 +26,19 @@ func TestBundledNativeProfile(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer conn.Close()
+	ddl, dml, err := sqlite.DQS(conn)
+	if err != nil || ddl != 0 || dml != 0 {
+		t.Fatalf("native profile flags %d/%d: %v", ddl, dml, err)
+	}
+	for _, q := range []string{`SELECT "profile_missing_literal"`, `CREATE TABLE bad_profile(v TEXT CHECK(v <> "profile_missing_literal"))`} {
+		st, err := conn.PrepareContext(ctx, q)
+		if st != nil {
+			st.Close()
+		}
+		if err == nil {
+			t.Fatalf("native profile accepted typo: %s", q)
+		}
+	}
 	var actual searchpolicy.Engine
 	if err := conn.QueryRowContext(ctx, "SELECT sqlite_version(),sqlite_source_id()").Scan(&actual.Version, &actual.SourceID); err != nil {
 		t.Fatal(err)

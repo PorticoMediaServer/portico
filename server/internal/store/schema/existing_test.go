@@ -12,7 +12,7 @@ import (
 
 func existingFixture(t *testing.T, path string, install bool) (*sql.DB, *sql.Conn) {
 	t.Helper()
-	db, err := sql.Open("sqlite", fixtureDSN(path, true))
+	db, err := openFixture(path, true)
 	if err != nil {
 		t.Fatal(err)
 	}
