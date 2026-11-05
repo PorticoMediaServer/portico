@@ -117,6 +117,7 @@
     "dvr_recording_layouts",
     "dvr_recordings",
     "dvr_retention_retry",
+    "enrichment_command_receipts",
     "enrichment_domains",
     "enrichment_jobs",
     "enrichment_state",
@@ -158,6 +159,9 @@
     "lc_entries",
     "lc_play_events",
     "lc_used",
+    "listening_item_buckets",
+    "listening_play_instants",
+    "listening_profile_buckets",
     "live_programme_images",
     "live_programmes",
     "lyric_candidates",
@@ -287,12 +291,19 @@
     "saved_pins",
     "saved_resource_entries",
     "saved_resource_receipts",
+    "scan_command_receipts",
+    "scan_command_results",
     "screen_anime_seasons",
     "screen_metadata_fanout",
     "search_fragments",
+    "search_generation_receipts",
     "search_history",
+    "search_image_seals",
     "search_publications",
     "search_publish_jobs",
+    "search_publish_receipts",
+    "search_reclaim_jobs",
+    "search_reclaim_receipts",
     "segment_files",
     "segment_shows",
     "selection_action_files",
@@ -3234,6 +3245,50 @@
     "artwork_subject_jobs": {
       "policy": "STRICT",
       "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied"
+    },
+    "search_image_seals": {
+      "policy": "ordinary + full typeof + explicit key NOT NULL",
+      "grain": "own-play lifetime time/item counters or per-image/per-operation durable preparation/replay/retirement; plausibly >100k; INT-CHANGE-001"
+    },
+    "search_reclaim_jobs": {
+      "policy": "ordinary + full typeof + explicit key NOT NULL",
+      "grain": "own-play lifetime time/item counters or per-image/per-operation durable preparation/replay/retirement; plausibly >100k; INT-CHANGE-001"
+    },
+    "scan_command_receipts": {
+      "policy": "ordinary + full typeof + explicit key NOT NULL",
+      "grain": "own-play lifetime time/item counters or per-image/per-operation durable preparation/replay/retirement; plausibly >100k; INT-CHANGE-001"
+    },
+    "scan_command_results": {
+      "policy": "ordinary + full typeof + explicit key NOT NULL",
+      "grain": "own-play lifetime time/item counters or per-image/per-operation durable preparation/replay/retirement; plausibly >100k; INT-CHANGE-001"
+    },
+    "search_publish_receipts": {
+      "policy": "ordinary + full typeof + explicit key NOT NULL",
+      "grain": "own-play lifetime time/item counters or per-image/per-operation durable preparation/replay/retirement; plausibly >100k; INT-CHANGE-001"
+    },
+    "search_generation_receipts": {
+      "policy": "ordinary + full typeof + explicit key NOT NULL",
+      "grain": "own-play lifetime time/item counters or per-image/per-operation durable preparation/replay/retirement; plausibly >100k; INT-CHANGE-001"
+    },
+    "search_reclaim_receipts": {
+      "policy": "ordinary + full typeof + explicit key NOT NULL",
+      "grain": "own-play lifetime time/item counters or per-image/per-operation durable preparation/replay/retirement; plausibly >100k; INT-CHANGE-001"
+    },
+    "enrichment_command_receipts": {
+      "policy": "ordinary + full typeof + explicit key NOT NULL",
+      "grain": "own-play lifetime time/item counters or per-image/per-operation durable preparation/replay/retirement; plausibly >100k; INT-CHANGE-001"
+    },
+    "listening_item_buckets": {
+      "policy": "ordinary + full typeof + explicit key NOT NULL",
+      "grain": "own-play lifetime time/item counters or per-image/per-operation durable preparation/replay/retirement; plausibly >100k; INT-CHANGE-001"
+    },
+    "listening_profile_buckets": {
+      "policy": "ordinary + full typeof + explicit key NOT NULL",
+      "grain": "own-play lifetime time/item counters or per-image/per-operation durable preparation/replay/retirement; plausibly >100k; INT-CHANGE-001"
+    },
+    "listening_play_instants": {
+      "policy": "ordinary + full typeof + explicit key NOT NULL",
+      "grain": "own-play lifetime time/item counters or per-image/per-operation durable preparation/replay/retirement; plausibly >100k; INT-CHANGE-001"
     }
   },
   "future_add": "Plain nullable ADD with no new validating constraint; typed writer validates; no startup backfill"

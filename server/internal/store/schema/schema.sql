@@ -1,4 +1,4 @@
--- Integration candidate, not a migration/freeze approval.
+-- Phase-1 change-controlled candidate INT-CHANGE-001; requires exact-SHA R review.
 -- Full-DDL measurements require matching zero-error INT-BUNDLED-CHECK.json.
 
 CREATE TABLE access_invitation_short_codes(
@@ -4625,7 +4625,12 @@ CREATE TABLE inventory_runs (
  job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts BETWEEN 0 AND 4294967295),
  job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms>=0),
  job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED,
- job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0)
+ job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0),
+ command_incarnation BLOB NOT NULL DEFAULT(randomblob(16)) CHECK(length(command_incarnation)=16),
+ last_command_sequence INTEGER NOT NULL DEFAULT 0 CHECK(last_command_sequence>=0),
+ acknowledged_command_sequence INTEGER NOT NULL DEFAULT 0 CHECK(acknowledged_command_sequence>=0),
+ UNIQUE(job_id,command_incarnation),
+ CHECK(acknowledged_command_sequence<=last_command_sequence)
 ) STRICT;
 
 CREATE TABLE inventory_scan_issues (
@@ -6872,6 +6877,11 @@ CREATE TABLE play_history(
  cause TEXT,
  subject_id INTEGER,
  activity_generation INTEGER NOT NULL DEFAULT 1 CHECK(activity_generation>0),
+ started_ms INTEGER CHECK(started_ms IS NULL OR started_ms>=0),
+ time_bucket_ms INTEGER CHECK(time_bucket_ms IS NULL OR (time_bucket_ms>=0 AND time_bucket_ms%900000=0)),
+ user_name TEXT,
+ profile_name TEXT,
+ device_name TEXT,
  CHECK(id IS NULL OR typeof(id)='integer'),
  CHECK(occurred_at IS NULL OR typeof(occurred_at)='text'),
  CHECK(event_kind IS NULL OR typeof(event_kind)='text'),
@@ -6941,7 +6951,13 @@ CREATE TABLE play_history(
  CHECK(typeof("source_revision")IN('null','text')),
  CHECK(typeof("cause")IN('null','text')),
  CHECK(typeof("subject_id")IN('null','integer')),
- CHECK(typeof("activity_generation")IN('null','integer'))
+ CHECK(typeof("activity_generation")IN('null','integer')),
+ CHECK(time_bucket_ms IS NULL OR started_ms IS NOT NULL),
+ CHECK(typeof("started_ms")IN('null','integer')),
+ CHECK(typeof("time_bucket_ms")IN('null','integer')),
+ CHECK(typeof("user_name")IN('null','text')),
+ CHECK(typeof("profile_name")IN('null','text')),
+ CHECK(typeof("device_name")IN('null','text'))
 );
 
 CREATE TABLE playback_admin_operations(
@@ -11002,6 +11018,9 @@ CREATE TABLE metadata_provider_operations(
  created_at TEXT NOT NULL,
  finished_at TEXT NOT NULL DEFAULT '',
  reason TEXT NOT NULL DEFAULT '',
+ command_incarnation BLOB NOT NULL DEFAULT(randomblob(16)) CHECK(length(command_incarnation)=16),
+ last_command_sequence INTEGER NOT NULL DEFAULT 0 CHECK(last_command_sequence>=0),
+ acknowledged_command_sequence INTEGER NOT NULL DEFAULT 0 CHECK(acknowledged_command_sequence>=0),
  UNIQUE(provider,id),
  FOREIGN KEY(entity_id,provider,set_subject_kind,set_provider_id,set_id) REFERENCES metadata_publication_sets(entity_id,provider,subject_kind,provider_id,id),
  CHECK((set_id IS NULL)=(set_subject_kind IS NULL) AND (set_id IS NULL)=(set_provider_id IS NULL)),
@@ -11045,7 +11064,12 @@ CREATE TABLE metadata_provider_operations(
  CHECK(typeof("after_item")IN('null','text')),
  CHECK(typeof("created_at")IN('null','text')),
  CHECK(typeof("finished_at")IN('null','text')),
- CHECK(typeof("reason")IN('null','text'))
+ CHECK(typeof("reason")IN('null','text')),
+ UNIQUE(id,command_incarnation),
+ CHECK(acknowledged_command_sequence<=last_command_sequence),
+ CHECK(typeof("command_incarnation")IN('null','blob')),
+ CHECK(typeof("last_command_sequence")IN('null','integer')),
+ CHECK(typeof("acknowledged_command_sequence")IN('null','integer'))
 );
 
 CREATE TABLE metadata_operation_subjects(
@@ -11640,6 +11664,7 @@ CREATE TABLE search_fragments(
  normalized TEXT NOT NULL,
  generation INTEGER NOT NULL CHECK(generation>0),
  search_generation_id INTEGER NOT NULL DEFAULT 1 REFERENCES search_generations(id),
+ publication_id INTEGER NOT NULL,
  CHECK((owner_entity IS NULL)<>(owner_person IS NULL)),
  CHECK(typeof("id")IN('null','integer')),
  CHECK(typeof("owner_entity")IN('null','integer')),
@@ -11651,7 +11676,11 @@ CREATE TABLE search_fragments(
  CHECK(typeof("lexical_tokens")IN('null','text')),
  CHECK(typeof("normalized")IN('null','text')),
  CHECK(typeof("generation")IN('null','integer')),
- CHECK(typeof("search_generation_id")IN('null','integer'))
+ CHECK(typeof("search_generation_id")IN('null','integer')),
+ FOREIGN KEY(publication_id) REFERENCES search_publications(id),
+ FOREIGN KEY(publication_id,owner_entity,search_generation_id,generation) REFERENCES search_publications(id,entity_id,search_generation_id,generation),
+ FOREIGN KEY(publication_id,owner_person,search_generation_id,generation) REFERENCES search_publications(id,person_id,search_generation_id,generation),
+ CHECK(typeof("publication_id")IN('null','integer'))
 );
 
 CREATE TABLE search_revision(
@@ -11977,6 +12006,9 @@ CREATE TABLE search_publish_jobs(
  job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts>=0),
  job_next_attempt_ms INTEGER,
  job_due_ms INTEGER GENERATED ALWAYS AS(CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) VIRTUAL,
+ command_incarnation BLOB NOT NULL DEFAULT(randomblob(16)) CHECK(length(command_incarnation)=16),
+ last_command_sequence INTEGER NOT NULL DEFAULT 0 CHECK(last_command_sequence>=0),
+ acknowledged_command_sequence INTEGER NOT NULL DEFAULT 0 CHECK(acknowledged_command_sequence>=0),
  UNIQUE(entity_id,search_generation_id),
  UNIQUE(person_id,search_generation_id),
  FOREIGN KEY(published_document_id,entity_id,search_generation_id,published_generation) REFERENCES search_publications(id,entity_id,search_generation_id,generation),
@@ -12008,7 +12040,12 @@ CREATE TABLE search_publish_jobs(
  CHECK(typeof("job_lease_generation")IN('null','integer')),
  CHECK(typeof("job_lease_expires_ms")IN('null','integer')),
  CHECK(typeof("job_attempts")IN('null','integer')),
- CHECK(typeof("job_next_attempt_ms")IN('null','integer'))
+ CHECK(typeof("job_next_attempt_ms")IN('null','integer')),
+ UNIQUE(id,command_incarnation),
+ CHECK(acknowledged_command_sequence<=last_command_sequence),
+ CHECK(typeof("command_incarnation")IN('null','blob')),
+ CHECK(typeof("last_command_sequence")IN('null','integer')),
+ CHECK(typeof("acknowledged_command_sequence")IN('null','integer'))
 );
 
 CREATE TABLE catalog_aggregate_operations(
@@ -12212,7 +12249,12 @@ CREATE TABLE search_generations(
  job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts>=0),
  job_next_attempt_ms INTEGER,
  job_due_ms INTEGER GENERATED ALWAYS AS(CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) VIRTUAL,
- UNIQUE(id,recipe_version)
+ command_incarnation BLOB NOT NULL DEFAULT(randomblob(16)) CHECK(length(command_incarnation)=16),
+ last_command_sequence INTEGER NOT NULL DEFAULT 0 CHECK(last_command_sequence>=0),
+ acknowledged_command_sequence INTEGER NOT NULL DEFAULT 0 CHECK(acknowledged_command_sequence>=0),
+ UNIQUE(id,recipe_version),
+ UNIQUE(id,command_incarnation),
+ CHECK(acknowledged_command_sequence<=last_command_sequence)
 ) STRICT;
 
 CREATE TABLE artwork_subject_jobs(
@@ -13841,3 +13883,386 @@ WHERE j.person_id IS NOT NULL AND j.search_generation_id=(SELECT id FROM search_
 CREATE VIEW search_fragment_content AS
 SELECT * FROM search_fragments
 WHERE search_generation_id=(SELECT id FROM search_generations WHERE bank_key='v1');
+
+CREATE UNIQUE INDEX search_fragment_publication ON search_fragments(publication_id,field,ordinal);
+
+CREATE INDEX search_fragment_reclaim ON search_fragments(publication_id,id);
+
+CREATE TABLE search_image_seals(
+ publication_id INTEGER NOT NULL PRIMARY KEY REFERENCES search_publications(id),
+ algorithm TEXT NOT NULL CHECK(length(algorithm)>0),
+ seed BLOB NOT NULL CHECK(length(seed)=32),
+ expected_digest BLOB NOT NULL CHECK(length(expected_digest)=32),
+ expected_fragments INTEGER NOT NULL CHECK(expected_fragments>=0),
+ expected_bytes INTEGER NOT NULL CHECK(expected_bytes>=0),
+ staged_fragments INTEGER NOT NULL DEFAULT 0 CHECK(staged_fragments>=0),
+ staged_bytes INTEGER NOT NULL DEFAULT 0 CHECK(staged_bytes>=0),
+ verified_fragments INTEGER NOT NULL DEFAULT 0 CHECK(verified_fragments>=0),
+ verified_bytes INTEGER NOT NULL DEFAULT 0 CHECK(verified_bytes>=0),
+ chain BLOB NOT NULL CHECK(length(chain)=32),
+ after_field INTEGER NOT NULL DEFAULT 0 CHECK(after_field>=0),
+ after_ordinal INTEGER NOT NULL DEFAULT 0 CHECK(after_ordinal>=0),
+ after_fragment_id INTEGER NOT NULL DEFAULT 0 CHECK(after_fragment_id>=0),
+ sealed INTEGER NOT NULL DEFAULT 0 CHECK(sealed IN(0,1)),
+ CHECK(verified_fragments<=staged_fragments AND staged_fragments<=expected_fragments),
+ CHECK(verified_bytes<=staged_bytes AND staged_bytes<=expected_bytes),
+ CHECK(sealed=0 OR (verified_fragments=expected_fragments AND verified_bytes=expected_bytes AND chain=expected_digest)),
+ CHECK(typeof("publication_id")IN('null','integer')),
+ CHECK(typeof("algorithm")IN('null','text')),
+ CHECK(typeof("seed")IN('null','blob')),
+ CHECK(typeof("expected_digest")IN('null','blob')),
+ CHECK(typeof("expected_fragments")IN('null','integer')),
+ CHECK(typeof("expected_bytes")IN('null','integer')),
+ CHECK(typeof("staged_fragments")IN('null','integer')),
+ CHECK(typeof("staged_bytes")IN('null','integer')),
+ CHECK(typeof("verified_fragments")IN('null','integer')),
+ CHECK(typeof("verified_bytes")IN('null','integer')),
+ CHECK(typeof("chain")IN('null','blob')),
+ CHECK(typeof("after_field")IN('null','integer')),
+ CHECK(typeof("after_ordinal")IN('null','integer')),
+ CHECK(typeof("after_fragment_id")IN('null','integer')),
+ CHECK(typeof("sealed")IN('null','integer'))
+) WITHOUT ROWID;
+
+CREATE TABLE search_reclaim_jobs(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ publication_id INTEGER NOT NULL UNIQUE,
+ live_publication_id INTEGER UNIQUE REFERENCES search_publications(id),
+ phase TEXT NOT NULL CHECK(phase IN('held','ready','reclaim','complete')),
+ after_fragment_id INTEGER NOT NULL DEFAULT 0 CHECK(after_fragment_id>=0),
+ command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),
+ last_command_sequence INTEGER NOT NULL DEFAULT 0 CHECK(last_command_sequence>=0),
+ acknowledged_command_sequence INTEGER NOT NULL DEFAULT 0 CHECK(acknowledged_command_sequence>=0),
+ job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0),
+ job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
+ job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
+ job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
+ job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts>=0),
+ job_next_attempt_ms INTEGER,
+ job_due_ms INTEGER GENERATED ALWAYS AS(CASE WHEN phase IN('ready','reclaim') AND job_next_attempt_ms IS NOT NULL THEN max(job_next_attempt_ms,job_lease_expires_ms) END) VIRTUAL,
+ UNIQUE(id,command_incarnation),
+ CHECK(live_publication_id IS NULL OR live_publication_id=publication_id),
+ CHECK((phase='complete')=(live_publication_id IS NULL)),
+ CHECK(acknowledged_command_sequence<=last_command_sequence),
+ CHECK(typeof("id")IN('null','integer')),
+ CHECK(typeof("publication_id")IN('null','integer')),
+ CHECK(typeof("live_publication_id")IN('null','integer')),
+ CHECK(typeof("phase")IN('null','text')),
+ CHECK(typeof("after_fragment_id")IN('null','integer')),
+ CHECK(typeof("command_incarnation")IN('null','blob')),
+ CHECK(typeof("last_command_sequence")IN('null','integer')),
+ CHECK(typeof("acknowledged_command_sequence")IN('null','integer')),
+ CHECK(typeof("job_revision")IN('null','integer')),
+ CHECK(typeof("job_lease_owner")IN('null','integer')),
+ CHECK(typeof("job_lease_generation")IN('null','integer')),
+ CHECK(typeof("job_lease_expires_ms")IN('null','integer')),
+ CHECK(typeof("job_attempts")IN('null','integer')),
+ CHECK(typeof("job_next_attempt_ms")IN('null','integer')),
+ CHECK(typeof("job_due_ms")IN('null','integer'))
+) ;
+
+CREATE INDEX search_reclaim_due ON search_reclaim_jobs(job_due_ms,id) WHERE job_due_ms IS NOT NULL;
+
+CREATE TABLE scan_command_receipts(
+ run_id TEXT NOT NULL,
+ command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),
+ command_sequence INTEGER NOT NULL CHECK(command_sequence>0),
+ operation_id BLOB NOT NULL CHECK(length(operation_id)=16),
+ request_digest BLOB NOT NULL CHECK(length(request_digest)=32),
+ command_kind TEXT NOT NULL CHECK(command_kind IN('inventory_accept','basic_stage','basic_seal','basic_accept')),
+ accepted_revision INTEGER NOT NULL CHECK(accepted_revision>=0),
+ applied_ms INTEGER NOT NULL CHECK(applied_ms>=0),
+ source_id TEXT NOT NULL,
+ source_incarnation TEXT NOT NULL,
+ source_revision TEXT NOT NULL,
+ change_id INTEGER,
+ next_cursor TEXT NOT NULL,
+ next_family INTEGER NOT NULL DEFAULT 0,
+ next_copy_phase INTEGER NOT NULL DEFAULT 0,
+ next_copy_id INTEGER NOT NULL DEFAULT 0,
+ next_copy_aux INTEGER NOT NULL DEFAULT 0,
+ next_copy_key TEXT NOT NULL DEFAULT '',
+ next_copy_key2 TEXT NOT NULL DEFAULT '',
+ next_copy_key3 TEXT NOT NULL DEFAULT '',
+ after_entity INTEGER NOT NULL DEFAULT 0,
+ expected_epoch INTEGER NOT NULL DEFAULT 0,
+ result_count INTEGER NOT NULL CHECK(result_count>=0),
+ result_digest BLOB NOT NULL CHECK(length(result_digest)=32),
+ PRIMARY KEY(run_id,command_incarnation,command_sequence),
+ UNIQUE(operation_id),
+ FOREIGN KEY(run_id,command_incarnation) REFERENCES inventory_runs(job_id,command_incarnation),
+ CHECK(typeof("run_id")IN('null','text')),
+ CHECK(typeof("command_incarnation")IN('null','blob')),
+ CHECK(typeof("command_sequence")IN('null','integer')),
+ CHECK(typeof("operation_id")IN('null','blob')),
+ CHECK(typeof("request_digest")IN('null','blob')),
+ CHECK(typeof("command_kind")IN('null','text')),
+ CHECK(typeof("accepted_revision")IN('null','integer')),
+ CHECK(typeof("applied_ms")IN('null','integer')),
+ CHECK(typeof("source_id")IN('null','text')),
+ CHECK(typeof("source_incarnation")IN('null','text')),
+ CHECK(typeof("source_revision")IN('null','text')),
+ CHECK(typeof("change_id")IN('null','integer')),
+ CHECK(typeof("next_cursor")IN('null','text')),
+ CHECK(typeof("next_family")IN('null','integer')),
+ CHECK(typeof("next_copy_phase")IN('null','integer')),
+ CHECK(typeof("next_copy_id")IN('null','integer')),
+ CHECK(typeof("next_copy_aux")IN('null','integer')),
+ CHECK(typeof("next_copy_key")IN('null','text')),
+ CHECK(typeof("next_copy_key2")IN('null','text')),
+ CHECK(typeof("next_copy_key3")IN('null','text')),
+ CHECK(typeof("after_entity")IN('null','integer')),
+ CHECK(typeof("expected_epoch")IN('null','integer')),
+ CHECK(typeof("result_count")IN('null','integer')),
+ CHECK(typeof("result_digest")IN('null','blob'))
+) WITHOUT ROWID;
+
+CREATE TABLE scan_command_results(
+ run_id TEXT NOT NULL,
+ command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),
+ command_sequence INTEGER NOT NULL CHECK(command_sequence>0),
+ input_ordinal INTEGER NOT NULL CHECK(input_ordinal>=0),
+ child_kind INTEGER NOT NULL CHECK(child_kind IN(0,1,2)),
+ child_ordinal INTEGER NOT NULL CHECK(child_ordinal>=0),
+ object_id TEXT NOT NULL,
+ library_id INTEGER NOT NULL,
+ subject_id INTEGER NOT NULL,
+ asset_id INTEGER NOT NULL,
+ accepted_asset_revision INTEGER NOT NULL CHECK(accepted_asset_revision>0),
+ PRIMARY KEY(run_id,command_incarnation,command_sequence,input_ordinal,child_kind,child_ordinal),
+ FOREIGN KEY(run_id,command_incarnation,command_sequence) REFERENCES scan_command_receipts(run_id,command_incarnation,command_sequence),
+ FOREIGN KEY(library_id,subject_id) REFERENCES catalog_subjects(library_id,id),
+ FOREIGN KEY(library_id,asset_id) REFERENCES catalog_assets(library_id,id),
+ CHECK((child_kind=0 AND child_ordinal=0) OR (child_kind=1 AND child_ordinal>0) OR child_kind=2),
+ CHECK(typeof("run_id")IN('null','text')),
+ CHECK(typeof("command_incarnation")IN('null','blob')),
+ CHECK(typeof("command_sequence")IN('null','integer')),
+ CHECK(typeof("input_ordinal")IN('null','integer')),
+ CHECK(typeof("child_kind")IN('null','integer')),
+ CHECK(typeof("child_ordinal")IN('null','integer')),
+ CHECK(typeof("object_id")IN('null','text')),
+ CHECK(typeof("library_id")IN('null','integer')),
+ CHECK(typeof("subject_id")IN('null','integer')),
+ CHECK(typeof("asset_id")IN('null','integer')),
+ CHECK(typeof("accepted_asset_revision")IN('null','integer'))
+) WITHOUT ROWID;
+
+CREATE INDEX scan_result_subject ON scan_command_results(library_id,subject_id);
+
+CREATE INDEX scan_result_asset ON scan_command_results(library_id,asset_id);
+
+CREATE TABLE search_publish_receipts(
+ publish_job_id INTEGER NOT NULL,
+ command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),
+ command_sequence INTEGER NOT NULL CHECK(command_sequence>0),
+ operation_id BLOB NOT NULL CHECK(length(operation_id)=16),
+ request_digest BLOB NOT NULL CHECK(length(request_digest)=32),
+ command_kind TEXT NOT NULL CHECK(command_kind IN('image_stage','fragment_stage','seal_step','seal','head_publish','people_head_publish')),
+ accepted_revision INTEGER NOT NULL CHECK(accepted_revision>=0),
+ applied_ms INTEGER NOT NULL CHECK(applied_ms>=0),
+ input_generation INTEGER NOT NULL CHECK(input_generation>0),
+ image_id INTEGER,
+ fragment_id INTEGER,
+ after_field INTEGER NOT NULL,
+ after_ordinal INTEGER NOT NULL,
+ after_fragment_id INTEGER NOT NULL,
+ seal_chain BLOB CHECK(seal_chain IS NULL OR length(seal_chain)=32),
+ published_generation INTEGER NOT NULL CHECK(published_generation>=0),
+ staged_fragments INTEGER NOT NULL DEFAULT 0 CHECK(staged_fragments>=0),
+ staged_bytes INTEGER NOT NULL DEFAULT 0 CHECK(staged_bytes>=0),
+ verified_fragments INTEGER NOT NULL DEFAULT 0 CHECK(verified_fragments>=0),
+ verified_bytes INTEGER NOT NULL DEFAULT 0 CHECK(verified_bytes>=0),
+ seal_algorithm TEXT NOT NULL DEFAULT '',
+ PRIMARY KEY(publish_job_id,command_incarnation,command_sequence),
+ UNIQUE(operation_id),
+ FOREIGN KEY(publish_job_id,command_incarnation) REFERENCES search_publish_jobs(id,command_incarnation),
+ CHECK(typeof("publish_job_id")IN('null','integer')),
+ CHECK(typeof("command_incarnation")IN('null','blob')),
+ CHECK(typeof("command_sequence")IN('null','integer')),
+ CHECK(typeof("operation_id")IN('null','blob')),
+ CHECK(typeof("request_digest")IN('null','blob')),
+ CHECK(typeof("command_kind")IN('null','text')),
+ CHECK(typeof("accepted_revision")IN('null','integer')),
+ CHECK(typeof("applied_ms")IN('null','integer')),
+ CHECK(typeof("input_generation")IN('null','integer')),
+ CHECK(typeof("image_id")IN('null','integer')),
+ CHECK(typeof("fragment_id")IN('null','integer')),
+ CHECK(typeof("after_field")IN('null','integer')),
+ CHECK(typeof("after_ordinal")IN('null','integer')),
+ CHECK(typeof("after_fragment_id")IN('null','integer')),
+ CHECK(typeof("seal_chain")IN('null','blob')),
+ CHECK(typeof("published_generation")IN('null','integer')),
+ CHECK(typeof("staged_fragments")IN('null','integer')),
+ CHECK(typeof("staged_bytes")IN('null','integer')),
+ CHECK(typeof("verified_fragments")IN('null','integer')),
+ CHECK(typeof("verified_bytes")IN('null','integer')),
+ CHECK(typeof("seal_algorithm")IN('null','text'))
+) WITHOUT ROWID;
+
+CREATE TABLE search_generation_receipts(
+ search_generation_id INTEGER NOT NULL,
+ command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),
+ command_sequence INTEGER NOT NULL CHECK(command_sequence>0),
+ operation_id BLOB NOT NULL CHECK(length(operation_id)=16),
+ request_digest BLOB NOT NULL CHECK(length(request_digest)=32),
+ command_kind TEXT NOT NULL CHECK(command_kind IN('advance','seal','flip','retire')),
+ accepted_revision INTEGER NOT NULL CHECK(accepted_revision>=0),
+ applied_ms INTEGER NOT NULL CHECK(applied_ms>=0),
+ active_generation_id INTEGER,
+ building_generation_id INTEGER,
+ input_sequence INTEGER NOT NULL CHECK(input_sequence>=0),
+ after_entity_id INTEGER NOT NULL,
+ after_person_id INTEGER NOT NULL,
+ after_reading_id INTEGER NOT NULL,
+ after_table INTEGER NOT NULL,
+ PRIMARY KEY(search_generation_id,command_incarnation,command_sequence),
+ UNIQUE(operation_id),
+ FOREIGN KEY(search_generation_id,command_incarnation) REFERENCES search_generations(id,command_incarnation),
+ CHECK(typeof("search_generation_id")IN('null','integer')),
+ CHECK(typeof("command_incarnation")IN('null','blob')),
+ CHECK(typeof("command_sequence")IN('null','integer')),
+ CHECK(typeof("operation_id")IN('null','blob')),
+ CHECK(typeof("request_digest")IN('null','blob')),
+ CHECK(typeof("command_kind")IN('null','text')),
+ CHECK(typeof("accepted_revision")IN('null','integer')),
+ CHECK(typeof("applied_ms")IN('null','integer')),
+ CHECK(typeof("active_generation_id")IN('null','integer')),
+ CHECK(typeof("building_generation_id")IN('null','integer')),
+ CHECK(typeof("input_sequence")IN('null','integer')),
+ CHECK(typeof("after_entity_id")IN('null','integer')),
+ CHECK(typeof("after_person_id")IN('null','integer')),
+ CHECK(typeof("after_reading_id")IN('null','integer')),
+ CHECK(typeof("after_table")IN('null','integer'))
+) WITHOUT ROWID;
+
+CREATE TABLE search_reclaim_receipts(
+ reclaim_job_id INTEGER NOT NULL,
+ command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),
+ command_sequence INTEGER NOT NULL CHECK(command_sequence>0),
+ operation_id BLOB NOT NULL CHECK(length(operation_id)=16),
+ request_digest BLOB NOT NULL CHECK(length(request_digest)=32),
+ command_kind TEXT NOT NULL CHECK(command_kind IN('fragment_reclaim','image_reclaim')),
+ accepted_revision INTEGER NOT NULL CHECK(accepted_revision>=0),
+ applied_ms INTEGER NOT NULL CHECK(applied_ms>=0),
+ publication_id INTEGER NOT NULL,
+ fragment_id INTEGER,
+ after_fragment_id INTEGER NOT NULL CHECK(after_fragment_id>=0),
+ complete INTEGER NOT NULL CHECK(complete IN(0,1)),
+ PRIMARY KEY(reclaim_job_id,command_incarnation,command_sequence),
+ UNIQUE(operation_id),
+ FOREIGN KEY(reclaim_job_id,command_incarnation) REFERENCES search_reclaim_jobs(id,command_incarnation),
+ CHECK(typeof("reclaim_job_id")IN('null','integer')),
+ CHECK(typeof("command_incarnation")IN('null','blob')),
+ CHECK(typeof("command_sequence")IN('null','integer')),
+ CHECK(typeof("operation_id")IN('null','blob')),
+ CHECK(typeof("request_digest")IN('null','blob')),
+ CHECK(typeof("command_kind")IN('null','text')),
+ CHECK(typeof("accepted_revision")IN('null','integer')),
+ CHECK(typeof("applied_ms")IN('null','integer')),
+ CHECK(typeof("publication_id")IN('null','integer')),
+ CHECK(typeof("fragment_id")IN('null','integer')),
+ CHECK(typeof("after_fragment_id")IN('null','integer')),
+ CHECK(typeof("complete")IN('null','integer'))
+) WITHOUT ROWID;
+
+CREATE TABLE enrichment_command_receipts(
+ provider_operation_id TEXT NOT NULL,
+ command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),
+ command_sequence INTEGER NOT NULL CHECK(command_sequence>0),
+ operation_id BLOB NOT NULL CHECK(length(operation_id)=16),
+ request_digest BLOB NOT NULL CHECK(length(request_digest)=32),
+ command_kind TEXT NOT NULL CHECK(command_kind IN('evidence_stage','credit_stage','people_stage','effective_stage','effective_seal','enrich_accept')),
+ accepted_revision INTEGER NOT NULL CHECK(accepted_revision>=0),
+ applied_ms INTEGER NOT NULL CHECK(applied_ms>=0),
+ entity_id INTEGER NOT NULL REFERENCES catalog_subjects(id),
+ after_item TEXT NOT NULL,
+ after_ordinal INTEGER NOT NULL CHECK(after_ordinal>=0),
+ publication_id TEXT,
+ effective_image_id INTEGER,
+ effective_image_revision INTEGER,
+ result_count INTEGER NOT NULL CHECK(result_count>=0),
+ result_digest BLOB NOT NULL CHECK(length(result_digest)=32),
+ PRIMARY KEY(provider_operation_id,command_incarnation,command_sequence),
+ UNIQUE(operation_id),
+ FOREIGN KEY(provider_operation_id,command_incarnation) REFERENCES metadata_provider_operations(id,command_incarnation),
+ CHECK(typeof("provider_operation_id")IN('null','text')),
+ CHECK(typeof("command_incarnation")IN('null','blob')),
+ CHECK(typeof("command_sequence")IN('null','integer')),
+ CHECK(typeof("operation_id")IN('null','blob')),
+ CHECK(typeof("request_digest")IN('null','blob')),
+ CHECK(typeof("command_kind")IN('null','text')),
+ CHECK(typeof("accepted_revision")IN('null','integer')),
+ CHECK(typeof("applied_ms")IN('null','integer')),
+ CHECK(typeof("entity_id")IN('null','integer')),
+ CHECK(typeof("after_item")IN('null','text')),
+ CHECK(typeof("after_ordinal")IN('null','integer')),
+ CHECK(typeof("publication_id")IN('null','text')),
+ CHECK(typeof("effective_image_id")IN('null','integer')),
+ CHECK(typeof("effective_image_revision")IN('null','integer')),
+ CHECK(typeof("result_count")IN('null','integer')),
+ CHECK(typeof("result_digest")IN('null','blob'))
+) WITHOUT ROWID;
+
+CREATE INDEX enrichment_receipt_subject ON enrichment_command_receipts(entity_id);
+
+CREATE TABLE listening_item_buckets(
+ profile_id TEXT NOT NULL,
+ activity_generation INTEGER NOT NULL CHECK(activity_generation>0),
+ grain TEXT NOT NULL CHECK(grain IN('quarter','day','month')),
+ bucket_ms INTEGER NOT NULL CHECK(bucket_ms>=0),
+ subject_id INTEGER NOT NULL REFERENCES catalog_subjects(id),
+ started_count INTEGER NOT NULL DEFAULT 0 CHECK(started_count>=0),
+ completed_count INTEGER NOT NULL DEFAULT 0 CHECK(completed_count>=0),
+ played_ms INTEGER NOT NULL DEFAULT 0 CHECK(played_ms>=0),
+ PRIMARY KEY(profile_id,activity_generation,grain,bucket_ms,subject_id),
+ CHECK((grain<>'quarter' OR bucket_ms%900000=0) AND (grain<>'day' OR bucket_ms%86400000=0)),
+ CHECK(typeof("profile_id")IN('null','text')),
+ CHECK(typeof("activity_generation")IN('null','integer')),
+ CHECK(typeof("grain")IN('null','text')),
+ CHECK(typeof("bucket_ms")IN('null','integer')),
+ CHECK(typeof("subject_id")IN('null','integer')),
+ CHECK(typeof("started_count")IN('null','integer')),
+ CHECK(typeof("completed_count")IN('null','integer')),
+ CHECK(typeof("played_ms")IN('null','integer'))
+) WITHOUT ROWID;
+
+CREATE INDEX listening_item_subject ON listening_item_buckets(subject_id,profile_id,activity_generation,grain,bucket_ms);
+
+CREATE INDEX listening_item_window ON listening_item_buckets(profile_id,activity_generation,subject_id,grain,bucket_ms);
+
+CREATE TABLE listening_profile_buckets(
+ profile_id TEXT NOT NULL,
+ activity_generation INTEGER NOT NULL CHECK(activity_generation>0),
+ grain TEXT NOT NULL CHECK(grain IN('quarter','day','month')),
+ bucket_ms INTEGER NOT NULL CHECK(bucket_ms>=0),
+ started_count INTEGER NOT NULL DEFAULT 0 CHECK(started_count>=0),
+ completed_count INTEGER NOT NULL DEFAULT 0 CHECK(completed_count>=0),
+ played_ms INTEGER NOT NULL DEFAULT 0 CHECK(played_ms>=0),
+ PRIMARY KEY(profile_id,activity_generation,grain,bucket_ms),
+ CHECK((grain<>'quarter' OR bucket_ms%900000=0) AND (grain<>'day' OR bucket_ms%86400000=0)),
+ CHECK(typeof("profile_id")IN('null','text')),
+ CHECK(typeof("activity_generation")IN('null','integer')),
+ CHECK(typeof("grain")IN('null','text')),
+ CHECK(typeof("bucket_ms")IN('null','integer')),
+ CHECK(typeof("started_count")IN('null','integer')),
+ CHECK(typeof("completed_count")IN('null','integer')),
+ CHECK(typeof("played_ms")IN('null','integer'))
+) WITHOUT ROWID;
+
+CREATE TABLE listening_play_instants(
+ profile_id TEXT NOT NULL,
+ activity_generation INTEGER NOT NULL CHECK(activity_generation>0),
+ started_ms INTEGER NOT NULL CHECK(started_ms>=0),
+ subject_id INTEGER NOT NULL REFERENCES catalog_subjects(id),
+ started_count INTEGER NOT NULL DEFAULT 0 CHECK(started_count>=0),
+ completed_count INTEGER NOT NULL DEFAULT 0 CHECK(completed_count>=0),
+ PRIMARY KEY(profile_id,activity_generation,started_ms,subject_id),
+ CHECK(typeof("profile_id")IN('null','text')),
+ CHECK(typeof("activity_generation")IN('null','integer')),
+ CHECK(typeof("started_ms")IN('null','integer')),
+ CHECK(typeof("subject_id")IN('null','integer')),
+ CHECK(typeof("started_count")IN('null','integer')),
+ CHECK(typeof("completed_count")IN('null','integer'))
+) WITHOUT ROWID;
+
+CREATE INDEX listening_instant_subject ON listening_play_instants(subject_id,profile_id,activity_generation,started_ms);

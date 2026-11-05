@@ -183,3 +183,84 @@ The top1golden forbids `max(file_size)` through the accepted compound view. Call
 ## Query-owned source frontier
 
 SEARCH-FRONTIER-SPILL keeps typed source IDs/heads in a private bounded ephemeral queue when the RAMfrontier fills. It does not truncate results, create a durable serving copy or leave a native SQLcursor across chunks. Its keyset reads obey equality-tail/next-key streams and exact collation too. Force-small-RAM tests must match full ordered membership; actual1M5%jo overflow controls remain negative until replacement traversals complete. Source/bank/authority continuation, quota/cancel and physical scratch retirement are explicit V/Gbuild tests. Exact4158→291static impact is INT-Q-IMPACT-291.json; only eight unrelated type grains change, not search indexes or views.
+
+## INT-CHANGE-001: durable operations, exact user charts and bounded admin reporting
+
+Current change-controlled candidate SHA5785482ac840ebbfa456f9a805b0ff2f23b964ca9b5cd3c1e1e3913674088744; R review pending. See phase1/INT-CHANGE-001.md and PB-MANIFEST-V1.md. These are static statement contracts for HN/W, not runtime command implementations or an authority grant.
+
+Receipt resolution: current permission first; read actual owner's incarnation/last/ack. An acknowledged sequence is ResultRetired before any partially drained result cohort is read. An absent unacknowledged receipt at sequence<=last is ResolveRequired; an unavailable owner without floor proof is ResolveRequired. Only a not-yet-applied next sequence may be Pending/Superseded. A matching historical receipt is returned before mutable source/lease/cursor checks. Use point keys, never a reconstructed current head.
+
+```sql
+SELECT command_incarnation,last_command_sequence,acknowledged_command_sequence
+FROM inventory_runs WHERE job_id=:run;
+SELECT operation_id,request_digest,command_kind,accepted_revision,next_cursor,
+       next_family,next_copy_phase,next_copy_id,next_copy_aux,
+       next_copy_key,next_copy_key2,next_copy_key3,after_entity,expected_epoch,
+       result_count,result_digest
+FROM scan_command_receipts
+WHERE run_id=:run AND command_incarnation=:inc AND command_sequence=:seq;
+SELECT input_ordinal,child_kind,child_ordinal,object_id,library_id,
+       subject_id,asset_id,accepted_asset_revision
+FROM scan_command_results
+WHERE run_id=:run AND command_incarnation=:inc AND command_sequence=:seq
+ORDER BY input_ordinal,child_kind,child_ordinal LIMIT :admitted_count_plus_one;
+```
+
+Child kind is the closed INTEGER discriminator0ordinary/1CUE/2episode; ordinary child ordinal0, CUE1..N, episode zero-based captured request position. No later association lookup substitutes for this immutable ordered allocation cohort. All result/index/FK/receipt/COMMIT cost is admitted; no truncated success. BasicStage/Seal receipts never claim BasicAccept availability.
+
+Seal uses two bounded streams on named UNIQUE search_fragment_publication; no tuple cursor, whole-image scan or implementation-specific hash state. Final no-next proof uses the same streams and exact stage/verified count+bytes+chain. The compiled algorithm is portico-search-manifest-sha256-chain-v1, vector JSON d7d83853fc7655bfcfdc639017adfd929761c6c89ac5b8e0d424abefd8a48053. Each fragment's exact native TEXT source_revision is independent from the image INTEGER source revision.
+
+```sql
+SELECT id,field,ordinal,source_revision,prefix_tokens,lexical_tokens,normalized
+FROM search_fragments INDEXED BY search_fragment_publication
+WHERE publication_id=:image AND field=:field AND ordinal>:ordinal
+ORDER BY ordinal LIMIT 1;
+SELECT id,field,ordinal,source_revision,prefix_tokens,lexical_tokens,normalized
+FROM search_fragments INDEXED BY search_fragment_publication
+WHERE publication_id=:image AND field>:field
+ORDER BY field,ordinal LIMIT 1;
+SELECT id,prefix_tokens,lexical_tokens,normalized
+FROM search_fragments INDEXED BY search_fragment_reclaim
+WHERE publication_id=:image AND id>:after_fragment
+ORDER BY id LIMIT :admitted_rows;
+SELECT id FROM search_reclaim_jobs INDEXED BY search_reclaim_due
+WHERE job_due_ms IS NOT NULL AND job_due_ms<=:now
+ORDER BY job_due_ms,id LIMIT :admitted_rows;
+```
+
+Reclaimer has its own receipt/incarnation/sequence. Historical image/fragment/change result IDs have no resource FKs. Its live_publication_id is detached only in the final physically complete image-retirement command; publication_id and its unacknowledged receipt survive. Native delete reads retained old strings before deleting source rows. Publisher document_id changes cannot strand retirement.
+
+User-facing listening/Discover/music charts read only own-play counters under current personal epoch. UTCquarter/day/month rows provide exact historical windows; fine instants handle the two partial quarter edges of rolling30days. Counter selection never rounds the requested millisecond cutoff. Current artist/album attribution is joined at read, with current permission and retained identity/merge semantics. Profile totals avoid scanning Ditems for a scalar timeline; per-item attribution/ranking uses the item relation under the read work budget. No item/provider change fans out per user.
+
+```sql
+SELECT b.bucket_ms,b.started_count,b.completed_count,b.played_ms
+FROM personal_activity_revisions p JOIN listening_profile_buckets b
+  ON b.profile_id=p.profile_id AND b.activity_generation=p.activity_generation
+WHERE p.profile_id=:personal_key AND b.grain=:grain
+  AND b.bucket_ms>=:from_ms AND b.bucket_ms<:until_ms
+ORDER BY b.bucket_ms LIMIT :bounded_positions;
+SELECT started_ms,subject_id,started_count,completed_count
+FROM listening_play_instants
+WHERE profile_id=:personal_key AND activity_generation=:generation
+  AND started_ms>=:partial_quarter_from AND started_ms<:partial_quarter_until
+ORDER BY started_ms,subject_id LIMIT :admitted_rows;
+```
+
+Any cursor over tied instant rows uses equality-tail then next-time streams; no row-value comparisons. All-time output uses existing reportwindow's<=1201months with exact timezone/DST boundary corrections. No fixed lifetime retention or approximate counts. Read/VM/deadline exhaustion refuses instead of returning a partial total.
+
+**Admin-only history** keeps the raw start-window×time-bucket and historical title/user/device-string semantics. Each request requires a time window, current admin/audience authority, bounded indexed keyset pages and the snapshot/deadline cap. The three existing admin time/user/item indexes serve the corresponding static variants. String search is a bounded scan within that indexed window, not a global string index or a user-chart path. Literal predicates below are compiled variants, never assembled from untrusted text. Time facts capture started_ms,time_bucket_ms and exact played_ms; append-only time events never update previous events.
+
+```sql
+-- Descending equality tail. The next stream uses occurred_at<:after_at instead.
+SELECT id,occurred_at,started_ms,time_bucket_ms,played_ms,event_kind,
+       user_name,profile_name,device_name,item_title
+FROM play_history INDEXED BY play_history_admin_time
+WHERE occurred_at>=:window_from AND occurred_at<:window_until
+  AND occurred_at=:after_at AND id<:after_id
+  AND started_ms>=:cohort_from AND started_ms<:cohort_until
+  AND (instr(lower(item_title),:text)>0 OR instr(lower(user_name),:text)>0
+       OR instr(lower(device_name),:text)>0)
+ORDER BY occurred_at DESC,id DESC LIMIT :admitted_rows;
+```
+
+The typed event writer encodes occurred_at in fixed-width UTCnanoseconds and captures a time event at the logical bucket/time boundary so its required admin time path is complete. W/V must qualify interrupted, late/replayed and cross-midnight/DST donations; schema shape alone does not establish that producer contract. Admin report aggregation processes bounded pages and can refuse on its overall budget; no retained cursor/snapshot across pages or a UI event-log escape.
