@@ -815,10 +815,11 @@
   "web/src/screens/settings/invitations.ts#5ee197e42936d736": {
     "category": "platform-transport",
     "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
     "guardHash": "57a46edcd50913186101ebd2adafc2665bad91698f31c4704cb46c6c085f01e5",
-    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
     "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
   },
   "apps/native/src-next/platform/play-on/cast.ts#ba9fe424a63bf971": {
     "category": "platform-transport",
@@ -1133,5 +1134,662 @@
     "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "apps/native/Native/PorticoServerTrust.m#b986506ae9d48725": {
+    "category": "platform-transport",
+    "reason": "native executes a core-built request verbatim under platform TLS/bounds policy; constructs nothing",
+    "condition": "native executes a core-built request verbatim under platform TLS/bounds policy; constructs nothing",
+    "guardHash": "7bde6a559ea9f24145cb67ed9b0bd0d1450d78eb0d92770c8e5f7d8521f2e890",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645692710",
+    "reviewedCommit": "5391ea684a3020172cc9bf03d226c586420b4f8a"
+  },
+  "apps/native/Native/PorticoServerTrust.m#5768ac884a3915b4": {
+    "category": "platform-transport",
+    "reason": "native executes a core-built request verbatim under platform TLS/bounds policy; constructs nothing",
+    "condition": "native executes a core-built request verbatim under platform TLS/bounds policy; constructs nothing",
+    "guardHash": "7bde6a559ea9f24145cb67ed9b0bd0d1450d78eb0d92770c8e5f7d8521f2e890",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645692710",
+    "reviewedCommit": "5391ea684a3020172cc9bf03d226c586420b4f8a"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoNetwork.kt#4b50cacb05538818": {
+    "category": "platform-transport",
+    "reason": "native executes a core-built request verbatim under platform TLS/bounds policy; constructs nothing",
+    "condition": "native executes a core-built request verbatim under platform TLS/bounds policy; constructs nothing",
+    "guardHash": "1b70800fd7d6bf4783357aa7acf9ea8e4805db8bc2327a8c7e12c91437bce22d",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645692710",
+    "reviewedCommit": "5391ea684a3020172cc9bf03d226c586420b4f8a"
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoNetwork.kt#1ccb2cf59526ba16": {
+    "category": "platform-transport",
+    "reason": "native executes a core-built request verbatim under platform TLS/bounds policy; constructs nothing",
+    "condition": "native executes a core-built request verbatim under platform TLS/bounds policy; constructs nothing",
+    "guardHash": "1b70800fd7d6bf4783357aa7acf9ea8e4805db8bc2327a8c7e12c91437bce22d",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645692710",
+    "reviewedCommit": "5391ea684a3020172cc9bf03d226c586420b4f8a"
+  },
+  "apps/native/src-next/screens/settings-live/SettingsRoute.tsx#61f58e82e29749c3": {
+    "category": "platform-transport",
+    "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "4ad9e4864fac58d20b1b678a6a2cac84fa0e3ccbf4e837cb1e3e81d05a1b4c0c",
+    "occurrences": 2,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/SettingsScreen.tsx#75fe1029eda2b5bf": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "3f9e089ae171786afb895fa55e88e554148c74d759f3404f92699f51adba819b",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/live-owner-controller.ts#978053f74b8fb042": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "bf6e5f4e9c9cd0d61db3f509c2daae76d2c1ac3cc0aac5d710987160ee8d99cf",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/live-owner-controller.ts#0c5593a94138bd2c": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "b7ea1a6ecadcbb46c555317f7b5004e878abe49aedd2be9b8197bd5c30f9925b",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/live-owner-controller.ts#dc81e863faa8a38f": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "f1c0e0c43fe97e00828b20ad67afe267c22f371277afa4a9b957434e79004649",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/live-owner-controller.ts#7762a55d83318cc1": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "bf6332b72429fdf23b0facb757fb764a09a22b9e935818a895840ac42c57870f",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/owner-dashboard/reader.ts#b004e93f490d749f": {
+    "category": "platform-transport",
+    "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "1c47014c69fd19cc6360b79c85c60e9a29001eb4aee21637072f38fdce1de3ac",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/owner-dashboard/reader.ts#05505c3d7d771e30": {
+    "category": "platform-transport",
+    "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "1c47014c69fd19cc6360b79c85c60e9a29001eb4aee21637072f38fdce1de3ac",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/owner-libraries/IntroCreditsReview.tsx#4cad2f4f862194c6": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "b8917368b4325cd3cb7f4ec9b65194823e486cb1fffb307ce5b06c216c3f2e47",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/owner-libraries/OwnerLibrariesPanel.tsx#67baa9506b6232be": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "f3fbdc3b523a69d6889eccb3f942cba4f8cd1c90ea190c8d0031fc71622b37ba",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/owner-libraries/OwnerLibrariesPanel.tsx#932186331b5a8fc5": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "f3fbdc3b523a69d6889eccb3f942cba4f8cd1c90ea190c8d0031fc71622b37ba",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/owner-libraries/controller.ts#d690ec9a3349c128": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "9c84ee7b2c39847b628efd5ca8a21acfb92b7a930d1c1739fb9202549226b86f",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/owner-libraries/controller.ts#7f869e2829df349a": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "66e00ea83f7e7134883a053f9e98e59367163469e10276f62ce1ea0546e9ee41",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/HistoryPage.tsx#e248013a61ace00d": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "84f965216318359f5e718244d926e6c741ee891522da8721578c0d8bd57022b7",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/NotificationDestinations.tsx#b495f44e478c3322": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "42ca7c35c00d0f99b47556b23bcf5321b238e5f63e9c1bd4e300d7c8ace75d10",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/StreamingPage.tsx#d27cb29300ca731f": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "46af544f7fa20c06394b7d56333f5ff59410dd3bde27635708ff9d55c1d245eb",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/TVLiveDefaults.tsx#f20028f3ddf1f0d3": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "e016236bd4509f4611ccd00c6fed1b6457b6d6df45117145383b603e98c7fbb4",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/TVLiveDefaults.tsx#c727fc0f5a386153": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "1a215624d58ef8d18d32150bfa2a50b64e043878fc73c47f6f1e75c753eabd93",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/TVServerReadOnlyPanel.tsx#9cd2f6f16d40c740": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "829743b8eba5fe2c2eb9ceac1d56e9c4ffcb5e3fd59ee02f36eaf460b5734295",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/channels/logo-upload.ts#efbeb7ab26c8325a": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "eccab960eab9a47ad07b6e3ab40ff44771cc34f850fb5512ff06f49897885267",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/channels/model.ts#589537ebffc4374d": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "feab20ba03682b07165a47057783ecd638ef8bae503d70ac107188801d091b05",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/integrations/ApiKeys.tsx#15a09c204da285ef": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "a91e58e7794267e2a45eb96b5b88e85792c42593ca5ed0527a1d1645b29aed85",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/integrations/AppPasswords.tsx#4bc7d6320b3d8aca": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "c7cec50c2279f8a8205dd1e5ac7e56ac2ae4f55c59032389b04eae8b371c0949",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/integrations/Webhooks.tsx#0b011066f8b2e3e5": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "d1eb0dba7d3163eb222b396a8e49c4faad8663e9dc651e98bb4df6b8c1fcf2d6",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/member-profiles-source.ts#ffecc9abaa20b165": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "4d3e11f0ce860ae90fa951bf8a0b06f724e00257872cbaea11b768c5b6df9851",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/member-profiles-source.ts#63132a3b38f72f78": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "146d7f57346a72f876860c0d37dde5786f6f1cdd883b84dad89b7e476b06ebd0",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/metadata-controller.ts#b297777a0bc51908": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "490c524d917fb5b862c2b4b7551024c90f508b94a8666d1d2532aaa1ed3b63bf",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/people-source.ts#ffecc9abaa20b165": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "4d3e11f0ce860ae90fa951bf8a0b06f724e00257872cbaea11b768c5b6df9851",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/storage/BackupFolder.tsx#ed1afbfcfd1cdf2c": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "94b102e64c498ce188793073a8d990ab35224993626040fad5da47aab8beb662",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/storage/BackupsTab.tsx#17812aad0d08f16f": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "d877b923f0bf935512d3c988d74908925ddcd09a756898f946bb6f9d86f64882",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/storage/BackupsTab.tsx#1a2a8d213cb65e07": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "734e28fe211700f7873cae70b6221aa218289a9d8ffc3797612ddcbd5e2ef8bf",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/storage/DownloadsUsage.tsx#087658aad1899cf4": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "ce8890b7ed59d07cb5090829aa4c1c513d631f711339984f88798943406cde16",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/storage/EmptyCache.tsx#7c996537519796ee": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "c744edd4166cff3e1874c8626e654a5af0a4575ef844398475f1a7fd853b728c",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/storage/MissingTitlesTab.tsx#066e86feeb3b50ff": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "e01bfe3f2d01a00eb11fe87610acf8b3a781987dcf944fe9715a56c8608a3bdb",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/storage/forms.ts#3c783c30567bc865": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "f1b41ea507559988853f4f9f065d3157cb93a5f9c2aeaf920358f23f90de3a44",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/storage/forms.ts#ca28f7950d457ce5": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "05f61d20ffb39f0a3e19cfcf3a4d7375ce9ffda2c0d324b763374e5ded001cb9",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/troubleshooting/Feedback.tsx#5f576d5b2f29eb46": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "35669be6809e1e0acb01f60f2cbc833fd12bbff89793af51158d2d77afa560b5",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/troubleshooting/Messages.tsx#42cba0856950e985": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "6a696bb8f9c37198f8e0538301834b35120e77ff50df454a8316492091913674",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/troubleshooting/Reports.tsx#9cae7cdd53563e6a": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "49d90f53f832c55f390a2c8d3ad4ffbd8b3d6c63e65ceca561552808e94bf1c4",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/troubleshooting/Support.tsx#6e0aa45e66efc9e4": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "ce6f614acd6fed6a774ed622db16ee438cbfa801e3d3164066acaee6a0c92261",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/troubleshooting/playback-problems-source.ts#1408663896e041d5": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "eab6a8532554bcd82bd9b137cdc82d7b6c94c6210d77d1621bfad1b1b0435381",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/server/tv-server-reader.ts#52f029557c7a21a0": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "918dd59fb219d7e991a89192d61f954a406fac2dae205223f416530207a3aab1",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/settings-controller.ts#a24c5fcb0366cced": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "e31ce40081fb20451a41f0e93e1615160ee11b6283c19380dd408e2143ea42b2",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/use-settings-request-scope.ts#e4d264b353c82d18": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "16bf8e58f61edfe8a7b58357da087899e99c70a836150158438e0c52a8a5797b",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/dashboard/bindings.ts#d0f8e82148426ef6": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "8cc507e26d6097fcad11342f4b7fa7a19fbbf5c57327fd3c849fa70a4c648508",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/dashboard/bindings.ts#de4b43329275cb5e": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "fc29e07b8ac8c71ccff6a5ec41b06c167fd567cc1933c3bc585b8c5029bd5292",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/dashboard/bindings.ts#62afec8cb0b7622d": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "ddaa7366946f409d45da155c90ed62d0e5a4f5692e02bc10599cdfef19b1d5db",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/dashboard/bindings.ts#83c98d8bdb8cb594": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "838d75169ed2e6f117eeb43aafbb40afc11491dbc016ac39446ca4cce6298629",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/live/owner/OwnerSourcesPage.tsx#adeed3712dc068bd": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "ae500ec868adb7aa70550e7e07106c203d57ab2a2fc08d67972448aed0a86a75",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/settings/LinkTvDialog.tsx#f5bf4e70832c6505": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "d64a532370cd4aec48c007ad507d4a86eb2bdabe7e98ee51ddb5edb4db1b13dd",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/settings/Settings.route.tsx#c93d5da364f8a7c4": {
+    "category": "platform-transport",
+    "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "c53abc05b8fb40814f3cf12718e79234db56909aa562f1bfde99732df49dcb6c",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/settings/Settings.route.tsx#79a7bc500aa905ba": {
+    "category": "platform-transport",
+    "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "abeb6b04553854a065cbbbb7a62b814c080d04b34f7297ba98455f3693b37a52",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/settings/Settings.route.tsx#ce4f350e188d007f": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "1cb25b152865b88b4ad83ce0ee787fce88d5f259d9bb35475b2fc033b157fca8",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/settings/Settings.route.tsx#c0a9b0fe63b3e5a5": {
+    "category": "platform-transport",
+    "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "14df79fe9203b1eb53e9141344287e3bf18b549ef2b0e21272666e4f65aab57a",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/settings/library-source.ts#d690ec9a3349c128": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "9c84ee7b2c39847b628efd5ca8a21acfb92b7a930d1c1739fb9202549226b86f",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/settings/metadata/MetadataSettingsPage.tsx#5dcbcddd8b723643": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "7ef8d61047d883f3f6b673d8d6ee6de9226498050045631293ccbc7890b9b2a5",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/settings/people-devices-api.ts#2858b44e6cd4e37b": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "d20006cf9287afae855bc5e161664c8dac2af11c470e49a6ae15ba92eb39d089",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/settings/people-member-profiles-api.ts#2858b44e6cd4e37b": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "d20006cf9287afae855bc5e161664c8dac2af11c470e49a6ae15ba92eb39d089",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/settings/server-livetv/source-choices-controller.ts#9c4bf08bf5d6f607": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "d7542ffab99fb931a755cb512d58aaaefaaaf95b00b2c3f26b4fb2e90c1d37b2",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/settings/server-remote/certificate-form-source.ts#051727ebcdec1ee5": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "8b6b56f1679e51364c48dddb70a54300e5ded35f0374e1e53f046739a75e0fd3",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/settings/server-remote/remote-form-source.ts#2d7fcc2e2569924b": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "e5efc5b17b59066443894c5e3603a1a04a9dc43a335446bf9663ed0057dd3379",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/settings/settings-request.ts#4c0bb24220992292": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "b7f8e39ba5d3abfc1d463732cb0d3cae623f056ca236646d876d926a54a4862f",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/settings/settings-request.ts#aaa69da7e55cfa03": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "b7f8e39ba5d3abfc1d463732cb0d3cae623f056ca236646d876d926a54a4862f",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/settings/settings-request.ts#2c1b1146df88646a": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "f0bdaad6e44a2961d5c7b6198234f0dcc4bf67e9d832877678044cf7a85e33bd",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/SettingsRoute.tsx#32ee3e8586b61f52": {
+    "category": "platform-transport",
+    "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
+    "condition": "Original core-built V1Request or path/method/body/byte-budget is forwarded unchanged; only the original linked signal, lifetime assertions and GET-only readEventState resync scheduling are retained; no construction or selection.",
+    "guardHash": "4ad9e4864fac58d20b1b678a6a2cac84fa0e3ccbf4e837cb1e3e81d05a1b4c0c",
+    "occurrences": 2,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646427108",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "apps/native/src-next/screens/settings-live/owner-dashboard/reader.ts#32ee3e8586b61f52": {
+    "category": "platform-transport",
+    "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
+    "condition": "Original core-built V1Request or path/method/body/byte-budget is forwarded unchanged; only the original linked signal, lifetime assertions and GET-only readEventState resync scheduling are retained; no construction or selection.",
+    "guardHash": "1c47014c69fd19cc6360b79c85c60e9a29001eb4aee21637072f38fdce1de3ac",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646427108",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/settings/Settings.route.tsx#7393699cf50b5a29": {
+    "category": "platform-transport",
+    "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
+    "condition": "Original core-built V1Request or path/method/body/byte-budget is forwarded unchanged; only the original linked signal, lifetime assertions and GET-only readEventState resync scheduling are retained; no construction or selection.",
+    "guardHash": "db73d45c8a8cbd06f001274296fd39d96438472eec47a8f6a911a98fef3ed269",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646427108",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/settings/Settings.route.tsx#4a0ed0f9855c7d2e": {
+    "category": "platform-transport",
+    "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
+    "condition": "Original core-built V1Request or path/method/body/byte-budget is forwarded unchanged; only the original linked signal, lifetime assertions and GET-only readEventState resync scheduling are retained; no construction or selection.",
+    "guardHash": "b1cc6f1f5ac239fa96f789192948dc704b5ecf1aac4cf425cc4525cab97bcc71",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646427108",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+  },
+  "web/src/screens/settings/Settings.route.tsx#7c87dc11818a60a0": {
+    "category": "platform-transport",
+    "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
+    "condition": "Original core-built V1Request or path/method/body/byte-budget is forwarded unchanged; only the original linked signal, lifetime assertions and GET-only readEventState resync scheduling are retained; no construction or selection.",
+    "guardHash": "e63bbe67f702525fbc3cc526dac7a0b388fea88ee6ff7c8eb8a15534e53754fd",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646427108",
+    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
   }
 }
