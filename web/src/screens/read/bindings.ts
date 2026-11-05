@@ -4,7 +4,7 @@ import {ReadingError, type HttpLocalApi, type LocalSession, type PreferenceSnaps
 import type {ReadPreferenceSource} from './preferences';
 import type {ReaderMountAuthority} from './mount';
 import {libraryAccessEnded} from '../../shell/library-route-proof';
-import {routePath} from '../../../../packages/contracts/src/routes.ts';
+import {farewellReadingSession} from '@core/query/reading-commands.ts';
 
 export type ReadBindingContext = Readonly<{
   api: Pick<HttpLocalApi, 'reading'> & Partial<Pick<HttpLocalApi, 'farewell'>>; session: () => Pick<LocalSession, 'viewer' | 'sessionFamilyId'>;
@@ -69,7 +69,7 @@ export function createReadBindings(context: ReadBindingContext): ReadBindings {
     const stale = heldSessions();
     if (!stale.length) return;
     setHeldSessions([]);
-    for (const id of stale) context.api.farewell?.(routePath('delete_reading_sessions_sessionId', {sessionId: id}), 'DELETE');
+    for (const id of stale) farewellReadingSession(context.api, id);
   };
   const release = (opened: ReadingSession): Promise<void> => {
     if (!viewerMatches()) return Promise.resolve();
@@ -112,7 +112,7 @@ export function createReadBindings(context: ReadBindingContext): ReadBindings {
   const pageGone = (event: Event) => {
     const held = session;
     if ((event as PageTransitionEvent).persisted || !held || !viewerMatches()) return;
-    context.api.farewell?.(routePath('delete_reading_sessions_sessionId', {sessionId: held.sessionId}), 'DELETE');
+    farewellReadingSession(context.api, held.sessionId);
   };
   page?.addEventListener('pagehide', pageGone);
   const dispose = () => {
