@@ -1,7 +1,7 @@
+import {readCatalogueItemResponse} from '@core/query/catalogue-reads.ts';
 import {subscribePresentation} from '../../shell/fact-hooks';
 import {shellLanguage} from '../../shell/settings';
 import {GroupSessionService, type GroupSessionSnapshot} from '@core/group-session.ts';
-import {encodedRoutePath} from '../../../../packages/contracts/src/routes.ts';
 import type {ItemResponse} from '@core/media-item.ts';
 import {parseMediaItem} from '@core/media-item.ts';
 import {subscribeFreshness} from '@core/freshness.ts';
@@ -36,7 +36,7 @@ export function createTogetherBindings(context: ShellAssemblyContext, playback: 
   const catalogueRevisions = new Map<string, string>();
   const summaries = new TogetherItemSummaries<ItemResponse>({current: isCurrent, publish, reportError: playback.reportError,
     read: async (id, signal) => {
-      const raw = await api.request<ItemResponse>(encodedRoutePath('get_items_id', {id: encodeURIComponent(id)}), 'GET', undefined, signal);
+      const raw = await readCatalogueItemResponse(api, id, signal);
       if (parseMediaItem(raw).id !== id) throw new Error('unexpected_group_item');
       return raw;
     },

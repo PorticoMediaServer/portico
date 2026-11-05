@@ -1,5 +1,6 @@
-import {routePath} from '../../../../../../packages/contracts/src/routes';
+import {readLibraryDirectoryResponse} from '../../../../../../packages/client-core/src/query/catalogue-reads';
 import {parseLibraryList} from '../../../../../../packages/client-core/src/library-list';
+import {routePath} from '../../../../../../packages/contracts/src/routes';
 import type {Library} from '../../../../../../packages/client-core/src';
 import {SettingsPeopleClient, type SettingsPeoplePage, type SettingsPeopleQuery, type SettingsPersonRow} from '../../../../../../packages/client-core/src/settings-people';
 import {PeopleInvitationsClient, privatePersonNotes, type PeopleInvitationPage, type ServerInvitation} from '../../../../../../packages/client-core/src/direct-account';
@@ -122,7 +123,7 @@ export class NativePeopleSource {
     if (!this.current() || this.state.librariesLoading) return;
     const flight = this.libraryFlight = new AbortController(); this.publish({librariesLoading: true, librariesError: undefined});
     const owns = () => this.current() && this.libraryFlight === flight && !flight.signal.aborted;
-    try {const page = parseLibraryList(await this.api.request(routePath('get_libraries'), 'GET', undefined, flight.signal)); if (owns()) this.publish({libraries: page.items});}
+    try {const page = parseLibraryList(await readLibraryDirectoryResponse(this.api, flight.signal)); if (owns()) this.publish({libraries: page.items});}
     catch (error) {if (owns()) {this.publish({librariesError: error}); if ([401, 403].includes((error as {status: number})?.status)) this.fail(error);}}
     finally {if (owns()) this.publish({librariesLoading: false}); if (this.libraryFlight === flight) this.libraryFlight = undefined;}
   };
