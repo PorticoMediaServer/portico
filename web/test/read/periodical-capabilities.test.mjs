@@ -1,3 +1,5 @@
+import {setImmediate as settleRequests} from 'node:timers/promises';
+import {readBrowseCapabilitiesResponse} from '../../../packages/client-core/src/query/browse-reads.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
@@ -16,6 +18,7 @@ async function loadActual(h, navigations) {
   if (result.errors.length) throw new Error(JSON.stringify(result.errors));
   const modules = {
     react: h.react, '@i18n': {defaultI18n: {t: key => key}},
+    '@core/query/browse-reads.ts': {readBrowseCapabilitiesResponse},
     '@core/browse.ts': {parseBrowseCapabilities, browseCapabilitiesPath},
     '@core/presentation/library-tabs.ts': {readingTabModel, libraryTabs},
     '../../shell/viewport': {useShellWidth: () => 1440}, './screen-preferences': {useScreenAppearance: () => ({libraryView: 'grid', showBackdrops: false})},
@@ -75,21 +78,21 @@ async function fixture({strict = false, holdPassive = false} = {}) {
 
 test('capability failure offers one retry, then mounts the exact periodical', async () => {
   const f = await fixture(); assert.ok(f.settle().some(node => node.type === 'Skeleton')); assert.equal(f.calls.length, 1);
-  f.calls[0].reject(new Error('offline')); await Promise.resolve(); await Promise.resolve();
+  f.calls[0].reject(new Error('offline')); await settleRequests();
   assert.ok(f.settle().some(node => node.type === 'LibraryIdentity')); const retry = f.retry(); retry(); retry(); f.settle();
   assert.equal(f.calls.length, 2); assert.equal(f.calls[0].signal.aborted, true);
-  f.calls[1].resolve(caps()); await Promise.resolve(); await Promise.resolve();
+  f.calls[1].resolve(caps()); await settleRequests();
   const periodical = one(f.settle(), 'ReadPeriodicalEntry'); assert.equal(periodical.props.libraryId, 'library'); assert.equal(periodical.props.kind, 'magazine');
 });
 
 test('invalid or mismatched capabilities are recoverable, stale replies never replace a new opening', async () => {
   for (const bad of [null, caps('other'), caps('library', 'comic')]) {
-    const f = await fixture(); f.settle(); f.calls[0].resolve(bad); await Promise.resolve(); await Promise.resolve();
+    const f = await fixture(); f.settle(); f.calls[0].resolve(bad); await settleRequests();
     assert.ok(f.retry());
   }
   const f = await fixture(); f.settle(); const first = f.calls[0]; f.replace('new-library', 'newspapers');
-  assert.equal(first.signal.aborted, true); first.resolve(caps()); await Promise.resolve(); await Promise.resolve();
-  f.calls[1].resolve(caps('new-library', 'book', 'newspapers')); await Promise.resolve(); await Promise.resolve();
+  assert.equal(first.signal.aborted, true); first.resolve(caps()); await settleRequests();
+  f.calls[1].resolve(caps('new-library', 'book', 'newspapers')); await settleRequests();
   const current = one(f.settle(), 'ReadPeriodicalEntry'); assert.equal(current.props.libraryId, 'new-library'); assert.equal(current.props.kind, 'newspaper');
 });
 
@@ -97,7 +100,7 @@ test('retired lifetime refuses late failure and success', async () => {
   for (const fail of [false, true]) {
     const f = await fixture(); f.settle(); f.retire();
     if (fail) f.calls[0].reject(new Error('late')); else f.calls[0].resolve(caps());
-    await Promise.resolve(); await Promise.resolve(); assert.deepEqual(f.errors, []);
+    await settleRequests(); assert.deepEqual(f.errors, []);
     assert.equal(f.settle().some(node => node.type === 'ReadPeriodicalEntry'), false);
   }
 });
@@ -105,38 +108,38 @@ test('retired lifetime refuses late failure and success', async () => {
 
 test('effect replay withdraws original request before admitting the replacement', async () => {
   const f = await fixture({strict: true}); f.settle(); assert.equal(f.calls.length, 2); assert.equal(f.calls[0].signal.aborted, true);
-  f.calls[0].reject(new Error('retired')); f.calls[1].resolve(caps()); await Promise.resolve(); await Promise.resolve();
+  f.calls[0].reject(new Error('retired')); f.calls[1].resolve(caps()); await settleRequests();
   assert.deepEqual(f.errors, []); assert.equal(one(f.settle(), 'ReadPeriodicalEntry').props.kind, 'magazine');
 });
 
 test('a stale rejected request cannot replace an already ready successor', async () => {
   const f = await fixture(); f.settle(); const old = f.calls[0]; f.replace('new-library', 'newspapers');
-  f.calls[1].resolve(caps('new-library', 'book', 'newspapers')); await Promise.resolve(); await Promise.resolve();
-  old.reject(new Error('late')); await Promise.resolve(); await Promise.resolve();
+  f.calls[1].resolve(caps('new-library', 'book', 'newspapers')); await settleRequests();
+  old.reject(new Error('late')); await settleRequests();
   assert.deepEqual(f.errors, []); assert.equal(one(f.settle(), 'ReadPeriodicalEntry').props.libraryId, 'new-library');
 });
 
 
 test('committed replacement fences saved retry before passive effects and ignores a late result', async () => {
   const f = await fixture({holdPassive: true}); f.settle();
-  f.calls[0].reject(new Error('offline')); await Promise.resolve(); await Promise.resolve();
+  f.calls[0].reject(new Error('offline')); await settleRequests();
   const retry = f.retry(); f.replace('successor', 'newspapers');
   const successor = f.calls[1]; retry(); assert.equal(f.calls.length, 2); assert.equal(successor.signal.aborted, false);
-  successor.resolve(caps('successor', 'book', 'newspapers')); await Promise.resolve(); await Promise.resolve();
+  successor.resolve(caps('successor', 'book', 'newspapers')); await settleRequests();
   assert.equal(one(f.settle(), 'ReadPeriodicalEntry').props.libraryId, 'successor');
   const g = await fixture({holdPassive: true}); g.settle(); const old = g.calls[0]; g.replaceContext();
-  assert.equal(old.signal.aborted, true); old.resolve(caps()); await Promise.resolve(); await Promise.resolve();
+  assert.equal(old.signal.aborted, true); old.resolve(caps()); await settleRequests();
   assert.equal(g.settle().some(node => node.type === 'ReadPeriodicalEntry'), false);
-  g.calls[1].resolve(caps()); await Promise.resolve(); await Promise.resolve();
+  g.calls[1].resolve(caps()); await settleRequests();
   assert.equal(one(g.settle(), 'ReadPeriodicalEntry').props.libraryId, 'library');
 });
 
 test('abort reentry cannot let an old retry clear or replace the successor', async () => {
   const f = await fixture({holdPassive: true}); f.settle(); f.calls[0].reject(new Error('offline'));
-  await Promise.resolve(); await Promise.resolve(); const retry = f.retry();
+  await settleRequests(); const retry = f.retry();
   f.calls[0].signal.addEventListener('abort', () => f.replace('successor', 'newspapers'), {once: true});
   retry(); assert.equal(f.calls.length, 2); assert.equal(f.calls[1].signal.aborted, false);
-  f.calls[1].resolve(caps('successor', 'book', 'newspapers')); await Promise.resolve(); await Promise.resolve();
+  f.calls[1].resolve(caps('successor', 'book', 'newspapers')); await settleRequests();
   assert.equal(one(f.settle(), 'ReadPeriodicalEntry').props.libraryId, 'successor');
 });
 
@@ -144,14 +147,14 @@ test('leaving a periodical opening preserves the nonperiodical fallback', async 
   const f = await fixture(); f.settle(); const old = f.calls[0];
   const next = f.discover(); assert.equal(old.signal.aborted, true);
   assert.equal(one(next, 'ReadLibraryEntry').props.view, 'discover');
-  old.resolve(caps()); await Promise.resolve(); await Promise.resolve();
+  old.resolve(caps()); await settleRequests();
   assert.equal(one(f.settle(), 'ReadLibraryEntry').props.view, 'discover');
 });
 
 
 test('periodical drilldown keeps its series and tab actions use the published pivots', async () => {
   const f = await fixture(); f.settle(); f.calls[0].resolve(caps());
-  await Promise.resolve(); await Promise.resolve();
+  await settleRequests();
   const nodes = f.openSeries('series-opaque');
   const periodical = one(nodes, 'ReadPeriodicalEntry');
   assert.equal(periodical.props.libraryId, 'library');
@@ -166,7 +169,7 @@ test('periodical drilldown keeps its series and tab actions use the published pi
 
 test('the sibling facet receives the raw API port and reads its wire envelope', async () => {
   const f = await fixture(); f.settle(); f.calls[0].resolve(caps());
-  await Promise.resolve(); await Promise.resolve();
+  await settleRequests();
   const facet = one(f.authors(), 'FacetPage');
   const signal = new AbortController().signal;
   const work = loadFacetPage(facet.props.request, {libraryId: facet.props.libraryId, field: facet.props.field, pivot: facet.props.pivot}, signal);

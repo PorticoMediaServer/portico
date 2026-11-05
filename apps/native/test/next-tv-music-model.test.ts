@@ -3,11 +3,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
 import {screenModule} from './helpers/screen-harness.mjs';
-import {readListeningSimilar} from '../../../packages/client-core/src/library-content.ts';
+import {readListeningSimilar, listeningSimilarPath} from '../../../packages/client-core/src/library-content.ts';
 import * as readingBooksOpen from '../src-next/screens/read/reading-books-open.ts';
 import * as musicPaging from '../src-next/screens/destinations/music/paging.ts';
 import {presentError} from '../../../packages/client-core/src/presentation/errors.ts';
 import * as titleRelated from '../src-next/screens/watch/title-related.ts';
+import * as browseReads from '../../../packages/client-core/src/query/browse-reads.ts';
+import {browseCapabilitiesPath, browsePath} from '../../../packages/client-core/src/browse.ts';
+import {encodedRoutePath} from '../../../packages/contracts/src/routes.ts';
 
 const song = (id: string, track: number, duration: number, title: string) => ({id, libraryId: 'music', kind: 'song', title, duration, trackNumber: track, artist: {id: 'artist-1', name: 'Kendrick Lamar'}, album: {id: 'album-1', name: 'DAMN.'}});
 const albumEntry = {id: 'album-1', libraryId: 'music', kind: 'album', title: 'DAMN.', artist: {id: 'artist-1', name: 'Kendrick Lamar'}, year: 2017, posterUrl: '/v1/items/a/art/poster'};
@@ -40,12 +43,12 @@ async function controller(entry: any, options: Fixture = {}) {
   const playback = {cataloguePlayback: () => ({playSegments: (segments: any, start: any) => {calls.push({segments, options: start}); return Promise.resolve({id: 'queue'});}})};
   const api = {request: async (path:any,_method?:any,body?:any)=>{
     reads.push(String(path));
-    if (String(path).startsWith('cap:')) {
+    if (String(path).startsWith(browseCapabilitiesPath('music', 'songs'))) {
       const failure = options.capabilitiesError?.();
       if (failure) throw failure;
       return {pivots: [{id: 'songs'}], fields: [{id: 'memberOf'}], sorts: [{id: 'groupOrder'}], queryLimits: {maximumLimit: options.maximumLimit ?? 200}};
     }
-    if (String(path).startsWith('browse:')) {
+    if (String(path) === browsePath('music')) {
       const start = body?.cursor ? Number(body.cursor) : 0;
       browseBodies.push(JSON.parse(JSON.stringify(body)));
       await options.waitPage?.(start);
@@ -68,6 +71,7 @@ async function controller(entry: any, options: Fixture = {}) {
     throw new Error(`unexpected ${path}`);
   }};
   const {NativeTVMusicController} = await screenModule(new URL('../src-next/screens/destinations/music/model.ts', import.meta.url), {
+    '../../../../../../packages/client-core/src/query/browse-reads': browseReads,
     '../../watch/title-related': titleRelated,
     './paging': musicPaging,
     '../../../../../../packages/client-core/src/detail': {DetailService},
@@ -75,11 +79,11 @@ async function controller(entry: any, options: Fixture = {}) {
     '../../../shell/bootstrap': {default: {}},
     '../../../shell/playback': {default: {}},
     './lifetime': {default: {}, nativeDestinationLifetime: () => ({scope: {serverId: 'server', viewerId: 'viewer'}, current: () => true})},
-    '../../../../../../packages/client-core/src/library-content': {default: {}, readListeningSimilar,validateContentEntry:(value:any)=>value,LibraryContentService: FakeLibraryContentService},
-    '../../../../../../packages/client-core/src/browse': {default: {}, BrowseQueryBuilder: Builder, browseCapabilitiesPath: (library: string, pivot: string) => `cap:${library}:${pivot}`, browsePath: (library: string) => `browse:${library}`,
+    '../../../../../../packages/client-core/src/library-content': {default: {}, readListeningSimilar,listeningSimilarPath,validateContentEntry:(value:any)=>value,LibraryContentService: FakeLibraryContentService},
+    '../../../../../../packages/client-core/src/browse': {default: {}, BrowseQueryBuilder: Builder, browseCapabilitiesPath, browsePath,
       parseBrowseCapabilities: (value: any) => value, parseBrowseResult: (value: any) => value},
     '../../../../../../packages/client-core/src/container-state': {default: {}, getContainerState: async (_api: any, _kind: any, _id: any) => ({favorite: true}), setContainerFlag: async () => ({favorite: false})},
-    '../../../../../../packages/contracts/src/routes': {default: {}, encodedRoutePath: (id: string, values: {id: string}) => `/v1/${id}/${values.id}`},
+    '../../../../../../packages/contracts/src/routes': {default: {}, encodedRoutePath},
     '../../../../../../packages/client-core/src/server-messages': {default: {}, unreadableServerResponse: 'unreadable'},
   });
   const value = new NativeTVMusicController({api, entry,similarScope,lifetime:{scope:{serverId:'server',viewerId:'opaque-content-scope'},current: () => options.current?.() ?? true}, playback});
@@ -615,7 +619,7 @@ test('continuation retains the originally dispatched artist query and endpoint r
  const original={...artistEntry};const songs=Array.from({length:4},(_,i)=>song(`song-${i}`,i+1,180,`Track ${i}`));
  const f=await controller(original,{songs,pageSize:2,maximumLimit:2});await f.value.loadAllSongs();
  original.title='another artist';original.libraryId='another library';await f.value.nextAllSongs(f.value.getSnapshot().allSongs);
- assert.deepEqual(f.browseBodies.map(body=>body.query.value),['Kendrick Lamar','Kendrick Lamar']);assert.equal(f.reads.filter(path=>path==='browse:music').length,2);f.value.dispose();
+ assert.deepEqual(f.browseBodies.map(body=>body.query.value),['Kendrick Lamar','Kendrick Lamar']);assert.equal(f.reads.filter(path=>path===browsePath('music')).length,2);f.value.dispose();
 });
 
 async function tvMusicScreens(){

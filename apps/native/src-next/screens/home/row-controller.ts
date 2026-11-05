@@ -1,4 +1,5 @@
-import {BrowseQueryBuilder, browseCapabilitiesPath, browseContextFacetsPath, browseCountsPath, browseCountsRequest, browseMembershipId, browsePath, parseBrowseCapabilities,
+import {readBrowseCapabilitiesResponse, readImmediateBrowsePageResponse, readBrowseFacetResponse, readBrowseCountsResponse} from '../../../../../packages/client-core/src/query/browse-reads';
+import {BrowseQueryBuilder, browseMembershipId, parseBrowseCapabilities,
   parseBrowseCounts, parseBrowseFacets, parseBrowseResult, type BrowseCapabilities, type BrowseCount, type BrowseNode, type BrowseSortSelection} from '../../../../../packages/client-core/src/browse';
 import {createWindowedCollection, type WindowedCollection} from '../../../../../packages/client-core/src/collections/windowed';
 import {fetchHomeRow, type HomeApi, type HomeRow} from '../../../../../packages/client-core/src/home';
@@ -58,7 +59,7 @@ export class NativeHomeRowController {
     this.abort.abort(); this.abort = new AbortController(); const generation = ++this.generation;
     this.publish({phase: 'loading', error: undefined});
     try {
-      const [raw, row] = await Promise.all([this.request(browseCapabilitiesPath('*', acrossPivot('homeRow'))), fetchHomeRow(this.api, this.rowId, {limit: 60}, this.abort.signal)]);
+      const [raw, row] = await Promise.all([readBrowseCapabilitiesResponse({request: this.request.bind(this)}, '*', acrossPivot('homeRow')), fetchHomeRow(this.api, this.rowId, {limit: 60}, this.abort.signal)]);
       if (!this.valid(generation)) return;
       // The row read now is the server's answer for the viewer now; a moved fence is newer, not stale (a refusal is a 401/403).
       if (row.id !== this.rowId) throw stale();
@@ -90,7 +91,7 @@ export class NativeHomeRowController {
       if (!this.valid(generation) || count > 60) throw cancelled();
       const body = new BrowseQueryBuilder(capabilities, acrossPivot('homeRow')).add(query).sort(sort.field, sort.direction, sort.seed)
         .limit(Math.min(60, count)).displayHomeRow(this.rowId).range({start, ...(revision ? {revision} : {})}).build();
-      const page = parseBrowseResult(await this.request(browsePath('*'), 'POST', body, signal));
+      const page = parseBrowseResult(await readImmediateBrowsePageResponse({request: this.request.bind(this)}, '*', body, signal));
       if (!this.valid(generation) || page.pageInfo.start !== start || page.pivot !== acrossPivot('homeRow') || page.entries.length > 0 && !page.displayTargets || revision && revision !== page.pageInfo.revision) throw stale();
       revision = page.pageInfo.revision;
       return {items: page.entries.map((entry, index) => {
@@ -105,7 +106,7 @@ export class NativeHomeRowController {
     const offered = this.state.capabilities?.fields.some(value => value.id === field || value.facetSource?.field === field || field === 'decade' && value.id === 'year');
     if (!offered || this.state.phase !== 'ready') throw cancelled();
     const query = this.query(true, filters), stamp = JSON.stringify(this.query());
-    const raw = await this.request(browseContextFacetsPath('*', field, acrossPivot('homeRow'), query, search, 200));
+    const raw = await readBrowseFacetResponse({request: this.request.bind(this)}, '*', field, acrossPivot('homeRow'), query, search, 200);
     if (stamp !== JSON.stringify(this.query())) throw cancelled();
     return parseBrowseFacets(raw, field);
   };
@@ -118,7 +119,7 @@ export class NativeHomeRowController {
     const counts: BrowseCount[] = [];
     for (let start = 0; start < queries.length; start += 8) {
       const batch = queries.slice(start, start + 8);
-      const raw = await this.request(browseCountsPath('*'), 'POST', browseCountsRequest(acrossPivot('homeRow'), batch), signal);
+      const raw = await readBrowseCountsResponse({request: this.request.bind(this)}, '*', acrossPivot('homeRow'), batch, signal);
       if (!this.valid(generation) || stamp !== JSON.stringify(this.query())) throw cancelled();
       counts.push(...parseBrowseCounts(raw, batch.map(query => query.id)));
     }
@@ -146,7 +147,7 @@ export class NativeHomeRowController {
       const counts: BrowseCount[] = [];
       for (let start = 0; start < queries.length; start += 8) {
         const batch = queries.slice(start, start + 8);
-        const raw = await this.request(browseCountsPath('*'), 'POST', browseCountsRequest(acrossPivot('homeRow'), batch));
+        const raw = await readBrowseCountsResponse({request: this.request.bind(this)}, '*', acrossPivot('homeRow'), batch);
         if (!this.valid(generation) || ticket !== this.countTicket) return;
         counts.push(...parseBrowseCounts(raw, batch.map(query => query.id)));
       }
