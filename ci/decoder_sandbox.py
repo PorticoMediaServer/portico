@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import time
 
 from run import classify
 
@@ -27,8 +28,8 @@ REQUIRED = {
 }
 
 
-def command(args):
-    subprocess.run(args, check=True, timeout=180)
+def command(args, timeout=180):
+    subprocess.run(args, check=True, timeout=timeout)
 
 
 def setup():
@@ -38,8 +39,16 @@ def setup():
             or os.environ.get('RUNNER_ENVIRONMENT') != 'github-hosted'
             or os.environ.get('RUNNER_OS') != 'Linux'):
         raise ValueError('sandbox setup requires a disposable GitHub-hosted Linux runner')
-    command(['sudo', 'apt-get', 'update'])
-    command(['sudo', 'apt-get', 'install', '-y', '--no-install-recommends', 'bubblewrap', 'ffmpeg'])
+    for attempt in range(2):
+        try:
+            command(['sudo', 'apt-get', '-o', 'Acquire::Retries=3', 'update'], timeout=300)
+            command(['sudo', 'apt-get', '-o', 'Acquire::Retries=3', 'install', '-y',
+                     '--no-install-recommends', 'bubblewrap', 'ffmpeg'], timeout=600)
+            break
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+            if attempt == 1:
+                raise
+            time.sleep(5)
     for key, value in [('kernel.apparmor_restrict_unprivileged_userns', '0'),
                        ('kernel.unprivileged_userns_clone', '1')]:
         if (Path('/proc/sys') / key.replace('.', '/')).exists():
