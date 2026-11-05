@@ -1,3 +1,4 @@
+import * as catalogueActions from '../../../../packages/client-core/src/query/catalogue-actions.ts';
 import {readFile} from 'node:fs/promises';
 import {compileFunction} from 'node:vm';
 import {parseSync, transformSync} from 'rolldown/utils';
@@ -45,6 +46,7 @@ function railHoldLeaf(react) {
   return hooks;
 }
 const leaf = (source, react, native) => /client-core\/src\/query\/receiver(\.ts)?$/.test(source) ? receiverQueries
+  : /client-core\/src\/query\/catalogue-actions(?:\.ts)?$/.test(source) ? catalogueActions
   : /(^|\/)server-clock(\.ts)?$/.test(source) && /client-core\/src\/server-clock|^\.\/server-clock/.test(source) ? serverClock
   : /(^|\/)failure-words$/.test(source) ? failureWords
   : /(^|\/)platform\/tv-play-pause$/.test(source) ? tvPlayPause
