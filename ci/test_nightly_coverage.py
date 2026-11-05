@@ -115,7 +115,7 @@ class NightlyCoverage(unittest.TestCase):
                 events.append({'Package': owner['package'], 'Action': 'pass'})
                 result = subprocess.CompletedProcess(['go', 'test'], 0,
                     '\n'.join(json.dumps(event) for event in events), '')
-                with patch('run.ROOT', root), patch('run.validate_tags'), patch('run.subprocess.run', return_value=result):
+                with patch('run.ROOT', root), patch('run.validate_tags'), patch('run.run_go', return_value=result):
                     if terminals == ['pass']:
                         go(plan, 0)
                     else:
@@ -141,7 +141,7 @@ class NightlyCoverage(unittest.TestCase):
             events.append({'Package': owner['package'], 'Action': 'pass'})
             result = subprocess.CompletedProcess(['go', 'test'], 0,
                 '\n'.join(json.dumps(event) for event in events), '')
-            with patch('run.ROOT', root), patch('run.validate_tags'), patch('run.subprocess.run', return_value=result):
+            with patch('run.ROOT', root), patch('run.validate_tags'), patch('run.run_go', return_value=result):
                 go(plan, 0)
     def test_million_object_benchmark_is_scheduled_and_required(self):
         text = (ROOT / '.github/workflows/nightly.yml').read_text()

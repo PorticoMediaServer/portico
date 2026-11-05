@@ -32,9 +32,9 @@ class Redesign(unittest.TestCase):
         good=[{'Test':'TestA','Action':'pass'},{'Action':'pass'}]
         for output in ['timed out','signal: logged','build failed logged','panic: logged']:
             self.assertEqual(classify([{'Test':'TestA','Output':output}]+good,['TestA'],0,set()),'pass')
-        for event in [{'Output':'WARNING: DATA RACE'}, {'Output':'panic: test timed out after 10m'}, {'Action':'build-fail'}]:
-            self.assertEqual(classify(good+[event],['TestA'],0,set()),'blocked')
-        self.assertEqual(classify(good,['TestMissing'],0,set()),'blocked')
+        for event,status in [({'Output':'WARNING: DATA RACE'},'panic_or_race'), ({'Output':'panic: test timed out after 10m'},'timeout'), ({'Action':'build-fail'},'build_failed')]:
+            self.assertEqual(classify(good+[event],['TestA'],0,set()),status)
+        self.assertEqual(classify(good,['TestMissing'],0,set()),'incomplete_events')
     def test_deterministic_ten_worker_cap(self):
         tests=[{'package':'p','name':str(i)} for i in range(50)]
         durations={'p.'+str(i):50 for i in range(50)}
@@ -62,7 +62,7 @@ class BatchExecution(unittest.TestCase):
             (root/'ci-tools/portico-server').touch()
             events=[{'Package':p,'Test':'TestA','Action':'pass'} for p in ['a','b']]+[{'Package':p,'Action':'pass'} for p in ['a','b']]
             result=SimpleNamespace(stdout='\n'.join(map(json.dumps,events)),stderr='go: downloading example dependency',returncode=0)
-            with patch('run.ROOT',root),patch('run.validate_tags'),patch.dict('os.environ',{'PORTICO_CI_GO_PACKAGE_JOBS':'4'}),patch('run.subprocess.run',return_value=result) as run:
+            with patch('run.ROOT',root),patch('run.validate_tags'),patch.dict('os.environ',{'PORTICO_CI_GO_PACKAGE_JOBS':'4'}),patch('run.run_go',return_value=result) as run:
                 go(plan,0)
                 args=run.call_args.args[0]
                 self.assertNotIn('-run',args);self.assertIn('-p=4',args)
@@ -101,7 +101,7 @@ class SplitPackagePool(unittest.TestCase):
             root=Path(d);(root/'ci').mkdir();(root/'ci-tools').mkdir()
             (root/'ci/quarantine.json').write_text('{"entries":[]}')
             (root/'ci-tools/portico-server').touch()
-            with patch('run.ROOT',root),patch('run.validate_tags'),patch.dict('os.environ',{'PORTICO_CI_GO_PACKAGE_JOBS':workers}),patch('run.subprocess.run',side_effect=fake):
+            with patch('run.ROOT',root),patch('run.validate_tags'),patch.dict('os.environ',{'PORTICO_CI_GO_PACKAGE_JOBS':workers}),patch('run.run_go',side_effect=fake):
                 go(plan,0)
             reports={p:(root/'ci-results'/(p+'.jsonl')).read_text() for p in names}
         return state, reports
