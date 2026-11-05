@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/v1/events?after=<scrubbed>&waitMs=0"
+  },
+  "status": 200,
+  "body": {
+    "events": [
+      {
+        "variant": "change",
+        "id": "e1.yvmcSYb4XIJXPt9zZ780iZuWkam98iNhDDI5EA6w-Fs_kpaTzFLbmEpbLDT5qBslJ5pWgI1_YkHLZ7Qg",
+        "type": "stream.resync",
+        "at": "2026-11-04T23:04:37.150Z",
+        "resource": {
+          "kind": "stream",
+          "id": "all"
+        },
+        "revision": ""
+      }
+    ],
+    "nextAfter": "e1.yvmcSYb4XIJXPt9zZ780iZuWkam98iNhDDI5EA6w-Fs_kpaTzFLbmEpbLDT5qBslJ5pWgI1_YkHLZ7Qg",
+    "more": false
+  }
+}

@@ -3,7 +3,7 @@
 // at record time (see scrub.mjs), one JSON file per endpoint.
 //
 //   node scripts/compat-corpus/record.mjs --base http://127.0.0.1:8371 --username NAME \
-//        --password-file PATH --out packages/client-core/test/compat-corpus/<release>
+//        --password-file PATH --build-info VERIFIED_BUILD_JSON --out packages/client-core/test/compat-corpus/<release>
 //
 // The server should already have one library with a few items (the synthetic music set is enough).
 import {mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
@@ -13,8 +13,10 @@ import {randomUUID} from 'node:crypto';
 import {encodedRoutePath, routePath} from '../../packages/contracts/src/route-paths.ts';
 import {scrub} from './scrub.mjs';
 
-const {values: args} = parseArgs({options: {base: {type: 'string'}, username: {type: 'string'}, 'password-file': {type: 'string'}, out: {type: 'string'}}});
-if (!args.base || !args.username || !args['password-file'] || !args.out) throw new Error('--base, --username, --password-file and --out are required');
+const {values: args} = parseArgs({options: {base: {type: 'string'}, username: {type: 'string'}, 'password-file': {type: 'string'}, out: {type: 'string'}, 'build-info': {type: 'string'}}});
+if (!args.base || !args.username || !args['password-file'] || !args.out || !args['build-info']) throw new Error('--base, --username, --password-file, --build-info and --out are required');
+const build = JSON.parse(readFileSync(args['build-info'],'utf8'));
+if (!/^[a-f0-9]{40}$/.test(build.sourceRevision ?? '') || build.modified !== false || !/^[a-f0-9]{64}$/.test(build.binaryHash ?? '')) throw new Error('verified clean binary build metadata required');
 const base = args.base.replace(/\/$/, ''), out = resolve(args.out);
 // The password file is either the fixture rig's JSON ({password}) or the bare password.
 const raw = readFileSync(args['password-file'], 'utf8');
@@ -24,12 +26,13 @@ if (!password) throw new Error('no password in the password file');
 rmSync(out, {recursive: true, force: true});
 mkdirSync(out, {recursive: true});
 let token = '';
+const installationId = randomUUID();
 const notes = [];
 const enc = encodeURIComponent;
 
 async function call(method, path, body, headers = {}) {
   const res = await fetch(base + path, {
-    method, headers: {...(body !== undefined ? {'content-type': 'application/json'} : {}), ...(token ? {authorization: `Bearer ${token}`} : {}), ...headers},
+    method, headers: {'X-Portico-Installation-Id': installationId, 'X-Portico-Device-Name': 'Compatibility corpus', 'X-Portico-Device-Platform': 'script', ...(body !== undefined ? {'content-type': 'application/json'} : {}), ...(token ? {authorization: `Bearer ${token}`} : {}), ...headers},
     body: body !== undefined ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(30000),
   });
   const text = await res.text();
@@ -128,7 +131,14 @@ if (queueId) await record('queue-window', 'GET', `${encodedRoutePath('get_queue_
 else notes.push(`queue create answered ${created.status}; no queue window recorded`);
 
 await record('events', 'GET', `${routePath('get_events')}?waitMs=0`);
+await record('invalid-event-continuation', 'GET', `${routePath('get_events')}?after=invalid&waitMs=0`);
+if (queueId) {
+  const path = encodedRoutePath('update_queue', {id: enc(queueId)});
+  await record('mutation-missing-revision', 'PATCH', path, {repeat: 'off'}, {'Idempotency-Key': randomUUID()});
+  await record('mutation-stale-revision', 'PATCH', path, {repeat: 'off'}, {'If-Match': '"0"', 'Idempotency-Key': randomUUID()});
+}
 
-writeFileSync(join(out, 'manifest.json'), JSON.stringify({recordedFrom: {version: system.json?.version ?? null, apiLevel: system.json?.apiLevel ?? null}, library: {id: library.id, kind: library.kind}, itemId, notes}, null, 2) + '\n');
+
+writeFileSync(join(out, 'manifest.json'), JSON.stringify({recordedFrom: {sourceRevision: build.sourceRevision, build, version: system.json?.version ?? null, apiLevel: system.json?.apiLevel ?? null}, library: {id: library.id, kind: library.kind}, itemId, notes}, null, 2) + '\n');
 console.log(notes.length ? `notes: ${notes.join('; ')}` : 'done');
 void home; void capabilities;

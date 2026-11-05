@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "GET",
-    "path": "/v1/libraries/mwfyVGEodaDR-41WZWE9CxfZmjta0r9qK5znWd0L0vY/browse-capabilities?pivot=albums"
+    "path": "/v1/libraries/9a3IebhQ3xWM26Tz6APnX1ZvD6OEujVYDgoqIQKYm8I/browse-capabilities?pivot=albums"
   },
   "status": 200,
   "body": {
@@ -27,7 +27,6 @@
         ],
         "filters": [
           "entityKind",
-          "match",
           "search",
           "title",
           "year",
@@ -77,7 +76,6 @@
         ],
         "filters": [
           "entityKind",
-          "match",
           "search",
           "title",
           "year",
@@ -128,7 +126,6 @@
         ],
         "filters": [
           "entityKind",
-          "match",
           "search",
           "title",
           "year",
@@ -179,7 +176,6 @@
         ],
         "filters": [
           "entityKind",
-          "match",
           "search",
           "title",
           "year",
@@ -230,7 +226,6 @@
         ],
         "filters": [
           "entityKind",
-          "match",
           "search",
           "title",
           "year",
@@ -281,7 +276,6 @@
         ],
         "filters": [
           "entityKind",
-          "match",
           "search",
           "title",
           "year",
@@ -332,7 +326,6 @@
         ],
         "filters": [
           "entityKind",
-          "match",
           "search",
           "title",
           "year",
@@ -383,7 +376,6 @@
         ],
         "filters": [
           "entityKind",
-          "match",
           "search",
           "title",
           "year",
@@ -433,7 +425,6 @@
         ],
         "filters": [
           "entityKind",
-          "match",
           "search",
           "title",
           "year",
@@ -465,8 +456,8 @@
     ],
     "library": {
       "defaultView": "browse",
-      "id": "mwfyVGEodaDR-41WZWE9CxfZmjta0r9qK5znWd0L0vY",
-      "name": "Music",
+      "id": "9a3IebhQ3xWM26Tz6APnX1ZvD6OEujVYDgoqIQKYm8I",
+      "name": "Corpus music",
       "kind": "music",
       "pinned": false
     },
@@ -522,7 +513,6 @@
         ],
         "filters": [
           "entityKind",
-          "match",
           "search",
           "title",
           "dateAdded",
@@ -584,7 +574,6 @@
         ],
         "filters": [
           "entityKind",
-          "match",
           "search",
           "title",
           "year",
@@ -647,7 +636,6 @@
         ],
         "filters": [
           "entityKind",
-          "match",
           "search",
           "title",
           "year",
@@ -701,7 +689,6 @@
         ],
         "filters": [
           "entityKind",
-          "match",
           "search",
           "title",
           "year",
@@ -789,7 +776,6 @@
       ],
       "filters": [
         "entityKind",
-        "match",
         "search",
         "title",
         "year",
@@ -857,33 +843,6 @@
           "book",
           "author",
           "collection"
-        ]
-      },
-      {
-        "id": "match",
-        "labelKey": "browse.field.match",
-        "type": "enum",
-        "operators": [
-          "equals",
-          "not-equals",
-          "in",
-          "not-in"
-        ],
-        "controlHint": "select",
-        "complexity": "standard",
-        "cost": "indexed-join",
-        "applicableKinds": [
-          "movie",
-          "show",
-          "season",
-          "episode",
-          "artist",
-          "album",
-          "song"
-        ],
-        "allowedValues": [
-          "matched",
-          "unmatched"
         ]
       },
       {
@@ -1317,7 +1276,6 @@
           "episode",
           "show",
           "season",
-          "collection",
           "song",
           "album",
           "artist",
@@ -1991,6 +1949,7 @@
         "id": "in-progress",
         "labelKey": "filter.inProgress",
         "query": {
+          "variant": "predicate",
           "field": "playState",
           "operator": "equals",
           "value": "in-progress"
@@ -2000,6 +1959,7 @@
         "id": "unwatched",
         "labelKey": "filter.unwatched",
         "query": {
+          "variant": "predicate",
           "field": "playState",
           "operator": "equals",
           "value": "unplayed"
@@ -2009,6 +1969,7 @@
         "id": "watched",
         "labelKey": "filter.watched",
         "query": {
+          "variant": "predicate",
           "field": "playState",
           "operator": "equals",
           "value": "played"
@@ -2018,6 +1979,7 @@
         "id": "favorites",
         "labelKey": "filter.favorites",
         "query": {
+          "variant": "predicate",
           "field": "favorite",
           "operator": "equals",
           "value": true
@@ -2027,6 +1989,7 @@
         "id": "watchlist",
         "labelKey": "filter.watchlist",
         "query": {
+          "variant": "predicate",
           "field": "watchlisted",
           "operator": "equals",
           "value": true
@@ -2036,6 +1999,7 @@
         "id": "available",
         "labelKey": "filter.available",
         "query": {
+          "variant": "predicate",
           "field": "availability",
           "operator": "equals",
           "value": "available"
@@ -2045,6 +2009,7 @@
         "id": "missing",
         "labelKey": "filter.missing",
         "query": {
+          "variant": "predicate",
           "field": "availability",
           "operator": "equals",
           "value": "unavailable"

@@ -3,9 +3,8 @@
 // current client parsers. A parser that throws on an older release's answer is a field added since
 // that release which the parser now requires.
 //
-// A route an older release lacks (a recorded 404, or 400 for a query field it does not know) is an
-// expected, noted absence, not a failure. A parse that throws on a 200 is a failure, or, once it
-// has been triaged as a known gap, a `todo` that names the field (KNOWN_THROWS below).
+// The unsupported pre-release 648 stand-in retains its historical gap notes.
+// Every current recording and parser is required; current gaps cannot be TODOs.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {existsSync, readdirSync, readFileSync} from 'node:fs';
@@ -26,7 +25,7 @@ import {
 } from '../src/file-info-pages.ts';
 import {withQueries} from './fixtures/viewer-queries.ts';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), 'compat-corpus');
+const root = process.env.PORTICO_COMPAT_CORPUS_ROOT ?? join(dirname(fileURLToPath(import.meta.url)), 'compat-corpus');
 const recorded = readdirSync(root, {withFileTypes: true}).filter(entry => entry.isDirectory()).map(entry => entry.name).sort();
 /** R-09b: 'main-1.1' is a newer server of the same major. Every object in every recorded main
  * response, at every depth, gains a member this client has never seen. A 1.0 client must read it
@@ -56,24 +55,19 @@ const read = (release: string, name: string): Recorded | undefined => {
 const KNOWN_THROWS: Readonly<Record<string, string>> = {
   // 648 answers get_items_id_file_info in its pre-P2-29 flat shape. parseFileInfoFilesPage requires, in order:
   '648/file-info-files: parseFileInfoFilesPage': 'src/file-info-pages.ts: kind === "file-info-files" (:96; 648 sends the item kind, "song"), detail {scope, revision} (:96/:90; 648 has a top-level revision), basis (:96), window {queryId, limit, returned} (:75-76), surface {fileCount, eligibleFileCount, groupCount, canSplit, hasDiscColumns} (:109-111; 648 has a top-level manage), itemKind (:196), and per file: occurrence (:150), audioCount and subtitleCount (:151; 648 has audio and subtitles arrays)',
-  // R-09b: main's recorded File info pages predate the required `variant` tag. Re-record the corpus from a current server.
-  'main/file-info-files: parseFileInfoFilesPage': 'src/file-info-pages.ts requireVariant: the recording predates the required const variant (R-09b)',
-  'main/file-info-files-preparing: parseFileInfoPreparing': 'src/file-info-pages.ts requireVariant: the recording predates the required const variant (R-09b)',
-  'main/file-info-groups: parseFileInfoGroupsPage': 'src/file-info-pages.ts requireVariant: the recording predates the required const variant (R-09b)',
-  'main/file-info-sources: parseFileInfoSourcesPage': 'src/file-info-pages.ts requireVariant: the recording predates the required const variant (R-09b)',
-  'main/file-info-members: parseFileInfoMembersPage': 'src/file-info-pages.ts requireVariant: the recording predates the required const variant (R-09b)',
-  'main/file-info-tracks-audio: parseFileInfoTracksPage': 'src/file-info-pages.ts requireVariant: the recording predates the required const variant (R-09b)',
-  'main/file-info-tracks-subtitles: parseFileInfoTracksPage': 'src/file-info-pages.ts requireVariant: the recording predates the required const variant (R-09b)',
-  'main/file-info-head-tracks-audio: parseFileInfoHeadTracksPage': 'src/file-info-pages.ts requireVariant: the recording predates the required const variant (R-09b)',
+
 };
 
 function check(release: string, name: string, run: (recorded: Recorded) => void | Promise<void>, options: {file?: string} = {}) {
   const recorded = read(release, options.file ?? name);
   // The newer-server release is main plus additions, so main's known gaps are its own.
   const known = KNOWN_THROWS[`${release}/${name}`] ?? (release === NEWER ? KNOWN_THROWS[`main/${name}`] : undefined);
-  if (!recorded) return test(`${release}: ${name} (not recorded)`, {skip: 'this release was recorded without it'}, () => {});
+  if (!recorded) {
+    if (release === 'main' || release === NEWER) return test(`${release}: ${name} required recording`, () => assert.fail('current producer response missing; re-record the corpus'));
+    return test(`${release}: ${name} (not recorded)`, {skip: 'this unsupported prerelease was recorded without it'}, () => {});
+  }
   // An older release lacks the route: noted, and what the client does about it is another test's job.
-  if (recorded.status === 404 || recorded.status === 400 && release !== 'main') {
+  if (release === '648' && (recorded.status === 404 || recorded.status === 400)) {
     return test(`${release}: ${name} (release lacks this route: ${recorded.status})`, () => assert.ok(recorded.status === 404 || recorded.status === 400));
   }
   return test(`${release}: ${name} parses`, known ? {todo: known} : {}, async () => {
@@ -153,6 +147,7 @@ for (const release of releases) {
   check(release, 'file-info-groups: parseFileInfoGroupsPage', ({body}) => { parseFileInfoGroupsPage(body, opening); }, {file: 'file-info-groups'});
   check(release, 'file-info-sources: parseFileInfoSourcesPage', ({body}) => { parseFileInfoSourcesPage(body, opening); }, {file: 'file-info-sources'});
   const groups = read(release, 'file-info-groups')?.body, head = groups?.groups?.[0];
+  if (!head && (release === 'main' || release === NEWER)) test(`${release}: required file-info group`, () => assert.fail('record a source with a real file-info group'));
   if (head) {
     check(release, 'file-info-members: parseFileInfoMembersPage', ({body}) => { parseFileInfoMembersPage(body, opening, head.id, true); }, {file: 'file-info-members'});
     check(release, 'file-info-tracks-audio: parseFileInfoTracksPage', ({body}) => { parseFileInfoTracksPage(body, opening, 'audio', head.headOccurrence); }, {file: 'file-info-tracks-audio'});
@@ -185,4 +180,32 @@ test('compat corpus: the guard catches what it is for', () => {
   assert.deepEqual(findCredentials({viewerFence: 'a'.repeat(64), accessToken: '<scrubbed>', nextCursor: 'b'.repeat(80)}), []);
 });
 
-test('compat corpus: at least two releases are recorded', () => assert.ok(releases.includes('648') && releases.includes('main')));
+test('compat corpus: a current producer is recorded', () => assert.ok(releases.includes('main')));
+
+
+// These are current producer refusals/recovery, recorded over HTTP rather than
+// assembled from schemas. Their exact status, retry class and resync semantics
+// are release evidence alongside successful presentation documents.
+for (const release of releases.filter(r => r !== '648')) {
+  for (const [name, status, code] of [['mutation-missing-revision', 428, 'revision_required'], ['mutation-stale-revision', 412, 'revision_mismatch']] as const) {
+    test(`${release}: ${name} preserves status and recovery`, () => {
+      const response = read(release, name);
+      assert.ok(response, 'required mutation recording');
+      assert.equal(response.status, status);
+      assert.equal(response.body.error.code, code);
+      assert.equal(response.body.error.retry, 'after_refresh');
+      assert.equal(typeof response.body.error.message, 'string');
+      assert.equal(typeof response.body.error.requestId, 'string');
+      if (status === 412) assert.ok(response.body.error.current.revision);
+    });
+  }
+  test(`${release}: refused event continuation asks for resync`, () => {
+    const response = read(release, 'invalid-event-continuation');
+    assert.ok(response);
+    assert.equal(response.status, 200);
+    assert.equal(response.body.events.length, 1);
+    assert.equal(response.body.events[0].type, 'stream.resync');
+    parseEvent(response.body.events[0]);
+    assert.equal(typeof response.body.nextAfter, 'string');
+  });
+}
