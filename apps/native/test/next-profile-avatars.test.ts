@@ -50,7 +50,7 @@ test('upload uses the verified LAN route and renews once after 401 with identica
   assert.deepEqual(sent.map(w => [w.url, w.method, w.headers.authorization]), [[lan + path, 'POST', 'Bearer old'], [lan + path, 'POST', 'Bearer new']]);
   for (const wire of sent) {
     assert.equal(wire.headers['content-type'], 'image/png');
-    assert.deepEqual(Buffer.from(JSON.parse(wire.body!).nativeAvatarBase64, 'base64'), Buffer.from(bytes));
+    assert.deepEqual(Buffer.from(wire.body!, 'base64'), Buffer.from(bytes));
   }
 });
 
@@ -66,13 +66,13 @@ test('proactive renewal and profile removal share the API; repeated 401 cannot l
   assert.equal(sent.at(-1)!.method, 'DELETE'); assert.equal(sent.at(-1)!.url, lan + path);
 });
 
-test('the secure profile transport carries the envelope and preserves upload refusals', async t => {
+test('the secure profile transport carries image bytes and preserves upload refusals', async t => {
   noRawFetch(t);
   const sent = runtime(() => ({status: 415, body: {error: {code: 'invalid_avatar', message: 'Unsupported picture.'}}}));
   const api = profileAPI(logical, 'token');
   await assert.rejects(new IdentityClient(api, profileAvatarUpload(api)).uploadAvatar('p1', bytes, 'image/webp'), (e: {status?: number; code?: string}) => e.status === 415 && e.code === 'invalid_avatar');
   assert.equal(sent[0]!.transport, 'profileRequest'); assert.equal(sent[0]!.headers['content-type'], 'image/webp');
-  assert.deepEqual(Buffer.from(JSON.parse(sent[0]!.body!).nativeAvatarBase64, 'base64'), Buffer.from(bytes));
+  assert.deepEqual(Buffer.from(sent[0]!.body!, 'base64'), Buffer.from(bytes));
 });
 
 test('identity refusal sends no bearer; a network failure never replays an upload', async t => {
@@ -129,7 +129,7 @@ test('the accounts screen uses routed helpers; native byte decoding is limited t
 });
 
 
-test('managed avatar uploads use the same verified transport, renewal and bounded binary envelope', async t => {
+test('managed avatar uploads use the same verified transport, renewal and bounded image payload', async t => {
   noRawFetch(t);
   const managedPath = '/v1/admin/access/members/member/profiles/p1/avatar?expectedRevision=9';
   const sent = runtime(wire => wire.headers.authorization === 'Bearer old' ? {status: 401} : {status: 200, body: {id: 'p1', revision: 10}});
@@ -137,7 +137,7 @@ test('managed avatar uploads use the same verified transport, renewal and bounde
   api.setAuthRecovery({token: async current => current, recover: async () => {api.setAccessToken('new'); return 'new';}});
   assert.deepEqual(await profileAvatarUpload(api)(managedPath, bytes, 'image/png'), {id: 'p1', revision: 10});
   assert.deepEqual(sent.map(w => [w.url, w.method, w.headers.authorization]), [[lan + managedPath, 'POST', 'Bearer old'], [lan + managedPath, 'POST', 'Bearer new']]);
-  for (const wire of sent) assert.deepEqual(Buffer.from(JSON.parse(wire.body!).nativeAvatarBase64, 'base64'), Buffer.from(bytes));
+  for (const wire of sent) assert.deepEqual(Buffer.from(wire.body!, 'base64'), Buffer.from(bytes));
   for (const suffix of ['', '?expectedRevision=0', '?expectedRevision=-1', '?expectedRevision=1&extra=1', '?expectedRevision=9007199254740992']) {
     await assert.rejects(profileAvatarUpload(api)('/v1/admin/access/members/member/profiles/p1/avatar' + suffix, bytes, 'image/png'), /path/);
   }
