@@ -130,7 +130,7 @@ func setupExperiment(db *sql.DB, path string) {
 	databasePath = path
 	writerDB = db
 	startSnapshotProbe()
-	for _, name := range []string{"cache_size", "cache_spill", "page_size", "synchronous", "wal_autocheckpoint"} {
+	for _, name := range []string{"foreign_keys", "cache_size", "cache_spill", "page_size", "synchronous", "wal_autocheckpoint"} {
 		var v any
 		must(db.QueryRow("PRAGMA " + name).Scan(&v))
 		emit("pragma", map[string]any{"name": name, "value": v})
@@ -139,7 +139,7 @@ func setupExperiment(db *sql.DB, path string) {
 	if passiveEnabled {
 		go func() {
 			defer close(cpDone)
-			cp := open(path)
+			cp := openWithPolicy(path, 0, "NORMAL")
 			defer cp.Close()
 			exec(cp, "PRAGMA busy_timeout=0")
 			exec(cp, "PRAGMA wal_autocheckpoint=0")

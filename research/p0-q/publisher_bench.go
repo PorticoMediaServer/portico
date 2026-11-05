@@ -215,6 +215,7 @@ func publisherFlow(db *sql.DB, n, batch int) {
 	emit("publisher_flow", map[string]any{"source_target_docs_per_s": rate, "accepted_documents": total, "elapsed_s": time.Since(start).Seconds(), "actual_docs_per_s": float64(total) / time.Since(start).Seconds(), "publisher_batch": batch, "publisher_grant_gap_ms": 2, "max_pending_subjects": maxQueue, "max_source_arrival_backlog": maxSourceQueue, "source_admission_ms": stats(sourceAdmission), "lag_seconds_raw": lags, "lag_seconds": map[string]float64{"p50": stats(lags).P50, "p95": stats(lags).P95, "p99": stats(lags).P99, "max": stats(lags).Max}, "scope": "single writer, continuously interleaved source acceptance and governed publisher; no separate write lock"})
 }
 func publisherIntegrity(db *sql.DB, phase string) {
+	connectionState(db, "integrity:"+phase)
 	start := time.Now()
 	for _, idx := range indexes {
 		exec(db, "INSERT INTO "+idx+"("+idx+",rank) VALUES('integrity-check',1)")

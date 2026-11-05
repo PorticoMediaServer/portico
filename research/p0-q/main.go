@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"math"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -163,20 +164,46 @@ var durability = "FULL"
 var indexes = []string{"search_own_prefix", "search_fragment_prefix", "search_fragment_lexical", "search_fragment_grams"}
 
 func open(path string) *sql.DB {
-	db, e := sql.Open("sqlite", path)
+	syncMode := durability
+	if publishedSchema {
+		syncMode = "NORMAL"
+	}
+	return openWithPolicy(path, 30000, syncMode)
+}
+func openWithPolicy(path string, busy int, syncMode string) *sql.DB {
+	values := url.Values{}
+	foreignKeys := 0
+	if publishedSchema {
+		foreignKeys = 1
+	}
+	pragmas := []string{fmt.Sprintf("foreign_keys(%d)", foreignKeys), fmt.Sprintf("busy_timeout(%d)", busy), fmt.Sprintf("cache_size(%d)", cacheKiB), "temp_store(FILE)", "synchronous(" + syncMode + ")", "wal_autocheckpoint(0)"}
+	if !cacheSpill {
+		pragmas = append(pragmas, "cache_spill(0)")
+	}
+	for _, p := range pragmas {
+		values.Add("_pragma", p)
+	}
+	db, e := sql.Open("sqlite", path+"?"+values.Encode())
 	must(e)
 	db.SetMaxOpenConns(1)
-	exec(db, "PRAGMA busy_timeout=30000")
-	if publishedSchema {
-		exec(db, "PRAGMA foreign_keys=ON")
-	}
-	exec(db, fmt.Sprintf("PRAGMA cache_size=%d", cacheKiB))
-	if !cacheSpill {
-		exec(db, "PRAGMA cache_spill=OFF")
-	}
-	exec(db, "PRAGMA temp_store=FILE")
 	return db
 }
+func connectionState(db *sql.DB, phase string) {
+	state := map[string]any{"phase": phase, "per_connection_dsn": true}
+	for _, name := range []string{"foreign_keys", "synchronous", "wal_autocheckpoint", "cache_size", "cache_spill", "busy_timeout"} {
+		var v int
+		must(db.QueryRow("PRAGMA " + name).Scan(&v))
+		state[name] = v
+	}
+	if publishedSchema {
+		assertQ(state["foreign_keys"] == 1, "foreign_keys remains enabled on every physical connection")
+		assertQ(state["synchronous"] == 1, "NORMAL remains installed after reconnect")
+		assertQ(state["wal_autocheckpoint"] == 0, "writer autocheckpoint remains disabled")
+		assertQ(state["cache_size"] == cacheKiB, "writer cache policy remains installed")
+	}
+	emit("connection_state", state)
+}
+
 func create(db *sql.DB, variant string) {
 	if variant != "A" {
 		panic("candidate schema stores A indexes; B is dispatch-only in experiments")
@@ -752,6 +779,11 @@ func main() {
 	emit("debt_base", debt(db))
 	if *mode == "seed-only" {
 		emit("seed_completed", map[string]any{"items": *n})
+		return
+	}
+	if *mode == "people-reconnect" {
+		forceReconnectControl(db)
+		peopleBench(db, *n, *rounds, *samples)
 		return
 	}
 	if *mode == "generation-only" {

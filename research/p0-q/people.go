@@ -127,6 +127,7 @@ func peopleOracle(db *sql.DB) {
 	emit("people_oracle", map[string]any{"source": "legacy trigger portico_search_text(name) = facettext.SearchDocument(name)", "scope": "untimed internal-content control, same bundled engine; compares complete ranked top20 and scores"})
 }
 func peopleReadBench(db *sql.DB, samples int) {
+	connectionState(db, "people-read-start")
 	exec(db, "CREATE INDEX q_rating ON q_items(rating,id)")
 	peopleOracle(db)
 	for _, q := range []string{"a", "jo", "ada", "ada lovelace", "王", "王菲", "山田", "1984", "nebuchadnezzar"} {
@@ -197,6 +198,7 @@ func peopleReadBench(db *sql.DB, samples int) {
 				snaps = append(snaps, p.snapshots...)
 				p.close()
 			}
+			connectionState(db, fmt.Sprintf("people-read:%s:restricted=%v", q, restricted))
 			emit("people_query", map[string]any{"query": q, "explicit_short_action": shortInput(q), "restricted": restricted, "samples_requested": samples, "latency": stats(lat), "raw_ms": lat, "visibility_prepare": stats(prep), "snapshots": stats(snaps), "failures": failures, "ids": ids, "rank_and_score_oracle": true, "ranking": "existing -bm25 + exact1000 + name-prefix100; sort_name/person ID tie", "scope": "match/rank/visible-credit filtering; no portrait/roles/credit-count HTTP hydration; no exact total before ready"})
 		}
 	}
