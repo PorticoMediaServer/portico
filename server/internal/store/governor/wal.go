@@ -148,20 +148,22 @@ type WALPolicy struct {
 }
 
 // WALGate is owned by ONE governor/writer pair. Every completed writer turn
-// invalidates observations; the driver must publish a fresh post-return sample
+// invalidates observations, as does a private checkpoint turn. The driver must
+// publish a fresh post-return sample
 // before any new writer. This prevents repeated admissions against stale space.
 // The recipe's WALBytes forecast must include the whole native/receipt/commit
 // operation. An underestimated forecast cannot be repaired by a timer.
 type WALGate struct {
-	mu       sync.Mutex
-	policy   WALPolicy
-	version  uint64
-	writer   bool
-	valid    bool
-	state    WALState
-	at       time.Time
-	previous WALState
-	resets   uint64
+	mu         sync.Mutex
+	policy     WALPolicy
+	version    uint64
+	writer     bool
+	checkpoint bool
+	valid      bool
+	state      WALState
+	at         time.Time
+	previous   WALState
+	resets     uint64
 }
 
 func NewWALGate(p WALPolicy) (*WALGate, error) {
@@ -180,7 +182,7 @@ func (w *WALGate) Observation() uint64 { w.mu.Lock(); defer w.mu.Unlock(); retur
 func (w *WALGate) Publish(token uint64, s WALState, at time.Time) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if token != w.version || w.writer {
+	if token != w.version || w.writer || w.checkpoint {
 		return ErrWALObservation
 	}
 	w.valid = false
@@ -212,7 +214,7 @@ func (w *WALGate) reserve(r Request, now time.Time) RefusalCode {
 		return Capacity
 	}
 	defer w.mu.Unlock()
-	if w.writer {
+	if w.writer || w.checkpoint {
 		return Capacity
 	}
 	if !w.valid || now.Before(w.at) || now.Sub(w.at) > w.policy.MaxSampleAge {
@@ -253,3 +255,31 @@ func (w *WALGate) returned() {
 
 // ResetCount counts actual observed salt/frame reuse, never PASSIVE completions.
 func (w *WALGate) ResetCount() uint64 { w.mu.Lock(); defer w.mu.Unlock(); return w.resets }
+
+// A checkpoint may repay pressure even while WAL observations are stale. Its
+// driver still needs a whole-prefix forecast and a fresh same-file observation
+// before native entry. This is an exclusion primitive, not a service policy.
+func (w *WALGate) reserveCheckpoint() RefusalCode {
+	if !w.mu.TryLock() {
+		return Capacity
+	}
+	defer w.mu.Unlock()
+	if w.writer || w.checkpoint {
+		return Capacity
+	}
+	w.checkpoint = true
+	w.valid = false
+	w.version++
+	return 0
+}
+
+// Only exact private grant retirement reaches this boundary, after native
+// statements/connection return. Cancel/expiry/fence never release the turn.
+// A fresh Observation-before-read/Publish is required before another writer.
+func (w *WALGate) checkpointReturned() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.checkpoint = false
+	w.valid = false
+	w.version++
+}

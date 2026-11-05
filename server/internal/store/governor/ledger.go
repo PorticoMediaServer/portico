@@ -39,8 +39,9 @@ type Config struct {
 }
 
 type holding struct {
-	grant   *Grant
-	request Request
+	grant      *Grant
+	request    Request
+	checkpoint bool // private native checkpoint turn; never selected by workers
 }
 
 type ledger struct {
@@ -79,7 +80,13 @@ func New(c Config) (Governor, *Authority, error) {
 	return g, &Authority{g}, nil
 }
 
-func (g *ledger) Try(r Request) Decision {
+func (g *ledger) Try(r Request) Decision { return g.try(r, false) }
+
+// tryCheckpoint is reserved for the governor's private PASSIVE driver. The
+// ordinary worker/admission interface cannot select a checkpoint turn.
+func (a *Authority) tryCheckpoint(r Request) Decision { return a.ledger.try(r, true) }
+
+func (g *ledger) try(r Request, checkpoint bool) Decision {
 	now := g.config.Now()
 	refuse := func(code RefusalCode) Decision {
 		return Decision{Refusal: &Refusal{Code: code, RetryAt: now.Add(100 * time.Millisecond)}}
@@ -90,8 +97,12 @@ func (g *ledger) Try(r Request) Decision {
 	if !r.Deadline.After(now) {
 		return refuse(Deadline)
 	}
-	if r.Writer && (r.MaxHold <= 0 || r.MaxHold > 25*time.Millisecond ||
-		r.Budget.RawRows == 0 || r.Budget.VMOps == 0 || r.Budget.Pages == 0 || r.Need[WALBytes] == 0) {
+	if (r.Writer || checkpoint) && (r.MaxHold <= 0 || r.MaxHold > 25*time.Millisecond ||
+		r.Budget.RawRows == 0 || r.Budget.VMOps == 0 || r.Budget.Pages == 0 || (r.Writer && r.Need[WALBytes] == 0)) {
+		return refuse(Unqualified)
+	}
+	if checkpoint && (r.Writer || r.Class != Recovery || g.config.WAL == nil ||
+		r.Need[Reader] != 1 || r.Need[MemoryBytes] <= 0 || r.Need[CPUMilli] <= 0 || r.Need[IOBytes] <= 0 || r.Need[WALBytes] != 0) {
 		return refuse(Unqualified)
 	}
 	// Admission never queues behind another caller or performs external IO.
@@ -128,6 +139,11 @@ func (g *ledger) Try(r Request) Decision {
 			return refuse(code)
 		}
 	}
+	if checkpoint {
+		if code := g.config.WAL.reserveCheckpoint(); code != 0 {
+			return refuse(code)
+		}
+	}
 	// Only admitted, bounded metadata is copied. Work buffers are allocated by
 	// the driver after Check, under the granted byte custody.
 	r.Key.ID = strings.Clone(r.Key.ID)
@@ -138,7 +154,7 @@ func (g *ledger) Try(r Request) Decision {
 	r.Footprint = slices.Clone(r.Footprint)
 	g.sequence++
 	p := &Grant{id: g.sequence, epoch: state, issuer: g}
-	g.live[p.id] = &holding{grant: p, request: r}
+	g.live[p.id] = &holding{grant: p, request: r, checkpoint: checkpoint}
 	g.counts[r.Class]++
 	for k, n := range r.Need {
 		g.used[r.Class][k] += n
@@ -225,6 +241,9 @@ func (a *Authority) Retired(p *Grant) error {
 	}
 	if h.request.Writer && g.config.WAL != nil {
 		g.config.WAL.returned()
+	}
+	if h.checkpoint {
+		g.config.WAL.checkpointReturned()
 	}
 	for k, n := range h.request.Need {
 		g.used[h.request.Class][k] -= n
