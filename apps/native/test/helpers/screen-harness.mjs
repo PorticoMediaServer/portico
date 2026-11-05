@@ -1,5 +1,6 @@
 import * as playbackQueries from '../../../../packages/client-core/src/query/playback.ts';
 import * as preparingCleanup from '../../../../packages/client-core/src/playback-v1/preparing-cleanup.ts';
+import * as catalogueReads from '../../../../packages/client-core/src/query/catalogue-reads.ts';
 import {readFile} from 'node:fs/promises';
 import {compileFunction} from 'node:vm';
 import {parseSync, transformSync} from 'rolldown/utils';
@@ -49,6 +50,7 @@ function railHoldLeaf(react) {
 const leaf = (source, react, native) => /client-core\/src\/query\/playback(\.ts)?$/.test(source) ? playbackQueries
   : /client-core\/src\/playback-v1\/preparing-cleanup(\.ts)?$/.test(source) ? preparingCleanup
   : /client-core\/src\/query\/receiver(\.ts)?$/.test(source) ? receiverQueries
+  : /client-core\/src\/query\/catalogue-reads(?:\.ts)?$/.test(source) ? catalogueReads
   : /(^|\/)server-clock(\.ts)?$/.test(source) && /client-core\/src\/server-clock|^\.\/server-clock/.test(source) ? serverClock
   : /(^|\/)failure-words$/.test(source) ? failureWords
   : /(^|\/)platform\/tv-play-pause$/.test(source) ? tvPlayPause

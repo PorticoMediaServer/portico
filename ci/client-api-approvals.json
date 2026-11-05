@@ -1811,5 +1811,35 @@
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6647211850",
     "reviewedCommit": "5bc2a1fec6e84931c652c3b8c3f4cdbf36c88924"
+  },
+  "apps/native/src-next/screens/settings-live/owner-libraries/IntroCreditsReview.tsx#a3753792fa55dc18": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "21da0d330d55fea35d76a23e4a0cb1342848f839d9046f2f391e771ec5812895",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646375725",
+    "previousSiteId": "apps/native/src-next/screens/settings-live/owner-libraries/IntroCreditsReview.tsx#4cad2f4f862194c6",
+    "previousGuardHash": "b8917368b4325cd3cb7f4ec9b65194823e486cb1fffb307ce5b06c216c3f2e47",
+    "previousCommit": "0ecb62138e9091894448b3514cd77b1a6e90b466",
+    "reviewedCommit": "564ab8e8a44591392faae0790811d5c98783439f",
+    "pullRequest": "https://github.com/PorticoMediaServer/portico/pull/901",
+    "reviewUrl": "https://github.com/PorticoMediaServer/portico/pull/901#issuecomment-6646831696",
+    "spanEvidence": "docs/client-api-rehashes/901-intro.json"
+  },
+  "apps/native/src-next/shell/bootstrap.ts#d735cb4d8876e129": {
+    "category": "identity-rehash",
+    "reason": "Catalogue extraction changes the enclosing function hash while its existing forwarding call and arguments remain byte-identical.",
+    "condition": "Only the enclosing source identity changes. No path, method, body, header or credential construction or selection is added. This site remains DIRECT at count 1; this record creates no transport exemption.",
+    "guardHash": "cf1e671a1e805547970ff8362a4eb6f3e0265ca9a4a8539d63c7ce46953301a1",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646375725",
+    "previousSiteId": "apps/native/src-next/shell/bootstrap.ts#ddf911c3e1575046",
+    "previousGuardHash": "2d4c1b8d7919e3f7f5abb12a83c47c38beba5931b2789819b689f2d9fc06c6ea",
+    "previousCommit": "0ecb62138e9091894448b3514cd77b1a6e90b466",
+    "reviewedCommit": "564ab8e8a44591392faae0790811d5c98783439f",
+    "pullRequest": "https://github.com/PorticoMediaServer/portico/pull/901",
+    "reviewUrl": "https://github.com/PorticoMediaServer/portico/pull/901#issuecomment-6646831696",
+    "spanEvidence": "docs/client-api-rehashes/901-bootstrap.json"
   }
 }
