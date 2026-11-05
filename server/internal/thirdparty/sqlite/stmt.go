@@ -341,6 +341,9 @@ func (s *stmt) query(ctx context.Context, args []driver.NamedValue) (r driver.Ro
 	// OPTIMIZED PATH: Single Cached Statement
 	if s.pstmt != 0 {
 		var allocs []uintptr
+		// Own STATIC text/blob buffers before bind/step can panic. newRows
+		// transfers this list by clearing it; otherwise this frame frees it.
+		defer func() { s.c.freeAllocs(allocs) }()
 		// Bind
 		n, err := s.c.bindParameterCount(s.pstmt)
 		if err != nil {
@@ -354,15 +357,12 @@ func (s *stmt) query(ctx context.Context, args []driver.NamedValue) (r driver.Ro
 
 		// Step
 		if ctx != nil && ctx.Err() != nil {
-			s.c.freeAllocs(allocs)
 			s.c.reset(s.pstmt)
 			s.c.clearBindings(s.pstmt)
 			return nil, ctx.Err()
 		}
 		rc, err := s.c.step(s.pstmt)
 		if err != nil {
-			// On error, we must free allocs manually because 'newRows' won't take ownership
-			s.c.freeAllocs(allocs)
 			s.c.reset(s.pstmt)
 			s.c.clearBindings(s.pstmt)
 			return nil, err
@@ -399,7 +399,6 @@ func (s *stmt) query(ctx context.Context, args []driver.NamedValue) (r driver.Ro
 
 		default:
 			// Error case
-			s.c.freeAllocs(allocs)
 			s.c.reset(s.pstmt)
 			s.c.clearBindings(s.pstmt)
 			return nil, s.c.errstr(int32(rc))
