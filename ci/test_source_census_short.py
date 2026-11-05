@@ -71,7 +71,7 @@ class CensusPassReceipts(unittest.TestCase):
                 (root / 'ci-tools/portico-server').touch()
                 result = subprocess.CompletedProcess(['go', 'test'], 0,
                     '\n'.join(json.dumps(e) for e in self.events(action)), '')
-                with patch('run.ROOT', root), patch('run.validate_tags'), patch('run.subprocess.run', return_value=result):
+                with patch('run.ROOT', root), patch('run.validate_tags'), patch('run.run_go', return_value=result):
                     with self.assertRaises(SystemExit):
                         go(self.selection(), 0)
 

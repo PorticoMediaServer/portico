@@ -30,10 +30,10 @@ class PolicyTests(unittest.TestCase):
     def test_exact_quarantine_no_infra_waiver(self):
         events=[{'Test':'TestKnown/child','Action':'fail'},{'Test':'TestKnown','Action':'fail'},{'Action':'fail'}]
         self.assertEqual(classify(events,['TestKnown'],1,{'TestKnown'}),'quarantined')
-        for extra in [{'Test':'TestOther','Action':'fail'},{'Output':'panic: oops'},{'Output':'panic: test timed out after 10m'}]:
-            self.assertEqual(classify(events+[extra],['TestKnown'],1,{'TestKnown'}),'blocked')
-        self.assertEqual(classify(events,['TestMissing'],1,{'TestKnown'}),'blocked')
-        self.assertEqual(classify(events,['TestKnown'],2,{'TestKnown'}),'blocked')
+        for extra,status in [({'Test':'TestOther','Action':'fail'},'test_failed'), ({'Output':'panic: oops'},'panic_or_race'), ({'Output':'panic: test timed out after 10m'},'timeout')]:
+            self.assertEqual(classify(events+[extra],['TestKnown'],1,{'TestKnown'}),status)
+        self.assertEqual(classify(events,['TestMissing'],1,{'TestKnown'}),'incomplete_events')
+        self.assertEqual(classify(events,['TestKnown'],2,{'TestKnown'}),'infrastructure')
     def test_policy_expiry_owner_approval(self):
         entry={'package':'p','test':'TestA','owner':'Justin Ehler','expires':'2026-11-02','reason':'repair'}
         for status,day in [('proposal-inactive','2026-10-29'),('approved','2026-11-03')]:

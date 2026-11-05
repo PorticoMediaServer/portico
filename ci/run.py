@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import threading
 from js_shards import digest, receipt_name, reconcile, validate_selection
 from plan import ROOT, SHORT_CENSUSES
 
@@ -31,11 +32,19 @@ def policy(data, today=None, engine=None):
     if entries and data.get('status')!='approved': raise ValueError('quarantine not approved')
     return entries
 
-def classify(events, expected, returncode, allowed, required_pass=()):
-    terminals={}; failures=set(); started=set(); package_terminal=None; dangerous=False
+FAILURE_STATUSES = frozenset({'test_failed', 'timeout', 'panic_or_race', 'build_failed',
+                              'incomplete_events', 'infrastructure'})
+
+
+def classify(events, expected, returncode, allowed, required_pass=(), *, stderr='', timed_out=False,
+             incomplete=False, infrastructure=False):
+    terminals={}; failures=set(); started=set(); package_terminal=None
+    timeout=timed_out; dangerous=False; build_failed=False
     for e in events:
         output=e.get('Output','')
-        if re.match(r'^(?:panic: test timed out after|WARNING: DATA RACE)',output) or e.get('Action')=='build-fail': dangerous=True
+        if re.match(r'^panic: test timed out after',output): timeout=True
+        if re.match(r'^WARNING: DATA RACE',output): dangerous=True
+        if e.get('Action')=='build-fail' or re.match(r'^FAIL\s+.*\[build failed\]',output): build_failed=True
         if re.match(r'^(?:panic: |fatal error:)',output):
             name=e.get('Test')
             terminal=next((x.get('Action') for x in reversed(events) if x.get('Test')==name and x.get('Action') in ['pass','fail','skip']),None)
@@ -45,14 +54,74 @@ def classify(events, expected, returncode, allowed, required_pass=()):
         if not name and action in ['pass','fail','skip']: package_terminal=action
         if name and action in ['pass','fail','skip']: terminals[name]=action
         if name and action=='fail': failures.add(name.split('/')[0])
-    if dangerous or package_terminal is None or any(t not in terminals for t in set(expected)|started): return 'blocked'
+    if timeout or re.search(r'^panic: test timed out after',stderr,re.M): return 'timeout'
+    if dangerous or re.search(r'^(?:WARNING: DATA RACE|panic: |fatal error:)',stderr,re.M): return 'panic_or_race'
+    if build_failed or (returncode and re.search(r'^# \S+',stderr,re.M)): return 'build_failed'
+    if infrastructure or returncode not in (0,1): return 'infrastructure'
+    if incomplete or package_terminal is None or any(t not in terminals for t in set(expected)|started): return 'incomplete_events'
     for name in required_pass:
         exact=[e['Action'] for e in events if e.get('Test')==name and e.get('Action') in ('pass','fail','skip','cancelled','canceled')]
-        if package_terminal!='pass' or exact!=['pass']: return 'blocked'
+        if package_terminal!='pass' or exact!=['pass']: return 'test_failed'
     if failures:
-        if returncode!=1 or package_terminal!='fail' or not failures.issubset(allowed): return 'blocked'
-        return 'quarantined'
-    return 'pass' if returncode==0 and package_terminal in ['pass','skip'] else 'blocked'
+        if returncode!=1 or package_terminal!='fail': return 'infrastructure'
+        return 'quarantined' if failures.issubset(allowed) else 'test_failed'
+    return 'pass' if returncode==0 and package_terminal in ['pass','skip'] else 'infrastructure'
+
+
+class FailureOutput:
+    """Show assertion output at the failing terminal, while siblings still run."""
+    def __init__(self):
+        self.output={}
+
+    def feed(self, line):
+        try:
+            event=json.loads(line)
+            if not isinstance(event,dict): raise ValueError('not an event')
+        except ValueError:
+            print(line,end='',flush=True)
+            return
+        key=(event.get('Package',''),event.get('Test',''))
+        if event.get('Output'):
+            self.output.setdefault(key,[]).append(event['Output'])
+        if event.get('Action')=='fail':
+            output=''.join(self.output.pop(key,[]))
+            print(' '.join(x for x in key if x)+' failed:\n'+output,end='' if output.endswith('\n') else '\n',flush=True)
+        elif event.get('Action') in ('pass','skip'):
+            self.output.pop(key,None)
+
+
+def run_go(args, cwd, timeout=900):
+    # Drain stderr to disk so it cannot fill a pipe while stdout is streamed.
+    # Preserve the existing watchdog budget and kill its descendants on expiry.
+    with tempfile.TemporaryFile(mode='w+',encoding='utf-8') as stderr:
+        process=subprocess.Popen(args,cwd=cwd,stdout=subprocess.PIPE,stderr=stderr,
+                                 text=True,start_new_session=True)
+        expired=threading.Event()
+        def expire():
+            expired.set()
+            try: os.killpg(process.pid,signal.SIGKILL)
+            except ProcessLookupError: pass
+        timer=threading.Timer(timeout,expire)
+        timer.start()
+        output=[]; failures=FailureOutput()
+        try:
+            for line in process.stdout:
+                output.append(line)
+                failures.feed(line)
+            process.wait()
+        finally:
+            timer.cancel()
+            timer.join()
+            if process.poll() is None:
+                try: os.killpg(process.pid,signal.SIGKILL)
+                except ProcessLookupError: pass
+                process.wait()
+            process.stdout.close()
+        stderr.seek(0)
+        result=subprocess.CompletedProcess(args,process.returncode,''.join(output),stderr.read())
+        result.timed_out=expired.is_set()
+        return result
+
 
 def execute(args,cwd=ROOT):
     subprocess.run(args,cwd=cwd,check=True,timeout=900)
@@ -80,13 +149,25 @@ def go(plan,index,report=None):
         if not whole: args+=['-run','^(?:'+'|'.join(re.escape(t['name']) for t in groups[0][1])+')$']
         return args+[package for package,tests in groups]
     def execute_batch(module, groups, whole):
-        result=subprocess.run(command(groups, whole),cwd=ROOT/module,capture_output=True,text=True,timeout=900)
-        try: events=[json.loads(line) for line in result.stdout.splitlines()]
-        except ValueError: events=[]
+        try:
+            result=run_go(command(groups, whole),cwd=ROOT/module)
+        except OSError as error:
+            result=subprocess.CompletedProcess(command(groups, whole),2,'',str(error))
+        events=[]; incomplete=False
+        for line in result.stdout.splitlines():
+            try:
+                event=json.loads(line)
+                if not isinstance(event,dict): raise ValueError('not an event')
+                events.append(event)
+            except ValueError: incomplete=True
         blocked=False; lines=[]
         requested={package for package,tests in groups}
-        if any(e.get('Package') not in requested for e in events): blocked=True
-        if result.returncode==1 and not any(not e.get('Test') and e.get('Action')=='fail' for e in events): blocked=True
+        unexpected=any(e.get('Package') not in requested for e in events)
+        missing_failure=result.returncode==1 and not any(not e.get('Test') and e.get('Action')=='fail' for e in events)
+        if unexpected or missing_failure:
+            print('Go batch infrastructure: unexpected package events or missing failure terminal',flush=True)
+            blocked=True
+        if result.stderr: print(result.stderr,end='' if result.stderr.endswith('\n') else '\n',flush=True)
         for package,tests in groups:
             own=[e for e in events if e.get('Package')==package]
             stem=package.replace('/','_')
@@ -98,8 +179,11 @@ def go(plan,index,report=None):
             terminal=next((e['Action'] for e in reversed(own) if not e.get('Test') and e.get('Action') in ['pass','fail','skip']),None)
             code=(0 if terminal in ['pass','skip'] else 1) if result.returncode in [0,1] else result.returncode
             required={t['name'] for t in tests if (package,t['name']) in mandatory}
-            status=classify(own,[t['name'] for t in tests],code,permitted,required_pass=required)
-            lines.append(package+' '+status); blocked |= status=='blocked'
+            build_events=[e for e in events if e.get('Action')=='build-fail']
+            status=classify(own+build_events,[t['name'] for t in tests],code,permitted,required_pass=required,
+                            stderr=result.stderr,timed_out=getattr(result,'timed_out',False),
+                            incomplete=incomplete,infrastructure=unexpected or missing_failure)
+            lines.append(package+' '+status); blocked |= status in FAILURE_STATUSES
         return blocked, lines
     planned=batches(plan, selected)
     if report is not None:

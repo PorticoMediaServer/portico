@@ -114,7 +114,7 @@ class RaceObserver(unittest.TestCase):
             (root / 'ci/quarantine.json').write_text('{"entries":[]}')
             result = subprocess.CompletedProcess([], 0, output, '')
             with patch('run.ROOT', root), patch('run.validate_tags'), \
-                 patch.dict('os.environ', {}, clear=True), patch('run.subprocess.run', return_value=result) as command:
+                 patch.dict('os.environ', {}, clear=True), patch('run.run_go', return_value=result) as command:
                 with self.assertRaises(SystemExit): go(plan, 0)
                 self.assertNotIn('-race', command.call_args.args[0])
 

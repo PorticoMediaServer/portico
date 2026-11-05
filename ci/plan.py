@@ -72,7 +72,7 @@ def closure(packages, seeds):
 def balance(tests, durations, count=None):
     if count is None: count = min(10, max(1, math.ceil(sum(durations.get(t['package']+'.'+t['name'],1) for t in tests)/150)))
     bins = [[] for _ in range(count)]; costs = [0.0]*count
-    # Keep small packages together; split only packages whose measured sum exceeds 240s.
+    # Keep small packages together; split only packages whose measured sum exceeds 150s.
     grouped = {}
     for t in sorted(tests,key=lambda t:(t['package'],t['name'])): grouped.setdefault(t['package'], []).append(t)
     units = []
