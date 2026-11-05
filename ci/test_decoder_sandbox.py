@@ -1,6 +1,7 @@
 from pathlib import Path
+import subprocess
 import unittest
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 from run import aggregate
 import decoder_sandbox as sandbox
@@ -43,6 +44,49 @@ class DecoderSandboxTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 sandbox.setup()
             command.assert_not_called()
+
+    def test_setup_retries_apt_sequence_with_apt_timeouts(self):
+        update = call(['sudo', 'apt-get', '-o', 'Acquire::Retries=3', 'update'],
+                      check=True, timeout=300)
+        install = call(['sudo', 'apt-get', '-o', 'Acquire::Retries=3', 'install', '-y',
+                        '--no-install-recommends', 'bubblewrap', 'ffmpeg'], check=True, timeout=600)
+        checks = [call(['sudo', 'sysctl', '-w', setting], check=True, timeout=180) for setting in
+                  ['kernel.apparmor_restrict_unprivileged_userns=0', 'kernel.unprivileged_userns_clone=1']]
+        checks.append(call(['bwrap', '--unshare-all', '--die-with-parent', '--ro-bind', '/', '/',
+                            '--proc', '/proc', '--dev', '/dev', '--cap-drop', 'ALL', '/bin/true'],
+                           check=True, timeout=180))
+        env = {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted', 'RUNNER_OS': 'Linux'}
+        for error in [subprocess.TimeoutExpired('apt-get', 300),
+                      subprocess.CalledProcessError(1, 'apt-get')]:
+            for failed_step in [0, 1]:
+                with self.subTest(error=type(error).__name__, failed_step=failed_step), \
+                     patch.dict('os.environ', env, clear=True), \
+                     patch.object(Path, 'exists', return_value=True), \
+                     patch.object(sandbox.subprocess, 'run',
+                                  side_effect=[None] * failed_step + [error] + [None] * 5) as run, \
+                     patch.object(sandbox.time, 'sleep') as sleep:
+                    sandbox.setup()
+                    self.assertEqual(run.call_args_list,
+                                     [update, install][:failed_step + 1] + [update, install] + checks)
+                    sleep.assert_called_once_with(5)
+
+    def test_setup_stops_after_one_retry_and_does_not_retry_other_failures(self):
+        env = {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted', 'RUNNER_OS': 'Linux'}
+        for error in [subprocess.TimeoutExpired('setup', 180),
+                      subprocess.CalledProcessError(1, 'setup'), OSError('setup failed')]:
+            for failed_step in range(5):
+                retry = failed_step < 2 and not isinstance(error, OSError)
+                # A second failure must propagate, even when the first was retried.
+                effects = [None] * failed_step + [error, error]
+                with self.subTest(error=type(error).__name__, failed_step=failed_step), \
+                     patch.dict('os.environ', env, clear=True), \
+                     patch.object(Path, 'exists', return_value=True), \
+                     patch.object(sandbox.subprocess, 'run', side_effect=effects) as run, \
+                     patch.object(sandbox.time, 'sleep') as sleep:
+                    with self.assertRaises(type(error)):
+                        sandbox.setup()
+                    self.assertEqual(run.call_count, failed_step + 1 + int(retry))
+                    self.assertEqual(sleep.call_count, int(retry))
 
     def test_required_aggregate_rejects_missing_or_failed_sandbox_job(self):
         plan = {'packages': [{}], 'js': []}
