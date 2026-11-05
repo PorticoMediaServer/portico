@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net/url"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -247,7 +248,14 @@ func TestConnectionCancellationReplacementKeepsPolicy(t *testing.T) {
 func TestConnectionOneTimePolicyCancellationIsInvalid(t *testing.T) {
 	path, cfg := connectionFixture(t)
 	// Deliberately unsafe negative control, never an alternative harness policy.
-	base, err := sqlite.NewConnector(path)
+	// Only DQS is fixed at Connect; every policy PRAGMA below remains one-time
+	// so cancellation still proves their loss on a replacement connection.
+	uriPath := filepath.ToSlash(path)
+	if filepath.VolumeName(path) != "" {
+		uriPath = "/" + uriPath
+	}
+	u := url.URL{Scheme: "file", Path: uriPath, RawQuery: "_dqs=0"}
+	base, err := sqlite.NewConnector(u.String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -255,6 +263,10 @@ func TestConnectionOneTimePolicyCancellationIsInvalid(t *testing.T) {
 	conn, err := db.Conn(t.Context())
 	if err != nil {
 		t.Fatal(err)
+	}
+	ddl, dml, err := sqlite.DQS(conn)
+	if err != nil || ddl != 0 || dml != 0 {
+		t.Fatalf("raw negative DQS pin %d/%d: %v", ddl, dml, err)
 	}
 	if _, err := conn.ExecContext(t.Context(), `PRAGMA journal_mode=WAL;PRAGMA foreign_keys=ON;PRAGMA synchronous=NORMAL;PRAGMA wal_autocheckpoint=0;PRAGMA cache_size=-1024;PRAGMA busy_timeout=0;PRAGMA mmap_size=0;PRAGMA query_only=0;PRAGMA temp_store=FILE`); err != nil {
 		t.Fatal(err)
@@ -350,6 +362,10 @@ type evidenceScriptConn struct {
 	script evidenceScript
 	calls  map[string]int
 }
+
+// Synthetic readback only. Real probeConnector returns the native connection
+// unchanged and preserves its actual optional interfaces; it fakes no settings.
+func (c evidenceScriptConn) SQLiteDQS() (int, int, error) { return 0, 0, nil }
 
 func (c evidenceScriptConn) Prepare(string) (driver.Stmt, error) {
 	return nil, errors.New("readback control only")

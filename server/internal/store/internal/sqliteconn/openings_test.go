@@ -22,6 +22,17 @@ type openingSite struct{ file, owner, object string }
 // Exact objects AND enclosing function identities, including receivers.
 // fs.FS.Open is not a database object and needs no telemetry-name exception.
 var permittedOpenings = map[openingSite]bool{
+	// QL's reviewed real wrapper, explicit raw negative and readback-only fakes.
+	{"qual/connection_test.go", openingStore + "qual.probeConnector.Connect", "database/sql/driver.Connector.Connect"}:                                    true,
+	{"qual/connection_test.go", openingStore + "qual.connectionPool", "database/sql.OpenDB"}:                                                              true,
+	{"qual/connection_test.go", openingStore + "qual.TestConnectionOneTimePolicyCancellationIsInvalid", openingNative + ".NewConnector"}:                  true,
+	{"qual/connection_test.go", openingStore + "qual.TestConnectionReceiptRejectsDifferentEngine", "database/sql.OpenDB"}:                                 true,
+	{"qual/connection_test.go", openingStore + "qual.TestConnectionReceiptPartialReadIsNull", "database/sql.OpenDB"}:                                      true,
+	{"qual/connection_test.go", openingStore + "qual.evidenceScript.Open", openingStore + "qual.evidenceScript.Connect"}:                                  true,
+	{"qual/connection_limits_test.go", openingStore + "qual.TestConnectionLateEnforcementReadFailureIsIncomplete", "database/sql.OpenDB"}:                 true,
+	{"qual/connection_test.go", openingStore + "qual.TestConnectionReceiptPoolGrowthAndReplacement", "database/sql.Conn.Raw"}:                             true,
+	{"qual/connection_limits_test.go", openingStore + "qual.TestConnectionFixedLimitDriftIsInvalidWithoutRepair", "database/sql.Conn.Raw"}:                true,
+	{"qual/connection_limits_test.go", openingStore + "qual.TestConnectionFixedLimitsAfterCancellationAndReplacement", "database/sql.Conn.Raw"}:           true,
 	{"internal/sqliteconn/connection.go", openingStore + "internal/sqliteconn.Connector", openingNative + ".NewConnector"}:                                true,
 	{"internal/sqliteconn/connection.go", openingStore + "internal/sqliteconn.Open", "database/sql.OpenDB"}:                                               true,
 	{"internal/sqliteconn/limits.go", openingStore + "internal/sqliteconn.limitConnector.Connect", "database/sql/driver.Connector.Connect"}:               true,
