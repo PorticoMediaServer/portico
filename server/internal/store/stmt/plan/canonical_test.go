@@ -38,8 +38,8 @@ func TestPlanCanonicalSchemaFKAndStatementContracts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(fk.Plans) != 642 {
-		t.Fatalf("FK coverage: %d, want 642; review schema change and full enforcement audit", len(fk.Plans))
+	if len(fk.Plans) != 650 {
+		t.Fatalf("FK coverage: %d, want 650; review schema change and full enforcement audit", len(fk.Plans))
 	}
 	checkFKGolden(t, fk)
 	registry := canonicalRegistry(t, policy)
@@ -47,8 +47,8 @@ func TestPlanCanonicalSchemaFKAndStatementContracts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// All 28 cohorts were independently regenerated on both approved schemas
-	// (291ab3ac and 567267b7) with the same VM canonicalization. Stop before
+	// All 28 cohorts were independently regenerated on approved 291ab3ac,
+	// 567267b7 and adopted 5f3c7f67 with the same VM canonicalization. Stop before
 	// recording if any opcode/operand/EQP beyond physical identifiers changes.
 	const retainedPlansSHA256 = "d7345d9db96ad79c3e80138da3733e6928209e4fbf232f2640aa3230d92c2da5"
 	plansJSON, err := json.Marshal(golden.Plans)
