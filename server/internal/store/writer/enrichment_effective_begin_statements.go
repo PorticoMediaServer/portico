@@ -55,7 +55,8 @@ func enrichmentEffectiveBeginDefinitions() []stmt.Definition {
 			CallSites: []string{"writer/enrichment_effective_begin_facts.go:effectiveBeginEntityFacts"},
 			SQL: `SELECT id,library_id,kind,retired,revision,metadata_incarnation,
  source_revision,identity_revision,metadata_revision,metadata_language,
- credit_owner_revision,credit_owner_locked,credit_image_id
+ credit_owner_revision,credit_owner_locked,credit_image_id,tv_incarnation,
+ tv_source_revision,tv_hierarchy_revision,tv_selection_revision,tv_descriptive_revision
  FROM catalog_entities WHERE id=?`,
 			Params: []stmt.Param{{Name: "entity_id", Type: stmt.Integer}},
 			Cohorts: []stmt.Cohort{

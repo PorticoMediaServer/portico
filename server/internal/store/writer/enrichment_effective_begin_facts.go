@@ -44,6 +44,19 @@ type effectiveBeginEntity struct {
 	language                                           string
 	ownerRevision, ownerLocked                         int64
 	imageID                                            sql.NullInt64
+	tvIncarnation                                      effectiveBeginOptionalIncarnation
+	tvSourceRevision, tvHierarchyRevision              sql.NullInt64
+	tvSelectionRevision, tvDescriptiveRevision         sql.NullInt64
+}
+
+type effectiveBeginOptionalIncarnation struct {
+	value   [16]byte
+	present bool
+}
+
+func (e effectiveBeginEntity) tvAbsent() bool {
+	return !e.tvIncarnation.present && !e.tvSourceRevision.Valid && !e.tvHierarchyRevision.Valid &&
+		!e.tvSelectionRevision.Valid && !e.tvDescriptiveRevision.Valid
 }
 
 func effectiveBeginOwnerFacts(ctx context.Context, turn *commandTurn, step statementStep, ownerID string) (effectiveBeginOwner, error) {
@@ -119,10 +132,11 @@ func effectiveBeginEntityFacts(ctx context.Context, turn *commandTurn, step stat
 	if err != nil {
 		return out, err
 	}
-	var incarnation []byte
+	var incarnation, tvIncarnation []byte
 	err = row.Scan(&out.id, &out.libraryID, &out.kind, &out.retired, &out.revision,
 		&incarnation, &out.sourceRevision, &out.identityRevision, &out.metadataRevision,
-		&out.language, &out.ownerRevision, &out.ownerLocked, &out.imageID)
+		&out.language, &out.ownerRevision, &out.ownerLocked, &out.imageID, &tvIncarnation,
+		&out.tvSourceRevision, &out.tvHierarchyRevision, &out.tvSelectionRevision, &out.tvDescriptiveRevision)
 	if err != nil {
 		return effectiveBeginEntity{}, err
 	}
@@ -130,5 +144,12 @@ func effectiveBeginEntityFacts(ctx context.Context, turn *commandTurn, step stat
 		return effectiveBeginEntity{}, fmt.Errorf("%w: invalid enrichment entity incarnation width", ErrResolveRequired)
 	}
 	copy(out.incarnation[:], incarnation)
+	if tvIncarnation != nil {
+		if len(tvIncarnation) != 16 {
+			return effectiveBeginEntity{}, ErrResolveRequired
+		}
+		out.tvIncarnation.present = true
+		copy(out.tvIncarnation.value[:], tvIncarnation)
+	}
 	return out, nil
 }
