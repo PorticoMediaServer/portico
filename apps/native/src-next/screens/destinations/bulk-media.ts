@@ -1,8 +1,9 @@
 import {submitMetadataBulk, previewCatalogueDeletion, deleteCatalogueItems, type CatalogueActionsApi} from '../../../../../packages/client-core/src/query/catalogue-actions';
+import {catalogueBulkBase, catalogueBulkEdit, catalogueDeletionCommand} from '../../../../../packages/client-core/src/catalogue-bulk-commands';
 import {deletionAllowed, parseDeletePreview, parseDeleteResult, type DeletePreview, type DeleteResult} from '../../../../../packages/client-core/src/administration';
 import {fetchBulkMetadataPreview, metadataPreviewTargets, type BulkMetadataPreview, type BulkMetadataPreviewTarget} from '../../../../../packages/client-core/src/home-selection/index';
 import type {HomeApi} from '../../../../../packages/client-core/src/home';
-import {validBulkEdit, validateBulkReceipt, type BulkEdit, type BulkReceipt} from '../../../../../packages/client-core/src/metadata-bulk';
+import {bulkTargetLimit, validBulkEdit, validateBulkReceipt, type BulkEdit, type BulkReceipt} from '../../../../../packages/client-core/src/metadata-bulk';
 import type {BulkChanges, BulkFieldValue, BulkResultView} from '../../kit/selection';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {CatalogueSelectionOptions} from '../../../../../packages/client-core/src/catalogue-selection';
@@ -169,21 +170,13 @@ export class NativeBulkMedia {
     this.publish({lockEdited});
   };
   private async plan(epoch: number, preview: BulkMetadataPreview, changes: BulkChanges, lockEdited: boolean): Promise<{base: Omit<BulkEdit, 'operationId' | 'targets'>; edits: {body: BulkEdit}[]}> {
-    const fields: Record<string, {value?: string; values?: readonly string[]}> = {};
-    const lists: Record<string, {add?: readonly string[]; remove?: readonly string[]}> = {};
-    let genres: {add?: readonly string[]; remove?: readonly string[]} | undefined;
-    for (const spec of preview.schema) {
-      const change = changes[spec.field];
-      if (!change) continue;
-      if ('value' in change) {fields[spec.field] = {value: change.value}; continue;}
-      // The other variant is the list edit; narrowing on the value variant keeps add/remove typed.
-      const list = {add: change.add, remove: change.remove};
-      if (spec.field === 'genres') genres = list; else lists[spec.field] = list;
-    }
-    if (!Object.keys(fields).length && !Object.keys(lists).length && !genres) return {base: {}, edits: []};
-    const base: Omit<BulkEdit, 'operationId' | 'targets'> = {...(Object.keys(fields).length ? {fields} : {}), ...(Object.keys(lists).length ? {lists} : {}), ...(genres ? {genres} : {}), lockEdited};
+    const base = catalogueBulkBase(preview.schema, changes, lockEdited);
+    if (!base) return {base: {}, edits: []};
     const edits: {body: BulkEdit}[] = [];
-    for (let start = 0; start < preview.targets.length; start += 200) {edits.push({body: {...base, operationId: await this.nextId(epoch), targets: preview.targets.slice(start, start + 200).map(({kind, id, expectedRevision}) => ({kind, id, expectedRevision}))}});}
+    for (let start = 0; start < preview.targets.length; start += bulkTargetLimit) {
+      const operationId = await this.nextId(epoch);
+      edits.push({body: catalogueBulkEdit(base, preview.targets, start, operationId)});
+    }
     for (const edit of edits) if (!validBulkEdit(edit.body, preview.schema)) throw unavailable('invalid-bulk-edit');
     return {base, edits};
   }
@@ -235,8 +228,9 @@ export class NativeBulkMedia {
       const fresh = await this.readPreview(epoch, targets);
       this.assertTargets(fresh, targets);
       const edits: {body: BulkEdit}[] = [];
-      for (let start = 0; start < fresh.targets.length; start += 200) {
-        edits.push({body: {...base, operationId: await this.nextId(epoch), targets: fresh.targets.slice(start, start + 200).map(({kind, id, expectedRevision}) => ({kind, id, expectedRevision}))}});
+      for (let start = 0; start < fresh.targets.length; start += bulkTargetLimit) {
+        const operationId = await this.nextId(epoch);
+        edits.push({body: catalogueBulkEdit(base, fresh.targets, start, operationId)});
       }
       for (const edit of edits) if (!validBulkEdit(edit.body, fresh.schema)) throw unavailable('invalid-bulk-edit');
       this.edits = edits;
@@ -288,8 +282,7 @@ export class NativeBulkMedia {
       this.assertDeletePreview(preview);
       if (!this.deleteBody) {
         const operationId = await this.nextId(epoch);
-        this.deleteBody = Object.freeze({itemIds: preview.targets.map(target => target.itemId), expectedRevision: preview.revision,
-          confirmation: deletion.confirmation, deleteFiles: deletion.removeFiles, operationId});
+        this.deleteBody = catalogueDeletionCommand(preview, deletion, operationId);
       }
       const result = parseDeleteResult(envelope(await deleteCatalogueItems(this.commandApi(epoch), this.deleteBody), this.options.scope.serverId));
       // One receipt per previewed target, and none for a title that was not previewed.
