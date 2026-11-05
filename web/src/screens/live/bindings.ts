@@ -1,9 +1,9 @@
 import {GuideWindowStore, legacyChannel, legacyGuideSource, type GuideChannelRow} from '@core/guide/index.ts';
 import {fetchGuideSourceSummaries} from '@core/guide/directory.ts';
+import {readSelectedChannelGuideResponse} from '@core/query/browse-reads.ts';
 import type {LegacyGuideOptions} from '@core/guide/legacy-source.ts';
 import {channelOperationId, guideWindow, parseChannelGuide, saveChannelPreference, type ChannelKind} from '@core/channel-guide.ts';
 import {setServerChannelHidden} from '@core/server-channel-visibility.ts';
-import {routePath} from '../../../../packages/contracts/src/routes.ts';
 import {screenLifetime, type ScreenContext} from '../detail/context';
 
 /** Only the mounted viewport starts reads. No source listing or guide walk at import. */
@@ -49,8 +49,7 @@ export function createLiveBindings(context: ScreenContext, options: LegacyGuideO
     },
     async selectedChannel(target: Readonly<{sourceId: string; channelId: string; provenance: ChannelKind}>, signal?: AbortSignal) {
       const route = {kind: target.provenance, sourceId: target.sourceId, ...(options.includeServerHidden ? {includeServerHidden: true} : {}), timezone: options.timezone, search: '', ...guideWindow()};
-      const params = new URLSearchParams({...route, includeServerHidden: String(options.includeServerHidden === true), channels: target.channelId, limit: '1'});
-      const value = parseChannelGuide(await api.request(routePath('get_guide') + '?' + params, 'GET', undefined, life.signal(signal)), context.scope.serverId, route);
+      const value = parseChannelGuide(await readSelectedChannelGuideResponse(api, route, target.channelId, options.includeServerHidden === true, life.signal(signal)), context.scope.serverId, route);
       life.assert();signal?.throwIfAborted();
       // A library row's address names the collapsed Library Channels source (`library`); the
       // channel itself keeps its own source id (LT-2).

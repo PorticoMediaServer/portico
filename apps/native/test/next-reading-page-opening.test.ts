@@ -242,3 +242,12 @@ test('retiring a page aborts its bounded transport without borrowing a successor
   assert.equal(opening.isCurrent(), false); assert.equal(successor.signal.aborted, false);
   successor.dispose();
 });
+
+test('parity: Home navigation without disposal rejects malformed late capabilities as original cancellation', async () => {
+  const reply = deferred<unknown>(), f = fixture();
+  f.context.api.request = <T>() => reply.promise as Promise<T>;
+  const opening = f.open()!, pending = opening.capabilities();
+  f.home(); reply.resolve(null);
+  try {await assert.rejects(pending, {name: 'AbortError', code: 'cancelled'});}
+  finally {opening.dispose();}
+});

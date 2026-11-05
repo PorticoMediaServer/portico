@@ -1,9 +1,9 @@
-import {browseCapabilitiesPath, browseMembershipId, parseBrowseCapabilities, browseContextFacetsPath, parseBrowseFacets, browseCountsPath, browseCountsRequest, parseBrowseCounts, parseBrowseNode, completeBrowseNode,
+import {readBrowseCapabilitiesResponse, readBrowseCountsResponse, readBrowseFacetResponse, readReadingBrowseFacet} from '@core/query/browse-reads.ts';
+import {browseMembershipId, parseBrowseCapabilities, parseBrowseFacets, parseBrowseCounts, parseBrowseNode, completeBrowseNode,
   type BrowseCapabilities, type BrowseNode, type BrowseSortSelection, type BrowseWholeSelection, type BrowseWholeSelectionUnavailable} from '@core/browse.ts';
 import {BrowseSession, browseSessionBuilder, browseSessionClosed, type BrowseSessionQuery} from '@core/browse-session.ts';
 import {createWindowedCollection, type WindowedCollection} from '@core/collections/windowed.ts';
 import type {ContentEntry, LibraryContentApi} from '@core/library-content.ts';
-import {readReadingFacet} from '@core/browse-preparation.ts';
 import {isStaleAnswer} from '@core/freshness-actions.ts';
 import {listedTitlesWithPersonalState, readsPersonalState, titleIdsOf, type FreshDocument} from '@core/freshness-hub.ts';
 import type {ViewerQueries} from '@core/query/viewer-queries.ts';
@@ -104,7 +104,7 @@ export class BrowseController {
     this.session = undefined;
     this.publish({phase: 'loading', error: undefined, revision: undefined});
     try {
-      const caps = parseBrowseCapabilities(await this.api.request(browseCapabilitiesPath(this.source.libraryId, this.source.pivot), 'GET', undefined, this.life.signal));
+      const caps = parseBrowseCapabilities(await readBrowseCapabilitiesResponse(this.api, this.source.libraryId, this.source.pivot, this.life.signal));
       if (!this.current() || epoch !== this.epoch) return;
       const pivot = caps.resolvedPivot ?? caps.pivots.find(pivot => pivot.id === this.source.pivot);
       this.sorts = this.source.sorts ?? (this.source.sort ? [this.source.sort] : pivot?.defaultSort ?? []);
@@ -260,10 +260,9 @@ export class BrowseController {
     const {capabilities: caps, sort} = this.state;
     if (!caps || !sort || !this.current()) throw browseSessionClosed();
     const epoch = this.epoch, body = this.builder(caps, predicates, sort).build();
-    const path = browseContextFacetsPath(this.source.libraryId, field, this.source.pivot, body.query, query, 200);
     const reading = caps.library.kind === 'book' || caps.library.kind === 'comic';
-    const page = reading ? await readReadingFacet(this.api, this.source.libraryId, path, field, {signal, isCurrent: () => this.current() && epoch === this.epoch})
-      : parseBrowseFacets(await this.api.request(path, 'GET', undefined, signal), field);
+    const page = reading ? await readReadingBrowseFacet(this.api, this.source.libraryId, field, this.source.pivot, body.query, query, 200, {signal, isCurrent: () => this.current() && epoch === this.epoch})
+      : parseBrowseFacets(await readBrowseFacetResponse(this.api, this.source.libraryId, field, this.source.pivot, body.query, query, 200, signal), field);
     if (!this.current() || epoch !== this.epoch || signal.aborted) throw browseSessionClosed();
     return page;
   }
@@ -275,7 +274,7 @@ export class BrowseController {
     if (!caps || !sort || !this.current()) throw browseSessionClosed();
     const epoch = this.epoch;
     const queries = groups.map(group => ({id: group.id, query: this.builder(caps, group.predicates, sort).build().query ?? null}));
-    const raw = await this.api.request(browseCountsPath(this.source.libraryId), 'POST', browseCountsRequest(this.source.pivot, queries), signal);
+    const raw = await readBrowseCountsResponse(this.api, this.source.libraryId, this.source.pivot, queries, signal);
     if (!this.current() || epoch !== this.epoch || signal.aborted) throw browseSessionClosed();
     return parseBrowseCounts(raw, groups.map(group => group.id));
   }
