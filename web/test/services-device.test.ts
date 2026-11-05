@@ -6,7 +6,7 @@ import type {ServicesAccount} from '../src/services/session.ts';
 function accountPort() {
   let session = {account: {id: 'account_a', username: 'account', displayName: 'Account'}, familyId: 'family_a', accessToken: 'test-access'};
   const account = {api: {origin: 'https://services-device-test.example'}, service: {
-    synchronize: async () => {}, accessSession: async () => session, getSnapshot: () => ({session}),
+    authorityOrigin: () => 'https://services-device-test.example', synchronize: async () => {}, accessSession: async () => session, getSnapshot: () => ({session}),
   }} as unknown as ServicesAccount;
   return {account, changeFamily: () => { session = {...session, familyId: 'family_b'}; }};
 }

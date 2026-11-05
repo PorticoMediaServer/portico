@@ -1,3 +1,5 @@
+import {cancelHostedIdentity} from '@core/query/connection-operations.ts';
+import {requestHostedRecovery} from '../../../packages/client-core/src/query/connection-operations.ts';
 import {serverNow} from '@core/server-clock.ts';
 import {ApiError} from '@core/index.ts';
 import {CodedError} from '@core/server-messages.ts';
@@ -158,7 +160,7 @@ export class ServicesAuthFlow {
   resumeProviderNavigation() {if (this.state.providerNavigating) this.publish({providerNavigating: false});}
   cancelProvider() {
     return this.run(async signal => {
-      await this.account.client.request(routePath('identity_cancel'), 'POST', undefined, signal);
+      await cancelHostedIdentity(this.account.client, signal);
       if (!signal.aborted) {
         this.transaction = undefined; this.providerRefresh = undefined; this.ids.clear('provider');
         this.publish({mode: 'signin', provider: undefined, suggestedName: undefined, verifiedEmail: undefined});
@@ -212,7 +214,7 @@ export class ServicesAuthFlow {
     return this.run(async signal => {
       const requestId = await this.ids.for('recover', {identifier});
       if (signal.aborted) return;
-      await this.account.client.request(routePath('account_recovery_request'), 'POST', routeBody('account_recovery_request', {identifier, requestId}), signal);
+      await requestHostedRecovery(this.account.client, identifier, requestId, signal);
       if (!signal.aborted) { this.ids.clear('recover'); this.publish({mode: 'sent'}); }
     });
   }

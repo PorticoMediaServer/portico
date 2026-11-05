@@ -1,3 +1,4 @@
+import {readDirectAccount} from '../../../../../packages/client-core/src/query/connection-operations.ts';
 import type {QuietRefreshOutcome} from '@core/freshness-actions.ts';
 import {routePath} from '../../../../../packages/contracts/src/routes.ts';
 import {CodedError} from '@core/server-messages.ts';
@@ -51,7 +52,7 @@ export class ProfileSettingsSource {
     for (const listener of this.listeners) listener();
   }
   private async read(signal = this.lifetime.signal): Promise<DirectSnapshot> {
-    const raw = await this.api.request(routePath('get_direct_account'), 'GET', undefined, AbortSignal.any([this.lifetime.signal,signal]));
+    const raw = await readDirectAccount(this.api, AbortSignal.any([this.lifetime.signal,signal]));
     const document = parseDirectSnapshot(raw, {...this.scope, authority: 'local'});
     const guard = () => {if(!this.current() || signal.aborted || this.lifetime.signal.aborted)throw new DOMException('Profile read retired','AbortError');};
     guard();this.observeDirect?.(document);guard();

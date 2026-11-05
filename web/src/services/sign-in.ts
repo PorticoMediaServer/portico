@@ -1,3 +1,4 @@
+import {createBrowserRegisteredReturnTransport} from '@core/query/browser-account-access.ts';
 import {serverNow} from '@core/server-clock.ts';
 import {ApiError} from '@core/index.ts';
 import {buildHostedSignInStartURL, parseHostedSignInStartURL, verifyHostedSignInStart} from '@core/hosted-sign-in-start.ts';
@@ -59,10 +60,7 @@ export async function continueHostedSignIn(account: ServicesAccount, pending: Ho
     signal.throwIfAborted();
   };
   await current();
-  const location = await completeRegisteredReturn({request: async <T>(path: string, method = 'GET', body?: unknown) => {
-    await current();
-    return currentAccountWork(account, session => account.api.send<T>(path, method, body, signal, session.accessToken), expected);
-  }}, handoff.start, handoff.registration, signal);
+  const location = await completeRegisteredReturn(createBrowserRegisteredReturnTransport(account, expected, signal, current), handoff.start, handoff.registration, signal);
   await current();
   await currentAccountWork(account, async () => {signal.throwIfAborted();}, expected);
   let cleared = false;
