@@ -40,7 +40,7 @@ type Config struct {
 	Connections int
 	CacheKiB    int32
 	Synchronous SyncMode
-	ReadLimits  ReadLimits
+	ReadLimits  ReadLimits `json:",omitzero"`
 }
 
 var ErrPolicy = errors.New("schema-v1 connection policy mismatch")
@@ -169,7 +169,7 @@ type Settings struct {
 	TempStore      int
 	// ReadLimits is actual native evidence when configured, otherwise zero
 	// (unobserved). The zero policy neither changes nor asserts native defaults.
-	ReadLimits ReadLimits
+	ReadLimits ReadLimits `json:",omitzero"`
 }
 
 // Assert reads, never repairs, policy. Call outside a transaction and after a
