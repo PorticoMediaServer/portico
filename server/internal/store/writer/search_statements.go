@@ -56,7 +56,7 @@ func searchInputIntentDefinitions() []stmt.Definition {
 		definition(searchInputHead, `SELECT revision,active_generation_id,building_generation_id,input_sequence
 FROM search_revision WHERE singleton=1`, stmt.Read, nil,
 			[]stmt.Cohort{{Name: "singleton", Bindings: []any{}}}),
-		definition(searchInputBank, `SELECT bank_key,recipe_version,engine_version,unicode_fingerprint,state,pending_subjects,job_revision
+		definition(searchInputBank, `SELECT bank_key,recipe_version,engine_version,unicode_fingerprint,state,pending_subjects
 FROM search_generations WHERE id=?`, stmt.Read, []stmt.Param{integer("bank_id")},
 			[]stmt.Cohort{{Name: "active", Bindings: []any{int64(1)}}, {Name: "missing", Bindings: []any{int64(999)}}}),
 		definition(searchInputEntity, `SELECT metadata_incarnation,revision FROM catalog_entities
@@ -79,13 +79,12 @@ VALUES(?,?,?,?,?,?,?,?)`, stmt.Write,
 				integer("source_revision"), text("recipe_version"), text("phase"), integer("accepted_at_ms")},
 			[]stmt.Cohort{{Name: "first_intent", Bindings: []any{int64(1), int64(1), firstSearchInputGeneration, []byte{9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, int64(1), searchpolicy.RecipeV1, firstSearchInputPhase, int64(1000)}}}),
 		definition(searchInputPending, `UPDATE search_generations
-SET pending_subjects=?,job_revision=?
-WHERE id=? AND state=? AND recipe_version=? AND engine_version=? AND unicode_fingerprint=?
-AND pending_subjects=? AND job_revision=? AND pending_subjects<9223372036854775807
-AND job_revision<9223372036854775807`, stmt.Write,
-			[]stmt.Param{integer("next_pending"), integer("next_revision"), integer("bank_id"), text("bank_state"), text("recipe_version"), text("engine_version"),
-				text("unicode_fingerprint"), integer("expected_pending"), integer("expected_revision")},
-			[]stmt.Cohort{{Name: "first_pending", Bindings: []any{int64(1), int64(2), int64(1), "active", searchpolicy.RecipeV1, searchpolicy.EngineVersion, searchInputExampleFingerprint, int64(0), int64(1)}}}),
+SET pending_subjects=?
+WHERE id=? AND state=? AND bank_key=? AND recipe_version=? AND engine_version=? AND unicode_fingerprint=?
+AND pending_subjects=? AND pending_subjects<9223372036854775807`, stmt.Write,
+			[]stmt.Param{integer("next_pending"), integer("bank_id"), text("bank_state"), text("bank_key"), text("recipe_version"), text("engine_version"),
+				text("unicode_fingerprint"), integer("expected_pending")},
+			[]stmt.Cohort{{Name: "first_pending", Bindings: []any{int64(1), int64(1), "active", "v1", searchpolicy.RecipeV1, searchpolicy.EngineVersion, searchInputExampleFingerprint, int64(0)}}}),
 		definition(searchInputSequence, `UPDATE search_revision SET input_sequence=?
 WHERE singleton=1 AND revision=? AND active_generation_id=? AND building_generation_id IS NULL
 AND input_sequence=? AND input_sequence<9223372036854775807`, stmt.Write,
