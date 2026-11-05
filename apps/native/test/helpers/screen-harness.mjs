@@ -1,3 +1,4 @@
+import * as catalogueActions from '../../../../packages/client-core/src/query/catalogue-actions.ts';
 import * as playbackQueries from '../../../../packages/client-core/src/query/playback.ts';
 import * as preparingCleanup from '../../../../packages/client-core/src/playback-v1/preparing-cleanup.ts';
 import * as ownerSettingsPolicy from '../../../../packages/client-core/src/owner-settings-policy.ts';
@@ -52,6 +53,7 @@ function railHoldLeaf(react) {
   return hooks;
 }
 const leaf = (source, react, native) => /client-core\/src\/query\/playback(\.ts)?$/.test(source) ? playbackQueries
+  : /client-core\/src\/query\/catalogue-actions(?:\.ts)?$/.test(source) ? catalogueActions
   : /client-core\/src\/playback-v1\/preparing-cleanup(\.ts)?$/.test(source) ? preparingCleanup
   : /client-core\/src\/query\/receiver(\.ts)?$/.test(source) ? receiverQueries
   : /(^|\/)server-clock(\.ts)?$/.test(source) && /client-core\/src\/server-clock|^\.\/server-clock/.test(source) ? serverClock
