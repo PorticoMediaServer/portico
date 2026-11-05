@@ -54,11 +54,11 @@ allowance. Approved categories are:
   is suspended;
 - Cast receiver, website and Hosted as separate products;
 - individually approved platform transport guards: core fully builds path, method,
-  body and auth; the wrapper adds only lifetime/authority/abort and constructs
-  nothing. The scanner requires unchanged path/method/body identifiers and only
-  a fourth signal argument at these pinned calls, plus the SHA-256 of the complete
-  enclosing reviewed guard function in both its identity and allowance. Any edit
-  invalidates the pin and needs re-approval. Native identities include the full
+  body and auth; the wrapper adds only the checks authorized by its linked ruling
+  and constructs nothing. The scanner checks unchanged arguments, including the
+  approved raw/Console, read-only, signal-only options and fifth-options shapes.
+  Every allowance binds the SHA-256 of the complete enclosing reviewed guard
+  function. Any edit invalidates the pin and needs re-approval. Native identities include the full
   receiver/fluent construction chain and enclosing method body hash, so changes
   to URL, method, body or bound inputs invalidate byte-only allowances.
 
@@ -85,3 +85,24 @@ reviewed: every edit needs a fresh review verifying each entry against its linke
 ruling. CI validates the binding/schema; it does not infer approval from arbitrary
 source text or fetch comments during a build. Existing approved standing
 categories and CC-0/CC-2/CC-3 sites cite the initial lead ruling.
+
+Ledger entries can precede their reviewed source commit landing. They grant no
+active allowance by themselves: the slice must install the exact matching pin
+and lower its direct-site baseline when that source is present. The refreshed
+CC-4 entries and verbatim native proof executors record their reviewed commit.
+
+Detection improvements use `ci/client-api-detection-additions.json`, separately
+from exception approvals. Each exact addition records its maximum occurrence
+count, reason and lead-ruling URL, together with an immutable source commit.
+For any baseline growth, CI re-runs the new detector on that commit and the PR
+base. Only the minimum matching count in both snapshots is permitted. A request
+added by the product patch, a larger duplicate count or a previously deleted
+request cannot grow the baseline using a historical approval. Ordinary slice
+PRs still only shrink it. Regenerate approved coverage with `--update --base
+<base-sha>`; a bare `--update` never permits growth.
+
+The detector resolves core HTTP methods and aliases, including multipart and
+bounded requests and the core V1 request-object seam. Native URL readers require
+java.net.URL bindings, async Swift reads require URLSession receivers, and fluent
+HTTP calls require known HTTP constructors/types/modules. Local files, model
+methods, diagnostics and decoder streams are negative fixtures.

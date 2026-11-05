@@ -12,12 +12,15 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import tarfile
+import tempfile
 
 ROOT = Path(__file__).resolve().parent.parent
 SCANNER = ROOT / 'ci/client_api_sites.mjs'
 BASELINE = 'ci/client-api-baseline.json'
 ALLOWLIST = 'ci/client-api-exceptions.json'
 APPROVALS = 'ci/client-api-approvals.json'
+DETECTIONS = 'ci/client-api-detection-additions.json'
 SOURCE_ROOTS = ('web/', 'apps/native/', 'apps/desktop/', 'apps/vega/',
                 'packages/player-core/', 'packages/reader-core/', 'website/', 'server/receiver/cast/')
 EXTENSIONS = {'.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.kt', '.java', '.swift', '.m', '.mm', '.rs'}
@@ -130,6 +133,27 @@ def native_chain(ts, start, end):
     return start,end
 
 
+def native_forwarding_shape(path, body):
+    """The two reviewed certificate executors consume URL/method/body parameters.
+
+    These are admission shapes, not an immutability proof. The full native method
+    hash is mandatory in the pin and ledger; any policy edit requires re-review.
+    """
+    if path.endswith('.kt') and all(re.search(p,body) for p in [
+            r'fun\s+proofRequest\([^)]*requestUrl:\s*String\?[^)]*method:\s*String\?[^)]*body:\s*String\?',
+            r'requestUrl\?\.toHttpUrlOrNull\(\)', r'\.url\(target\)',
+            r'\.method\(method!!,\s*body\.toByteArray\(Charsets\.UTF_8\)\.toRequestBody\("application/json"\.toMediaType\(\)\)\)']):
+        return 'native-proof'
+    if path.endswith(('.m','.mm')) and all(re.search(p,body) for p in [
+            r'prove:\(NSString\s*\*\)origin\s+fingerprint:',
+            r'url:\(NSString\s*\*\)requestURL\s+method:\(NSString\s*\*\)method\s+body:\(NSString\s*\*\)body',
+            r'NSURL\s*\*url\s*=\s*\[NSURL\s+URLWithString:requestURL\]',
+            r'requestWithURL:url\]', r'request\.HTTPMethod\s*=\s*method\s*;',
+            r'request\.HTTPBody\s*=\s*\[body\s+dataUsingEncoding:NSUTF8StringEncoding\]']):
+        return 'native-proof'
+    return None
+
+
 def native_sites(path, source):
     if path.endswith('.rs'):
         # Skip each test module's balanced body, preserving later production source.
@@ -149,6 +173,37 @@ def native_sites(path, source):
     if path.endswith(('.m','.mm')):
         source = re.sub(r'^#if DEBUG\b[\s\S]*?^#endif\b', lambda m: re.sub(r'[^\n]',' ',m[0]), source, flags=re.M)
     ts = tokens(source)
+    # Transport evidence comes from native imports, declared types and constructor
+    # bindings. A file's readText/readBytes/data/get methods alone prove no HTTP.
+    code = ' '.join(value if kind != 'string' else '""' for kind,value,_ in ts)
+    java_url = bool(re.search(r'\b(?:import\s+java\s*\.\s*net\s*\.\s*URL|java\s*\.\s*net\s*\.\s*URL\b)', code))
+    url_names = set()
+    if java_url:
+        url_names.update(re.findall(r'\b(\w+)\s*:\s*(?:java\s*\.\s*net\s*\.\s*)?URL\b',code))
+        url_names.update(re.findall(r'\bURL\s+(\w+)\s*(?:=|,|\))',code))
+        url_names.update(re.findall(r'\b(?:val|var|let)\s+(\w+)\s*(?::[^=;{}]+)?=\s*(?:new\s+)?(?:java\s*\.\s*net\s*\.\s*)?URL\s*\(',code))
+    session_names = set(re.findall(r'\b(\w+)\s*:\s*URLSession\b',code))
+    session_names.update(re.findall(r'\b(?:let|var)\s+(\w+)\s*(?::[^=;{}]+)?=\s*URLSession\b',code))
+    http_type = r'(?:reqwest\s*:\s*:\s*(?:blocking\s*:\s*:\s*)?Client|OkHttpClient|HttpClient)'
+    http_names = set(re.findall(r'\b(\w+)\s*:\s*'+http_type+r'\b',code))
+    http_names.update(re.findall(r'\b(?:let|val|var)\s+(\w+)\s*(?::[^=;{}]+)?=\s*(?:new\s+)?'+http_type+r'\b',code))
+    if re.search(r'\buse\s+reqwest\s*:\s*:\s*(?:blocking\s*:\s*:\s*)?Client\b',code):
+        http_names.update(re.findall(r'\b(?:let|val|var)\s+(\w+)\s*(?::[^=;{}]+)?=\s*Client\s*:\s*:',code))
+        http_names.update(re.findall(r'\b(\w+)\s*:\s*Client\b',code))
+    def receiver_at(i):
+        return ts[i-2][1] if i>=2 and ts[i-1][1]=='.' else None
+    def url_receiver(i):
+        if receiver_at(i) in url_names: return True
+        if not java_url or i<2 or ts[i-1][1]!='.' or ts[i-2][1]!=')': return False
+        depth=1
+        for j in range(i-3,-1,-1):
+            if ts[j][1]==')': depth+=1
+            elif ts[j][1]=='(':
+                depth-=1
+                if not depth:return j>0 and ts[j-1][1]=='URL'
+        return False
+    def session_receiver(i):
+        return receiver_at(i) in session_names or ''.join(t[1] for t in ts[max(0,i-4):i])=='URLSession.shared.'
     found = []
     function_spans = native_function_spans(ts, source, path)
     brackets, enclosing = [], {}
@@ -169,12 +224,16 @@ def native_sites(path, source):
         if after == ':' and '[' not in enclosing[i]: continue
         # Function declarations are not calls.
         if i and ts[i - 1][1] in ('fun', 'func', 'fn'): continue
-        if value == 'bytes' and (after != '(' or ts[i+2][1] != 'for'): continue
+        url_read = value in {'readText','readBytes','readLines','inputStream'} and url_receiver(i)
+        session_read = value in {'data','bytes','download','upload'} and session_receiver(i) and after=='(' and ts[i+2][1] in {'for','from','with'}
+        fluent = value in {'get','post','put','patch','delete','head'} and (receiver_at(i) in http_names
+                    or ''.join(t[1] for t in ts[max(0,i-3):i]) in {'reqwest::','ureq::','isahc::'})
+        if value == 'bytes' and not session_read: continue
         if value == 'execute' and (i < 2 or ts[i-1][1] != '.' or not re.search(r'(?:client|http|request|call)',ts[i-2][1],re.I)): continue
         before = [t[1] for t in ts[max(0,i-3):i]]
         is_builder = value == 'Builder' and 'Request' in before
         is_url = value in ('stringWithFormat','stringByAppendingString','format')
-        if value not in native_calls and not is_builder and not is_url: continue
+        if value not in native_calls and not is_builder and not is_url and not url_read and not session_read and not fluent: continue
         if value in ('send', 'execute', 'Request', 'request', 'wire', 'exchange'):
             # Only network receivers, HTTP method arguments or API-path-bearing calls;
             # exclude map lookups, playback commands, DB requests and FFI request structs.
@@ -206,17 +265,22 @@ def native_sites(path, source):
         expression = ' '.join(t[1] for t in call)
         spans = [(a,b) for a,b in function_spans if a<=i<=b]
         construction_hash = None
+        policy = ''
         if spans:
             a,b = min(spans,key=lambda span:span[1]-span[0])
-            construction_hash = hashlib.sha256(source[ts[a][2]:ts[b][2]+1].encode()).hexdigest()
+            policy = source[ts[a][2]:ts[b][2]+1]
+            construction_hash = hashlib.sha256(policy.encode()).hexdigest()
+        shape = native_forwarding_shape(path,policy)
         found.append({'file':path,'line':source.count('\n',0,offset)+1,
                       'kind':'url' if is_url else 'request','owner':'<native>',
-                      'callee':value,'operations':[], 'expression':expression, 'constructionHash': construction_hash})
+                      'callee':value,'operations':[], 'expression':expression, 'constructionHash': construction_hash,
+                      **({'forwardedRequest':True,'forwardingShape':shape,'guardHash':construction_hash} if shape else {})})
     return found
 
 
-def scan(root=ROOT):
-    paths = subprocess.check_output(['git','ls-files','-z'],cwd=root).decode().split('\0')
+def scan(root=ROOT, paths=None):
+    if paths is None:
+        paths = subprocess.check_output(['git','ls-files','-z'],cwd=root).decode().split('\0')
     paths = sorted(p for p in paths if p and production(p))
     js = [p for p in paths if Path(p).suffix in {'.ts','.tsx','.js','.jsx','.mjs','.cjs'}]
     if js:
@@ -230,10 +294,67 @@ def scan(root=ROOT):
         # Stable across line moves. Multisets preserve identical calls on the same line.
         identity = [site['kind'],site['owner'],site['callee'],site['expression']]
         if 'constructionHash' in site: identity.append(site['constructionHash'])
-        if site.get('forwardedRequest') and site.get('guardHash'): identity.append(site['guardHash'])
+        # Existing guard identities stay stable. Newly recognized adapters already
+        # counted as direct keep their identity; every allowance still binds its
+        # complete guardHash in classify/base_guard, independently of this ID.
+        if site.get('forwardingShape') in {'request','requestRaw','request-without-signal','chapter-read','chapter-capability'} and site.get('guardHash'):
+            identity.append(site['guardHash'])
         identity = json.dumps(identity, separators=(',',':'))
         site['id'] = site['file']+'#'+hashlib.sha256(identity.encode()).hexdigest()[:16]
     return sorted(sites,key=lambda s:(s['file'],s['line'],s['id']))
+
+
+def scan_snapshot(root, ref):
+    """Run the new detector on immutable base sources, without checking out a branch.
+
+    Copy tracked source/config only, never symlinks, dependencies or Git state.
+    Core/contracts sources accompany apps so resolved symbols keep their origin.
+    """
+    paths=subprocess.check_output(['git','ls-tree','-rz','--name-only',ref],cwd=root).decode().split('\0')
+    roots=[prefix for prefix in ('web','apps','packages','website','server/receiver/cast')
+           if any(path.startswith(prefix+'/') for path in paths)]
+    with tempfile.TemporaryDirectory(prefix='client-api-base-',dir=os.environ.get('TMPDIR')) as directory:
+        snapshot=Path(directory)
+        process=subprocess.Popen(['git','archive',ref,'--',*roots],cwd=root,stdout=subprocess.PIPE)
+        try:
+            with tarfile.open(fileobj=process.stdout,mode='r|') as archive:
+                for member in archive:
+                    if not member.isfile() or Path(member.name).suffix not in EXTENSIONS | {'.json'}: continue
+                    target=snapshot/member.name
+                    if not target.resolve().is_relative_to(snapshot):raise ValueError('Unsafe source archive path')
+                    target.parent.mkdir(parents=True,exist_ok=True)
+                    target.write_bytes(archive.extractfile(member).read())
+            if process.wait():raise ValueError(f'Cannot read census base source {ref}')
+        finally:
+            process.stdout.close()
+            if process.poll() is None:process.terminate();process.wait()
+        return scan(snapshot,paths)
+
+
+def verified_detection_counts(root, base, baseline, old_baseline, old_exceptions, manifest):
+    """Growth needs both a reviewed exact-site ruling and the same site in base.
+
+    The manifest authorizes a detection improvement, never a product addition:
+    re-scan both its immutable source commit and the PR base using this detector.
+    A deleted request cannot be reintroduced using an old manifest entry.
+    """
+    rising={key:n for key,n in baseline.items() if n>old_baseline.get(key,0)}
+    if not rising or not manifest:return {}
+    source=manifest.get('sourceCommit','');entries=manifest.get('sites',{})
+    if not re.fullmatch(r'[a-f0-9]{40}',source):raise ValueError('Detection additions require an immutable sourceCommit')
+    for key,entry in entries.items():
+        if (not re.fullmatch(r'.+#[a-f0-9]{16}',key) or type(entry.get('occurrences')) is not int or entry['occurrences']<1
+                or not entry.get('reason','').strip() or not isinstance(entry.get('rulingUrl'),str)
+                or not re.fullmatch(r'https://github\.com/PorticoMediaServer/portico/(?:pull|issues)/[1-9]\d*#issuecomment-[1-9]\d*',entry['rulingUrl'])):
+            raise ValueError(f'{key}: detection addition requires exact count, reason and lead-ruling URL')
+    if subprocess.run(['git','merge-base','--is-ancestor',source,base],cwd=root).returncode:
+        raise ValueError('Detection sourceCommit must be an ancestor of the PR base')
+    old_pins={key for entry in old_exceptions.values() for key in exception_pins(entry)}
+    candidates=set(rising)&entries.keys()-old_pins
+    if not candidates:return {}
+    original=counts(scan_snapshot(root,source))
+    at_base=original if subprocess.check_output(['git','rev-parse',base],cwd=root,text=True).strip()==source else counts(scan_snapshot(root,base))
+    return {key:min(entries[key]['occurrences'],original.get(key,0),at_base.get(key,0)) for key in candidates}
 
 
 def counts(sites):
@@ -294,8 +415,10 @@ def validate_approvals(approvals):
             raise ValueError(f'{key}: approval requires an exact site, condition, positive multiplicity, category/source binding and lead-ruling URL')
 
 
-def base_guard(baseline, exceptions, old_baseline, old_exceptions, approvals=None):
-    errors, _ = compare(baseline, old_baseline)
+def base_guard(baseline, exceptions, old_baseline, old_exceptions, approvals=None, detections=None):
+    permitted={**old_baseline}
+    for key,count in (detections or {}).items():permitted[key]=max(permitted.get(key,0),count)
+    errors, _ = compare(baseline, permitted)
     # New/changed allowances require a reviewed ruling for this exact site,
     # source hash, reason/category and complete multiplicity. Ledger edits are
     # themselves reviewable; an old approval cannot authorize a larger count.
@@ -330,6 +453,7 @@ def main(argv=None, root=ROOT):
         baseline_path.write_text(json.dumps(actual,indent=2)+'\n')
     baseline=json.loads(baseline_path.read_text())
     new,stale=compare(actual,baseline)
+    detections={}
     if a.base:
         def old(path):
             r=subprocess.run(['git','show',a.base+':'+path],cwd=root,text=True,capture_output=True)
@@ -340,7 +464,15 @@ def main(argv=None, root=ROOT):
             return json.loads(r.stdout)
         old_baseline,old_exceptions=old(BASELINE),old(ALLOWLIST)
         if old_baseline is not None:
-            try: new+=base_guard(baseline,exceptions,old_baseline,old_exceptions or {},approvals)
+            try:
+                manifest=json.loads((root/DETECTIONS).read_text()) if (root/DETECTIONS).exists() else {}
+                proposed={key:max(n,actual.get(key,0)) for key,n in baseline.items()}
+                proposed.update({key:n for key,n in actual.items() if key not in proposed})
+                detections=verified_detection_counts(root,a.base,proposed,old_baseline,old_exceptions or {},manifest)
+                permitted={**baseline}
+                for key,count in detections.items():permitted[key]=max(permitted.get(key,0),count)
+                new,_=compare(actual,permitted)
+                new+=base_guard(actual if a.update else baseline,exceptions,old_baseline,old_exceptions or {},approvals,detections)
             except ValueError as error: new.append(str(error))
     pinned = sum((Counter(e['sites']) + Counter(e.get('additionalSites', {}).keys()) for e in exceptions.values()), Counter())
     stale_exceptions = list((pinned - Counter(counts(exempt))).elements())
@@ -351,9 +483,9 @@ def main(argv=None, root=ROOT):
         print('\n'.join(new),file=sys.stderr)
         print('Move URL/request/body policy into named client-core domain operations; do not raise the baseline or use a generic screen request wrapper.',file=sys.stderr)
         return 1
-    if a.update and stale:baseline_path.write_text(json.dumps(actual,indent=2)+'\n')
-    elif stale:
-        print(f'Client-core ownership fell by {sum(baseline.values())-sum(actual.values())} site(s). Lock it in: python3 ci/client_api_census.py --update',file=sys.stderr)
+    if a.update and actual!=baseline:baseline_path.write_text(json.dumps(actual,indent=2)+'\n')
+    elif actual!=baseline:
+        print(f'Client-core ownership counts changed ({sum(baseline.values())} -> {sum(actual.values())}). Lock it in: python3 ci/client_api_census.py --update'+(f' --base {a.base}' if detections else ''),file=sys.stderr)
         return 1
     print(f'Client-core ownership holds: {len(direct)} direct sites; {len(exempt)} pinned approved exception sites.')
     return 0
