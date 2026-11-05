@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/searchpolicy"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
@@ -90,7 +91,9 @@ func applySearchInputIntent(ctx context.Context, turn *commandTurn, change *sear
 			}
 			return err
 		}
-		if role != bank.role || bank.key == "" || bank.recipe == "" || bank.engine == "" || bank.fingerprint == "" {
+		if role != bank.role || bank.key == "" || !searchpolicy.StoredWellFormed(searchpolicy.Profile{
+			RecipeVersion: bank.recipe, EngineVersion: bank.engine, UnicodeFingerprint: bank.fingerprint,
+		}) {
 			return errSearchInputConfiguration
 		}
 		if i > 0 && bank.key == banks[0].key {
