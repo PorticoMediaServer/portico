@@ -1,7 +1,6 @@
 package main
 
 import (
-	"container/heap"
 	"context"
 	"database/sql"
 	"fmt"
@@ -57,8 +56,8 @@ func (l *lazySearch) initFrontier(ctx context.Context, after int) error {
 		if e != nil {
 			return e
 		}
-		if len(owners) > 8192 {
-			return fmt.Errorf("context frontier exceeds8192 independent sources; capacity failure")
+		if len(owners) > 262144 {
+			return fmt.Errorf("frontier source identity metadata exceeds2MiB credit")
 		}
 		if n < 64 {
 			break
@@ -72,6 +71,7 @@ func (l *lazySearch) initFrontier(ctx context.Context, after int) error {
 		for start := 0; start < len(ids); start += 64 {
 			end := min(start+64, len(ids))
 			q := `SELECT j.value,(SELECT ` + value + ` FROM ` + table + ` WHERE ` + key + `=j.value AND ` + value + `>? ORDER BY ` + value + ` LIMIT 1) FROM json_each(?) j`
+			heads := []contextStream{}
 			e := l.reader.read(ctx, q, []any{after, encodedJSON(ids[start:end])}, func(r *sql.Rows) error {
 				var owner int
 				var id sql.NullInt64
@@ -79,12 +79,17 @@ func (l *lazySearch) initFrontier(ctx context.Context, after int) error {
 					return e
 				}
 				if id.Valid {
-					heap.Push(&l.streams, contextStream{owner, int(id.Int64), relation})
+					heads = append(heads, contextStream{owner, int(id.Int64), relation})
 				}
 				return nil
 			})
 			if e != nil {
 				return e
+			}
+			for _, head := range heads {
+				if e := l.frontierPush(ctx, head); e != nil {
+					return e
+				}
 			}
 		}
 		return nil
@@ -125,8 +130,8 @@ func (l *lazySearch) initFrontier(ctx context.Context, after int) error {
 			if e != nil {
 				return e
 			}
-			if len(parents)+len(owners) > 8192 {
-				return fmt.Errorf("hierarchy frontier exceeds8192 source identities; capacity failure")
+			if len(parents)+len(owners) > 262144 {
+				return fmt.Errorf("hierarchy source metadata exceeds credit")
 			}
 			if n < 64 {
 				break
@@ -136,16 +141,21 @@ func (l *lazySearch) initFrontier(ctx context.Context, after int) error {
 	if e := addHeads(parents, true); e != nil {
 		return e
 	}
-	if len(l.streams) > 8192 {
-		return fmt.Errorf("frontier capacity exceeded")
-	}
+
 	l.frontierPeak = len(l.streams)
 	l.frontierReady = true
 	return nil
 }
 func (l *lazySearch) contextNext(ctx context.Context, remaining int) (int, bool, error) {
 	scanned := 0
-	for len(l.streams) > 0 {
+	for {
+		head, ok, e := l.frontierPeek(ctx)
+		if e != nil {
+			return 0, false, e
+		}
+		if !ok {
+			return 0, true, nil
+		}
 		if scanned >= remaining {
 			return 0, false, fmt.Errorf("context page exceeds4096 candidate budget")
 		}
@@ -153,29 +163,45 @@ func (l *lazySearch) contextNext(ctx context.Context, remaining int) (int, bool,
 		if e := ctx.Err(); e != nil {
 			return 0, false, e
 		}
-		id := l.streams[0].id
-		for len(l.streams) > 0 && l.streams[0].id == id {
-			s := heap.Pop(&l.streams).(contextStream)
+		id := head.id
+		for {
+			head, ok, e = l.frontierPeek(ctx)
+			if e != nil {
+				return 0, false, e
+			}
+			if !ok || head.id != id {
+				break
+			}
+			s, e := l.frontierPop(ctx)
+			if e != nil {
+				return 0, false, e
+			}
 			table, key, value := "edges", "fragment", "entity"
 			if s.relation {
 				table, key, value = "rel", "parent", "child"
 			}
 			q := `SELECT ` + value + ` FROM ` + table + ` WHERE ` + key + `=? AND ` + value + `>? ORDER BY ` + value + ` LIMIT 1`
-			e := l.reader.read(ctx, q, []any{s.owner, id}, func(r *sql.Rows) error {
-				var next int
+			var next int
+			found := false
+			e = l.reader.read(ctx, q, []any{s.owner, id}, func(r *sql.Rows) error {
 				if e := r.Scan(&next); e != nil {
 					return e
 				}
-				s.id = next
-				heap.Push(&l.streams, s)
+				found = true
 				return nil
 			})
 			if e != nil {
 				return 0, false, e
 			}
+			if found {
+				s.id = next
+				if e = l.frontierPush(ctx, s); e != nil {
+					return 0, false, e
+				}
+			}
 		}
 		eligible := false
-		e := l.reader.read(ctx, `SELECT title_fold,retired FROM catalog_entities WHERE id=?`, []any{id}, func(r *sql.Rows) error {
+		e = l.reader.read(ctx, `SELECT title_fold,retired FROM catalog_entities WHERE id=?`, []any{id}, func(r *sql.Rows) error {
 			var fold string
 			var retired int
 			if e := r.Scan(&fold, &retired); e != nil {
@@ -192,5 +218,4 @@ func (l *lazySearch) contextNext(ctx context.Context, remaining int) (int, bool,
 			return id, false, nil
 		}
 	}
-	return 0, true, nil
 }
