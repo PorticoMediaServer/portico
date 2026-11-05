@@ -1,9 +1,8 @@
 import {subscribePresentation} from '../../shell/fact-hooks';
 import {shellLanguage} from '../../shell/settings';
 import {GroupSessionService, type GroupSessionSnapshot} from '@core/group-session.ts';
-import {encodedRoutePath} from '../../../../packages/contracts/src/routes.ts';
+import {openTogetherStream, readTogetherItem} from '@core/query/receiver.ts';
 import type {ItemResponse} from '@core/media-item.ts';
-import {parseMediaItem} from '@core/media-item.ts';
 import {subscribeFreshness} from '@core/freshness.ts';
 import type {ShellAssemblyContext} from '../../shell/bootstrap';
 import type {WatchBindings} from '../watch';
@@ -24,10 +23,7 @@ export function createTogetherBindings(context: ShellAssemblyContext, playback: 
     const value = await context.api.request<T>(path, method, body, active);guard();active.throwIfAborted();return value;
   }};
   const service = new GroupSessionService({api, i18n, stream: async (path, lastEventId, signal) => {
-    guard();const url = new URL(path, context.api.baseUrl);
-    if (!path.startsWith('/v1/groups/') || url.origin !== new URL(context.api.baseUrl).origin) throw new Error('invalid_group_stream');
-    const value = await context.api.routeFetch(url.href, {signal: AbortSignal.any([signal, life.signal]), headers: {Accept: 'text/event-stream', Authorization: `Bearer ${context.session().accessToken}`,
-      ...(lastEventId ? {'Last-Event-ID': lastEventId} : {})}});
+    guard();const value = await openTogetherStream(context.api, context.session().accessToken, path, lastEventId, AbortSignal.any([signal, life.signal]));
     guard();return value;
   }});
   const listeners = new Set<() => void>();
@@ -35,11 +31,7 @@ export function createTogetherBindings(context: ShellAssemblyContext, playback: 
   const publish = (items = snapshot.items) => {snapshot = Object.freeze({room: service.getSnapshot(), items});for (const listener of [...listeners]) listener();};
   const catalogueRevisions = new Map<string, string>();
   const summaries = new TogetherItemSummaries<ItemResponse>({current: isCurrent, publish, reportError: playback.reportError,
-    read: async (id, signal) => {
-      const raw = await api.request<ItemResponse>(encodedRoutePath('get_items_id', {id: encodeURIComponent(id)}), 'GET', undefined, signal);
-      if (parseMediaItem(raw).id !== id) throw new Error('unexpected_group_item');
-      return raw;
-    },
+    read: (id, signal) => readTogetherItem(api, id, signal),
   });
   const off = service.subscribe(() => {
     const room = service.getSnapshot(), group = room.group, queue = room.queue ?? group?.queue;
