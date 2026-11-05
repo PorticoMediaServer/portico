@@ -1,5 +1,5 @@
+import {previewCatalogueDeletion, deleteCatalogueItems} from '@core/query/catalogue-actions.ts';
 import {deletionAllowed, parseDeletePreview, parseDeleteResult, type DeletePreview, type DeleteResult} from '@core/administration.ts';
-import {routePath} from '../../../packages/contracts/src/routes.ts';
 import type {EntryActionPorts, EntryActionTarget} from './entry-actions';
 
 export type EntryDeletePhase = 'idle' | 'loading' | 'ready' | 'confirming' | 'blocked' | 'deleting' | 'uncertain' | 'result' | 'error';
@@ -55,7 +55,7 @@ export class EntryDeleteProducer {
     if (!ports || !target || !ports.isCurrent() || !this.live(attempt)) return;
     const controller = new AbortController(); this.controller = controller;
     try {
-      const raw = await ports.api.request(routePath('post_admin_media_delete_preview'), 'POST', {itemIds: [target.itemId]}, controller.signal);
+      const raw = await previewCatalogueDeletion(ports.api, [target.itemId], controller.signal);
       if (!this.live(attempt)) return;
       const preview = parseDeletePreview(envelope(raw, ports.serverId)), entry = preview.targets[0];
       if (preview.targets.length !== 1 || !entry || entry.itemId !== target.itemId || entry.libraryId !== target.libraryId) throw new Error('delete_preview_mismatch');
@@ -91,7 +91,7 @@ export class EntryDeleteProducer {
     if (!ports || !target || !body || !this.live(attempt)) return;
     this.state = {...this.state, phase: 'deleting', errorCode: undefined}; this.emit();
     try {
-      const raw = await ports.api.request(routePath('post_admin_media_delete'), 'POST', body, this.controller?.signal);
+      const raw = await deleteCatalogueItems(ports.api, body, this.controller?.signal);
       if (!this.live(attempt)) return;
       const result = parseDeleteResult(envelope(raw, ports.serverId)), receipt = result.receipts[0];
       if (result.receipts.length !== 1 || !receipt || receipt.itemId !== target.itemId || new Set(result.receipts.map(row => row.itemId)).size !== 1) throw new Error('delete_result_mismatch');
