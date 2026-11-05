@@ -35,6 +35,17 @@ func productionStatements(t *testing.T) ([]productionStatement, map[string]bool)
 }
 
 func productionStatementsIn(t *testing.T, root string) ([]productionStatement, map[string]bool) {
+	return productionStatementsMatching(t, root, nil)
+}
+
+func baselineStatementSource(relative string) bool {
+	// The schema-v1 phase-1a brief gives internal/store its own embedded schema
+	// and HN's statement/plan registry. Exclude only that prefix from this old
+	// baseline check; other source censuses still use the unfiltered collector.
+	return !strings.HasPrefix(filepath.ToSlash(relative), "internal/store/")
+}
+
+func productionStatementsMatching(t *testing.T, root string, include func(string) bool) ([]productionStatement, map[string]bool) {
 	t.Helper()
 	start := regexp.MustCompile(`(?is)^\s*(SELECT|INSERT|UPDATE|DELETE|WITH|REPLACE)\b`)
 	// Tables a statement creates at run time (temporary work tables) and
@@ -60,6 +71,13 @@ func productionStatementsIn(t *testing.T, root string) ([]productionStatement, m
 		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") || strings.HasPrefix(d.Name(), "zz_local_") {
 			return nil
 		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		if include != nil && !include(rel) {
+			return nil
+		}
 		source, err := os.ReadFile(path)
 		if err != nil {
 			return err
@@ -71,7 +89,6 @@ func productionStatementsIn(t *testing.T, root string) ([]productionStatement, m
 		if err != nil {
 			return err
 		}
-		rel, _ := filepath.Rel(root, path)
 		files[rel] = file
 		paths = append(paths, rel)
 		dir := filepath.Dir(rel)
@@ -153,7 +170,11 @@ func TestProductionStatementsPrepareAgainstTheBaseline(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	statements, transient := productionStatements(t)
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	statements, transient := productionStatementsMatching(t, root, baselineStatementSource)
 	// The title dataset client (internal/enrichment) also reads the dataset
 	// file, whose schema is its published contract (testdata/schema.sql):
 	// its statements prepare against one schema or the other.
