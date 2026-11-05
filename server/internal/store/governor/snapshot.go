@@ -13,6 +13,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/supervise"
+	"github.com/PorticoMediaServer/portico/server/internal/thirdparty/sqlite"
 )
 
 var ErrSnapshotClosed = errors.New("read snapshot is closed")
@@ -20,7 +21,8 @@ var ErrSnapshotOverrun = errors.New("physical read snapshot exceeded deadline")
 var ErrSnapshotBudget = errors.New("copied read values exceed window budget")
 
 // Snapshots owns native read lifetimes, independently of consumer cooperation.
-// Composition owns helper pool/cache/native memory until Close and pool close.
+// Composition owns helper pool/cache/native memory until Close succeeds. The
+// driver owns its private pool and uses the supplied shared helper connector.
 // Only compiled SELECT statements from its closed registry can be invoked.
 type Snapshots struct {
 	mu        sync.Mutex
@@ -30,6 +32,7 @@ type Snapshots struct {
 	running   map[*ReadScope]context.CancelFunc
 	uncertain map[*ReadScope]struct{}
 	db        *sql.DB
+	owner     *snapshotOwnedConnector
 	config    sqliteconn.Config
 	governor  Governor
 	authority *Authority
@@ -43,8 +46,8 @@ type SnapshotResult struct {
 	Refusal               *Refusal
 }
 
-func NewSnapshots(db *sql.DB, c sqliteconn.Config, g Governor, a *Authority, registry *stmt.Registry) (*Snapshots, error) {
-	if db == nil || g == nil || a == nil || g != a.ledger || c.Role != sqliteconn.Reader || c.Connections <= 0 || c.CacheKiB <= 0 || db.Stats().MaxOpenConnections != c.Connections || registry == nil {
+func NewSnapshots(connector driver.Connector, c sqliteconn.Config, g Governor, a *Authority, registry *stmt.Registry) (*Snapshots, error) {
+	if connector == nil || g == nil || a == nil || g != a.ledger || c.Role != sqliteconn.Reader || c.Connections <= 0 || c.CacheKiB <= 0 || registry == nil {
 		return nil, sqliteconn.ErrPolicy
 	}
 	manifest := registry.Manifest()
@@ -66,7 +69,11 @@ func NewSnapshots(db *sql.DB, c sqliteconn.Config, g Governor, a *Authority, reg
 		}
 		reads[entry.ID] = statement
 	}
-	return &Snapshots{db: db, config: c, governor: g, authority: a, slots: make(chan struct{}, c.Connections), running: make(map[*ReadScope]context.CancelFunc), uncertain: make(map[*ReadScope]struct{}), reads: reads}, nil
+	owner := &snapshotOwnedConnector{Connector: connector, failed: make(map[*snapshotOwnedConn]error)}
+	db := sql.OpenDB(owner)
+	db.SetMaxOpenConns(c.Connections)
+	db.SetMaxIdleConns(c.Connections)
+	return &Snapshots{db: db, owner: owner, config: c, governor: g, authority: a, slots: make(chan struct{}, c.Connections), running: make(map[*ReadScope]context.CancelFunc), uncertain: make(map[*ReadScope]struct{}), reads: reads}, nil
 }
 
 // Read keeps output/consumer custody until the callback returns (including a
@@ -74,8 +81,7 @@ func NewSnapshots(db *sql.DB, c sqliteconn.Config, g Governor, a *Authority, reg
 // physical connection. No sql.Rows, borrowed bytes or Scanner enters a consumer.
 // Values leaving the callback need separately charged output custody before
 // its active grant retires. A stuck consumer remains charged and cannot pin a
-// native snapshot or delay
-// Close. It does not authorize refund of its buffers or other resource custody.
+// native snapshot or delay Close. It does not authorize refund of its buffers or other resource custody.
 func (s *Snapshots) Read(parent context.Context, r Request, budget time.Duration, read func(*ReadScope) error) (out SnapshotResult, err error) {
 	if read == nil || r.Writer || r.Need[Reader] != 1 || r.Need[MemoryBytes] <= 0 || budget <= 0 || r.Budget.RawRows == 0 || r.Budget.RawRows > 4096 {
 		return out, ErrGrant
@@ -98,7 +104,7 @@ func (s *Snapshots) Read(parent context.Context, r Request, budget time.Duration
 	ctx, stop := context.WithDeadline(parent, out.SQLDeadline)
 	defer stop()
 	queries, cancelQueries := context.WithCancel(ctx)
-	scope := &ReadScope{ctx: queries, cancel: cancelQueries, authority: s.authority, expected: r, remaining: r.Need[MemoryBytes], reads: s.reads, config: s.config}
+	scope := &ReadScope{ctx: queries, cancel: cancelQueries, authority: s.authority, expected: r, reads: s.reads, config: s.config}
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
@@ -159,11 +165,26 @@ func (s *Snapshots) Read(parent context.Context, r Request, budget time.Duration
 		return out, nil
 	}
 	scope.grant = d.Grant
+	scope.nativeBudget, err = sqlite.NewRowBudget(r.Budget.RawRows, r.Need[MemoryBytes])
+	if err != nil {
+		return out, ErrSnapshotBudget
+	}
 	if err = s.authority.Check(scope.grant, r); err != nil {
 		return out, err
 	}
 	out.Started = time.Now()
 	if scope.conn, err = s.db.Conn(queries); err != nil {
+		return out, err
+	}
+	if err = scope.conn.Raw(func(raw any) error {
+		owned, ok := raw.(*snapshotOwnedConn)
+		if !ok || !owned.ReadBudgetSupported() {
+			return sqliteconn.ErrPolicy
+		}
+		scope.owned = owned
+		return nil
+	}); err != nil {
+		scope.discard = true
 		return out, err
 	}
 	if out.Settings, err = sqliteconn.Assert(queries, scope.conn, s.config); err != nil {
@@ -235,7 +256,7 @@ func (s *Snapshots) Close() error {
 		}
 		err = errors.Join(err, closeErr)
 	}
-	return err
+	return errors.Join(err, s.db.Close(), s.owner.retry())
 }
 
 type ReadScope struct {
@@ -250,10 +271,11 @@ type ReadScope struct {
 	expected                 Request
 	config                   sqliteconn.Config
 	reads                    map[stmt.ID]stmt.Statement
-	remaining                int64
 	rows                     uint32
 	calls                    int
 	failedRaw                driver.Conn
+	owned                    *snapshotOwnedConn
+	nativeBudget             *sqlite.RowBudget
 	nativeSafe, consumerDone atomic.Bool
 	retireMu                 sync.Mutex
 	retired                  bool
@@ -272,10 +294,9 @@ func (s *ReadScope) retire() error {
 
 func (s *ReadScope) Context() context.Context { return s.ctx }
 func (s *ReadScope) charge(n int64) error {
-	if n < 0 || n > s.remaining {
-		return ErrSnapshotBudget
+	if err := s.nativeBudget.ReserveBytes(n); err != nil {
+		return errors.Join(ErrSnapshotBudget, err)
 	}
-	s.remaining -= n
 	return nil
 }
 
@@ -286,6 +307,11 @@ func (s *ReadScope) charge(n int64) error {
 func (s *ReadScope) Query(id stmt.ID, args ...any) (values [][]any, err error) {
 	s.op.Lock()
 	defer s.op.Unlock()
+	defer func() {
+		if errors.Is(err, sqlite.ErrRowBudget) {
+			err = errors.Join(ErrSnapshotBudget, err)
+		}
+	}()
 	if s.closed.Load() {
 		return nil, ErrSnapshotClosed
 	}
@@ -318,11 +344,16 @@ func (s *ReadScope) Query(id stmt.ID, args ...any) (values [][]any, err error) {
 			return nil, err
 		}
 	}
+	// Fixed query/row/context overhead is reserved before database/sql or the
+	// driver allocates it; per-column and four-copy payload peak follow natively.
+	if err = s.charge(4096); err != nil {
+		return nil, err
+	}
 	bound, err := statement.Bind(args...)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := bound.QueryContext(s.ctx, s.conn)
+	rows, err := bound.QueryContext(sqlite.WithRowBudget(s.ctx, s.nativeBudget), s.conn)
 	if err != nil {
 		return nil, err
 	}
@@ -348,9 +379,6 @@ func (s *ReadScope) Query(id stmt.ID, args ...any) (values [][]any, err error) {
 			return nil, ErrSnapshotBudget
 		}
 		s.rows++
-		if err = s.charge(int64(64 + 64*len(columns))); err != nil {
-			return nil, err
-		}
 		row := make([]any, len(columns))
 		dest := make([]any, len(columns))
 		for i := range row {
@@ -363,14 +391,8 @@ func (s *ReadScope) Query(id stmt.ID, args ...any) (values [][]any, err error) {
 			switch x := v.(type) {
 			case nil, int64, float64, bool, time.Time:
 			case string:
-				if err = s.charge(2 * int64(len(x))); err != nil {
-					return nil, err
-				}
 				row[i] = strings.Clone(x)
 			case []byte:
-				if err = s.charge(2 * int64(len(x))); err != nil {
-					return nil, err
-				}
 				row[i] = append(make([]byte, 0, len(x)), x...)
 			default:
 				return nil, sqliteconn.ErrPolicy
@@ -391,6 +413,9 @@ func (s *ReadScope) closeNative(forceDiscard bool) (err error, safe bool) {
 	}
 	cleanup, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
 	defer cancel()
+	if s.owned != nil {
+		s.failedRaw = s.owned
+	}
 	exited := !s.began
 	if s.began {
 		_, rollback := s.conn.ExecContext(cleanup, "ROLLBACK")
@@ -419,7 +444,14 @@ func (s *ReadScope) closeNative(forceDiscard bool) (err error, safe bool) {
 			}
 			return driver.ErrBadConn
 		})
+		if !called && s.owned != nil {
+			closeErr = s.owned.Close()
+			called = true
+		}
 		safe = called && closeErr == nil
+		if safe {
+			s.failedRaw = nil
+		}
 		if !errors.Is(rawErr, driver.ErrBadConn) {
 			err = errors.Join(err, rawErr)
 		}

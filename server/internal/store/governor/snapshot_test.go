@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -62,7 +63,7 @@ func snapshotRequest() Request {
 func snapshotRegistry(t *testing.T) *stmt.Registry {
 	t.Helper()
 	var definitions []stmt.Definition
-	for id, query := range map[stmt.ID]string{"source": "SELECT value FROM source ORDER BY id LIMIT 1", "blob": "SELECT CAST(value AS BLOB) FROM source ORDER BY id LIMIT 1", "slow": "SELECT sum(x) FROM (WITH RECURSIVE seq(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM seq) SELECT x FROM seq)", "two": "SELECT id FROM source UNION ALL SELECT id FROM source", "large": "SELECT zeroblob(1024)"} {
+	for id, query := range map[stmt.ID]string{"source": "SELECT value FROM source ORDER BY id LIMIT 1", "blob": "SELECT CAST(value AS BLOB) FROM source ORDER BY id LIMIT 1", "slow": "SELECT sum(x) FROM (WITH RECURSIVE seq(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM seq) SELECT x FROM seq)", "two": "SELECT id FROM source UNION ALL SELECT id FROM source", "large": "SELECT zeroblob(1024)", "all": "SELECT value FROM source ORDER BY id"} {
 		definitions = append(definitions, stmt.Definition{ID: id, SQL: query, Owner: "read-test", CallSites: []string{"snapshot-test"}, Kind: stmt.Read, Cohorts: []stmt.Cohort{{Name: "plain"}}})
 	}
 	definitions = append(definitions, stmt.Definition{ID: "arg", SQL: "SELECT ?", Owner: "read-test", CallSites: []string{"snapshot-test"}, Kind: stmt.Read, Params: []stmt.Param{{Name: "value", Type: stmt.Text}}, Cohorts: []stmt.Cohort{{Name: "plain", Bindings: []any{"text"}}}})
@@ -77,6 +78,7 @@ type snapshotConnector struct {
 	driver.Connector
 	opened, closed, rollbacks atomic.Int64
 	failRollback              atomic.Bool
+	rollbackBadConn           atomic.Bool
 	failClose                 atomic.Bool
 	closeEntered              chan struct{}
 	releaseClose              chan struct{}
@@ -94,6 +96,10 @@ func (c *snapshotConnector) Connect(ctx context.Context) (driver.Conn, error) {
 	c.opened.Add(1)
 	return &snapshotConn{Conn: raw, owner: c}, nil
 }
+func (c *snapshotConn) ReadBudgetSupported() bool {
+	native, ok := c.Conn.(interface{ ReadBudgetSupported() bool })
+	return ok && native.ReadBudgetSupported()
+}
 func (c *snapshotConn) QueryContext(ctx context.Context, q string, args []driver.NamedValue) (driver.Rows, error) {
 	return c.Conn.(driver.QueryerContext).QueryContext(ctx, q, args)
 }
@@ -103,6 +109,9 @@ var snapshotRollbackError = errors.New("injected rollback failed before ending t
 func (c *snapshotConn) ExecContext(ctx context.Context, q string, args []driver.NamedValue) (driver.Result, error) {
 	if strings.EqualFold(q, "ROLLBACK") {
 		c.owner.rollbacks.Add(1)
+		if c.owner.rollbackBadConn.Load() {
+			return nil, driver.ErrBadConn
+		}
 		if c.owner.failRollback.Load() {
 			return nil, snapshotRollbackError
 		}
@@ -128,15 +137,12 @@ func snapshotReaderDriver(t *testing.T, path string, g Governor, a *Authority) (
 		t.Fatal(err)
 	}
 	counted := &snapshotConnector{Connector: connector}
-	db := sql.OpenDB(counted)
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	s, err := NewSnapshots(db, cfg, g, a, snapshotRegistry(t))
+	s, err := NewSnapshots(counted, cfg, g, a, snapshotRegistry(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { s.Close(); db.Close() })
-	return s, db, counted
+	t.Cleanup(func() { s.Close() })
+	return s, s.db, counted
 }
 func snapshotQueryOne(s *ReadScope) error {
 	rows, err := s.Query("source")
@@ -391,7 +397,7 @@ func TestSnapshotClosedStatementsAndOutputBudgets(t *testing.T) {
 	for _, sqlText := range []string{"PRAGMA query_only=0", "ATTACH 'other' AS extra", "CREATE TEMP TABLE x(v)", "INSERT INTO temp.x VALUES(1)", "WITH x AS(SELECT 1) DELETE FROM source", "SELECT 1; PRAGMA query_only=0; CREATE TEMP TABLE x(v)"} {
 		reg, err := stmt.New([]stmt.Definition{{ID: "unsafe", SQL: sqlText, Kind: stmt.Read, Owner: "test", CallSites: []string{"test"}, Cohorts: []stmt.Cohort{{Name: "unsafe"}}}})
 		if err == nil {
-			if _, err = NewSnapshots(db, s.config, g, a, reg); err == nil {
+			if _, err = NewSnapshots(c, s.config, g, a, reg); err == nil {
 				t.Fatal("policy changing statement accepted", sqlText)
 			}
 		}
@@ -463,12 +469,12 @@ func TestSnapshotNativeCancellationAndBoundaryPolicy(t *testing.T) {
 		t.Fatal(out, err, c.opened.Load())
 	}
 	wrong := s.config
-	wrong.Connections = 2
-	if _, err = NewSnapshots(db, wrong, g, a, snapshotRegistry(t)); err == nil {
-		t.Fatal("pool mismatch accepted")
+	wrong.Role = sqliteconn.Writer
+	if _, err = NewSnapshots(c, wrong, g, a, snapshotRegistry(t)); err == nil {
+		t.Fatal("writer connector policy accepted")
 	}
 	_, foreign := snapshotGovernor(t)
-	if _, err = NewSnapshots(db, s.config, g, foreign, snapshotRegistry(t)); err == nil {
+	if _, err = NewSnapshots(c, s.config, g, foreign, snapshotRegistry(t)); err == nil {
 		t.Fatal("foreign authority accepted")
 	}
 	if a.Usage() != [4]Amounts{} || db.Stats().InUse != 0 {
@@ -609,5 +615,85 @@ func TestSnapshotSupersedeClosesNativeBeforeConsumerReturns(t *testing.T) {
 	}
 	if a.Usage() != [4]Amounts{} {
 		t.Fatal("retained consumer debt did not retire")
+	}
+}
+
+func TestSnapshotOversizedStoredValuesRefuseBeforeAllocation(t *testing.T) {
+	for _, kind := range []string{"blob", "text", "excess-row"} {
+		t.Run(kind, func(t *testing.T) {
+			path, writer := snapshotFixture(t)
+			statement := "UPDATE source SET value=zeroblob(8388608) WHERE id=1"
+			if kind == "text" {
+				statement = "UPDATE source SET value=CAST(zeroblob(8388608) AS TEXT) WHERE id=1"
+			}
+			if kind == "excess-row" {
+				statement = "INSERT INTO source VALUES(2,zeroblob(8388608))"
+			}
+			if _, err := writer.ExecContext(t.Context(), statement); err != nil {
+				t.Fatal(err)
+			}
+			g, a := snapshotGovernor(t)
+			s, _, _ := snapshotReaderDriver(t, path, g, a)
+			r := snapshotRequest()
+			if kind == "excess-row" {
+				r.Budget.RawRows = 1
+			}
+			_, err := s.Read(t.Context(), r, time.Second, func(scope *ReadScope) error {
+				runtime.GC()
+				var before, after runtime.MemStats
+				runtime.ReadMemStats(&before)
+				_, err := scope.Query("all")
+				runtime.ReadMemStats(&after)
+				allocated := after.TotalAlloc - before.TotalAlloc
+				t.Logf("%s grant=%d allocated=%d", kind, r.Need[MemoryBytes], allocated)
+				if allocated > uint64(r.Need[MemoryBytes]) {
+					return errors.New("oversized value allocated beyond grant before rejection")
+				}
+				if !errors.Is(err, ErrSnapshotBudget) {
+					return errors.New("oversized value was not refused by native budget")
+				}
+				return nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if a.Usage() != [4]Amounts{} {
+				t.Fatal("oversized refusal leaked custody")
+			}
+		})
+	}
+}
+func TestSnapshotBadConnRollbackKeepsDisposalOwnership(t *testing.T) {
+	path, writer := snapshotFixture(t)
+	g, a := snapshotGovernor(t)
+	s, _, c := snapshotReaderDriver(t, path, g, a)
+	c.rollbackBadConn.Store(true)
+	c.failClose.Store(true)
+	defer c.failClose.Store(false)
+	_, err := s.Read(t.Context(), snapshotRequest(), time.Second, func(scope *ReadScope) error {
+		if err := snapshotQueryOne(scope); err != nil {
+			return err
+		}
+		_, err := writer.ExecContext(t.Context(), "UPDATE source SET value='after'")
+		return err
+	})
+	if err == nil || a.Usage()[Foreground][Reader] != 1 {
+		t.Fatal("implicit disposal erased custody", err, a.Usage())
+	}
+	n, k := snapshotCheckpoint(t, path)
+	if k >= n {
+		t.Fatal("fault did not keep read transaction alive")
+	}
+	before := c.closed.Load()
+	c.failClose.Store(false)
+	if err = s.Close(); err != nil {
+		t.Fatal("automatic ErrBadConn discard lost owned raw handle", err)
+	}
+	if c.closed.Load() <= before {
+		t.Fatal("Close did not retry owned handle")
+	}
+	n, k = snapshotCheckpoint(t, path)
+	if n != k || a.Usage() != [4]Amounts{} {
+		t.Fatal("retried disposal failed", n, k, a.Usage())
 	}
 }

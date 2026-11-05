@@ -44,9 +44,10 @@ type rows struct {
 	parseFmtIdx []int8
 	pstmt       uintptr
 
-	doStep    bool
-	empty     bool
-	reuseStmt bool // If true, Close() resets instead of finalizing
+	doStep       bool
+	empty        bool
+	reuseStmt    bool // If true, Close() resets instead of finalizing
+	restoreLimit func()
 }
 
 // VMSteps reports and resets the virtual-machine steps this statement has
@@ -69,10 +70,11 @@ func newRows(c *conn, pstmt uintptr, allocs *[]uintptr, empty bool, ctx context.
 		*allocs = nil
 	}
 	r = &rows{ctx: ctx, c: c, pstmt: pstmt, allocs: a, empty: empty}
+	constructing := r
 
 	defer func() {
 		if err != nil {
-			r.Close()
+			constructing.Close()
 			r = nil
 		}
 	}()
@@ -80,6 +82,14 @@ func newRows(c *conn, pstmt uintptr, allocs *[]uintptr, empty bool, ctx context.
 	n, err := c.columnCount(pstmt)
 	if err != nil {
 		return nil, err
+	}
+	if b := budgetFrom(ctx); b != nil {
+		if err = b.metadata(c, pstmt, n); err != nil {
+			// The caller still owns/reset/finalizes the statement on failed
+			// construction. Only binding allocations transferred above are ours.
+			r.pstmt = 0
+			return nil, err
+		}
 	}
 
 	r.columns = make([]string, n)
@@ -98,6 +108,12 @@ func newRows(c *conn, pstmt uintptr, allocs *[]uintptr, empty bool, ctx context.
 
 // Close closes the rows iterator.
 func (r *rows) Close() (err error) {
+	defer func() {
+		if r.restoreLimit != nil {
+			r.restoreLimit()
+			r.restoreLimit = nil
+		}
+	}()
 	r.c.freeAllocs(r.allocs)
 	r.allocs = nil
 
@@ -134,11 +150,15 @@ func (r *rows) Next(dest []driver.Value) (err error) {
 
 	rc := sqlite3.SQLITE_ROW
 	if r.doStep {
+		if b := budgetFrom(r.ctx); b != nil {
+			// Tighten before the VM fetches another value as the window fills.
+			r.c.limit(sqlite3.SQLITE_LIMIT_LENGTH, min(r.c.limit(sqlite3.SQLITE_LIMIT_LENGTH, -1), b.lengthLimit()))
+		}
 		if rc, err = r.c.step(r.pstmt); err != nil {
 			if r.ctx != nil && r.ctx.Err() != nil {
 				return r.ctx.Err()
 			}
-			return err
+			return budgetError(r.ctx, err)
 		}
 	}
 
@@ -147,6 +167,11 @@ func (r *rows) Next(dest []driver.Value) (err error) {
 	case sqlite3.SQLITE_ROW:
 		if g, e := len(dest), len(r.columns); g != e {
 			return fmt.Errorf("sqlite: Next: have %v destination values, expected %v", g, e)
+		}
+		if b := budgetFrom(r.ctx); b != nil {
+			if err = b.preflight(r); err != nil {
+				return err
+			}
 		}
 
 		for i := range dest {
