@@ -451,6 +451,10 @@ func main() {
 		must(db.Close())
 	}
 	db, c := open(*dbpath)
+	beforeShape := ""
+	if enrichMode {
+		beforeShape = schemaFingerprint(c)
+	}
 	save(filepath.Join(*out, "connection-pragmas.json"), connectionPragmas(c))
 	hash := hex.EncodeToString(sum[:])
 	save(filepath.Join(*out, "host-run-start.json"), map[string]any{"ddl_sha256": hash, "host": hostSnapshot(), "gomaxprocs": runtime.GOMAXPROCS(0)})
@@ -557,6 +561,13 @@ func main() {
 		save(filepath.Join(*out, "source-witness-audit.json"), map[string]any{"ddl_sha256": hash, "entities": entities, "jobs": jobs, "ready": ready, "publications": pubs, "pending_subjects": pending, "input_sequence": seq, "asset_admission_witnesses": assetWitnesses, "foreign_keys": "ON", "fts_writes": 0, "boundary": "All source acceptance rows and ready witnesses committed atomically; new assets mint authored_membership_revision1. No published search image or FTS operation. Opaque64byte recipe ID is a fixture witness, not publisher recipe qualification."})
 	}
 	var tables, entities int64
+	if enrichMode {
+		afterShape := schemaFingerprint(c)
+		save(filepath.Join(*out, "enrichment-ddl-unchanged.json"), map[string]any{"ddl_sha256": hash, "before_schema_fingerprint": beforeShape, "after_schema_fingerprint": afterShape, "unchanged": beforeShape == afterShape, "boundary": "Hash(type,name,table,SQL)for every sqlite_schema object before andafter complete staged/acceptance experiment; covers tablecolumns/indexes/views. No sourceDDLoverlay."})
+		if beforeShape != afterShape {
+			panic("enrichment mutated DDL")
+		}
+	}
 	var version string
 	must(c.QueryRowContext(context.Background(), "SELECT count(*) FROM sqlite_schema WHERE type='table'").Scan(&tables))
 	must(c.QueryRowContext(context.Background(), "SELECT count(*) FROM catalog_entities").Scan(&entities))
@@ -1937,6 +1948,20 @@ func cuePrimitives(c *sql.Conn, out, hash string) {
 		}
 		save(filepath.Join(out, label+"-fixture.json"), map[string]any{"ddl_sha256": hash, "children": nchild, "owner": owner, "automatic_parents": []int{p1, p2}, "base_inline": true, "boundary": "Single-library1owner+255CUE(or8episodes),2automatic parents, asset-scoped size witnesses. Synthetic unparented movie owner deliberately adds a conservative owner row; not a music owner identity oracle. CUEduration closed=end-start/openlast=asset-start, audio resolutionNULL; oldfull propagation is a semantic negative upper bound. Delete removes physical asset/links, retains subjects/entities/hierarchy/metadata and zeroes unavailable metrics; no entity retirement/pinned-prepared custody oracle. CAPSc adds100shared authored collections,25500scalar tuples untouched onsize-only change,102per(parent,asset)size rows. No active aggregate overlay debt, no per-profile visibility."})
 	}
+}
+
+func schemaFingerprint(c *sql.Conn) string {
+	r, e := c.QueryContext(context.Background(), "SELECT type,name,tbl_name,coalesce(sql,'') FROM sqlite_schema ORDER BY type,name")
+	must(e)
+	h := sha256.New()
+	for r.Next() {
+		var kind, name, table, q string
+		must(r.Scan(&kind, &name, &table, &q))
+		fmt.Fprintf(h, "%s\x00%s\x00%s\x00%s\x00", kind, name, table, q)
+	}
+	must(r.Err())
+	must(r.Close())
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 type actionPhase struct {

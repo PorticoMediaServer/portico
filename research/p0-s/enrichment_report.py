@@ -1,0 +1,40 @@
+import json,pathlib,gzip,collections,csv,io,hashlib
+E=pathlib.Path('/home/justin/projects/Portico/portico-internal/planning/v3/schema-v1/phase0/S-evidence');SHA='4158892e55858944b84beee38a8d95704a7d2d3f95fcefded4291240dcff7224'
+def load(p):
+ p=pathlib.Path(p);return json.loads(p.read_bytes() if p.exists() else gzip.decompress(p.with_suffix(p.suffix+'.gz').read_bytes()))
+def spread(a):return f'{min(a):.3f}–{max(a):.3f}'
+groups=collections.defaultdict(list);summary=[];stageSummary=[];buf=io.StringIO();cw=csv.writer(buf);cw.writerow(['ddl_sha256','run','shape','profile','vm','case','sample','hold_ms','phase','phase_ms','start_ns']);tails=0
+for prefix,run,shape in [('enrich-415-','41937514988','whole'),('enrichstage-415-','41938842038','staged')]:
+ for p in sorted(E.glob(prefix+'*')):
+  profile='legacy8' if 'legacy8' in p.name else 'standard';vm=p.name.split('-rep')[1].split('-')[0]
+  wal=load(p/'bounded-wal.json');invalid=[]
+  if wal['checkpoint_ms']!=50 or wal['peak_physical_bytes']>192*2**20 or wal['resets']==0:invalid.append('WALprotocol')
+  if any(x.get('error') for x in wal['checkpoints']):invalid.append('checkpoint-error')
+  for name in ['existing-people','new-people']:
+   file=('enrichment-staged-' if shape=='staged' else 'enrichment-')+name+'.json';d=load(p/file);assert d['ddl_sha256']==SHA
+   r={k:v for k,v in d.items() if k not in ['samples','rows_changed']};r.update(run=run,shape=shape,profile=profile,vm=vm,case=name,invalid=invalid.copy(),rows_min=min(d['rows_changed']),rows_max=max(d['rows_changed']),wal_peak_mib=wal['peak_physical_bytes']/2**20,wal_resets=wal['resets'])
+   phases=collections.defaultdict(list)
+   for s in d['samples']:
+    for phase in s['phases']:phases[phase['phase']].append(phase['ms'])
+    if s['hold_ms']>25:
+     tails+=1
+     for phase in s['phases']:cw.writerow([SHA,run,shape,profile,vm,name,s['sample'],s['hold_ms'],phase['phase'],phase['ms'],phase['start_ns']])
+   r['phase_summary']={name:{'p50_ms':sorted(v)[len(v)//2],'p99_ms':sorted(v)[int(len(v)*.99)-1],'max_ms':max(v)} for name,v in phases.items()}
+   groups[shape,profile,name].append(r);summary.append(r);(p/(file.removesuffix('.json')+'-summary.json')).write_text(json.dumps(r,indent=2)+'\n');del d
+  if shape=='staged':
+   d=load(p/'enrichment-stage-quanta.json');v=d['serving_visibility_witnesses'];assert len(v)==2000 and all(x['new_effective_rows']==0 and not x['new_evidence_bound'] and not x['new_credit_head_bound'] for x in v)
+   stageSummary.append({'run':run,'profile':profile,'vm':vm,'ddl_sha256':SHA,'phases':d['phases'],'visibility_witnesses':len(v),'all_staged_hidden':True})
+lines=['# Staged enrichment: existing DDL supports the measured shape','', '**No new table, column or index is needed for this staged shape.** Hosted run41938842038 used exact4158 on3independentVMs/profile at1Msourceentities,1,000acceptingholds/cell/VM. Existing metadata_evidence_builds owns private progress; metadata_evidence and credit_source_publications/members/rows hold immutable input. catalog_credits, credit_source_heads and currentproviderbinding stayold untilthefinalone-transaction150effective-creditreplacement,metadata/art/scalar/searchintent/revision/event/receiptCOMMIT. Newpersonsourceacceptance ischarged inthesecondcell. No FTS inanyacceptingtransaction.','',f'Hosted DDL SHA256 `{SHA}`. BundledmoderncSQLite3.53.4,FKON,WAL+NORMAL/autockpt0,50msminimumgovernedPASSIVE,64/96/176/192MiBWALadmission,20Hzboundedclosed40titlereaders. Eachcase replaces150oldcredits with100cast+50crew, title1000characters, overview20k,4selectedreadyartroles,9fieldorigins,1authoredparent. Samegenre/recognisedage13,so no invented facet/classchanges.','', '|Shape|Profile|Case|VMs|p50 spread ms|p99 spread ms|p99upper95 spread ms|max spread ms|Rows touched|COMMITp99/max spreads ms|Median ratio|Writerp99 result|','|---|---|---|---:|---:|---:|---:|---:|---|---|---:|---|']
+for (shape,profile,name),z in sorted(groups.items()):
+ ratio=max(x['p50_ms'] for x in z)/min(x['p50_ms'] for x in z)
+ result='pending3VM' if len(z)<3 else 'INVALID' if any(x['invalid'] for x in z) else 'INCONCLUSIVE4xsplit' if ratio>=4 else 'p99upperPASS' if all(x['hosted_p99_upper_95_pass'] for x in z) else 'p99upperFAIL'
+ lines.append(f'|{shape}|{profile}|{name}|{len(z)}/3|'+ '|'.join(spread([x[k] for x in z]) for k in ['p50_ms','p99_ms','p99_upper_95_ms','hosted_max_directional_ms'])+f'|{min(x["rows_min"] for x in z)}–{max(x["rows_max"] for x in z)}|'+spread([x['phase_summary']['commit']['p99_ms'] for x in z])+'/'+spread([x['phase_summary']['commit']['max_ms'] for x in z])+f'|{ratio:.2f}×|{result}|')
+ print(shape,profile,name,result,'upper',spread([x['p99_upper_95_ms'] for x in z]),'max',spread([x['hosted_max_directional_ms'] for x in z]),'rows',z[0]['rows_max'])
+lines+=['', 'Whole-recipe control41937514988 copies allfourretainedcreditrelations intheacceptingtransaction:metadata_evidence_credits,credit_source_rows,credit_source_publication_members,catalog_credits,plus150old-effective-rowdeletes. Production can pre-stage thefirstthree,so awhole-recipebudgetmiss doesnotestablish thatnewDDL isneeded. Stagedfinalcopy stillincludes150deletes+150inserts andallhead/publicmetadata updates; no partialaccepted image ispublished.','', '## Private staging and structural witnesses','', '|Profile|Phase|Holds/VM|p99upper95 spread ms|max spread ms|','|---|---|---:|---:|---:|']
+for profile in ['standard','legacy8']:
+ z=[x for x in stageSummary if x['profile']==profile]
+ if not z:continue
+ for phase in ['header','credit16','credit6','seal']:
+  r=[x['phases'][phase] for x in z];lines.append(f'|{profile}|{phase}|{r[0]["n"]}|{spread([x["p99_upper_95_ms"] for x in r])}|{spread([x["max_ms"] for x in r])}|')
+lines+=['',f'All{sum(x["visibility_witnesses"] for x in stageSummary):,}hostedpre-acceptance witnesses retain oldproviderbinding/credithead and0neweffectiverows; eachaccept verifies150neweffective rows. Chunkreceiptsareprivateanddonotadvancepubliclibraryrevision/events. FKONandmanifest-countsealsrunonbundledengine. The291aexactcompatibilitycontrol checksallSQLite schemaobjects before/after: identical fingerprint10c114e47fb28256b66887a35801db6a3ffab8d42049adbf5f6961add2b477cc, noDDLmutation; fourstagedimagesstayhiddenuntilacceptance. Hostedperformanceuses4158becauseitstartedbeforetheeight291atype-grainflips; no tables/columns/indexeswereaddedbythoseflips. This distinctionisnotcollapsedintoanexact291ahostedlatencyclaim.','', '## Phase0 conclusion and phase1 boundary','', 'The current storage already has private immutable stages, durable progress and an atomicacceptingboundary. **No DDL change is required for the measured recipe.** Remaining work istypedwriterimplementation/qualification: completeCAS/lease/consent/quotatransition/identitymerge/cancel/failureoracles, preparedSQLchoices, andboundedindependentpersonregistryacceptanceif150newpeople overrun. The stage-body and finalwriter distributionsaboveare reportedwithoutslowtailexclusions; phase0shapeproofdoesnotwaivethe10/25mswriterbudget. Phase1go/no-goandreleasep99.9need>=10kholds/recipe/host andquiet/reference maximumqualification.','', 'The1Mfixture isBasicmoviecatalogue; creditsaresaturatedonlyon2,000targettitles(150old/150new),not6creditsoneverymilliontitle. ExistingreadyartblobIOandprovideroperationcaptureareoutsidewriter. Syntheticrecipehashes andpreassignednewpersonIDs arenotproductionadmission/authorityproof. No per-user/profilevisibilitymaterialisation. Full credit-density/HDD/foreground/HTTP load remainsphase1. Allper-holdphase/COMMITtimersandtails retained, withsourcepins/WAL/memory.','']
+raw=buf.getvalue().encode();packed=gzip.compress(raw,mtime=0);(E/'S-ENRICHMENT-HOLDS-OVER25.csv.gz').write_bytes(packed);(E/'S-ENRICHMENT-HOLDS-OVER25.manifest.json').write_text(json.dumps({'ddl_sha256':SHA,'holds':tails,'raw_sha256':hashlib.sha256(raw).hexdigest(),'gzip_sha256':hashlib.sha256(packed).hexdigest()},indent=2)+'\n');(E/'S-ENRICHMENT-summary.json').write_text(json.dumps({'ddl_sha256':SHA,'runs':summary,'stage_runs':stageSummary},indent=2)+'\n');(E/'S-ENRICHMENT.md').write_text('\n'.join(lines))
