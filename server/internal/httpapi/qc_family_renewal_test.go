@@ -275,6 +275,7 @@ func qcSetupFixture(t *testing.T) (*tl6V1Fixture, string) {
 	t.Cleanup(func() { subs.Close() })
 	player.ConfigureSubtitleDelivery(subs)
 	f.deps = Dependencies{DB: db, Identity: id, Catalog: cat, Playback: player, Subtitles: subs, PlaybackV1: f.v1}
+	cleanupPlaybackService(t, f.v1)
 	f.handler = New(f.deps)
 	f.deps.v1 = f.v1
 	lib, err := cat.Create("Movies", "movie", root)

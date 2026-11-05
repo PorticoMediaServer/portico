@@ -27,7 +27,7 @@ func TestMixCaptureUsesFiniteOrdinaryChunksAndCurrentItemAdmission(t *testing.T)
 	}
 	c.Drain()
 	s := New(c.DB, nil, nil)
-	t.Cleanup(func() { releaseCaptures(s) })
+	cleanupPlaybackService(t, s)
 	actor := identity.Principal{Viewer: identity.Viewer{Authority: "local", AccountID: "account", ProfileID: "profile"}}
 	const mixID = "mix-current"
 	s.MixKeys = func(ctx context.Context, tx *sql.Tx, p identity.Principal, id string) ([]string, error) {

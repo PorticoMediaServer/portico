@@ -124,6 +124,7 @@ func currentPlaybackHTTPWith(t *testing.T, beforeStart func(rt *playbackruntime.
 	})
 	d := Dependencies{Origins: []string{"http://127.0.0.1:19412"}, DB: db, Identity: id, Catalog: catalog.New(db), Hosted: cached, Storage: store, Mounts: managed, PlaybackRuntime: rt}
 	mux := New(d)
+	cleanupRouterPlayback(t, mux)
 	return &currentPlaybackHTTPFixture{d: d, h: mux, token: session.AccessToken, t: t}
 }
 func (f *currentPlaybackHTTPFixture) call(method, path string, body any) *httptest.ResponseRecorder {

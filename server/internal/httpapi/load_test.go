@@ -163,6 +163,7 @@ func newLoadFixture(t *testing.T, tier performanceTier) *loadFixture {
 	d := Dependencies{DB: db, Identity: ident, Catalog: cat, Ingestion: scanner, Playback: player, Hosted: host, Watchdog: watchdog}
 	facets := composeHTTPFacetFixture(t, &d)
 	handler := New(d)
+	cleanupRouterPlayback(t, handler)
 
 	secret, err := os.ReadFile(storagepaths.Path(root, "setup-token"))
 	if err != nil {

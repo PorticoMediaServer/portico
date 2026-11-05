@@ -27,7 +27,7 @@ func sonicQueueFixture(t *testing.T) (*catalogtest.Catalog, *Service, Caller, qu
 	q := queueRow{id: "q_capture", shuffle: true, seed: 29, lap: 1, domain: 5}
 	c.Exec(`INSERT INTO queues_v1(id,owner_kind,owner_id,authority,account_id,profile_id,revision,created_ms,updated_ms,shuffle_on,shuffle_seed,shuffle_lap,shuffle_domain) VALUES('q_capture','device','device','local','account','profile',1,0,0,1,29,1,5)`)
 	s := New(c.DB, nil, nil)
-	t.Cleanup(func() { releaseCaptures(s) })
+	cleanupPlaybackService(t, s)
 	snap, err := s.buildSnapshot(context.Background(), caller.Principal, q.id, SegmentInput{Source: Selector{Items: &ItemList{IDs: ids}}}, "source", MaxQueueKeys, nil, scanBudget{})
 	if err != nil {
 		t.Fatal(err)

@@ -73,6 +73,7 @@ func newMediaEndFixture(t *testing.T, films int) *mediaEndFixture {
 	})
 	player.ConfigureHLS(hls)
 	f := &mediaEndFixture{t: t, db: db, root: root, player: player, handler: New(Dependencies{DB: db, Identity: id, Catalog: cat, Ingestion: ingestion.New(db, cat, assets.Probe{}), Playback: player, Hosted: host})}
+	cleanupRouterPlayback(t, f.handler)
 	setupToken, err := os.ReadFile(storagepaths.Path(root, "setup-token"))
 	if err != nil {
 		t.Fatal(err)

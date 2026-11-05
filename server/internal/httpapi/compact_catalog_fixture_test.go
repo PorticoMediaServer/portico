@@ -86,7 +86,7 @@ func tl6BulkMovieTx(ctx context.Context, tx *sql.Tx, libraryID, key, title strin
 // tl6V1Fixture is the small playback server fixture copied for TL6 tests that
 // run with unrelated test files stubbed out. Its catalogue rows use catalogtest.
 type tl6V1Fixture struct {
-	t       *testing.T
+	t       testing.TB
 	db      *sql.DB
 	id      *identity.Service
 	cat     *catalog.Service
@@ -99,7 +99,7 @@ type tl6V1Fixture struct {
 	deps    Dependencies
 }
 
-func newTL6V1Fixture(t *testing.T, films int) *tl6V1Fixture {
+func newTL6V1Fixture(t testing.TB, films int) *tl6V1Fixture {
 	t.Helper()
 	root := t.TempDir()
 	db, err := persistence.Open(filepath.Join(root, "db"))
@@ -118,6 +118,7 @@ func newTL6V1Fixture(t *testing.T, films int) *tl6V1Fixture {
 		t.Fatal(err)
 	}
 	f := &tl6V1Fixture{t: t, db: db, id: id, cat: cat, root: root, v1: &playbackv1.Service{}}
+	cleanupPlaybackService(t, f.v1)
 	f.deps = Dependencies{DB: db, Identity: id, Catalog: cat, Playback: playback.New(db), Hosted: host, PlaybackV1: f.v1}
 	f.handler = New(f.deps)
 	f.deps.v1 = f.v1
@@ -398,7 +399,9 @@ func tl6CurrentPlaybackHTTP(t *testing.T) *tl6CurrentPlaybackHTTPFixture {
 		}
 	})
 	d := Dependencies{Origins: []string{"http://127.0.0.1:19412"}, DB: db, Identity: id, Catalog: catalog.New(db), Hosted: cached, Storage: store, Mounts: managed, PlaybackRuntime: rt}
-	return &tl6CurrentPlaybackHTTPFixture{d: d, h: New(d), token: session.AccessToken, t: t}
+	handler := New(d)
+	cleanupRouterPlayback(t, handler)
+	return &tl6CurrentPlaybackHTTPFixture{d: d, h: handler, token: session.AccessToken, t: t}
 }
 
 func (f *tl6CurrentPlaybackHTTPFixture) call(method, path string, body any) *httptest.ResponseRecorder {

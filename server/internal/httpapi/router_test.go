@@ -65,7 +65,7 @@ func TestSetupRangePlaybackStopAndOrigin(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	defer db.Close()
+	t.Cleanup(func() { db.Close() })
 	id, e := identity.New(db, root)
 	if e != nil {
 		t.Fatal(e)
@@ -79,6 +79,7 @@ func TestSetupRangePlaybackStopAndOrigin(t *testing.T) {
 	player := playback.New(db)
 	scanner := ingestion.New(db, cat, assets.Probe{})
 	handler := New(Dependencies{DB: db, Identity: id, Catalog: cat, Ingestion: scanner, Playback: player, PlaybackV1: &playbackv1.Service{}, Hosted: host, Origins: []string{"http://127.0.0.1:19412"}})
+	cleanupRouterPlayback(t, handler)
 	request := func(method, path, token string, body any) *httptest.ResponseRecorder {
 		var data []byte
 		if body != nil {

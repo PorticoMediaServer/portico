@@ -99,6 +99,7 @@ func TestMusicRadioHTTPRefillsPastChunkBoundaryAndReopens(t *testing.T) {
 	}
 	// Construct a fresh production composition over the same persisted database.
 	f.deps.PlaybackV1 = &playbackv1.Service{}
+	cleanupPlaybackService(t, f.deps.PlaybackV1)
 	f.handler = New(f.deps)
 	f.v1 = f.deps.PlaybackV1
 	f.call("POST", base+":advance", map[string]string{"If-Match": before.Revision}, map[string]any{"reason": "next"}, 200, &q)
