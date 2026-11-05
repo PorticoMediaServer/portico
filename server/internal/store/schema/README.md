@@ -48,5 +48,16 @@ and exact playing-span edges, a bounded pending occurrence cursor, and six
 admin-only event/cohort time access paths. It is adopted after R review.
 Receipt result IDs do not pin retired mutable work resources;
 private writer commands enforce immutable results, complete CAS and acknowledgement
-ordering. The package initializer does not implement those commands. Effective
-credit images are a separate INT-CHANGE-002 change; no performance pass follows.
+ordering. The package initializer does not implement those commands. No performance pass follows from these storage contracts.
+
+INT-CHANGE-002 is adopted at5f3c7f67 after independent R agreement. Credits
+use staged effective images and a same-entity head, with verified small deltas.
+Retained owner/source cohorts have exact incarnation/revision provenance;
+metadata_repair_cascades owns single-target authored input and immutable command
+receipts, and image headers own bounded retirement through final acknowledgment.
+The provider100cast/50crew selector is not a manual-credit cap: preserve current
+512explicit/2048normalized repair input and use complete bounded staged
+preparation/pages. No provider re-trim of authored decisions is permitted.
+The six artifacts and native-layout fingerprint move together; actual writer,
+producer, crash/replay,1M/both-profile,quiet-max,2GB and R-09b gates remain open.
+InventoryRefuse and PB witness/next-bank changes are separate later reviews.

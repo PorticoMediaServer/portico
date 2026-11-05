@@ -49,6 +49,7 @@
     "catalog_automatic_member_overrides",
     "catalog_book_chapters",
     "catalog_collection_members",
+    "catalog_credit_images",
     "catalog_credit_labels",
     "catalog_credits",
     "catalog_dataset_tags",
@@ -100,6 +101,7 @@
     "catalog_title_tombstones",
     "container_personal_undo_items",
     "content_rating_pending",
+    "credit_image_reclaim_receipts",
     "credit_owner_entries",
     "credit_source_heads",
     "credit_source_publication_members",
@@ -221,6 +223,7 @@
     "metadata_relationship_decisions",
     "metadata_repair_cascade_items",
     "metadata_repair_cascades",
+    "metadata_repair_command_receipts",
     "metadata_repair_work_receipts",
     "metadata_selection_receipts",
     "metadata_subject_providers",
@@ -3294,6 +3297,18 @@
     "listening_time_spans": {
       "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
       "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
+    },
+    "catalog_credit_images": {
+      "policy": "ordinary +full typeof +nonrowid key NOT NULL",
+      "grain": "Repeated per-subject/generation image or typed actual retirement outcome; plausible >100k"
+    },
+    "credit_image_reclaim_receipts": {
+      "policy": "ordinary +full typeof +nonrowid key NOT NULL",
+      "grain": "Repeated per-subject/generation image or typed actual retirement outcome; plausible >100k"
+    },
+    "metadata_repair_command_receipts": {
+      "policy": "ordinary +full typeof +nonrowid key NOT NULL",
+      "grain": "Repeated per-subject/generation image or typed actual retirement outcome; plausible >100k"
     }
   },
   "future_add": "Plain nullable ADD with no new validating constraint; typed writer validates; no startup backfill"

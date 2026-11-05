@@ -17,8 +17,8 @@ import (
 // change requires regenerating both pins and running the fresh-layout test.
 const (
 	NativeSQLiteVersion = "3.53.4"
-	NativeLayoutSHA256  = "6c05b5f81229a4b71062da0636ec0063785f334f1e7ac7568aad62e93173d3f4"
-	NativeLayoutObjects = 2048
+	NativeLayoutSHA256  = "8097c1ea92353e2306b21d8eede8908d06c1d447728832e4c0a0e59f1366b309"
+	NativeLayoutObjects = 2063
 )
 
 var (

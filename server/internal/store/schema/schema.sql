@@ -1243,8 +1243,11 @@ CREATE TABLE catalog_credit_labels(
 );
 
 CREATE TABLE catalog_credits(
- entity_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
- ord INTEGER NOT NULL,
+ image_id INTEGER NOT NULL,
+ owner_incarnation BLOB CHECK(owner_incarnation IS NULL OR length(owner_incarnation)=16),
+ owner_revision INTEGER CHECK(owner_revision>0),
+ entity_id INTEGER NOT NULL REFERENCES catalog_subjects(id),
+ ord INTEGER NOT NULL CHECK(ord>=0),
  person_id INTEGER REFERENCES catalog_people(id),
  role_id INTEGER NOT NULL REFERENCES catalog_credit_labels(id),
  department_id INTEGER NOT NULL REFERENCES catalog_credit_labels(id),
@@ -1257,8 +1260,8 @@ CREATE TABLE catalog_credits(
  owner_entry_id TEXT,
  source_status TEXT NOT NULL DEFAULT 'current' CHECK(source_status IN('current','missing','replaced')),
  FOREIGN KEY(source_row_id,entity_id) REFERENCES credit_source_rows(source_row_id,entity_id),
- FOREIGN KEY(owner_entry_id,entity_id) REFERENCES credit_owner_entries(entry_id,entity_id),
- PRIMARY KEY(entity_id,ord),
+ FOREIGN KEY(owner_entry_id,entity_id,owner_incarnation,owner_revision) REFERENCES credit_owner_entries(entry_id,entity_id,owner_incarnation,owner_revision),
+ PRIMARY KEY(image_id,ord),
  CHECK(typeof("entity_id")IN('null','integer')),
  CHECK(typeof("ord")IN('null','integer')),
  CHECK(typeof("person_id")IN('null','integer')),
@@ -1271,7 +1274,12 @@ CREATE TABLE catalog_credits(
  CHECK(typeof("source_ordinal")IN('null','integer')),
  CHECK(typeof("source_row_id")IN('null','text')),
  CHECK(typeof("owner_entry_id")IN('null','text')),
- CHECK(typeof("source_status")IN('null','text'))
+ CHECK(typeof("source_status")IN('null','text')),
+ FOREIGN KEY(image_id,entity_id) REFERENCES catalog_credit_images(id,entity_id),
+ CHECK((owner_entry_id IS NULL)=(owner_incarnation IS NULL) AND (owner_entry_id IS NULL)=(owner_revision IS NULL)),
+ CHECK(typeof("image_id")IN('null','integer')),
+ CHECK(typeof("owner_incarnation")IN('null','blob')),
+ CHECK(typeof("owner_revision")IN('null','integer'))
 ) WITHOUT ROWID;
 
 CREATE TABLE catalog_dataset_tags(
@@ -1372,7 +1380,9 @@ CREATE TABLE catalog_entities(
  music_membership_revision INTEGER,
  artwork_incarnation BLOB NOT NULL CHECK(length(artwork_incarnation)=16),
  artwork_revision INTEGER NOT NULL DEFAULT 1 CHECK(artwork_revision>0),
+ credit_image_id INTEGER,
  credit_owner_revision INTEGER NOT NULL DEFAULT 1 CHECK(credit_owner_revision>0),
+ credit_owner_next_revision INTEGER NOT NULL DEFAULT 2 CHECK(credit_owner_next_revision>credit_owner_revision),
  credit_owner_locked INTEGER NOT NULL DEFAULT 0 CHECK(credit_owner_locked IN(0,1)),
  credit_owner_actor TEXT NOT NULL DEFAULT '',
  credit_owner_observed_at TEXT NOT NULL DEFAULT '',
@@ -1564,7 +1574,10 @@ CREATE TABLE catalog_entities(
  CHECK(typeof("overview")IN('null','text')),
  CHECK(typeof("original_title")IN('null','text')),
  CHECK(typeof("tagline")IN('null','text')),
- CHECK(typeof("show_ranges")IN('null','text'))
+ CHECK(typeof("show_ranges")IN('null','text')),
+ FOREIGN KEY(credit_image_id,id) REFERENCES catalog_credit_images(id,entity_id),
+ CHECK(typeof("credit_image_id")IN('null','integer')),
+ CHECK(typeof("credit_owner_next_revision")IN('null','integer'))
 );
 
 CREATE TABLE catalog_entity_mutations(
@@ -2895,15 +2908,17 @@ CREATE TABLE content_rating_pending(
 ) WITHOUT ROWID;
 
 CREATE TABLE credit_owner_entries(
- entry_id TEXT PRIMARY KEY CHECK(length(entry_id)=32 AND entry_id NOT GLOB '*[^0-9a-f]*') NOT NULL,
- entity_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
+ entry_id TEXT CHECK(length(entry_id)=32 AND entry_id NOT GLOB '*[^0-9a-f]*') NOT NULL,
+ entity_id INTEGER NOT NULL REFERENCES catalog_subjects(id),
  position INTEGER NOT NULL CHECK(position>=0),
  operation TEXT NOT NULL CHECK(operation IN('retain','edit','exclude','add')),
  source_row_id TEXT,
  credited_name TEXT NOT NULL CHECK(length(CAST(credited_name AS BLOB))>0),
  role TEXT NOT NULL,
  department TEXT NOT NULL,
- UNIQUE(entity_id,position),
+ owner_incarnation BLOB NOT NULL CHECK(length(owner_incarnation)=16),
+ owner_revision INTEGER NOT NULL CHECK(owner_revision>0),
+ input_ordinal INTEGER CHECK(input_ordinal>=0),
  FOREIGN KEY(source_row_id,entity_id) REFERENCES credit_source_rows(source_row_id,entity_id),
  CHECK((operation='add' AND source_row_id IS NULL) OR(operation<>'add' AND source_row_id IS NOT NULL)),
  CHECK(typeof("entry_id")IN('null','text')),
@@ -2913,8 +2928,13 @@ CREATE TABLE credit_owner_entries(
  CHECK(typeof("source_row_id")IN('null','text')),
  CHECK(typeof("credited_name")IN('null','text')),
  CHECK(typeof("role")IN('null','text')),
- CHECK(typeof("department")IN('null','text'))
-);
+ CHECK(typeof("department")IN('null','text')),
+ PRIMARY KEY(entry_id,owner_incarnation,owner_revision),
+ UNIQUE(entity_id,owner_incarnation,owner_revision,position),
+ CHECK(typeof("owner_incarnation")IN('null','blob')),
+ CHECK(typeof("owner_revision")IN('null','integer')),
+ CHECK(typeof("input_ordinal")IN('null','integer'))
+) WITHOUT ROWID;
 
 CREATE TABLE credit_source_heads(
  entity_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
@@ -2950,7 +2970,7 @@ CREATE TABLE credit_source_publication_members(
 
 CREATE TABLE credit_source_publications(
  publication_id TEXT PRIMARY KEY CHECK(length(publication_id)=32 AND publication_id NOT GLOB '*[^0-9a-f]*') NOT NULL,
- entity_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
+ entity_id INTEGER NOT NULL REFERENCES catalog_subjects(id),
  provider TEXT NOT NULL CHECK(length(CAST(provider AS BLOB))>0),
  accepted_record_reference TEXT NOT NULL CHECK(length(trim(accepted_record_reference))>0),
  observed_at TEXT NOT NULL CHECK(length(CAST(observed_at AS BLOB))>0),
@@ -2968,7 +2988,7 @@ CREATE TABLE credit_source_publications(
 
 CREATE TABLE credit_source_rows(
  source_row_id TEXT PRIMARY KEY CHECK(length(source_row_id)=32 AND source_row_id NOT GLOB '*[^0-9a-f]*') NOT NULL,
- entity_id INTEGER NOT NULL REFERENCES catalog_entities(id) ON DELETE CASCADE,
+ entity_id INTEGER NOT NULL REFERENCES catalog_subjects(id),
  provider TEXT NOT NULL CHECK(length(CAST(provider AS BLOB))>0),
  tuple_digest TEXT NOT NULL CHECK(length(tuple_digest)=64 AND tuple_digest NOT GLOB '*[^0-9a-f]*'),
  original_record_reference TEXT NOT NULL CHECK(length(trim(original_record_reference))>0),
@@ -5956,7 +5976,7 @@ CREATE TABLE metadata_repair_cascade_items(
 CREATE TABLE metadata_repair_cascades(
  id TEXT PRIMARY KEY NOT NULL,
  kind TEXT NOT NULL,
- entity_id INTEGER NOT NULL,
+ entity_id INTEGER NOT NULL REFERENCES catalog_subjects(id),
  library_id TEXT NOT NULL,
  actor TEXT NOT NULL,
  intent TEXT NOT NULL,
@@ -5973,6 +5993,40 @@ CREATE TABLE metadata_repair_cascades(
  job_next_attempt_ms INTEGER CHECK(job_next_attempt_ms IS NULL OR job_next_attempt_ms>=0),
  job_due_ms INTEGER GENERATED ALWAYS AS (CASE WHEN job_next_attempt_ms IS NULL THEN NULL ELSE max(job_next_attempt_ms,job_lease_expires_ms) END) STORED,
  job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0),
+ command_incarnation BLOB NOT NULL DEFAULT(randomblob(16)) CHECK(length(command_incarnation)=16),
+ last_command_sequence INTEGER NOT NULL DEFAULT 0 CHECK(last_command_sequence>=0),
+ acknowledged_command_sequence INTEGER NOT NULL DEFAULT 0 CHECK(acknowledged_command_sequence>=0),
+ credit_phase TEXT,
+ credit_owner_incarnation BLOB CHECK(credit_owner_incarnation IS NULL OR length(credit_owner_incarnation)=16),
+ credit_base_owner_revision INTEGER CHECK(credit_base_owner_revision>0),
+ credit_target_owner_revision INTEGER CHECK(credit_target_owner_revision>0),
+ credit_source_revision INTEGER CHECK(credit_source_revision>0),
+ credit_identity_revision INTEGER CHECK(credit_identity_revision>0),
+ credit_metadata_revision INTEGER CHECK(credit_metadata_revision>0),
+ credit_authority_digest BLOB CHECK(credit_authority_digest IS NULL OR length(credit_authority_digest)=32),
+ credit_source_manifest_digest BLOB CHECK(credit_source_manifest_digest IS NULL OR length(credit_source_manifest_digest)=32),
+ credit_request_digest BLOB CHECK(credit_request_digest IS NULL OR length(credit_request_digest)=32),
+ credit_owner_locked INTEGER CHECK(credit_owner_locked IN(0,1)),
+ credit_observed_at TEXT,
+ credit_language TEXT,
+ credit_input_algorithm TEXT,
+ credit_expected_entries INTEGER CHECK(credit_expected_entries>=0),
+ credit_requested_entries INTEGER CHECK(credit_requested_entries>=0),
+ credit_expected_bytes INTEGER CHECK(credit_expected_bytes>=0),
+ credit_expected_digest BLOB CHECK(credit_expected_digest IS NULL OR length(credit_expected_digest)=32),
+ credit_seed BLOB CHECK(credit_seed IS NULL OR length(credit_seed)=32),
+ credit_staged_entries INTEGER NOT NULL DEFAULT 0 CHECK(credit_staged_entries>=0),
+ credit_staged_requested_entries INTEGER NOT NULL DEFAULT 0 CHECK(credit_staged_requested_entries>=0),
+ credit_staged_bytes INTEGER NOT NULL DEFAULT 0 CHECK(credit_staged_bytes>=0),
+ credit_verified_entries INTEGER NOT NULL DEFAULT 0 CHECK(credit_verified_entries>=0),
+ credit_verified_requested_entries INTEGER NOT NULL DEFAULT 0 CHECK(credit_verified_requested_entries>=0),
+ credit_verified_bytes INTEGER NOT NULL DEFAULT 0 CHECK(credit_verified_bytes>=0),
+ credit_chain BLOB CHECK(credit_chain IS NULL OR length(credit_chain)=32),
+ credit_after_position INTEGER NOT NULL DEFAULT -1 CHECK(credit_after_position>=-1),
+ credit_input_complete INTEGER NOT NULL DEFAULT 0 CHECK(credit_input_complete IN(0,1)),
+ credit_result_sequence INTEGER NOT NULL DEFAULT 0 CHECK(credit_result_sequence>=0),
+ credit_cohort_pin INTEGER NOT NULL DEFAULT 0 CHECK(credit_cohort_pin IN(0,1)),
+ credit_image_id INTEGER,
  CHECK(typeof("id")IN('null','text')),
  CHECK(typeof("kind")IN('null','text')),
  CHECK(typeof("entity_id")IN('null','integer')),
@@ -5990,7 +6044,57 @@ CREATE TABLE metadata_repair_cascades(
  CHECK(typeof("job_lease_expires_ms")IN('null','integer')),
  CHECK(typeof("job_attempts")IN('null','integer')),
  CHECK(typeof("job_next_attempt_ms")IN('null','integer')),
- CHECK(typeof("job_revision")IN('null','integer'))
+ CHECK(typeof("job_revision")IN('null','integer')),
+ UNIQUE(id,command_incarnation),
+ FOREIGN KEY(credit_image_id,entity_id) REFERENCES catalog_credit_images(id,entity_id),
+ CHECK(acknowledged_command_sequence<=last_command_sequence AND credit_result_sequence<=last_command_sequence),
+ CHECK((intent='credit-owner-single-v1')=(credit_owner_incarnation IS NOT NULL)),
+ CHECK(intent<>'credit-owner-single-v1' OR (credit_phase IS NOT NULL AND credit_owner_incarnation IS NOT NULL AND credit_base_owner_revision IS NOT NULL AND credit_target_owner_revision IS NOT NULL AND credit_source_revision IS NOT NULL AND credit_identity_revision IS NOT NULL AND credit_metadata_revision IS NOT NULL AND credit_authority_digest IS NOT NULL AND credit_source_manifest_digest IS NOT NULL AND credit_request_digest IS NOT NULL AND credit_owner_locked IS NOT NULL AND credit_observed_at IS NOT NULL AND credit_language IS NOT NULL AND credit_input_algorithm IS NOT NULL AND credit_expected_entries IS NOT NULL AND credit_requested_entries IS NOT NULL AND credit_expected_bytes IS NOT NULL AND credit_expected_digest IS NOT NULL AND credit_seed IS NOT NULL AND credit_chain IS NOT NULL)),
+ CHECK(intent<>'credit-owner-single-v1' OR (credit_target_owner_revision>credit_base_owner_revision AND credit_requested_entries<=credit_expected_entries AND length(credit_input_algorithm)>0)),
+ CHECK(intent<>'credit-owner-single-v1' OR credit_phase IN('credit_capture','credit_prepare','credit_stage','credit_seal','credit_ready','credit_published','credit_abandoned','credit_source_reclaim','credit_terminal')),
+ CHECK(credit_verified_entries<=credit_staged_entries AND (credit_expected_entries IS NULL OR credit_staged_entries<=credit_expected_entries)),
+ CHECK(credit_verified_requested_entries<=credit_staged_requested_entries AND (credit_requested_entries IS NULL OR credit_staged_requested_entries<=credit_requested_entries)),
+ CHECK(credit_verified_bytes<=credit_staged_bytes AND (credit_expected_bytes IS NULL OR credit_staged_bytes<=credit_expected_bytes)),
+ CHECK(credit_input_complete=0 OR (intent='credit-owner-single-v1' AND credit_verified_entries=credit_expected_entries AND credit_verified_requested_entries=credit_requested_entries AND credit_verified_bytes=credit_expected_bytes AND credit_chain=credit_expected_digest)),
+ CHECK(credit_cohort_pin=0 OR intent='credit-owner-single-v1'),
+ CHECK(credit_image_id IS NULL OR intent='credit-owner-single-v1'),
+ CHECK(intent<>'credit-owner-single-v1' OR status<>'complete' OR credit_phase IN('credit_published','credit_source_reclaim','credit_terminal')),
+ CHECK(intent<>'credit-owner-single-v1' OR credit_cohort_pin=1 OR (credit_phase IN('credit_source_reclaim','credit_terminal') AND credit_image_id IS NULL AND acknowledged_command_sequence>=credit_result_sequence)),
+ CHECK(credit_observed_at IS NULL OR (length(credit_observed_at)=30 AND credit_observed_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]Z')),
+ CHECK(typeof("command_incarnation")IN('null','blob')),
+ CHECK(typeof("last_command_sequence")IN('null','integer')),
+ CHECK(typeof("acknowledged_command_sequence")IN('null','integer')),
+ CHECK(typeof("credit_phase")IN('null','text')),
+ CHECK(typeof("credit_owner_incarnation")IN('null','blob')),
+ CHECK(typeof("credit_base_owner_revision")IN('null','integer')),
+ CHECK(typeof("credit_target_owner_revision")IN('null','integer')),
+ CHECK(typeof("credit_source_revision")IN('null','integer')),
+ CHECK(typeof("credit_identity_revision")IN('null','integer')),
+ CHECK(typeof("credit_metadata_revision")IN('null','integer')),
+ CHECK(typeof("credit_authority_digest")IN('null','blob')),
+ CHECK(typeof("credit_source_manifest_digest")IN('null','blob')),
+ CHECK(typeof("credit_request_digest")IN('null','blob')),
+ CHECK(typeof("credit_owner_locked")IN('null','integer')),
+ CHECK(typeof("credit_observed_at")IN('null','text')),
+ CHECK(typeof("credit_language")IN('null','text')),
+ CHECK(typeof("credit_input_algorithm")IN('null','text')),
+ CHECK(typeof("credit_expected_entries")IN('null','integer')),
+ CHECK(typeof("credit_requested_entries")IN('null','integer')),
+ CHECK(typeof("credit_expected_bytes")IN('null','integer')),
+ CHECK(typeof("credit_expected_digest")IN('null','blob')),
+ CHECK(typeof("credit_seed")IN('null','blob')),
+ CHECK(typeof("credit_staged_entries")IN('null','integer')),
+ CHECK(typeof("credit_staged_requested_entries")IN('null','integer')),
+ CHECK(typeof("credit_staged_bytes")IN('null','integer')),
+ CHECK(typeof("credit_verified_entries")IN('null','integer')),
+ CHECK(typeof("credit_verified_requested_entries")IN('null','integer')),
+ CHECK(typeof("credit_verified_bytes")IN('null','integer')),
+ CHECK(typeof("credit_chain")IN('null','blob')),
+ CHECK(typeof("credit_after_position")IN('null','integer')),
+ CHECK(typeof("credit_input_complete")IN('null','integer')),
+ CHECK(typeof("credit_result_sequence")IN('null','integer')),
+ CHECK(typeof("credit_cohort_pin")IN('null','integer')),
+ CHECK(typeof("credit_image_id")IN('null','integer'))
 );
 
 CREATE TABLE metadata_repair_work_receipts(
@@ -11037,6 +11141,7 @@ CREATE TABLE metadata_provider_operations(
  command_incarnation BLOB NOT NULL DEFAULT(randomblob(16)) CHECK(length(command_incarnation)=16),
  last_command_sequence INTEGER NOT NULL DEFAULT 0 CHECK(last_command_sequence>=0),
  acknowledged_command_sequence INTEGER NOT NULL DEFAULT 0 CHECK(acknowledged_command_sequence>=0),
+ credit_image_id INTEGER,
  UNIQUE(provider,id),
  FOREIGN KEY(entity_id,provider,set_subject_kind,set_provider_id,set_id) REFERENCES metadata_publication_sets(entity_id,provider,subject_kind,provider_id,id),
  CHECK((set_id IS NULL)=(set_subject_kind IS NULL) AND (set_id IS NULL)=(set_provider_id IS NULL)),
@@ -11085,7 +11190,9 @@ CREATE TABLE metadata_provider_operations(
  CHECK(acknowledged_command_sequence<=last_command_sequence),
  CHECK(typeof("command_incarnation")IN('null','blob')),
  CHECK(typeof("last_command_sequence")IN('null','integer')),
- CHECK(typeof("acknowledged_command_sequence")IN('null','integer'))
+ CHECK(typeof("acknowledged_command_sequence")IN('null','integer')),
+ FOREIGN KEY(credit_image_id,entity_id) REFERENCES catalog_credit_images(id,entity_id),
+ CHECK(typeof("credit_image_id")IN('null','integer'))
 );
 
 CREATE TABLE metadata_operation_subjects(
@@ -12410,19 +12517,19 @@ CREATE INDEX catalog_collection_members_item ON catalog_collection_members(item_
 
 CREATE INDEX catalog_collection_members_page ON catalog_collection_members(collection_id,order_key,item_id);
 
-CREATE INDEX catalog_credits_department ON catalog_credits(department_id,entity_id);
+CREATE INDEX catalog_credits_department ON catalog_credits(department_id,entity_id,ord,image_id);
 
-CREATE INDEX catalog_credits_name ON catalog_credits(credited_name,entity_id);
+CREATE INDEX catalog_credits_name ON catalog_credits(credited_name,entity_id,ord,image_id);
 
-CREATE INDEX catalog_credits_owner_entry ON catalog_credits(owner_entry_id,entity_id);
+CREATE INDEX catalog_credits_owner_entry ON catalog_credits(owner_entry_id,entity_id,owner_incarnation,owner_revision,ord,image_id);
 
-CREATE INDEX catalog_credits_person ON catalog_credits(person_id,entity_id);
+CREATE INDEX catalog_credits_person ON catalog_credits(person_id,entity_id,ord,image_id);
 
-CREATE INDEX catalog_credits_provider_person ON catalog_credits(provider,provider_person_id,entity_id) WHERE provider_person_id<>'';
+CREATE INDEX catalog_credits_provider_person ON catalog_credits(provider,provider_person_id,entity_id,ord,image_id) WHERE provider_person_id<>'';
 
-CREATE INDEX catalog_credits_role ON catalog_credits(role_id,entity_id);
+CREATE INDEX catalog_credits_role ON catalog_credits(role_id,entity_id,ord,image_id);
 
-CREATE INDEX catalog_credits_source_row ON catalog_credits(source_row_id,entity_id);
+CREATE INDEX catalog_credits_source_row ON catalog_credits(source_row_id,entity_id,ord,image_id);
 
 CREATE INDEX catalog_entities_library ON catalog_entities(library_id,kind,id);
 
@@ -12569,9 +12676,9 @@ CREATE INDEX container_personal_undo_items_item ON container_personal_undo_items
 
 CREATE INDEX content_rating_age_lookup ON content_rating_ages(minimum_age);
 
-CREATE UNIQUE INDEX credit_owner_entries_entity_id ON credit_owner_entries(entry_id,entity_id);
+CREATE UNIQUE INDEX credit_owner_entries_entity_id ON credit_owner_entries(entry_id,entity_id,owner_incarnation,owner_revision);
 
-CREATE UNIQUE INDEX credit_owner_entries_source ON credit_owner_entries(entity_id,source_row_id) WHERE source_row_id IS NOT NULL;
+CREATE UNIQUE INDEX credit_owner_entries_source ON credit_owner_entries(entity_id,owner_incarnation,owner_revision,source_row_id) WHERE source_row_id IS NOT NULL;
 
 CREATE INDEX credit_owner_entries_source_row_id_entity_id_fk ON credit_owner_entries(source_row_id,entity_id);
 
@@ -14187,7 +14294,7 @@ CREATE TABLE enrichment_command_receipts(
  command_sequence INTEGER NOT NULL CHECK(command_sequence>0),
  operation_id BLOB NOT NULL CHECK(length(operation_id)=16),
  request_digest BLOB NOT NULL CHECK(length(request_digest)=32),
- command_kind TEXT NOT NULL CHECK(command_kind IN('evidence_stage','credit_stage','people_stage','effective_stage','effective_seal','enrich_accept')),
+ command_kind TEXT NOT NULL CHECK(command_kind IN('evidence_stage','credit_stage','people_stage','effective_stage','effective_seal','enrich_accept','enrich_delta_accept')),
  accepted_revision INTEGER NOT NULL CHECK(accepted_revision>=0),
  applied_ms INTEGER NOT NULL CHECK(applied_ms>=0),
  entity_id INTEGER NOT NULL REFERENCES catalog_subjects(id),
@@ -14314,3 +14421,202 @@ CREATE INDEX play_history_admin_start ON play_history(started_ms,id) WHERE start
 CREATE INDEX play_history_admin_user_start ON play_history(account_key,started_ms,id) WHERE started_ms IS NOT NULL;
 
 CREATE INDEX play_history_admin_item_start ON play_history(subject_id,started_ms,id) WHERE started_ms IS NOT NULL;
+
+CREATE UNIQUE INDEX metadata_operation_credit_image ON metadata_provider_operations(credit_image_id) WHERE credit_image_id IS NOT NULL;
+
+CREATE INDEX catalog_credits_entity ON catalog_credits(entity_id,image_id,ord);
+
+CREATE TABLE catalog_credit_images(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ entity_id INTEGER NOT NULL REFERENCES catalog_subjects(id),
+ revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0),
+ entity_incarnation BLOB NOT NULL CHECK(length(entity_incarnation)=16),
+ source_revision INTEGER NOT NULL CHECK(source_revision>0),
+ identity_revision INTEGER NOT NULL CHECK(identity_revision>0),
+ metadata_revision INTEGER NOT NULL CHECK(metadata_revision>0),
+ owner_revision INTEGER NOT NULL CHECK(owner_revision>0),
+ policy_incarnation BLOB NOT NULL CHECK(length(policy_incarnation)=16),
+ policy_revision INTEGER NOT NULL CHECK(policy_revision>=0),
+ consent_revision INTEGER NOT NULL CHECK(consent_revision>=0),
+ metadata_language TEXT NOT NULL,
+ source_manifest_digest BLOB NOT NULL CHECK(length(source_manifest_digest)=32),
+ build_request_digest BLOB NOT NULL CHECK(length(build_request_digest)=32),
+ manifest_algorithm TEXT NOT NULL CHECK(length(manifest_algorithm)>0),
+ build_expected_count INTEGER NOT NULL CHECK(build_expected_count>=0),
+ build_expected_bytes INTEGER NOT NULL CHECK(build_expected_bytes>=0),
+ build_expected_digest BLOB NOT NULL CHECK(length(build_expected_digest)=32),
+ build_staged_count INTEGER NOT NULL DEFAULT 0 CHECK(build_staged_count>=0),
+ build_staged_bytes INTEGER NOT NULL DEFAULT 0 CHECK(build_staged_bytes>=0),
+ build_verified_count INTEGER NOT NULL DEFAULT 0 CHECK(build_verified_count>=0),
+ build_verified_bytes INTEGER NOT NULL DEFAULT 0 CHECK(build_verified_bytes>=0),
+ build_seed BLOB NOT NULL CHECK(length(build_seed)=32),
+ build_chain BLOB NOT NULL CHECK(length(build_chain)=32),
+ build_after_ord INTEGER NOT NULL DEFAULT -1 CHECK(build_after_ord>=-1),
+ member_count INTEGER NOT NULL DEFAULT 0 CHECK(member_count>=0),
+ prepared_bytes INTEGER NOT NULL DEFAULT 0 CHECK(prepared_bytes>=0),
+ manifest_digest BLOB CHECK(manifest_digest IS NULL OR length(manifest_digest)=32),
+ current_input_digest BLOB NOT NULL CHECK(length(current_input_digest)=32),
+ sealed INTEGER NOT NULL DEFAULT 0 CHECK(sealed IN(0,1)),
+ remaining_rows INTEGER NOT NULL DEFAULT 0 CHECK(remaining_rows>=0),
+ remaining_bytes INTEGER NOT NULL DEFAULT 0 CHECK(remaining_bytes>=0),
+ reclaim_state TEXT NOT NULL DEFAULT 'held' CHECK(reclaim_state IN('held','ready','running','complete')),
+ reclaim_after_ord INTEGER NOT NULL DEFAULT -1 CHECK(reclaim_after_ord>=-1),
+ command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),
+ last_command_sequence INTEGER NOT NULL DEFAULT 0 CHECK(last_command_sequence>=0),
+ acknowledged_command_sequence INTEGER NOT NULL DEFAULT 0 CHECK(acknowledged_command_sequence>=0),
+ job_revision INTEGER NOT NULL DEFAULT 1 CHECK(job_revision>0),
+ job_lease_owner INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_owner>=0),
+ job_lease_generation INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_generation>=0),
+ job_lease_expires_ms INTEGER NOT NULL DEFAULT 0 CHECK(job_lease_expires_ms>=0),
+ job_attempts INTEGER NOT NULL DEFAULT 0 CHECK(job_attempts>=0),
+ job_next_attempt_ms INTEGER,
+ job_due_ms INTEGER GENERATED ALWAYS AS(CASE WHEN reclaim_state IN('ready','running') AND job_next_attempt_ms IS NOT NULL THEN max(job_next_attempt_ms,job_lease_expires_ms) END) VIRTUAL,
+ UNIQUE(id,entity_id),
+ UNIQUE(id,command_incarnation),
+ CHECK(build_verified_count<=build_staged_count AND build_staged_count<=build_expected_count),
+ CHECK(build_verified_bytes<=build_staged_bytes AND build_staged_bytes<=build_expected_bytes),
+ CHECK(remaining_rows<=max(build_staged_count,member_count) AND remaining_bytes<=max(build_staged_bytes,prepared_bytes)),
+ CHECK(sealed=0 OR (build_verified_count=build_expected_count AND build_verified_bytes=build_expected_bytes AND build_chain=build_expected_digest AND manifest_digest IS NOT NULL)),
+ CHECK(reclaim_state<>'complete' OR (remaining_rows=0 AND remaining_bytes=0)),
+ CHECK(acknowledged_command_sequence<=last_command_sequence),
+ CHECK(typeof("id")IN('null','integer')),
+ CHECK(typeof("entity_id")IN('null','integer')),
+ CHECK(typeof("revision")IN('null','integer')),
+ CHECK(typeof("entity_incarnation")IN('null','blob')),
+ CHECK(typeof("source_revision")IN('null','integer')),
+ CHECK(typeof("identity_revision")IN('null','integer')),
+ CHECK(typeof("metadata_revision")IN('null','integer')),
+ CHECK(typeof("owner_revision")IN('null','integer')),
+ CHECK(typeof("policy_incarnation")IN('null','blob')),
+ CHECK(typeof("policy_revision")IN('null','integer')),
+ CHECK(typeof("consent_revision")IN('null','integer')),
+ CHECK(typeof("metadata_language")IN('null','text')),
+ CHECK(typeof("source_manifest_digest")IN('null','blob')),
+ CHECK(typeof("build_request_digest")IN('null','blob')),
+ CHECK(typeof("manifest_algorithm")IN('null','text')),
+ CHECK(typeof("build_expected_count")IN('null','integer')),
+ CHECK(typeof("build_expected_bytes")IN('null','integer')),
+ CHECK(typeof("build_expected_digest")IN('null','blob')),
+ CHECK(typeof("build_staged_count")IN('null','integer')),
+ CHECK(typeof("build_staged_bytes")IN('null','integer')),
+ CHECK(typeof("build_verified_count")IN('null','integer')),
+ CHECK(typeof("build_verified_bytes")IN('null','integer')),
+ CHECK(typeof("build_seed")IN('null','blob')),
+ CHECK(typeof("build_chain")IN('null','blob')),
+ CHECK(typeof("build_after_ord")IN('null','integer')),
+ CHECK(typeof("member_count")IN('null','integer')),
+ CHECK(typeof("prepared_bytes")IN('null','integer')),
+ CHECK(typeof("manifest_digest")IN('null','blob')),
+ CHECK(typeof("current_input_digest")IN('null','blob')),
+ CHECK(typeof("sealed")IN('null','integer')),
+ CHECK(typeof("remaining_rows")IN('null','integer')),
+ CHECK(typeof("remaining_bytes")IN('null','integer')),
+ CHECK(typeof("reclaim_state")IN('null','text')),
+ CHECK(typeof("reclaim_after_ord")IN('null','integer')),
+ CHECK(typeof("command_incarnation")IN('null','blob')),
+ CHECK(typeof("last_command_sequence")IN('null','integer')),
+ CHECK(typeof("acknowledged_command_sequence")IN('null','integer')),
+ CHECK(typeof("job_revision")IN('null','integer')),
+ CHECK(typeof("job_lease_owner")IN('null','integer')),
+ CHECK(typeof("job_lease_generation")IN('null','integer')),
+ CHECK(typeof("job_lease_expires_ms")IN('null','integer')),
+ CHECK(typeof("job_attempts")IN('null','integer')),
+ CHECK(typeof("job_next_attempt_ms")IN('null','integer')),
+ CHECK(typeof("job_due_ms")IN('null','integer'))
+);
+
+CREATE INDEX catalog_credit_images_entity ON catalog_credit_images(entity_id,entity_incarnation,owner_revision,id);
+
+CREATE INDEX catalog_credit_images_due ON catalog_credit_images(job_due_ms,id) WHERE job_due_ms IS NOT NULL;
+
+CREATE TABLE credit_image_reclaim_receipts(
+ image_id INTEGER NOT NULL,
+ command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),
+ command_sequence INTEGER NOT NULL CHECK(command_sequence>0),
+ operation_id BLOB NOT NULL CHECK(length(operation_id)=16),
+ request_digest BLOB NOT NULL CHECK(length(request_digest)=32),
+ command_kind TEXT NOT NULL CHECK(command_kind IN('rows_reclaim','image_retire')),
+ accepted_revision INTEGER NOT NULL CHECK(accepted_revision>0),
+ applied_ms INTEGER NOT NULL CHECK(applied_ms>=0),
+ after_ord INTEGER NOT NULL CHECK(after_ord>=-1),
+ removed_count INTEGER NOT NULL CHECK(removed_count>=0),
+ remaining_rows INTEGER NOT NULL CHECK(remaining_rows>=0),
+ complete INTEGER NOT NULL CHECK(complete IN(0,1)),
+ PRIMARY KEY(image_id,command_incarnation,command_sequence),
+ UNIQUE(operation_id),
+ FOREIGN KEY(image_id,command_incarnation) REFERENCES catalog_credit_images(id,command_incarnation),
+ CHECK(typeof("image_id")IN('null','integer')),
+ CHECK(typeof("command_incarnation")IN('null','blob')),
+ CHECK(typeof("command_sequence")IN('null','integer')),
+ CHECK(typeof("operation_id")IN('null','blob')),
+ CHECK(typeof("request_digest")IN('null','blob')),
+ CHECK(typeof("command_kind")IN('null','text')),
+ CHECK(typeof("accepted_revision")IN('null','integer')),
+ CHECK(typeof("applied_ms")IN('null','integer')),
+ CHECK(typeof("after_ord")IN('null','integer')),
+ CHECK(typeof("removed_count")IN('null','integer')),
+ CHECK(typeof("remaining_rows")IN('null','integer')),
+ CHECK(typeof("complete")IN('null','integer'))
+) WITHOUT ROWID;
+
+CREATE UNIQUE INDEX credit_owner_entries_input ON credit_owner_entries(entity_id,owner_incarnation,owner_revision,input_ordinal) WHERE input_ordinal IS NOT NULL;
+
+CREATE UNIQUE INDEX metadata_repair_credit_cohort ON metadata_repair_cascades(entity_id,credit_owner_incarnation,credit_target_owner_revision);
+
+CREATE UNIQUE INDEX metadata_repair_credit_image ON metadata_repair_cascades(credit_image_id) WHERE credit_image_id IS NOT NULL;
+
+CREATE UNIQUE INDEX metadata_repair_credit_request ON metadata_repair_cascades(actor,entity_id,base_revision,credit_request_digest) WHERE intent='credit-owner-single-v1' AND credit_phase IN('credit_capture','credit_prepare','credit_stage','credit_seal','credit_ready','credit_published');
+
+CREATE TABLE metadata_repair_command_receipts(
+ repair_id TEXT NOT NULL,
+ command_incarnation BLOB NOT NULL CHECK(length(command_incarnation)=16),
+ command_sequence INTEGER NOT NULL CHECK(command_sequence>0),
+ operation_id BLOB NOT NULL CHECK(length(operation_id)=16),
+ request_digest BLOB NOT NULL CHECK(length(request_digest)=32),
+ command_kind TEXT NOT NULL CHECK(command_kind IN('owner_begin','owner_capture','owner_seal','image_stage','image_seal','owner_accept','owner_cancel','owner_source_reclaim')),
+ accepted_revision INTEGER NOT NULL CHECK(accepted_revision>0),
+ applied_ms INTEGER NOT NULL CHECK(applied_ms>=0),
+ owner_revision INTEGER NOT NULL CHECK(owner_revision>0),
+ after_position INTEGER NOT NULL CHECK(after_position>=-1),
+ captured_entries INTEGER NOT NULL CHECK(captured_entries>=0),
+ captured_bytes INTEGER NOT NULL CHECK(captured_bytes>=0),
+ verified_entries INTEGER NOT NULL CHECK(verified_entries>=0),
+ verified_bytes INTEGER NOT NULL CHECK(verified_bytes>=0),
+ chain BLOB NOT NULL CHECK(length(chain)=32),
+ input_complete INTEGER NOT NULL CHECK(input_complete IN(0,1)),
+ image_id INTEGER,
+ image_revision INTEGER,
+ owner_manifest_digest BLOB CHECK(owner_manifest_digest IS NULL OR length(owner_manifest_digest)=32),
+ image_manifest_digest BLOB CHECK(image_manifest_digest IS NULL OR length(image_manifest_digest)=32),
+ result_from_position INTEGER NOT NULL CHECK(result_from_position>=0),
+ result_until_position INTEGER NOT NULL CHECK(result_until_position>=result_from_position),
+ result_count INTEGER NOT NULL CHECK(result_count>=0),
+ result_digest BLOB NOT NULL CHECK(length(result_digest)=32),
+ PRIMARY KEY(repair_id,command_incarnation,command_sequence),
+ UNIQUE(operation_id),
+ FOREIGN KEY(repair_id,command_incarnation) REFERENCES metadata_repair_cascades(id,command_incarnation),
+ CHECK(typeof("repair_id")IN('null','text')),
+ CHECK(typeof("command_incarnation")IN('null','blob')),
+ CHECK(typeof("command_sequence")IN('null','integer')),
+ CHECK(typeof("operation_id")IN('null','blob')),
+ CHECK(typeof("request_digest")IN('null','blob')),
+ CHECK(typeof("command_kind")IN('null','text')),
+ CHECK(typeof("accepted_revision")IN('null','integer')),
+ CHECK(typeof("applied_ms")IN('null','integer')),
+ CHECK(typeof("owner_revision")IN('null','integer')),
+ CHECK(typeof("after_position")IN('null','integer')),
+ CHECK(typeof("captured_entries")IN('null','integer')),
+ CHECK(typeof("captured_bytes")IN('null','integer')),
+ CHECK(typeof("verified_entries")IN('null','integer')),
+ CHECK(typeof("verified_bytes")IN('null','integer')),
+ CHECK(typeof("chain")IN('null','blob')),
+ CHECK(typeof("input_complete")IN('null','integer')),
+ CHECK(typeof("image_id")IN('null','integer')),
+ CHECK(typeof("image_revision")IN('null','integer')),
+ CHECK(typeof("owner_manifest_digest")IN('null','blob')),
+ CHECK(typeof("image_manifest_digest")IN('null','blob')),
+ CHECK(typeof("result_from_position")IN('null','integer')),
+ CHECK(typeof("result_until_position")IN('null','integer')),
+ CHECK(typeof("result_count")IN('null','integer')),
+ CHECK(typeof("result_digest")IN('null','blob'))
+) WITHOUT ROWID;

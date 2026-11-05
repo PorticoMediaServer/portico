@@ -356,3 +356,115 @@ ORDER BY pending_time_cursor_ms,playback_id LIMIT :admitted_rows;
 ```
 
 Pending preflight keysets split tied cursor values by playback_id with the exact BINARY collation. One drain piece ends at min(pending_until,nextUTCquarter(cursor)). It changes at most one span plus six counter rows, one claim cursor and the complete admitted receipt/audit/revision effect set. A piece receipt never claims the whole report. Refusal/ambiguous COMMIT preserves the exact captured remainder. See INT-CHANGE-001 for long-session, gaps, clock discontinuity, overlap, forever retention and growth. All48actual reportwindow intervals from R are inputs to exact-overlap controls, including Monrovia's fractional boundary and a negative preepoch window start. Producer/runtime work remains unqualified.
+
+---
+
+# Adopted Change002 static statement contracts
+
+Adopted5f3c7f676ba3e751487ab92a1fced313a583df49eedbe5c2e438031574418a73. Lead adopted this exact schema after R agreement; product embedding follows the canonical PR. Exact predicate authority INT-INDEX-POLICY-CHANGE-002.json; original001map remains unchanged. All pages use two bounded streams, never row-value tuples; snapshot/deadline/resource budgets remain binding. These statements show access, not a complete W source/authority/receipt executor.
+
+```sql
+-- Current detail, same-owner head followed by image-leading ordered PK.
+SELECT c.ord,c.person_id,c.role_id,c.department_id,c.credited_name,c.source_row_id,
+       c.owner_entry_id,c.owner_incarnation,c.owner_revision,c.source_status
+FROM catalog_entities e JOIN catalog_credits c
+  ON c.image_id=e.credit_image_id AND c.entity_id=e.id
+WHERE e.id=:entity AND e.retired=0 ORDER BY c.ord LIMIT :admitted_rows;
+-- Reverse person, equality tail. Next stream has entity_id>:entity and
+-- ORDER BY entity_id,ord,image_id; tied ord/image keys use nested streams.
+SELECT c.entity_id,c.ord,c.image_id
+FROM catalog_credits c INDEXED BY catalog_credits_person
+JOIN catalog_entities e ON e.id=c.entity_id AND e.credit_image_id=c.image_id
+WHERE e.retired=0 AND c.person_id=:person AND c.entity_id=:entity AND c.ord>:after_ord
+ORDER BY c.ord,c.image_id LIMIT :admitted_rows;
+-- No legacy current owner scan or entry-only historical join survives cutover.
+SELECT o.entry_id,o.position,o.operation,o.source_row_id,o.credited_name,o.role,o.department
+FROM catalog_entities e JOIN credit_owner_entries o
+ ON o.entity_id=e.id AND o.owner_incarnation=e.metadata_incarnation
+ AND o.owner_revision=e.credit_owner_revision
+WHERE e.id=:entity ORDER BY o.position LIMIT :admitted_rows;
+SELECT o.entry_id,o.entity_id,o.owner_incarnation,o.owner_revision,o.position,
+       o.input_ordinal,o.operation,o.source_row_id,o.credited_name,o.role,o.department
+FROM credit_owner_entries o INDEXED BY credit_owner_entries_entity_id
+WHERE o.entry_id=:entry AND o.entity_id=:entity
+ AND o.owner_incarnation=:owner_incarnation AND o.owner_revision=:owner_revision;
+-- Captured owner-cohort pins: stream raw candidates; test held/current or
+-- active staging intent in caller. Never hide arbitrary nonmatches before LIMIT.
+SELECT h.id,h.reclaim_state
+FROM catalog_credit_images h INDEXED BY catalog_credit_images_entity
+WHERE h.entity_id=:entity AND h.entity_incarnation=:owner_incarnation
+ AND h.owner_revision=:owner_revision AND h.id>:after_image
+ORDER BY h.id LIMIT :admitted_rows;
+SELECT id FROM metadata_provider_operations INDEXED BY metadata_operation_credit_image
+WHERE credit_image_id IS NOT NULL AND credit_image_id=:image LIMIT 1;
+-- Due and ordinal staging/seal/reclaim paths.
+SELECT id FROM catalog_credit_images INDEXED BY catalog_credit_images_due
+WHERE job_due_ms IS NOT NULL AND job_due_ms<=:now
+ORDER BY job_due_ms,id LIMIT :admitted_rows;
+SELECT c.ord,c.person_id,c.role_id,c.department_id,c.credited_name,c.provider,
+       c.credit_id,c.provider_person_id,c.source_ordinal,c.source_row_id,
+       c.owner_entry_id,c.owner_incarnation,c.owner_revision,c.source_status
+FROM catalog_credits c WHERE image_id=:image AND ord>:after_ord
+ORDER BY ord LIMIT :admitted_rows;
+```
+
+Reverse reads must not return retired/staged postings. Their candidate work must remain bounded even with a rare-person mostly-retired negative; SEARCH alone is insufficient. A successful complete page needs its candidate/revision fence and no missed current rows. If post-join filtering could hide arbitrarily many candidates, use raw candidate streams with a CASE/current-head marker and count every row against the budget, or prove a bounded posting-debt invariant. No successful partial page/count is allowed. HN/QL qualify the final chosen production form; tiny two-image plans do not establish that bound.
+
+Reclaimer checks same transaction: image is neither live head nor a current provider OR repair build pointer; held/staged candidates are not re-adoptable once queued; exact header nonce/revision/cursor/lease and prior receipt/floor. Each admitted ord chunk, remaining counts, cursor/revision and typed receipt commit atomically. Final resource retirement preserves header until last ack. Header lookup/deletion and owner-source cleanup use real FK child plans; no source/owner/live cascade is used to drain images. Retained owner-source cleanup independently checks current owner head, all accepted and still-needed staged image/source/undo pins, with bounded raw source rows and refusal on unknown proof.
+
+Exact literal fixture goldens/results for detail, reverse, current owner ordering, captured cohort pin, staging-intent and due/ord retirement are in INT-CHANGE-002-{CONTROLS,RESULTS}.json. Complete privilege/source/lease/manifest validation belongs to W's closed command and is not inferred from these reduced forms. Both directions/tied tails/missing-index and worst-backlog qualification remain required HN/QL gates before release.
+
+## Actual single-target repair input and receipts
+
+The same closed intent/predicate comes from INT-INDEX-POLICY-CHANGE-002.json. These are bound access probes, not permission to omit current authority, exact whole-input verification, one-unresolved rule or resource forecasts. Current permission precedes historical disclosure; exact historical receipt lookup precedes any stale source/lease refusal. Missing above-floor result fails closed.
+
+```sql
+-- Discovery of the SAME original stable identity, not permission to recreate.
+SELECT id,command_incarnation,last_command_sequence,acknowledged_command_sequence
+FROM metadata_repair_cascades INDEXED BY metadata_repair_credit_request
+WHERE actor=:actor AND entity_id=:entity AND base_revision=:base_revision
+  AND credit_request_digest=:original_request_digest
+  AND intent='credit-owner-single-v1'
+  AND credit_phase IN('credit_capture','credit_prepare','credit_stage','credit_seal','credit_ready','credit_published')
+LIMIT 1;
+-- Own actual-driver historical result: no join to a mutable resource.
+SELECT command_kind,accepted_revision,owner_revision,after_position,
+       captured_entries,captured_bytes,verified_entries,verified_bytes,chain,
+       input_complete,image_id,image_revision,owner_manifest_digest,image_manifest_digest,
+       result_from_position,result_until_position,result_count,result_digest
+FROM metadata_repair_command_receipts
+WHERE repair_id=:repair AND command_incarnation=:nonce AND command_sequence=:sequence;
+-- W owns reservation; creation + prospective pin + begin receipt are one command.
+UPDATE catalog_entities SET credit_owner_next_revision=credit_owner_next_revision+1
+WHERE id=:entity AND retired=0 AND metadata_incarnation=:captured_incarnation
+  AND credit_owner_revision=:base_owner_revision
+  AND credit_owner_next_revision=:reserved_revision
+  AND credit_owner_next_revision<9223372036854775807;
+-- Direct capture pin, including no rows or no image, one exact cohort.
+SELECT id,credit_phase,credit_cohort_pin,last_command_sequence,acknowledged_command_sequence
+FROM metadata_repair_cascades INDEXED BY metadata_repair_credit_cohort
+WHERE entity_id=:entity AND credit_owner_incarnation=:incarnation
+  AND credit_target_owner_revision=:owner_revision LIMIT 1;
+-- Repair image pin must be checked together with provider pin and current head.
+SELECT id,credit_phase FROM metadata_repair_cascades INDEXED BY metadata_repair_credit_image
+WHERE credit_image_id IS NOT NULL AND credit_image_id=:image LIMIT 1;
+-- Ordered whole-normalized-input seal stream; resume from position, no row tuple.
+SELECT position,input_ordinal,entry_id,operation,source_row_id,credited_name,role,department
+FROM credit_owner_entries
+WHERE entity_id=:entity AND owner_incarnation=:incarnation
+  AND owner_revision=:owner_revision AND position>:after_position
+ORDER BY position LIMIT :admitted_rows;
+-- Original explicit input allocation map, pinned until source-dependent ACK.
+SELECT input_ordinal,entry_id,position FROM credit_owner_entries
+INDEXED BY credit_owner_entries_input
+WHERE entity_id=:entity AND owner_incarnation=:incarnation
+  AND owner_revision=:owner_revision AND input_ordinal IS NOT NULL
+  AND input_ordinal>:after_input
+ORDER BY input_ordinal LIMIT :admitted_rows;
+```
+
+The source-reclaim command separately probes current live owner head, this direct repair pin, all exact captured image cohorts (held/retiring headers remain custody), provider/repair candidates and actual undo/history retention. Unknown proof refuses. It never deletes a source cohort because an image is merely off-head. Image reclaim tests both families in the same W transaction; cross-family exclusivity is a W invariant, not two separate UNIQUE indexes. Supersession resolves the prior receipt first, then atomically detaches eligible pins and queues discoverable debt. No re-adoption of retiring candidates.
+
+At cutover, old descendant paths EXCLUDE `intent='credit-owner-single-v1'`: repair_relationships.go:304 active descendant admission, :310 terminal prune, :329 pending worker selection, repair_cascade_completion.go:153 zero-child completion. The new actual driver schedules by its own phase, pins, G state and unacknowledged result. General root-list status/permission paths dispatch the closed branch. A legacy count of zero descendants cannot prove this operation complete. These are required implementation changes, not accepting runtime SQL already shipped by this packet.
+
+Reduced literal goldens in INT-CHANGE-002-CONTROLS.json assert indexed request discovery, exact cohort pin, repair image pin and immutable receipt point lookup, in addition to effective detail/reverse/retirement paths. Complete mutation contracts remain in INT-CHANGE-002.md; HN must register the real fully bound W statements and all ASC/DESC/tie/negative plans. The tiny relational fixtures do not qualify sparse/retired posting debt, native cryptographic proof, crash or command holds.
