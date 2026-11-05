@@ -1,3 +1,5 @@
+import {readPlaybackCapabilities, readPlaybackItem} from '@core/query/playback.ts';
+import {readPlaybackItemBounded} from '@core/query/playback-item.ts';
 import {playbackFailurePermanent} from '@core/playback-messages.ts';
 import {readPlaybackTrickplay, type PlaybackTrickplaySelection} from './trickplay.ts';
 import {captureAppLogRecorder, type AppLogCode, type AppLogRecorder} from '../app-log';
@@ -7,7 +9,6 @@ import {capacityRetryHttp, type WebPlaybackCapacityWait} from './capacity-retry'
 import {startFailureHttp, type WebPlaybackStartFailure} from './start-failure';
 import {markPresentedInPlayer} from './presented';
 import {PlaybackService, type PlaybackSnapshot} from '@core/index.ts';
-import {encodedRoutePath} from '../../../../packages/contracts/src/routes.ts';
 import type {ItemResponse} from '@core/media-item.ts';
 import {parseMediaItem} from '@core/media-item.ts';
 import {localV1Http} from '@core/playback-v1/local-http.ts';
@@ -142,7 +143,7 @@ const startStopped = () => new DOMException('Playback start stopped', 'AbortErro
 export type WebSleepEnd = 'item' | 'chapter' | 'book';
 const validSeconds = (value: number) => Number.isFinite(value) && value >= 0 && value <= 1e9;
 /** The server's capability document (`GET /v1/capabilities`): one read, ready to become a query. */
-const readServerCapabilities = (api: WebPlaybackSource['api'], signal: AbortSignal): Promise<unknown> => api.request<unknown>(encodedRoutePath('get_capabilities', {}), 'GET', undefined, signal);
+const readServerCapabilities = (api: WebPlaybackSource['api'], signal: AbortSignal): Promise<unknown> => readPlaybackCapabilities(api, signal);
 const wireId = (value: unknown) => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,128}$/.test(value);
 /** A pressed row's list: a bounded id list that holds the row, or a server container. */
 const screenListSelector = (from: Selector, itemId: string): boolean =>
@@ -644,7 +645,7 @@ export class WebShellPlaybackRuntime {
     const readDeadline = this.startDeadline();
     try {
       const reading = AbortSignal.any([context.signal, previous.life.signal, this.life.signal, stopped.signal, readDeadline.signal]);
-      const raw = await readDeadline.race(this.source.api.request<ItemResponse>(encodedRoutePath('get_items_id', {id: encodeURIComponent(captured.itemId)}), 'GET', undefined, reading));
+      const raw = await readDeadline.race(readPlaybackItem(this.source.api, captured.itemId, reading));
       check();
       if (!this.current(previous) || serial !== this.operation) problem('stale_selection_context');
       const item = parseMediaItem(raw);
@@ -759,7 +760,7 @@ export class WebShellPlaybackRuntime {
     const serial = ++this.operation, previous = this.stack;
     const finishRetention = this.retainMediaStart(context.signal, () => serial === this.operation);
     try {
-      const raw = await this.source.api.request<ItemResponse>(encodedRoutePath('get_items_id', {id: encodeURIComponent(itemId)}), 'GET', undefined, AbortSignal.any([context.signal, previous.life.signal, this.life.signal]));
+      const raw = await readPlaybackItem(this.source.api, itemId, AbortSignal.any([context.signal, previous.life.signal, this.life.signal]));
       if (!this.current(previous) || serial !== this.operation || context.signal.aborted || !context.isCurrent()) problem('stale_selection_context');
       const item = parseMediaItem(raw);if (item.id !== itemId || !item.available || raw.missing) problem('invalid_playback_target');
       // Music starts docked once per room; after that each song keeps Now playing as the listener left it.
@@ -1642,24 +1643,8 @@ export class WebShellPlaybackRuntime {
   /** The playing item's facts draw its dock and its Now playing. A passing failure (a 503
    * burst) is read again twice, after 1 s and 3 s, before the start reports it: music must
    * never play on with nothing drawn (P2-74 E-web-14). */
-  private async readItemBounded(itemId: string, signal: AbortSignal, current: () => boolean): Promise<ItemResponse> {
-    const path = encodedRoutePath('get_items_id', {id: encodeURIComponent(itemId)});
-    for (let attempt = 0; ; attempt++) {
-      // A read that hangs is a failure too: each attempt gets 8 s.
-      const attemptLife = new AbortController(), expiry = this.setTimer(() => attemptLife.abort(), 8000);
-      try { return await this.source.api.request<ItemResponse>(path, 'GET', undefined, AbortSignal.any([signal, attemptLife.signal])); }
-      catch (error) {
-        const failure = error as {name?: string; status?: number; retryable?: boolean} | undefined;
-        const timedOut = attemptLife.signal.aborted && !signal.aborted;
-        const passing = timedOut || failure?.retryable === true || (failure?.status ?? 0) >= 500;
-        if (attempt >= 2 || !passing || failure?.name === 'AbortError' && !timedOut || signal.aborted || !current()) throw error;
-        await new Promise<void>((resolve, reject) => {
-          const timer = this.setTimer(() => {signal.removeEventListener('abort', stop); resolve();}, attempt ? 3000 : 1000);
-          const stop = () => {this.clearTimer(timer); reject(new DOMException('Playback metadata read stopped', 'AbortError'));};
-          signal.addEventListener('abort', stop, {once: true});
-        });
-      } finally { this.clearTimer(expiry); }
-    }
+  private readItemBounded(itemId: string, signal: AbortSignal, current: () => boolean): Promise<ItemResponse> {
+    return readPlaybackItemBounded(this.source.api, itemId, signal, current, {setTimer: (run, ms) => this.setTimer(run, ms), clearTimer: timer => this.clearTimer(timer)});
   }
 
   private clearSourceResources(stack: Stack): void {
