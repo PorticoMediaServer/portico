@@ -48,6 +48,9 @@ export function metadataAttentionService(request:Request,libraryId:string){
  return Object.freeze({
   async list(cursor='',limit=25,includeInProgress=true){return parseMetadataAttention(await request<unknown>(`${path}?cursor=${encodeURIComponent(cursor)}&limit=${limit}&includeInProgress=${includeInProgress}`),libraryId);},
   async act(command:AttentionCommand){await request<unknown>(path,'POST',command);},
+  async actOnEntry(entry:Pick<AttentionEntry,'kind'|'entityId'|'revision'>,command:Omit<AttentionCommand,'kind'|'entityId'|'expectedRevision'>){
+   await request<unknown>(path,'POST',{kind:entry.kind,entityId:entry.entityId,expectedRevision:entry.revision,...command});
+  },
  });
 }
 
