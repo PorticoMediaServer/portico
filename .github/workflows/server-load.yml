@@ -7,7 +7,7 @@ on:
         default: churn
       ddl:
         description: 'Pinned full schema basename under research/p0-s'
-        default: full-415889.sql
+        default: full-291ab3.sql
       profile:
         description: 'both, standard or legacy8'
         default: both
@@ -102,7 +102,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 80
     env:
-      TARGET_DDL: ${{ inputs.ddl || 'full-415889.sql' }}
+      TARGET_DDL: ${{ inputs.ddl || 'full-291ab3.sql' }}
       MODE: ${{ inputs.mode }}
       CHECKPOINT_MS: ${{ matrix.checkpoint_ms }}
     strategy:

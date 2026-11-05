@@ -22,7 +22,7 @@ if [ "$stage" = enrichment ]; then
   exit
 fi
 if [ "$stage" = openpair ]; then
-  for ddl in full-97dc08.sql full-415889.sql; do
+  for ddl in full-415889.sql full-291ab3.sql; do
     sub="$out/${ddl%.sql}"
     mkdir -p "$sub"
     "$RUNNER_TEMP/p0-s-full" --ddl "research/p0-s/$ddl" --db "$sub/full.db" --out "$sub" --seed 1000 --normal --gates
