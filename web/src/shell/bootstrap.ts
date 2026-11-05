@@ -1,9 +1,9 @@
+import {readLibraries} from '@core/query/catalogue-reads.ts';
 import {createManageGate, type ManageGate} from './manage-gate';
 import {dependsOn} from '@core/freshness-hub.ts';
 import {createLibraryRouteProof} from './library-route-proof';
 import type {LibraryRouteProof} from './library-route-proof';
 import type {HttpLocalApi, LocalSession} from '@core/index.ts';
-import {parseLibraryList} from '@core/library-list.ts';
 import {LocalSessionRefresher} from '@core/session-refresh.ts';
 import {selectedViewerRecord} from '@core/viewer-selection.ts';
 import {PreferencesReader} from '@core/preferences-reader.ts';
@@ -122,7 +122,7 @@ export async function readShellIdentity(api: HttpLocalApi, session: LocalSession
   const [libraries, profile, system, guide] = await Promise.all([
     // One slow or failed library directory never stops the shell: it is unavailable, never empty,
     // and the shell's directory interest reads it again. Authority answers still stop sign-in.
-    api.request(routePath('get_libraries'), 'GET', undefined, signal).then(parseLibraryList).then(value => value, error => {
+    readLibraries(api, signal).then(value => value, error => {
       if (signal.aborted || [401, 403].includes((error as {status?: unknown} | null)?.status as number)) throw error;
       return undefined;
     }),

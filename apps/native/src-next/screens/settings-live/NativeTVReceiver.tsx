@@ -1,10 +1,10 @@
+import {readCatalogueItemResponse} from '../../../../../packages/client-core/src/query/catalogue-reads';
 import React, {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {AppState, Platform, Text, View} from 'react-native';
 import {ReceiverHost, type ReceiverSnapshot} from '../../../../../packages/client-core/src/remote-playback';
 import {installationIdentity} from '../../../../../packages/client-core/src/installation';
 import {parseMediaItem} from '../../../../../packages/client-core/src/media-item';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
-import {encodedRoutePath} from '../../../../../packages/contracts/src/routes';
 import {routeBase64} from '../../../../../packages/client-core/src/route-identity';
 import {nativeRouteCrypto} from '../../platform/server-connections';
 import {nativeDeviceSettings} from '../../platform/device-settings';
@@ -74,7 +74,7 @@ export function NativeTVReceiver({context, runtime}: {context: NativeShellBootst
             if (!current() || AppState.currentState !== 'active') return;
             const opening = foreground;
             const playingHere = () => current() && opening === foreground && !opening.signal.aborted && AppState.currentState === 'active';
-            void lifetime.request(signal => context.api.request(encodedRoutePath('get_items_id', {id: encodeURIComponent(itemId)}), 'GET', undefined, signal).then(parseMediaItem), opening.signal).then(item => {
+            void lifetime.request(signal => readCatalogueItemResponse(context.api, itemId, signal).then(parseMediaItem), opening.signal).then(item => {
               if (!playingHere() || item.id !== itemId) return;
               const kind = item.kind === 'track' ? 'song' : item.kind === 'audiobook' ? 'audiobook_file' : item.kind;
               if (!['movie', 'episode', 'extra', 'song', 'audiobook_file'].includes(kind)) throw new Error('native_receiver_item_unsupported');

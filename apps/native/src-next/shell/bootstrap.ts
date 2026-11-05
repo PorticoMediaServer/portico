@@ -1,3 +1,4 @@
+import {readLibraries, readLibraryDirectoryResponse} from '../../../../packages/client-core/src/query/catalogue-reads';
 import type {RefObject} from 'react';
 import {AppState, Dimensions, Platform, NativeEventEmitter, NativeModules, type View} from 'react-native';
 import type {PlaybackFence} from '../../../../packages/player-core/src';
@@ -271,7 +272,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     await events.prime(signal.signal);
     assertCurrent();
     const [librariesResult, initialAccount, initialAvatars, initialPreferences, server] = await Promise.all([
-      readers.request(routePath('get_libraries'), 'GET', undefined, signal.signal).then(parseLibraryList).then(value => value, error => tolerateLibraryDirectory(error, signal.signal)),
+      readLibraries(readers, signal.signal).then(value => value, error => tolerateLibraryDirectory(error, signal.signal)),
       readers.readAccount(),
       identities.avatars(signal.signal),
       readers.readPreferences(Platform.isTV ? 'television' : 'mobile', signal.signal),
@@ -353,7 +354,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
       readLibraries: async requestSignal => {
         assertCurrent();
         const ticket = readOrder.libraries.begin();
-        const result = parseLibraryList(await readers.request(routePath('get_libraries'), 'GET', undefined, requestSignal));
+        const result = parseLibraryList(await readLibraryDirectoryResponse(readers, requestSignal));
         assertCurrent(); if (requestSignal.aborted) throw cancelled();
         if (privacyMoved(result.fences)) {end(); throw cancelled();}
         const selected = await readNativeSelectedViewer(); assertCurrent();
@@ -461,7 +462,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
       try {
         const [selection, me, nextLibraries, nextFacts, nextAccount, nextAvatars] = await Promise.all([
           readNativeSelectedViewer(), readers.request<RouteResponse<'get_me'>>(routePath('get_me'), 'GET', undefined, round.signal),
-          readers.request(routePath('get_libraries'), 'GET', undefined, round.signal).then(parseLibraryList).then(value => value, error => tolerateLibraryDirectory(error, round.signal)), readers.read(round.signal),
+          readLibraries(readers, round.signal).then(value => value, error => tolerateLibraryDirectory(error, round.signal)), readers.read(round.signal),
           readers.readAccount(round.signal), identities.avatars(round.signal),
         ]);
         assertCurrent();

@@ -1,8 +1,8 @@
+import {readLibraryDirectoryResponse} from '../../../../packages/client-core/src/query/catalogue-reads';
+import {parseLibraryList} from '../../../../packages/client-core/src/library-list';
 import React, {useLayoutEffect, useMemo, useSyncExternalStore} from 'react';
 import {View} from 'react-native';
 import type {Library} from '../../../../packages/client-core/src';
-import {parseLibraryList} from '../../../../packages/client-core/src/library-list';
-import {routePath} from '../../../../packages/contracts/src/routes';
 import {LibrarySwitcher} from '../kit/browse';
 import {useOptionalFocusRegistry, type FocusRegistry, type FocusSnapshot} from '../kit/focus';
 import type {NativeShellBootstrapContext} from './bootstrap';
@@ -27,7 +27,7 @@ export function createNativeMusicDiscoverNavigation(context: NativeShellBootstra
   const cancel = () => {operation?.abort(); operation = undefined; openingOperation = undefined; openingFocus?.release(); openingFocus = undefined; if (choice) {choice = undefined; emit();}};
   const read = async (signal: AbortSignal) => context.readLibraries
     ? context.readLibraries(signal)
-    : parseLibraryList(await context.api.request(routePath('get_libraries'), 'GET', undefined, signal)).items;
+    : parseLibraryList(await readLibraryDirectoryResponse(context.api, signal)).items;
   const remember = (id: string) => {void runtime()?.memory.rememberMusic(authority, id).catch(() => {});};
   const openSurface = (route: NativeRouteSnapshot['route'], opening: NativeRouteSnapshot) => {
     if (!current(opening)) return false;
