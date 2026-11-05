@@ -74,6 +74,7 @@ type writerDriverConn interface {
 	driver.Pinger
 	driver.SessionResetter
 	driver.Validator
+	SQLiteDQS() (ddl, dml int, err error)
 }
 
 type physicalCloseFaults struct {
