@@ -1,3 +1,4 @@
+import {readConnectionFacts} from '@core/query/connection-operations.ts';
 import {clockOrigin, observeResponseClock} from '@core/server-clock.ts';
 import {IndexedDBUserMutationStore} from './user-mutations';
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
@@ -130,7 +131,7 @@ export function browserConnectionPolicy():ConnectionPolicy{
  return Object.freeze({insecure:DEFAULT_INSECURE_CONNECTIONS,platform:currentWebEnvironment().hostedWeb?'web-hosted':'web-server',webPrivateLiteralHttp:false});
 }
 /** The server's own answer about this connection (home or away, its policy), read without credentials. */
-const readBrowserConnection=(origin:string,signal:AbortSignal)=>{const sentAt=Date.now();return globalThis.fetch(origin+routePath('get_connection'),{method:'GET',redirect:'error',credentials:'omit',referrerPolicy:'no-referrer',signal,headers:{Accept:'application/json'}}).then(response=>{observeResponseClock(clockOrigin(origin),response,sentAt);return routeJSON(response,signal,8192);});};
+const readBrowserConnection=(origin:string,signal:AbortSignal)=>readConnectionFacts(origin,signal,globalThis.fetch.bind(globalThis));
 export function browserConnectionEnvironment(serverId?:string,admission?:NewServerConnection):ConnectionEnvironment {
  const discover=browserDiscoveryProvider(),store=browserAppSessions(),environment:ConnectionEnvironment={storage:serverId?store.connectionStorage(serverId,admission):store.selectedStorage(),policy:browserConnectionPolicy,readConnection:readBrowserConnection,...(discover?{discover}:{})};
  if(listening)return environment;listening=true;

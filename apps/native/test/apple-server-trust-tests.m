@@ -11,12 +11,15 @@ static BOOL waitFor(BOOL (^ready)(void)){
  while(!ready()&&until.timeIntervalSinceNow>0)[NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:.01]];
  return ready();
 }
-static BOOL proof(NSString *origin,NSString *fingerprint,NSString *body,NSDictionary **answer){
+static BOOL proofRequest(NSString *origin,NSString *fingerprint,NSString *url,NSString *method,NSString *body,NSDictionary **answer){
  __block BOOL done=NO;__block NSDictionary *result=nil;
- [PorticoServerTrust prove:origin fingerprint:fingerprint body:body completion:^(NSDictionary *value){result=value;done=YES;}];
+ [PorticoServerTrust prove:origin fingerprint:fingerprint url:url method:method body:body completion:^(NSDictionary *value){result=value;done=YES;}];
  BOOL completed=waitFor(^BOOL{return done;});
  if(answer)*answer=result;
  return completed;
+}
+static BOOL proof(NSString *origin,NSString *fingerprint,NSString *body,NSDictionary **answer){
+ return proofRequest(origin,fingerprint,[origin stringByAppendingString:@"/v1/networking/identity-proof"],@"POST",body,answer);
 }
 static BOOL rejectedProof(NSString *origin,NSString *fingerprint,NSString *body){
  NSDictionary *answer=nil;
@@ -39,6 +42,9 @@ int main(int argc,const char **argv){@autoreleasepool{
  ok=expect(waitFor(^BOOL{return firstDone;})&&firstError&&[[PorticoServerTrust refusedAt:origin] isEqual:fingerprint],"real TLS refusal records observed leaf")&&ok;
  NSDictionary *result=nil;BOOL completed=proof(origin,fingerprint,@"{}",&result);
  ok=expect(completed&&[result[@"status"] isEqual:@200]&&[result[@"body"] isEqual:@"{\"proof\":true}"]&&[result[@"tlsLeafFingerprint"] isEqual:fingerprint],"same-response actual handshake leaf returned")&&ok;
+ NSDictionary *wrongURL=nil,*wrongMethod=nil;
+ ok=expect(proofRequest(origin,fingerprint,[origin stringByAppendingString:@"/v1/system"],@"POST",@"{}",&wrongURL)&&wrongURL==nil,"core request URL must remain exact")&&ok;
+ ok=expect(proofRequest(origin,fingerprint,[origin stringByAppendingString:@"/v1/networking/identity-proof"],@"DELETE",@"{}",&wrongMethod)&&wrongMethod==nil,"core request method must remain exact")&&ok;
  ok=expect(rejectedProof(origin,@"CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",@"{}"),"wrong refused fingerprint cannot exchange proof")&&ok;
  ok=expect(rejectedProof([origin stringByAppendingString:@"/v1/system"],fingerprint,@"{}"),"no path/generic request expansion")&&ok;
  ok=expect(rejectedProof(origin,fingerprint,@"{\"mode\":\"redirect\"}"),"redirect refused")&&ok;
