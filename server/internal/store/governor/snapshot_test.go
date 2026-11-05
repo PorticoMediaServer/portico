@@ -343,7 +343,7 @@ func TestSnapshotScannerPanicCleansWithoutSQLLocks(t *testing.T) {
 		t.Fatal("scanner panic deadlocked cleanup")
 	}
 	n, k := snapshotCheckpoint(t, path)
-	if n != k || a.Usage() != [4]Amounts{} || db.Stats().InUse != 0 {
+	if n != k || a.Usage() != [4]Amounts{} || db.Stats().InUse != 0 || len(s.slots) != 0 {
 		t.Fatal(n, k, a.Usage(), db.Stats())
 	}
 }
@@ -507,7 +507,7 @@ func TestSnapshotUnprovenDiscardRetainsOwnershipAndCustody(t *testing.T) {
 		_, err := writer.ExecContext(t.Context(), "UPDATE source SET value='after'")
 		return err
 	})
-	if err == nil || a.Usage()[Foreground][Reader] != 1 || a.Usage()[Foreground][MemoryBytes] != (16*16384)+(64<<10) {
+	if err == nil || len(s.slots) != 1 || a.Usage()[Foreground][Reader] != 1 || a.Usage()[Foreground][MemoryBytes] != (16*16384)+(64<<10) {
 		t.Fatal("failed disposal refunded physical/output custody", err, a.Usage())
 	}
 	n, k := snapshotCheckpoint(t, path)

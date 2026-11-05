@@ -167,7 +167,8 @@ func (s *Snapshots) Read(parent context.Context, r Request, budget time.Duration
 	}()
 	select {
 	case s.slots <- struct{}{}:
-		defer func() { <-s.slots }()
+		scope.slot = s.slots
+		defer func() { finish(); scope.releaseSlot() }()
 	default:
 		return out, ErrBusy
 	}
@@ -261,6 +262,7 @@ func (s *Snapshots) Close() error {
 		if closeErr == nil {
 			scope.failedRaw = nil
 			scope.nativeSafe.Store(true)
+			scope.releaseSlot()
 		}
 		scope.op.Unlock()
 		if closeErr == nil {
@@ -295,6 +297,14 @@ type ReadScope struct {
 	retireMu                 sync.Mutex
 	retired                  bool
 	retireErr                error
+	slot                     chan struct{}
+	slotRelease              sync.Once
+}
+
+func (s *ReadScope) releaseSlot() {
+	if s.nativeSafe.Load() {
+		s.slotRelease.Do(func() { <-s.slot })
+	}
 }
 
 func (s *ReadScope) retire() error {
