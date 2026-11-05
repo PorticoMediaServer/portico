@@ -1,0 +1,164 @@
+{
+  "version": 2,
+  "kind": "host-evidence-only",
+  "goos": "linux",
+  "goarch": "amd64",
+  "runtime_cpus": 4,
+  "gomaxprocs": 2,
+  "at": "2026-11-05T00:00:00Z",
+  "files": {
+    "sys/devices/system/cpu/online": "0-3\n",
+    "sys/devices/system/cpu/present": "0-3\n",
+    "proc/cpuinfo": "processor : 0\nmodel name : Fixture VM CPU\nphysical id : 0\ncore id : 0\n\nprocessor : 1\nmodel name : Fixture VM CPU\nphysical id : 0\ncore id : 0\n\nprocessor : 2\nmodel name : Fixture VM CPU\nphysical id : 0\ncore id : 1\n\nprocessor : 3\nmodel name : Fixture VM CPU\nphysical id : 0\ncore id : 1\n",
+    "proc/meminfo": "MemTotal: 16384000 kB\nMemFree: 1000000 kB\nMemAvailable: 12000000 kB\n",
+    "proc/stat": "cpu 100 0 50 1000 10 0 5 3 0 0\ncpu0 25 0 12 250 2 0 1 1 0 0\ncpu1 25 0 12 250 2 0 1 1 0 0\ncpu2 25 0 12 250 2 0 1 1 0 0\ncpu3 25 0 12 250 2 0 1 1 0 0\nctxt 1000\nbtime 1793836800\nprocesses 100\nprocs_running 1\nprocs_blocked 0\n",
+    "proc/loadavg": "0.50 0.25 0.10 1/25 123\n",
+    "proc/diskstats": "8 0 sda 1 0 8 2 3 0 24 4 0 5 6\n",
+    "proc/sys/kernel/osrelease": "6.8.0-fixture\n",
+    "proc/sys/kernel/random/boot_id": "12345678-1234-1234-1234-123456789abc\n",
+    "proc/self/status": "Name:\tstore-host\nVmRSS: 4096 kB\nVmHWM: 8192 kB\nRssAnon: 3072 kB\nRssFile: 1024 kB\nVmSwap: 0 kB\nThreads: 1\nCpus_allowed_list: 0-3\n",
+    "proc/self/stat": "123 (store-host) R 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",
+    "proc/self/cgroup": "0::/jobs/service\n",
+    "proc/self/mountinfo": "29 1 0:27 / /sys/fs/cgroup rw - cgroup2 cgroup rw\n",
+    "proc/pressure/cpu": "some avg10=1.25 avg60=0.50 avg300=0.10 total=123\nfull avg10=0.25 avg60=0.05 avg300=0.00 total=7\n",
+    "proc/pressure/io": "some avg10=1.25 avg60=0.50 avg300=0.10 total=123\nfull avg10=0.25 avg60=0.05 avg300=0.00 total=7\n",
+    "proc/pressure/memory": "some avg10=1.25 avg60=0.50 avg300=0.10 total=123\nfull avg10=0.25 avg60=0.05 avg300=0.00 total=7\n"
+  },
+  "missing": {},
+  "read_errors": {},
+  "cpu_topology": {
+    "sys/devices/system/cpu/cpu0/topology/physical_package_id": "0\n",
+    "sys/devices/system/cpu/cpu0/topology/core_id": "0\n",
+    "sys/devices/system/cpu/cpu0/topology/thread_siblings_list": "0-1\n",
+    "sys/devices/system/cpu/cpu1/topology/physical_package_id": "0\n",
+    "sys/devices/system/cpu/cpu1/topology/core_id": "0\n",
+    "sys/devices/system/cpu/cpu1/topology/thread_siblings_list": "0-1\n",
+    "sys/devices/system/cpu/cpu2/topology/physical_package_id": "0\n",
+    "sys/devices/system/cpu/cpu2/topology/core_id": "1\n",
+    "sys/devices/system/cpu/cpu2/topology/thread_siblings_list": "2-3\n",
+    "sys/devices/system/cpu/cpu3/topology/physical_package_id": "0\n",
+    "sys/devices/system/cpu/cpu3/topology/core_id": "1\n",
+    "sys/devices/system/cpu/cpu3/topology/thread_siblings_list": "2-3\n"
+  },
+  "process_names": {
+    "proc/123/comm": "store-host\n"
+  },
+  "thread_schedstat": {
+    "proc/self/task/123/schedstat": "1000 200 3\n"
+  },
+  "cgroup_mount_root": "/",
+  "cgroup_mount_point": "sys/fs/cgroup",
+  "cgroups": [
+    {
+      "path": "sys/fs/cgroup/jobs/service",
+      "files": {
+        "sys/fs/cgroup/jobs/service/cgroup.controllers": "cpuset cpu io memory pids\n",
+        "sys/fs/cgroup/jobs/service/cpu.max": "200000 100000\n",
+        "sys/fs/cgroup/jobs/service/memory.max": "8589934592\n",
+        "sys/fs/cgroup/jobs/service/memory.swap.max": "0\n",
+        "sys/fs/cgroup/jobs/service/cpuset.cpus.effective": "0-3\n",
+        "sys/fs/cgroup/jobs/service/cpu.stat": "usage_usec 100\nuser_usec 70\nsystem_usec 30\nnr_periods 10\nnr_throttled 2\nthrottled_usec 7\n",
+        "sys/fs/cgroup/jobs/service/memory.current": "1700\n",
+        "sys/fs/cgroup/jobs/service/memory.peak": "2000\n",
+        "sys/fs/cgroup/jobs/service/memory.swap.current": "0\n",
+        "sys/fs/cgroup/jobs/service/memory.stat": "anon 1024\nfile 4096\npgfault 100\npgmajfault 2\n",
+        "sys/fs/cgroup/jobs/service/memory.events": "low 1\nhigh 2\nmax 3\noom 0\noom_kill 0\n",
+        "sys/fs/cgroup/jobs/service/io.max": "",
+        "sys/fs/cgroup/jobs/service/io.stat": "8:0 rbytes=4096 wbytes=8192 rios=1 wios=2\n",
+        "sys/fs/cgroup/jobs/service/io.pressure": "some avg10=1.25 avg60=0.50 avg300=0.10 total=123\nfull avg10=0.25 avg60=0.05 avg300=0.00 total=7\n",
+        "sys/fs/cgroup/jobs/service/memory.pressure": "some avg10=1.25 avg60=0.50 avg300=0.10 total=123\nfull avg10=0.25 avg60=0.05 avg300=0.00 total=7\n",
+        "sys/fs/cgroup/jobs/service/cpu.pressure": "some avg10=1.25 avg60=0.50 avg300=0.10 total=123\nfull avg10=0.25 avg60=0.05 avg300=0.00 total=7\n"
+      },
+      "missing": {},
+      "read_errors": {}
+    },
+    {
+      "path": "sys/fs/cgroup/jobs",
+      "files": {
+        "sys/fs/cgroup/jobs/cgroup.controllers": "cpuset cpu io memory pids\n",
+        "sys/fs/cgroup/jobs/cpu.max": "max 100000\n",
+        "sys/fs/cgroup/jobs/memory.max": "max\n",
+        "sys/fs/cgroup/jobs/memory.swap.max": "max\n",
+        "sys/fs/cgroup/jobs/cpuset.cpus.effective": "0-3\n",
+        "sys/fs/cgroup/jobs/cpu.stat": "usage_usec 100\nuser_usec 70\nsystem_usec 30\nnr_periods 10\nnr_throttled 2\nthrottled_usec 7\n",
+        "sys/fs/cgroup/jobs/memory.current": "1700\n",
+        "sys/fs/cgroup/jobs/memory.peak": "2000\n",
+        "sys/fs/cgroup/jobs/memory.swap.current": "0\n",
+        "sys/fs/cgroup/jobs/memory.stat": "anon 1024\nfile 4096\npgfault 100\npgmajfault 2\n",
+        "sys/fs/cgroup/jobs/memory.events": "low 1\nhigh 2\nmax 3\noom 0\noom_kill 0\n",
+        "sys/fs/cgroup/jobs/io.max": "",
+        "sys/fs/cgroup/jobs/io.stat": "8:0 rbytes=4096 wbytes=8192 rios=1 wios=2\n",
+        "sys/fs/cgroup/jobs/io.pressure": "some avg10=1.25 avg60=0.50 avg300=0.10 total=123\nfull avg10=0.25 avg60=0.05 avg300=0.00 total=7\n",
+        "sys/fs/cgroup/jobs/memory.pressure": "some avg10=1.25 avg60=0.50 avg300=0.10 total=123\nfull avg10=0.25 avg60=0.05 avg300=0.00 total=7\n",
+        "sys/fs/cgroup/jobs/cpu.pressure": "some avg10=1.25 avg60=0.50 avg300=0.10 total=123\nfull avg10=0.25 avg60=0.05 avg300=0.00 total=7\n"
+      },
+      "missing": {},
+      "read_errors": {}
+    },
+    {
+      "path": "sys/fs/cgroup",
+      "files": {
+        "sys/fs/cgroup/cgroup.controllers": "cpuset cpu io memory pids\n",
+        "sys/fs/cgroup/cpuset.cpus.effective": "0-3\n",
+        "sys/fs/cgroup/cpu.stat": "usage_usec 100\nuser_usec 70\nsystem_usec 30\nnr_periods 10\nnr_throttled 2\nthrottled_usec 7\n",
+        "sys/fs/cgroup/memory.stat": "anon 1024\nfile 4096\npgfault 100\npgmajfault 2\n",
+        "sys/fs/cgroup/io.stat": "8:0 rbytes=4096 wbytes=8192 rios=1 wios=2\n",
+        "sys/fs/cgroup/io.pressure": "some avg10=1.25 avg60=0.50 avg300=0.10 total=123\nfull avg10=0.25 avg60=0.05 avg300=0.00 total=7\n",
+        "sys/fs/cgroup/memory.pressure": "some avg10=1.25 avg60=0.50 avg300=0.10 total=123\nfull avg10=0.25 avg60=0.05 avg300=0.00 total=7\n",
+        "sys/fs/cgroup/cpu.pressure": "some avg10=1.25 avg60=0.50 avg300=0.10 total=123\nfull avg10=0.25 avg60=0.05 avg300=0.00 total=7\n"
+      },
+      "missing": {
+        "sys/fs/cgroup/cpu.max": "open: file does not exist",
+        "sys/fs/cgroup/memory.max": "open: file does not exist",
+        "sys/fs/cgroup/memory.swap.max": "open: file does not exist",
+        "sys/fs/cgroup/memory.current": "open: file does not exist",
+        "sys/fs/cgroup/memory.peak": "open: file does not exist",
+        "sys/fs/cgroup/memory.swap.current": "open: file does not exist",
+        "sys/fs/cgroup/memory.events": "open: file does not exist",
+        "sys/fs/cgroup/io.max": "open: file does not exist"
+      },
+      "read_errors": {
+        "sys/fs/cgroup/cpu.max": {
+          "kind": "not-exist",
+          "operation": "open",
+          "detail": "file does not exist"
+        },
+        "sys/fs/cgroup/memory.max": {
+          "kind": "not-exist",
+          "operation": "open",
+          "detail": "file does not exist"
+        },
+        "sys/fs/cgroup/memory.swap.max": {
+          "kind": "not-exist",
+          "operation": "open",
+          "detail": "file does not exist"
+        },
+        "sys/fs/cgroup/memory.current": {
+          "kind": "not-exist",
+          "operation": "open",
+          "detail": "file does not exist"
+        },
+        "sys/fs/cgroup/memory.peak": {
+          "kind": "not-exist",
+          "operation": "open",
+          "detail": "file does not exist"
+        },
+        "sys/fs/cgroup/memory.swap.current": {
+          "kind": "not-exist",
+          "operation": "open",
+          "detail": "file does not exist"
+        },
+        "sys/fs/cgroup/memory.events": {
+          "kind": "not-exist",
+          "operation": "open",
+          "detail": "file does not exist"
+        },
+        "sys/fs/cgroup/io.max": {
+          "kind": "not-exist",
+          "operation": "open",
+          "detail": "file does not exist"
+        }
+      }
+    }
+  ]
+}
