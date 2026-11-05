@@ -225,6 +225,7 @@ func TestRowBudgetStepPanicCannotChangeFixedLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer statement.Close()
 	budget, _ := NewRowBudget(1, 64<<10)
 	var caught any
 	func() {
@@ -252,7 +253,7 @@ func TestRowBudgetPreCopyMetadataRowsAndLiveCopies(t *testing.T) {
 		rows  uint32
 		bytes int64
 	}{
-		{"SELECT NULL AS v", 1, 64},
+		{"SELECT NULL AS v", 1, 200},
 		{"SELECT zeroblob(12000) UNION ALL SELECT zeroblob(12000)", 2, 64 << 10},
 		{"SELECT 1 UNION ALL SELECT 2", 1, 64 << 10},
 	} {
