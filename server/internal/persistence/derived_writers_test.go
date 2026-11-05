@@ -215,6 +215,17 @@ func scanDerivedWritersLogged(root string, tables map[string]bool, logf func(str
 		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		rel = filepath.ToSlash(rel)
+		// SCHEMA-V1-PHASE1A-2026-11-05.md assigns the separate store layer
+		// its own private writer and static registry. This census guards the
+		// old layer only; sibling prefixes such as storefront remain guarded.
+		if strings.HasPrefix(rel, "internal/store/") {
+			return nil
+		}
 		raw, err := os.ReadFile(path)
 		if err != nil {
 			return err
@@ -223,11 +234,6 @@ func scanDerivedWritersLogged(root string, tables map[string]bool, logf func(str
 		if err != nil {
 			return err
 		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		rel = filepath.ToSlash(rel)
 		files = append(files, sourceFile{file, raw, rel})
 		packages[filepath.Dir(rel)] = append(packages[filepath.Dir(rel)], file)
 		return nil
@@ -559,6 +565,28 @@ func derivedWriteTargets(sql string) (targets []string, dynamic bool) {
 	}
 	sort.Strings(targets)
 	return targets, dynamic
+}
+
+func TestDerivedWriterGuardExcludesOnlySchemaV1StorePrefix(t *testing.T) {
+	root := t.TempDir()
+	for _, dir := range []string{"internal/store", "internal/store/schema", "internal/store/writer", "internal/storefront", "internal/stores", "other/internal/store"} {
+		path := filepath.Join(root, dir, "writer.go")
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatal(err)
+		}
+		body := "package example\nconst q = `UPDATE catalog_browse_rows SET title=?`"
+		if err := os.WriteFile(path, []byte(body), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := scanDerivedWriters(root, map[string]bool{"catalog_browse_rows": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"internal/storefront", "internal/stores", "other/internal/store"}
+	if !reflect.DeepEqual(got.Tables["catalog_browse_rows"], want) {
+		t.Fatalf("census owners = %v, want %v", got.Tables["catalog_browse_rows"], want)
+	}
 }
 
 func TestDerivedWriterGuardSeesOtherPackagesAndDynamicTargets(t *testing.T) {

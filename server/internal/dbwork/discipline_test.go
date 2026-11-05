@@ -38,6 +38,28 @@ var allowed = map[string]bool{
 	"internal/storage/root_registration_other.go":   true,
 }
 
+// SCHEMA-V1-PHASE1A-2026-11-05.md gives the separate store layer its own
+// private writer/sqliteconn custody. The old dbwork guard does not govern it.
+func schemaV1TransactionCustody(relative string) bool {
+	return strings.HasPrefix(relative, "internal/store/")
+}
+
+func TestRawTransactionGuardExcludesOnlySchemaV1StorePrefix(t *testing.T) {
+	for relative, want := range map[string]bool{
+		"internal/store/bootstrap.go":        true,
+		"internal/store/schema/bootstrap.go": true,
+		"internal/store/writer/execute.go":   true,
+		"internal/storefront/bootstrap.go":   false,
+		"internal/stores/bootstrap.go":       false,
+		"other/internal/store/bootstrap.go":  false,
+		"internal/storage/bootstrap.go":      false,
+	} {
+		if got := schemaV1TransactionCustody(relative); got != want {
+			t.Errorf("store custody for %q = %v, want %v", relative, got, want)
+		}
+	}
+}
+
 func TestNoRawWriteTransactionsOutsideDBWork(t *testing.T) {
 	root, err := filepath.Abs("../..")
 	if err != nil {
@@ -57,6 +79,9 @@ func TestNoRawWriteTransactionsOutsideDBWork(t *testing.T) {
 		}
 		relative = filepath.ToSlash(relative)
 		if strings.HasPrefix(relative, "internal/dbwork/") {
+			return nil
+		}
+		if schemaV1TransactionCustody(relative) {
 			return nil
 		}
 		// Test files may hold their own transactions: a test is allowed to model a
