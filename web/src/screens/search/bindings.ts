@@ -1,3 +1,4 @@
+import {readSearchLiveGuideResponse} from '@core/query/search-guide.ts';
 import {serverNow} from '@core/server-clock.ts';
 import {forwardIdentity} from '../detail/context';
 import {entryStartDisplay} from '../../platform/playback/subject';
@@ -9,7 +10,6 @@ import {guideWindow, parseChannelGuide, type GuideChannel} from '@core/channel-g
 import {nowNext, type GuideProgram} from '@core/guide/index.ts';
 import {legacyProgram} from '@core/guide/legacy-source.ts';
 import {channelTint, programmeFactParts, type ChannelMarkModel, type FactPart} from '@portico/client-core/kit-model';
-import {routePath} from '../../../../packages/contracts/src/routes.ts';
 import {screenLifetime, type ScreenContext} from '../detail/context';
 import {createDetailBindings} from '../detail/bindings';
 import {createShowBindings} from '../detail/show-bindings';
@@ -124,8 +124,7 @@ export function createSearchBindings(context: ScreenContext, queries: ViewerQuer
       for (const [sourceId, ids] of bySource) {
         const route = {kind: 'live-source' as const, sourceId, timezone, search: '', ...guideWindow()};
         for (let start = 0; start < ids.length; start += 50) {
-          const query = new URLSearchParams({...route, channels: ids.slice(start, start + 50).join(','), limit: '50'});
-          const raw = await life.api.request<unknown>(routePath('get_guide') + '?' + query, 'GET', undefined, signal);
+          const raw = await readSearchLiveGuideResponse(life.api, route, ids.slice(start, start + 50), signal);
           if (!still()) return;
           const guide = parseChannelGuide(raw, context.scope.serverId, route);
           const now = serverNow();

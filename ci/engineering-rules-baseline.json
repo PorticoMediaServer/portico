@@ -371,7 +371,7 @@
   "web/src/screens/saved/ds-web-saved-r46-preview.tsx": 1,
   "web/src/screens/saved/runtime.ts": 4,
   "web/src/screens/saved/view-capabilities.ts": 1,
-  "web/src/screens/search/bindings.ts": 2,
+  "web/src/screens/search/bindings.ts": 1,
   "web/src/screens/settings/LinkTvDialog.tsx": 1,
   "web/src/screens/settings/SendAppLog.tsx": 1,
   "web/src/screens/settings/Settings.route.tsx": 4,
