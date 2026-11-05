@@ -1,3 +1,4 @@
+import {readDirectAccount, readServerSystem} from '../../../packages/client-core/src/query/connection-operations.ts';
 import type {LibraryRouteProofOwner} from './library-route-proof';
 import type {HttpLocalApi, LocalSession} from '@core/index.ts';
 import {dependsOn, finalAnswer, isSharedReadSuperseded, type FreshnessHub, type FreshnessInterest, type InterestOutcome, type InterestReadContext} from '@core/freshness-hub.ts';
@@ -148,7 +149,7 @@ export function createShellFactOwner(o: Readonly<{
   const serverSystem = add('server-system', [dependsOn.settings('server')], async context => {
     const captured = o.session();
     try {
-      const system = parseServerSignIn(await o.api.request(routePath('get_system'), 'GET', undefined, context.signal));
+      const system = parseServerSignIn(await readServerSystem(o.api, context.signal));
       if (!sameRequest(captured, context.signal)) return {kind:'superseded'};
       if (shellProofChanged(initial, {system}, admitted.viewer.profileId)) {o.retire(); return {kind:'superseded'};}
       return await publish(context, captured, () => source.update({serverName:system.name,
@@ -184,7 +185,7 @@ export function createShellFactOwner(o: Readonly<{
   const direct = add('direct-authority', [dependsOn.list('members')], async context => {
     const captured = o.session();
     try {
-      const raw = await o.api.request(routePath('get_direct_account'), 'GET', undefined, context.signal);
+      const raw = await readDirectAccount(o.api, context.signal);
       // The strict parse of this same body is required before absence/eligibility inference.
       const snapshot = parseDirectSnapshot(raw);
       if (!sameRequest(captured, context.signal)) return {kind: 'superseded'};

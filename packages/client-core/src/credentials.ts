@@ -29,6 +29,7 @@ export interface CredentialStorage<Authority = string> {
   save(value: CredentialRecord<Authority>): Promise<void>;
 }
 export interface CredentialApi<Authority = string> {
+  readonly origin?: string;
   authorityFromSession(session: HostedSession): Authority;
   refresh(
     authority: Authority,
@@ -42,6 +43,7 @@ export interface CredentialApi<Authority = string> {
   serverNow?(): number;
 }
 export class HttpCredentialApi implements CredentialApi {
+  get origin(): string { return this.http.baseUrl; }
   private http: HttpLocalApi;
   readonly gate: HostedGate;
   constructor(origin: string, fetcher?: typeof fetch) {
@@ -152,6 +154,11 @@ export class CredentialSessionService<Authority = string> {
       });
     this.loading = promise;
     return promise;
+  }
+  /** The origin belongs to the canonical account API, never a screen's selected server. */
+  authorityOrigin(): string {
+    if (!this.api.origin) throw new Error('The account API has no authority origin.');
+    return this.api.origin;
   }
   getSnapshot = () => this.state;
   subscribe = (fn: () => void) => {

@@ -1,3 +1,5 @@
+import {createBrowserHostedSource} from '@core/query/hosted-directory-source.ts';
+import {readConnectionFacts} from '@core/query/connection-operations.ts';
 import {clockOrigin, observeResponseClock} from '@core/server-clock.ts';
 import {IndexedDBUserMutationStore} from './user-mutations';
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
@@ -130,7 +132,7 @@ export function browserConnectionPolicy():ConnectionPolicy{
  return Object.freeze({insecure:DEFAULT_INSECURE_CONNECTIONS,platform:currentWebEnvironment().hostedWeb?'web-hosted':'web-server',webPrivateLiteralHttp:false});
 }
 /** The server's own answer about this connection (home or away, its policy), read without credentials. */
-const readBrowserConnection=(origin:string,signal:AbortSignal)=>{const sentAt=Date.now();return globalThis.fetch(origin+routePath('get_connection'),{method:'GET',redirect:'error',credentials:'omit',referrerPolicy:'no-referrer',signal,headers:{Accept:'application/json'}}).then(response=>{observeResponseClock(clockOrigin(origin),response,sentAt);return routeJSON(response,signal,8192);});};
+const readBrowserConnection=(origin:string,signal:AbortSignal)=>readConnectionFacts(origin,signal,globalThis.fetch);
 export function browserConnectionEnvironment(serverId?:string,admission?:NewServerConnection):ConnectionEnvironment {
  const discover=browserDiscoveryProvider(),store=browserAppSessions(),environment:ConnectionEnvironment={storage:serverId?store.connectionStorage(serverId,admission):store.selectedStorage(),policy:browserConnectionPolicy,readConnection:readBrowserConnection,...(discover?{discover}:{})};
  if(listening)return environment;listening=true;
@@ -148,12 +150,9 @@ const linkType=()=>(navigator as Navigator&{connection?:{type?:string}}).connect
 let activeApi:HttpLocalApi|undefined;
 export function trackBrowserConnection(api:HttpLocalApi){activeApi=api;api.setDeviceClass('web');api.setTransportClass(linkType());const next=api.getRouteConnection();if(active&&active!==next){const retired=active;setTimeout(()=>retired.dispose(),15000);}active=next;active?.setForeground(!document.hidden);}
 export function browserHostedSource(accountId:string):HostedConnectionSource {
- const central=browserAccount();return {origin:central.api.origin,accountId,request:async<T>(path:string,signal:AbortSignal)=>{
-  // Called only for explicit directory selection or failed/slow cached-route
-  // recovery. Healthy local navigation/playback never renews Hosted authority.
-  await central.service.synchronize();const session=await central.service.accessSession();if(session.account.id!==accountId)throw new Error('The saved server belongs to a different Portico Account.');return central.api.send<T>(path,'GET',undefined,signal,session.accessToken);
- }};
+ return createBrowserHostedSource(browserAccount(), accountId);
 }
+
 export async function restoreBrowserConnection(expected:LocalSession){
  const env=browserConnectionEnvironment(expected.viewer.serverId);
  return restoreNativeSession(env,record=>{if(!record.hosted)return;const central=browserAccount();return record.hosted.origin===central.api.origin?browserHostedSource(record.hosted.accountId):undefined;},expected);

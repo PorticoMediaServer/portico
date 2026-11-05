@@ -312,7 +312,7 @@ static NSMutableDictionary<NSString *, NSString *> *PorticoTrustRefused;
   }
 }
 
-+ (void)prove:(NSString *)origin fingerprint:(NSString *)fingerprint body:(NSString *)body completion:(void (^)(NSDictionary *))completion {
++ (void)prove:(NSString *)origin fingerprint:(NSString *)fingerprint url:(NSString *)requestURL method:(NSString *)method body:(NSString *)body completion:(void (^)(NSDictionary *))completion {
   NSURLComponents *parts = [origin isKindOfClass:NSString.class] ? [NSURLComponents componentsWithString:origin] : nil;
   NSMutableCharacterSet *invalid = [NSCharacterSet.whitespaceAndNewlineCharacterSet mutableCopy];
   [invalid formUnionWithCharacterSet:NSCharacterSet.controlCharacterSet];
@@ -322,11 +322,12 @@ static NSMutableDictionary<NSString *, NSString *> *PorticoTrustRefused;
       [origin rangeOfCharacterFromSet:invalid].location != NSNotFound ||
       ![parts.scheme isEqualToString:@"https"] || parts.user || parts.password ||
       parts.percentEncodedPath.length || parts.query || parts.fragment ||
+      ![method isEqualToString:@"POST"] || ![requestURL isKindOfClass:NSString.class] || ![requestURL hasPrefix:origin] ||
+      ![[requestURL substringFromIndex:origin.length] isEqualToString:@"/v1/networking/identity-proof"] ||
       [parts.host containsString:@"%"] || !parts.URL ||
       !PorticoTrustText(fingerprint, @"^[A-Za-z0-9_-]{43}$") || ![[self refusedAt:origin] isEqualToString:fingerprint] ||
       ![body isKindOfClass:NSString.class] || [body lengthOfBytesUsingEncoding:NSUTF8StringEncoding] > 4096) { completion(nil); return; }
-  parts.path = @"/v1/networking/identity-proof";
-  NSURL *url = parts.URL;
+  NSURL *url = [NSURL URLWithString:requestURL];
   if (!url) { completion(nil); return; }
   PorticoTrustProofDelegate *delegate = [PorticoTrustProofDelegate new];
   delegate.key = key; delegate.fingerprint = fingerprint;delegate.url = url;delegate.completion = completion;
@@ -335,7 +336,7 @@ static NSMutableDictionary<NSString *, NSString *> *PorticoTrustRefused;
   configuration.timeoutIntervalForRequest = 5; configuration.timeoutIntervalForResource = 5;
   NSURLSession *session = [NSURLSession sessionWithConfiguration:configuration delegate:delegate delegateQueue:nil];
   NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
-  request.HTTPMethod = @"POST"; request.HTTPBody = [body dataUsingEncoding:NSUTF8StringEncoding]; request.HTTPShouldHandleCookies = NO;
+  request.HTTPMethod = method; request.HTTPBody = [body dataUsingEncoding:NSUTF8StringEncoding]; request.HTTPShouldHandleCookies = NO;
   [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"]; [request setValue:@"application/json; portico-route-proof=2" forHTTPHeaderField:@"Accept"];
   [[session dataTaskWithRequest:request] resume];
 }

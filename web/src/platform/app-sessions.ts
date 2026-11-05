@@ -1,3 +1,4 @@
+import {readDirectAccount} from '../../../packages/client-core/src/query/connection-operations.ts';
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
 import {AppSessionStore, type AppServerSession, type PorticoAccountScope} from '@core/app-sessions.ts';
 import {ServerSignInProbe} from '@core/sign-in.ts';
@@ -37,7 +38,7 @@ export class BrowserAppSessionActions {
  async switchProfile(api:HttpLocalApi,session:LocalSession,profileId:string,pin:string,signal:AbortSignal,isCurrent:()=>boolean,remember=false){
   const state=await this.store.read(),entry=state.servers.find(value=>value.connection.pin.serverId===session.viewer.serverId);
   if(!entry||entry.connection.session.sessionFamilyId!==session.sessionFamilyId)throw new Error('This server sign-in has ended.');
-  const snapshot=parseDirectSnapshot(await api.request(routePath('get_direct_account'),'GET',undefined,signal),{authority:'local',serverId:session.viewer.serverId,accountId:session.viewer.accountId});
+  const snapshot=parseDirectSnapshot(await readDirectAccount(api, signal),{authority:'local',serverId:session.viewer.serverId,accountId:session.viewer.accountId});
   if(!snapshot.profiles.some(value=>value.id===profileId))throw new Error('This profile is no longer available.');
   const installation=installationIdentity();
   if(!installation)throw new Error('This browser installation is no longer available.');

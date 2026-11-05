@@ -1,3 +1,4 @@
+import {readServerSystem} from '../../../../packages/client-core/src/query/connection-operations.ts';
 import {routePath} from '../../../../packages/contracts/src/routes.ts';
 import {routeOrigin, assertFirstContactIdentity} from '@core/route-identity.ts';
 import {knownServerRoutes} from '@core/app-sessions.ts';
@@ -13,7 +14,7 @@ export function browserSetupPairing(origin: () => string = () => location.origin
     const pin = await inspectDirectServer(address, browserConnectionEnvironment(), signal);
     const connected = await connectPairedServer(address, pin, browserConnectionEnvironment(pin.serverId), signal);
     try {
-      const server = parseServerSignIn(await connected.api.request(routePath('get_system'), 'GET', undefined, signal));
+      const server = parseServerSignIn(await readServerSystem(connected.api, signal));
       if (server.id !== pin.serverId) throw Object.assign(new Error('The server identity changed.'), {code: 'identity_mismatch'});
       assertFirstContactIdentity(address, pin, {knownRoutes: knownServerRoutes(await browserAppSessions().read())});
       return Object.freeze({server, api: connected.api, pin, dispose: () => connected.connection.dispose()});

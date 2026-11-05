@@ -1,5 +1,5 @@
 import {NativeModules, Platform} from 'react-native';
-import {routePath} from '../../../../packages/contracts/src/routes';
+import {issueTopShelfToken} from '../../../../packages/client-core/src/query/connection-operations';
 import {parseTopShelfToken} from '../../../../packages/client-core/src/identity-devices';
 import {serverNow} from '../../../../packages/client-core/src/server-clock';
 
@@ -16,7 +16,7 @@ export type NativeTopShelfOwner = Readonly<{
   viewer: () => (Viewer & {installationId?: string}) | undefined;
   /** The server's origin as this app reaches it. */
   baseUrl: string;
-  request: (path: string, method: 'POST', body: unknown, signal?: AbortSignal) => Promise<unknown>;
+  tokenApi: {request: (path: string, method: 'POST', body: unknown, signal?: AbortSignal) => Promise<unknown>};
   /** Fires when something stops or changes on the player, so Continue Watching is fresh. */
   subscribePlayback: (listener: () => void) => () => void;
   playbackKey: () => string | undefined;
@@ -59,7 +59,7 @@ export function bindTopShelf(owner: NativeTopShelfOwner, port: NativeTopShelfPor
   const issue = async () => {
     if (!viewer?.installationId || !origin) return;
     abort?.abort(); abort = new AbortController();
-    const grant = parseTopShelfToken(await owner.request(routePath('post_topshelf_token'), 'POST', {installationId: viewer.installationId}, abort.signal));
+    const grant = parseTopShelfToken(await issueTopShelfToken(owner.tokenApi, viewer.installationId, abort.signal));
     if (!current()) return;
     await port.configure(origin, grant.token, grant.expiresAt, topShelfOwnerKey(viewer));
     if (current()) schedule(grant.expiresAt);

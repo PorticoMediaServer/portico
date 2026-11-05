@@ -1,3 +1,4 @@
+import {readDirectAccount, readServerSystem} from '../../../packages/client-core/src/query/connection-operations.ts';
 import {createManageGate, type ManageGate} from './manage-gate';
 import {dependsOn} from '@core/freshness-hub.ts';
 import {createLibraryRouteProof} from './library-route-proof';
@@ -105,7 +106,7 @@ export async function currentShellProfile(api: HttpLocalApi, session: LocalSessi
   const v = session.viewer;
   if (v.authority !== 'local') throw new Error('Profiles must come from this server.');
   {
-    const snapshot = parseDirectSnapshot(await api.request(routePath('get_direct_account'), 'GET', undefined, signal), {authority: 'local', accountId: v.accountId, serverId: v.serverId}, true);
+    const snapshot = parseDirectSnapshot(await readDirectAccount(api, signal), {authority: 'local', accountId: v.accountId, serverId: v.serverId}, true);
     const profile = snapshot.profiles.find(candidate => candidate.id === v.profileId);
     if (!profile) throw new Error('The selected profile is no longer present.');
     if (!profile.primary && Object.values(snapshot.capabilities).some(Boolean)) throw new Error('Management is available only on the main profile.');
@@ -126,7 +127,7 @@ export async function readShellIdentity(api: HttpLocalApi, session: LocalSession
       if (signal.aborted || [401, 403].includes((error as {status?: unknown} | null)?.status as number)) throw error;
       return undefined;
     }),
-    api.request(routePath('get_direct_account'), 'GET', undefined, signal).then(raw => parseDirectSnapshot(raw, {authority:'local',accountId:session.viewer.accountId,serverId:session.viewer.serverId})), api.request(routePath('get_system'), 'GET', undefined, signal).then(parseServerSignIn),
+    readDirectAccount(api, signal).then(raw => parseDirectSnapshot(raw, {authority:'local',accountId:session.viewer.accountId,serverId:session.viewer.serverId})), readServerSystem(api, signal).then(parseServerSignIn),
     fetchGuideSourceSummaries(api, session.viewer.serverId, Intl.DateTimeFormat().resolvedOptions().timeZone, signal).catch(error => {
       if ((error as {status?: number}).status === 403) return undefined;
       throw error;
@@ -361,7 +362,7 @@ export class ShellBootstrap {
     const held = {serverId: session.viewer.serverId, familyId: session.sessionFamilyId, profileId: session.viewer.profileId};
     if (!tabAdmits(held)) {
       let direct: DirectSnapshot;
-      try {direct = parseDirectSnapshot(await api.request(routePath('get_direct_account'), 'GET', undefined, signal), {authority: 'local', accountId: session.viewer.accountId, serverId: session.viewer.serverId});}
+      try {direct = parseDirectSnapshot(await readDirectAccount(api, signal), {authority: 'local', accountId: session.viewer.accountId, serverId: session.viewer.serverId});}
       catch (error) {api.getRouteConnection()?.dispose(); throw error;}
       const only = direct.profiles.length === 1 && direct.profiles[0]!.id === held.profileId && !direct.profiles[0]!.pinRequired;
       if (!isCurrent()) {api.getRouteConnection()?.dispose(); return;}

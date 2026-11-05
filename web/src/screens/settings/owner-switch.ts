@@ -1,3 +1,4 @@
+import {revokeCurrentSession} from '../../../../packages/client-core/src/query/connection-operations.ts';
 import {AccountMoveClient, type AccountMove, type AccountMoveConfirmation, type MoveClientOptions} from '@core/account-move.ts';
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
 import type {DirectSignIn} from '@core/profile-management.ts';
@@ -54,7 +55,7 @@ export class SettingsOwnerSwitch {
     if (this.options.retireLateGrant) return this.options.retireLateGrant(session);
     const temporary = new HttpLocalApi(this.origin, session.accessToken);
     if (this.routes) temporary.useRoutes(this.routes);
-    await temporary.request(routePath('delete_sessions_current'), 'DELETE', undefined, AbortSignal.timeout(5000)).catch(() => {});
+    await revokeCurrentSession(temporary, AbortSignal.timeout(5000)).catch(() => {});
   };
   private current = () => !this.closed && this.options.isCurrent();
   getSnapshot = () => this.current() ? this.state : empty;

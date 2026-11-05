@@ -1,3 +1,5 @@
+import {createNativeHostedCommandTransport} from '../../../../packages/client-core/src/query/hosted-account-transport';
+import {readDirectAccount, readServerSystem} from '../../../../packages/client-core/src/query/connection-operations.ts';
 import {serverNow} from '../../../../packages/client-core/src/server-clock';
 import {linkNativeAbortSignals} from './abort-signals';
 import {accountExpectation, nativeAccountWork} from './account-work';
@@ -44,7 +46,7 @@ const cancelled = () => Object.assign(new Error('native_sign_in_cancelled'), {na
 const mismatch = () => Object.assign(new Error('native_sign_in_authority_changed'), {code: 'identity_mismatch'});
 const captureAccount = (session: Omit<HostedSession, 'refreshToken'>) => Object.freeze({...session, account: Object.freeze({...session.account})});
 // Preserve exactly the JSON wire value before canonical admission can await storage.
-const captureCommandBody = (body: unknown): unknown => body === undefined ? undefined : JSON.parse(transportJSON(body));
+
 
 /** Current product sign-in commands. UI frames are separate; no retired screen is imported.
  * Every path uses the canonical probe, real verified routes, account/profile API and secure store. */
@@ -270,14 +272,8 @@ export class NativeServerSignIn {
       const cleanup = new HttpLocalApi(origin, fresh.accessToken, nativeNetworkFetch); cleanup.useRoutes(routes);
       await cleanup.logout();
     };
-    const officialHosted: HostedRequestApi = {request: async <T,>(path: string, method?: string, body?: unknown, callerSignal?: AbortSignal) => {
-      assertHostedCurrent(); const originalBody = captureCommandBody(body), linked = linkNativeAbortSignals([signal, callerSignal]);
-      try {const result = await nativeAccountWork(credentials, session =>
-        new HttpLocalApi(hostedUrl, session.accessToken, nativeNetworkFetch).request<T>(path, method, originalBody, linked.signal),
-        {expected, signal: linked.signal, isCurrent: this.current}); assertHostedCurrent(); return result;}
-      catch (error) {assertHostedCurrent(); throw hostedSignInUnavailable(error) ?? error;}
-      finally {linked.dispose();}
-    }};
+    const officialHosted: HostedRequestApi = createNativeHostedCommandTransport(credentials, nativeNetworkFetch, expected, signal, this.current,
+      {assertCurrent: assertHostedCurrent, unavailable: hostedSignInUnavailable});
     const result = await command(officialHosted, api, signal);
     try {assertHostedCurrent();}
     catch (error) {if (result.kind === 'signed-in') await retireFresh(result.session); throw error;}
@@ -346,7 +342,7 @@ export class NativeServerSignIn {
       if (!this.api || !this.server || this.server.signIn !== 'local' || !this.admission) throw mismatch();
       this.issued.set(session.sessionFamilyId, session); this.api.setAccessToken(session.accessToken);
       try {
-        const snapshot = parseDirectSnapshot(await this.api.request(routePath('get_direct_account'), 'GET', undefined, this.controller.signal),
+        const snapshot = parseDirectSnapshot(await readDirectAccount(this.api, this.controller.signal),
           {authority: 'local', serverId: this.server.id, accountId: session.viewer.accountId});
         return await this.consume({kind: 'signed-in', snapshot, session, accountScoped: session.viewer.role === 'account', passwordChangeRequired: false});
       } catch (error) {try {await this.retire(session);} catch { /* the original error wins */ } throw error;}
@@ -476,7 +472,7 @@ export class NativeServerSignIn {
       }
       const api = this.api, route = api.getRouteConnection(), pin = route?.pin;
       if (!route || !pin || pin.serverId !== descriptor.id) throw mismatch();
-      const server = parseServerSignIn(await api.request(routePath('get_system'), 'GET', undefined, this.controller.signal)); this.assertCurrent();
+      const server = parseServerSignIn(await readServerSystem(api, this.controller.signal)); this.assertCurrent();
       if (server.id !== descriptor.id || server.signIn !== descriptor.signIn || server.move !== descriptor.move) throw mismatch();
       // Before release an app opens only a server of its own API level (P2-66 G-2).
       negotiateNativeServer(server);
@@ -538,13 +534,8 @@ export class NativeServerSignIn {
           try {await assertCurrent(); if (!hostedCurrent()) throw cancelled(); this.hosted = paired.hosted;}
           finally {paired.connection.dispose();}
           const expected = accountExpectation(account);
-          const hosted: HostedRequestApi = {request: async <T,>(path: string, method?: string, body?: unknown, callerSignal?: AbortSignal) => {
-            const originalBody = captureCommandBody(body), linked = linkNativeAbortSignals([this.controller.signal, callerSignal]);
-            try {return await nativeAccountWork(credentials,
-              issued => new HttpLocalApi(hostedUrl, issued.accessToken, nativeNetworkFetch).request<T>(path, method, originalBody, linked.signal),
-              {expected, signal: linked.signal, isCurrent: () => this.current() && hostedCurrent()});}
-            finally {linked.dispose();}
-          }};
+          const hosted: HostedRequestApi = createNativeHostedCommandTransport(credentials, nativeNetworkFetch, expected, this.controller.signal,
+            () => this.current() && hostedCurrent());
           return {api: hosted, origin: hostedUrl, accountId, familyId,
             isCurrent: hostedCurrent, assertCurrent: async () => {if (!hostedCurrent()) throw cancelled(); await assertCurrent(); if (!hostedCurrent()) throw cancelled();}};
         },

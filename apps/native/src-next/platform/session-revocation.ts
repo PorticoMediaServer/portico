@@ -1,3 +1,4 @@
+import {revokeCurrentSession} from '../../../../packages/client-core/src/query/connection-operations.ts';
 import {serverNow} from '../../../../packages/client-core/src/server-clock';
 import {HttpLocalApi} from '../../../../packages/client-core/src';
 import {routePath} from '../../../../packages/contracts/src/routes';
@@ -52,7 +53,7 @@ export async function revokeOverLiveRoute(record: RememberedServer, live: RouteC
       const renewed = await refreshStoredSession({env, api, family: {sessionFamilyId: record.session.sessionFamilyId, serverId: record.pin.serverId}, signal});
       api.setAccessToken(renewed.accessToken);
     }
-    await api.request<void>(routePath('delete_sessions_current'), 'DELETE', undefined, signal);
+    await revokeCurrentSession<void>(api, signal);
     return 'revoked';
   } catch (error) {
     if (gone(error)) return 'gone';

@@ -218,8 +218,8 @@ final class PorticoNetwork: RCTEventEmitter, NetServiceDelegate {
     @objc func pinnedCertificates(_ resolve: RCTPromiseResolveBlock, rejecter reject: RCTPromiseRejectBlock) {
         resolve(PorticoServerTrust.allPinned())
     }
-    @objc func proofRequest(_ origin: String, fingerprint: String, body: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
-        PorticoServerTrust.prove(origin, fingerprint: fingerprint, body: body) { response in
+    @objc func proofRequest(_ origin: String, fingerprint: String, url: String, method: String, body: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+        PorticoServerTrust.prove(origin, fingerprint: fingerprint, url: url, method: method, body: body) { response in
             if let response = response { resolve(response) } else { reject("certificate_proof", "The server could not prove its identity.", nil) }
         }
     }

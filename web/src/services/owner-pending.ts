@@ -1,3 +1,4 @@
+import {lookupBrowserHostedClaim} from '../../../packages/client-core/src/query/connection-operations.ts';
 import {serverNow} from '@core/server-clock.ts';
 import {ApiError} from '@core/index.ts';
 import {decodeServerClaimLookupResponse} from '../../../packages/contracts/src/hosted/decoders.ts';
@@ -160,7 +161,7 @@ export function scopedHostedApproval<Review extends ApprovalReview>(account: Ser
 export async function hostedApprovalPurpose(account: ServicesAccount, store: HostedOwnerPendingStore, pending: HostedOwnerPending, signal: AbortSignal): Promise<'setup'|'switch'> {
   if(account.api.origin!==pending.request.hostedOrigin)throw invalid();
   await current(store,pending); signal.throwIfAborted();
-  const raw=await currentAccountWork(account,session=>account.api.send(routePath('server_claim_lookup'),'POST',{code:pending.request.code},signal,session.accessToken));
+  const raw=await currentAccountWork(account,session=>lookupBrowserHostedClaim(account.api, pending.request.code, signal, session.accessToken));
   signal.throwIfAborted();await current(store,pending);signal.throwIfAborted();
   const claim=decodeServerClaimLookupResponse(raw);
   if(claim.code!==pending.request.code)throw invalid();

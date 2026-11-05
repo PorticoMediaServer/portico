@@ -1,3 +1,4 @@
+import {readServerSystem} from '../../../packages/client-core/src/query/connection-operations.ts';
 import {connectPairedServer, type ConnectionEnvironment} from '@core/server-connections.ts';
 import type {HttpLocalApi} from '@core/index.ts';
 import type {ServerPin} from '@core/route-identity.ts';
@@ -36,7 +37,7 @@ export class BrowserServerDisplay {
     let paired:Awaited<ReturnType<typeof connectPairedServer>>|undefined;
     try{
      paired=await this.connect(source.origin,source.pin,this.environment(),controller.signal);
-     const system=parseServerSignIn(await paired.api.request(routePath('get_system'),'GET',undefined,controller.signal));
+     const system=parseServerSignIn(await readServerSystem(paired.api, controller.signal));
      if(controller.signal.aborted||system.id!==source.pin.serverId||system.signIn!==source.signIn)continue;
      this.remember(paired.api,system.name);
     }catch{/* Offline peers keep the last name actually read from this pinned server. */}

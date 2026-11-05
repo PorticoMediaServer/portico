@@ -8,6 +8,20 @@ import * as shellFreshness from '../../src-next/shell/freshness.ts';
 import {replacementRefocusHook} from '../../src-next/kit/focus/replacement-refocus-hook.ts';
 import {railHoldHooks} from '../../src-next/kit/navigation/rail-hold-hooks.ts';
 
+import * as connectionRoutes from '../../../../packages/contracts/src/routes.ts';
+import * as hostedConnectionRoutes from '../../../../packages/contracts/src/hosted/routes.ts';
+import * as routeIdentity from '../../../../packages/client-core/src/route-identity.ts';
+import * as installation from '../../../../packages/client-core/src/installation.ts';
+
+import * as nativeAccountClient from '../../../../packages/client-core/src/query/native-account-client.ts';
+import * as profileTransport from '../../../../packages/client-core/src/query/profile-security-transport.ts';
+import * as core from '../../../../packages/client-core/src/index.ts';
+import * as hostedSecurity from '../../../../packages/client-core/src/hosted-security.ts';
+import * as accountNotifications from '../../../../packages/client-core/src/account-notifications.ts';
+import * as nativeAccountWork from '../../../../packages/client-core/src/query/native-account-work.ts';
+import * as nativeAbortSignals from '../../../../packages/client-core/src/native-abort-signals.ts';
+import * as browserAccountApi from '../../../../packages/client-core/src/query/browser-account-api.ts';
+
 // Pure leaves a screen gets for real (or as a faithful double) unless a fixture supplies its own.
 // - The server clock has no platform dependency: the real module, whether a screen imports it by
 //   its packages/ path or a client-core file by its own './server-clock.ts' (tests that fake time
@@ -43,7 +57,9 @@ function railHoldLeaf(react) {
   if (!hooks) {hooks = railHoldHooks(react); railHolds.set(react, hooks);}
   return hooks;
 }
-const leaf = (source, react, native) => /(^|\/)server-clock(\.ts)?$/.test(source) && /client-core\/src\/server-clock|^\.\/server-clock/.test(source) ? serverClock
+const leaf = (source, react, native) => /client-core\/src\/query\/native-account-client(?:\.ts)?$/.test(source) ? nativeAccountClient
+  : /client-core\/src\/query\/profile-security-transport(?:\.ts)?$/.test(source) ? profileTransport
+  : /(^|\/)server-clock(\.ts)?$/.test(source) && /client-core\/src\/server-clock|^\.\/server-clock/.test(source) ? serverClock
   : /(^|\/)failure-words$/.test(source) ? failureWords
   : /(^|\/)platform\/tv-play-pause$/.test(source) ? tvPlayPause
   // The Play/Pause owner hook over the fixture's own React (TV focus step 6).
@@ -64,6 +80,14 @@ const leaf = (source, react, native) => /(^|\/)server-clock(\.ts)?$/.test(source
       return () => subscription?.remove();
     }} : undefined;
 
+// Keep a fixture Proxy's deliberately unsupported-port fallback when adding a namespace.
+const withModules = (base, additions) => new Proxy(base, {
+  get: (target, key, receiver) => Object.hasOwn(additions, key) ? additions[key] : Reflect.get(target, key, receiver),
+  getOwnPropertyDescriptor: (target, key) => Object.hasOwn(additions, key)
+    ? {value: additions[key], enumerable: true, configurable: true, writable: true}
+    : Reflect.getOwnPropertyDescriptor(target, key),
+});
+
 // Exercises a screen's exported pure helpers without a renderer or a server,
 // mirroring portico-server/web/test/helpers/component-harness.mjs. Only pure
 // exports are called; React and native modules are stubbed, never executed.
@@ -75,6 +99,40 @@ export async function screenModule(file, modules) {
   // and import-like text in a comment or string is never rewritten.
   const parsed = parseSync(file.pathname, transformed.code);
   if (parsed.errors.length) throw new Error(JSON.stringify(parsed.errors));
+  // Execute the real named core operations over the fixture's existing route and
+  // installation doubles. The fixture's captured requester remains the authority.
+  const connectionImports = parsed.program.body.filter(d => d.type === 'ImportDeclaration' && /client-core\/src\/query\/connection-operations(?:\.ts)?$/.test(d.source.value));
+  if (connectionImports.length) {
+    const operations = await screenModule(new URL('../../../../packages/client-core/src/query/connection-operations.ts', import.meta.url), {
+      react: modules.react ?? {default: {}},
+      '../index.ts': {...core, ...(modules['../../../../packages/client-core/src'] ?? modules['../../../../packages/client-core/src/index.ts'])},
+      '../../../contracts/src/routes.ts': modules['../../../../packages/contracts/src/routes'] ?? connectionRoutes,
+      '../../../contracts/src/hosted/routes.ts': modules['../../../../packages/contracts/src/hosted/routes'] ?? hostedConnectionRoutes,
+      '../route-identity.ts': routeIdentity, '../server-clock.ts': serverClock,
+      '../installation.ts': modules['../../../../packages/client-core/src/installation'] ?? installation,
+    });
+    modules = withModules(modules, Object.fromEntries(connectionImports.map(d => [d.source.value, operations])));
+  }
+  const hostedImports = parsed.program.body.filter(d => d.type === 'ImportDeclaration' && /client-core\/src\/query\/hosted-account-transport(?:\.ts)?$/.test(d.source.value));
+  if (hostedImports.length) {
+    const transport = await screenModule(new URL('../../../../packages/client-core/src/query/hosted-account-transport.ts', import.meta.url), {
+      react: modules.react ?? {default: {}},
+      '../index.ts': {...core, ...(modules['../../../../packages/client-core/src'] ?? modules['../../../../packages/client-core/src/index.ts'])},
+      '../account-notifications.ts': {...accountNotifications, ...modules['../../../../packages/client-core/src/account-notifications']},
+      '../hosted-security.ts': {...hostedSecurity, ...modules['../../../../packages/client-core/src/hosted-security']},
+      '../native-abort-signals.ts': nativeAbortSignals,
+      './native-account-work.ts': {...nativeAccountWork, ...modules['./account-work']},
+      './browser-account-api.ts': browserAccountApi,
+    });
+    // A fixture's credential double inherits the same configured authority that
+    // its old HttpLocalApi constructor received; real credential owners supply it.
+    const factories = Object.fromEntries(Object.entries(transport).map(([name, value]) => [name,
+      /^create(?:Hosted|Native)|^requestHostedAccountExport$/.test(name) && typeof value === 'function' ? (owner, ...args) => {
+        if (owner && typeof owner.authorityOrigin !== 'function') owner.authorityOrigin = () => modules['./account-authority']?.hostedUrl ?? 'https://hosted.test';
+        return value(owner, ...args);
+      } : value]));
+    modules = withModules(modules, Object.fromEntries(hostedImports.map(d => [d.source.value, factories])));
+  }
   let linked = transformed.code;
   for (const declaration of parsed.program.body.filter(node => node.type === 'ImportDeclaration').reverse()) {
     const source = JSON.stringify(declaration.source.value);
