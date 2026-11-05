@@ -1859,5 +1859,20 @@
     "pullRequest": "https://github.com/PorticoMediaServer/portico/pull/901",
     "reviewUrl": "https://github.com/PorticoMediaServer/portico/pull/901#issuecomment-6646831696",
     "spanEvidence": "docs/client-api-rehashes/901-bootstrap.json"
+  },
+  "web/src/screens/detail/bindings.ts#fe166b3cbcc3f6a0": {
+    "category": "identity-rehash",
+    "reason": "The unchanged detail commandApi forwarding call receives a new census identity when credit reads move into named core operations; this is no transport exception.",
+    "condition": "The complete reviewed enclosing function and forwarding call are preserved; no added path, method, body, header or credential selection. The site remains DIRECT at count 1.",
+    "guardHash": "811853a8b77232b7bdd4b1245f70206a15df46a8b680a75a6dff7414fbab14b5",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646375725",
+    "previousSiteId": "web/src/screens/detail/bindings.ts#13f644ffc6b464d2",
+    "previousGuardHash": "a9f9648a464b24a59aea9568dfe1cb7132583b5b5e5e8c2628640fe808332f97",
+    "previousCommit": "0ecb62138e9091894448b3514cd77b1a6e90b466",
+    "reviewedCommit": "3ba3e22199591f9342867d0dd0502eeba275a469",
+    "pullRequest": "https://github.com/PorticoMediaServer/portico/pull/923",
+    "reviewUrl": "https://github.com/PorticoMediaServer/portico/pull/923#issuecomment-6647247307",
+    "spanEvidence": "docs/client-api-rehashes/923-command.json"
   }
 }
