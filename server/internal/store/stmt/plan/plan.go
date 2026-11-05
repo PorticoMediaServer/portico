@@ -124,14 +124,19 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 			if err != nil {
 				return g, fmt.Errorf("plan %s/%s VM: %w", entry.ID, cohort.Name, err)
 			}
+			eqp, err = canonicalEQP(eqp)
+			if err != nil {
+				return g, fmt.Errorf("plan %s/%s EQP: %w", entry.ID, cohort.Name, err)
+			}
 			g.Plans = append(g.Plans, StatementPlan{ID: entry.ID, Cohort: cohort.Name, Explain: full, QueryPlan: eqp, Insert: insert})
 		}
 	}
 	return g, nil
 }
 
-// Check enforces hot-path properties in addition to the exact full-plan golden.
-// Required indexes must appear in both the compiled SQL and SQLite's actual EQP.
+// Check enforces read-seek contracts beyond the exact full-plan golden. Named
+// indexes remain forced; autoindexes are asserted only in EQP. INSERT requires
+// Capture's destination, conflict-key and FK audits instead of a target SEARCH.
 func Check(d stmt.Definition, eqp Rows) error {
 	if err := checkBase(d, eqp); err != nil {
 		return err
@@ -154,6 +159,9 @@ func checkBase(d stmt.Definition, eqp Rows) error {
 		if !waived(d, "sql-lint", issue.Form, d.SQL) {
 			return fmt.Errorf("plan %s: unapproved SQL lint %s: %s", d.ID, issue.Form, issue.Detail)
 		}
+	}
+	if index := forcedAutoindex(d.SQL); index != "" {
+		return fmt.Errorf("plan %s: generated index %s must be asserted in Plan.Indexes, not forced in SQL", d.ID, index)
 	}
 	return nil
 }
@@ -190,7 +198,7 @@ func checkSearch(d stmt.Definition, eqp Rows) error {
 		}
 	}
 	for _, index := range d.Plan.Indexes {
-		if !forcedIndex(d.SQL, index) {
+		if !isAutoindex(index) && !forcedIndex(d.SQL, index) {
 			return fmt.Errorf("plan %s: index %s not forced in SQL", d.ID, index)
 		}
 		found := false

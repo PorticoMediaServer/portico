@@ -1081,7 +1081,7 @@
           [
             30,
             0,
-            31,
+            "\u003cnotused\u003e",
             "SEARCH items USING COVERING INDEX item_sort (library_id=? AND kind=? AND key\u003e?)"
           ]
         ]
@@ -1585,7 +1585,7 @@
           [
             30,
             0,
-            31,
+            "\u003cnotused\u003e",
             "SEARCH items USING COVERING INDEX item_sort (library_id=? AND kind=? AND key\u003e?)"
           ]
         ]
@@ -2109,7 +2109,7 @@
           [
             30,
             0,
-            30,
+            "\u003cnotused\u003e",
             "SEARCH items USING COVERING INDEX item_sort (library_id=? AND kind=? AND key=? AND id\u003e?)"
           ]
         ]

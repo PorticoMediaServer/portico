@@ -147,7 +147,7 @@ func auditInsert(ctx context.Context, conn *sql.Conn, d stmt.Definition, shape *
 		return nil, fmt.Errorf("expected conflict key is not checked by native INSERT VM")
 	}
 	probe := &ConflictProbe{SQL: "SELECT 1 FROM " + shape.table, Bindings: []any{}}
-	if len(d.Plan.Indexes) == 1 {
+	if len(d.Plan.Indexes) == 1 && !isAutoindex(d.Plan.Indexes[0]) {
 		probe.SQL += " INDEXED BY " + d.Plan.Indexes[0]
 	}
 	var predicates []string
@@ -176,6 +176,10 @@ func auditInsert(ctx context.Context, conn *sql.Conn, d stmt.Definition, shape *
 		return nil, err
 	}
 	if err := checkSearch(lookup, probe.QueryPlan); err != nil {
+		return nil, err
+	}
+	probe.QueryPlan, err = canonicalEQP(probe.QueryPlan)
+	if err != nil {
 		return nil, err
 	}
 	a.Conflict = probe

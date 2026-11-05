@@ -1092,7 +1092,7 @@
           [
             30,
             0,
-            55,
+            "\u003cnotused\u003e",
             "SEARCH items USING COVERING INDEX item_sort (library_id=? AND kind=? AND key\u003e?)"
           ]
         ]
@@ -1606,7 +1606,7 @@
           [
             30,
             0,
-            47,
+            "\u003cnotused\u003e",
             "SEARCH items USING COVERING INDEX item_sort (library_id=? AND kind=? AND key\u003c?)"
           ]
         ]
@@ -2130,7 +2130,7 @@
           [
             30,
             0,
-            50,
+            "\u003cnotused\u003e",
             "SEARCH items USING COVERING INDEX item_sort (library_id=? AND kind=? AND key=? AND id\u003c?)"
           ]
         ]
@@ -2664,7 +2664,7 @@
           [
             30,
             0,
-            46,
+            "\u003cnotused\u003e",
             "SEARCH items USING COVERING INDEX item_sort (library_id=? AND kind=? AND key=? AND id\u003c?)"
           ]
         ]

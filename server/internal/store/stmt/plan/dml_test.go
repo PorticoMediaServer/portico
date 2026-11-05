@@ -95,6 +95,7 @@ func TestPlanDMLNativeLookupsAndInsertAudit(t *testing.T) {
 		{"UPDATE dml_items SET value=coalesce(value,0)+? WHERE id=? RETURNING id,value", stmt.Plan{Hot: true, PrimaryKeys: []string{"dml_items"}}, false, false},
 		{"UPDATE dml_items INDEXED BY dml_parent_lookup SET value=? WHERE parent_id=? AND id>?", stmt.Plan{Hot: true, Indexes: []string{"dml_parent_lookup"}}, false, false},
 		{"DELETE FROM dml_items WHERE id=? RETURNING id", stmt.Plan{PrimaryKeys: []string{"dml_items"}}, false, false},
+		{"SELECT id FROM dml_items WHERE key=?", stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_dml_items_1"}}, false, false},
 	} {
 		g, err := capture(tc.sql, tc.contract)
 		if err != nil {
@@ -130,6 +131,10 @@ func TestPlanDMLNativeLookupsAndInsertAudit(t *testing.T) {
 		{"INSERT INTO dml_items(id,key,parent_id) VALUES(?,?,?) ON CONFLICT(key) DO NOTHING", stmt.Plan{Hot: true, Indexes: []string{"dml_parent_lookup"}}},
 		{"INSERT INTO dml_items(id,key) VALUES(?,?) ON CONFLICT(key) DO NOTHING", stmt.Plan{Hot: true, PrimaryKeys: []string{"dml_items"}}},
 		{"INSERT INTO dml_items(id,key) VALUES(?,?) ON CONFLICT(key) DO NOTHING", stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_dml_items_1; SELECT 1"}}},
+		{"SELECT id FROM dml_items WHERE key=?", stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_dml_items_2"}}},
+		{"SELECT id FROM dml_items INDEXED BY sqlite_autoindex_dml_items_1 WHERE key=?", stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_dml_items_1"}}},
+		{`SELECT id FROM dml_items INDEXED BY "sqlite_autoindex_dml_items_1" WHERE key=?`, stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_dml_items_1"}}},
+		{"SELECT id FROM dml_items WHERE parent_id=?", stmt.Plan{Hot: true, Indexes: []string{"dml_parent_lookup"}}},
 	} {
 		if _, err := capture(tc.sql, tc.contract); err == nil {
 			t.Fatalf("unproved lookup qualified: %s", tc.sql)
