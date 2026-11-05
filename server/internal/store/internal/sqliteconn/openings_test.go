@@ -41,6 +41,17 @@ var permittedOpenings = map[openingSite]bool{
 	{"writer/transaction_test.go", openingStore + "writer.faultConnector.Connect", "database/sql/driver.Connector.Connect"}:                      true,
 	{"writer/transaction_test.go", openingStore + "writer.trackedNativeConnector.Connect", "database/sql/driver.Connector.Connect"}:              true,
 	{"writer/transaction_test.go", openingStore + "writer.installFaultPool", "database/sql.OpenDB"}:                                              true, // held-source overlay
+	// Raw is confined to exact discard-only controls and the frame's discard.
+	{"internal/sqliteconn/connection_test.go", openingStore + "internal/sqliteconn.TestReplacementRestoresEveryConnectionSetting", "database/sql.Conn.Raw"}:        true,
+	{"internal/sqliteconn/connection_test.go", openingStore + "internal/sqliteconn.TestCancelledReadReopensWithPolicy", "database/sql.Conn.Raw"}:                   true,
+	{"internal/sqliteconn/connection_test.go", openingStore + "internal/sqliteconn.TestReadersAndCheckpointerSharePolicy", "database/sql.Conn.Raw"}:                true,
+	{"internal/sqliteconn/connection_test.go", openingStore + "internal/sqliteconn.TestReaderPoolGrowthAssertsEveryPhysicalConnection", "database/sql.Conn.Raw"}:   true,
+	{"internal/sqliteconn/dqs_test.go", openingStore + "internal/sqliteconn.TestDQSAllRolesReplacementAndReaderGrowth", "database/sql.Conn.Raw"}:                   true,
+	{"internal/sqliteconn/enforcement_test.go", openingStore + "internal/sqliteconn_test.TestEnforcementOnReplacementPhysicalConnection", "database/sql.Conn.Raw"}: true,
+	{"internal/sqliteconn/limits_test.go", openingStore + "internal/sqliteconn.TestReadLimitsGrowthDriftAndReplacement", "database/sql.Conn.Raw"}:                  true,
+	{"stmt/plan/plan_test.go", openingStore + "stmt/plan_test.TestPlanConnectionPolicyEvidenceAndReplacement", "database/sql.Conn.Raw"}:                            true,
+	{"stmt/lifetime_test.go", openingStore + "stmt_test.TestRegistryReaderCleanupReleasesWAL", "database/sql.Conn.Raw"}:                                            true,
+	{"writer/transaction.go", openingStore + "writer.transaction.finish", "database/sql.Conn.Raw"}:                                                                 true,
 }
 
 func openingObject(obj types.Object) string {
@@ -62,11 +73,29 @@ func openingObject(obj types.Object) string {
 	return obj.Pkg().Path() + "." + name
 }
 
+func openingImport(p *types.Package, path string, seen map[*types.Package]bool) *types.Package {
+	if p == nil || seen[p] {
+		return nil
+	}
+	seen[p] = true
+	if p.Path() == path {
+		return p
+	}
+	for _, dep := range p.Imports() {
+		if found := openingImport(dep, path, seen); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
 func prohibitedOpening(obj types.Object) bool {
 	key := openingObject(obj)
 	switch key {
 	case "database/sql.Open", "database/sql.OpenDB", "database/sql.Register",
-		"database/sql/driver.Driver.Open", "database/sql/driver.DriverContext.OpenConnector", "database/sql/driver.Connector.Connect":
+		"database/sql.DB.Driver", "database/sql.Conn.Raw", "database/sql.Drivers",
+		"database/sql/driver.Driver.Open", "database/sql/driver.DriverContext.OpenConnector", "database/sql/driver.Connector.Connect", "database/sql/driver.Connector.Driver",
+		"reflect.Value.Method", "reflect.Value.MethodByName", "reflect.Type.Method", "reflect.Type.MethodByName":
 		return true
 	}
 	for _, pkg := range []string{openingNative, "modernc.org/sqlite"} {
@@ -81,7 +110,7 @@ func prohibitedOpening(obj types.Object) bool {
 	if f, ok := obj.(*types.Func); ok {
 		if recv := f.Type().(*types.Signature).Recv(); recv != nil {
 			name := map[string]string{"Open": "Driver", "OpenConnector": "DriverContext", "Connect": "Connector"}[f.Name()]
-			if p := openingLoad.imports["database/sql/driver"]; p != nil && name != "" {
+			if p := openingImport(obj.Pkg(), "database/sql/driver", map[*types.Package]bool{}); p != nil && name != "" {
 				iface := p.Scope().Lookup(name).Type().Underlying().(*types.Interface)
 				return types.Implements(recv.Type(), iface)
 			}
@@ -91,8 +120,9 @@ func prohibitedOpening(obj types.Object) bool {
 }
 
 // Inspect references, not just calls: captured methods and reflected Driver
-// literals still resolve to these objects. Fully adversarial unsafe/linkname
-// or foreign driver registration is out of scope; sql.Register is forbidden.
+// literals still resolve to these objects. Fully adversarial unsafe, linkname,
+// cgo and assembly are residuals outside this source guard. sql.Register and
+// driver extraction/reflected method dispatch are forbidden here.
 func forbiddenOpenings(file string, syntax *ast.File, info *types.Info) []string {
 	var bad []string
 	for id, obj := range info.Uses {
@@ -138,11 +168,10 @@ func loadOpeningPackages(t *testing.T) ([]*packages.Package, openingImports, str
 		if openingLoad.err != nil {
 			return
 		}
-		openingLoad.packages, openingLoad.err = packages.Load(&packages.Config{
-			Dir: filepath.Join(openingLoad.root, "../.."), Tests: true,
-			BuildFlags: []string{"-p=1"},
-			Mode:       packages.NeedName | packages.NeedFiles | packages.NeedImports | packages.NeedTypes | packages.NeedSyntax | packages.NeedTypesInfo,
-		}, "./internal/store/...")
+		openingLoad.packages, openingLoad.err = loadOpeningSourceUniverse(openingLoad.root)
+		if openingLoad.err != nil {
+			return
+		}
 		openingLoad.imports = openingImports{}
 		var add func(*types.Package)
 		add = func(p *types.Package) {
@@ -155,9 +184,6 @@ func loadOpeningPackages(t *testing.T) ([]*packages.Package, openingImports, str
 			}
 		}
 		for _, p := range openingLoad.packages {
-			for _, e := range p.Errors {
-				openingLoad.err = fmt.Errorf("%v; %s", openingLoad.err, e)
-			}
 			add(p.Types)
 		}
 	})
@@ -169,14 +195,21 @@ func loadOpeningPackages(t *testing.T) ([]*packages.Package, openingImports, str
 
 func TestStoreOpeningsUseSharedPolicy(t *testing.T) {
 	pkgs, _, root := loadOpeningPackages(t)
+	seen := map[string]bool{}
 	for _, p := range pkgs {
 		for _, f := range p.Syntax {
-			rel, err := filepath.Rel(root, p.Fset.Position(f.Pos()).Filename)
-			if err != nil || !filepath.IsLocal(rel) {
+			if syntheticOpeningTestMain(p) {
 				continue
-			} // generated test-main is outside store
+			}
+			rel, err := filepath.Rel(root, p.Fset.PositionFor(f.Pos(), false).Filename)
+			if err != nil || !filepath.IsLocal(rel) {
+				t.Fatalf("unmapped store syntax %s: %v", p.ID, err)
+			}
 			for _, bad := range forbiddenOpenings(filepath.ToSlash(rel), f, p.TypesInfo) {
-				t.Error(bad)
+				if !seen[bad] {
+					t.Error(bad)
+					seen[bad] = true
+				}
 			}
 		}
 	}
@@ -191,7 +224,10 @@ func TestStoreOpeningsRejectTypedBypasses(t *testing.T) {
 		{"shadow_and_method_value", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn; import "database/sql/driver"; func bypass(driver driver.Driver){_,_=driver.Open(""); _=driver.Open}`, 2},
 		{"local_driver_interface", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import "database/sql/driver";type local interface{Open(string)(driver.Conn,error)};func bypass(d local){_=d.Open}`, 1},
 		{"telemetry_sql_and_wrong_receiver", "qual/host.go", openingStore + "qual", `package qual; import "database/sql"; func recordFile(){_,_=sql.Open("sqlite","")}; func telemetryDirectory(){_=sql.Open}; type unrelated struct{};func(unrelated)Open(){_=sql.Open}`, 3},
-		{"reflection", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import("reflect";sqlite "` + openingNative + `");func bypass(){reflect.ValueOf(&sqlite.Driver{}).MethodByName("Open")}`, 1},
+		{"reflection", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import("reflect";sqlite "` + openingNative + `");func bypass(){reflect.ValueOf(&sqlite.Driver{}).MethodByName("Open")}`, 2},
+		{"existing_pool_reflection", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import("database/sql";"reflect");func bypass(db *sql.DB){reflect.ValueOf(db.Driver()).MethodByName("Open")}`, 2},
+		{"reflected_pool_extraction", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import("database/sql";"reflect");func bypass(db *sql.DB){reflect.ValueOf(db).MethodByName("Driver")}`, 1},
+		{"raw_connection", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import "database/sql";func bypass(c *sql.Conn){_=c.Raw}`, 1},
 		{"wrong_receiver_owner", "writer/transaction.go", openingStore + "writer", `package writer;import "database/sql";type unrelated struct{};func(unrelated)openPool(){_=sql.OpenDB}`, 1},
 		{"register_and_function_values", "internal/sqliteconn/probe_test.go", openingStore + "internal/sqliteconn", `package sqliteconn;import s "database/sql";var registration=s.Register;var open=s.Open;var pool=s.OpenDB`, 3},
 		{"filesystem_is_not_a_database", "qual/host.go", openingStore + "qual", `package qual;import "io/fs";func recordFile(root fs.FS){_,_=root.Open("file")}`, 0},
