@@ -16,9 +16,12 @@
 // a lint waiver cannot bypass the native guard. Waivers are immutable manifest
 // data for explicit PR approval; the current baseline inventory is empty.
 //
-// Each cohort retains the full EXPLAIN VM and EQP without removing opcodes,
-// IDs or operands. Planner statistics are evidence, not permission for a
-// different serving access path.
+// Each cohort retains the full EXPLAIN VM and exact EQP. Only Transaction's
+// checked schema cookie is replaced with a placeholder, and literal b-tree
+// roots become database-qualified object names from sqlite_schema. All other
+// operands, registers, flags and jump targets remain exact. Unknown roots fail
+// closed. Raw schema/root-page metadata remains in the environment evidence.
+// Planner statistics do not permit a different serving access path.
 //
 // Fixtures are immutable during capture. Unanalyzed and analyzed populations
 // have separate reviewed baselines, including exact stat1/stat4 content hashes,
