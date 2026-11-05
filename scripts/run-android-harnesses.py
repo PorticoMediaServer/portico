@@ -15,6 +15,7 @@ from platform_test_process import run_bounded
 
 ROOT = Path(__file__).resolve().parents[1]
 HARNESSES = (
+    "apps/native/scripts/test-avatar-wire-android.py",
     "apps/native/scripts/test-reading-stream-android.py",
     "apps/native/scripts/test-layout-observation-android.py",
     "apps/native/scripts/test-url-routes-android.py",
