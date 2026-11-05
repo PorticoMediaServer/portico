@@ -21,12 +21,27 @@ adds no seeds and performs no migration. Runtime write authority stays with the
 private typed writer. This package is not yet wired into server startup.
 
 For a restart, call `AssertExisting(ctx, conn)` on the exclusive opening
-connection before starting runtime users. It requires FK-on and the pinned
+connection before starting runtime users. It requires enforcement and the pinned
 bundled engine, then compares every native `main.sqlite_schema` object against
 `NativeLayoutSHA256` and `NativeLayoutObjects`. Missing, modified, extra and
 legacy layouts fail closed. It executes no bootstrap DDL, ANALYZE, migration,
 repair or seed. It does not inspect user data, prove its integrity or authorize
 access; those are separate startup responsibilities.
+
+The adopted002 file header is explicitly `application_id=0`, `user_version=0`
+and `encoding=UTF-8`. The zeros preserve the reviewed bootstrap; they are not
+layout identity markers. Verification checks them without rewriting them.
+Fresh bootstrap refuses incompatible headers rather than adopting them.
+
+Connection enforcement has one authority: `sqliteconn.AssertEnforcement` checks
+FK=1 and ignore_check_constraints/defer_foreign_keys/writable_schema/
+read_uncommitted=0, returning typed evidence without repair. Both bootstrap and
+restart verification use it, and full `sqliteconn.Assert` calls it before the
+resource/durability checks. The connector pins every flag on every physical
+connection. Schema owns native objects and persistent header/encoding; it does
+not duplicate Config or choose WAL/cache/synchronous policy. Zero canonical
+triggers make recursive_triggers irrelevant to this layout; permissions,
+registered functions and private statement custody remain separate contracts.
 
 The fingerprint recipe is `portico-native-layout-sha256-v1` plus NUL, then
 length-prefixed schema SHA and SQLite version, followed by every object sorted

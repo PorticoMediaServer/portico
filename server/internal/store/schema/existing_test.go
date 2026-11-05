@@ -6,6 +6,8 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 )
 
 func existingFixture(t *testing.T, path string, install bool) (*sql.DB, *sql.Conn) {
@@ -120,5 +122,95 @@ func TestAssertExistingRequiresConnectionPolicyAndContext(t *testing.T) {
 	}
 	if err := AssertExisting(context.Background(), conn); !errors.Is(err, ErrForeignKeysDisabled) {
 		t.Fatalf("FK-disabled verification = %v", err)
+	}
+}
+
+func TestAssertExistingRejectsPersistedHeaderChanges(t *testing.T) {
+	for _, header := range []string{"application_id", "user_version"} {
+		t.Run(header, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "header.sqlite")
+			db, conn := existingFixture(t, path, true)
+			ctx := context.Background()
+			if _, err := conn.ExecContext(ctx, "PRAGMA main."+header+"=123"); err != nil {
+				t.Fatal(err)
+			}
+			if err := conn.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if err := db.Close(); err != nil {
+				t.Fatal(err)
+			}
+			_, reopened := existingFixture(t, path, false)
+			if _, err := reopened.ExecContext(ctx, "PRAGMA query_only=ON"); err != nil {
+				t.Fatal(err)
+			}
+			if err := AssertExisting(ctx, reopened); !errors.Is(err, ErrLayoutMismatch) {
+				t.Fatalf("changed persistent %s accepted: %v", header, err)
+			}
+			var actual int
+			if err := reopened.QueryRowContext(ctx, "PRAGMA main."+header).Scan(&actual); err != nil || actual != 123 {
+				t.Fatalf("header repaired or lost: %d, %v", actual, err)
+			}
+			// The native declarations alone still match: this must be a
+			// separate persistent-header rejection, not a structural negative.
+			fingerprint, count, err := nativeLayout(ctx, reopened)
+			if err != nil || fingerprint != NativeLayoutSHA256 || count != NativeLayoutObjects {
+				t.Fatalf("unexpected structural change: %s/%d, %v", fingerprint, count, err)
+			}
+		})
+	}
+}
+
+func TestAssertExistingRejectsDifferentDatabaseEncoding(t *testing.T) {
+	_, conn := existingFixture(t, filepath.Join(t.TempDir(), "encoding.sqlite"), false)
+	ctx := context.Background()
+	if _, err := conn.ExecContext(ctx, "PRAGMA encoding='UTF-16le'"); err != nil {
+		t.Fatal(err)
+	}
+	// Install the declarations directly as a negative fixture. A matching
+	// logical schema does not authorize a different persisted byte encoding.
+	if _, err := conn.ExecContext(ctx, SQL()); err != nil {
+		t.Fatal(err)
+	}
+	if err := AssertExisting(ctx, conn); !errors.Is(err, ErrLayoutMismatch) {
+		t.Fatalf("different database encoding accepted: %v", err)
+	}
+}
+
+func TestAssertExistingUsesSharedEnforcement(t *testing.T) {
+	for _, pragma := range []string{"ignore_check_constraints", "defer_foreign_keys", "writable_schema", "read_uncommitted"} {
+		t.Run(pragma, func(t *testing.T) {
+			_, conn := existingFixture(t, filepath.Join(t.TempDir(), "policy.sqlite"), true)
+			ctx := context.Background()
+			if _, err := conn.ExecContext(ctx, "PRAGMA "+pragma+"=ON"); err != nil {
+				t.Fatal(err)
+			}
+			if err := AssertExisting(ctx, conn); !errors.Is(err, sqliteconn.ErrPolicy) {
+				t.Fatalf("weakened %s accepted: %v", pragma, err)
+			}
+			var after int
+			if err := conn.QueryRowContext(ctx, "PRAGMA "+pragma).Scan(&after); err != nil || after != 1 {
+				t.Fatalf("verification repaired policy: %d, %v", after, err)
+			}
+		})
+	}
+}
+
+func TestBootstrapRejectsReservedHeaderAndWeakenedEnforcement(t *testing.T) {
+	for _, mutation := range []string{"PRAGMA application_id=123", "PRAGMA user_version=123", "PRAGMA encoding='UTF-16le'", "PRAGMA ignore_check_constraints=ON"} {
+		t.Run(mutation, func(t *testing.T) {
+			_, conn := existingFixture(t, filepath.Join(t.TempDir(), "fresh.sqlite"), false)
+			ctx := context.Background()
+			if _, err := conn.ExecContext(ctx, mutation); err != nil {
+				t.Fatal(err)
+			}
+			if err := InitializeEmpty(ctx, conn); err == nil {
+				t.Fatal("bootstrap accepted incompatible header/enforcement")
+			}
+			var objects int
+			if err := conn.QueryRowContext(ctx, "SELECT count(*) FROM sqlite_schema").Scan(&objects); err != nil || objects != 0 {
+				t.Fatalf("failed bootstrap changed layout: %d, %v", objects, err)
+			}
+		})
 	}
 }

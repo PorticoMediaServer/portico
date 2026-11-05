@@ -83,6 +83,10 @@ func Connector(path string, c Config) (driver.Connector, error) {
 	q.Add("_pragma", "wal_autocheckpoint(0)")
 	q.Add("_pragma", fmt.Sprintf("cache_size(-%d)", c.CacheKiB))
 	q.Add("_pragma", "mmap_size(0)")
+	q.Add("_pragma", "ignore_check_constraints(0)")
+	q.Add("_pragma", "defer_foreign_keys(0)")
+	q.Add("_pragma", "writable_schema(0)")
+	q.Add("_pragma", "read_uncommitted(0)")
 	// FILE keeps large temporary sorts off the 2 GB RAM budget. This is a
 	// spill policy, not a disk quota: GV still governs scratch bytes and IO.
 	q.Add("_pragma", "temp_store(FILE)")
@@ -171,12 +175,17 @@ func Assert(ctx context.Context, conn *sql.Conn, c Config) (Settings, error) {
 	if err := c.validate(); err != nil {
 		return s, err
 	}
+	enforcement, err := AssertEnforcement(ctx, conn)
+	s.ForeignKeys = enforcement.ForeignKeys
+	if err != nil {
+		return s, err
+	}
 	for _, query := range []struct {
 		sql  string
 		dest any
 	}{
 		{"SELECT sqlite_version()", &s.Engine}, {"PRAGMA journal_mode", &s.JournalMode},
-		{"PRAGMA foreign_keys", &s.ForeignKeys}, {"PRAGMA synchronous", &s.Synchronous},
+		{"PRAGMA synchronous", &s.Synchronous},
 		{"PRAGMA wal_autocheckpoint", &s.AutoCheckpoint}, {"PRAGMA cache_size", &s.CacheSize},
 		{"PRAGMA busy_timeout", &s.BusyTimeout}, {"PRAGMA mmap_size", &s.MmapSize}, {"PRAGMA query_only", &s.QueryOnly},
 		{"PRAGMA temp_store", &s.TempStore},
@@ -189,7 +198,7 @@ func Assert(ctx context.Context, conn *sql.Conn, c Config) (Settings, error) {
 	if c.Role == Reader {
 		queryOnly = 1
 	}
-	if s.JournalMode != "wal" || s.ForeignKeys != 1 || s.Synchronous != int(c.Synchronous) ||
+	if s.JournalMode != "wal" || s.Synchronous != int(c.Synchronous) ||
 		s.AutoCheckpoint != 0 || s.CacheSize != -int(c.CacheKiB) || s.BusyTimeout != 0 || s.MmapSize != 0 || s.QueryOnly != queryOnly || s.TempStore != 1 {
 		return s, ErrPolicy
 	}
