@@ -50,14 +50,15 @@ type effectiveBeginSelection struct {
 	Evidence, Set, Publication, Track sql.NullString
 }
 type effectiveBeginEvidence struct {
-	SubjectID                                           int64
-	Provider, Kind, ID, Language, Region, Shape, Digest string
-	Sealed                                              int64
+	SubjectID                                                     int64
+	Provider, Kind, ID, Language, Region, Shape, Digest, Observed string
+	Sealed                                                        int64
 }
 type effectiveBeginSubject struct {
 	Incarnation                                 [16]byte
 	Revision                                    int64
 	Provider, Kind, ID, Language, Region, Shape string
+	AcceptedEvidence                            sql.NullString
 }
 type effectiveBeginPublication struct {
 	EntityID                   int64
@@ -162,10 +163,10 @@ func effectiveBeginReadProducer(ctx context.Context, turn *commandTurn, ownerID 
 		return out, ErrResolveRequired
 	}
 	copy(out.Selection.Incarnation[:], raw)
-	if err = p(enrichmentEffectiveEvidence, []any{evidenceID}, &out.Evidence.SubjectID, &out.Evidence.Provider, &out.Evidence.Kind, &out.Evidence.ID, &out.Evidence.Language, &out.Evidence.Region, &out.Evidence.Shape, &out.Evidence.Digest, &out.Evidence.Sealed); err != nil {
+	if err = p(enrichmentEffectiveEvidence, []any{evidenceID}, &out.Evidence.SubjectID, &out.Evidence.Provider, &out.Evidence.Kind, &out.Evidence.ID, &out.Evidence.Language, &out.Evidence.Region, &out.Evidence.Shape, &out.Evidence.Digest, &out.Evidence.Observed, &out.Evidence.Sealed); err != nil {
 		return
 	}
-	if err = p(enrichmentEffectiveSubject, []any{out.Evidence.SubjectID}, &raw, &out.Subject.Revision, &out.Subject.Provider, &out.Subject.Kind, &out.Subject.ID, &out.Subject.Language, &out.Subject.Region, &out.Subject.Shape); err != nil {
+	if err = p(enrichmentEffectiveSubject, []any{out.Evidence.SubjectID}, &raw, &out.Subject.Revision, &out.Subject.Provider, &out.Subject.Kind, &out.Subject.ID, &out.Subject.Language, &out.Subject.Region, &out.Subject.Shape, &out.Subject.AcceptedEvidence); err != nil {
 		return
 	}
 	if len(raw) != 16 {
