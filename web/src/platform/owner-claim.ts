@@ -1,3 +1,4 @@
+import {cancelOwnerClaim, exchangeOwnerReturn, prepareOwnerClaim, readOwnerClaim, revokeCurrentSession} from '../../../packages/client-core/src/query/connection-operations.ts';
 import {serverNow} from '@core/server-clock.ts';
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
 import {type AppSessionRecord, type AppSessionStore, knownServerRoutes} from '@core/app-sessions.ts';
@@ -104,10 +105,10 @@ export class BrowserOwnerClaim {
       if (record?.kind !== 'owner' || !record.expected || api.baseUrl !== record.origin || !routes || !sameServerPin(routes.pin, record.pin)) throw invalid();
       const selected = await this.current(record, operation);
       const captured = new HttpLocalApi(record.origin, selected.session.accessToken); captured.useRoutes(routes);
-      const status = parseClaimStatus(await captured.request(routePath('get_networking_claim'), 'GET', undefined, operation.signal), record.pin);
+      const status = parseClaimStatus(await readOwnerClaim(captured, operation.signal), record.pin);
       await this.current(record, operation);
       if (!status.operation || status.operation.operationId !== record.expected.operationId || status.operation.localGeneration !== record.expected.localGeneration || !status.actions.includes('cancel')) throw invalid();
-      parseClaimStatus(await captured.request(routePath('post_networking_claim_cancel'), 'POST', {expected: status.operation}, operation.signal), record.pin);
+      parseClaimStatus(await cancelOwnerClaim(captured, status.operation, operation.signal), record.pin);
       // Cancellation may advance the Server generation. Do not compare that
       // terminal identity with the old operation or clear a successor journal.
       await this.ports.journal.change(old => same(old, record) ? undefined : old);
@@ -170,15 +171,14 @@ export class BrowserOwnerClaim {
       await this.current(pending, operation);
       if (!callerLive()) throw invalid();
       if (!pending.expected) {
-        let status = parseClaimStatus(await captured.request(routePath('get_networking_claim'), 'GET', undefined, signal), pending.pin);
+        let status = parseClaimStatus(await readOwnerClaim(captured, signal), pending.pin);
         await this.current(pending, operation);
         if (!callerLive()) throw invalid();
         // A portico-account server already has an installed claim, so its snapshot
         // has no 'prepare' action; the explicit change-owner purpose still posts.
         const already = status.state === 'prepared' && status.approvalRequest?.purpose === purpose;
         if (!already && (purpose === 'change-owner' || status.actions.includes('prepare'))) {
-          status = parseClaimStatus(await captured.request(routePath('post_networking_claim_prepare'), 'POST',
-            {purpose, ...(purpose === 'change-owner' ? {previousOwnerRole: intendedRole} : {}), expected: status.identity}, signal), pending.pin);
+          status = parseClaimStatus(await prepareOwnerClaim(captured, purpose, intendedRole, status.identity, signal), pending.pin);
           await this.current(pending, operation);
           if (!callerLive()) throw invalid();
         }
@@ -238,10 +238,10 @@ export class BrowserOwnerClaim {
       if (record.expected && route && sameServerPin(route.pin, record.pin) && selected.session.sessionFamilyId === record.familyId &&
         selected.session.tokenGeneration === record.tokenGeneration && state.revision === record.expectedRevision) {
         const captured = new HttpLocalApi(record.origin, selected.session.accessToken); captured.useRoutes(route);
-        const status = parseClaimStatus(await captured.request(routePath('get_networking_claim'), 'GET', undefined, AbortSignal.timeout(5000)), record.pin);
+        const status = parseClaimStatus(await readOwnerClaim(captured, AbortSignal.timeout(5000)), record.pin);
         if (status.operation && status.operation.operationId === record.expected.operationId &&
           status.operation.localGeneration === record.expected.localGeneration && status.actions.includes('cancel')) {
-          parseClaimStatus(await captured.request(routePath('post_networking_claim_cancel'), 'POST', {expected: status.operation}, AbortSignal.timeout(5000)), record.pin);
+          parseClaimStatus(await cancelOwnerClaim(captured, status.operation, AbortSignal.timeout(5000)), record.pin);
         }
       }
     } catch { /* the Server attempt expires; the exact local attempt is still cleared */ }
@@ -263,7 +263,7 @@ export class BrowserOwnerClaim {
     if (this.ports.retire) return this.ports.retire(api, session);
     const temporary = new HttpLocalApi(api.baseUrl, session.accessToken), routes = api.getRouteConnection();
     if (routes) temporary.useRoutes(routes);
-    await temporary.request(routePath('delete_sessions_current'), 'DELETE', undefined, AbortSignal.timeout(5000)).catch(() => {});
+    await revokeCurrentSession(temporary, AbortSignal.timeout(5000)).catch(() => {});
   }
   /** One-shot exchange: lost response is terminal. Recovery is fresh ordinary
    * admission to the already-bound owner, never another claim or owner grant. */
@@ -298,7 +298,7 @@ export class BrowserOwnerClaim {
       const environment = this.ports.environment(record.pin.serverId);
       connected = await (this.ports.connect ?? connectPairedServer)(record.origin, record.pin, environment, operation.signal);
       await current(); connected.api.setAccessToken(selected.session.accessToken);
-      const raw = await connected.api.request<unknown>(routePath('get_networking_claim'), 'GET', undefined, operation.signal);
+      const raw = await readOwnerClaim<unknown>(connected.api, operation.signal);
       await current();
       const status = parseClaimStatus(raw, record.pin), owner = object(raw) ? raw.ownerContinuation : undefined;
       if (status.state !== 'installed' || status.identity.localGeneration !== record.expected.localGeneration || status.operation?.operationId !== record.expected.operationId ||
@@ -307,8 +307,7 @@ export class BrowserOwnerClaim {
         !object(owner.returnRegistration) || Object.keys(owner.returnRegistration).sort().join(',') !== 'id,origin' || typeof owner.returnRegistration.id !== 'string' ||
         !/^ret_[A-Za-z0-9_-]{43}$/.test(owner.returnRegistration.id) || typeof owner.returnRegistration.origin !== 'string' ||
         !owner.returnRegistration.origin.startsWith('https://') || routeOrigin(owner.returnRegistration.origin) !== owner.returnRegistration.origin) throw invalid();
-      grant = parseDirectSignIn(await connected.api.request(routePath('post_auth_portico_return_exchange'), 'POST', {transactionId: handoff.transactionId, state: record.state,
-        verifier: record.verifier, registrationId: owner.returnRegistration.id, installationId: record.installationId, serverChallenge: proof.start.serverChallenge, purpose}, operation.signal));
+      grant = parseDirectSignIn(await exchangeOwnerReturn(connected.api, {handoff, record, registrationId: owner.returnRegistration.id, serverChallenge: proof.start.serverChallenge, purpose}, operation.signal));
       await current();
       if (grant.kind !== 'signed-in' || grant.snapshot.serverId !== record.pin.serverId || grant.snapshot.account.role !== 'owner' ||
         grant.snapshot.account.disabled || grant.resetFileOwnerSession || grant.passwordChangeRequired || grant.snapshot.twoStepSetupRequired ||

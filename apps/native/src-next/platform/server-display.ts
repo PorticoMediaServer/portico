@@ -1,3 +1,4 @@
+import {readServerSystem} from '../../../../packages/client-core/src/query/connection-operations.ts';
 import type {HttpLocalApi} from '../../../../packages/client-core/src';
 import type {AppServerSession, SignInKind} from '../../../../packages/client-core/src/app-sessions';
 import {parseServerSignIn} from '../../../../packages/client-core/src/sign-in';
@@ -38,7 +39,7 @@ export async function rememberNativeServerDisplay(api: HttpLocalApi, options: {
   options.signal?.addEventListener('abort', cancel, {once: true});
   const timer = setTimeout(cancel, 15000);
   try {
-    const server = parseServerSignIn(await api.request(routePath('get_system'), 'GET', undefined, abort.signal));
+    const server = parseServerSignIn(await readServerSystem(api, abort.signal));
     // Every connection that reads the server's facts negotiates with them (O-159).
     negotiateNativeServer(server);
     if (!current() || abort.signal.aborted) throw cancelled();

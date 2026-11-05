@@ -1,3 +1,5 @@
+import {createProfileAvatarOpeningTransport} from '../../../../../packages/client-core/src/query/profile-security-transport';
+import {readDirectAccount} from '../../../../../packages/client-core/src/query/connection-operations.ts';
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {Dimensions, Platform, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
@@ -140,13 +142,9 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
     },
   }), [context]);
   const scopedManager = (ticket: {lease: ProfileLease; controller: AbortController}) => new ManagedProfilesClient(scopedTransport(ticket), {authority: 'local', accountId: context.account.account.id, serverId: context.account.serverId});
-  const scopedRaw = useCallback((ticket: {lease: ProfileLease; controller: AbortController}) => ({
-    requestRaw: async (path: string, method: string, options: Readonly<{headers?: Readonly<Record<string, string>>; body?: unknown; signal?: AbortSignal}> = {}) => {
-      if (!ticket.lease.current() || ticket.controller.signal.aborted) throw profileAbort();
-      const raw = await ticket.lease.lifetime.request(next => context.api.requestRaw(path, method, {...options, signal: next}), ticket.controller.signal);
-      if (!ticket.lease.current() || ticket.controller.signal.aborted) throw profileAbort();
-      return raw;
-    },
+  const scopedRaw = useCallback((ticket: {lease: ProfileLease; controller: AbortController}) => createProfileAvatarOpeningTransport(context.api, {
+    current: () => ticket.lease.current(), signal: ticket.controller.signal, cancelled: profileAbort,
+    run: (work, signal) => ticket.lease.lifetime.request(work, signal),
   }), [context]);
   const scopedIdentity = useCallback((ticket: {lease: ProfileLease; controller: AbortController}) => new IdentityClient(scopedTransport(ticket), profileAvatarUpload(scopedRaw(ticket))), [scopedRaw, scopedTransport]);
   const limitsLease = useMemo(() => editor?.kind === 'limits' ? {...editor.lease, current: () => editorRef.current === editor && editor.lease.current()
@@ -182,7 +180,7 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
   const refreshProfiles = async () => {
     if (busy || !context.current()) return; setBusy(true);
     try {
-      const raw = await context.api.request(routePath('get_direct_account'), 'GET');
+      const raw = await readDirectAccount(context.api);
       const account = parseDirectSnapshot(raw, {authority: 'local', serverId: context.account.serverId, accountId: context.account.account.id}, true);
       if (alive.current) {setProfiles(account.profiles); setError(undefined);}
     } catch (failure) {if (alive.current) setError(failure);} finally {if (alive.current) setBusy(false);}

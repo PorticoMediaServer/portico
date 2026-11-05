@@ -1,3 +1,4 @@
+import {revokeCurrentSession} from '../../../packages/client-core/src/query/connection-operations.ts';
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
 import {type AppSessionStore, knownServerRoutes} from '@core/app-sessions.ts';
 import {installationIdentity} from '@core/installation.ts';
@@ -112,7 +113,7 @@ export class BrowserRegisteredSignIn {
     if (this.ports.retire) return this.ports.retire(api, session);
     const temporary = new HttpLocalApi(api.baseUrl, session.accessToken), route = api.getRouteConnection();
     if (route) temporary.useRoutes(route);
-    await temporary.request(routePath('delete_sessions_current'), 'DELETE', undefined, AbortSignal.timeout(5000)).catch(() => {});
+    await revokeCurrentSession(temporary, AbortSignal.timeout(5000)).catch(() => {});
   }
   /** capturePorticoReturn must already have removed the fragment synchronously.
    * Taking the journal is atomic; another tab/reload cannot reuse this attempt. */

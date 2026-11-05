@@ -1,6 +1,6 @@
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {goTo} from '../platform/hosted-navigation';
-import {encodedRoutePath, routeBody} from '../../../packages/contracts/src/hosted/routes.ts';
+import {leaveHostedServer} from '@core/query/connection-operations.ts';
 import {ServicesBadge, ServicesDangerAction, ServicesEmpty, ServicesGroup, ServicesWorkspaceRow} from '../kit/accounts/ServicesWorkspace';
 import {Button} from '../kit/controls';
 import {Dialog} from '../kit/overlays';
@@ -58,7 +58,7 @@ export function ServersPanel({api}: {api: WorkspaceApi}) {
     if (!leaving || leaving.ownedByMe || busy || !operation.current) return;
     const signal = operation.current.signal; setBusy(true); setError(undefined);
     try {
-      await api.request(encodedRoutePath('server_leave', {id: encodeURIComponent(leaving.id)}), 'POST', routeBody('server_leave', {}), signal);
+      await leaveHostedServer(api, leaving.id, signal);
       const value = await api.servers(signal);
       if (!signal.aborted) { setServers(value); setLeaving(undefined); }
     } catch (value) { if (!signal.aborted) setError(value); }
