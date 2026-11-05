@@ -10,7 +10,7 @@ import (
 func change001Fixture(t *testing.T) *sql.Conn {
 	t.Helper()
 	ctx := context.Background()
-	db, err := sql.Open("sqlite", fixtureDSN(filepath.Join(t.TempDir(), "change001.sqlite"), true))
+	db, err := openFixture(filepath.Join(t.TempDir(), "change001.sqlite"), true)
 	if err != nil {
 		t.Fatal(err)
 	}
