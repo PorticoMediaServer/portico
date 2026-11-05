@@ -223,11 +223,32 @@ class PorticoRuntime(context: ReactApplicationContext) : ReactContextBaseJavaMod
   private fun avatarUploadPath(path: String, method: String?) =
       method == "POST" && Regex("^/v1/(direct/profiles/[A-Za-z0-9_-]{1,128}|admin/access/members/[A-Za-z0-9_-]{1,128}/profiles/[A-Za-z0-9_-]{1,128})/avatar$").matches(path)
 
-  private fun avatarUploadBody(body: String?): ByteArray? = try {
-    if (body == null || body.length > 5592448) null else {
-      Base64.decode(body, Base64.NO_WRAP).takeIf { it.isNotEmpty() && it.size <= 4194304 }
+  private fun avatarUploadBody(body: String?): ByteArray? {
+    if (body == null || body.length > 5592448) return null
+    var symbols = 0
+    var padding = 0
+    // Android skips arbitrary non-alphabet bytes. Only its accepted whitespace
+    // is retained here; reject malformed input before the codec allocates.
+    for (character in body) {
+      when {
+        character in 'A'..'Z' || character in 'a'..'z' || character in '0'..'9' || character == '+' || character == '/' -> {
+          if (padding != 0) return null
+          symbols++
+        }
+        character == '=' -> {if (++padding > 2) return null}
+        character.isWhitespace() -> Unit
+        else -> return null
+      }
     }
-  } catch (_: Exception) { null }
+    // Padding is optional on Android, but must complete the last tuple if used.
+    val tail = symbols % 4
+    if (tail == 1 || padding != 0 && (symbols + padding) % 4 != 0) return null
+    val decodedLength = (symbols / 4) * 3 + when (tail) {2 -> 1; 3 -> 2; else -> 0}
+    if (decodedLength !in 1..4194304) return null
+    return try {
+      Base64.decode(body, Base64.NO_WRAP).takeIf { it.isNotEmpty() && it.size <= 4194304 && it.size == decodedLength }
+    } catch (_: Exception) { null }
+  }
 
   private fun boundedRequest(identifier: String?, url: String?, method: String?, headers: ReadableMap?, body: String?, fullAPI: Boolean, promise: Promise) {
     val target = PorticoTransport.target(url)
