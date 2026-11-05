@@ -1,3 +1,4 @@
+import {readOfflineDownloadBundleResponse, readDownloadReceiptKeysResponse, issueDownloadReceiptsResponse, revalidateDownloadReceiptsResponse, revokeRemovedDownloadReceipt, syncOfflineDownloadPlaysResponse} from '../../../packages/client-core/src/download-coordination';
 import {stepNativeSelectionActionDownloads, type NativeSelectionActionDownloadIntent} from '../src-next/screens/library/selection-action-downloads';
 import type {NativeOfflinePublicationLease} from './offline-reading-authority';
 import {serverNow} from '../../../packages/client-core/src/server-clock';
@@ -1115,7 +1116,7 @@ export class OfflineDownloads {
     this.bundling.add(id);
     try {
       const claim = this.metas.get(id)?.claim ?? id;
-      const raw = await api.request<unknown>(`/v1/downloads/preparations/${encodeURIComponent(claim)}/bundle`);
+      const raw = await readOfflineDownloadBundleResponse(api, claim);
       const described = parseDownloadBundle(raw, claim);
       const publication = object(raw) && typeof raw.publication === 'string' ? raw.publication : undefined;
       const base = address ?? (await service.grant({id: claim}, this.metas.get(id)?.token)).url;
@@ -1257,7 +1258,7 @@ export class OfflineDownloads {
         delete this.stored.wantedPublications[owner]?.[entry.id];
       }
       if (!await this.persist()) throw Object.assign(new Error('reading_progress_not_saved'), {code: 'persistence_error'});
-      if (!withdrawn && receipt && api && generation === this.generation && api === this.api && owner === this.ownerKey()) void api.request<unknown>('/v1/downloads/receipts/revoke', 'POST', {operationId: operationId(), receiptIds: [receipt.receiptId], reason: 'removed'}).catch(() => {});
+      if (!withdrawn && receipt && api && generation === this.generation && api === this.api && owner === this.ownerKey()) void revokeRemovedDownloadReceipt(api, operationId(), receipt.receiptId).catch(() => {});
     } finally {release();}
   }
   /** Removes every download on this device that is not the connected viewer's. They are never
@@ -1344,7 +1345,7 @@ export class OfflineDownloads {
   }
 
   private async issueReceipt(api: Api, claim: string): Promise<DownloadReceipt | undefined> {
-    const outcomes = parseReceiptOutcomes(await api.request<unknown>('/v1/downloads/receipts', 'POST', {operationId: operationId(), preparationIds: [claim]}));
+    const outcomes = parseReceiptOutcomes(await issueDownloadReceiptsResponse(api, operationId(), [claim]));
     const receipt = outcomes.find(o => o.preparationId === claim && o.receipt)?.receipt ?? undefined;
     if (receipt) this.trustServerTime([receipt.claims.issuedAt]);
     return receipt;
@@ -1383,7 +1384,7 @@ export class OfflineDownloads {
     const clockKey = JSON.stringify([owner, receipt.claims.itemId]), observed = this.observationTimes.get(clockKey);
     const incarnation = this.incarnations.get(id);
     try {
-      const outcomes = parseReceiptOutcomes(await api.request<unknown>('/v1/downloads/receipts/revalidate', 'POST', {operationId: operationId(), receiptIds: [receipt.receiptId]}));
+      const outcomes = parseReceiptOutcomes(await revalidateDownloadReceiptsResponse(api, operationId(), [receipt.receiptId]));
       if (generation !== this.generation || this.api !== api || this.ownerKey() !== owner || this.incarnations.get(id) !== incarnation) return;
       const entry = this.all.find(value => value.id === id && this.entryOwner(value) === owner && value.receipt?.receiptId === receipt.receiptId);
       const outcome = outcomes.find(value => value.receiptId === receipt.receiptId);
@@ -1434,7 +1435,7 @@ export class OfflineDownloads {
       const batch = held.slice(i, i + RECEIPT_BATCH);
       const observed = new Map(batch.map(entry => [entry.itemId, this.observationTimes.get(JSON.stringify([owner, entry.itemId]))]));
       let outcomes: readonly ReceiptOutcome[];
-      try { outcomes = parseReceiptOutcomes(await api.request<unknown>('/v1/downloads/receipts/revalidate', 'POST', {operationId: operationId(), receiptIds: batch.map(e => e.receipt!.receiptId)})); }
+      try { outcomes = parseReceiptOutcomes(await revalidateDownloadReceiptsResponse(api, operationId(), batch.map(e => e.receipt!.receiptId))); }
       catch { return; /* offline or busy: receipts stay valid until they expire */ }
       if (this.generation !== generation) return;
       const changes: Record<string, string> = {};
@@ -1502,7 +1503,7 @@ export class OfflineDownloads {
   private async refreshKeys(generation: number, api: Api) {
     if (generation !== this.generation) return;
     try {
-      const keys = parseReceiptKeys(await api.request<unknown>('/v1/downloads/receipt-keys'));
+      const keys = parseReceiptKeys(await readDownloadReceiptKeysResponse(api));
       if (generation !== this.generation) return;
       let added = false;
       for (const key of keys) if (this.stored.keys[key.id] !== key.publicKey) { this.stored.keys[key.id] = key.publicKey; added = true; }
@@ -1937,7 +1938,7 @@ export class OfflineDownloads {
       const entries = Object.values(this.stored.plays[owner] ?? {}).slice(0, 100);
       if (!entries.length) return;
       try {
-        const receipt = parseDeferredProgressReceipt(await api.request<unknown>('/v1/downloads/progress', 'POST', {operationId: operationId(), entries: entries.map(e => durationIntent(e, {positionSeconds: 'positionMs'}))}));
+        const receipt = parseDeferredProgressReceipt(await syncOfflineDownloadPlaysResponse(api, operationId(), entries));
         if (this.generation !== generation) return;
         // Anything the server answered about, accepted or not, is settled and must not be resent
         // (a play that has moved on since it was sent stays, to be sent again as it is now).

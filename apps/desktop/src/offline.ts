@@ -1,4 +1,4 @@
-import {routePath} from '../../../packages/contracts/src/routes.ts';
+import {readDownloadPreparationResponse, readDownloadReceiptKeysResponse, issueDownloadReceiptsResponse, syncDesktopDownloadPlaysResponse, readDownloadRevocationsResponse} from '../../../packages/client-core/src/download-coordination.ts';
 import {parseDownloadPreparation,parseDeferredProgressReceipt,parseReceiptKeys,parseReceiptOutcomes,parseRevocationPage,type DownloadArtifact,type DownloadGrant,type DownloadPreparation,type DownloadBundle} from '../../../packages/client-core/src/downloads.ts';
 import type {DownloadsApi,DownloadsService} from '../../../packages/client-core/src/downloads-service.ts';
 import {downloadFailure,type DesktopDownloadStore,type LocalDownload} from './downloads.ts';
@@ -105,7 +105,7 @@ export class DesktopOfflineCoordinator{
         for(const entry of page.items){
           if(entry.held||this.active.has(entry.preparationId)||!(['queued','downloading'].includes(entry.state)||entry.state==='ready'&&entry.receiptExpiresMs===null))continue;
           if(!this.allowed(rules.rules.unmeteredOnly))return;
-          const preparation=parseDownloadPreparation(await this.transport.api.request(routePath('get_download_preparation',{id:entry.preparationId}),'GET',undefined,signal));this.guard(signal);
+          const preparation=parseDownloadPreparation(await readDownloadPreparationResponse(this.transport.api,entry.preparationId,signal));this.guard(signal);
           if(preparation.id!==entry.preparationId||preparation.profileId!==this.transport.store.scope.profileId||preparation.itemId!==entry.itemId||preparation.quality!==entry.quality)failed('download_verification_failed');
           if(preparation.state!=='ready')continue;
           if(preparation.artifact.sha256!==entry.sha256||preparation.artifact.bytes!==entry.bytes)failed('download_verification_failed');
@@ -177,9 +177,9 @@ export class DesktopOfflineCoordinator{
       if(renewal)await renewal;
       if(renewError)throw renewError;
       this.guard(current);
-      const keys=parseReceiptKeys(await this.transport.api.request(routePath('list_download_receipt_keys'),'GET',undefined,current));this.guard(current);
+      const keys=parseReceiptKeys(await readDownloadReceiptKeysResponse(this.transport.api,current));this.guard(current);
       for(const key of keys)await this.transport.store.installReceiptKey(key.id,key.publicKey,current);
-      const outcomes=parseReceiptOutcomes(await this.transport.api.request(routePath('issue_download_receipts'),'POST',{operationId:crypto.randomUUID(),preparationIds:[preparation.id]},current));this.guard(current);
+      const outcomes=parseReceiptOutcomes(await issueDownloadReceiptsResponse(this.transport.api,crypto.randomUUID(),[preparation.id],current));this.guard(current);
       if(outcomes.length!==1||outcomes[0].preparationId!==preparation.id||!outcomes[0].receipt)failed('invalid_receipt');
       await this.transport.store.saveReceipt(entry.id,outcomes[0].receipt,current);
       if(outcomes[0].titleOnServer!==null)await this.transport.store.serverPresence(entry,outcomes[0].titleOnServer,current);
@@ -223,7 +223,7 @@ export class DesktopOfflineCoordinator{
   async syncProgress(signal:AbortSignal):Promise<void>{
     const current=AbortSignal.any([signal,this.lifetime.signal]);this.guard(current);
     const plays=await this.transport.store.pendingPlays(current);if(!plays.length)return;
-    const receipt=parseDeferredProgressReceipt(await this.transport.api.request(routePath('sync_download_progress'),'POST',{operationId:crypto.randomUUID(),entries:plays.map(v=>({playId:v.playId,itemId:v.itemId,positionMs:v.positionMs,ended:v.ended,observedAt:new Date(v.observedMs).toISOString()}))},current));this.guard(current);
+    const receipt=parseDeferredProgressReceipt(await syncDesktopDownloadPlaysResponse(this.transport.api,crypto.randomUUID(),plays,current));this.guard(current);
     for(const result of receipt.entries){
       const original=plays.find(v=>v.playId===result.playId&&v.itemId===result.itemId&&v.observedMs===Date.parse(result.observedAt));
       if(original){try{await this.transport.store.acknowledgePlay(original,current);}catch(error){if(!(error instanceof Error)||error.message!=='downloads_conflict')throw error;}}
@@ -233,7 +233,7 @@ export class DesktopOfflineCoordinator{
     const current=AbortSignal.any([signal,this.lifetime.signal]);this.guard(current);
     let cursor='';const seen=new Set<string>();
     do{
-      const page=parseRevocationPage(await this.transport.api.request(`${routePath('list_download_revocations')}${cursor?`?cursor=${encodeURIComponent(cursor)}`:''}`,'GET',undefined,current));this.guard(current);
+      const page=parseRevocationPage(await readDownloadRevocationsResponse(this.transport.api,cursor,current));this.guard(current);
       for(const revoked of page.items)if(revoked.profileId===this.transport.store.scope.profileId)await this.transport.store.revoke(revoked.receiptId,current);
       if(page.nextCursor&&seen.has(page.nextCursor))failed();
       cursor=page.nextCursor;seen.add(cursor);
