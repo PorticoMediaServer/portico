@@ -28,7 +28,7 @@ legacy layouts fail closed. It executes no bootstrap DDL, ANALYZE, migration,
 repair or seed. It does not inspect user data, prove its integrity or authorize
 access; those are separate startup responsibilities.
 
-The adopted002 file header is explicitly `application_id=0`, `user_version=0`
+The adopted003 file header is explicitly `application_id=0`, `user_version=0`
 and `encoding=UTF-8`. The zeros preserve the reviewed bootstrap; they are not
 layout identity markers. Verification checks them without rewriting them.
 Fresh bootstrap refuses incompatible headers rather than adopting them.
@@ -75,4 +75,14 @@ The provider100cast/50crew selector is not a manual-credit cap: preserve current
 preparation/pages. No provider re-trim of authored decisions is permitted.
 The six artifacts and native-layout fingerprint move together; actual writer,
 producer, crash/replay,1M/both-profile,quiet-max,2GB and R-09b gates remain open.
-InventoryRefuse and PB witness/next-bank changes are separate later reviews.
+PB witness/next-bank changes remain separate later reviews.
+
+INT-CHANGE-003 is adopted at abf43774 after independent R agreement. It adds
+only the closed InventoryRefuse receipt variant and eight typed binary-safe
+path/cursor fields. FIRST execution is Linux stable singleton
+filename_unrepresentable only; future cursor tags are representable, not
+authorised for execution. The schema gate opens after this embed merges, while
+R-26 diagnostics, R-27 byte debt/retention/bounded cleanup and R-28 correct native
+protection from escaped diagnostics remain gates on the actual Refuse command
+and qualification. No source acceptance, EOF, availability or physical pass is
+implied by a refusal receipt or by this embedding.

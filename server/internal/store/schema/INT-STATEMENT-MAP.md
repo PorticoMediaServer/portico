@@ -468,3 +468,36 @@ The source-reclaim command separately probes current live owner head, this direc
 At cutover, old descendant paths EXCLUDE `intent='credit-owner-single-v1'`: repair_relationships.go:304 active descendant admission, :310 terminal prune, :329 pending worker selection, repair_cascade_completion.go:153 zero-child completion. The new actual driver schedules by its own phase, pins, G state and unacknowledged result. General root-list status/permission paths dispatch the closed branch. A legacy count of zero descendants cannot prove this operation complete. These are required implementation changes, not accepting runtime SQL already shipped by this packet.
 
 Reduced literal goldens in INT-CHANGE-002-CONTROLS.json assert indexed request discovery, exact cohort pin, repair image pin and immutable receipt point lookup, in addition to effective detail/reverse/retirement paths. Complete mutation contracts remain in INT-CHANGE-002.md; HN must register the real fully bound W statements and all ASC/DESC/tie/negative plans. The tiny relational fixtures do not qualify sparse/retired posting debt, native cryptographic proof, crash or command holds.
+
+---
+
+# Adopted003 InventoryRefuse access and atomicity
+
+Exact adopted schema abf437746dfbffa23ce5c61f198e0b9a5659bf57bf2d8d0b60288de5d8d2ea7f over002. Product embedding follows canonical merge; real refusal execution remains gated. See INT-CHANGE-003.md for the closed FIRST Linux admission, portable binary carrier, issue display codec and one-unresolved historical receipt protocol. The snippets show access, not a complete W executor.
+
+```sql
+SELECT cursor,state,identity,revision FROM inventory_directories
+WHERE job_id=:run AND relative_path=CAST(:native_directory_bytes AS TEXT);
+-- FIRST Linux only; exact native comparison, no offset arithmetic.
+UPDATE inventory_directories SET cursor=:actual_next_native_text,
+  pages=pages+1,skipped=skipped+1
+WHERE job_id=:run AND relative_path=CAST(:native_directory_bytes AS TEXT)
+  AND identity=CAST(:directory_identity_bytes AS TEXT)
+  AND revision=CAST(:directory_revision_bytes AS TEXT)
+  AND cursor=CAST(:expected_payload AS TEXT) AND state='pending';
+-- Historical diagnostic resolves without joining mutable issues/resources.
+SELECT command_kind,accepted_revision,source_id,source_incarnation,source_revision,
+  refused_relative_path,refusal_code,cursor_kind,cursor_directory_path,
+  cursor_directory_identity,cursor_directory_revision,cursor_expected_payload,
+  cursor_next_payload,next_cursor,result_count,result_digest
+FROM scan_command_receipts
+WHERE run_id=:run AND command_incarnation=:incarnation AND command_sequence=:sequence;
+```
+
+Current permission first, historical receipt before stale source/directory/lease; fresh effects require the full actual command witnesses, prior cursor, admitted footprint and exactly one changed directory/run. Within the SAME admitted transaction, the issue insert/upsert, run warning/revision/sequence and immutable refusal receipt accompany that cursor CAS. result_count0 has no scan_command_results rows and no fabricated identity/availability. Do not repurpose change_id or expected_epoch. Complete cohort rollback and fresh singleton proof happen before this separate command.
+
+FIRST code is only filename_unrepresentable and cursor tag only local_getdents64_cookie_v1; future tags are representable but execution-refused until their own owner/lifetime review. A normal profile mismatch, capacity/WAL/quantum, IO, permission or stale CAS is not poison. Reversible escaped issue display must not be compared as an accepted native path; decode exact native bytes in bounded protection/reconciliation. Source/root rebinding invalidates this run's isolation/coverage proof; old issues never grant authority to a new scope.
+
+Rows are sought through existing directory PK and receipt PK. Model goldens are in INT-CHANGE-003-CONTROLS/RESULTS; all actual FK plans are separately retained. Full production registration/policy/source/capability/cursor/isolation proof and crash/physical qualification remain W/SC/HN/QL gates.
+
+R-26/R-27/R-28 are FIRST-EXECUTION gates: expose truthful permission-scoped diagnostics; bound diagnostic/receipt bytes, retained-run debt and complete indexed cleanup before owner deletion; protection must use native bytes or a validated reason-specific inverse codec, never escaped display as native identity. No cascade drain, silent truncation or ACK-away of the only protection proof. Full static HN statements and actual W/SC/QL qualification are required before enabling Refuse.
