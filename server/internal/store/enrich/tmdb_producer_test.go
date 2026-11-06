@@ -1,6 +1,7 @@
 package enrich
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"reflect"
@@ -75,6 +76,7 @@ func TestDraftTMDBProducerTrimKeepsRawSourceGaps(t *testing.T) {
 	cfg := documentConfig() // explicit harness policy, not a production recipe
 	cfg.MaxInFlight, cfg.MaxPending, cfg.MaxWaiters = 1, 1, 1
 	cfg.MaxResponseBytes = 4 << 20
+	cfg.CacheBytes = 1 << 20 // HARNESS cache must fit this 152-candidate entity.
 	tr := broker(t, cfg, admissionFunc(allowed), func(context.Context, RequestKey, int64) (Response, error) {
 		return Response{Status: 200, Body: tmdbCreditsFixture(101, 51), Metadata: documentMetadata()}, nil
 	})
@@ -82,9 +84,14 @@ func TestDraftTMDBProducerTrimKeepsRawSourceGaps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	originalBody, originalMetadata := doc.Body(), doc.Metadata()
 	payload, err := PrepareAcquiredTMDBMovie(tmdbMoviePolicy(t), TMDBMovieTarget{"evidence-native:149", "42", "en-CA", "CA", 151}, doc)
 	if err != nil {
 		t.Fatal(err)
+	}
+	cached, err := tr.GetDocument(t.Context(), documentKey())
+	if err != nil || tr.Stats().Reused != 1 || !bytes.Equal(doc.Body(), originalBody) || !bytes.Equal(cached.Body(), originalBody) || cached.Metadata() != originalMetadata {
+		t.Fatal("candidate retirement altered acquisition/cache custody", err)
 	}
 	rows := payload.Credits()
 	if len(rows) != 150 || rows[0].Billing != (writer.EvidenceInteger{Present: true}) || rows[100].Ordinal != 100 || rows[100].SourceOrdinal != 101 || rows[100].Billing.Present {
