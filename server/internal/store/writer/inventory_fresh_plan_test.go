@@ -1,7 +1,6 @@
 package writer
 
 import (
-	"bytes"
 	"flag"
 	"os"
 	"path/filepath"
@@ -53,7 +52,7 @@ func TestInventoryFreshLibraryPlanGolden(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(append(data, '\n'), expected) {
-		t.Fatal("fresh library plan differs from the recorded complete Capture")
+	if err := golden.Compare(expected); err != nil {
+		t.Fatal(err)
 	}
 }
