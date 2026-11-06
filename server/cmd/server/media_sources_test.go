@@ -32,9 +32,12 @@ func TestMain(m *testing.M) {
 		os.Exit(0)
 	}
 	if len(os.Args) == 2 && os.Args[1] == "--portico-storage-helper" {
-		if storage.Helper(os.Stdin, os.Stdout) != nil {
+		input, output, finish := diagnosticStorageHelperIO()
+		if err := storage.Helper(input, output); err != nil {
+			finish()
 			os.Exit(1)
 		}
+		finish()
 		os.Exit(0)
 	}
 	os.Exit(m.Run())
@@ -93,6 +96,9 @@ func TestDefaultMediaCompositionAddsScansAndBrowsesWithoutRootsEnv(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Keep the original fixture paths/request lengths; only the children
+	// started by Run below opt into the separate diagnostic directory.
+	helperDiagnostics := enableStorageHelperDiagnostics(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { scanner.Run(ctx); close(done) }()
@@ -111,6 +117,7 @@ func TestDefaultMediaCompositionAddsScansAndBrowsesWithoutRootsEnv(t *testing.T)
 		}
 		select {
 		case <-deadline:
+			logStorageHelperDiagnostics(t, helperDiagnostics)
 			t.Logf("empty-source timeout: GOOS=%s GOARCH=%s CPU=%d GOMAXPROCS=%d helper=%+v DB=%+v", runtime.GOOS, runtime.GOARCH, runtime.NumCPU(), runtime.GOMAXPROCS(0), store.Supervisor.Stats(), db.Stats())
 			inspect, stop := context.WithTimeout(context.Background(), 500*time.Millisecond)
 			var health, rootIdentity, directoryState, cursor, revision sql.NullString
