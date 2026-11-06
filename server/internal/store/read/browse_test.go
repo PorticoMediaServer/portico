@@ -3,7 +3,6 @@ package read
 import (
 	"context"
 	"database/sql"
-	"database/sql/driver"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -41,11 +40,6 @@ type browseFact struct {
 
 func newBrowseFixture(t *testing.T) *browseFixture {
 	t.Helper()
-	return newBrowseFixtureWithConnector(t, nil)
-}
-
-func newBrowseFixtureWithConnector(t *testing.T, observe func(driver.Connector, *governor.Authority) driver.Connector) *browseFixture {
-	t.Helper()
 	f := newBrowseSource(t)
 	definitions := browseDefinitions()
 	golden := captureBrowse(t, f, definitions, plan.Unanalyzed)
@@ -63,9 +57,6 @@ func newBrowseFixtureWithConnector(t *testing.T, observe func(driver.Connector, 
 	g, a, err := governor.New(gc)
 	if err != nil {
 		t.Fatal(err)
-	}
-	if observe != nil {
-		connector = observe(connector, a)
 	}
 	f.snapshots, err = governor.NewSnapshots(connector, reader, g, a, registry)
 	if err != nil {
