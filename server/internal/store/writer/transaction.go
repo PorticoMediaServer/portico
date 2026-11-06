@@ -61,6 +61,7 @@ type executor struct {
 	fenced         bool
 	physicalFaults *physicalCloseFaults
 	driverPanics   *driverPanicLog
+	fileBinding    *scanFileBinding // nil for existing harness frames
 }
 
 // These are the bundled driver's contextual interfaces. Interposing only Close
@@ -117,6 +118,7 @@ type writerConnector struct {
 	faults   *physicalCloseFaults
 	panics   *driverPanicLog
 	decorate func(driver.Conn) driver.Conn // private fault instrumentation only
+	binding  *scanFileBinding
 }
 
 func (c *writerConnector) Connect(ctx context.Context) (out driver.Conn, err error) {
@@ -136,12 +138,22 @@ func (c *writerConnector) Connect(ctx context.Context) (out driver.Conn, err err
 	if failed {
 		return nil, ErrClosed
 	}
+	if c.binding != nil {
+		if err := c.binding.check(); err != nil {
+			return nil, err
+		}
+	}
 	conn, err := c.Connector.Connect(ctx)
 	if err != nil {
 		return nil, err
 	}
 	scope := &driverSafety{log: c.panics}
 	native = &ownedPhysicalConn{writerDriverConn: conn.(writerDriverConn), faults: c.faults, scope: scope}
+	if c.binding != nil {
+		if err := c.binding.check(); err != nil {
+			return nil, errors.Join(err, native.Close())
+		}
+	}
 	var wrapped driver.Conn = native
 	if c.decorate != nil {
 		wrapped = c.decorate(native)
@@ -211,7 +223,7 @@ func (c *physicalCloseBoundary) Close() (err error) {
 func (w *executor) openPool(connector driver.Connector, decorate func(driver.Conn) driver.Conn) {
 	w.physicalFaults = &physicalCloseFaults{}
 	w.driverPanics = &driverPanicLog{}
-	w.db = sql.OpenDB(&writerConnector{Connector: connector, faults: w.physicalFaults, panics: w.driverPanics, decorate: decorate})
+	w.db = sql.OpenDB(&writerConnector{Connector: connector, faults: w.physicalFaults, panics: w.driverPanics, decorate: decorate, binding: w.fileBinding})
 	w.db.SetMaxOpenConns(w.config.Connections)
 	w.db.SetMaxIdleConns(w.config.Connections)
 }
@@ -318,6 +330,12 @@ func (w *executor) begin(ctx context.Context, id CommandID, r turnRecipe, c turn
 	}
 	if err = q.TryStep(r.setup, now); err != nil {
 		return nil, err
+	}
+	if w.fileBinding != nil {
+		if err = w.fileBinding.check(); err != nil {
+			w.fenced = true
+			return nil, err
+		}
 	}
 	conn, err := w.db.Conn(turnCtx)
 	t.conn = conn
