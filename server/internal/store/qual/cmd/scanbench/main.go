@@ -38,6 +38,7 @@ func main() {
 
 type report struct {
 	Label              string               `json:"label"`
+	Qualification      bool                 `json:"qualification"`
 	Mode               string               `json:"mode"`
 	RequestedStorage   string               `json:"requested_storage"`
 	Fixture            scanbench.Fixture    `json:"fixture"`
@@ -81,10 +82,11 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 			return err
 		}
 		return json.NewEncoder(out).Encode(struct {
-			Label   string            `json:"label"`
-			Mode    string            `json:"mode"`
-			Fixture scanbench.Fixture `json:"fixture"`
-		}{"DIRECTIONAL", "generation-only", fixture})
+			Label         string            `json:"label"`
+			Mode          string            `json:"mode"`
+			Qualification bool              `json:"qualification"`
+			Fixture       scanbench.Fixture `json:"fixture"`
+		}{"DIRECTIONAL", "generation-only", false, fixture})
 	}
 	if runtime.GOOS != "linux" {
 		return errors.New("FIRST native-cookie traversal harness requires Linux")
