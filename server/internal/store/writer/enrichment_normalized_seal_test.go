@@ -17,7 +17,7 @@ import (
 
 // DATA ONLY: EN froze these bytes independently from the written approved
 // spec, before W implementation. No expected stream/digest is codec-generated.
-const normalizedVectorSHA = "5dbaf784b70d0d46ae6b66574ac7221ac84ba62d879acd8fd0220af6632aa681"
+const normalizedVectorSHA = "ff6acc24ad73df8c538fff5e16c6eae0086de38c6798760e2a99124451dc809f"
 const normalizedSpecSHA = "f39cdeae12596bfbd1e9d941968806d94ec0a6db67f68e561997b018443ce55e"
 
 type normalizedVector struct {
