@@ -3,10 +3,11 @@ package storage
 import (
 	"context"
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/childprocess"
 	"io"
+	"log"
 	"os"
 	"os/exec"
-	"github.com/PorticoMediaServer/portico/server/internal/childprocess"
 	"regexp"
 	"runtime"
 	"strings"
@@ -132,6 +133,13 @@ type Supervisor struct {
 	queued    atomic.Uint64
 	refused   atomic.Uint64
 	waitNs    atomic.Uint64
+
+	// Two fixed-cardinality native-only metrics, with no path/job labels.
+	nativeRetiring            atomic.Int64
+	nativeRetirementOverGrace atomic.Uint64
+	nativeWarningBusy         atomic.Bool
+	// Deterministic physical-Wait fixture; nil in production.
+	waitForTest func(*exec.Cmd) error
 }
 
 // SupervisorStats is the observable state of one supervisor.
@@ -147,10 +155,12 @@ type SupervisorStats struct {
 	Admitted           uint64 `json:"admitted"`
 	// InProcess counts admitted operations served without a helper process
 	// (scanner M1); Admitted minus InProcess is the processes started.
-	InProcess       uint64 `json:"inProcess"`
-	Queued          uint64 `json:"queued"`
-	Refused         uint64 `json:"refused"`
-	QueueWaitMillis uint64 `json:"queueWaitMillis"`
+	InProcess                 uint64 `json:"inProcess"`
+	Queued                    uint64 `json:"queued"`
+	Refused                   uint64 `json:"refused"`
+	QueueWaitMillis           uint64 `json:"queueWaitMillis"`
+	NativeRetiring            int64  `json:"nativeRetiring"`
+	NativeRetirementOverGrace uint64 `json:"nativeRetirementOverGrace"`
 }
 
 // Stats snapshots the supervisor for diagnostics.
@@ -169,6 +179,7 @@ func (s *Supervisor) Stats() SupervisorStats {
 		ScanProbeActive: scan, ScanProbeCapacity: scanLimit,
 		Admitted: s.admitted.Load(), InProcess: s.inProcess.Load(), Queued: s.queued.Load(), Refused: s.refused.Load(),
 		QueueWaitMillis: s.waitNs.Load() / uint64(time.Millisecond),
+		NativeRetiring:  s.nativeRetiring.Load(), NativeRetirementOverGrace: s.nativeRetirementOverGrace.Load(),
 	}
 }
 
@@ -248,7 +259,8 @@ func (s *Supervisor) run(ctx context.Context, key string, cmd *exec.Cmd, consume
 // of an ingest probe. Playback keeps its bounded client-facing wait.
 func (s *Supervisor) admit(ctx context.Context, key string, limited bool) (pool, error) {
 	p := poolFor(ctx, key)
-	if (p == poolBackground || p == poolScanProbe) && !dbwork.WaitBackground(ctx) {
+	native := nativeInventoryAdmission(ctx)
+	if !native && (p == poolBackground || p == poolScanProbe) && !dbwork.WaitBackground(ctx) {
 		return p, ctx.Err()
 	}
 	var timer *time.Timer
@@ -295,7 +307,7 @@ func (s *Supervisor) admit(ctx context.Context, key string, limited bool) (pool,
 			return p, nil
 		}
 		background := p == poolBackground || p == poolScanProbe
-		if !background && !waitsForSlot(key) {
+		if native || !background && !waitsForSlot(key) {
 			s.refused.Add(1)
 			return p, ErrBusy
 		}
@@ -394,6 +406,13 @@ func (s *Supervisor) runAdmission(ctx context.Context, key string, cmd *exec.Cmd
 		s.release(key, p)
 		retire()
 	}
+	// Native work reserves/refuses immediately, before any background-policy
+	// pause. A pause still applies, with that reservation charged until no-start
+	// cancellation or physical return. Legacy admission order is unchanged.
+	if nativeInventoryAdmission(ctx) && (p == poolBackground || p == poolScanProbe) && !dbwork.WaitBackground(ctx) {
+		release()
+		return ctx.Err()
+	}
 	// Only a plain Run is served in process; owned runs tie cleanup to an
 	// actual process exit.
 	if data, ok := inProcessRequest(cmd); ok && afterExit == nil && afterRetired == nil {
@@ -442,7 +461,7 @@ func (s *Supervisor) runAdmission(ctx context.Context, key string, cmd *exec.Cmd
 				// Keep its capacity until the process is killed and reaped; the
 				// outer supervisor still records the original panic.
 				killProcess(cmd)
-				waitErr = cmd.Wait()
+				waitErr = s.waitHelper(cmd)
 				readErr = errors.New("storage helper consumer ended before process wait")
 			}
 			stdout.Close()
@@ -457,7 +476,7 @@ func (s *Supervisor) runAdmission(ctx context.Context, key string, cmd *exec.Cmd
 		if readErr != nil {
 			killProcess(cmd)
 		}
-		waitErr = cmd.Wait()
+		waitErr = s.waitHelper(cmd)
 		waited = true
 		if waitErr != nil {
 			waitErr = withStderr(waitErr, stderr.String())
@@ -473,6 +492,25 @@ func (s *Supervisor) runAdmission(ctx context.Context, key string, cmd *exec.Cmd
 	}
 	// A process stuck in an uninterruptible kernel operation retains its slot
 	// until Wait actually returns. Caller cancellation never frees quarantine.
+}
+
+func (s *Supervisor) waitHelper(cmd *exec.Cmd) error {
+	if s.waitForTest != nil {
+		return s.waitForTest(cmd)
+	}
+	return cmd.Wait()
+}
+
+func (s *Supervisor) warnNativeRetirement() {
+	// Logging cannot extend the caller grace or block the reaper. At most one
+	// warning worker per supervisor can be blocked by a slow operator log sink;
+	// concurrent warnings coalesce, while both scalar metrics retain the facts.
+	if s.nativeWarningBusy.CompareAndSwap(false, true) {
+		supervise.Go("storage.native-retirement-warning", func() {
+			defer s.nativeWarningBusy.Store(false)
+			log.Print("warning: native storage helper retirement exceeds five-second grace; physical owner and helper slot remain held")
+		})
+	}
 }
 
 func (s *Supervisor) Active() int {
