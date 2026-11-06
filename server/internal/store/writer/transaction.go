@@ -316,6 +316,7 @@ func (w *executor) begin(ctx context.Context, id CommandID, r turnRecipe, c turn
 	}
 	if _, err = conn.ExecContext(turnCtx, pragma); err == nil {
 		t.settings, err = sqliteconn.Assert(turnCtx, conn, cfg)
+		t.policyVerified = err == nil
 	}
 	if err == nil {
 		err = c.check()
@@ -333,22 +334,27 @@ func (w *executor) begin(ctx context.Context, id CommandID, r turnRecipe, c turn
 }
 
 type transaction struct {
-	writer     *executor
-	conn       *sql.Conn
-	ctx        context.Context
-	cancel     context.CancelFunc
-	custody    turnCustody
-	quantum    *Quantum
-	descriptor Descriptor
-	settings   sqliteconn.Settings
-	start      time.Time
-	limit      time.Duration
-	begun      bool
-	done       bool
+	writer         *executor
+	conn           *sql.Conn
+	ctx            context.Context
+	cancel         context.CancelFunc
+	custody        turnCustody
+	quantum        *Quantum
+	descriptor     Descriptor
+	settings       sqliteconn.Settings
+	policyVerified bool
+	start          time.Time
+	limit          time.Duration
+	begun          bool
+	done           bool
 	// Set before entering the COMMIT driver: no panic/error cleanup may then
 	// classify the outcome as rolled back or attempt an ordinary ROLLBACK.
 	commitAttempted     bool
+	rollbackReturned    bool
 	commitElapsed       time.Duration
+	commitStartedAt     time.Time
+	commitReturnedAt    time.Time
+	physicalReturnedAt  time.Time
 	result              turnResult
 	finishErr           error
 	cleanupComplete     bool
@@ -411,10 +417,12 @@ func (t *transaction) commit() (turnResult, error) {
 		return t.rollback(err)
 	}
 	start := t.writer.now()
+	t.commitStartedAt = start
 	t.commitAttempted = true
 	_, err = t.conn.ExecContext(t.ctx, "COMMIT")
 	t.raiseDriverPanic(err)
-	t.commitElapsed = t.writer.now().Sub(start)
+	t.commitReturnedAt = t.writer.now()
+	t.commitElapsed = t.commitReturnedAt.Sub(start)
 	if err != nil {
 		return t.unknown(err)
 	}
@@ -501,6 +509,7 @@ func (t *transaction) rollbackOwned(cause error) (turnResult, error) {
 			cause = errors.Join(cause, err)
 			discard = true
 		}
+		t.rollbackReturned = err == nil
 		t.begun = false
 	}
 	return t.finish(rolledBack, discard, cause)
@@ -612,6 +621,9 @@ func (t *transaction) finish(state commitState, discard bool, cause error) (turn
 	measure := func() error {
 		if !t.start.IsZero() {
 			t.result.hold = w.now().Sub(t.start)
+			if t.conn != nil && t.connectionReturned && t.retirementComplete && t.result.hold >= 0 {
+				t.physicalReturnedAt = t.start.Add(t.result.hold)
+			}
 		}
 		return nil
 	}

@@ -106,15 +106,23 @@ func (c *governedTurn) fence() {
 // and AFTER physical return, BEFORE the next Try. It performs no IO inside Try.
 // Sampling's own bounded resources belong to composition lifetime custody.
 func refreshWriterWAL(path string, wal *governor.WALGate, now func() time.Time) error {
+	_, err := observeWriterWAL(path, wal, now)
+	return err
+}
+
+func observeWriterWAL(path string, wal *governor.WALGate, now func() time.Time) (*WALObservation, error) {
 	if wal == nil || now == nil {
-		return invalid("writer_wal_observer")
+		return nil, invalid("writer_wal_observer")
 	}
 	token := wal.Observation() // must precede the physical read
 	state, err := governor.ReadWAL(path)
 	at := now()
 	if err != nil {
 		// Refuse against an invalid sample, never leave old headroom reusable.
-		return errors.Join(err, wal.Publish(token, governor.WALState{}, at))
+		return nil, errors.Join(err, wal.Publish(token, governor.WALState{}, at))
 	}
-	return wal.Publish(token, state, at)
+	if err := wal.Publish(token, state, at); err != nil {
+		return nil, err
+	}
+	return &WALObservation{Token: token, ObservedAt: at, State: state}, nil
 }
