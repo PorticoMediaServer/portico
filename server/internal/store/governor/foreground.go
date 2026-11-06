@@ -8,9 +8,10 @@ import (
 
 const ForegroundRequestBytes int64 = 20 << 20
 
-// ForegroundProfile is supplied by trusted whole-server composition. Effective
-// is the actual process/cgroup/ancestor ceiling, NOT host RAM. NonBrowse must
-// include normal TMDB for THAT profile even when its smaller fallback is active.
+// ForegroundProfile is supplied by trusted whole-server composition. Assigned
+// and Effective are configured bounds, not attestations of the host. New checks
+// their minimum against hostlimits independently. NonBrowse must include normal
+// TMDB for THAT profile even when its smaller fallback is active.
 // No defaults select a qualified profile; payload reservations remain separate.
 // Budget/profile changes require a new validated composition after draining;
 // changing a caller-owned pointer cannot resize existing live custody.
@@ -22,12 +23,58 @@ type ForegroundProfile struct {
 	MaxWait                                       time.Duration
 }
 
-// Capacity preserves ceil(20% M) without floating point or overflow. A profile
-// that cannot fund the adopted minimum returns a conflict, never max(MinimumLive, cap).
-func (p ForegroundProfile) Capacity() (int, error) {
-	m := min(p.AssignedBytes, p.EffectiveBytes)
-	if m <= 0 || p.NonBrowseBytes <= 0 || p.NonBrowseBytes >= m || p.MinimumLive < 1 {
-		return 0, errors.New("foreground server-memory profile conflict")
+// ForegroundBudgetReason is a typed configuration refusal, not a runtime
+// override or authority to erase an owner reservation to fit a smaller host.
+type ForegroundBudgetReason uint8
+
+const (
+	ForegroundInvalidBudget ForegroundBudgetReason = iota + 1
+	ForegroundEffectiveLimitExceeded
+	ForegroundUnfundedBudget
+)
+
+type ForegroundBudgetError struct {
+	Reason                          ForegroundBudgetReason
+	ConfiguredBytes, EffectiveBytes int64
+}
+
+func (e *ForegroundBudgetError) Error() string {
+	switch e.Reason {
+	case ForegroundEffectiveLimitExceeded:
+		return "foreground profile exceeds known effective server memory"
+	case ForegroundUnfundedBudget:
+		return "foreground server memory cannot fund the selected profile"
+	default:
+		return "invalid foreground server memory profile"
+	}
+}
+
+// Capacity is arithmetic with an UNKNOWN external limit. It proves no budget
+// provenance. New always supplies hostlimits.EffectiveMemoryBytes separately.
+func (p ForegroundProfile) Capacity() (int, error) { return p.CapacityAtLimit(0) }
+
+// CapacityAtLimit is PURE: knownLimit is the observed hostlimits source; <=0
+// means unknown and uses configured M. Effective M=min(configured,knownLimit),
+// but a known smaller limit REFUSES the oversized profile, rather than silently
+// changing an owner-approved profile. The caller must explicitly pass the min
+// and a funded profile. No runtime settings, adapter or default are installed.
+func (p ForegroundProfile) CapacityAtLimit(knownLimit int64) (int, error) {
+	configured := min(p.AssignedBytes, p.EffectiveBytes)
+	m := configured
+	if knownLimit > 0 {
+		m = min(m, knownLimit)
+	}
+	refuse := func(reason ForegroundBudgetReason) (int, error) {
+		return 0, &ForegroundBudgetError{Reason: reason, ConfiguredBytes: configured, EffectiveBytes: m}
+	}
+	if configured <= 0 || p.NonBrowseBytes <= 0 || p.MinimumLive < 1 {
+		return refuse(ForegroundInvalidBudget)
+	}
+	if configured > m {
+		return refuse(ForegroundEffectiveLimitExceeded)
+	}
+	if p.NonBrowseBytes >= m {
+		return refuse(ForegroundUnfundedBudget)
 	}
 	reserve := m / 5
 	if m%5 != 0 {
@@ -35,7 +82,7 @@ func (p ForegroundProfile) Capacity() (int, error) {
 	}
 	cap := (m - p.NonBrowseBytes - reserve) / ForegroundRequestBytes
 	if cap < int64(p.MinimumLive) || cap > int64(^uint(0)>>1) {
-		return 0, errors.New("foreground live capacity/profile conflict")
+		return refuse(ForegroundUnfundedBudget)
 	}
 	return int(cap), nil
 }
@@ -59,12 +106,12 @@ type foregroundLedger struct {
 	live, waiters int
 }
 
-func configureForeground(c Config) (foregroundLedger, error) {
+func configureForeground(c Config, knownLimit int64) (foregroundLedger, error) {
 	if c.Foreground == nil {
 		return foregroundLedger{}, nil
 	}
 	p := *c.Foreground
-	n, err := p.Capacity()
+	n, err := p.CapacityAtLimit(knownLimit)
 	if err != nil {
 		return foregroundLedger{}, err
 	}

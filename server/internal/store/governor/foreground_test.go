@@ -13,7 +13,7 @@ func foregroundSetup(t *testing.T) (Governor, *Authority, *testClock) {
 		AssignedBytes: 2_000_000_000, EffectiveBytes: 2_000_000_000, NonBrowseBytes: 1360 << 20,
 		MaxWaiters: 2, MinimumLive: 8, BookkeepingBytes: 4096, MaxWait: 40 * time.Millisecond}}
 	c.Partitions[Foreground] = Amounts{Reader: 8, MemoryBytes: 224 << 20, QueueBytes: 1 << 20}
-	g, a, err := New(c)
+	g, a, err := newGovernor(c, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestForegroundCapacityServerBudgetAndProfileConflicts(t *testing.T) {
 		p := *cfg.Foreground
 		c.Foreground = &p
 		change(&c)
-		if _, _, e := New(c); e == nil {
+		if _, _, e := newGovernor(c, 0); e == nil {
 			t.Fatal("unfunded/unbounded configuration accepted")
 		}
 	}
@@ -352,7 +352,7 @@ func TestForegroundCeilingReserveScaledAdmissionAndImmutableProfile(t *testing.T
 	p = ForegroundProfile{AssignedBytes: 4_000_000_000, EffectiveBytes: 4_000_000_000, NonBrowseBytes: 2720 << 20, BookkeepingBytes: 4096, MinimumLive: 8, MaxWaiters: 0, MaxWait: 40 * time.Millisecond}
 	cfg.Foreground = &p
 	cfg.Partitions[Foreground][MemoryBytes] = 512 << 20
-	_, a, e := New(cfg)
+	_, a, e := newGovernor(cfg, 0)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -397,7 +397,7 @@ func TestForegroundPhysical2GBProfileContingencyNoFifth(t *testing.T) {
 	cfg := g.(*ledger).config
 	p := ForegroundProfile{AssignedBytes: 1_600_000_000, EffectiveBytes: 2_000_000_000, NonBrowseBytes: 1140 << 20, MinimumLive: 4, BookkeepingBytes: 4096, MaxWaiters: 0, MaxWait: 40 * time.Millisecond}
 	cfg.Foreground = &p
-	_, a, e := New(cfg)
+	_, a, e := newGovernor(cfg, 0)
 	if e != nil {
 		t.Fatal(e)
 	}
