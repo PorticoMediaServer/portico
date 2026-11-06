@@ -38,7 +38,7 @@ func effectiveBeginResultDigest(identity CommandIdentity, request RequestDigest,
 // canonicalResultDigest accepts only explicitly compiled result schemas. A new
 // domain cannot register a codec or make an arbitrary output a canonical result.
 func canonicalResultDigest(identity CommandIdentity, request RequestDigest, result any) (ResultDigest, error) {
-	if err := preflightCanonicalResult(identity, result); err != nil {
+	if err := preflightCanonicalResult(identity, request, result); err != nil {
 		return ResultDigest{}, err
 	}
 	e := requestEncoder{h: sha256.New()}
@@ -50,7 +50,7 @@ func canonicalResultDigest(identity CommandIdentity, request RequestDigest, resu
 	return digest, nil
 }
 
-func preflightCanonicalResult(identity CommandIdentity, result any) error {
+func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, result any) error {
 	if identity.Sequence <= 0 {
 		return invalid("result_command_sequence")
 	}
@@ -61,6 +61,10 @@ func preflightCanonicalResult(identity CommandIdentity, result any) error {
 		return preflightEffectiveBeginResult(v)
 	case inventoryAcceptResult:
 		return preflightInventoryAcceptResult(v)
+	case inventoryCreateResult:
+		return preflightScanRunLifecycleResult(InventoryCreate, identity, request, v.facts)
+	case inventoryClaimResult:
+		return preflightScanRunLifecycleResult(InventoryClaim, identity, request, v.facts)
 	default:
 		return invalid("canonical_result_schema")
 	}
@@ -84,7 +88,7 @@ func preflightEffectiveBeginResult(v effectiveBeginResult) error {
 }
 
 func encodeCanonicalResult(e *requestEncoder, identity CommandIdentity, request RequestDigest, result any) error {
-	if err := preflightCanonicalResult(identity, result); err != nil {
+	if err := preflightCanonicalResult(identity, request, result); err != nil {
 		return err
 	}
 	return writeCanonicalResult(e, identity, request, result)
@@ -98,6 +102,10 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 		return writeEffectiveBeginResult(e, identity, request, v)
 	case inventoryAcceptResult:
 		return writeInventoryAcceptResult(e, identity, request, v)
+	case inventoryCreateResult:
+		return writeScanRunLifecycleResult(e, InventoryCreate, identity, request, v.facts)
+	case inventoryClaimResult:
+		return writeScanRunLifecycleResult(e, InventoryClaim, identity, request, v.facts)
 	default:
 		return invalid("canonical_result_schema")
 	}
