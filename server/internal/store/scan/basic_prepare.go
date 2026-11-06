@@ -59,6 +59,14 @@ func PrepareBasic(in BasicInput, raw BasicShapeInput, payloadLimit int64) (Prepa
 		}
 		remaining -= int64(len(stream.Type))
 	}
+	// Preserve CHANGE-003's native filename cause before fs.ValidPath in
+	// reusable() can collapse it. NUL remains invalid input, never poison.
+	if strings.IndexByte(in.File.RelativePath, 0) >= 0 {
+		return PreparedBasic{}, ErrInvalid
+	}
+	if !utf8.ValidString(in.File.RelativePath) {
+		return PreparedBasic{}, &writer.PolicyError{Field: "basic_relative_path", Cause: writer.ErrFilenameUnrepresentable}
+	}
 	if !in.reusable() || raw.LibraryID != in.File.Source.LibraryID {
 		return PreparedBasic{}, ErrInvalid
 	}

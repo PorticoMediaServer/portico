@@ -48,11 +48,15 @@ func ProjectOrdinaryFilename(input InventoryOrdinaryFilenameInput) (InventoryOrd
 			return InventoryOrdinaryFilename{}, invalid("inventory_native_path")
 		}
 	}
-	if input.IdentityRoot == nil || len(input.AssetPath) == 0 || !utf8.Valid(input.IdentityRoot) {
+	if input.IdentityRoot == nil || len(input.AssetPath) == 0 {
 		return InventoryOrdinaryFilename{}, invalid("inventory_identity_root")
 	}
-	if !utf8.Valid(relativePath) || !utf8.Valid(input.AssetPath) {
-		return InventoryOrdinaryFilename{}, &PolicyError{Field: "inventory_native_path", Cause: ErrFilenameUnrepresentable}
+	// All three native path fields share representability classification. This
+	// includes a root-only invalid byte; it grants no refusal/cursor authority.
+	for _, raw := range [3][]byte{input.IdentityRoot, input.AssetPath, relativePath} {
+		if !utf8.Valid(raw) {
+			return InventoryOrdinaryFilename{}, &PolicyError{Field: "inventory_native_path", Cause: ErrFilenameUnrepresentable}
+		}
 	}
 	if len(relativePath) > naming.MaxPathBytes {
 		return InventoryOrdinaryFilename{}, &PolicyError{Field: "inventory_native_path", Limit: naming.MaxPathBytes, Cause: ErrCap}
