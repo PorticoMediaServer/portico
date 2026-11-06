@@ -1,16 +1,84 @@
 package plan_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 )
+
+func TestPlanReceiptRejectsInvalidSQLAndJSONCollisions(t *testing.T) {
+	conn, _, f, _ := fixture(t)
+	d := stmt.Definition{ID: "admission.bytes", SQL: "SELECT ? FROM items WHERE id=1", Owner: "owner\xff", CallSites: []string{"site\xff"}, Kind: stmt.Read,
+		Params: []stmt.Param{{Name: "text\xff", Type: stmt.Text}}, Cohorts: []stmt.Cohort{{Name: "one\xff", Bindings: []any{"\xff"}}},
+		Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"items"}, AllowedScans: []string{"metadata\xff"}}}
+	catalogue, err := stmt.Describe([]stmt.Definition{d})
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, err := plan.Capture(t.Context(), conn, catalogue, f, indexPolicy(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := stmt.New([]stmt.Definition{d}, g.Receipt())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := r.Lookup(d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := s.Bind("\xff")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var actual string
+	if err := b.QueryRowContext(t.Context(), conn).Scan(&actual); err != nil || actual != "\xff" {
+		t.Fatal("native byte control failed", actual, err)
+	}
+	for _, mutate := range []func(*stmt.Definition){
+		func(d *stmt.Definition) { d.Owner = "owner\xfe" },
+		func(d *stmt.Definition) { d.CallSites[0] = "site\xfe" },
+		func(d *stmt.Definition) { d.Params[0].Name = "text\xfe" },
+		func(d *stmt.Definition) { d.Cohorts[0].Name = "one\xfe" },
+		func(d *stmt.Definition) { d.Cohorts[0].Bindings[0] = "\xfe" },
+		func(d *stmt.Definition) { d.Plan.AllowedScans[0] = "metadata\xfe" },
+	} {
+		changed := r.Manifest()[0].Definition
+		mutate(&changed)
+		oldJSON, _ := json.Marshal(d)
+		newJSON, _ := json.Marshal(changed)
+		if !bytes.Equal(oldJSON, newJSON) {
+			t.Fatal("test no longer exercises JSON collision")
+		}
+		if bad, err := stmt.New([]stmt.Definition{changed}, g.Receipt()); !errors.Is(err, stmt.ErrUnqualified) || bad != nil {
+			t.Fatal("JSON collision reused native receipt", err)
+		}
+	}
+	for _, raw := range []string{"\xff", "\xfe"} {
+		invalid := r.Manifest()[0].Definition
+		invalid.SQL = "SELECT '" + raw + "' FROM items WHERE id=?"
+		invalid.Params = []stmt.Param{{Name: "id", Type: stmt.Integer}}
+		invalid.Cohorts = []stmt.Cohort{{Name: "one", Bindings: []any{int64(1)}}}
+		catalogue, err := stmt.Describe([]stmt.Definition{invalid}) // inert only
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bad, err := plan.Capture(t.Context(), conn, catalogue, f, indexPolicy(t)); err == nil || !strings.Contains(err.Error(), "UTF-8") || bad.Receipt() != nil {
+			t.Fatal("invalid UTF-8 SQL captured", err)
+		}
+		if bad, err := stmt.New([]stmt.Definition{invalid}, g.Receipt()); err == nil || !strings.Contains(err.Error(), "UTF-8") || bad != nil {
+			t.Fatal("invalid UTF-8 SQL registered", err)
+		}
+	}
+}
 
 type admissionExecutor struct {
 	conn                 *sql.Conn

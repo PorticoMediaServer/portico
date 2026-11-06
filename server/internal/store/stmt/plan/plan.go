@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
@@ -76,6 +77,11 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 	g := Golden{Manifest: registry.Manifest(), Plans: []StatementPlan{}}
 	if len(g.Manifest) == 0 {
 		return g, fmt.Errorf("plan: empty registry")
+	}
+	for _, entry := range g.Manifest {
+		if !utf8.ValidString(entry.SQL) {
+			return g, fmt.Errorf("plan %s: SQL must be valid UTF-8", entry.ID)
+		}
 	}
 	env, err := environment(ctx, conn, fixture)
 	if err != nil {
@@ -156,19 +162,27 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 	if err != nil {
 		return g, err
 	}
-	data, err := g.JSON()
+	sourceBytes, err := qualification.Encode(sources)
+	if err != nil {
+		return g, err
+	}
+	data, err := qualification.Encode(struct {
+		Environment Environment
+		Plans       []StatementPlan
+		ForeignKeys *ForeignKeyAudit
+	}{g.Environment, g.Plans, g.ForeignKeys})
 	if err != nil {
 		return g, err
 	}
 	definitions := make(map[string][]byte, len(g.Manifest))
 	for _, entry := range g.Manifest {
-		definition, err := json.Marshal(entry.Definition)
+		definition, err := qualification.Encode(entry.Definition)
 		if err != nil {
 			return g, err
 		}
 		definitions[string(entry.ID)] = definition
 	}
-	g.receipt = qualification.Mint(definitions, data, sources)
+	g.receipt = qualification.Mint(definitions, data, sourceBytes)
 	return g, nil
 }
 
