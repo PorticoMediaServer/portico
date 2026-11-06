@@ -68,8 +68,9 @@ type EnrichmentReceiptRequest struct {
 // the exact complete immutable result; ResultRetired serves no drained cohort.
 // Missing above-floor proof/uncertain COMMIT requires resolution of this SAME
 // identity, never blind reexecution. Replayed describes this call, not a stored
-// result field. On errors callers must still inspect a nonzero authoritative
-// State; a committed overrun cannot be relabeled as a retryable rollback.
+// result field. EVERY error returns a completely zero value, including evidence.
+// Zero output never proves rollback: resolve this SAME original identity after
+// cancellation, overrun or any uncertain/late terminal outcome.
 type ReceiptOutcome struct {
 	State     ResultState
 	Reference ReceiptReference
@@ -116,7 +117,7 @@ func (r *Refusal) Unwrap() error { return ErrRefused }
 // ErrBusy/ErrClosed are frame availability; ErrResolveRequired (possibly joined
 // with ErrOwnerUnavailable) forbids a new turn/identity until durable resolution.
 // ErrOverrun and context cancellation/deadlines alone do not prove rollback;
-// preserve an authoritative terminal outcome and resolve any COMMIT ambiguity.
+// the private frame preserves terminal truth; resolve the ORIGINAL identity.
 
 // CommitObservation is physical evidence, never the domain receipt outcome.
 // Zero means unobserved; Unknown means a COMMIT was attempted but not proved.
@@ -157,7 +158,8 @@ type ExecutionEvidence struct {
 // AcceptInventory is one whole immutable ordered batch/receipt. FIRST admits
 // only a qualified N=1 ordinary-movie recipe; larger wire shapes confer no
 // admission. Any member failure rolls back the ENTIRE batch, never a prefix.
-func (w *Writer) AcceptInventory(ctx context.Context, disclosure *ScanDisclosure, input InventoryAcceptCommand) (InventoryResult, error) {
+func (w *Writer) AcceptInventory(ctx context.Context, disclosure *ScanDisclosure, input InventoryAcceptCommand) (released InventoryResult, releaseErr error) {
+	defer func() { released, releaseErr = finishCommand(ctx, ctx, released, releaseErr) }()
 	if w == nil || w.effective == nil || w.effective.inventoryPlan == nil {
 		return InventoryResult{}, ErrNotImplemented
 	}
@@ -171,7 +173,8 @@ func (w *Writer) AcceptInventory(ctx context.Context, disclosure *ScanDisclosure
 
 // ResolveScan resolves InventoryAccept only, after current disclosure and before
 // fresh source/root/lease/cursor/overflow checks. Floor precedes cohort decode.
-func (w *Writer) ResolveScan(ctx context.Context, disclosure *ScanDisclosure, request ScanReceiptRequest) (InventoryResult, error) {
+func (w *Writer) ResolveScan(ctx context.Context, disclosure *ScanDisclosure, request ScanReceiptRequest) (released InventoryResult, releaseErr error) {
+	defer func() { released, releaseErr = finishCommand(ctx, ctx, released, releaseErr) }()
 	if w == nil || w.effective == nil || w.effective.inventoryPlan == nil {
 		return InventoryResult{}, ErrNotImplemented
 	}
@@ -179,7 +182,8 @@ func (w *Writer) ResolveScan(ctx context.Context, disclosure *ScanDisclosure, re
 	return out.inventory, err
 }
 
-func (w *Writer) AckScan(ctx context.Context, disclosure *ScanDisclosure, request ScanReceiptRequest) (AckResult, error) {
+func (w *Writer) AckScan(ctx context.Context, disclosure *ScanDisclosure, request ScanReceiptRequest) (released AckResult, releaseErr error) {
+	defer func() { released, releaseErr = finishCommand(ctx, ctx, released, releaseErr) }()
 	if w == nil || w.effective == nil || w.effective.inventoryPlan == nil {
 		return AckResult{}, ErrNotImplemented
 	}
@@ -203,7 +207,8 @@ func (*Writer) AckSearchImage(context.Context, *PublisherDisclosure, PublisherRe
 
 // StageEffective is ONLY hidden EffectiveStage BEGIN, not EvidenceStage,
 // materialized members, sealing, serving-head acceptance or final EnrichAccept.
-func (w *Writer) StageEffective(ctx context.Context, disclosure *EnrichmentDisclosure, command EffectiveStageBeginCommand) (EffectiveStageResult, error) {
+func (w *Writer) StageEffective(ctx context.Context, disclosure *EnrichmentDisclosure, command EffectiveStageBeginCommand) (released EffectiveStageResult, releaseErr error) {
+	defer func() { released, releaseErr = finishCommand(ctx, ctx, released, releaseErr) }()
 	if w == nil || w.effective == nil {
 		return EffectiveStageResult{}, ErrNotImplemented
 	}
@@ -216,14 +221,16 @@ func (w *Writer) StageEffective(ctx context.Context, disclosure *EnrichmentDiscl
 	return w.effective.execute(ctx, w, disclosure, r, input)
 }
 
-func (w *Writer) ResolveEffective(ctx context.Context, disclosure *EnrichmentDisclosure, request EnrichmentReceiptRequest) (EffectiveStageResult, error) {
+func (w *Writer) ResolveEffective(ctx context.Context, disclosure *EnrichmentDisclosure, request EnrichmentReceiptRequest) (released EffectiveStageResult, releaseErr error) {
+	defer func() { released, releaseErr = finishCommand(ctx, ctx, released, releaseErr) }()
 	if w == nil || w.effective == nil {
 		return EffectiveStageResult{}, ErrNotImplemented
 	}
 	return w.effective.execute(ctx, w, disclosure, request, nil)
 }
 
-func (w *Writer) AckEffective(ctx context.Context, disclosure *EnrichmentDisclosure, request EnrichmentReceiptRequest) (AckResult, error) {
+func (w *Writer) AckEffective(ctx context.Context, disclosure *EnrichmentDisclosure, request EnrichmentReceiptRequest) (released AckResult, releaseErr error) {
+	defer func() { released, releaseErr = finishCommand(ctx, ctx, released, releaseErr) }()
 	if w == nil || w.effective == nil {
 		return AckResult{}, ErrNotImplemented
 	}

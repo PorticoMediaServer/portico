@@ -2,10 +2,7 @@ package writer
 
 import (
 	"context"
-	"errors"
 )
-
-var errEffectiveBeginResultRetired = errors.New("enrichment BEGIN result retired")
 
 // W's sole dispatcher establishes current disclosure authority in this same
 // turn BEFORE calling this private entry. It owns finite composition, production
@@ -15,7 +12,8 @@ var errEffectiveBeginResultRetired = errors.New("enrichment BEGIN result retired
 // operation/receipt/frozen-request proof. The sealed source rows checked here
 // fence captured native intent; flags and supplied digests do not prove the
 // evidence-to-source link or a verified image. No public dispatcher exists here.
-func applyEffectiveStageBegin(ctx context.Context, turn *commandTurn, input *effectiveStageBeginCommand) (EffectiveStageBeginResult, error) {
+func applyEffectiveStageBegin(ctx context.Context, turn *commandTurn, input *effectiveStageBeginCommand) (out EffectiveStageBeginResult, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	var zero EffectiveStageBeginResult
 	if turn == nil || input == nil || !input.valid || turn.transaction == nil || turn.transaction.descriptor.ID != EffectiveStage {
 		return zero, ErrInvalid
@@ -82,7 +80,11 @@ func applyEffectiveStageBegin(ctx context.Context, turn *commandTurn, input *eff
 
 // Called only after W current disclosure authority. Historical resolution needs
 // original identity/digest, not reconstruction/refetch of a lost fresh packet.
-func lookupEffectiveStageBegin(ctx context.Context, turn *commandTurn, ownerID string, expected receiptIdentity) (EffectiveStageBeginResult, effectiveBeginOwner, receiptDecision, error) {
+func lookupEffectiveStageBegin(ctx context.Context, turn *commandTurn, ownerID string, expected receiptIdentity) (out EffectiveStageBeginResult, outOwner effectiveBeginOwner, outDecision receiptDecision, err error) {
+	defer func() {
+		checked, finalErr := finishCommand(ctx, commandLifetime(turn), effectiveLookupCompletion{out, outOwner, outDecision}, err)
+		out, outOwner, outDecision, err = checked.result, checked.owner, checked.decision, finalErr
+	}()
 	var zero EffectiveStageBeginResult
 	if ctx == nil || turn == nil || turn.transaction == nil || turn.transaction.descriptor.ID != EffectiveStage {
 		return zero, effectiveBeginOwner{}, 0, ErrInvalid
@@ -108,7 +110,7 @@ func lookupEffectiveStageBegin(ctx context.Context, turn *commandTurn, ownerID s
 	case receiptFresh:
 		return zero, owner, decision, nil
 	case receiptRetired:
-		return zero, owner, decision, errEffectiveBeginResultRetired
+		return zero, owner, decision, nil
 	case receiptResolveRequired:
 		return zero, owner, decision, ErrResolveRequired
 	case receiptConflict:
@@ -127,4 +129,10 @@ func lookupEffectiveStageBegin(ctx context.Context, turn *commandTurn, ownerID s
 	}
 	result.Digest = digest
 	return result, owner, decision, nil
+}
+
+type effectiveLookupCompletion struct {
+	result   EffectiveStageBeginResult
+	owner    effectiveBeginOwner
+	decision receiptDecision
 }

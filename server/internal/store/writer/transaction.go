@@ -350,14 +350,17 @@ type transaction struct {
 	done           bool
 	// Set before entering the COMMIT driver: no panic/error cleanup may then
 	// classify the outcome as rolled back or attempt an ordinary ROLLBACK.
-	commitAttempted     bool
-	rollbackReturned    bool
-	commitElapsed       time.Duration
-	commitStartedAt     time.Time
-	commitReturnedAt    time.Time
-	physicalReturnedAt  time.Time
-	result              turnResult
-	finishErr           error
+	commitAttempted    bool
+	rollbackReturned   bool
+	commitElapsed      time.Duration
+	commitStartedAt    time.Time
+	commitReturnedAt   time.Time
+	physicalReturnedAt time.Time
+	result             turnResult
+	finishErr          error
+	// Saved before private SQL-context cleanup cancels ctx. A dispatcher keeps
+	// an independent copy of the exact protected deadline through publication.
+	lifetimeErr         error
 	cleanupComplete     bool
 	connectionReturned  bool
 	retirementAttempted bool
@@ -595,6 +598,9 @@ func (t *transaction) finish(state commitState, discard bool, cause error) (turn
 		}
 	}
 	if t.cancel != nil {
+		if t.ctx != nil {
+			t.lifetimeErr = t.ctx.Err()
+		}
 		add(t.cleanupCall("cancel", func() error { t.cancel(); return nil }))
 	}
 	t.connectionReturned = t.conn == nil
