@@ -393,3 +393,78 @@ with Wave1/2 or `n1-profile-observations-v1`.
 Counters stay raw/null, including pages/header-sync/xSync/LIVE gaps. The exact
 owner hook dependency and source epoch must be pinned for any later QL run.
 There is no automatic run, limit increase or qualification scheduling here.
+
+
+## Paired N1 and foreground component
+
+`TestN1PairedMeasurement` is a separate opt-in test target. Build/run the writer
+test binary from this package directory, set `PORTICO_WRITER_N1_PAIRED=1` and
+`PORTICO_WRITER_N1_PAIRED_CONFIG` to the same closed five-field config used above,
+and select `-test.run=^TestN1PairedMeasurement$ -n1-paired`. Explicit flag without
+its companion, or companion without flag, fails. `fixtures` means 1..64 measured
+fresh N1 originals; `-n1-paired-warmup` requires 1..64 actual warmup originals.
+`-n1-paired-every` declares the bounded1ms..1s offer interval (default100ms),
+and `-n1-paired-route=browse|detail|playback|continue|all` selects one route or a
+four-entry repeating foreground pattern. `-n1-paired-cohort=timing|native-counters`
+remains separate; `-n1-paired-cadence=realistic|accelerated` is an explicit
+population declaration. There is no native/remote run or qualification scheduling here.
+
+The composition reuses ONE existing N1 seed/executor and progressive owner,
+attaches the factored RD2 foreground seed outside custody, and captures BOTH
+complete registries on that same canonical database before measurement. Reader
+connections use ExistingFile and the bundled native main-file identity getter;
+every actual physical connection must match the owner's observed native
+device/inode. The existing test connector seam supplies the read-only
+attestation; no opening permit is added. A refused attestation stays inside
+the snapshot owner through actual native cleanup, with unobserved facts null. The
+external driver receives opaque test-only handles and typed readers, never SQL,
+connections, frames, grants or a new issuer. The actual read adapters and shared
+ConsumeForeground remain unchanged. N1 uses library7; authenticated reads use
+the existing library1 fixture on the SAME file, not the same item/library.
+
+The two existing fixture configs are composed without new resource numbers:
+N1's actual Work,25msHOLD,4MiB preparation/4MiB reserve/class amounts remain;
+RD2 retains its existing LIVE profile,80MiB+bookkeeping partition,12MiB read,
+8MiB output,1s ready and3s protected deadlines. The combined fixture uses RD2's
+existing16 grant-metadata slots; one serial N1 worker still admits one8MiB writer
+holding in its unchanged8MiB class partition. This is test composition, not a
+new qualified resource/production profile. Default standalone fixtures retain
+their old configs. Only the known foreground class may remain charged during
+N1's own joined/snapshot checks; all other holdings still stop progression.
+All class holdings must be zero after both streams and owner closes join.
+
+Foreground preparation derives original deadlines from the original scheduled
+offer, and uses its real trusted timestamp for Now. No frozen clock is accepted.
+The existing bounded scheduler runs one serial N1 chain worker and one serial
+foreground worker; it retains missed/unserved offers and errors and never retries
+to fill a successful population. N1 preserves each original's BEGIN/Resolve/ACK
+owner intervals and actual physical ordinals. Foreground results keep separate
+read/consumer/scope errors, nullable native/window facts, bounded summaries and
+scheduled-ready through full consumer/cleanup timing. The actual consumer JSON
+encodes the bounded page to a joined discard sink; this is encoding work, not
+HTTP transfer, playback start or first-frame proof. No page escapes consumption.
+
+Raw `portico-n1-component-v1` records declare
+`component_layout=n1-paired-foreground-v1`. Serialized post-custody records include
+N1 originals/turns, each foreground observation and nested unchanged sustained-v1
+scheduler records; their own IDs/ordinals/actual deadlines remain distinct.
+Source/file/config/binary/host/database identities are retained. A setup failure
+keeps a composition_start/final prefix with missing owners null; any action,
+sink, schedule, native-return or retirement gap makes the full cell incomplete.
+Reader idle Close timing is unavailable with a reason; Snapshots.Close return
+is not relabelled an independently observed native Close. Process heap/RSS/
+allocation samples include concurrent reader/observer allocations, not isolated
+N1 LIVE peaks. This population is separate from previous N1 waves/methods.
+Readiness remains false; counters stay raw/null. No reducer or qualification
+verdict is produced.
+
+The read fixture's source journals and default data are factored byte-for-byte;
+existing browse/foreground captured plans are unchanged. A bounded setup-only
+attachment is consumed by the exact test owner once, outside HOLD. The paired
+movie cell reuses N1's already-present identical kind1 and omits the existing
+two-kind seed statement; it does not add a kind2 claim or repair/delete rows.
+Paired preparation rebases the existing synthetic authority/data time offsets
+ONCE to actual time.Now and records that temporal origin; standalone RD2 seeds
+remain unchanged. There is no renewal during the run, new issuer or repair of
+failed inputs. Original request deadlines remain absolute and unchanged; actual
+expiry remains a failed cell.
