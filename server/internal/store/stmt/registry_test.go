@@ -285,3 +285,20 @@ func TestRegistryWaiversAreStatementBoundAndImmutable(t *testing.T) {
 		t.Fatal("duplicate waiver accepted")
 	}
 }
+
+func TestRegistryAutoindexBindingsAreFrozen(t *testing.T) {
+	d := stmt.Definition{ID: "unit.autoindex", Owner: "registry-test", CallSites: []string{"registry_test.go"}, Kind: stmt.Read, SQL: "SELECT id FROM t INDEXED BY sqlite_autoindex_t_1 WHERE id=?", Params: []stmt.Param{{Name: "id", Type: stmt.Text}}, Cohorts: []stmt.Cohort{{Name: "one", Bindings: []any{"one"}}}, Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_t_1"}, AutoIndexes: []stmt.AutoIndexBinding{{Table: "t", Name: "sqlite_autoindex_t_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}}}}}}
+	r, err := stmttest.New(t, []stmt.Definition{d})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Plan.AutoIndexes[0].Columns[0].Name = "caller mutation"
+	entry := r.Manifest()[0]
+	if entry.Plan.AutoIndexes[0].Columns[0].Name != "id" {
+		t.Fatal("constructor retained caller key slice")
+	}
+	entry.Plan.AutoIndexes[0].Columns[0].Collation = "NOCASE"
+	if r.Manifest()[0].Plan.AutoIndexes[0].Columns[0].Collation != "BINARY" {
+		t.Fatal("manifest exposes mutable key binding")
+	}
+}

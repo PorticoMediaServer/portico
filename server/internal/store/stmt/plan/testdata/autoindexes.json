@@ -1,0 +1,7974 @@
+[
+  {
+    "name": "unanalyzed",
+    "golden": {
+      "environment": {
+        "connection": {
+          "Engine": "3.53.4",
+          "JournalMode": "wal",
+          "ForeignKeys": 1,
+          "Synchronous": 1,
+          "AutoCheckpoint": 0,
+          "CacheSize": -2048,
+          "BusyTimeout": 0,
+          "MmapSize": 0,
+          "QueryOnly": 1,
+          "TempStore": 1,
+          "ReadLimits": {
+            "LengthBytes": 65536,
+            "Columns": 128
+          }
+        },
+        "indexPolicySha256": "2fb102d343ee32d7d11ba8a62bf53f5b4dd99dbd10641a73d468ec9fb053a414",
+        "fixture": {
+          "connectionPolicy": {
+            "Role": 2,
+            "Connections": 1,
+            "CacheKiB": 2048,
+            "Synchronous": 1,
+            "ReadLimits": {
+              "LengthBytes": 65536,
+              "Columns": 128
+            }
+          },
+          "sha256": "6cc89d9c989aff3da275b697b98231e7ee97e91bf2766a42f9a261b4457bc763",
+          "statistics": "unanalyzed",
+          "implementations": "bundled SQLite3.53.4; tiny two-row main PK/UNIQUE fixtures; actual fixed Reader C128/L65536; compile and point-read controls only"
+        },
+        "engine": {
+          "columns": [
+            "sqlite_version()",
+            "sqlite_source_id()"
+          ],
+          "values": [
+            [
+              "3.53.4",
+              "2026-07-24 19:02:57 bf7c7f30031888f4e796e429ab3978879485813aaca6f641c7b33e4e09459bcc"
+            ]
+          ]
+        },
+        "compileOptions": {
+          "columns": [
+            "compile_options"
+          ],
+          "values": [
+            [
+              "ATOMIC_INTRINSICS=1"
+            ],
+            [
+              "COMPILER=gcc-12.2.0"
+            ],
+            [
+              "DEFAULT_AUTOVACUUM"
+            ],
+            [
+              "DEFAULT_CACHE_SIZE=-2000"
+            ],
+            [
+              "DEFAULT_FILE_FORMAT=4"
+            ],
+            [
+              "DEFAULT_JOURNAL_SIZE_LIMIT=-1"
+            ],
+            [
+              "DEFAULT_MEMSTATUS=0"
+            ],
+            [
+              "DEFAULT_MMAP_SIZE=0"
+            ],
+            [
+              "DEFAULT_PAGE_SIZE=4096"
+            ],
+            [
+              "DEFAULT_PCACHE_INITSZ=20"
+            ],
+            [
+              "DEFAULT_RECURSIVE_TRIGGERS"
+            ],
+            [
+              "DEFAULT_SECTOR_SIZE=4096"
+            ],
+            [
+              "DEFAULT_SYNCHRONOUS=2"
+            ],
+            [
+              "DEFAULT_WAL_AUTOCHECKPOINT=1000"
+            ],
+            [
+              "DEFAULT_WAL_SYNCHRONOUS=2"
+            ],
+            [
+              "DEFAULT_WORKER_THREADS=0"
+            ],
+            [
+              "DIRECT_OVERFLOW_READ"
+            ],
+            [
+              "DISABLE_INTRINSIC"
+            ],
+            [
+              "ENABLE_COLUMN_METADATA"
+            ],
+            [
+              "ENABLE_DBPAGE_VTAB"
+            ],
+            [
+              "ENABLE_DBSTAT_VTAB"
+            ],
+            [
+              "ENABLE_FTS5"
+            ],
+            [
+              "ENABLE_GEOPOLY"
+            ],
+            [
+              "ENABLE_MATH_FUNCTIONS"
+            ],
+            [
+              "ENABLE_MEMORY_MANAGEMENT"
+            ],
+            [
+              "ENABLE_OFFSET_SQL_FUNC"
+            ],
+            [
+              "ENABLE_PREUPDATE_HOOK"
+            ],
+            [
+              "ENABLE_RBU"
+            ],
+            [
+              "ENABLE_RTREE"
+            ],
+            [
+              "ENABLE_SESSION"
+            ],
+            [
+              "ENABLE_SNAPSHOT"
+            ],
+            [
+              "ENABLE_STAT4"
+            ],
+            [
+              "ENABLE_UNLOCK_NOTIFY"
+            ],
+            [
+              "LIKE_DOESNT_MATCH_BLOBS"
+            ],
+            [
+              "MALLOC_SOFT_LIMIT=1024"
+            ],
+            [
+              "MAX_ATTACHED=10"
+            ],
+            [
+              "MAX_COLUMN=2000"
+            ],
+            [
+              "MAX_COMPOUND_SELECT=500"
+            ],
+            [
+              "MAX_DEFAULT_PAGE_SIZE=8192"
+            ],
+            [
+              "MAX_EXPR_DEPTH=1000"
+            ],
+            [
+              "MAX_FUNCTION_ARG=1000"
+            ],
+            [
+              "MAX_LENGTH=1000000000"
+            ],
+            [
+              "MAX_LIKE_PATTERN_LENGTH=50000"
+            ],
+            [
+              "MAX_MMAP_SIZE=0x7fff0000"
+            ],
+            [
+              "MAX_PAGE_COUNT=0xfffffffe"
+            ],
+            [
+              "MAX_PAGE_SIZE=65536"
+            ],
+            [
+              "MAX_SQL_LENGTH=1000000000"
+            ],
+            [
+              "MAX_TRIGGER_DEPTH=1000"
+            ],
+            [
+              "MAX_VARIABLE_NUMBER=32766"
+            ],
+            [
+              "MAX_VDBE_OP=250000000"
+            ],
+            [
+              "MAX_WORKER_THREADS=8"
+            ],
+            [
+              "MUTEX_PTHREADS"
+            ],
+            [
+              "SOUNDEX"
+            ],
+            [
+              "SYSTEM_MALLOC"
+            ],
+            [
+              "TEMP_STORE=1"
+            ],
+            [
+              "THREADSAFE=1"
+            ]
+          ]
+        },
+        "schema": {
+          "columns": [
+            "type",
+            "name",
+            "tbl_name",
+            "rootpage",
+            "sql"
+          ],
+          "values": [
+            [
+              "index",
+              "item_sort",
+              "items",
+              3,
+              "CREATE INDEX item_sort ON items(library_id,kind,key,id) WHERE kind IN(1,2,3,4,10)"
+            ],
+            [
+              "index",
+              "sqlite_autoindex_auto_pk_1",
+              "auto_pk",
+              5,
+              null
+            ],
+            [
+              "index",
+              "sqlite_autoindex_auto_pk_2",
+              "auto_pk",
+              6,
+              null
+            ],
+            [
+              "index",
+              "sqlite_autoindex_auto_unique_1",
+              "auto_unique",
+              9,
+              null
+            ],
+            [
+              "table",
+              "auto_pk",
+              "auto_pk",
+              4,
+              "CREATE TABLE auto_pk(id TEXT PRIMARY KEY,code TEXT COLLATE NOCASE UNIQUE,payload TEXT NOT NULL)"
+            ],
+            [
+              "table",
+              "auto_unique",
+              "auto_unique",
+              8,
+              "CREATE TABLE auto_unique(id INTEGER PRIMARY KEY,a TEXT COLLATE NOCASE,b TEXT,UNIQUE(a DESC,b))"
+            ],
+            [
+              "table",
+              "auto_wr",
+              "auto_wr",
+              7,
+              "CREATE TABLE auto_wr(a TEXT,b TEXT,value TEXT,PRIMARY KEY(a,b)) WITHOUT ROWID"
+            ],
+            [
+              "table",
+              "items",
+              "items",
+              2,
+              "CREATE TABLE items(id INTEGER PRIMARY KEY, library_id INTEGER NOT NULL, kind INTEGER NOT NULL, key INTEGER)"
+            ]
+          ]
+        },
+        "schemaSha256": "600e503f51cc2f5cdf839fbc31f4276ce540df4ae332c81cd6245d00219ac150",
+        "statistics": {},
+        "statisticsSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "pragmas": {
+          "analysis_limit": {
+            "columns": [
+              "analysis_limit"
+            ],
+            "values": [
+              [
+                0
+              ]
+            ]
+          },
+          "automatic_index": {
+            "columns": [
+              "automatic_index"
+            ],
+            "values": [
+              [
+                1
+              ]
+            ]
+          },
+          "cache_size": {
+            "columns": [
+              "cache_size"
+            ],
+            "values": [
+              [
+                -2048
+              ]
+            ]
+          },
+          "encoding": {
+            "columns": [
+              "encoding"
+            ],
+            "values": [
+              [
+                "UTF-8"
+              ]
+            ]
+          },
+          "foreign_keys": {
+            "columns": [
+              "foreign_keys"
+            ],
+            "values": [
+              [
+                1
+              ]
+            ]
+          },
+          "journal_mode": {
+            "columns": [
+              "journal_mode"
+            ],
+            "values": [
+              [
+                "wal"
+              ]
+            ]
+          },
+          "page_size": {
+            "columns": [
+              "page_size"
+            ],
+            "values": [
+              [
+                4096
+              ]
+            ]
+          },
+          "query_only": {
+            "columns": [
+              "query_only"
+            ],
+            "values": [
+              [
+                1
+              ]
+            ]
+          },
+          "reverse_unordered_selects": {
+            "columns": [
+              "reverse_unordered_selects"
+            ],
+            "values": [
+              [
+                0
+              ]
+            ]
+          },
+          "synchronous": {
+            "columns": [
+              "synchronous"
+            ],
+            "values": [
+              [
+                1
+              ]
+            ]
+          },
+          "temp_store": {
+            "columns": [
+              "temp_store"
+            ],
+            "values": [
+              [
+                1
+              ]
+            ]
+          },
+          "trusted_schema": {
+            "columns": [
+              "trusted_schema"
+            ],
+            "values": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        "functionsSha256": "ab6032bb61d7aa3e45d6c8cff9e69ff4a0d61b598b9f9c38a4147c37e032db34",
+        "collations": {
+          "columns": [
+            "seq",
+            "name"
+          ],
+          "values": [
+            [
+              0,
+              "RTRIM"
+            ],
+            [
+              1,
+              "NOCASE"
+            ],
+            [
+              2,
+              "BINARY"
+            ]
+          ]
+        }
+      },
+      "manifest": [
+        {
+          "id": "auto.cross",
+          "sql": "SELECT p.id,c.value FROM auto_pk AS p INDEXED BY sqlite_autoindex_auto_pk_1 CROSS JOIN auto_wr AS c INDEXED BY sqlite_autoindex_auto_wr_1 ON c.a=p.id AND c.b=? WHERE p.id=?",
+          "owner": "plan-autoindex-test",
+          "callSites": [
+            "autoindexes_test.go"
+          ],
+          "kind": "read",
+          "params": [
+            {
+              "name": "child",
+              "type": "text",
+              "nullable": false
+            },
+            {
+              "name": "parent",
+              "type": "text",
+              "nullable": false
+            }
+          ],
+          "cohorts": [
+            {
+              "name": "present",
+              "bindings": [
+                "x",
+                "one"
+              ]
+            },
+            {
+              "name": "missing_child",
+              "bindings": [
+                "absent",
+                "one"
+              ]
+            }
+          ],
+          "plan": {
+            "hot": true,
+            "indexes": [
+              "sqlite_autoindex_auto_pk_1",
+              "sqlite_autoindex_auto_wr_1"
+            ],
+            "primaryKeys": null,
+            "seeks": [
+              "id=?",
+              "a=? AND b=?"
+            ],
+            "allowedScans": null,
+            "autoIndexes": [
+              {
+                "table": "auto_pk",
+                "name": "sqlite_autoindex_auto_pk_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "id",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              {
+                "table": "auto_wr",
+                "name": "sqlite_autoindex_auto_wr_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "a",
+                    "collation": "BINARY",
+                    "desc": false
+                  },
+                  {
+                    "name": "b",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              }
+            ]
+          },
+          "sqlSha256": "5c143db8a7fb8e22e587425a56beb6b072399a0c2f9f24c97148591764543062"
+        },
+        {
+          "id": "auto.left",
+          "sql": "SELECT p.id,c.value FROM auto_pk AS p INDEXED BY sqlite_autoindex_auto_pk_1 LEFT JOIN auto_wr AS c INDEXED BY sqlite_autoindex_auto_wr_1 ON c.a=p.id AND c.b=? WHERE p.id=?",
+          "owner": "plan-autoindex-test",
+          "callSites": [
+            "autoindexes_test.go"
+          ],
+          "kind": "read",
+          "params": [
+            {
+              "name": "child",
+              "type": "text",
+              "nullable": false
+            },
+            {
+              "name": "parent",
+              "type": "text",
+              "nullable": false
+            }
+          ],
+          "cohorts": [
+            {
+              "name": "present",
+              "bindings": [
+                "x",
+                "one"
+              ]
+            },
+            {
+              "name": "missing_child",
+              "bindings": [
+                "absent",
+                "one"
+              ]
+            }
+          ],
+          "plan": {
+            "hot": true,
+            "indexes": [
+              "sqlite_autoindex_auto_pk_1",
+              "sqlite_autoindex_auto_wr_1"
+            ],
+            "primaryKeys": null,
+            "seeks": [
+              "id=?",
+              "a=? AND b=?"
+            ],
+            "allowedScans": null,
+            "autoIndexes": [
+              {
+                "table": "auto_pk",
+                "name": "sqlite_autoindex_auto_pk_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "id",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              {
+                "table": "auto_wr",
+                "name": "sqlite_autoindex_auto_wr_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "a",
+                    "collation": "BINARY",
+                    "desc": false
+                  },
+                  {
+                    "name": "b",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              }
+            ]
+          },
+          "sqlSha256": "4656a6e3016304c31d41a5252521d61855ac2f524d0d13845d36783d2fc79ed4"
+        },
+        {
+          "id": "auto.pk",
+          "sql": "SELECT p.id,p.payload FROM auto_pk AS p INDEXED BY sqlite_autoindex_auto_pk_1 WHERE p.id=?",
+          "owner": "plan-autoindex-test",
+          "callSites": [
+            "autoindexes_test.go"
+          ],
+          "kind": "read",
+          "params": [
+            {
+              "name": "id",
+              "type": "text",
+              "nullable": false
+            }
+          ],
+          "cohorts": [
+            {
+              "name": "present",
+              "bindings": [
+                "one"
+              ]
+            },
+            {
+              "name": "missing",
+              "bindings": [
+                "absent"
+              ]
+            }
+          ],
+          "plan": {
+            "hot": true,
+            "indexes": [
+              "sqlite_autoindex_auto_pk_1"
+            ],
+            "primaryKeys": null,
+            "seeks": [
+              "id=?"
+            ],
+            "allowedScans": null,
+            "autoIndexes": [
+              {
+                "table": "auto_pk",
+                "name": "sqlite_autoindex_auto_pk_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "id",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              }
+            ]
+          },
+          "sqlSha256": "657e5a52b99a5dcf804937768420a76f6f99e26adf8d34bccaca9470ba2b0922"
+        },
+        {
+          "id": "auto.unique",
+          "sql": "SELECT u.id FROM auto_unique AS u INDEXED BY sqlite_autoindex_auto_unique_1 WHERE u.a=? AND u.b=?",
+          "owner": "plan-autoindex-test",
+          "callSites": [
+            "autoindexes_test.go"
+          ],
+          "kind": "read",
+          "params": [
+            {
+              "name": "a",
+              "type": "text",
+              "nullable": false
+            },
+            {
+              "name": "b",
+              "type": "text",
+              "nullable": false
+            }
+          ],
+          "cohorts": [
+            {
+              "name": "nocase",
+              "bindings": [
+                "ALPHA",
+                "x"
+              ]
+            },
+            {
+              "name": "missing",
+              "bindings": [
+                "absent",
+                "x"
+              ]
+            }
+          ],
+          "plan": {
+            "hot": true,
+            "indexes": [
+              "sqlite_autoindex_auto_unique_1"
+            ],
+            "primaryKeys": null,
+            "seeks": [
+              "a=? AND b=?"
+            ],
+            "allowedScans": null,
+            "autoIndexes": [
+              {
+                "table": "auto_unique",
+                "name": "sqlite_autoindex_auto_unique_1",
+                "origin": "u",
+                "columns": [
+                  {
+                    "name": "a",
+                    "collation": "NOCASE",
+                    "desc": true
+                  },
+                  {
+                    "name": "b",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              }
+            ]
+          },
+          "sqlSha256": "a2fc227bfe39987089ed091debcc648fc2ae93c53ddd4118649a16557a416fb8"
+        }
+      ],
+      "plans": [
+        {
+          "id": "auto.cross",
+          "cohort": "present",
+          "explain": {
+            "columns": [
+              "addr",
+              "opcode",
+              "p1",
+              "p2",
+              "p3",
+              "p4",
+              "p5",
+              "comment"
+            ],
+            "values": [
+              [
+                0,
+                "Init",
+                0,
+                20,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                1,
+                "OpenRead",
+                2,
+                "\"main\".\"sqlite_autoindex_auto_pk_1\"",
+                0,
+                "k(2,,)",
+                2,
+                null
+              ],
+              [
+                2,
+                "OpenRead",
+                3,
+                "\"main\".\"auto_wr\"",
+                0,
+                "k(2,,)",
+                2,
+                null
+              ],
+              [
+                3,
+                "Variable",
+                2,
+                1,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                4,
+                "IsNull",
+                1,
+                19,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                5,
+                "Affinity",
+                1,
+                1,
+                0,
+                "B",
+                0,
+                null
+              ],
+              [
+                6,
+                "SeekGE",
+                2,
+                19,
+                1,
+                "1",
+                0,
+                null
+              ],
+              [
+                7,
+                "IdxGT",
+                2,
+                19,
+                1,
+                "1",
+                0,
+                null
+              ],
+              [
+                8,
+                "Variable",
+                2,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                9,
+                "Affinity",
+                2,
+                1,
+                0,
+                "B",
+                0,
+                null
+              ],
+              [
+                10,
+                "IsNull",
+                2,
+                19,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                11,
+                "Variable",
+                1,
+                3,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                12,
+                "IsNull",
+                3,
+                19,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                13,
+                "Affinity",
+                3,
+                1,
+                0,
+                "B",
+                0,
+                null
+              ],
+              [
+                14,
+                "SeekGE",
+                3,
+                19,
+                2,
+                "2",
+                0,
+                null
+              ],
+              [
+                15,
+                "IdxGT",
+                3,
+                19,
+                2,
+                "2",
+                0,
+                null
+              ],
+              [
+                16,
+                "Column",
+                2,
+                0,
+                4,
+                null,
+                0,
+                null
+              ],
+              [
+                17,
+                "Column",
+                3,
+                2,
+                5,
+                null,
+                0,
+                null
+              ],
+              [
+                18,
+                "ResultRow",
+                4,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                19,
+                "Halt",
+                0,
+                0,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                20,
+                "Transaction",
+                0,
+                0,
+                "\u003cschema-cookie\u003e",
+                "0",
+                1,
+                null
+              ],
+              [
+                21,
+                "Goto",
+                0,
+                1,
+                0,
+                null,
+                0,
+                null
+              ]
+            ]
+          },
+          "queryPlan": {
+            "columns": [
+              "id",
+              "parent",
+              "notused",
+              "detail"
+            ],
+            "values": [
+              [
+                3,
+                0,
+                "\u003cnotused\u003e",
+                "SEARCH p USING COVERING INDEX sqlite_autoindex_auto_pk_1 (id=?)"
+              ],
+              [
+                9,
+                0,
+                "\u003cnotused\u003e",
+                "SEARCH c USING PRIMARY KEY (a=? AND b=?)"
+              ]
+            ]
+          },
+          "autoIndexes": [
+            {
+              "binding": {
+                "table": "auto_pk",
+                "name": "sqlite_autoindex_auto_pk_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "id",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              "alias": "p",
+              "withoutRowid": false,
+              "index": {
+                "columns": [
+                  "seq",
+                  "name",
+                  "unique",
+                  "origin",
+                  "partial"
+                ],
+                "values": [
+                  [
+                    1,
+                    "sqlite_autoindex_auto_pk_1",
+                    1,
+                    "pk",
+                    0
+                  ]
+                ]
+              },
+              "indexColumns": {
+                "columns": [
+                  "seqno",
+                  "cid",
+                  "name",
+                  "desc",
+                  "coll",
+                  "key"
+                ],
+                "values": [
+                  [
+                    0,
+                    0,
+                    "id",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    1,
+                    -1,
+                    null,
+                    0,
+                    "BINARY",
+                    0
+                  ]
+                ]
+              },
+              "tableColumns": {
+                "columns": [
+                  "cid",
+                  "name",
+                  "type",
+                  "notnull",
+                  "dflt_value",
+                  "pk",
+                  "hidden"
+                ],
+                "values": [
+                  [
+                    0,
+                    "id",
+                    "TEXT",
+                    0,
+                    null,
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    "code",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ],
+                  [
+                    2,
+                    "payload",
+                    "TEXT",
+                    1,
+                    null,
+                    0,
+                    0
+                  ]
+                ]
+              }
+            },
+            {
+              "binding": {
+                "table": "auto_wr",
+                "name": "sqlite_autoindex_auto_wr_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "a",
+                    "collation": "BINARY",
+                    "desc": false
+                  },
+                  {
+                    "name": "b",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              "alias": "c",
+              "withoutRowid": true,
+              "index": {
+                "columns": [
+                  "seq",
+                  "name",
+                  "unique",
+                  "origin",
+                  "partial"
+                ],
+                "values": [
+                  [
+                    0,
+                    "sqlite_autoindex_auto_wr_1",
+                    1,
+                    "pk",
+                    0
+                  ]
+                ]
+              },
+              "indexColumns": {
+                "columns": [
+                  "seqno",
+                  "cid",
+                  "name",
+                  "desc",
+                  "coll",
+                  "key"
+                ],
+                "values": [
+                  [
+                    0,
+                    0,
+                    "a",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    1,
+                    1,
+                    "b",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    2,
+                    2,
+                    "value",
+                    0,
+                    "BINARY",
+                    0
+                  ]
+                ]
+              },
+              "tableColumns": {
+                "columns": [
+                  "cid",
+                  "name",
+                  "type",
+                  "notnull",
+                  "dflt_value",
+                  "pk",
+                  "hidden"
+                ],
+                "values": [
+                  [
+                    0,
+                    "a",
+                    "TEXT",
+                    1,
+                    null,
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    "b",
+                    "TEXT",
+                    1,
+                    null,
+                    2,
+                    0
+                  ],
+                  [
+                    2,
+                    "value",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ]
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "auto.cross",
+          "cohort": "missing_child",
+          "explain": {
+            "columns": [
+              "addr",
+              "opcode",
+              "p1",
+              "p2",
+              "p3",
+              "p4",
+              "p5",
+              "comment"
+            ],
+            "values": [
+              [
+                0,
+                "Init",
+                0,
+                20,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                1,
+                "OpenRead",
+                2,
+                "\"main\".\"sqlite_autoindex_auto_pk_1\"",
+                0,
+                "k(2,,)",
+                2,
+                null
+              ],
+              [
+                2,
+                "OpenRead",
+                3,
+                "\"main\".\"auto_wr\"",
+                0,
+                "k(2,,)",
+                2,
+                null
+              ],
+              [
+                3,
+                "Variable",
+                2,
+                1,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                4,
+                "IsNull",
+                1,
+                19,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                5,
+                "Affinity",
+                1,
+                1,
+                0,
+                "B",
+                0,
+                null
+              ],
+              [
+                6,
+                "SeekGE",
+                2,
+                19,
+                1,
+                "1",
+                0,
+                null
+              ],
+              [
+                7,
+                "IdxGT",
+                2,
+                19,
+                1,
+                "1",
+                0,
+                null
+              ],
+              [
+                8,
+                "Variable",
+                2,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                9,
+                "Affinity",
+                2,
+                1,
+                0,
+                "B",
+                0,
+                null
+              ],
+              [
+                10,
+                "IsNull",
+                2,
+                19,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                11,
+                "Variable",
+                1,
+                3,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                12,
+                "IsNull",
+                3,
+                19,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                13,
+                "Affinity",
+                3,
+                1,
+                0,
+                "B",
+                0,
+                null
+              ],
+              [
+                14,
+                "SeekGE",
+                3,
+                19,
+                2,
+                "2",
+                0,
+                null
+              ],
+              [
+                15,
+                "IdxGT",
+                3,
+                19,
+                2,
+                "2",
+                0,
+                null
+              ],
+              [
+                16,
+                "Column",
+                2,
+                0,
+                4,
+                null,
+                0,
+                null
+              ],
+              [
+                17,
+                "Column",
+                3,
+                2,
+                5,
+                null,
+                0,
+                null
+              ],
+              [
+                18,
+                "ResultRow",
+                4,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                19,
+                "Halt",
+                0,
+                0,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                20,
+                "Transaction",
+                0,
+                0,
+                "\u003cschema-cookie\u003e",
+                "0",
+                1,
+                null
+              ],
+              [
+                21,
+                "Goto",
+                0,
+                1,
+                0,
+                null,
+                0,
+                null
+              ]
+            ]
+          },
+          "queryPlan": {
+            "columns": [
+              "id",
+              "parent",
+              "notused",
+              "detail"
+            ],
+            "values": [
+              [
+                3,
+                0,
+                "\u003cnotused\u003e",
+                "SEARCH p USING COVERING INDEX sqlite_autoindex_auto_pk_1 (id=?)"
+              ],
+              [
+                9,
+                0,
+                "\u003cnotused\u003e",
+                "SEARCH c USING PRIMARY KEY (a=? AND b=?)"
+              ]
+            ]
+          },
+          "autoIndexes": [
+            {
+              "binding": {
+                "table": "auto_pk",
+                "name": "sqlite_autoindex_auto_pk_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "id",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              "alias": "p",
+              "withoutRowid": false,
+              "index": {
+                "columns": [
+                  "seq",
+                  "name",
+                  "unique",
+                  "origin",
+                  "partial"
+                ],
+                "values": [
+                  [
+                    1,
+                    "sqlite_autoindex_auto_pk_1",
+                    1,
+                    "pk",
+                    0
+                  ]
+                ]
+              },
+              "indexColumns": {
+                "columns": [
+                  "seqno",
+                  "cid",
+                  "name",
+                  "desc",
+                  "coll",
+                  "key"
+                ],
+                "values": [
+                  [
+                    0,
+                    0,
+                    "id",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    1,
+                    -1,
+                    null,
+                    0,
+                    "BINARY",
+                    0
+                  ]
+                ]
+              },
+              "tableColumns": {
+                "columns": [
+                  "cid",
+                  "name",
+                  "type",
+                  "notnull",
+                  "dflt_value",
+                  "pk",
+                  "hidden"
+                ],
+                "values": [
+                  [
+                    0,
+                    "id",
+                    "TEXT",
+                    0,
+                    null,
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    "code",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ],
+                  [
+                    2,
+                    "payload",
+                    "TEXT",
+                    1,
+                    null,
+                    0,
+                    0
+                  ]
+                ]
+              }
+            },
+            {
+              "binding": {
+                "table": "auto_wr",
+                "name": "sqlite_autoindex_auto_wr_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "a",
+                    "collation": "BINARY",
+                    "desc": false
+                  },
+                  {
+                    "name": "b",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              "alias": "c",
+              "withoutRowid": true,
+              "index": {
+                "columns": [
+                  "seq",
+                  "name",
+                  "unique",
+                  "origin",
+                  "partial"
+                ],
+                "values": [
+                  [
+                    0,
+                    "sqlite_autoindex_auto_wr_1",
+                    1,
+                    "pk",
+                    0
+                  ]
+                ]
+              },
+              "indexColumns": {
+                "columns": [
+                  "seqno",
+                  "cid",
+                  "name",
+                  "desc",
+                  "coll",
+                  "key"
+                ],
+                "values": [
+                  [
+                    0,
+                    0,
+                    "a",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    1,
+                    1,
+                    "b",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    2,
+                    2,
+                    "value",
+                    0,
+                    "BINARY",
+                    0
+                  ]
+                ]
+              },
+              "tableColumns": {
+                "columns": [
+                  "cid",
+                  "name",
+                  "type",
+                  "notnull",
+                  "dflt_value",
+                  "pk",
+                  "hidden"
+                ],
+                "values": [
+                  [
+                    0,
+                    "a",
+                    "TEXT",
+                    1,
+                    null,
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    "b",
+                    "TEXT",
+                    1,
+                    null,
+                    2,
+                    0
+                  ],
+                  [
+                    2,
+                    "value",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ]
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "auto.left",
+          "cohort": "present",
+          "explain": {
+            "columns": [
+              "addr",
+              "opcode",
+              "p1",
+              "p2",
+              "p3",
+              "p4",
+              "p5",
+              "comment"
+            ],
+            "values": [
+              [
+                0,
+                "Init",
+                0,
+                24,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                1,
+                "OpenRead",
+                2,
+                "\"main\".\"sqlite_autoindex_auto_pk_1\"",
+                0,
+                "k(2,,)",
+                2,
+                null
+              ],
+              [
+                2,
+                "OpenRead",
+                3,
+                "\"main\".\"auto_wr\"",
+                0,
+                "k(2,,)",
+                2,
+                null
+              ],
+              [
+                3,
+                "Variable",
+                2,
+                1,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                4,
+                "IsNull",
+                1,
+                23,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                5,
+                "Affinity",
+                1,
+                1,
+                0,
+                "B",
+                0,
+                null
+              ],
+              [
+                6,
+                "SeekGE",
+                2,
+                23,
+                1,
+                "1",
+                0,
+                null
+              ],
+              [
+                7,
+                "IdxGT",
+                2,
+                23,
+                1,
+                "1",
+                0,
+                null
+              ],
+              [
+                8,
+                "Integer",
+                0,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                9,
+                "Column",
+                2,
+                0,
+                3,
+                null,
+                0,
+                null
+              ],
+              [
+                10,
+                "IsNull",
+                3,
+                20,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                11,
+                "Variable",
+                1,
+                4,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                12,
+                "IsNull",
+                4,
+                20,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                13,
+                "Affinity",
+                4,
+                1,
+                0,
+                "B",
+                0,
+                null
+              ],
+              [
+                14,
+                "SeekGE",
+                3,
+                20,
+                3,
+                "2",
+                0,
+                null
+              ],
+              [
+                15,
+                "IdxGT",
+                3,
+                20,
+                3,
+                "2",
+                0,
+                null
+              ],
+              [
+                16,
+                "Integer",
+                1,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                17,
+                "Column",
+                2,
+                0,
+                5,
+                null,
+                0,
+                null
+              ],
+              [
+                18,
+                "Column",
+                3,
+                2,
+                6,
+                null,
+                0,
+                null
+              ],
+              [
+                19,
+                "ResultRow",
+                5,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                20,
+                "IfPos",
+                2,
+                23,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                21,
+                "NullRow",
+                3,
+                0,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                22,
+                "Goto",
+                0,
+                16,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                23,
+                "Halt",
+                0,
+                0,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                24,
+                "Transaction",
+                0,
+                0,
+                "\u003cschema-cookie\u003e",
+                "0",
+                1,
+                null
+              ],
+              [
+                25,
+                "Goto",
+                0,
+                1,
+                0,
+                null,
+                0,
+                null
+              ]
+            ]
+          },
+          "queryPlan": {
+            "columns": [
+              "id",
+              "parent",
+              "notused",
+              "detail"
+            ],
+            "values": [
+              [
+                3,
+                0,
+                "\u003cnotused\u003e",
+                "SEARCH p USING COVERING INDEX sqlite_autoindex_auto_pk_1 (id=?)"
+              ],
+              [
+                9,
+                0,
+                "\u003cnotused\u003e",
+                "SEARCH c USING PRIMARY KEY (a=? AND b=?) LEFT-JOIN"
+              ]
+            ]
+          },
+          "autoIndexes": [
+            {
+              "binding": {
+                "table": "auto_pk",
+                "name": "sqlite_autoindex_auto_pk_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "id",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              "alias": "p",
+              "withoutRowid": false,
+              "index": {
+                "columns": [
+                  "seq",
+                  "name",
+                  "unique",
+                  "origin",
+                  "partial"
+                ],
+                "values": [
+                  [
+                    1,
+                    "sqlite_autoindex_auto_pk_1",
+                    1,
+                    "pk",
+                    0
+                  ]
+                ]
+              },
+              "indexColumns": {
+                "columns": [
+                  "seqno",
+                  "cid",
+                  "name",
+                  "desc",
+                  "coll",
+                  "key"
+                ],
+                "values": [
+                  [
+                    0,
+                    0,
+                    "id",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    1,
+                    -1,
+                    null,
+                    0,
+                    "BINARY",
+                    0
+                  ]
+                ]
+              },
+              "tableColumns": {
+                "columns": [
+                  "cid",
+                  "name",
+                  "type",
+                  "notnull",
+                  "dflt_value",
+                  "pk",
+                  "hidden"
+                ],
+                "values": [
+                  [
+                    0,
+                    "id",
+                    "TEXT",
+                    0,
+                    null,
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    "code",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ],
+                  [
+                    2,
+                    "payload",
+                    "TEXT",
+                    1,
+                    null,
+                    0,
+                    0
+                  ]
+                ]
+              }
+            },
+            {
+              "binding": {
+                "table": "auto_wr",
+                "name": "sqlite_autoindex_auto_wr_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "a",
+                    "collation": "BINARY",
+                    "desc": false
+                  },
+                  {
+                    "name": "b",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              "alias": "c",
+              "withoutRowid": true,
+              "index": {
+                "columns": [
+                  "seq",
+                  "name",
+                  "unique",
+                  "origin",
+                  "partial"
+                ],
+                "values": [
+                  [
+                    0,
+                    "sqlite_autoindex_auto_wr_1",
+                    1,
+                    "pk",
+                    0
+                  ]
+                ]
+              },
+              "indexColumns": {
+                "columns": [
+                  "seqno",
+                  "cid",
+                  "name",
+                  "desc",
+                  "coll",
+                  "key"
+                ],
+                "values": [
+                  [
+                    0,
+                    0,
+                    "a",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    1,
+                    1,
+                    "b",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    2,
+                    2,
+                    "value",
+                    0,
+                    "BINARY",
+                    0
+                  ]
+                ]
+              },
+              "tableColumns": {
+                "columns": [
+                  "cid",
+                  "name",
+                  "type",
+                  "notnull",
+                  "dflt_value",
+                  "pk",
+                  "hidden"
+                ],
+                "values": [
+                  [
+                    0,
+                    "a",
+                    "TEXT",
+                    1,
+                    null,
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    "b",
+                    "TEXT",
+                    1,
+                    null,
+                    2,
+                    0
+                  ],
+                  [
+                    2,
+                    "value",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ]
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "auto.left",
+          "cohort": "missing_child",
+          "explain": {
+            "columns": [
+              "addr",
+              "opcode",
+              "p1",
+              "p2",
+              "p3",
+              "p4",
+              "p5",
+              "comment"
+            ],
+            "values": [
+              [
+                0,
+                "Init",
+                0,
+                24,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                1,
+                "OpenRead",
+                2,
+                "\"main\".\"sqlite_autoindex_auto_pk_1\"",
+                0,
+                "k(2,,)",
+                2,
+                null
+              ],
+              [
+                2,
+                "OpenRead",
+                3,
+                "\"main\".\"auto_wr\"",
+                0,
+                "k(2,,)",
+                2,
+                null
+              ],
+              [
+                3,
+                "Variable",
+                2,
+                1,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                4,
+                "IsNull",
+                1,
+                23,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                5,
+                "Affinity",
+                1,
+                1,
+                0,
+                "B",
+                0,
+                null
+              ],
+              [
+                6,
+                "SeekGE",
+                2,
+                23,
+                1,
+                "1",
+                0,
+                null
+              ],
+              [
+                7,
+                "IdxGT",
+                2,
+                23,
+                1,
+                "1",
+                0,
+                null
+              ],
+              [
+                8,
+                "Integer",
+                0,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                9,
+                "Column",
+                2,
+                0,
+                3,
+                null,
+                0,
+                null
+              ],
+              [
+                10,
+                "IsNull",
+                3,
+                20,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                11,
+                "Variable",
+                1,
+                4,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                12,
+                "IsNull",
+                4,
+                20,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                13,
+                "Affinity",
+                4,
+                1,
+                0,
+                "B",
+                0,
+                null
+              ],
+              [
+                14,
+                "SeekGE",
+                3,
+                20,
+                3,
+                "2",
+                0,
+                null
+              ],
+              [
+                15,
+                "IdxGT",
+                3,
+                20,
+                3,
+                "2",
+                0,
+                null
+              ],
+              [
+                16,
+                "Integer",
+                1,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                17,
+                "Column",
+                2,
+                0,
+                5,
+                null,
+                0,
+                null
+              ],
+              [
+                18,
+                "Column",
+                3,
+                2,
+                6,
+                null,
+                0,
+                null
+              ],
+              [
+                19,
+                "ResultRow",
+                5,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                20,
+                "IfPos",
+                2,
+                23,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                21,
+                "NullRow",
+                3,
+                0,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                22,
+                "Goto",
+                0,
+                16,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                23,
+                "Halt",
+                0,
+                0,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                24,
+                "Transaction",
+                0,
+                0,
+                "\u003cschema-cookie\u003e",
+                "0",
+                1,
+                null
+              ],
+              [
+                25,
+                "Goto",
+                0,
+                1,
+                0,
+                null,
+                0,
+                null
+              ]
+            ]
+          },
+          "queryPlan": {
+            "columns": [
+              "id",
+              "parent",
+              "notused",
+              "detail"
+            ],
+            "values": [
+              [
+                3,
+                0,
+                "\u003cnotused\u003e",
+                "SEARCH p USING COVERING INDEX sqlite_autoindex_auto_pk_1 (id=?)"
+              ],
+              [
+                9,
+                0,
+                "\u003cnotused\u003e",
+                "SEARCH c USING PRIMARY KEY (a=? AND b=?) LEFT-JOIN"
+              ]
+            ]
+          },
+          "autoIndexes": [
+            {
+              "binding": {
+                "table": "auto_pk",
+                "name": "sqlite_autoindex_auto_pk_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "id",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              "alias": "p",
+              "withoutRowid": false,
+              "index": {
+                "columns": [
+                  "seq",
+                  "name",
+                  "unique",
+                  "origin",
+                  "partial"
+                ],
+                "values": [
+                  [
+                    1,
+                    "sqlite_autoindex_auto_pk_1",
+                    1,
+                    "pk",
+                    0
+                  ]
+                ]
+              },
+              "indexColumns": {
+                "columns": [
+                  "seqno",
+                  "cid",
+                  "name",
+                  "desc",
+                  "coll",
+                  "key"
+                ],
+                "values": [
+                  [
+                    0,
+                    0,
+                    "id",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    1,
+                    -1,
+                    null,
+                    0,
+                    "BINARY",
+                    0
+                  ]
+                ]
+              },
+              "tableColumns": {
+                "columns": [
+                  "cid",
+                  "name",
+                  "type",
+                  "notnull",
+                  "dflt_value",
+                  "pk",
+                  "hidden"
+                ],
+                "values": [
+                  [
+                    0,
+                    "id",
+                    "TEXT",
+                    0,
+                    null,
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    "code",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ],
+                  [
+                    2,
+                    "payload",
+                    "TEXT",
+                    1,
+                    null,
+                    0,
+                    0
+                  ]
+                ]
+              }
+            },
+            {
+              "binding": {
+                "table": "auto_wr",
+                "name": "sqlite_autoindex_auto_wr_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "a",
+                    "collation": "BINARY",
+                    "desc": false
+                  },
+                  {
+                    "name": "b",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              "alias": "c",
+              "withoutRowid": true,
+              "index": {
+                "columns": [
+                  "seq",
+                  "name",
+                  "unique",
+                  "origin",
+                  "partial"
+                ],
+                "values": [
+                  [
+                    0,
+                    "sqlite_autoindex_auto_wr_1",
+                    1,
+                    "pk",
+                    0
+                  ]
+                ]
+              },
+              "indexColumns": {
+                "columns": [
+                  "seqno",
+                  "cid",
+                  "name",
+                  "desc",
+                  "coll",
+                  "key"
+                ],
+                "values": [
+                  [
+                    0,
+                    0,
+                    "a",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    1,
+                    1,
+                    "b",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    2,
+                    2,
+                    "value",
+                    0,
+                    "BINARY",
+                    0
+                  ]
+                ]
+              },
+              "tableColumns": {
+                "columns": [
+                  "cid",
+                  "name",
+                  "type",
+                  "notnull",
+                  "dflt_value",
+                  "pk",
+                  "hidden"
+                ],
+                "values": [
+                  [
+                    0,
+                    "a",
+                    "TEXT",
+                    1,
+                    null,
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    "b",
+                    "TEXT",
+                    1,
+                    null,
+                    2,
+                    0
+                  ],
+                  [
+                    2,
+                    "value",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ]
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "auto.pk",
+          "cohort": "present",
+          "explain": {
+            "columns": [
+              "addr",
+              "opcode",
+              "p1",
+              "p2",
+              "p3",
+              "p4",
+              "p5",
+              "comment"
+            ],
+            "values": [
+              [
+                0,
+                "Init",
+                0,
+                13,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                1,
+                "OpenRead",
+                0,
+                "\"main\".\"auto_pk\"",
+                0,
+                "3",
+                0,
+                null
+              ],
+              [
+                2,
+                "OpenRead",
+                1,
+                "\"main\".\"sqlite_autoindex_auto_pk_1\"",
+                0,
+                "k(2,,)",
+                2,
+                null
+              ],
+              [
+                3,
+                "Variable",
+                1,
+                1,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                4,
+                "IsNull",
+                1,
+                12,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                5,
+                "Affinity",
+                1,
+                1,
+                0,
+                "B",
+                0,
+                null
+              ],
+              [
+                6,
+                "SeekGE",
+                1,
+                12,
+                1,
+                "1",
+                0,
+                null
+              ],
+              [
+                7,
+                "IdxGT",
+                1,
+                12,
+                1,
+                "1",
+                0,
+                null
+              ],
+              [
+                8,
+                "DeferredSeek",
+                1,
+                0,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                9,
+                "Column",
+                1,
+                0,
+                2,
+                null,
+                0,
+                null
+              ],
+              [
+                10,
+                "Column",
+                0,
+                2,
+                3,
+                null,
+                0,
+                null
+              ],
+              [
+                11,
+                "ResultRow",
+                2,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                12,
+                "Halt",
+                0,
+                0,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                13,
+                "Transaction",
+                0,
+                0,
+                "\u003cschema-cookie\u003e",
+                "0",
+                1,
+                null
+              ],
+              [
+                14,
+                "Goto",
+                0,
+                1,
+                0,
+                null,
+                0,
+                null
+              ]
+            ]
+          },
+          "queryPlan": {
+            "columns": [
+              "id",
+              "parent",
+              "notused",
+              "detail"
+            ],
+            "values": [
+              [
+                3,
+                0,
+                "\u003cnotused\u003e",
+                "SEARCH p USING INDEX sqlite_autoindex_auto_pk_1 (id=?)"
+              ]
+            ]
+          },
+          "autoIndexes": [
+            {
+              "binding": {
+                "table": "auto_pk",
+                "name": "sqlite_autoindex_auto_pk_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "id",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              "alias": "p",
+              "withoutRowid": false,
+              "index": {
+                "columns": [
+                  "seq",
+                  "name",
+                  "unique",
+                  "origin",
+                  "partial"
+                ],
+                "values": [
+                  [
+                    1,
+                    "sqlite_autoindex_auto_pk_1",
+                    1,
+                    "pk",
+                    0
+                  ]
+                ]
+              },
+              "indexColumns": {
+                "columns": [
+                  "seqno",
+                  "cid",
+                  "name",
+                  "desc",
+                  "coll",
+                  "key"
+                ],
+                "values": [
+                  [
+                    0,
+                    0,
+                    "id",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    1,
+                    -1,
+                    null,
+                    0,
+                    "BINARY",
+                    0
+                  ]
+                ]
+              },
+              "tableColumns": {
+                "columns": [
+                  "cid",
+                  "name",
+                  "type",
+                  "notnull",
+                  "dflt_value",
+                  "pk",
+                  "hidden"
+                ],
+                "values": [
+                  [
+                    0,
+                    "id",
+                    "TEXT",
+                    0,
+                    null,
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    "code",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ],
+                  [
+                    2,
+                    "payload",
+                    "TEXT",
+                    1,
+                    null,
+                    0,
+                    0
+                  ]
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "auto.pk",
+          "cohort": "missing",
+          "explain": {
+            "columns": [
+              "addr",
+              "opcode",
+              "p1",
+              "p2",
+              "p3",
+              "p4",
+              "p5",
+              "comment"
+            ],
+            "values": [
+              [
+                0,
+                "Init",
+                0,
+                13,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                1,
+                "OpenRead",
+                0,
+                "\"main\".\"auto_pk\"",
+                0,
+                "3",
+                0,
+                null
+              ],
+              [
+                2,
+                "OpenRead",
+                1,
+                "\"main\".\"sqlite_autoindex_auto_pk_1\"",
+                0,
+                "k(2,,)",
+                2,
+                null
+              ],
+              [
+                3,
+                "Variable",
+                1,
+                1,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                4,
+                "IsNull",
+                1,
+                12,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                5,
+                "Affinity",
+                1,
+                1,
+                0,
+                "B",
+                0,
+                null
+              ],
+              [
+                6,
+                "SeekGE",
+                1,
+                12,
+                1,
+                "1",
+                0,
+                null
+              ],
+              [
+                7,
+                "IdxGT",
+                1,
+                12,
+                1,
+                "1",
+                0,
+                null
+              ],
+              [
+                8,
+                "DeferredSeek",
+                1,
+                0,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                9,
+                "Column",
+                1,
+                0,
+                2,
+                null,
+                0,
+                null
+              ],
+              [
+                10,
+                "Column",
+                0,
+                2,
+                3,
+                null,
+                0,
+                null
+              ],
+              [
+                11,
+                "ResultRow",
+                2,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                12,
+                "Halt",
+                0,
+                0,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                13,
+                "Transaction",
+                0,
+                0,
+                "\u003cschema-cookie\u003e",
+                "0",
+                1,
+                null
+              ],
+              [
+                14,
+                "Goto",
+                0,
+                1,
+                0,
+                null,
+                0,
+                null
+              ]
+            ]
+          },
+          "queryPlan": {
+            "columns": [
+              "id",
+              "parent",
+              "notused",
+              "detail"
+            ],
+            "values": [
+              [
+                3,
+                0,
+                "\u003cnotused\u003e",
+                "SEARCH p USING INDEX sqlite_autoindex_auto_pk_1 (id=?)"
+              ]
+            ]
+          },
+          "autoIndexes": [
+            {
+              "binding": {
+                "table": "auto_pk",
+                "name": "sqlite_autoindex_auto_pk_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "id",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              "alias": "p",
+              "withoutRowid": false,
+              "index": {
+                "columns": [
+                  "seq",
+                  "name",
+                  "unique",
+                  "origin",
+                  "partial"
+                ],
+                "values": [
+                  [
+                    1,
+                    "sqlite_autoindex_auto_pk_1",
+                    1,
+                    "pk",
+                    0
+                  ]
+                ]
+              },
+              "indexColumns": {
+                "columns": [
+                  "seqno",
+                  "cid",
+                  "name",
+                  "desc",
+                  "coll",
+                  "key"
+                ],
+                "values": [
+                  [
+                    0,
+                    0,
+                    "id",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    1,
+                    -1,
+                    null,
+                    0,
+                    "BINARY",
+                    0
+                  ]
+                ]
+              },
+              "tableColumns": {
+                "columns": [
+                  "cid",
+                  "name",
+                  "type",
+                  "notnull",
+                  "dflt_value",
+                  "pk",
+                  "hidden"
+                ],
+                "values": [
+                  [
+                    0,
+                    "id",
+                    "TEXT",
+                    0,
+                    null,
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    "code",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ],
+                  [
+                    2,
+                    "payload",
+                    "TEXT",
+                    1,
+                    null,
+                    0,
+                    0
+                  ]
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "auto.unique",
+          "cohort": "nocase",
+          "explain": {
+            "columns": [
+              "addr",
+              "opcode",
+              "p1",
+              "p2",
+              "p3",
+              "p4",
+              "p5",
+              "comment"
+            ],
+            "values": [
+              [
+                0,
+                "Init",
+                0,
+                13,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                1,
+                "OpenRead",
+                1,
+                "\"main\".\"sqlite_autoindex_auto_unique_1\"",
+                0,
+                "k(3,-NOCASE,,)",
+                2,
+                null
+              ],
+              [
+                2,
+                "Variable",
+                1,
+                1,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                3,
+                "IsNull",
+                1,
+                12,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                4,
+                "Variable",
+                2,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                5,
+                "IsNull",
+                2,
+                12,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                6,
+                "Affinity",
+                1,
+                2,
+                0,
+                "BB",
+                0,
+                null
+              ],
+              [
+                7,
+                "SeekGE",
+                1,
+                12,
+                1,
+                "2",
+                0,
+                null
+              ],
+              [
+                8,
+                "IdxGT",
+                1,
+                12,
+                1,
+                "2",
+                0,
+                null
+              ],
+              [
+                9,
+                "IdxRowid",
+                1,
+                3,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                10,
+                "ResultRow",
+                3,
+                1,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                11,
+                "Next",
+                1,
+                8,
+                1,
+                null,
+                0,
+                null
+              ],
+              [
+                12,
+                "Halt",
+                0,
+                0,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                13,
+                "Transaction",
+                0,
+                0,
+                "\u003cschema-cookie\u003e",
+                "0",
+                1,
+                null
+              ],
+              [
+                14,
+                "Goto",
+                0,
+                1,
+                0,
+                null,
+                0,
+                null
+              ]
+            ]
+          },
+          "queryPlan": {
+            "columns": [
+              "id",
+              "parent",
+              "notused",
+              "detail"
+            ],
+            "values": [
+              [
+                2,
+                0,
+                "\u003cnotused\u003e",
+                "SEARCH u USING COVERING INDEX sqlite_autoindex_auto_unique_1 (a=? AND b=?)"
+              ]
+            ]
+          },
+          "autoIndexes": [
+            {
+              "binding": {
+                "table": "auto_unique",
+                "name": "sqlite_autoindex_auto_unique_1",
+                "origin": "u",
+                "columns": [
+                  {
+                    "name": "a",
+                    "collation": "NOCASE",
+                    "desc": true
+                  },
+                  {
+                    "name": "b",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              "alias": "u",
+              "withoutRowid": false,
+              "index": {
+                "columns": [
+                  "seq",
+                  "name",
+                  "unique",
+                  "origin",
+                  "partial"
+                ],
+                "values": [
+                  [
+                    0,
+                    "sqlite_autoindex_auto_unique_1",
+                    1,
+                    "u",
+                    0
+                  ]
+                ]
+              },
+              "indexColumns": {
+                "columns": [
+                  "seqno",
+                  "cid",
+                  "name",
+                  "desc",
+                  "coll",
+                  "key"
+                ],
+                "values": [
+                  [
+                    0,
+                    1,
+                    "a",
+                    1,
+                    "NOCASE",
+                    1
+                  ],
+                  [
+                    1,
+                    2,
+                    "b",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    2,
+                    -1,
+                    null,
+                    0,
+                    "BINARY",
+                    0
+                  ]
+                ]
+              },
+              "tableColumns": {
+                "columns": [
+                  "cid",
+                  "name",
+                  "type",
+                  "notnull",
+                  "dflt_value",
+                  "pk",
+                  "hidden"
+                ],
+                "values": [
+                  [
+                    0,
+                    "id",
+                    "INTEGER",
+                    0,
+                    null,
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    "a",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ],
+                  [
+                    2,
+                    "b",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ]
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "auto.unique",
+          "cohort": "missing",
+          "explain": {
+            "columns": [
+              "addr",
+              "opcode",
+              "p1",
+              "p2",
+              "p3",
+              "p4",
+              "p5",
+              "comment"
+            ],
+            "values": [
+              [
+                0,
+                "Init",
+                0,
+                13,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                1,
+                "OpenRead",
+                1,
+                "\"main\".\"sqlite_autoindex_auto_unique_1\"",
+                0,
+                "k(3,-NOCASE,,)",
+                2,
+                null
+              ],
+              [
+                2,
+                "Variable",
+                1,
+                1,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                3,
+                "IsNull",
+                1,
+                12,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                4,
+                "Variable",
+                2,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                5,
+                "IsNull",
+                2,
+                12,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                6,
+                "Affinity",
+                1,
+                2,
+                0,
+                "BB",
+                0,
+                null
+              ],
+              [
+                7,
+                "SeekGE",
+                1,
+                12,
+                1,
+                "2",
+                0,
+                null
+              ],
+              [
+                8,
+                "IdxGT",
+                1,
+                12,
+                1,
+                "2",
+                0,
+                null
+              ],
+              [
+                9,
+                "IdxRowid",
+                1,
+                3,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                10,
+                "ResultRow",
+                3,
+                1,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                11,
+                "Next",
+                1,
+                8,
+                1,
+                null,
+                0,
+                null
+              ],
+              [
+                12,
+                "Halt",
+                0,
+                0,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                13,
+                "Transaction",
+                0,
+                0,
+                "\u003cschema-cookie\u003e",
+                "0",
+                1,
+                null
+              ],
+              [
+                14,
+                "Goto",
+                0,
+                1,
+                0,
+                null,
+                0,
+                null
+              ]
+            ]
+          },
+          "queryPlan": {
+            "columns": [
+              "id",
+              "parent",
+              "notused",
+              "detail"
+            ],
+            "values": [
+              [
+                2,
+                0,
+                "\u003cnotused\u003e",
+                "SEARCH u USING COVERING INDEX sqlite_autoindex_auto_unique_1 (a=? AND b=?)"
+              ]
+            ]
+          },
+          "autoIndexes": [
+            {
+              "binding": {
+                "table": "auto_unique",
+                "name": "sqlite_autoindex_auto_unique_1",
+                "origin": "u",
+                "columns": [
+                  {
+                    "name": "a",
+                    "collation": "NOCASE",
+                    "desc": true
+                  },
+                  {
+                    "name": "b",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              "alias": "u",
+              "withoutRowid": false,
+              "index": {
+                "columns": [
+                  "seq",
+                  "name",
+                  "unique",
+                  "origin",
+                  "partial"
+                ],
+                "values": [
+                  [
+                    0,
+                    "sqlite_autoindex_auto_unique_1",
+                    1,
+                    "u",
+                    0
+                  ]
+                ]
+              },
+              "indexColumns": {
+                "columns": [
+                  "seqno",
+                  "cid",
+                  "name",
+                  "desc",
+                  "coll",
+                  "key"
+                ],
+                "values": [
+                  [
+                    0,
+                    1,
+                    "a",
+                    1,
+                    "NOCASE",
+                    1
+                  ],
+                  [
+                    1,
+                    2,
+                    "b",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    2,
+                    -1,
+                    null,
+                    0,
+                    "BINARY",
+                    0
+                  ]
+                ]
+              },
+              "tableColumns": {
+                "columns": [
+                  "cid",
+                  "name",
+                  "type",
+                  "notnull",
+                  "dflt_value",
+                  "pk",
+                  "hidden"
+                ],
+                "values": [
+                  [
+                    0,
+                    "id",
+                    "INTEGER",
+                    0,
+                    null,
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    "a",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ],
+                  [
+                    2,
+                    "b",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ]
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "analyzed",
+    "golden": {
+      "environment": {
+        "connection": {
+          "Engine": "3.53.4",
+          "JournalMode": "wal",
+          "ForeignKeys": 1,
+          "Synchronous": 1,
+          "AutoCheckpoint": 0,
+          "CacheSize": -2048,
+          "BusyTimeout": 0,
+          "MmapSize": 0,
+          "QueryOnly": 1,
+          "TempStore": 1,
+          "ReadLimits": {
+            "LengthBytes": 65536,
+            "Columns": 128
+          }
+        },
+        "indexPolicySha256": "2fb102d343ee32d7d11ba8a62bf53f5b4dd99dbd10641a73d468ec9fb053a414",
+        "fixture": {
+          "connectionPolicy": {
+            "Role": 2,
+            "Connections": 1,
+            "CacheKiB": 2048,
+            "Synchronous": 1,
+            "ReadLimits": {
+              "LengthBytes": 65536,
+              "Columns": 128
+            }
+          },
+          "sha256": "8361a98999938be939c995015499183c8b0b7b48a8081e37eddd44a122537200",
+          "statistics": "analyzed",
+          "implementations": "bundled SQLite3.53.4; tiny two-row main PK/UNIQUE fixtures; actual fixed Reader C128/L65536; compile and point-read controls only"
+        },
+        "engine": {
+          "columns": [
+            "sqlite_version()",
+            "sqlite_source_id()"
+          ],
+          "values": [
+            [
+              "3.53.4",
+              "2026-07-24 19:02:57 bf7c7f30031888f4e796e429ab3978879485813aaca6f641c7b33e4e09459bcc"
+            ]
+          ]
+        },
+        "compileOptions": {
+          "columns": [
+            "compile_options"
+          ],
+          "values": [
+            [
+              "ATOMIC_INTRINSICS=1"
+            ],
+            [
+              "COMPILER=gcc-12.2.0"
+            ],
+            [
+              "DEFAULT_AUTOVACUUM"
+            ],
+            [
+              "DEFAULT_CACHE_SIZE=-2000"
+            ],
+            [
+              "DEFAULT_FILE_FORMAT=4"
+            ],
+            [
+              "DEFAULT_JOURNAL_SIZE_LIMIT=-1"
+            ],
+            [
+              "DEFAULT_MEMSTATUS=0"
+            ],
+            [
+              "DEFAULT_MMAP_SIZE=0"
+            ],
+            [
+              "DEFAULT_PAGE_SIZE=4096"
+            ],
+            [
+              "DEFAULT_PCACHE_INITSZ=20"
+            ],
+            [
+              "DEFAULT_RECURSIVE_TRIGGERS"
+            ],
+            [
+              "DEFAULT_SECTOR_SIZE=4096"
+            ],
+            [
+              "DEFAULT_SYNCHRONOUS=2"
+            ],
+            [
+              "DEFAULT_WAL_AUTOCHECKPOINT=1000"
+            ],
+            [
+              "DEFAULT_WAL_SYNCHRONOUS=2"
+            ],
+            [
+              "DEFAULT_WORKER_THREADS=0"
+            ],
+            [
+              "DIRECT_OVERFLOW_READ"
+            ],
+            [
+              "DISABLE_INTRINSIC"
+            ],
+            [
+              "ENABLE_COLUMN_METADATA"
+            ],
+            [
+              "ENABLE_DBPAGE_VTAB"
+            ],
+            [
+              "ENABLE_DBSTAT_VTAB"
+            ],
+            [
+              "ENABLE_FTS5"
+            ],
+            [
+              "ENABLE_GEOPOLY"
+            ],
+            [
+              "ENABLE_MATH_FUNCTIONS"
+            ],
+            [
+              "ENABLE_MEMORY_MANAGEMENT"
+            ],
+            [
+              "ENABLE_OFFSET_SQL_FUNC"
+            ],
+            [
+              "ENABLE_PREUPDATE_HOOK"
+            ],
+            [
+              "ENABLE_RBU"
+            ],
+            [
+              "ENABLE_RTREE"
+            ],
+            [
+              "ENABLE_SESSION"
+            ],
+            [
+              "ENABLE_SNAPSHOT"
+            ],
+            [
+              "ENABLE_STAT4"
+            ],
+            [
+              "ENABLE_UNLOCK_NOTIFY"
+            ],
+            [
+              "LIKE_DOESNT_MATCH_BLOBS"
+            ],
+            [
+              "MALLOC_SOFT_LIMIT=1024"
+            ],
+            [
+              "MAX_ATTACHED=10"
+            ],
+            [
+              "MAX_COLUMN=2000"
+            ],
+            [
+              "MAX_COMPOUND_SELECT=500"
+            ],
+            [
+              "MAX_DEFAULT_PAGE_SIZE=8192"
+            ],
+            [
+              "MAX_EXPR_DEPTH=1000"
+            ],
+            [
+              "MAX_FUNCTION_ARG=1000"
+            ],
+            [
+              "MAX_LENGTH=1000000000"
+            ],
+            [
+              "MAX_LIKE_PATTERN_LENGTH=50000"
+            ],
+            [
+              "MAX_MMAP_SIZE=0x7fff0000"
+            ],
+            [
+              "MAX_PAGE_COUNT=0xfffffffe"
+            ],
+            [
+              "MAX_PAGE_SIZE=65536"
+            ],
+            [
+              "MAX_SQL_LENGTH=1000000000"
+            ],
+            [
+              "MAX_TRIGGER_DEPTH=1000"
+            ],
+            [
+              "MAX_VARIABLE_NUMBER=32766"
+            ],
+            [
+              "MAX_VDBE_OP=250000000"
+            ],
+            [
+              "MAX_WORKER_THREADS=8"
+            ],
+            [
+              "MUTEX_PTHREADS"
+            ],
+            [
+              "SOUNDEX"
+            ],
+            [
+              "SYSTEM_MALLOC"
+            ],
+            [
+              "TEMP_STORE=1"
+            ],
+            [
+              "THREADSAFE=1"
+            ]
+          ]
+        },
+        "schema": {
+          "columns": [
+            "type",
+            "name",
+            "tbl_name",
+            "rootpage",
+            "sql"
+          ],
+          "values": [
+            [
+              "index",
+              "item_sort",
+              "items",
+              3,
+              "CREATE INDEX item_sort ON items(library_id,kind,key,id) WHERE kind IN(1,2,3,4,10)"
+            ],
+            [
+              "index",
+              "sqlite_autoindex_auto_pk_1",
+              "auto_pk",
+              5,
+              null
+            ],
+            [
+              "index",
+              "sqlite_autoindex_auto_pk_2",
+              "auto_pk",
+              6,
+              null
+            ],
+            [
+              "index",
+              "sqlite_autoindex_auto_unique_1",
+              "auto_unique",
+              9,
+              null
+            ],
+            [
+              "table",
+              "auto_pk",
+              "auto_pk",
+              4,
+              "CREATE TABLE auto_pk(id TEXT PRIMARY KEY,code TEXT COLLATE NOCASE UNIQUE,payload TEXT NOT NULL)"
+            ],
+            [
+              "table",
+              "auto_unique",
+              "auto_unique",
+              8,
+              "CREATE TABLE auto_unique(id INTEGER PRIMARY KEY,a TEXT COLLATE NOCASE,b TEXT,UNIQUE(a DESC,b))"
+            ],
+            [
+              "table",
+              "auto_wr",
+              "auto_wr",
+              7,
+              "CREATE TABLE auto_wr(a TEXT,b TEXT,value TEXT,PRIMARY KEY(a,b)) WITHOUT ROWID"
+            ],
+            [
+              "table",
+              "items",
+              "items",
+              2,
+              "CREATE TABLE items(id INTEGER PRIMARY KEY, library_id INTEGER NOT NULL, kind INTEGER NOT NULL, key INTEGER)"
+            ],
+            [
+              "table",
+              "sqlite_stat1",
+              "sqlite_stat1",
+              10,
+              "CREATE TABLE sqlite_stat1(tbl,idx,stat)"
+            ],
+            [
+              "table",
+              "sqlite_stat4",
+              "sqlite_stat4",
+              11,
+              "CREATE TABLE sqlite_stat4(tbl,idx,neq,nlt,ndlt,sample)"
+            ]
+          ]
+        },
+        "schemaSha256": "6fb9bea5f6c658a1c91e4ba38784a16b8dd895ff773f3584ba2a84d2c010cc5e",
+        "statistics": {
+          "sqlite_stat1": {
+            "columns": [
+              "tbl",
+              "idx",
+              "stat"
+            ],
+            "values": [
+              [
+                "auto_pk",
+                "sqlite_autoindex_auto_pk_1",
+                "2 1"
+              ],
+              [
+                "auto_pk",
+                "sqlite_autoindex_auto_pk_2",
+                "2 1"
+              ],
+              [
+                "auto_unique",
+                "sqlite_autoindex_auto_unique_1",
+                "2 1 1"
+              ],
+              [
+                "auto_wr",
+                "auto_wr",
+                "2 1 1"
+              ],
+              [
+                "items",
+                null,
+                "4"
+              ],
+              [
+                "items",
+                "item_sort",
+                "4 4 4 2 1"
+              ]
+            ]
+          },
+          "sqlite_stat4": {
+            "columns": [
+              "tbl",
+              "idx",
+              "neq",
+              "nlt",
+              "ndlt",
+              "sample"
+            ],
+            "values": [
+              [
+                "auto_pk",
+                "sqlite_autoindex_auto_pk_1",
+                "1 1",
+                "0 0",
+                "0 0",
+                "AxMJb25l"
+              ],
+              [
+                "auto_pk",
+                "sqlite_autoindex_auto_pk_1",
+                "1 1",
+                "1 1",
+                "1 1",
+                "AxMBdHdvAg=="
+              ],
+              [
+                "auto_pk",
+                "sqlite_autoindex_auto_pk_2",
+                "1 1",
+                "0 0",
+                "0 0",
+                "AxcJQWxwaGE="
+              ],
+              [
+                "auto_pk",
+                "sqlite_autoindex_auto_pk_2",
+                "1 1",
+                "1 1",
+                "1 1",
+                "AxUBQmV0YQI="
+              ],
+              [
+                "auto_unique",
+                "sqlite_autoindex_auto_unique_1",
+                "1 1 1",
+                "0 0 0",
+                "0 0 0",
+                "BBUPAUJldGF5Ag=="
+              ],
+              [
+                "auto_unique",
+                "sqlite_autoindex_auto_unique_1",
+                "1 1 1",
+                "1 1 1",
+                "1 1 1",
+                "BBcPCUFscGhheA=="
+              ],
+              [
+                "auto_wr",
+                "auto_wr",
+                "1 1",
+                "0 0",
+                "0 0",
+                "AxMPb25leA=="
+              ],
+              [
+                "auto_wr",
+                "auto_wr",
+                "1 1",
+                "1 1",
+                "1 1",
+                "AxMPdHdveQ=="
+              ],
+              [
+                "items",
+                "item_sort",
+                "4 4 1 1 1",
+                "0 0 0 0 0",
+                "0 0 0 0 0",
+                "BgkJAAEBAwM="
+              ],
+              [
+                "items",
+                "item_sort",
+                "4 4 1 1 1",
+                "0 0 3 3 3",
+                "0 0 2 3 3",
+                "BgkJAgEBCHAEBA=="
+              ],
+              [
+                "items",
+                "item_sort",
+                "4 4 2 1 1",
+                "0 0 1 1 1",
+                "0 0 1 1 1",
+                "BgkJAgkJBDg="
+              ],
+              [
+                "items",
+                "item_sort",
+                "4 4 2 1 1",
+                "0 0 1 2 2",
+                "0 0 1 2 2",
+                "BgkJAgEBBDgCAg=="
+              ]
+            ]
+          }
+        },
+        "statisticsSha256": "e6ffd30e1ed6a1584a6cd83a90c5b993c9e3ff59e9b93dc05ed87d349ccde1b0",
+        "pragmas": {
+          "analysis_limit": {
+            "columns": [
+              "analysis_limit"
+            ],
+            "values": [
+              [
+                0
+              ]
+            ]
+          },
+          "automatic_index": {
+            "columns": [
+              "automatic_index"
+            ],
+            "values": [
+              [
+                1
+              ]
+            ]
+          },
+          "cache_size": {
+            "columns": [
+              "cache_size"
+            ],
+            "values": [
+              [
+                -2048
+              ]
+            ]
+          },
+          "encoding": {
+            "columns": [
+              "encoding"
+            ],
+            "values": [
+              [
+                "UTF-8"
+              ]
+            ]
+          },
+          "foreign_keys": {
+            "columns": [
+              "foreign_keys"
+            ],
+            "values": [
+              [
+                1
+              ]
+            ]
+          },
+          "journal_mode": {
+            "columns": [
+              "journal_mode"
+            ],
+            "values": [
+              [
+                "wal"
+              ]
+            ]
+          },
+          "page_size": {
+            "columns": [
+              "page_size"
+            ],
+            "values": [
+              [
+                4096
+              ]
+            ]
+          },
+          "query_only": {
+            "columns": [
+              "query_only"
+            ],
+            "values": [
+              [
+                1
+              ]
+            ]
+          },
+          "reverse_unordered_selects": {
+            "columns": [
+              "reverse_unordered_selects"
+            ],
+            "values": [
+              [
+                0
+              ]
+            ]
+          },
+          "synchronous": {
+            "columns": [
+              "synchronous"
+            ],
+            "values": [
+              [
+                1
+              ]
+            ]
+          },
+          "temp_store": {
+            "columns": [
+              "temp_store"
+            ],
+            "values": [
+              [
+                1
+              ]
+            ]
+          },
+          "trusted_schema": {
+            "columns": [
+              "trusted_schema"
+            ],
+            "values": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        "functionsSha256": "ab6032bb61d7aa3e45d6c8cff9e69ff4a0d61b598b9f9c38a4147c37e032db34",
+        "collations": {
+          "columns": [
+            "seq",
+            "name"
+          ],
+          "values": [
+            [
+              0,
+              "RTRIM"
+            ],
+            [
+              1,
+              "NOCASE"
+            ],
+            [
+              2,
+              "BINARY"
+            ]
+          ]
+        }
+      },
+      "manifest": [
+        {
+          "id": "auto.cross",
+          "sql": "SELECT p.id,c.value FROM auto_pk AS p INDEXED BY sqlite_autoindex_auto_pk_1 CROSS JOIN auto_wr AS c INDEXED BY sqlite_autoindex_auto_wr_1 ON c.a=p.id AND c.b=? WHERE p.id=?",
+          "owner": "plan-autoindex-test",
+          "callSites": [
+            "autoindexes_test.go"
+          ],
+          "kind": "read",
+          "params": [
+            {
+              "name": "child",
+              "type": "text",
+              "nullable": false
+            },
+            {
+              "name": "parent",
+              "type": "text",
+              "nullable": false
+            }
+          ],
+          "cohorts": [
+            {
+              "name": "present",
+              "bindings": [
+                "x",
+                "one"
+              ]
+            },
+            {
+              "name": "missing_child",
+              "bindings": [
+                "absent",
+                "one"
+              ]
+            }
+          ],
+          "plan": {
+            "hot": true,
+            "indexes": [
+              "sqlite_autoindex_auto_pk_1",
+              "sqlite_autoindex_auto_wr_1"
+            ],
+            "primaryKeys": null,
+            "seeks": [
+              "id=?",
+              "a=? AND b=?"
+            ],
+            "allowedScans": null,
+            "autoIndexes": [
+              {
+                "table": "auto_pk",
+                "name": "sqlite_autoindex_auto_pk_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "id",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              {
+                "table": "auto_wr",
+                "name": "sqlite_autoindex_auto_wr_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "a",
+                    "collation": "BINARY",
+                    "desc": false
+                  },
+                  {
+                    "name": "b",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              }
+            ]
+          },
+          "sqlSha256": "5c143db8a7fb8e22e587425a56beb6b072399a0c2f9f24c97148591764543062"
+        },
+        {
+          "id": "auto.left",
+          "sql": "SELECT p.id,c.value FROM auto_pk AS p INDEXED BY sqlite_autoindex_auto_pk_1 LEFT JOIN auto_wr AS c INDEXED BY sqlite_autoindex_auto_wr_1 ON c.a=p.id AND c.b=? WHERE p.id=?",
+          "owner": "plan-autoindex-test",
+          "callSites": [
+            "autoindexes_test.go"
+          ],
+          "kind": "read",
+          "params": [
+            {
+              "name": "child",
+              "type": "text",
+              "nullable": false
+            },
+            {
+              "name": "parent",
+              "type": "text",
+              "nullable": false
+            }
+          ],
+          "cohorts": [
+            {
+              "name": "present",
+              "bindings": [
+                "x",
+                "one"
+              ]
+            },
+            {
+              "name": "missing_child",
+              "bindings": [
+                "absent",
+                "one"
+              ]
+            }
+          ],
+          "plan": {
+            "hot": true,
+            "indexes": [
+              "sqlite_autoindex_auto_pk_1",
+              "sqlite_autoindex_auto_wr_1"
+            ],
+            "primaryKeys": null,
+            "seeks": [
+              "id=?",
+              "a=? AND b=?"
+            ],
+            "allowedScans": null,
+            "autoIndexes": [
+              {
+                "table": "auto_pk",
+                "name": "sqlite_autoindex_auto_pk_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "id",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              {
+                "table": "auto_wr",
+                "name": "sqlite_autoindex_auto_wr_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "a",
+                    "collation": "BINARY",
+                    "desc": false
+                  },
+                  {
+                    "name": "b",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              }
+            ]
+          },
+          "sqlSha256": "4656a6e3016304c31d41a5252521d61855ac2f524d0d13845d36783d2fc79ed4"
+        },
+        {
+          "id": "auto.pk",
+          "sql": "SELECT p.id,p.payload FROM auto_pk AS p INDEXED BY sqlite_autoindex_auto_pk_1 WHERE p.id=?",
+          "owner": "plan-autoindex-test",
+          "callSites": [
+            "autoindexes_test.go"
+          ],
+          "kind": "read",
+          "params": [
+            {
+              "name": "id",
+              "type": "text",
+              "nullable": false
+            }
+          ],
+          "cohorts": [
+            {
+              "name": "present",
+              "bindings": [
+                "one"
+              ]
+            },
+            {
+              "name": "missing",
+              "bindings": [
+                "absent"
+              ]
+            }
+          ],
+          "plan": {
+            "hot": true,
+            "indexes": [
+              "sqlite_autoindex_auto_pk_1"
+            ],
+            "primaryKeys": null,
+            "seeks": [
+              "id=?"
+            ],
+            "allowedScans": null,
+            "autoIndexes": [
+              {
+                "table": "auto_pk",
+                "name": "sqlite_autoindex_auto_pk_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "id",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              }
+            ]
+          },
+          "sqlSha256": "657e5a52b99a5dcf804937768420a76f6f99e26adf8d34bccaca9470ba2b0922"
+        },
+        {
+          "id": "auto.unique",
+          "sql": "SELECT u.id FROM auto_unique AS u INDEXED BY sqlite_autoindex_auto_unique_1 WHERE u.a=? AND u.b=?",
+          "owner": "plan-autoindex-test",
+          "callSites": [
+            "autoindexes_test.go"
+          ],
+          "kind": "read",
+          "params": [
+            {
+              "name": "a",
+              "type": "text",
+              "nullable": false
+            },
+            {
+              "name": "b",
+              "type": "text",
+              "nullable": false
+            }
+          ],
+          "cohorts": [
+            {
+              "name": "nocase",
+              "bindings": [
+                "ALPHA",
+                "x"
+              ]
+            },
+            {
+              "name": "missing",
+              "bindings": [
+                "absent",
+                "x"
+              ]
+            }
+          ],
+          "plan": {
+            "hot": true,
+            "indexes": [
+              "sqlite_autoindex_auto_unique_1"
+            ],
+            "primaryKeys": null,
+            "seeks": [
+              "a=? AND b=?"
+            ],
+            "allowedScans": null,
+            "autoIndexes": [
+              {
+                "table": "auto_unique",
+                "name": "sqlite_autoindex_auto_unique_1",
+                "origin": "u",
+                "columns": [
+                  {
+                    "name": "a",
+                    "collation": "NOCASE",
+                    "desc": true
+                  },
+                  {
+                    "name": "b",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              }
+            ]
+          },
+          "sqlSha256": "a2fc227bfe39987089ed091debcc648fc2ae93c53ddd4118649a16557a416fb8"
+        }
+      ],
+      "plans": [
+        {
+          "id": "auto.cross",
+          "cohort": "present",
+          "explain": {
+            "columns": [
+              "addr",
+              "opcode",
+              "p1",
+              "p2",
+              "p3",
+              "p4",
+              "p5",
+              "comment"
+            ],
+            "values": [
+              [
+                0,
+                "Init",
+                0,
+                20,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                1,
+                "OpenRead",
+                2,
+                "\"main\".\"sqlite_autoindex_auto_pk_1\"",
+                0,
+                "k(2,,)",
+                2,
+                null
+              ],
+              [
+                2,
+                "OpenRead",
+                3,
+                "\"main\".\"auto_wr\"",
+                0,
+                "k(2,,)",
+                2,
+                null
+              ],
+              [
+                3,
+                "Variable",
+                2,
+                1,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                4,
+                "IsNull",
+                1,
+                19,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                5,
+                "Affinity",
+                1,
+                1,
+                0,
+                "B",
+                0,
+                null
+              ],
+              [
+                6,
+                "SeekGE",
+                2,
+                19,
+                1,
+                "1",
+                0,
+                null
+              ],
+              [
+                7,
+                "IdxGT",
+                2,
+                19,
+                1,
+                "1",
+                0,
+                null
+              ],
+              [
+                8,
+                "Variable",
+                2,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                9,
+                "Affinity",
+                2,
+                1,
+                0,
+                "B",
+                0,
+                null
+              ],
+              [
+                10,
+                "IsNull",
+                2,
+                19,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                11,
+                "Variable",
+                1,
+                3,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                12,
+                "IsNull",
+                3,
+                19,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                13,
+                "Affinity",
+                3,
+                1,
+                0,
+                "B",
+                0,
+                null
+              ],
+              [
+                14,
+                "SeekGE",
+                3,
+                19,
+                2,
+                "2",
+                0,
+                null
+              ],
+              [
+                15,
+                "IdxGT",
+                3,
+                19,
+                2,
+                "2",
+                0,
+                null
+              ],
+              [
+                16,
+                "Column",
+                2,
+                0,
+                4,
+                null,
+                0,
+                null
+              ],
+              [
+                17,
+                "Column",
+                3,
+                2,
+                5,
+                null,
+                0,
+                null
+              ],
+              [
+                18,
+                "ResultRow",
+                4,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                19,
+                "Halt",
+                0,
+                0,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                20,
+                "Transaction",
+                0,
+                0,
+                "\u003cschema-cookie\u003e",
+                "0",
+                1,
+                null
+              ],
+              [
+                21,
+                "Goto",
+                0,
+                1,
+                0,
+                null,
+                0,
+                null
+              ]
+            ]
+          },
+          "queryPlan": {
+            "columns": [
+              "id",
+              "parent",
+              "notused",
+              "detail"
+            ],
+            "values": [
+              [
+                3,
+                0,
+                "\u003cnotused\u003e",
+                "SEARCH p USING COVERING INDEX sqlite_autoindex_auto_pk_1 (id=?)"
+              ],
+              [
+                9,
+                0,
+                "\u003cnotused\u003e",
+                "SEARCH c USING PRIMARY KEY (a=? AND b=?)"
+              ]
+            ]
+          },
+          "autoIndexes": [
+            {
+              "binding": {
+                "table": "auto_pk",
+                "name": "sqlite_autoindex_auto_pk_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "id",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              "alias": "p",
+              "withoutRowid": false,
+              "index": {
+                "columns": [
+                  "seq",
+                  "name",
+                  "unique",
+                  "origin",
+                  "partial"
+                ],
+                "values": [
+                  [
+                    1,
+                    "sqlite_autoindex_auto_pk_1",
+                    1,
+                    "pk",
+                    0
+                  ]
+                ]
+              },
+              "indexColumns": {
+                "columns": [
+                  "seqno",
+                  "cid",
+                  "name",
+                  "desc",
+                  "coll",
+                  "key"
+                ],
+                "values": [
+                  [
+                    0,
+                    0,
+                    "id",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    1,
+                    -1,
+                    null,
+                    0,
+                    "BINARY",
+                    0
+                  ]
+                ]
+              },
+              "tableColumns": {
+                "columns": [
+                  "cid",
+                  "name",
+                  "type",
+                  "notnull",
+                  "dflt_value",
+                  "pk",
+                  "hidden"
+                ],
+                "values": [
+                  [
+                    0,
+                    "id",
+                    "TEXT",
+                    0,
+                    null,
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    "code",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ],
+                  [
+                    2,
+                    "payload",
+                    "TEXT",
+                    1,
+                    null,
+                    0,
+                    0
+                  ]
+                ]
+              }
+            },
+            {
+              "binding": {
+                "table": "auto_wr",
+                "name": "sqlite_autoindex_auto_wr_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "a",
+                    "collation": "BINARY",
+                    "desc": false
+                  },
+                  {
+                    "name": "b",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              "alias": "c",
+              "withoutRowid": true,
+              "index": {
+                "columns": [
+                  "seq",
+                  "name",
+                  "unique",
+                  "origin",
+                  "partial"
+                ],
+                "values": [
+                  [
+                    0,
+                    "sqlite_autoindex_auto_wr_1",
+                    1,
+                    "pk",
+                    0
+                  ]
+                ]
+              },
+              "indexColumns": {
+                "columns": [
+                  "seqno",
+                  "cid",
+                  "name",
+                  "desc",
+                  "coll",
+                  "key"
+                ],
+                "values": [
+                  [
+                    0,
+                    0,
+                    "a",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    1,
+                    1,
+                    "b",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    2,
+                    2,
+                    "value",
+                    0,
+                    "BINARY",
+                    0
+                  ]
+                ]
+              },
+              "tableColumns": {
+                "columns": [
+                  "cid",
+                  "name",
+                  "type",
+                  "notnull",
+                  "dflt_value",
+                  "pk",
+                  "hidden"
+                ],
+                "values": [
+                  [
+                    0,
+                    "a",
+                    "TEXT",
+                    1,
+                    null,
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    "b",
+                    "TEXT",
+                    1,
+                    null,
+                    2,
+                    0
+                  ],
+                  [
+                    2,
+                    "value",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ]
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "auto.cross",
+          "cohort": "missing_child",
+          "explain": {
+            "columns": [
+              "addr",
+              "opcode",
+              "p1",
+              "p2",
+              "p3",
+              "p4",
+              "p5",
+              "comment"
+            ],
+            "values": [
+              [
+                0,
+                "Init",
+                0,
+                20,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                1,
+                "OpenRead",
+                2,
+                "\"main\".\"sqlite_autoindex_auto_pk_1\"",
+                0,
+                "k(2,,)",
+                2,
+                null
+              ],
+              [
+                2,
+                "OpenRead",
+                3,
+                "\"main\".\"auto_wr\"",
+                0,
+                "k(2,,)",
+                2,
+                null
+              ],
+              [
+                3,
+                "Variable",
+                2,
+                1,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                4,
+                "IsNull",
+                1,
+                19,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                5,
+                "Affinity",
+                1,
+                1,
+                0,
+                "B",
+                0,
+                null
+              ],
+              [
+                6,
+                "SeekGE",
+                2,
+                19,
+                1,
+                "1",
+                0,
+                null
+              ],
+              [
+                7,
+                "IdxGT",
+                2,
+                19,
+                1,
+                "1",
+                0,
+                null
+              ],
+              [
+                8,
+                "Variable",
+                2,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                9,
+                "Affinity",
+                2,
+                1,
+                0,
+                "B",
+                0,
+                null
+              ],
+              [
+                10,
+                "IsNull",
+                2,
+                19,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                11,
+                "Variable",
+                1,
+                3,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                12,
+                "IsNull",
+                3,
+                19,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                13,
+                "Affinity",
+                3,
+                1,
+                0,
+                "B",
+                0,
+                null
+              ],
+              [
+                14,
+                "SeekGE",
+                3,
+                19,
+                2,
+                "2",
+                0,
+                null
+              ],
+              [
+                15,
+                "IdxGT",
+                3,
+                19,
+                2,
+                "2",
+                0,
+                null
+              ],
+              [
+                16,
+                "Column",
+                2,
+                0,
+                4,
+                null,
+                0,
+                null
+              ],
+              [
+                17,
+                "Column",
+                3,
+                2,
+                5,
+                null,
+                0,
+                null
+              ],
+              [
+                18,
+                "ResultRow",
+                4,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                19,
+                "Halt",
+                0,
+                0,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                20,
+                "Transaction",
+                0,
+                0,
+                "\u003cschema-cookie\u003e",
+                "0",
+                1,
+                null
+              ],
+              [
+                21,
+                "Goto",
+                0,
+                1,
+                0,
+                null,
+                0,
+                null
+              ]
+            ]
+          },
+          "queryPlan": {
+            "columns": [
+              "id",
+              "parent",
+              "notused",
+              "detail"
+            ],
+            "values": [
+              [
+                3,
+                0,
+                "\u003cnotused\u003e",
+                "SEARCH p USING COVERING INDEX sqlite_autoindex_auto_pk_1 (id=?)"
+              ],
+              [
+                9,
+                0,
+                "\u003cnotused\u003e",
+                "SEARCH c USING PRIMARY KEY (a=? AND b=?)"
+              ]
+            ]
+          },
+          "autoIndexes": [
+            {
+              "binding": {
+                "table": "auto_pk",
+                "name": "sqlite_autoindex_auto_pk_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "id",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              "alias": "p",
+              "withoutRowid": false,
+              "index": {
+                "columns": [
+                  "seq",
+                  "name",
+                  "unique",
+                  "origin",
+                  "partial"
+                ],
+                "values": [
+                  [
+                    1,
+                    "sqlite_autoindex_auto_pk_1",
+                    1,
+                    "pk",
+                    0
+                  ]
+                ]
+              },
+              "indexColumns": {
+                "columns": [
+                  "seqno",
+                  "cid",
+                  "name",
+                  "desc",
+                  "coll",
+                  "key"
+                ],
+                "values": [
+                  [
+                    0,
+                    0,
+                    "id",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    1,
+                    -1,
+                    null,
+                    0,
+                    "BINARY",
+                    0
+                  ]
+                ]
+              },
+              "tableColumns": {
+                "columns": [
+                  "cid",
+                  "name",
+                  "type",
+                  "notnull",
+                  "dflt_value",
+                  "pk",
+                  "hidden"
+                ],
+                "values": [
+                  [
+                    0,
+                    "id",
+                    "TEXT",
+                    0,
+                    null,
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    "code",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ],
+                  [
+                    2,
+                    "payload",
+                    "TEXT",
+                    1,
+                    null,
+                    0,
+                    0
+                  ]
+                ]
+              }
+            },
+            {
+              "binding": {
+                "table": "auto_wr",
+                "name": "sqlite_autoindex_auto_wr_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "a",
+                    "collation": "BINARY",
+                    "desc": false
+                  },
+                  {
+                    "name": "b",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              "alias": "c",
+              "withoutRowid": true,
+              "index": {
+                "columns": [
+                  "seq",
+                  "name",
+                  "unique",
+                  "origin",
+                  "partial"
+                ],
+                "values": [
+                  [
+                    0,
+                    "sqlite_autoindex_auto_wr_1",
+                    1,
+                    "pk",
+                    0
+                  ]
+                ]
+              },
+              "indexColumns": {
+                "columns": [
+                  "seqno",
+                  "cid",
+                  "name",
+                  "desc",
+                  "coll",
+                  "key"
+                ],
+                "values": [
+                  [
+                    0,
+                    0,
+                    "a",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    1,
+                    1,
+                    "b",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    2,
+                    2,
+                    "value",
+                    0,
+                    "BINARY",
+                    0
+                  ]
+                ]
+              },
+              "tableColumns": {
+                "columns": [
+                  "cid",
+                  "name",
+                  "type",
+                  "notnull",
+                  "dflt_value",
+                  "pk",
+                  "hidden"
+                ],
+                "values": [
+                  [
+                    0,
+                    "a",
+                    "TEXT",
+                    1,
+                    null,
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    "b",
+                    "TEXT",
+                    1,
+                    null,
+                    2,
+                    0
+                  ],
+                  [
+                    2,
+                    "value",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ]
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "auto.left",
+          "cohort": "present",
+          "explain": {
+            "columns": [
+              "addr",
+              "opcode",
+              "p1",
+              "p2",
+              "p3",
+              "p4",
+              "p5",
+              "comment"
+            ],
+            "values": [
+              [
+                0,
+                "Init",
+                0,
+                24,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                1,
+                "OpenRead",
+                2,
+                "\"main\".\"sqlite_autoindex_auto_pk_1\"",
+                0,
+                "k(2,,)",
+                2,
+                null
+              ],
+              [
+                2,
+                "OpenRead",
+                3,
+                "\"main\".\"auto_wr\"",
+                0,
+                "k(2,,)",
+                2,
+                null
+              ],
+              [
+                3,
+                "Variable",
+                2,
+                1,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                4,
+                "IsNull",
+                1,
+                23,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                5,
+                "Affinity",
+                1,
+                1,
+                0,
+                "B",
+                0,
+                null
+              ],
+              [
+                6,
+                "SeekGE",
+                2,
+                23,
+                1,
+                "1",
+                0,
+                null
+              ],
+              [
+                7,
+                "IdxGT",
+                2,
+                23,
+                1,
+                "1",
+                0,
+                null
+              ],
+              [
+                8,
+                "Integer",
+                0,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                9,
+                "Column",
+                2,
+                0,
+                3,
+                null,
+                0,
+                null
+              ],
+              [
+                10,
+                "IsNull",
+                3,
+                20,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                11,
+                "Variable",
+                1,
+                4,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                12,
+                "IsNull",
+                4,
+                20,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                13,
+                "Affinity",
+                4,
+                1,
+                0,
+                "B",
+                0,
+                null
+              ],
+              [
+                14,
+                "SeekGE",
+                3,
+                20,
+                3,
+                "2",
+                0,
+                null
+              ],
+              [
+                15,
+                "IdxGT",
+                3,
+                20,
+                3,
+                "2",
+                0,
+                null
+              ],
+              [
+                16,
+                "Integer",
+                1,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                17,
+                "Column",
+                2,
+                0,
+                5,
+                null,
+                0,
+                null
+              ],
+              [
+                18,
+                "Column",
+                3,
+                2,
+                6,
+                null,
+                0,
+                null
+              ],
+              [
+                19,
+                "ResultRow",
+                5,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                20,
+                "IfPos",
+                2,
+                23,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                21,
+                "NullRow",
+                3,
+                0,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                22,
+                "Goto",
+                0,
+                16,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                23,
+                "Halt",
+                0,
+                0,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                24,
+                "Transaction",
+                0,
+                0,
+                "\u003cschema-cookie\u003e",
+                "0",
+                1,
+                null
+              ],
+              [
+                25,
+                "Goto",
+                0,
+                1,
+                0,
+                null,
+                0,
+                null
+              ]
+            ]
+          },
+          "queryPlan": {
+            "columns": [
+              "id",
+              "parent",
+              "notused",
+              "detail"
+            ],
+            "values": [
+              [
+                3,
+                0,
+                "\u003cnotused\u003e",
+                "SEARCH p USING COVERING INDEX sqlite_autoindex_auto_pk_1 (id=?)"
+              ],
+              [
+                9,
+                0,
+                "\u003cnotused\u003e",
+                "SEARCH c USING PRIMARY KEY (a=? AND b=?) LEFT-JOIN"
+              ]
+            ]
+          },
+          "autoIndexes": [
+            {
+              "binding": {
+                "table": "auto_pk",
+                "name": "sqlite_autoindex_auto_pk_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "id",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              "alias": "p",
+              "withoutRowid": false,
+              "index": {
+                "columns": [
+                  "seq",
+                  "name",
+                  "unique",
+                  "origin",
+                  "partial"
+                ],
+                "values": [
+                  [
+                    1,
+                    "sqlite_autoindex_auto_pk_1",
+                    1,
+                    "pk",
+                    0
+                  ]
+                ]
+              },
+              "indexColumns": {
+                "columns": [
+                  "seqno",
+                  "cid",
+                  "name",
+                  "desc",
+                  "coll",
+                  "key"
+                ],
+                "values": [
+                  [
+                    0,
+                    0,
+                    "id",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    1,
+                    -1,
+                    null,
+                    0,
+                    "BINARY",
+                    0
+                  ]
+                ]
+              },
+              "tableColumns": {
+                "columns": [
+                  "cid",
+                  "name",
+                  "type",
+                  "notnull",
+                  "dflt_value",
+                  "pk",
+                  "hidden"
+                ],
+                "values": [
+                  [
+                    0,
+                    "id",
+                    "TEXT",
+                    0,
+                    null,
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    "code",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ],
+                  [
+                    2,
+                    "payload",
+                    "TEXT",
+                    1,
+                    null,
+                    0,
+                    0
+                  ]
+                ]
+              }
+            },
+            {
+              "binding": {
+                "table": "auto_wr",
+                "name": "sqlite_autoindex_auto_wr_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "a",
+                    "collation": "BINARY",
+                    "desc": false
+                  },
+                  {
+                    "name": "b",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              "alias": "c",
+              "withoutRowid": true,
+              "index": {
+                "columns": [
+                  "seq",
+                  "name",
+                  "unique",
+                  "origin",
+                  "partial"
+                ],
+                "values": [
+                  [
+                    0,
+                    "sqlite_autoindex_auto_wr_1",
+                    1,
+                    "pk",
+                    0
+                  ]
+                ]
+              },
+              "indexColumns": {
+                "columns": [
+                  "seqno",
+                  "cid",
+                  "name",
+                  "desc",
+                  "coll",
+                  "key"
+                ],
+                "values": [
+                  [
+                    0,
+                    0,
+                    "a",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    1,
+                    1,
+                    "b",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    2,
+                    2,
+                    "value",
+                    0,
+                    "BINARY",
+                    0
+                  ]
+                ]
+              },
+              "tableColumns": {
+                "columns": [
+                  "cid",
+                  "name",
+                  "type",
+                  "notnull",
+                  "dflt_value",
+                  "pk",
+                  "hidden"
+                ],
+                "values": [
+                  [
+                    0,
+                    "a",
+                    "TEXT",
+                    1,
+                    null,
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    "b",
+                    "TEXT",
+                    1,
+                    null,
+                    2,
+                    0
+                  ],
+                  [
+                    2,
+                    "value",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ]
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "auto.left",
+          "cohort": "missing_child",
+          "explain": {
+            "columns": [
+              "addr",
+              "opcode",
+              "p1",
+              "p2",
+              "p3",
+              "p4",
+              "p5",
+              "comment"
+            ],
+            "values": [
+              [
+                0,
+                "Init",
+                0,
+                24,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                1,
+                "OpenRead",
+                2,
+                "\"main\".\"sqlite_autoindex_auto_pk_1\"",
+                0,
+                "k(2,,)",
+                2,
+                null
+              ],
+              [
+                2,
+                "OpenRead",
+                3,
+                "\"main\".\"auto_wr\"",
+                0,
+                "k(2,,)",
+                2,
+                null
+              ],
+              [
+                3,
+                "Variable",
+                2,
+                1,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                4,
+                "IsNull",
+                1,
+                23,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                5,
+                "Affinity",
+                1,
+                1,
+                0,
+                "B",
+                0,
+                null
+              ],
+              [
+                6,
+                "SeekGE",
+                2,
+                23,
+                1,
+                "1",
+                0,
+                null
+              ],
+              [
+                7,
+                "IdxGT",
+                2,
+                23,
+                1,
+                "1",
+                0,
+                null
+              ],
+              [
+                8,
+                "Integer",
+                0,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                9,
+                "Column",
+                2,
+                0,
+                3,
+                null,
+                0,
+                null
+              ],
+              [
+                10,
+                "IsNull",
+                3,
+                20,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                11,
+                "Variable",
+                1,
+                4,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                12,
+                "IsNull",
+                4,
+                20,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                13,
+                "Affinity",
+                4,
+                1,
+                0,
+                "B",
+                0,
+                null
+              ],
+              [
+                14,
+                "SeekGE",
+                3,
+                20,
+                3,
+                "2",
+                0,
+                null
+              ],
+              [
+                15,
+                "IdxGT",
+                3,
+                20,
+                3,
+                "2",
+                0,
+                null
+              ],
+              [
+                16,
+                "Integer",
+                1,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                17,
+                "Column",
+                2,
+                0,
+                5,
+                null,
+                0,
+                null
+              ],
+              [
+                18,
+                "Column",
+                3,
+                2,
+                6,
+                null,
+                0,
+                null
+              ],
+              [
+                19,
+                "ResultRow",
+                5,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                20,
+                "IfPos",
+                2,
+                23,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                21,
+                "NullRow",
+                3,
+                0,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                22,
+                "Goto",
+                0,
+                16,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                23,
+                "Halt",
+                0,
+                0,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                24,
+                "Transaction",
+                0,
+                0,
+                "\u003cschema-cookie\u003e",
+                "0",
+                1,
+                null
+              ],
+              [
+                25,
+                "Goto",
+                0,
+                1,
+                0,
+                null,
+                0,
+                null
+              ]
+            ]
+          },
+          "queryPlan": {
+            "columns": [
+              "id",
+              "parent",
+              "notused",
+              "detail"
+            ],
+            "values": [
+              [
+                3,
+                0,
+                "\u003cnotused\u003e",
+                "SEARCH p USING COVERING INDEX sqlite_autoindex_auto_pk_1 (id=?)"
+              ],
+              [
+                9,
+                0,
+                "\u003cnotused\u003e",
+                "SEARCH c USING PRIMARY KEY (a=? AND b=?) LEFT-JOIN"
+              ]
+            ]
+          },
+          "autoIndexes": [
+            {
+              "binding": {
+                "table": "auto_pk",
+                "name": "sqlite_autoindex_auto_pk_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "id",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              "alias": "p",
+              "withoutRowid": false,
+              "index": {
+                "columns": [
+                  "seq",
+                  "name",
+                  "unique",
+                  "origin",
+                  "partial"
+                ],
+                "values": [
+                  [
+                    1,
+                    "sqlite_autoindex_auto_pk_1",
+                    1,
+                    "pk",
+                    0
+                  ]
+                ]
+              },
+              "indexColumns": {
+                "columns": [
+                  "seqno",
+                  "cid",
+                  "name",
+                  "desc",
+                  "coll",
+                  "key"
+                ],
+                "values": [
+                  [
+                    0,
+                    0,
+                    "id",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    1,
+                    -1,
+                    null,
+                    0,
+                    "BINARY",
+                    0
+                  ]
+                ]
+              },
+              "tableColumns": {
+                "columns": [
+                  "cid",
+                  "name",
+                  "type",
+                  "notnull",
+                  "dflt_value",
+                  "pk",
+                  "hidden"
+                ],
+                "values": [
+                  [
+                    0,
+                    "id",
+                    "TEXT",
+                    0,
+                    null,
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    "code",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ],
+                  [
+                    2,
+                    "payload",
+                    "TEXT",
+                    1,
+                    null,
+                    0,
+                    0
+                  ]
+                ]
+              }
+            },
+            {
+              "binding": {
+                "table": "auto_wr",
+                "name": "sqlite_autoindex_auto_wr_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "a",
+                    "collation": "BINARY",
+                    "desc": false
+                  },
+                  {
+                    "name": "b",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              "alias": "c",
+              "withoutRowid": true,
+              "index": {
+                "columns": [
+                  "seq",
+                  "name",
+                  "unique",
+                  "origin",
+                  "partial"
+                ],
+                "values": [
+                  [
+                    0,
+                    "sqlite_autoindex_auto_wr_1",
+                    1,
+                    "pk",
+                    0
+                  ]
+                ]
+              },
+              "indexColumns": {
+                "columns": [
+                  "seqno",
+                  "cid",
+                  "name",
+                  "desc",
+                  "coll",
+                  "key"
+                ],
+                "values": [
+                  [
+                    0,
+                    0,
+                    "a",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    1,
+                    1,
+                    "b",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    2,
+                    2,
+                    "value",
+                    0,
+                    "BINARY",
+                    0
+                  ]
+                ]
+              },
+              "tableColumns": {
+                "columns": [
+                  "cid",
+                  "name",
+                  "type",
+                  "notnull",
+                  "dflt_value",
+                  "pk",
+                  "hidden"
+                ],
+                "values": [
+                  [
+                    0,
+                    "a",
+                    "TEXT",
+                    1,
+                    null,
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    "b",
+                    "TEXT",
+                    1,
+                    null,
+                    2,
+                    0
+                  ],
+                  [
+                    2,
+                    "value",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ]
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "auto.pk",
+          "cohort": "present",
+          "explain": {
+            "columns": [
+              "addr",
+              "opcode",
+              "p1",
+              "p2",
+              "p3",
+              "p4",
+              "p5",
+              "comment"
+            ],
+            "values": [
+              [
+                0,
+                "Init",
+                0,
+                13,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                1,
+                "OpenRead",
+                0,
+                "\"main\".\"auto_pk\"",
+                0,
+                "3",
+                0,
+                null
+              ],
+              [
+                2,
+                "OpenRead",
+                1,
+                "\"main\".\"sqlite_autoindex_auto_pk_1\"",
+                0,
+                "k(2,,)",
+                2,
+                null
+              ],
+              [
+                3,
+                "Variable",
+                1,
+                1,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                4,
+                "IsNull",
+                1,
+                12,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                5,
+                "Affinity",
+                1,
+                1,
+                0,
+                "B",
+                0,
+                null
+              ],
+              [
+                6,
+                "SeekGE",
+                1,
+                12,
+                1,
+                "1",
+                0,
+                null
+              ],
+              [
+                7,
+                "IdxGT",
+                1,
+                12,
+                1,
+                "1",
+                0,
+                null
+              ],
+              [
+                8,
+                "DeferredSeek",
+                1,
+                0,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                9,
+                "Column",
+                1,
+                0,
+                2,
+                null,
+                0,
+                null
+              ],
+              [
+                10,
+                "Column",
+                0,
+                2,
+                3,
+                null,
+                0,
+                null
+              ],
+              [
+                11,
+                "ResultRow",
+                2,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                12,
+                "Halt",
+                0,
+                0,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                13,
+                "Transaction",
+                0,
+                0,
+                "\u003cschema-cookie\u003e",
+                "0",
+                1,
+                null
+              ],
+              [
+                14,
+                "Goto",
+                0,
+                1,
+                0,
+                null,
+                0,
+                null
+              ]
+            ]
+          },
+          "queryPlan": {
+            "columns": [
+              "id",
+              "parent",
+              "notused",
+              "detail"
+            ],
+            "values": [
+              [
+                3,
+                0,
+                "\u003cnotused\u003e",
+                "SEARCH p USING INDEX sqlite_autoindex_auto_pk_1 (id=?)"
+              ]
+            ]
+          },
+          "autoIndexes": [
+            {
+              "binding": {
+                "table": "auto_pk",
+                "name": "sqlite_autoindex_auto_pk_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "id",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              "alias": "p",
+              "withoutRowid": false,
+              "index": {
+                "columns": [
+                  "seq",
+                  "name",
+                  "unique",
+                  "origin",
+                  "partial"
+                ],
+                "values": [
+                  [
+                    1,
+                    "sqlite_autoindex_auto_pk_1",
+                    1,
+                    "pk",
+                    0
+                  ]
+                ]
+              },
+              "indexColumns": {
+                "columns": [
+                  "seqno",
+                  "cid",
+                  "name",
+                  "desc",
+                  "coll",
+                  "key"
+                ],
+                "values": [
+                  [
+                    0,
+                    0,
+                    "id",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    1,
+                    -1,
+                    null,
+                    0,
+                    "BINARY",
+                    0
+                  ]
+                ]
+              },
+              "tableColumns": {
+                "columns": [
+                  "cid",
+                  "name",
+                  "type",
+                  "notnull",
+                  "dflt_value",
+                  "pk",
+                  "hidden"
+                ],
+                "values": [
+                  [
+                    0,
+                    "id",
+                    "TEXT",
+                    0,
+                    null,
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    "code",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ],
+                  [
+                    2,
+                    "payload",
+                    "TEXT",
+                    1,
+                    null,
+                    0,
+                    0
+                  ]
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "auto.pk",
+          "cohort": "missing",
+          "explain": {
+            "columns": [
+              "addr",
+              "opcode",
+              "p1",
+              "p2",
+              "p3",
+              "p4",
+              "p5",
+              "comment"
+            ],
+            "values": [
+              [
+                0,
+                "Init",
+                0,
+                13,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                1,
+                "OpenRead",
+                0,
+                "\"main\".\"auto_pk\"",
+                0,
+                "3",
+                0,
+                null
+              ],
+              [
+                2,
+                "OpenRead",
+                1,
+                "\"main\".\"sqlite_autoindex_auto_pk_1\"",
+                0,
+                "k(2,,)",
+                2,
+                null
+              ],
+              [
+                3,
+                "Variable",
+                1,
+                1,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                4,
+                "IsNull",
+                1,
+                12,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                5,
+                "Affinity",
+                1,
+                1,
+                0,
+                "B",
+                0,
+                null
+              ],
+              [
+                6,
+                "SeekGE",
+                1,
+                12,
+                1,
+                "1",
+                0,
+                null
+              ],
+              [
+                7,
+                "IdxGT",
+                1,
+                12,
+                1,
+                "1",
+                0,
+                null
+              ],
+              [
+                8,
+                "DeferredSeek",
+                1,
+                0,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                9,
+                "Column",
+                1,
+                0,
+                2,
+                null,
+                0,
+                null
+              ],
+              [
+                10,
+                "Column",
+                0,
+                2,
+                3,
+                null,
+                0,
+                null
+              ],
+              [
+                11,
+                "ResultRow",
+                2,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                12,
+                "Halt",
+                0,
+                0,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                13,
+                "Transaction",
+                0,
+                0,
+                "\u003cschema-cookie\u003e",
+                "0",
+                1,
+                null
+              ],
+              [
+                14,
+                "Goto",
+                0,
+                1,
+                0,
+                null,
+                0,
+                null
+              ]
+            ]
+          },
+          "queryPlan": {
+            "columns": [
+              "id",
+              "parent",
+              "notused",
+              "detail"
+            ],
+            "values": [
+              [
+                3,
+                0,
+                "\u003cnotused\u003e",
+                "SEARCH p USING INDEX sqlite_autoindex_auto_pk_1 (id=?)"
+              ]
+            ]
+          },
+          "autoIndexes": [
+            {
+              "binding": {
+                "table": "auto_pk",
+                "name": "sqlite_autoindex_auto_pk_1",
+                "origin": "pk",
+                "columns": [
+                  {
+                    "name": "id",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              "alias": "p",
+              "withoutRowid": false,
+              "index": {
+                "columns": [
+                  "seq",
+                  "name",
+                  "unique",
+                  "origin",
+                  "partial"
+                ],
+                "values": [
+                  [
+                    1,
+                    "sqlite_autoindex_auto_pk_1",
+                    1,
+                    "pk",
+                    0
+                  ]
+                ]
+              },
+              "indexColumns": {
+                "columns": [
+                  "seqno",
+                  "cid",
+                  "name",
+                  "desc",
+                  "coll",
+                  "key"
+                ],
+                "values": [
+                  [
+                    0,
+                    0,
+                    "id",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    1,
+                    -1,
+                    null,
+                    0,
+                    "BINARY",
+                    0
+                  ]
+                ]
+              },
+              "tableColumns": {
+                "columns": [
+                  "cid",
+                  "name",
+                  "type",
+                  "notnull",
+                  "dflt_value",
+                  "pk",
+                  "hidden"
+                ],
+                "values": [
+                  [
+                    0,
+                    "id",
+                    "TEXT",
+                    0,
+                    null,
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    "code",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ],
+                  [
+                    2,
+                    "payload",
+                    "TEXT",
+                    1,
+                    null,
+                    0,
+                    0
+                  ]
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "auto.unique",
+          "cohort": "nocase",
+          "explain": {
+            "columns": [
+              "addr",
+              "opcode",
+              "p1",
+              "p2",
+              "p3",
+              "p4",
+              "p5",
+              "comment"
+            ],
+            "values": [
+              [
+                0,
+                "Init",
+                0,
+                13,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                1,
+                "OpenRead",
+                1,
+                "\"main\".\"sqlite_autoindex_auto_unique_1\"",
+                0,
+                "k(3,-NOCASE,,)",
+                2,
+                null
+              ],
+              [
+                2,
+                "Variable",
+                1,
+                1,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                3,
+                "IsNull",
+                1,
+                12,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                4,
+                "Variable",
+                2,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                5,
+                "IsNull",
+                2,
+                12,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                6,
+                "Affinity",
+                1,
+                2,
+                0,
+                "BB",
+                0,
+                null
+              ],
+              [
+                7,
+                "SeekGE",
+                1,
+                12,
+                1,
+                "2",
+                0,
+                null
+              ],
+              [
+                8,
+                "IdxGT",
+                1,
+                12,
+                1,
+                "2",
+                0,
+                null
+              ],
+              [
+                9,
+                "IdxRowid",
+                1,
+                3,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                10,
+                "ResultRow",
+                3,
+                1,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                11,
+                "Next",
+                1,
+                8,
+                1,
+                null,
+                0,
+                null
+              ],
+              [
+                12,
+                "Halt",
+                0,
+                0,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                13,
+                "Transaction",
+                0,
+                0,
+                "\u003cschema-cookie\u003e",
+                "0",
+                1,
+                null
+              ],
+              [
+                14,
+                "Goto",
+                0,
+                1,
+                0,
+                null,
+                0,
+                null
+              ]
+            ]
+          },
+          "queryPlan": {
+            "columns": [
+              "id",
+              "parent",
+              "notused",
+              "detail"
+            ],
+            "values": [
+              [
+                2,
+                0,
+                "\u003cnotused\u003e",
+                "SEARCH u USING COVERING INDEX sqlite_autoindex_auto_unique_1 (a=? AND b=?)"
+              ]
+            ]
+          },
+          "autoIndexes": [
+            {
+              "binding": {
+                "table": "auto_unique",
+                "name": "sqlite_autoindex_auto_unique_1",
+                "origin": "u",
+                "columns": [
+                  {
+                    "name": "a",
+                    "collation": "NOCASE",
+                    "desc": true
+                  },
+                  {
+                    "name": "b",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              "alias": "u",
+              "withoutRowid": false,
+              "index": {
+                "columns": [
+                  "seq",
+                  "name",
+                  "unique",
+                  "origin",
+                  "partial"
+                ],
+                "values": [
+                  [
+                    0,
+                    "sqlite_autoindex_auto_unique_1",
+                    1,
+                    "u",
+                    0
+                  ]
+                ]
+              },
+              "indexColumns": {
+                "columns": [
+                  "seqno",
+                  "cid",
+                  "name",
+                  "desc",
+                  "coll",
+                  "key"
+                ],
+                "values": [
+                  [
+                    0,
+                    1,
+                    "a",
+                    1,
+                    "NOCASE",
+                    1
+                  ],
+                  [
+                    1,
+                    2,
+                    "b",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    2,
+                    -1,
+                    null,
+                    0,
+                    "BINARY",
+                    0
+                  ]
+                ]
+              },
+              "tableColumns": {
+                "columns": [
+                  "cid",
+                  "name",
+                  "type",
+                  "notnull",
+                  "dflt_value",
+                  "pk",
+                  "hidden"
+                ],
+                "values": [
+                  [
+                    0,
+                    "id",
+                    "INTEGER",
+                    0,
+                    null,
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    "a",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ],
+                  [
+                    2,
+                    "b",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ]
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "auto.unique",
+          "cohort": "missing",
+          "explain": {
+            "columns": [
+              "addr",
+              "opcode",
+              "p1",
+              "p2",
+              "p3",
+              "p4",
+              "p5",
+              "comment"
+            ],
+            "values": [
+              [
+                0,
+                "Init",
+                0,
+                13,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                1,
+                "OpenRead",
+                1,
+                "\"main\".\"sqlite_autoindex_auto_unique_1\"",
+                0,
+                "k(3,-NOCASE,,)",
+                2,
+                null
+              ],
+              [
+                2,
+                "Variable",
+                1,
+                1,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                3,
+                "IsNull",
+                1,
+                12,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                4,
+                "Variable",
+                2,
+                2,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                5,
+                "IsNull",
+                2,
+                12,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                6,
+                "Affinity",
+                1,
+                2,
+                0,
+                "BB",
+                0,
+                null
+              ],
+              [
+                7,
+                "SeekGE",
+                1,
+                12,
+                1,
+                "2",
+                0,
+                null
+              ],
+              [
+                8,
+                "IdxGT",
+                1,
+                12,
+                1,
+                "2",
+                0,
+                null
+              ],
+              [
+                9,
+                "IdxRowid",
+                1,
+                3,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                10,
+                "ResultRow",
+                3,
+                1,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                11,
+                "Next",
+                1,
+                8,
+                1,
+                null,
+                0,
+                null
+              ],
+              [
+                12,
+                "Halt",
+                0,
+                0,
+                0,
+                null,
+                0,
+                null
+              ],
+              [
+                13,
+                "Transaction",
+                0,
+                0,
+                "\u003cschema-cookie\u003e",
+                "0",
+                1,
+                null
+              ],
+              [
+                14,
+                "Goto",
+                0,
+                1,
+                0,
+                null,
+                0,
+                null
+              ]
+            ]
+          },
+          "queryPlan": {
+            "columns": [
+              "id",
+              "parent",
+              "notused",
+              "detail"
+            ],
+            "values": [
+              [
+                2,
+                0,
+                "\u003cnotused\u003e",
+                "SEARCH u USING COVERING INDEX sqlite_autoindex_auto_unique_1 (a=? AND b=?)"
+              ]
+            ]
+          },
+          "autoIndexes": [
+            {
+              "binding": {
+                "table": "auto_unique",
+                "name": "sqlite_autoindex_auto_unique_1",
+                "origin": "u",
+                "columns": [
+                  {
+                    "name": "a",
+                    "collation": "NOCASE",
+                    "desc": true
+                  },
+                  {
+                    "name": "b",
+                    "collation": "BINARY",
+                    "desc": false
+                  }
+                ]
+              },
+              "alias": "u",
+              "withoutRowid": false,
+              "index": {
+                "columns": [
+                  "seq",
+                  "name",
+                  "unique",
+                  "origin",
+                  "partial"
+                ],
+                "values": [
+                  [
+                    0,
+                    "sqlite_autoindex_auto_unique_1",
+                    1,
+                    "u",
+                    0
+                  ]
+                ]
+              },
+              "indexColumns": {
+                "columns": [
+                  "seqno",
+                  "cid",
+                  "name",
+                  "desc",
+                  "coll",
+                  "key"
+                ],
+                "values": [
+                  [
+                    0,
+                    1,
+                    "a",
+                    1,
+                    "NOCASE",
+                    1
+                  ],
+                  [
+                    1,
+                    2,
+                    "b",
+                    0,
+                    "BINARY",
+                    1
+                  ],
+                  [
+                    2,
+                    -1,
+                    null,
+                    0,
+                    "BINARY",
+                    0
+                  ]
+                ]
+              },
+              "tableColumns": {
+                "columns": [
+                  "cid",
+                  "name",
+                  "type",
+                  "notnull",
+                  "dflt_value",
+                  "pk",
+                  "hidden"
+                ],
+                "values": [
+                  [
+                    0,
+                    "id",
+                    "INTEGER",
+                    0,
+                    null,
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    "a",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ],
+                  [
+                    2,
+                    "b",
+                    "TEXT",
+                    0,
+                    null,
+                    0,
+                    0
+                  ]
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+]
