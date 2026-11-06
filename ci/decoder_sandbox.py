@@ -42,6 +42,22 @@ def command(args, timeout=180):
         raise subprocess.CalledProcessError(returncode, args)
 
 
+def wait_for_package_processes():
+    deadline = time.monotonic() + 30
+    while True:
+        running = False
+        for name in ['apt-get', 'dpkg']:
+            result = subprocess.run(['pgrep', '-x', name], stdout=subprocess.DEVNULL, timeout=5)
+            if result.returncode not in (0, 1):
+                result.check_returncode()
+            running |= result.returncode == 0
+        if not running:
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(1)
+
+
 def setup():
     # These kernel changes belong only to the job's disposable VM. Never change
     # namespace or AppArmor policy on a developer host or self-hosted runner.
@@ -60,6 +76,16 @@ def setup():
         except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
             if attempt == 1:
                 raise
+            # sudo's PTY monitor can put apt in a different session. Only this
+            # disposable VM may kill all package processes and repair dpkg.
+            if not wait_for_package_processes():
+                for name in ['apt-get', 'dpkg']:
+                    result = subprocess.run(['sudo', 'pkill', '-KILL', '-x', name], timeout=30)
+                    if result.returncode not in (0, 1):  # 1: exited before pkill.
+                        result.check_returncode()
+                if not wait_for_package_processes():
+                    raise ValueError('package processes survived cleanup; refusing apt retry')
+            command(['sudo', 'dpkg', '--configure', '-a'], timeout=120)
             time.sleep(5)
     for key, value in [('kernel.apparmor_restrict_unprivileged_userns', '0'),
                        ('kernel.unprivileged_userns_clone', '1')]:
