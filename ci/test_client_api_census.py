@@ -464,6 +464,30 @@ function start(pending: {url: string;method: string;body: string|null;headers: R
                 self.assertTrue(all(not s['forwardedRequest'] for s in scan(root)))
                 self.assertEqual(self.check(root)[0],1)
 
+    def test_non_api_pin_binds_full_source_and_external_release_conditions(self):
+        import hashlib
+        source='''const asset = new URL('./bundled.woff2',import.meta.url).href;
+async function load(signal: AbortSignal) {return fetch(asset,{credentials:'omit',signal});}
+'''
+        root,filename,sites,pin=self.fixture(source,category='platform-url',dependencies={'release.json':'{"debugConsole":false}'})
+        key=sites[0]['id'];span=sites[0]['guardHash']
+        hashes={p:hashlib.sha256((root/p).read_bytes()).hexdigest() for p in [filename,'release.json']}
+        pin.update(category='non-api-platform',guardHashes={key:span},sourceHashes={key:hashes})
+        approval={'category':pin['category'],'reason':pin['reason'],'condition':'Exact bundled asset with omitted credentials; release config disabled',
+                  'guardHash':span,'sourceHashes':hashes,'occurrences':1,
+                  'rulingUrl':'https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6649923975'}
+        (root/ALLOWLIST).write_text(json.dumps({filename:pin}));(root/APPROVALS).write_text(json.dumps({key:approval}))
+        self.assertEqual(self.check(root)[0],0)
+        with self.assertRaises(ValueError):classify(sites,{filename:pin})
+        for changed in [source.replace("'./bundled.woff2'","'/v1/private'"),
+                        source.replace("credentials:'omit'","credentials:'include'")]:
+            (root/filename).write_text(changed)
+            self.assertEqual(self.check(root)[0],1)
+        (root/filename).write_text(source)
+        # Changing a constant/config outside the reviewed function also voids it.
+        (root/'release.json').write_text('{"debugConsole":true,"debugSink":"https://server/v1/private"}')
+        self.assertEqual(self.check(root)[0],1)
+
     def test_native_url_method_body_and_bound_input_edits_each_invalidate_byte_pins(self):
         source='fun relay() { val method = "GET"; val request = Request.Builder().url(upstream.toString()).method(method, null).build() }\n'
         root,filename,sites,entry=self.fixture(source,'apps/native/Relay.kt','platform-url')

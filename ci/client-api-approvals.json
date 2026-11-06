@@ -2411,5 +2411,30 @@
     "guardHash": "c12e8a23bbcdbdb0554f6ea8ad987815751a14a44b538317814c2c4500955907",
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707"
+  },
+  "apps/vega/src/debug.tsx#fd2009c0554e881d": {
+    "category": "non-api-platform",
+    "reason": "Approved exact non-API platform IO: inert release diagnostic sink.",
+    "condition": "Development-only explicitly configured diagnostic sink; inert in release, no credentials, never a Portico/Hosted API. Current release app.json disables debugConsole and configures no sink, so this path is inert. The full source and release configuration are bound; enabling or changing either voids this pin.",
+    "guardHash": "4cc29b75b55c6d335de458a121be5a94fffd3259a234f628cefbf8122cf4ebaf",
+    "sourceHashes": {
+      "apps/vega/src/debug.tsx": "8f6ca5d4514787743100b1a28e15172d9a7af3e77a658b176a29627f79dcab7b",
+      "apps/vega/app.json": "4dd2b80e7eac6cf13f29f1504163c5d19aaa8c45e0b50aff7187276581fa5325"
+    },
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6649923975"
+  },
+  "web/src/screens/read/fonts.ts#c59e3b7c994165d8": {
+    "category": "non-api-platform",
+    "reason": "Approved exact non-API platform IO: bundled verified same-origin reader font.",
+    "condition": "Fetches only the bundled same-origin Manrope font URL relative to import.meta.url, with credentials omitted, exact 24836-byte size and SHA-256 a30ddcd349703aff7464c34bef3fffdff405ee50c113440d7c8693c02d210972; no server API path or domain JSON. Complete span, source constants, asset bytes and build configuration are bound; any edit voids approval.",
+    "guardHash": "1e4a4914f505f05ceb7d3aee319c5d07d2f6a599b8989a792b9be389e9fe408d",
+    "sourceHashes": {
+      "web/src/screens/read/fonts.ts": "2000e56ac6ceefec12a595604f319328d0a80c9214e39a5cc16b9618d59f904e",
+      "web/src/kit/fonts/manrope-var-latin.woff2": "a30ddcd349703aff7464c34bef3fffdff405ee50c113440d7c8693c02d210972",
+      "web/vite.config.ts": "ef0b2326fd9137bbf372e7b0fbe94446f86715eac959202a061381627bc7cffd"
+    },
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6649923975"
   }
 }

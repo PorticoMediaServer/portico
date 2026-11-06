@@ -376,7 +376,8 @@ def exception_pins(entry):
     if set(entry['sites']) & set(entry.get('additionalSites', {})):
         raise ValueError('Exception ID overlap between sites and additionalSites is forbidden')
     pins = {**{key: {'category': entry['category'], 'reason': entry['reason'], **({'guardHash': entry.get('guardHashes', {}).get(key),
-                **({'guardSpan':entry['guardSpans'][key]} if key in entry.get('guardSpans',{}) else {})} if entry['category']=='platform-transport' else {})} for key in entry['sites']},
+                **({'guardSpan':entry['guardSpans'][key]} if key in entry.get('guardSpans',{}) else {})} if entry['category'] in {'platform-transport','non-api-platform'} else {}),
+                **({'sourceHashes':entry['sourceHashes'][key]} if key in entry.get('sourceHashes',{}) else {})} for key in entry['sites']},
             **entry.get('additionalSites', {})}
     budgets=Counter(entry['sites'])+Counter(entry.get('additionalSites',{}).keys())
     for key,pin in pins.items():
@@ -402,14 +403,33 @@ def matches_guard(site, expected, span=None):
     return field is not None and expected is not None and expected==site.get(field)
 
 
-def classify(sites, exceptions):
-    approved = {'platform-url','native-extension','native-listening','separate-product','platform-transport'}
+def validate_source_hashes(key, hashes):
+    if not isinstance(hashes,dict) or not hashes:
+        raise ValueError(f'{key}: exact condition source hashes are required')
+    for path,digest in hashes.items():
+        if (not isinstance(path,str) or Path(path).is_absolute() or '..' in Path(path).parts
+                or '.git' in Path(path).parts or 'node_modules' in Path(path).parts
+                or not isinstance(digest,str) or not re.fullmatch(r'[a-f0-9]{64}',digest)):
+            raise ValueError(f'{key}: invalid exact condition source hash')
+
+
+def classify(sites, exceptions, root=None):
+    approved = {'platform-url','native-extension','native-listening','separate-product','platform-transport','non-api-platform'}
     exempt, direct = [], []
     remaining = {path: Counter(entry['sites']) + Counter(entry.get('additionalSites', {}).keys()) for path,entry in exceptions.items()}
     for path,entry in exceptions.items():
         if any(pin['category'] not in approved or not pin['reason'].strip() for pin in exception_pins(entry).values()) or any(c in path for c in '*?['):
             raise ValueError(f'Invalid exception (exact file, approved category and reason required): {path}')
         if not entry.get('sites'): raise ValueError(f'Exception must pin its exact construction/request sites: {path}')
+        for key,pin in exception_pins(entry).items():
+            if pin['category']=='non-api-platform' or 'sourceHashes' in pin:
+                validate_source_hashes(key,pin.get('sourceHashes'))
+                if root is None:raise ValueError(f'{key}: checking condition source hashes requires the exact source root')
+                for path,digest in pin['sourceHashes'].items():
+                    source=root/path
+                    if (not source.resolve().is_relative_to(root.resolve()) or not source.is_file()
+                            or hashlib.sha256(source.read_bytes()).hexdigest()!=digest):
+                        raise ValueError(f'{key}: reviewed condition source changed: {path}; re-approval is required')
     for site in sites:
         entry = exceptions.get(site['file'])
         pins=exception_pins(entry) if entry else {}
@@ -422,6 +442,8 @@ def classify(sites, exceptions):
             raise ValueError(f"{site['file']}:{site['line']}: reviewed guard source changed or is unbound; re-approval and a new guardHash are required")
         if allowed and pin['category']=='platform-transport' and not site.get('forwardedRequest'):
             raise ValueError(f"{site['file']}:{site['line']}: platform transport must match an approved unchanged request/raw/chapter forwarding shape")
+        if allowed and pin['category']=='non-api-platform' and not matches_guard(site,pin.get('guardHash')):
+            raise ValueError(f"{site['file']}:{site['line']}: reviewed non-API source span changed; re-approval is required")
         if allowed:exempt.append(dict(site,exceptionId=binding))
         else:direct.append(site)
     return direct, exempt
@@ -432,6 +454,7 @@ def approval_for(approvals, key, pin, count):
     return (entry.get('reason') == pin['reason'] and entry.get('condition', '').strip()
             and entry.get('category') == pin['category'] and entry.get('guardHash') == pin.get('guardHash')
             and entry.get('guardSpan')==pin.get('guardSpan')
+            and entry.get('sourceHashes')==pin.get('sourceHashes')
             and type(entry.get('occurrences')) is int and entry['occurrences'] >= count
             and isinstance(entry.get('rulingUrl'), str)
             and re.fullmatch(r'https://github\.com/PorticoMediaServer/portico/(?:pull|issues)/[1-9]\d*#issuecomment-[1-9]\d*', entry['rulingUrl']))
@@ -441,11 +464,13 @@ def validate_approvals(approvals):
     for key, entry in approvals.items():
         if (not re.fullmatch(r'.+#[a-f0-9]{16}(?:@[a-f0-9]{64})?', key) or not entry.get('reason', '').strip()
                 or not entry.get('condition', '').strip() or type(entry.get('occurrences')) is not int or entry['occurrences'] < 1
-                or entry.get('category') not in {'platform-transport','platform-url','native-extension','native-listening','separate-product','identity-rehash'}
+                or entry.get('category') not in {'platform-transport','platform-url','native-extension','native-listening','separate-product','identity-rehash','non-api-platform'}
                 or not isinstance(entry.get('rulingUrl'),str)
                 or not re.fullmatch(r'https://github\.com/PorticoMediaServer/portico/(?:pull|issues)/[1-9]\d*#issuecomment-[1-9]\d*',entry['rulingUrl'])
-                or entry['category'] in {'platform-transport','identity-rehash'} and not re.fullmatch(r'[a-f0-9]{64}',entry.get('guardHash',''))):
+                or entry['category'] in {'platform-transport','identity-rehash','non-api-platform'} and not re.fullmatch(r'[a-f0-9]{64}',entry.get('guardHash',''))):
             raise ValueError(f'{key}: approval requires an exact site, condition, positive multiplicity, category/source binding and lead-ruling URL')
+        if entry['category']=='non-api-platform' or 'sourceHashes' in entry:
+            validate_source_hashes(key,entry.get('sourceHashes'))
         if '@' in key and (entry['category']!='platform-transport' or key.rsplit('@',1)[1]!=entry.get('guardHash')
                            or entry['occurrences']!=1 or 'previousSiteId' in entry):
             raise ValueError(f'{key}: paired approval requires its exact full hash, count 1 and an explicit ruling')
@@ -588,7 +613,7 @@ def main(argv=None, root=ROOT):
     sites=scan(root)
     try:
         validate_approvals(approvals)
-        direct,exempt=classify(sites,exceptions)
+        direct,exempt=classify(sites,exceptions,root=root)
     except ValueError as error:
         print(f"Client-core ownership ratchet failed: {error}", file=sys.stderr); return 1
     actual=counts(direct)
