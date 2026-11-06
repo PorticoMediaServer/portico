@@ -116,23 +116,40 @@ func (a *Authority) AdmitForeground(ctx context.Context, q ForegroundRequest) De
 	if d.Refusal != nil {
 		return d
 	}
+	handedOff := false
+	defer func() {
+		if handedOff {
+			return
+		}
+		primary := recover()
+		rollback := func() { g.Cancel(d.Grant); _ = a.Retired(d.Grant) }
+		if primary == nil {
+			rollback()
+			return
+		}
+		// Metadata only: no payload/consumer has escaped. A clock panic during
+		// promotion after retirement must not replace the original callback fault.
+		func() { defer func() { _ = recover() }(); rollback() }()
+		panic(primary)
+	}()
 	// wake is immutable after admission. Even immediate admission is completed
 	// under the same boundary checks, so cancellation cannot leak a live slot.
 	if f.wake != nil {
 		g.foregroundWait(ctx, until, f.wake)
 	}
-	g.mu.Lock()
-	h := g.find(d.Grant)
-	admitted := h != nil && !h.foreground.waiting && !d.Grant.cancelled.Load() && d.Grant.epoch == g.state.Load() &&
-		ctx.Err() == nil && g.config.Now().Before(until)
-	g.mu.Unlock()
+	admitted := func() bool {
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		h := g.find(d.Grant)
+		return h != nil && !h.foreground.waiting && !d.Grant.cancelled.Load() && d.Grant.epoch == g.state.Load() &&
+			ctx.Err() == nil && g.config.Now().Before(until)
+	}()
 	if !admitted {
 		// No page/consumer has ever escaped: this call can prove metadata-only
 		// physical retirement. This never refunds an already returned LIVE grant.
-		g.Cancel(d.Grant)
-		_ = a.Retired(d.Grant)
 		return refuse(Deadline)
 	}
+	handedOff = true
 	return d
 }
 
