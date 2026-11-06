@@ -85,8 +85,8 @@ func crashFreshInventoryChild(t *testing.T, witness *crashWitness) {
 	}
 	e, command, turn, authority, trace := freshCrashFixture(t, witness)
 	out, err := applyInventoryAccept(t.Context(), turn, command)
-	if err != nil || out.Outcome != (ReceiptOutcome{}) {
-		t.Fatal("private body failed or invented public Applied", out, err)
+	if err != nil {
+		t.Fatal("private body failed", out, err)
 	}
 	trace.armed = false // raw verdict reads are not command phases
 	if err := turn.closeRows(); err != nil {
@@ -94,7 +94,7 @@ func crashFreshInventoryChild(t *testing.T, witness *crashWitness) {
 	}
 	// Observe the original raw receipt on this SAME transaction, independently
 	// of the body result. It witnesses generated identities, not source proof.
-	journal, err := readInventoryCrashJournal(t.Context(), turn.transaction.conn, command.request.scope.runID)
+	journal, err := checkFreshCrashProjection(t.Context(), turn.transaction.conn, command, out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,6 +251,25 @@ func checkFreshCrashState(ctx context.Context, reader inventoryCrashReader, c *i
 	return journal, nil
 }
 
+// Check the complete private return before discarding it. The expected payload
+// comes only from independently validated raw state and original input; the
+// body has no public Outcome or per-call Evidence before the central frame.
+func checkFreshCrashProjection(ctx context.Context, reader inventoryCrashReader, command *inventoryAcceptCommand, got InventoryResult) (inventoryCrashJournal, error) {
+	journal, err := checkFreshCrashState(ctx, reader, command, true, false)
+	if err != nil {
+		return inventoryCrashJournal{}, err
+	}
+	want, err := inventoryCrashProjection(journal, false)
+	if err != nil {
+		return inventoryCrashJournal{}, err
+	}
+	want.Outcome = ReceiptOutcome{}
+	if !reflect.DeepEqual(want, got) {
+		return inventoryCrashJournal{}, fmt.Errorf("fresh private projection changed: got %+v, want %+v", got, want)
+	}
+	return journal, nil
+}
+
 func verifyFreshInventoryCrash(t *testing.T, command *inventoryAcceptCommand, profile effectivePlan, witness crashWitness) {
 	t.Helper()
 	q, err := command.receiptRequest()
@@ -351,11 +370,14 @@ func TestCrashReplayFreshInventoryComponent(t *testing.T) {
 	witness := crashWitness{Case: crashCase{Domain: "inventory_fresh_component", Operation: "component", Boundary: "trace"}}
 	e, command, turn, authority, trace := freshCrashFixture(t, &witness)
 	out, err := applyInventoryAccept(t.Context(), turn, command)
-	if err != nil || out.Outcome != (ReceiptOutcome{}) {
+	if err != nil {
 		t.Fatal(out, err)
 	}
 	trace.armed = false
 	if err := turn.closeRows(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := checkFreshCrashProjection(t.Context(), turn.transaction.conn, command, out); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := turn.transaction.rollback(nil); err != nil {
@@ -411,11 +433,14 @@ func TestCrashFreshInventoryOracleRejectsCorruption(t *testing.T) {
 	witness := crashWitness{Case: crashCase{Domain: "inventory_fresh_component", Operation: "component", Boundary: "verdict_control"}}
 	e, c, turn, a, trace := freshCrashFixture(t, &witness)
 	out, err := applyInventoryAccept(t.Context(), turn, c)
-	if err != nil || out.Outcome != (ReceiptOutcome{}) {
+	if err != nil {
 		t.Fatal(out, err)
 	}
 	trace.armed = false
 	if err := turn.closeRows(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := checkFreshCrashProjection(t.Context(), turn.transaction.conn, c, out); err != nil {
 		t.Fatal(err)
 	}
 	if physical, err := turn.transaction.commit(); err != nil || physical.state != committed {
