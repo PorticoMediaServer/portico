@@ -212,7 +212,7 @@ func TestEffectiveFacadeHistoricalReplayAckAndFloor(t *testing.T) {
 		}
 	}
 	ack, err := w.AckEffective(t.Context(), cap, request)
-	if err != nil || !reflect.DeepEqual(ack, AckResult{}) {
+	if err != nil || ack.AcknowledgedThrough != command.identity.Sequence || ack.Evidence == nil || ack.Evidence.Commit != CommitSucceeded {
 		t.Fatal(ack, err)
 	}
 	if _, err := executor.db.ExecContext(t.Context(), "DELETE FROM enrichment_command_receipts WHERE provider_operation_id=?", request.ProviderOperationID); err != nil {
