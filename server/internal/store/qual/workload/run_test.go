@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/qual"
 )
 
@@ -37,7 +38,7 @@ func testConfig() Config {
 }
 func control(_ context.Context, _ Offer, emit func(Observation) error) error {
 	start := time.Now()
-	return emit(Observation{Phase: "CONTROL", CallStarted: start, CallReturned: time.Now()})
+	return emit(observedCall("CONTROL", start, time.Now()))
 }
 func stream(action Action) []Stream {
 	return []Stream{{Name: "writer", Every: 10 * time.Millisecond, Pattern: []Step{{"control", action}}}}
@@ -244,9 +245,105 @@ func TestWorkloadJSONNulls(t *testing.T) {
 		t.Fatal(err)
 	}
 	o := raw["Observation"].(map[string]any)
-	for _, key := range []string{"Evidence", "HoldNS", "CommitNS", "ReadyNS", "Requested"} {
+	for _, key := range []string{"Evidence", "HoldNS", "CommitNS", "ReadyNS", "Requested", "WallNS", "CallStarted", "CallReturned"} {
 		if value, ok := o[key]; !ok || value != nil {
 			t.Fatal(key, value)
 		}
+	}
+}
+
+func TestWorkloadTypedPassiveRefusalStopsAndCannotReduce(t *testing.T) {
+	// Fabricated Step protocol control: actual GV can return (typed refusal,nil).
+	result := governor.CheckpointResult{Refusal: &governor.Refusal{Code: governor.Capacity}}
+	start := time.Now()
+	var refused Observation
+	err := passiveResult(result, nil, start, time.Now(), func(o Observation) error { refused = o; return nil })
+	if !errors.Is(err, errActionRefused) || !refused.RefusalError || refused.CallError != "" || refused.Result.(governor.CheckpointResult).Refusal != result.Refusal {
+		t.Fatal("typed refusal/native result was lost", refused, err)
+	}
+	for _, ignoreEmitError := range []bool{false, true} {
+		t.Run(fmt.Sprintf("ignore-emit-error-%t", ignoreEmitError), func(t *testing.T) {
+			writerStarted, writerReturned := make(chan struct{}), make(chan struct{})
+			writerCalls, passiveCalls := 0, 0
+			writerAction := func(ctx context.Context, _ Offer, emit func(Observation) error) error {
+				writerCalls++
+				close(writerStarted)
+				<-ctx.Done()
+				defer close(writerReturned)
+				return emit(Observation{Phase: "CONTROL"})
+			}
+			passiveAction := func(_ context.Context, _ Offer, emit func(Observation) error) error {
+				passiveCalls++
+				<-writerStarted
+				if ignoreEmitError {
+					_ = emit(refused)
+					return nil
+				}
+				return passiveResult(result, nil, time.Now(), time.Now(), emit)
+			}
+			streams := stream(writerAction)
+			streams = append(streams, Stream{Name: "checkpoint", Every: time.Millisecond, Pattern: []Step{{"passive", passiveAction}}})
+			sink := &memorySink{}
+			err := Run(t.Context(), testConfig(), streams, sink)
+			if !errors.Is(err, errActionRefused) || passiveCalls != 1 || writerCalls != 1 || final(t, sink).ScheduleComplete {
+				t.Fatal(err, writerCalls, passiveCalls)
+			}
+			select {
+			case <-writerReturned:
+			default:
+				t.Fatal("refusal returned before active stream joined")
+			}
+			found := false
+			for _, r := range sink.records {
+				if r.Observation != nil && r.Observation.Phase == "PASSIVE" {
+					found = r.Observation.RefusalError && r.Observation.Result.(governor.CheckpointResult).Refusal == result.Refusal
+				}
+			}
+			if !found {
+				t.Fatal("typed PASSIVE refusal missing from raw output")
+			}
+		})
+	}
+	// A nominally complete envelope previously hid the nil-error PASSIVE refusal
+	// beside a fully projectable writer call. Reduction must flag it independently
+	// of Run's final completion flag or native CallError.
+	raw := syntheticRun(syntheticObservation(), refused)
+	coverage := Reduce(testConfig().Cell, raw, map[string]Classification{raw[1].UnitID: syntheticJoin(1)})
+	if coverage.Report != nil || len(coverage.Problems) == 0 || coverage.PhysicalAttempts != 1 {
+		t.Fatal(coverage)
+	}
+}
+
+func TestWorkloadUnmeasuredTimingIsNullAndMeasuredZeroSurvives(t *testing.T) {
+	var stub, prepare Observation
+	_ = StubCadence("security missing")(t.Context(), Offer{}, func(o Observation) error { stub = o; return nil })
+	_ = preparationError(func(o Observation) error { prepare = o; return nil }, errors.New("synthetic prepare failure"))
+	now := time.Now()
+	measured := observedCall("CONTROL", now, now)
+	for _, tc := range []struct {
+		name     string
+		o        Observation
+		measured bool
+	}{{"stub", stub, false}, {"prepare", prepare, false}, {"observed-zero", measured, true}} {
+		t.Run(tc.name, func(t *testing.T) {
+			var output bytes.Buffer
+			if err := (JSONSink{&output}).Append(Record{Observation: &tc.o}); err != nil {
+				t.Fatal(err)
+			}
+			var raw map[string]any
+			if err := json.Unmarshal(output.Bytes(), &raw); err != nil {
+				t.Fatal(err)
+			}
+			o := raw["Observation"].(map[string]any)
+			for _, key := range []string{"CallStarted", "CallReturned", "WallNS"} {
+				value, ok := o[key]
+				if !ok || (value != nil) != tc.measured {
+					t.Fatal(key, value, tc.measured)
+				}
+			}
+			if tc.measured && o["WallNS"] != float64(0) {
+				t.Fatal("measured zero disappeared", o)
+			}
+		})
 	}
 }
