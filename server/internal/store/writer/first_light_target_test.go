@@ -23,6 +23,7 @@ import (
 )
 
 const firstLightCooperativeTimeout = 5 * time.Minute
+const firstLightMaxFixtures = 1000
 const firstLightRecordVersion = "portico-writer-first-light-ndjson-v1"
 
 type firstLightConfig struct {
@@ -78,7 +79,7 @@ func decodeFirstLightConfig(data []byte) (firstLightConfig, error) {
 		return config, err
 	}
 	if config.RunID == "" || len(config.RunID) > 128 || strings.ContainsRune(config.RunID, 0) || config.HostEpoch == "" || len(config.HostEpoch) > 128 || strings.ContainsRune(config.HostEpoch, 0) ||
-		len(config.SourceCommit) != 40 || !filepath.IsAbs(config.OutputPath) || len(config.OutputPath) > 4096 || strings.ContainsRune(config.OutputPath, 0) || config.Fixtures < 1 || config.Fixtures > 64 {
+		len(config.SourceCommit) != 40 || !filepath.IsAbs(config.OutputPath) || len(config.OutputPath) > 4096 || strings.ContainsRune(config.OutputPath, 0) || config.Fixtures < 1 || config.Fixtures > firstLightMaxFixtures {
 		return config, errors.New("incomplete: config shape")
 	}
 	if raw, err := hex.DecodeString(config.SourceCommit); err != nil || len(raw) != 20 {
