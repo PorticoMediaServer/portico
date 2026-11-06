@@ -467,7 +467,7 @@ func TestScanReceiptNewOrdinarySourceStatements(t *testing.T) {
 		int64(1), int64(2016), "2026-11-05T00:00:00.000000000Z", "en-US", metadata, artwork, origin, scanInitialPlaybackOriginRevision).QueryRowContext(tx.ctx, tx.conn).Scan(&entityID, &sourceIncarnation, &revision, &playbackIncarnation, &originRevision); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := bind(scanInventoryLink, int64(1), subjectID, assetID).ExecContext(tx.ctx, tx.conn); err != nil {
+	if _, err := bind(scanInventoryLink, int64(1), subjectID, assetID, int64(0)).ExecContext(tx.ctx, tx.conn); err != nil {
 		t.Fatal(err)
 	}
 	if entityID != subjectID || token != "asset-token" || epoch != 1 || revision != 1 || !bytes.Equal(sourceIncarnation, metadata) || bytes.Equal(sourceIncarnation, artwork) ||
