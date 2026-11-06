@@ -2,6 +2,7 @@ package writer
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -239,12 +240,146 @@ func TestCrashOracleRejectsReceiptEffectMutants(t *testing.T) {
 	}
 }
 
-func verifyInventoryCrash(t *testing.T, q ScanReceiptRequest, profile effectivePlan, witness crashWitness) {
+// This journal contains every saved header/child column, including fields not
+// exposed by the current Inventory projection. It is captured from raw SQL in
+// the parent's original fixture, never from ResolveScan or its decoder/codec.
+type inventoryCrashHeader struct {
+	RunID                                                             string
+	Incarnation                                                       []byte
+	Sequence                                                          int64
+	OperationID, RequestDigest                                        []byte
+	Kind                                                              string
+	AcceptedRevision, AppliedMS                                       int64
+	SourceID, SourceIncarnation, SourceRevision                       string
+	ChangeID                                                          sql.NullInt64
+	NextCursor                                                        string
+	NextFamily, NextCopyPhase, NextCopyID                             int64
+	NextCopyAux                                                       int64
+	NextCopyKey, NextCopyKey2, NextCopyKey3                           string
+	AfterEntity, ExpectedEpoch, ResultCount                           int64
+	ResultDigest                                                      []byte
+	RefusedRelativePath                                               []byte
+	RefusalCode, CursorKind                                           sql.NullString
+	CursorDirectoryPath, CursorDirectoryIdentity                      []byte
+	CursorDirectoryRevision, CursorExpectedPayload, CursorNextPayload []byte
+}
+
+type inventoryCrashChild struct {
+	RunID                                                string
+	Incarnation                                          []byte
+	Sequence                                             int64
+	InputOrdinal, ChildKind, ChildOrdinal                int64
+	ObjectID                                             string
+	LibraryID, SubjectID, AssetID, AcceptedAssetRevision int64
+}
+
+type inventoryCrashJournal struct {
+	Header   inventoryCrashHeader
+	Children []inventoryCrashChild
+}
+
+func readInventoryCrashJournal(ctx context.Context, e *executor, run string) (out inventoryCrashJournal, err error) {
+	h := &out.Header
+	err = e.db.QueryRowContext(ctx, `SELECT run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,
+ accepted_revision,applied_ms,source_id,source_incarnation,source_revision,change_id,next_cursor,
+ next_family,next_copy_phase,next_copy_id,next_copy_aux,next_copy_key,next_copy_key2,next_copy_key3,
+ after_entity,expected_epoch,result_count,result_digest,refused_relative_path,refusal_code,cursor_kind,
+ cursor_directory_path,cursor_directory_identity,cursor_directory_revision,cursor_expected_payload,cursor_next_payload
+ FROM scan_command_receipts WHERE run_id=?`, run).Scan(
+		&h.RunID, &h.Incarnation, &h.Sequence, &h.OperationID, &h.RequestDigest, &h.Kind,
+		&h.AcceptedRevision, &h.AppliedMS, &h.SourceID, &h.SourceIncarnation, &h.SourceRevision, &h.ChangeID, &h.NextCursor,
+		&h.NextFamily, &h.NextCopyPhase, &h.NextCopyID, &h.NextCopyAux, &h.NextCopyKey, &h.NextCopyKey2, &h.NextCopyKey3,
+		&h.AfterEntity, &h.ExpectedEpoch, &h.ResultCount, &h.ResultDigest, &h.RefusedRelativePath, &h.RefusalCode, &h.CursorKind,
+		&h.CursorDirectoryPath, &h.CursorDirectoryIdentity, &h.CursorDirectoryRevision, &h.CursorExpectedPayload, &h.CursorNextPayload)
+	if err != nil {
+		return out, err
+	}
+	rows, err := e.db.QueryContext(ctx, `SELECT run_id,command_incarnation,command_sequence,input_ordinal,child_kind,child_ordinal,
+ object_id,library_id,subject_id,asset_id,accepted_asset_revision FROM scan_command_results WHERE run_id=?
+ ORDER BY command_incarnation,command_sequence,input_ordinal,child_kind,child_ordinal`, run)
+	if err != nil {
+		return out, err
+	}
+	defer func() { err = errors.Join(err, rows.Close()) }()
+	for rows.Next() {
+		var child inventoryCrashChild
+		if err = rows.Scan(&child.RunID, &child.Incarnation, &child.Sequence, &child.InputOrdinal, &child.ChildKind, &child.ChildOrdinal,
+			&child.ObjectID, &child.LibraryID, &child.SubjectID, &child.AssetID, &child.AcceptedAssetRevision); err != nil {
+			return out, err
+		}
+		out.Children = append(out.Children, child)
+	}
+	return out, rows.Err()
+}
+
+func compareInventoryCrashJournal(want, got inventoryCrashJournal) error {
+	if !reflect.DeepEqual(want.Header, got.Header) {
+		return fmt.Errorf("saved Inventory header changed: got %+v, want %+v", got.Header, want.Header)
+	}
+	if len(got.Children) != len(want.Children) {
+		return fmt.Errorf("saved Inventory child count %d, want %d", len(got.Children), len(want.Children))
+	}
+	for i, child := range got.Children {
+		if !reflect.DeepEqual(child, want.Children[i]) {
+			return fmt.Errorf("saved Inventory child %d changed: got %+v, want %+v", i, child, want.Children[i])
+		}
+	}
+	return nil
+}
+
+// Independently project only raw saved columns and the journal's ACK decision.
+// Do not use inventoryHistoricalResult, a production decoder or result codec.
+func inventoryCrashProjection(saved inventoryCrashJournal, retired bool) (InventoryResult, error) {
+	h := saved.Header
+	if h.Kind != "inventory_accept" || len(h.Incarnation) != 16 || len(h.OperationID) != 16 || len(h.RequestDigest) != 32 || len(h.ResultDigest) != 32 ||
+		h.ResultCount <= 0 || h.ResultCount != int64(len(saved.Children)) {
+		return InventoryResult{}, fmt.Errorf("unsupported Inventory journal projection")
+	}
+	var reference ReceiptReference
+	copy(reference.Identity.Incarnation[:], h.Incarnation)
+	reference.Identity.Sequence = h.Sequence
+	copy(reference.Identity.OperationID[:], h.OperationID)
+	copy(reference.RequestDigest[:], h.RequestDigest)
+	if retired {
+		// Every payload field and Replayed must be zero, even while all saved
+		// physical bytes remain. Evidence describes this call, checked outside.
+		return InventoryResult{Outcome: ReceiptOutcome{State: ResultRetired, Reference: reference}}, nil
+	}
+	out := InventoryResult{Outcome: ReceiptOutcome{State: Applied, Reference: reference, Replayed: true},
+		RunID: h.RunID, AcceptedRunRevision: h.AcceptedRevision, AppliedMS: h.AppliedMS,
+		SourceID: h.SourceID, SourceIncarnation: h.SourceIncarnation, SourceRevision: h.SourceRevision, NextCursor: h.NextCursor, ResultCount: h.ResultCount}
+	copy(out.Digest[:], h.ResultDigest)
+	for _, c := range saved.Children {
+		if c.RunID != h.RunID || !bytes.Equal(c.Incarnation, h.Incarnation) || c.Sequence != h.Sequence {
+			return InventoryResult{}, fmt.Errorf("Inventory child belongs to another receipt")
+		}
+		out.Members = append(out.Members, InventoryMember{InputOrdinal: c.InputOrdinal, ChildKind: c.ChildKind, ChildOrdinal: c.ChildOrdinal,
+			ObjectID: c.ObjectID, LibraryID: c.LibraryID, SubjectID: c.SubjectID, AssetID: c.AssetID, AcceptedAssetRevision: c.AcceptedAssetRevision})
+	}
+	return out, nil
+}
+
+func compareInventoryCrashProjection(want, got InventoryResult) error {
+	got.Outcome.Evidence = nil // actual per-call evidence is not immutable result data
+	if !reflect.DeepEqual(want, got) {
+		return fmt.Errorf("Inventory projection changed: got %+v, want %+v", got, want)
+	}
+	return nil
+}
+
+func verifyInventoryCrash(t *testing.T, q ScanReceiptRequest, profile effectivePlan, journal inventoryCrashJournal, witness crashWitness) {
 	t.Helper()
 	if witness.Reference != q.Receipt || witness.Unknown != (witness.Case.CommitFault != "") {
 		t.Fatal("Inventory original receipt changed", witness.Reference, q.Receipt)
 	}
 	e := reopenCrashExecutor(t, witness.Path)
+	saved, err := readInventoryCrashJournal(t.Context(), e, q.RunID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := compareInventoryCrashJournal(journal, saved); err != nil {
+		t.Fatal(err) // checked even when the ACK floor forbids decoding the payload
+	}
 	w := bindCrashInventory(t, e, witness.Path, profile)
 	cap := inventoryTestDisclosure(t, w, q)
 	var last, floor, receipts, children int64
@@ -268,15 +403,17 @@ func verifyInventoryCrash(t *testing.T, q ScanReceiptRequest, profile effectiveP
 	if last != 1 || floor != wantFloor || receipts != 1 || children != 1 {
 		t.Fatal("Inventory receipt/effect/floor lost or partially reclaimed", last, floor, wantFloor, receipts, children)
 	}
+	want, err := inventoryCrashProjection(saved, wantFloor == 1)
+	if err != nil || want.Outcome.Reference != q.Receipt {
+		t.Fatal("raw saved original reference changed", want, err)
+	}
 	for range 2 {
 		result, err := w.ResolveScan(t.Context(), cap, q)
-		result.Outcome.Evidence = nil
-		if floor == 1 {
-			if err != nil || result.Outcome.State != ResultRetired || result.RunID != "" || len(result.Members) != 0 {
-				t.Fatal("Inventory ACK floor resurrected result", result, err)
-			}
-		} else if err != nil || !reflect.DeepEqual(result, witness.Inventory) || result.SourceRevision != "opaque:007" || result.NextCursor != "native-next" || result.AcceptedRunRevision != 2 || result.AppliedMS != 100 || len(result.Members) != 1 || result.Members[0] != (InventoryMember{0, 0, 0, "object-hit", 7, 31, 41, 1}) {
-			t.Fatal("Inventory saved ordered cohort changed", result, witness.Inventory, err)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := compareInventoryCrashProjection(want, result); err != nil {
+			t.Fatal(err)
 		}
 	}
 	for range 2 {
@@ -285,10 +422,116 @@ func verifyInventoryCrash(t *testing.T, q ScanReceiptRequest, profile effectiveP
 			t.Fatal("Inventory ACK was not idempotent", ack, err)
 		}
 	}
-	if err := e.db.QueryRowContext(t.Context(), "SELECT count(*) FROM scan_command_results WHERE run_id=?", q.RunID).Scan(&children); err != nil || children != 1 {
-		t.Fatal("ACK partially reclaimed saved cohort", children, err)
+	after, err := readInventoryCrashJournal(t.Context(), e, q.RunID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := compareInventoryCrashJournal(journal, after); err != nil {
+		t.Fatal(err) // ACK may not erase or corrupt any saved header/child column
+	}
+	retired, err := inventoryCrashProjection(after, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := w.ResolveScan(t.Context(), cap, q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := compareInventoryCrashProjection(retired, result); err != nil {
+		t.Fatal(err)
 	}
 	if w.effective.authority.Usage() != ([4]governor.Amounts{}) || e.db.Stats().InUse != 0 {
 		t.Fatal("Inventory recovery stranded physical custody")
+	}
+}
+
+func TestCrashInventoryOracleRejectsProjectionDrift(t *testing.T) {
+	w, requests, e, _ := inventoryFacadeFixture(t)
+	q := requests["hit"]
+	cap := inventoryTestDisclosure(t, w, q)
+	saved, err := readInventoryCrashJournal(t.Context(), e, q.RunID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, retired := range []bool{false, true} {
+		if retired {
+			ack, err := w.AckScan(t.Context(), cap, q)
+			if err != nil || ack.AcknowledgedThrough != 1 {
+				t.Fatal(ack, err)
+			}
+		}
+		want, err := inventoryCrashProjection(saved, retired)
+		if err != nil {
+			t.Fatal(err)
+		}
+		actual, err := w.ResolveScan(t.Context(), cap, q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := compareInventoryCrashProjection(want, actual); err != nil {
+			t.Fatal(err)
+		}
+		for name, mutate := range map[string]func(*InventoryResult){
+			"run":                func(v *InventoryResult) { v.RunID = "WRONG-RUN" },
+			"accepted_revision":  func(v *InventoryResult) { v.AcceptedRunRevision++ },
+			"applied_ms":         func(v *InventoryResult) { v.AppliedMS++ },
+			"source":             func(v *InventoryResult) { v.SourceID = "WRONG-PROJECTION" },
+			"source_incarnation": func(v *InventoryResult) { v.SourceIncarnation = "WRONG-INCARNATION" },
+			"source_revision":    func(v *InventoryResult) { v.SourceRevision = "WRONG-REVISION" },
+			"cursor":             func(v *InventoryResult) { v.NextCursor = "WRONG-CURSOR" },
+			"count":              func(v *InventoryResult) { v.ResultCount++ },
+			"digest":             func(v *InventoryResult) { v.Digest[0] ^= 1 },
+			"outcome":            func(v *InventoryResult) { v.Outcome.State = Pending },
+			"reference":          func(v *InventoryResult) { v.Outcome.Reference.RequestDigest[0] ^= 1 },
+			"replayed":           func(v *InventoryResult) { v.Outcome.Replayed = !v.Outcome.Replayed },
+			"members":            func(v *InventoryResult) { v.Members = []InventoryMember{{ObjectID: "WRONG-CHILD"}} },
+		} {
+			changed := actual
+			mutate(&changed)
+			if compareInventoryCrashProjection(want, changed) == nil {
+				t.Fatalf("retired=%v oracle accepted %s projection corruption", retired, name)
+			}
+		}
+	}
+}
+
+func TestCrashInventoryOracleRejectsRetiredCorruption(t *testing.T) {
+	for name, mutation := range map[string]string{
+		"child_object": "UPDATE scan_command_results SET object_id='CORRUPTED-ORIGINAL' WHERE run_id=?",
+		"source":       "UPDATE scan_command_receipts SET source_id='CORRUPTED-SOURCE' WHERE run_id=?",
+		"digest":       "UPDATE scan_command_receipts SET result_digest=zeroblob(32) WHERE run_id=?",
+	} {
+		t.Run(name, func(t *testing.T) {
+			w, requests, e, _ := inventoryFacadeFixture(t)
+			q := requests["hit"]
+			journal, err := readInventoryCrashJournal(t.Context(), e, q.RunID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ack, err := w.AckScan(t.Context(), inventoryTestDisclosure(t, w, q), q)
+			if err != nil || ack.AcknowledgedThrough != 1 {
+				t.Fatal(ack, err)
+			}
+			written, err := e.db.ExecContext(t.Context(), mutation, q.RunID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rows, err := written.RowsAffected(); err != nil || rows != 1 {
+				t.Fatal("corruption control did not modify exactly one saved row", rows, err)
+			}
+			if err := e.close(); err != nil {
+				t.Fatal(err)
+			}
+			// These corruptions satisfy layout/integrity/FKs and are below the
+			// ACK floor. Only exact raw-journal comparison detects the loss.
+			survivor := reopenCrashExecutor(t, w.effective.path)
+			got, err := readInventoryCrashJournal(t.Context(), survivor, q.RunID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if compareInventoryCrashJournal(journal, got) == nil {
+				t.Fatal("retired saved payload corruption escaped raw journal", name)
+			}
+		})
 	}
 }

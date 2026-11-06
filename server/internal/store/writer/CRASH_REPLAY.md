@@ -7,12 +7,21 @@ over a private pipe, sends SIGKILL, joins the child, and reopens its file throug
 the shared connection policy and `schema.AssertExisting`. EOF, timeout,
 unreached boundaries and ordinary exits fail the case. Killed templates,
 databases, WAL and spill remain within parent-owned temporary directories.
+Both `TMPDIR` and Go's higher-priority `GOTMPDIR` are rebound to each child's
+parent-owned scratch; the containment assertion remains mandatory.
 
 The witness binds the original receipt identity/request digest, command,
 boundary, engine and schema. The fixture source facts and clock are fixed;
 generated image IDs are checked against their exact durable receipt/attachment.
 The operation-journal model derives expected committed/ACK state from the
 declared native boundary independently of the production receipt classifier.
+Inventory freezes every raw receipt-header column and ordered child row from
+the original parent's fixture before any tested command. After reopen it
+compares the complete raw saved rows against that journal, even below the ACK
+floor, then independently projects the expected API result from raw columns.
+`ResolveScan` is only an operation under test; its output never seeds expected
+values. Retired output must have every payload field zero, with only its
+Retired state/original reference and actual per-call evidence remaining.
 Restart binding grants only current disclosure and identity-only Resolve/ACK;
 it neither mints nor copies fresh-source fixture permission. After a proven
 receipt miss, a fresh Stage retry must return zero output and Unqualified,
@@ -60,7 +69,7 @@ Run the focused controls with concurrency two and a disk-backed scratch root:
 
 ```sh
 GOMAXPROCS=2 go -C server test -p 2 -parallel 2 \
-  -run '^TestCrash(ReplayEffective|ReplayInventoryHistory|OracleRejectsReceiptEffectMutants)$' \
+  -run '^TestCrash(ReplayEffective|ReplayInventoryHistory|OracleRejectsReceiptEffectMutants|InventoryOracleRejects.*)$' \
   ./internal/store/writer
 ```
 
