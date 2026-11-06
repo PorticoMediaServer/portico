@@ -7,7 +7,6 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/schematest"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
-	"github.com/PorticoMediaServer/portico/server/internal/store/schema"
 )
 
 func TestMain(m *testing.M) { os.Exit(schematest.Run(m)) }
@@ -37,8 +36,10 @@ func testCanonicalExecutor(t *testing.T) (*executor, string) {
 	if _, err := sqliteconn.Assert(t.Context(), conn, cfg); err != nil {
 		t.Fatal(err)
 	}
-	if err := schema.AssertExisting(t.Context(), conn); err != nil {
-		t.Fatal(err)
-	}
+	// Clone already checked the entire file against the template digest, whose
+	// canonical native layout was verified once before publication. Repeating
+	// that full layout census here would replace the removed DDL work with a
+	// second expensive schema walk. Physical connection policy is still checked
+	// above and again at every normal frame acquisition.
 	return w, path
 }
