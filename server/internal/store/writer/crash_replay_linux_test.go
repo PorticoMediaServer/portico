@@ -32,6 +32,7 @@ type crashCase struct{ Domain, Operation, Boundary, CommitFault string }
 type crashWitness struct {
 	Effective *effectiveCrashOriginal
 	Passive   *passiveCrashProof
+	Opening   *scanOpeningCrashProof
 
 	Version          int
 	SchemaSHA        string
@@ -226,6 +227,10 @@ func TestCrashReplayChild(t *testing.T) {
 		crashPassiveFixture(t, &witness)
 		return
 	}
+	if witness.Case.Domain == "scan_opening" {
+		crashScanOpeningFixture(t, &witness)
+		return
+	}
 	if witness.Case.Domain == "effective_steps" {
 		crashEffectiveStepsFixture(t, &witness)
 		return
@@ -375,8 +380,11 @@ func crashCheckpointChild(t *testing.T, f *effectiveFirstLightFixture, witness *
 	t.Fatal("checkpoint boundary was never reached", witness.Case)
 }
 
-func runCrashChild(t *testing.T, cell crashCase) crashWitness {
+func runCrashChild(t *testing.T, cell crashCase, beforeKill ...func(crashWitness)) crashWitness {
 	t.Helper()
+	if len(beforeKill) > 1 {
+		t.Fatal("unsupported crash observer count")
+	}
 	scratch := t.TempDir()
 	reader, writer, err := os.Pipe()
 	if err != nil {
@@ -417,6 +425,16 @@ func runCrashChild(t *testing.T, cell crashCase) crashWitness {
 		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
 		t.Fatalf("boundary timeout: %v\n%s", cell, output.String())
+	}
+	if got.err == nil && len(beforeKill) == 1 {
+		relative, pathErr := filepath.Rel(scratch, got.value.Path)
+		if pathErr != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(os.PathSeparator)) || filepath.IsAbs(relative) ||
+			got.value.Case != cell || got.value.Version != 1 || got.value.SchemaSHA != schema.SHA256 || got.value.Engine != schema.NativeSQLiteVersion {
+			_ = cmd.Process.Kill()
+			_ = cmd.Wait()
+			t.Fatal("untrusted pre-kill witness", pathErr)
+		}
+		beforeKill[0](got.value)
 	}
 	killErr := cmd.Process.Kill()
 	err = cmd.Wait()
