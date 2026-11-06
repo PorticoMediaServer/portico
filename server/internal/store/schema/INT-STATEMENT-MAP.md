@@ -612,3 +612,57 @@ The actual W parent appender owns ONE bounded oldest eligible victim per inserte
 Source proof validates START kind=started at ONE PK point against retained claim birth lifetimes, playback/occurrence, profile/subject/public/library and original snapshot; arbitrary old event or current strings do not qualify. Current original occurrence pointer persists after pending clear; pending has its own exact point/generation. Historical receipt lookup runs before current pending/source/privacy/overflow; requested-key source-child and exact matching cleanup-slot lookup never uses a newer slot as old proof. Floor-first public ResultRetired is independent of retained bytes.
 
 Only effective pause-history changes advance history_policy_generation, same lifetime and same preference commit; no unrelated preference/identity/action/report alias. Time drain increments viewer_revisions.observation_revision and personal_activity_revisions.revision once; preserves personal_items.revision and viewer semantic revision. Three fixed adopted hints, one admin TIME append, one exact span path and six own bucket deltas remain whole admitted Work. Native type/shape/PK/EQP fixtures establish storage/access only; actual W minter/wire/registry/producer/Capture/crash/resource/physical qualification remains open.
+
+
+## CHANGE-009: exact source-seal storage and bounded access
+
+The native discriminator is command_kind, evidence_seal or credit_source_seal, with seal_version; no seal_purpose, generic variant, JSON or slot alias. Production statement registry/wire/codec/authority and resource work remain W-owned. The following statements are contracts, not an accepting implementation:
+
+```sql
+SELECT * FROM metadata_provider_operations WHERE id=:owner;
+SELECT * FROM enrichment_command_receipts
+ WHERE provider_operation_id=:owner AND command_incarnation=:inc AND command_sequence=:seq;
+SELECT content_revision,cursor,materialized_rows,materialized_charge
+ FROM metadata_evidence_builds WHERE id=:build;
+SELECT * FROM metadata_evidence_credits
+ WHERE evidence_id=:evidence AND scope=:scope AND ordinal>:after
+ ORDER BY ordinal LIMIT :bounded_limit;
+SELECT source_content_revision,source_publication_id,source_owner_generation,
+ source_evidence_id,source_subject_id,source_parser_version,
+ source_next_position,source_expected_members,source_expected_bytes,
+ source_algorithm,source_version,source_expected_commitment
+ FROM metadata_provider_operations WHERE id=:owner;
+SELECT * FROM credit_source_publication_members
+ WHERE publication_id=:pub AND position>:after ORDER BY position LIMIT :bounded_limit;
+SELECT * FROM credit_source_rows WHERE source_row_id=:source_row;
+UPDATE metadata_provider_operations
+ SET source_next_position=:new_next,source_content_revision=source_content_revision+1
+ WHERE id=:owner AND command_incarnation=:inc AND generation=:current_generation
+ AND source_owner_generation=:captured_generation AND source_publication_id=:pub
+ AND source_next_position=:old_next AND source_content_revision=:old_R
+ AND source_content_revision<9223372036854775807
+ RETURNING source_next_position,source_content_revision;
+SELECT ordinal,id FROM metadata_candidates WHERE operation_id=:owner
+ AND ordinal>:after ORDER BY ordinal LIMIT 1;
+SELECT command_sequence FROM enrichment_command_receipts
+ WHERE provider_operation_id=:owner AND command_incarnation=:inc
+ AND command_sequence>:physical_cursor AND command_sequence<=:captured_ack
+ ORDER BY command_sequence LIMIT 1;
+SELECT id FROM metadata_provider_operations WHERE proof_reclaim_due_ms<=:now
+ ORDER BY proof_reclaim_due_ms,id LIMIT 1;
+SELECT provider_operation_id,command_incarnation,command_sequence
+ FROM enrichment_command_receipts WHERE proof_reclaim_due_ms<=:now
+ ORDER BY proof_reclaim_due_ms,provider_operation_id,command_incarnation,command_sequence LIMIT 1;
+```
+
+The displayed UPDATE is the SOURCE-prefix portion only, not a complete command/CAS: native owner/lease/full original entity/source/policy/consent/language/vector, immutable source declaration, exact rows/no-next, receipt/last and terminal authority are additionally required in the SAME transaction. Every source header/member/pin/slot/debt mutation advances source_content_revision; every evidence header/child mutation advances build.content_revision. Each proof ledger mutation advances proof_revision. Numeric overflow refuses before effects. No mutation relies only on count, a mutable sealed bit, materialized_rows or operation.after_item.
+
+Indexed absence starts with the full proof-owner/incarnation/sequence prefix in metadata_evidence_seal_proof, credit_source_publication_seal_proof, catalog_credit_image_source_proof, enrichment_upstream_evidence_proof, enrichment_result_source_proof and metadata_operation_source_evidence_proof. Required parent DELETE/key UPDATE and parent-collated lookup goldens for all15 changed edges are INT-CHANGE-009-FK.json. A mere SEARCH by entity_id does not prove bounded proof absence; the explicit owner-prefix indexes are retained even when SQLite could avoid SCAN by visiting every image of that entity. No temp sort, range drain, generic janitor or parent cascade is admitted.
+
+Evidence NEXT is actual builds.cursor: header0, retained credit k at CONTENT k+1, complete1+N (empty1). SOURCE NEXT is operation.source_next_position P; declared complete N is source_expected_members AND publication.member_count. Chunks insert positions[P,P+c), then CAS(P,R)->(P+c,R+1), with exact owner/incarnation/captured generation/exclusive publication. Source rows immutable; no rolling checkpoint FIRST. Source seal uses actual P=N/no-next and actual returned sourceR; evidence seal uses actual returned buildR. after_ordinal echoes that family's actual cursor; common accepted_revision stays ObservedCatalogRevision, never these R values.
+
+FIRST seal additionally proves the candidate cohort is reduced to its ONE selected candidate or zero with authoritative typed selection. The bounded indexed candidate retirement occurs before seal; incomplete cleanup gives typed background refusal/retry, no partial seal. The32768 raw-credit ceiling is preparation only. Fix-match performs a fresh search; old nonselected search candidates have no required user-visible retention.
+
+User-facing Resolve remains ACK-floor-first ResultRetired even when proof bytes survive. W-private retained-proof access begins from a declared live durable reference and validates the original immutable context plus current dependency custody. It never returns public Applied or reuses a caller-supplied arbitrary receipt. Resolve historical command before source/lease/generation freshness; above-floor missing proof is ResolveRequired. ACK refunds/deletes nothing.
+
+Proof/header/membership full-key cleanup is bounded and downstream first; original owner survives last proof/unresolved result and final floor protocol. Actual reference absence, counters and captured CAS must be rechecked within the writer turn. Slot/counter/retirement statements, their complete native work and the final original-owner retirement proof are first-execution W gates, not generic SQL authorization in this packet.

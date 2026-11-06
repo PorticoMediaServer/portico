@@ -28,7 +28,7 @@ legacy layouts fail closed. It executes no bootstrap DDL, ANALYZE, migration,
 repair or seed. It does not inspect user data, prove its integrity or authorize
 access; those are separate startup responsibilities.
 
-The adopted008 file header is explicitly `application_id=0`, `user_version=0`
+The adopted009 file header is explicitly `application_id=0`, `user_version=0`
 and `encoding=UTF-8`. The zeros preserve the reviewed bootstrap; they are not
 layout identity markers. Verification checks them without rewriting them.
 Fresh bootstrap refuses incompatible headers rather than adopting them.
@@ -158,3 +158,24 @@ cleanup, crash/replay and runtime qualification remain implementation gates.
 The native layout fingerprint moves with all six artifacts. Existing010a files
 fail the changed layout assertion and remain untouched; approved test-server
 cutover uses a fresh file with no conversion or compatibility shim.
+
+
+INT-CHANGE-009 is adopted atf83d526e after R agreement215. The six artifacts
+match canonical phase0 at internal e5dd62960c6a787b281efe7acd8ca878ceaeb414.
+Distinct evidence_seal/credit_source_seal kinds and seal_version (no seal_purpose)
+use actual provider-operation receipts; SOURCE has operation-owned custody and
+R/NEXT, evidence keeps its own cursor/revision. Raw SourceOrdinal and cast
+Billing are separate native facts. No new table or codec is introduced. Typed
+proof references preserve source/result/image lifetime; parent member cleanup
+is explicit child-first NO ACTION.
+
+PINNER-PAYS-FULLk10, selected-only candidate retirement and the writer-only
+64KiB aggregate retained control budget remain binding. P_max8,876,032B;
+per-title88,760,320B; global17,752,064*T+71,008,256B. Evidence151rows/6MiB,
+source tuple caps and32MiB outer request remain distinct. These record/index
+bounds are not an allocator/RSS/WAL or physical qualification. W owns the ONE
+future normalized codec; EN supplies independent spec-derived vectors. Actual
+authority/producer/ledger/resource/receipt/ACK/cleanup integration and runtime
+qualification stay open. Existing008files fail the changed fingerprint; this
+package performs no migration or compatibility repair. No accepting command
+or runtime cutover is enabled by this embed.

@@ -1,5 +1,5 @@
 {
-  "ddl_sha256": "debd5c771b520ea7003dcf1042328941b6d090137b8f685100664d35f4ab0d3e",
+  "ddl_sha256": "f83d526e0552f053cbb4c11af33d389841fdda4a734e2b00cb54eee8666ac10c",
   "scope": "Conservative10M+capable repeated/high-fanout/time grains at1Mitems, not a claim every server reaches this density. Full release index set includes declared/implicit UNIQUE/PK/rowid paths. No post-release populated-table index addition; new justified empty access relation online.",
   "tables": [
     {
@@ -1841,6 +1841,50 @@
           ],
           "sql": null,
           "access": "Native primary point/range path; no extra B-tree."
+        },
+        {
+          "name": "catalog_credit_image_source_proof",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "source_proof_owner",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "source_proof_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "source_proof_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "source_proof_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "source_proof_publication_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "source_proof_provider",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX catalog_credit_image_source_proof ON catalog_credit_images(source_proof_owner,source_proof_incarnation,source_proof_sequence,source_proof_kind,source_proof_publication_id,entity_id,source_proof_provider)"
         },
         {
           "name": "catalog_credit_images_due",
@@ -4427,6 +4471,50 @@
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "complete_release_indexes": [
         {
+          "name": "credit_source_publication_seal_proof",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "seal_proof_owner",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "seal_proof_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "seal_proof_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "seal_proof_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "publication_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX credit_source_publication_seal_proof ON credit_source_publications(seal_proof_owner,seal_proof_incarnation,seal_proof_sequence,seal_proof_kind,publication_id,entity_id,provider)"
+        },
+        {
           "name": "credit_source_publications_entity",
           "unique": false,
           "origin": "c",
@@ -4780,6 +4868,35 @@
       "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
       "complete_release_indexes": [
         {
+          "name": "enrichment_proof_due",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "proof_reclaim_due_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider_operation_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX enrichment_proof_due ON enrichment_command_receipts(proof_reclaim_due_ms,provider_operation_id,command_incarnation,command_sequence)"
+        },
+        {
           "name": "enrichment_receipt_subject",
           "unique": false,
           "origin": "c",
@@ -4793,6 +4910,138 @@
           ],
           "sql": "CREATE INDEX enrichment_receipt_subject ON enrichment_command_receipts(entity_id)",
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "enrichment_result_source_proof",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "source_dependency_owner",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "source_dependency_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "source_dependency_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "source_dependency_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "source_dependency_publication_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "source_dependency_provider",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX enrichment_result_source_proof ON enrichment_command_receipts(source_dependency_owner,source_dependency_incarnation,source_dependency_sequence,source_dependency_kind,source_dependency_publication_id,entity_id,source_dependency_provider)"
+        },
+        {
+          "name": "enrichment_seal_subject_namespace",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "seal_subject_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "seal_provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "seal_subject_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "seal_provider_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "seal_language",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "seal_region",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "seal_request_shape",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX enrichment_seal_subject_namespace ON enrichment_command_receipts(seal_subject_id,seal_provider,seal_subject_kind,seal_provider_id,seal_language,seal_region,seal_request_shape)"
+        },
+        {
+          "name": "enrichment_upstream_evidence_proof",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "upstream_evidence_owner",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "upstream_evidence_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "upstream_evidence_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "upstream_evidence_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "seal_evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "seal_subject_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "seal_parser_version",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX enrichment_upstream_evidence_proof ON enrichment_command_receipts(upstream_evidence_owner,upstream_evidence_incarnation,upstream_evidence_sequence,upstream_evidence_kind,seal_evidence_id,seal_subject_id,seal_parser_version)"
         },
         {
           "name": "sqlite_autoindex_enrichment_command_receipts_1",
@@ -4833,6 +5082,94 @@
           ],
           "sql": null,
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        },
+        {
+          "name": "sqlite_autoindex_enrichment_command_receipts_3",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "provider_operation_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "seal_evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "seal_subject_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "seal_parser_version",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null
+        },
+        {
+          "name": "sqlite_autoindex_enrichment_command_receipts_4",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "provider_operation_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "publication_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "seal_provider",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null
         }
       ]
     },
@@ -5942,6 +6279,127 @@
       ]
     },
     {
+      "table": "metadata_candidates",
+      "grain": "Per-title retained metadata/source/captured/proof rows; unbounded title population and refresh history can exceed10M.",
+      "policy": "Existing row-grain type policy unchanged by009.",
+      "complete_release_indexes": [
+        {
+          "name": "metadata_candidate_evidence",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_candidate_evidence ON metadata_candidates(evidence_id)"
+        },
+        {
+          "name": "metadata_candidate_operation",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_candidate_operation ON metadata_candidates(operation_id,id)"
+        },
+        {
+          "name": "metadata_candidate_provider",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_candidate_provider ON metadata_candidates(provider,id)"
+        },
+        {
+          "name": "metadata_candidate_subject",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "subject_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_candidate_subject ON metadata_candidates(entity_id,provider,subject_kind,provider_id)"
+        },
+        {
+          "name": "sqlite_autoindex_metadata_candidates_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null
+        },
+        {
+          "name": "sqlite_autoindex_metadata_candidates_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ordinal",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null
+        }
+      ]
+    },
+    {
       "table": "metadata_entity_external_ids",
       "grain": "provider observations/typed children and captured sets",
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -6013,6 +6471,50 @@
       "grain": "provider observations/typed children and captured sets",
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "complete_release_indexes": [
+        {
+          "name": "metadata_evidence_seal_proof",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "seal_proof_owner",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "seal_proof_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "seal_proof_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "seal_proof_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "subject_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "parser_version",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_evidence_seal_proof ON metadata_evidence(seal_proof_owner,seal_proof_incarnation,seal_proof_sequence,seal_proof_kind,id,subject_id,parser_version)"
+        },
         {
           "name": "metadata_evidence_subject",
           "unique": false,
@@ -6246,6 +6748,151 @@
           ],
           "sql": null,
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "metadata_evidence_builds",
+      "grain": "Per-title retained metadata/source/captured/proof rows; unbounded title population and refresh history can exceed10M.",
+      "policy": "Existing row-grain type policy unchanged by009.",
+      "complete_release_indexes": [
+        {
+          "name": "metadata_build_owner",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "owner_operation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "state",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_build_owner ON metadata_evidence_builds(owner_operation,owner_incarnation,state,id)"
+        },
+        {
+          "name": "metadata_build_parent",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "parent_build",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_build_parent ON metadata_evidence_builds(parent_build,id)"
+        },
+        {
+          "name": "metadata_build_root_active",
+          "unique": true,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "owner_operation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX metadata_build_root_active ON metadata_evidence_builds(owner_operation,owner_incarnation) WHERE owner_operation<>'' AND parent_build IS NULL AND state IN('building','ready')"
+        },
+        {
+          "name": "metadata_build_state",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "state",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_build_state ON metadata_evidence_builds(state,id)"
+        },
+        {
+          "name": "sqlite_autoindex_metadata_evidence_builds_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null
+        },
+        {
+          "name": "sqlite_autoindex_metadata_evidence_builds_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null
+        },
+        {
+          "name": "sqlite_autoindex_metadata_evidence_builds_3",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_operation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "owner_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null
         }
       ]
     },
@@ -6985,6 +7632,99 @@
       ]
     },
     {
+      "table": "metadata_operation_subjects",
+      "grain": "Per-title retained metadata/source/captured/proof rows; unbounded title population and refresh history can exceed10M.",
+      "policy": "Existing row-grain type policy unchanged by009.",
+      "complete_release_indexes": [
+        {
+          "name": "metadata_operation_subject_entity",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_operation_subject_entity ON metadata_operation_subjects(entity_id,operation_id)"
+        },
+        {
+          "name": "metadata_operation_subject_evidence",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "accepted_evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_operation_subject_evidence ON metadata_operation_subjects(accepted_evidence_id,operation_id)"
+        },
+        {
+          "name": "metadata_subject_dependency_namespace",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "evidence_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "accepted_evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_subject_dependency_namespace ON metadata_operation_subjects(provider,evidence_kind,accepted_evidence_id)"
+        },
+        {
+          "name": "sqlite_autoindex_metadata_operation_subjects_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "role",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null
+        }
+      ]
+    },
+    {
       "table": "metadata_owner_fields",
       "grain": "provider observations/typed children and captured sets",
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -7168,6 +7908,285 @@
       ]
     },
     {
+      "table": "metadata_provider_operations",
+      "grain": "Per-title retained metadata/source/captured/proof rows; unbounded title population and refresh history can exceed10M.",
+      "policy": "Existing row-grain type policy unchanged by009.",
+      "complete_release_indexes": [
+        {
+          "name": "metadata_operation_credit_image",
+          "unique": true,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "credit_image_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX metadata_operation_credit_image ON metadata_provider_operations(credit_image_id) WHERE credit_image_id IS NOT NULL"
+        },
+        {
+          "name": "metadata_operation_proof_due",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "proof_reclaim_due_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_operation_proof_due ON metadata_provider_operations(proof_reclaim_due_ms,id)"
+        },
+        {
+          "name": "metadata_operation_set",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "set_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_operation_set ON metadata_provider_operations(set_id,id)"
+        },
+        {
+          "name": "metadata_operation_source_evidence_body",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "source_evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "source_subject_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_operation_source_evidence_body ON metadata_provider_operations(source_evidence_id,source_subject_id)"
+        },
+        {
+          "name": "metadata_operation_source_evidence_proof",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "source_evidence_owner",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "source_evidence_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "source_evidence_sequence",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "source_evidence_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "source_evidence_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "source_subject_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "source_parser_version",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_operation_source_evidence_proof ON metadata_provider_operations(source_evidence_owner,source_evidence_incarnation,source_evidence_sequence,source_evidence_kind,source_evidence_id,source_subject_id,source_parser_version)"
+        },
+        {
+          "name": "metadata_operation_source_publication",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "source_publication_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_operation_source_publication ON metadata_provider_operations(source_publication_id,entity_id,provider)"
+        },
+        {
+          "name": "metadata_operation_subject",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_operation_subject ON metadata_provider_operations(entity_id,provider,id)"
+        },
+        {
+          "name": "sqlite_autoindex_metadata_provider_operations_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null
+        },
+        {
+          "name": "sqlite_autoindex_metadata_provider_operations_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null
+        },
+        {
+          "name": "sqlite_autoindex_metadata_provider_operations_3",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null
+        },
+        {
+          "name": "sqlite_autoindex_metadata_provider_operations_4",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "source_publication_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null
+        },
+        {
+          "name": "sqlite_autoindex_metadata_provider_operations_5",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "proof_stage_slot",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null
+        },
+        {
+          "name": "sqlite_autoindex_metadata_provider_operations_6",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "proof_current_slot",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null
+        }
+      ]
+    },
+    {
       "table": "metadata_publication_page_members",
       "grain": "provider observations/typed children and captured sets",
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -7286,6 +8305,128 @@
           ],
           "sql": null,
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "metadata_publication_sets",
+      "grain": "Per-title retained metadata/source/captured/proof rows; unbounded title population and refresh history can exceed10M.",
+      "policy": "Existing row-grain type policy unchanged by009.",
+      "complete_release_indexes": [
+        {
+          "name": "metadata_set_provider",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_set_provider ON metadata_publication_sets(provider,id)"
+        },
+        {
+          "name": "metadata_sets_subject",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX metadata_sets_subject ON metadata_publication_sets(entity_id,provider,id)"
+        },
+        {
+          "name": "sqlite_autoindex_metadata_publication_sets_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null
+        },
+        {
+          "name": "sqlite_autoindex_metadata_publication_sets_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "entity_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "subject_kind",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null
+        },
+        {
+          "name": "sqlite_autoindex_metadata_publication_sets_3",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "provider",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "member_kind",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null
         }
       ]
     },
@@ -10636,5 +11777,5 @@
       "complete_release_indexes": []
     }
   ],
-  "change_control": "UNADOPTED CHANGE-008 over adopted010a. Exact fields and seven full indexes; existing hot predicates unchanged. Parent/custody access uses complete FK child prefixes, no exemptions. No later populated-table index addition; use new online table if a genuinely new path is justified."
+  "change_control": "CHANGE-009 over008: zero new tables; closed seal kinds, operation source construction, native independent source ordinals/Billing, typed proof DAG and eleven full child/due indexes. No new partial predicates, no type-policy or contribution change. Future populated10M+ index evolution remains online new-table only."
 }
