@@ -9,13 +9,13 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
 	"slices"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/internal/qualification"
 )
@@ -106,7 +106,6 @@ type Bound struct {
 	args  []any
 }
 
-// New freezes declarations and typed bindings, not source/plan certification.
 // Describe validates and freezes an INERT catalogue for Capture/manifest review.
 // Lookup, binding and execution remain unavailable until New verifies receipts.
 func Describe(definitions []Definition) (*Registry, error) {
@@ -182,6 +181,11 @@ func Describe(definitions []Definition) (*Registry, error) {
 // definitions. Hot is a declared contract, never a caller-issued capability.
 // Multiple receipts permit finite composition of separately captured variants.
 func New(definitions []Definition, receipts ...Receipt) (*Registry, error) {
+	for _, d := range definitions {
+		if !utf8.ValidString(d.SQL) {
+			return nil, fmt.Errorf("stmt %q: SQL must be valid UTF-8", d.ID)
+		}
+	}
 	r, err := Describe(definitions)
 	if err != nil {
 		return nil, err
@@ -190,7 +194,7 @@ func New(definitions []Definition, receipts ...Receipt) (*Registry, error) {
 		return nil, ErrUnqualified
 	}
 	for id, e := range r.entries {
-		data, err := json.Marshal(e.Definition)
+		data, err := qualification.Encode(e.Definition)
 		if err != nil {
 			return nil, err
 		}

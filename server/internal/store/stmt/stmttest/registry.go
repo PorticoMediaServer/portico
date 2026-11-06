@@ -4,7 +4,6 @@
 package stmttest
 
 import (
-	"encoding/json"
 	"errors"
 	"testing"
 
@@ -25,7 +24,7 @@ func Receipt(t testing.TB, definitions []stmt.Definition) (stmt.Receipt, error) 
 	}
 	entries := make(map[string][]byte)
 	for _, entry := range catalogue.Manifest() {
-		data, err := json.Marshal(entry.Definition)
+		data, err := qualification.Encode(entry.Definition)
 		if err != nil {
 			return nil, err
 		}
