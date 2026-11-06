@@ -269,6 +269,8 @@ func effectiveStepExpectation(c *effectiveStageBeginCommand, original *effective
 		"remaining_rows": 0, "remaining_bytes": 0, "reclaim_state": "held", "reclaim_after_ord": -1,
 		"command_incarnation": original.Retirement[:], "last_command_sequence": 0, "acknowledged_command_sequence": 0,
 		"job_revision": 1, "job_lease_owner": 0, "job_lease_generation": 0, "job_lease_expires_ms": 0, "job_attempts": 0, "job_next_attempt_ms": nil, "job_due_ms": nil,
+		"source_proof_owner": nil, "source_proof_incarnation": nil, "source_proof_sequence": nil,
+		"source_proof_kind": nil, "source_proof_publication_id": nil, "source_proof_provider": nil,
 	})}
 	wantReceipt := effectiveModelRow(map[string]any{
 		"provider_operation_id": c.request.ownerID, "command_incarnation": c.identity.Incarnation[:], "command_sequence": c.identity.Sequence,
@@ -276,6 +278,15 @@ func effectiveStepExpectation(c *effectiveStageBeginCommand, original *effective
 		"accepted_revision": c.request.entity.revision, "applied_ms": crashClock.UnixMilli(), "entity_id": c.request.entity.id,
 		"after_item": c.request.owner.afterItem, "after_ordinal": 0, "publication_id": nil, "effective_image_id": 1, "effective_image_revision": 1,
 		"result_count": 0, "result_digest": digest.Blob,
+		"seal_version": nil, "seal_evidence_id": nil, "seal_subject_id": nil, "seal_parser_version": nil,
+		"seal_provider": nil, "seal_subject_kind": nil, "seal_provider_id": nil,
+		"seal_language": nil, "seal_region": nil, "seal_request_shape": nil, "seal_observation_digest": nil,
+		"seal_owner_generation": nil, "seal_build_id": nil, "seal_build_generation": nil, "seal_content_revision": nil,
+		"seal_algorithm": nil, "seal_commitment": nil, "seal_verified_rows": nil, "seal_canonical_bytes": nil, "seal_retained_bytes": nil,
+		"proof_revision": 1, "proof_pin_count": 0, "proof_reclaim_due_ms": nil, "proof_cleanup_after_sequence": 0,
+		"upstream_evidence_owner": nil, "upstream_evidence_incarnation": nil, "upstream_evidence_sequence": nil, "upstream_evidence_kind": nil,
+		"source_dependency_owner": nil, "source_dependency_incarnation": nil, "source_dependency_sequence": nil, "source_dependency_kind": nil,
+		"source_dependency_publication_id": nil, "source_dependency_provider": nil,
 	})
 	receipt.Rows = []map[string]effectiveRawCell{wantReceipt}
 	if err := compareEffectiveJournal(effectiveRawJournal{"catalog_credit_images": image, "enrichment_command_receipts": receipt}, original.Effects); err != nil {

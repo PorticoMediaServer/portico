@@ -99,6 +99,8 @@ func TestEffectiveBeginNativeHeaderAndCarrierRollback(t *testing.T) {
 		"last_command_sequence": int64(0), "acknowledged_command_sequence": int64(0), "job_revision": int64(1),
 		"job_lease_owner": int64(0), "job_lease_generation": int64(0), "job_lease_expires_ms": int64(0),
 		"job_attempts": int64(0), "job_next_attempt_ms": nil, "job_due_ms": nil,
+		"source_proof_owner": nil, "source_proof_incarnation": nil, "source_proof_sequence": nil,
+		"source_proof_kind": nil, "source_proof_publication_id": nil, "source_proof_provider": nil,
 	}
 	if len(columns) != len(expected) {
 		t.Fatal("header readback does not cover physical schema", len(columns), len(expected))
