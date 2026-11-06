@@ -16,6 +16,14 @@
 // tables. LintSQLOn performs this live check (including TEMP shadow rejection);
 // Capture always invokes it. SQL-only LintSQL cannot certify catalog identity.
 // Views, virtual/shadow tables and unresolved sources grant no qualification.
+// One closed exception is Plan.NativeInsert for the three fixed v1 fragment
+// FTS5 INSERT slots. Capture attests exact SQL/types/payload bounds, physical
+// engine, declarations/content/shadows/configuration and the exact 13-op VM.
+// Only PC6 VUpdate/P4 and PC9 VBegin/P4 may map their raw-equal pVtab addresses
+// to the audited MAIN destination plus fts5 identity. Unknown/extra VT operands
+// refuse. The existing opaque receipt, Registry and private owner executor
+// remain the only execution path. No control/delete/read/native-v2 or Work
+// authority follows; ordinary statements and goldens retain their rules.
 // SQLite internal sqlite_* sources/destinations are also rejected, case-insensitively.
 // Capture is the sole complete statement qualification entry point. Deprecated
 // connection-free Check always returns ErrCaptureRequired. LintSQL/LintSQLOn

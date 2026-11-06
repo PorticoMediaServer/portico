@@ -94,6 +94,24 @@ type capturedSource struct {
 func capturedSources(ctx context.Context, conn *sql.Conn, entries []stmt.Entry) ([]capturedSource, error) {
 	result := []capturedSource{}
 	for _, entry := range entries {
+		if entry.Plan.NativeInsert != "" {
+			audit, err := inspectFTSInsert(ctx, conn, entry.Definition)
+			if err != nil {
+				return nil, err
+			}
+			spec, _ := entry.Plan.NativeInsert.Specification()
+			result = append(result,
+				capturedSource{Statement: entry.ID, Name: spec.Table, Schema: "main", Kind: "virtual", SQL: audit.Declaration},
+				capturedSource{Statement: entry.ID, Name: "search_fragment_content", Schema: "main", Kind: "view", SQL: audit.ContentView})
+			for _, name := range []string{"search_fragments", "search_generations"} {
+				s := capturedSource{Statement: entry.ID, Name: name, Schema: "main"}
+				if err := conn.QueryRowContext(ctx, `SELECT type,sql,rootpage FROM main.sqlite_schema WHERE name=?`, name).Scan(&s.Kind, &s.SQL, &s.RootPage); err != nil {
+					return nil, err
+				}
+				result = append(result, s)
+			}
+			continue
+		}
 		tokens, err := lintTokens(entry.SQL)
 		if err != nil {
 			return nil, err

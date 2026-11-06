@@ -94,6 +94,9 @@ type Plan struct {
 	AllowedScans []string           `json:"allowedScans"`
 	Waivers      []Waiver           `json:"waivers,omitempty"`
 	AutoIndexes  []AutoIndexBinding `json:"autoIndexes,omitempty"`
+	// NativeInsert selects one of three fixed external-content FTS5 INSERTs.
+	// It is audit intent only; Capture must mint the ordinary opaque receipt.
+	NativeInsert FTSInsertSlot `json:"nativeInsert,omitempty"`
 }
 type Definition struct {
 	ID        ID       `json:"id"`
@@ -179,6 +182,9 @@ func Describe(definitions []Definition) (*Registry, error) {
 		if count != len(d.Params) {
 			return nil, fmt.Errorf("stmt %q: %d placeholders, %d parameters", d.ID, count, len(d.Params))
 		}
+		if err := validateFTSInsertDefinition(d); err != nil {
+			return nil, fmt.Errorf("stmt %q: %w", d.ID, err)
+		}
 		if len(d.Plan.AutoIndexes) == 0 {
 			limits = nil
 		}
@@ -217,6 +223,9 @@ func Describe(definitions []Definition) (*Registry, error) {
 				return nil, fmt.Errorf("stmt %q cohort %q: %w", d.ID, c.Name, err)
 			}
 			if err := validatePositiveLimits(limits, c.Bindings); err != nil {
+				return nil, fmt.Errorf("stmt %q cohort %q: %w", d.ID, c.Name, err)
+			}
+			if err := validateFTSInsertBindings(d.Plan.NativeInsert, c.Bindings); err != nil {
 				return nil, fmt.Errorf("stmt %q cohort %q: %w", d.ID, c.Name, err)
 			}
 		}
@@ -301,7 +310,16 @@ func (s Statement) Bind(args ...any) (Bound, error) {
 	if err := validatePositiveLimits(s.entry.positiveLimits, args); err != nil {
 		return Bound{}, fmt.Errorf("stmt %q: %w", s.entry.ID, err)
 	}
-	return Bound{entry: s.entry, args: cloneArgs(args)}, nil
+	if err := validateFTSInsertBindings(s.entry.Plan.NativeInsert, args); err != nil {
+		return Bound{}, fmt.Errorf("stmt %q: %w", s.entry.ID, err)
+	}
+	frozen := cloneArgs(args)
+	if s.entry.Plan.NativeInsert != "" {
+		// A bounded slice of a large caller backing string must not retain the
+		// larger allocation for this new native capability's bound lifetime.
+		frozen[1] = strings.Clone(frozen[1].(string))
+	}
+	return Bound{entry: s.entry, args: frozen}, nil
 }
 
 func validatePositiveLimits(positions []int, args []any) error {
