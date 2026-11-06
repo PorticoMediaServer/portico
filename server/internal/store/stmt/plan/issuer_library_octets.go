@@ -26,7 +26,8 @@ func issuerLibraryOctetDefinition(d stmt.Definition) bool {
 		len(d.Plan.PrimaryKeys) == 1 && d.Plan.PrimaryKeys[0] == "catalog_libraries" &&
 		len(d.Plan.Seeks) == 1 && d.Plan.Seeks[0] == "rowid=?" &&
 		len(d.Plan.Indexes) == 0 && len(d.Plan.AutoIndexes) == 0 &&
-		len(d.Plan.AllowedScans) == 0 && len(d.Plan.Waivers) == 0 && d.Plan.NativeInsert == ""
+		len(d.Plan.AllowedScans) == 0 && len(d.Plan.Waivers) == 0 &&
+		d.Plan.NativeInsert == "" && d.Plan.NativeRetained == ""
 }
 
 func auditIssuerLibraryOctetKey(ctx context.Context, conn *sql.Conn) error {
