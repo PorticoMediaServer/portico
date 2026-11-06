@@ -8,7 +8,6 @@ import (
 	"io"
 	"path/filepath"
 	"runtime"
-	"time"
 	"unicode/utf8"
 
 	"github.com/PorticoMediaServer/portico/server/internal/naming"
@@ -49,75 +48,21 @@ type NativeInventoryPage struct {
 
 type nativeInventoryWire struct {
 	NativeInventoryRequest
-	MountedRoot []byte
+	MountedRoot []byte `json:",omitempty"`
 }
 
 var ErrNativeInventory = errors.New("invalid native-byte inventory transport")
 
-// NativeInventoryPage preserves filesystem bytes through an isolated helper.
-// The owner is REQUIRED: its debit ends only after physical Wait, consumers and
-// supervisor permit retirement, even if this call returns early on cancellation.
-// Close/Wait the owner before reporting shutdown or releasing its working memory.
+// NativeInventoryPage preserves bytes through the existing supervised helper.
+// Each call joins its OWN physical retirement, including cancellation, before
+// returning. It never closes the shared owner; other operations may still live.
+// A stuck helper can therefore delay return until actual Wait/consumer retirement.
 // There is no fallback to the lossy legacy InventoryPage JSON string protocol.
 func (c *Client) NativeInventoryPage(ctx context.Context, owner *OperationScope, key string, r NativeInventoryRequest) (NativeInventoryPage, error) {
-	var empty NativeInventoryPage
 	if runtime.GOOS != "linux" || owner == nil || !validNativeRequest(r) {
-		return empty, ErrNativeInventory
+		return NativeInventoryPage{}, ErrNativeInventory
 	}
-	if err := ctx.Err(); err != nil {
-		return empty, err
-	}
-	root := string(r.Root) // exact OS bytes, NOT a JSON/UTF8-decoded string
-	if c.IsRemote(root) {
-		return empty, ErrRemoteCursor
-	}
-	path := filepath.Join(root, string(r.RelativePath))
-	if c.Guard != nil {
-		if err := c.Guard(path); err != nil {
-			return empty, err
-		}
-	}
-	wire := nativeInventoryWire{NativeInventoryRequest: r}
-	if c.MountedRoot != nil {
-		wire.MountedRoot = []byte(c.MountedRoot(path))
-	}
-	if len(wire.MountedRoot) > naming.MaxPathBytes || bytes.IndexByte(wire.MountedRoot, 0) >= 0 {
-		return empty, ErrNativeInventory
-	}
-	data, err := json.Marshal(request{Operation: "inventory-page-native-v1", NativeInventory: &wire})
-	if err != nil || len(data) > 64<<10 {
-		return empty, ErrNativeInventory
-	}
-	done, err := owner.Begin()
-	if err != nil {
-		return empty, err
-	}
-	timeout := c.Timeout
-	if timeout <= 0 {
-		timeout = 30 * time.Second
-	}
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	stop := context.AfterFunc(owner.Context(), cancel)
-	defer stop()
-	defer cancel()
-	if owner.Context().Err() != nil {
-		cancel()
-	}
-	var page NativeInventoryPage
-	err = c.inventoryRequest(ctx, key, "inventory-page-native-v1", InventoryRequest{}, &page, &ownedInventoryWire{
-		input: data, retired: done, validate: func() error {
-			if page.Version != 1 || len(page.Entries) > r.Limit || len(page.Issues) > 512 {
-				return ErrNativeInventory
-			}
-			return nativePageText(page)
-		}})
-	if err == nil {
-		err = inventoryCodeError(page.ErrorCode)
-	}
-	if err != nil {
-		return empty, err
-	}
-	return page, nil
+	return c.nativeInventoryOwned(ctx, owner, key, r)
 }
 
 func validNativeRequest(r NativeInventoryRequest) bool {
@@ -134,42 +79,31 @@ func validNativeRequest(r NativeInventoryRequest) bool {
 	return true
 }
 
-func nativePageText(p NativeInventoryPage) error {
-	for _, v := range []string{p.ErrorCode, p.RootIdentity, p.DirectoryIdentity, p.DirectoryRevision, p.NextCursor} {
-		if !utf8.ValidString(v) {
-			return ErrNativeInventory
-		}
-	}
-	for _, e := range p.Entries {
-		if !utf8.ValidString(e.ObjectIdentity) || !utf8.ValidString(e.ChangeToken) {
-			return ErrNativeInventory
-		}
-	}
-	return nil
-}
-
 func nativeInventoryHelper(w *nativeInventoryWire, out io.Writer) (result error) {
 	if runtime.GOOS != "linux" || w == nil || !validNativeRequest(w.NativeInventoryRequest) ||
 		len(w.MountedRoot) > naming.MaxPathBytes || bytes.IndexByte(w.MountedRoot, 0) >= 0 {
 		return ErrNativeInventory
 	}
-	if len(w.MountedRoot) > 0 {
-		check := func() error {
-			ok, err := isMount(string(w.MountedRoot))
-			if err != nil || !ok {
-				return errors.New("managed mount unavailable")
-			}
-			return nil
-		}
-		if err := check(); err != nil {
-			return err
-		}
-		defer func() {
-			if result == nil {
-				result = check()
-			}
-		}()
+	if err := nativeInventoryMount(w.MountedRoot); err != nil {
+		return err
 	}
+	result = nativeInventoryEmit(w, out)
+	if result == nil {
+		result = nativeInventoryMount(w.MountedRoot)
+	}
+	return result
+}
+func nativeInventoryMount(root []byte) error {
+	if len(root) == 0 {
+		return nil
+	}
+	ok, err := isMount(string(root))
+	if err != nil || !ok {
+		return errors.New("managed mount unavailable")
+	}
+	return nil
+}
+func nativeInventoryEmit(w *nativeInventoryWire, out io.Writer) error {
 	// Conversion occurs only after lossless byte decoding, for OS APIs. No path
 	// string crosses a JSON boundary. Stream=false always selects native d_off.
 	r := InventoryRequest{Root: string(w.Root), RelativePath: string(w.RelativePath), RootIdentity: w.RootIdentity,
@@ -195,3 +129,7 @@ func nativeInventoryHelper(w *nativeInventoryWire, out io.Writer) (result error)
 	}
 	return json.NewEncoder(out).Encode(n)
 }
+
+// The sole Begin here is the typed operation lease, not database/sql. Returning
+// its release callback does not invoke arbitrary callable state in this file.
+func nativeInventoryLease(owner *OperationScope) (func(), error) { return owner.Begin() }
