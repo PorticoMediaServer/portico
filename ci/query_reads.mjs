@@ -15,6 +15,9 @@
 //   literal (or a union of them), naming another verb is a write and is not counted. Anything not
 //   statically known is a read.
 // - A requester with no `method` parameter (`request(path, signal)`) only reads.
+// - Not counted: a read that is the cache's own. That's a call inside a function given as a query's
+//   `queryFn` (property or method), or a call through `ViewerQueries.api`, the viewer cache's requester
+//   (packages/client-core/src/query/viewer-queries.ts), whose reads end with the cache.
 // - A service built where it is used (`new HomeService(api)`, any class named `…Service`) is a read
 //   owner of its own, outside the cache.
 // A wrapper (`const get = path => api.request(path)`) counts once, at its own call to the
@@ -71,15 +74,27 @@ for (const project of snapshot.getProjects()) {
     done.add(path);
     const file = project.program.getSourceFile(fileName);
     const calls = [], services = [];
-    const visit = node => {
-      if (node.kind === SyntaxKind.CallExpression && candidate(node)) calls.push(node);
-      else if (node.kind === SyntaxKind.NewExpression) {
+    const queryFn = node => (node.kind === SyntaxKind.PropertyAssignment || node.kind === SyntaxKind.MethodDeclaration) && node.name?.text === 'queryFn';
+    const visit = (node, inQuery = false) => {
+      if (queryFn(node)) inQuery = true;
+      if (!inQuery && node.kind === SyntaxKind.CallExpression && candidate(node)) calls.push(node);
+      else if (!inQuery && node.kind === SyntaxKind.NewExpression) {
         const name = node.expression.kind === SyntaxKind.Identifier ? node.expression : node.expression.kind === SyntaxKind.PropertyAccessExpression ? node.expression.name : undefined;
         if (name && /\wService$/.test(name.text)) services.push(name);
       }
-      node.forEachChild(visit);
+      node.forEachChild(child => visit(child, inQuery));
     };
     visit(file);
+    // Through the viewer cache's own requester (`queries.api.request(…)`): a cache read.
+    const throughApi = calls.filter(call => call.expression.kind === SyntaxKind.PropertyAccessExpression
+      && call.expression.expression.kind === SyntaxKind.PropertyAccessExpression && call.expression.expression.name.text === 'api');
+    if (throughApi.length) {
+      const symbols = checker.getSymbolAtLocation(throughApi.map(call => call.expression.expression.name));
+      symbols.forEach((symbol, i) => {
+        const home = symbol?.declarations?.some(d => d.path && relative(root, d.path).replace(/\\/g, '/').endsWith('packages/client-core/src/query/viewer-queries.ts'));
+        if (home) calls.splice(calls.indexOf(throughApi[i]), 1);
+      });
+    }
     const lines = [];
     const methodTypes = [];
     for (const call of calls) {
