@@ -8,11 +8,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog/identityvalue"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/entityid"
 )
@@ -82,17 +82,8 @@ type Entity struct {
 // Identity keys: stable names of an entity inside its library's root folder,
 // so a rescan or a re-added library finds the same public id. A new kind
 // brings its own prefix.
-func ItemKey(root, path string, part int) string {
-	rel := path
-	if r, err := filepath.Rel(root, path); err == nil && !strings.HasPrefix(r, "..") {
-		rel = filepath.ToSlash(r)
-	}
-	if part > 0 {
-		return fmt.Sprintf("file:%s#%d", rel, part)
-	}
-	return "file:" + rel
-}
-func ShowKey(localKey string) string { return "show:" + localKey }
+func ItemKey(root, path string, part int) string { return identityvalue.ItemKey(root, path, part) }
+func ShowKey(localKey string) string             { return "show:" + localKey }
 func SeasonKey(showLocalKey string, number int) string {
 	return fmt.Sprintf("season:%s/%d", showLocalKey, number)
 }
