@@ -20,9 +20,8 @@ func TestSQLJoinClosedGrammar(t *testing.T) {
 			for _, on := range []string{
 				"b.id=a.id", "b.id=?", "b.id=1", "b.id=-1", "b.id=+1",
 				"b.id=a.id AND b.library_id=? AND b.kind=1",
-				`"b"."id"=main.a.id`,
 			} {
-				sql := "SELECT a.id,b.id FROM main.a AS a NOT INDEXED " + kind + " JOIN main.b AS b" + hint + " ON " + on + " WHERE a.id=? AND b.id IS NOT NULL ORDER BY a.id LIMIT ?"
+				sql := "SELECT a.id,b.id FROM a AS a NOT INDEXED " + kind + " JOIN b AS b" + hint + " ON " + on + " WHERE a.id=? AND b.id IS NOT NULL ORDER BY a.id LIMIT ?"
 				if issues := plan.LintSQL(sql); len(issues) != 0 {
 					t.Fatalf("allowed join flagged: %v\n%s", issues, sql)
 				}
@@ -31,7 +30,7 @@ func TestSQLJoinClosedGrammar(t *testing.T) {
 		}
 	}
 	for _, sql := range []string{
-		"SELECT a.id FROM a INNER JOIN b ON b.id=a.id LEFT JOIN c AS c NOT INDEXED ON c.id=b.id WHERE a.id=?",
+		"SELECT a.id FROM a AS a INNER JOIN b AS b ON b.id=a.id LEFT JOIN c AS c NOT INDEXED ON c.id=b.id WHERE a.id=?",
 		"SELECT a.id FROM a AS a INDEXED BY ia CROSS JOIN b AS b INDEXED BY ib ON b.id=a.id CROSS JOIN c AS c ON c.id=b.id AND c.kind=1",
 		"SELECT a.id FROM a AS a /* JOIN (SELECT) */ LEFT JOIN b AS b ON b.id=a.id AND b.kind=1 WHERE a.title='JOIN (SELECT CASE)'",
 	} {
@@ -78,6 +77,27 @@ func TestSQLJoinClosedGrammar(t *testing.T) {
 			flagged++
 		}
 	}
+	for _, kind := range []string{"INNER", "LEFT", "CROSS"} {
+		for _, source := range []string{
+			"a " + kind + " JOIN b AS b ON b.id=a.id",
+			"a AS a " + kind + " JOIN b ON b.id=a.id",
+			"main.a AS a " + kind + " JOIN b AS b ON b.id=a.id",
+			"a AS a " + kind + " JOIN main.b AS b ON b.id=a.id",
+			`"a" AS a ` + kind + " JOIN b AS b ON b.id=a.id",
+			"a AS a " + kind + ` JOIN "b" AS b ON b.id=a.id`,
+			"a AS a " + kind + ` JOIN b AS "b" ON b.id=a.id`,
+			"a AS a " + kind + ` JOIN b AS b INDEXED BY "ib" ON b.id=a.id`,
+			"a AS a " + kind + ` JOIN b AS b ON "b".id=a.id`,
+			"a AS a " + kind + " JOIN b AS b ON main.b.id=a.id",
+			"a AS a " + kind + ` JOIN "temp".b AS b ON b.id=a.id`,
+		} {
+			if len(plan.LintSQL("SELECT a.id FROM "+source+" WHERE a.id=?")) == 0 {
+				t.Fatalf("quoted/qualified/unaliased source accepted: %s", source)
+			}
+			flagged++
+		}
+	}
+
 	t.Logf("closed join grammar: %d positive / %d negative probes", allowed, flagged)
 }
 
