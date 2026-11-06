@@ -63,11 +63,12 @@ type Golden struct {
 func (g Golden) Receipt() stmt.Receipt { return g.receipt }
 
 type StatementPlan struct {
-	ID        stmt.ID      `json:"id"`
-	Cohort    string       `json:"cohort"`
-	Explain   Rows         `json:"explain"`
-	QueryPlan Rows         `json:"queryPlan"`
-	Insert    *InsertAudit `json:"insert,omitempty"`
+	ID          stmt.ID          `json:"id"`
+	Cohort      string           `json:"cohort"`
+	Explain     Rows             `json:"explain"`
+	QueryPlan   Rows             `json:"queryPlan"`
+	Insert      *InsertAudit     `json:"insert,omitempty"`
+	AutoIndexes []AutoIndexAudit `json:"autoIndexes,omitempty"`
 }
 
 // Capture uses one caller-owned connection to prevent pool PRAGMA/statistics
@@ -103,6 +104,10 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 		if err := checkSyntaxOn(ctx, conn, entry.Definition); err != nil {
 			return g, err
 		}
+		autoIndexes, err := auditAutoindexes(ctx, conn, entry.Definition)
+		if err != nil {
+			return g, fmt.Errorf("plan %s autoindex binding: %w", entry.ID, err)
+		}
 		shape, err := dmlSQL(entry.SQL)
 		if err != nil {
 			return g, fmt.Errorf("plan %s parse: %w", entry.ID, err)
@@ -124,6 +129,9 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 				return g, fmt.Errorf("plan %s/%s EQP: %w", entry.ID, cohort.Name, err)
 			}
 			var insert *InsertAudit
+			if err := checkAutoindexSearches(autoIndexes, eqp); err != nil {
+				return g, fmt.Errorf("plan %s/%s: %w", entry.ID, cohort.Name, err)
+			}
 			if table != nil && !mainWriteRoot(full, table.root) {
 				return g, fmt.Errorf("plan %s: native destination does not match audited main table", entry.ID)
 			}
@@ -144,7 +152,7 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 				}
 			} else if shape == nil && writesDatabase(full) {
 				return g, fmt.Errorf("plan %s: unrecognized write structure cannot skip DML audits", entry.ID)
-			} else if err := checkCaptured(entry.Definition, eqp); err != nil {
+			} else if err := checkCaptured(entry.Definition, eqp, autoIndexes...); err != nil {
 				return g, err
 			}
 			full, err = canonicalVM(full, roots)
@@ -155,7 +163,7 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 			if err != nil {
 				return g, fmt.Errorf("plan %s/%s EQP: %w", entry.ID, cohort.Name, err)
 			}
-			g.Plans = append(g.Plans, StatementPlan{ID: entry.ID, Cohort: cohort.Name, Explain: full, QueryPlan: eqp, Insert: insert})
+			g.Plans = append(g.Plans, StatementPlan{ID: entry.ID, Cohort: cohort.Name, Explain: full, QueryPlan: eqp, Insert: insert, AutoIndexes: autoIndexes})
 		}
 	}
 	sources, err := capturedSources(ctx, conn, g.Manifest)
@@ -197,7 +205,7 @@ func Check(d stmt.Definition, _ Rows) error {
 
 // Only Capture may invoke this after live source, policy and DML inspection.
 // CheckEQP and the lexical lint are component checks, not qualification receipts.
-func checkCaptured(d stmt.Definition, eqp Rows) error {
+func checkCaptured(d stmt.Definition, eqp Rows, autoIndexes ...AutoIndexAudit) error {
 	if err := checkBase(d, eqp); err != nil {
 		return err
 	}
@@ -211,7 +219,7 @@ func checkCaptured(d stmt.Definition, eqp Rows) error {
 	if !d.Plan.Hot && shape == nil {
 		return nil
 	}
-	return checkSearch(d, eqp)
+	return checkSearch(d, eqp, autoIndexes...)
 }
 
 func checkBase(d stmt.Definition, eqp Rows) error {
@@ -233,13 +241,13 @@ func checkSyntaxIssues(d stmt.Definition, issues []LintIssue) error {
 	for _, issue := range issues {
 		return fmt.Errorf("plan %s: unapproved SQL lint %s: %s", d.ID, issue.Form, issue.Detail)
 	}
-	if index := forcedAutoindex(d.SQL); index != "" {
-		return fmt.Errorf("plan %s: generated index %s must be asserted in Plan.Indexes, not forced in SQL", d.ID, index)
+	if index := forcedAutoindex(d.SQL); index != "" && len(d.Plan.AutoIndexes) == 0 {
+		return fmt.Errorf("plan %s: generated index %s requires an exact live PK/UNIQUE binding", d.ID, index)
 	}
 	return nil
 }
 
-func checkSearch(d stmt.Definition, eqp Rows) error {
+func checkSearch(d stmt.Definition, eqp Rows, autoIndexes ...AutoIndexAudit) error {
 	if len(d.Plan.Indexes) == 0 && len(d.Plan.PrimaryKeys) == 0 {
 		return fmt.Errorf("plan %s: hot statement has no intended index", d.ID)
 	}
@@ -278,6 +286,11 @@ func checkSearch(d stmt.Definition, eqp Rows) error {
 		for _, detail := range details {
 			if strings.Contains(detail, "USING INDEX "+index+" (") || strings.Contains(detail, "USING COVERING INDEX "+index+" (") {
 				found = true
+			}
+			for _, certified := range autoIndexes {
+				if certified.Binding.Name == index && certified.WithoutRowid && certified.Binding.Origin == "pk" && autoindexSearch(certified, detail) {
+					found = true
+				}
 			}
 		}
 		if !found {

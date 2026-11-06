@@ -6,10 +6,10 @@ import (
 )
 
 type dmlShape struct {
-	kind, table string
-	columns     []string
-	conflict    []string
-	references  []columnReference
+	kind, table, index string
+	columns            []string
+	conflict           []string
+	references         []columnReference
 }
 
 type columnReference struct {
@@ -84,6 +84,7 @@ func (p *lintParser) dmlStatement() error {
 			if err := p.name(); err != nil {
 				return err
 			}
+			p.dml.index = p.tokens[p.at-1].text
 		}
 		if kind == "UPDATE" {
 			if err := p.need("SET"); err != nil {
