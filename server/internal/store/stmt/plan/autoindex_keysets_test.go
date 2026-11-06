@@ -303,3 +303,99 @@ func TestPlanAutoindexPolicyChildOrderingVariants(t *testing.T) {
 		}
 	}
 }
+
+func TestPlanAutoindexLimitBindingRefusesUnboundedExecution(t *testing.T) {
+	conn, f, policy := policyKeysetFixture(t, false)
+	d := policyKeysetDefinition(true)
+	d.SQL = strings.Replace(d.SQL, "LIMIT ?", "LIMIT /* ? ignored slot */ ?", 1)
+	catalogue, err := stmt.Describe([]stmt.Definition{d})
+	if err != nil {
+		t.Fatal(err)
+	}
+	golden, err := plan.Capture(t.Context(), conn, catalogue, f, policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registry, err := stmt.New([]stmt.Definition{d}, golden.Receipt())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := registry.Lookup(d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, limit := range []int64{-2, -1, 0} {
+		bound, err := s.Bind("a", int64(-1), limit)
+		if err == nil {
+			t.Error("non-positive LIMIT bound", limit)
+		}
+		executor := &admissionExecutor{conn: conn}
+		rows, err := bound.QueryContext(t.Context(), executor)
+		if rows != nil {
+			rows.Close()
+		}
+		if err == nil || rows != nil {
+			t.Fatal("invalid LIMIT reached query", limit, err)
+		}
+		if result, err := bound.ExecContext(t.Context(), executor); err == nil || result != nil {
+			t.Fatal("invalid LIMIT reached exec", limit, err)
+		}
+		var value int64
+		if err := bound.QueryRowContext(t.Context(), executor).Scan(&value); err == nil {
+			t.Fatal("invalid LIMIT reached query-row", limit)
+		}
+		if executor.queries != 0 || executor.execs != 0 || executor.rows != 0 {
+			t.Fatal("bad LIMIT reached native executor", executor)
+		}
+	}
+	bound, err := s.Bind("a", int64(-1), int64(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := bound.QueryContext(t.Context(), conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for rows.Next() {
+		count++
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if err := rows.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatal("positive page is unbounded", count)
+	}
+	bad := registry.Manifest()[0].Definition
+	bad.Cohorts[0].Bindings[len(bad.Params)-1] = int64(-1)
+	if _, err := stmt.Describe([]stmt.Definition{bad}); err == nil {
+		t.Fatal("negative qualification cohort accepted")
+	}
+	for _, typ := range []stmt.Type{stmt.Text, stmt.Integer} {
+		bad := registry.Manifest()[0].Definition
+		last := len(bad.Params) - 1
+		bad.Params[last].Type = typ
+		bad.Params[last].Nullable = true
+		if _, err := stmt.Describe([]stmt.Definition{bad}); err == nil {
+			t.Fatal("non-integer/nullable LIMIT admitted", typ)
+		}
+	}
+	for _, literal := range []string{"0", "00", "9223372036854775808"} {
+		bad := registry.Manifest()[0].Definition
+		bad.SQL = strings.Replace(bad.SQL, "LIMIT /* ? ignored slot */ ?", "LIMIT "+literal, 1)
+		bad.Params = bad.Params[:len(bad.Params)-1]
+		for i := range bad.Cohorts {
+			bad.Cohorts[i].Bindings = bad.Cohorts[i].Bindings[:len(bad.Params)]
+		}
+		catalogue, err := stmt.Describe([]stmt.Definition{bad})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if g, err := plan.Capture(t.Context(), conn, catalogue, f, policy); err == nil || g.Receipt() != nil {
+			t.Fatal("non-positive/overflow literal qualified", literal, err)
+		}
+	}
+}

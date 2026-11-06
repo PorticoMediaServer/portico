@@ -167,6 +167,7 @@ type lintParser struct {
 	comparisons                        []lintComparison
 	orders                             []lintOrder
 	limit, disjunction, otherPredicate bool
+	limitAt                            int
 }
 
 type lintComparison struct {
@@ -518,6 +519,7 @@ func (p *lintParser) selectStatement() error {
 	}
 	if p.take("LIMIT") {
 		p.limit = true
+		p.limitAt = p.at
 		if p.at >= len(p.tokens) || p.tokens[p.at].kind != 'p' && p.tokens[p.at].kind != 'n' {
 			return p.fail("LIMIT requires a parameter or nonnegative integer")
 		}

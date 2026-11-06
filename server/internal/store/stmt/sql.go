@@ -10,14 +10,18 @@ import (
 // as parameters or terminators. Numbered/named bindings are deliberately rejected
 // rather than silently conflating repeated slot names with ordered parameters.
 // This is a lexical boundary, not a SQL parser or authorization check.
-func parameters(sql string) (int, error) {
+// Track LIMIT ? slots in the existing quote/comment-aware parameter scan.
+// This is used only for the certified native-key subset, never as SQL admission.
+func parameterLayout(sql string) (int, []int, error) {
 	if strings.IndexByte(sql, 0) >= 0 {
-		return 0, fmt.Errorf("NUL forbidden")
+		return 0, nil, fmt.Errorf("NUL forbidden")
 	}
 	count, content, ended := 0, false, false
+	var limits []int
+	limitNext := false
 	for i := 0; i < len(sql); {
 		c := sql[i]
-		if c == ' ' || c == '\t' || c == '\n' || c == '\r' {
+		if c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f' {
 			i++
 			continue
 		}
@@ -33,13 +37,13 @@ func parameters(sql string) (int, error) {
 				i++
 			}
 			if i+1 == len(sql) || i == len(sql) {
-				return 0, fmt.Errorf("unterminated comment")
+				return 0, nil, fmt.Errorf("unterminated comment")
 			}
 			i += 2
 			continue
 		}
 		if ended {
-			return 0, fmt.Errorf("multiple statements forbidden")
+			return 0, nil, fmt.Errorf("multiple statements forbidden")
 		}
 		if c == ';' {
 			ended = true
@@ -48,6 +52,7 @@ func parameters(sql string) (int, error) {
 		}
 		content = true
 		if c == '\'' || c == '"' || c == '`' || c == '[' {
+			limitNext = false
 			end := c
 			if c == '[' {
 				end = ']'
@@ -68,26 +73,39 @@ func parameters(sql string) (int, error) {
 				break
 			}
 			if !closed {
-				return 0, fmt.Errorf("unterminated quote")
+				return 0, nil, fmt.Errorf("unterminated quote")
 			}
 			continue
 		}
+		if c == '_' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' {
+			start := i
+			i++
+			for i < len(sql) && (sql[i] == '_' || sql[i] >= 'a' && sql[i] <= 'z' || sql[i] >= 'A' && sql[i] <= 'Z' || sql[i] >= '0' && sql[i] <= '9') {
+				i++
+			}
+			limitNext = strings.EqualFold(sql[start:i], "LIMIT")
+			continue
+		}
 		if c == '?' {
+			if limitNext {
+				limits = append(limits, count)
+			}
 			count++
 			if i+1 < len(sql) && sql[i+1] >= '0' && sql[i+1] <= '9' {
-				return 0, fmt.Errorf("numbered parameters forbidden")
+				return 0, nil, fmt.Errorf("numbered parameters forbidden")
 			}
 		}
 		if c == ':' || c == '@' || c == '$' {
-			return 0, fmt.Errorf("named parameters forbidden")
+			return 0, nil, fmt.Errorf("named parameters forbidden")
 		}
 		if c == 0 {
-			return 0, fmt.Errorf("NUL forbidden")
+			return 0, nil, fmt.Errorf("NUL forbidden")
 		}
+		limitNext = false
 		i++
 	}
 	if !content {
-		return 0, fmt.Errorf("empty SQL")
+		return 0, nil, fmt.Errorf("empty SQL")
 	}
-	return count, nil
+	return count, limits, nil
 }
