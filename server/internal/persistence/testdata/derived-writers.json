@@ -12755,7 +12755,7 @@
       ]
     },
     "internal/storage/client.go": {
-      "sha256": "4afa61cb1f8493536bff391e6a564066331b0945462b17e3ba2a0f255f7e3af9",
+      "sha256": "76fc8e04e20ef79a0a198cf0e209175b1858cb30cfb715ec630417cda14421d2",
       "effects": [
         {
           "table": "*",
@@ -12791,7 +12791,7 @@
       ]
     },
     "internal/storage/inventory_page.go": {
-      "sha256": "5c52a6eb7194576d86d1ed09b6d581727a07564d89c2f2ead335c87d9e58f54f",
+      "sha256": "7f39e670dddaf201af6547c46b1c9ced8fbb18cc0b69b69ac7758e0c81dffe1d",
       "effects": [
         {
           "table": "*",
