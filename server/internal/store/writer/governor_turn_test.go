@@ -177,6 +177,7 @@ func TestCommandClassesAreClosedAndExplicit(t *testing.T) {
 		class governor.Class
 	}{
 		{InventoryAccept, governor.ScanMinimum}, {BasicAccept, governor.ScanMinimum},
+		{InventoryCreate, governor.ScanMinimum}, {InventoryClaim, governor.ScanMinimum},
 		{ProgressAccept, governor.Foreground}, {SecurityAccept, governor.Recovery},
 		{EvidenceStage, governor.Background}, {CreditStage, governor.Background},
 		{PeopleStage, governor.Background}, {EnrichAccept, governor.Background},
@@ -190,7 +191,7 @@ func TestCommandClassesAreClosedAndExplicit(t *testing.T) {
 			t.Fatal(c.id, got, err)
 		}
 	}
-	for _, id := range []CommandID{0, 19, 255} {
+	for _, id := range []CommandID{0, InventoryClaim + 1, 255} {
 		if _, err := commandClass(id); !errors.Is(err, ErrInvalid) {
 			t.Fatal("unknown purpose acquired a class", id, err)
 		}
