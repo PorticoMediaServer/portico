@@ -59,13 +59,6 @@ func execShim(spec shimSpec, inner []string) error {
 			return errors.New("media process server incarnation changed before exec")
 		}
 	}
-	// This is the last check before exec, AFTER recordSelf. If the parent died
-	// earlier, reparenting changes getppid regardless of PID reuse. If it dies
-	// between this check and exec, the complete ledger record is already visible
-	// to the replacement server's startup scan and can be proven/reaped.
-	if spec.ParentPID != 0 && (spec.ParentPID <= 1 || os.Getppid() != spec.ParentPID) {
-		return errors.New("media process parent changed before exec")
-	}
 	return execInPlace(inner)
 }
 
