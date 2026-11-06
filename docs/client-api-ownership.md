@@ -149,6 +149,13 @@ error exits, `const` bindings, and `try`/`catch`/`finally` support those forms.
 There can be at most one dispatch on an execution path; guards cannot hide a
 second dispatch. Unknown statements, calls, mutable locals, destructuring,
 request aliases, computed calls, and writes have no production and are rejected.
+Predicate references are limited to reviewed lifetime inputs (signals, abort
+state and the explicit `adopted` boolean), validated local guard values and
+listed named guard calls. Request data and awaited response data cannot be read
+by predicates, comparison bindings, aliases or local guard bodies. A response
+may be bound for verbatim return, without inspecting its fields. Existing
+approved policies which inspect those fields stay as exact frozen cases; new
+domain policy belongs in a core operation.
 The grammar does not attempt to prove a named guard's semantics: independent
 verification and the exact full-span ruling still provide that boundary.
 

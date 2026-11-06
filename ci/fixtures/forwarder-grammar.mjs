@@ -15,7 +15,7 @@ positional('assertCurrent(); const result=await api.request(path,method,body,sig
 positional('guard();return api.request(path,method,body,signal ? AbortSignal.any([signal,life.signal]) : life.signal);');
 positional('const active=AbortSignal.any([life.signal,...(signal?[signal]:[])]);try {const value=await api.request(path,method,body,active);active.throwIfAborted();return value;}catch(error){check();throw error;}finally{check();}');
 positional('if (!current()) throw new DOMException("retired","AbortError");return api.request(path,method,body,signal);');
-positional('if (selected) return api.request(path,method,body,signal);return api.request(path,method,body,signal);');
+positional('if (current()) return api.request(path,method,body,signal);return api.request(path,method,body,signal);');
 positional('return api.request(path,method,body,body.signal());',false);
 positional('const check=()=>{if(!current())throw Error();};check();return api.request(path,method,body,signal);');
 object('return wire.send(adopted ? request : {...request,signal:life.signal});');
@@ -102,6 +102,27 @@ for(const mutation of ['pending.url+="/made";','pending["body"]="made";',
 
 cases.push({parameters:'path:string,method:string,options:object,other:object,signal:AbortSignal',body:'return api.requestRaw(path,method,{...other,signal});',accepted:false,shape:'raw-signal-options',target:'api.requestRaw'});
 cases.push({parameters:'body:unknown,path:string,method:string,signal:AbortSignal',body:'return api.request(path,method,body,signal);',accepted:false,shape:'request',target:'api.request'});
+
+// Domain metadata is not a lifetime input, even without any mutation. These
+// must fail under a fresh full-span pin as well as under an edited old pin.
+object('if(request.method==="DELETE")throw Error();return wire.send(request);',false);
+object('const denied=request.method==="DELETE";if(denied)throw Error();return wire.send(request);',false);
+object('const verb=request.method;return wire.send(request);',false);
+object('if(request.signal?.aborted)throw Error();return wire.send(request);',false);
+for(const policy of [
+ 'if(r.status>=400)throw Error();',
+ 'const failed=r.status>=400;if(failed)throw Error();',
+ 'const status=r.status;',
+ 'const copy=r;if(copy)throw Error();',
+ 'if(current(r.status))throw Error();',
+ 'if(r)throw Error();',
+ 'const check=()=>{if(r.status>=400)throw Error();};check();',
+ ]) positional('const r=await api.request<{status:number}>(path,method,body,signal);'+policy+'return r;',false);
+positional('if(context.status>=400)throw Error();return api.request(path,method,body,signal);',false);
+positional('const denied=context.status>=400;return api.request(path,method,body,signal);',false);
+positional('const aborted=signal?.aborted===true;if(aborted)throw Error();return api.request(path,method,body,signal);');
+positional('const check=()=>{if(signal.aborted)throw Error();};check();const r=await api.request(path,method,body,signal);check();return r;');
+positional('const check=()=>{if(readSignal.aborted)throw Error();};const readSignal=await api.request<{aborted:boolean}>(path,method,body,signal);check();return readSignal;',false);
 
 const folder=mkdtempSync(join(process.env.TMPDIR??tmpdir(),'forwarder-grammar-'));
 const filename=join(folder,'cases.ts'),config=join(folder,'tsconfig.json');
