@@ -3,6 +3,7 @@ package plan
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
@@ -127,6 +128,12 @@ func checkAutoindexAccess(d stmt.Definition, audits []AutoIndexAudit, eqp Rows) 
 	}
 	if p.disjunction {
 		return fmt.Errorf("forced keys require conjunctive point/keyset predicates")
+	}
+	if p.limit && p.tokens[p.limitAt].kind == 'n' {
+		value, err := strconv.ParseInt(p.tokens[p.limitAt].text, 10, 64)
+		if err != nil || value <= 0 {
+			return fmt.Errorf("forced-key LIMIT literal must be strictly positive")
+		}
 	}
 	single := len(p.sources) == 1 || p.dml != nil
 	for _, a := range audits {

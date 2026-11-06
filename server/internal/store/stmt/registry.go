@@ -72,7 +72,8 @@ type IndexColumn struct {
 }
 
 // AutoIndexBinding is a declaration for Capture to verify against live MAIN.
-// It grants no capability by itself. Origin is exactly "pk" or "u".
+// It grants no capability by itself. Origin is exactly "pk" or "u". LIMIT
+// parameters in this subset must be non-null integers and Bind rejects <= 0.
 type AutoIndexBinding struct {
 	Table   string        `json:"table"`
 	Name    string        `json:"name"`
@@ -106,8 +107,9 @@ type Definition struct {
 }
 type Entry struct {
 	Definition
-	SQLSHA256 string `json:"sqlSha256"`
-	qualified bool
+	SQLSHA256      string `json:"sqlSha256"`
+	qualified      bool
+	positiveLimits []int // derived from exact frozen SQL; never caller metadata
 }
 
 // Receipt is an opaque Capture-minted capability. Its implementation and mint
@@ -170,12 +172,20 @@ func Describe(definitions []Definition) (*Registry, error) {
 			}
 			seenWaivers[key] = true
 		}
-		count, err := parameters(d.SQL)
+		count, limits, err := parameterLayout(d.SQL)
 		if err != nil {
 			return nil, fmt.Errorf("stmt %q: %w", d.ID, err)
 		}
 		if count != len(d.Params) {
 			return nil, fmt.Errorf("stmt %q: %d placeholders, %d parameters", d.ID, count, len(d.Params))
+		}
+		if len(d.Plan.AutoIndexes) == 0 {
+			limits = nil
+		}
+		for _, position := range limits {
+			if d.Params[position].Type != Integer || d.Params[position].Nullable {
+				return nil, fmt.Errorf("stmt %q: native-key LIMIT requires a non-null integer parameter", d.ID)
+			}
 		}
 		names := map[string]bool{}
 		for _, p := range d.Params {
@@ -206,9 +216,12 @@ func Describe(definitions []Definition) (*Registry, error) {
 			if err := validate(d.Params, c.Bindings); err != nil {
 				return nil, fmt.Errorf("stmt %q cohort %q: %w", d.ID, c.Name, err)
 			}
+			if err := validatePositiveLimits(limits, c.Bindings); err != nil {
+				return nil, fmt.Errorf("stmt %q cohort %q: %w", d.ID, c.Name, err)
+			}
 		}
 		hash := sha256.Sum256([]byte(d.SQL))
-		r.entries[d.ID] = &Entry{Definition: d, SQLSHA256: hex.EncodeToString(hash[:])}
+		r.entries[d.ID] = &Entry{Definition: d, SQLSHA256: hex.EncodeToString(hash[:]), positiveLimits: limits}
 	}
 	return r, nil
 }
@@ -285,7 +298,23 @@ func (s Statement) Bind(args ...any) (Bound, error) {
 	if err := validate(s.entry.Params, args); err != nil {
 		return Bound{}, fmt.Errorf("stmt %q: %w", s.entry.ID, err)
 	}
+	if err := validatePositiveLimits(s.entry.positiveLimits, args); err != nil {
+		return Bound{}, fmt.Errorf("stmt %q: %w", s.entry.ID, err)
+	}
 	return Bound{entry: s.entry, args: cloneArgs(args)}, nil
+}
+
+func validatePositiveLimits(positions []int, args []any) error {
+	for _, position := range positions {
+		if position < 0 || position >= len(args) {
+			return fmt.Errorf("LIMIT parameter position is invalid")
+		}
+		value, ok := args[position].(int64)
+		if !ok || value <= 0 {
+			return fmt.Errorf("LIMIT parameter must be a strictly positive int64")
+		}
+	}
+	return nil
 }
 
 // Execer and Queryer are implemented by sql.Conn and sql.Tx. Possession of a
