@@ -69,6 +69,9 @@ func (p *lintParser) dmlStatement() error {
 		return err
 	}
 	p.dml = &dmlShape{kind: kind, table: p.tokens[at].text}
+	if sqliteInternalSource(nameKey(p.dml.table)) {
+		return p.fail("SQLite internal destinations are outside the grammar")
+	}
 	if kind == "INSERT" {
 		if err := p.insertBody(); err != nil {
 			return err
