@@ -279,6 +279,233 @@ function screenLifetime(selected: boolean) {
         (root/filename).write_text(source.replace('if (selected)','if (!selected)'))
         self.assertTrue(all(s['forwardedRequest'] for s in scan(root)))
 
+    def test_distinct_spans_sharing_an_id_require_separate_count_one_bindings(self):
+        from client_api_census import validate_approvals
+        core='export type V1Request = {path: string; method: string; body?: unknown; signal?: AbortSignal}; export interface V1Http {send(request: V1Request): Promise<unknown>;}'
+        source='''import type {V1Http,V1Request} from '../../packages/client-core/src/playback-v1/http';
+declare const wire: V1Http;
+function first() {return {send(request: V1Request) {const owner = 1;return wire.send(request);}};}
+function second() {return {send(request: V1Request) {const owner = 2;return wire.send(request);}};}
+'''
+        root,filename,sites,_=self.fixture(source,dependencies={'packages/client-core/src/playback-v1/http.ts':core})
+        self.assertEqual(len({s['id'] for s in sites}),1)
+        self.assertEqual(len({s['guardHash'] for s in sites}),2)
+        key=sites[0]['id']
+        (root/ALLOWLIST).write_text('{}');(root/BASELINE).write_text(json.dumps({key:2}))
+        self.git(root,'add','.');self.git(root,'commit','-qm','Record two direct spans')
+        pairs=[s['id']+'@'+s['guardHash'] for s in sites]
+        pin={'category':'platform-transport','reason':'Two separately reviewed core forwards',
+             'sites':pairs,'guardHashes':{pair:s['guardHash'] for pair,s in zip(pairs,sites)}}
+        ledger={pair:{'category':pin['category'],'reason':pin['reason'],'guardHash':s['guardHash'],
+                       'condition':'Exact complete span and count one','occurrences':1,
+                       'rulingUrl':'https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648755492'}
+                for pair,s in zip(pairs,sites)}
+        (root/ALLOWLIST).write_text(json.dumps({filename:pin}));(root/APPROVALS).write_text(json.dumps(ledger))
+        (root/BASELINE).write_text('{}')
+        self.assertEqual(self.check(root)[0],0)
+        for bad in [dict(pin,sites=[pairs[0],pairs[0]]),dict(pin,sites=pairs+[key])]:
+            with self.assertRaises(ValueError):classify(sites,{filename:bad})
+        grown=json.loads(json.dumps(ledger));grown[pairs[0]]['occurrences']=2
+        with self.assertRaises(ValueError):validate_approvals(grown)
+        # A third unapproved span must not spend the old DIRECT budget again
+        # while the other two old occurrences become exceptions in the same PR.
+        (root/filename).write_text(source+source.splitlines()[2].replace('first','third').replace('owner = 1','owner = 3')+'\n')
+        (root/BASELINE).write_text(json.dumps({key:2}))
+        import io
+        from contextlib import redirect_stdout,redirect_stderr
+        with redirect_stdout(io.StringIO()),redirect_stderr(io.StringIO()):
+            self.assertEqual(main(['--update','--base','HEAD'],root=root),1)
+
+    def test_activated_pairs_cannot_respend_the_historical_detection_budget(self):
+        core='export type V1Request = {path: string; method: string}; export interface V1Http {send(request: V1Request): Promise<unknown>;}'
+        source='''import type {V1Http,V1Request} from '../../packages/client-core/src/playback-v1/http';
+declare const wire: V1Http;
+function first() {return {send(request: V1Request) {const owner=1;return wire.send(request);}};}
+function second() {return {send(request: V1Request) {const owner=2;return wire.send(request);}};}
+'''
+        root,filename,sites,_=self.fixture(source,dependencies={'packages/client-core/src/playback-v1/http.ts':core})
+        key=sites[0]['id'];self.assertEqual({s['id'] for s in sites},{key})
+        original=self.git(root,'rev-parse','HEAD').strip()
+        pairs=[key+'@'+s['guardHash'] for s in sites]
+        pin={'category':'platform-transport','reason':'Reviewed pair','sites':pairs,
+             'guardHashes':{k:s['guardHash'] for k,s in zip(pairs,sites)}}
+        ledger={k:{'category':pin['category'],'reason':pin['reason'],'guardHash':s['guardHash'],
+                   'condition':'Exact full span','occurrences':1,
+                   'rulingUrl':'https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648755492'}
+                for k,s in zip(pairs,sites)}
+        (root/ALLOWLIST).write_text(json.dumps({filename:pin}));(root/APPROVALS).write_text(json.dumps(ledger))
+        (root/DETECTIONS).write_text(json.dumps({'sourceCommit':original,'sites':{key:{'occurrences':2,
+            'reason':'Historical detection improvement','rulingUrl':'https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885'}}}))
+        self.git(root,'add','.');self.git(root,'commit','-qm','Activate two pairs with historical detection manifest')
+        self.assertEqual(self.check(root)[0],0)
+        # Keep both original pairs and the historical manifest unchanged. A third
+        # call must fail even after increasing its DIRECT baseline to one.
+        (root/filename).write_text(source+source.splitlines()[2].replace('first','third').replace('owner=1','owner=3')+'\n')
+        (root/BASELINE).write_text(json.dumps({key:1}))
+        import io
+        from contextlib import redirect_stdout,redirect_stderr
+        with redirect_stdout(io.StringIO()),redirect_stderr(io.StringIO()):
+            self.assertEqual(main(['--update','--base','HEAD'],root=root),1)
+
+    def test_conditional_rebinding_cannot_turn_explicit_writes_into_forwarding(self):
+        core='export type V1Request = {path: string; method: string; body?: unknown; headers?: Record<string,string>; signal?: AbortSignal}; export interface V1Http {send(request: V1Request): Promise<unknown>;}'
+        source='''import type {V1Http,V1Request} from '../../packages/client-core/src/playback-v1/http';
+declare const wire: V1Http, life: AbortSignal;
+function forward(request: V1Request, adopted: boolean) {return wire.send(adopted ? request : {...request,signal:life});}
+'''
+        root,filename,_,_=self.fixture(source,dependencies={'packages/client-core/src/playback-v1/http.ts':core})
+        for condition in ['(request = {...request,path: request.path + "/made"})',
+                          '(request.path = "/made")','(request.method = "DELETE")',
+                          '(request.body = {})','(request.headers = {})','(request.signal = life)',
+                          '(request.headers!["Secret"] = "made")','(delete request.body)',
+                          '(request.path += "/made")']:
+            for target in ['adopted','signal:life']:
+                changed=(source.replace('wire.send(adopted ?', 'wire.send('+condition+' ?') if target=='adopted'
+                         else source.replace('signal:life','signal:('+condition+',life)'))
+                (root/filename).write_text(changed);sites=scan(root)
+                self.assertTrue(sites)
+                self.assertTrue(all(not s['forwardedRequest'] for s in sites),(condition,target))
+                # Even a freshly rebound exact hash must not exempt construction.
+                pin={filename:{'category':'platform-transport','reason':'Reviewed','sites':[s['id'] for s in sites],
+                               'guardHashes':{s['id']:s['guardHash'] for s in sites}}}
+                with self.assertRaises(ValueError):classify(sites,pin)
+
+    def test_request_write_walker_tracks_actual_parameters_and_nested_aliases(self):
+        core='export type V1Request = {path: string; method: string; body?: any; headers?: Record<string,any>; signal?: AbortSignal}; export interface V1Http {send(request: V1Request): Promise<unknown>;}'
+        prefix="import type {V1Http,V1Request} from '../../packages/client-core/src/playback-v1/http';\ndeclare const wire: V1Http, life: AbortSignal;\n"
+        cases=[
+            ('const r=request;', '(r.path="/made")'),
+            ('const r=request; const r2=r;', '(r2["method"]="DELETE")'),
+            ('const r=request; const key: string="path";', '(r[key]="/made")'),
+            ('const {headers:h}=request; const h2=h;', '(h2!.Authorization="made")'),
+            ('const {headers:h}=request; const key: string="Authorization";', '(h![key]="made")'),
+            ('const {headers:h}=request;', '(delete h!.Authorization)'),
+            ('const {headers:h}=request;', '(h!.Count++)'),
+            ('const {body:{part:nested}}=request;', '(nested["other"]="made")'),
+            ('const {body:{list}}=request;', 'list.push("made")'),
+            ('let r: V1Request; r=request;', '(r.path="/made")'),
+            ('let r: V1Request; [r]=[request];', '(r.path="/made")'),
+            ('let h: any; ({headers:h}=request);', '(h.Authorization="made")'),
+            ('const r=(request as V1Request);', '(r.headers!.Authorization="made")'),
+            ('const box={borrowed:request};', '(box.borrowed["path"]="/made")'),
+            ('const box=[request];', '(box[0]["headers"]={})'),
+            ('', '((r: V1Request)=>{r["path"]="/made";return adopted;})(request)'),
+            ('function change(r: V1Request) {r["path"]="/made";return true;}', 'change(request)'),
+            ('const r=request;', '(()=>{r["headers"]={};return adopted;})()'),
+            ('const {headers:h}=request;', 'Object.assign(h!,{Authorization:"made"})'),
+            ('', '(request={...request,path:"/made"})'),
+        ]
+        source=prefix+'\n'.join(f'function alias{i}({name}: V1Request, adopted: boolean) {{ {setup.replace("request",name)} return wire.send({condition.replace("request",name)} ? {name} : {{...{name},signal:life}});}}'
+            for i,(setup,condition) in enumerate(cases) for name in ['input'])
+        root,filename,sites,_=self.fixture(source,dependencies={'packages/client-core/src/playback-v1/http.ts':core})
+        self.assertEqual(len(sites),len(cases))
+        for site in sites:
+            with self.subTest(owner=site['owner']):
+                self.assertFalse(site['forwardedRequest'],site)
+                pin={filename:{'category':'platform-transport','reason':'Matching mutation span','sites':[site['id']],
+                               'guardHashes':{site['id']:site['guardHash']}}}
+                with self.assertRaises(ValueError):classify([site],pin)
+        # The same aliases may be read without constructing or mutating policy.
+        (root/filename).write_text(prefix+'function read(input: V1Request, adopted: boolean) {const r=input;const {headers:h}=r;void h;return wire.send(adopted ? input : {...input,signal:life});}')
+        self.assertTrue(scan(root)[0]['forwardedRequest'])
+        (root/filename).write_text(prefix+'function signal(input: V1Request, adopted: boolean) {const r=input;return wire.send(adopted ? input : {...input,signal:((r.path="/made"),life)});}')
+        site=scan(root)[0];self.assertFalse(site['forwardedRequest'])
+        with self.assertRaises(ValueError):classify([site],{filename:{'category':'platform-transport','reason':'Matching mutation span','sites':[site['id']],'guardHashes':{site['id']:site['guardHash']}}})
+
+    def test_request_write_walker_normalizes_object_and_reflect_mutators(self):
+        core='export type V1Request = {path: string; method: string; body?: unknown; signal?: AbortSignal}; export interface V1Http {send(request: V1Request): Promise<unknown>;}'
+        prefix="import type {V1Http,V1Request} from '../../packages/client-core/src/playback-v1/http';\ndeclare const wire: V1Http, life: AbortSignal;\n"
+        cases=[
+            ('', 'Object["assign"](request,{path:"/made"})'),
+            ('', '(Object.assign)(request,{path:"/made"})'),
+            ('', '(0, Reflect.set)(request,"method","DELETE")'),
+            ('', 'Reflect["set"]?.(request,"method","DELETE")'),
+            ('', '(Object["defineProperty"])(request,"path",{value:"/made"})'),
+            ('', 'Object["defineProperties"](request,{path:{value:"/made"}})'),
+            ('', 'Object["assign"]?.(request,{path:"/made"})'),
+            ('', '((Reflect))["deleteProperty"](request,"body")'),
+            ('const builtins=Object;', 'builtins["assign"](request,{path:"/made"})'),
+            ('const {assign:patch}=Object;', '(0,patch)(request,{path:"/made"})'),
+            ('const patch=Reflect.set;', 'patch(request,"method","DELETE")'),
+            ('const key: string="assign";', '(Object as unknown as Record<string,typeof Object.assign>)[key](request,{path:"/made"})'),
+            ('', 'Object.assign.call(Object,request,{path:"/made"})'),
+            ('', 'Reflect.set.apply(Reflect,[request,"method","DELETE"])'),
+        ]
+        source=prefix+'\n'.join(f'function mutation{i}(request: V1Request, adopted: boolean) {{{setup} return wire.send({condition} ? request : {{...request,signal:life}});}}' for i,(setup,condition) in enumerate(cases))
+        root,filename,sites,_=self.fixture(source,dependencies={'packages/client-core/src/playback-v1/http.ts':core})
+        self.assertEqual(len(sites),len(cases))
+        for site in sites:
+            with self.subTest(owner=site['owner']):
+                self.assertFalse(site['forwardedRequest'],site)
+                with self.assertRaises(ValueError):
+                    classify([site],{filename:{'category':'platform-transport','reason':'Matching mutation span','sites':[site['id']],
+                                             'guardHashes':{site['id']:site['guardHash']}}})
+
+    def test_implicit_arguments_aliases_are_not_forwarding_policies(self):
+        core='export type V1Request = {path: string; method: string; body?: unknown; signal?: AbortSignal}; export interface V1Http {send(request: V1Request): Promise<unknown>;}'
+        common="import type {V1Http,V1Request} from '../../packages/client-core/src/playback-v1/http';\ndeclare const wire: V1Http, life: AbortSignal;\n"
+        conditional=common+'function forward(request: V1Request, adopted: boolean) {MUTATION return wire.send(adopted ? request : {...request,signal:life});}'
+        lexical=common+'function owner(input: V1Request, adopted: boolean) {return () => {MUTATION return wire.send(adopted ? input : {...input,signal:life});};}'
+        rest='''declare const api: {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>};
+function owner() {return {async request<T>(...args: Parameters<typeof api.request>) {
+ MUTATION return await api.request<T>(...args);
+}};}'''
+        vega='''import {vegaControlHeaderEntries} from '../../packages/client-core/src/vega-control-transport';
+function start(pending: {url:string;method:string;body:string|null;headers:Record<string,string>;xhr?:XMLHttpRequest}) {
+ const xhr=new XMLHttpRequest(); pending.xhr=xhr;
+ MUTATION
+ xhr.open(pending.method,pending.url); xhr.timeout=15000; xhr.withCredentials=false;
+ for (const [key,value] of vegaControlHeaderEntries(pending.headers)) xhr.setRequestHeader(key,value);
+ AFTER
+ xhr.send(pending.body ?? undefined);
+}'''
+        cases=[(conditional.replace('MUTATION',mutation),{'packages/client-core/src/playback-v1/http.ts':core}) for mutation in [
+            'Object.assign(arguments[0],{path:"/made"});',
+            'const copy=arguments[0];const key="path";copy[key]="/made";',
+            '(()=>{Reflect.set(arguments[0],"method","DELETE");})();']]
+        cases.append((lexical.replace('MUTATION','Object.assign(arguments[0],{path:"/made"});'),{'packages/client-core/src/playback-v1/http.ts':core}))
+        cases.append((rest.replace('MUTATION','Object.assign(arguments[2],{extra:true});'),{}))
+        helper={'packages/client-core/src/vega-control-transport.ts':'export declare function vegaControlHeaderEntries(headers: Record<string,string>): ReadonlyArray<readonly [string,string]>;'}
+        for before,after in [
+            ('Object.assign(arguments[0],{url:"/made",method:"DELETE",body:"made"});',''),
+            ('Reflect.set(arguments[0],"url","/made");',''),
+            ('const copy=arguments[0].headers;copy.Extra="made";',''),
+            ('','arguments[0].xhr.setRequestHeader("Extra","made");'),
+            ('','const copy=arguments[0].xhr;const field="withCredentials";copy[field]=true;'),
+            ('','Object.assign(arguments[0].xhr,{withCredentials:true});')]:
+            cases.append((vega.replace('MUTATION',before).replace('AFTER',after),helper))
+        for source,dependencies in cases:
+            with self.subTest(source=source):
+                # The fixture pins its OWN mutated full span. Failure must come
+                # from structural admission, not a stale positive-source hash.
+                root,filename,sites,pin=self.fixture(source,dependencies=dependencies)
+                self.assertTrue(all(not s['forwardedRequest'] for s in sites),sites)
+                with self.assertRaises(ValueError):classify(sites,{filename:pin})
+                self.assertEqual(self.check(root)[0],1)
+
+    def test_conditional_signal_and_farewell_shapes_reject_path_or_body_construction(self):
+        core='export type V1Request = {path: string; method: string; body?: unknown; signal?: AbortSignal}; export interface V1Http {send(request: V1Request): Promise<unknown>;}'
+        source='''import type {V1Http,V1Request} from '../../packages/client-core/src/playback-v1/http';
+import type {HttpLocalApi} from '../../packages/client-core/src/index';
+declare const wire: V1Http, life: AbortSignal;
+declare const api: HttpLocalApi;
+function conditional(request: V1Request, adopted: boolean) {return wire.send(adopted ? request : {...request,signal: life});}
+function farewell(path: string, method: string, body: unknown) {return api.farewell(path,method,body);}
+'''
+        root,filename,sites,_=self.fixture(source,dependencies={'packages/client-core/src/playback-v1/http.ts':core,
+            'packages/client-core/src/index.ts':'export declare class HttpLocalApi {farewell(path: string, method: string, body: unknown): void;}'})
+        self.assertEqual([s['forwardingShape'] for s in sites],['conditional-signal','farewell'])
+        self.assertEqual(self.check(root)[0],0)
+        for old,new in [('{...request,signal: life}','{...request,path: request.path + "/made",signal: life}'),
+                        ('{...request,signal: life}','{...request,body: {},signal: life}'),
+                        ('api.farewell(path,method,body)','api.farewell(path + "/made",method,body)'),
+                        ('api.farewell(path,method,body)','api.farewell(path,method,{body})')]:
+            with self.subTest(edit=new):
+                (root/filename).write_text(source.replace(old,new))
+                changed=scan(root)
+                self.assertTrue(any(not s['forwardedRequest'] for s in changed))
+                self.assertEqual(self.check(root)[0],1)
+
     def test_cw_rulings_keep_exact_file_qualified_budgets_and_hashes(self):
         rulings={'6651098315','6654511777','6655467024','6673584916'}
         ledger=json.loads((ROOT/APPROVALS).read_text())

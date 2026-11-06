@@ -69,6 +69,24 @@ ruling. An emitted `forwardingHash` never narrows a policy pin implicitly; chang
 span scope requires an exact fresh ledger approval. CC-4 upload/bounded pins bind
 the complete approved SettingsEntry policy, including the captured originalApi.
 
+When one census ID covers distinct reviewed spans, an exception and its ledger
+row use `file#siteID@fullGuardHash`. Each such binding has exactly one occurrence,
+and the suffix must equal its complete `guardHash`. Paired and unqualified pins
+for the same ID cannot coexist. This is an exact pair, not a hash family; another
+hash remains DIRECT and cannot consume a different pair's allowance. Existing
+explicit approvals for two identical occurrences of one span retain their
+combined budget. During pair activation the gate also compares the complete
+source occurrence total with the base, so conversion to exceptions cannot hide
+an added call inside the old DIRECT budget. A paired re-hash needs a fresh exact
+ruling; the legacy direct-identity re-hash schema does not broaden these pins.
+
+Playback forwarding recognition includes a request or a copy of that same
+request with only `signal` replaced, chosen conditionally, and positional
+`farewell(path, method, body)`. Recognition alone grants no allowance: every
+approved playback guard still binds its full enclosing policy and exact budget.
+Adding/replacing path or body fields is not one of these forwarding shapes.
+Deliberately obfuscated evasions through eval, Function constructors or proxy tricks are outside recognizer scope because independent verification and a lead ruling on every exact complete-span hash remain the security boundary.
+
 Native byte-transport executors which take an already constructed core request
 are reported too; their migration disposition must preserve platform IO and
 lifetime boundaries. This census never requires waking JS for background
