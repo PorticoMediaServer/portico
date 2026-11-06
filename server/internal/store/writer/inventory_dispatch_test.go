@@ -181,7 +181,7 @@ func TestInventoryFacadeFreshMissAndCurrentDisclosure(t *testing.T) {
 	}
 }
 
-func TestInventoryFacadeAcceptResolvesOriginalBeforeFresh(t *testing.T) {
+func TestInventoryFacadeRetiredLibraryReplaysBeforeFreshRefusal(t *testing.T) {
 	w, requests, e, _ := inventoryFacadeFixture(t)
 	q := requests["hit"]
 	in, _ := inventoryRequestFixture()
@@ -207,10 +207,32 @@ func TestInventoryFacadeAcceptResolvesOriginalBeforeFresh(t *testing.T) {
 	if _, err := e.db.ExecContext(t.Context(), "UPDATE inventory_runs SET job_revision=9223372036854775807,job_lease_expires_ms=0 WHERE job_id=?", q.RunID); err != nil {
 		t.Fatal(err)
 	}
+	// Retirement is NOT a historical disclosure predicate. It is mandatory
+	// fresh eligibility, which remains closed with the incomplete SC body.
+	if _, err := e.db.ExecContext(t.Context(), "UPDATE catalog_libraries SET retired=1 WHERE id=7"); err != nil {
+		t.Fatal(err)
+	}
 	out, err := w.AcceptInventory(t.Context(), inventoryTestDisclosure(t, w, q), command)
 	if err != nil || out.Outcome.State != Applied || !out.Outcome.Replayed || out.Digest != digest || out.AcceptedRunRevision != 2 || out.SourceRevision != v.SourceRevision ||
 		command.digest != q.Receipt.RequestDigest || len(out.Members) != 1 || out.Members[0].AcceptedAssetRevision != 1 {
 		t.Fatal("fresh source/lease/overflow checks hid original history", out, err)
+	}
+	fresh := requests["new"]
+	in.scope = inventoryScope{fresh.RunID, fresh.LibraryKey, fresh.LibraryID}
+	newCommand, err := newInventoryAcceptCommand(fresh.Receipt.Identity, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	refused, err := w.AcceptInventory(t.Context(), inventoryTestDisclosure(t, w, fresh), newCommand)
+	if err == nil || refused.Outcome.State == Applied || refused.RunID != "" || len(refused.Members) != 0 {
+		t.Fatal("retired library accepted fresh work", refused, err)
+	}
+	var last, receipts int64
+	if err := e.db.QueryRowContext(t.Context(), "SELECT last_command_sequence FROM inventory_runs WHERE job_id=?", fresh.RunID).Scan(&last); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.db.QueryRowContext(t.Context(), "SELECT count(*) FROM scan_command_receipts WHERE run_id=?", fresh.RunID).Scan(&receipts); err != nil || last != 0 || receipts != 0 {
+		t.Fatal("retired-library refusal committed a prefix", last, receipts, err)
 	}
 }
 
