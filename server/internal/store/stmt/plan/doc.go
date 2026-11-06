@@ -32,7 +32,12 @@
 // match table_xinfo. The exact name-to-key binding is pinned: a renumbered or
 // changed constraint fails rather than choosing a replacement. Every EQP row
 // must remain SEARCH-only on the certified key; scan/temp waivers cannot bypass
-// this restriction. Other generated-name forcing remains forbidden.
+// this restriction. Hints must be plain unquoted names in SELECT and DML.
+// The access subset is a full-key conjunctive point, or a single-source keyset:
+// equality on a leading prefix, at most one range on the immediately following
+// column, exact remaining (or full) key ORDER BY in one direction, and LIMIT.
+// Other generated-name forcing remains forbidden; ordinary named-index range
+// contracts are unchanged.
 // INSERT destinations require Capture's index/column and full FK audits instead
 // of a nonexistent destination SEARCH. UPSERT requires one expected full unique
 // index or PK resolved unambiguously by the exact conflict column set. Partial

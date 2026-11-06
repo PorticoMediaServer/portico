@@ -244,7 +244,7 @@ func autoindexSearch(a AutoIndexAudit, detail string) bool {
 
 // A forced generated-name capability is stricter than exceptional EQP waivers:
 // every row must be SEARCH, and every hinted alias must SEARCH its certified key.
-func checkAutoindexSearches(audits []AutoIndexAudit, eqp Rows) error {
+func checkAutoindexSearches(d stmt.Definition, audits []AutoIndexAudit, eqp Rows) error {
 	if len(audits) == 0 {
 		return nil
 	}
@@ -271,5 +271,5 @@ func checkAutoindexSearches(audits []AutoIndexAudit, eqp Rows) error {
 			return fmt.Errorf("autoindex %s bound to %s has no SEARCH for alias %s", a.Binding.Name, a.Binding.Table, a.Alias)
 		}
 	}
-	return nil
+	return checkAutoindexAccess(d, audits, eqp)
 }
