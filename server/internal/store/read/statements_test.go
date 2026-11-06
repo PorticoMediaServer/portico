@@ -47,7 +47,7 @@ func browseDefinitions() []stmt.Definition {
 		default:
 			empty[0] = int64(3)
 		}
-		out = append(out, stmt.Definition{ID: statementID(name), SQL: sql, Owner: "store/read", CallSites: []string{"store/read/browse.go:BrowseWindow"}, Kind: stmt.Read, Params: params, Cohorts: []stmt.Cohort{{Name: "present", Bindings: bindings}, {Name: "empty", Bindings: empty}}, Plan: p})
+		out = append(out, stmt.Definition{ID: statementID(name), SQL: sql, Owner: "store/read", CallSites: []string{"store/read/publication.go:BrowseReader.Window"}, Kind: stmt.Read, Params: params, Cohorts: []stmt.Cohort{{Name: "present", Bindings: bindings}, {Name: "empty", Bindings: empty}}, Plan: p})
 	}
 	add("global_authority", "SELECT authority_generation FROM identity_state WHERE singleton=?", []stmt.Param{i("singleton")}, []any{int64(1)}, stmt.Plan{Hot: true, PrimaryKeys: []string{"identity_state"}, Seeks: []string{"rowid=?"}})
 	add("principal", `SELECT a.id,p.id,m.incarnation,p.lifetime,a.epoch,m.role,m.allowed_libraries,p.allowed_libraries,t.expires_at,f.authorization_horizon,f.authority_generation,m.revision,COALESCE(pr.maximum_age,-1),COALESCE(pr.allow_unrated,1),COALESCE(pr.blocked_labels,'[]'),lim.account_id,p.revision,COALESCE(pr.revision,0)

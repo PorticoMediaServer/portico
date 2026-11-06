@@ -28,6 +28,8 @@ type browseFixture struct {
 	path      string
 	conn      *sql.Conn
 	snapshots *governor.Snapshots
+	reader    *BrowseReader
+	output    BrowseOutput
 	input     BrowseInput
 	facts     []browseFact
 }
@@ -53,7 +55,9 @@ func newBrowseFixture(t *testing.T) *browseFixture {
 		t.Fatal(err)
 	}
 	gc := governor.Config{Now: time.Now, MaxGrantsPerClass: 2}
-	gc.Partitions[governor.Foreground] = governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 16 << 20}
+	// Retained-output custody overlaps one12MiB physical read grant. This is
+	// test composition, not a production memory/default or GV ceiling change.
+	gc.Partitions[governor.Foreground] = governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 20 << 20}
 	g, a, err := governor.New(gc)
 	if err != nil {
 		t.Fatal(err)
@@ -64,6 +68,22 @@ func newBrowseFixture(t *testing.T) *browseFixture {
 	}
 	t.Cleanup(func() {
 		if err := f.snapshots.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	f.reader, err = NewBrowseReader(f.snapshots)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outputRequest := governor.Request{Key: governor.JobKey{Domain: 72, ID: "browse-output"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.MemoryBytes: 8 << 20}, Deadline: time.Now().Add(time.Hour)}
+	decision := g.Try(outputRequest)
+	if decision.Refusal != nil {
+		t.Fatal("retained-output admission", decision.Refusal)
+	}
+	f.output = BrowseOutput{Authority: a, Grant: decision.Grant, Request: outputRequest}
+	t.Cleanup(func() {
+		g.Cancel(decision.Grant)
+		if err := a.Retired(decision.Grant); err != nil {
 			t.Error(err)
 		}
 	})
@@ -155,18 +175,12 @@ func seedBrowse(t *testing.T, f *browseFixture) {
 	f.exec(t, "COMMIT")
 }
 
-func (f *browseFixture) window(t *testing.T, ctx context.Context, in BrowseInput) (BrowsePage, governor.SnapshotResult, error) {
+func (f *browseFixture) window(t *testing.T, ctx context.Context, in BrowseInput) (BrowsePage, BrowseReadResult, error) {
 	t.Helper()
 	r := governor.Request{Key: governor.JobKey{Domain: 71, ID: "browse-test"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 12 << 20}, Budget: governor.UnitBudget{RawRows: 100, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
-	var page BrowsePage
-	result, err := f.snapshots.Read(ctx, r, time.Second, func(s *governor.ReadScope) error {
-		var e error
-		page, e = BrowseWindow(s, in)
-		return e
-	})
-	// Test-only output is consumed immediately. A serving adapter needs separate
-	// output custody, not a refund of the snapshot's memory reservation.
-	return page, result, err
+	// The fixture retains its output grant through the test's last consumer.
+	// Window only borrows it; native cleanup cannot refund retained output.
+	return f.reader.Window(ctx, r, time.Second, f.output, in)
 }
 
 func TestBrowseTraversalMatchesIndependentFacts(t *testing.T) {
@@ -190,10 +204,10 @@ func TestBrowseTraversalMatchesIndependentFacts(t *testing.T) {
 					if err != nil || result.Refusal != nil {
 						t.Fatalf("read: %v %+v", err, result)
 					}
-					if page.RawRows > MaxRaw || page.RawPositions > page.RawRows || page.Statements > 7 || len(page.Items) > in.Limit {
+					if page.RawRows > MaxRaw || page.RawPositions > page.RawRows || result.LookupStatements > 7 || result.PublicationStatements != 5 || page.Statements != result.LookupStatements+result.PublicationStatements || page.Statements > 12 || len(page.Items) > in.Limit {
 						t.Fatalf("unbounded window: %+v", page)
 					}
-					if result.Ended.IsZero() || result.Ended.Sub(result.Started) > time.Second {
+					if result.Lookup.Ended.IsZero() || result.Publication.Ended.IsZero() || result.Elapsed > time.Second || result.Lookup.Ended.Sub(result.Lookup.Started) > time.Second || result.Publication.Ended.Sub(result.Publication.Started) > time.Second {
 						t.Fatal("snapshot physical lifetime")
 					}
 					for _, item := range page.Items {
