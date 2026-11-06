@@ -18,7 +18,13 @@ import (
 // sealed by the same Capture receipt as ordinary statements; it grants no
 // source/principal/command/resource custody or permission to write shadows.
 type FTSInsertAudit struct {
-	Slot          stmt.FTSInsertSlot  `json:"slot"`
+	Slot stmt.FTSInsertSlot `json:"slot"`
+	FTSFormatAudit
+}
+
+// Native format evidence only; operation authority still requires its closed
+// definition, exact VM audit and the complete opaque Capture receipt.
+type FTSFormatAudit struct {
 	Identity      string              `json:"identity"`
 	Engine        searchpolicy.Engine `json:"engine"`
 	Declaration   string              `json:"declaration"`
@@ -62,7 +68,25 @@ func inspectFTSInsert(ctx context.Context, conn *sql.Conn, d stmt.Definition) (*
 	if !ok {
 		return nil, fmt.Errorf("unknown FTS INSERT slot")
 	}
-	a := &FTSInsertAudit{Slot: d.Plan.NativeInsert, Identity: `"main"."` + spec.Table + `":fts5`, ShadowColumns: map[string]Rows{}}
+	a, err := inspectFixedFTSFormat(ctx, conn, spec.Table, []string{spec.Column}, ftsDeclaration(d.Plan.NativeInsert), "search_fragment_content", fragmentContentView,
+		[]string{"search_fragments", "search_generations"}, fragmentContentDDL())
+	if err != nil {
+		return nil, err
+	}
+	return &FTSInsertAudit{Slot: d.Plan.NativeInsert, FTSFormatAudit: *a}, nil
+}
+
+func fragmentContentDDL() map[string]string {
+	return map[string]string{
+		"search_fragments":   "30787de7a1ba0b7edbd8d0bd15bbb92c35564a5fd640ff112af3eb9a2835c307",
+		"search_generations": "8c985d8043ff6658f0d566e69d3b25b5c17bd5fae92b5fc149fb32f9eb540bfe",
+	}
+}
+
+// All callers select immutable literal targets through CLOSED operation switches.
+// This private inspector cannot mint a receipt or execute a native statement.
+func inspectFixedFTSFormat(ctx context.Context, conn *sql.Conn, table string, columns []string, declaration, contentViewName, contentView string, tables []string, contentDDL map[string]string) (*FTSFormatAudit, error) {
+	a := &FTSFormatAudit{Identity: `"main"."` + table + `":fts5`, ShadowColumns: map[string]Rows{}}
 	actual, err := sqliteconn.AttestEngine(ctx, conn)
 	if err != nil {
 		return nil, err
@@ -71,9 +95,9 @@ func inspectFTSInsert(ctx context.Context, conn *sql.Conn, d stmt.Definition) (*
 		return nil, fmt.Errorf("FTS INSERT requires the pinned physical engine/source identity")
 	}
 	a.Engine = searchpolicy.Engine{Version: actual.Version, SourceID: actual.SourceID}
-	names := []string{spec.Table, "search_fragment_content", "search_fragments", "search_generations"}
+	names := append([]string{table, contentViewName}, tables...)
 	for _, suffix := range []string{"config", "data", "docsize", "idx"} {
-		names = append(names, spec.Table+"_"+suffix)
+		names = append(names, table+"_"+suffix)
 	}
 	for _, name := range names {
 		var count int64
@@ -86,38 +110,34 @@ func inspectFTSInsert(ctx context.Context, conn *sql.Conn, d stmt.Definition) (*
 	}
 	var kind, classification string
 	var root int64
-	if err := conn.QueryRowContext(ctx, "SELECT type,rootpage,sql FROM main.sqlite_schema WHERE name=?", spec.Table).Scan(&kind, &root, &a.Declaration); err != nil {
+	if err := conn.QueryRowContext(ctx, "SELECT type,rootpage,sql FROM main.sqlite_schema WHERE name=?", table).Scan(&kind, &root, &a.Declaration); err != nil {
 		return nil, err
 	}
-	if err := conn.QueryRowContext(ctx, "SELECT type FROM pragma_table_list WHERE schema='main' AND name=?", spec.Table).Scan(&classification); err != nil {
+	if err := conn.QueryRowContext(ctx, "SELECT type FROM pragma_table_list WHERE schema='main' AND name=?", table).Scan(&classification); err != nil {
 		return nil, err
 	}
-	if kind != "table" || root != 0 || classification != "virtual" || a.Declaration != ftsDeclaration(a.Slot) {
+	if kind != "table" || root != 0 || classification != "virtual" || a.Declaration != declaration {
 		return nil, fmt.Errorf("FTS slot declaration/classification differs from fixed MAIN format")
 	}
-	if err := conn.QueryRowContext(ctx, "SELECT type,sql FROM main.sqlite_schema WHERE name=?", "search_fragment_content").Scan(&kind, &a.ContentView); err != nil {
+	if err := conn.QueryRowContext(ctx, "SELECT type,sql FROM main.sqlite_schema WHERE name=?", contentViewName).Scan(&kind, &a.ContentView); err != nil {
 		return nil, err
 	}
-	if kind != "view" || a.ContentView != fragmentContentView {
+	if kind != "view" || a.ContentView != contentView {
 		return nil, fmt.Errorf("FTS external-content view differs from fixed v1 relation")
 	}
-	for _, table := range []string{"search_fragments", "search_generations"} {
-		if err := mainBaseTable(ctx, conn, table); err != nil {
+	a.ContentTables = Rows{Columns: []string{"name", "sql"}, Values: [][]any{}}
+	for _, source := range tables {
+		if err := mainBaseTable(ctx, conn, source); err != nil {
 			return nil, err
 		}
+		row, err := query(ctx, conn, "SELECT name,sql FROM main.sqlite_schema WHERE name=?", source)
+		if err != nil || len(row.Values) != 1 {
+			return nil, fmt.Errorf("missing fixed FTS content table %s: %w", source, err)
+		}
+		a.ContentTables.Values = append(a.ContentTables.Values, row.Values[0])
 	}
-	a.ContentTables, err = query(ctx, conn, "SELECT name,sql FROM main.sqlite_schema WHERE name IN(?,?) ORDER BY name", "search_fragments", "search_generations")
-	if err != nil {
-		return nil, err
-	}
-	// These exact adopted declarations define the id/content/generation
-	// relation. A later schema change requires explicit review of this pin;
-	// it cannot silently acquire an existing native-slot capability.
-	contentDDL := map[string]string{
-		"search_fragments":   "30787de7a1ba0b7edbd8d0bd15bbb92c35564a5fd640ff112af3eb9a2835c307",
-		"search_generations": "8c985d8043ff6658f0d566e69d3b25b5c17bd5fae92b5fc149fb32f9eb540bfe",
-	}
-	if len(a.ContentTables.Values) != 2 {
+	// Exact adopted declarations define the native content relation.
+	if len(a.ContentTables.Values) != len(tables) {
 		return nil, fmt.Errorf("missing fixed FTS content/generation declarations")
 	}
 	for _, row := range a.ContentTables.Values {
@@ -130,21 +150,23 @@ func inspectFTSInsert(ctx context.Context, conn *sql.Conn, d stmt.Definition) (*
 			return nil, fmt.Errorf("FTS content/generation declaration changed: %v", row[0])
 		}
 	}
-	a.Columns, err = query(ctx, conn, "PRAGMA main.table_xinfo("+identifier(spec.Table)+")")
+	a.Columns, err = query(ctx, conn, "PRAGMA main.table_xinfo("+identifier(table)+")")
 	if err != nil {
 		return nil, err
 	}
-	wantColumns := Rows{Columns: []string{"cid", "name", "type", "notnull", "dflt_value", "pk", "hidden"}, Values: [][]any{
-		{int64(0), spec.Column, "", int64(0), nil, int64(0), int64(0)},
-		{int64(1), spec.Table, "", int64(0), nil, int64(0), int64(1)},
-		{int64(2), "rank", "", int64(0), nil, int64(0), int64(1)},
-	}}
+	wantColumns := Rows{Columns: []string{"cid", "name", "type", "notnull", "dflt_value", "pk", "hidden"}}
+	for n, column := range columns {
+		wantColumns.Values = append(wantColumns.Values, []any{int64(n), column, "", int64(0), nil, int64(0), int64(0)})
+	}
+	wantColumns.Values = append(wantColumns.Values,
+		[]any{int64(len(columns)), table, "", int64(0), nil, int64(0), int64(1)},
+		[]any{int64(len(columns) + 1), "rank", "", int64(0), nil, int64(0), int64(1)})
 	if !reflect.DeepEqual(a.Columns, wantColumns) {
 		return nil, fmt.Errorf("FTS visible/hidden columns differ from fixed slot")
 	}
 	// No alternate/extra shadow table or index may inherit this operation.
 	a.ShadowObjects, err = query(ctx, conn, `SELECT type,name,tbl_name,sql FROM main.sqlite_schema
-WHERE substr(tbl_name,1,?)=? ORDER BY name`, int64(len(spec.Table)+1), spec.Table+"_")
+WHERE substr(tbl_name,1,?)=? ORDER BY name`, int64(len(table)+1), table+"_")
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +184,7 @@ WHERE substr(tbl_name,1,?)=? ORDER BY name`, int64(len(spec.Table)+1), spec.Tabl
 			return nil, fmt.Errorf("invalid FTS shadow metadata")
 		}
 		name, nameOK := row[1].(string)
-		suffix := strings.TrimPrefix(name, spec.Table+"_")
+		suffix := strings.TrimPrefix(name, table+"_")
 		ddl, known := shadowDDL[suffix]
 		if !nameOK || !known || row[0] != "table" || row[2] != name || row[3] != "CREATE TABLE '"+name+"'"+ddl {
 			return nil, fmt.Errorf("FTS shadow declaration mismatch: %v", row)
@@ -179,7 +201,7 @@ WHERE substr(tbl_name,1,?)=? ORDER BY name`, int64(len(spec.Table)+1), spec.Tabl
 		}
 		a.ShadowColumns[name] = cols
 	}
-	a.Configuration, err = query(ctx, conn, "SELECT k,v FROM main."+identifier(spec.Table+"_config")+" ORDER BY k")
+	a.Configuration, err = query(ctx, conn, "SELECT k,v FROM main."+identifier(table+"_config")+" ORDER BY k")
 	if err != nil {
 		return nil, err
 	}

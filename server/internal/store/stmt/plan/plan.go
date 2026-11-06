@@ -63,13 +63,14 @@ type Golden struct {
 func (g Golden) Receipt() stmt.Receipt { return g.receipt }
 
 type StatementPlan struct {
-	ID           stmt.ID          `json:"id"`
-	Cohort       string           `json:"cohort"`
-	Explain      Rows             `json:"explain"`
-	QueryPlan    Rows             `json:"queryPlan"`
-	Insert       *InsertAudit     `json:"insert,omitempty"`
-	AutoIndexes  []AutoIndexAudit `json:"autoIndexes,omitempty"`
-	NativeInsert *FTSInsertAudit  `json:"nativeInsert,omitempty"`
+	ID             stmt.ID           `json:"id"`
+	Cohort         string            `json:"cohort"`
+	Explain        Rows              `json:"explain"`
+	QueryPlan      Rows              `json:"queryPlan"`
+	Insert         *InsertAudit      `json:"insert,omitempty"`
+	AutoIndexes    []AutoIndexAudit  `json:"autoIndexes,omitempty"`
+	NativeInsert   *FTSInsertAudit   `json:"nativeInsert,omitempty"`
+	NativeRetained *FTSRetainedAudit `json:"nativeRetained,omitempty"`
 }
 
 // Capture uses one caller-owned connection to prevent pool PRAGMA/statistics
@@ -103,6 +104,7 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 			return g, err
 		}
 		var native *FTSInsertAudit
+		var retained *FTSRetainedAudit
 		if entry.Plan.NativeInsert != "" {
 			if err := checkSyntax(entry.Definition); err != nil {
 				return g, err
@@ -110,6 +112,14 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 			native, err = inspectFTSInsert(ctx, conn, entry.Definition)
 			if err != nil {
 				return g, fmt.Errorf("plan %s native INSERT: %w", entry.ID, err)
+			}
+		} else if entry.Plan.NativeRetained != "" {
+			if err := checkSyntax(entry.Definition); err != nil {
+				return g, err
+			}
+			retained, err = inspectFTSRetained(ctx, conn, entry.Definition)
+			if err != nil {
+				return g, fmt.Errorf("plan %s retained native operation: %w", entry.ID, err)
 			}
 		} else if err := checkSyntaxOn(ctx, conn, entry.Definition); err != nil {
 			return g, err
@@ -123,7 +133,7 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 			return g, fmt.Errorf("plan %s parse: %w", entry.ID, err)
 		}
 		var table *dmlTable
-		if shape != nil && native == nil {
+		if shape != nil && native == nil && retained == nil {
 			table, err = inspectDMLTable(ctx, conn, shape)
 			if err != nil {
 				return g, fmt.Errorf("plan %s columns: %w", entry.ID, err)
@@ -145,11 +155,15 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 			if table != nil && !mainWriteRoot(full, table.root) {
 				return g, fmt.Errorf("plan %s: native destination does not match audited main table", entry.ID)
 			}
-			if native != nil {
+			if native != nil || retained != nil {
 				if !slices.Equal(eqp.Columns, []string{"id", "parent", "notused", "detail"}) || len(eqp.Values) != 0 {
 					return g, fmt.Errorf("plan %s: fixed FTS INSERT must have empty native EQP", entry.ID)
 				}
-				full, err = mapFTSInsertVM(full, native.Identity)
+				if native != nil {
+					full, err = mapFTSInsertVM(full, native.Identity)
+				} else {
+					full, err = mapFTSRetainedVM(full, retained.Slot, retained.Identity)
+				}
 				if err != nil {
 					return g, fmt.Errorf("plan %s/%s native INSERT: %w", entry.ID, cohort.Name, err)
 				}
@@ -188,7 +202,7 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 			if err != nil {
 				return g, fmt.Errorf("plan %s/%s EQP: %w", entry.ID, cohort.Name, err)
 			}
-			g.Plans = append(g.Plans, StatementPlan{ID: entry.ID, Cohort: cohort.Name, Explain: full, QueryPlan: eqp, Insert: insert, AutoIndexes: autoIndexes, NativeInsert: native})
+			g.Plans = append(g.Plans, StatementPlan{ID: entry.ID, Cohort: cohort.Name, Explain: full, QueryPlan: eqp, Insert: insert, AutoIndexes: autoIndexes, NativeInsert: native, NativeRetained: retained})
 		}
 	}
 	sources, err := capturedSources(ctx, conn, g.Manifest)
