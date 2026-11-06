@@ -55,7 +55,7 @@ func seedInventoryFresh(t *testing.T, e *executor) *inventoryAcceptCommand {
 		`INSERT INTO inventory_directories(job_id,relative_path,identity,revision,pages,skipped) VALUES('fresh-run','.','directory:11','directory:013',5,3)`,
 		`INSERT INTO catalog_membership_clock(singleton,sequence) VALUES(1,89)`,
 		`INSERT INTO catalog_age_item_counts VALUES(7,1,0,-1,97)`,
-		`INSERT INTO catalog_age_item_counts VALUES(7,1,1,-1,101)`,
+		`INSERT INTO catalog_age_item_counts VALUES(7,1,1,7,101)`,
 	} {
 		if _, err := e.db.ExecContext(t.Context(), q); err != nil {
 			t.Fatal(err)
@@ -212,7 +212,8 @@ AND (SELECT count(*)=0 FROM scan_command_results) AND (SELECT count(*)=0 FROM ca
 AND (SELECT count(*)=0 FROM catalog_asset_contributions) AND (SELECT count(*)=0 FROM catalog_asset_links)
 AND (SELECT count(*)=0 FROM search_publish_jobs) AND (SELECT sequence=89 FROM catalog_membership_clock WHERE singleton=1)
 AND (SELECT total=97 FROM catalog_age_item_counts WHERE library_id=7 AND kind=1 AND block_unrated=0 AND admission_age=-1)
-AND (SELECT total=101 FROM catalog_age_item_counts WHERE library_id=7 AND kind=1 AND block_unrated=1 AND admission_age=-1)
+AND (SELECT total=101 FROM catalog_age_item_counts WHERE library_id=7 AND kind=1 AND block_unrated=1 AND admission_age=7)
+AND (SELECT count(*)=0 FROM catalog_age_item_counts WHERE library_id=7 AND kind=1 AND block_unrated=1 AND admission_age=-1)
 AND (SELECT data_revision=71 AND data_order_revision=73 AND data_metadata_revision=79 AND age_input_revision=83 AND age_published_revision=83 AND age_pending_operations=0 FROM libraries WHERE id='fresh-library')
 AND (SELECT discovered=59 AND job_revision=41 AND last_command_sequence=18 AND acknowledged_command_sequence=18 FROM inventory_runs WHERE job_id='fresh-run')
 AND (SELECT processed=67 FROM jobs WHERE id='fresh-run')
@@ -261,7 +262,8 @@ AND (SELECT admission_allow_age=-1 AND admission_known_age IS NULL AND admission
 AND (SELECT contributor_revision=e.scalar_source_revision AND membership_sequence=90 AND c.duration IS NULL AND c.community_rating IS NULL AND c.critic_rating IS NULL AND c.resolution IS NULL AND c.latest_aired_key IS NULL AND c.admission_age IS NULL FROM catalog_scalar_contributions c JOIN catalog_entities e ON e.id=c.parent_id WHERE c.parent_id=? AND c.contributor_id=? AND c.source=0)
 AND (SELECT membership_refs=1 AND authored_refs=0 AND file_size=42 AND c.file_size_revision=a.file_size_revision FROM catalog_asset_contributions c JOIN catalog_assets a ON a.id=c.asset_id WHERE c.parent_id=? AND c.asset_id=?)
 AND (SELECT total=98 FROM catalog_age_item_counts WHERE library_id=7 AND kind=1 AND block_unrated=0 AND admission_age=-1)
-AND (SELECT total=101 FROM catalog_age_item_counts WHERE library_id=7 AND kind=1 AND block_unrated=1 AND admission_age=-1)
+AND (SELECT total=101 FROM catalog_age_item_counts WHERE library_id=7 AND kind=1 AND block_unrated=1 AND admission_age=7)
+AND (SELECT count(*)=0 FROM catalog_age_item_counts WHERE library_id=7 AND kind=1 AND block_unrated=1 AND admission_age=-1)
 AND (SELECT data_revision=72 AND data_order_revision=74 AND data_metadata_revision=80 AND age_input_revision=84 AND age_published_revision=84 AND age_pending_operations=0 FROM libraries WHERE id='fresh-library')
 AND (SELECT state='available' AND retired=0 AND analysis_state='pending' AND analysis_revision='' AND has_analysis_probe_bindings=0 AND object_identity='ino:31' AND revision=? FROM inventory_objects WHERE id=?)
 AND (SELECT info_epoch=? AND info_owner_object IS NULL AND info_owner_revision IS NULL AND size=42 AND file_size_revision>0 FROM catalog_assets WHERE id=?)
@@ -382,7 +384,7 @@ func TestInventoryFreshNativeDirtyAgeAndAbsentBucket(t *testing.T) {
 			if _, err := applyInventoryAccept(t.Context(), turn, c); err != nil {
 				t.Fatal(err)
 			}
-			var input, published, pending, total, blocked int64
+			var input, published, pending, total, blocked, wrongBucket int64
 			if err := turn.transaction.conn.QueryRowContext(t.Context(), `SELECT age_input_revision,age_published_revision,age_pending_operations FROM libraries WHERE id='fresh-library'`).Scan(&input, &published, &pending); err != nil {
 				t.Fatal(err)
 			}
@@ -393,15 +395,15 @@ func TestInventoryFreshNativeDirtyAgeAndAbsentBucket(t *testing.T) {
 			if input != state.input+1 || published != wantPublished || pending != state.pending {
 				t.Fatal("dirty frontier made current", input, published, pending)
 			}
-			if err := turn.transaction.conn.QueryRowContext(t.Context(), `SELECT (SELECT total FROM catalog_age_item_counts WHERE block_unrated=0),(SELECT total FROM catalog_age_item_counts WHERE block_unrated=1)`).Scan(&total, &blocked); err != nil {
+			if err := turn.transaction.conn.QueryRowContext(t.Context(), `SELECT (SELECT total FROM catalog_age_item_counts WHERE block_unrated=0),(SELECT total FROM catalog_age_item_counts WHERE block_unrated=1 AND admission_age=7),(SELECT count(*) FROM catalog_age_item_counts WHERE block_unrated=1 AND admission_age=-1)`).Scan(&total, &blocked, &wrongBucket); err != nil {
 				t.Fatal(err)
 			}
 			wantTotal := int64(98)
 			if state.absent {
 				wantTotal = 1
 			}
-			if total != wantTotal || blocked != 101 {
-				t.Fatal("wrong unrated count", total, blocked)
+			if total != wantTotal || blocked != 101 || wrongBucket != 0 {
+				t.Fatal("wrong unrated count", total, blocked, wrongBucket)
 			}
 			if err := turn.closeRows(); err != nil {
 				t.Fatal(err)
