@@ -33,7 +33,7 @@ func TestScanRunLifecycleStatementPlans(t *testing.T) {
 	}
 	hash := sha256.Sum256(data[start:end])
 	fixtureSHA := hex.EncodeToString(hash[:])
-	if fixtureSHA != "f96f8813659786b14397a566f6475d834aec9173ad4e3ba2b4f877e07d5a4af0" || schema.SHA256 != "debd5c771b520ea7003dcf1042328941b6d090137b8f685100664d35f4ab0d3e" {
+	if fixtureSHA != "f96f8813659786b14397a566f6475d834aec9173ad4e3ba2b4f877e07d5a4af0" || schema.SHA256 != "f83d526e0552f053cbb4c11af33d389841fdda4a734e2b00cb54eee8666ac10c" {
 		t.Fatal("frozen seed/schema changed; review before recording")
 	}
 	defs := scanRunLifecycleDefinitions()
@@ -111,7 +111,7 @@ func TestScanRunLifecycleStatementPlans(t *testing.T) {
 	if _, err := stmt.New(defs, golden.Receipt()); err != nil {
 		t.Fatal("exact full-set Capture receipt refused", err)
 	}
-	if len(golden.Manifest) != 12 || len(golden.Plans) != 19 || golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 661 {
+	if len(golden.Manifest) != 12 || len(golden.Plans) != 19 || golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 670 {
 		t.Fatal("incomplete lifecycle Capture")
 	}
 	audits, opcodes, searches := 0, 0, 0
@@ -146,7 +146,7 @@ func TestScanRunLifecycleStatementPlans(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := plan.CompareExactJSON(readScanFreshFK(t, filepath.Join("testdata", "scan-inventory-accept-fk.json.gz")), fkJSON); err != nil {
-		t.Fatal("STOP: lifecycle changed existing full656-FK image", err)
+		t.Fatal("STOP: lifecycle changed existing full670-FK image", err)
 	}
 	golden.ForeignKeys = nil
 	actual, err := golden.JSON()
@@ -181,5 +181,5 @@ func TestScanRunLifecycleStatementPlans(t *testing.T) {
 	if err := plan.CompareExactJSON(readScanFreshFK(t, fkPath), fkJSON); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("12definitions/19cohorts/6INSERTaudits/%dVM/%dSEARCH/661FK1983probes; same frozen pre-effect seed, no production profile/authority/enable", opcodes, searches)
+	t.Logf("12definitions/19cohorts/6INSERTaudits/%dVM/%dSEARCH/670FK2010probes; same frozen pre-effect seed, no production profile/authority/enable", opcodes, searches)
 }
