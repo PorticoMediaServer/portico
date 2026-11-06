@@ -572,3 +572,43 @@ inventory_runs original scope is write-once. Only its declared native lease/revi
 - New partial predicates: NONE. Existing INDEX-POLICY/contributions/type-table lists remain byte-identical007. Complete plans/counts are in010a RESULTS/FK; no actual W/SC command or runtime qualification follows.
 
 Lifecycle source_revision is SQLNULL iff inventory_create/inventory_claim; original kinds remain nonNULL. Separate lifecycle decoder must bind this absence by kind; no Inventory object-revision alias. Conditional same-owner live renewal must repeat exact owner/generation, exclude unresolved/old-generation work and advance generation/runR/sequence; other-owner live lease refuses.
+
+
+## CHANGE-008: actual security/progress owners and bounded event retention
+
+Closed FIRST carriers: authorization_session_families permanent admin_revoke scalar; playback_personal_claims independent command incarnation/last/ACK with one unresolved command; playback_claim_command_receipts typed capture_report/drain_piece children; fixed progress_receipt_reclaim scalar on claim, no cleanup child/self-reclaim chain. Existing command IDs/classes remain W-owned; this SQL is an exact native read/access contract, NOT executable registry/permission issuance. Native row/byte charge is each row's VIRTUAL sum of ALL persisted TEXT/BLOB bytes; generated facts are not stored payload or caller grants.
+
+Static statements (bound values shown by named parameters; no interpolated identifiers):
+
+```sql
+SELECT * FROM authorization_session_families WHERE id=:family;
+SELECT * FROM playback_personal_claims WHERE playback_id=:playback;
+SELECT * FROM playback_claim_command_receipts
+ WHERE playback_id=:playback AND command_incarnation=:inc AND command_sequence=:sequence;
+SELECT command_sequence,variable_bytes FROM playback_claim_command_receipts
+ WHERE playback_id=:playback AND command_incarnation=:inc
+ AND command_sequence>:physical_cursor AND command_sequence<=:captured_ack
+ ORDER BY command_sequence LIMIT 1;
+SELECT playback_id FROM playback_personal_claims
+ WHERE receipt_reclaim_due_ms<=:now ORDER BY receipt_reclaim_due_ms,playback_id LIMIT 1;
+SELECT id FROM authorization_session_families
+ WHERE teardown_due_ms<=:now ORDER BY teardown_due_ms,id LIMIT 1;
+SELECT * FROM play_history WHERE id=:original_start;
+SELECT * FROM personal_activity_revisions WHERE profile_id=:personal_key;
+DELETE FROM api_events WHERE id=:selected_exact_id;
+```
+
+api_events is unchanged; its complete non-NULL TEXT charge projection is explicit:
+
+```sql
+SELECT id, length(CAST(audience AS BLOB))+length(CAST(type AS BLOB))
+ +length(CAST(resource_kind AS BLOB))+length(CAST(resource_id AS BLOB))
+ +length(CAST(revision AS BLOB))+length(CAST(data AS BLOB)) AS variable_bytes
+ FROM api_events WHERE id<=:cutoff ORDER BY id LIMIT 1;
+```
+
+The actual W parent appender owns ONE bounded oldest eligible victim per inserted hint, cutoff=actual returned id−existing RingSize20000, inclusive <=. Select PK+actual old bytes, delete only that full key, actual cardinality; no global/range trim or separate receipt. Parent effects/result and physical debit commit atomically. Replay produces no event or eviction. Fresh empty qualified database plus exclusive compliant monotonic-ID appenders gives committed rows<=20000 even with ID gaps; feed cursor gap/resync/current audience authority remain mandatory. Complete transient insert+indices+old-victim memory/IO/WAL and FULL security reserve must fit; row bound is not a byte/hold qualification.
+
+Source proof validates START kind=started at ONE PK point against retained claim birth lifetimes, playback/occurrence, profile/subject/public/library and original snapshot; arbitrary old event or current strings do not qualify. Current original occurrence pointer persists after pending clear; pending has its own exact point/generation. Historical receipt lookup runs before current pending/source/privacy/overflow; requested-key source-child and exact matching cleanup-slot lookup never uses a newer slot as old proof. Floor-first public ResultRetired is independent of retained bytes.
+
+Only effective pause-history changes advance history_policy_generation, same lifetime and same preference commit; no unrelated preference/identity/action/report alias. Time drain increments viewer_revisions.observation_revision and personal_activity_revisions.revision once; preserves personal_items.revision and viewer semantic revision. Three fixed adopted hints, one admin TIME append, one exact span path and six own bucket deltas remain whole admitted Work. Native type/shape/PK/EQP fixtures establish storage/access only; actual W minter/wire/registry/producer/Capture/crash/resource/physical qualification remains open.
