@@ -28,7 +28,7 @@ legacy layouts fail closed. It executes no bootstrap DDL, ANALYZE, migration,
 repair or seed. It does not inspect user data, prove its integrity or authorize
 access; those are separate startup responsibilities.
 
-The adopted003 file header is explicitly `application_id=0`, `user_version=0`
+The adopted005 file header is explicitly `application_id=0`, `user_version=0`
 and `encoding=UTF-8`. The zeros preserve the reviewed bootstrap; they are not
 layout identity markers. Verification checks them without rewriting them.
 Fresh bootstrap refuses incompatible headers rather than adopting them.
@@ -86,3 +86,19 @@ R-26 diagnostics, R-27 byte debt/retention/bounded cleanup and R-28 correct nati
 protection from escaped diagnostics remain gates on the actual Refuse command
 and qualification. No source acceptance, EOF, availability or physical pass is
 implied by a refusal receipt or by this embedding.
+
+
+INT-CHANGE-005 is adopted at 45c96755 after independent R agreement. It adds
+operation-to-evidence-build custody, captured actual owner incarnation/generation,
+a single active root per owner and bounded owner/state discovery indexes. Provider
+operations remain the actual command/receipt owners; the build is not a new job.
+Original receipt resolution precedes fresh checks. Owner generation is historical;
+fresh commands still verify the full current source/provider/entity/root vector.
+ACK-before-detach and discoverable charged retirement debt remain mandatory.
+The evidence-normalized-charge-v1 recipe counts actual persisted TEXT/BLOB bytes;
+resource limits are trusted runtime policy, not DDL caps or performance evidence.
+The companion contracts retain their reviewed proposal-era provenance verbatim;
+the adoption supersedes their old status qualifiers. No CHANGE-004/native banks,
+006 diagnostic cleanup, accepting result wire, runtime connection, seed or
+migration is included. W result/receipt semantics, fresh predicates, ACK/reclaim,
+resource enforcement, crash and runtime/physical qualifications remain open.
