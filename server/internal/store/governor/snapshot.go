@@ -284,7 +284,8 @@ func (s *Snapshots) Close() error {
 }
 
 type ReadScope struct {
-	op                       sync.Mutex // native operations only; never held across consumer code
+	cleanupContext           func() (context.Context, context.CancelFunc) // CP clock seam; nil keeps snapshot cleanup policy
+	op                       sync.Mutex                                   // native operations only; never held across consumer code
 	closed                   atomic.Bool
 	conn                     *sql.Conn
 	began, discard           bool
@@ -453,7 +454,13 @@ func (s *ReadScope) closeNative(forceDiscard bool) (err error, safe bool) {
 	if s.conn == nil {
 		return nil, true
 	}
-	cleanup, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+	cleanupContext := s.cleanupContext
+	if cleanupContext == nil {
+		cleanupContext = func() (context.Context, context.CancelFunc) {
+			return context.WithTimeout(context.Background(), 25*time.Millisecond)
+		}
+	}
+	cleanup, cancel := cleanupContext()
 	defer cancel()
 	if s.owned != nil {
 		s.failedRaw = s.owned

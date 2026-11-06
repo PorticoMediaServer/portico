@@ -134,16 +134,17 @@ type UnitBudget struct {
 	Pages   uint32
 }
 type Request struct {
-	Budget    UnitBudget // prospective legal work, checked by private writer per sub-batch
-	IO        []DeviceIO // exact physical-device slices; HDD outstanding <=1
-	Key       JobKey
-	Owner     OwnerID
-	Class     Class
-	Need      Amounts
-	Writer    bool
-	MaxHold   time.Duration
-	Deadline  time.Time
-	Footprint []Scope
+	RestartRisk WALRestartRisk // optional exact prospective metadata; no independent authority
+	Budget      UnitBudget     // prospective legal work, checked by private writer per sub-batch
+	IO          []DeviceIO     // exact physical-device slices; HDD outstanding <=1
+	Key         JobKey
+	Owner       OwnerID
+	Class       Class
+	Need        Amounts
+	Writer      bool
+	MaxHold     time.Duration
+	Deadline    time.Time
+	Footprint   []Scope
 }
 type RefusalCode uint8
 

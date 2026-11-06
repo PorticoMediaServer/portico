@@ -64,6 +64,7 @@ type Checkpointer struct {
 	lastStart           time.Time
 	sequence            uint64
 	closed, unqualified bool
+	deadlineContext     func(context.Context, time.Time) (context.Context, context.CancelFunc)
 	pending             *ReadScope // shared reviewed physical cleanup protocol, no read callback
 }
 
@@ -76,7 +77,7 @@ func NewCheckpointer(connector driver.Connector, cfg sqliteconn.Config, g Govern
 		return nil, sqliteconn.ErrPolicy
 	}
 	owner := &snapshotOwnedConnector{Connector: connector, failed: make(map[*snapshotOwnedConn]error)}
-	return &Checkpointer{pool: newSnapshotPool(owner, 1), owner: owner, config: cfg, policy: policy, governor: g, authority: a, wal: a.ledger.config.WAL}, nil
+	return &Checkpointer{pool: newSnapshotPool(owner, 1), owner: owner, config: cfg, policy: policy, governor: g, authority: a, wal: a.ledger.config.WAL, deadlineContext: context.WithDeadline}, nil
 }
 
 func (c *Checkpointer) Step(parent context.Context, r Request) (out CheckpointResult, err error) {
@@ -101,7 +102,7 @@ func (c *Checkpointer) Step(parent context.Context, r Request) (out CheckpointRe
 	if r.MaxHold > c.policy.MaxHold {
 		return out, ErrCheckpointBudget
 	}
-	out.Requested = time.Now()
+	out.Requested = c.authority.ledger.config.Now()
 	out.EligibleInterval = checkpointSpacing(c.policy)
 	until := minTime(out.Requested.Add(c.policy.MaxWait), r.Deadline)
 	if parentDeadline, ok := parent.Deadline(); ok {
@@ -112,7 +113,7 @@ func (c *Checkpointer) Step(parent context.Context, r Request) (out CheckpointRe
 		return out, ticketErr
 	}
 	defer c.authority.cancelCheckpointTicket(ticket)
-	wait, stopWait := context.WithDeadline(parent, until)
+	wait, stopWait := c.deadlineContext(parent, until)
 	defer stopWait()
 	select {
 	case <-ticket.ready:
@@ -122,7 +123,7 @@ func (c *Checkpointer) Step(parent context.Context, r Request) (out CheckpointRe
 	if err = wait.Err(); err != nil {
 		return out, err
 	}
-	turnStart := time.Now()
+	turnStart := c.authority.ledger.config.Now()
 	d := c.authority.tryCheckpointTurn(r, ticket)
 	if d.Refusal != nil {
 		out.Refusal = d.Refusal
@@ -130,15 +131,18 @@ func (c *Checkpointer) Step(parent context.Context, r Request) (out CheckpointRe
 	}
 	out.Started = turnStart
 	deadline := minTime(out.Started.Add(r.MaxHold), r.Deadline)
-	ctx, stop := context.WithDeadline(parent, deadline)
+	ctx, stop := c.deadlineContext(parent, deadline)
 	defer stop()
 	queries, cancel := context.WithCancel(ctx)
 	scope := &ReadScope{ctx: queries, cancel: cancel, authority: c.authority, grant: d.Grant, expected: r, config: c.config}
+	scope.cleanupContext = func() (context.Context, context.CancelFunc) {
+		return c.deadlineContext(context.Background(), c.authority.ledger.config.Now().Add(25*time.Millisecond))
+	}
 	defer func() {
 		original := recover()
 		c.governor.Cancel(d.Grant)
 		cleanup, safe := scope.closeNative(err != nil || ctx.Err() != nil)
-		out.PhysicalReturned = time.Now()
+		out.PhysicalReturned = c.authority.ledger.config.Now()
 		out.PhysicalSafe = safe
 		err = errors.Join(err, cleanup, ctx.Err())
 		scope.nativeSafe.Store(safe)
@@ -155,20 +159,20 @@ func (c *Checkpointer) Step(parent context.Context, r Request) (out CheckpointRe
 				c.authority.EnterStatic()
 				c.pending = scope
 			} else {
-				out.RetiredAt = time.Now()
+				out.RetiredAt = c.authority.ledger.config.Now()
 				// A separate composition observation budget covers this work, as for W.
 				// Old headroom remains invalid on failure/staleness. Sampling is not hidden
 				// inside the native CP interval or charged to a grant already retired.
 				if out.DatabaseMatched {
-					out.SampleStarted = time.Now()
+					out.SampleStarted = c.authority.ledger.config.Now()
 					token := c.wal.Observation()
 					after, sampleErr := ReadWAL(c.policy.DatabasePath)
 					if sampleErr != nil {
 						after = WALState{}
 					}
-					publishErr := c.wal.Publish(token, after, time.Now())
+					publishErr := c.wal.Publish(token, after, c.authority.ledger.config.Now())
 					out.After = after
-					out.SampleEnded = time.Now()
+					out.SampleEnded = c.authority.ledger.config.Now()
 					err = errors.Join(err, sampleErr, publishErr)
 				}
 			}
@@ -239,10 +243,10 @@ func (c *Checkpointer) Step(parent context.Context, r Request) (out CheckpointRe
 	}
 	c.sequence++
 	out.Sequence = c.sequence
-	out.NativeStarted = time.Now()
+	out.NativeStarted = c.authority.ledger.config.Now()
 	c.lastStart = out.NativeStarted
 	err = scope.conn.QueryRowContext(queries, "PRAGMA wal_checkpoint(PASSIVE)").Scan(&out.Busy, &out.Frames, &out.Backfilled)
-	out.NativeEnded = time.Now()
+	out.NativeEnded = c.authority.ledger.config.Now()
 	if err == nil && (out.Busy < 0 || out.Busy > 1 || out.Frames < 0 || out.Backfilled < 0 || out.Backfilled > out.Frames) {
 		err = ErrWALObservation
 	}
