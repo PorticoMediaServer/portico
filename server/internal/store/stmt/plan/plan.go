@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -130,7 +131,7 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 				}
 			} else if shape == nil && writesDatabase(full) {
 				return g, fmt.Errorf("plan %s: unrecognized write structure cannot skip DML audits", entry.ID)
-			} else if err := Check(entry.Definition, eqp); err != nil {
+			} else if err := checkCaptured(entry.Definition, eqp); err != nil {
 				return g, err
 			}
 			full, err = canonicalVM(full, roots)
@@ -147,10 +148,18 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 	return g, nil
 }
 
-// Check enforces read-seek contracts beyond the exact full-plan golden. Named
-// indexes remain forced; autoindexes are asserted only in EQP. INSERT requires
-// Capture's destination, conflict-key and FK audits instead of a target SEARCH.
-func Check(d stmt.Definition, eqp Rows) error {
+var ErrCaptureRequired = errors.New("qualification requires connection-aware Capture")
+
+// Check cannot qualify a statement from caller-supplied SQL/EQP alone. Source,
+// policy and DML certification require Capture on the actual immutable fixture.
+// Deprecated: use Capture. This connection-free API always refuses qualification.
+func Check(d stmt.Definition, _ Rows) error {
+	return fmt.Errorf("plan %s: %w", d.ID, ErrCaptureRequired)
+}
+
+// Only Capture may invoke this after live source, policy and DML inspection.
+// CheckEQP and the lexical lint are component checks, not qualification receipts.
+func checkCaptured(d stmt.Definition, eqp Rows) error {
 	if err := checkBase(d, eqp); err != nil {
 		return err
 	}

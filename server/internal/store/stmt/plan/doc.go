@@ -16,6 +16,9 @@
 // tables. LintSQLOn performs this live check (including TEMP shadow rejection);
 // Capture always invokes it. SQL-only LintSQL cannot certify catalog identity.
 // Views, virtual/shadow tables and unresolved sources grant no qualification.
+// Capture is the sole complete statement qualification entry point. Deprecated
+// connection-free Check always returns ErrCaptureRequired. LintSQL/LintSQLOn
+// and CheckEQP are component inspections, not Hot/registry certification.
 // INSERT accepts one explicit column/parameter VALUES row, optional named
 // ON CONFLICT(columns) DO NOTHING/DO UPDATE SET column=excluded.column|?,
 // and plain-column RETURNING. UPDATE requires SET and WHERE, DELETE requires
