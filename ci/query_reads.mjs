@@ -60,7 +60,7 @@ export function analyseQueryReads(input,runtime={}) {
  const snapshot=runtime.snapshot ?? api.updateSnapshot({openProjects:input.configs.map(config=>resolve(root,config))});
  const found={},done=new Set(),loaded=new Set(),invariant=[];
  try {
-for (const project of snapshot.getProjects()) {
+for (const project of runtime.projects??snapshot.getProjects()) {
   const checker = project.checker;
   const names = new Map();
   for (const fileName of project.program.getSourceFileNames()) {

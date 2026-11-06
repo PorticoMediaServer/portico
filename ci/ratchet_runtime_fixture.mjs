@@ -22,7 +22,7 @@ const initial=()=>({
 let assertions=0;
 for(const kind of ['census','query']) {
  const worker=new TypedRatchet(root,kind);let sources=initial();
- const request=()=>({root,kind,files:Object.keys(sources).filter(p=>p.startsWith('web/src/')&&p.endsWith('.ts')),configs:['web/tsconfig.json'],sources:Object.fromEntries(Object.entries(sources).map(([p,text])=>[p,{text,oid:oid(text)}]))});
+ const request=()=>({root,kind,files:Object.keys(sources).filter(p=>p.startsWith('web/src/')&&p.endsWith('.ts')&&!p.includes('/__tests__/')),configs:['web/tsconfig.json'],sources:Object.fromEntries(Object.entries(sources).map(([p,text])=>[p,{text,oid:oid(text)}]))});
  function check(expected,label) {
   const input=request(),result=worker.advance(input),fresh=new TypedRatchet(root,kind);
   try {
@@ -56,12 +56,12 @@ for(const kind of ['census','query']) {
   sources['web/src/supplier.ts']=local;check(0,'new module shadows an existing resolution');
   delete sources['web/src/supplier.ts'];check(1,'deletion restores the other resolution');
   sources['web/src/caller.ts']="import {makeClient} from '@source'; const api=makeClient();api.consume('/v1/items');";
-  sources['web/tsconfig.json']=JSON.stringify({...config,compilerOptions:{...config.compilerOptions,baseUrl:'.',paths:{'@source':['src/alternate.ts']}}});
+  sources['web/tsconfig.json']=JSON.stringify({...config,compilerOptions:{...config.compilerOptions,paths:{'@source':['./src/alternate.ts']}}});
   // The census deliberately uses its existing synthetic project, independent
   // of app tsconfig aliases. The query counter uses the actual project options.
   if(kind==='query') {
    check(0,'changed tsconfig alias');
-   sources['web/tsconfig.json']=JSON.stringify({...config,compilerOptions:{...config.compilerOptions,baseUrl:'.',paths:{'@source':['src/supplier.tsx']}}});
+   sources['web/tsconfig.json']=JSON.stringify({...config,compilerOptions:{...config.compilerOptions,paths:{'@source':['./src/supplier.tsx']}}});
    check(1,'configuration changes an unchanged caller');
   }
   sources=initial();
@@ -75,6 +75,12 @@ for(const kind of ['census','query']) {
   sources['packages/client-core/package.json']=JSON.stringify({name:'@portico/client-core',types:'src/index.ts'});
   sources['web/src/caller.ts']="import type {HttpLocalApi} from '@portico/client-core'; declare const api:HttpLocalApi; api.consume('/v1/items');";
   check(1,'workspace resolution without a physical node_modules link');
+  sources=initial();
+  sources['web/src/caller.ts']="import {extra} from './__tests__/extra'; extra();";
+  sources['web/src/__tests__/extra.ts']='export function extra() {return 1;}';
+  check(0,'reachable excluded source is harmless');
+  sources['web/src/__tests__/extra.ts']="export function extra() {return fetch('/v1/hidden');}";
+  check(1,'unchanged importer inventories requests added to excluded source');
   assert.equal(worker.stats.projectOpens,1,'compiler projects remain open across all increments');assertions++;
  } finally {worker.close();}
 }
