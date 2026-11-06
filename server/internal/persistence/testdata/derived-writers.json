@@ -3935,7 +3935,7 @@
       ]
     },
     "internal/catalog/scalebench/playlist.go": {
-      "sha256": "36663e22a8f8e22e4443b9832f0de05cff6e79807884616c8340e75de5bc79a7",
+      "sha256": "ec1d81f3899ea13784727c6c59d539f5a36a73208e28f7bbe9f1c0dde5c754a3",
       "effects": [
         {
           "table": "*",
