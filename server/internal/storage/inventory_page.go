@@ -103,7 +103,7 @@ func (c *Client) nativeInventoryOwned(ctx context.Context, owner *OperationScope
 	if len(wire.MountedRoot) > naming.MaxPathBytes || bytes.IndexByte(wire.MountedRoot, 0) >= 0 {
 		return empty, ErrNativeInventory
 	}
-	data, err := json.Marshal(request{Operation: "inventory-page-native-v1", NativeInventory: &wire})
+	data, err := marshalNativeRequest(&wire)
 	if err != nil || len(data) > 64<<10 {
 		return empty, ErrNativeInventory
 	}
@@ -179,7 +179,7 @@ func (c *Client) inventoryRequest(ctx context.Context, key, op string, r Invento
 				return ErrNativeInventory
 			}
 			if err := json.Unmarshal(raw, page); err != nil {
-				return err
+				return errors.Join(ErrNativeInventory, err)
 			}
 			return validateNativePage(*page, native.request)
 		}

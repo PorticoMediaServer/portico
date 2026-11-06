@@ -40,7 +40,6 @@ func FileObjectIdentity(file *os.File) (string, error) {
 }
 
 type request struct {
-	NativeInventory *nativeInventoryWire `json:"nativeInventory,omitempty"`
 	// PinnedPlayback distinguishes an accepted source-less pin from no session.
 	PinnedPlayback  bool             `json:"pinnedPlayback,omitempty"`
 	PlaybackBinding *PlaybackBinding `json:"playbackBinding,omitempty"`
@@ -196,8 +195,23 @@ func (c *Client) Inventory(ctx context.Context, key, path string, visit func(Sna
 }
 func Helper(in io.Reader, out io.Writer) (result error) {
 	var r request
-	decoder := json.NewDecoder(io.LimitReader(in, 64<<10))
-	if e := decoder.Decode(&r); e != nil {
+	var captured bytes.Buffer
+	decoder := json.NewDecoder(io.TeeReader(io.LimitReader(in, 64<<10), &captured))
+	var raw json.RawMessage
+	if e := decoder.Decode(&raw); e != nil {
+		if nativeEnvelopeCandidate(captured.Bytes()) {
+			return errors.Join(ErrNativeInventory, e)
+		}
+		return e
+	}
+	if native, matched, e := decodeNativeEnvelope(raw); matched {
+		if e != nil {
+			return e
+		}
+		return nativeInventoryHelper(native, out)
+	}
+	// Keep legacy JSON permissive, including its retained-stream buffered input.
+	if e := json.Unmarshal(raw, &r); e != nil {
 		return e
 	}
 	if r.MountedRoot != "" {
@@ -224,8 +238,6 @@ func Helper(in io.Reader, out io.Writer) (result error) {
 			return errors.New("missing watcher request")
 		}
 		return inventoryWatchHelper(*r.Watch, out)
-	case "inventory-page-native-v1":
-		return nativeInventoryHelper(r.NativeInventory, out)
 	case "inventory-page":
 		if r.Inventory == nil {
 			return errors.New("missing inventory request")

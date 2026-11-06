@@ -102,7 +102,7 @@ func TestNativeInventoryNULAndUndecodableWireRefuse(t *testing.T) {
 	// path policy. They cannot become a truncated valid path or cursor progress.
 	for _, raw := range [][]byte{{0, 0xff}, {0xff, 0}, {1, 0, 1}} {
 		q.RelativePath = raw
-		wire, err := json.Marshal(request{Operation: "inventory-page-native-v1", NativeInventory: &nativeInventoryWire{NativeInventoryRequest: q}})
+		wire, err := marshalNativeRequest(&nativeInventoryWire{NativeInventoryRequest: q})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -170,4 +170,68 @@ func TestNativeInventoryCancellationJoinsRealOwner(t *testing.T) {
 		t.Fatal("owner cannot be reused", err)
 	}
 	release()
+}
+
+func TestNativeInventoryRejectsDuplicateAliasAndUnknownEnvelope(t *testing.T) {
+	root := t.TempDir()
+	good, err := marshalNativeRequest(&nativeInventoryWire{NativeInventoryRequest: NativeInventoryRequest{Root: []byte(root), RelativePath: []byte("."), Limit: 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"duplicate_limit", "relative_alias", "operation_alias", "payload_alias", "unknown_envelope", "unknown_body", "native_then_legacy", "truncated_native"} {
+		t.Run(name, func(t *testing.T) {
+			wire := bytes.Clone(good)
+			switch name {
+			case "duplicate_limit":
+				wire = bytes.Replace(wire, []byte(`"Limit":1`), []byte(`"Limit":0,"Limit":1`), 1)
+			case "relative_alias":
+				wire = bytes.Replace(wire, []byte(`"RelativePath":"Lg=="`), []byte(`"RelativePath":"Lg==","relativepath":"Lg=="`), 1)
+			case "operation_alias":
+				wire = bytes.Replace(wire, []byte(`"operation":`), []byte(`"Operation":`), 1)
+			case "payload_alias":
+				wire = bytes.Replace(wire, []byte(`"nativeInventory":`), []byte(`"NativeInventory":`), 1)
+			case "unknown_envelope":
+				wire = append(wire[:len(wire)-1], []byte(`,"Unknown":true}`)...)
+			case "unknown_body":
+				wire = bytes.Replace(wire, []byte(`"Limit":1`), []byte(`"Limit":1,"Unknown":true`), 1)
+			case "native_then_legacy":
+				wire = append(wire[:len(wire)-1], []byte(`,"operation":"inventory-page"}`)...)
+			case "truncated_native":
+				wire = wire[:len(wire)-2]
+			}
+			var out bytes.Buffer
+			if err := Helper(bytes.NewReader(wire), &out); !errors.Is(err, ErrNativeInventory) || out.Len() != 0 {
+				t.Fatalf("native protocol refusal lost sentinel: %v, %q", err, out.String())
+			}
+			binary, _ := os.Executable()
+			cmd := exec.Command(binary, "--portico-storage-helper")
+			cmd.Stdin = bytes.NewReader(wire)
+			if out, err := cmd.Output(); err == nil || len(out) != 0 {
+				t.Fatal("real helper accepted native alternate frame", err, string(out))
+			}
+		})
+	}
+}
+
+func TestNativeEnvelopeDoesNotTightenLegacyDecoding(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "file")
+	if err := os.WriteFile(path, []byte("x"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(request{Operation: "stat", Path: path})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Legacy remains permissive about aliases, duplicate keys and extra fields.
+	pathJSON, _ := json.Marshal(path)
+	raw = append(raw[:len(raw)-1], append([]byte(`,"Path":`), append(pathJSON, []byte(`,"Unused":true}`)...)...)...)
+	var out bytes.Buffer
+	if err := Helper(bytes.NewReader(raw), &out); err != nil {
+		t.Fatal(err)
+	}
+	var result Snapshot
+	if err := json.Unmarshal(out.Bytes(), &result); err != nil || result.Path != path || result.Name != "file" || result.Size != 1 {
+		t.Fatal("legacy behavior changed", result, err)
+	}
 }

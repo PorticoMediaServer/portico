@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -24,11 +25,11 @@ func TestNativeResponseFixture(t *testing.T) {
 	if err != nil {
 		os.Exit(2)
 	}
-	var r request
-	if json.Unmarshal(raw, &r) != nil || r.NativeInventory == nil {
+	w, matched, err := decodeNativeEnvelope(raw)
+	if err != nil || !matched || w == nil {
 		os.Exit(3)
 	}
-	out, err := os.ReadFile(filepath.Join(string(r.NativeInventory.Root), ".response"))
+	out, err := os.ReadFile(filepath.Join(string(w.Root), ".response"))
 	if err != nil {
 		os.Exit(4)
 	}
@@ -57,7 +58,7 @@ func nativeResponseClient(t *testing.T, root string, wire []byte) (*Client, *Ope
 	return New(script), owner
 }
 func TestNativeInventoryStrictResponse(t *testing.T) {
-	for _, name := range []string{"canonical", "noncanonical_name_pad", "issue_pad", "base64_newline", "array_name", "nul_name", "nul_path", "oversized_path", "missing_name", "null_path", "lone_surrogate", "raw_invalid_utf8", "overflow_trailing"} {
+	for _, name := range []string{"canonical", "noncanonical_name_pad", "issue_pad", "base64_newline", "array_name", "nul_name", "nul_path", "oversized_path", "missing_name", "null_path", "lone_surrogate", "raw_invalid_utf8", "overflow_trailing", "duplicate_version", "alias_version", "duplicate_name", "unknown_field"} {
 		t.Run(name, func(t *testing.T) {
 			root := t.TempDir()
 			good := NativeInventoryPage{Version: 1, RootIdentity: "root", DirectoryIdentity: "directory", DirectoryRevision: "revision", Complete: true,
@@ -68,6 +69,14 @@ func TestNativeInventoryStrictResponse(t *testing.T) {
 				t.Fatal(err)
 			}
 			switch name {
+			case "duplicate_version":
+				raw = bytes.Replace(raw, []byte(`"Version":1`), []byte(`"Version":999,"Version":1`), 1)
+			case "alias_version":
+				raw = bytes.Replace(raw, []byte(`"Version":1`), []byte(`"Version":1,"version":1`), 1)
+			case "duplicate_name":
+				raw = bytes.Replace(raw, []byte(`"Name":"ZmlsZQ=="`), []byte(`"Name":"ZmlsZQ==","Name":"ZmlsZQ=="`), 1)
+			case "unknown_field":
+				raw = append(raw[:len(raw)-1], []byte(`,"Unknown":true}`)...)
 			case "noncanonical_name_pad":
 				raw = bytes.Replace(raw, []byte(`"Name":"ZmlsZQ=="`), []byte(`"Name":"ZmlsZR=="`), 1)
 			case "issue_pad":
@@ -104,7 +113,7 @@ func TestNativeInventoryStrictResponse(t *testing.T) {
 				if err != nil || len(p.Entries) != 1 {
 					t.Fatal(p, err)
 				}
-			} else if err == nil || len(p.Entries) != 0 {
+			} else if !errors.Is(err, ErrNativeInventory) || len(p.Entries) != 0 {
 				t.Fatalf("accepted %s: %+v %v", name, p, err)
 			}
 			if c.Supervisor.Active() != 0 || owner.Active() != 0 {

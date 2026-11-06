@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"path/filepath"
 	"unicode/utf8"
@@ -21,7 +22,7 @@ func (b *nativeBytes) UnmarshalJSON(raw []byte) error {
 	}
 	var text string
 	if err := json.Unmarshal(raw, &text); err != nil {
-		return err
+		return errors.Join(ErrNativeInventory, err)
 	}
 	if base64.StdEncoding.DecodedLen(len(text)) > naming.MaxPathBytes+2 {
 		return ErrNativeInventory
@@ -87,14 +88,17 @@ func nativeHex4(raw []byte) uint16 {
 	}
 	return value
 }
-func nativeDecode(raw []byte, out any) error {
+func nativeDecode(raw []byte, out any, shape nativeShape) error {
 	if !nativeJSONText(raw) {
 		return ErrNativeInventory
+	}
+	if err := nativeKeyFrame(raw, shape); err != nil {
+		return err
 	}
 	d := json.NewDecoder(bytes.NewReader(raw))
 	d.DisallowUnknownFields()
 	if err := d.Decode(out); err != nil {
-		return err
+		return errors.Join(ErrNativeInventory, err)
 	}
 	var extra any
 	if err := d.Decode(&extra); err != io.EOF {
@@ -111,8 +115,8 @@ func (w *nativeInventoryWire) UnmarshalJSON(raw []byte) error {
 		Limit                                   int
 		FollowSymlinks                          bool
 	}
-	if err := nativeDecode(raw, &d); err != nil {
-		return err
+	if err := nativeDecode(raw, &d, nativeRequestShape); err != nil {
+		return errors.Join(ErrNativeInventory, err)
 	}
 	var mount nativeBytes
 	if len(d.MountedRoot) > 0 {
@@ -135,8 +139,8 @@ func (e *NativeInventoryEntry) UnmarshalJSON(raw []byte) error {
 		alias
 		Path, Name nativeBytes
 	}
-	if err := nativeDecode(raw, &d); err != nil {
-		return err
+	if err := nativeDecode(raw, &d, nativeEntryShape); err != nil {
+		return errors.Join(ErrNativeInventory, err)
 	}
 	value := NativeInventoryEntry(d.alias)
 	value.Path = []byte(d.Path)
@@ -153,8 +157,8 @@ func (i *NativeInventoryIssue) UnmarshalJSON(raw []byte) error {
 		alias
 		Path, Reason nativeBytes
 	}
-	if err := nativeDecode(raw, &d); err != nil {
-		return err
+	if err := nativeDecode(raw, &d, nativeIssueShape); err != nil {
+		return errors.Join(ErrNativeInventory, err)
 	}
 	value := NativeInventoryIssue(d.alias)
 	value.Path = []byte(d.Path)
@@ -168,11 +172,11 @@ func (i *NativeInventoryIssue) UnmarshalJSON(raw []byte) error {
 func (p *NativeInventoryPage) UnmarshalJSON(raw []byte) error {
 	type alias NativeInventoryPage
 	var value alias
-	if err := nativeDecode(raw, &value); err != nil {
-		return err
+	if err := nativeDecode(raw, &value, nativePageShape); err != nil {
+		return errors.Join(ErrNativeInventory, err)
 	}
 	if err := nativePageText(NativeInventoryPage(value)); err != nil {
-		return err
+		return errors.Join(ErrNativeInventory, err)
 	}
 	*p = NativeInventoryPage(value)
 	return nil
@@ -212,7 +216,7 @@ func nativePageText(p NativeInventoryPage) error {
 }
 func validateNativePage(p NativeInventoryPage, r NativeInventoryRequest) error {
 	if err := nativePageText(p); err != nil {
-		return err
+		return errors.Join(ErrNativeInventory, err)
 	}
 	if len(p.Entries) > r.Limit {
 		return ErrNativeInventory
