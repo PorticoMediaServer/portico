@@ -43,6 +43,8 @@ func unguardedCommandFinishes(file *ast.File) []string {
 			fn.Name.Name == "searchImageTimeMS" || fn.Name.Name == "commandTimeMS" || fn.Name.Name == "requireCommandMemory"
 		needs = needs || fn.Name.Name == "acknowledgeSearchPublisher" || fn.Name.Name == "searchImageStageFreshFacts"
 		needs = needs || fn.Name.Name == "acknowledgeScanRunLifecycle"
+		needs = needs || fn.Name.Name == "scanCreateTimeMS" || fn.Name.Name == "scanClaimTimeMS" || fn.Name.Name == "requireScanLifecycleMemory"
+		needs = needs || fn.Name.Name == "applyInventoryCreate" || fn.Name.Name == "applyInventoryClaim" || fn.Name.Name == "persistScanRunLifecycleResult"
 		if !needs {
 			continue
 		}
