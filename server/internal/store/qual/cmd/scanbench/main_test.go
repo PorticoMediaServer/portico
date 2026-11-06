@@ -25,6 +25,13 @@ func TestScanbenchTraversalKeepsAvailabilityUnknown(t *testing.T) {
 	if err := run(t.Context(), []string{"-mode", "generate", "-root", root, "-template", template, "-files", "3"}, &out); err != nil {
 		t.Fatal(err)
 	}
+	var generated struct {
+		Label, Mode string
+		Fixture     struct{ Files int }
+	}
+	if err := json.Unmarshal(out.Bytes(), &generated); err != nil || generated.Label != "DIRECTIONAL" || generated.Mode != "generation-only" || generated.Fixture.Files != 3 {
+		t.Fatal("unlabelled generator", generated, err)
+	}
 	out.Reset()
 	if err := run(t.Context(), []string{"-root", root, "-source-sha", strings.Repeat("a", 40)}, &out); err != nil {
 		t.Fatal(err)

@@ -85,9 +85,17 @@ func Generate(ctx context.Context, root string, c FixtureConfig) (f Fixture, err
 	if err := ctx.Err(); err != nil {
 		return f, err
 	}
-	if err := os.Mkdir(root, 0700); err != nil {
+	anchor, err := createFixtureRoot(root)
+	if err != nil {
 		return f, err
 	}
+	defer anchor.Close()
+	var bucket *fixtureDir
+	defer func() {
+		if bucket != nil {
+			bucket.Close()
+		}
+	}()
 	manifest := sha256.New()
 	// Include the entire shape and payload identity, independently of native IDs.
 	fmt.Fprintf(manifest, "%s\n%d\n%d\n%s\n%d\n%s\n%d\n", f.Version, f.Files, f.Seed, f.Extension, f.TemplateBytes, f.TemplateSHA256, f.ModifiedNS)
@@ -97,26 +105,30 @@ func Generate(ctx context.Context, root string, c FixtureConfig) (f Fixture, err
 		}
 		relative := fixturePath(i, c.Seed, ext)
 		if i%filesPerDirectory == 0 {
-			if err := os.Mkdir(filepath.Join(root, filepath.Dir(relative)), 0700); err != nil {
+			if bucket != nil {
+				if err := bucket.Close(); err != nil {
+					return f, err
+				}
+				bucket = nil
+			}
+			bucket, err = anchor.bucket(filepath.Dir(relative))
+			if err != nil {
 				return f, err
 			}
 		}
-		target := filepath.Join(root, relative)
-		out, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+		out, err := bucket.create(filepath.Base(relative))
 		if err != nil {
 			return f, err
 		}
 		hash.Reset()
 		n, copyErr := io.CopyBuffer(io.MultiWriter(out, hash), io.NewSectionReader(template, 0, info.Size()), buf)
+		stampErr := stampFixtureFile(out, stamp)
 		closeErr := out.Close()
-		if copyErr != nil || closeErr != nil {
-			return f, errors.Join(copyErr, closeErr)
+		if copyErr != nil || closeErr != nil || stampErr != nil {
+			return f, errors.Join(copyErr, closeErr, stampErr)
 		}
 		if n != info.Size() || hex.EncodeToString(hash.Sum(nil)) != f.TemplateSHA256 {
 			return f, errors.New("media template changed during generation")
-		}
-		if err := os.Chtimes(target, stamp, stamp); err != nil {
-			return f, err
 		}
 		fmt.Fprintln(manifest, filepath.ToSlash(relative))
 	}
@@ -125,9 +137,8 @@ func Generate(ctx context.Context, root string, c FixtureConfig) (f Fixture, err
 	if err != nil {
 		return f, err
 	}
-	// os.Root containment is supplied by exclusively owned root and generated
-	// components, not by accepting arbitrary caller-provided relative paths.
-	out, err := os.OpenFile(filepath.Join(root, ".portico-scan-fixture.json"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	// Publish through the retained root; do not re-resolve the root pathname.
+	out, err := anchor.create(".portico-scan-fixture.json")
 	if err != nil {
 		return f, err
 	}

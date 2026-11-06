@@ -5,6 +5,9 @@ executes no SQL engine, accepts no Inventory/Basic command and grants no absence
 authority. `filename_visible_ns`, `basic_ns` and `engine` are JSON null. Successful
 traversal and a matching file count do not mean library-ready or Basic-complete.
 
+Secure generation uses retained directory handles on Linux/Darwin; other
+platforms refuse rather than use an unsafe pathname fallback.
+
 The library generator supports 400,000 independent physical files, in buckets of
 128. Supply a small real media template. Every file copies its bytes, with fixed
 file mtime and deterministic unique filename/year/seed; no hardlinks or sparse
@@ -66,9 +69,12 @@ and a delegated cgroup-v2 parent with `io` already in `cgroup.subtree_control`.
 Generate/flush the fixture before measurement, keep the database on SSD, and run:
 
 ```sh
-python3 scripts/schema-v1-scan/hdd.py --parent /sys/fs/cgroup/<delegated-parent> --root /absolute/task-scratch/library --device <major:minor> --rbps 50000000 --riops 80 -- /absolute/task-scratch/scanbench -root /absolute/task-scratch/library -source-sha <exact-source-sha> -storage throttled-hdd -scheduled-scale > /absolute/task-scratch/hdd.json 2> /absolute/task-scratch/io-emulation.jsonl
+python3 scripts/schema-v1-scan/hdd.py --allow-scratch-io --parent /sys/fs/cgroup/<delegated-parent> --root /absolute/task-scratch/library --device <major:minor> --rbps 50000000 --riops 80 -- /absolute/task-scratch/scanbench -root /absolute/task-scratch/library -source-sha <exact-source-sha> -storage throttled-hdd -scheduled-scale > /absolute/task-scratch/hdd.json 2> /absolute/task-scratch/io-emulation.jsonl
 ```
 
+The launcher requires explicit --allow-scratch-io, a private caller-owned
+completed fixture root, and a delegated writable cgroup parent below the cgroup
+root. System roots and incomplete/unmarked scratch roots are refused.
 The launcher checks the root filesystem's actual major:minor, creates one new
 leaf, sets only its read limits, then puts the child/helpers into that leaf.
 It records io.max and io.stat and removes only its own drained leaf. It never

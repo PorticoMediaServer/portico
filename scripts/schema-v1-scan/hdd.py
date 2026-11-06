@@ -30,10 +30,22 @@ def scratch_device(root):
 
 
 def run(args):
+    if not args.allow_scratch_io:
+        raise ValueError("explicit --allow-scratch-io opt-in required")
     root = Path(args.root).resolve(strict=True)
     parent = Path(args.parent).resolve(strict=True)
-    if not root.is_dir() or not parent.is_relative_to(Path('/sys/fs/cgroup')):
+    if root == Path('/') or not root.is_dir() or not parent.is_relative_to(Path('/sys/fs/cgroup')) or parent == Path('/sys/fs/cgroup'):
         raise ValueError("existing scratch root and delegated /sys/fs/cgroup parent required")
+    marker = root / '.portico-scan-fixture.json'
+    try:
+        fixture = json.loads(marker.read_text())
+    except (OSError, ValueError) as exc:
+        raise ValueError("scratch root must contain a completed scan fixture marker") from exc
+    root_stat = root.stat()
+    if fixture.get('version') != 'scan-library-v1' or not isinstance(fixture.get('files'), int) or not 1 <= fixture['files'] <= 400000 or root_stat.st_uid != os.getuid() or root_stat.st_mode & 0o022:
+        raise ValueError("root must be an owned private completed scan fixture")
+    if not os.access(parent, os.W_OK):
+        raise ValueError("cgroup parent is not delegated writable to this user")
     if args.device != scratch_device(root):
         raise ValueError("MAJ:MIN does not match scratch root's filesystem")
     limit = io_limit(args.device, args.rbps, args.riops)
@@ -115,6 +127,7 @@ def run(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--allow-scratch-io', action='store_true', help='explicitly authorize this scratch-only IO emulation')
     parser.add_argument('--parent', required=True)
     parser.add_argument('--root', required=True)
     parser.add_argument('--device', required=True)
