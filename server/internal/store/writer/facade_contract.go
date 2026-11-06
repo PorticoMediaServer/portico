@@ -28,7 +28,10 @@ func (*effectiveStageBeginCommand) isEffectiveStageBeginCommand() {}
 // A later W composition mints and checks their issuer, scope and live lifetime.
 // Nil, zero, foreign or revoked values never authorize receipt access. FIRST
 // scan ingress is internal ScanDriver only, not session/credential ingress.
-type ScanDisclosure struct{ issuer *Writer }
+type ScanDisclosure struct {
+	issuer *Writer
+	scope  *scanScope
+}
 type PublisherDisclosure struct{ issuer *Writer }
 type EnrichmentDisclosure struct {
 	issuer *Writer
@@ -154,18 +157,34 @@ type ExecutionEvidence struct {
 // AcceptInventory is one whole immutable ordered batch/receipt. FIRST admits
 // only a qualified N=1 ordinary-movie recipe; larger wire shapes confer no
 // admission. Any member failure rolls back the ENTIRE batch, never a prefix.
-func (*Writer) AcceptInventory(context.Context, *ScanDisclosure, InventoryAcceptCommand) (InventoryResult, error) {
-	return InventoryResult{}, ErrNotImplemented
+func (w *Writer) AcceptInventory(ctx context.Context, disclosure *ScanDisclosure, input InventoryAcceptCommand) (InventoryResult, error) {
+	if w == nil || w.effective == nil || w.effective.inventoryPlan == nil {
+		return InventoryResult{}, ErrNotImplemented
+	}
+	request, err := inventoryAcceptReference(input)
+	if err != nil {
+		return InventoryResult{}, err
+	}
+	out, _, err := w.effective.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, false, &inventoryInvocation{disclosure, request, true})
+	return out.inventory, err
 }
 
 // ResolveScan resolves InventoryAccept only, after current disclosure and before
 // fresh source/root/lease/cursor/overflow checks. Floor precedes cohort decode.
-func (*Writer) ResolveScan(context.Context, *ScanDisclosure, ScanReceiptRequest) (InventoryResult, error) {
-	return InventoryResult{}, ErrNotImplemented
+func (w *Writer) ResolveScan(ctx context.Context, disclosure *ScanDisclosure, request ScanReceiptRequest) (InventoryResult, error) {
+	if w == nil || w.effective == nil || w.effective.inventoryPlan == nil {
+		return InventoryResult{}, ErrNotImplemented
+	}
+	out, _, err := w.effective.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, false, &inventoryInvocation{disclosure, request, false})
+	return out.inventory, err
 }
 
-func (*Writer) AckScan(context.Context, *ScanDisclosure, ScanReceiptRequest) (AckResult, error) {
-	return AckResult{}, ErrNotImplemented
+func (w *Writer) AckScan(ctx context.Context, disclosure *ScanDisclosure, request ScanReceiptRequest) (AckResult, error) {
+	if w == nil || w.effective == nil || w.effective.inventoryPlan == nil {
+		return AckResult{}, ErrNotImplemented
+	}
+	_, ack, err := w.effective.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, true, &inventoryInvocation{disclosure, request, false})
+	return ack, err
 }
 
 // StageSearchImage allocates a hidden image/seal/held-reclaimer in the publisher
