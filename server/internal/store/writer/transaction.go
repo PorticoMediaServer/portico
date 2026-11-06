@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
@@ -52,16 +53,17 @@ type turnRecipe struct {
 // transaction is exported. Closed domain adapters and HN statements will use
 // this frame after INT's exact receipt DDL and R controls land.
 type executor struct {
-	mu             sync.Mutex
-	db             *sql.DB
-	config         sqliteconn.Config
-	now            func() time.Time
-	closed         bool
-	ambiguous      bool
-	fenced         bool
-	physicalFaults *physicalCloseFaults
-	driverPanics   *driverPanicLog
-	fileBinding    *scanFileBinding // nil for existing harness frames
+	mu               sync.Mutex
+	db               *sql.DB
+	config           sqliteconn.Config
+	now              func() time.Time
+	closed           bool
+	ambiguous        bool
+	fenced           bool
+	physicalFaults   *physicalCloseFaults
+	driverPanics     *driverPanicLog
+	fileBinding      *scanFileBinding // nil for existing harness frames
+	ownerObservation atomic.Pointer[ownerWindowObservation]
 }
 
 // These are the bundled driver's contextual interfaces. Interposing only Close
@@ -264,6 +266,7 @@ func (w *executor) begin(ctx context.Context, id CommandID, r turnRecipe, c turn
 	if !w.mu.TryLock() {
 		return nil, ErrBusy
 	}
+	window := ownerWindow{commandID: id, setupEnteredAt: time.Now()}
 	// ErrBusy leaves ownership with the private caller. Once the lock is taken,
 	// this frame consumes custody, even when admission fails before SQL begins.
 	transferred := false
@@ -276,7 +279,7 @@ func (w *executor) begin(ctx context.Context, id CommandID, r turnRecipe, c turn
 		if t == nil {
 			// Admission has no connection or transaction yet, but retirement
 			// still needs the same panic-safe, fenced cleanup protocol.
-			t = &transaction{writer: w, custody: c}
+			t = &transaction{writer: w, custody: c, ownerWindow: window}
 		}
 		t.primaryPanic = primary
 		_, err = t.finish(rolledBack, true, err)
@@ -323,7 +326,7 @@ func (w *executor) begin(ctx context.Context, id CommandID, r turnRecipe, c turn
 		return nil, err
 	}
 	turnCtx, cancel := context.WithDeadline(ctx, start.Add(r.limit.Hold))
-	t = &transaction{writer: w, ctx: turnCtx, cancel: cancel, custody: c, quantum: q, start: start, clockHighWater: clockHighWater, compositionClock: compositionClock, limit: r.limit.Hold, workLimit: r.limit, descriptor: desc}
+	t = &transaction{writer: w, ctx: turnCtx, cancel: cancel, custody: c, quantum: q, start: start, clockHighWater: clockHighWater, compositionClock: compositionClock, limit: r.limit.Hold, workLimit: r.limit, descriptor: desc, ownerWindow: window}
 	now := w.now()
 	if err = t.observeTime(now); err != nil {
 		return nil, err
@@ -365,11 +368,15 @@ func (w *executor) begin(ctx context.Context, id CommandID, r turnRecipe, c turn
 		return nil, err
 	}
 	t.begun = true
+	t.setupComplete = true
+	t.setupReturnedAt = time.Now()
 	transferred = true
 	return t, nil
 }
 
 type transaction struct {
+	ownerWindow
+	setupComplete  bool
 	writer         *executor
 	conn           *sql.Conn
 	ctx            context.Context
@@ -500,6 +507,7 @@ func (t *transaction) commit() (turnResult, error) {
 		return t.saved(nil)
 	}
 	defer t.guardPanic()
+	t.enterTerminal()
 	err := t.ctx.Err()
 	if err == nil {
 		err = t.custody.check(t.descriptor.ID, t.workLimit)
@@ -588,6 +596,7 @@ func (t *transaction) rollbackOwned(cause error) (turnResult, error) {
 		return t.saved(cause)
 	}
 	defer t.guardPanic()
+	t.enterTerminal()
 	if t.commitAttempted {
 		return t.unknown(cause)
 	}
@@ -597,7 +606,9 @@ func (t *transaction) rollbackOwned(cause error) (turnResult, error) {
 		// not context expiry, is the physical retirement boundary.
 		cleanup, cancel := context.WithTimeout(context.Background(), MaxCommandHold)
 		defer cancel()
+		t.rollbackStartedAt = time.Now()
 		_, err := t.conn.ExecContext(cleanup, "ROLLBACK")
+		t.rollbackReturnedAt = time.Now()
 		cancel()
 		if t.primaryPanic == nil {
 			t.raiseDriverPanic(err)
@@ -656,7 +667,15 @@ func (t *transaction) closePool() error {
 		return nil
 	}
 	t.poolCloseAttempted = true
-	return t.cleanupCall("quarantine pool", t.writer.db.Close)
+	t.poolCloseStartedAt = time.Now()
+	err := t.cleanupCall("quarantine pool", t.writer.db.Close)
+	t.poolCloseReturnedAt = time.Now()
+	if err == nil && t.conn != nil && t.connectionReturned {
+		t.nativeReturnedAt = t.poolCloseReturnedAt
+	} else {
+		t.nativeReturnedAt = time.Time{}
+	}
+	return err
 }
 
 func (t *transaction) signalFence() error {
@@ -671,6 +690,7 @@ func (t *transaction) finish(state commitState, discard bool, cause error) (turn
 	if t.done {
 		return t.saved(cause)
 	}
+	t.enterTerminal()
 	w := t.writer
 	wasFenced := w.fenced
 	// Terminal outcome and quarantine precede ALL callbacks. done means that
@@ -680,6 +700,7 @@ func (t *transaction) finish(state commitState, discard bool, cause error) (turn
 	t.finishErr = cause
 	w.fenced = true
 	defer w.mu.Unlock()
+	defer t.observeTerminalReturn()
 	defer func() {
 		if !t.cleanupComplete {
 			// Also covers an unexpected unwind/Goexit inside private cleanup.
@@ -721,6 +742,10 @@ func (t *transaction) finish(state commitState, discard bool, cause error) (turn
 		})
 		add(closeErr)
 		t.connectionReturned = discardErr == nil && closeErr == nil
+		if t.connectionReturned {
+			t.connectionReturnedAt = time.Now()
+			t.nativeReturnedAt = t.connectionReturnedAt
+		}
 	}
 	measure := func() error {
 		if !t.start.IsZero() {
@@ -745,8 +770,13 @@ func (t *transaction) finish(state commitState, discard bool, cause error) (turn
 	t.retirementComplete = t.custody == nil
 	if t.connectionReturned && t.custody != nil {
 		t.retirementAttempted = true
+		t.custodyRetirementStartedAt = time.Now()
 		err := t.cleanupCall("retire", t.custody.retired)
+		t.custodyRetirementReturnedAt = time.Now()
 		t.retirementComplete = err == nil
+		if t.retirementComplete {
+			t.custodyRetiredAt = t.custodyRetirementReturnedAt
+		}
 		add(err)
 	}
 	add(t.cleanupCall("complete hold clock", measure))
