@@ -179,6 +179,24 @@ func TestInventoryMemoryExactPartitionAndBinding(t *testing.T) {
 	}
 }
 
+func assertPartitionPolicyError(t *testing.T, err error, field string) {
+	t.Helper()
+	var policy *PolicyError
+	if !errors.Is(err, ErrInvalid) || !errors.As(err, &policy) || policy.Field != field || policy.Limit != 0 || policy.Cause != ErrInvalid ||
+		err.Error() != field+": "+ErrInvalid.Error()+" (limit 0)" {
+		t.Fatalf("changed typed partition error: %#v / %v; want Field=%q Limit=0 Cause=ErrInvalid", policy, err, field)
+	}
+}
+
+func TestInventoryMemoryPreservesTypedPartitionError(t *testing.T) {
+	bad := inventoryMemoryBudget{65536, 1}
+	assertPartitionPolicyError(t, validateInventoryMemory(bad, 65536), "inventory_memory_partition")
+	w, _, registry := inventoryLookupFixture(t)
+	turn, _ := inventoryMemoryFixtureTurn(t, w, registry, memoryFixtureInput(t), inventoryMemoryBudget{32768, 32768})
+	turn.transaction.custody.(*governedTurn).inventoryMemory = bad
+	assertPartitionPolicyError(t, turn.requireInventoryMemory(t.Context(), 1), "inventory_memory_partition")
+}
+
 func TestInventoryMemoryProfileValidatedBeforeAdmission(t *testing.T) {
 	w, _, _, _ := inventoryFacadeFixture(t)
 	r := w.effective

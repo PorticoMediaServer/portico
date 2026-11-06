@@ -20,7 +20,7 @@ func validateMemoryPartition(b commandMemoryBudget, total int64, field string) e
 	return nil
 }
 
-func (t *commandTurn) requireCommandMemory(ctx context.Context, purpose CommandID, requiredBytes uint64) (err error) {
+func (t *commandTurn) requireCommandMemory(ctx context.Context, purpose CommandID, requiredBytes uint64, partitionField string) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(t), struct{}{}, err) }()
 	if purpose != InventoryAccept && purpose != SearchImageStage {
 		return ErrInvalid
@@ -50,7 +50,7 @@ func (t *commandTurn) requireCommandMemory(ctx context.Context, purpose CommandI
 	if purpose == SearchImageStage {
 		b = c.searchImageMemory
 	}
-	if err := validateMemoryPartition(b, c.expected.Need[governor.MemoryBytes], "command_memory_partition"); err != nil {
+	if err := validateMemoryPartition(b, c.expected.Need[governor.MemoryBytes], partitionField); err != nil {
 		return err
 	}
 	if b == (commandMemoryBudget{}) {
