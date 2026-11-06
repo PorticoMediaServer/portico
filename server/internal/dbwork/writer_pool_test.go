@@ -3,6 +3,7 @@ package dbwork
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -124,6 +125,21 @@ func TestBackgroundAndForegroundReadPoolsCannotStarveEachOther(t *testing.T) {
 			t.Cleanup(func() { db.Close() })
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
+			assertNoExtraLoan := func(pool *sql.DB, capacity int) {
+				t.Helper()
+				wait, cancel := context.WithTimeout(ctx, 20*time.Millisecond)
+				defer cancel()
+				extra, err := pool.Conn(wait)
+				if extra != nil {
+					extra.Close()
+				}
+				if !errors.Is(err, context.DeadlineExceeded) {
+					t.Fatalf("loan beyond capacity %d: got %v, want deadline exceeded", capacity, err)
+				}
+				if stats := pool.Stats(); stats.InUse != capacity || stats.OpenConnections != capacity {
+					t.Fatalf("extra loan changed occupancy: in use %d, open %d, want %d", stats.InUse, stats.OpenConnections, capacity)
+				}
+			}
 			backgroundCtx := WithClass(ctx, ClassBackgroundMedia)
 			background := ReadHandle(backgroundCtx, db)
 			if background == db || background == writerHandle(db) ||
@@ -148,6 +164,7 @@ func TestBackgroundAndForegroundReadPoolsCannotStarveEachOther(t *testing.T) {
 			if db.Stats().InUse != policy.MaxOpenConns {
 				t.Fatal("foreground pool was not saturated")
 			}
+			assertNoExtraLoan(db, policy.MaxOpenConns)
 			if err := QueryRow(backgroundCtx, db, `SELECT 1`).Scan(new(int)); err != nil {
 				t.Fatal("foreground readers starved background", err)
 			}
@@ -171,6 +188,7 @@ func TestBackgroundAndForegroundReadPoolsCannotStarveEachOther(t *testing.T) {
 			if background.Stats().InUse != policy.BackgroundConns {
 				t.Fatal("background pool was not saturated")
 			}
+			assertNoExtraLoan(background, policy.BackgroundConns)
 			if err := QueryRow(ctx, db, `SELECT 1`).Scan(new(int)); err != nil {
 				t.Fatal("background readers starved foreground", err)
 			}
