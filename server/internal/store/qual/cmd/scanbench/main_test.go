@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/PorticoMediaServer/portico/server/internal/storage"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/PorticoMediaServer/portico/server/internal/storage"
 )
 
 func TestScanbenchTraversalKeepsAvailabilityUnknown(t *testing.T) {

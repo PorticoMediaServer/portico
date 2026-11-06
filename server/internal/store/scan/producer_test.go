@@ -184,7 +184,7 @@ func TestProducerRealHelperNativeBytesRoundtrip(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, nested), 0700); err != nil {
 		t.Fatal(err)
 	}
-	names := []string{"Film-\xff.mkv", "Film-\xef\xbf\xbd.mkv", "NUL-adjacent-\x01\xff\x01.mkv"}
+	names := []string{"Film-\xff.mkv", "Film-\xfe.mkv", "Film-\xef\xbf\xbd.mkv", "NUL-adjacent-\x01\xff\x01.mkv"}
 	for _, name := range names {
 		if err := os.WriteFile(filepath.Join(root, nested, name), []byte("x"), 0600); err != nil {
 			t.Fatal(err)
@@ -243,11 +243,16 @@ func TestProducerNULBytesRefuseWithoutConsumption(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		var decoded storage.NativeInventoryPage
-		if err := json.Unmarshal(wire, &decoded); err != nil || !bytes.Equal(decoded.Entries[0].Name, name) {
+		var carrier struct{ Entries []struct{ Name []byte } }
+		if err := json.Unmarshal(wire, &carrier); err != nil || len(carrier.Entries) != 1 || !bytes.Equal(carrier.Entries[0].Name, name) {
 			t.Fatal("NUL bytes replaced", err)
 		}
-		r := &pageReader{page: decoded}
+		var decoded storage.NativeInventoryPage
+		if err := json.Unmarshal(wire, &decoded); !errors.Is(err, storage.ErrNativeInventory) || len(decoded.Entries) != 0 {
+			t.Fatal("strict transport admitted NUL", err)
+		}
+		// Also reject an invalid in-process adapter observation before consumption.
+		r := &pageReader{page: p}
 		counts, err := WalkInventory(t.Context(), r, producerOwner(t), "nul", root, 4096, func(context.Context, InventoryTurn) error { t.Fatal("NUL candidate consumed"); return nil })
 		if !errors.Is(err, ErrInvalid) || counts.Pages != 0 {
 			t.Fatal("invalid path advanced", counts, err)

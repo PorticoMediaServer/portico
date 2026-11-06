@@ -100,7 +100,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return err
 	}
 	r := report{Label: "DIRECTIONAL", Mode: "traversal-only", RequestedStorage: *media, Fixture: fixture, DeclaredSourceSHA: *source, SchemaSHA: schema.SHA256,
-		Unavailable: []string{"InventoryAccept fresh constructor/body and directory/EOF protocol", "Basic accepting/probe driver", "physical DeviceIO broker; whole-helper custody remains required"}, HostBefore: qual.CaptureHost()}
+		Unavailable: []string{"trusted W run/source/lease preparation and fresh N1 enable; directory/EOF protocol", "Basic accepting/probe driver", "physical DeviceIO broker; whole-helper custody remains required"}, HostBefore: qual.CaptureHost()}
 	binary, err := os.Executable()
 	if err != nil {
 		return err
