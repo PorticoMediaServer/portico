@@ -92,21 +92,21 @@ func TestEnrichmentStageStatementPlans(t *testing.T) {
 	if err := conn.QueryRowContext(t.Context(), "SELECT total_changes()").Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	golden, err := plan.Capture(t.Context(), conn, registry, plan.Fixture{ConnectionPolicy: policy, SHA256: enrichmentStageFixtureIdentity(t), Statistics: plan.Unanalyzed, Implementations: "adopted009; fixed inert native source/component fixture; no producer proof or runtime qualification"}, indexes)
+	golden, err := plan.Capture(t.Context(), conn, registry, plan.Fixture{ConnectionPolicy: policy, SHA256: enrichmentStageFixtureIdentity(t), Statistics: plan.Unanalyzed, Implementations: "adopted009 on embedded010; fixed inert native source/component fixture; no producer proof or runtime qualification"}, indexes)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := conn.QueryRowContext(t.Context(), "SELECT total_changes()").Scan(&after); err != nil || after != before {
 		t.Fatal("capture changed fixture", before, after, err)
 	}
-	if len(golden.Manifest) != 32 || len(golden.Plans) != 33 || golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 670 {
+	if len(golden.Manifest) != 32 || len(golden.Plans) != 33 || golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 671 {
 		t.Fatal("incomplete native FK capture")
 	}
 	data, err := golden.JSON()
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join("testdata", "enrichment-stage-009.json.gz")
+	path := filepath.Join("testdata", "enrichment-stage-010.json.gz")
 	if *recordEnrichmentStagePlans {
 		var b bytes.Buffer
 		z := gzip.NewWriter(&b)
