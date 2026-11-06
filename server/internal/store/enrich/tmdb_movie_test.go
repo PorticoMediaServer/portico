@@ -15,7 +15,7 @@ import (
 const tmdbMovieFixture = `{"id":42,"title":"Title:101","original_title":"Original:103","overview":"Overview é:107","tagline":"Tagline:109","release_date":"2024-02-29","runtime":121,"genres":[{"id":999,"name":"excluded"}],"production_companies":[{"name":"excluded company"}],"credits":{"crew":[{"id":301,"name":"Crew:113","job":"Director","department":"Directing","credit_id":"crew-credit:127"}],"cast":[{"id":201,"name":"Cast:131","character":"Pilot:137","order":7,"credit_id":"cast-credit:139"}]}}`
 
 func tmdbObservation() TMDBMovieObservation {
-	return TMDBMovieObservation{EvidenceID: "evidence:149", SubjectID: 151, ProviderID: "42", Language: "en-CA", Region: "CA", ObservedAt: "2026-11-06T10:23:19.000000137Z", SourceURL: "https://fixture.invalid/movie/42", ETag: "etag:157", LastModified: "Thu, 05 Nov 2026 10:00:00 GMT"}
+	return TMDBMovieObservation{EvidenceID: "evidence:149", SubjectID: 151, ProviderID: "42", Language: "en-CA", Region: "CA", ObservedAt: "2026-11-06T10:23:19.000000137Z", SourceURL: "https://api.themoviedb.org/3/movie/42", ETag: "etag:157", LastModified: "Thu, 05 Nov 2026 10:00:00 GMT"}
 }
 
 func tmdbMoviePolicy(t *testing.T) TMDBPolicy {
@@ -125,6 +125,8 @@ func TestTMDBMovieRejectsMalformedOrIncompleteProjection(t *testing.T) {
 	policy := tmdbMoviePolicy(t)
 	cases := []string{
 		`{}`, `null`, `[]`, tmdbMovieFixture + `{}`,
+		strings.Replace(tmdbMovieFixture, `"title":"Title:101"`, `"title":null`, 1),
+		strings.Replace(tmdbMovieFixture, `"title":"Title:101"`, `"title":" "`, 1),
 		`{"id":42,"title":"x","credits":null}`,
 		`{"id":42,"title":"x","credits":{"cast":[],"crew":null}}`,
 		`{"id":42,"title":"x","credits":{"cast":[]}}`,
@@ -137,6 +139,8 @@ func TestTMDBMovieRejectsMalformedOrIncompleteProjection(t *testing.T) {
 		strings.Replace(tmdbMovieFixture, `"runtime":121`, `"runtime":-1`, 1),
 		strings.Replace(tmdbMovieFixture, `2024-02-29`, `2023-02-29`, 1),
 		string([]byte{'{', '"', 'x', '"', ':', '"', 255, '"', '}'}),
+		strings.Replace(tmdbMovieFixture, `Title:101`, `\ud800`, 1),
+		strings.Replace(tmdbMovieFixture, `Crew:113`, `\udc00`, 1),
 	}
 	for i, body := range cases {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
@@ -153,6 +157,35 @@ func TestTMDBMovieRejectsMalformedOrIncompleteProjection(t *testing.T) {
 	}
 	if _, err := PrepareTMDBMovie(TMDBPolicy{}, tmdbObservation(), []byte(tmdbMovieFixture)); !errors.Is(err, ErrTMDBPolicy) {
 		t.Fatal("missing policy", err)
+	}
+}
+
+func TestTMDBMovieSafeOriginalMetadataAndUnicode(t *testing.T) {
+	observation := tmdbObservation()
+	want, err := PrepareTMDBMovie(tmdbMoviePolicy(t), observation, []byte(tmdbMovieFixture))
+	if err != nil {
+		t.Fatal(err)
+	}
+	observation.SourceURL = "https://user:secret@api.themoviedb.org/3/movie/42?api_key=secret&unknown_credential=secret#secret"
+	got, err := PrepareTMDBMovie(tmdbMoviePolicy(t), observation, []byte(tmdbMovieFixture))
+	if err != nil || !reflect.DeepEqual(got.Header(), want.Header()) || got.StoredBytes() != want.StoredBytes() {
+		t.Fatal("credential-bearing source URL survived normalization", err)
+	}
+	observation.SourceURL = "https://attacker.invalid/3/movie/42?api_key=secret"
+	if doc, err := PrepareTMDBMovie(tmdbMoviePolicy(t), observation, []byte(tmdbMovieFixture)); !errors.Is(err, ErrSourceURL) || doc.Header().ID() != "" || strings.Contains(err.Error(), "secret") {
+		t.Fatal("wrong source route admitted or credential echoed", err)
+	}
+	// A valid surrogate PAIR and its literal scalar parse identically, while
+	// their complete immutable entity-byte observations remain distinct.
+	escaped := strings.Replace(tmdbMovieFixture, "Title:101", `\ud83d\ude80`, 1)
+	literal := strings.Replace(tmdbMovieFixture, "Title:101", "🚀", 1)
+	escapedDoc, err := PrepareTMDBMovie(tmdbMoviePolicy(t), tmdbObservation(), []byte(escaped))
+	if err != nil {
+		t.Fatal(err)
+	}
+	literalDoc, err := PrepareTMDBMovie(tmdbMoviePolicy(t), tmdbObservation(), []byte(literal))
+	if err != nil || reflect.DeepEqual(escapedDoc.Header(), literalDoc.Header()) || escapedDoc.Credits().Digest() != literalDoc.Credits().Digest() || escapedDoc.StoredBytes() != literalDoc.StoredBytes() {
+		t.Fatal("Unicode decoding replaced the original byte observation", err)
 	}
 }
 

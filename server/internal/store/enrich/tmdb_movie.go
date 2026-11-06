@@ -8,18 +8,11 @@ import (
 	"io"
 	"math"
 	"strconv"
+	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/writer"
 )
-
-// These literals distinguish this NARROW representation from old full-detail
-// evidence. Parser changes must change the request-shape namespace too.
-// Their production selection is part of the source descriptor review; this
-// pure preparation component supplies no production stage/seal authority.
-const tmdbMovieParser = "tmdb.movie.header-selected-credits.v1"
-const tmdbMovieShape = "tmdb.movie.detail+credits.header-selected-credits.v1"
 
 var ErrTMDBMovie = errors.New("invalid or over-limit TMDB movie projection")
 
@@ -60,15 +53,20 @@ func PrepareTMDBMovie(policy TMDBPolicy, observation TMDBMovieObservation, body 
 	if int64(len(body)) > limits.ResponseBytes {
 		return TMDBMovieDocument{}, &ResponseSizeError{LimitBytes: limits.ResponseBytes, ObservedBytes: int64(len(body))}
 	}
-	if !utf8.Valid(body) || !json.Valid(body) {
+	frozen := make([]byte, len(body))
+	copy(frozen, body)
+	if !validTMDBJSON(frozen) {
 		return TMDBMovieDocument{}, ErrTMDBMovie
 	}
-	frozen := append([]byte(nil), body...)
+	safeURL, err := SafeTMDBSourceURL(observation.SourceURL, observation.ProviderID)
+	if err != nil {
+		return TMDBMovieDocument{}, errors.Join(ErrTMDBMovie, err)
+	}
 	wire, count, err := readTMDBMovie(frozen, nil, tmdbMovieCounts{})
 	if err != nil {
 		return TMDBMovieDocument{}, err
 	}
-	if wire.id <= 0 || strconv.FormatInt(wire.id, 10) != observation.ProviderID || (wire.runtime != nil && (*wire.runtime < 0 || *wire.runtime > math.MaxInt64/60000)) {
+	if wire.id <= 0 || strconv.FormatInt(wire.id, 10) != observation.ProviderID || strings.TrimSpace(wire.title) == "" || (wire.runtime != nil && (*wire.runtime < 0 || *wire.runtime > math.MaxInt64/60000)) {
 		return TMDBMovieDocument{}, ErrTMDBMovie
 	}
 	rows := make([]ScreenCredit, count.cast+count.crew)
@@ -79,7 +77,7 @@ func PrepareTMDBMovie(policy TMDBPolicy, observation TMDBMovieObservation, body 
 	if err != nil {
 		return TMDBMovieDocument{}, errors.Join(ErrTMDBMovie, err)
 	}
-	h := writer.EvidenceHeaderInput{ID: observation.EvidenceID, SubjectID: observation.SubjectID, ParserVersion: tmdbMovieParser, Provider: "tmdb", SubjectKind: "movie", ProviderID: observation.ProviderID, Language: observation.Language, Region: observation.Region, RequestShape: tmdbMovieShape, ObservationDigest: sha256.Sum256(frozen), ObservedAt: observation.ObservedAt, SourceURL: observation.SourceURL, ETag: observation.ETag, LastModified: observation.LastModified, Title: wire.title, OriginalTitle: wire.original, Overview: wire.overview, Tagline: wire.tagline, ReleaseDate: wire.release}
+	h := writer.EvidenceHeaderInput{ID: observation.EvidenceID, SubjectID: observation.SubjectID, ParserVersion: TMDBMovieParserVersion, Provider: "tmdb", SubjectKind: "movie", ProviderID: observation.ProviderID, Language: observation.Language, Region: observation.Region, RequestShape: TMDBMovieRequestShape, ObservationDigest: sha256.Sum256(frozen), ObservedAt: observation.ObservedAt, SourceURL: safeURL, ETag: observation.ETag, LastModified: observation.LastModified, Title: wire.title, OriginalTitle: wire.original, Overview: wire.overview, Tagline: wire.tagline, ReleaseDate: wire.release}
 	if wire.release != "" {
 		date, err := time.Parse("2006-01-02", wire.release)
 		if err != nil {
