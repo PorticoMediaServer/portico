@@ -12,6 +12,10 @@ import (
 	"testing"
 )
 
+type testFileLocker func(*os.File) error
+
+func (f testFileLocker) Lock(file *os.File) error { return f(file) }
+
 func nativeLock(t *testing.T, path string) *Lock {
 	t.Helper()
 	l, err := Acquire(path)
@@ -133,13 +137,13 @@ func TestStateOwnershipRejectsUnavailableAndSilentLocking(t *testing.T) {
 		t.Run(fmt.Sprint(silent), func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "server.lock")
 			calls := 0
-			l, err := acquire(path, func(*os.File) error {
+			l, err := acquire(path, testFileLocker(func(*os.File) error {
 				calls++
 				if silent {
 					return nil
 				}
 				return ErrUnsupported
-			})
+			}))
 			if l != nil || !errors.Is(err, ErrUnsupported) {
 				t.Fatal(l, err)
 			}

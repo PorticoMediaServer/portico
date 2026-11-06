@@ -52,10 +52,16 @@ type holding struct {
 // Acquire preserves the server's native lock and second-description probe.
 // A PID file is not an ownership proof. The lock file is deliberately retained
 // on disk after release; a leftover pathname never proves an owner is alive.
-func Acquire(path string) (*Lock, error) { return acquire(path, lockInstanceFile) }
+func Acquire(path string) (*Lock, error) { return acquire(path, nativeFileLocker{}) }
+
+type fileLocker interface{ Lock(*os.File) error }
+
+type nativeFileLocker struct{}
+
+func (nativeFileLocker) Lock(file *os.File) error { return lockInstanceFile(file) }
 
 // Fault injection is private and is used only by this package's native tests.
-func acquire(path string, lock func(*os.File) error) (*Lock, error) {
+func acquire(path string, locker fileLocker) (*Lock, error) {
 	if path == "" {
 		return nil, ErrInvalid
 	}
@@ -68,7 +74,7 @@ func acquire(path string, lock func(*os.File) error) (*Lock, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = lock(file); err != nil {
+	if err = locker.Lock(file); err != nil {
 		return nil, errors.Join(err, file.Close())
 	}
 	// A successful syscall alone cannot detect filesystems silently ignoring it.
@@ -81,7 +87,7 @@ func acquire(path string, lock func(*os.File) error) (*Lock, error) {
 	if firstErr != nil || probeErr != nil || !os.SameFile(firstInfo, probeInfo) {
 		return nil, errors.Join(fmt.Errorf("%w: lock file changed while checking exclusivity", ErrUnsupported), firstErr, probeErr, probe.Close(), file.Close())
 	}
-	err = lock(probe)
+	err = locker.Lock(probe)
 	closeErr := probe.Close()
 	if !errors.Is(err, ErrHeld) || closeErr != nil {
 		if err == nil {
