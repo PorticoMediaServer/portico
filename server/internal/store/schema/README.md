@@ -28,7 +28,7 @@ legacy layouts fail closed. It executes no bootstrap DDL, ANALYZE, migration,
 repair or seed. It does not inspect user data, prove its integrity or authorize
 access; those are separate startup responsibilities.
 
-The adopted009 file header is explicitly `application_id=0`, `user_version=0`
+The adopted010 file header is explicitly `application_id=0`, `user_version=0`
 and `encoding=UTF-8`. The zeros preserve the reviewed bootstrap; they are not
 layout identity markers. Verification checks them without rewriting them.
 Fresh bootstrap refuses incompatible headers rather than adopting them.
@@ -179,3 +179,26 @@ authority/producer/ledger/resource/receipt/ACK/cleanup integration and runtime
 qualification stay open. Existing008files fail the changed fingerprint; this
 package performs no migration or compatibility repair. No accepting command
 or runtime cutover is enabled by this embed.
+
+
+INT-CHANGE-010 is adopted at da7841e2 after R agreement219. The six artifacts
+copy merged canonical90ee1ca1 verbatim. Four distinct directory purposes retain
+actual native directory/parent/run scalar results, SQL NULL source_revision and
+zero catalogue members. Directory states close to pending/done/blocked; bounded
+admitted-frontier completion preserves authority0. EOF requires genuine stable
+ZERO-RAW proof; unsupported raw entries and aliases stop intact. One invalidUTF8
+directory component has one protected issue, with no descent/per-descendant issue.
+
+All four directory ACKs are floor-only, with no header auto-delete or refund.
+The same-run/operation/entry-kind NO ACTION pin survives ACK; physical cleanup
+is child-first after original consumers finish or durably cancel. Fresh
+wrong-type/same-path checks follow original history before effects. The full
+parent UNIQUE index costs every receipt; a zero-member result is not a cleanup
+permission. The narrow010a create/claim cleanup remains separate.
+
+Only the merged product embed opens this storage gate. Actual W driver, issuer,
+wire/codec and complete admission/custody, SC traversal bodies, R26/27/28/006
+consumer/debt ordering, crash/runtime/physical qualification remain open. This
+embed enables no command, migration or startup cutover. Existing009 files fail
+the changed native-layout assertion and remain untouched; approved cutover uses
+a fresh file with no conversion or compatibility shim.
