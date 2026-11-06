@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
 import tarfile
@@ -407,10 +408,35 @@ def validate_source_hashes(key, hashes):
     if not isinstance(hashes,dict) or not hashes:
         raise ValueError(f'{key}: exact condition source hashes are required')
     for path,digest in hashes.items():
-        if (not isinstance(path,str) or Path(path).is_absolute() or '..' in Path(path).parts
+        if (not isinstance(path,str) or not Path(path).parts or Path(path).is_absolute() or '..' in Path(path).parts
                 or '.git' in Path(path).parts or 'node_modules' in Path(path).parts
                 or not isinstance(digest,str) or not re.fullmatch(r'[a-f0-9]{64}',digest)):
             raise ValueError(f'{key}: invalid exact condition source hash')
+
+
+def condition_source_hash(root, path, key):
+    """Read exact regular files without following any below-root symlink.
+
+    Directory descriptors bind each parent before opening the next component;
+    checking resolve()/hashes alone permits relocated relative dependencies.
+    """
+    descriptors=[]
+    try:
+        flags=os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        descriptors.append(os.open(root,flags))
+        parts=Path(path).parts
+        for part in parts[:-1]:
+            descriptors.append(os.open(part,flags,dir_fd=descriptors[-1]))
+        descriptors.append(os.open(parts[-1],os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,dir_fd=descriptors[-1]))
+        if not stat.S_ISREG(os.fstat(descriptors[-1]).st_mode):
+            raise ValueError(f'{key}: condition source must be a regular file without symlinks: {path}')
+        digest=hashlib.sha256()
+        while chunk:=os.read(descriptors[-1],131072):digest.update(chunk)
+        return digest.hexdigest()
+    except OSError as error:
+        raise ValueError(f'{key}: cannot read condition source as a regular file without symlinks: {path}: {error}') from error
+    finally:
+        for descriptor in reversed(descriptors):os.close(descriptor)
 
 
 def classify(sites, exceptions, root=None):
@@ -426,9 +452,7 @@ def classify(sites, exceptions, root=None):
                 validate_source_hashes(key,pin.get('sourceHashes'))
                 if root is None:raise ValueError(f'{key}: checking condition source hashes requires the exact source root')
                 for path,digest in pin['sourceHashes'].items():
-                    source=root/path
-                    if (not source.resolve().is_relative_to(root.resolve()) or not source.is_file()
-                            or hashlib.sha256(source.read_bytes()).hexdigest()!=digest):
+                    if condition_source_hash(root,path,key)!=digest:
                         raise ValueError(f'{key}: reviewed condition source changed: {path}; re-approval is required')
     for site in sites:
         entry = exceptions.get(site['file'])

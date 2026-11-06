@@ -67,7 +67,9 @@ allowance. Approved categories are:
   omitted credentials and exact size/digest. These are not general fetch
   exceptions. Their `sourceHashes` also bind policy-bearing files outside the
   function (including configuration and asset bytes), so an unchanged call
-  cannot survive a changed target, credential mode or release setting.
+  cannot survive a changed target, credential mode or release setting. Each
+  bound path must reach a regular file without symlinks, including every parent
+  directory below the source root; in-root relocation is rejected too.
 
 The two separately approved metadata-artwork callbacks use an explicit
 `guardSpan: "forwarding-function"` in both pin and ledger (`guardSpans` maps
