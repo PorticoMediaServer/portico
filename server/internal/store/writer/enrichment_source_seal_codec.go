@@ -2,25 +2,19 @@ package writer
 
 import (
 	"context"
+	"encoding/hex"
 	"slices"
 	"strings"
 	"unicode/utf8"
 )
 
 const (
-	normalizedEvidenceAlgorithm = "portico.normalized-evidence.sha256.v1"
-	normalizedSourceAlgorithm   = "portico.normalized-credit-source.sha256.v1"
+	normalizedEvidenceAlgorithm = NormalizedEvidenceAlgorithm
+	normalizedSourceAlgorithm   = NormalizedSourceAlgorithm
 )
 
-// This is the ONLY temporary data seam to W's one production implementation.
-// No SQL handle, turn, callback, authority or proof flag crosses it. It is used
-// BEFORE writer admission against a complete captured/charged native snapshot.
-// Until W supplies its adapter there is no production implementation/fallback.
-type enrichmentSealCodec interface {
-	evidenceManifest(EvidenceStagePayload) (normalizedSealManifest, error)
-	sourceManifest(normalizedSourceContent) (normalizedSealManifest, error)
-}
-
+// W owns the sole normalized implementation and limits. These EN projections
+// are inert data, not another encoder, verified snapshot or authority callback.
 type normalizedSealCommitment [32]byte // neither RequestDigest nor ResultDigest
 type normalizedSealManifest struct {
 	algorithm            string
@@ -32,6 +26,7 @@ type normalizedSealManifest struct {
 // inert original native DATA, never a verified-reference capability.
 type normalizedEvidenceReceipt struct {
 	ownerID                                                                  string
+	commandKind                                                              string
 	identity                                                                 CommandIdentity
 	request                                                                  RequestDigest
 	entityID, version                                                        int64
@@ -69,38 +64,36 @@ type normalizedSourceContent struct {
 	upstream normalizedEvidenceReceipt
 	header   normalizedSourceHeader
 	members  []normalizedSourceMember
+	intent   NormalizedSourceIntent // CURRENT operation facts, never inferred from historical E
 }
 
 // Data preparation cannot establish native closure/provenance/current authority.
 // W independently verifies those facts before entering a seal effect turn.
-func prepareEvidenceSealManifest(ctx context.Context, codec enrichmentSealCodec, p EvidenceStagePayload, controls enrichmentControlCapture) (normalizedSealManifest, error) {
-	if ctx == nil || ctx.Err() != nil {
-		if ctx != nil {
-			return normalizedSealManifest{}, ctx.Err()
-		}
-		return normalizedSealManifest{}, ErrInvalid
-	}
-	if _, err := preflightEnrichmentControls(controls); err != nil {
-		return normalizedSealManifest{}, err
-	}
-	if codec == nil || !p.valid {
-		return normalizedSealManifest{}, ErrResolveRequired
-	}
-	m, err := codec.evidenceManifest(p)
-	if err != nil {
-		return normalizedSealManifest{}, err
-	}
-	if m.algorithm != normalizedEvidenceAlgorithm || m.version != 1 || m.rows != int64(1+len(p.credits)) || m.bytes <= 0 || uint64(m.bytes) > maxCanonicalRequestBytes {
+func prepareEvidenceSealManifest(ctx context.Context, p EvidenceStagePayload, controls enrichmentControlCapture) (normalizedSealManifest, error) {
+	if ctx == nil {
 		return normalizedSealManifest{}, ErrInvalid
 	}
 	if err := ctx.Err(); err != nil {
 		return normalizedSealManifest{}, err
 	}
-	m.algorithm = normalizedEvidenceAlgorithm
-	return m, nil
+	if _, err := preflightEnrichmentControls(controls); err != nil {
+		return normalizedSealManifest{}, err
+	}
+	if !p.valid || len(p.credits) > MaxCastCredits+MaxCrewCredits {
+		return normalizedSealManifest{}, ErrInvalid
+	}
+	input := projectNormalizedEvidence(p)
+	summary, err := NormalizedEvidenceSeal(NormalizedSealSelection{NormalizedEvidenceKind, NormalizedEvidenceAlgorithm, 1}, input)
+	if err != nil {
+		return normalizedSealManifest{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return normalizedSealManifest{}, err
+	}
+	return normalizedSealManifest{NormalizedEvidenceAlgorithm, 1, summary.VerifiedRows, summary.CanonicalBytes, normalizedSealCommitment(summary.Commitment)}, nil
 }
 
-func prepareSourceSealManifest(ctx context.Context, codec enrichmentSealCodec, input normalizedSourceContent, controls enrichmentControlCapture) (normalizedSourceContent, normalizedSealManifest, error) {
+func prepareSourceSealManifest(ctx context.Context, input normalizedSourceContent, controls enrichmentControlCapture) (normalizedSourceContent, normalizedSealManifest, error) {
 	var zero normalizedSourceContent
 	if ctx == nil {
 		return zero, normalizedSealManifest{}, ErrInvalid
@@ -111,73 +104,60 @@ func prepareSourceSealManifest(ctx context.Context, codec enrichmentSealCodec, i
 	if _, err := preflightEnrichmentControls(controls); err != nil {
 		return zero, normalizedSealManifest{}, err
 	}
-	if codec == nil {
-		return zero, normalizedSealManifest{}, ErrResolveRequired
+	if input.members == nil || len(input.members) > MaxCastCredits+MaxCrewCredits {
+		return zero, normalizedSealManifest{}, ErrInvalid
 	}
-	if err := validateNormalizedSource(input); err != nil {
-		return zero, normalizedSealManifest{}, err
-	}
-	// Validation/bounds above precede every copy. Clone all retained strings;
-	// short substrings cannot keep uncharged provider/native buffers alive.
-	owned := cloneNormalizedSource(input)
-	m, err := codec.sourceManifest(owned)
+	native := projectNormalizedSource(input)
+	summary, err := NormalizedSourceSeal(NormalizedSealSelection{NormalizedSourceKind, NormalizedSourceAlgorithm, 1}, native)
 	if err != nil {
 		return zero, normalizedSealManifest{}, err
-	}
-	if m.algorithm != normalizedSourceAlgorithm || m.version != 1 || m.rows != int64(len(owned.members)) || m.bytes <= 0 || uint64(m.bytes) > maxCanonicalRequestBytes {
-		return zero, normalizedSealManifest{}, ErrInvalid
 	}
 	if err := ctx.Err(); err != nil {
 		return zero, normalizedSealManifest{}, err
 	}
-	m.algorithm = normalizedSourceAlgorithm
-	return owned, m, nil
+	// W has checked the entire borrowed input before ANY variable-string clone.
+	// Owning is preparation custody, not native/provenance proof. The temporary
+	// bounded DTO slices above borrow strings and are never retained by W.
+	owned := cloneNormalizedSource(input)
+	if err := ctx.Err(); err != nil {
+		return zero, normalizedSealManifest{}, err
+	}
+	return owned, normalizedSealManifest{NormalizedSourceAlgorithm, 1, summary.VerifiedRows, summary.CanonicalBytes, normalizedSealCommitment(summary.Commitment)}, nil
 }
 
-func validateNormalizedSource(s normalizedSourceContent) error {
-	h, u := s.header, s.upstream
-	if h.entityID <= 0 || h.provider != "tmdb" || !lowerHex(h.id, 32) || h.count != int64(len(s.members)) || len(s.members) > MaxCastCredits+MaxCrewCredits || strings.TrimSpace(h.record) == "" || len(h.record) > 4096 || h.observed == "" ||
-		u.ownerID == "" || u.identity.Sequence <= 0 || u.entityID <= 0 || u.version != 1 || u.subjectID <= 0 || u.evidenceID == "" || u.buildID == "" || u.ownerGeneration <= 0 || u.buildGeneration <= 0 || u.revision <= 0 ||
-		u.provider != "tmdb" || u.kind != "movie" || u.parser != "tmdb.movie.header-selected-credits.v1" || u.shape != "tmdb.movie.detail+credits.header-selected-credits.v1" || !lowerHex(u.observation, 64) ||
-		u.manifest.algorithm != normalizedEvidenceAlgorithm || u.manifest.version != 1 || u.manifest.rows != 1+h.count || u.manifest.bytes <= 0 {
-		return invalid("source_manifest_context")
+// Explicit native projection; no field order or JSON/reflection can choose
+// normalized bytes here. W's sole codec defines and verifies that byte stream.
+func projectNormalizedEvidence(p EvidenceStagePayload) NormalizedEvidenceInput {
+	h := p.header.input
+	out := NormalizedEvidenceInput{Header: NormalizedEvidenceHeader{
+		ID: h.ID, SubjectID: h.SubjectID, ParserVersion: h.ParserVersion, Provider: h.Provider, SubjectKind: h.SubjectKind, ProviderID: h.ProviderID, Language: h.Language, Region: h.Region, RequestShape: h.RequestShape,
+		Digest: hex.EncodeToString(h.ObservationDigest[:]), ObservedAt: h.ObservedAt, SourceURL: h.SourceURL, ETag: h.ETag, LastModified: h.LastModified,
+		Title: h.Title, OriginalTitle: h.OriginalTitle, Overview: h.Overview, Tagline: h.Tagline, ContentRating: h.ContentRating, Studio: h.Studio, Network: h.Network, Country: h.Country, ReleaseDate: h.ReleaseDate, Year: h.Year, Artist: h.Artist,
+		LengthMillis: h.LengthMillis, ArtistType: h.ArtistType, BeginYear: h.BeginYear, EndYear: h.EndYear, WikidataID: h.WikidataID, Biography: h.Biography, BiographySource: h.BiographySource, BiographySourceURL: h.BiographySourceURL,
+		Disambiguation: h.Disambiguation, ReleaseGroupID: h.ReleaseGroupID, GroupTitle: h.GroupTitle, PrimaryType: h.PrimaryType, Barcode: h.Barcode,
+	}, Credits: make([]NormalizedEvidenceCredit, len(p.credits))}
+	for i, r := range p.credits {
+		out.Credits[i] = NormalizedEvidenceCredit{Provider: h.Provider, EvidenceKind: h.SubjectKind, CreditClass: string(r.Class), EvidenceID: h.ID, Scope: "", Ordinal: r.Ordinal, ProviderPersonID: r.ProviderPersonID, Name: r.Name,
+			ArtistName: "", SortName: "", Disambiguation: "", JoinPhrase: "", Role: r.Role, Department: r.Department, CreditID: r.CreditID, SourceOrdinal: EvidenceInteger{Value: r.SourceOrdinal, Present: true}, Billing: r.Billing}
 	}
-	var originalBytes uint64
-	for _, v := range []string{h.id, h.provider, h.record, h.observed, u.ownerID, u.evidenceID, u.parser, u.provider, u.kind, u.providerID, u.language, u.region, u.shape, u.observation, u.buildID, u.manifest.algorithm} {
-		if uint64(len(v)) > maxCanonicalRequestBytes-originalBytes {
-			return invalid("source_manifest_bytes")
-		}
-		originalBytes += uint64(len(v))
-		if !sealNativeText(v) {
-			return invalid("source_manifest_text")
-		}
+	return out
+}
+
+func projectNormalizedSource(s normalizedSourceContent) NormalizedSourceInput {
+	u, h := s.upstream, s.header
+	out := NormalizedSourceInput{Upstream: NormalizedUpstreamEvidence{
+		ProviderOperationID: u.ownerID, CommandIncarnation: u.identity.Incarnation, CommandSequence: u.identity.Sequence, OperationID: u.identity.OperationID, RequestDigest: [32]byte(u.request), CommandKind: u.commandKind,
+		EntityID: u.entityID, SealVersion: u.version, SealEvidenceID: u.evidenceID, SealSubjectID: u.subjectID, SealParserVersion: u.parser, SealProvider: u.provider, SealSubjectKind: u.kind, SealProviderID: u.providerID, SealLanguage: u.language, SealRegion: u.region, SealRequestShape: u.shape, SealObservationDigest: u.observation,
+		SealOwnerGeneration: u.ownerGeneration, SealBuildID: u.buildID, SealBuildGeneration: u.buildGeneration, SealContentRevision: u.revision, SealAlgorithm: u.manifest.algorithm, SealCommitment: [32]byte(u.manifest.commitment), SealVerifiedRows: u.manifest.rows, SealCanonicalBytes: u.manifest.bytes,
+	}, Header: NormalizedSourceHeader{PublicationID: h.id, EntityID: h.entityID, Provider: h.provider, AcceptedRecordReference: h.record, ObservedAt: h.observed, MemberCount: h.count}, Members: make([]NormalizedSourceEntry, len(s.members)), Intent: s.intent}
+	for i, v := range s.members {
+		r := v.row
+		out.Members[i] = NormalizedSourceEntry{
+			Member: NormalizedSourceMember{PublicationID: v.publicationID, EntityID: v.entityID, Provider: v.provider, Position: v.position, SourceRowID: v.sourceRowID, ReferenceStatus: v.reference},
+			Row: NormalizedSourceRow{SourceRowID: r.id, EntityID: r.entityID, Provider: r.provider, TupleDigest: r.tupleDigest, OriginalRecordReference: r.record, OriginalCreditID: r.creditID, OriginalProviderPersonID: r.providerPersonID, OriginalPersonIdentityKey: r.identityKey, OriginalPersonToken: r.personToken, OriginalTargetKind: r.targetKind, OriginalTargetID: r.targetID,
+				OriginalCreditedName: r.name, OriginalRole: r.role, OriginalDepartment: r.department, OriginalCreditClass: string(r.class), OriginalSourceOrdinal: r.rawOrdinal, OriginalBilling: r.billing}}
 	}
-	candidates := make([]ScreenCreditCandidate, len(s.members))
-	for i, m := range s.members {
-		r := m.row
-		if m.publicationID != h.id || m.entityID != h.entityID || m.provider != h.provider || m.position != int64(i) || m.sourceRowID != r.id || r.entityID != h.entityID || r.provider != h.provider || !lowerHex(r.id, 32) || !lowerHex(r.tupleDigest, 64) ||
-			(m.reference != "new" && m.reference != "exact" && m.reference != "ambiguous") || r.rawOrdinal < 0 || strings.TrimSpace(r.record) == "" ||
-			(r.class == Cast && (!r.billing.Present || r.billing.Value < 0)) || (r.class == Crew && (r.billing.Present || r.billing.Value != 0)) || (r.class != Cast && r.class != Crew) {
-			return invalid("source_manifest_member")
-		}
-		fields := []struct {
-			value string
-			limit int
-		}{{r.record, 4096}, {r.creditID, 1024}, {r.providerPersonID, 1024}, {r.identityKey, 512}, {r.personToken, 256}, {r.targetKind, 64}, {r.targetID, 256}, {r.name, 1200}, {r.role, 2000}, {r.department, 800}}
-		for _, f := range fields {
-			if len(f.value) > f.limit || uint64(len(f.value)) > maxCanonicalRequestBytes-originalBytes || !sealNativeText(f.value) {
-				return invalid("source_manifest_tuple_bytes")
-			}
-			originalBytes += uint64(len(f.value))
-		}
-		for j := 0; j < i; j++ {
-			if s.members[j].sourceRowID == r.id {
-				return invalid("source_manifest_duplicate")
-			}
-		}
-		candidates[i] = ScreenCreditCandidate{r.class, r.billing.Value, r.rawOrdinal, r.creditID, r.role, r.department}
-	}
-	return ValidateRetainedCreditShape(candidates)
+	return out
 }
 
 func sealNativeText(s string) bool { return utf8.ValidString(s) && strings.IndexByte(s, 0) < 0 }
@@ -195,7 +175,8 @@ func lowerHex(s string, n int) bool {
 
 func cloneNormalizedSource(s normalizedSourceContent) normalizedSourceContent {
 	h, u := &s.header, &s.upstream
-	for _, p := range []*string{&h.id, &h.provider, &h.record, &h.observed, &u.ownerID, &u.evidenceID, &u.parser, &u.provider, &u.kind, &u.providerID, &u.language, &u.region, &u.shape, &u.observation, &u.buildID, &u.manifest.algorithm} {
+	i := &s.intent
+	for _, p := range []*string{&h.id, &h.provider, &h.record, &h.observed, &u.ownerID, &u.commandKind, &u.evidenceID, &u.parser, &u.provider, &u.kind, &u.providerID, &u.language, &u.region, &u.shape, &u.observation, &u.buildID, &u.manifest.algorithm, &i.ProviderOperationID, &i.SourceEvidenceOwner, &i.SourceEvidenceID, &i.SourceParserVersion, &i.SourcePublicationID, &i.Provider, &i.SourceAlgorithm} {
 		*p = strings.Clone(*p)
 	}
 	s.members = slices.Clone(s.members)
