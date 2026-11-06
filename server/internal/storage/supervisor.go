@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"errors"
-	"github.com/PorticoMediaServer/portico/server/internal/childprocess"
 	"io"
 	"log"
 	"os"
@@ -15,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/childprocess"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 	"github.com/PorticoMediaServer/portico/server/internal/supervise"
 )
@@ -46,6 +46,9 @@ var ErrBusy = errors.New("storage source has an outstanding operation; retry whe
 //   - Foreground helpers remain short-lived and independently bounded.
 //   - Background scans, analysis, artwork and optimization share one CPU budget
 //     of half the available cores, with a floor of one, plus low OS priority.
+//   - Portable inventory streams retain their existing two physical producer
+//     slots between page demands. They cannot occupy a short-helper CPU permit
+//     while idle: the next stream or directory validation would wait on it.
 //
 // A playback admission that finds its pool full waits, briefly and with the
 // caller's context, rather than refusing at once: fifty viewers pressing play in
@@ -74,6 +77,7 @@ const (
 	poolPlayback
 	poolBackground
 	poolScanProbe
+	poolInventoryStream
 )
 
 func poolFor(ctx context.Context, key string) pool {
@@ -83,7 +87,10 @@ func poolFor(ctx context.Context, key string) pool {
 	if strings.HasPrefix(key, "scan:") {
 		return poolScanProbe
 	}
-	for _, prefix := range []string{"analysis:", "optimization:", "inventory:", "inventory-stream:", "lyrics:"} {
+	if strings.HasPrefix(key, "inventory-stream:") {
+		return poolInventoryStream
+	}
+	for _, prefix := range []string{"analysis:", "optimization:", "inventory:", "lyrics:"} {
 		if strings.HasPrefix(key, prefix) {
 			return poolBackground
 		}
@@ -92,6 +99,10 @@ func poolFor(ctx context.Context, key string) pool {
 		return poolBackground
 	}
 	return poolHelper
+}
+
+func backgroundPool(p pool) bool {
+	return p == poolBackground || p == poolScanProbe || p == poolInventoryStream
 }
 
 // openingKeys are the operations a viewer is waiting on: opening a stream, or
@@ -114,8 +125,8 @@ func waitsForSlot(key string) bool {
 type Supervisor struct {
 	mu               sync.Mutex
 	active           map[string]bool
-	counts           [4]int
-	waitQueues       [4][]uint64
+	counts           [5]int
+	waitQueues       [5][]uint64
 	nextWaitID       uint64
 	backgroundNormal atomic.Bool
 	// notify is closed and replaced on every release, which wakes every waiter to
@@ -123,9 +134,9 @@ type Supervisor struct {
 	// a broadcast is correct rather than wasteful.
 	notify chan struct{}
 
-	// Limit, when set, overrides both pools. It exists for tests that want a
-	// supervisor of a known size; the server leaves it zero and takes the
-	// measured defaults.
+	// Limit overrides generic helper pools. Retained inventory keeps the two
+	// physical slots already reserved in inventoryStreams, independent of CPU
+	// capacity. The server leaves Limit zero and takes the measured defaults.
 	Limit int
 
 	admitted  atomic.Uint64
@@ -144,15 +155,17 @@ type Supervisor struct {
 
 // SupervisorStats is the observable state of one supervisor.
 type SupervisorStats struct {
-	PlaybackActive     int    `json:"playbackActive"`
-	PlaybackCapacity   int    `json:"playbackCapacity"`
-	HelperActive       int    `json:"helperActive"`
-	HelperCapacity     int    `json:"helperCapacity"`
-	BackgroundActive   int    `json:"backgroundActive"`
-	BackgroundCapacity int    `json:"backgroundCapacity"`
-	ScanProbeActive    int    `json:"scanProbeActive"`
-	ScanProbeCapacity  int    `json:"scanProbeCapacity"`
-	Admitted           uint64 `json:"admitted"`
+	PlaybackActive           int    `json:"playbackActive"`
+	PlaybackCapacity         int    `json:"playbackCapacity"`
+	HelperActive             int    `json:"helperActive"`
+	HelperCapacity           int    `json:"helperCapacity"`
+	BackgroundActive         int    `json:"backgroundActive"`
+	BackgroundCapacity       int    `json:"backgroundCapacity"`
+	ScanProbeActive          int    `json:"scanProbeActive"`
+	ScanProbeCapacity        int    `json:"scanProbeCapacity"`
+	InventoryStreamsActive   int    `json:"inventoryStreamsActive"`
+	InventoryStreamsCapacity int    `json:"inventoryStreamsCapacity"`
+	Admitted                 uint64 `json:"admitted"`
 	// InProcess counts admitted operations served without a helper process
 	// (scanner M1); Admitted minus InProcess is the processes started.
 	InProcess                 uint64 `json:"inProcess"`
@@ -171,12 +184,14 @@ func (s *Supervisor) Stats() SupervisorStats {
 	s.mu.Lock()
 	playback, helper, background, scan := s.counts[poolPlayback], s.counts[poolHelper], s.counts[poolBackground], s.counts[poolScanProbe]
 	playbackLimit, helperLimit, backgroundLimit, scanLimit := s.limitLocked(poolPlayback), s.limitLocked(poolHelper), s.limitLocked(poolBackground), s.limitLocked(poolScanProbe)
+	inventory, inventoryLimit := s.counts[poolInventoryStream], s.limitLocked(poolInventoryStream)
 	s.mu.Unlock()
 	return SupervisorStats{
 		PlaybackActive: playback, PlaybackCapacity: playbackLimit,
 		HelperActive: helper, HelperCapacity: helperLimit,
 		BackgroundActive: background, BackgroundCapacity: backgroundLimit,
 		ScanProbeActive: scan, ScanProbeCapacity: scanLimit,
+		InventoryStreamsActive: inventory, InventoryStreamsCapacity: inventoryLimit,
 		Admitted: s.admitted.Load(), InProcess: s.inProcess.Load(), Queued: s.queued.Load(), Refused: s.refused.Load(),
 		QueueWaitMillis: s.waitNs.Load() / uint64(time.Millisecond),
 		NativeRetiring:  s.nativeRetiring.Load(), NativeRetirementOverGrace: s.nativeRetirementOverGrace.Load(),
@@ -184,6 +199,9 @@ func (s *Supervisor) Stats() SupervisorStats {
 }
 
 func (s *Supervisor) limitLocked(p pool) int {
+	if p == poolInventoryStream {
+		return cap(inventoryStreams.slots)
+	}
 	if s.Limit > 0 {
 		return s.Limit
 	}
@@ -247,7 +265,7 @@ func (s *Supervisor) RunFunc(ctx context.Context, key string, fn func(ctx contex
 	}
 	defer s.release(key, p)
 	s.inProcess.Add(1)
-	return fn(ctx, (p == poolBackground || p == poolScanProbe) && !s.backgroundNormal.Load())
+	return fn(ctx, backgroundPool(p) && !s.backgroundNormal.Load())
 }
 
 func (s *Supervisor) run(ctx context.Context, key string, cmd *exec.Cmd, consume func(io.Reader) error, afterExit, afterRetired func()) error {
@@ -260,7 +278,7 @@ func (s *Supervisor) run(ctx context.Context, key string, cmd *exec.Cmd, consume
 func (s *Supervisor) admit(ctx context.Context, key string, limited bool) (pool, error) {
 	p := poolFor(ctx, key)
 	native := nativeInventoryAdmission(ctx)
-	if !native && (p == poolBackground || p == poolScanProbe) && !dbwork.WaitBackground(ctx) {
+	if !native && backgroundPool(p) && !dbwork.WaitBackground(ctx) {
 		return p, ctx.Err()
 	}
 	var timer *time.Timer
@@ -306,7 +324,7 @@ func (s *Supervisor) admit(ctx context.Context, key string, limited bool) (pool,
 			s.admitted.Add(1)
 			return p, nil
 		}
-		background := p == poolBackground || p == poolScanProbe
+		background := backgroundPool(p)
 		if native || !background && !waitsForSlot(key) {
 			s.refused.Add(1)
 			return p, ErrBusy
@@ -417,7 +435,7 @@ func (s *Supervisor) runAdmission(ctx context.Context, key string, cmd *exec.Cmd
 	// actual process exit.
 	if data, ok := inProcessRequest(cmd); ok && afterExit == nil && afterRetired == nil {
 		s.inProcess.Add(1)
-		return runInProcess(ctx, data, consume, release, (p == poolBackground || p == poolScanProbe) && !s.backgroundNormal.Load())
+		return runInProcess(ctx, data, consume, release, backgroundPool(p) && !s.backgroundNormal.Load())
 	}
 	env := []string{"PATH=" + os.Getenv("PATH"), "TMPDIR=" + os.Getenv("TMPDIR")}
 	for _, v := range cmd.Env {
@@ -428,7 +446,7 @@ func (s *Supervisor) runAdmission(ctx context.Context, key string, cmd *exec.Cmd
 		}
 	}
 	cmd.Env = env
-	if (p == poolBackground || p == poolScanProbe) && !s.backgroundNormal.Load() {
+	if backgroundPool(p) && !s.backgroundNormal.Load() {
 		lowerBackgroundPriority(cmd)
 	}
 	configureProcess(cmd)
@@ -446,7 +464,7 @@ func (s *Supervisor) runAdmission(ctx context.Context, key string, cmd *exec.Cmd
 		release()
 		return e
 	}
-	if (p == poolBackground || p == poolScanProbe) && !s.backgroundNormal.Load() {
+	if backgroundPool(p) && !s.backgroundNormal.Load() {
 		applyBackgroundPriority(cmd)
 	}
 	done := make(chan error, 1)
@@ -516,7 +534,11 @@ func (s *Supervisor) warnNativeRetirement() {
 func (s *Supervisor) Active() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.counts[poolHelper] + s.counts[poolPlayback] + s.counts[poolBackground] + s.counts[poolScanProbe]
+	total := 0
+	for _, count := range s.counts {
+		total += count
+	}
+	return total
 }
 
 // stderrTailBytes is how much of a child's error output is kept (its end).
