@@ -28,7 +28,7 @@ func (*searchFragmentStageCommand) isSearchFragmentStageCommand() {}
 
 // Pinned by the SHARED W encoder with an all-empty-TEXT request. No duplicate
 // reflection/encoding routine or caller size declaration is used in production.
-const searchFragmentStageFixedBytes = 8192
+const searchFragmentStageFixedBytes = 5813
 
 const (
 	searchFragmentPreparedBytes = 6144
@@ -78,6 +78,9 @@ func newSearchFragmentStageCommand(identity CommandIdentity, in searchFragmentSt
 		len(in.row.Normalized) > searchFragmentWindowBytes || len(in.row.Revision) > searchFirstRevisionBytes {
 		return nil, invalid("fragment_column_envelope")
 	}
+	if utf8.RuneCountInString(in.row.Normalized) > searchFragmentWindowRunes {
+		return nil, invalid("fragment_normalized_window")
+	}
 	// No partial stream, clipped token or shortened normalized window is ever
 	// accepted. Empty columns still form one ordinary/native fragment row.
 	payload, err := prepareSearchFragment(in.row, searchFragmentPreparationBudget{
@@ -86,9 +89,6 @@ func newSearchFragmentStageCommand(identity CommandIdentity, in searchFragmentSt
 	})
 	if err != nil {
 		return nil, err
-	}
-	if utf8.RuneCountInString(payload.row.Normalized) > searchFragmentWindowRunes {
-		return nil, invalid("fragment_normalized_window")
 	}
 	if _, err := planSearchFragmentStage(in.snapshot, payload); err != nil {
 		return nil, err
