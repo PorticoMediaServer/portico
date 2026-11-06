@@ -10,6 +10,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
 // The immutable seed below is a native SQL-fact fixture, not adapter evidence,
@@ -41,7 +42,7 @@ VALUES(41,'scan-object-asset',7,'/media/Arrival.mkv',42,-11,'','','',0,0,0)`,
 
 func scanObjectTestTurn(t *testing.T, w *executor, definitions []stmt.Definition) *commandTurn {
 	t.Helper()
-	r, err := stmt.New(definitions)
+	r, err := stmttest.New(t, definitions)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +95,7 @@ func TestScanObjectClosedStatement(t *testing.T) {
 	if !ok || strings.Contains(insert, "retired") {
 		t.Fatal("object INSERT must keep unconditional retired DEFAULT 0")
 	}
-	r, err := stmt.New(definitions)
+	r, err := stmttest.New(t, definitions)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -247,7 +248,7 @@ FROM (SELECT '' AS suffix UNION ALL SELECT '-other')`, 1)
 				// Seed the collision through the canonical statement, then use
 				// the private test-only ignored variant on this same turn.
 				original := scanObjectDefinitions()[0]
-				r, err := stmt.New([]stmt.Definition{original})
+				r, err := stmttest.New(t, []stmt.Definition{original})
 				if err != nil {
 					t.Fatal(err)
 				}
