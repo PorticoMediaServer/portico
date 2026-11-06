@@ -36,7 +36,7 @@ export function personalRevision(raw: unknown): number | undefined {
 }
 
 async function currentRevision(api: Api, itemId: string, signal?: AbortSignal): Promise<number> {
-  const r = personalRevision(await api.request<unknown>(itemPath(itemId) + '/detail', 'GET', undefined, signal));
+  const r = personalRevision(await api.request<unknown>(itemPath(itemId) + '/detail', 'GET', undefined, signal)); // query-read: kept (write precondition: the revision the PUT pins, read fresh)
   if (r === undefined) throw Object.assign(new Error('The title’s personal state could not be read.'), {code: 'invalid_detail'});
   return r;
 }
@@ -58,7 +58,7 @@ export async function setContinueDismissed(api: Api, input: ContinueDismissalInp
     if (!object(marker) || typeof marker.key !== 'string' || !isUserMutationKey(marker.key)) invalid();
     const recovered = parseUserMutationReceipt(marker, {key: marker.key, operation: 'put_items_id_personal_state'});
     if (recovered.status !== 'applied' || recovered.targetId !== itemId || !revisionValue(recovered.revision)) invalid();
-    const current = await api.request<unknown>(itemPath(itemId) + '/detail', 'GET', undefined, signal);
+    const current = await api.request<unknown>(itemPath(itemId) + '/detail', 'GET', undefined, signal); // query-read: kept (write recovery: the applied revision, read fresh after a recovered receipt)
     if (!object(current) || !object(current.scope) || current.scope.itemId !== itemId || !identifier(current.scope.serverId) || !identifier(current.scope.libraryId) || !identifier(current.scope.viewerFence) || !object(current.item) || current.item.id !== itemId || current.item.libraryId !== current.scope.libraryId) invalid();
     const value = personalRevision(current);
     if (value === undefined || value < recovered.revision) invalid();

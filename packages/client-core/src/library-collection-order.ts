@@ -14,7 +14,7 @@ export type CollectionRequest = <T>(path: string, method: 'GET' | 'PUT', body?: 
 export async function moveCollectionTitle(request: CollectionRequest, collectionId: string, itemId: string, afterItemId: string): Promise<number> {
   const path = encodedRoutePath('reorder_library_collection', {id: encodeURIComponent(collectionId)});
   const read = async () => {
-    const c = await request<{revision?: unknown}>(encodedRoutePath('get_collections_id', {id: encodeURIComponent(collectionId)}), 'GET');
+    const c = await request<{revision?: unknown}>(encodedRoutePath('get_collections_id', {id: encodeURIComponent(collectionId)}), 'GET'); // query-read: kept (write precondition: the revision the reorder pins, read fresh)
     if (typeof c?.revision !== 'number' || !Number.isSafeInteger(c.revision) || c.revision < 1) throw Object.assign(new Error('The collection could not be read.'), {code: 'invalid_response'});
     return c.revision;
   };
