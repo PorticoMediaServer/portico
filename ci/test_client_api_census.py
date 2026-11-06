@@ -31,7 +31,7 @@ class ClientApiCensus(unittest.TestCase):
         result=subprocess.run(['node',str(ROOT/'ci/fixtures/forwarder-grammar.mjs')],cwd=ROOT,
                               text=True,capture_output=True,check=True)
         proof=json.loads(result.stdout)
-        self.assertGreaterEqual(proof['grammarCases'],108)
+        self.assertGreaterEqual(proof['grammarCases'],124)
         self.assertGreater(proof['legacyNegativeChecks'],0)
 
     def test_frozen_forwarders_only_bind_the_original_approved_snapshot(self):
@@ -549,6 +549,31 @@ async function guarded(path: string, method: string, body: unknown, signal: Abor
 }
 """
 
+    def test_request_and_response_metadata_cannot_become_guard_inputs(self):
+        core='export type V1Request={path:string;method:string;body?:unknown;signal?:AbortSignal};export interface V1Http{send(request:V1Request):Promise<unknown>;}'
+        prefix="import type {V1Http,V1Request} from '../../packages/client-core/src/playback-v1/http';declare const wire:V1Http;\n"+self.GUARD.split('async function')[0]
+        cases=[
+            'function policy(request:V1Request){if(request.method==="DELETE")throw Error();return wire.send(request);}',
+            'function policy(request:V1Request){const denied=request.method==="DELETE";if(denied)throw Error();return wire.send(request);}',
+            'async function policy(path:string,method:string,body:unknown,signal:AbortSignal){const r=await api.request<{status:number}>(path,method,body,signal);if(r.status>=400)throw Error();return r;}',
+            'async function policy(path:string,method:string,body:unknown,signal:AbortSignal){const r=await api.request<{status:number}>(path,method,body,signal);const denied=r.status>=400;if(denied)throw Error();return r;}',
+            'async function policy(path:string,method:string,body:unknown,signal:AbortSignal){const r=await api.request<{status:number}>(path,method,body,signal);const status=r.status;return r;}',
+        ]
+        for policy in cases:
+            with self.subTest(policy=policy):
+                root,filename,sites,pin=self.fixture(prefix+policy,dependencies={'packages/client-core/src/playback-v1/http.ts':core})
+                self.assertEqual(len(sites),1)
+                self.assertFalse(sites[0]['forwardedRequest'])
+                self.assertIn('request or response data',sites[0]['grammarRejection'])
+                # A fresh exact hash and ruling cannot turn a domain policy
+                # into one of the closed grammar's lifetime guards.
+                site=sites[0]
+                (root/APPROVALS).write_text(json.dumps({site['id']:{'category':'platform-transport',
+                    'reason':pin['reason'],'condition':'Test exact-hash approval','guardHash':site['guardHash'],
+                    'occurrences':1,'rulingUrl':'https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082'}}))
+                with self.assertRaisesRegex(ValueError,'closed forwarder grammar'):classify(sites,{filename:pin})
+                code,output=self.check(root);self.assertEqual(code,1);self.assertIn('closed forwarder grammar',output)
+
     def test_overlap_and_combined_allowance_growth_fail_through_the_real_check(self):
         root,filename,sites,entry=self.fixture(self.GUARD)
         self.assertEqual(self.check(root)[0],0)
@@ -575,9 +600,10 @@ async function guarded(path: string, method: string, body: unknown, signal: Abor
 
     def test_combined_raw_cleanup_budget_binds_the_full_policy_and_rejects_rewrites(self):
         source='''declare const api: {requestRaw(path: string, method: string, options: unknown): Promise<unknown>};
+declare function current(): boolean;
 function screenLifetime(selected: boolean) {
  return {requestRaw(path: string, method: string, options: unknown) {
-  if (selected) return api.requestRaw(path, method, options);
+  if (current()) return api.requestRaw(path, method, options);
   return api.requestRaw(path, method, options);
  }};
 }
@@ -591,12 +617,12 @@ function screenLifetime(selected: boolean) {
         self.assertEqual(len(classify(grown,{filename:pin})[0]),1)
         for old,new in [('api.requestRaw(path,','api.requestRaw(path + "/built",'),
                         ('method, options)','method, {body: options})'),
-                        ('if (selected)','if (!selected)')]:
+                        ('if (current())','if (!current())')]:
             with self.subTest(edit=new):
                 (root/filename).write_text(source.replace(old,new))
                 self.assertEqual(self.check(root)[0],1)
         # Argument spelling alone does not preserve a reviewed enclosing policy.
-        (root/filename).write_text(source.replace('if (selected)','if (!selected)'))
+        (root/filename).write_text(source.replace('if (current())','if (!current())'))
         self.assertTrue(all(s['forwardedRequest'] for s in scan(root)))
 
     def test_distinct_spans_sharing_an_id_require_separate_count_one_bindings(self):
@@ -1108,7 +1134,7 @@ function guarded(target: {sessionId: string}) {
              'api.requestConsole(path,','api.requestConsole(path+"/built",','method,body,','method,{built:true},'),
             ('request-options', 'function guard(path: string, method: string, body: unknown, signal: AbortSignal, options: object) {return api.request(path,method,body,signal,options);}',
              'api.request(path,','api.request(path+"/built",','method,body,','method,{built:true},'),
-            ('read-only', "function guard(path: string, method: string, body: unknown, signal: AbortSignal) {if(method!=='GET'||body!==undefined)throw Error();return api.request(path,'GET',undefined,signal);}",
+            ('read-only', "function guard(path: string, method: string, body: unknown, signal: AbortSignal) {if(!current())throw Error();return api.request(path,'GET',undefined,signal);}",
              'api.request(path,','api.request(path+"/built",',"'GET',undefined,","'GET',{built:true},"),
             ('fetch-signal-options', 'function guard(input: string, options: object, signal: AbortSignal) {return api.routeFetch(input,{...options,signal});}',
              'api.routeFetch(input,','api.routeFetch(input+"/built",','{...options,signal}','{...options,body:{built:true},signal}'),
@@ -1417,9 +1443,9 @@ func stream(session: Foundation.URLSession, request: RequestValue) async throws 
         # current hash/category/reason is copied into the new ledger row.
         # Two sites, one dispatch per path: both are grammar-conforming, so a
         # one-occurrence ruling must be rejected by the ledger multiplicity gate.
-        multiple='declare const selected: boolean;\n'+self.GUARD.replace(
+        multiple='declare function current(): boolean;\n'+self.GUARD.replace(
             '  const value = await api.request<unknown>(path, method, body, signal);\n  return value;',
-            '  if (selected) return await api.request<unknown>(path, method, body, signal);\n'
+            '  if (current()) return await api.request<unknown>(path, method, body, signal);\n'
             '  return await api.request<unknown>(path, method, body, signal);')
         (root/filename).write_text(multiple)
         added=scan(root);new_key=added[0]['id'];self.assertEqual(new_key,added[1]['id'])

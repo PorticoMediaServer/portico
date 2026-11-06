@@ -1109,6 +1109,32 @@
       "occurrences": 1
     },
     {
+      "binding": "web/src/platform/playback/runtime.ts#692bd4c5a755f009@9b1d40470518b6b5f06e5a206ab8551ca2cc17e4e5dce806ac4ae146fac740fa",
+      "file": "web/src/platform/playback/runtime.ts",
+      "line": 234,
+      "guardHash": "9b1d40470518b6b5f06e5a206ab8551ca2cc17e4e5dce806ac4ae146fac740fa",
+      "owner": "send",
+      "shape": "conditional-signal",
+      "callHash": "b3a6d6efe8020bb65c7460e4590754a1b412200bf0fbe7b6c45efe2adbeafa4a",
+      "callText": "inner.send(request.method === 'DELETE' ? request : {...request, signal: request.signal ? AbortSignal.any([request.signal, this.life.signal]) : this.life.signal})",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648755492",
+      "reason": "predicate reads request or response data",
+      "occurrences": 1
+    },
+    {
+      "binding": "web/src/platform/playback/runtime.ts#6b285d4646a96382@1ab910a28f67251b5839683ff9e60bf474134c951bda979db7749e24a211beaf",
+      "file": "web/src/platform/playback/runtime.ts",
+      "line": 343,
+      "guardHash": "1ab910a28f67251b5839683ff9e60bf474134c951bda979db7749e24a211beaf",
+      "owner": "send",
+      "shape": "conditional-signal",
+      "callHash": "60cd5c92961fdf8855dc5ff57fcea707e4248ef7ec764d38871a9e16c96407d2",
+      "callText": "inner.send(request.method === 'DELETE' ? request : {...request, signal: request.signal ? AbortSignal.any([request.signal, life.signal]) : life.signal})",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648755492",
+      "reason": "predicate reads request or response data",
+      "occurrences": 1
+    },
+    {
       "binding": "web/src/platform/playback/runtime.ts#69bd8dfb105e18e1",
       "file": "web/src/platform/playback/runtime.ts",
       "line": 440,
@@ -1119,6 +1145,32 @@
       "callText": "this.source.api.request<T>(path, method, body, signal ? AbortSignal.any([signal, life.signal]) : life.signal)",
       "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082",
       "reason": "parameter destructuring or default",
+      "occurrences": 1
+    },
+    {
+      "binding": "web/src/platform/playback/runtime.ts#53df8861a53fc1ec@33fd90a3b9c4e49d28d4128de1e05798a3d438dc92632e9e7f9d839845850620",
+      "file": "web/src/platform/playback/runtime.ts",
+      "line": 1012,
+      "guardHash": "33fd90a3b9c4e49d28d4128de1e05798a3d438dc92632e9e7f9d839845850620",
+      "owner": "send",
+      "shape": "request-object",
+      "callHash": "0192d78117f039c84e2fe902772b5c3d3addd2f334cc66b73c9607bc8af89501",
+      "callText": "stack.http.send({...value, signal: value.signal ? AbortSignal.any([value.signal, signal]) : signal})",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648755492",
+      "reason": "predicate reads request or response data",
+      "occurrences": 1
+    },
+    {
+      "binding": "web/src/platform/playback/runtime.ts#d08cac842cd1705e@b47ffc309d78d47a4485776f3ba41802d129a8c35b6c9a7d5f39b15b48d9643f",
+      "file": "web/src/platform/playback/runtime.ts",
+      "line": 1161,
+      "guardHash": "b47ffc309d78d47a4485776f3ba41802d129a8c35b6c9a7d5f39b15b48d9643f",
+      "owner": "send",
+      "shape": "request-object",
+      "callHash": "c16bb1d63970ec695b54c7cffeb591b3d9dcc44261f6e06cea3535cb1bdefc25",
+      "callText": "stack.http.send({...value, signal: value.signal ? AbortSignal.any([value.signal, request.signal]) : request.signal})",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648755492",
+      "reason": "predicate reads request or response data",
       "occurrences": 1
     },
     {
@@ -1304,6 +1356,19 @@
       "occurrences": 1
     },
     {
+      "binding": "web/src/screens/settings/Settings.route.tsx#ce4f350e188d007f",
+      "file": "web/src/screens/settings/Settings.route.tsx",
+      "line": 217,
+      "guardHash": "1cb25b152865b88b4ad83ce0ee787fce88d5f259d9bb35475b2fc033b157fca8",
+      "owner": "value",
+      "shape": "fetch-signal-options",
+      "callHash": "300e782ac9c6b05eacec211a5e1dce897eb589da7a203679a1c6bc8a4e9ffe83",
+      "callText": "originalApi.routeFetch(input, {...options, signal: signal(options?.signal ?? (input instanceof Request ? input.signal : undefined))})",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+      "reason": "predicate reads request or response data",
+      "occurrences": 1
+    },
+    {
       "binding": "web/src/screens/settings/Settings.route.tsx#c0a9b0fe63b3e5a5",
       "file": "web/src/screens/settings/Settings.route.tsx",
       "line": 391,
@@ -1314,6 +1379,19 @@
       "callText": "api.request<T>(path, method, body, input)",
       "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
       "reason": "call is not a named guard",
+      "occurrences": 1
+    },
+    {
+      "binding": "web/src/screens/settings/invitations.ts#5ee197e42936d736",
+      "file": "web/src/screens/settings/invitations.ts",
+      "line": 35,
+      "guardHash": "57a46edcd50913186101ebd2adafc2665bad91698f31c4704cb46c6c085f01e5",
+      "owner": "reply",
+      "shape": "request",
+      "callHash": "ee64b3c411e3e45b6818e89c0f0b479f568c65ecfc6bf2136f9ed92058a8d2d7",
+      "callText": "api.request<T>(path, method, body, signal)",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+      "reason": "predicate is outside the read-only grammar",
       "occurrences": 1
     },
     {
@@ -1509,6 +1587,45 @@
       "callText": "api.request<T>(path, method, body, readSignal)",
       "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707",
       "reason": "call is not a named guard",
+      "occurrences": 1
+    },
+    {
+      "binding": "web/src/shell/entry-metadata.tsx#150a33a71dd902c4",
+      "file": "web/src/shell/entry-metadata.tsx",
+      "line": 41,
+      "guardHash": "98aa43e8d7d3c946aea0c2671ad29536ac049249f526fa6d3ac14f1113d0685e",
+      "owner": "result",
+      "shape": "request",
+      "callHash": "9c7c11ad2587d9d9cbd6cc54949d12ceb740b853efe03a7c555a8fc113225c01",
+      "callText": "value.ports.api.request<T>(path, method, body, signal ? AbortSignal.any([signal, value.lifetime.signal]) : value.lifetime.signal)",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024",
+      "reason": "local guard must not dispatch or take aliases",
+      "occurrences": 1
+    },
+    {
+      "binding": "web/src/shell/entry-metadata.tsx#c7f646a0471f6e15",
+      "file": "web/src/shell/entry-metadata.tsx",
+      "line": 57,
+      "guardHash": "39cdc283c205cc9c24b7c54b2415252682fc064a55f4766bb7ee6810207df329",
+      "owner": "result",
+      "shape": "request",
+      "callHash": "ee64b3c411e3e45b6818e89c0f0b479f568c65ecfc6bf2136f9ed92058a8d2d7",
+      "callText": "api.request<T>(path, method, body, signal)",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024",
+      "reason": "predicate is outside the read-only grammar",
+      "occurrences": 1
+    },
+    {
+      "binding": "web/src/shell/entry-metadata.tsx#a43dcffc8886f2de",
+      "file": "web/src/shell/entry-metadata.tsx",
+      "line": 86,
+      "guardHash": "38f227069d0ced556e8e34eb7790160fc38ab4ee7727a30b1dcdcf0e7439c379",
+      "owner": "result",
+      "shape": "request",
+      "callHash": "9c7c11ad2587d9d9cbd6cc54949d12ceb740b853efe03a7c555a8fc113225c01",
+      "callText": "value.ports.api.request<T>(path, method, body, signal ? AbortSignal.any([signal, value.lifetime.signal]) : value.lifetime.signal)",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024",
+      "reason": "unrecognized forwarding policy",
       "occurrences": 1
     },
     {

@@ -31,7 +31,6 @@ const ref = n => {
     || n.kind===K.PropertyAccessExpression && !['__proto__','prototype','constructor','call','apply','bind'].includes(n.name.text) && ref(n.expression));
 };
 const key = n => n?.kind===K.PropertyAccessExpression ? key(n.expression)+'.'+n.name.text : id(n) ?? (n?.kind===K.ThisKeyword?'this':'');
-const root = n => n?.kind===K.PropertyAccessExpression ? root(n.expression) : id(n);
 
 export function containsArguments(node) {
   let found=false;
@@ -49,7 +48,7 @@ export function parseForwarder({contract,call,shape}) {
   if (!contract?.body) return {accepted:false,reason:'no forwarding function'};
   if (containsArguments(contract)) return {accepted:false,reason:'implicit arguments alias'};
   if (shape==='vega-pending' || shape==='chapter-capability') return {accepted:false,reason:'executor or capability construction requires an exact legacy case'};
-  const parameters=new Set(), signals=new Set(), results=new Set(), tuples=new Set();
+  const parameters=new Set(), signals=new Set(), results=new Set(), tuples=new Set(), guardValues=new Set();
   const dispatchKey=key(call.expression);
   let rest;
   for (const p of contract.parameters ?? []) {
@@ -57,6 +56,8 @@ export function parseForwarder({contract,call,shape}) {
     parameters.add(p.name.text);
     if (p.dotDotDotToken) {rest=p.name.text;tuples.add(rest);}
     if (/^(?:signal|input|caller|callerSignal|requestSignal|_signal)$/.test(p.name.text)) signals.add(p.name.text);
+    // The reviewed conditional signal-copy shape has this explicit guard input.
+    if(p.name.text==='adopted'&&p.type?.kind===K.BooleanKeyword)guardValues.add(p.name.text);
   }
   if (!ref(call.expression)) return {accepted:false,reason:'non-named dispatch'};
   const requestNames=new Set();
@@ -74,15 +75,64 @@ export function parseForwarder({contract,call,shape}) {
   }
   if (call.arguments.length===5 && sameParameter(call.arguments[4])) dataNames.add(id(call.arguments[4]));
   for (const parameter of dataNames) signals.delete(parameter);
+  // A local guard can be declared before the awaited response it closes over.
+  // Classify those result bindings before visiting any guard body or predicate.
+  function dispatched(n) {
+    n=peel(n);
+    if(n?.kind===K.AwaitExpression)return dispatched(n.expression);
+    if(n?.kind===K.CallExpression)return key(n.expression)===dispatchKey;
+    return n?.kind===K.ConditionalExpression&&(dispatched(n.whenTrue)||dispatched(n.whenFalse));
+  }
+  function responseBindings(n) {
+    if(n.kind===K.VariableDeclaration&&id(n.name)&&dispatched(n.initializer))results.add(n.name.text);
+    n.forEachChild(responseBindings);
+  }
+  responseBindings(contract.body);
   function sameParameter(n) {return id(n) && parameters.has(id(n));}
   const touchesData=n=>{
     let found=false;
     function visit(v) {if (v.kind===K.Identifier && dataNames.has(v.text)) found=true;v.forEachChild(visit);}
     if (n)visit(n);return found;
   };
+  const policyReads=n=>{
+    let found=false;
+    function visit(v) {
+      if(v.kind===K.Identifier&&(dataNames.has(v.text)||results.has(v.text)||tuples.has(v.text)))found=true;
+      v.forEachChild(visit);
+    }
+    if(n)visit(n);return found;
+  };
   if (touchesData(call.expression)) return {accepted:false,reason:'request data selects the dispatch receiver'};
   const same=n=>id(n) && parameters.has(n.text);
-  const harmlessRef=n=>ref(n) && !dataNames.has(root(peel(n))) && !tuples.has(root(peel(n)));
+  const capturedSignals=new Set(['signal','abortSignal','readSignal','requestSignal']);
+  const lifetimeOwners=new Set(['abort','controller','deadline','life','lifetime','linked','scope','scoped']);
+  const errors=new Set();
+  function lifetimeSignal(n) {
+    n=peel(n);
+    if(!n||policyReads(n))return false;
+    if(id(n)==='undefined'||id(n)&&(signals.has(n.text)||capturedSignals.has(n.text)))return true;
+    if(n.kind===K.PropertyAccessExpression&&n.name.text==='signal') {
+      const owner=key(n.expression).split('.');
+      return owner.length===1&&lifetimeOwners.has(owner[0])
+        ||owner.length===2&&owner[0]==='this'&&lifetimeOwners.has(owner[1]);
+    }
+    if(n.kind===K.ConditionalExpression)return predicate(n.condition)&&lifetimeSignal(n.whenTrue)&&lifetimeSignal(n.whenFalse);
+    if(n.kind===K.BinaryExpression&&n.operatorToken.kind===K.QuestionQuestionToken)return lifetimeSignal(n.left)&&lifetimeSignal(n.right);
+    if(n.kind===K.CallExpression&&key(n.expression)==='AbortSignal.any'&&n.arguments.length===1&&n.arguments[0].kind===K.ArrayLiteralExpression)
+      return n.arguments[0].elements.every(v=>{
+        if(v.kind!==K.SpreadElement)return lifetimeSignal(v);
+        const e=peel(v.expression);
+        return e?.kind===K.ConditionalExpression&&predicate(e.condition)
+          &&[e.whenTrue,e.whenFalse].every(a=>a.kind===K.ArrayLiteralExpression&&a.elements.every(lifetimeSignal));
+      });
+    return n.kind===K.CallExpression&&ref(n.expression)&&signalNames.has(name(n.expression))&&n.arguments.every(lifetimeSignal);
+  }
+  function guardReference(n) {
+    n=peel(n);
+    return !policyReads(n)&&(id(n)&&guardValues.has(n.text)||lifetimeSignal(n)
+      ||n?.kind===K.PropertyAccessExpression&&n.name.text==='aborted'&&lifetimeSignal(n.expression));
+  }
+  const guardArgument=n=>!policyReads(n)&&(literal(n)||id(n)&&errors.has(n.text)||guardReference(n));
   function signal(n) {
     n=peel(n);
     if (!n) return reject('missing signal');
@@ -109,7 +159,8 @@ export function parseForwarder({contract,call,shape}) {
   function predicate(n) {
     n=peel(n);
     if (!n) return reject('missing predicate');
-    if (literal(n) || id(n)==='undefined' || ref(n)) return true;
+    if(policyReads(n))return reject('predicate reads request or response data');
+    if (literal(n) || id(n)==='undefined' || guardReference(n)) return true;
     if (n.kind===K.PrefixUnaryExpression && [K.ExclamationToken,K.PlusToken,K.MinusToken].includes(n.operator)) return predicate(n.operand);
     if (n.kind===K.TypeOfExpression) return predicate(n.expression);
     if (n.kind===K.BinaryExpression && (comparisons.has(n.operatorToken.kind)||logical.has(n.operatorToken.kind))) return predicate(n.left) && predicate(n.right);
@@ -118,9 +169,10 @@ export function parseForwarder({contract,call,shape}) {
   }
   function error(n) {
     n=peel(n);
+    if(policyReads(n))return reject('error policy reads request or response data');
     if (id(n) && !dataNames.has(n.text)) return true;
     if (n?.kind===K.NewExpression && ['Error','DOMException','CodedError'].includes(id(n.expression)))
-      return (n.arguments ?? []).every(v=>literal(v) || harmlessRef(v));
+      return (n.arguments ?? []).every(guardArgument);
     if (n?.kind===K.CallExpression && key(n.expression)==='Object.assign' && n.arguments.length===2) {
       const [cause,fields]=n.arguments;
       return cause.kind===K.NewExpression && error(cause) && fields.kind===K.ObjectLiteralExpression
@@ -128,13 +180,13 @@ export function parseForwarder({contract,call,shape}) {
         && name(fields.properties[0].name)==='name' && literal(fields.properties[0].initializer);
     }
     if (n?.kind===K.CallExpression && ref(n.expression) && !touchesData(n.expression) && errorNames.has(name(n.expression)))
-      return n.arguments.every(v=>literal(v) || harmlessRef(v));
+      return n.arguments.every(guardArgument);
     return reject('error is outside the error grammar');
   }
   function guardCall(n) {
     if (!ref(n.expression) || !guardNames.has(name(n.expression))) return reject('call is not a named guard');
-    if (touchesData(n.expression) || n.arguments.some(touchesData)) return reject('request data escapes through a guard call');
-    return n.arguments.every(v=>literal(v) || harmlessRef(v) || signal(v));
+    if (policyReads(n)) return reject('request or response data escapes through a guard call');
+    return n.arguments.every(guardArgument);
   }
   function copied(n) {
     return n?.kind===K.ObjectLiteralExpression && n.properties.length===2
@@ -207,6 +259,7 @@ export function parseForwarder({contract,call,shape}) {
     const init=peel(n.initializer);
     if (!init) return reject('uninitialized binding');
     if (functions.has(init.kind)) {
+      if(policyReads(init.body))return reject('local guard reads request or response data');
       let dispatchInside=false;
       function visit(v) {
         if(v.kind===K.CallExpression && (key(v.expression)===dispatchKey||dispatchNames.has(name(v.expression)))) dispatchInside=true;
@@ -218,17 +271,16 @@ export function parseForwarder({contract,call,shape}) {
     }
     if (init.kind===K.AwaitExpression || init.kind===K.CallExpression && key(init.expression)===dispatchKey || init.kind===K.ConditionalExpression && !touchesData(init)) {
       const count=expression(init);
-      if (count!==null) {results.add(n.name.text);return count;}
+      if (count!==null) {(count?results:guardValues).add(n.name.text);return count;}
       return null;
     }
+    if(policyReads(init))return reject('binding reads request or response data');
     const beforeSignal=failure;
-    if (signal(init)) {signals.add(n.name.text);return 0;}
+    if (lifetimeSignal(init)) {signals.add(n.name.text);return 0;}
     failure=beforeSignal;
-    // Only readonly captures or literal/predicate values can be named; request
-    // aliases, Object/Reflect bindings and arbitrary constructed objects cannot.
-    if (!touchesData(init) && (literal(init) || harmlessRef(init) && !['Object','Reflect'].includes(root(init)))) return 0;
-    if (init.kind===K.BinaryExpression && comparisons.has(init.operatorToken.kind) && predicate(init)) return 0;
-    return reject('binding is not a signal, response, guard or read-only capture');
+    if(literal(init)||guardReference(init)) {guardValues.add(n.name.text);return 0;}
+    if (init.kind===K.BinaryExpression && comparisons.has(init.operatorToken.kind) && predicate(init)) {guardValues.add(n.name.text);return 0;}
+    return reject('binding is not a reviewed lifetime input, response or named guard');
   }
   function statement(n) {
     if (n.kind===K.Block) return sequence(n.statements);
@@ -253,6 +305,7 @@ export function parseForwarder({contract,call,shape}) {
       const caught=n.catchClause;
       if (caught) {
         if (caught.variableDeclaration && (caught.variableDeclaration.name.kind!==K.Identifier||dataNames.has(caught.variableDeclaration.name.text))) return null;
+        if(caught.variableDeclaration)errors.add(caught.variableDeclaration.name.text);
         const result=statement(caught.block);
         if (!result || [...result.live,...result.exits].some(n=>n!==0)) {reject('retry or unrecognized catch policy');return null;}
       }
