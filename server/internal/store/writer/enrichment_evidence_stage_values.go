@@ -1,6 +1,7 @@
 package writer
 
 import (
+	"encoding/hex"
 	"slices"
 	"strconv"
 	"strings"
@@ -44,6 +45,20 @@ func (p EvidenceStagePayload) BaseContentBytes() uint64 { return p.baseBytes }
 func PrepareEvidenceStagePayload(header EvidenceHeader, input []EvidenceCreditInput) (EvidenceStagePayload, error) {
 	if !firstMovieEvidenceHeader(header) || len(input) > MaxCastCredits+MaxCrewCredits {
 		return EvidenceStagePayload{}, invalid("evidence_stage_payload")
+	}
+	var cast, crew int
+	for _, row := range input {
+		switch row.Class {
+		case Cast:
+			cast++
+		case Crew:
+			crew++
+		default:
+			return EvidenceStagePayload{}, invalid("evidence_credit_class")
+		}
+	}
+	if _, err := CheckEvidenceStageControls(header.input, cast, crew); err != nil {
+		return EvidenceStagePayload{}, err
 	}
 	size := header.textBytes + 64 // actual digest storage is TEXT64, not BLOB32
 	candidates := make([]ScreenCreditCandidate, len(input))
@@ -92,6 +107,35 @@ func PrepareEvidenceStagePayload(header EvidenceHeader, input []EvidenceCreditIn
 		row.Role, row.Department, row.CreditID = strings.Clone(row.Role), strings.Clone(row.Department), strings.Clone(row.CreditID)
 	}
 	return EvidenceStagePayload{header, rows, size, true}, nil
+}
+
+// CheckEvidenceStageControls preflights the key/namespace occurrences known to
+// this FIRST projection, without cloning text or allocating a candidate array.
+// The header occurrence and EACH retained child's repeated key count separately.
+// Descriptive CONTENT is charged by the separate 6 MiB policy. This is only the
+// preparation floor: W still supplies the complete prospective owner, capture,
+// pin and receipt census to CheckSealControlStrings before command admission.
+func CheckEvidenceStageControls(h EvidenceHeaderInput, cast, crew int) (uint64, error) {
+	if cast < 0 || crew < 0 || cast > MaxCastCredits || crew > MaxCrewCredits {
+		return 0, invalid("evidence_control_cohort")
+	}
+	// Fixed stack scratch holds borrowed string views only. The digest's actual
+	// persisted representation is 64-byte hex TEXT, never the 32-byte DTO BLOB.
+	var digest [64]byte
+	hex.Encode(digest[:], h.ObservationDigest[:])
+	var occurrences [9 + 4*(MaxCastCredits+MaxCrewCredits)]string
+	copy(occurrences[:], []string{h.ID, h.ParserVersion, h.Provider, h.SubjectKind, h.ProviderID, h.Language, h.Region, h.RequestShape, string(digest[:])})
+	n := 9
+	for _, group := range []struct {
+		class CreditClass
+		count int
+	}{{Cast, cast}, {Crew, crew}} {
+		for i := 0; i < group.count; i++ {
+			copy(occurrences[n:n+4], []string{h.Provider, h.SubjectKind, h.ID, string(group.class)})
+			n += 4
+		}
+	}
+	return CheckSealControlStrings(occurrences[:n])
 }
 
 func firstMovieEvidenceHeader(header EvidenceHeader) bool {

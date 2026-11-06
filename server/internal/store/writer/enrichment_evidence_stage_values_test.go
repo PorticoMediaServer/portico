@@ -86,3 +86,44 @@ func TestDraftEvidencePayloadRefusesMalformedNativeShape(t *testing.T) {
 		t.Fatal("complete empty credits rejected", err)
 	}
 }
+
+// The expected census is explicit, independent of the production checker.
+// Repeated native keys count again; descriptive content is a separate budget.
+func TestEvidenceStageControlPreflightBoundary(t *testing.T) {
+	base := draftMovieStageHeader(t).input
+	rows := draftMovieStageCredits()
+	want := len(base.ID) + len(base.ParserVersion) + len(base.Provider) + len(base.SubjectKind) + len(base.ProviderID) + len(base.Language) + len(base.Region) + len(base.RequestShape) + 64
+	for _, row := range rows {
+		want += len(base.ID) + len(base.Provider) + len(base.SubjectKind) + len(row.Class)
+	}
+	base.Language += strings.Repeat("x", MaxSealControlStringBytes-want)
+	for _, over := range []bool{false, true} {
+		in := base
+		if over {
+			in.Language += "x"
+		}
+		header, err := NewEvidenceHeader(in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		payload, err := PrepareEvidenceStagePayload(header, rows)
+		if !over {
+			if err != nil || !payload.valid || payload.CreditCount() != len(rows) {
+				t.Fatal("exact aggregate boundary refused", err)
+			}
+		} else if !errors.Is(err, ErrCap) || !reflect.DeepEqual(payload, EvidenceStagePayload{}) {
+			t.Fatal("one byte over yielded a partial value", err)
+		}
+	}
+}
+func TestEvidenceStageControlPreflightCountsRepeatedIDs(t *testing.T) {
+	in := draftMovieStageHeader(t).input
+	in.ID = strings.Repeat("i", 17000)
+	header, err := NewEvidenceHeader(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload, err := PrepareEvidenceStagePayload(header, draftMovieStageCredits()); !errors.Is(err, ErrCap) || !reflect.DeepEqual(payload, EvidenceStagePayload{}) {
+		t.Fatal("native key occurrences were deduplicated", err)
+	}
+}
