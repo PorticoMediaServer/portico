@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -89,5 +90,23 @@ func TestDraftTMDBProducerTrimKeepsRawSourceGaps(t *testing.T) {
 	rows := payload.Credits()
 	if len(rows) != 150 || rows[0].Billing != (writer.EvidenceInteger{Present: true}) || rows[100].Ordinal != 100 || rows[100].SourceOrdinal != 101 || rows[100].Billing.Present {
 		t.Fatal("retained position replaced raw source/billing/NULL", rows)
+	}
+}
+
+func TestTMDBProducerControlPreflightRefusesBeforeDecode(t *testing.T) {
+	target := TMDBMovieTarget{strings.Repeat("i", writer.MaxSealControlStringBytes+1), "42", "en-CA", "CA", 151}
+	// A malformed body distinguishes early control refusal from decoding.
+	acquired := AcquisitionDocument{body: []byte("not JSON"), key: documentKey(), metadata: documentMetadata()}
+	payload, err := PrepareAcquiredTMDBMovie(tmdbMoviePolicy(t), target, acquired)
+	if !errors.Is(err, writer.ErrCap) || payload.Header().ID() != "" || payload.CreditCount() != 0 {
+		t.Fatal("oversize control was copied/decoded", err)
+	}
+}
+func TestTMDBProducerControlPreflightCountsSelectedOccurrences(t *testing.T) {
+	target := TMDBMovieTarget{strings.Repeat("i", 500), "42", "en-CA", "CA", 151}
+	acquired := AcquisitionDocument{body: tmdbCreditsFixture(101, 51), key: documentKey(), metadata: documentMetadata()}
+	payload, err := PrepareAcquiredTMDBMovie(tmdbMoviePolicy(t), target, acquired)
+	if !errors.Is(err, writer.ErrCap) || payload.Header().ID() != "" || payload.CreditCount() != 0 {
+		t.Fatal("repeated key census absent before selected copies", err)
 	}
 }
