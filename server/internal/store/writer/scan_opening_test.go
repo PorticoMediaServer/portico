@@ -13,6 +13,89 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/schema"
 )
 
+func TestScanOpeningAttestsHeldNativeFileAfterSwapRestore(t *testing.T) {
+	path, owner := scanOpeningFixture(t)
+	o := openScanFixture(t, path, owner)
+	other, replacement := testCanonicalExecutor(t)
+	if _, err := other.db.ExecContext(t.Context(), "INSERT INTO search_revision(singleton,revision) VALUES(1,944)"); err != nil {
+		t.Fatal(err)
+	}
+	if err := other.close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := o.executor.db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	base, err := sqliteconn.Connector(path, o.executor.config, sqliteconn.ExistingFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Use the existing reviewed fault connector; no new opener exception.
+	saved := path + ".saved"
+	fault := &faultConnector{Connector: base}
+	fault.beforeConnect = func() error {
+		if err := os.Rename(path, saved); err != nil {
+			return err
+		}
+		if err := os.Rename(replacement, path); err != nil {
+			return errors.Join(err, os.Rename(saved, path))
+		}
+		return nil
+	}
+	fault.afterConnect = func() error {
+		return errors.Join(os.Rename(path, replacement), os.Rename(saved, path))
+	}
+	o.executor.openPool(fault, nil)
+	conn, err := o.executor.db.Conn(t.Context())
+	if conn != nil {
+		defer conn.Close()
+		var revision int64
+		readErr := conn.QueryRowContext(t.Context(), "SELECT revision FROM search_revision WHERE singleton=1").Scan(&revision)
+		t.Fatalf("accepted swapped native database: revision=%d query=%v open=%v", revision, readErr, err)
+	}
+	if !errors.Is(err, ErrConflict) || !o.binding.invalid.Load() {
+		t.Fatal("held database identity mismatch was not sticky", err)
+	}
+	info, err := os.Lstat(path)
+	if err != nil || !os.SameFile(info, o.binding.identity) {
+		t.Fatal("fault did not restore the original pathname", err)
+	}
+}
+
+func TestScanOpeningRejectsHardlinkOwnersAndLateAliases(t *testing.T) {
+	t.Run("two_state_directories", func(t *testing.T) {
+		path, owner := scanOpeningFixture(t)
+		alias := filepath.Join(t.TempDir(), "catalog.sqlite")
+		if err := os.Link(path, alias); err != nil {
+			t.Fatal(err)
+		}
+		otherOwner := scanOpeningOwner(t, alias)
+		for _, scope := range []struct {
+			path  string
+			owner *stateownership.Lock
+		}{{path, owner}, {alias, otherOwner}} {
+			got, err := openScanStore(t.Context(), scope.owner, scope.path, 1024)
+			if got != nil {
+				defer got.close()
+				t.Fatal("hardlink alias obtained independent native ownership")
+			}
+			if !errors.Is(err, stateownership.ErrChanged) {
+				t.Fatal("hardlink alias was not refused", err)
+			}
+		}
+	})
+	t.Run("alias_after_open", func(t *testing.T) {
+		path, owner := scanOpeningFixture(t)
+		o := openScanFixture(t, path, owner)
+		if err := os.Link(path, filepath.Join(t.TempDir(), "alias.sqlite")); err != nil {
+			t.Fatal(err)
+		}
+		if err := o.binding.check(); !errors.Is(err, stateownership.ErrChanged) || !o.binding.invalid.Load() {
+			t.Fatal("late hardlink did not invalidate admission", err)
+		}
+	})
+}
+
 func scanOpeningFixture(t *testing.T) (string, *stateownership.Lock) {
 	t.Helper()
 	w, path := testCanonicalExecutor(t)

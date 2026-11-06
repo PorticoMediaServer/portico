@@ -182,6 +182,8 @@ func TestTransactionCancellationAndRevocationRollback(t *testing.T) {
 
 type faultConnector struct {
 	driver.Connector
+	beforeConnect     func() error
+	afterConnect      func() error
 	afterCommit       bool
 	closed            atomic.Bool
 	closes            atomic.Int64
@@ -199,11 +201,34 @@ type faultConnector struct {
 }
 
 func (c *faultConnector) Connect(ctx context.Context) (driver.Conn, error) {
+	if c.beforeConnect != nil {
+		if err := c.beforeConnect(); err != nil {
+			return nil, err
+		}
+	}
 	conn, err := c.Connector.Connect(ctx)
+	if c.afterConnect != nil {
+		if restoreErr := c.afterConnect(); restoreErr != nil {
+			if conn != nil {
+				restoreErr = errors.Join(restoreErr, conn.Close())
+			}
+			return nil, errors.Join(err, restoreErr)
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
 	return c.wrap(conn), nil
+}
+
+func (c *faultConn) SQLiteMainFileIdentity() (uint64, uint64, error) {
+	getter, ok := c.testDriverConn.(interface {
+		SQLiteMainFileIdentity() (uint64, uint64, error)
+	})
+	if !ok {
+		return 0, 0, ErrInvalid
+	}
+	return getter.SQLiteMainFileIdentity()
 }
 
 func (c *faultConnector) wrap(conn driver.Conn) driver.Conn {
