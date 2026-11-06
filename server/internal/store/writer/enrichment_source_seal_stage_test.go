@@ -11,24 +11,27 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
-// This is a minimal COMPONENT overlay for the directed009 source frontier,
-// not INT's full candidate, a qualified profile or actual source-seal proof.
+// Adopted009 native COMPONENT fixture, not a production source proof or recipe.
 func draftSourceStageFixture(t *testing.T) (*executor, sourceStagePrefix, CommandIdentity) {
 	t.Helper()
-	w, _, _ := testExecutor(t)
-	base, _, _ := effectiveBeginNativePopulation(t, w)
+	w, scope := sealEffectFixture(t)
+	identity := scope.identity
 	for _, q := range []string{
-		`ALTER TABLE metadata_provider_operations ADD COLUMN source_publication_id TEXT REFERENCES credit_source_publications(publication_id)`,
-		`ALTER TABLE metadata_provider_operations ADD COLUMN source_next_position INTEGER`,
-		`ALTER TABLE metadata_provider_operations ADD COLUMN source_expected_members INTEGER`,
-		`ALTER TABLE metadata_provider_operations ADD COLUMN source_content_revision INTEGER NOT NULL DEFAULT 1 CHECK(source_content_revision>0)`,
-		`ALTER TABLE metadata_provider_operations ADD COLUMN source_owner_generation INTEGER`,
-		`CREATE UNIQUE INDEX draft009_source_publication_owner ON metadata_provider_operations(source_publication_id)`,
+		`INSERT INTO enrichment_command_receipts(provider_operation_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,
+ accepted_revision,applied_ms,entity_id,after_item,after_ordinal,result_count,result_digest,
+ seal_version,seal_evidence_id,seal_subject_id,seal_parser_version,seal_provider,seal_subject_kind,seal_provider_id,seal_language,seal_region,seal_request_shape,seal_observation_digest,
+ seal_owner_generation,seal_build_id,seal_build_generation,seal_content_revision,seal_algorithm,seal_commitment,seal_verified_rows,seal_canonical_bytes,seal_retained_bytes,proof_pin_count)
+ SELECT id,command_incarnation,7,X'01000000000000000000000000000000',zeroblob(32),'evidence_seal',203,1,entity_id,after_item,1,0,zeroblob(32),
+ 1,'evidence-original:197',193,'fixture-parser','fixture','movie','opaque:selection','en-CA','CA','detail-v1',
+ 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',generation,'build-original:211',47,1,'fixture-unqualified-evidence',zeroblob(32),1,307,8876032,1
+ FROM metadata_provider_operations WHERE id='operation-one'`,
 		`INSERT INTO credit_source_publications(publication_id,entity_id,provider,accepted_record_reference,observed_at,member_count,sealed)
  VALUES('00112233445566778899aabbccddeeff',101,'fixture','opaque-source:241','2026-11-06T10:00:00+00:00',5,0)`,
 		`UPDATE metadata_provider_operations SET phase='enrichment-v1',acknowledged_command_sequence=11,
  lease_until='2100-11-05T12:00:00Z',source_publication_id='00112233445566778899aabbccddeeff',
- source_next_position=2,source_expected_members=5,source_content_revision=47,source_owner_generation=31 WHERE id='operation-one'`,
+ source_next_position=2,source_expected_members=5,source_content_revision=47,source_owner_generation=31,
+ source_evidence_id='evidence-original:197',source_subject_id=193,source_parser_version='fixture-parser',source_expected_bytes=4096,source_algorithm='fixture-unqualified-source',source_version=1,source_expected_commitment=zeroblob(32),
+ source_evidence_owner=id,source_evidence_incarnation=command_incarnation,source_evidence_sequence=7 WHERE id='operation-one'`,
 	} {
 		if _, err := w.db.ExecContext(t.Context(), q); err != nil {
 			t.Fatal(err)
@@ -41,8 +44,8 @@ func draftSourceStageFixture(t *testing.T) (*executor, sourceStagePrefix, Comman
 		if _, err := w.db.ExecContext(t.Context(), `INSERT INTO credit_source_rows(
  source_row_id,entity_id,provider,tuple_digest,original_record_reference,original_credit_id,
  original_provider_person_id,original_person_identity_key,original_person_token,original_target_kind,
- original_target_id,original_credited_name,original_role,original_department,original_credit_class,original_source_ordinal)
- VALUES(?,101,'fixture',?,'opaque-source:241',?,'201','fixture-person','person-token','person','person-token','Credited name','Pilot','','cast',?)`, id, strings.Repeat("a", 64), fmt.Sprint("credit:", i), int64(7+i)); err != nil {
+ original_target_id,original_credited_name,original_role,original_department,original_credit_class,original_source_ordinal,original_billing)
+ VALUES(?,101,'fixture',?,'opaque-source:241',?,'201','fixture-person','person-token','person','person-token','Credited name','Pilot','','cast',?,0)`, id, strings.Repeat("a", 64), fmt.Sprint("credit:", i), int64(7+i)); err != nil {
 			t.Fatal(err)
 		}
 		if i < 2 {
@@ -55,10 +58,10 @@ func draftSourceStageFixture(t *testing.T) (*executor, sourceStagePrefix, Comman
 	owner := sourceStagePrefix{
 		operationID: "operation-one", provider: "fixture", publicationID: "00112233445566778899aabbccddeeff",
 		phase: effectiveBeginPhase, status: "staged", lease: "native-lease", leaseUntil: "2100-11-05T12:00:00Z",
-		incarnation: base.incarnation, entityID: 101, generation: 31, ownerGeneration: 31, revision: 47,
+		incarnation: identity.Incarnation, entityID: 101, generation: 31, ownerGeneration: 31, revision: 47,
 		next: 2, expected: 5, lastSequence: 11, acknowledgedSequence: 11,
 	}
-	return w, owner, CommandIdentity{Incarnation: base.incarnation, Sequence: 12, OperationID: [16]byte{251}}
+	return w, owner, CommandIdentity{Incarnation: identity.Incarnation, Sequence: 12, OperationID: [16]byte{251}}
 }
 
 func draftSourceStageTurn(t *testing.T, w *executor) (*commandTurn, statementStep) {
