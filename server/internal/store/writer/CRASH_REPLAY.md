@@ -1,5 +1,42 @@
 # Process crash and receipt recovery controls
 
+`TestCrashReplayEffectiveNativeSteps` extends the real W dispatcher to **74**
+cells: fresh hidden BEGIN, Stage replay, Resolve and ACK. It pins every executed
+registered statement/use (26/5/5/6), including current native disclosure and
+original owner/receipt reads, plus BEGIN/COMMIT, observed physical return, API
+return and both lost COMMIT replies. It uses W's canonical first-light fixture,
+full actual Capture and the existing governed frame. It creates no source
+permission or alternative runtime/profile. After reopen, the existing W fixture
+binding grants only current identity/history/ACK access; a receipt miss still
+cannot execute a fresh retry.
+
+The independent model freezes a typed native checkpoint of **30** source,
+owner, catalogue, contribution and search tables before any accepting call.
+The original raw receipt/image is also observed on the owned native connection
+immediately before its first COMMIT. Expected effects are explicitly built from
+the original input and declared boundary: all 16 receipt columns, all 44 image
+columns including the generated due column, three owner fields, and every other
+checkpointed column unchanged. The fixture is an empty-credit hidden BEGIN;
+other declared input shapes fail rather than receiving an empty expectation.
+Opaque result-digest bytes are retained from the original native journal, not
+recomputed with a production codec. No writer output chooses expected state.
+
+Complete returned scalar results/Outcome are checked against that raw/input
+expectation, with actual frame evidence checked separately. ACK retains exact
+header/image/source bytes; retired output has zero payload. **36** native
+corruption controls exercise 18 receipt/image/owner/serving/source mutations
+both above and below the ACK floor, including columns the API never projects.
+Unknown commands, phases and fault meanings fail explicitly. The new Linux file
+is included in the opening-policy inventory, and all openings delegate to the
+shared Connector/pool and Assert/AssertExisting path.
+
+These are small protocol fixtures with synthetic forecasts, virtual time and
+test-only source input. Oracle reads, source checkpoints and native step
+observations are test instrumentation, not resource/recipe/latency evidence.
+Only an actual witnessed SIGKILL and joined process qualifies a crash cell;
+no power-loss, mid-statement/fsync, production restart/source rebinding,
+scale/RSS or complete V-domain qualification is implied.
+
 On Linux, `TestCrashReplayEffective` and `TestCrashReplayInventoryHistory` run
 the actual merged commands in separate test processes against independent
 canonical database files. The parent receives a versioned boundary witness
