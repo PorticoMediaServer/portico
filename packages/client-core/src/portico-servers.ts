@@ -224,6 +224,9 @@ export interface ServerListStorage{load():ServerListRecord|null;save(record:Serv
 export type ServerListAnswer=Readonly<{items:readonly unknown[];version:string;watch:string}>;
 export type ServerListOutcome='unchanged'|'changed'|'not-due'|'deferred';
 type Clock={now:()=>number;random:()=>number};
+// An opaque server value, including the full v2 incarnation namespace. Keep
+// adoption and persisted-record loading on the same finite bound.
+const serverListVersionLimit=96;
 
 /** At most one automatic check per this interval, on foreground only, spread by ±SPREAD so a
  * population of devices opened at the same hour does not check in step. */
@@ -248,7 +251,7 @@ export class ServerListWatcher{
   this.storage=options.storage;this.listServers=options.listServers;this.onServers=options.onServers;
   this.clock=options.clock??{now:()=>Date.now(),random:()=>Math.random()};
   let stored:ServerListRecord|null=null;try{stored=this.storage?.load()??null;}catch{}
-  this.record=stored&&text(stored.version,32)&&text(stored.watch,400)?stored:null;
+  this.record=stored&&text(stored.version,serverListVersionLimit)&&text(stored.watch,400)?stored:null;
  }
  getRecord():ServerListRecord|null{return this.record;}
  /** Runs one request under the watcher's own deadline, so a stalled transport cannot hold the
@@ -265,7 +268,7 @@ export class ServerListWatcher{
  private save(record:ServerListRecord|null){this.record=record;try{this.storage?.save(record);}catch{}}
  /** Records a `GET /v1/servers` answer made anywhere in the app (sign-in, a chooser). */
  adopt(answer:ServerListAnswer){
-  if(!text(answer.version,32)||!text(answer.watch,400))return;
+  if(!text(answer.version,serverListVersionLimit)||!text(answer.watch,400))return;
   const now=this.clock.now();this.save(Object.freeze({version:answer.version,watch:answer.watch,checkedAt:now,nextCheckAt:this.nextCheck(now)}));
  }
  /** Forget the record (sign-out, account switch). */

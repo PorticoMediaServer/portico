@@ -35,17 +35,50 @@ test('a moved version fetches the list once and hands it over; Refresh Servers c
  assert.equal(w.getRecord()?.version,'2');
 });
 
+test('opaque v2 versions survive adoption and storage without changing foreground cadence',async()=>{
+ for(const version of ['v2.'+'A'.repeat(43)+'.1','v2.'+'A'.repeat(43)+'.9223372036854775807','opaque-'+'z'.repeat(89)]){
+  const c=clock(),o=origin(),storage=memory(),calls:string[]=[];let lists=0,deliveries=0;
+  const options={hostedOrigin:o,clock:c,storage,listServers:async()=>{lists++;return answer(version);},onServers:()=>{deliveries++;},fetcher:async(input:RequestInfo|URL)=>{calls.push(String(input));return new Response(null,{status:304});}};
+  const first=new ServerListWatcher(options);first.adopt(answer(version));
+  const saved=first.getRecord();
+  assert.equal(saved?.version,version,'adoption preserves the complete opaque value');
+  assert.equal(saved?.nextCheckAt,c.now()+SERVER_LIST_INTERVAL_MS);
+  const restored=new ServerListWatcher(options);
+  assert.deepEqual(restored.getRecord(),saved,'storage round-trip preserves version and schedule');
+  assert.equal(await restored.foreground(),'not-due');
+  c.advance(SERVER_LIST_INTERVAL_MS+SERVER_LIST_SPREAD_MS+1);
+  assert.equal(await restored.foreground(),'unchanged');
+  assert.deepEqual(calls,[o+'/v1/server-list/d2F0Y2g.mac/'+encodeURIComponent(version)]);
+  assert.equal(restored.getRecord()?.version,version);
+  assert.equal(await restored.foreground(),'not-due','no extra check after a successful one');
+  assert.equal(lists,0);assert.equal(deliveries,0);
+ }
+});
+
+test('opaque version adoption and storage both refuse more than 96 characters',()=>{
+ const version='x'.repeat(97),storage=memory(),c=clock();
+ const options={hostedOrigin:origin(),clock:c,storage,listServers:async()=>answer('1'),onServers:()=>{}};
+ const watcher=new ServerListWatcher(options);watcher.adopt(answer('1'));
+ watcher.adopt(answer(version));assert.equal(watcher.getRecord()?.version,'1','invalid adoption does not overwrite the held record');
+ storage.save({version,watch:'d2F0Y2g.mac',checkedAt:c.now(),nextCheckAt:c.now()+SERVER_LIST_INTERVAL_MS});
+ assert.equal(new ServerListWatcher(options).getRecord(),null);
+});
+
 test('a failing Hosted is met with backoff: automatic checks wait, nothing loops, nothing signs out',async()=>{
- const c=clock(),o=origin();let hits=0;
- const w=new ServerListWatcher({hostedOrigin:o,clock:c,listServers:async()=>answer('1'),onServers:()=>{},fetcher:async()=>{hits++;return new Response('{}',{status:503,headers:{'Retry-After':'120'}});}});
- w.adopt(answer('1'));c.advance(SERVER_LIST_INTERVAL_MS+SERVER_LIST_SPREAD_MS);
+ const c=clock(),o=origin();let hits=0,lists=0,deliveries=0;
+ const w=new ServerListWatcher({hostedOrigin:o,clock:c,listServers:async()=>{lists++;return answer('1');},onServers:()=>{deliveries++;},fetcher:async()=>{hits++;return new Response('{}',{status:503,headers:{'Retry-After':'120'}});}});
+ w.adopt(answer('1'));const checkedAt=w.getRecord()?.checkedAt;c.advance(SERVER_LIST_INTERVAL_MS+SERVER_LIST_SPREAD_MS);
  assert.equal(await w.foreground(),'deferred');
  assert.ok(hostedGate(o).blockedFor()>=120000,'Retry-After is a floor');
  for(let i=0;i<5;i++)assert.equal(await w.foreground(),'not-due');
  assert.equal(hits,1,'no retry storm');
+ assert.equal(w.getRecord()?.checkedAt,checkedAt,'a 503 does not mark the held data freshly checked');
+ assert.equal(lists,0,'unavailability does not bypass backoff with a full refetch');
+ assert.equal(deliveries,0,'no onServers freshness/UI callback is emitted for stale data');
  // A person asking still gets an answer (the error), and the record is kept.
  await assert.rejects(w.refresh(),(e:unknown)=>e instanceof ApiError&&e.status===503);
  assert.equal(w.getRecord()?.version,'1');
+ assert.equal(deliveries,0);assert.equal(w.getRecord()?.checkedAt,checkedAt);
 });
 
 test('a watch token that no longer verifies is replaced by the list answer',async()=>{
