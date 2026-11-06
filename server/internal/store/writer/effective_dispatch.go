@@ -173,9 +173,14 @@ type commandCompletion struct {
 type commandOutput struct {
 	effective EffectiveStageResult
 	inventory InventoryResult
+	publisher SearchImageStageResult
 }
 
-func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, input *effectiveStageBeginCommand, ack bool, scan *inventoryInvocation) (out commandOutput, acknowledged AckResult, err error) {
+func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, input *effectiveStageBeginCommand, ack bool, scan *inventoryInvocation, publishers ...*publisherInvocation) (out commandOutput, acknowledged AckResult, err error) {
+	var publisher *publisherInvocation
+	if len(publishers) == 1 {
+		publisher = publishers[0]
+	}
 	// Installed before EVERY return, including admission/binding failures. It
 	// executes after rollback/retirement defers and the final WAL sample.
 	lifetime := ctx
@@ -185,21 +190,33 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		if stopLifetime != nil {
 			defer stopLifetime()
 		}
-		err = errors.Join(err, r.currentRunDisclosure(w, cap, request, scan))
+		err = errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher))
 		if tx != nil {
 			err = errors.Join(err, tx.lifetimeErr)
 		}
 		result, finalErr := finishCommand(ctx, lifetime, commandCompletion{out, acknowledged}, err)
 		out, acknowledged, err = result.output, result.ack, finalErr
 	}()
-	if ctx == nil {
+	if ctx == nil || len(publishers) > 1 || len(publishers) == 1 && publisher == nil {
 		return out, acknowledged, ErrInvalid
 	}
-	if err := r.currentRunDisclosure(w, cap, request, scan); err != nil {
+	if err := r.currentCommandDisclosure(w, cap, request, scan, publisher); err != nil {
 		return out, acknowledged, err
 	}
 	if err := ctx.Err(); err != nil {
 		return out, acknowledged, err
+	}
+	if publisher != nil {
+		if input != nil || cap != nil || request != (EnrichmentReceiptRequest{}) || scan != nil || ack != (publisher.call == publisherAckImage) {
+			return out, acknowledged, ErrInvalid
+		}
+		if _, err := validatePublisherInvocation(ctx, w, publisher); err != nil {
+			return out, acknowledged, err
+		}
+		// PB's finite native receipt/effect adapters and complete captured
+		// profile are not on main yet. The SAME dispatcher owns this closed
+		// entry, but no grant/BEGIN or substitute handler is manufactured.
+		return out, acknowledged, ErrNotImplemented
 	}
 	purpose, plan, reference, key, libraryID := EffectiveStage, &r.plan, request.Receipt, request.ProviderOperationID, request.LibraryID
 	outcome := &out.effective.Outcome
@@ -330,7 +347,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		}
 	}
 	if err == nil {
-		err = errors.Join(r.currentRunDisclosure(w, cap, request, scan), turn.checkLifetimes(ctx))
+		err = errors.Join(r.currentCommandDisclosure(w, cap, request, scan, publisher), turn.checkLifetimes(ctx))
 	}
 	var historical bool
 	if err == nil && scan != nil {
@@ -338,7 +355,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		lookup, err = lookupInventoryAccept(ctx, turn, scan.request)
 		// Recheck permission even when lookup reports cancellation/error;
 		// neither a saved result nor a fresh decision escapes revocation.
-		err = errors.Join(err, r.currentRunDisclosure(w, cap, request, scan), turn.checkLifetimes(ctx))
+		err = errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher), turn.checkLifetimes(ctx))
 		if err == nil {
 			if ack {
 				acknowledged.AcknowledgedThrough, err = acknowledgeInventory(ctx, turn, scan.request, lookup)
@@ -362,7 +379,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		var owner effectiveBeginOwner
 		var disposition receiptDecision
 		saved, owner, disposition, err = lookupEffectiveStageBegin(ctx, turn, request.ProviderOperationID, expectedReceipt)
-		err = errors.Join(err, r.currentRunDisclosure(w, cap, request, scan))
+		err = errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher))
 		if err == nil {
 			if ack {
 				acknowledged.AcknowledgedThrough, err = acknowledgeEffective(ctx, turn, request, owner, disposition)
@@ -404,7 +421,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	}
 	// No partial result survives ANY preterminal failure. The same helper
 	// runs again at final publication after physical return and all cleanup.
-	checked, checkedErr := finishCommand(ctx, tx.ctx, commandCompletion{out, acknowledged}, errors.Join(err, r.currentRunDisclosure(w, cap, request, scan)))
+	checked, checkedErr := finishCommand(ctx, tx.ctx, commandCompletion{out, acknowledged}, errors.Join(err, r.currentCommandDisclosure(w, cap, request, scan, publisher)))
 	out, acknowledged, err = checked.output, checked.ack, checkedErr
 	var physical turnResult
 	if err == nil {
