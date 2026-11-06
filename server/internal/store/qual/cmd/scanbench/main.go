@@ -110,10 +110,9 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	client.SourceOperations = scope
 	start := time.Now()
 	r.Counts, err = scan.WalkInventory(ctx, client, "schema-v1-scanbench", *root, 256<<10, func(_ context.Context, _ scan.InventoryTurn) error { return nil })
-	// Cancellation is not physical retirement. Join this owner's exact work,
-	// including failures, before stopping the traversal clock and reporting.
-	scope.Close()
-	joinErr := scope.Wait(context.Background())
+	// Cancellation is not physical retirement. Join the exact owner except for
+	// typed pending retirement, which retains custody beyond the caller grace.
+	joinErr := closeTraversalOwner(scope, err)
 	r.TraversalNS = time.Since(start).Nanoseconds()
 	err = errors.Join(err, joinErr)
 	if err == nil && r.Counts.Files != uint64(fixture.Files) {
@@ -125,6 +124,16 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	}
 	r.HostAfter = qual.CaptureHost()
 	return errors.Join(err, json.NewEncoder(out).Encode(r))
+}
+
+func closeTraversalOwner(scope *storage.OperationScope, runErr error) error {
+	scope.Close()
+	if errors.Is(runErr, storage.ErrHelperRetirementPending) {
+		// The native call already exhausted its caller grace. Its real reaper
+		// retains physical custody; an unbounded shared join would undo the bound.
+		return nil
+	}
+	return scope.Wait(context.Background())
 }
 
 func allowCount(files int, scheduled bool) error {

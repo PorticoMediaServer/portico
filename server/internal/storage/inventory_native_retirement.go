@@ -42,14 +42,20 @@ func newNativeRetirement(s *Supervisor) *nativeRetirement {
 func (r *nativeRetirement) retire() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.finishLocked() {
+		close(r.done)
+	}
+}
+
+func (r *nativeRetirement) finishLocked() bool {
 	if r.finished {
-		return
+		return false
 	}
 	r.finished = true
 	if r.pending {
 		r.supervisor.nativeRetiring.Add(-1)
 	}
-	close(r.done)
+	return true
 }
 
 func (r *nativeRetirement) markPending() bool {
