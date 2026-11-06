@@ -564,9 +564,12 @@ async function guarded(path: string, method: string, body: unknown, signal: Abor
 
     def test_mutating_reviewed_guard_policy_invalidates_the_hash_and_rebinding_needs_review(self):
         root,filename,sites,entry=self.fixture(self.GUARD)
-        (root/filename).write_text(self.GUARD.replace('  const value', "  path = '/v1/items/review855'; method = 'DELETE'; body = {review855:true};\n  const value"))
+        # Change a valid lifetime policy, keeping request parameters verbatim,
+        # so this reaches hash/re-approval enforcement rather than the grammar.
+        (root/filename).write_text(self.GUARD.replace('  const value', '  signal.throwIfAborted();\n  const value'))
         code,output=self.check(root);self.assertEqual(code,1);self.assertIn('new/increased',output)
         mutated=scan(root)[0];self.assertNotEqual(mutated['id'],sites[0]['id']);self.assertNotEqual(mutated['guardHash'],sites[0]['guardHash'])
+        self.assertTrue(mutated['forwardedRequest']);self.assertEqual(mutated['forwardingGrammar'],'closed')
         entry['sites']=[mutated['id']];entry['guardHashes']={mutated['id']:mutated['guardHash']};(root/ALLOWLIST).write_text(json.dumps({filename:entry}))
         code,output=self.check(root);self.assertEqual(code,1);self.assertIn('exception expanded or changed',output)
 
@@ -1412,8 +1415,15 @@ func stream(session: Foundation.URLSession, request: RequestValue) async throws 
         self.assertEqual(self.check(root)[0],0)
         # A valid ruling for one occurrence cannot approve two, even if every
         # current hash/category/reason is copied into the new ledger row.
-        (root/filename).write_text(self.GUARD.replace('await api.request<unknown>(path, method, body, signal)', 'await Promise.all([api.request<unknown>(path, method, body, signal), api.request<unknown>(path, method, body, signal)])'))
+        # Two sites, one dispatch per path: both are grammar-conforming, so a
+        # one-occurrence ruling must be rejected by the ledger multiplicity gate.
+        multiple='declare const selected: boolean;\n'+self.GUARD.replace(
+            '  const value = await api.request<unknown>(path, method, body, signal);\n  return value;',
+            '  if (selected) return await api.request<unknown>(path, method, body, signal);\n'
+            '  return await api.request<unknown>(path, method, body, signal);')
+        (root/filename).write_text(multiple)
         added=scan(root);new_key=added[0]['id'];self.assertEqual(new_key,added[1]['id'])
+        self.assertTrue(all(s['forwardedRequest'] and s['forwardingGrammar']=='closed' for s in added))
         entry['sites']=[new_key,new_key];entry['guardHashes']={new_key:added[0]['guardHash']}
         (root/ALLOWLIST).write_text(json.dumps({filename:entry}))
         approval['guardHash']=added[0]['guardHash'];(root/APPROVALS).write_text(json.dumps({new_key:approval}))
