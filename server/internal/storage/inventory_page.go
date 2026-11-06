@@ -86,6 +86,10 @@ func (c *Client) nativeInventoryOwned(ctx context.Context, owner *OperationScope
 	if err := ctx.Err(); err != nil {
 		return empty, err
 	}
+	// A pending-retirement return can outlive the caller's request slices.
+	// Keep the exact bounded validation witnesses owned by the physical work.
+	r.Root = bytes.Clone(r.Root)
+	r.RelativePath = bytes.Clone(r.RelativePath)
 	root := string(r.Root)
 	if c.IsRemote(root) {
 		return empty, ErrRemoteCursor
@@ -111,13 +115,14 @@ func (c *Client) nativeInventoryOwned(ctx context.Context, owner *OperationScope
 	if err != nil {
 		return empty, err
 	}
-	retired := make(chan struct{})
+	retirement := newNativeRetirement(c.Supervisor)
 	timeout := c.Timeout
 	if timeout <= 0 {
 		timeout = 30 * time.Second
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	ctx = nativeInventoryContext(ctx)
 	stop := context.AfterFunc(owner.Context(), cancel)
 	defer stop()
 	if owner.Context().Err() != nil {
@@ -125,10 +130,10 @@ func (c *Client) nativeInventoryOwned(ctx context.Context, owner *OperationScope
 	}
 	var page NativeInventoryPage
 	err = c.inventoryRequest(ctx, key, "inventory-page-native-v1", InventoryRequest{}, &page, &ownedInventoryWire{
-		input: data, request: r, retired: func() { done(); close(retired) },
+		input: data, request: r, retired: func() { done(); retirement.retire() },
 	})
 	// Per-operation barrier, NOT shared owner shutdown or cancellation as proof.
-	<-retired
+	err = retirement.wait(err)
 	if err == nil {
 		err = inventoryCodeError(page.ErrorCode)
 	}
