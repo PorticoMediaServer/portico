@@ -30,7 +30,14 @@ func applyEffectiveStageBegin(ctx context.Context, turn *commandTurn, input *eff
 	if decision != receiptFresh {
 		return zero, ErrResolveRequired
 	}
-	if owner != r.owner || !turn.transaction.writer.now().Before(input.leaseExpiry) {
+	if owner != r.owner {
+		return zero, ErrConflict
+	}
+	now, err := turn.transaction.clockTime()
+	if err != nil {
+		return zero, err
+	}
+	if !now.Before(input.leaseExpiry) {
 		return zero, ErrConflict
 	}
 	entity, err := effectiveBeginEntityFacts(ctx, turn, turn.steps[enrichmentEffectiveEntity].statementStep, r.entity.id)
@@ -47,7 +54,11 @@ func applyEffectiveStageBegin(ctx context.Context, turn *commandTurn, input *eff
 	if producer != r.producer || !effectiveBeginProducerShape(producer, entity, owner, r.header) {
 		return zero, ErrConflict
 	}
-	appliedMS := turn.transaction.writer.now().UnixMilli()
+	now, err = turn.transaction.clockTime()
+	if err != nil {
+		return zero, err
+	}
+	appliedMS := now.UnixMilli()
 	if appliedMS < 0 {
 		return zero, ErrInvalid
 	}
