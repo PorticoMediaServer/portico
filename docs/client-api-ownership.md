@@ -112,6 +112,10 @@ dispatch of an already received response are signal-only transports. A null or
 shortened span, missing native source binding, another language or an expanded
 occurrence budget fails closed. Sibling helper edits invalidate the complete
 file condition even if the constructor's own method is unchanged.
+Kotlin standalone `= try { ... } catch (...) { ... } finally { ... }`
+expressions bind the signature and every catch/finally clause. Chained, Elvis,
+cast or unknown infix continuations remain unbound until their complete
+expression is supported; the detector never pins a partial try-expression.
 
 The initial slice inventory is in [client-api-slices.md](client-api-slices.md).
 Each slice migrates every surface for its domain, keeps the wire and behavior,
