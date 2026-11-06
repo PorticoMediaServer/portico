@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/walobserve"
 	"github.com/PorticoMediaServer/portico/server/internal/store/writer"
 )
 
@@ -13,6 +14,8 @@ import (
 // discards monotonic components. Missing owner evidence stays nil; facade wall
 // time NEVER substitutes for HOLD, outcome or native cleanup proof.
 type Observation struct {
+	Progress                  *ProgressFact `json:",omitempty"` // raw bounded capture/drain lineage, no source authority
+	WALBefore, WALAfter       *WALSnapshot  `json:",omitempty"` // optional advisory probes; owner Evidence remains separate
 	Requested                 *writer.ReceiptReference
 	Phase                     string
 	Stub                      bool
@@ -248,7 +251,7 @@ func WAL(path string, gate *governor.WALGate) Action {
 			return preparationError(emit, err)
 		}
 		start := time.Now()
-		result, err := observeWAL(path, gate, governor.ReadWAL, time.Now)
+		result, err := walobserve.Observe(path, gate)
 		end := time.Now()
 		o := observedCall("WAL", start, end)
 		o.Result = result
