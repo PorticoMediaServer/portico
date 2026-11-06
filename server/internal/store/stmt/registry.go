@@ -63,6 +63,23 @@ type Waiver struct {
 	Reason      string `json:"reason"`
 }
 
+// IndexColumn pins a declared key's ordered native columns, not auxiliary
+// rowid/primary-key payload fields reported by index_xinfo.
+type IndexColumn struct {
+	Name      string `json:"name"`
+	Collation string `json:"collation"`
+	Desc      bool   `json:"desc"`
+}
+
+// AutoIndexBinding is a declaration for Capture to verify against live MAIN.
+// It grants no capability by itself. Origin is exactly "pk" or "u".
+type AutoIndexBinding struct {
+	Table   string        `json:"table"`
+	Name    string        `json:"name"`
+	Origin  string        `json:"origin"`
+	Columns []IndexColumn `json:"columns"`
+}
+
 // Plan is consumed by the plan harness; a SQL hash alone is not qualification.
 type Plan struct {
 	Hot     bool     `json:"hot"`
@@ -73,8 +90,9 @@ type Plan struct {
 	Seeks []string `json:"seeks"`
 	// AllowedScans is retained as legacy manifest metadata; it grants no waiver.
 	// An exceptional scan now requires a statement-specific EQP waiver.
-	AllowedScans []string `json:"allowedScans"`
-	Waivers      []Waiver `json:"waivers,omitempty"`
+	AllowedScans []string           `json:"allowedScans"`
+	Waivers      []Waiver           `json:"waivers,omitempty"`
+	AutoIndexes  []AutoIndexBinding `json:"autoIndexes,omitempty"`
 }
 type Definition struct {
 	ID        ID       `json:"id"`
@@ -124,6 +142,21 @@ func Describe(definitions []Definition) (*Registry, error) {
 			return nil, fmt.Errorf("stmt %q: invalid kind", d.ID)
 		}
 		seenWaivers := map[string]bool{}
+		seenBindings := map[string]bool{}
+		for _, binding := range d.Plan.AutoIndexes {
+			key := binding.Table + "\x00" + binding.Name
+			if binding.Table == "" || !strings.HasPrefix(binding.Name, "sqlite_autoindex_") ||
+				(binding.Origin != "pk" && binding.Origin != "u") || len(binding.Columns) == 0 ||
+				!slices.Contains(d.Plan.Indexes, binding.Name) || seenBindings[key] {
+				return nil, fmt.Errorf("stmt %q: invalid/duplicate autoindex binding", d.ID)
+			}
+			seenBindings[key] = true
+			for _, col := range binding.Columns {
+				if col.Name == "" || col.Collation == "" {
+					return nil, fmt.Errorf("stmt %q: autoindex columns require names and collations", d.ID)
+				}
+			}
+		}
 		for _, w := range d.Plan.Waivers {
 			key := w.Stage + "\x00" + w.Form + "\x00" + w.Match
 			if w.StatementID != d.ID || strings.TrimSpace(w.Form) == "" || strings.TrimSpace(w.Match) == "" || strings.TrimSpace(w.Reason) == "" || seenWaivers[key] {
@@ -337,6 +370,10 @@ func cloneDefinition(d Definition) Definition {
 	d.Plan.Seeks = slices.Clone(d.Plan.Seeks)
 	d.Plan.AllowedScans = slices.Clone(d.Plan.AllowedScans)
 	d.Plan.Waivers = slices.Clone(d.Plan.Waivers)
+	d.Plan.AutoIndexes = slices.Clone(d.Plan.AutoIndexes)
+	for i := range d.Plan.AutoIndexes {
+		d.Plan.AutoIndexes[i].Columns = slices.Clone(d.Plan.AutoIndexes[i].Columns)
+	}
 	d.Cohorts = slices.Clone(d.Cohorts)
 	for i := range d.Cohorts {
 		d.Cohorts[i].Bindings = cloneArgs(d.Cohorts[i].Bindings)

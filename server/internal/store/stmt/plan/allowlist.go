@@ -167,8 +167,8 @@ type lintParser struct {
 }
 
 type selectSource struct {
-	name     string
-	hasAlias bool
+	name, alias, index string
+	hasAlias           bool
 }
 
 func (p *lintParser) peek(text string) bool {
@@ -509,7 +509,7 @@ func (p *lintParser) selectTable() error {
 	if p.peek(".") {
 		return p.fail("schema-qualified sources are outside the grammar")
 	}
-	source := selectSource{name: p.tokens[start].text}
+	source := selectSource{name: p.tokens[start].text, alias: p.tokens[start].text}
 	if sqliteInternalSource(source.name) {
 		return p.fail("SQLite internal sources are outside the grammar")
 	}
@@ -518,17 +518,22 @@ func (p *lintParser) selectTable() error {
 			return err
 		}
 		source.hasAlias = true
+		source.alias = p.tokens[p.at-1].text
 	}
-	p.sources = append(p.sources, source)
 	if p.take("INDEXED") {
 		if err := p.need("BY"); err != nil {
 			return err
 		}
-		return p.unquotedName()
+		if err := p.unquotedName(); err != nil {
+			return err
+		}
+		source.index = p.tokens[p.at-1].text
+	} else if p.take("NOT") {
+		if err := p.need("INDEXED"); err != nil {
+			return err
+		}
 	}
-	if p.take("NOT") {
-		return p.need("INDEXED")
-	}
+	p.sources = append(p.sources, source)
 	return nil
 }
 

@@ -2,10 +2,12 @@ package plan
 
 import "strings"
 
-func isAutoindex(name string) bool { return strings.HasPrefix(name, "sqlite_autoindex_") }
+func isAutoindex(name string) bool {
+	return strings.HasPrefix(strings.ToLower(name), "sqlite_autoindex_")
+}
 
-// Generated names belong in the expected EQP contract, not INDEXED BY SQL.
-// Token kinds distinguish real clauses from comments and SQL-looking data.
+// Token kinds distinguish real generated-name hints from comments/data. This
+// detector grants no capability: Capture must certify each live key binding.
 func forcedAutoindex(sql string) string {
 	tokens, _ := lintTokens(sql)
 	for i := 0; i+2 < len(tokens); i++ {
