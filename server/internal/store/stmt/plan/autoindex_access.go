@@ -106,11 +106,24 @@ func nativeKeyPrefix(a AutoIndexAudit, native []keyCondition, equalities int, ra
 		if i == equalities {
 			want = rangeOp
 		}
-		if !strings.EqualFold(c.column, a.Binding.Columns[i].Name) || c.operator != want {
+		if !strings.EqualFold(c.column, a.Binding.Columns[i].Name) || rangeDirection(c.operator) != rangeDirection(want) {
 			return false
 		}
 	}
 	return true
+}
+
+// EQP omits inclusive endpoints (>= becomes >, <= becomes <). SQL retains
+// inclusivity; the independent native proof must agree on the seek direction.
+func rangeDirection(operator string) string {
+	switch operator {
+	case ">=":
+		return ">"
+	case "<=":
+		return "<"
+	default:
+		return operator
+	}
 }
 
 // This grants a deliberately smaller access subset than general SEARCH:
