@@ -1,5 +1,6 @@
 from pathlib import Path
 import subprocess
+import tempfile
 import unittest
 from unittest.mock import Mock, call, patch
 
@@ -64,18 +65,93 @@ class DecoderSandboxTests(unittest.TestCase):
                 process.wait.return_value = returncode
                 if returncode:
                     with self.assertRaises(subprocess.CalledProcessError) as raised:
-                        sandbox.command(args, timeout=300)
+                        sandbox.command(args, timeout=90)
                     self.assertEqual(raised.exception.returncode, returncode)
                     self.assertEqual(raised.exception.cmd, args)
                 else:
-                    sandbox.command(args, timeout=300)
+                    sandbox.command(args, timeout=90)
                 popen.assert_called_once_with(args, start_new_session=True)
-                process.wait.assert_called_once_with(timeout=300)
+                process.wait.assert_called_once_with(timeout=90)
                 kill.assert_not_called()
+
+    def test_mirror_switch_requires_hosted_linux_before_reading_sources(self):
+        hosted = {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted', 'RUNNER_OS': 'Linux'}
+        for env in [{}, dict(hosted, RUNNER_ENVIRONMENT='self-hosted'), dict(hosted, RUNNER_OS='macOS')]:
+            with self.subTest(env=env), patch.dict('os.environ', env, clear=True), \
+                 patch.object(Path, 'glob') as glob, patch.object(Path, 'write_text') as write:
+                with self.assertRaises(ValueError):
+                    sandbox.switch_apt_mirror()
+                glob.assert_not_called()
+                write.assert_not_called()
+
+    def test_mirror_switch_handles_list_and_deb822_without_changing_other_repos(self):
+        env = {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted', 'RUNNER_OS': 'Linux'}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sources = root / 'sources.list.d'
+            sources.mkdir()
+            fixtures = {
+                root / 'sources.list': 'deb http://azure.archive.ubuntu.com/ubuntu/ noble main\n',
+                sources / 'updates.list': 'deb https://us.archive.ubuntu.com/ubuntu noble-updates main\n',
+                sources / 'ubuntu.sources': 'Types: deb\nURIs: http://azure.archive.ubuntu.com/ubuntu/ http://security.ubuntu.com/ubuntu\nSuites: noble noble-security\nComponents: main universe\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n',
+                sources / 'vendor.list': 'deb https://packages.microsoft.com/repos/azure-cli/ noble main\n',
+                sources / 'ubuntu.sources.save': 'URIs: http://azure.archive.ubuntu.com/ubuntu/\n',
+            }
+            for file, text in fixtures.items():
+                file.write_text(text)
+            with patch.dict('os.environ', env, clear=True), patch('builtins.print'):
+                sandbox.switch_apt_mirror(root)
+                once = {file: file.read_text() for file in fixtures}
+                sandbox.switch_apt_mirror(root)
+            self.assertEqual(once[root / 'sources.list'], 'deb http://archive.ubuntu.com/ubuntu noble main\n')
+            self.assertEqual(once[sources / 'updates.list'], 'deb http://archive.ubuntu.com/ubuntu noble-updates main\n')
+            self.assertEqual(once[sources / 'ubuntu.sources'], fixtures[sources / 'ubuntu.sources'].replace(
+                'http://azure.archive.ubuntu.com/ubuntu/', sandbox.APT_MIRROR).replace('http://security.ubuntu.com/ubuntu', sandbox.APT_MIRROR))
+            for file in [sources / 'vendor.list', sources / 'ubuntu.sources.save']:
+                self.assertEqual(once[file], fixtures[file])
+            self.assertEqual({file: file.read_text() for file in fixtures}, once)
+
+    def test_mirror_switch_fails_closed_without_an_ubuntu_source(self):
+        env = {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted', 'RUNNER_OS': 'Linux'}
+        with tempfile.TemporaryDirectory() as directory, patch.dict('os.environ', env, clear=True):
+            with self.assertRaisesRegex(ValueError, 'no Ubuntu apt mirror'):
+                sandbox.switch_apt_mirror(Path(directory))
+
+    def test_setup_success_does_not_repair_or_switch_mirrors(self):
+        env = {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted', 'RUNNER_OS': 'Linux'}
+        with patch.dict('os.environ', env, clear=True), patch.object(Path, 'exists', return_value=False), \
+             patch.object(sandbox, 'command') as command, patch.object(sandbox, 'wait_for_package_processes') as wait:
+            sandbox.setup()
+        self.assertEqual(command.call_count, 3)
+        self.assertEqual(command.call_args_list[0].kwargs, {'timeout': 90})
+        self.assertEqual(command.call_args_list[1].kwargs, {'timeout': 240})
+        self.assertEqual(command.call_args_list[2].args[0][0], 'bwrap')
+        wait.assert_not_called()
+
+    def test_failed_mirror_switch_prevents_another_apt_attempt(self):
+        env = {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted', 'RUNNER_OS': 'Linux'}
+        with patch.dict('os.environ', env, clear=True), \
+             patch.object(sandbox, 'command', side_effect=[subprocess.TimeoutExpired('apt-get', 90), None,
+                                                         subprocess.CalledProcessError(1, 'apt-mirror')]) as command, \
+             patch.object(sandbox, 'wait_for_package_processes', return_value=True), \
+             patch.object(sandbox.time, 'sleep') as sleep:
+            with self.assertRaises(subprocess.CalledProcessError):
+                sandbox.setup()
+        self.assertEqual(command.call_count, 3)
+        self.assertEqual(command.call_args_list[-1].args[0][-1], 'apt-mirror')
+        sleep.assert_not_called()
+
+    def test_workflow_budget_fits_both_bounded_attempts_and_tests(self):
+        # Recovery: group kill/reap 60 + two survivor waits <=80 + pkill <=60
+        # + dpkg repair 120 + mirror rewrite 30 + backoff 5 = 355 seconds.
+        seconds = 2 * (sandbox.APT_UPDATE_SECONDS + sandbox.APT_INSTALL_SECONDS) + 355 + 45 + 510 + 120
+        workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/decoder-sandbox.yml').read_text()
+        self.assertEqual(seconds, 1690)
+        self.assertIn('timeout-minutes: ' + str((seconds + 59) // 60), workflow)
 
     def test_command_kills_privileged_group_and_waits_before_propagating_timeout(self):
         args = ['sudo', 'apt-get', 'install', 'bubblewrap', 'ffmpeg']
-        error = subprocess.TimeoutExpired(args, 600)
+        error = subprocess.TimeoutExpired(args, 240)
         with patch.object(sandbox.subprocess, 'Popen') as popen, \
              patch.object(sandbox.subprocess, 'run') as kill:
             process = popen.return_value
@@ -85,11 +161,11 @@ class DecoderSandboxTests(unittest.TestCase):
             events.attach_mock(process.wait, 'wait')
             events.attach_mock(kill, 'kill')
             with self.assertRaises(subprocess.TimeoutExpired) as raised:
-                sandbox.command(args, timeout=600)
+                sandbox.command(args, timeout=240)
             self.assertIs(raised.exception, error)
             popen.assert_called_once_with(args, start_new_session=True)
             self.assertEqual(events.mock_calls, [
-                call.wait(timeout=600),
+                call.wait(timeout=240),
                 call.kill(['sudo', 'kill', '-KILL', '--', '-2798'], check=True, timeout=30),
                 call.wait(timeout=30),
             ])
@@ -97,17 +173,17 @@ class DecoderSandboxTests(unittest.TestCase):
     def test_setup_retries_apt_sequence_with_apt_timeouts(self):
         update = call(['sudo', 'apt-get', '-o', 'Acquire::Retries=3',
                        '-o', 'DPkg::Lock::Timeout=60', 'update'],
-                      timeout=300)
+                      timeout=90)
         install = call(['sudo', 'apt-get', '-o', 'Acquire::Retries=3',
                         '-o', 'DPkg::Lock::Timeout=60', 'install', '-y',
-                        '--no-install-recommends', 'bubblewrap', 'ffmpeg'], timeout=600)
-        checks = [call(['sudo', 'sysctl', '-w', setting]) for setting in
+                        '--no-install-recommends', 'bubblewrap', 'ffmpeg'], timeout=240)
+        checks = [call(['sudo', 'sysctl', '-w', setting], timeout=15) for setting in
                   ['kernel.apparmor_restrict_unprivileged_userns=0', 'kernel.unprivileged_userns_clone=1']]
         checks.append(call(['bwrap', '--unshare-all', '--die-with-parent', '--ro-bind', '/', '/',
-                            '--proc', '/proc', '--dev', '/dev', '--cap-drop', 'ALL', '/bin/true']))
+                            '--proc', '/proc', '--dev', '/dev', '--cap-drop', 'ALL', '/bin/true'], timeout=15))
         env = {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted', 'RUNNER_OS': 'Linux'}
-        for error in [subprocess.TimeoutExpired('apt-get', 300),
-                      subprocess.TimeoutExpired('apt-get', 600),
+        for error in [subprocess.TimeoutExpired('apt-get', 90),
+                      subprocess.TimeoutExpired('apt-get', 240),
                       subprocess.CalledProcessError(1, 'apt-get'),
                       subprocess.CalledProcessError(100, 'apt-get')]:
             for failed_step in [0, 1]:
@@ -116,12 +192,14 @@ class DecoderSandboxTests(unittest.TestCase):
                      patch.object(Path, 'exists', return_value=True), \
                      patch.object(sandbox, 'wait_for_package_processes', return_value=True), \
                      patch.object(sandbox, 'command',
-                                  side_effect=[None] * failed_step + [error] + [None] * 6) as run, \
+                                  side_effect=[None] * failed_step + [error] + [None] * 7) as run, \
                      patch.object(sandbox.time, 'sleep') as sleep:
                     sandbox.setup()
                     self.assertEqual(run.call_args_list,
                                      [update, install][:failed_step + 1]
-                                     + [call(['sudo', 'dpkg', '--configure', '-a'], timeout=120)]
+                                     + [call(['sudo', 'dpkg', '--configure', '-a'], timeout=120),
+                                        call(['sudo', '--preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS',
+                                              'python3', str(Path(sandbox.__file__).resolve()), 'apt-mirror'], timeout=30)]
                                      + [update, install] + checks)
                     sleep.assert_called_once_with(5)
 
@@ -133,7 +211,7 @@ class DecoderSandboxTests(unittest.TestCase):
             for failed_step in range(5):
                 retry = failed_step < 2 and not isinstance(error, OSError)
                 # A second failure must propagate, even when the first was retried.
-                effects = [None] * failed_step + [error] + ([None, error] if retry else [])
+                effects = [None] * failed_step + [error] + ([None, None, error] if retry else [])
                 with self.subTest(error=type(error).__name__, failed_step=failed_step), \
                      patch.dict('os.environ', env, clear=True), \
                      patch.object(Path, 'exists', return_value=True), \
@@ -142,7 +220,7 @@ class DecoderSandboxTests(unittest.TestCase):
                      patch.object(sandbox.time, 'sleep') as sleep:
                     with self.assertRaises(type(error)):
                         sandbox.setup()
-                    self.assertEqual(run.call_count, failed_step + 1 + 2 * int(retry))
+                    self.assertEqual(run.call_count, failed_step + 1 + 3 * int(retry))
                     self.assertEqual(sleep.call_count, int(retry))
 
     def test_package_process_wait_checks_both_names_and_has_a_deadline(self):
@@ -168,7 +246,7 @@ class DecoderSandboxTests(unittest.TestCase):
                  patch.dict('os.environ', env, clear=True), \
                  patch.object(Path, 'exists', return_value=False), \
                  patch.object(sandbox, 'command', side_effect=[
-                     subprocess.TimeoutExpired('apt-get', 600), None, None, None, None]) as command, \
+                     subprocess.TimeoutExpired('apt-get', 240), None, None, None, None, None]) as command, \
                  patch.object(sandbox, 'wait_for_package_processes',
                               side_effect=[False, True] if survivor else [True]) as wait, \
                  patch.object(sandbox.subprocess, 'run',
@@ -178,21 +256,23 @@ class DecoderSandboxTests(unittest.TestCase):
                 for name, mock in [('command', command), ('wait', wait), ('kill', kill)]:
                     events.attach_mock(mock, name)
                 sandbox.setup()
-                expected = [call.command(command.call_args_list[0].args[0], timeout=300), call.wait()]
+                expected = [call.command(command.call_args_list[0].args[0], timeout=90), call.wait()]
                 if survivor:
                     expected += [call.kill(['sudo', 'pkill', '-KILL', '-x', name], timeout=30)
                                  for name in ['apt-get', 'dpkg']]
                     expected.append(call.wait())
                 expected.append(call.command(['sudo', 'dpkg', '--configure', '-a'], timeout=120))
+                expected.append(call.command(['sudo', '--preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS',
+                                              'python3', str(Path(sandbox.__file__).resolve()), 'apt-mirror'], timeout=30))
                 self.assertEqual(events.mock_calls[:len(expected)], expected)
-                self.assertEqual(command.call_args_list[2], command.call_args_list[0])
+                self.assertEqual(command.call_args_list[3], command.call_args_list[0])
                 self.assertEqual(kill.call_count, 2 if survivor else 0)
 
     def test_setup_refuses_retry_when_survivors_or_process_checks_fail(self):
         env = {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted', 'RUNNER_OS': 'Linux'}
         for code, error in [(0, ValueError), (2, subprocess.CalledProcessError)]:
             with self.subTest(code=code), patch.dict('os.environ', env, clear=True), \
-                 patch.object(sandbox, 'command', side_effect=subprocess.TimeoutExpired('apt-get', 600)) as command, \
+                 patch.object(sandbox, 'command', side_effect=subprocess.TimeoutExpired('apt-get', 240)) as command, \
                  patch.object(sandbox, 'wait_for_package_processes', side_effect=[False, False]), \
                  patch.object(sandbox.subprocess, 'run',
                               return_value=subprocess.CompletedProcess([], code)), \
@@ -208,7 +288,7 @@ class DecoderSandboxTests(unittest.TestCase):
         for error in [subprocess.CalledProcessError(1, repair), subprocess.TimeoutExpired(repair, 120)]:
             with self.subTest(error=type(error).__name__), patch.dict('os.environ', env, clear=True), \
                  patch.object(sandbox, 'command', side_effect=[
-                     subprocess.TimeoutExpired('apt-get', 600), error]) as command, \
+                     subprocess.TimeoutExpired('apt-get', 240), error]) as command, \
                  patch.object(sandbox, 'wait_for_package_processes', return_value=True), \
                  patch.object(sandbox.time, 'sleep') as sleep:
                 with self.assertRaises(type(error)):

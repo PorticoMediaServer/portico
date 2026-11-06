@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import time
 
@@ -26,6 +27,11 @@ REQUIRED = {
         'TestConfinedBurnInDrawsText',
     ],
 }
+
+APT_UPDATE_SECONDS = 90
+APT_INSTALL_SECONDS = 240
+APT_MIRROR = 'http://archive.ubuntu.com/ubuntu'
+UBUNTU_MIRROR = re.compile(r'https?://(?:[A-Za-z0-9-]+\.)*(?:archive|security)\.ubuntu\.com/ubuntu/?')
 
 
 def command(args, timeout=180):
@@ -58,20 +64,43 @@ def wait_for_package_processes():
         time.sleep(1)
 
 
-def setup():
+def require_hosted_linux():
     # These kernel changes belong only to the job's disposable VM. Never change
     # namespace or AppArmor policy on a developer host or self-hosted runner.
     if (os.environ.get('GITHUB_ACTIONS') != 'true'
             or os.environ.get('RUNNER_ENVIRONMENT') != 'github-hosted'
             or os.environ.get('RUNNER_OS') != 'Linux'):
         raise ValueError('sandbox setup requires a disposable GitHub-hosted Linux runner')
+
+
+def switch_apt_mirror(root=Path('/etc/apt')):
+    require_hosted_linux()
+    # Ubuntu 24.04 uses deb822 .sources files; older images use .list files.
+    files = [root / 'sources.list', *sorted((root / 'sources.list.d').glob('*.list')),
+             *sorted((root / 'sources.list.d').glob('*.sources'))]
+    matched = 0
+    for path in files:
+        if not path.is_file():
+            continue
+        original = path.read_text()
+        updated, count = UBUNTU_MIRROR.subn(APT_MIRROR, original)
+        matched += count
+        if updated != original:
+            path.write_text(updated)
+    if not matched:
+        raise ValueError('no Ubuntu apt mirror found; refusing unchanged-mirror retry')
+    print('Retrying Ubuntu packages through ' + APT_MIRROR, flush=True)
+
+
+def setup():
+    require_hosted_linux()
     for attempt in range(2):
         try:
             command(['sudo', 'apt-get', '-o', 'Acquire::Retries=3',
-                     '-o', 'DPkg::Lock::Timeout=60', 'update'], timeout=300)
+                     '-o', 'DPkg::Lock::Timeout=60', 'update'], timeout=APT_UPDATE_SECONDS)
             command(['sudo', 'apt-get', '-o', 'Acquire::Retries=3',
                      '-o', 'DPkg::Lock::Timeout=60', 'install', '-y',
-                     '--no-install-recommends', 'bubblewrap', 'ffmpeg'], timeout=600)
+                     '--no-install-recommends', 'bubblewrap', 'ffmpeg'], timeout=APT_INSTALL_SECONDS)
             break
         except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
             if attempt == 1:
@@ -86,15 +115,17 @@ def setup():
                 if not wait_for_package_processes():
                     raise ValueError('package processes survived cleanup; refusing apt retry')
             command(['sudo', 'dpkg', '--configure', '-a'], timeout=120)
+            command(['sudo', '--preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS',
+                     'python3', str(Path(__file__).resolve()), 'apt-mirror'], timeout=30)
             time.sleep(5)
     for key, value in [('kernel.apparmor_restrict_unprivileged_userns', '0'),
                        ('kernel.unprivileged_userns_clone', '1')]:
         if (Path('/proc/sys') / key.replace('.', '/')).exists():
-            command(['sudo', 'sysctl', '-w', key + '=' + value])
+            command(['sudo', 'sysctl', '-w', key + '=' + value], timeout=15)
     # Check as the runner user, using the user, PID, mount and network namespaces
     # the production helpers need. Installing bwrap alone does not prove access.
     command(['bwrap', '--unshare-all', '--die-with-parent', '--ro-bind', '/', '/',
-             '--proc', '/proc', '--dev', '/dev', '--cap-drop', 'ALL', '/bin/true'])
+             '--proc', '/proc', '--dev', '/dev', '--cap-drop', 'ALL', '/bin/true'], timeout=15)
 
 
 def verify(events, returncode):
@@ -132,6 +163,6 @@ def test():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['setup', 'test'])
+    parser.add_argument('action', choices=['setup', 'test', 'apt-mirror'])
     args = parser.parse_args()
-    (setup if args.action == 'setup' else test)()
+    {'setup': setup, 'test': test, 'apt-mirror': switch_apt_mirror}[args.action]()

@@ -7,7 +7,9 @@ permissions:
 jobs:
   sandbox:
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    # 660s apt + 355s timeout/recovery/mirror + 45s namespace probes
+    # + 510s tag selection/tests + 120s workflow overhead = 1690s; round to 29m.
+    timeout-minutes: 29
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
