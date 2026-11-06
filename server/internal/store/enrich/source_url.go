@@ -20,6 +20,8 @@ const TMDBMovieRequestShape = "tmdb.movie.detail+credits.header-selected-credits
 // caching, storage or logging. An allowlist of query names could accidentally
 // retain a differently named credential; none of them is needed as authority.
 // Typed provider ID/locale/request-shape remain separate native witnesses.
+// Accepted case/default-port spellings map to ONE constant authority. A
+// trailing-dot host remains outside the allowlist and is refused.
 // This function grants no fetch permission and performs no network operation.
 func SafeTMDBSourceURL(raw, providerID string) (string, error) {
 	id, err := strconv.ParseInt(providerID, 10, 64)
@@ -34,11 +36,7 @@ func SafeTMDBSourceURL(raw, providerID string) (string, error) {
 		// removed, including a malformed escape rejected by net/url.
 		return "", ErrSourceURL
 	}
-	u.User = nil
-	u.RawQuery, u.Fragment, u.RawFragment = "", "", ""
-	u.ForceQuery = false
-	// The decoded path was matched against our fixed public route above.
-	// Re-encode it without retaining an alternate escaped spelling/backing URL.
-	u.RawPath = ""
-	return u.String(), nil
+	// Construct solely from our constant origin/route and canonical numeric ID.
+	// No original authority, escape spelling or credential carrier survives.
+	return "https://api.themoviedb.org/3/movie/" + providerID, nil
 }

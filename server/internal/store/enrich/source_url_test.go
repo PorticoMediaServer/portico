@@ -8,6 +8,29 @@ import (
 	"unsafe"
 )
 
+func TestSafeTMDBSourceURLCanonicalAuthority(t *testing.T) {
+	const want = "https://api.themoviedb.org/3/movie/550"
+	for _, raw := range []string{
+		want,
+		"https://API.THEMOVIEDB.ORG/3/movie/550",
+		"https://api.themoviedb.org:443/3/movie/550",
+		"https://api.themoviedb.org:/3/movie/550",
+		"https://API.THEMOVIEDB.ORG:443/3/movie/550?api_key=secret#secret",
+	} {
+		t.Run(raw, func(t *testing.T) {
+			got, err := SafeTMDBSourceURL(raw, "550")
+			if err != nil || got != want {
+				t.Fatalf("noncanonical authority: got %q, want %q, err %v", got, want, err)
+			}
+		})
+	}
+	// A trailing dot is outside the closed hostname allowlist; it is not an
+	// alternate spelling whose input authority is preserved in provenance.
+	if got, err := SafeTMDBSourceURL("https://api.themoviedb.org./3/movie/550", "550"); !errors.Is(err, ErrSourceURL) || got != "" {
+		t.Fatal("trailing-dot host admitted", got, err)
+	}
+}
+
 func TestSafeTMDBSourceURLStripsEveryCredentialCarrier(t *testing.T) {
 	const want = "https://api.themoviedb.org/3/movie/42"
 	for _, input := range []string{
