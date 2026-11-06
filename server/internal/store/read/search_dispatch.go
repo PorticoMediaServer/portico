@@ -1,0 +1,225 @@
+package read
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
+	"github.com/PorticoMediaServer/portico/server/internal/store/search"
+)
+
+var ErrSearchSuperseded = errors.New("search response is no longer current")
+
+const MaxSearchTitles = 20
+
+type SearchDisposition uint8
+
+const (
+	SearchResults SearchDisposition = iota + 1
+	SearchPending
+	SearchUnavailable
+)
+
+type SearchReason uint8
+
+const (
+	SearchNoReason SearchReason = iota
+	SearchTitleSourceUnavailable
+	SearchFullModeUnsupported
+	SearchSourcePending
+)
+
+type SearchInput struct {
+	View          BrowseInput
+	Session, Text string
+	ShowMore      bool
+}
+
+// TitleSearchPage is a draft executor seam, not native serving authority.
+// Pending/unavailable pages contain NO items and make no empty/exhaustive claim.
+type TitleSearchPage struct {
+	Disposition SearchDisposition
+	Items       []BrowseItem
+}
+
+// TitleSearchRead comes only from trusted harness composition. A future native
+// implementation must use the SAME pool's public LIVE read, current authority,
+// accepted bank/profile/source and HN fixed-slot attestation. It must join all
+// work and close native windows before returning owned bounded values. No such
+// executor is installed by this package; nil produces typed unavailable.
+type TitleSearchRead func(context.Context, governor.Request, time.Duration, BrowseOutput, BrowseInput, search.Query) (TitleSearchPage, *BrowseReadResult, error)
+
+type SearchResponse struct {
+	Generation  uint64
+	Mode        search.ReadMode
+	Disposition SearchDisposition
+	Reason      SearchReason
+	Items       []BrowseItem
+}
+
+// SearchConsumer prepares bounded encoding without publishing or retaining
+// page references beyond its returned publisher. The driver checks Current
+// AFTER preparation, just before invoking Publish, then joins that publisher.
+// Both phases must honour ctx and join owned users; no work/reference escapes.
+// Generation must survive delivery so clients can reject already-in-flight
+// older responses. Supersession cannot retract bytes already sent.
+type SearchConsumer func(context.Context, SearchResponse) (publish func(context.Context) error, err error)
+
+type SearchDispatchResult struct {
+	Generation  uint64
+	Mode        search.ReadMode
+	Disposition SearchDisposition
+	Reason      SearchReason
+	Published   bool
+	Read        *BrowseReadResult
+	Consumption *ForegroundConsumption
+	Elapsed     time.Duration
+}
+
+// SearchDispatcher adds no SQL/native capability or runtime registration.
+// Composition owns/funds SearchRequests metadata separately and closes/drains
+// it after active dispatch calls return. GV alone owns payload/LIVE custody.
+type SearchDispatcher struct {
+	requests  *search.SearchRequests
+	governor  governor.Governor
+	authority *governor.Authority
+	pool      *governor.Snapshots
+	titles    TitleSearchRead
+}
+
+func NewSearchDispatcher(requests *search.SearchRequests, g governor.Governor, a *governor.Authority, pool *governor.Snapshots, titles TitleSearchRead) (*SearchDispatcher, error) {
+	if requests == nil || a == nil || !a.Owns(g) || pool == nil || !pool.OwnedBy(a) {
+		return nil, ErrInput
+	}
+	return &SearchDispatcher{requests, g, a, pool, titles}, nil
+}
+
+func (d *SearchDispatcher) Consume(ctx context.Context, live governor.ForegroundRequest, request governor.Request, budget time.Duration, output governor.Request, in SearchInput, consume SearchConsumer) (out SearchDispatchResult, err error) {
+	started := time.Now()
+	defer func() { out.Elapsed = time.Since(started) }()
+	if d == nil || ctx == nil || consume == nil || budget <= 0 ||
+		in.View.Now.IsZero() || in.View.Limit < 1 || in.View.Limit > MaxSearchTitles ||
+		in.View.After != nil || in.View.Descending || in.View.KeepArticles ||
+		len(in.View.Database) == 0 || len(in.View.Database) > 256 ||
+		len(in.View.TokenHash) == 0 || len(in.View.TokenHash) > 256 ||
+		in.View.Library <= 0 || in.View.Kind <= 0 || in.View.Kind > 99 ||
+		request.Writer || request.Deadline.IsZero() || request.Key != live.Key ||
+		request.Owner != live.Owner || request.Class != governor.Foreground ||
+		request.Need[governor.Reader] != 1 || request.Need[governor.MemoryBytes] != 12<<20 {
+		return out, ErrInput
+	}
+	query, err := search.PlanQuery(in.Text, in.ShowMore)
+	if err != nil {
+		return out, err // invalid input never supersedes a valid active request
+	}
+	out.Mode = query.Mode()
+	active, err := d.requests.Begin(ctx, in.Session)
+	if err != nil {
+		return out, err
+	}
+	defer active.Finish() // AFTER shared output/LIVE cleanup and both consumers
+	out.Generation = active.Generation()
+	// Preserve the trusted request-entry clock through metadata preparation;
+	// the public LIVE reader accounts for admission/execution from here onward.
+	view := in.View
+	view.Database, view.TokenHash = strings.Clone(view.Database), strings.Clone(view.TokenHash)
+	in = SearchInput{} // retain neither raw query/session backing nor browse cursors
+	consumption, err := ConsumeForeground(active.Context(), d.governor, d.authority, d.pool, live, output, func(ctx context.Context, custody BrowseOutput) error {
+		view.Now = view.Now.Add(custody.live.started.Sub(started))
+		page := TitleSearchPage{Disposition: SearchResults}
+		reason := SearchNoReason
+		switch query.Mode() {
+		case search.ReadNothing:
+			// A valid cleared query still supersedes old work and sends generation.
+		case search.ReadFull:
+			page.Disposition, reason = SearchUnavailable, SearchFullModeUnsupported
+		case search.ReadTitles:
+			if d.titles == nil {
+				page.Disposition, reason = SearchUnavailable, SearchTitleSourceUnavailable
+				break
+			}
+			deadline := earliest(live.ReadyDeadline, live.ProtectedDeadline, request.Deadline, started.Add(min(budget, time.Second)))
+			readCtx, cancel := context.WithDeadline(ctx, deadline)
+			defer cancel()
+			if e := readCtx.Err(); e != nil {
+				return e
+			}
+			purpose := request
+			purpose.Deadline = deadline
+			var e error
+			page, out.Read, e = d.titles(readCtx, purpose, time.Until(deadline), custody, view, query)
+			if e != nil {
+				return e
+			}
+			if e = readCtx.Err(); e != nil {
+				return e
+			}
+			switch page.Disposition {
+			case SearchPending:
+				reason = SearchSourcePending
+			case SearchUnavailable:
+				reason = SearchTitleSourceUnavailable
+			}
+		default:
+			return ErrInput
+		}
+		owned, e := ownSearchPage(page, view.Limit)
+		if e != nil {
+			return e
+		}
+		out.Disposition, out.Reason = owned.Disposition, reason
+		response := SearchResponse{out.Generation, out.Mode, owned.Disposition, reason, owned.Items}
+		check := func() error {
+			if !active.Current() {
+				return errors.Join(ErrSearchSuperseded, ctx.Err())
+			}
+			return errors.Join(ctx.Err(), custody.live.check())
+		}
+		if e = check(); e != nil {
+			return e
+		}
+		publish, e := consume(ctx, response)
+		if e != nil {
+			return e
+		}
+		if publish == nil {
+			return ErrInput
+		}
+		if e = check(); e != nil {
+			return e
+		}
+		if e = publish(ctx); e != nil {
+			return e
+		}
+		if e = check(); e != nil {
+			return e
+		}
+		out.Published = true
+		return nil
+	})
+	out.Consumption = &consumption
+	if err != nil {
+		out.Published = false
+	}
+	return out, err
+}
+
+func ownSearchPage(page TitleSearchPage, limit int) (TitleSearchPage, error) {
+	if page.Disposition < SearchResults || page.Disposition > SearchUnavailable || len(page.Items) > limit || page.Disposition != SearchResults && len(page.Items) != 0 {
+		return TitleSearchPage{}, ErrInput
+	}
+	for _, item := range page.Items {
+		if item.ID <= 0 || len(item.Title) > 64<<10 || !utf8.ValidString(item.Title) {
+			return TitleSearchPage{}, ErrInput
+		}
+	}
+	owned := TitleSearchPage{Disposition: page.Disposition}
+	for _, item := range page.Items {
+		item.Title = strings.Clone(item.Title)
+		owned.Items = append(owned.Items, item)
+	}
+	return owned, nil
+}

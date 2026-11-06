@@ -118,3 +118,27 @@ custody, not a2GB fit or maximum-body proof. The test
 Reader's64KiB native value/row limit can refuse larger legal descriptions rather
 than truncate them; that legal-maximum/decoder composition needs qualification.
 No production, hosted or reference-host run is implied by local tests.
+
+`SearchDispatcher` is an unwired lifecycle harness using `search.PlanQuery` and
+the separately funded `SearchRequests` metadata group. A valid replacement
+cancels the older session request; its metadata and LIVE/output custody remain
+charged through actual completion. Invalid queries do not replace valid work.
+The same shared `ConsumeForeground` admits LIVE before payload preparation.
+The draft title executor receives only the bounded view and normalized query,
+with the original ready/read deadlines. Its page is copied within the output
+grant: at most20 titles, each at most64KiB. These are harness recipe bounds,
+not a new governor quota or qualified memory/ready result.
+
+The consumer first prepares encoding without publishing, then returns a joined
+publisher. The driver checks current generation, cancellation and grants again
+after preparation, immediately before publishing. Both phases stay inside the
+same LIVE/output lifetime. Generation must survive transport for ordering of
+responses already in flight; supersession cannot retract delivered bytes.
+
+No native title executor is installed here. Missing sources return typed
+unavailable; sources may return typed pending without partial items. Full-mode
+and explicit show-more queries return unavailable, never an approximation from
+title candidates. A future native source must use the same pool's public LIVE
+read and accepted authority/bank/profile/source plus HN fixed-slot attestation.
+The synthetic title controls prove dispatch/custody only, not that native seam.
+No runtime route or full-search execution is enabled.
