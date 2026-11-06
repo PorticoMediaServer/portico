@@ -58,6 +58,9 @@ type logicalFieldWalk struct {
 }
 
 func newLogicalFieldWalk(scope *fullQueryScope, key search.FieldKey, primaryFold string) (*logicalFieldWalk, error) {
+	if key.Field != 1 {
+		primaryFold = ""
+	}
 	if scope == nil || key.Subject != search.ManifestEntity && key.Subject != search.ManifestPerson || key.SubjectID <= 0 || key.PublicationID <= 0 || key.BankID != scope.bank || key.InputGeneration <= 0 || key.Field < 1 || key.Field > 9 || key.LogicalOrdinal != 0 || len(key.Revision) == 0 || len(key.Revision) > 4096 || len(primaryFold) > 65536 || !utf8.ValidString(primaryFold) {
 		return nil, ErrInput
 	}
@@ -142,7 +145,80 @@ type logicalPopulation struct {
 	last             *search.FieldKey
 	count            uint64
 	complete, failed bool
+	posting          *fullPostingKey
+	mode             uint8
+	slot             uint8
 }
+
+// Rowid order is NOT logical-key order. The native adapter can instead supply
+// an exact canonical-first posting witness, obtained only after its complete
+// accepted logical-field/slot proof. This is private reducer data, not READ
+// attestation or authority; the native witness producer remains gated on HN.
+type fullPostingKey struct {
+	slot  uint8
+	rowid int64
+}
+type canonicalPostingProof struct {
+	source logicalSourceProof
+	term   int
+	first  fullPostingKey
+}
+type logicalPostingDelta struct {
+	position fullPostingKey
+	proof    *canonicalPostingProof
+}
+
+func comparePosting(a, b fullPostingKey) int {
+	if c := cmp.Compare(a.slot, b.slot); c != 0 {
+		return c
+	}
+	return cmp.Compare(a.rowid, b.rowid)
+}
+
+func canonicalPopulationStep(ctx context.Context, p *logicalPopulation, slot uint8, raw []logicalPostingDelta, exhausted bool) error {
+	if err := ctx.Err(); err != nil {
+		p.failed = true
+		return err
+	}
+	if p.slot == 0 {
+		p.slot = 1
+	}
+	if p.failed || p.complete || p.scope == nil || p.term < 0 || p.term >= len(p.scope.terms) || p.mode == 1 || slot != p.slot || slot > 5 || len(raw) > 64 || len(raw) == 0 && !exhausted {
+		p.failed = true
+		return ErrInput
+	}
+	p.mode = 2
+	for _, delta := range raw {
+		pos := delta.position
+		if pos.slot != slot || pos.rowid <= 0 || p.posting != nil && comparePosting(pos, *p.posting) <= 0 {
+			p.failed = true
+			return ErrStale
+		}
+		p.posting = &fullPostingKey{pos.slot, pos.rowid}
+		proof := delta.proof
+		if proof == nil {
+			continue
+		} // hidden/off-head/rejected positions still advance
+		if proof.source.scope != p.scope || proof.term != p.term || len(proof.source.matched) != len(p.scope.terms) || !proof.source.matched[p.term] || proof.first.slot < 1 || proof.first.slot > 5 || proof.first.rowid <= 0 || comparePosting(proof.first, pos) > 0 {
+			p.failed = true
+			return ErrInput
+		}
+		if proof.first != pos {
+			continue
+		} // same logical source, another physical/slot hit
+		if p.count == math.MaxUint64 {
+			p.failed = true
+			return ErrUnqualified
+		}
+		p.count++
+	}
+	if exhausted {
+		p.slot++
+	}
+	p.complete = p.slot == 6
+	return nil
+}
+
 type exactTermPopulation struct {
 	scope *fullQueryScope
 	term  string
@@ -154,10 +230,11 @@ func logicalPopulationStep(ctx context.Context, p *logicalPopulation, proofs []l
 		p.failed = true
 		return err
 	}
-	if p.failed || p.complete || p.scope == nil || p.term < 0 || p.term >= len(p.scope.terms) || rawPositions < 0 || rawPositions > maxOwnerPositions || len(proofs) > rawPositions || rawPositions == 0 && !exhausted {
+	if p.failed || p.complete || p.scope == nil || p.term < 0 || p.term >= len(p.scope.terms) || p.mode == 2 || rawPositions < 0 || rawPositions > maxOwnerPositions || len(proofs) > rawPositions || rawPositions == 0 && !exhausted {
 		p.failed = true
 		return ErrInput
 	}
+	p.mode = 1
 	for _, proof := range proofs {
 		if proof.scope != p.scope || len(proof.matched) != len(p.scope.terms) || !proof.matched[p.term] {
 			p.failed = true
@@ -252,7 +329,10 @@ func proveCandidate(scope *fullQueryScope, key fullResultKey, lead exactTermPopu
 	if !complete {
 		return canonicalCandidateProof{}, false, errFullSearchPending
 	}
-	if scope == nil || lead.scope != scope || key.id <= 0 || key.family != search.ManifestEntity && key.family != search.ManifestPerson || len(sources) > 512 {
+	if len(sources) > 512 {
+		return canonicalCandidateProof{}, false, errFullSearchPending
+	}
+	if scope == nil || lead.scope != scope || key.id <= 0 || key.family != search.ManifestEntity && key.family != search.ManifestPerson {
 		return canonicalCandidateProof{}, false, ErrInput
 	}
 	leadIndex := slices.Index(scope.terms, lead.term)

@@ -205,3 +205,42 @@ func TestFullLogicalSiblingAndForeignFence(t *testing.T) {
 		t.Fatal("cross-bank proof")
 	}
 }
+
+func TestFullCanonicalPostingPopulation(t *testing.T) {
+	s := fullScope(t, "Keanu")
+	a := fieldProof(t, s, search.ManifestPerson, 100, 1, "Keanu")
+	b := fieldProof(t, s, search.ManifestEntity, 2, 4, "Keanu")
+	pa := canonicalPostingProof{source: a, term: 0, first: fullPostingKey{1, 10}}
+	pb := canonicalPostingProof{source: b, term: 0, first: fullPostingKey{1, 11}}
+	p := logicalPopulation{scope: s, term: 0}
+	// Logical keys decrease, while true native rowids increase. Repeated
+	// fragments/slots must not require sorting or a query-wide seen-ID set.
+	if e := canonicalPopulationStep(t.Context(), &p, 1, []logicalPostingDelta{{fullPostingKey{1, 10}, &pa}, {fullPostingKey{1, 11}, &pb}, {fullPostingKey{1, 12}, nil}}, true); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := finishExactPopulation(t.Context(), &p); !errors.Is(e, errFullSearchPending) {
+		t.Fatal("one slot mistaken for complete population", e)
+	}
+	if e := canonicalPopulationStep(t.Context(), &p, 2, []logicalPostingDelta{{fullPostingKey{2, 1}, &pa}}, true); e != nil {
+		t.Fatal(e)
+	}
+	for slot := uint8(3); slot <= 5; slot++ {
+		if e := canonicalPopulationStep(t.Context(), &p, slot, nil, true); e != nil {
+			t.Fatal(e)
+		}
+	}
+	exact, e := finishExactPopulation(t.Context(), &p)
+	if e != nil || exact.count != 2 {
+		t.Fatal("physical/native order polluted logical count", exact, e)
+	}
+	p = logicalPopulation{scope: s, term: 0}
+	if e = canonicalPopulationStep(t.Context(), &p, 1, []logicalPostingDelta{{fullPostingKey{1, 10}, &pa}}, false); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = finishExactPopulation(t.Context(), &p); !errors.Is(e, errFullSearchPending) {
+		t.Fatal("partial native traversal was exact", e)
+	}
+	if e = canonicalPopulationStep(t.Context(), &p, 1, []logicalPostingDelta{{fullPostingKey{1, 10}, &pa}}, true); !errors.Is(e, ErrStale) {
+		t.Fatal("raw cursor repeated", e)
+	}
+}

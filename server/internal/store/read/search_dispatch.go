@@ -175,25 +175,20 @@ func (d *SearchDispatcher) Consume(ctx context.Context, live governor.Foreground
 				page.Disposition, reason = SearchUnavailable, SearchFullModeUnsupported
 				break
 			}
-			deadline := earliest(live.ReadyDeadline, live.ProtectedDeadline, request.Deadline, started.Add(min(budget, time.Second)))
-			readCtx, cancel := context.WithDeadline(ctx, deadline)
-			defer cancel()
 			if e := readCtx.Err(); e != nil {
-				return e
+				return finish(e)
 			}
-			purpose := request
-			purpose.Deadline = deadline
 			p, cost, e := d.full(readCtx, purpose, time.Until(deadline), custody, FullSearchInput{View: view, After: after}, query)
-			out.Read = cost
+			addSearchReadCost(out.Read, cost)
 			if e != nil {
-				return e
+				return finish(e)
 			}
 			if e = readCtx.Err(); e != nil {
-				return e
+				return finish(e)
 			}
 			owned, e := ownFullSearchPage(p, view.Limit)
 			if e != nil {
-				return e
+				return finish(e)
 			}
 			fullPage = &owned
 			page.Disposition = owned.Disposition
