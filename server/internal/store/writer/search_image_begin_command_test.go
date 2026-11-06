@@ -1,6 +1,7 @@
 package writer
 
 import (
+	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"math"
@@ -258,13 +259,62 @@ func TestSearchImageBeginZeroManifestAndFreshEligibilitySeparation(t *testing.T)
 
 func TestSearchImageBeginOversizedTextRefusesBeforeAllocation(t *testing.T) {
 	r, identity := searchImageBeginRequestFixture(t)
-	r.header.titlePrefixTokens = strings.Repeat("x", maxCanonicalRequestBytes+1)
-	runtime.GC()
-	var before, after runtime.MemStats
-	runtime.ReadMemStats(&before)
-	c, err := newSearchImageStageCommand(identity, r)
-	runtime.ReadMemStats(&after)
-	if !errors.Is(err, ErrInvalid) || c != nil || after.TotalAlloc-before.TotalAlloc > 64<<10 {
-		t.Fatalf("oversized packet was cloned/hashed before refusal: %v, allocated=%d", err, after.TotalAlloc-before.TotalAlloc)
+	r.header.titlePrefixTokens = ""
+	otherTextBytes := 0
+	searchImageBeginTestLeaves(reflect.ValueOf(&r).Elem(), func(v reflect.Value) {
+		if v.Kind() == reflect.String {
+			otherTextBytes += v.Len()
+		}
+	})
+	backing := strings.Repeat("x", maxCanonicalRequestBytes+1)
+	for _, offset := range []int{-1, 0, 1} {
+		t.Run(map[int]string{-1: "limit-minus-one", 0: "limit", 1: "limit-plus-one"}[offset], func(t *testing.T) {
+			// TEXT alone fits at -1/0, but the COMPLETE typed wire does not.
+			r.header.titlePrefixTokens = backing[:maxCanonicalRequestBytes+offset-otherTextBytes]
+			runtime.GC()
+			var before, after runtime.MemStats
+			runtime.ReadMemStats(&before)
+			c, err := newSearchImageStageCommand(identity, r)
+			runtime.ReadMemStats(&after)
+			allocated := after.TotalAlloc - before.TotalAlloc
+			if !errors.Is(err, ErrInvalid) || c != nil || allocated > 64<<10 {
+				t.Fatalf("TEXT total=%d cloned/hashed before overhead refusal: %v, allocated=%d", maxCanonicalRequestBytes+offset, err, allocated)
+			}
+			t.Logf("TEXT total=%d, allocated=%d", maxCanonicalRequestBytes+offset, allocated)
+		})
+	}
+}
+
+func TestSearchImageBeginCanonicalEnvelopeBoundary(t *testing.T) {
+	// Use the SHARED encoder, not a duplicate production size/encoding routine.
+	e := requestEncoder{h: sha256.New()}
+	e.value(reflect.ValueOf(searchImageStageRequest{}), 0)
+	// Fixed codec header: domain + purpose/version + incarnation + sequence +
+	// operation ID. All TEXT values in this request are empty for this probe.
+	wireFixed := e.written + uint64(len(canonicalRequestCodec)+4+16+8+16)
+	if e.err != nil || wireFixed != searchImageStageFixedBytes {
+		t.Fatalf("update reviewed request preflight for changed wire overhead: %d, %v", wireFixed, e.err)
+	}
+	r, identity := searchImageBeginRequestFixture(t)
+	r.header.titlePrefixTokens = ""
+	otherTextBytes := 0
+	searchImageBeginTestLeaves(reflect.ValueOf(&r).Elem(), func(v reflect.Value) {
+		if v.Kind() == reflect.String {
+			otherTextBytes += v.Len()
+		}
+	})
+	backing := strings.Repeat("x", maxCanonicalRequestBytes)
+	for _, offset := range []int{-1, 0, 1} {
+		t.Run(map[int]string{-1: "wire-limit-minus-one", 0: "wire-limit", 1: "wire-limit-plus-one"}[offset], func(t *testing.T) {
+			r.header.titlePrefixTokens = backing[:maxCanonicalRequestBytes-searchImageStageFixedBytes+offset-otherTextBytes]
+			c, err := newSearchImageStageCommand(identity, r)
+			if offset <= 0 {
+				if err != nil || c == nil || !c.valid {
+					t.Fatalf("valid complete wire boundary refused: %v", err)
+				}
+			} else if !errors.Is(err, ErrInvalid) || c != nil {
+				t.Fatalf("complete wire boundary exceeded: %v", err)
+			}
+		})
 	}
 }
