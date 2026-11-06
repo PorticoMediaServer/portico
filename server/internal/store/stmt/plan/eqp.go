@@ -31,6 +31,8 @@ func waived(d stmt.Definition, stage, form, match string) bool {
 // output, independently of the lint. All other rows, including scans, flag.
 // Exact per-statement detail waivers are the only exceptions, including scans;
 // legacy AllowedScans metadata grants no permission. Grammar is never waivable.
+// This checks rows only: it cannot certify SQL sources, Hot metadata or a
+// registry. Complete qualification requires connection-aware Capture.
 func CheckEQP(d stmt.Definition, eqp Rows) error {
 	for _, row := range eqp.Values {
 		if len(row) != 4 {

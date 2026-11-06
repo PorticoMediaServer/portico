@@ -233,18 +233,22 @@ func indexPolicy(t *testing.T) plan.IndexPolicy {
 
 func TestPlanForcedIndexCannotBeQuotedOrCommented(t *testing.T) {
 	conn, registry, f, _ := fixture(t)
-	golden, err := plan.Capture(context.Background(), conn, registry, f, indexPolicy(t))
-	if err != nil {
+	if _, err := plan.Capture(context.Background(), conn, registry, f, indexPolicy(t)); err != nil {
 		t.Fatal(err)
 	}
-	d := registry.Manifest()[0].Definition
-	for _, sql := range []string{
-		"SELECT 'INDEXED BY item_sort ' FROM items WHERE " + predicate,
-		"SELECT id FROM items /* INDEXED BY item_sort */ WHERE " + predicate,
-	} {
-		d.SQL = sql
-		if err := plan.Check(d, golden.Plans[0].QueryPlan); err == nil {
-			t.Fatalf("unforced SQL accepted: %s", sql)
+	original := registry.Manifest()[0].Definition
+	for _, hint := range []string{" /* INDEXED BY item_sort */", ""} {
+		d := original
+		d.SQL = strings.Replace(d.SQL, " INDEXED BY item_sort", hint, 1)
+		if hint == "" {
+			d.SQL = strings.Replace(d.SQL, "SELECT id,key", "SELECT id,key,'INDEXED BY item_sort '", 1)
+		}
+		r, err := stmt.New([]stmt.Definition{d})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := plan.Capture(context.Background(), conn, r, f, indexPolicy(t)); err == nil || !strings.Contains(err.Error(), "not forced") {
+			t.Fatalf("unforced SQL accepted: %s: %v", d.SQL, err)
 		}
 	}
 }
@@ -261,10 +265,21 @@ func TestPlanRejectsRowTupleOmittedLibraryAndReversedOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A tuple condition can still name an index; it must fail the cursor property.
-	d := registry.Manifest()[0].Definition
+	tail, err := registry.Lookup("sort.tail")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := tail.Definition()
+	if err != nil {
+		t.Fatal(err)
+	}
 	d.SQL = "SELECT id,key FROM items INDEXED BY item_sort WHERE library_id=? AND kind=? AND " + predicate + " AND (key,id)>(?,?) ORDER BY key,id LIMIT ?"
-	if err := plan.Check(d, baseline.Plans[0].QueryPlan); err == nil {
-		t.Fatal("row tuple comparison accepted")
+	tuple, err := stmt.New([]stmt.Definition{d})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := plan.Capture(ctx, conn, tuple, f, indexPolicy(t)); err == nil || !strings.Contains(err.Error(), "unapproved SQL lint") {
+		t.Fatal("row tuple comparison accepted", err)
 	}
 	defs := []stmt.Definition{}
 	for _, entry := range registry.Manifest() {

@@ -95,6 +95,10 @@ type Bound struct {
 	args  []any
 }
 
+// New freezes declarations and typed bindings, not source/plan certification.
+// Plan.Hot is caller metadata, never a qualification result. Owners must qualify
+// the finite registry through the connection-aware plan harness; registration
+// and Bound execution confer no authorization or Capture receipt.
 func New(definitions []Definition) (*Registry, error) {
 	r := &Registry{entries: make(map[ID]*Entry, len(definitions))}
 	for _, input := range definitions {
