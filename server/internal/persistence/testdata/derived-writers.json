@@ -7670,7 +7670,7 @@
       ]
     },
     "internal/ingestion/inventory.go": {
-      "sha256": "5ce72fee0762e49b95b16305eaf7e530ee74dc7399fa79a2d29f12dcf015865a",
+      "sha256": "01839eaa72ce076b3aa9ab91b16acfa48a08d418d71227821961e729fe99fee6",
       "effects": [
         {
           "table": "*",
@@ -7742,7 +7742,7 @@
       ]
     },
     "internal/ingestion/service.go": {
-      "sha256": "f9ea13d9b4dfb9eb6f3ce12dfde9ccf97ae65d6e2aad77915cd25f4e2392839a",
+      "sha256": "9bc07263f1647702bff1af5474275b76fa6c8980cfe2d2fbcb8d4c81e026a821",
       "effects": [
         {
           "table": "*",
@@ -12746,7 +12746,7 @@
       ]
     },
     "internal/storage/client.go": {
-      "sha256": "c8aba83def2ada28f19b46076eb91226e837ba6ca2b1caede6646f085b215469",
+      "sha256": "4afa61cb1f8493536bff391e6a564066331b0945462b17e3ba2a0f255f7e3af9",
       "effects": [
         {
           "table": "*",
@@ -12782,7 +12782,7 @@
       ]
     },
     "internal/storage/inventory_page.go": {
-      "sha256": "c8d15f3da2c4aa9b857827f52abc748df34acbae56378ccca09bbf4e1a68e1bd",
+      "sha256": "5c52a6eb7194576d86d1ed09b6d581727a07564d89c2f2ead335c87d9e58f54f",
       "effects": [
         {
           "table": "*",
@@ -12791,7 +12791,7 @@
       ]
     },
     "internal/storage/inventory_page_stream.go": {
-      "sha256": "d108b238e7fd6b8c5b21357b0308c77cf0b477ed41181099c1736224fed52c54",
+      "sha256": "259167c45475276bbcc2f4e8676aedaaa4a7a2448205ca811c2c413860297440",
       "effects": [
         {
           "table": "*",
@@ -12863,7 +12863,7 @@
       ]
     },
     "internal/storage/operation_scope.go": {
-      "sha256": "197c8c584f850a14f1c3ef301ed1199bf82c0adce7d21ec6fc30b50fc5057bf2",
+      "sha256": "b184f288e4d82dff9de4b9e734b35de6cb807653ed103553b9ac38e78c291b0b",
       "effects": [
         {
           "table": "*",

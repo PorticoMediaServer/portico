@@ -146,7 +146,7 @@ func streamTestClient(t *testing.T, body string) (*Client, string) {
 	}
 	root := t.TempDir()
 	script := filepath.Join(root, "helper")
-	scriptBody := "#!/bin/sh\ncat >/dev/null\nprintf 'start\\n' >> '" + filepath.Join(root, "starts") + "'\n" + body
+	scriptBody := "#!/bin/sh\nIFS= read -r request\nIFS= read -r demand\nprintf 'start\\n' >> '" + filepath.Join(root, "starts") + "'\n" + body
 	if err := os.WriteFile(script, []byte(scriptBody), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -175,14 +175,21 @@ func streamTestClient(t *testing.T, body string) (*Client, string) {
 	return c, root
 }
 func streamJSON(complete bool) string {
-	raw, _ := json.Marshal(InventoryPage{RootIdentity: "fixture-root", DirectoryIdentity: "fixture-directory", DirectoryRevision: "fixture-revision", Entries: []Snapshot{}, NextCursor: "private-child-cursor", Complete: complete})
+	raw, _ := json.Marshal(struct {
+		InventoryPage
+		RawUsed int `json:"rawUsed"`
+	}{InventoryPage: InventoryPage{RootIdentity: "fixture-root", DirectoryIdentity: "fixture-directory", DirectoryRevision: "fixture-revision", Entries: []Snapshot{}, NextCursor: "private-child-cursor", Complete: complete}, RawUsed: 1})
 	return string(raw)
 }
 func awaitStreamPage(t *testing.T, c *Client, key string, r InventoryRequest) InventoryPage {
 	t.Helper()
+	return awaitStreamPageContext(t, context.Background(), c, key, r)
+}
+func awaitStreamPageContext(t *testing.T, ctx context.Context, c *Client, key string, r InventoryRequest) InventoryPage {
+	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		p, err := c.retainedInventoryPage(context.Background(), key, r)
+		p, err := c.retainedInventoryPage(ctx, key, r)
 		if err == nil {
 			return p
 		}

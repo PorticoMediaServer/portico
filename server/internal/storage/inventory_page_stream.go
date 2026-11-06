@@ -6,10 +6,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/PorticoMediaServer/portico/server/internal/supervise"
 	"io"
 	"os/exec"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/supervise"
 	"strconv"
 	"strings"
 	"sync"
@@ -32,39 +32,89 @@ var inventoryStreams = struct {
 }{byID: map[string]*inventoryStream{}, byKey: map[string]*inventoryStream{}, slots: make(chan struct{}, 2)}
 
 type inventoryStream struct {
-	call          sync.Mutex
-	id, key       string
-	client        *Client
-	request       InventoryRequest
-	pages         chan InventoryPage
-	done, retired chan struct{}
-	cancel        context.CancelFunc
-	err           error     // published by closing done
-	touched       time.Time // registry mutex
-	last          *InventoryPage
-	input, next   string
-	number        int64
-	finished      bool // registry mutex
+	call                 sync.Mutex
+	id, key              string
+	ownerKey             string
+	operations           *OperationScope
+	scopeDone, ownerDone func()
+	client               *Client
+	request              InventoryRequest
+	pages                chan inventoryStreamPage
+	demands              chan int
+	done, retired        chan struct{}
+	cancel               context.CancelFunc
+	err                  error     // published by closing done
+	touched              time.Time // registry mutex
+	last                 *InventoryPage
+	lastRaw              int
+	pending              int // call mutex; one admitted page survives quantum cancellation
+	input, next          string
+	number               int64
+	finished             bool // registry mutex
 }
 
-func inventoryStreamHelper(r InventoryRequest, out io.Writer) error {
+type inventoryStreamPage struct {
+	InventoryPage
+	RawUsed int `json:"rawUsed"`
+}
+
+func inventoryStreamHelper(r InventoryRequest, in io.Reader, out io.Writer) error {
+	commands := bufio.NewReader(in)
 	encoder := json.NewEncoder(out)
 	for {
-		page, err := LocalInventoryPage(r)
-		if err != nil {
-			return inventoryFailure(err, out)
+		line, err := commands.ReadSlice('\n')
+		if err != nil || len(line) > 64 {
+			return ErrInventoryChanged
 		}
-		if err = encoder.Encode(page); err != nil {
+		if len(bytes.TrimSpace(line)) == 0 {
+			continue // the initial JSON decoder may retain its trailing newline
+		}
+		var demand struct{ Limit int }
+		if json.Unmarshal(line, &demand) != nil || demand.Limit < 1 || demand.Limit > 128 {
+			return ErrInventoryChanged
+		}
+		r.Limit = demand.Limit
+		var frame inventoryStreamPage
+		issues := make(map[InventoryIssue]struct{})
+		for frame.RawUsed < demand.Limit {
+			r.Limit = demand.Limit - frame.RawUsed
+			page, raw, err := localInventoryPage(r)
+			if err != nil {
+				return inventoryFailure(err, out)
+			}
+			if raw == 0 && !page.Complete {
+				return ErrInventoryChanged
+			}
+			if frame.RootIdentity == "" {
+				frame.InventoryPage = page
+				frame.Entries = nil
+				frame.Issues = nil
+			}
+			frame.Entries = append(frame.Entries, page.Entries...)
+			for _, issue := range page.Issues {
+				if _, seen := issues[issue]; !seen {
+					frame.Issues = append(frame.Issues, issue)
+					issues[issue] = struct{}{}
+				}
+			}
+			frame.RawUsed += raw
+			frame.Complete, frame.Unstable, frame.NextCursor = page.Complete, page.Unstable, page.NextCursor
+			r.RootIdentity, r.DirectoryRevision, r.Cursor = page.RootIdentity, page.DirectoryRevision, page.NextCursor
+			if page.Complete {
+				break
+			}
+		}
+		if err = encoder.Encode(frame); err != nil {
 			return err
 		}
-		if page.Complete {
+		if frame.Complete {
 			return nil
 		}
-		r.RootIdentity, r.DirectoryRevision, r.Cursor = page.RootIdentity, page.DirectoryRevision, page.NextCursor
 	}
 }
 func inventoryStreamKey(c *Client, key string, r InventoryRequest) string {
-	raw, _ := json.Marshal([]any{key, r.Root, r.RelativePath, r.FollowSymlinks, r.Limit})
+	// A page budget admits work on this stream; it is not its identity.
+	raw, _ := json.Marshal([]any{key, r.Root, r.RelativePath, r.FollowSymlinks})
 	// Clients are checked by pointer separately; no raw path is an authority token.
 	return fmt.Sprintf("%p:%s", c, raw)
 }
@@ -106,6 +156,12 @@ func (c *Client) retainedInventoryPage(ctx context.Context, key string, r Invent
 	mapKey := inventoryStreamKey(c, key, r)
 	inventoryStreams.once.Do(func() { supervise.Go("storage.inventory-expiry", expireInventoryStreams) })
 	inventoryStreams.Lock()
+	// Job cancellation closes admission before StopInventory takes this lock.
+	// A request that passed Guard earlier must not publish a late new producer.
+	if err := ctx.Err(); err != nil {
+		inventoryStreams.Unlock()
+		return empty, err
+	}
 	var s *inventoryStream
 	if r.Cursor != "" {
 		parts := strings.Split(r.Cursor, ":")
@@ -114,7 +170,8 @@ func (c *Client) retainedInventoryPage(ctx context.Context, key string, r Invent
 			return empty, ErrInventoryChanged
 		}
 		s = inventoryStreams.byID[parts[1]]
-		if s == nil || s.client != c || s.key != mapKey {
+		owner, _ := ctx.Value(inventoryOperationsKey{}).(*OperationScope)
+		if s == nil || s.client != c || s.operations != owner || owner != nil && owner.Context().Err() != nil || s.key != mapKey {
 			inventoryStreams.Unlock()
 			return empty, ErrInventoryChanged
 		}
@@ -154,15 +211,44 @@ func (c *Client) retainedInventoryPage(ctx context.Context, key string, r Invent
 				inventoryStreams.Unlock()
 				return empty, err
 			}
+			operations, _ := ctx.Value(inventoryOperationsKey{}).(*OperationScope)
+			var ownerDone, scopeDone func()
+			if operations != nil {
+				ownerDone, err = operations.Begin()
+			}
+			if err == nil && c.SourceOperations != nil {
+				scopeDone, err = c.SourceOperations.Begin()
+			}
+			if err != nil {
+				<-inventoryStreams.slots
+				if ownerDone != nil {
+					ownerDone()
+				}
+				inventoryStreams.Unlock()
+				return empty, err
+			}
 			parent := context.Background()
 			if c.SourceOperations != nil {
 				parent = c.SourceOperations.Context()
 			}
 			life, cancel := context.WithTimeout(parent, 30*time.Minute)
-			s = &inventoryStream{id: id, key: mapKey, client: c, request: r, pages: make(chan InventoryPage, 1), done: make(chan struct{}), retired: make(chan struct{}), cancel: cancel}
+			if operations != nil {
+				stop := context.AfterFunc(operations.Context(), cancel)
+				originalCancel := cancel
+				cancel = func() { stop(); originalCancel() }
+				if operations.Context().Err() != nil {
+					cancel()
+				}
+			}
+			s = &inventoryStream{id: id, key: mapKey, ownerKey: key, operations: operations, scopeDone: scopeDone, ownerDone: ownerDone, client: c, request: r, pages: make(chan inventoryStreamPage, 1), demands: make(chan int, 1), done: make(chan struct{}), retired: make(chan struct{}), cancel: cancel}
 			inventoryStreams.byID[id], inventoryStreams.byKey[mapKey] = s, s
 			supervise.Go("storage.inventory-page", func() { s.produce(life) })
 		}
+	}
+	owner, _ := ctx.Value(inventoryOperationsKey{}).(*OperationScope)
+	if s.operations != owner || owner != nil && owner.Context().Err() != nil {
+		inventoryStreams.Unlock()
+		return empty, ErrInventoryChanged
 	}
 	s.touched = time.Now()
 	inventoryStreams.Unlock()
@@ -178,10 +264,21 @@ func (c *Client) retainedInventoryPage(ctx context.Context, key string, r Invent
 		return p, nil
 	}
 	if s.last != nil && r.Cursor == s.input {
+		if s.lastRaw > r.Limit {
+			return empty, ErrBusy // an immutable replay cannot exceed this request
+		}
 		return validate(*s.last)
 	}
 	if r.Cursor != s.next {
 		return empty, ErrInventoryChanged
+	}
+	if s.pending == 0 {
+		s.pending = r.Limit
+		s.demands <- r.Limit
+	} else if s.pending != r.Limit {
+		// A timed-out turn retries its already-admitted page; it cannot replace
+		// that credit while the helper is still reading it.
+		return empty, ErrBusy
 	}
 	// A quantum timeout is not a producer timeout. A slow first page keeps its
 	// descriptor, buffered entries and physical supervisor permit across retries.
@@ -191,12 +288,12 @@ func (c *Client) retainedInventoryPage(ctx context.Context, key string, r Invent
 	}
 	timer := time.NewTimer(wait)
 	defer timer.Stop()
-	var page InventoryPage
+	var frame inventoryStreamPage
 	select {
-	case page = <-s.pages:
+	case frame = <-s.pages:
 	case <-s.done:
 		select {
-		case page = <-s.pages:
+		case frame = <-s.pages:
 		default:
 			if s.err != nil {
 				inventoryStreams.Lock()
@@ -213,6 +310,9 @@ func (c *Client) retainedInventoryPage(ctx context.Context, key string, r Invent
 	case <-timer.C:
 		return empty, ErrBusy
 	}
+	page := frame.InventoryPage
+	s.pending = 0
+	s.lastRaw = frame.RawUsed
 	s.number++
 	page.NextCursor = ""
 	if !page.Complete {
@@ -242,7 +342,21 @@ func (c *Client) retainedInventoryPage(ctx context.Context, key string, r Invent
 	}
 	return validate(page)
 }
+
+// StopInventory retires only this client's exact scan key. Capacity remains
+// charged until the original process physically exits and Wait returns.
+func (c *Client) StopInventory(key string) {
+	inventoryStreams.Lock()
+	defer inventoryStreams.Unlock()
+	for _, stream := range inventoryStreams.byID {
+		if stream.client == c && stream.ownerKey == key {
+			stream.cancel()
+		}
+	}
+}
+
 func (s *inventoryStream) produce(ctx context.Context) {
+	defer s.cancel()
 	c := s.client
 	r := s.request
 	r.Stream = true
@@ -251,53 +365,66 @@ func (s *inventoryStream) produce(ctx context.Context) {
 	if c.MountedRoot != nil {
 		req.MountedRoot = c.MountedRoot(req.Path)
 	}
-	data, _ := json.Marshal(req)
+	input, writer := io.Pipe()
+	defer input.Close()
+	defer writer.Close()
 	cmd := exec.Command(c.Binary, "--portico-storage-helper")
-	cmd.Stdin = bytes.NewReader(data)
-	var final *InventoryPage
-	var scopeDone func()
+	cmd.Stdin = input
+	var final *inventoryStreamPage
 	retired := func() {
-		if scopeDone != nil {
-			scopeDone()
-		}
 		<-inventoryStreams.slots
-		close(s.retired)
-	}
-	if c.SourceOperations != nil {
-		var err error
-		scopeDone, err = c.SourceOperations.Begin()
-		if err != nil {
-			s.err = err
-			retired()
-			close(s.done)
-			return
+		if s.scopeDone != nil {
+			s.scopeDone()
 		}
+		if s.ownerDone != nil {
+			s.ownerDone()
+		}
+		if ctx.Err() != nil {
+			inventoryStreams.Lock()
+			delete(inventoryStreams.byID, s.id)
+			if inventoryStreams.byKey[s.key] == s {
+				delete(inventoryStreams.byKey, s.key)
+			}
+			inventoryStreams.Unlock()
+		}
+		close(s.retired)
 	}
 	// Keep the global producer slot and owner accounting until physical Wait,
 	// even when cancellation returns to this goroutine before a stuck child dies.
 	s.err = c.Supervisor.RunOwnedCompletion(ctx, "inventory-stream:"+s.id, cmd, func(reader io.Reader) error {
+		defer writer.Close() // unblock exec's stdin copier before physical Wait
+		encoder := json.NewEncoder(writer)
+		if err := encoder.Encode(req); err != nil {
+			return err
+		}
 		scanner := newInventoryPageDecoder(reader)
 		for {
-			page, err := scanner()
-			if err == io.EOF {
-				if final == nil {
-					return io.ErrUnexpectedEOF
-				}
-				return nil
+			var limit int
+			select {
+			case limit = <-s.demands:
+			case <-ctx.Done():
+				return ctx.Err()
 			}
+			if err := encoder.Encode(struct{ Limit int }{limit}); err != nil {
+				return err
+			}
+			page, err := scanner()
 			if err != nil {
 				return err
 			}
 			if page.ErrorCode != "" {
 				return inventoryCodeError(page.ErrorCode)
 			}
-			if final != nil || len(page.Entries) > 128 || page.RootIdentity == "" || page.DirectoryIdentity == "" || page.DirectoryRevision == "" {
+			if page.RawUsed < len(page.Entries) || page.RawUsed > limit || page.RawUsed < 0 || !page.Complete && page.RawUsed == 0 || page.RootIdentity == "" || page.DirectoryIdentity == "" || page.DirectoryRevision == "" {
 				return ErrInventoryChanged
 			}
 			if page.Complete {
 				copy := page
 				final = &copy
-				continue
+				if _, err := scanner(); err != io.EOF {
+					return ErrInventoryChanged
+				}
+				return nil
 			}
 			select {
 			case s.pages <- page:
@@ -306,6 +433,19 @@ func (s *inventoryStream) produce(ctx context.Context) {
 			}
 		}
 	}, nil, retired)
+	if s.err != nil {
+		s.cancel()
+		select {
+		case <-s.retired:
+			inventoryStreams.Lock()
+			delete(inventoryStreams.byID, s.id)
+			if inventoryStreams.byKey[s.key] == s {
+				delete(inventoryStreams.byKey, s.key)
+			}
+			inventoryStreams.Unlock()
+		default:
+		}
+	}
 	if s.err == nil && final != nil {
 		select {
 		case s.pages <- *final:
@@ -317,11 +457,11 @@ func (s *inventoryStream) produce(ctx context.Context) {
 }
 
 // Bound each wire page independently; do not cap the entire directory stream.
-func newInventoryPageDecoder(reader io.Reader) func() (InventoryPage, error) {
+func newInventoryPageDecoder(reader io.Reader) func() (inventoryStreamPage, error) {
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 64<<10), 2<<20)
-	return func() (InventoryPage, error) {
-		var p InventoryPage
+	return func() (inventoryStreamPage, error) {
+		var p inventoryStreamPage
 		if !scanner.Scan() {
 			if err := scanner.Err(); err != nil {
 				return p, err

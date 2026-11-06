@@ -227,6 +227,9 @@ func Helper(in io.Reader, out io.Writer) (result error) {
 		if r.Inventory == nil {
 			return errors.New("missing inventory request")
 		}
+		if r.Inventory.Stream {
+			return inventoryStreamHelper(*r.Inventory, io.MultiReader(decoder.Buffered(), in), out)
+		}
 		return inventoryPageHelper(*r.Inventory, out)
 	case "inventory-stat":
 		if r.Inventory == nil {
