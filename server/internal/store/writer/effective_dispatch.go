@@ -133,9 +133,15 @@ func (r *effectiveRuntime) checkDisclosure(ctx context.Context, w *Writer, cap *
 	if ctx == nil {
 		return ErrInvalid
 	}
-	if err := ctx.Err(); err != nil {
+	if err := r.currentDisclosure(w, cap, request); err != nil {
 		return err
 	}
+	return ctx.Err()
+}
+
+// Current permission is independent of a caller's cancellation/deadline. In
+// particular cancellation cannot mask revocation of an already-read receipt.
+func (r *effectiveRuntime) currentDisclosure(w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest) error {
 	if cap == nil || cap.issuer != w || cap.scope == nil || cap.scope.lifetime == nil || cap.scope.revoked.Load() || cap.scope.lifetime.Err() != nil ||
 		request.LibraryID <= 0 || request.EntityID <= 0 || request.Receipt.Identity.Sequence <= 0 || request.ProviderOperationID == "" || !utf8.ValidString(request.ProviderOperationID) ||
 		len(request.ProviderOperationID) > maxCanonicalRequestBytes || cap.scope.ownerID != request.ProviderOperationID ||
@@ -323,13 +329,13 @@ func (r *effectiveRuntime) run(ctx context.Context, w *Writer, cap *EnrichmentDi
 	}
 	// A lifetime revoked while reading cannot disclose the saved result or ACK
 	// its floor. Caller cancellation alone does not erase already proven history.
-	permissionErr := r.checkDisclosure(ctx, w, cap, request)
+	permissionErr := r.currentDisclosure(w, cap, request)
 	if errors.Is(permissionErr, ErrDisclosureDenied) {
 		out = EffectiveStageResult{}
 		acknowledged = AckResult{}
 		historical = false
 	}
-	err = errors.Join(err, permissionErr)
+	err = errors.Join(err, permissionErr, ctx.Err())
 	var physical turnResult
 	if err == nil {
 		physical, err = tx.commit()
