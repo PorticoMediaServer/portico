@@ -25,6 +25,28 @@ func documentConfig() TransportConfig {
 	return c
 } // HARNESS allocation limit; no production default
 
+func TestAcquisitionDocumentConfigurationChargesPendingMetadata(t *testing.T) {
+	cfg := documentConfig()
+	cfg.MaxInFlight, cfg.MaxPending, cfg.MaxWaiters = 1, 2, 2
+	cfg.MaxResponseBytes, cfg.MaxMetadataBytes = 4<<20, 28<<20
+	fetch := func(context.Context, RequestKey, int64, Dispatch) (Response, error) {
+		t.Fatal("configuration check dispatched")
+		return Response{}, nil
+	}
+	tr, err := NewTransport(cfg, admissionFunc(allowed), fetch)
+	if err != nil {
+		t.Fatal("exact combined pending envelope refused", err)
+	}
+	tr.Close()
+	cfg.MaxMetadataBytes++
+	if tr, err := NewTransport(cfg, admissionFunc(allowed), fetch); err == nil || tr != nil {
+		if tr != nil {
+			tr.Close()
+		}
+		t.Fatal("metadata escaped the combined pending envelope", err)
+	}
+}
+
 func TestAcquisitionDocumentPreservesOriginalMetadataOnReuse(t *testing.T) {
 	cfg := documentConfig()
 	input := documentMetadata()
