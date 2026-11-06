@@ -8,11 +8,11 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"runtime"
 	"sync"
 	"sync/atomic"
 
+	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"github.com/PorticoMediaServer/portico/server/internal/supervise"
 )
 
@@ -25,6 +25,9 @@ const ShimFlag = "--portico-media-exec"
 type shimSpec struct {
 	Instance string `json:"i,omitempty"`
 	Ledger   string `json:"l,omitempty"`
+	// The macOS server publishes its incarnation before scanning the ledger.
+	// A late shim must check that fence after publishing and before exec.
+	InstanceFence bool `json:"g,omitempty"`
 	// FileBytes is RLIMIT_FSIZE; negative forbids creating or growing files.
 	FileBytes  int64 `json:"f"`
 	CPUSeconds int   `json:"c,omitempty"`
@@ -51,10 +54,11 @@ type Options struct {
 
 var configured struct {
 	sync.RWMutex
-	helper    string
-	ledger    string
-	instance  string
-	libraries []string
+	helper        string
+	ledger        string
+	instance      string
+	libraries     []string
+	instanceFence bool
 }
 
 // Configure enables the limits shim and the orphan ledger, and reaps the media
@@ -89,8 +93,16 @@ func Configure(o Options) (int, error) {
 			return 0, err
 		}
 	}
+	instanceID := hex.EncodeToString(instance)
+	fence := runtime.GOOS == "darwin" && ledger != "" && !o.SkipOrphanKill
+	if fence {
+		if err = publishMediaInstance(ledger, instanceID); err != nil {
+			return 0, err
+		}
+	}
 	configured.Lock()
-	configured.helper, configured.ledger, configured.instance = helper, ledger, hex.EncodeToString(instance)
+	configured.helper, configured.ledger, configured.instance = helper, ledger, instanceID
+	configured.instanceFence = fence
 	configured.libraries = append([]string{}, o.Libraries...)
 	configured.Unlock()
 	if ledger == "" {
@@ -103,6 +115,25 @@ func Configure(o Options) (int, error) {
 	return reapLedger(ledger, configured.instance, true)
 }
 
+// A sibling file is outside the PID ledger's entry namespace. Publish a whole
+// value atomically: concurrent old shims must never observe a partial ID. Only
+// a lock-owning macOS Configure writes it; SkipOrphanKill cannot supersede it.
+func publishMediaInstance(ledger, instance string) error {
+	f, err := os.CreateTemp(filepath.Dir(ledger), ".media-instance-")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if _, err = f.WriteString(instance); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err = f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), ledger+".instance")
+}
+
 func configuredLibraries() []string {
 	configured.RLock()
 	defer configured.RUnlock()
@@ -111,12 +142,12 @@ func configuredLibraries() []string {
 
 func shimArgv(job Job, inner []string) []string {
 	configured.RLock()
-	helper, ledger, instance := configured.helper, configured.ledger, configured.instance
+	helper, ledger, instance, fence := configured.helper, configured.ledger, configured.instance, configured.instanceFence
 	configured.RUnlock()
 	if helper == "" || runtime.GOOS == "windows" {
 		return inner
 	}
-	spec := shimSpec{Instance: instance, Ledger: ledger, FileBytes: job.MaxFileBytes, CPUSeconds: job.MaxCPUSeconds, Background: job.Background}
+	spec := shimSpec{Instance: instance, Ledger: ledger, InstanceFence: fence, FileBytes: job.MaxFileBytes, CPUSeconds: job.MaxCPUSeconds, Background: job.Background}
 	raw, _ := json.Marshal(spec)
 	return append([]string{helper, ShimFlag, base64.RawURLEncoding.EncodeToString(raw), "--"}, inner...)
 }
@@ -166,6 +197,9 @@ func parseShim(args []string) (shimSpec, []string, error) {
 	}
 	inner := args[3:]
 	if !filepath.IsAbs(inner[0]) || spec.Ledger != "" && (!filepath.IsAbs(spec.Ledger) || filepath.Clean(spec.Ledger) != spec.Ledger) {
+		return spec, nil, ErrInvalidJob
+	}
+	if spec.InstanceFence && (spec.Ledger == "" || spec.Instance == "") {
 		return spec, nil, ErrInvalidJob
 	}
 	return spec, inner, nil
