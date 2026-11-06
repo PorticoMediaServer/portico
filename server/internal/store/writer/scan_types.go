@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	inventoryOrdinaryBatch  = "ordinary_batch"
-	inventoryLinuxCursor    = "local_getdents64_cookie_v1"
-	maxInventoryAcceptFiles = 1 // FIRST preparation shape; widening requires qualification
+	inventoryOrdinaryBatch               = "ordinary_batch"
+	inventoryLinuxCursor                 = "local_getdents64_cookie_v1"
+	inventoryAcceptRequestVersion uint16 = 2 // Part is an original captured link witness
+	maxInventoryAcceptFiles              = 1 // FIRST preparation shape; widening requires qualification
 )
 
 // These values are the COMPLETE original PRE-allocation input, not disclosure
@@ -64,7 +65,7 @@ type inventoryFile struct {
 	directory                                                                      bool // captured native observation; FIRST must be a file
 	size, modifiedNS                                                               int64
 	title, sortTitle, sortKey, sortHead, sortKeyKeepArticles, sortHeadKeepArticles string
-	year                                                                           int64
+	year, part                                                                     int64
 	metadataLanguage                                                               string
 }
 
@@ -114,7 +115,7 @@ func newInventoryAcceptCommand(identity CommandIdentity, in inventoryAcceptReque
 	if err := validateInventoryRequest(identity, in); err != nil {
 		return nil, err
 	}
-	digest, err := canonicalRequestDigest(InventoryAccept, 1, identity, in)
+	digest, err := canonicalRequestDigest(InventoryAccept, inventoryAcceptRequestVersion, identity, in)
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +161,7 @@ func validateInventoryRequest(identity CommandIdentity, in inventoryAcceptReques
 	for _, f := range in.files {
 		if f.sourceKey == "" || !inventoryPath(f.relativePath, false) || path.Dir(f.relativePath) != in.directory.path ||
 			f.assetPath == "" || f.assetPath[0] != '/' || strings.IndexByte(f.assetPath, 0) >= 0 ||
-			f.revision == "" || f.size < 0 || f.year < 0 || f.directory || strings.TrimSpace(f.title) == "" ||
+			f.revision == "" || f.size < 0 || f.year < 0 || f.part < 0 || f.directory || strings.TrimSpace(f.title) == "" ||
 			f.metadataLanguage == "" {
 			return invalid("inventory_file")
 		}

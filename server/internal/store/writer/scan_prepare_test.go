@@ -17,7 +17,7 @@ func inventoryPublicInput(t *testing.T) (InventoryAcceptInput, CommandIdentity) 
 		Run:       InventoryRunInput{r.run.revision, r.run.policyRevision, r.run.leaseOwner, r.run.leaseGeneration, r.run.leaseExpiresMS, r.run.lastSequence, r.run.acknowledgedSequence, r.run.phase, r.run.scanMode},
 		Directory: InventoryDirectoryInput{[]byte(r.directory.path), r.directory.identity, r.directory.revision, r.directory.expectedCursor, r.directory.nextCursor, r.directory.cursorKind, r.directory.pages, r.directory.skipped, r.directory.rawNames, r.directory.complete, r.directory.unstable},
 		Files: []InventoryFilenameInput{{RelativePath: []byte(f.relativePath), AssetPath: []byte(f.assetPath), SourceKey: f.sourceKey, ObjectIdentity: f.objectIdentity, Revision: f.revision, ChangeToken: f.changeToken, Directory: f.directory, Size: f.size, ModifiedNS: f.modifiedNS,
-			Title: f.title, SortTitle: f.sortTitle, SortKey: f.sortKey, SortHead: f.sortHead, SortKeyKeepArticles: f.sortKeyKeepArticles, SortHeadKeepArticles: f.sortHeadKeepArticles, Year: f.year, MetadataLanguage: f.metadataLanguage}},
+			Title: f.title, SortTitle: f.sortTitle, SortKey: f.sortKey, SortHead: f.sortHead, SortKeyKeepArticles: f.sortKeyKeepArticles, SortHeadKeepArticles: f.sortHeadKeepArticles, Year: f.year, Part: f.part, MetadataLanguage: f.metadataLanguage}},
 	}, id
 }
 

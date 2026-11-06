@@ -76,7 +76,7 @@ func TestInventoryAcceptRequestCoversEveryField(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want, err := canonicalRequestDigest(InventoryAccept, 1, identity, request)
+	want, err := canonicalRequestDigest(InventoryAccept, inventoryAcceptRequestVersion, identity, request)
 	if err != nil || prepared.digest != want {
 		t.Fatal("constructor did not hash the complete original request", err)
 	}
@@ -97,7 +97,7 @@ func TestInventoryAcceptRequestCoversEveryField(t *testing.T) {
 		default:
 			t.Fatalf("uncovered request type %s", leaf.Type())
 		}
-		digest, err := canonicalRequestDigest(InventoryAccept, 1, identity, changed)
+		digest, err := canonicalRequestDigest(InventoryAccept, inventoryAcceptRequestVersion, identity, changed)
 		if err != nil || digest == prepared.digest {
 			t.Fatalf("request leaf omitted at %v: %v", path, err)
 		}
@@ -119,7 +119,7 @@ func TestInventoryAcceptRequestCoversEveryField(t *testing.T) {
 		default:
 			changed.Sequence++
 		}
-		digest, err := canonicalRequestDigest(InventoryAccept, 1, changed, request)
+		digest, err := canonicalRequestDigest(InventoryAccept, inventoryAcceptRequestVersion, changed, request)
 		if err != nil || digest == prepared.digest {
 			t.Fatal("original identity byte/sequence omitted", i, err)
 		}
@@ -147,7 +147,7 @@ func TestInventoryAcceptRequestOwnsBuffers(t *testing.T) {
 	if !reflect.DeepEqual(prepared.request, before) {
 		t.Fatal("prepared command aliases caller slice/root")
 	}
-	digest, err := canonicalRequestDigest(InventoryAccept, 1, prepared.identity, prepared.request)
+	digest, err := canonicalRequestDigest(InventoryAccept, inventoryAcceptRequestVersion, prepared.identity, prepared.request)
 	if err != nil || digest != prepared.digest {
 		t.Fatal("queued immutable request drifted", err)
 	}
@@ -299,7 +299,7 @@ func TestInventoryAcceptRequestQueuedHashIndependentOfCaller(t *testing.T) {
 	finished := make(chan error, 1)
 	go func() {
 		for i := 0; i < 100; i++ {
-			digest, err := canonicalRequestDigest(InventoryAccept, 1, identity, prepared.request)
+			digest, err := canonicalRequestDigest(InventoryAccept, inventoryAcceptRequestVersion, identity, prepared.request)
 			if err != nil {
 				finished <- err
 				return

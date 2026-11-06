@@ -104,7 +104,7 @@ func prepareInventoryFreshObservation(c *inventoryAcceptCommand) (inventoryObjec
 		f.assetPath[len(prefix):] != f.relativePath || path.Dir(f.relativePath) != r.directory.path {
 		return zero, ErrConflict
 	}
-	gotDigest, err := canonicalRequestDigest(InventoryAccept, 1, c.identity, r)
+	gotDigest, err := canonicalRequestDigest(InventoryAccept, inventoryAcceptRequestVersion, c.identity, r)
 	if err != nil || gotDigest != c.digest {
 		return zero, ErrConflict
 	}
