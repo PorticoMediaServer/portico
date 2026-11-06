@@ -48,6 +48,17 @@ func execShim(spec shimSpec, inner []string) error {
 		// Background work yields to viewers; it is never paused.
 		_ = unix.Setpriority(unix.PRIO_PROCESS, 0, 10)
 	}
+	// Publication MUST precede this check. Configure changes the fence before
+	// scanning: publication after that scan sees the new incarnation and must
+	// refuse exec; publication before it is already a complete, provable entry.
+	// This also covers argv passed through storage helpers. Linux has no fence
+	// and keeps its existing parent-death SIGKILL policy.
+	if spec.InstanceFence {
+		instance, err := os.ReadFile(spec.Ledger + ".instance")
+		if err != nil || string(instance) != spec.Instance {
+			return errors.New("media process server incarnation changed before exec")
+		}
+	}
 	return execInPlace(inner)
 }
 

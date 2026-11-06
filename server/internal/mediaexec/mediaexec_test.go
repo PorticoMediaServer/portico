@@ -44,6 +44,7 @@ func resetForTest(t *testing.T) {
 	clear := func() {
 		configured.Lock()
 		configured.helper, configured.ledger, configured.instance, configured.libraries = "", "", "", nil
+		configured.instanceFence = false
 		configured.Unlock()
 		postures.Lock()
 		postures.byTool, postures.last = map[string]*postureEntry{}, nil
