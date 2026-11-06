@@ -429,7 +429,14 @@ function owner() {
                         source.replace('  return await','  args.reverse(); return await'),
                         source.replace('  return await','  if ((args[0] += "/made")) {} return await'),
                         source.replace('  return await','  if ((args[2] = {})) {} return await'),
-                        source.replace('  return await','  Reflect.set(args,0,"/made"); return await')]:
+                        source.replace('  return await','  Reflect.set(args,0,"/made"); return await'),
+                        source.replace('  return await','  [args[0],args[1]] = [args[1]!,args[0]]; return await'),
+                        source.replace('  return await','  args.length = 1; return await'),
+                        source.replace('  return await','  const copy = args; copy.reverse(); return await'),
+                        source.replace('  return await','  [args] = [args.slice(1) as Parameters<typeof api.request>]; return await'),
+                        source.replace('  return await','  [args] = [[...args,"extra"] as unknown as Parameters<typeof api.request>]; return await'),
+                        source.replace('  return await','  args["reverse"](); return await'),
+                        source.replace('  return await','  mutate(args); return await')]:
             (root/filename).write_text(changed)
             self.assertTrue(all(not s['forwardedRequest'] for s in scan(root)))
             self.assertEqual(self.check(root)[0],1)
@@ -437,8 +444,10 @@ function owner() {
     def test_vega_dispatch_forwards_core_url_method_body_and_header_sequence_only(self):
         helper='export declare function vegaControlHeaderEntries(headers: Record<string,string>): ReadonlyArray<readonly [string,string]>;'
         source='''import {vegaControlHeaderEntries} from '../../packages/client-core/src/vega-control-transport';
-function start(pending: {url: string;method: string;body: string|null;headers: Record<string,string>}) {
+function start(pending: {url: string;method: string;body: string|null;headers: Record<string,string>;started?: boolean;xhr?: XMLHttpRequest}) {
+ pending.started = true;
  const xhr = new XMLHttpRequest();
+ pending.xhr = xhr;
  xhr.open(pending.method,pending.url);
  xhr.timeout = 15000;
  xhr.withCredentials = false;
@@ -458,7 +467,20 @@ function start(pending: {url: string;method: string;body: string|null;headers: R
                         (' const xhr',' if ((pending.headers.Extra = "made")) {} const xhr'),
                         (' const xhr',' if ((pending = {...pending,url:"/made"})) {} const xhr'),
                         ('xhr.timeout = 15000','xhr.timeout = ((pending.method = "POST"),15000)'),
-                        (' const xhr',' delete pending.headers.Authorization; const xhr')]:
+                        (' const xhr',' delete pending.headers.Authorization; const xhr'),
+                        (' const xhr',' pending["method"] = "DELETE"; const xhr'),
+                        (' const xhr',' pending["body"] = "made"; const xhr'),
+                        (' const xhr',' Object.assign(pending,{url:"/made"}); const xhr'),
+                        (' const xhr',' const copy=pending; copy["url"]="/made"; const xhr'),
+                        (' const xhr',' Object.assign(pending.headers,{Authorization:"made"}); const xhr'),
+                        ('xhr.send(pending.body ?? undefined)','xhr["setRequestHeader"]("Extra","made"); xhr.send(pending.body ?? undefined)'),
+                        ('xhr.send(pending.body ?? undefined)','const copy=xhr; copy.setRequestHeader("Extra","made"); xhr.send(pending.body ?? undefined)'),
+                        ('xhr.withCredentials = false','xhr.withCredentials = true'),
+                        ('xhr.withCredentials = false','xhr.withCredentials = Boolean(true)'),
+                        ('xhr.withCredentials = false','xhr.withCredentials = false; xhr["withCredentials"] = true'),
+                        ('xhr.withCredentials = false','xhr.withCredentials = false; Object.assign(xhr,{withCredentials:true})'),
+                        ('for (const [key,value] of vegaControlHeaderEntries(pending.headers)) xhr.setRequestHeader(key,value);',
+                         'for (let [key,value] of vegaControlHeaderEntries(pending.headers)) {value="made"; xhr.setRequestHeader(key,value);}')]:
             with self.subTest(edit=new):
                 (root/filename).write_text(source.replace(old,new))
                 self.assertTrue(all(not s['forwardedRequest'] for s in scan(root)))
