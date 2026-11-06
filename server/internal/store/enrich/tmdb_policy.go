@@ -61,14 +61,22 @@ func (p TMDBPolicy) Limits() (TMDBLimits, error) {
 // and the whole server budget still require W/GV physical qualification.
 // TTL and timeout are explicit scheduling inputs, not new freshness authority.
 func NewTMDBTransport(policy TMDBPolicy, admission NetworkAdmission, fetch Fetch, cacheTTL, requestTimeout time.Duration) (*Transport, error) {
-	limits, err := policy.Limits()
+	cfg, err := tmdbTransportConfig(policy, cacheTTL, requestTimeout)
 	if err != nil {
 		return nil, err
 	}
-	return NewTransport(TransportConfig{
+	return NewTransport(cfg, admission, fetch)
+}
+
+func tmdbTransportConfig(policy TMDBPolicy, cacheTTL, requestTimeout time.Duration) (TransportConfig, error) {
+	limits, err := policy.Limits()
+	if err != nil {
+		return TransportConfig{}, err
+	}
+	return TransportConfig{
 		Provider: "tmdb", RequestsPerSecond: 40,
 		MaxInFlight: limits.Workers, MaxPending: limits.Workers, MaxWaiters: limits.Workers,
 		MaxResponseBytes: limits.ResponseBytes, CacheBytes: 16 << 20, CacheEntries: 256,
 		CacheTTL: cacheTTL, RequestTimeout: requestTimeout,
-	}, admission, fetch)
+	}, nil
 }
