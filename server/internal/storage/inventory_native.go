@@ -54,9 +54,11 @@ type nativeInventoryWire struct {
 var ErrNativeInventory = errors.New("invalid native-byte inventory transport")
 
 // NativeInventoryPage preserves bytes through the existing supervised helper.
-// Each call joins its OWN physical retirement, including cancellation, before
-// returning. It never closes the shared owner; other operations may still live.
-// A stuck helper can therefore delay return until actual Wait/consumer retirement.
+// A cancelled/deadline call joins its OWN physical retirement for at most five
+// seconds after kill, then returns ErrHelperRetirementPending with zero output.
+// The actual Wait/consumer/permit retains custody; the shared owner is not closed.
+// At a full helper pool new native work refuses without queueing. Legacy calls
+// keep their existing admission and cancellation behavior.
 // There is no fallback to the lossy legacy InventoryPage JSON string protocol.
 func (c *Client) NativeInventoryPage(ctx context.Context, owner *OperationScope, key string, r NativeInventoryRequest) (NativeInventoryPage, error) {
 	if runtime.GOOS != "linux" || owner == nil || !validNativeRequest(r) {
