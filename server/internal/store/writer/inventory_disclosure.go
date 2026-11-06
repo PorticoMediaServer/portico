@@ -103,5 +103,5 @@ func checkInventoryNativeScope(ctx context.Context, turn *commandTurn, request S
 			return err
 		}
 	}
-	return nil
+	return errors.Join(ctx.Err(), turn.transaction.ctx.Err())
 }
