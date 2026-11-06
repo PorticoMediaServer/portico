@@ -25,6 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
+          ref: ${{ github.sha }}
           path: diagnostic-tools
           persist-credentials: false
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -51,4 +52,5 @@ jobs:
         with:
           name: native-plan-pair-${{ matrix.runner }}
           path: ${{ runner.temp }}/native-plan-pair
+          if-no-files-found: error
           retention-days: 7

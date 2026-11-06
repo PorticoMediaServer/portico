@@ -1,7 +1,9 @@
 import importlib.util
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location("native_pair", ROOT / "native_plan_pair.py")
@@ -48,6 +50,24 @@ class NativePlanPairTest(unittest.TestCase):
             path.write_text("package plan_test\n")
             with self.assertRaisesRegex(ValueError, "canonical FK check changed"):
                 pair.overlay(root / "source", root / "output", "package PACKAGE\n")
+
+    def test_failed_test_process_keeps_nonzero_status(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source, output = root / "source", root / "output"
+            sha = "a" * 40
+            def fake_git(_, *args):
+                if args == ("rev-parse", "HEAD"):
+                    return sha
+                if args == ("rev-parse", "HEAD^{tree}"):
+                    return "tree"
+                return ""
+            with patch.object(pair, "git", side_effect=fake_git), \
+                 patch.object(pair, "overlay", return_value=(output / "overlay.json", [])), \
+                 patch.object(pair, "TARGETS", {"read": ("read", [], ["TestBrowsePlans"])}), \
+                 patch.object(pair.subprocess, "check_output", return_value="fixture\n"), \
+                 patch.object(pair.subprocess, "run", return_value=SimpleNamespace(returncode=1)):
+                self.assertEqual(pair.collect(source, output, sha), 1)
 
 
 if __name__ == "__main__":
