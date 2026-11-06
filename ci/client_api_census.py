@@ -770,7 +770,7 @@ def classify(sites, exceptions, root=None):
         if allowed and (pin['category']=='platform-transport' or pin.get('guardSpan')=='native-function') and not matches_guard(site,pin.get('guardHash'),pin.get('guardSpan')):
             raise ValueError(f"{site['file']}:{site['line']}: reviewed guard source changed or is unbound; re-approval and a new guardHash are required")
         if allowed and pin['category']=='platform-transport' and pin.get('guardSpan')!='native-function' and not site.get('forwardedRequest'):
-            raise ValueError(f"{site['file']}:{site['line']}: platform transport must match an approved unchanged request/raw/chapter forwarding shape")
+            raise ValueError(f"{site['file']}:{site['line']}: platform transport must match the closed forwarder grammar or an exact frozen legacy span")
         if allowed and pin['category']=='non-api-platform' and not matches_guard(site,pin.get('guardHash')):
             raise ValueError(f"{site['file']}:{site['line']}: reviewed non-API source span changed; re-approval is required")
         if allowed:exempt.append(dict(site,exceptionId=binding))

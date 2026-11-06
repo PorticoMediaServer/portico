@@ -27,6 +27,35 @@ def swift_regex_examples(call):
 
 
 class ClientApiCensus(unittest.TestCase):
+    def test_closed_forwarder_grammar_and_frozen_span_negatives(self):
+        result=subprocess.run(['node',str(ROOT/'ci/fixtures/forwarder-grammar.mjs')],cwd=ROOT,
+                              text=True,capture_output=True,check=True)
+        proof=json.loads(result.stdout)
+        self.assertGreaterEqual(proof['grammarCases'],108)
+        self.assertGreater(proof['legacyNegativeChecks'],0)
+
+    def test_frozen_forwarders_only_bind_the_original_approved_snapshot(self):
+        import hashlib
+        from collections import Counter
+        packet=json.loads((ROOT/'ci/client-api-legacy-forwarders.json').read_text())
+        source=packet['sourceCommit']
+        self.assertEqual(source,'71a01131dad6460ea5bdfd095b635d6eaa898fea')
+        historical=lambda path:subprocess.check_output(['git','show',source+':'+path],cwd=ROOT)
+        approvals=json.loads(historical(APPROVALS))
+        files={};budgets=Counter()
+        for row in packet['sites']:
+            with self.subTest(binding=row['binding']):
+                approval=approvals[row['binding']]
+                self.assertEqual(approval['category'],'platform-transport')
+                self.assertEqual(approval['rulingUrl'],row['rulingUrl'])
+                expected=row.get('forwardingHash') if approval.get('guardSpan')=='forwarding-function' else row['guardHash']
+                self.assertEqual(approval['guardHash'],expected)
+                self.assertEqual(hashlib.sha256(row['callText'].encode()).hexdigest(),row['callHash'])
+                if row['file'] not in files:files[row['file']]=historical(row['file']).decode()
+                self.assertIn(row['callText'],files[row['file']])
+                budgets[row['binding']]+=row['occurrences']
+        for binding,count in budgets.items():self.assertLessEqual(count,approvals[binding]['occurrences'])
+
     def test_all_platform_languages_and_writes_are_in_scope(self):
         for p in ['web/src/request.tsx','apps/native/platform/request.ts','apps/native/Native/Transport.swift',
                   'apps/native/Native/Transport.m','apps/native/android/app/src/main/java/x/Transport.kt',
@@ -668,9 +697,10 @@ function forward(request: V1Request, adopted: boolean) {return wire.send(adopted
                 pin={filename:{'category':'platform-transport','reason':'Matching mutation span','sites':[site['id']],
                                'guardHashes':{site['id']:site['guardHash']}}}
                 with self.assertRaises(ValueError):classify([site],pin)
-        # The same aliases may be read without constructing or mutating policy.
+        # Closed grammar also rejects read-only request aliases: none are
+        # needed for a new verbatim forwarder.
         (root/filename).write_text(prefix+'function read(input: V1Request, adopted: boolean) {const r=input;const {headers:h}=r;void h;return wire.send(adopted ? input : {...input,signal:life});}')
-        self.assertTrue(scan(root)[0]['forwardedRequest'])
+        self.assertFalse(scan(root)[0]['forwardedRequest'])
         (root/filename).write_text(prefix+'function signal(input: V1Request, adopted: boolean) {const r=input;return wire.send(adopted ? input : {...input,signal:((r.path="/made"),life)});}')
         site=scan(root)[0];self.assertFalse(site['forwardedRequest'])
         with self.assertRaises(ValueError):classify([site],{filename:{'category':'platform-transport','reason':'Matching mutation span','sites':[site['id']],'guardHashes':{site['id']:site['guardHash']}}})
@@ -832,7 +862,10 @@ function start(pending: {url: string;method: string;body: string|null;headers: R
 }'''
         root,filename,sites,_=self.fixture(source,dependencies={'packages/client-core/src/vega-control-transport.ts':helper})
         self.assertEqual(sites[0]['forwardingShape'],'vega-pending')
-        self.assertEqual(self.check(root)[0],0)
+        # Only the exact existing Vega executor is frozen. A new XHR policy,
+        # even this former positive fixture, needs extraction into the grammar.
+        self.assertFalse(sites[0]['forwardedRequest'])
+        self.assertEqual(self.check(root)[0],1)
         for old,new in [('pending.method,pending.url','"POST",pending.url'),
                         ('pending.method,pending.url','pending.method,pending.url + "/made"'),
                         ('xhr.send(pending.body ?? undefined)','xhr.send(JSON.stringify({body:pending.body}))'),
@@ -996,7 +1029,9 @@ function guarded(target: {sessionId: string}) {
             with self.subTest(shape=shape):
                 root,filename,sites,_=self.fixture(source)
                 self.assertTrue(any(s.get('forwardingShape')==shape for s in sites),sites)
-                self.assertEqual(self.check(root)[0],0)
+                # Chapter-capability construction is preserved only for its
+                # existing exact reviewed legacy span, not a new factory.
+                self.assertEqual(self.check(root)[0],1 if shape=='chapter-read' else 0)
                 for changed in [source.replace(path_before,path_after),source.replace(body_before,body_after)]:
                     self.assertNotEqual(changed,source)
                     (root/filename).write_text(changed)
@@ -1063,7 +1098,8 @@ function guarded(target: {sessionId: string}) {
                 source=declarations+guard
                 root,filename,sites,entry=self.fixture(source,dependencies={'packages/client-core/src/index.ts':core})
                 self.assertEqual(sites[0].get('forwardingShape'),shape)
-                self.assertEqual(self.check(root)[0],0)
+                # Rest-tuple destructuring is frozen only for existing guards.
+                self.assertEqual(self.check(root)[0],1 if '...args:' in guard else 0)
                 for changed in [source.replace(p0,p1),source.replace(b0,b1)]:
                     (root/filename).write_text(changed)
                     self.assertEqual(self.check(root)[0],1)
