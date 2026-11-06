@@ -244,24 +244,29 @@ func (r *effectiveRuntime) run(ctx context.Context, w *Writer, cap *EnrichmentDi
 	if decision.Grant == nil {
 		return out, acknowledged, effectiveAdmissionRefusal(decision.Refusal)
 	}
-	custody, err := bindGovernedTurn(EffectiveStage, r.plan.recipe.limit, r.governor, r.authority, r.wal, decision.Grant, expected)
-	if err != nil {
-		r.fenced = true
-		return out, acknowledged, errors.Join(err, r.authority.Retired(decision.Grant))
-	}
-	// begin consumes physical custody on every path except ErrBusy. A panic in
-	// begin already uses the frame's idempotent retirement; never refund early.
+	// Own the acquired grant BEFORE binding (which checks a fallible clock).
+	// begin consumes custody except ErrBusy; its panic cleanup uses idempotent
+	// governed retirement, so this fallback cannot refund it a second time.
+	var custody *governedTurn
 	transferred := false
 	defer func() {
 		if !transferred {
 			primary := recover()
-			retireErr := r.retireUnused(custody)
+			if primary != nil {
+				r.fenced = true
+			}
+			retireErr := r.retireUnused(decision.Grant, custody)
 			err = errors.Join(err, retireErr)
 			if primary != nil {
 				panic(primary)
 			}
 		}
 	}()
+	custody, err = bindGovernedTurn(EffectiveStage, r.plan.recipe.limit, r.governor, r.authority, r.wal, decision.Grant, expected)
+	if err != nil {
+		r.fenced = true
+		return out, acknowledged, err
+	}
 	tx, err := r.executor.begin(ctx, EffectiveStage, r.plan.recipe, custody)
 	if !errors.Is(err, ErrBusy) {
 		transferred = true
@@ -380,7 +385,7 @@ func (r *effectiveRuntime) run(ctx context.Context, w *Writer, cap *EnrichmentDi
 	return out, acknowledged, err
 }
 
-func (r *effectiveRuntime) retireUnused(c *governedTurn) (err error) {
+func (r *effectiveRuntime) retireUnused(grant *governor.Grant, c *governedTurn) (err error) {
 	defer func() {
 		if primary := recover(); primary != nil {
 			r.fenced = true
@@ -391,7 +396,11 @@ func (r *effectiveRuntime) retireUnused(c *governedTurn) (err error) {
 			}
 		}
 	}()
-	err = c.retired()
+	if c != nil {
+		err = c.retired()
+	} else {
+		err = r.authority.Retired(grant)
+	}
 	if err != nil {
 		r.fenced = true
 	}
