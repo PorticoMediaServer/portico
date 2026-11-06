@@ -84,9 +84,14 @@ VALUES(1,'raw-active',?,?,?,'active',1000)`, searchpolicy.RecipeV1, searchpolicy
 
 func inventoryFreshFixture(t *testing.T) (*executor, string, *inventoryAcceptCommand, *stmt.Registry) {
 	t.Helper()
+	return inventoryFreshFixtureDefinitions(t, scanInventoryFreshDefinitions())
+}
+
+func inventoryFreshFixtureDefinitions(t *testing.T, definitions []stmt.Definition) (*executor, string, *inventoryAcceptCommand, *stmt.Registry) {
+	t.Helper()
 	e, path, _ := testExecutor(t)
 	c := seedInventoryFresh(t, e)
-	registry := nativeInventoryFixtureRegistry(t, e, scanInventoryFreshDefinitions(), "scan_fresh_test.go")
+	registry := nativeInventoryFixtureRegistry(t, e, definitions, "scan_fresh_test.go")
 	return e, path, c, registry
 }
 

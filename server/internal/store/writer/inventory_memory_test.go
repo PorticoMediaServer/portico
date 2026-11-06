@@ -17,6 +17,31 @@ import (
 // No public Writer, disclosure capability, second writer or adapter is minted.
 func inventoryMemoryFixtureTurn(t *testing.T, w *executor, registry *stmt.Registry, input *inventoryAcceptCommand, budget inventoryMemoryBudget) (*commandTurn, *governor.Authority) {
 	t.Helper()
+	f := newInventoryMemoryFixture(t, w, registry, input, budget)
+	turn, err := f.begin(t, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return turn, f.authority
+}
+
+// The ONE fixture builder owns the unchanged synthetic recipe and grant path.
+// A progressive test retains this object, not a copied recipe or grant builder.
+type inventoryMemoryFixture struct {
+	executor  *executor
+	registry  *stmt.Registry
+	governor  governor.Governor
+	authority *governor.Authority
+	wal       *governor.WALGate
+	request   governor.Request
+	recipe    turnRecipe
+	budget    inventoryMemoryBudget
+	path      string
+	steps     []statementStep
+}
+
+func newInventoryMemoryFixture(t *testing.T, w *executor, registry *stmt.Registry, input *inventoryAcceptCommand, budget inventoryMemoryBudget) *inventoryMemoryFixture {
+	t.Helper()
 	if input == nil || !input.valid || registry == nil {
 		t.Fatal("missing component input/registry")
 	}
@@ -40,33 +65,49 @@ func inventoryMemoryFixtureTurn(t *testing.T, w *executor, registry *stmt.Regist
 	if err := w.db.QueryRowContext(t.Context(), "PRAGMA database_list").Scan(&seq, &name, &path); err != nil {
 		t.Fatal(err)
 	}
-	if err := refreshWriterWAL(path, wal, now); err != nil {
-		t.Fatal(err)
-	}
-	decision := g.Try(request)
-	if decision.Grant == nil {
-		t.Fatal(decision.Refusal)
-	}
-	custody, err := bindGovernedTurn(InventoryAccept, recipe.limit, g, a, wal, decision.Grant, request)
-	if err != nil {
-		_ = a.Retired(decision.Grant)
-		t.Fatal(err)
-	}
-	custody.inventoryMemory = budget
-	tx, err := w.begin(t.Context(), InventoryAccept, recipe, custody)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { tx.rollback(nil) })
 	var steps []statementStep
 	for _, entry := range registry.Manifest() {
 		steps = append(steps, statementStep{entry.ID, Work{16, 2000, 16, 65536, 100 * time.Microsecond}})
 	}
-	turn, err := newCommandTurn(tx, registry, steps)
-	if err != nil {
-		t.Fatal(err)
+	return &inventoryMemoryFixture{w, registry, g, a, wal, request, recipe, budget, path, steps}
+}
+
+func (f *inventoryMemoryFixture) begin(t *testing.T, input *inventoryAcceptCommand) (*commandTurn, error) {
+	t.Helper()
+	if input == nil || !input.valid || input.request.scope.runID != f.request.Key.ID ||
+		input.request.scope.libraryID != f.request.Footprint[0].Library {
+		return nil, ErrInvalid
 	}
-	return turn, a
+	if err := refreshWriterWAL(f.path, f.wal, f.executor.now); err != nil {
+		return nil, err
+	}
+	request := f.request
+	request.Deadline = f.executor.now().Add(time.Second)
+	decision := f.governor.Try(request)
+	if decision.Grant == nil {
+		return nil, effectiveAdmissionRefusal(decision.Refusal)
+	}
+	custody, err := bindGovernedTurn(InventoryAccept, f.recipe.limit, f.governor, f.authority, f.wal, decision.Grant, request)
+	if err != nil {
+		return nil, errors.Join(err, f.authority.Retired(decision.Grant))
+	}
+	custody.inventoryMemory = f.budget
+	tx, err := f.executor.begin(t.Context(), InventoryAccept, f.recipe, custody)
+	if err != nil {
+		// Only ErrBusy precedes frame custody. Other failures belong to its
+		// terminal path; never refund unknown/fenced native holdings here.
+		if errors.Is(err, ErrBusy) {
+			err = errors.Join(err, custody.retired())
+		}
+		return nil, err
+	}
+	t.Cleanup(func() { tx.rollback(nil) })
+	turn, err := newCommandTurn(tx, f.registry, f.steps)
+	if err != nil {
+		_, rollbackErr := tx.rollback(err)
+		return nil, errors.Join(err, rollbackErr)
+	}
+	return turn, nil
 }
 
 func memoryFixtureInput(t *testing.T) *inventoryAcceptCommand {
