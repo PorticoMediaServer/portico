@@ -161,7 +161,7 @@ func validateInventoryRequest(identity CommandIdentity, in inventoryAcceptReques
 		if f.sourceKey == "" || !inventoryPath(f.relativePath, false) || path.Dir(f.relativePath) != in.directory.path ||
 			f.assetPath == "" || f.assetPath[0] != '/' || strings.IndexByte(f.assetPath, 0) >= 0 ||
 			f.revision == "" || f.size < 0 || f.year < 0 || f.directory || strings.TrimSpace(f.title) == "" ||
-			f.sortTitle == "" || f.sortKey == "" || f.sortHead == "" || f.sortKeyKeepArticles == "" || f.sortHeadKeepArticles == "" || f.metadataLanguage == "" {
+			f.sortKey == "" || f.sortHead == "" || f.sortKeyKeepArticles == "" || f.sortHeadKeepArticles == "" || f.metadataLanguage == "" {
 			return invalid("inventory_file")
 		}
 		if err := ValidateMetadataShape(f.title, "", 0, 0, 0); err != nil {
