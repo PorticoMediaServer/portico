@@ -121,7 +121,7 @@ func TestSearchPublisherOriginalHistoryAndFloor(t *testing.T) {
 		if !errors.Is(err, tt.err) || tt.err == nil && out.decision != tt.want {
 			t.Fatalf("job%d decision%d err%v", tt.job, out.decision, err)
 		}
-		if tt.err != nil && !reflect.DeepEqual(out, searchImageReceiptLookup{}) {
+		if tt.err != nil && !reflect.DeepEqual(out, publisherReceiptLookup{}) {
 			t.Fatal("error released owner/receipt result", out)
 		}
 		if tt.want == receiptReplay {
@@ -165,7 +165,7 @@ func TestSearchPublisherAckAndCancellation(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if value, err := lookupSearchImageStage(ctx, turn, q); !errors.Is(err, context.Canceled) || !reflect.DeepEqual(value, searchImageReceiptLookup{}) {
+	if value, err := lookupSearchImageStage(ctx, turn, q); !errors.Is(err, context.Canceled) || !reflect.DeepEqual(value, publisherReceiptLookup{}) {
 		t.Fatal(value, err)
 	}
 	if value, err := acknowledgeSearchPublisher(ctx, turn, q, again); !errors.Is(err, context.Canceled) || value != 0 {
@@ -181,7 +181,7 @@ func TestSearchPublisherRejectsIncompleteHistoricalImage(t *testing.T) {
 			t.Fatal(err)
 		}
 		got, err := lookupSearchImageStage(t.Context(), turn, searchPublisherReference(30))
-		if !errors.Is(err, ErrResolveRequired) || !reflect.DeepEqual(got, searchImageReceiptLookup{}) {
+		if !errors.Is(err, ErrResolveRequired) || !reflect.DeepEqual(got, publisherReceiptLookup{}) {
 			t.Fatal(column, got, err)
 		}
 		if _, err := turn.transaction.rollback(nil); err != nil {
@@ -202,7 +202,7 @@ func TestSearchPublisherScopeIdentityAndStaleAck(t *testing.T) {
 		q := searchPublisherReference(30)
 		edit(&q)
 		got, err := lookupSearchImageStage(t.Context(), turn, q)
-		if err == nil || !reflect.DeepEqual(got, searchImageReceiptLookup{}) {
+		if err == nil || !reflect.DeepEqual(got, publisherReceiptLookup{}) {
 			t.Fatal("foreign original proof released a result", got, err)
 		}
 		if _, err := turn.transaction.rollback(nil); err != nil {
@@ -220,5 +220,37 @@ func TestSearchPublisherScopeIdentityAndStaleAck(t *testing.T) {
 	}
 	if ack, err := acknowledgeSearchPublisher(t.Context(), turn, q, lookup); !errors.Is(err, ErrConflict) || ack != 0 {
 		t.Fatal("stale ACK CAS succeeded", ack, err)
+	}
+}
+
+// The shared protocol record is W-owned. These assignments pin the exact
+// finite adapter signatures without a second record/interface or dispatcher.
+var (
+	_ func(context.Context, *commandTurn, PublisherReceiptRequest) (publisherReceiptLookup, error)        = lookupSearchImageStage
+	_ func(context.Context, *commandTurn, PublisherReceiptRequest, publisherReceiptLookup) (int64, error) = acknowledgeSearchPublisher
+	_ func(context.Context, *commandTurn, *searchImageStageCommand) (SearchImageStageResult, error)       = applySearchImageStage
+)
+
+func TestSearchPublisherAckProtocolFactsCannotAdvanceOtherOwner(t *testing.T) {
+	w, registry := searchPublisherHistoryFixture(t)
+	turn := searchPublisherHistoryTurn(t, w, registry)
+	q := searchPublisherReference(30)
+	lookup, err := lookupSearchImageStage(t.Context(), turn, q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, change := range []func(*PublisherReceiptRequest){
+		func(q *PublisherReceiptRequest) { q.JobID++ },
+		func(q *PublisherReceiptRequest) { q.Receipt.Identity.Incarnation[0]++ },
+		func(q *PublisherReceiptRequest) { q.Receipt.Identity.Sequence++ },
+	} {
+		wrong := q
+		change(&wrong)
+		if ack, err := acknowledgeSearchPublisher(t.Context(), turn, wrong, lookup); !errors.Is(err, ErrResolveRequired) || ack != 0 {
+			t.Fatal("unrelated protocol facts advanced owner", ack, err)
+		}
+	}
+	if _, err := turn.transaction.rollback(nil); err != nil {
+		t.Fatal(err)
 	}
 }

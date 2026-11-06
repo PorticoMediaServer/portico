@@ -9,18 +9,6 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
-type searchPublisherOwner struct {
-	receiptOwnerFacts
-	entity, person sql.NullInt64
-}
-
-type searchImageReceiptLookup struct {
-	owner     searchPublisherOwner
-	decision  receiptDecision
-	result    SearchImageStageResult // Outcome is set ONLY by W's dispatcher.
-	reference PublisherReceiptRequest
-}
-
 // Return the frozen step installed by W, never synthesize or amend a forecast.
 func searchPublisherStep(turn *commandTurn, id stmt.ID) (statementStep, error) {
 	if turn == nil {
@@ -36,7 +24,7 @@ func searchPublisherStep(turn *commandTurn, id stmt.ID) (statementStep, error) {
 // W proves CURRENT disclosure/native scope before this entry. The floor and
 // ORIGINAL identity are resolved before fresh source/profile/lease/overflow or
 // reading the result body. No mutable head reconstructs an earlier result.
-func lookupSearchImageStage(ctx context.Context, turn *commandTurn, q PublisherReceiptRequest) (out searchImageReceiptLookup, err error) {
+func lookupSearchImageStage(ctx context.Context, turn *commandTurn, q PublisherReceiptRequest) (out publisherReceiptLookup, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	if ctx == nil || turn == nil || turn.transaction == nil || turn.transaction.descriptor.ID != SearchImageStage ||
 		q.JobID <= 0 || q.LibraryID <= 0 || q.EntityID <= 0 {
@@ -52,7 +40,8 @@ func lookupSearchImageStage(ctx context.Context, turn *commandTurn, q PublisherR
 		return out, err
 	}
 	var incarnation []byte
-	err = row.Scan(&out.owner.entity, &out.owner.person, &incarnation, &out.owner.lastSequence, &out.owner.acknowledgedSequence)
+	var entity, person sql.NullInt64
+	err = row.Scan(&entity, &person, &incarnation, &out.owner.lastSequence, &out.owner.acknowledgedSequence)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return out, err
 	}
@@ -62,7 +51,7 @@ func lookupSearchImageStage(ctx context.Context, turn *commandTurn, q PublisherR
 		}
 		out.owner.exists = true
 		copy(out.owner.incarnation[:], incarnation)
-		if !out.owner.entity.Valid || out.owner.entity.Int64 != q.EntityID || out.owner.person.Valid {
+		if !entity.Valid || entity.Int64 != q.EntityID || person.Valid {
 			return out, ErrDisclosureDenied
 		}
 	}
@@ -93,11 +82,10 @@ func lookupSearchImageStage(ctx context.Context, turn *commandTurn, q PublisherR
 			facts.kind = SearchImageStage
 		}
 	}
-	out.decision, err = classifyReceipt(receiptIdentity{q.Receipt.Identity, q.Receipt.RequestDigest}, SearchImageStage, out.owner.receiptOwnerFacts, facts)
+	out.decision, err = classifyReceipt(receiptIdentity{q.Receipt.Identity, q.Receipt.RequestDigest}, SearchImageStage, out.owner, facts)
 	if err != nil {
 		return out, err
 	}
-	out.reference = q
 	if out.decision != receiptReplay {
 		return out, nil // Fresh/retired carry no result, and never read its body.
 	}
@@ -129,19 +117,28 @@ func lookupSearchImageStage(ctx context.Context, turn *commandTurn, q PublisherR
 	return out, nil
 }
 
-func acknowledgeSearchPublisher(ctx context.Context, turn *commandTurn, q PublisherReceiptRequest, lookup searchImageReceiptLookup) (out int64, err error) {
+func acknowledgeSearchPublisher(ctx context.Context, turn *commandTurn, q PublisherReceiptRequest, lookup publisherReceiptLookup) (out int64, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
-	if lookup.reference != q || turn == nil || turn.transaction == nil || turn.transaction.descriptor.ID != SearchImageStage {
+	if turn == nil || turn.transaction == nil || turn.transaction.descriptor.ID != SearchImageStage || q.JobID <= 0 || q.LibraryID <= 0 || q.EntityID <= 0 || q.Receipt.Identity.Sequence <= 0 {
 		return 0, ErrInvalid
 	}
 	if err := turn.checkLifetimes(ctx); err != nil {
 		return 0, err
 	}
+	// W passes the lookup for this exact immutable invocation on this SAME
+	// turn, after current disclosure and original history. Protocol facts are
+	// not a caller-supplied permission or a substitute for that composition.
 	owner := lookup.owner
+	if !owner.exists || owner.incarnation != q.Receipt.Identity.Incarnation {
+		return 0, ErrResolveRequired
+	}
 	if lookup.decision == receiptRetired {
+		if q.Receipt.Identity.Sequence > owner.acknowledgedSequence {
+			return 0, ErrResolveRequired
+		}
 		return owner.acknowledgedSequence, nil
 	}
-	if lookup.decision != receiptReplay || q.Receipt.Identity.Sequence != owner.lastSequence {
+	if lookup.decision != receiptReplay || lookup.result.JobID != q.JobID || q.Receipt.Identity.Sequence != owner.lastSequence {
 		return 0, ErrResolveRequired
 	}
 	step, err := searchPublisherStep(turn, searchPublisherAck)
