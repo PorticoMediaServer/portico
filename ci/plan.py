@@ -69,8 +69,16 @@ def closure(packages, seeds):
         if expanded == selected: return selected
         selected = expanded
 
-def balance(tests, durations, count=None):
-    if count is None: count = min(10, max(1, math.ceil(sum(durations.get(t['package']+'.'+t['name'],1) for t in tests)/150)))
+def full_go_packages(packages, paths):
+    """PR full tests: changed package owners and one reverse-import hop, not the closure."""
+    if any(Path(p).name in ('go.mod', 'go.sum', 'go.work', 'go.work.sum') for p in paths):
+        return {p['ImportPath'] for p in packages}
+    seeds = go_seeds(packages, paths)
+    return seeds | {p['ImportPath'] for p in packages if seeds.intersection(
+        p.get('Imports', []) + p.get('TestImports', []) + p.get('XTestImports', []))}
+
+def balance(tests, durations, count=None, max_count=10):
+    if count is None: count = min(max_count, max(1, math.ceil(sum(durations.get(t['package']+'.'+t['name'],1) for t in tests)/150)))
     bins = [[] for _ in range(count)]; costs = [0.0]*count
     # Keep small packages together; split only packages whose measured sum exceeds 150s.
     grouped = {}
@@ -91,15 +99,15 @@ SHORT_CENSUSES = {
     ('github.com/PorticoMediaServer/portico/server/internal/persistence', 'TestNoInsertOrIgnoreUpdateTriggerOnAnUpsertedTable'),
 }
 
-def balance_short_censuses(tests, durations):
+def balance_short_censuses(tests, durations, max_count=10):
     census = [t for t in tests if (t['package'], t['name']) in SHORT_CENSUSES]
-    if not census: return balance(tests, durations)
+    if not census: return balance(tests, durations, max_count=max_count)
     # Preserve the previous short layout, where these guards cost zero, then
     # move only the censuses to their own VM. Their added CPU must neither
     # contend with interactive fixtures nor reshuffle those fixtures together.
     layout_costs = dict(durations)
     layout_costs.update({t['package']+'.'+t['name']: 0 for t in census})
-    bins, costs = balance(tests, layout_costs)
+    bins, costs = balance(tests, layout_costs, max_count=max_count)
     ordinary = [([t for t in shard if (t['package'],t['name']) not in SHORT_CENSUSES], cost)
                 for shard,cost in zip(bins,costs)]
     ordinary = [(shard,cost) for shard,cost in ordinary if shard]
@@ -150,10 +158,11 @@ def go_seeds(packages, paths, full=False, diagnostics=None):
         seeds.add(owner['ImportPath'])
     return seeds
 
-def guarded_costs(packages, durations):
+def guarded_costs(packages, durations, full_packages=()):
     # Read actual early guards, so the parent's R8 edits are the cost authority.
     adjusted=dict(durations)
     for p in packages:
+        if p['ImportPath'] in full_packages: continue
         for file in p.get('TestGoFiles',[])+p.get('XTestGoFiles',[]):
             source=(Path(p['Dir'])/file).read_text()
             for match in re.finditer(r'^func\s+((?:Test|Fuzz)\w+)\([^\n]*\)\s*{(.*?)(?=^func |\Z)',source,re.M|re.S):
@@ -174,6 +183,7 @@ def make_plan(paths, full=False, tier="short"):
     # Go-owned means the change itself reaches Go (server/ or apikit/, contracts, the root). A change that
     # only reaches a test reading its files (packages/i18n, web/public) selects just those tests.
     go_owned=go; readers={} if full else source_readers.select(paths); reader_tests={}; go=go or bool(readers)
+    full_packages=set()
     tags=command(['python3','scripts/release-build-tags.py','--capability']).strip()
     if go:
         # Include the real HTTP/client boundary in build-aware test discovery.
@@ -189,6 +199,7 @@ def make_plan(paths, full=False, tier="short"):
         if full: go_fallbacks.append('explicit full inventory')
         elif far: go_fallbacks.append('cross-component/root or contracts change without Go-owned paths')
         seeds = go_seeds(packages, paths, full or far,diagnostics=go_fallbacks)
+        if tier == 'short': full_packages = full_go_packages(packages, paths)
         chosen=closure(packages,seeds)
         if tier != 'short' and go_owned:
             chosen.update(p['ImportPath'] for p in packages if any(s in p['ImportPath'] for s in ['/httpapi','/identity','/auth','/session','/privacy']))
@@ -225,11 +236,16 @@ def make_plan(paths, full=False, tier="short"):
     inventory=[t for t in inventory if t['package'] not in reader_tests or t['name'] in reader_tests[t['package']]]
     diagnostics=[t for lane in tiers['nightly_lanes'].values() for t in lane]
     exclusions=diagnostics if tier=='nightly' else tiers['nightly_only']
-    if tier=='short': durations=guarded_costs(packages,durations)
+    short_durations=guarded_costs(packages,durations) if tier=='short' else durations
+    if tier=='short': durations=guarded_costs(packages,durations,full_packages)
     excluded={(t['package'],t['name']) for t in exclusions}
     inventory=[t for t in inventory if (t['package'],t['name']) not in excluded]
     cost=sum(durations.get(t['package']+'.'+t['name'],1) for t in inventory)
-    bins,costs=(balance_short_censuses if tier=='short' else balance)(inventory,durations)
+    # Promoted PR work gets more VMs, not longer deadlines. Queue/nightly retain
+    # their existing ten-shard allocation; source censuses keep their own VM.
+    shard_limit = 20 if full_packages else 10
+    bins,costs=(balance_short_censuses(inventory,durations,max_count=shard_limit)
+                if tier=='short' else balance(inventory,durations))
     js=[]; js_reasons={}
     from js_affected import select as affected_js
     for component in selected:
@@ -254,10 +270,12 @@ def make_plan(paths, full=False, tier="short"):
     assigned=[t for t in inventory if '/httpapi' in t['package'] and t['name'] in producer_consumers and any(f.endswith(producer_consumers[t['name']]) for f in js_files)]
     assigned_keys={(t['package'],t['name']) for t in assigned}
     inventory=[t for t in inventory if (t['package'],t['name']) not in assigned_keys]
-    bins,costs=(balance_short_censuses if tier=='short' else balance)(inventory,durations)
+    bins,costs=(balance_short_censuses(inventory,durations,max_count=shard_limit)
+                if tier=='short' else balance(inventory,durations))
     from explain import selection_reasons
     why=selection_reasons(paths,full,selected,go_owned,components,js_reasons,go_fallbacks,source_readers=reader_tests)
-    return {'selection_diagnostics':why,'source_reader_tests':[{'package':k,'name':n,'changed':c} for k,v in sorted(reader_tests.items()) for n,c in sorted(v.items())],'ffmpeg_packages':sorted(probe_packages) if go else [],'android':android_selected(paths,full),'all_inventory':all_inventory,'nightly_diagnostics':diagnostics,'js_owned_producers':assigned,'tier':tier,'paths':paths,'tags':tags,'packages':[{'module':p['module'],'package':p['ImportPath']} for p in packages], 'inventory':inventory,'shards':bins,'predicted_seconds':costs,'js':js,'tier_exclusions':exclusions, 'compile_only_examples':exemptions, 'unmeasured_parents':[t for t in inventory if t['package']+'.'+t['name'] not in durations]}
+    extra=sum(durations.get(t['package']+'.'+t['name'],1)-short_durations.get(t['package']+'.'+t['name'],1) for t in inventory)
+    return {'full_go_packages':sorted(full_packages), 'full_go_extra_seconds':extra,'selection_diagnostics':why,'source_reader_tests':[{'package':k,'name':n,'changed':c} for k,v in sorted(reader_tests.items()) for n,c in sorted(v.items())],'ffmpeg_packages':sorted(probe_packages) if go else [],'android':android_selected(paths,full),'all_inventory':all_inventory,'nightly_diagnostics':diagnostics,'js_owned_producers':assigned,'tier':tier,'paths':paths,'tags':tags,'packages':[{'module':p['module'],'package':p['ImportPath']} for p in packages], 'inventory':inventory,'shards':bins,'predicted_seconds':costs,'js':js,'tier_exclusions':exclusions, 'compile_only_examples':exemptions, 'unmeasured_parents':[t for t in inventory if t['package']+'.'+t['name'] not in durations]}
 
 def event_tier(event, tier, full):
     if event in ['pull_request','push']:
