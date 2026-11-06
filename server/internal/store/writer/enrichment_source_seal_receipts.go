@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
-	"strings"
 )
 
 const (
@@ -30,9 +30,8 @@ type sealReceiptContent struct {
 func enrichmentSealReceiptDefinitions() []stmt.Definition {
 	defs := []stmt.Definition{
 		{ID: evidenceSealReceiptInsert, Owner: "writer.enrichment", Kind: stmt.Write,
-			SQL: `INSERT INTO enrichment_command_receipts(provider_operation_id,command_incarnation,command_sequence,operation_id,request_digest,accepted_revision,applied_ms,entity_id,after_item,after_ordinal,result_digest,seal_version,seal_evidence_id,seal_subject_id,seal_parser_version,seal_provider,seal_subject_kind,seal_provider_id,seal_language,seal_region,seal_request_shape,seal_observation_digest,seal_owner_generation,seal_content_revision,seal_algorithm,seal_commitment,seal_verified_rows,seal_canonical_bytes,seal_retained_bytes,seal_build_id,seal_build_generation,command_kind,result_count,proof_pin_count)
- SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'evidence_seal',0,1 WHERE EXISTS(SELECT 1 FROM metadata_provider_operations o WHERE ` + sealOwnerPredicate + `)`,
-			Params: append([]stmt.Param{
+			SQL: `INSERT INTO enrichment_command_receipts(provider_operation_id,command_incarnation,command_sequence,operation_id,request_digest,accepted_revision,applied_ms,entity_id,after_item,after_ordinal,result_digest,seal_version,seal_evidence_id,seal_subject_id,seal_parser_version,seal_provider,seal_subject_kind,seal_provider_id,seal_language,seal_region,seal_request_shape,seal_observation_digest,seal_owner_generation,seal_content_revision,seal_algorithm,seal_commitment,seal_verified_rows,seal_canonical_bytes,seal_retained_bytes,seal_build_id,seal_build_generation,command_kind,result_count,proof_pin_count) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			Params: []stmt.Param{
 				{Name: "provider_operation_id", Type: stmt.Text},
 				{Name: "command_incarnation", Type: stmt.Blob},
 				{Name: "command_sequence", Type: stmt.Integer},
@@ -64,11 +63,11 @@ func enrichmentSealReceiptDefinitions() []stmt.Definition {
 				{Name: "seal_retained_bytes", Type: stmt.Integer},
 				{Name: "seal_build_id", Type: stmt.Text},
 				{Name: "seal_build_generation", Type: stmt.Integer},
-			}, sealScopeParams()...)},
+				{Name: "native_kind", Type: stmt.Text}, {Name: "native_count", Type: stmt.Integer}, {Name: "native_pins", Type: stmt.Integer},
+			}},
 		{ID: sourceSealReceiptInsert, Owner: "writer.enrichment", Kind: stmt.Write,
-			SQL: `INSERT INTO enrichment_command_receipts(provider_operation_id,command_incarnation,command_sequence,operation_id,request_digest,accepted_revision,applied_ms,entity_id,after_item,after_ordinal,result_digest,seal_version,seal_evidence_id,seal_subject_id,seal_parser_version,seal_provider,seal_subject_kind,seal_provider_id,seal_language,seal_region,seal_request_shape,seal_observation_digest,seal_owner_generation,seal_content_revision,seal_algorithm,seal_commitment,seal_verified_rows,seal_canonical_bytes,seal_retained_bytes,publication_id,upstream_evidence_owner,upstream_evidence_incarnation,upstream_evidence_sequence,command_kind,result_count,proof_pin_count)
- SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'credit_source_seal',0,1 WHERE EXISTS(SELECT 1 FROM metadata_provider_operations o WHERE ` + sealOwnerPredicate + `)`,
-			Params: append([]stmt.Param{
+			SQL: `INSERT INTO enrichment_command_receipts(provider_operation_id,command_incarnation,command_sequence,operation_id,request_digest,accepted_revision,applied_ms,entity_id,after_item,after_ordinal,result_digest,seal_version,seal_evidence_id,seal_subject_id,seal_parser_version,seal_provider,seal_subject_kind,seal_provider_id,seal_language,seal_region,seal_request_shape,seal_observation_digest,seal_owner_generation,seal_content_revision,seal_algorithm,seal_commitment,seal_verified_rows,seal_canonical_bytes,seal_retained_bytes,publication_id,upstream_evidence_owner,upstream_evidence_incarnation,upstream_evidence_sequence,command_kind,result_count,proof_pin_count) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			Params: []stmt.Param{
 				{Name: "provider_operation_id", Type: stmt.Text},
 				{Name: "command_incarnation", Type: stmt.Blob},
 				{Name: "command_sequence", Type: stmt.Integer},
@@ -102,7 +101,8 @@ func enrichmentSealReceiptDefinitions() []stmt.Definition {
 				{Name: "upstream_evidence_owner", Type: stmt.Text},
 				{Name: "upstream_evidence_incarnation", Type: stmt.Blob},
 				{Name: "upstream_evidence_sequence", Type: stmt.Integer},
-			}, sealScopeParams()...)},
+				{Name: "native_kind", Type: stmt.Text}, {Name: "native_count", Type: stmt.Integer}, {Name: "native_pins", Type: stmt.Integer},
+			}},
 		{ID: evidenceSealBodyAttach, Owner: "writer.enrichment", Kind: stmt.Write,
 			SQL: `UPDATE metadata_evidence SET sealed=1,seal_proof_owner=?,seal_proof_incarnation=?,seal_proof_sequence=?
  WHERE id=? AND subject_id=? AND parser_version=? AND sealed=0 AND seal_proof_owner IS NULL`,
@@ -116,11 +116,6 @@ func enrichmentSealReceiptDefinitions() []stmt.Definition {
  WHERE provider_operation_id=? AND command_incarnation=? AND command_sequence=? AND command_kind='evidence_seal'
  AND seal_evidence_id=? AND seal_subject_id=? AND seal_parser_version=? AND proof_revision=? AND proof_pin_count=? AND proof_pin_count>0 AND proof_revision<9223372036854775807 AND proof_pin_count<9223372036854775807`,
 			Params: []stmt.Param{{Name: "owner", Type: stmt.Text}, {Name: "incarnation", Type: stmt.Blob}, {Name: "sequence", Type: stmt.Integer}, {Name: "evidence", Type: stmt.Text}, {Name: "subject", Type: stmt.Integer}, {Name: "parser", Type: stmt.Text}, {Name: "proof_revision", Type: stmt.Integer}, {Name: "proof_pin_count", Type: stmt.Integer}}},
-	}
-	for i := 0; i < 2; i++ {
-		cols := strings.Split(strings.Split(defs[i].SQL, "(")[1], ")")[0]
-		defs[i].SQL = "INSERT INTO enrichment_command_receipts(" + cols + ") VALUES(" + strings.TrimSuffix(strings.Repeat("?,", len(strings.Split(cols, ","))), ",") + ")"
-		defs[i].Params = append(defs[i].Params[:len(defs[i].Params)-len(sealScopeParams())], stmt.Param{Name: "native_kind", Type: stmt.Text}, stmt.Param{Name: "native_count", Type: stmt.Integer}, stmt.Param{Name: "native_pins", Type: stmt.Integer})
 	}
 
 	defs = append(defs, stmt.Definition{ID: evidenceSealBuildFinalize, Owner: "writer.enrichment", Kind: stmt.Write,

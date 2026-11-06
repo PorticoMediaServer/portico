@@ -1,8 +1,9 @@
 package writer
 
 import (
-	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"strings"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
 // Finite domain-owned declaration only, never caller SQL, a registration

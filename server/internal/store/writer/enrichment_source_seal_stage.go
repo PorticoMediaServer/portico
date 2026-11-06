@@ -53,28 +53,13 @@ func enrichmentSourceStageDefinitions() []stmt.Definition {
 	}, {
 		ID: enrichmentSourceMemberInsert, Owner: "writer.enrichment", Kind: stmt.Write,
 		CallSites: []string{"writer/enrichment_source_seal_stage.go:stageSourceMembers"},
-		SQL: `INSERT INTO credit_source_publication_members(publication_id,entity_id,provider,position,source_row_id,reference_status)
- SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM metadata_provider_operations o
- JOIN credit_source_publications p ON p.publication_id=o.source_publication_id AND p.entity_id=o.entity_id AND p.provider=o.provider
- WHERE o.id=? AND o.command_incarnation=? AND o.generation=? AND o.source_owner_generation=?
- AND o.source_publication_id=? AND o.source_next_position=? AND o.source_expected_members=? AND o.source_content_revision=?
- AND o.last_command_sequence=? AND o.acknowledged_command_sequence=? AND o.entity_id=? AND o.provider=?
- AND o.phase=? AND o.status=? AND o.lease=? AND o.lease_until=?
- AND p.member_count=o.source_expected_members AND p.sealed=0)`,
+		SQL:       `INSERT INTO credit_source_publication_members(publication_id,entity_id,provider,position,source_row_id,reference_status) VALUES(?,?,?,?,?,?)`,
 		Params: []stmt.Param{
 			{Name: "publication_id", Type: stmt.Text}, {Name: "entity_id", Type: stmt.Integer}, {Name: "provider", Type: stmt.Text},
 			{Name: "position", Type: stmt.Integer}, {Name: "source_row_id", Type: stmt.Text}, {Name: "reference_status", Type: stmt.Text},
-			{Name: "operation_id", Type: stmt.Text}, {Name: "incarnation", Type: stmt.Blob}, {Name: "generation", Type: stmt.Integer},
-			{Name: "owner_generation", Type: stmt.Integer}, {Name: "expected_publication", Type: stmt.Text},
-			{Name: "expected_next", Type: stmt.Integer}, {Name: "expected_members", Type: stmt.Integer}, {Name: "expected_revision", Type: stmt.Integer},
-			{Name: "last_sequence", Type: stmt.Integer}, {Name: "ack_sequence", Type: stmt.Integer},
-			{Name: "expected_entity", Type: stmt.Integer}, {Name: "expected_provider", Type: stmt.Text},
-			{Name: "phase", Type: stmt.Text}, {Name: "status", Type: stmt.Text}, {Name: "lease", Type: stmt.Text}, {Name: "lease_until", Type: stmt.Text},
 		},
 		Cohorts: []stmt.Cohort{{Name: "exact_source_member", Bindings: []any{
 			"00112233445566778899aabbccddeeff", int64(101), "fixture", int64(2), "00000000000000000000000000000003", "new",
-			"operation-one", incarnation, int64(31), int64(31), "00112233445566778899aabbccddeeff", int64(2), int64(5), int64(47),
-			int64(11), int64(11), int64(101), "fixture", "enrichment-v1", "staged", "native-lease", "2100-11-05T12:00:00Z",
 		}}},
 	}}
 	// The same fixed owner/publication predicate is read before VALUES writes;
@@ -88,9 +73,7 @@ func enrichmentSourceStageDefinitions() []stmt.Definition {
 
 	read.Params = append([]stmt.Param(nil), defs[0].Params[1:]...)
 	read.Cohorts = []stmt.Cohort{{Name: "exact_source_prefix", Bindings: defs[0].Cohorts[0].Bindings[1:]}}
-	defs[1].SQL = `INSERT INTO credit_source_publication_members(publication_id,entity_id,provider,position,source_row_id,reference_status) VALUES(?,?,?,?,?,?)`
-	defs[1].Params = defs[1].Params[:6]
-	defs[1].Cohorts[0].Bindings = defs[1].Cohorts[0].Bindings[:6]
+
 	return enrichmentStagePlanHints(append(defs, read))
 
 }
