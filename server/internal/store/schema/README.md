@@ -28,7 +28,7 @@ legacy layouts fail closed. It executes no bootstrap DDL, ANALYZE, migration,
 repair or seed. It does not inspect user data, prove its integrity or authorize
 access; those are separate startup responsibilities.
 
-The adopted005 file header is explicitly `application_id=0`, `user_version=0`
+The adopted007 file header is explicitly `application_id=0`, `user_version=0`
 and `encoding=UTF-8`. The zeros preserve the reviewed bootstrap; they are not
 layout identity markers. Verification checks them without rewriting them.
 Fresh bootstrap refuses incompatible headers rather than adopting them.
@@ -102,3 +102,18 @@ the adoption supersedes their old status qualifiers. No CHANGE-004/native banks,
 006 diagnostic cleanup, accepting result wire, runtime connection, seed or
 migration is included. W result/receipt semantics, fresh predicates, ACK/reclaim,
 resource enforcement, crash and runtime/physical qualifications remain open.
+
+
+INT-CHANGE-007 is adopted at09726d2b after R agreement197. It adds only
+account-owned denied labels, schedule windows and channel rules, with owner/ordinal
+primary keys and NO ACTION to access_limits. Caps remain writer-enforced; every
+accepted replacement fences the whole policy through its parent revision. Active
+policy edit/removal is atomic FULL; policy_present=0 is not an inactive cleanup
+fence. Channel IDs are opaque policy facts without a mutable-inventory FK. The
+reviewed contracts preserve their historical provenance wording verbatim.
+The separate CHANGE-008 security command owner/result/ACK/floor/lifetime protocol,
+actual W/RD enforcement and label producer/verifier, trusted clock/timezone,
+complete budgets, crash/runtime/physical/2GB and security-cadence qualification
+remain open. No read policy is enabled, no seed/migration runs and no runtime
+cutover is included by this embed. Existing005 files fail the changed layout pin;
+test-server cutover creates a fresh file under the approved no-conversion rule.
