@@ -10,6 +10,7 @@ from unittest.mock import patch
 import client_api_census as census
 import engineering_rules as engineering
 from ratchet_base import event_base, event_bases, merge_base, source_snapshot, queue_increments
+from ratchet_runtime import RatchetRuntime, RatchetFailure
 
 
 class LiveRatchets(unittest.TestCase):
@@ -355,15 +356,26 @@ class LiveRatchets(unittest.TestCase):
 
     def test_snapshot_uses_the_same_third_party_types_without_current_workspace_sources(self):
         library=self.root/'node_modules/local-types';library.mkdir(parents=True)
-        (library/'package.json').write_text(json.dumps({'name':'local-types','types':'index.d.ts'}))
+        (library/'package.json').write_text(json.dumps({'name':'local-types','version':'1.0.0','types':'index.d.ts'}))
         (library/'index.d.ts').write_text('export declare function identity<T>(value: T): T;')
+        manifest={'dependencies':{'local-types':'1.0.0'}}
+        (self.root/'package.json').write_text(json.dumps(manifest))
+        (self.root/'package-lock.json').write_text(json.dumps({'lockfileVersion':3,'packages':{'':manifest,'node_modules/local-types':{'version':'1.0.0'}}}))
         (self.root/self.path).write_text("import {identity} from 'local-types';\nconst local=identity({request(value: number) {return value;}});\nlocal.request(3);\n")
         # node_modules is an installed dependency, never tracked source.
-        self.git('add',self.path);self.git('commit','-qm','Use the installed declaration')
+        self.git('add',self.path,'package.json','package-lock.json');self.git('commit','-qm','Use the locked installed declaration')
         actual=engineering.source_counts(self.root)
         self.assertEqual(actual,{})
         with source_snapshot(self.root,'HEAD') as (snapshot,paths):
             self.assertEqual(engineering.source_counts(snapshot,paths),actual)
+
+    def test_an_existing_declaration_without_an_install_lock_fails_closed(self):
+        library=self.root/'node_modules/local-types';library.mkdir(parents=True)
+        (library/'package.json').write_text(json.dumps({'name':'local-types','version':'1.0.0','types':'index.d.ts'}))
+        (library/'index.d.ts').write_text('export declare function identity<T>(value: T): T;')
+        (self.root/self.path).write_text("import {identity} from 'local-types'; const local=identity({request(value: number) {return value;}}); local.request(3);")
+        with RatchetRuntime(self.root),self.assertRaisesRegex(RatchetFailure,'Installed dependency provenance failure'):
+            engineering.source_counts(self.root)
 
 
 if __name__=='__main__':unittest.main()

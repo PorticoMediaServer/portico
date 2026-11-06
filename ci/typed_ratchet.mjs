@@ -128,8 +128,15 @@ export class TypedRatchet {
     let answer;
     try {
       if(method==='readFile') {
-        this.verifyInstalledPackage(path);
-        if(!this.thirdParty.has(path))this.thirdParty.set(path,readFileSync(path,'utf8'));
+        if(!this.thirdParty.has(path)) {
+          // Missing candidate files are normal resolution misses. A present
+          // declaration without a verifiable install is a policy failure;
+          // never swallow its ENOENT as though the declaration were absent.
+          const contents=readFileSync(path,'utf8');
+          try {this.verifyInstalledPackage(path);}
+          catch(error) {throw Error('Installed dependency provenance failure: '+error.message);}
+          this.thirdParty.set(path,contents);
+        }
         answer=this.thirdParty.get(path);
       } else if(method==='fileExists')answer=statSync(path).isFile();
       else if(method==='directoryExists')answer=statSync(path).isDirectory();
