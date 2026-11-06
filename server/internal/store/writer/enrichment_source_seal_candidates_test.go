@@ -34,6 +34,25 @@ func sealEffectTurn(t *testing.T, w *executor, defs []stmt.Definition) *commandT
 }
 func sealEffectTurnPurpose(t *testing.T, w *executor, defs []stmt.Definition, kind CommandID) *commandTurn {
 	t.Helper()
+	defs = append(defs, enrichmentSealScopeDefinitions()...)
+	defs = append(defs, enrichmentStageFactDefinitions()...)
+	for _, group := range [][]stmt.Definition{enrichmentCandidateRetirementDefinitions(), enrichmentSourceStageDefinitions()} {
+		for _, d := range group {
+			if d.ID != sealCandidateReady && d.ID != sourceStagePrefixRead {
+				continue
+			}
+			found := false
+			for _, have := range defs {
+				if have.ID == d.ID {
+					found = true
+				}
+			}
+			if !found {
+				defs = append(defs, d)
+			}
+		}
+	}
+
 	// SQL/body component only. W must select real seal purposes and complete
 	// measured production recipes; CreditStage here grants no seal authority.
 	recipe := turnRecipe{limit: Work{4096, 1000000, 4096, 32 << 20, 25 * time.Millisecond}, setup: Work{16, 500, 16, 65536, time.Millisecond}, terminal: Work{16, 500, 16, 65536, time.Millisecond}}
@@ -48,7 +67,18 @@ func sealEffectTurnPurpose(t *testing.T, w *executor, defs []stmt.Definition, ki
 	}
 	var steps []statementStep
 	for _, d := range defs {
-		steps = append(steps, statementStep{d.ID, Work{64, 20000, 128, 65536, time.Millisecond}})
+		work := Work{64, 20000, 128, 65536, 100 * time.Microsecond}
+		switch d.ID {
+		case sealCandidateReasons, sealCandidateAliases:
+			work = Work{1, 1000, 8, 32768, 100 * time.Microsecond}
+		case sealCandidateParent:
+			work = Work{1, 1000, 16, 65536, 100 * time.Microsecond}
+		case sealCandidateReasonRead, sealCandidateAliasRead:
+			work = Work{16, 1000, 8, 0, 100 * time.Microsecond}
+		case sealCandidateReady:
+			work = Work{1, 1000, 8, 0, 100 * time.Microsecond}
+		}
+		steps = append(steps, statementStep{d.ID, work})
 	}
 	turn, err := newCommandTurn(tx, registry, steps)
 	if err != nil {
@@ -98,5 +128,30 @@ func TestSealCandidateRetirementBoundedChildFirstAndRollback(t *testing.T) {
 	var count int
 	if err := w.db.QueryRowContext(t.Context(), `SELECT count(*) FROM metadata_candidate_reasons`).Scan(&count); err != nil || count != 17 {
 		t.Fatal("cleanup escaped rollback", count, err)
+	}
+}
+
+func TestSealNativeScopeMutationRefusesBeforeWrites(t *testing.T) {
+	for name, sqlText := range map[string]string{
+		"selection_incarnation": `UPDATE metadata_subject_providers SET incarnation=X'ffffffffffffffffffffffffffffffff'`,
+		"accepted_head":         `UPDATE metadata_subject_providers SET accepted_evidence_id='evidence-original:197'`,
+		"source_revision":       `UPDATE metadata_provider_operations SET source_content_revision=2`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			w, scope := sealEffectFixture(t)
+			populateSealCandidates(t, w)
+			if _, err := w.db.ExecContext(t.Context(), sqlText); err != nil {
+				t.Fatal(err)
+			}
+			turn := sealEffectTurn(t, w, enrichmentCandidateRetirementDefinitions())
+			got, err := retireSealCandidates(t.Context(), turn, scope)
+			if !errors.Is(err, ErrConflict) || got != (candidateRetirementProgress{}) {
+				t.Fatal("changed native witness admitted", got, err)
+			}
+			var count int
+			if err := turn.transaction.conn.QueryRowContext(t.Context(), `SELECT count(*) FROM metadata_candidate_reasons`).Scan(&count); err != nil || count != 17 {
+				t.Fatal("refused witness wrote children", count, err)
+			}
+		})
 	}
 }

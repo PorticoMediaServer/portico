@@ -1,6 +1,7 @@
 package writer
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
@@ -21,16 +22,16 @@ func enrichmentSourceAllocationDefinitions() []stmt.Definition {
 		Params: append([]stmt.Param{{Name: "publication", Type: stmt.Text}, {Name: "record_reference", Type: stmt.Text}, {Name: "observed_at", Type: stmt.Text}, {Name: "complete_members", Type: stmt.Integer}}, sealScopeParams()...),
 	}, {
 		ID: sourceStageAllocate, Owner: "writer.enrichment", Kind: stmt.Write,
-		SQL: `UPDATE metadata_provider_operations AS o SET source_content_revision=source_content_revision+1,source_publication_id=?,source_owner_generation=generation,
+		SQL: `UPDATE metadata_provider_operations SET source_content_revision=source_content_revision+1,source_publication_id=?,source_owner_generation=generation,
  source_evidence_id=?,source_subject_id=?,source_parser_version=?,source_next_position=0,source_expected_members=?,source_expected_bytes=?,source_algorithm=?,source_version=?,source_expected_commitment=?,
  source_evidence_owner=?,source_evidence_incarnation=?,source_evidence_sequence=?
- WHERE ` + sealOwnerPredicate + ` AND source_publication_id IS NULL
- AND EXISTS(SELECT 1 FROM credit_source_publications p WHERE p.publication_id=? AND p.entity_id=o.entity_id AND p.provider=o.provider AND p.member_count=? AND p.sealed=0 AND p.seal_proof_owner IS NULL)
- AND EXISTS(SELECT 1 FROM metadata_evidence e WHERE e.id=? AND e.subject_id=? AND e.parser_version=? AND e.provider=o.provider AND e.sealed=1 AND e.seal_proof_owner=? AND e.seal_proof_incarnation=? AND e.seal_proof_sequence=?)
+ WHERE ` + sealTargetOwnerPredicate + ` AND source_publication_id IS NULL
  RETURNING source_next_position,source_content_revision`,
-		Params: append(append([]stmt.Param{{Name: "publication", Type: stmt.Text}, {Name: "evidence", Type: stmt.Text}, {Name: "subject", Type: stmt.Integer}, {Name: "parser", Type: stmt.Text}, {Name: "complete_members", Type: stmt.Integer}, {Name: "manifest_bytes", Type: stmt.Integer}, {Name: "manifest_algorithm", Type: stmt.Text}, {Name: "manifest_version", Type: stmt.Integer}, {Name: "manifest_commitment", Type: stmt.Blob}, {Name: "upstream_owner", Type: stmt.Text}, {Name: "upstream_incarnation", Type: stmt.Blob}, {Name: "upstream_sequence", Type: stmt.Integer}}, sealScopeParams()...),
-			[]stmt.Param{{Name: "expected_publication", Type: stmt.Text}, {Name: "expected_members", Type: stmt.Integer}, {Name: "expected_evidence", Type: stmt.Text}, {Name: "expected_subject", Type: stmt.Integer}, {Name: "expected_parser", Type: stmt.Text}, {Name: "expected_proof_owner", Type: stmt.Text}, {Name: "expected_proof_incarnation", Type: stmt.Blob}, {Name: "expected_proof_sequence", Type: stmt.Integer}}...),
+		Params: append([]stmt.Param{{Name: "publication", Type: stmt.Text}, {Name: "evidence", Type: stmt.Text}, {Name: "subject", Type: stmt.Integer}, {Name: "parser", Type: stmt.Text}, {Name: "complete_members", Type: stmt.Integer}, {Name: "manifest_bytes", Type: stmt.Integer}, {Name: "manifest_algorithm", Type: stmt.Text}, {Name: "manifest_version", Type: stmt.Integer}, {Name: "manifest_commitment", Type: stmt.Blob}, {Name: "upstream_owner", Type: stmt.Text}, {Name: "upstream_incarnation", Type: stmt.Blob}, {Name: "upstream_sequence", Type: stmt.Integer}}, sealScopeParams()...),
 	}}
+	defs[0].SQL = `INSERT INTO credit_source_publications(publication_id,entity_id,provider,accepted_record_reference,observed_at,member_count,sealed) VALUES(?,?,?,?,?,?,?)`
+	defs[0].Params = []stmt.Param{{Name: "publication", Type: stmt.Text}, {Name: "entity", Type: stmt.Integer}, {Name: "provider", Type: stmt.Text}, {Name: "record", Type: stmt.Text}, {Name: "observed", Type: stmt.Text}, {Name: "members", Type: stmt.Integer}, {Name: "sealed", Type: stmt.Integer}}
+
 	for i := range defs {
 		defs[i].CallSites = []string{"writer/enrichment_source_seal_allocate.go:createSourceStage"}
 		var args []any
@@ -46,7 +47,7 @@ func enrichmentSourceAllocationDefinitions() []stmt.Definition {
 		}
 		defs[i].Cohorts = []stmt.Cohort{{Name: "missing_fresh_owner", Bindings: args}}
 	}
-	return defs
+	return enrichmentStagePlanHints(defs)
 }
 
 // First durable source header AND exclusive operation-owned custody AND its
@@ -64,12 +65,24 @@ func createSourceStage(ctx context.Context, turn *commandTurn, scope sealOwnerSc
 		root.manifest.algorithm != normalizedSourceAlgorithm || root.manifest.version != 1 || root.manifest.rows != root.expected || root.manifest.bytes <= 0 || uint64(root.manifest.bytes) > maxCanonicalRequestBytes {
 		return out, ErrInvalid
 	}
-	args := append([]any{header.id, header.record, header.observed, header.count}, scope.values()...)
-	if err := execSealOne(ctx, turn, sourceStagePublicationInsert, args...); err != nil {
+	if _, _, err := observeSealOwner(ctx, turn, scope); err != nil {
 		return out, err
 	}
+	proof, err := readStageEvidenceProof(ctx, turn, root.evidenceID)
+	if err != nil {
+		return out, err
+	}
+	if proof.subject != root.subjectID || proof.parser != root.parser || proof.provider != scope.provider || proof.sealed != 1 || !proof.owner.Valid || proof.owner.String != root.upstreamOwner || !bytes.Equal(proof.inc, root.upstreamIncarnation[:]) || proof.sequence != root.upstreamSequence {
+		return out, ErrConflict
+	}
+
+	if err := execSealOne(ctx, turn, sourceStagePublicationInsert, header.id, scope.entityID, scope.provider, header.record, header.observed, header.count, int64(0)); err != nil {
+		return out, err
+	}
+	var args []any
+
 	args = append([]any{header.id, root.evidenceID, root.subjectID, root.parser, root.expected, root.manifest.bytes, root.manifest.algorithm, root.manifest.version, root.manifest.commitment[:], root.upstreamOwner, root.upstreamIncarnation[:], root.upstreamSequence}, scope.values()...)
-	args = append(args, header.id, root.expected, root.evidenceID, root.subjectID, root.parser, root.upstreamOwner, root.upstreamIncarnation[:], root.upstreamSequence)
+
 	step, err := sealStep(turn, sourceStageAllocate)
 	if err != nil {
 		return out, err

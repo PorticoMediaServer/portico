@@ -79,7 +79,7 @@ func draftSourceStageTurn(t *testing.T, w *executor) (*commandTurn, statementSte
 	}
 	step := statementStep{enrichmentSourceAdvance, Work{16, 10000, 64, 65536, time.Millisecond}}
 	insert := statementStep{enrichmentSourceMemberInsert, Work{16, 10000, 64, 65536, time.Millisecond}}
-	turn, err := newCommandTurn(tx, registry, []statementStep{step, insert})
+	turn, err := newCommandTurn(tx, registry, []statementStep{step, insert, {sourceStagePrefixRead, Work{16, 10000, 64, 65536, time.Millisecond}}})
 	if err != nil {
 		t.Fatal(err)
 	}

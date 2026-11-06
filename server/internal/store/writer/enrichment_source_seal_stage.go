@@ -18,12 +18,14 @@ const (
 // Draft009 native names follow the adopted operation-owned source direction.
 // W adds this finite definition to its ONE composition when the complete
 // command/receipt/authority/resource recipe is ready; this is not registration.
+const sourceStagePrefixRead stmt.ID = "enrichment.credit_stage.source_prefix"
+
 func enrichmentSourceStageDefinitions() []stmt.Definition {
 	incarnation := make([]byte, 16)
 	for i := range incarnation {
 		incarnation[i] = byte(16 + i)
 	}
-	return []stmt.Definition{{
+	defs := []stmt.Definition{{
 		ID: enrichmentSourceAdvance, Owner: "writer.enrichment", Kind: stmt.Write,
 		CallSites: []string{"writer/enrichment_source_seal_stage.go:advanceSourceStagePrefix"},
 		SQL: `UPDATE metadata_provider_operations SET source_next_position=?,source_content_revision=source_content_revision+1
@@ -31,10 +33,6 @@ func enrichmentSourceStageDefinitions() []stmt.Definition {
  AND source_publication_id=? AND source_next_position=? AND source_expected_members=? AND source_content_revision=?
  AND last_command_sequence=? AND acknowledged_command_sequence=? AND entity_id=? AND provider=?
  AND phase=? AND status=? AND lease=? AND lease_until=?
- AND EXISTS(SELECT 1 FROM credit_source_publications p
- WHERE p.publication_id=metadata_provider_operations.source_publication_id
- AND p.entity_id=metadata_provider_operations.entity_id AND p.provider=metadata_provider_operations.provider
- AND p.member_count=metadata_provider_operations.source_expected_members AND p.sealed=0)
  RETURNING source_next_position,source_content_revision`,
 		Params: []stmt.Param{
 			{Name: "next_position", Type: stmt.Integer}, {Name: "operation_id", Type: stmt.Text},
@@ -79,6 +77,22 @@ func enrichmentSourceStageDefinitions() []stmt.Definition {
 			int64(11), int64(11), int64(101), "fixture", "enrichment-v1", "staged", "native-lease", "2100-11-05T12:00:00Z",
 		}}},
 	}}
+	// The same fixed owner/publication predicate is read before VALUES writes;
+	// final prefix CAS checks it again in the same single-writer transaction.
+	read := defs[0]
+	read.ID = sourceStagePrefixRead
+	read.Kind = stmt.Read
+
+	read.SQL = `SELECT o.source_next_position FROM metadata_provider_operations AS o INNER JOIN credit_source_publications AS p ON p.publication_id=o.source_publication_id AND p.entity_id=o.entity_id AND p.provider=o.provider
+ WHERE o.id=? AND o.command_incarnation=? AND o.generation=? AND o.source_owner_generation=? AND o.source_publication_id=? AND o.source_next_position=? AND o.source_expected_members=? AND o.source_content_revision=? AND o.last_command_sequence=? AND o.acknowledged_command_sequence=? AND o.entity_id=? AND o.provider=? AND o.phase=? AND o.status=? AND o.lease=? AND o.lease_until=? AND p.member_count=o.source_expected_members AND p.sealed=0 AND p.seal_proof_owner IS NULL`
+
+	read.Params = append([]stmt.Param(nil), defs[0].Params[1:]...)
+	read.Cohorts = []stmt.Cohort{{Name: "exact_source_prefix", Bindings: defs[0].Cohorts[0].Bindings[1:]}}
+	defs[1].SQL = `INSERT INTO credit_source_publication_members(publication_id,entity_id,provider,position,source_row_id,reference_status) VALUES(?,?,?,?,?,?)`
+	defs[1].Params = defs[1].Params[:6]
+	defs[1].Cohorts[0].Bindings = defs[1].Cohorts[0].Bindings[:6]
+	return enrichmentStagePlanHints(append(defs, read))
+
 }
 
 type sourceStagePrefix struct {
@@ -122,21 +136,38 @@ func stageSourceMembers(ctx context.Context, turn *commandTurn, insert, advance 
 			}
 		}
 	}
+	step, err := sealStep(turn, sourceStagePrefixRead)
+	if err != nil {
+		return out, err
+	}
+	row, err := turn.queryRow(ctx, step, sourcePrefixBindings(owner, identity)...)
+	if err != nil {
+		return out, err
+	}
+	var actualNext int64
+	if err := row.Scan(&actualNext); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return out, ErrConflict
+		}
+		return out, err
+	}
+	if actualNext != owner.next {
+		return out, ErrConflict
+	}
 	for _, member := range members {
-		result, err := turn.exec(ctx, insert, owner.publicationID, owner.entityID, owner.provider, member.position, member.sourceRowID, member.reference,
-			owner.operationID, owner.incarnation[:], owner.generation, owner.ownerGeneration, owner.publicationID, owner.next, owner.expected, owner.revision,
-			owner.lastSequence, owner.acknowledgedSequence, owner.entityID, owner.provider, owner.phase, owner.status, owner.lease, owner.leaseUntil)
+		result, err := turn.exec(ctx, insert, owner.publicationID, owner.entityID, owner.provider, member.position, member.sourceRowID, member.reference)
 		if err != nil {
 			return out, err
 		}
-		rows, err := result.RowsAffected()
+		n, err := result.RowsAffected()
 		if err != nil {
 			return out, err
 		}
-		if rows != 1 {
+		if n != 1 {
 			return out, ErrConflict
 		}
 	}
+
 	return advanceSourceStagePrefix(ctx, turn, advance, owner, identity, int64(len(members)))
 }
 
@@ -162,9 +193,26 @@ func advanceSourceStagePrefix(ctx context.Context, turn *commandTurn, step state
 	if !validSourceStagePrefix(owner, identity, count) {
 		return sourceStageProgress{}, ErrConflict
 	}
-	row, err := turn.queryRow(ctx, step, owner.next+count, owner.operationID, owner.incarnation[:], owner.generation, owner.ownerGeneration,
-		owner.publicationID, owner.next, owner.expected, owner.revision, owner.lastSequence, owner.acknowledgedSequence,
-		owner.entityID, owner.provider, owner.phase, owner.status, owner.lease, owner.leaseUntil)
+	check, err := sealStep(turn, sourceStagePrefixRead)
+	if err != nil {
+		return sourceStageProgress{}, err
+	}
+	current, err := turn.queryRow(ctx, check, sourcePrefixBindings(owner, identity)...)
+	if err != nil {
+		return sourceStageProgress{}, err
+	}
+	var next int64
+	if err := current.Scan(&next); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sourceStageProgress{}, ErrConflict
+		}
+		return sourceStageProgress{}, err
+	}
+	if next != owner.next {
+		return sourceStageProgress{}, ErrConflict
+	}
+
+	row, err := turn.queryRow(ctx, step, append([]any{owner.next + count}, sourcePrefixBindings(owner, identity)...)...)
 	if err != nil {
 		return sourceStageProgress{}, err
 	}
@@ -179,4 +227,8 @@ func advanceSourceStagePrefix(ctx context.Context, turn *commandTurn, step state
 		return sourceStageProgress{}, invalid("source_stage_returned_prefix")
 	}
 	return result, nil
+}
+
+func sourcePrefixBindings(owner sourceStagePrefix, identity CommandIdentity) []any {
+	return []any{owner.operationID, owner.incarnation[:], owner.generation, owner.ownerGeneration, owner.publicationID, owner.next, owner.expected, owner.revision, owner.lastSequence, owner.acknowledgedSequence, owner.entityID, owner.provider, owner.phase, owner.status, owner.lease, owner.leaseUntil}
 }

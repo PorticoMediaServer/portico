@@ -1,6 +1,7 @@
 package writer
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
@@ -29,35 +30,27 @@ func enrichmentEvidencePinDefinitions() []stmt.Definition {
 	for i := range incarnation {
 		incarnation[i] = byte(16 + i)
 	}
-	return []stmt.Definition{{
+	defs := []stmt.Definition{{
 		ID: enrichmentEvidencePinBuild, Owner: "writer.enrichment", Kind: stmt.Write,
 		CallSites: []string{"writer/enrichment_evidence_stage_pin.go:pinEvidenceBuild"},
 		SQL: `UPDATE metadata_provider_operations SET evidence_build_id=?
  WHERE id=? AND command_incarnation=? AND generation=? AND entity_id=? AND provider=?
  AND phase='enrichment-v1' AND status='staged' AND lease=? AND lease_until=?
  AND last_command_sequence=? AND acknowledged_command_sequence=? AND evidence_build_id IS NULL
- AND EXISTS(SELECT 1 FROM metadata_evidence_builds b JOIN metadata_evidence e ON e.id=b.evidence_id
- WHERE b.id=? AND b.evidence_id=? AND b.generation=?
- AND b.owner_operation=metadata_provider_operations.id AND b.owner_incarnation=metadata_provider_operations.command_incarnation
- AND b.owner_generation=metadata_provider_operations.generation
- AND b.parent_build IS NULL AND b.state='building' AND b.cursor=1 AND b.materialized_rows=1
- AND e.provider=metadata_provider_operations.provider AND e.sealed=0)
- RETURNING evidence_build_id,
- (SELECT generation FROM metadata_evidence_builds WHERE id=evidence_build_id),generation`,
+ RETURNING evidence_build_id,generation`,
 		Params: []stmt.Param{
 			{Name: "build_id", Type: stmt.Text}, {Name: "operation_id", Type: stmt.Text},
 			{Name: "incarnation", Type: stmt.Blob}, {Name: "operation_generation", Type: stmt.Integer},
 			{Name: "entity_id", Type: stmt.Integer}, {Name: "provider", Type: stmt.Text},
 			{Name: "lease", Type: stmt.Text}, {Name: "lease_until", Type: stmt.Text},
 			{Name: "last_sequence", Type: stmt.Integer}, {Name: "ack_sequence", Type: stmt.Integer},
-			{Name: "expected_build", Type: stmt.Text}, {Name: "evidence_id", Type: stmt.Text},
-			{Name: "build_generation", Type: stmt.Integer},
 		},
 		Cohorts: []stmt.Cohort{{Name: "exact_fresh_build", Bindings: []any{
 			"build-original:211", "operation-one", incarnation, int64(31), int64(101), "fixture",
-			"native-lease", "2100-11-05T12:00:00Z", int64(11), int64(11), "build-original:211", "evidence-original:197", int64(47),
+			"native-lease", "2100-11-05T12:00:00Z", int64(11), int64(11),
 		}}},
 	}}
+	return enrichmentStagePlanHints(defs)
 }
 
 // pinEvidenceBuild is only the005 custody effect. Header/build construction,
@@ -74,18 +67,25 @@ func pinEvidenceBuild(ctx context.Context, turn *commandTurn, step statementStep
 		input.lastSequence < 0 || input.lastSequence != input.acknowledgedSequence || identity.Sequence <= input.lastSequence || identity.Sequence-input.lastSequence != 1 {
 		return out, ErrConflict
 	}
-	row, err := turn.queryRow(ctx, step, input.buildID, input.operationID, identity.Incarnation[:], input.operationGeneration,
-		input.entityID, input.provider, input.lease, input.leaseUntil, input.lastSequence, input.acknowledgedSequence,
-		input.buildID, input.evidenceID, input.buildGeneration)
+	build, err := readStageBuild(ctx, turn, input.buildID)
 	if err != nil {
 		return out, err
 	}
-	if err := row.Scan(&out.buildID, &out.buildGeneration, &out.ownerGeneration); err != nil {
+	if build.evidence != input.evidenceID || build.generation != input.buildGeneration || build.owner != input.operationID || !bytes.Equal(build.inc, identity.Incarnation[:]) || build.ownerGeneration != input.operationGeneration || build.parent.Valid || build.state != "building" || build.phase != "children" || build.cursor != 1 || build.rows != 1 || build.provider != input.provider || build.sealed != 0 {
+		return out, ErrConflict
+	}
+	row, err := turn.queryRow(ctx, step, input.buildID, input.operationID, identity.Incarnation[:], input.operationGeneration, input.entityID, input.provider, input.lease, input.leaseUntil, input.lastSequence, input.acknowledgedSequence)
+
+	if err != nil {
+		return out, err
+	}
+	if err := row.Scan(&out.buildID, &out.ownerGeneration); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return out, ErrConflict
 		}
 		return out, err
 	}
+	out.buildGeneration = build.generation
 	if out.buildID != input.buildID || out.buildGeneration != input.buildGeneration || out.ownerGeneration != input.operationGeneration {
 		return out, invalid("evidence_build_pin_returned_identity")
 	}
