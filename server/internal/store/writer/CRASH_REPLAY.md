@@ -1,5 +1,41 @@
 # Process crash and receipt recovery controls
 
+`TestCrashReplayGovernedPassive` adds **33** witnessed process-crash cells:
+an unpinned WAL, a real pinned read mark, and completion after that reader
+releases. Eleven boundaries per case cover native PASSIVE before/after,
+validation before pool return, actual pool return, grant retirement, post-return
+sampling before/after, complete Step return, native pool-close before/after,
+and joined Close return. Pool return and later native connection close are
+distinct observations; neither is relabelled as the other.
+
+The real reviewed checkpointer/governor/authority are reused. The existing
+connector wrapper still only delegates to the shared Connector; an optional
+test decorator observes native rows, pool validation and native close. The
+fixture clock always returns the same declared value (advanced by the declared
+1500ms cadence for the second step). A test-only observer pins the existing
+post-pool Step clock chain; it observes nonzero custody through pool return and
+zero custody only after actual grant retirement, without changing clock policy
+or publishing fabricated Evidence. The read-only sentinel is a native fixture
+input, not a foreground service/read-admission/memory qualification.
+
+Original W EffectiveStage source/receipt/image journals and real ACK prepare
+the WAL. The independent model requires no SQL-data change, exact original
+frames/salt/allocation, and backfill/debt derived from the observed input prefix
+and pinned read mark. Native PRAGMA rows are recorded independently of the
+returned CheckpointResult. Complete result/settings/timestamps and all 30 source
+tables are checked; WAL files are observed after SIGKILL/Wait **before** any new
+SQLite opener can recover/checkpoint them. Canonical reopen then checks schema,
+integrity/FKs and exact retained retired receipt/image data through history-only
+binding with no fresh source permission.
+
+Fourteen changed-output controls and three actual native SQL corruptions make
+both progress/result and retained-data checks load bearing. Unsupported reset,
+mid-fsync and COMMIT-fault semantics fail explicitly. Every new Linux source is
+inventoried, and scratch/child containment remains scoped to both temp variables.
+This proves small-fixture functional crash/progress/custody behavior, not power
+loss, latency/whole-hard-prefix or pool/RSS qualification, production restart,
+WAL-bound/reset acceptance, or the complete V model.
+
 `TestCrashReplayInventoryNativeHistory` adds **55** cells for the actual
 Inventory history/ACK dispatcher: Applied Resolve (6 native uses), ACK (7),
 Retired Resolve (5), and already-retired ACK (5). Each has BEGIN/COMMIT,

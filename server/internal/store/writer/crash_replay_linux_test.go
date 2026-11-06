@@ -31,6 +31,7 @@ type crashCase struct{ Domain, Operation, Boundary, CommitFault string }
 
 type crashWitness struct {
 	Effective *effectiveCrashOriginal
+	Passive   *passiveCrashProof
 
 	Version          int
 	SchemaSHA        string
@@ -221,6 +222,10 @@ func TestCrashReplayChild(t *testing.T) {
 	if err := json.Unmarshal([]byte(encoded), &witness.Case); err != nil {
 		t.Fatal(err)
 	}
+	if witness.Case.Domain == "passive_native" {
+		crashPassiveFixture(t, &witness)
+		return
+	}
 	if witness.Case.Domain == "effective_steps" {
 		crashEffectiveStepsFixture(t, &witness)
 		return
@@ -322,6 +327,7 @@ type crashCheckpointConnector struct {
 	driver.Connector
 	t       *testing.T
 	witness *crashWitness
+	wrap    func(writerDriverConn) writerDriverConn
 }
 
 func (c crashCheckpointConnector) Connect(ctx context.Context) (driver.Conn, error) {
@@ -329,7 +335,11 @@ func (c crashCheckpointConnector) Connect(ctx context.Context) (driver.Conn, err
 	if err != nil {
 		return nil, err
 	}
-	return &crashConn{writerDriverConn: conn.(writerDriverConn), t: c.t, witness: c.witness}, nil
+	var wrapped writerDriverConn = &crashConn{writerDriverConn: conn.(writerDriverConn), t: c.t, witness: c.witness}
+	if c.wrap != nil {
+		wrapped = c.wrap(wrapped)
+	}
+	return wrapped, nil
 }
 
 func crashCheckpointChild(t *testing.T, f *effectiveFirstLightFixture, witness *crashWitness) {
@@ -348,7 +358,7 @@ func crashCheckpointChild(t *testing.T, f *effectiveFirstLightFixture, witness *
 	if err != nil || wal.Publish(wal.Observation(), state, crashClock) != nil {
 		t.Fatal("checkpoint preflight", state, err)
 	}
-	cp, err := governor.NewCheckpointer(crashCheckpointConnector{connector, t, witness}, cfg, g, authority,
+	cp, err := governor.NewCheckpointer(crashCheckpointConnector{Connector: connector, t: t, witness: witness}, cfg, g, authority,
 		governor.CheckpointPolicy{DatabasePath: f.path, Interval: 50 * time.Millisecond, MaxHold: 25 * time.Millisecond, MaxWait: 50 * time.Millisecond})
 	if err != nil {
 		t.Fatal(err)
