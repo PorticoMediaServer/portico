@@ -2,9 +2,53 @@ package writer
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 	"unicode/utf8"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
+
+const inventoryFreshLibrary stmt.ID = "scan.inventory_accept.fresh_library"
+
+// Retirement is fresh eligibility ONLY, never a historical disclosure filter.
+func inventoryFreshLibraryDefinition() stmt.Definition {
+	return stmt.Definition{ID: inventoryFreshLibrary, Owner: "store/writer Inventory fresh gate", CallSites: []string{"store/writer/inventory_dispatch.go"}, Kind: stmt.Read,
+		SQL:    `SELECT id FROM catalog_libraries WHERE id=? AND library_id=? AND retired=0`,
+		Params: []stmt.Param{{Name: "library_id", Type: stmt.Integer}, {Name: "library_key", Type: stmt.Text}},
+		Cohorts: []stmt.Cohort{
+			{Name: "active", Bindings: []any{int64(7), "scan-library"}},
+			{Name: "retired", Bindings: []any{int64(8), "retired-library"}},
+			{Name: "missing", Bindings: []any{int64(9), "scan-library"}},
+		}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_libraries"}, Seeks: []string{"rowid=?"}}}
+}
+
+func checkInventoryFreshLibrary(ctx context.Context, turn *commandTurn, q ScanReceiptRequest) error {
+	rows, err := turn.query(ctx, turn.steps[inventoryFreshLibrary].statementStep, q.LibraryID, q.LibraryKey)
+	if err != nil {
+		return err
+	}
+	readErr := func() error {
+		if !rows.Next() {
+			if err := rows.Err(); err != nil {
+				return err
+			}
+			return ErrConflict // fresh library is no longer eligible; never poison
+		}
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return err
+		}
+		if id != q.LibraryID || rows.Next() {
+			return ErrResolveRequired
+		}
+		return rows.Err()
+	}()
+	if err := errors.Join(readErr, rows.Close()); err != nil {
+		return err
+	}
+	return turn.checkLifetimes(ctx)
+}
 
 // FIRST is an internal ScanDriver lifetime, never an account/session role or
 // caller-selected system flag. There is no public capability constructor.
@@ -19,7 +63,7 @@ type scanScope struct {
 type inventoryInvocation struct {
 	disclosure *ScanDisclosure
 	request    ScanReceiptRequest
-	accept     bool
+	input      *inventoryAcceptCommand
 }
 
 func (r *effectiveRuntime) currentRunDisclosure(w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, scan *inventoryInvocation) error {
@@ -60,6 +104,9 @@ func inventoryHistoricalResult(q ScanReceiptRequest, lookup inventoryReceiptLook
 
 func acknowledgeInventory(ctx context.Context, turn *commandTurn, q ScanReceiptRequest, lookup inventoryReceiptLookup) (int64, error) {
 	owner := lookup.owner
+	if err := turn.checkLifetimes(ctx); err != nil {
+		return 0, err
+	}
 	if lookup.decision == receiptRetired {
 		return owner.acknowledgedSequence, nil
 	}
@@ -77,6 +124,9 @@ func acknowledgeInventory(ctx context.Context, turn *commandTurn, q ScanReceiptR
 	}
 	if count != 1 {
 		return 0, ErrConflict
+	}
+	if err := turn.checkLifetimes(ctx); err != nil {
+		return 0, err
 	}
 	return q.Receipt.Identity.Sequence, nil
 }

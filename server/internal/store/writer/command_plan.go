@@ -9,9 +9,10 @@ import (
 )
 
 // Only these compiled Inventory history/ACK statements enter the shared
-// runtime. Fresh scan effects and reclaim are not admitted by this profile.
+// runtime, plus one fresh-only eligibility read. Fresh effects and reclaim
+// are not admitted by this profile.
 func inventoryHistoryDefinitions() []stmt.Definition {
-	defs := inventoryDisclosureDefinitions()
+	defs := append(inventoryDisclosureDefinitions(), inventoryFreshLibraryDefinition())
 	for _, def := range scanReceiptDefinitions() {
 		switch def.ID {
 		case scanReceiptOwner, scanReceiptLookup, scanReceiptResults, scanReceiptAck:

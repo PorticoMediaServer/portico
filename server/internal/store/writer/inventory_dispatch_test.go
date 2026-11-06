@@ -19,6 +19,9 @@ import (
 func inventoryFacadeFixture(t *testing.T) (*Writer, map[string]ScanReceiptRequest, *executor, *governor.Authority) {
 	t.Helper()
 	e, requests := inventoryLookupFixture(t)
+	if _, err := e.db.ExecContext(t.Context(), "INSERT INTO catalog_libraries(id,library_id,root,retired) VALUES(8,'retired-library','/retired',1)"); err != nil {
+		t.Fatal(err)
+	}
 	var seq int64
 	var name, path string
 	if err := e.db.QueryRowContext(t.Context(), "PRAGMA database_list").Scan(&seq, &name, &path); err != nil {
@@ -45,7 +48,7 @@ func inventoryFacadeFixture(t *testing.T) (*Writer, map[string]ScanReceiptReques
 	if err != nil {
 		t.Fatal(err)
 	}
-	golden := captureEffectiveFixture(t, conn, e.config, append(defs, inventoryHistoryDefinitions()...))
+	golden := captureEffectiveFixture(t, conn, e.config, append(defs, inventoryHistoryDefinitions()...), "inventory_dispatch_test.go", "inventory_resolution_test.go", "scan_receipts_test.go")
 	if err := conn.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -166,10 +169,23 @@ func TestInventoryFacadeFreshMissAndCurrentDisclosure(t *testing.T) {
 			t.Fatal("non-concrete command entered dispatcher", err)
 		}
 	}
-	for _, wrong := range []*ScanDisclosure{nil, {}, {issuer: &Writer{}, scope: cap.scope}} {
+	expired, cancelLifetime := context.WithCancel(t.Context())
+	cancelLifetime()
+	revoked := inventoryTestDisclosure(t, w, q)
+	revoked.scope.revoked.Store(true)
+	dead := inventoryTestDisclosure(t, w, q)
+	dead.scope.lifetime = expired
+	uninitialized := inventoryTestDisclosure(t, w, q)
+	uninitialized.scope.lifetime = nil
+	for _, wrong := range []*ScanDisclosure{nil, {}, {issuer: &Writer{}, scope: cap.scope}, revoked, dead, uninitialized} {
 		if out, err := w.ResolveScan(t.Context(), wrong, q); !errors.Is(err, ErrDisclosureDenied) || !reflect.DeepEqual(out, InventoryResult{}) {
 			t.Fatal("invalid capability reached native frame", out, err)
 		}
+	}
+	cancelled, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := w.ResolveScan(cancelled, revoked, q); !errors.Is(err, ErrDisclosureDenied) {
+		t.Fatal("caller cancellation masked principal revocation", err)
 	}
 	wrong := q
 	wrong.LibraryID++
@@ -224,7 +240,7 @@ func TestInventoryFacadeRetiredLibraryReplaysBeforeFreshRefusal(t *testing.T) {
 		t.Fatal(err)
 	}
 	refused, err := w.AcceptInventory(t.Context(), inventoryTestDisclosure(t, w, fresh), newCommand)
-	if err == nil || refused.Outcome.State == Applied || refused.RunID != "" || len(refused.Members) != 0 {
+	if !errors.Is(err, ErrConflict) || refused.Outcome.State == Applied || refused.RunID != "" || len(refused.Members) != 0 {
 		t.Fatal("retired library accepted fresh work", refused, err)
 	}
 	var last, receipts int64
@@ -330,6 +346,7 @@ func TestInventoryPlanClosedOwnedAndWhole(t *testing.T) {
 	w, _, _, _ := inventoryFacadeFixture(t)
 	r := w.effective
 	for name, mutate := range map[string]func(*effectivePlan){
+		"missing_receipt":    func(p *effectivePlan) { p.registration = nil },
 		"missing":            func(p *effectivePlan) { p.steps = p.steps[:len(p.steps)-1] },
 		"duplicate":          func(p *effectivePlan) { p.steps[0].id = p.steps[1].id },
 		"foreign":            func(p *effectivePlan) { p.steps[0].id = enrichmentEffectiveOwner },
@@ -345,6 +362,34 @@ func TestInventoryPlanClosedOwnedAndWhole(t *testing.T) {
 				t.Fatal("incomplete Inventory recipe entered runtime", candidate, err)
 			}
 		})
+	}
+	primary := r.plan
+	primary.registration = nil
+	if _, err := newEffectiveRuntime(r.executor, r.path, r.governor, r.authority, r.wal, r.owner, primary, *r.inventoryPlan); !errors.Is(err, stmt.ErrUnqualified) {
+		t.Fatal("missing primary Capture proof accepted", err)
+	}
+	// A real receipt for the Effective-only set must not qualify Inventory or
+	// the combined runtime, even though the native connection is the same.
+	defs := append(enrichmentEffectiveBeginDefinitions(), enrichmentEffectiveProducerDefinitions()...)
+	defs = append(defs, effectiveDispatchDefinitions()...)
+	conn, err := r.executor.db.Conn(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign := captureEffectiveFixture(t, conn, r.executor.config, defs).Receipt()
+	if err := conn.Close(); err != nil {
+		t.Fatal(err)
+	}
+	for _, foreignProfile := range []string{"primary", "inventory"} {
+		primary, inventory := r.plan, *r.inventoryPlan
+		if foreignProfile == "primary" {
+			primary.registration = foreign
+		} else {
+			inventory.registration = foreign
+		}
+		if _, err := newEffectiveRuntime(r.executor, r.path, r.governor, r.authority, r.wal, r.owner, primary, inventory); !errors.Is(err, stmt.ErrUnqualified) {
+			t.Fatal("foreign or incomplete full-set Capture receipt accepted", foreignProfile, err)
+		}
 	}
 	p := *r.inventoryPlan
 	p.steps = append([]statementStep(nil), p.steps...)
