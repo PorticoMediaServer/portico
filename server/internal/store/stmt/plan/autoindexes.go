@@ -18,6 +18,7 @@ type AutoIndexAudit struct {
 	Alias        string                `json:"alias"`
 	WithoutRowid bool                  `json:"withoutRowid"`
 	Index        Rows                  `json:"index"`
+	KeyColumns   Rows                  `json:"keyColumns"`
 	IndexColumns Rows                  `json:"indexColumns"`
 	TableColumns Rows                  `json:"tableColumns"`
 }
@@ -112,6 +113,13 @@ func auditAutoindexes(ctx context.Context, conn *sql.Conn, d stmt.Definition) ([
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", pin.Name, err)
 		}
+		key, err := query(ctx, conn, "PRAGMA main.index_info("+identifier(pin.Name)+")")
+		if err != nil {
+			return nil, err
+		}
+		if err := checkAutoindexKey(key, columns); err != nil {
+			return nil, fmt.Errorf("%s: %w", pin.Name, err)
+		}
 		actual := stmt.AutoIndexBinding{Table: table.name, Name: row[1].(string), Origin: origin, Columns: columns}
 		if pin.Table != actual.Table || pin.Name != actual.Name || pin.Origin != actual.Origin || !slices.Equal(pin.Columns, actual.Columns) {
 			return nil, fmt.Errorf("autoindex name-to-key binding changed: expected %+v, actual %+v", pin, actual)
@@ -140,7 +148,7 @@ func auditAutoindexes(ctx context.Context, conn *sql.Conn, d stmt.Definition) ([
 				}
 			}
 		}
-		audits = append(audits, AutoIndexAudit{actual, hint.alias, table.withoutRowid, Rows{Columns: indexes.Columns, Values: [][]any{row}}, info, table.columns})
+		audits = append(audits, AutoIndexAudit{actual, hint.alias, table.withoutRowid, Rows{Columns: indexes.Columns, Values: [][]any{row}}, key, info, table.columns})
 	}
 	for i, pin := range d.Plan.AutoIndexes {
 		if !used[i] {
@@ -148,6 +156,24 @@ func auditAutoindexes(ctx context.Context, conn *sql.Conn, d stmt.Definition) ([
 		}
 	}
 	return audits, nil
+}
+
+func checkAutoindexKey(info Rows, columns []stmt.IndexColumn) error {
+	if len(info.Values) != len(columns) {
+		return fmt.Errorf("index_info does not match the complete declared key")
+	}
+	for i, row := range info.Values {
+		if len(row) != 3 {
+			return fmt.Errorf("unexpected index_info shape")
+		}
+		seq, sok := row[0].(int64)
+		cid, cok := row[1].(int64)
+		name, nok := row[2].(string)
+		if !sok || !cok || !nok || seq != int64(i) || cid < 0 || name != columns[i].Name {
+			return fmt.Errorf("index_info must contain the exact ordered declared key columns")
+		}
+	}
+	return nil
 }
 
 func autoindexOrigin(row []any) (string, error) {
