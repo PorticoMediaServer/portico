@@ -33,23 +33,25 @@ func scanObjectDefinitions() []stmt.Definition {
 	integer := func(name string) stmt.Param { return stmt.Param{Name: name, Type: stmt.Integer} }
 	return []stmt.Definition{{
 		ID: scanInventoryObject, Kind: stmt.Write,
+		// Omit retired: the adopted schema's DEFAULT 0 makes EVERY insert
+		// write the unretired folder index. Still verify native RETURNING=0.
 		SQL: `INSERT INTO inventory_objects(
 id,source_id,asset_id,root_incarnation,relative_path,object_identity,
 revision,evidence_json,size,modified_ns,seen_job,directory_path,
-state,retired,analysis_state,analysis_revision,has_analysis_probe_bindings)
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+state,analysis_state,analysis_revision,has_analysis_probe_bindings)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 RETURNING id,source_id,asset_id,root_incarnation,relative_path,object_identity,
 revision,evidence_json,size,modified_ns,seen_job,directory_path,
 state,retired,analysis_state,analysis_revision,has_analysis_probe_bindings`,
 		Params: []stmt.Param{text("object_id"), text("source_id"), text("asset_token"), text("root_incarnation"),
 			text("relative_path"), text("object_identity"), text("revision"), text("evidence_json"), integer("size"), integer("modified_ns"),
-			text("run_id"), text("directory_path"), text("state"), integer("retired"), text("analysis_state"), text("analysis_revision"), integer("has_analysis_probe_bindings")},
+			text("run_id"), text("directory_path"), text("state"), text("analysis_state"), text("analysis_revision"), integer("has_analysis_probe_bindings")},
 		Owner: "store/writer scan owner adapter", CallSites: []string{"store/writer/scan_object.go"},
 		Plan: stmt.Plan{Hot: true},
 		Cohorts: []stmt.Cohort{{Name: "new_ordinary_observation", Bindings: []any{
 			"scan-object-new", "scan-object-source", "scan-object-asset", "source-incarnation", "Arrival.mkv", "ino:31",
 			"opaque:observation:019", `{"kind":"local","scope":"scan-object-source:source-incarnation","object":"ino:31","size":42,"modifiedNs":-11,"changeToken":"change:29"}`,
-			int64(42), int64(-11), "scan-object-run", ".", "available", int64(0), "pending", "", int64(0),
+			int64(42), int64(-11), "scan-object-run", ".", "available", "pending", "", int64(0),
 		}}},
 	}}
 }
@@ -85,7 +87,7 @@ func insertInventoryObject(ctx context.Context, turn *commandTurn, in inventoryO
 	}
 	rows, err := turn.query(ctx, step.statementStep, in.objectID, in.sourceID, in.assetToken, in.incarnation,
 		in.relativePath, in.objectIdentity, in.revision, in.evidenceJSON, in.size, in.modifiedNS, in.runID, in.directoryPath,
-		"available", int64(0), "pending", "", int64(0))
+		"available", "pending", "", int64(0))
 	if err != nil {
 		return out, err
 	}
