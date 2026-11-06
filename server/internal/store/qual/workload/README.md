@@ -132,6 +132,24 @@ adapter before native execution. Missing capability must fail or be explicitly
 stubbed, never silently substituted. No native workload/host run is authorized
 by the example.
 
+W's proposed separate TEST-ONLY sustained composition is not on main. It will
+share one writer/executor/governor/WAL/registry on one database, pre-seeding a
+bounded set of DISTINCT legal provider owners/entities and freezing their
+original requests. Each owner gets ONE fresh BEGIN followed by Resolve/ACK of
+that SAME reference. Reusing an already-staged owner is replay/conflict, never
+fresh throughput. Never clear image pins, cursors or receipts with SQL to turn
+the existing fresh-only fixture into sustained state. QS must not clone W's
+constructor/dispatcher, add a public factory or import qualification code into
+writer. Fixture source remains NOT production seal proof.
+
+W's private fence/ambiguity, pool/fault and authority-usage snapshots are
+observation-only. Only actual physical close/ledger return supplies join proof;
+no snapshot manufactures missing execution evidence. Fresh InventoryAccept
+invocations remain unqualified until SC's complete body and W's reviewed central
+enable exist. Production opening, ingress and source proof remain separate
+missing capabilities. Until these owner gates land, this package's local controls
+remain bounded scheduler/reducer controls only.
+
 `Run` waits for every active action after stop. `DriversReturned` is explicitly
 NOT native cleanup proof. After it returns, owning composition still closes and
 proves writer/reader/output/checkpointer/helper retirement, preserves raw evidence
