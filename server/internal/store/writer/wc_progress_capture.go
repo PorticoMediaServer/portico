@@ -288,10 +288,8 @@ func wc008CapturePersonal(ctx context.Context, turn *commandTurn, q wc008Capture
 	position := int64(0)
 	if q.completed {
 		nextWatched = 1
-		watchedAt = sql.NullString{String: p.appliedAt, Valid: true}
 	} else if qualified {
 		nextWatched = 0
-		watchedAt = sql.NullString{}
 	}
 	seconds := q.positionSeconds
 	if q.durationSeconds > 0 {
@@ -312,10 +310,21 @@ func wc008CapturePersonal(ctx context.Context, turn *commandTurn, q wc008Capture
 		}
 		activityAt, activityState = sql.NullString{String: p.appliedAt, Valid: true}, sql.NullString{String: state, Valid: true}
 	}
+	// Only a real watched/play boundary authors new watched evidence. Repeated
+	// completion observations preserve the timestamp of the accepted boundary.
+	if start != 0 || complete != 0 || nextWatched != watched {
+		watchedAt = sql.NullString{}
+		if nextWatched == 1 {
+			watchedAt = sql.NullString{String: p.appliedAt, Valid: true}
+		}
+	}
 	semantic := wc008Bool(start != 0 || complete != 0 || nextWatched != watched || !lastPlayed.Valid || lastPlayed.String == "")
 	// Routine resume checkpoints keep the existing semantic recently-played clock.
 	// A real occurrence/count/completion boundary can advance it, never backwards.
-	boundary := start != 0 || complete != 0 || nextWatched != watched || !lastPlayed.Valid || lastPlayed.String == "" || q.state == "ended"
+	// Match the legacy report terminal predicate. An early ended renderer
+	// report is not an accepted Stop or the physical end of a known title.
+	terminal := q.state == "ended" && (q.durationSeconds <= 0 || seconds >= q.durationSeconds-math.Min(1, q.durationSeconds/100))
+	boundary := start != 0 || complete != 0 || nextWatched != watched || !lastPlayed.Valid || lastPlayed.String == "" || terminal
 	if old, parseErr := time.Parse(time.RFC3339Nano, lastPlayed.String); boundary && (parseErr != nil || time.UnixMilli(p.appliedMS).After(old)) {
 		lastPlayed = sql.NullString{String: p.appliedAt, Valid: true}
 	}
