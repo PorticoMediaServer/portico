@@ -15,8 +15,9 @@ separate admission dependency: it must cover all windows and consumer release.
 This branch does not import its unmerged implementation or claim LIVE admission.
 
 The shared publication helper performs the full exact shared fence first and
-in a fresh final window. Composite reads check exact root/asset/link/probe source
-values in intermediate windows and again at publication. Each native window has
+in a fresh final window. Composite reads capture root/asset/link/probe source
+values in the first window and compare them at final publication. Middle windows
+run business reads only, with no shared or item/source re-fencing. Each window has
 at most eight registered calls and uses the original operation deadline. One
 whole-operation retry is allowed for source/revision drift; a second drift gives
 `ErrStale` plus typed governor Conflict refusal and zero output. Every failure,
@@ -52,9 +53,9 @@ Exact normal counts (including shared/source fences and final validation):
 | Recipe | Statements | Physical snapshots |
 | --- | ---: | ---: |
 | Browse |11–12|2|
-| Detail without selected file |18|3|
-| Detail with selected file |30|4|
-| Playback lookup |22|3|
+| Detail without selected file |17|3|
+| Detail with selected file |24|4|
+| Playback lookup |19|3|
 | Continue watching |11–12|2|
 
 A complete retry may double a recipe's work; all attempts/windows and statement

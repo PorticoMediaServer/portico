@@ -77,7 +77,7 @@ func TestForegroundDetailAndPlayback(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if d.Item.ID != 1 || d.State.ResumePosition != 500 || len(d.Cast) != 100 || len(d.Crew) != 50 || len(d.Children) != 40 || d.ChildrenExhausted || !d.CreditsExhausted || len(d.Images) != 1 || d.Images[0].Provider != "owner" || len(d.Versions) != 1 || d.File == nil || len(d.File.Streams) != 2 || len(d.File.Chapters) != 2 || len(result.LookupWindows) != 3 || result.LookupStatements != 22 || result.PublicationStatements != 8 {
+	if d.Item.ID != 1 || d.State.ResumePosition != 500 || len(d.Cast) != 100 || len(d.Crew) != 50 || len(d.Children) != 40 || d.ChildrenExhausted || !d.CreditsExhausted || len(d.Images) != 1 || d.Images[0].Provider != "owner" || len(d.Versions) != 1 || d.File == nil || len(d.File.Streams) != 2 || len(d.File.Chapters) != 2 || len(result.LookupWindows) != 3 || result.LookupStatements != 16 || result.PublicationStatements != 8 {
 		t.Fatalf("detail counts children%d cast%d crew%d windows%d SQL%d+%d", len(d.Children), len(d.Cast), len(d.Crew), len(result.LookupWindows), result.LookupStatements, result.PublicationStatements)
 	}
 	if d.Next == nil {
@@ -90,7 +90,7 @@ func TestForegroundDetailAndPlayback(t *testing.T) {
 	}
 	in.After = nil
 	file, result, e := r.Playback(t.Context(), foregroundRequest(), time.Second, f.output, in)
-	if e != nil || file.Path != "/media/title.mkv" || file.Size != 1000 || len(file.Streams) != 2 || result.LookupStatements != 14 {
+	if e != nil || file.Path != "/media/title.mkv" || file.Size != 1000 || len(file.Streams) != 2 || result.LookupStatements != 11 {
 		t.Fatalf("playback=%+v result=%+v err=%v", file, result, e)
 	}
 	f.exec(t, `UPDATE catalog_assets SET modified_ns=2 WHERE id=1`)
@@ -315,5 +315,36 @@ func TestForegroundInvalidClockAndContinuationSource(t *testing.T) {
 	d, _, e = r.Detail(t.Context(), foregroundRequest(), time.Second, f.output, in)
 	if !errors.Is(e, ErrStale) || !reflect.DeepEqual(d, TitleDetail{}) {
 		t.Fatal("continuation source drift escaped", e)
+	}
+}
+
+func TestForegroundMiddleWindowsRunBusinessOnly(t *testing.T) {
+	f, _ := newForegroundFixture(t)
+	observed := &foregroundBoundary{Snapshots: f.snapshots, mutate: func(int) {}}
+	var sourceWindows []int
+	root := func(q browseQuery) ([]any, error) {
+		sourceWindows = append(sourceWindows, observed.phase)
+		rows, e := q("foreground.source", int64(1), f.input.Library, f.input.Kind)
+		if e != nil {
+			return nil, e
+		}
+		return rows[0], nil
+	}
+	business := func(ctx context.Context, q browseQuery, fence browseFence, draft *[]int64) error {
+		rows, e := q("foreground.versions", int64(1), int64(17))
+		if e != nil {
+			return e
+		}
+		for _, row := range rows {
+			*draft = append(*draft, row[0].(int64))
+		}
+		return ctx.Err()
+	}
+	values, result, e := publishRead(t.Context(), observed, foregroundRequest(), time.Second, f.output, f.input, []readStep[[]int64]{business, business, business}, root)
+	if e != nil || !reflect.DeepEqual(values, []int64{1, 1, 1}) {
+		t.Fatal("business windows", values, e)
+	}
+	if !reflect.DeepEqual(sourceWindows, []int{1, 4}) || observed.phase != 4 || result.LookupStatements != 9 || result.PublicationStatements != 6 {
+		t.Fatalf("unexpected middle fencing: source windows%v physical%d SQL%d+%d", sourceWindows, observed.phase, result.LookupStatements, result.PublicationStatements)
 	}
 }
