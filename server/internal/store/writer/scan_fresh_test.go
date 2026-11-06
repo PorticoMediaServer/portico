@@ -14,7 +14,6 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/storage"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/searchpolicy"
-	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 )
@@ -82,16 +81,7 @@ func inventoryFreshFixture(t *testing.T) (*executor, string, *inventoryAcceptCom
 	t.Helper()
 	e, path, _ := testExecutor(t)
 	c := seedInventoryFresh(t, e)
-	tx, err := e.begin(t.Context(), InventoryAccept, testRecipe(), &testCustody{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	policy := e.config
-	policy.Synchronous = sqliteconn.Normal
-	registry := nativeFixtureRegistry(t, tx.conn, policy, scanInventoryFreshDefinitions(), "scan_fresh_test.go")
-	if _, err := tx.rollback(nil); err != nil {
-		t.Fatal(err)
-	}
+	registry := nativeInventoryFixtureRegistry(t, e, scanInventoryFreshDefinitions(), "scan_fresh_test.go")
 	return e, path, c, registry
 }
 

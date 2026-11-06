@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
@@ -45,17 +44,9 @@ VALUES('fresh-object','fresh-source','fresh-asset','fresh-incarnation','Arrival.
 func TestInventoryFreshNativeCompiledCohortPopulations(t *testing.T) {
 	e, path, _ := testExecutor(t)
 	seedInventoryFreshPlanFacts(t, e)
-	// Real NORMAL Capture first; it does not execute the compiled statements.
-	tx, err := e.begin(t.Context(), InventoryAccept, testRecipe(), &testCustody{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	policy := e.config
-	policy.Synchronous = sqliteconn.Normal
-	registry := nativeFixtureRegistry(t, tx.conn, policy, scanInventoryFreshDefinitions(), "scan_fresh_test.go", "scan_fresh_plan_facts_test.go")
-	if _, err = tx.rollback(nil); err != nil {
-		t.Fatal(err)
-	}
+	// Real FULL startup Capture precedes ordinary Try/bind/NORMAL BEGIN.
+	// Qualification setup does not execute these compiled cohort effects.
+	registry := nativeInventoryFixtureRegistry(t, e, scanInventoryFreshDefinitions(), "scan_fresh_test.go", "scan_fresh_plan_facts_test.go")
 	for _, d := range scanFreshDefinitions() {
 		for _, cohort := range d.Cohorts {
 			t.Run(string(d.ID)+"/"+cohort.Name, func(t *testing.T) {
@@ -95,10 +86,10 @@ func TestInventoryFreshNativeCompiledCohortPopulations(t *testing.T) {
 				if got != want {
 					t.Fatal("native fixture does not establish declared population", got, want)
 				}
-				if err = turn.closeRows(); err != nil {
+				if err := turn.closeRows(); err != nil {
 					t.Fatal(err)
 				}
-				if _, err = turn.transaction.rollback(nil); err != nil {
+				if _, err := turn.transaction.rollback(nil); err != nil {
 					t.Fatal(err)
 				}
 			})
