@@ -178,6 +178,47 @@ async fn load<'a>(client: {binding}, url: &str) {{
             sites=native_sites('apps/native/Bridge.m',f'static void Fetch(void) {{ {call}; }}')
             self.assertEqual(sites[0]['callText'],call)
 
+    def test_kotlin_try_expression_binds_complete_signature_catches_and_finally(self):
+        import hashlib
+        source='''fun relay(url: HttpUrl, method: String = "GET", body: RequestBody?): Request? = try {
+ val request = Request.Builder().url(url).method(method, body).build()
+ val quoted = "} catch (fake: Exception) {"
+ request
+} catch (first: IllegalArgumentException) {
+ null
+} catch (last: IOException) {
+ if (method == "HEAD") null else null
+} finally {
+ enforceBound(4096)
+}'''
+        sites=native_sites('apps/native/Relay.kt',source)
+        self.assertEqual(len(sites),1)
+        expected=hashlib.sha256(source.encode()).hexdigest()
+        self.assertEqual(sites[0]['constructionHash'],expected)
+        for old,new in [('url(url)','url(other)'),('method(method, body)','method("DELETE", body)'),
+                        ('method(method, body)','method(method, otherBody)'),('"GET"','"POST"'),
+                        ('"HEAD"','"POST"'),('4096','8192')]:
+            with self.subTest(edit=new):
+                changed=native_sites('apps/native/Relay.kt',source.replace(old,new))
+                self.assertEqual(len(changed),1)
+                self.assertNotEqual(changed[0]['constructionHash'],expected)
+        # A following member declaration is outside this expression; its spacing
+        # and visibility cannot extend or truncate the approved preceding span.
+        next_member=source+'\n internal fun next() { return 1 }\n'
+        self.assertEqual(native_sites('apps/native/Relay.kt',next_member)[0]['constructionHash'],expected)
+        final_only='fun relay(url: HttpUrl) = try { Request.Builder().url(url).build() } finally { release() }'
+        self.assertEqual(native_sites('apps/native/Relay.kt',final_only)[0]['constructionHash'],hashlib.sha256(final_only.encode()).hexdigest())
+
+    def test_kotlin_try_expression_refuses_partial_or_unterminated_policy_spans(self):
+        source='fun relay(url: HttpUrl) = try { Request.Builder().url(url).build() } catch (error: Exception) { null }'
+        for suffix in ['.also { rewrite(it) }',' ?: fallback()',' as Request?',' + extra','\n ?: fallback()', '\n transform something']:
+            with self.subTest(suffix=suffix):
+                sites=native_sites('apps/native/Relay.kt',source+suffix)
+                self.assertEqual(len(sites),1)
+                self.assertIsNone(sites[0]['constructionHash'])
+        for invalid in [source[:-1],source.replace('(error: Exception)','error'),source.replace('catch (error: Exception) { null }','finally {')]:
+            self.assertIsNone(native_sites('apps/native/Relay.kt',invalid)[0]['constructionHash'])
+
     def test_transport_rehash_budget_is_shared_with_retained_and_split_pins(self):
         def approval(guard,**extra):return dict(category='platform-transport',guardHash=guard,occurrences=1,**extra)
         old={'old':approval('a')}
