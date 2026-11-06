@@ -38,12 +38,11 @@ func effectiveBeginResultDigest(identity CommandIdentity, request RequestDigest,
 // canonicalResultDigest accepts only explicitly compiled result schemas. A new
 // domain cannot register a codec or make an arbitrary output a canonical result.
 func canonicalResultDigest(identity CommandIdentity, request RequestDigest, result any) (ResultDigest, error) {
-	v, err := preflightCanonicalResult(identity, result)
-	if err != nil {
+	if err := preflightCanonicalResult(identity, result); err != nil {
 		return ResultDigest{}, err
 	}
 	e := requestEncoder{h: sha256.New()}
-	if err := writeEffectiveBeginResult(&e, identity, request, v); err != nil {
+	if err := writeCanonicalResult(&e, identity, request, result); err != nil {
 		return ResultDigest{}, err
 	}
 	var digest ResultDigest
@@ -51,12 +50,25 @@ func canonicalResultDigest(identity CommandIdentity, request RequestDigest, resu
 	return digest, nil
 }
 
-func preflightCanonicalResult(identity CommandIdentity, result any) (effectiveBeginResult, error) {
-	v, ok := result.(effectiveBeginResult)
-	if !ok || identity.Sequence <= 0 || v.ProviderOperationID == "" || v.EntityID <= 0 ||
+func preflightCanonicalResult(identity CommandIdentity, result any) error {
+	if identity.Sequence <= 0 {
+		return invalid("result_command_sequence")
+	}
+	switch v := result.(type) {
+	case effectiveBeginResult:
+		return preflightEffectiveBeginResult(v)
+	case inventoryAcceptResult:
+		return preflightInventoryAcceptResult(v)
+	default:
+		return invalid("canonical_result_schema")
+	}
+}
+
+func preflightEffectiveBeginResult(v effectiveBeginResult) error {
+	if v.ProviderOperationID == "" || v.EntityID <= 0 ||
 		v.ObservedCatalogRevision <= 0 || v.AppliedMS < 0 || v.ImageID <= 0 || v.ImageRevision <= 0 ||
 		v.NextOrdinal != 0 || v.PublicationID != nil || v.ResultCount != 0 || v.MemberCohortLength != 0 {
-		return effectiveBeginResult{}, invalid("effective_begin_result")
+		return invalid("effective_begin_result")
 	}
 	// Check the COMPLETE prospective size before scanning/copying/hashing either
 	// TEXT payload. Subtraction avoids addition overflow. This result ceiling is
@@ -64,17 +76,27 @@ func preflightCanonicalResult(identity CommandIdentity, result any) (effectiveBe
 	remaining := maxCanonicalResultBytes - effectiveBeginFixedBytes
 	if len(v.ProviderOperationID) > remaining || len(v.AfterItem) > remaining-len(v.ProviderOperationID) ||
 		!utf8.ValidString(v.ProviderOperationID) || !utf8.ValidString(v.AfterItem) {
-		return effectiveBeginResult{}, invalid("canonical_result_preflight")
+		return invalid("canonical_result_preflight")
 	}
-	return v, nil
+	return nil
 }
 
 func encodeCanonicalResult(e *requestEncoder, identity CommandIdentity, request RequestDigest, result any) error {
-	v, err := preflightCanonicalResult(identity, result)
-	if err != nil {
+	if err := preflightCanonicalResult(identity, result); err != nil {
 		return err
 	}
-	return writeEffectiveBeginResult(e, identity, request, v)
+	return writeCanonicalResult(e, identity, request, result)
+}
+
+func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request RequestDigest, result any) error {
+	switch v := result.(type) {
+	case effectiveBeginResult:
+		return writeEffectiveBeginResult(e, identity, request, v)
+	case inventoryAcceptResult:
+		return writeInventoryAcceptResult(e, identity, request, v)
+	default:
+		return invalid("canonical_result_schema")
+	}
 }
 
 func writeEffectiveBeginResult(e *requestEncoder, identity CommandIdentity, request RequestDigest, v effectiveBeginResult) error {

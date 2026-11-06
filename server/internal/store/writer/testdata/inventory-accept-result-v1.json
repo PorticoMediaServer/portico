@@ -1,0 +1,2371 @@
+{
+  "wire_doc_sha256": "a1facc7cc60710459bafff3626d07b207159ca90d0a7e43aaa2d2dcd2eefab3b",
+  "header_fixed": 239,
+  "member_fixed": 64,
+  "vectors": [
+    {
+      "name": "unicode_distinct",
+      "input": {
+        "Identity": {
+          "Incarnation": {
+            "hex": "000102030405060708090a0b0c0d0e0f"
+          },
+          "Sequence": 17,
+          "OperationID": {
+            "hex": "202122232425262728292a2b2c2d2e2f"
+          }
+        },
+        "Request": {
+          "hex": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f"
+        },
+        "Result": {
+          "RunID": {
+            "utf8": "scan/α"
+          },
+          "AcceptedRunRevision": 41,
+          "AppliedMS": 1700000000123,
+          "SourceID": {
+            "utf8": "source_日本"
+          },
+          "SourceIncarnation": {
+            "utf8": "root-é"
+          },
+          "SourceRevision": {
+            "utf8": "fs:rev/42"
+          },
+          "NextCursor": {
+            "utf8": "cookie/0042"
+          },
+          "ResultCount": 1,
+          "Members": [
+            {
+              "InputOrdinal": 0,
+              "ChildKind": 0,
+              "ChildOrdinal": 0,
+              "ObjectID": {
+                "utf8": "object-🚀"
+              },
+              "LibraryID": 9,
+              "SubjectID": 101,
+              "AssetID": 303,
+              "AcceptedAssetRevision": 7
+            }
+          ]
+        }
+      },
+      "wire_bytes": 361,
+      "digest_hex": "48113eaae788f47f01d3c843b519bc57ffc38629a6702f4f3557791fedc3aebd",
+      "trace": [
+        {
+          "field": "domain",
+          "offset": 0,
+          "bytes": 32
+        },
+        {
+          "field": "version",
+          "offset": 32,
+          "bytes": 2
+        },
+        {
+          "field": "command.length",
+          "offset": 34,
+          "bytes": 8
+        },
+        {
+          "field": "command.utf8",
+          "offset": 42,
+          "bytes": 16
+        },
+        {
+          "field": "variant.length",
+          "offset": 58,
+          "bytes": 8
+        },
+        {
+          "field": "variant.utf8",
+          "offset": 66,
+          "bytes": 14
+        },
+        {
+          "field": "outcome.length",
+          "offset": 80,
+          "bytes": 8
+        },
+        {
+          "field": "outcome.utf8",
+          "offset": 88,
+          "bytes": 7
+        },
+        {
+          "field": "RunID.length",
+          "offset": 95,
+          "bytes": 8
+        },
+        {
+          "field": "RunID.utf8",
+          "offset": 103,
+          "bytes": 7
+        },
+        {
+          "field": "Identity.Incarnation",
+          "offset": 110,
+          "bytes": 16
+        },
+        {
+          "field": "Identity.Sequence",
+          "offset": 126,
+          "bytes": 8
+        },
+        {
+          "field": "Identity.OperationID",
+          "offset": 134,
+          "bytes": 16
+        },
+        {
+          "field": "Request",
+          "offset": 150,
+          "bytes": 32
+        },
+        {
+          "field": "AcceptedRunRevision",
+          "offset": 182,
+          "bytes": 8
+        },
+        {
+          "field": "AppliedMS",
+          "offset": 190,
+          "bytes": 8
+        },
+        {
+          "field": "SourceID.length",
+          "offset": 198,
+          "bytes": 8
+        },
+        {
+          "field": "SourceID.utf8",
+          "offset": 206,
+          "bytes": 13
+        },
+        {
+          "field": "SourceIncarnation.length",
+          "offset": 219,
+          "bytes": 8
+        },
+        {
+          "field": "SourceIncarnation.utf8",
+          "offset": 227,
+          "bytes": 7
+        },
+        {
+          "field": "SourceRevision.length",
+          "offset": 234,
+          "bytes": 8
+        },
+        {
+          "field": "SourceRevision.utf8",
+          "offset": 242,
+          "bytes": 9
+        },
+        {
+          "field": "NextCursor.length",
+          "offset": 251,
+          "bytes": 8
+        },
+        {
+          "field": "NextCursor.utf8",
+          "offset": 259,
+          "bytes": 11
+        },
+        {
+          "field": "ResultCount",
+          "offset": 270,
+          "bytes": 8
+        },
+        {
+          "field": "MemberCohortLength",
+          "offset": 278,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].InputOrdinal",
+          "offset": 286,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ChildKind",
+          "offset": 294,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ChildOrdinal",
+          "offset": 302,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ObjectID.length",
+          "offset": 310,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ObjectID.utf8",
+          "offset": 318,
+          "bytes": 11
+        },
+        {
+          "field": "Members[0].LibraryID",
+          "offset": 329,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].SubjectID",
+          "offset": 337,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].AssetID",
+          "offset": 345,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].AcceptedAssetRevision",
+          "offset": 353,
+          "bytes": 8
+        }
+      ],
+      "wire_hex": "706f727469636f2d7772697465722d726573756c742d7368613235362d76310000010000000000000010696e76656e746f72795f616363657074000000000000000e6f7264696e6172795f626174636800000000000000076170706c69656400000000000000077363616e2fceb1000102030405060708090a0b0c0d0e0f0000000000000011202122232425262728292a2b2c2d2e2f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f00000000000000290000018bcfe5687b000000000000000d736f757263655fe697a5e69cac0000000000000007726f6f742dc3a9000000000000000966733a7265762f3432000000000000000b636f6f6b69652f3030343200000000000000010000000000000001000000000000000000000000000000000000000000000000000000000000000b6f626a6563742df09f9a8000000000000000090000000000000065000000000000012f0000000000000007",
+      "stats": {
+        "result_hasher_creations": 1,
+        "utf8_validations": 6,
+        "fed_bytes": 361,
+        "preflight_bytes": 361
+      }
+    },
+    {
+      "name": "empty_saved_cursor",
+      "input": {
+        "Identity": {
+          "Incarnation": {
+            "hex": "000102030405060708090a0b0c0d0e0f"
+          },
+          "Sequence": 17,
+          "OperationID": {
+            "hex": "202122232425262728292a2b2c2d2e2f"
+          }
+        },
+        "Request": {
+          "hex": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f"
+        },
+        "Result": {
+          "RunID": {
+            "utf8": "scan/α"
+          },
+          "AcceptedRunRevision": 41,
+          "AppliedMS": 1700000000123,
+          "SourceID": {
+            "utf8": "source_日本"
+          },
+          "SourceIncarnation": {
+            "utf8": "root-é"
+          },
+          "SourceRevision": {
+            "utf8": "fs:rev/42"
+          },
+          "NextCursor": {
+            "utf8": ""
+          },
+          "ResultCount": 1,
+          "Members": [
+            {
+              "InputOrdinal": 0,
+              "ChildKind": 0,
+              "ChildOrdinal": 0,
+              "ObjectID": {
+                "utf8": "object-🚀"
+              },
+              "LibraryID": 9,
+              "SubjectID": 101,
+              "AssetID": 303,
+              "AcceptedAssetRevision": 7
+            }
+          ]
+        }
+      },
+      "wire_bytes": 350,
+      "digest_hex": "ee47f98c26078d37412a1eee3a813025bfde494b556378c3869e66ee0b21a7dc",
+      "trace": [
+        {
+          "field": "domain",
+          "offset": 0,
+          "bytes": 32
+        },
+        {
+          "field": "version",
+          "offset": 32,
+          "bytes": 2
+        },
+        {
+          "field": "command.length",
+          "offset": 34,
+          "bytes": 8
+        },
+        {
+          "field": "command.utf8",
+          "offset": 42,
+          "bytes": 16
+        },
+        {
+          "field": "variant.length",
+          "offset": 58,
+          "bytes": 8
+        },
+        {
+          "field": "variant.utf8",
+          "offset": 66,
+          "bytes": 14
+        },
+        {
+          "field": "outcome.length",
+          "offset": 80,
+          "bytes": 8
+        },
+        {
+          "field": "outcome.utf8",
+          "offset": 88,
+          "bytes": 7
+        },
+        {
+          "field": "RunID.length",
+          "offset": 95,
+          "bytes": 8
+        },
+        {
+          "field": "RunID.utf8",
+          "offset": 103,
+          "bytes": 7
+        },
+        {
+          "field": "Identity.Incarnation",
+          "offset": 110,
+          "bytes": 16
+        },
+        {
+          "field": "Identity.Sequence",
+          "offset": 126,
+          "bytes": 8
+        },
+        {
+          "field": "Identity.OperationID",
+          "offset": 134,
+          "bytes": 16
+        },
+        {
+          "field": "Request",
+          "offset": 150,
+          "bytes": 32
+        },
+        {
+          "field": "AcceptedRunRevision",
+          "offset": 182,
+          "bytes": 8
+        },
+        {
+          "field": "AppliedMS",
+          "offset": 190,
+          "bytes": 8
+        },
+        {
+          "field": "SourceID.length",
+          "offset": 198,
+          "bytes": 8
+        },
+        {
+          "field": "SourceID.utf8",
+          "offset": 206,
+          "bytes": 13
+        },
+        {
+          "field": "SourceIncarnation.length",
+          "offset": 219,
+          "bytes": 8
+        },
+        {
+          "field": "SourceIncarnation.utf8",
+          "offset": 227,
+          "bytes": 7
+        },
+        {
+          "field": "SourceRevision.length",
+          "offset": 234,
+          "bytes": 8
+        },
+        {
+          "field": "SourceRevision.utf8",
+          "offset": 242,
+          "bytes": 9
+        },
+        {
+          "field": "NextCursor.length",
+          "offset": 251,
+          "bytes": 8
+        },
+        {
+          "field": "NextCursor.utf8",
+          "offset": 259,
+          "bytes": 0
+        },
+        {
+          "field": "ResultCount",
+          "offset": 259,
+          "bytes": 8
+        },
+        {
+          "field": "MemberCohortLength",
+          "offset": 267,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].InputOrdinal",
+          "offset": 275,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ChildKind",
+          "offset": 283,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ChildOrdinal",
+          "offset": 291,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ObjectID.length",
+          "offset": 299,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ObjectID.utf8",
+          "offset": 307,
+          "bytes": 11
+        },
+        {
+          "field": "Members[0].LibraryID",
+          "offset": 318,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].SubjectID",
+          "offset": 326,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].AssetID",
+          "offset": 334,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].AcceptedAssetRevision",
+          "offset": 342,
+          "bytes": 8
+        }
+      ],
+      "wire_hex": "706f727469636f2d7772697465722d726573756c742d7368613235362d76310000010000000000000010696e76656e746f72795f616363657074000000000000000e6f7264696e6172795f626174636800000000000000076170706c69656400000000000000077363616e2fceb1000102030405060708090a0b0c0d0e0f0000000000000011202122232425262728292a2b2c2d2e2f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f00000000000000290000018bcfe5687b000000000000000d736f757263655fe697a5e69cac0000000000000007726f6f742dc3a9000000000000000966733a7265762f3432000000000000000000000000000000010000000000000001000000000000000000000000000000000000000000000000000000000000000b6f626a6563742df09f9a8000000000000000090000000000000065000000000000012f0000000000000007",
+      "stats": {
+        "result_hasher_creations": 1,
+        "utf8_validations": 6,
+        "fed_bytes": 350,
+        "preflight_bytes": 350
+      }
+    },
+    {
+      "name": "zero_applied_ms",
+      "input": {
+        "Identity": {
+          "Incarnation": {
+            "hex": "000102030405060708090a0b0c0d0e0f"
+          },
+          "Sequence": 17,
+          "OperationID": {
+            "hex": "202122232425262728292a2b2c2d2e2f"
+          }
+        },
+        "Request": {
+          "hex": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f"
+        },
+        "Result": {
+          "RunID": {
+            "utf8": "scan/α"
+          },
+          "AcceptedRunRevision": 41,
+          "AppliedMS": 0,
+          "SourceID": {
+            "utf8": "source_日本"
+          },
+          "SourceIncarnation": {
+            "utf8": "root-é"
+          },
+          "SourceRevision": {
+            "utf8": "fs:rev/42"
+          },
+          "NextCursor": {
+            "utf8": "cookie/0042"
+          },
+          "ResultCount": 1,
+          "Members": [
+            {
+              "InputOrdinal": 0,
+              "ChildKind": 0,
+              "ChildOrdinal": 0,
+              "ObjectID": {
+                "utf8": "object-🚀"
+              },
+              "LibraryID": 9,
+              "SubjectID": 101,
+              "AssetID": 303,
+              "AcceptedAssetRevision": 7
+            }
+          ]
+        }
+      },
+      "wire_bytes": 361,
+      "digest_hex": "d22bc21b7261908bf5bd9d523015c5b3c03ebd69ba2054083110959a433ebe30",
+      "trace": [
+        {
+          "field": "domain",
+          "offset": 0,
+          "bytes": 32
+        },
+        {
+          "field": "version",
+          "offset": 32,
+          "bytes": 2
+        },
+        {
+          "field": "command.length",
+          "offset": 34,
+          "bytes": 8
+        },
+        {
+          "field": "command.utf8",
+          "offset": 42,
+          "bytes": 16
+        },
+        {
+          "field": "variant.length",
+          "offset": 58,
+          "bytes": 8
+        },
+        {
+          "field": "variant.utf8",
+          "offset": 66,
+          "bytes": 14
+        },
+        {
+          "field": "outcome.length",
+          "offset": 80,
+          "bytes": 8
+        },
+        {
+          "field": "outcome.utf8",
+          "offset": 88,
+          "bytes": 7
+        },
+        {
+          "field": "RunID.length",
+          "offset": 95,
+          "bytes": 8
+        },
+        {
+          "field": "RunID.utf8",
+          "offset": 103,
+          "bytes": 7
+        },
+        {
+          "field": "Identity.Incarnation",
+          "offset": 110,
+          "bytes": 16
+        },
+        {
+          "field": "Identity.Sequence",
+          "offset": 126,
+          "bytes": 8
+        },
+        {
+          "field": "Identity.OperationID",
+          "offset": 134,
+          "bytes": 16
+        },
+        {
+          "field": "Request",
+          "offset": 150,
+          "bytes": 32
+        },
+        {
+          "field": "AcceptedRunRevision",
+          "offset": 182,
+          "bytes": 8
+        },
+        {
+          "field": "AppliedMS",
+          "offset": 190,
+          "bytes": 8
+        },
+        {
+          "field": "SourceID.length",
+          "offset": 198,
+          "bytes": 8
+        },
+        {
+          "field": "SourceID.utf8",
+          "offset": 206,
+          "bytes": 13
+        },
+        {
+          "field": "SourceIncarnation.length",
+          "offset": 219,
+          "bytes": 8
+        },
+        {
+          "field": "SourceIncarnation.utf8",
+          "offset": 227,
+          "bytes": 7
+        },
+        {
+          "field": "SourceRevision.length",
+          "offset": 234,
+          "bytes": 8
+        },
+        {
+          "field": "SourceRevision.utf8",
+          "offset": 242,
+          "bytes": 9
+        },
+        {
+          "field": "NextCursor.length",
+          "offset": 251,
+          "bytes": 8
+        },
+        {
+          "field": "NextCursor.utf8",
+          "offset": 259,
+          "bytes": 11
+        },
+        {
+          "field": "ResultCount",
+          "offset": 270,
+          "bytes": 8
+        },
+        {
+          "field": "MemberCohortLength",
+          "offset": 278,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].InputOrdinal",
+          "offset": 286,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ChildKind",
+          "offset": 294,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ChildOrdinal",
+          "offset": 302,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ObjectID.length",
+          "offset": 310,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ObjectID.utf8",
+          "offset": 318,
+          "bytes": 11
+        },
+        {
+          "field": "Members[0].LibraryID",
+          "offset": 329,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].SubjectID",
+          "offset": 337,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].AssetID",
+          "offset": 345,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].AcceptedAssetRevision",
+          "offset": 353,
+          "bytes": 8
+        }
+      ],
+      "wire_hex": "706f727469636f2d7772697465722d726573756c742d7368613235362d76310000010000000000000010696e76656e746f72795f616363657074000000000000000e6f7264696e6172795f626174636800000000000000076170706c69656400000000000000077363616e2fceb1000102030405060708090a0b0c0d0e0f0000000000000011202122232425262728292a2b2c2d2e2f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f00000000000000290000000000000000000000000000000d736f757263655fe697a5e69cac0000000000000007726f6f742dc3a9000000000000000966733a7265762f3432000000000000000b636f6f6b69652f3030343200000000000000010000000000000001000000000000000000000000000000000000000000000000000000000000000b6f626a6563742df09f9a8000000000000000090000000000000065000000000000012f0000000000000007",
+      "stats": {
+        "result_hasher_creations": 1,
+        "utf8_validations": 6,
+        "fed_bytes": 361,
+        "preflight_bytes": 361
+      }
+    },
+    {
+      "name": "sqlite_integer_maxima",
+      "input": {
+        "Identity": {
+          "Incarnation": {
+            "hex": "000102030405060708090a0b0c0d0e0f"
+          },
+          "Sequence": 9223372036854775807,
+          "OperationID": {
+            "hex": "202122232425262728292a2b2c2d2e2f"
+          }
+        },
+        "Request": {
+          "hex": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f"
+        },
+        "Result": {
+          "RunID": {
+            "utf8": "scan/α"
+          },
+          "AcceptedRunRevision": 9223372036854775807,
+          "AppliedMS": 9223372036854775807,
+          "SourceID": {
+            "utf8": "source_日本"
+          },
+          "SourceIncarnation": {
+            "utf8": "root-é"
+          },
+          "SourceRevision": {
+            "utf8": "fs:rev/42"
+          },
+          "NextCursor": {
+            "utf8": "cookie/0042"
+          },
+          "ResultCount": 1,
+          "Members": [
+            {
+              "InputOrdinal": 0,
+              "ChildKind": 0,
+              "ChildOrdinal": 0,
+              "ObjectID": {
+                "utf8": "object-🚀"
+              },
+              "LibraryID": 9223372036854775807,
+              "SubjectID": 9223372036854775807,
+              "AssetID": 9223372036854775807,
+              "AcceptedAssetRevision": 9223372036854775807
+            }
+          ]
+        }
+      },
+      "wire_bytes": 361,
+      "digest_hex": "67fb4468f32ce1f36b2910c486ee05644af7d285bc20f295315f0bfb007827dc",
+      "trace": [
+        {
+          "field": "domain",
+          "offset": 0,
+          "bytes": 32
+        },
+        {
+          "field": "version",
+          "offset": 32,
+          "bytes": 2
+        },
+        {
+          "field": "command.length",
+          "offset": 34,
+          "bytes": 8
+        },
+        {
+          "field": "command.utf8",
+          "offset": 42,
+          "bytes": 16
+        },
+        {
+          "field": "variant.length",
+          "offset": 58,
+          "bytes": 8
+        },
+        {
+          "field": "variant.utf8",
+          "offset": 66,
+          "bytes": 14
+        },
+        {
+          "field": "outcome.length",
+          "offset": 80,
+          "bytes": 8
+        },
+        {
+          "field": "outcome.utf8",
+          "offset": 88,
+          "bytes": 7
+        },
+        {
+          "field": "RunID.length",
+          "offset": 95,
+          "bytes": 8
+        },
+        {
+          "field": "RunID.utf8",
+          "offset": 103,
+          "bytes": 7
+        },
+        {
+          "field": "Identity.Incarnation",
+          "offset": 110,
+          "bytes": 16
+        },
+        {
+          "field": "Identity.Sequence",
+          "offset": 126,
+          "bytes": 8
+        },
+        {
+          "field": "Identity.OperationID",
+          "offset": 134,
+          "bytes": 16
+        },
+        {
+          "field": "Request",
+          "offset": 150,
+          "bytes": 32
+        },
+        {
+          "field": "AcceptedRunRevision",
+          "offset": 182,
+          "bytes": 8
+        },
+        {
+          "field": "AppliedMS",
+          "offset": 190,
+          "bytes": 8
+        },
+        {
+          "field": "SourceID.length",
+          "offset": 198,
+          "bytes": 8
+        },
+        {
+          "field": "SourceID.utf8",
+          "offset": 206,
+          "bytes": 13
+        },
+        {
+          "field": "SourceIncarnation.length",
+          "offset": 219,
+          "bytes": 8
+        },
+        {
+          "field": "SourceIncarnation.utf8",
+          "offset": 227,
+          "bytes": 7
+        },
+        {
+          "field": "SourceRevision.length",
+          "offset": 234,
+          "bytes": 8
+        },
+        {
+          "field": "SourceRevision.utf8",
+          "offset": 242,
+          "bytes": 9
+        },
+        {
+          "field": "NextCursor.length",
+          "offset": 251,
+          "bytes": 8
+        },
+        {
+          "field": "NextCursor.utf8",
+          "offset": 259,
+          "bytes": 11
+        },
+        {
+          "field": "ResultCount",
+          "offset": 270,
+          "bytes": 8
+        },
+        {
+          "field": "MemberCohortLength",
+          "offset": 278,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].InputOrdinal",
+          "offset": 286,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ChildKind",
+          "offset": 294,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ChildOrdinal",
+          "offset": 302,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ObjectID.length",
+          "offset": 310,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ObjectID.utf8",
+          "offset": 318,
+          "bytes": 11
+        },
+        {
+          "field": "Members[0].LibraryID",
+          "offset": 329,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].SubjectID",
+          "offset": 337,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].AssetID",
+          "offset": 345,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].AcceptedAssetRevision",
+          "offset": 353,
+          "bytes": 8
+        }
+      ],
+      "wire_hex": "706f727469636f2d7772697465722d726573756c742d7368613235362d76310000010000000000000010696e76656e746f72795f616363657074000000000000000e6f7264696e6172795f626174636800000000000000076170706c69656400000000000000077363616e2fceb1000102030405060708090a0b0c0d0e0f7fffffffffffffff202122232425262728292a2b2c2d2e2f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f7fffffffffffffff7fffffffffffffff000000000000000d736f757263655fe697a5e69cac0000000000000007726f6f742dc3a9000000000000000966733a7265762f3432000000000000000b636f6f6b69652f3030343200000000000000010000000000000001000000000000000000000000000000000000000000000000000000000000000b6f626a6563742df09f9a807fffffffffffffff7fffffffffffffff7fffffffffffffff7fffffffffffffff",
+      "stats": {
+        "result_hasher_creations": 1,
+        "utf8_validations": 6,
+        "fed_bytes": 361,
+        "preflight_bytes": 361
+      }
+    },
+    {
+      "name": "nfc_exact_bytes",
+      "input": {
+        "Identity": {
+          "Incarnation": {
+            "hex": "000102030405060708090a0b0c0d0e0f"
+          },
+          "Sequence": 17,
+          "OperationID": {
+            "hex": "202122232425262728292a2b2c2d2e2f"
+          }
+        },
+        "Request": {
+          "hex": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f"
+        },
+        "Result": {
+          "RunID": {
+            "utf8": "scan/α"
+          },
+          "AcceptedRunRevision": 41,
+          "AppliedMS": 1700000000123,
+          "SourceID": {
+            "utf8": "source_日本"
+          },
+          "SourceIncarnation": {
+            "utf8": "root-é"
+          },
+          "SourceRevision": {
+            "utf8": "révision/Å"
+          },
+          "NextCursor": {
+            "utf8": "cookie/0042"
+          },
+          "ResultCount": 1,
+          "Members": [
+            {
+              "InputOrdinal": 0,
+              "ChildKind": 0,
+              "ChildOrdinal": 0,
+              "ObjectID": {
+                "utf8": "café"
+              },
+              "LibraryID": 9,
+              "SubjectID": 101,
+              "AssetID": 303,
+              "AcceptedAssetRevision": 7
+            }
+          ]
+        }
+      },
+      "wire_bytes": 358,
+      "digest_hex": "b96f90c9f45d7a1bece9cb0ef52e7facbb3fb0cc11d00773c313f9a866b42eeb",
+      "trace": [
+        {
+          "field": "domain",
+          "offset": 0,
+          "bytes": 32
+        },
+        {
+          "field": "version",
+          "offset": 32,
+          "bytes": 2
+        },
+        {
+          "field": "command.length",
+          "offset": 34,
+          "bytes": 8
+        },
+        {
+          "field": "command.utf8",
+          "offset": 42,
+          "bytes": 16
+        },
+        {
+          "field": "variant.length",
+          "offset": 58,
+          "bytes": 8
+        },
+        {
+          "field": "variant.utf8",
+          "offset": 66,
+          "bytes": 14
+        },
+        {
+          "field": "outcome.length",
+          "offset": 80,
+          "bytes": 8
+        },
+        {
+          "field": "outcome.utf8",
+          "offset": 88,
+          "bytes": 7
+        },
+        {
+          "field": "RunID.length",
+          "offset": 95,
+          "bytes": 8
+        },
+        {
+          "field": "RunID.utf8",
+          "offset": 103,
+          "bytes": 7
+        },
+        {
+          "field": "Identity.Incarnation",
+          "offset": 110,
+          "bytes": 16
+        },
+        {
+          "field": "Identity.Sequence",
+          "offset": 126,
+          "bytes": 8
+        },
+        {
+          "field": "Identity.OperationID",
+          "offset": 134,
+          "bytes": 16
+        },
+        {
+          "field": "Request",
+          "offset": 150,
+          "bytes": 32
+        },
+        {
+          "field": "AcceptedRunRevision",
+          "offset": 182,
+          "bytes": 8
+        },
+        {
+          "field": "AppliedMS",
+          "offset": 190,
+          "bytes": 8
+        },
+        {
+          "field": "SourceID.length",
+          "offset": 198,
+          "bytes": 8
+        },
+        {
+          "field": "SourceID.utf8",
+          "offset": 206,
+          "bytes": 13
+        },
+        {
+          "field": "SourceIncarnation.length",
+          "offset": 219,
+          "bytes": 8
+        },
+        {
+          "field": "SourceIncarnation.utf8",
+          "offset": 227,
+          "bytes": 7
+        },
+        {
+          "field": "SourceRevision.length",
+          "offset": 234,
+          "bytes": 8
+        },
+        {
+          "field": "SourceRevision.utf8",
+          "offset": 242,
+          "bytes": 12
+        },
+        {
+          "field": "NextCursor.length",
+          "offset": 254,
+          "bytes": 8
+        },
+        {
+          "field": "NextCursor.utf8",
+          "offset": 262,
+          "bytes": 11
+        },
+        {
+          "field": "ResultCount",
+          "offset": 273,
+          "bytes": 8
+        },
+        {
+          "field": "MemberCohortLength",
+          "offset": 281,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].InputOrdinal",
+          "offset": 289,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ChildKind",
+          "offset": 297,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ChildOrdinal",
+          "offset": 305,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ObjectID.length",
+          "offset": 313,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ObjectID.utf8",
+          "offset": 321,
+          "bytes": 5
+        },
+        {
+          "field": "Members[0].LibraryID",
+          "offset": 326,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].SubjectID",
+          "offset": 334,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].AssetID",
+          "offset": 342,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].AcceptedAssetRevision",
+          "offset": 350,
+          "bytes": 8
+        }
+      ],
+      "wire_hex": "706f727469636f2d7772697465722d726573756c742d7368613235362d76310000010000000000000010696e76656e746f72795f616363657074000000000000000e6f7264696e6172795f626174636800000000000000076170706c69656400000000000000077363616e2fceb1000102030405060708090a0b0c0d0e0f0000000000000011202122232425262728292a2b2c2d2e2f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f00000000000000290000018bcfe5687b000000000000000d736f757263655fe697a5e69cac0000000000000007726f6f742dc3a9000000000000000c72c3a9766973696f6e2fc385000000000000000b636f6f6b69652f30303432000000000000000100000000000000010000000000000000000000000000000000000000000000000000000000000005636166c3a900000000000000090000000000000065000000000000012f0000000000000007",
+      "stats": {
+        "result_hasher_creations": 1,
+        "utf8_validations": 6,
+        "fed_bytes": 358,
+        "preflight_bytes": 358
+      }
+    },
+    {
+      "name": "nfd_exact_bytes",
+      "input": {
+        "Identity": {
+          "Incarnation": {
+            "hex": "000102030405060708090a0b0c0d0e0f"
+          },
+          "Sequence": 17,
+          "OperationID": {
+            "hex": "202122232425262728292a2b2c2d2e2f"
+          }
+        },
+        "Request": {
+          "hex": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f"
+        },
+        "Result": {
+          "RunID": {
+            "utf8": "scan/α"
+          },
+          "AcceptedRunRevision": 41,
+          "AppliedMS": 1700000000123,
+          "SourceID": {
+            "utf8": "source_日本"
+          },
+          "SourceIncarnation": {
+            "utf8": "root-é"
+          },
+          "SourceRevision": {
+            "utf8": "révision/Å"
+          },
+          "NextCursor": {
+            "utf8": "cookie/0042"
+          },
+          "ResultCount": 1,
+          "Members": [
+            {
+              "InputOrdinal": 0,
+              "ChildKind": 0,
+              "ChildOrdinal": 0,
+              "ObjectID": {
+                "utf8": "café"
+              },
+              "LibraryID": 9,
+              "SubjectID": 101,
+              "AssetID": 303,
+              "AcceptedAssetRevision": 7
+            }
+          ]
+        }
+      },
+      "wire_bytes": 361,
+      "digest_hex": "6153145ad0f981a951f74b8eada7f569b56b7bba7ac7d07b88180ac0e2facfea",
+      "trace": [
+        {
+          "field": "domain",
+          "offset": 0,
+          "bytes": 32
+        },
+        {
+          "field": "version",
+          "offset": 32,
+          "bytes": 2
+        },
+        {
+          "field": "command.length",
+          "offset": 34,
+          "bytes": 8
+        },
+        {
+          "field": "command.utf8",
+          "offset": 42,
+          "bytes": 16
+        },
+        {
+          "field": "variant.length",
+          "offset": 58,
+          "bytes": 8
+        },
+        {
+          "field": "variant.utf8",
+          "offset": 66,
+          "bytes": 14
+        },
+        {
+          "field": "outcome.length",
+          "offset": 80,
+          "bytes": 8
+        },
+        {
+          "field": "outcome.utf8",
+          "offset": 88,
+          "bytes": 7
+        },
+        {
+          "field": "RunID.length",
+          "offset": 95,
+          "bytes": 8
+        },
+        {
+          "field": "RunID.utf8",
+          "offset": 103,
+          "bytes": 7
+        },
+        {
+          "field": "Identity.Incarnation",
+          "offset": 110,
+          "bytes": 16
+        },
+        {
+          "field": "Identity.Sequence",
+          "offset": 126,
+          "bytes": 8
+        },
+        {
+          "field": "Identity.OperationID",
+          "offset": 134,
+          "bytes": 16
+        },
+        {
+          "field": "Request",
+          "offset": 150,
+          "bytes": 32
+        },
+        {
+          "field": "AcceptedRunRevision",
+          "offset": 182,
+          "bytes": 8
+        },
+        {
+          "field": "AppliedMS",
+          "offset": 190,
+          "bytes": 8
+        },
+        {
+          "field": "SourceID.length",
+          "offset": 198,
+          "bytes": 8
+        },
+        {
+          "field": "SourceID.utf8",
+          "offset": 206,
+          "bytes": 13
+        },
+        {
+          "field": "SourceIncarnation.length",
+          "offset": 219,
+          "bytes": 8
+        },
+        {
+          "field": "SourceIncarnation.utf8",
+          "offset": 227,
+          "bytes": 7
+        },
+        {
+          "field": "SourceRevision.length",
+          "offset": 234,
+          "bytes": 8
+        },
+        {
+          "field": "SourceRevision.utf8",
+          "offset": 242,
+          "bytes": 14
+        },
+        {
+          "field": "NextCursor.length",
+          "offset": 256,
+          "bytes": 8
+        },
+        {
+          "field": "NextCursor.utf8",
+          "offset": 264,
+          "bytes": 11
+        },
+        {
+          "field": "ResultCount",
+          "offset": 275,
+          "bytes": 8
+        },
+        {
+          "field": "MemberCohortLength",
+          "offset": 283,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].InputOrdinal",
+          "offset": 291,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ChildKind",
+          "offset": 299,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ChildOrdinal",
+          "offset": 307,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ObjectID.length",
+          "offset": 315,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ObjectID.utf8",
+          "offset": 323,
+          "bytes": 6
+        },
+        {
+          "field": "Members[0].LibraryID",
+          "offset": 329,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].SubjectID",
+          "offset": 337,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].AssetID",
+          "offset": 345,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].AcceptedAssetRevision",
+          "offset": 353,
+          "bytes": 8
+        }
+      ],
+      "wire_hex": "706f727469636f2d7772697465722d726573756c742d7368613235362d76310000010000000000000010696e76656e746f72795f616363657074000000000000000e6f7264696e6172795f626174636800000000000000076170706c69656400000000000000077363616e2fceb1000102030405060708090a0b0c0d0e0f0000000000000011202122232425262728292a2b2c2d2e2f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f00000000000000290000018bcfe5687b000000000000000d736f757263655fe697a5e69cac0000000000000007726f6f742dc3a9000000000000000e7265cc81766973696f6e2f41cc8a000000000000000b636f6f6b69652f3030343200000000000000010000000000000001000000000000000000000000000000000000000000000000000000000000000663616665cc8100000000000000090000000000000065000000000000012f0000000000000007",
+      "stats": {
+        "result_hasher_creations": 1,
+        "utf8_validations": 6,
+        "fed_bytes": 361,
+        "preflight_bytes": 361
+      }
+    },
+    {
+      "name": "n2_wire_only_not_admitted",
+      "input": {
+        "Identity": {
+          "Incarnation": {
+            "hex": "000102030405060708090a0b0c0d0e0f"
+          },
+          "Sequence": 17,
+          "OperationID": {
+            "hex": "202122232425262728292a2b2c2d2e2f"
+          }
+        },
+        "Request": {
+          "hex": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f"
+        },
+        "Result": {
+          "RunID": {
+            "utf8": "scan/α"
+          },
+          "AcceptedRunRevision": 41,
+          "AppliedMS": 1700000000123,
+          "SourceID": {
+            "utf8": "source_日本"
+          },
+          "SourceIncarnation": {
+            "utf8": "root-é"
+          },
+          "SourceRevision": {
+            "utf8": "fs:rev/42"
+          },
+          "NextCursor": {
+            "utf8": "cookie/0042"
+          },
+          "ResultCount": 2,
+          "Members": [
+            {
+              "InputOrdinal": 0,
+              "ChildKind": 0,
+              "ChildOrdinal": 0,
+              "ObjectID": {
+                "utf8": "object-🚀"
+              },
+              "LibraryID": 9,
+              "SubjectID": 101,
+              "AssetID": 303,
+              "AcceptedAssetRevision": 7
+            },
+            {
+              "InputOrdinal": 1,
+              "ChildKind": 0,
+              "ChildOrdinal": 0,
+              "ObjectID": {
+                "utf8": "object-second"
+              },
+              "LibraryID": 9,
+              "SubjectID": 202,
+              "AssetID": 404,
+              "AcceptedAssetRevision": 11
+            }
+          ]
+        }
+      },
+      "wire_bytes": 438,
+      "digest_hex": "7dd6818b28efa2b19a646b75b65356f1cf6ab18ed88242ba1177e22af3f030a9",
+      "trace": [
+        {
+          "field": "domain",
+          "offset": 0,
+          "bytes": 32
+        },
+        {
+          "field": "version",
+          "offset": 32,
+          "bytes": 2
+        },
+        {
+          "field": "command.length",
+          "offset": 34,
+          "bytes": 8
+        },
+        {
+          "field": "command.utf8",
+          "offset": 42,
+          "bytes": 16
+        },
+        {
+          "field": "variant.length",
+          "offset": 58,
+          "bytes": 8
+        },
+        {
+          "field": "variant.utf8",
+          "offset": 66,
+          "bytes": 14
+        },
+        {
+          "field": "outcome.length",
+          "offset": 80,
+          "bytes": 8
+        },
+        {
+          "field": "outcome.utf8",
+          "offset": 88,
+          "bytes": 7
+        },
+        {
+          "field": "RunID.length",
+          "offset": 95,
+          "bytes": 8
+        },
+        {
+          "field": "RunID.utf8",
+          "offset": 103,
+          "bytes": 7
+        },
+        {
+          "field": "Identity.Incarnation",
+          "offset": 110,
+          "bytes": 16
+        },
+        {
+          "field": "Identity.Sequence",
+          "offset": 126,
+          "bytes": 8
+        },
+        {
+          "field": "Identity.OperationID",
+          "offset": 134,
+          "bytes": 16
+        },
+        {
+          "field": "Request",
+          "offset": 150,
+          "bytes": 32
+        },
+        {
+          "field": "AcceptedRunRevision",
+          "offset": 182,
+          "bytes": 8
+        },
+        {
+          "field": "AppliedMS",
+          "offset": 190,
+          "bytes": 8
+        },
+        {
+          "field": "SourceID.length",
+          "offset": 198,
+          "bytes": 8
+        },
+        {
+          "field": "SourceID.utf8",
+          "offset": 206,
+          "bytes": 13
+        },
+        {
+          "field": "SourceIncarnation.length",
+          "offset": 219,
+          "bytes": 8
+        },
+        {
+          "field": "SourceIncarnation.utf8",
+          "offset": 227,
+          "bytes": 7
+        },
+        {
+          "field": "SourceRevision.length",
+          "offset": 234,
+          "bytes": 8
+        },
+        {
+          "field": "SourceRevision.utf8",
+          "offset": 242,
+          "bytes": 9
+        },
+        {
+          "field": "NextCursor.length",
+          "offset": 251,
+          "bytes": 8
+        },
+        {
+          "field": "NextCursor.utf8",
+          "offset": 259,
+          "bytes": 11
+        },
+        {
+          "field": "ResultCount",
+          "offset": 270,
+          "bytes": 8
+        },
+        {
+          "field": "MemberCohortLength",
+          "offset": 278,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].InputOrdinal",
+          "offset": 286,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ChildKind",
+          "offset": 294,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ChildOrdinal",
+          "offset": 302,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ObjectID.length",
+          "offset": 310,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ObjectID.utf8",
+          "offset": 318,
+          "bytes": 11
+        },
+        {
+          "field": "Members[0].LibraryID",
+          "offset": 329,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].SubjectID",
+          "offset": 337,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].AssetID",
+          "offset": 345,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].AcceptedAssetRevision",
+          "offset": 353,
+          "bytes": 8
+        },
+        {
+          "field": "Members[1].InputOrdinal",
+          "offset": 361,
+          "bytes": 8
+        },
+        {
+          "field": "Members[1].ChildKind",
+          "offset": 369,
+          "bytes": 8
+        },
+        {
+          "field": "Members[1].ChildOrdinal",
+          "offset": 377,
+          "bytes": 8
+        },
+        {
+          "field": "Members[1].ObjectID.length",
+          "offset": 385,
+          "bytes": 8
+        },
+        {
+          "field": "Members[1].ObjectID.utf8",
+          "offset": 393,
+          "bytes": 13
+        },
+        {
+          "field": "Members[1].LibraryID",
+          "offset": 406,
+          "bytes": 8
+        },
+        {
+          "field": "Members[1].SubjectID",
+          "offset": 414,
+          "bytes": 8
+        },
+        {
+          "field": "Members[1].AssetID",
+          "offset": 422,
+          "bytes": 8
+        },
+        {
+          "field": "Members[1].AcceptedAssetRevision",
+          "offset": 430,
+          "bytes": 8
+        }
+      ],
+      "wire_hex": "706f727469636f2d7772697465722d726573756c742d7368613235362d76310000010000000000000010696e76656e746f72795f616363657074000000000000000e6f7264696e6172795f626174636800000000000000076170706c69656400000000000000077363616e2fceb1000102030405060708090a0b0c0d0e0f0000000000000011202122232425262728292a2b2c2d2e2f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f00000000000000290000018bcfe5687b000000000000000d736f757263655fe697a5e69cac0000000000000007726f6f742dc3a9000000000000000966733a7265762f3432000000000000000b636f6f6b69652f3030343200000000000000020000000000000002000000000000000000000000000000000000000000000000000000000000000b6f626a6563742df09f9a8000000000000000090000000000000065000000000000012f0000000000000007000000000000000100000000000000000000000000000000000000000000000d6f626a6563742d7365636f6e64000000000000000900000000000000ca0000000000000194000000000000000b",
+      "stats": {
+        "result_hasher_creations": 1,
+        "utf8_validations": 7,
+        "fed_bytes": 438,
+        "preflight_bytes": 438
+      }
+    },
+    {
+      "name": "embedded_nul_retained",
+      "input": {
+        "Identity": {
+          "Incarnation": {
+            "hex": "000102030405060708090a0b0c0d0e0f"
+          },
+          "Sequence": 17,
+          "OperationID": {
+            "hex": "202122232425262728292a2b2c2d2e2f"
+          }
+        },
+        "Request": {
+          "hex": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f"
+        },
+        "Result": {
+          "RunID": {
+            "utf8": "RunID\u0000tail"
+          },
+          "AcceptedRunRevision": 41,
+          "AppliedMS": 1700000000123,
+          "SourceID": {
+            "utf8": "SourceID\u0000tail"
+          },
+          "SourceIncarnation": {
+            "utf8": "SourceIncarnation\u0000tail"
+          },
+          "SourceRevision": {
+            "utf8": "SourceRevision\u0000tail"
+          },
+          "NextCursor": {
+            "utf8": "NextCursor\u0000tail"
+          },
+          "ResultCount": 1,
+          "Members": [
+            {
+              "InputOrdinal": 0,
+              "ChildKind": 0,
+              "ChildOrdinal": 0,
+              "ObjectID": {
+                "utf8": "object\u0000tail"
+              },
+              "LibraryID": 9,
+              "SubjectID": 101,
+              "AssetID": 303,
+              "AcceptedAssetRevision": 7
+            }
+          ]
+        }
+      },
+      "wire_bytes": 393,
+      "digest_hex": "1be4193cf64e5b57d907711b71ad3edb585a8ac0bb7e26e39b25f45215608f3c",
+      "trace": [
+        {
+          "field": "domain",
+          "offset": 0,
+          "bytes": 32
+        },
+        {
+          "field": "version",
+          "offset": 32,
+          "bytes": 2
+        },
+        {
+          "field": "command.length",
+          "offset": 34,
+          "bytes": 8
+        },
+        {
+          "field": "command.utf8",
+          "offset": 42,
+          "bytes": 16
+        },
+        {
+          "field": "variant.length",
+          "offset": 58,
+          "bytes": 8
+        },
+        {
+          "field": "variant.utf8",
+          "offset": 66,
+          "bytes": 14
+        },
+        {
+          "field": "outcome.length",
+          "offset": 80,
+          "bytes": 8
+        },
+        {
+          "field": "outcome.utf8",
+          "offset": 88,
+          "bytes": 7
+        },
+        {
+          "field": "RunID.length",
+          "offset": 95,
+          "bytes": 8
+        },
+        {
+          "field": "RunID.utf8",
+          "offset": 103,
+          "bytes": 10
+        },
+        {
+          "field": "Identity.Incarnation",
+          "offset": 113,
+          "bytes": 16
+        },
+        {
+          "field": "Identity.Sequence",
+          "offset": 129,
+          "bytes": 8
+        },
+        {
+          "field": "Identity.OperationID",
+          "offset": 137,
+          "bytes": 16
+        },
+        {
+          "field": "Request",
+          "offset": 153,
+          "bytes": 32
+        },
+        {
+          "field": "AcceptedRunRevision",
+          "offset": 185,
+          "bytes": 8
+        },
+        {
+          "field": "AppliedMS",
+          "offset": 193,
+          "bytes": 8
+        },
+        {
+          "field": "SourceID.length",
+          "offset": 201,
+          "bytes": 8
+        },
+        {
+          "field": "SourceID.utf8",
+          "offset": 209,
+          "bytes": 13
+        },
+        {
+          "field": "SourceIncarnation.length",
+          "offset": 222,
+          "bytes": 8
+        },
+        {
+          "field": "SourceIncarnation.utf8",
+          "offset": 230,
+          "bytes": 22
+        },
+        {
+          "field": "SourceRevision.length",
+          "offset": 252,
+          "bytes": 8
+        },
+        {
+          "field": "SourceRevision.utf8",
+          "offset": 260,
+          "bytes": 19
+        },
+        {
+          "field": "NextCursor.length",
+          "offset": 279,
+          "bytes": 8
+        },
+        {
+          "field": "NextCursor.utf8",
+          "offset": 287,
+          "bytes": 15
+        },
+        {
+          "field": "ResultCount",
+          "offset": 302,
+          "bytes": 8
+        },
+        {
+          "field": "MemberCohortLength",
+          "offset": 310,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].InputOrdinal",
+          "offset": 318,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ChildKind",
+          "offset": 326,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ChildOrdinal",
+          "offset": 334,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ObjectID.length",
+          "offset": 342,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ObjectID.utf8",
+          "offset": 350,
+          "bytes": 11
+        },
+        {
+          "field": "Members[0].LibraryID",
+          "offset": 361,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].SubjectID",
+          "offset": 369,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].AssetID",
+          "offset": 377,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].AcceptedAssetRevision",
+          "offset": 385,
+          "bytes": 8
+        }
+      ],
+      "wire_hex": "706f727469636f2d7772697465722d726573756c742d7368613235362d76310000010000000000000010696e76656e746f72795f616363657074000000000000000e6f7264696e6172795f626174636800000000000000076170706c696564000000000000000a52756e4944007461696c000102030405060708090a0b0c0d0e0f0000000000000011202122232425262728292a2b2c2d2e2f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f00000000000000290000018bcfe5687b000000000000000d536f757263654944007461696c0000000000000016536f75726365496e6361726e6174696f6e007461696c0000000000000013536f757263655265766973696f6e007461696c000000000000000f4e657874437572736f72007461696c00000000000000010000000000000001000000000000000000000000000000000000000000000000000000000000000b6f626a656374007461696c00000000000000090000000000000065000000000000012f0000000000000007",
+      "stats": {
+        "result_hasher_creations": 1,
+        "utf8_validations": 6,
+        "fed_bytes": 393,
+        "preflight_bytes": 393
+      }
+    }
+  ],
+  "resources": {
+    "ceiling_bytes": 33554432,
+    "ceiling_minus_one": {
+      "basis": "unicode_distinct",
+      "object_ascii": "x",
+      "object_bytes": 33554081,
+      "wire_bytes": 33554431,
+      "digest_hex": "86bbb70a5a226b0e4c173368c05927366bb39ddee87bc5a9fbc57a449cddb25d",
+      "trace": [
+        {
+          "field": "domain",
+          "offset": 0,
+          "bytes": 32
+        },
+        {
+          "field": "version",
+          "offset": 32,
+          "bytes": 2
+        },
+        {
+          "field": "command.length",
+          "offset": 34,
+          "bytes": 8
+        },
+        {
+          "field": "command.utf8",
+          "offset": 42,
+          "bytes": 16
+        },
+        {
+          "field": "variant.length",
+          "offset": 58,
+          "bytes": 8
+        },
+        {
+          "field": "variant.utf8",
+          "offset": 66,
+          "bytes": 14
+        },
+        {
+          "field": "outcome.length",
+          "offset": 80,
+          "bytes": 8
+        },
+        {
+          "field": "outcome.utf8",
+          "offset": 88,
+          "bytes": 7
+        },
+        {
+          "field": "RunID.length",
+          "offset": 95,
+          "bytes": 8
+        },
+        {
+          "field": "RunID.utf8",
+          "offset": 103,
+          "bytes": 7
+        },
+        {
+          "field": "Identity.Incarnation",
+          "offset": 110,
+          "bytes": 16
+        },
+        {
+          "field": "Identity.Sequence",
+          "offset": 126,
+          "bytes": 8
+        },
+        {
+          "field": "Identity.OperationID",
+          "offset": 134,
+          "bytes": 16
+        },
+        {
+          "field": "Request",
+          "offset": 150,
+          "bytes": 32
+        },
+        {
+          "field": "AcceptedRunRevision",
+          "offset": 182,
+          "bytes": 8
+        },
+        {
+          "field": "AppliedMS",
+          "offset": 190,
+          "bytes": 8
+        },
+        {
+          "field": "SourceID.length",
+          "offset": 198,
+          "bytes": 8
+        },
+        {
+          "field": "SourceID.utf8",
+          "offset": 206,
+          "bytes": 13
+        },
+        {
+          "field": "SourceIncarnation.length",
+          "offset": 219,
+          "bytes": 8
+        },
+        {
+          "field": "SourceIncarnation.utf8",
+          "offset": 227,
+          "bytes": 7
+        },
+        {
+          "field": "SourceRevision.length",
+          "offset": 234,
+          "bytes": 8
+        },
+        {
+          "field": "SourceRevision.utf8",
+          "offset": 242,
+          "bytes": 9
+        },
+        {
+          "field": "NextCursor.length",
+          "offset": 251,
+          "bytes": 8
+        },
+        {
+          "field": "NextCursor.utf8",
+          "offset": 259,
+          "bytes": 11
+        },
+        {
+          "field": "ResultCount",
+          "offset": 270,
+          "bytes": 8
+        },
+        {
+          "field": "MemberCohortLength",
+          "offset": 278,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].InputOrdinal",
+          "offset": 286,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ChildKind",
+          "offset": 294,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ChildOrdinal",
+          "offset": 302,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ObjectID.length",
+          "offset": 310,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ObjectID.utf8",
+          "offset": 318,
+          "bytes": 33554081
+        },
+        {
+          "field": "Members[0].LibraryID",
+          "offset": 33554399,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].SubjectID",
+          "offset": 33554407,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].AssetID",
+          "offset": 33554415,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].AcceptedAssetRevision",
+          "offset": 33554423,
+          "bytes": 8
+        }
+      ],
+      "wire_hex": null,
+      "stats": {
+        "result_hasher_creations": 1,
+        "utf8_validations": 6,
+        "fed_bytes": 33554431,
+        "preflight_bytes": 33554431
+      }
+    },
+    "exact_ceiling": {
+      "basis": "unicode_distinct",
+      "object_ascii": "x",
+      "object_bytes": 33554082,
+      "wire_bytes": 33554432,
+      "digest_hex": "b10c1f9403c948ffb6a9114f5c341f3db91ebcdf9a95f236d0f183ccbee17636",
+      "trace": [
+        {
+          "field": "domain",
+          "offset": 0,
+          "bytes": 32
+        },
+        {
+          "field": "version",
+          "offset": 32,
+          "bytes": 2
+        },
+        {
+          "field": "command.length",
+          "offset": 34,
+          "bytes": 8
+        },
+        {
+          "field": "command.utf8",
+          "offset": 42,
+          "bytes": 16
+        },
+        {
+          "field": "variant.length",
+          "offset": 58,
+          "bytes": 8
+        },
+        {
+          "field": "variant.utf8",
+          "offset": 66,
+          "bytes": 14
+        },
+        {
+          "field": "outcome.length",
+          "offset": 80,
+          "bytes": 8
+        },
+        {
+          "field": "outcome.utf8",
+          "offset": 88,
+          "bytes": 7
+        },
+        {
+          "field": "RunID.length",
+          "offset": 95,
+          "bytes": 8
+        },
+        {
+          "field": "RunID.utf8",
+          "offset": 103,
+          "bytes": 7
+        },
+        {
+          "field": "Identity.Incarnation",
+          "offset": 110,
+          "bytes": 16
+        },
+        {
+          "field": "Identity.Sequence",
+          "offset": 126,
+          "bytes": 8
+        },
+        {
+          "field": "Identity.OperationID",
+          "offset": 134,
+          "bytes": 16
+        },
+        {
+          "field": "Request",
+          "offset": 150,
+          "bytes": 32
+        },
+        {
+          "field": "AcceptedRunRevision",
+          "offset": 182,
+          "bytes": 8
+        },
+        {
+          "field": "AppliedMS",
+          "offset": 190,
+          "bytes": 8
+        },
+        {
+          "field": "SourceID.length",
+          "offset": 198,
+          "bytes": 8
+        },
+        {
+          "field": "SourceID.utf8",
+          "offset": 206,
+          "bytes": 13
+        },
+        {
+          "field": "SourceIncarnation.length",
+          "offset": 219,
+          "bytes": 8
+        },
+        {
+          "field": "SourceIncarnation.utf8",
+          "offset": 227,
+          "bytes": 7
+        },
+        {
+          "field": "SourceRevision.length",
+          "offset": 234,
+          "bytes": 8
+        },
+        {
+          "field": "SourceRevision.utf8",
+          "offset": 242,
+          "bytes": 9
+        },
+        {
+          "field": "NextCursor.length",
+          "offset": 251,
+          "bytes": 8
+        },
+        {
+          "field": "NextCursor.utf8",
+          "offset": 259,
+          "bytes": 11
+        },
+        {
+          "field": "ResultCount",
+          "offset": 270,
+          "bytes": 8
+        },
+        {
+          "field": "MemberCohortLength",
+          "offset": 278,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].InputOrdinal",
+          "offset": 286,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ChildKind",
+          "offset": 294,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ChildOrdinal",
+          "offset": 302,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ObjectID.length",
+          "offset": 310,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].ObjectID.utf8",
+          "offset": 318,
+          "bytes": 33554082
+        },
+        {
+          "field": "Members[0].LibraryID",
+          "offset": 33554400,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].SubjectID",
+          "offset": 33554408,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].AssetID",
+          "offset": 33554416,
+          "bytes": 8
+        },
+        {
+          "field": "Members[0].AcceptedAssetRevision",
+          "offset": 33554424,
+          "bytes": 8
+        }
+      ],
+      "wire_hex": null,
+      "stats": {
+        "result_hasher_creations": 1,
+        "utf8_validations": 6,
+        "fed_bytes": 33554432,
+        "preflight_bytes": 33554432
+      }
+    },
+    "ceiling_plus_one": {
+      "basis": "unicode_distinct",
+      "object_ascii": "x",
+      "object_bytes": 33554083,
+      "refused": true,
+      "reason": "complete object envelope",
+      "stats": {
+        "result_hasher_creations": 0,
+        "utf8_validations": 0,
+        "fed_bytes": 0
+      }
+    },
+    "late_oversize": {
+      "run_ascii": "h",
+      "run_bytes": 16777216,
+      "last_object_ascii": "z",
+      "last_object_bytes": 16777216,
+      "refused": true,
+      "reason": "complete object envelope",
+      "stats": {
+        "result_hasher_creations": 0,
+        "utf8_validations": 0,
+        "fed_bytes": 0
+      }
+    },
+    "boundary": "whole-length/shape checks precede UTF-8 validation and result hasher creation; not production allocation/latency proof"
+  }
+}
