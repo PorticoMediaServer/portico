@@ -107,6 +107,19 @@ func basicStageError(err error) error {
 	return err
 }
 
+// Only this closed INSERT's two native key constraints denote a stale or
+// duplicate fact. CHECK/FK failures and operational errors retain their type.
+func basicStreamFactInsertError(err error) error {
+	var coded interface{ Code() int }
+	if errors.As(err, &coded) {
+		switch coded.Code() {
+		case 1555, 2067: // SQLITE_CONSTRAINT_PRIMARYKEY, SQLITE_CONSTRAINT_UNIQUE
+			return errors.Join(ErrConflict, err)
+		}
+	}
+	return err
+}
+
 func checkBasicStreamStage(ctx context.Context, turn *commandTurn, in basicStreamFactStage, wantRows int64) (err error) {
 	if in.changeID <= 0 || in.inputRevision <= 0 || in.libraryID <= 0 || in.assetID <= 0 || in.expectedEpoch <= 0 || in.sourceGeneration <= 0 ||
 		in.policyRevision <= 0 || in.factRevision <= 0 || in.size < 0 || in.detailVersion < 0 || in.witnessFingerprint == ([32]byte{}) {
@@ -240,7 +253,7 @@ func stageBasicStreamFact(ctx context.Context, turn *commandTurn, in basicStream
 	}
 	result, err := turn.exec(ctx, step.statementStep, in.changeID, int64(0), in.assetToken, in.factRevision, in.size, in.modifiedNS, in.fingerprint, in.detailVersion)
 	if err != nil {
-		return value, err
+		return value, basicStreamFactInsertError(err)
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
