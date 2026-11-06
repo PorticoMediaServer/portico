@@ -185,6 +185,23 @@ try {
       }
       if (contract?.body) tupleBindings(contract.body);
       const parameter = name => parameters.has(name);
+      const rest=contract?.parameters?.find(p=>p.dotDotDotToken && p.name?.kind===K.Identifier);
+      const restName=rest?.name.text;
+      let restWritten=false;
+      function restWrites(n) {
+        const target=n.kind===K.BinaryExpression ? n.left : undefined;
+        if (target && /^(?:=|\+=|\?\?=|\|\|=|&&=)$/.test(text(n.operatorToken))
+            && (target.kind===K.Identifier && target.text===restName
+              || target.kind===K.ElementAccessExpression && target.expression?.text===restName)) restWritten=true;
+        if (n.kind===K.CallExpression && n.expression.kind===K.PropertyAccessExpression
+            && n.expression.expression?.text===restName
+            && ['push','pop','shift','unshift','splice','sort','reverse','copyWithin','fill'].includes(n.expression.name.text)) restWritten=true;
+        n.forEachChild(restWrites);
+      }
+      if (rest && contract.body) restWrites(contract.body);
+      if (callName==='request' && args.length===1 && args[0].kind===K.SpreadElement
+          && args[0].expression.kind===K.Identifier && args[0].expression.text===restName
+          && !restWritten && !hasRequestWrites(guard ?? contract ?? c,[restName])) forwardingShape='request-rest';
       // Upload/bounded guards bind their captured API selection in the enclosing
       // policy by default. A separately ruled complete callback span is explicit
       // in both the pin and ledger, never an implicit narrowing of this hash.
@@ -213,6 +230,40 @@ try {
       if (callName==='send' && args.length===1 && conditionalSignalCopy(args[0]) && !hasRequestWrites(guard ?? contract ?? c)) forwardingShape='conditional-signal';
       if (callName==='farewell' && args.length===3 && sameNames(['path','method','body'])
           && ['path','method','body'].every(parameter) && !hasRequestWrites(guard ?? contract ?? c)) forwardingShape='farewell';
+      // The bounded Vega executor consumes a core-built Pending request. Bind
+      // the full start function, including bounds and credential policy, while
+      // checking the complete URL/method/body/header sequence structurally.
+      if (callName==='open' && guard?.parameters?.some(p=>p.name?.text==='pending')) {
+        const member=(n,field) => n?.kind===K.PropertyAccessExpression
+          && n.expression?.kind===K.Identifier && n.expression.text==='pending' && n.name.text===field;
+        const receiver=c.expression.kind===K.PropertyAccessExpression ? c.expression.expression : undefined;
+        const ownCalls=calls.filter(n=>ancestors.get(n)?.includes(guard));
+        const xhrCalls=ownCalls.filter(n=>n.expression.kind===K.PropertyAccessExpression
+          && n.expression.expression.kind===K.Identifier && n.expression.expression.text===receiver?.text);
+        const sends=xhrCalls.filter(n=>nameOf(n.expression)==='send');
+        const headers=xhrCalls.filter(n=>nameOf(n.expression)==='setRequestHeader');
+        const body=sends[0]?.arguments?.[0];
+        const originalBody=member(body,'body') || body?.kind===K.BinaryExpression && text(body.operatorToken)==='??'
+          && member(body.left,'body') && body.right?.kind===K.Identifier && body.right.text==='undefined';
+        const loop=headers.length===1 && ancestors.get(headers[0]).find(n=>n.kind===K.ForOfStatement);
+        const headerSource=loop?.expression;
+        const bindings=loop?.initializer?.declarations?.[0]?.name;
+        let headerDeclaration='';
+        if (headerSource?.kind===K.CallExpression) {
+          try {headerDeclaration=checker.getResolvedSignature(headerSource)?.declaration?.path ?? '';} catch {}
+        }
+        const constructed=hasRequestWrites(guard,[],['url'],['pending']);
+        if (receiver?.kind===K.Identifier && xhrNames.has(receiver.text)
+            && args.length===2 && member(args[0],'method') && member(args[1],'url')
+            && sends.length===1 && sends[0].arguments.length===1 && originalBody
+            && xhrCalls.filter(n=>nameOf(n.expression)==='open').length===1 && !constructed
+            && headerSource?.arguments?.length===1 && member(headerSource.arguments[0],'headers')
+            && /\/packages\/client-core\/src\/vega-control-transport\.ts$/.test(headerDeclaration)
+            && bindings?.kind===K.ArrayBindingPattern && bindings.elements.length===2
+            && bindings.elements.every(n=>n.kind===K.BindingElement && !n.initializer && !n.dotDotDotToken && n.name.kind===K.Identifier)
+            && headers[0].arguments.length===2 && headers[0].arguments.every((n,i)=>n.kind===K.Identifier && n.text===bindings.elements[i].name.text))
+          forwardingShape='vega-pending';
+      }
       if (callName==='request' && args.length===4 && args[0]?.kind===K.Identifier && args[0].text==='path' && parameter('path')
           && literal(args[1])==='GET' && args[2]?.kind===K.Identifier && args[2].text==='undefined') forwardingShape='read-only';
       if (chapterGuard && callName==='request' && args.length===4 && args[0]?.kind===K.Identifier && args[0].text==='path' && literal(args[1])==='GET' && args[2]?.kind===K.Identifier && args[2].text==='undefined') forwardingShape='chapter-read';

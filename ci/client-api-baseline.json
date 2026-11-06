@@ -14,22 +14,7 @@
   "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt#6a531b3128e3200c": 1,
   "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt#9de26b425c43db83": 1,
   "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt#c0df30247dbbcb7d": 1,
-  "apps/native/src-next/screens/notifications/register.tsx#3e9ef048979dc1c1": 2,
-  "apps/native/src-next/screens/settings-live/LiveRoute.tsx#22aafff635b1f14e": 1,
-  "apps/native/src-next/screens/settings-live/NativeTVReceiver.tsx#d2c78d29a1e1958e": 1,
-  "apps/native/src-next/screens/settings-live/live-controller.ts#61c2c4eda3eac0db": 1,
-  "apps/native/src-next/screens/settings-live/live-controller.ts#a507004d23687bfc": 1,
-  "apps/native/src-next/screens/settings-live/settings-panels.tsx#1b31452e0e60fbc5": 1,
-  "apps/native/src-next/screens/share/NativeContentLinks.tsx#54deab9656f7855c": 1,
-  "apps/native/src-next/screens/share/NativeShareLinks.tsx#54deab9656f7855c": 1,
-  "apps/native/src-next/shell/bootstrap-services.ts#de7bb4bc80ff725c": 1,
   "apps/native/src-next/shell/bootstrap.ts#99c516c7c3d372ea": 1,
-  "apps/vega/src/bridge/transport.ts#b03829a0bfc20290": 1,
   "apps/vega/src/debug.tsx#fd2009c0554e881d": 1,
-  "web/src/screens/account/feedback-controller.ts#e6ba4e741880a9f2": 1,
-  "web/src/screens/live/bindings.ts#af28195658cca71c": 1,
-  "web/src/screens/live/recordings-controller.ts#f2782b066cfe5bba": 1,
-  "web/src/screens/live/series-rules-bindings.ts#af28195658cca71c": 1,
-  "web/src/screens/read/fonts.ts#c59e3b7c994165d8": 1,
-  "web/src/shell/bootstrap.ts#6d3fdcbd93b6dfef": 1
+  "web/src/screens/read/fonts.ts#c59e3b7c994165d8": 1
 }
