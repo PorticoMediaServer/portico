@@ -25,7 +25,7 @@ func control(t *testing.T) (*Clock, time.Time, writer.ScanReceiptRequest, writer
 	input := read.BrowseInput{Library: 7, Database: "database", TokenHash: "actual-trusted-input"}
 	return c, start, q, result, input
 }
-func TestScanClockRequiresAppliedThenMatchingServingObservation(t *testing.T) {
+func TestScanClockKeepsVisibilityNullWithoutCurrentWitness(t *testing.T) {
 	c, start, q, result, input := control(t)
 	page := read.BrowsePage{Items: []read.BrowseItem{{ID: 31, Title: "Filename", Revision: 1}}}
 	if err := c.Browse(start.Add(time.Millisecond), input, page, nil); !errors.Is(err, ErrObservation) {
@@ -37,28 +37,67 @@ func TestScanClockRequiresAppliedThenMatchingServingObservation(t *testing.T) {
 	if r := c.Report(); r.FirstFilenameVisibleNS != nil || r.AppliedObservedNS == nil || *r.AppliedObservedNS != 5e6 {
 		t.Fatal("commit became visibility", r)
 	}
-	if err := c.Browse(start.Add(6*time.Millisecond), input, read.BrowsePage{Items: []read.BrowseItem{{ID: 32, Title: "Other", Revision: 1}}}, nil); err != nil {
-		t.Fatal(err)
-	}
-	if c.Report().FirstFilenameVisibleNS != nil {
-		t.Fatal("other subject satisfied target")
-	}
-	if err := c.Browse(start.Add(8*time.Millisecond), input, page, nil); err != nil {
-		t.Fatal(err)
-	}
-	if err := c.Browse(start.Add(9*time.Millisecond), input, page, nil); err != nil {
-		t.Fatal(err)
+	// None has a current original-receipt/object/asset/info_epoch witness.
+	// Even the unchanged row must stay null if the original stops resolving.
+	for _, item := range []read.BrowseItem{
+		{ID: 32, PublicID: [16]byte{1}, Title: "Other", Revision: 1},
+		{ID: 31, PublicID: [16]byte{1}, Title: "Filename", Revision: 1},
+		{ID: 31, PublicID: [16]byte{2}, Title: "Replacement title", Revision: 999},
+	} {
+		if err := c.Browse(start.Add(8*time.Millisecond), input, read.BrowsePage{Items: []read.BrowseItem{item}}, nil); !errors.Is(err, ErrObservation) {
+			t.Fatal("browse row substituted for current witness", item, err)
+		}
+		if r := c.Report(); r.FilenameObserved || r.FirstFilenameVisibleNS != nil || !strings.Contains(strings.Join(r.Missing, "\n"), "current public-facade witness") {
+			t.Fatal("unjoined row became visibility", item, r)
+		}
 	}
 	r := c.Report()
-	if r.FirstFilenameVisibleNS == nil || *r.FirstFilenameVisibleNS != 8e6 || r.AllFilenameVisibleNS != nil || r.FirstBasicNS != nil || r.AllBasicNS != nil || r.Qualification || r.Population != "one_fresh_n1_target" {
+	if r.OriginalReference == nil || *r.OriginalReference != q.Receipt || r.TargetSubjectID != result.Members[0].SubjectID || r.AllFilenameVisibleNS != nil || r.FirstBasicNS != nil || r.AllBasicNS != nil || r.Qualification || r.Population != "one_fresh_n1_target" {
 		t.Fatal(r)
 	}
 	raw, err := json.Marshal(r)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(raw), `"all_filename_visible_ns":null`) || !strings.Contains(string(raw), `"first_basic_ns":null`) {
+	if !strings.Contains(string(raw), `"first_filename_visible_ns":null`) || !strings.Contains(string(raw), `"all_filename_visible_ns":null`) || !strings.Contains(string(raw), `"first_basic_ns":null`) {
 		t.Fatal("missing clock became zero", string(raw))
+	}
+}
+
+func TestScanClockRejectsNonPositiveIntervalsWithReason(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		applied, browse time.Duration
+		appliedInvalid  bool
+		reason          string
+	}{
+		{"Applied_at_origin", 0, 0, true, "non-positive traversal-offer-to-observation"},
+		{"Applied_before_origin", -time.Nanosecond, 0, true, "non-positive traversal-offer-to-observation"},
+		{"browse_at_origin", time.Millisecond, 0, false, "non-positive traversal-offer-to-observation"},
+		{"browse_at_Applied", time.Millisecond, time.Millisecond, false, "non-positive Applied-to-browse"},
+		{"browse_before_Applied", 2 * time.Millisecond, time.Millisecond, false, "non-positive Applied-to-browse"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, start, q, result, input := control(t)
+			err := c.Applied(start.Add(tc.applied), q, result, nil)
+			if tc.appliedInvalid {
+				if !errors.Is(err, ErrObservation) || c.Report().AppliedObservedNS != nil {
+					t.Fatal("non-positive Applied interval recorded", err, c.Report())
+				}
+			} else {
+				if err != nil {
+					t.Fatal(err)
+				}
+				page := read.BrowsePage{Items: []read.BrowseItem{{ID: 31, Title: "Filename", Revision: 1}}}
+				if err := c.Browse(start.Add(tc.browse), input, page, nil); !errors.Is(err, ErrObservation) {
+					t.Fatal("non-positive browse interval accepted", err)
+				}
+			}
+			r := c.Report()
+			if r.FirstFilenameVisibleNS != nil || r.FilenameObserved || !strings.Contains(strings.Join(r.Missing, "\n"), tc.reason) {
+				t.Fatal("non-positive interval lacks null/reason", r)
+			}
+		})
 	}
 }
 func TestScanClockRejectsErrorReplayMissingAndWrongOriginal(t *testing.T) {
