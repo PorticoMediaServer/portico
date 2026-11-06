@@ -17,9 +17,8 @@ const (
 func enrichmentSourceAllocationDefinitions() []stmt.Definition {
 	defs := []stmt.Definition{{
 		ID: sourceStagePublicationInsert, Owner: "writer.enrichment", Kind: stmt.Write,
-		SQL: `INSERT INTO credit_source_publications(publication_id,entity_id,provider,accepted_record_reference,observed_at,member_count,sealed)
- SELECT ?,o.entity_id,o.provider,?,?,?,0 FROM metadata_provider_operations o WHERE ` + sealOwnerPredicate + ` AND o.source_publication_id IS NULL`,
-		Params: append([]stmt.Param{{Name: "publication", Type: stmt.Text}, {Name: "record_reference", Type: stmt.Text}, {Name: "observed_at", Type: stmt.Text}, {Name: "complete_members", Type: stmt.Integer}}, sealScopeParams()...),
+		SQL:    `INSERT INTO credit_source_publications(publication_id,entity_id,provider,accepted_record_reference,observed_at,member_count,sealed) VALUES(?,?,?,?,?,?,?)`,
+		Params: []stmt.Param{{Name: "publication", Type: stmt.Text}, {Name: "entity", Type: stmt.Integer}, {Name: "provider", Type: stmt.Text}, {Name: "record", Type: stmt.Text}, {Name: "observed", Type: stmt.Text}, {Name: "members", Type: stmt.Integer}, {Name: "sealed", Type: stmt.Integer}},
 	}, {
 		ID: sourceStageAllocate, Owner: "writer.enrichment", Kind: stmt.Write,
 		SQL: `UPDATE metadata_provider_operations SET source_content_revision=source_content_revision+1,source_publication_id=?,source_owner_generation=generation,
@@ -29,8 +28,6 @@ func enrichmentSourceAllocationDefinitions() []stmt.Definition {
  RETURNING source_next_position,source_content_revision`,
 		Params: append([]stmt.Param{{Name: "publication", Type: stmt.Text}, {Name: "evidence", Type: stmt.Text}, {Name: "subject", Type: stmt.Integer}, {Name: "parser", Type: stmt.Text}, {Name: "complete_members", Type: stmt.Integer}, {Name: "manifest_bytes", Type: stmt.Integer}, {Name: "manifest_algorithm", Type: stmt.Text}, {Name: "manifest_version", Type: stmt.Integer}, {Name: "manifest_commitment", Type: stmt.Blob}, {Name: "upstream_owner", Type: stmt.Text}, {Name: "upstream_incarnation", Type: stmt.Blob}, {Name: "upstream_sequence", Type: stmt.Integer}}, sealScopeParams()...),
 	}}
-	defs[0].SQL = `INSERT INTO credit_source_publications(publication_id,entity_id,provider,accepted_record_reference,observed_at,member_count,sealed) VALUES(?,?,?,?,?,?,?)`
-	defs[0].Params = []stmt.Param{{Name: "publication", Type: stmt.Text}, {Name: "entity", Type: stmt.Integer}, {Name: "provider", Type: stmt.Text}, {Name: "record", Type: stmt.Text}, {Name: "observed", Type: stmt.Text}, {Name: "members", Type: stmt.Integer}, {Name: "sealed", Type: stmt.Integer}}
 
 	for i := range defs {
 		defs[i].CallSites = []string{"writer/enrichment_source_seal_allocate.go:createSourceStage"}
