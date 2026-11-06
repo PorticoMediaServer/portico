@@ -103,6 +103,16 @@ listening, moving OS byte IO into JS, or placing auth/probes/events in the viewe
 query cache. Native code that independently builds a domain API URL is counted
 unless the precise site is an approved listening/extension exception.
 
+Individually ruled native policies use explicit `guardSpan: "native-function"`
+bindings to the complete canonical `constructionHash`, count one, and required
+`sourceHashes` for their native source and reviewed policy dependencies. This is
+an exact native judgment, separate from JavaScript forwarding recognition: it
+does not claim that bounds, byte decoding, validation-only comparison paths or
+dispatch of an already received response are signal-only transports. A null or
+shortened span, missing native source binding, another language or an expanded
+occurrence budget fails closed. Sibling helper edits invalidate the complete
+file condition even if the constructor's own method is unchanged.
+
 The initial slice inventory is in [client-api-slices.md](client-api-slices.md).
 Each slice migrates every surface for its domain, keeps the wire and behavior,
 and lowers this baseline. No visual or interaction change. Device acceptance is

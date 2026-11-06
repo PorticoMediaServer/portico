@@ -2436,5 +2436,383 @@
     },
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6649923975"
+  },
+  "apps/native/Native/PorticoPlayer.m#d956248af6e5129b": {
+    "category": "platform-transport",
+    "reason": "Reviewed native M policy: Executes the core-supplied URL, method, headers and selected body through the existing bounded Apple transport. Keeps native URL/method/header validation, redirect refusal, UTF-8/base64 conversion, byte limits, shared admission, trust and deadline policy. Avatar JSON-field selection is now core-owned; native only decodes selected base64.",
+    "guardHash": "b87eff32c480ac181fa8c724ebe2472a800d44b50afb09a3cd1a9c38fb40e5e6",
+    "guardSpan": "native-function",
+    "sourceHashes": {
+      "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
+      "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
+      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
+      "apps/native/src-next/platform/server-connections.ts": "a3e5155343b74fe69f72b171d5297d4234396e8a2b731bc00a427aee643cfbb2",
+      "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
+      "packages/client-core/src/native-avatar-wire.ts": "b736ff4e06d0a4066e10f6e6e1f39a8cf8e4a3a68384a8334bf6a7bc8ca19ced",
+      "apps/native/src-next/platform/profile-avatars.ts": "07e52abe651ed33e9292884e9a411433e7b86306d055220bdb15c87dbaf283a3",
+      "packages/client-core/src/query/hosted-directory-source.ts": "8cde6cf39aab51feddc855b111364a05ef9525be41065d91c6dcd2c39f6de91e",
+      "packages/client-core/src/media-sources.ts": "bc0ea98883b94f7b7d77ba241dbe278f1bf46df70de6709cd4da92546f95bb29"
+    },
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651110042",
+    "condition": "Exact count-one canonical native function; only core-supplied operations/capabilities reach it. Preserve the reviewed URL/method/header/auth/body, validation, bounds, byte conversions, cancellation, redirect/privacy, admission and deadline policy. All six native helper/source files match the #1010 packet byte-for-byte. Caller ownership extractions already on main (#1005/#1015) are bound with their current adapter files and core destinations; no native policy changes.",
+    "dependencyReviewUrls": [
+      "https://github.com/PorticoMediaServer/portico/pull/1005",
+      "https://github.com/PorticoMediaServer/portico/pull/1015"
+    ]
+  },
+  "apps/native/Native/PorticoPlayer.m#3eb0d343200c7dfc": {
+    "category": "platform-transport",
+    "reason": "Reviewed native M policy: Executes the core profile request with its original URL/method/headers and selected body. Retains the existing avatar endpoint defense, 4 MiB decoded image bound and 64 KiB other profile-body bound, shared credential-safe transport and cancellation. Core owns avatar envelope interpretation; native only decodes selected base64.",
+    "guardHash": "f3e328aa64c245ff544e20038c5c325cd315d2e5588ba83d193808e74217e719",
+    "guardSpan": "native-function",
+    "sourceHashes": {
+      "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
+      "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
+      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
+      "apps/native/src-next/platform/server-connections.ts": "a3e5155343b74fe69f72b171d5297d4234396e8a2b731bc00a427aee643cfbb2",
+      "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
+      "packages/client-core/src/native-avatar-wire.ts": "b736ff4e06d0a4066e10f6e6e1f39a8cf8e4a3a68384a8334bf6a7bc8ca19ced",
+      "apps/native/src-next/platform/profile-avatars.ts": "07e52abe651ed33e9292884e9a411433e7b86306d055220bdb15c87dbaf283a3",
+      "packages/client-core/src/query/hosted-directory-source.ts": "8cde6cf39aab51feddc855b111364a05ef9525be41065d91c6dcd2c39f6de91e",
+      "packages/client-core/src/media-sources.ts": "bc0ea98883b94f7b7d77ba241dbe278f1bf46df70de6709cd4da92546f95bb29"
+    },
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651110042",
+    "condition": "Exact count-one canonical native function; only core-supplied operations/capabilities reach it. Preserve the reviewed URL/method/header/auth/body, validation, bounds, byte conversions, cancellation, redirect/privacy, admission and deadline policy. All six native helper/source files match the #1010 packet byte-for-byte. Caller ownership extractions already on main (#1005/#1015) are bound with their current adapter files and core destinations; no native policy changes.",
+    "dependencyReviewUrls": [
+      "https://github.com/PorticoMediaServer/portico/pull/1005",
+      "https://github.com/PorticoMediaServer/portico/pull/1015"
+    ]
+  },
+  "apps/native/Native/PorticoReadingByteStream.swift#6883b41f25750372": {
+    "category": "platform-url",
+    "reason": "Reviewed native M policy: Opens the already-built core URLRequest using the supplied URLSession. Adds the existing stream delegate, owner cancellation and bounded pull delivery (49,152 bytes), including unchanged trust and redirect handling; does not choose another API route.",
+    "guardHash": "a47460877596752d82385c245689b7a1ab7efdc62295b52e43c1d4081cc8130b",
+    "guardSpan": "native-function",
+    "sourceHashes": {
+      "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
+      "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
+      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
+      "apps/native/src-next/platform/server-connections.ts": "a3e5155343b74fe69f72b171d5297d4234396e8a2b731bc00a427aee643cfbb2",
+      "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
+      "packages/client-core/src/native-avatar-wire.ts": "b736ff4e06d0a4066e10f6e6e1f39a8cf8e4a3a68384a8334bf6a7bc8ca19ced",
+      "apps/native/src-next/platform/profile-avatars.ts": "07e52abe651ed33e9292884e9a411433e7b86306d055220bdb15c87dbaf283a3",
+      "packages/client-core/src/query/hosted-directory-source.ts": "8cde6cf39aab51feddc855b111364a05ef9525be41065d91c6dcd2c39f6de91e",
+      "packages/client-core/src/media-sources.ts": "bc0ea98883b94f7b7d77ba241dbe278f1bf46df70de6709cd4da92546f95bb29"
+    },
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651110042",
+    "condition": "Exact count-one canonical native function; only core-supplied operations/capabilities reach it. Preserve the reviewed URL/method/header/auth/body, validation, bounds, byte conversions, cancellation, redirect/privacy, admission and deadline policy. All six native helper/source files match the #1010 packet byte-for-byte. Caller ownership extractions already on main (#1005/#1015) are bound with their current adapter files and core destinations; no native policy changes.",
+    "dependencyReviewUrls": [
+      "https://github.com/PorticoMediaServer/portico/pull/1005",
+      "https://github.com/PorticoMediaServer/portico/pull/1015"
+    ]
+  },
+  "apps/native/Native/PorticoSubtitleSelection.m#57d901ace2691c8d": {
+    "category": "platform-url",
+    "reason": "Reviewed native M policy: Constructs only an expected subtitle-grant path for equality validation against the core-supplied document URL. This locally constructed comparison never issues a request. Retains exact grant/resource/revision and origin validation.",
+    "guardHash": "d2100a220777b76f31aa41952ae4a2dc02dda18346cda5b99a10f2a8471abf4d",
+    "guardSpan": "native-function",
+    "sourceHashes": {
+      "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
+      "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
+      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
+      "apps/native/src-next/platform/server-connections.ts": "a3e5155343b74fe69f72b171d5297d4234396e8a2b731bc00a427aee643cfbb2",
+      "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
+      "packages/client-core/src/native-avatar-wire.ts": "b736ff4e06d0a4066e10f6e6e1f39a8cf8e4a3a68384a8334bf6a7bc8ca19ced",
+      "apps/native/src-next/platform/profile-avatars.ts": "07e52abe651ed33e9292884e9a411433e7b86306d055220bdb15c87dbaf283a3",
+      "packages/client-core/src/query/hosted-directory-source.ts": "8cde6cf39aab51feddc855b111364a05ef9525be41065d91c6dcd2c39f6de91e",
+      "packages/client-core/src/media-sources.ts": "bc0ea98883b94f7b7d77ba241dbe278f1bf46df70de6709cd4da92546f95bb29"
+    },
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651110042",
+    "condition": "Exact count-one canonical native function; only core-supplied operations/capabilities reach it. Preserve the reviewed URL/method/header/auth/body, validation, bounds, byte conversions, cancellation, redirect/privacy, admission and deadline policy. All six native helper/source files match the #1010 packet byte-for-byte. Caller ownership extractions already on main (#1005/#1015) are bound with their current adapter files and core destinations; no native policy changes.",
+    "dependencyReviewUrls": [
+      "https://github.com/PorticoMediaServer/portico/pull/1005",
+      "https://github.com/PorticoMediaServer/portico/pull/1015"
+    ]
+  },
+  "apps/native/Native/PorticoSubtitleSelection.m#9898da05db456db5": {
+    "category": "platform-url",
+    "reason": "Reviewed native M policy: Builds the player-fetched subtitle document request from the core grant URL. Keeps Accept JSON, conditional ETag, no bearer, redirect refusal, 15-second deadline, response/cue bounds and existing subtitle cadence.",
+    "guardHash": "39aa7dc25023203bc18acb07ea236e80a8384a6738031b00d7760678d2eda9b9",
+    "guardSpan": "native-function",
+    "sourceHashes": {
+      "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
+      "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
+      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
+      "apps/native/src-next/platform/server-connections.ts": "a3e5155343b74fe69f72b171d5297d4234396e8a2b731bc00a427aee643cfbb2",
+      "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
+      "packages/client-core/src/native-avatar-wire.ts": "b736ff4e06d0a4066e10f6e6e1f39a8cf8e4a3a68384a8334bf6a7bc8ca19ced",
+      "apps/native/src-next/platform/profile-avatars.ts": "07e52abe651ed33e9292884e9a411433e7b86306d055220bdb15c87dbaf283a3",
+      "packages/client-core/src/query/hosted-directory-source.ts": "8cde6cf39aab51feddc855b111364a05ef9525be41065d91c6dcd2c39f6de91e",
+      "packages/client-core/src/media-sources.ts": "bc0ea98883b94f7b7d77ba241dbe278f1bf46df70de6709cd4da92546f95bb29"
+    },
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651110042",
+    "condition": "Exact count-one canonical native function; only core-supplied operations/capabilities reach it. Preserve the reviewed URL/method/header/auth/body, validation, bounds, byte conversions, cancellation, redirect/privacy, admission and deadline policy. All six native helper/source files match the #1010 packet byte-for-byte. Caller ownership extractions already on main (#1005/#1015) are bound with their current adapter files and core destinations; no native policy changes.",
+    "dependencyReviewUrls": [
+      "https://github.com/PorticoMediaServer/portico/pull/1005",
+      "https://github.com/PorticoMediaServer/portico/pull/1015"
+    ]
+  },
+  "apps/native/Native/PorticoSubtitleSelection.m#0609aff755d74562": {
+    "category": "platform-url",
+    "reason": "Reviewed native M policy: Executes the same bounded conditional subtitle document request built from the core grant URL; preserves the original response/lifetime checks and cue/cache behavior.",
+    "guardHash": "39aa7dc25023203bc18acb07ea236e80a8384a6738031b00d7760678d2eda9b9",
+    "guardSpan": "native-function",
+    "sourceHashes": {
+      "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
+      "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
+      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
+      "apps/native/src-next/platform/server-connections.ts": "a3e5155343b74fe69f72b171d5297d4234396e8a2b731bc00a427aee643cfbb2",
+      "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
+      "packages/client-core/src/native-avatar-wire.ts": "b736ff4e06d0a4066e10f6e6e1f39a8cf8e4a3a68384a8334bf6a7bc8ca19ced",
+      "apps/native/src-next/platform/profile-avatars.ts": "07e52abe651ed33e9292884e9a411433e7b86306d055220bdb15c87dbaf283a3",
+      "packages/client-core/src/query/hosted-directory-source.ts": "8cde6cf39aab51feddc855b111364a05ef9525be41065d91c6dcd2c39f6de91e",
+      "packages/client-core/src/media-sources.ts": "bc0ea98883b94f7b7d77ba241dbe278f1bf46df70de6709cd4da92546f95bb29"
+    },
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651110042",
+    "condition": "Exact count-one canonical native function; only core-supplied operations/capabilities reach it. Preserve the reviewed URL/method/header/auth/body, validation, bounds, byte conversions, cancellation, redirect/privacy, admission and deadline policy. All six native helper/source files match the #1010 packet byte-for-byte. Caller ownership extractions already on main (#1005/#1015) are bound with their current adapter files and core destinations; no native policy changes.",
+    "dependencyReviewUrls": [
+      "https://github.com/PorticoMediaServer/portico/pull/1005",
+      "https://github.com/PorticoMediaServer/portico/pull/1015"
+    ]
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt#da0b2d2a3391e0b7": {
+    "category": "platform-url",
+    "reason": "Reviewed native M policy: Executes the core Reading URL/method/headers with the existing GET/HEAD-only defense and caller binary limit of 1 byte through 32 MiB. Retains shared trust/admission/deadline/cancellation, with no API operation or credential selected here.",
+    "guardHash": "43d1549233aa44ab891b1e55f5ed95e83298e8dc5f5e1bd202db448b82979e96",
+    "guardSpan": "native-function",
+    "sourceHashes": {
+      "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
+      "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
+      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
+      "apps/native/src-next/platform/server-connections.ts": "a3e5155343b74fe69f72b171d5297d4234396e8a2b731bc00a427aee643cfbb2",
+      "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
+      "packages/client-core/src/native-avatar-wire.ts": "b736ff4e06d0a4066e10f6e6e1f39a8cf8e4a3a68384a8334bf6a7bc8ca19ced",
+      "apps/native/src-next/platform/profile-avatars.ts": "07e52abe651ed33e9292884e9a411433e7b86306d055220bdb15c87dbaf283a3",
+      "packages/client-core/src/query/hosted-directory-source.ts": "8cde6cf39aab51feddc855b111364a05ef9525be41065d91c6dcd2c39f6de91e",
+      "packages/client-core/src/media-sources.ts": "bc0ea98883b94f7b7d77ba241dbe278f1bf46df70de6709cd4da92546f95bb29"
+    },
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651110042",
+    "condition": "Exact count-one canonical native function; only core-supplied operations/capabilities reach it. Preserve the reviewed URL/method/header/auth/body, validation, bounds, byte conversions, cancellation, redirect/privacy, admission and deadline policy. All six native helper/source files match the #1010 packet byte-for-byte. Caller ownership extractions already on main (#1005/#1015) are bound with their current adapter files and core destinations; no native policy changes.",
+    "dependencyReviewUrls": [
+      "https://github.com/PorticoMediaServer/portico/pull/1005",
+      "https://github.com/PorticoMediaServer/portico/pull/1015"
+    ]
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt#9935348faec9b5dd": {
+    "category": "platform-url",
+    "reason": "Reviewed native M policy: Executes the core sequential Reading source URL/headers using the existing fixed GET, no Range and no query policy. Keeps 49,152-byte pulls, same response custody, shared trust and cancellation, without an additional read request.",
+    "guardHash": "21ebf4036825c5f7b0c0236c236f4ba36a9f9b3d7df0333db20db6882126cbed",
+    "guardSpan": "native-function",
+    "sourceHashes": {
+      "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
+      "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
+      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
+      "apps/native/src-next/platform/server-connections.ts": "a3e5155343b74fe69f72b171d5297d4234396e8a2b731bc00a427aee643cfbb2",
+      "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
+      "packages/client-core/src/native-avatar-wire.ts": "b736ff4e06d0a4066e10f6e6e1f39a8cf8e4a3a68384a8334bf6a7bc8ca19ced",
+      "apps/native/src-next/platform/profile-avatars.ts": "07e52abe651ed33e9292884e9a411433e7b86306d055220bdb15c87dbaf283a3",
+      "packages/client-core/src/query/hosted-directory-source.ts": "8cde6cf39aab51feddc855b111364a05ef9525be41065d91c6dcd2c39f6de91e",
+      "packages/client-core/src/media-sources.ts": "bc0ea98883b94f7b7d77ba241dbe278f1bf46df70de6709cd4da92546f95bb29"
+    },
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651110042",
+    "condition": "Exact count-one canonical native function; only core-supplied operations/capabilities reach it. Preserve the reviewed URL/method/header/auth/body, validation, bounds, byte conversions, cancellation, redirect/privacy, admission and deadline policy. All six native helper/source files match the #1010 packet byte-for-byte. Caller ownership extractions already on main (#1005/#1015) are bound with their current adapter files and core destinations; no native policy changes.",
+    "dependencyReviewUrls": [
+      "https://github.com/PorticoMediaServer/portico/pull/1005",
+      "https://github.com/PorticoMediaServer/portico/pull/1015"
+    ]
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt#4f3b5ea598301e41": {
+    "category": "platform-transport",
+    "reason": "Reviewed native M policy: Executes the core URL, method, headers and selected body through boundedRequest and PorticoTransport.request. Retains native URL/method/header validation, base64/UTF-8 decoding, original read/write response budgets, shared admission, trust and deadlines. No avatar JSON envelope interpretation remains native.",
+    "guardHash": "6c487048980ddcfad87b6dce7f6bf0684ff9680afee085e03e8b5a6e779551a5",
+    "guardSpan": "native-function",
+    "sourceHashes": {
+      "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
+      "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
+      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
+      "apps/native/src-next/platform/server-connections.ts": "a3e5155343b74fe69f72b171d5297d4234396e8a2b731bc00a427aee643cfbb2",
+      "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
+      "packages/client-core/src/native-avatar-wire.ts": "b736ff4e06d0a4066e10f6e6e1f39a8cf8e4a3a68384a8334bf6a7bc8ca19ced",
+      "apps/native/src-next/platform/profile-avatars.ts": "07e52abe651ed33e9292884e9a411433e7b86306d055220bdb15c87dbaf283a3",
+      "packages/client-core/src/query/hosted-directory-source.ts": "8cde6cf39aab51feddc855b111364a05ef9525be41065d91c6dcd2c39f6de91e",
+      "packages/client-core/src/media-sources.ts": "bc0ea98883b94f7b7d77ba241dbe278f1bf46df70de6709cd4da92546f95bb29"
+    },
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651295244",
+    "condition": "Exact count-one canonical native function; only core-supplied operations/capabilities reach it. Preserve the reviewed URL/method/header/auth/body, validation, bounds, byte conversions, cancellation, redirect/privacy, admission and deadline policy. All six native helper/source files match the #1010 packet byte-for-byte. Caller ownership extractions already on main (#1005/#1015) are bound with their current adapter files and core destinations; no native policy changes.",
+    "dependencyReviewUrls": [
+      "https://github.com/PorticoMediaServer/portico/pull/1005",
+      "https://github.com/PorticoMediaServer/portico/pull/1015"
+    ]
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt#3c7814ac4e79a05a": {
+    "category": "platform-transport",
+    "reason": "Reviewed native M policy: Executes the core profile URL/method/headers and selected body, retaining the same native route defense, 4 MiB decoded avatar and 64 KiB other profile-body bounds, byte conversion, shared trust/admission/deadlines and cancellation. Core owns the avatar JSON-field selection.",
+    "guardHash": "f1b51d1297a749a5f946c9005189b1a4c5f8c40e94731019b2c22dfceb276525",
+    "guardSpan": "native-function",
+    "sourceHashes": {
+      "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
+      "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
+      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
+      "apps/native/src-next/platform/server-connections.ts": "a3e5155343b74fe69f72b171d5297d4234396e8a2b731bc00a427aee643cfbb2",
+      "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
+      "packages/client-core/src/native-avatar-wire.ts": "b736ff4e06d0a4066e10f6e6e1f39a8cf8e4a3a68384a8334bf6a7bc8ca19ced",
+      "apps/native/src-next/platform/profile-avatars.ts": "07e52abe651ed33e9292884e9a411433e7b86306d055220bdb15c87dbaf283a3",
+      "packages/client-core/src/query/hosted-directory-source.ts": "8cde6cf39aab51feddc855b111364a05ef9525be41065d91c6dcd2c39f6de91e",
+      "packages/client-core/src/media-sources.ts": "bc0ea98883b94f7b7d77ba241dbe278f1bf46df70de6709cd4da92546f95bb29"
+    },
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651295244",
+    "condition": "Exact count-one canonical native function; only core-supplied operations/capabilities reach it. Preserve the reviewed URL/method/header/auth/body, validation, bounds, byte conversions, cancellation, redirect/privacy, admission and deadline policy. All six native helper/source files match the #1010 packet byte-for-byte. Caller ownership extractions already on main (#1005/#1015) are bound with their current adapter files and core destinations; no native policy changes.",
+    "dependencyReviewUrls": [
+      "https://github.com/PorticoMediaServer/portico/pull/1005",
+      "https://github.com/PorticoMediaServer/portico/pull/1015"
+    ]
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt#c109c699f8043aa7": {
+    "category": "platform-url",
+    "reason": "Reviewed native M policy: Builds the player subtitle document request from the core grant URL with unchanged Accept JSON and conditional ETag, origin/grant checks, redirect refusal, bounded document/cues, and subtitle cadence. No bearer is added.",
+    "guardHash": "8a27023dfe3bcb7f43bb792651badfcf710b7a9aa52ac2ad57a9bd3c5b7a355e",
+    "guardSpan": "native-function",
+    "sourceHashes": {
+      "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
+      "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
+      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
+      "apps/native/src-next/platform/server-connections.ts": "a3e5155343b74fe69f72b171d5297d4234396e8a2b731bc00a427aee643cfbb2",
+      "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
+      "packages/client-core/src/native-avatar-wire.ts": "b736ff4e06d0a4066e10f6e6e1f39a8cf8e4a3a68384a8334bf6a7bc8ca19ced",
+      "apps/native/src-next/platform/profile-avatars.ts": "07e52abe651ed33e9292884e9a411433e7b86306d055220bdb15c87dbaf283a3",
+      "packages/client-core/src/query/hosted-directory-source.ts": "8cde6cf39aab51feddc855b111364a05ef9525be41065d91c6dcd2c39f6de91e",
+      "packages/client-core/src/media-sources.ts": "bc0ea98883b94f7b7d77ba241dbe278f1bf46df70de6709cd4da92546f95bb29"
+    },
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651110042",
+    "condition": "Exact count-one canonical native function; only core-supplied operations/capabilities reach it. Preserve the reviewed URL/method/header/auth/body, validation, bounds, byte conversions, cancellation, redirect/privacy, admission and deadline policy. All six native helper/source files match the #1010 packet byte-for-byte. Caller ownership extractions already on main (#1005/#1015) are bound with their current adapter files and core destinations; no native policy changes.",
+    "dependencyReviewUrls": [
+      "https://github.com/PorticoMediaServer/portico/pull/1005",
+      "https://github.com/PorticoMediaServer/portico/pull/1015"
+    ]
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt#44733a7897e5cdb9": {
+    "category": "platform-url",
+    "reason": "Reviewed native M policy: Executes that same player subtitle grant request through the existing native client; retains unchanged response, currentness and cue/cache handling.",
+    "guardHash": "8a27023dfe3bcb7f43bb792651badfcf710b7a9aa52ac2ad57a9bd3c5b7a355e",
+    "guardSpan": "native-function",
+    "sourceHashes": {
+      "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
+      "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
+      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
+      "apps/native/src-next/platform/server-connections.ts": "a3e5155343b74fe69f72b171d5297d4234396e8a2b731bc00a427aee643cfbb2",
+      "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
+      "packages/client-core/src/native-avatar-wire.ts": "b736ff4e06d0a4066e10f6e6e1f39a8cf8e4a3a68384a8334bf6a7bc8ca19ced",
+      "apps/native/src-next/platform/profile-avatars.ts": "07e52abe651ed33e9292884e9a411433e7b86306d055220bdb15c87dbaf283a3",
+      "packages/client-core/src/query/hosted-directory-source.ts": "8cde6cf39aab51feddc855b111364a05ef9525be41065d91c6dcd2c39f6de91e",
+      "packages/client-core/src/media-sources.ts": "bc0ea98883b94f7b7d77ba241dbe278f1bf46df70de6709cd4da92546f95bb29"
+    },
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651110042",
+    "condition": "Exact count-one canonical native function; only core-supplied operations/capabilities reach it. Preserve the reviewed URL/method/header/auth/body, validation, bounds, byte conversions, cancellation, redirect/privacy, admission and deadline policy. All six native helper/source files match the #1010 packet byte-for-byte. Caller ownership extractions already on main (#1005/#1015) are bound with their current adapter files and core destinations; no native policy changes.",
+    "dependencyReviewUrls": [
+      "https://github.com/PorticoMediaServer/portico/pull/1005",
+      "https://github.com/PorticoMediaServer/portico/pull/1015"
+    ]
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt#c0df30247dbbcb7d": {
+    "category": "platform-transport",
+    "reason": "Reviewed native M policy: Submits the existing Request unchanged to the selected shared OkHttp client. Retains existing queue/admission/current-owner rules, cancellation, certificate mapping, body/stream response custody and deadlines. clientFor retains the EXISTING metadata-preview timeout exemption and subtitle-upload budgets; these policy-bearing dependencies are explicitly disclosed and file-hash-bound, not characterized as signal-only guards.",
+    "guardHash": "45dd47c100da85709b8a67f9ee4b8d939820b5fd17b27be8ae1c686797448dc8",
+    "guardSpan": "native-function",
+    "sourceHashes": {
+      "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
+      "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
+      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
+      "apps/native/src-next/platform/server-connections.ts": "a3e5155343b74fe69f72b171d5297d4234396e8a2b731bc00a427aee643cfbb2",
+      "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
+      "packages/client-core/src/native-avatar-wire.ts": "b736ff4e06d0a4066e10f6e6e1f39a8cf8e4a3a68384a8334bf6a7bc8ca19ced",
+      "apps/native/src-next/platform/profile-avatars.ts": "07e52abe651ed33e9292884e9a411433e7b86306d055220bdb15c87dbaf283a3",
+      "packages/client-core/src/query/hosted-directory-source.ts": "8cde6cf39aab51feddc855b111364a05ef9525be41065d91c6dcd2c39f6de91e",
+      "packages/client-core/src/media-sources.ts": "bc0ea98883b94f7b7d77ba241dbe278f1bf46df70de6709cd4da92546f95bb29"
+    },
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651110042",
+    "condition": "Exact count-one canonical native function; only core-supplied operations/capabilities reach it. Preserve the reviewed URL/method/header/auth/body, validation, bounds, byte conversions, cancellation, redirect/privacy, admission and deadline policy. All six native helper/source files match the #1010 packet byte-for-byte. Caller ownership extractions already on main (#1005/#1015) are bound with their current adapter files and core destinations; no native policy changes.",
+    "dependencyReviewUrls": [
+      "https://github.com/PorticoMediaServer/portico/pull/1005",
+      "https://github.com/PorticoMediaServer/portico/pull/1015"
+    ]
+  },
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt#9de26b425c43db83": {
+    "category": "platform-transport",
+    "reason": "Reviewed native M policy: Dispatches an ALREADY RECEIVED native HTTP response to openStream or read. openStream(entry,response) here is not a new request or new URL: it retains the same status, headers and pull body, redirect refusal and lifetime. Native scanner currently recognizes this call as a request occurrence.",
+    "guardHash": "2b3e538e6524dfae69d1aee0f1f0487c3ae7c5f56455aaa4154342510c1b2ba4",
+    "guardSpan": "native-function",
+    "sourceHashes": {
+      "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
+      "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
+      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
+      "apps/native/src-next/platform/server-connections.ts": "a3e5155343b74fe69f72b171d5297d4234396e8a2b731bc00a427aee643cfbb2",
+      "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
+      "packages/client-core/src/native-avatar-wire.ts": "b736ff4e06d0a4066e10f6e6e1f39a8cf8e4a3a68384a8334bf6a7bc8ca19ced",
+      "apps/native/src-next/platform/profile-avatars.ts": "07e52abe651ed33e9292884e9a411433e7b86306d055220bdb15c87dbaf283a3",
+      "packages/client-core/src/query/hosted-directory-source.ts": "8cde6cf39aab51feddc855b111364a05ef9525be41065d91c6dcd2c39f6de91e",
+      "packages/client-core/src/media-sources.ts": "bc0ea98883b94f7b7d77ba241dbe278f1bf46df70de6709cd4da92546f95bb29"
+    },
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651110042",
+    "condition": "Exact count-one canonical native function; only core-supplied operations/capabilities reach it. Preserve the reviewed URL/method/header/auth/body, validation, bounds, byte conversions, cancellation, redirect/privacy, admission and deadline policy. All six native helper/source files match the #1010 packet byte-for-byte. Caller ownership extractions already on main (#1005/#1015) are bound with their current adapter files and core destinations; no native policy changes.",
+    "dependencyReviewUrls": [
+      "https://github.com/PorticoMediaServer/portico/pull/1005",
+      "https://github.com/PorticoMediaServer/portico/pull/1015"
+    ]
   }
 }
