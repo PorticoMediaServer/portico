@@ -46,6 +46,17 @@ func TestRestartReportRetainsTailsAndActualClass(t *testing.T) {
 	if r.Strata.PostRestart.Commits.Max != 35*time.Millisecond || len(r.ByClass) != 2 || r.ByClass[0].Class != "Foreground" || r.ByClass[0].Restarts != 1 || r.ByClass[0].Strata.Committed.Holds.Max != all.Max {
 		t.Fatalf("lost per-class tail: %+v", r.ByClass)
 	}
+	checkAllAttempts := func(label string, got RestartLatency, count int, holdP99, holdMax, commitP99, commitMax time.Duration, exceedances int) {
+		t.Helper()
+		if got.Holds == nil || got.Commits == nil || got.Holds.Count != count || got.Commits.Count != count ||
+			got.Holds.P99 != holdP99 || got.Holds.Max != holdMax || got.Commits.P99 != commitP99 || got.Commits.Max != commitMax ||
+			got.Holds.Above10MS != exceedances || got.Holds.Above25MS != exceedances || got.Commits.Above10MS != exceedances || got.Commits.Above25MS != exceedances {
+			t.Fatalf("AllAttempts dropped successful restart tails in %s: %+v", label, got)
+		}
+	}
+	checkAllAttempts("overall", r.Strata.AllAttempts, 100, 30*time.Millisecond, 40*time.Millisecond, 28*time.Millisecond, 35*time.Millisecond, 2)
+	checkAllAttempts("Foreground/FULL", r.ByClass[0].Strata.AllAttempts, 1, 40*time.Millisecond, 40*time.Millisecond, 35*time.Millisecond, 35*time.Millisecond, 1)
+	checkAllAttempts("ScanMinimum/NORMAL", r.ByClass[1].Strata.AllAttempts, 99, 30*time.Millisecond, 30*time.Millisecond, 28*time.Millisecond, 28*time.Millisecond, 1)
 	if len(r.Events) != 3 || r.Events[1].UnitID != ss[50].UnitID || r.Events[1].Class != "Foreground" || r.Events[1].IntendedClass != "Background" || r.Events[1].EvidenceRef != "raw:50" {
 		t.Fatalf("actual absorber became intended class: %+v", r.Events)
 	}
