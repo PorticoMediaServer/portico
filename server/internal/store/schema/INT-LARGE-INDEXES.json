@@ -1,7 +1,88 @@
 {
-  "ddl_sha256": "45c96755dbb968271bf43ee19206f244461764224907810ef129aa01750db3b6",
+  "ddl_sha256": "09726d2b04a4bbb8862545f70596ed4166f8fb77c13dafd6491b84363b6a085b",
   "scope": "Conservative10M+capable repeated/high-fanout/time grains at1Mitems, not a claim every server reaches this density. Full release index set includes declared/implicit UNIQUE/PK/rowid paths. No post-release populated-table index addition; new justified empty access relation online.",
   "tables": [
+    {
+      "table": "access_channel_rules",
+      "grain": "Conservative uncapped-account child grain, possible10M not a target density.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_access_channel_rules_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "account_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ordinal",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Single owner+ordinal WITHOUT ROWID primary B-tree for ordered complete cohort and FK lookup; no extra index."
+        }
+      ]
+    },
+    {
+      "table": "access_denied_labels",
+      "grain": "Conservative uncapped-account child grain, possible10M not a target density.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_access_denied_labels_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "account_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ordinal",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Single owner+ordinal WITHOUT ROWID primary B-tree for ordered complete cohort and FK lookup; no extra index."
+        }
+      ]
+    },
+    {
+      "table": "access_schedule_windows",
+      "grain": "Conservative uncapped-account child grain, possible10M not a target density.",
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_access_schedule_windows_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "account_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "ordinal",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null,
+          "access": "Single owner+ordinal WITHOUT ROWID primary B-tree for ordered complete cohort and FK lookup; no extra index."
+        }
+      ]
+    },
     {
       "table": "analysis_artifacts",
       "grain": "art/analysis per-subject categories and repeated markers",
@@ -10061,5 +10142,5 @@
       "complete_release_indexes": []
     }
   ],
-  "change_control": "UNADOPTED CHANGE-005 over003; W design boundary pass only, independent R and lead adoption required."
+  "change_control": "UNADOPTED CHANGE-007 over adopted005; W/RD static domain checks, bundled candidate, R and lead adoption precede embed/runtime."
 }

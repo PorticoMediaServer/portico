@@ -1,5 +1,8 @@
 {
   "non_strict_with_typeof_checks": [
+    "access_channel_rules",
+    "access_denied_labels",
+    "access_schedule_windows",
     "analysis_artifacts",
     "analysis_audio_envelope",
     "analysis_heads",
@@ -332,6 +335,16 @@
   ],
   "remaining_tables": "O17: only plausibly >100k repeated grains are ordinary; configuration/active control remains STRICT; native FTS follows engine schema",
   "grain_policy": {
+    "access_channel_rules": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Bounded authored account-policy children; users uncapped, >100k plausible, no source-write fanout.",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "access_denied_labels": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Bounded authored account-policy children; users uncapped, >100k plausible, no source-write fanout.",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
     "access_invitation_short_codes": {
       "policy": "STRICT",
       "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied"
@@ -347,6 +360,11 @@
     "access_receipts": {
       "policy": "STRICT",
       "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied"
+    },
+    "access_schedule_windows": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Bounded authored account-policy children; users uncapped, >100k plausible, no source-write fanout.",
+      "threshold": "plausibly >100000rows, not a product cap"
     },
     "account_portico_links": {
       "policy": "STRICT",
@@ -486,6 +504,10 @@
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
     },
+    "artwork_subject_jobs": {
+      "policy": "STRICT",
+      "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied"
+    },
     "asset_chapter_facts": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "grain": "technical stream/chapter/fact/section/source child or per-item capture; >100k plausible",
@@ -603,6 +625,40 @@
       "policy": "STRICT",
       "grain": "server singleton"
     },
+    "catalog_age_facet_counts": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "catalog_age_item_counts": {
+      "policy": "STRICT",
+      "grain": "compiled vocabulary/current head or bounded configuration grain"
+    },
+    "catalog_aggregate_operations": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "catalog_aggregate_publications": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "catalog_aggregate_targets": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "catalog_asset_contributions": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "catalog_asset_deltas": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
     "catalog_asset_issues": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
@@ -646,6 +702,10 @@
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "catalog_credit_images": {
+      "policy": "ordinary +full typeof +nonrowid key NOT NULL",
+      "grain": "Repeated per-subject/generation image or typed actual retirement outcome; plausible >100k"
     },
     "catalog_credit_labels": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -818,12 +878,26 @@
       "policy": "STRICT",
       "grain": "compiled vocabulary/current head or bounded configuration grain"
     },
+    "catalog_membership_clock": {
+      "policy": "STRICT",
+      "grain": "server singleton"
+    },
     "catalog_people": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
     },
     "catalog_people_aliases": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "catalog_person_merge_work": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "catalog_person_merges": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
@@ -852,6 +926,16 @@
       "policy": "STRICT",
       "grain": "compiled vocabulary/current head or bounded configuration grain"
     },
+    "catalog_scalar_contributions": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "catalog_scalar_deltas": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
     "catalog_selection_predicate_epoch": {
       "policy": "STRICT",
       "grain": "server singleton"
@@ -866,6 +950,16 @@
       "threshold": "plausibly >100000rows, not a product cap"
     },
     "catalog_source_verification": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "catalog_subject_merges": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "catalog_subjects": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
@@ -972,6 +1066,10 @@
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
     },
+    "credit_image_reclaim_receipts": {
+      "policy": "ordinary +full typeof +nonrowid key NOT NULL",
+      "grain": "Repeated per-subject/generation image or typed actual retirement outcome; plausible >100k"
+    },
     "credit_owner_entries": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "grain": "repeated credits/source cohort; potentially150rows/item/observation",
@@ -996,6 +1094,10 @@
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "grain": "repeated credits/source cohort; potentially150rows/item/observation",
       "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "data_format": {
+      "policy": "STRICT",
+      "grain": "server singleton"
     },
     "database_maintenance_status": {
       "policy": "STRICT",
@@ -1132,6 +1234,10 @@
     "dvr_storage_policy": {
       "policy": "STRICT",
       "grain": "server singleton"
+    },
+    "enrichment_command_receipts": {
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
     },
     "enrichment_domains": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -1574,6 +1680,22 @@
       "policy": "STRICT",
       "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied"
     },
+    "listening_item_buckets": {
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
+    },
+    "listening_play_instants": {
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
+    },
+    "listening_profile_buckets": {
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
+    },
+    "listening_time_spans": {
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
+    },
     "live_allocation_reconcile_cursor": {
       "policy": "STRICT",
       "grain": "server singleton"
@@ -1759,6 +1881,20 @@
       "policy": "STRICT",
       "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied"
     },
+    "metadata_accounting_next": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_accounting_transitions": {
+      "policy": "STRICT",
+      "grain": "compiled vocabulary/current head or bounded configuration grain"
+    },
+    "metadata_acquisition_jobs": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
     "metadata_artwork_size_requests": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
@@ -1767,6 +1903,26 @@
     "metadata_artwork_size_sweep": {
       "policy": "STRICT",
       "grain": "server singleton"
+    },
+    "metadata_candidate_aliases": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_candidate_reasons": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_candidates": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_credit_cleanup": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
     },
     "metadata_discovery_items": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -1783,6 +1939,90 @@
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
     },
+    "metadata_entity_external_ids": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_evidence": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_evidence_accounting": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_evidence_aliases": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_evidence_attachments": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_evidence_builds": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_evidence_collections": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_evidence_credits": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "repeated credits/source cohort; potentially150rows/item/observation",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_evidence_episodes": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_evidence_external_ids": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_evidence_media": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_evidence_ratings": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_evidence_terms": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_evidence_totals": {
+      "policy": "STRICT",
+      "grain": "compiled vocabulary/current head or bounded configuration grain"
+    },
+    "metadata_evidence_tracks": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_field_origins": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_hint_scans": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
     "metadata_kept_files": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
@@ -1791,6 +2031,16 @@
     "metadata_lookup_fanout": {
       "policy": "STRICT",
       "grain": "compiled vocabulary/current head or bounded configuration grain"
+    },
+    "metadata_operation_artists": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_operation_subjects": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
     },
     "metadata_owner_fields": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -1802,7 +2052,65 @@
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
     },
+    "metadata_person_external_ids": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_projection_targets": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_provider_operation_sources": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_provider_operations": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_provider_policy": {
+      "policy": "STRICT",
+      "grain": "compiled vocabulary/current head or bounded configuration grain"
+    },
+    "metadata_provider_subjects": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_providers": {
+      "policy": "STRICT",
+      "grain": "compiled vocabulary/current head or bounded configuration grain"
+    },
+    "metadata_publication_page_members": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_publication_pages": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_publication_sets": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_publications": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
     "metadata_ratings": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_reconciliations": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
@@ -1826,6 +2134,10 @@
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
     },
+    "metadata_repair_command_receipts": {
+      "policy": "ordinary +full typeof +nonrowid key NOT NULL",
+      "grain": "Repeated per-subject/generation image or typed actual retirement outcome; plausible >100k"
+    },
     "metadata_repair_work_receipts": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "grain": "repeated retained event/receipt or sparse principal-by-object fact; >100k plausible",
@@ -1834,6 +2146,16 @@
     "metadata_runtime_settings": {
       "policy": "STRICT",
       "grain": "server singleton"
+    },
+    "metadata_selection_receipts": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "repeated retained event/receipt or sparse principal-by-object fact; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "metadata_subject_providers": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
     },
     "mount_allocations": {
       "policy": "STRICT",
@@ -1928,6 +2250,15 @@
     "notice_broadcast_work": {
       "policy": "STRICT",
       "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied"
+    },
+    "notification_ack_heads": {
+      "policy": "STRICT",
+      "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied"
+    },
+    "notification_acknowledgments": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "repeated retained event/receipt or sparse principal-by-object fact; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
     },
     "notification_inbox": {
       "policy": "STRICT",
@@ -2223,6 +2554,11 @@
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
     },
+    "playback_personal_observation_evidence": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
     "playback_personal_profile_fences": {
       "policy": "STRICT",
       "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied"
@@ -2496,6 +2832,11 @@
       "grain": "technical stream/chapter/fact/section/source child or per-item capture; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
     },
+    "reading_text_publications": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "technical stream/chapter/fact/section/source child or per-item capture; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
     "reading_text_sections": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "grain": "technical stream/chapter/fact/section/source child or per-item capture; >100k plausible",
@@ -2676,6 +3017,14 @@
       "policy": "STRICT",
       "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied"
     },
+    "scan_command_receipts": {
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
+    },
+    "scan_command_results": {
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
+    },
     "screen_anime_seasons": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
@@ -2690,10 +3039,53 @@
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
     },
+    "search_fragments": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "search_generation_receipts": {
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
+    },
+    "search_generations": {
+      "policy": "STRICT",
+      "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied"
+    },
     "search_history": {
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
       "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
       "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "search_image_seals": {
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
+    },
+    "search_publications": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "search_publish_jobs": {
+      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
+      "threshold": "plausibly >100000rows, not a product cap"
+    },
+    "search_publish_receipts": {
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
+    },
+    "search_reclaim_jobs": {
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
+    },
+    "search_reclaim_receipts": {
+      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
+      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
+    },
+    "search_revision": {
+      "policy": "STRICT",
+      "grain": "server singleton"
     },
     "security_purge_jobs": {
       "policy": "STRICT",
@@ -2935,380 +3327,6 @@
     "webhooks": {
       "policy": "STRICT",
       "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied"
-    },
-    "metadata_providers": {
-      "policy": "STRICT",
-      "grain": "compiled vocabulary/current head or bounded configuration grain"
-    },
-    "metadata_provider_policy": {
-      "policy": "STRICT",
-      "grain": "compiled vocabulary/current head or bounded configuration grain"
-    },
-    "metadata_evidence": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_evidence_builds": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_evidence_aliases": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_evidence_external_ids": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_evidence_terms": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_evidence_credits": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "repeated credits/source cohort; potentially150rows/item/observation",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_evidence_ratings": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_evidence_episodes": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_evidence_media": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_evidence_tracks": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_evidence_attachments": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_subject_providers": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_publication_sets": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_publication_pages": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_publication_page_members": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_provider_operations": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_operation_subjects": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_provider_operation_sources": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_operation_artists": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_candidates": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_candidate_reasons": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_candidate_aliases": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_projection_targets": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_publications": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_selection_receipts": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "repeated retained event/receipt or sparse principal-by-object fact; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_evidence_accounting": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_evidence_totals": {
-      "policy": "STRICT",
-      "grain": "compiled vocabulary/current head or bounded configuration grain"
-    },
-    "metadata_accounting_transitions": {
-      "policy": "STRICT",
-      "grain": "compiled vocabulary/current head or bounded configuration grain"
-    },
-    "metadata_accounting_next": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_acquisition_jobs": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_hint_scans": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_reconciliations": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_entity_external_ids": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_person_external_ids": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_field_origins": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_credit_cleanup": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_provider_subjects": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "catalog_scalar_contributions": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "search_fragments": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "search_revision": {
-      "policy": "STRICT",
-      "grain": "server singleton"
-    },
-    "playback_personal_observation_evidence": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "data_format": {
-      "policy": "STRICT",
-      "grain": "server singleton"
-    },
-    "catalog_asset_contributions": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "catalog_subjects": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "catalog_subject_merges": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "catalog_person_merges": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "catalog_person_merge_work": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "catalog_membership_clock": {
-      "policy": "STRICT",
-      "grain": "server singleton"
-    },
-    "catalog_age_item_counts": {
-      "policy": "STRICT",
-      "grain": "compiled vocabulary/current head or bounded configuration grain"
-    },
-    "catalog_age_facet_counts": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "notification_acknowledgments": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "repeated retained event/receipt or sparse principal-by-object fact; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "notification_ack_heads": {
-      "policy": "STRICT",
-      "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied"
-    },
-    "reading_text_publications": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "technical stream/chapter/fact/section/source child or per-item capture; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "metadata_evidence_collections": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "search_publications": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "search_publish_jobs": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "catalog_aggregate_operations": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "catalog_aggregate_publications": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "catalog_aggregate_targets": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "catalog_scalar_deltas": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "catalog_asset_deltas": {
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
-      "grain": "catalogue/evidence/source/term/member grain, independent of small server configuration; >100k plausible",
-      "threshold": "plausibly >100000rows, not a product cap"
-    },
-    "search_generations": {
-      "policy": "STRICT",
-      "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied"
-    },
-    "artwork_subject_jobs": {
-      "policy": "STRICT",
-      "grain": "configured endpoint/policy/identity or active operation/session/pin control grain; not plausibly >100k on the target server; no admission cap implied"
-    },
-    "search_image_seals": {
-      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
-      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
-    },
-    "search_reclaim_jobs": {
-      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
-      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
-    },
-    "scan_command_receipts": {
-      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
-      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
-    },
-    "scan_command_results": {
-      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
-      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
-    },
-    "search_publish_receipts": {
-      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
-      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
-    },
-    "search_generation_receipts": {
-      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
-      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
-    },
-    "search_reclaim_receipts": {
-      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
-      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
-    },
-    "enrichment_command_receipts": {
-      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
-      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
-    },
-    "listening_item_buckets": {
-      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
-      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
-    },
-    "listening_profile_buckets": {
-      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
-      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
-    },
-    "listening_play_instants": {
-      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
-      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
-    },
-    "listening_time_spans": {
-      "policy": "ordinary + full typeof + explicit nonrowid key NOT NULL",
-      "grain": "Own-play lifetime metric intervals/time counters or repeated operation/image replay/preparation/retirement; INT-CHANGE-001; plausible >100k"
-    },
-    "catalog_credit_images": {
-      "policy": "ordinary +full typeof +nonrowid key NOT NULL",
-      "grain": "Repeated per-subject/generation image or typed actual retirement outcome; plausible >100k"
-    },
-    "credit_image_reclaim_receipts": {
-      "policy": "ordinary +full typeof +nonrowid key NOT NULL",
-      "grain": "Repeated per-subject/generation image or typed actual retirement outcome; plausible >100k"
-    },
-    "metadata_repair_command_receipts": {
-      "policy": "ordinary +full typeof +nonrowid key NOT NULL",
-      "grain": "Repeated per-subject/generation image or typed actual retirement outcome; plausible >100k"
     }
   },
   "future_add": "Plain nullable ADD with no new validating constraint; typed writer validates; no startup backfill"

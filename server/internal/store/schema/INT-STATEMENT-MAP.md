@@ -524,3 +524,38 @@ WHERE state=:state AND id>:after ORDER BY id LIMIT :n;
 ```
 
 Root lookup repeats its exact predicate. Discovery is finite keyset work, never a startup census or permission to detach/reclaim. Exact source ownership, provider/entity/root identity, current operation generation and lease are rechecked by the fresh typed command after original historical resolution. Neither root uniqueness nor a historical owner FK supplies those predicates. No publisher cursor field is a build-ID carrier.
+
+
+## EXPANDED CHANGE-007 account-policy children (NOT ADOPTED)
+
+## RD read contract: each child and the whole snapshot
+
+```sql
+SELECT ordinal,label FROM access_denied_labels
+WHERE account_id=:account AND ordinal>:after ORDER BY ordinal LIMIT :limit;
+SELECT ordinal,day_mask,start_minute,end_minute FROM access_schedule_windows
+WHERE account_id=:account AND ordinal>:after ORDER BY ordinal LIMIT :limit;
+SELECT ordinal,channel_id FROM access_channel_rules
+WHERE account_id=:account AND ordinal>:after ORDER BY ordinal LIMIT :limit;
+```
+
+Current-authorized account TEXT; initial after=int64(-1); checked limits257/65/513 respectively. Ordinals are native nonnegative int64, strictly ascending; no contiguity assumption. Overflow/malformed/unfinished policy refuses, never authorizes a partial list. All three complete children, current membership/account incarnation/authority, parent revision+policy_present+timezone+mode and profile JSON/revision share ONE bounded GV snapshot or explicit common-fence protocol. No all-user enumeration, unbounded SQL folding/json_each or channel/schedule filtering before LIMIT. Native ReadLimits + reserved C×L + pre-copy RowBudget bound the WHOLE envelope BEFORE allocation/decoding; LIMIT is not a byte proof. Current query-count, window/VM, output-custody, clock/location and resource limits cannot silently be raised.
+
+EVERY actual label-only, schedule-only or channel-only accepted replacement advances access_limits.revision. Any policy/timezone/mode/current-authority drift invalidates unfinished reads; a page cannot borrow another revision's children. Missing policy is unrestricted only under the separately approved absent-policy default, never because the carrier was omitted. Empty complete list has the explicit semantics above; missing/unreadable/unsupported policy never becomes empty. RD supplies actual statements/index/normalization/default/time-boundary contract for EACH new child; native plans and complete verifier still need implementation/qualification.
+
+RD expanded STATIC DOMAIN AGREE is recorded in RD-ACCESS-CHILDREN-CONTRACT.md SHA048cfe88c5cd4e7f94b8625ed25d4479b226aeaa097f0a13f9510eb992865e3b, against this draft MDc54b71c0 and unchanged DDLa8e137d6. It confirms each carrier/read/default/normalization/time contract, not runtime qualification. Concrete whole-kernel count: existing principal/library/kind +3children +first-title =7 Query calls; tie+next continuation =8. Maximum returned positions:257+65+513+3point+64rawtitle=902. These counts do NOT prove IO/VM/pages/copy/nativeRSS or enough room for candidate/term/edge verification, and cannot raise GV's8-query/4096-row/1s ceilings. Additional proof may need an actually common-fenced window with charged retained policy/output.
+
+Timezone resolution may perform IO: qualify/cache the trusted location OUTSIDE the SQL callback, then reacquire and revalidate the complete policy/current authority before deciding; empty timezone depends on the trusted server-zone source too. Do not perform timezone/client IO inside snapshots, hold SQL handles across IO, cache time-dependent permission past a boundary or infer a caller-supplied location is authority. Actual current clock/zone witness and retained-output custody remain execution gates.
+
+RD's published5b9b83d8 browse.go133–146 parses UTF8/typed-array/count/length then rejects EVERY nonempty profile list. TestBrowseProfileLabelsFailClosed331–360 covers malformed/nonempty refusal and[]success; pure LabelKey vectors are not a functioning item predicate. Nonempty profile browsing remains ErrUnqualified until RD's actual verifier exists. Historical RD helper0.003s at0d1577fc and typed-refusal1.699s at7e071663 are scoped RD evidence, not an INT/native final-head/route qualification.
+
+## W revision, FULL replacement and lifetime: EACH child
+
+All three are policy-data children of access_limits; none is a job/lease/receipt owner. A complete edit resolves original historical receipt under current permitted disclosure BEFORE fresh CAS. Changed scalar policy and ALL actually changed old+new label/window/channel rows, parent revision/updated_ms, direct_membership/stream-policy/authority fences and immutable typed proof/terminal commit atomically. Readers see old or new WHOLE policy. No child-only edit without parent revision, no partial active authorization update, no overwrite of unrelated lists. SecurityAccept/Recovery is explicitly FULL, including WAL-prefix/fsync/COMMIT cost; no class default/promotion or physical pass is inferred. Maximum old+new three-child cohorts can reach1664rows before parent/fence/result effects; the complete operation must be admitted or refused, not split visibly.
+
+Each child FK is NO ACTION. Active-policy deletion must remove ALL affected policy children and parent in ONE admitted atomic FULL command, child-first inside that transaction; a parent cascade cannot hide work or delete unacknowledged scope. Incremental multi-command physical cleanup is allowed ONLY after a separately proved inactive retirement/deny fence, discoverable owner and result/ACK lifetime protocol. policy_present=0 is NOT a deny/retirement fence: it must not expose an empty/unrestricted prefix while draining. That inactive protocol is not supplied by007; without it, over-budget active deletion must refuse intact, not split. Policy removal cannot fan out across users/sessions. W must check each new child's revision/atomic FULL replacement/deletion/lifetime boundaries, including unchanged lists and complete outcome cost.
+
+SEPARATE accepting-protocol gap remains: access_limits has no command incarnation/last/ACK/floor/immutable typed result; generic access_receipts TEXT body/global2000 pruning is not W proof. Fresh policy writes/deletion remain gated on a separately reviewed/adopted actual security owner/typed command+result/receipt/ACK/current-disclosure/retirement packet. No JSON result, native generation or FK is relabeled. Neither this three-child repair nor data/revision agreement supplies a facade/auth bridge, receipt lifecycle, ACK-before-retirement or resource qualification.
+
+
+Normalization/source/admission semantics and exact caps: INT-CHANGE-007.md. No runtime or accepting authority.

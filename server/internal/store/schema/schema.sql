@@ -14663,3 +14663,40 @@ CREATE TABLE metadata_repair_command_receipts(
 CREATE UNIQUE INDEX metadata_build_root_active ON metadata_evidence_builds(owner_operation,owner_incarnation) WHERE owner_operation<>'' AND parent_build IS NULL AND state IN('building','ready');
 CREATE INDEX metadata_build_owner ON metadata_evidence_builds(owner_operation,owner_incarnation,state,id);
 CREATE INDEX metadata_build_state ON metadata_evidence_builds(state,id);
+
+-- CHANGE-007 REQUEST ONLY. Additive delta over adopted00545c96755.
+-- Not bootstrap/migration SQL, not adopted or an execution grant.
+-- W/RD contract checks, bundled full-candidate controls, R review and lead adoption precede embedding.
+CREATE TABLE access_denied_labels(
+ account_id TEXT NOT NULL REFERENCES access_limits(account_id),
+ ordinal INTEGER NOT NULL CHECK(ordinal>=0),
+ label TEXT NOT NULL CHECK(length(label)>0),
+ PRIMARY KEY(account_id,ordinal),
+ CHECK(typeof(account_id)='text'),
+ CHECK(typeof(ordinal)='integer'),
+ CHECK(typeof(label)='text')
+) WITHOUT ROWID;
+
+CREATE TABLE access_schedule_windows(
+ account_id TEXT NOT NULL REFERENCES access_limits(account_id),
+ ordinal INTEGER NOT NULL CHECK(ordinal>=0),
+ day_mask INTEGER NOT NULL CHECK(day_mask BETWEEN 1 AND 127),
+ start_minute INTEGER NOT NULL CHECK(start_minute BETWEEN 0 AND 1439),
+ end_minute INTEGER NOT NULL CHECK(end_minute BETWEEN 0 AND 1440 AND end_minute<>start_minute),
+ PRIMARY KEY(account_id,ordinal),
+ CHECK(typeof(account_id)='text'),
+ CHECK(typeof(ordinal)='integer'),
+ CHECK(typeof(day_mask)='integer'),
+ CHECK(typeof(start_minute)='integer'),
+ CHECK(typeof(end_minute)='integer')
+) WITHOUT ROWID;
+
+CREATE TABLE access_channel_rules(
+ account_id TEXT NOT NULL REFERENCES access_limits(account_id),
+ ordinal INTEGER NOT NULL CHECK(ordinal>=0),
+ channel_id TEXT NOT NULL CHECK(length(channel_id)>0),
+ PRIMARY KEY(account_id,ordinal),
+ CHECK(typeof(account_id)='text'),
+ CHECK(typeof(ordinal)='integer'),
+ CHECK(typeof(channel_id)='text')
+) WITHOUT ROWID;
