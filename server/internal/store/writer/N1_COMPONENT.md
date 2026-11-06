@@ -39,6 +39,32 @@ boundaries; these two inputs do **not** cover whole legal MIN/MAX. Each fixture
 has a fresh database, one original and one component attempt. Repetition is not
 sustained throughput, OS-cold, warm-append or reset-cadence evidence.
 
+`-n1-component-population=first-use-reopen` is the historical default: it opens
+a new physical connection/cache after setup, so its pilot is first-use evidence.
+`setup-retained-first-use` instead installs the same test-only decorator at the
+existing canonical fixture's initial open and retains that connection through
+setup/Capture and its ONE fresh original. The source fixture/SQL/profile stay
+the same. Both populations remain first-command controls, separate from steady
+timing. Connection IDs, open counts and native-close counts are observed before
+and after the turn. A retained-setup continuity break makes the attempt/run
+incomplete; it is not silently moved into a successful replacement population.
+Continuity `*_after` observations are taken after turn/physical return and BEFORE
+fixture teardown. Native close records are emitted AFTER teardown, so
+`native_closes_after` need not equal `len(native_closes)`. The default reopen
+mode observes only its decorated measured pool, not the already-closed,
+unobserved setup connection. Absent before-boundary counts stay null.
+
+The lead's steady-state timing population requires a warm PERSISTENT physical
+connection/cache across genuine fresh legal commands. That W-owned progressive
+original/run/cursor/receipt/ACK fixture is not supplied by this target. `steady`
+and positive `-n1-component-warmup` requests therefore fail explicitly before
+opening output or running commands. Declared/observed warmup is currently zero,
+with no warmup originals and `steady_eligible=false`. Neither replay, SQL reset,
+nor repeated fresh databases substitute for that missing fixture. Cold startup,
+replacement, deliberate errors and native-counter cohorts cannot be pooled into
+steady timing; an unexpected failure stays in its requested population and stops
+the run. This update does not alter the previous pilot or UNKNOWN/deadline tail.
+
 `timing` omits per-statement attribution inside HOLD. `native-counters` adds
 VMOperations, native WALIO and DBStatus cache-event snapshots around exact
 compiled SQL and row close. Its overhead is included, never subtracted. Keep
@@ -81,6 +107,18 @@ cohort. COMMIT and physical return come from the actual transaction. An early
 helper failure retains its native units, assertion error and original identity,
 with null owner timing/Settings and nullable commit_not_attempted. No later
 Resolve, expected policy values or error-name timing reconstruction fills gaps.
+
+`native_closes` brackets the actual native driver's Close inside the existing
+owned-close boundary, with connection ID and nullable start/return/elapsed/unwind
+facts. It may enclose SQLite checkpoint/sync work but does not isolate xSync.
+`Completed` means the native Close call returned; inspect its error separately.
+It is not independent native-join/custody proof. An unwind has null return and
+elapsed fields and remains partial; the existing owner cleanup facts still apply.
+`post_commit_to_physical_return_ns` is separately named as an enclosing retirement
+interval, not isolated close or sync. `xsync_ns` stays null with the existing
+unavailable reason. Close observations are bounded; overflow makes the run
+incomplete. Timing-observer overhead is included, never subtracted. No vendor
+instrumentation, scheduling or qualification run follows from this seam.
 
 Units are preallocated (128 maximum), preserve execution order and repeated ID
 use, and match exact executed SQL bytes against the compiled definitions.

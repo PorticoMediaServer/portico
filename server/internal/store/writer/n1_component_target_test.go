@@ -82,27 +82,29 @@ func n1Join(previous string, err error) string {
 }
 
 type n1Clock struct {
-	HoldStartedNS        *int64 `json:"hold_started_ns"`
-	PhysicalReturnedNS   *int64 `json:"physical_returned_ns"`
-	HoldNS               *int64 `json:"hold_ns"`
-	CommitAttemptedNS    *int64 `json:"commit_attempted_ns"`
-	CommitReturnedNS     *int64 `json:"commit_returned_ns"`
-	CommitNS             *int64 `json:"commit_ns"`
-	CommitNotAttempted   *bool  `json:"commit_not_attempted"`
-	RollbackStartedNS    *int64 `json:"rollback_started_ns"`
-	RollbackReturnedNS   *int64 `json:"rollback_returned_ns"`
-	RollbackNS           *int64 `json:"rollback_ns"`
-	InvocationStartedNS  *int64 `json:"invocation_started_ns"`
-	InvocationReturnedNS *int64 `json:"invocation_returned_ns"`
-	InvocationNS         *int64 `json:"invocation_ns"`
-	TurnSetupStartedNS   *int64 `json:"turn_setup_started_ns"`
-	TurnSetupReturnedNS  *int64 `json:"turn_setup_returned_ns"`
-	TurnSetupNS          *int64 `json:"turn_setup_ns"`
-	AcquireNS            *int64 `json:"acquire_ns"`
-	AssertNS             *int64 `json:"assert_ns"`
-	BeginNS              *int64 `json:"begin_ns"`
-	PublicationNS        *int64 `json:"publication_ns"`
-	ConsumerNS           *int64 `json:"consumer_ns"`
+	HoldStartedNS                *int64 `json:"hold_started_ns"`
+	PhysicalReturnedNS           *int64 `json:"physical_returned_ns"`
+	HoldNS                       *int64 `json:"hold_ns"`
+	CommitAttemptedNS            *int64 `json:"commit_attempted_ns"`
+	CommitReturnedNS             *int64 `json:"commit_returned_ns"`
+	CommitNS                     *int64 `json:"commit_ns"`
+	CommitNotAttempted           *bool  `json:"commit_not_attempted"`
+	RollbackStartedNS            *int64 `json:"rollback_started_ns"`
+	RollbackReturnedNS           *int64 `json:"rollback_returned_ns"`
+	RollbackNS                   *int64 `json:"rollback_ns"`
+	InvocationStartedNS          *int64 `json:"invocation_started_ns"`
+	InvocationReturnedNS         *int64 `json:"invocation_returned_ns"`
+	InvocationNS                 *int64 `json:"invocation_ns"`
+	TurnSetupStartedNS           *int64 `json:"turn_setup_started_ns"`
+	TurnSetupReturnedNS          *int64 `json:"turn_setup_returned_ns"`
+	TurnSetupNS                  *int64 `json:"turn_setup_ns"`
+	AcquireNS                    *int64 `json:"acquire_ns"`
+	AssertNS                     *int64 `json:"assert_ns"`
+	BeginNS                      *int64 `json:"begin_ns"`
+	PublicationNS                *int64 `json:"publication_ns"`
+	ConsumerNS                   *int64 `json:"consumer_ns"`
+	PostCommitToPhysicalReturnNS *int64 `json:"post_commit_to_physical_return_ns"`
+	XSyncNS                      *int64 `json:"xsync_ns"`
 }
 
 type n1Settings struct {
@@ -294,6 +296,9 @@ type n1Attempt struct {
 	Memory                 map[string]*n1MemorySample `json:"memory_checkpoints"`
 	NativeBefore           *n1NativeSnapshot          `json:"native_before"`
 	NativeAfter            *n1NativeSnapshot          `json:"native_after"`
+	Continuity             n1ConnectionContinuity     `json:"connection_continuity"`
+	NativeCloses           []n1NativeClose            `json:"native_closes"`
+	NativeCloseOverflow    bool                       `json:"native_close_overflow"`
 	Complete               bool                       `json:"complete"`
 	Unavailable            map[string]string          `json:"unavailable_reasons"`
 }
@@ -314,7 +319,7 @@ var n1Missing = map[string]string{
 	"canonical_encoded_bytes": "existing canonical digest API does not return encoded byte count",
 	"acquire_assert_begin":    "turn_setup is enclosing fixture call; exact acquire/assert phases not exposed",
 	"whole_legal_min_max":     "fixture and escaped-evidence sample are a partial input matrix",
-	"cache_population":        "post-fixture pool reopen/first use, OS-warm setup; neither OS-cold nor sustained reset",
+	"cache_population":        "explicit first-command population; setup touches OS cache; neither OS-cold, warmed steady state nor sustained reset",
 	"owner_intervals":         "null means phase not reached or private fixture did not return its owner view; no timing reconstructed",
 	"settings_actual":         "null until an actual verified Settings observation is available from the private turn",
 	"rows_changed_returning":  "native driver rows expose RETURNING rows, not a separate changed-row count",
@@ -394,9 +399,20 @@ func n1SeedCase(t *testing.T, e *executor, c *inventoryAcceptCommand, cell n1Cas
 
 // One original, one fresh component on the existing W fixture. No public
 // issuer, dispatcher, opening constructor, grant or recipe is reproduced here.
-func runN1Attempt(t *testing.T, ctx context.Context, stream *n1Stream, ordinal int, cell n1Case, cohort, failQuery string, observed **n1Attempt) (record *n1Attempt) {
+func runN1Attempt(t *testing.T, ctx context.Context, stream *n1Stream, ordinal int, cell n1Case, cohort, failQuery string, observed **n1Attempt, options ...n1AttemptOptions) (record *n1Attempt) {
 	t.Helper()
+	population := "first-use-reopen"
+	if len(options) > 1 {
+		t.Fatal("multiple N1 population options")
+	}
+	if len(options) == 1 {
+		population = options[0].population
+	}
+	if err := validateN1Population(population, 0); err != nil {
+		t.Fatal(err)
+	}
 	record = &n1Attempt{Ordinal: ordinal, ID: fmt.Sprintf("%s/%d", stream.base["process_epoch"], ordinal), Case: cell, Cohort: cohort, Phase: "fixture_setup", Outcome: "unobserved", Memory: map[string]*n1MemorySample{}, Unavailable: n1Missing}
+	record.Continuity = n1ConnectionContinuity{Population: population, WarmupOriginals: []ReceiptReference{}, UnavailableReason: errN1ProgressiveFixture.Error(), DeliberateErrorControl: failQuery != ""}
 	*observed = record // also survives a helper's Fatal/Goexit before return
 	record.Unavailable = make(map[string]string, len(n1Missing)+1)
 	for key, reason := range n1Missing {
@@ -421,10 +437,11 @@ func runN1Attempt(t *testing.T, ctx context.Context, stream *n1Stream, ordinal i
 			record.NativeJoined = &joined
 		}
 		record.Memory["after_fixture_close"] = n1Memory(stream.origin)
+		record.NativeCloses, record.NativeCloseOverflow = trace.closes[:trace.closeCount], trace.closeOverflow
 		if t.Failed() && record.Error == "" {
 			record.Error = "test fixture failed during " + record.Phase + "; see native units/test log"
 		}
-		record.Complete = record.Error == "" && record.Outcome == "committed" && record.NativeJoined != nil && *record.NativeJoined && record.Clock.HoldNS != nil && record.Settings.Actual != nil && !record.LedgerOverflow
+		record.Complete = record.Error == "" && record.Outcome == "committed" && record.NativeJoined != nil && *record.NativeJoined && record.Clock.HoldNS != nil && record.Settings.Actual != nil && !record.LedgerOverflow && !record.NativeCloseOverflow
 		if err := stream.append("attempt", map[string]any{"attempt_id": record.ID, "attempt_ordinal": ordinal, "attempt": record}); err != nil {
 			t.Error(err)
 		}
@@ -450,6 +467,9 @@ func runN1Attempt(t *testing.T, ctx context.Context, stream *n1Stream, ordinal i
 			if !tx.commitStartedAt.IsZero() && !tx.commitReturnedAt.IsZero() {
 				n := tx.commitReturnedAt.Sub(tx.commitStartedAt).Nanoseconds()
 				record.Clock.CommitNS = &n
+			}
+			if !tx.commitReturnedAt.IsZero() && !tx.physicalReturnedAt.IsZero() {
+				record.Clock.PostCommitToPhysicalReturnNS = n1Duration(tx.commitReturnedAt, tx.physicalReturnedAt)
 			}
 			notAttempted := !tx.commitAttempted
 			record.Clock.CommitNotAttempted = &notAttempted
@@ -483,6 +503,10 @@ func runN1Attempt(t *testing.T, ctx context.Context, stream *n1Stream, ordinal i
 			}
 		}
 		trace.armed = false
+		record.Continuity.observeAfter(trace)
+		if population == "setup-retained-first-use" && record.Continuity.Same != nil && !*record.Continuity.Same {
+			record.Error = n1Join(record.Error, errors.New("physical connection lifetime interrupted in retained-setup population"))
+		}
 		record.Units, record.LedgerOverflow = trace.units[:trace.used], trace.overflow
 		for i := range record.Units {
 			u := &record.Units[i]
@@ -522,7 +546,11 @@ func runN1Attempt(t *testing.T, ctx context.Context, stream *n1Stream, ordinal i
 	record.Memory["before_fixture_setup"] = n1Memory(stream.origin)
 	var command *inventoryAcceptCommand
 	var registry *stmt.Registry
-	e, path, command, registry = inventoryFreshFixture(t)
+	if population == "setup-retained-first-use" {
+		e, path, command, registry = inventoryFreshFixture(t, trace.decorate)
+	} else {
+		e, path, command, registry = inventoryFreshFixture(t)
+	}
 	record.DatabaseID, record.DatabasePath = record.ID+"/db", path
 	manifest, err := json.Marshal(registry.Manifest())
 	if err != nil {
@@ -574,22 +602,27 @@ func runN1Attempt(t *testing.T, ctx context.Context, stream *n1Stream, ordinal i
 		}
 		record.Cardinalities[table] = n
 	}
-	if err := e.db.Close(); err != nil {
-		t.Fatal(err)
+	if population == "first-use-reopen" {
+		if err := e.db.Close(); err != nil {
+			t.Fatal(err)
+		}
+		connector, err := sqliteconn.Connector(path, e.config)
+		if err != nil {
+			t.Fatal(err)
+		}
+		e.openPool(connector, trace.decorate) // existing TEST-ONLY decoration seam
 	}
-	connector, err := sqliteconn.Connector(path, e.config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	e.openPool(connector, trace.decorate) // existing TEST-ONLY decoration seam
 	if err := e.db.PingContext(ctx); err != nil {
 		t.Fatal(err)
 	}
 	record.WALBefore = n1ReadWAL(stream.origin, path)
 	record.NativeBefore = &n1NativeSnapshot{}
 	trace.conn.snapshot(record.NativeBefore, false)
+	id, connections, closes := trace.conn.id, trace.connections, trace.closeCount
+	record.Continuity.BeforeID, record.Continuity.ConnectionsBefore = &id, &connections
+	record.Continuity.NativeClosesBefore = &closes
 	record.Phase = "prepared"
-	if err := stream.append("attempt_start", map[string]any{"attempt_id": record.ID, "attempt_ordinal": ordinal, "database_id": record.DatabaseID, "database_path": path, "original_reference": record.Reference, "case": cell, "cohort": cohort, "fixture_cardinalities": record.Cardinalities, "input_lengths": record.InputLengths, "cache_state": "post_fixture_reopen_first_use"}); err != nil {
+	if err := stream.append("attempt_start", map[string]any{"attempt_id": record.ID, "attempt_ordinal": ordinal, "database_id": record.DatabaseID, "database_path": path, "original_reference": record.Reference, "case": cell, "cohort": cohort, "fixture_cardinalities": record.Cardinalities, "input_lengths": record.InputLengths, "cache_state": population, "declared_warmup": 0}); err != nil {
 		t.Fatal(err)
 	}
 	record.Memory["before_turn"] = n1Memory(stream.origin)
@@ -662,6 +695,9 @@ func TestN1ComponentMeasurement(t *testing.T) {
 	if err != nil || (*n1CohortFlag != "timing" && *n1CohortFlag != "native-counters") {
 		t.Fatal("invalid closed component case/cohort", err)
 	}
+	if err := validateN1Population(*n1PopulationFlag, *n1WarmupFlag); err != nil {
+		t.Fatal(err)
+	}
 	file, err := openFirstLightOutput(config.OutputPath)
 	if err != nil {
 		t.Fatal(err)
@@ -675,7 +711,7 @@ func TestN1ComponentMeasurement(t *testing.T) {
 	configHash := sha256.Sum256(data)
 	stream := &n1Stream{file: file, origin: origin, base: map[string]any{"schema": "portico-n1-component-v1", "label": "N1 COMPONENT DIRECTIONAL", "qualification": false, "run_id": config.RunID, "process_epoch": fmt.Sprintf("%s/%d/%d", config.RunID, os.Getpid(), origin.UnixNano())}}
 	sources := map[string]string{}
-	for _, path := range []string{"scan_fresh_test.go", "inventory_memory_test.go", "governor_turn_test.go", "schema_fixture_test.go", "scan_fresh.go", "scan_fresh_observation.go", "transaction.go", "n1_component_target_test.go", "n1_component_native_test.go", "testdata/scan-inventory-fresh.json"} {
+	for _, path := range []string{"scan_fresh_test.go", "inventory_memory_test.go", "governor_turn_test.go", "schema_fixture_test.go", "transaction_test.go", "n1_component_population_test.go", "scan_fresh.go", "scan_fresh_observation.go", "transaction.go", "n1_component_target_test.go", "n1_component_native_test.go", "testdata/scan-inventory-fresh.json"} {
 		raw, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal("component source pin", err)
@@ -704,7 +740,7 @@ func TestN1ComponentMeasurement(t *testing.T) {
 		h := sha256.Sum256([]byte(d.SQL))
 		sqlHashes[d.ID] = hex.EncodeToString(h[:])
 	}
-	start := map[string]any{"origin_utc": origin.UTC(), "pid": os.Getpid(), "observed_host": host, "host_error": n1Error(hostErr), "host_epoch": config.HostEpoch, "boot_id": strings.TrimSpace(string(boot)), "boot_error": n1Error(bootErr), "declared_source_commit": config.SourceCommit, "binary_sha256": hex.EncodeToString(hash.Sum(nil)), "config_sha256": hex.EncodeToString(configHash[:]), "schema_sha256": schema.SHA256, "source_hashes": sources, "sql_sha256_by_id": sqlHashes, "requested_fixtures": config.Fixtures, "case": cell, "cohort": *n1CohortFlag, "clock": "time.Now with monotonic time.Sub before JSON", "synthetic_memory_partition": map[string]uint64{"preparation_bytes": 4 << 20, "nonborrowable_reserve_bytes": 4 << 20}, "synthetic_work_source": "inventoryMemoryFixtureTurn; unchanged test recipe, NOT production profile", "db_status_methods": n1StatusOps, "native_counter_scope": "same physical connection; cumulative/current, reset=false; no native memory peak", "ledger_layout_bytes": reflect.TypeFor[n1Unit]().Size() * n1UnitLimit, "unavailable_reasons": n1Missing}
+	start := map[string]any{"origin_utc": origin.UTC(), "pid": os.Getpid(), "observed_host": host, "host_error": n1Error(hostErr), "host_epoch": config.HostEpoch, "boot_id": strings.TrimSpace(string(boot)), "boot_error": n1Error(bootErr), "declared_source_commit": config.SourceCommit, "binary_sha256": hex.EncodeToString(hash.Sum(nil)), "config_sha256": hex.EncodeToString(configHash[:]), "schema_sha256": schema.SHA256, "source_hashes": sources, "sql_sha256_by_id": sqlHashes, "requested_fixtures": config.Fixtures, "population": *n1PopulationFlag, "declared_warmup": *n1WarmupFlag, "steady_supported": false, "steady_unavailable_reason": errN1ProgressiveFixture.Error(), "case": cell, "cohort": *n1CohortFlag, "clock": "time.Now with monotonic time.Sub before JSON", "synthetic_memory_partition": map[string]uint64{"preparation_bytes": 4 << 20, "nonborrowable_reserve_bytes": 4 << 20}, "synthetic_work_source": "inventoryMemoryFixtureTurn; unchanged test recipe, NOT production profile", "db_status_methods": n1StatusOps, "native_counter_scope": "same physical connection; cumulative/current, reset=false; no native memory peak", "ledger_layout_bytes": reflect.TypeFor[n1Unit]().Size() * n1UnitLimit, "unavailable_reasons": n1Missing}
 	if err := stream.append("start", start); err != nil {
 		t.Fatal(err)
 	}
@@ -715,7 +751,7 @@ func TestN1ComponentMeasurement(t *testing.T) {
 	offered, started, physical, complete, failed, unknown, refused, fenced, joined := 0, 0, 0, 0, 0, 0, 0, 0, 0
 	stopReason := ""
 	defer func() {
-		fields := map[string]any{"requested_fixtures": config.Fixtures, "offered": offered, "started": started, "physically_returned": physical, "native_joined": joined, "complete_attempts": complete, "error_attempts": failed, "unknown_attempts": unknown, "known_refusals": refused, "known_fenced": fenced, "complete": offered == config.Fixtures && complete == offered && stream.err == nil && !t.Failed() && ctx.Err() == nil, "stop_reason": n1Join(stopReason, ctx.Err()), "case": cell, "cohort": *n1CohortFlag, "consumer": "not exercised", "unavailable_dimension_count": len(n1Missing), "unavailable_reasons": n1Missing}
+		fields := map[string]any{"requested_fixtures": config.Fixtures, "offered": offered, "started": started, "physically_returned": physical, "native_joined": joined, "complete_attempts": complete, "error_attempts": failed, "unknown_attempts": unknown, "known_refusals": refused, "known_fenced": fenced, "complete": offered == config.Fixtures && complete == offered && stream.err == nil && !t.Failed() && ctx.Err() == nil, "stop_reason": n1Join(stopReason, ctx.Err()), "case": cell, "cohort": *n1CohortFlag, "population": *n1PopulationFlag, "declared_warmup": *n1WarmupFlag, "observed_warmup": 0, "steady_supported": false, "consumer": "not exercised", "unavailable_dimension_count": len(n1Missing), "unavailable_reasons": n1Missing}
 		if err := stream.append("final", fields); err != nil {
 			t.Error(err)
 		}
@@ -723,7 +759,9 @@ func TestN1ComponentMeasurement(t *testing.T) {
 	for ordinal := 1; ordinal <= config.Fixtures && ctx.Err() == nil; ordinal++ {
 		var record *n1Attempt
 		offered++
-		ok := t.Run(fmt.Sprintf("attempt_%03d", ordinal), func(t *testing.T) { record = runN1Attempt(t, ctx, stream, ordinal, cell, *n1CohortFlag, "", &record) })
+		ok := t.Run(fmt.Sprintf("attempt_%03d", ordinal), func(t *testing.T) {
+			record = runN1Attempt(t, ctx, stream, ordinal, cell, *n1CohortFlag, "", &record, n1AttemptOptions{population: *n1PopulationFlag})
+		})
 		if record != nil && record.Clock.TurnSetupStartedNS != nil {
 			started++
 		}
