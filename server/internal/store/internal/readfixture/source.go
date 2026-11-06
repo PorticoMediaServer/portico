@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/schematest"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
@@ -28,6 +29,8 @@ type browseFact struct {
 }
 type browseFixture struct {
 	sharedMovieKind bool
+	temporalOrigin  time.Time
+	temporalShift   time.Duration
 	borrowed        bool
 	path            string
 	conn            *sql.Conn
@@ -43,8 +46,9 @@ type Fact struct {
 }
 type Source struct{ source *browseFixture }
 
-func (s *Source) Path() string    { return s.source.path }
-func (s *Source) Conn() *sql.Conn { return s.source.conn }
+func (s *Source) TemporalOrigin() time.Time { return s.source.temporalOrigin }
+func (s *Source) Path() string              { return s.source.path }
+func (s *Source) Conn() *sql.Conn           { return s.source.conn }
 func (s *Source) Facts() []Fact {
 	out := make([]Fact, len(s.source.facts))
 	for i, f := range s.source.facts {
@@ -77,7 +81,8 @@ func ForegroundOn(t *testing.T, path string, conn *sql.Conn) *Source {
 	if conn == nil || path == "" {
 		t.Fatal("missing owned fixture attachment")
 	}
-	f := &browseFixture{path: path, conn: conn, borrowed: true, sharedMovieKind: true}
+	origin := time.Now().UTC()
+	f := &browseFixture{path: path, conn: conn, borrowed: true, sharedMovieKind: true, temporalOrigin: origin, temporalShift: origin.Sub(time.Date(2026, 11, 6, 0, 0, 0, 0, time.UTC))}
 	attachment.Lock()
 	if attachment.owner != nil {
 		attachment.Unlock()
@@ -133,6 +138,26 @@ func (f *browseFixture) exec(t *testing.T, q string, args ...any) {
 	if f.sharedMovieKind && strings.HasPrefix(q, "INSERT INTO catalog_kinds(") {
 		return
 	}
+	// Preserve the existing synthetic authority/data time offsets, but rebase
+	// them ONCE before paired preparation to the actual clock. Standalone RD2
+	// seeds remain byte-for-byte unchanged; failed inputs are never repaired.
+	if !f.temporalOrigin.IsZero() {
+		shift := func(value string) string {
+			stamp, err := time.Parse(time.RFC3339Nano, value)
+			if err != nil {
+				return value
+			}
+			return stamp.Add(f.temporalShift).Format(time.RFC3339Nano)
+		}
+		for _, literal := range []string{"2026-11-05T00:00:00Z", "2026-11-06T00:00:00Z", "2026-11-07T00:00:00Z", "2026-11-06T12:00:00.000000000Z"} {
+			q = strings.ReplaceAll(q, literal, shift(literal))
+		}
+		for i, arg := range args {
+			if value, ok := arg.(string); ok {
+				args[i] = shift(value)
+			}
+		}
+	}
 	if _, err := f.conn.ExecContext(t.Context(), q, args...); err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +167,7 @@ func Foreground(t *testing.T) *Source { return &Source{newForegroundSource(t)} }
 func sourcePart(t *testing.T, start, end string) []byte {
 	t.Helper()
 	a, b := strings.Index(journal, "\n"+start)+1, strings.Index(journal, "\n"+end)+1
-	if a < 0 || b <= a {
+	if a <= 0 || b <= a {
 		t.Fatal("missing factored source journal")
 	}
 	return []byte(journal[a:b])
