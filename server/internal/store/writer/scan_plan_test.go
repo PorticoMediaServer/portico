@@ -91,7 +91,7 @@ func TestScanInventoryStatementPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(golden.Plans) != 47 || golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 661 {
+	if len(golden.Plans) != 47 || golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 670 {
 		t.Fatalf("incomplete scan evidence: cohorts=%d FK=%v", len(golden.Plans), golden.ForeignKeys != nil)
 	}
 	inserts := 0
@@ -166,5 +166,5 @@ func TestScanInventoryStatementPlans(t *testing.T) {
 	if err := plan.CompareJSON(expectedFK, fkJSON); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("16compiled definitions/47cohorts/7destination audits/661FKs/1983probes; fixture journal%s; no accepting SQL executed", fixtureSHA)
+	t.Logf("16compiled definitions/47cohorts/7destination audits/670FKs/2010probes; fixture journal%s; no accepting SQL executed", fixtureSHA)
 }
