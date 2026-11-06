@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
@@ -42,7 +43,22 @@ VALUES(41,'scan-object-asset',7,'/media/Arrival.mkv',42,-11,'','','',0,0,0)`,
 
 func scanObjectTestTurn(t *testing.T, w *executor, definitions []stmt.Definition) *commandTurn {
 	t.Helper()
-	r, err := stmttest.New(t, definitions)
+	tx, err := w.begin(t.Context(), InventoryAccept, testRecipe(), &testCustody{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = tx.rollback(nil) })
+	config := w.config
+	config.Synchronous = sqliteconn.Normal
+	registry := nativeFixtureRegistry(t, tx.conn, config, definitions, "scan_object_test.go")
+	return scanObjectCommandTurn(t, tx, registry)
+}
+
+// RETURNING literals, ignored/two-row INSERTs deliberately violate the static
+// product grammar. Keep those decoder faults separate from native receipts.
+func scanObjectFaultTurn(t *testing.T, w *executor, definitions []stmt.Definition) *commandTurn {
+	t.Helper()
+	registry, err := stmttest.New(t, definitions)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,13 +67,17 @@ func scanObjectTestTurn(t *testing.T, w *executor, definitions []stmt.Definition
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = tx.rollback(nil) })
+	return scanObjectCommandTurn(t, tx, registry)
+}
+
+func scanObjectCommandTurn(t *testing.T, tx *transaction, registry *stmt.Registry) *commandTurn {
+	t.Helper()
 	var steps []statementStep
-	for _, entry := range r.Manifest() {
-		// Synthetic component budget/virtual clock, not Inventory admission,
-		// full work, physical HOLD/WAL, receipt or accepting qualification.
+	for _, entry := range registry.Manifest() {
+		// Synthetic component budget; not production Inventory admission/HOLD/WAL.
 		steps = append(steps, statementStep{entry.ID, Work{4, 100, 4, 4096, time.Millisecond}})
 	}
-	turn, err := newCommandTurn(tx, r, steps)
+	turn, err := newCommandTurn(tx, registry, steps)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,15 +115,9 @@ func TestScanObjectClosedStatement(t *testing.T) {
 	if !ok || strings.Contains(insert, "retired") {
 		t.Fatal("object INSERT must keep unconditional retired DEFAULT 0")
 	}
-	r, err := stmttest.New(t, definitions)
-	if err != nil {
-		t.Fatal(err)
-	}
-	s, err := r.Lookup(scanInventoryObject)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.Bind(d.Cohorts[0].Bindings...); err != nil {
+	// Describe validates all declared cohort bindings without authorizing SQL.
+	catalogue, err := stmt.Describe(definitions)
+	if err != nil || len(catalogue.Manifest()) != 1 {
 		t.Fatal(err)
 	}
 	// HN owns the separate fresh VM/INSERT-destination/FK capture. No golden
@@ -168,7 +182,7 @@ func TestScanObjectAllReturningFieldsRejectDrift(t *testing.T) {
 			// Test-only RETURNING fault; actual INSERT stays unchanged. Not a
 			// production registry extension, grammar waiver or HN capture.
 			definition.SQL = parts[0] + "RETURNING " + strings.Join(mutated, ",")
-			turn := scanObjectTestTurn(t, w, []stmt.Definition{definition})
+			turn := scanObjectFaultTurn(t, w, []stmt.Definition{definition})
 			if _, err := turn.transaction.conn.ExecContext(t.Context(), `UPDATE jobs SET processed=9 WHERE id='scan-object-run'`); err != nil {
 				t.Fatal(err)
 			}
@@ -243,15 +257,14 @@ func TestScanObjectReturningRequiresExactlyOneRow(t *testing.T) {
 					`SELECT ?||suffix,?,?,?,?||suffix,?,?,?,?,?,?,?,?,?,?,?
 FROM (SELECT '' AS suffix UNION ALL SELECT '-other')`, 1)
 			}
-			turn := scanObjectTestTurn(t, w, []stmt.Definition{definition})
+			turn := scanObjectFaultTurn(t, w, []stmt.Definition{definition})
 			if count == 0 {
 				// Seed the collision through the canonical statement, then use
 				// the private test-only ignored variant on this same turn.
 				original := scanObjectDefinitions()[0]
-				r, err := stmttest.New(t, []stmt.Definition{original})
-				if err != nil {
-					t.Fatal(err)
-				}
+				config := w.config
+				config.Synchronous = sqliteconn.Normal
+				r := nativeFixtureRegistry(t, turn.transaction.conn, config, []stmt.Definition{original}, "scan_object_test.go")
 				saved := turn.registry
 				turn.registry = r
 				if _, err := insertInventoryObject(t.Context(), turn, in); err != nil {

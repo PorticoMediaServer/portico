@@ -73,7 +73,8 @@ func TestInventoryDisclosurePlanGoldens(t *testing.T) {
 		t.Fatalf("startup assertion=%v close=%v", assertErr, closeErr)
 	}
 	t.Logf("disclosure fixture FULL startup settings: %+v", startup)
-	_, tx := inventoryDisclosureTurn(t, w, definitions)
+	registry := nativeInventoryFixtureRegistry(t, w, definitions, "inventory_disclosure_test.go", "scan_receipts_test.go")
+	_, tx := inventoryDisclosureTurn(t, w, registry)
 	policy := w.config
 	policy.Synchronous = sqliteconn.Normal
 	settings, err := sqliteconn.Assert(tx.ctx, tx.conn, policy)
