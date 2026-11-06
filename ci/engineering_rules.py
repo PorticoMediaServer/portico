@@ -10,13 +10,13 @@ import re
 import sys
 import subprocess
 from pathlib import Path
-from ratchet_base import merge_base, source_snapshot, check_queue
+from ratchet_base import merge_base, source_snapshot, check_queue, historical_json
 from ratchet_runtime import RatchetRuntime, active_runtime, source_text
 
 ROOT = Path(__file__).resolve().parent.parent
 BASELINE = ROOT / 'ci' / 'engineering-rules-baseline.json'
-SOURCES = re.compile(r'^(?:packages/[^/]+/src|web/src|apps/[^/]+/src(?:-next)?)/.+\.tsx?$')
-TESTS = re.compile(r'(?:^|/)(?:test|tests|__tests__)/|\.test\.tsx?$')
+SOURCES = re.compile(r'^(?:packages/[^/]+/src|web/src|apps/[^/]+/src(?:-next)?)/.+\.(?:[cm]?ts|tsx|[cm]?js|jsx)$')
+TESTS = re.compile(r'(?:^|/)(?:test|tests|__tests__)/|\.(?:test|spec|browser|capture)\.(?:[cm]?ts|tsx|[cm]?js|jsx)$|\.d\.[cm]?ts$')
 
 # (rule, files allowed to hold the pattern, pattern)
 RULES = [
@@ -247,6 +247,7 @@ def source_counts(root, paths=None, configs=QUERY_READ_CONFIGS):
     runtime=active_runtime(root)
     if runtime:
         view=runtime.current(root);found={}
+        paths=sorted(set(paths)|set(runtime.query_inventories.get(view.identity,[])))
         for path in paths:
             _,oid,data=view.records[path];key=(path,oid,tuple(reads.get(path,[])))
             if key not in runtime.rule_counts:
@@ -271,6 +272,10 @@ def _main(argv, root=ROOT, paths=None):
     baseline=json.loads(baseline_path.read_text())
     risen,_=compare(found,baseline)
     for ref in dict.fromkeys(merge_base(root,ref)for ref in [args.base,args.predecessor]if ref):
+        old_baseline=historical_json(root,ref,str(BASELINE.relative_to(ROOT)))
+        for rule,path,a,b in compare(baseline,old_baseline)[0]:
+            print(f'{path}: {rule} baseline increased {b} -> {a}; only decreases are allowed.')
+            queue_errors.append('Engineering baseline growth is forbidden, including beneath a stale upper bound.')
         with source_snapshot(root,ref) as (snapshot,paths):
             previous=source_counts(snapshot,paths)
         risen+=compare(found,previous)[0]

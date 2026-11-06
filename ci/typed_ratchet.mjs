@@ -13,6 +13,8 @@ import {analyseQueryReads} from './query_reads.mjs';
 const hash=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const sourceSuffix=/\.(?:[cm]?ts|tsx|[cm]?js|jsx|json)$/;
 const below=(root,path)=>path===root || path.startsWith(root+sep);
+const excludedExecutable=path=>/\.(?:[cm]?ts|tsx|[cm]?js|jsx)$/.test(path)&&!/\.d\.[cm]?ts$/.test(path)&&
+  /(?:^|\/)(?:tests?|__tests__|scripts|build|dist|Pods|dev)\/|\.(?:test|spec|browser|capture)\.|\/(?:ds-[^/]+|.*\.specimen)\.tsx$/.test(path);
 
 export class TypedRatchet {
   constructor(root,kind,dependencyRoot=root) {
@@ -20,6 +22,7 @@ export class TypedRatchet {
     this.root=resolve(root);this.dependencyRoot=resolve(dependencyRoot);this.kind=kind;this.files=new Map();this.cache=new Map();
     this.thirdParty=new Map();this.directoryCache=new Map();this.configReads=new Set();this.graphs=new Map();this.sourceMetadata=new Map();
     this.interest=new Set();this.pending=new Set();this.invariant=new Set();
+    this.verifiedPackages=new Set();
     this.stats={analysedFiles:0,reusedFiles:0,snapshots:0,projectOpens:0,dependencyAnalyses:0,dependencyReuses:0,unchangedPrograms:0};
     this.config=resolve(this.root,'.portico-ratchet/census.json');
     this.host={};
@@ -61,6 +64,26 @@ export class TypedRatchet {
   dependencyPath(path) {
     return below(this.root,path)&&relative(this.root,path).split(sep).includes('node_modules')
       ?resolve(this.dependencyRoot,relative(this.root,path)):path;
+  }
+  verifyInstalledPackage(path) {
+    // Read declarations only from a package selected by the install's own
+    // lockfile. Workspace aliases have already been mapped to exact blobs.
+    const split=path.indexOf(sep+'node_modules'+sep);
+    if(split<0)return;
+    const install=path.slice(0,split),suffix=path.slice(split+1).split(sep);
+    const at=suffix.lastIndexOf('node_modules'),length=suffix[at+1]?.startsWith('@')?3:2;
+    if(suffix.length<at+length)return;
+    const key=suffix.slice(0,at+length).join('/'),packagePath=resolve(install,key);
+    if(this.verifiedPackages.has(packagePath))return;
+    const lock=JSON.parse(readFileSync(resolve(install,'package-lock.json'),'utf8'));
+    const expected=lock.packages?.[key];
+    const actual=JSON.parse(readFileSync(resolve(packagePath,'package.json'),'utf8'));
+    // npm/semver ignores build metadata (Kepler publishes 4.0.1 with a
+    // 4.0.1+rn... manifest). Prerelease and selected versions still must match.
+    if(!expected || expected.link || !expected.version ||
+      String(actual.version).split('+')[0]!==expected.version.split('+')[0])
+      throw Error('Installed dependency does not match verified lockfile: '+packagePath);
+    this.verifiedPackages.add(packagePath);
   }
   workspaceChildren(path) {
     const modules=resolve(this.root,'node_modules');
@@ -105,6 +128,7 @@ export class TypedRatchet {
     let answer;
     try {
       if(method==='readFile') {
+        this.verifyInstalledPackage(path);
         if(!this.thirdParty.has(path))this.thirdParty.set(path,readFileSync(path,'utf8'));
         answer=this.thirdParty.get(path);
       } else if(method==='fileExists')answer=statSync(path).isFile();
@@ -145,10 +169,18 @@ export class TypedRatchet {
     this.files=next;this.aliases=this.packageAliases();this.directoryCache.clear();
     const virtual={};for(const [path,value] of next)virtual[resolve(this.root,path)]=value.text;
     const configs=this.kind==='census'?[this.config]:input.configs.map(p=>resolve(this.root,p));
+    const fallback=resolve(this.root,'.portico-ratchet/query.json');
     if(this.kind==='census') {
       virtual[this.config]=JSON.stringify(censusProjectConfig(this.root,input.projectFiles??input.files));
       if(this.previousConfig!==virtual[this.config])changed.push(this.config);
       this.previousConfig=virtual[this.config];
+    } else if(input.files.some(p=>! /\.(?:ts|tsx)$/.test(p))) {
+      // App configs need not include a newly supported executable extension.
+      // Keep their resolution first and give every remaining counted source
+      // a project, rather than accepting an unanalysed zero.
+      virtual[fallback]=JSON.stringify(censusProjectConfig(this.root,input.files.filter(p=>! /\.(?:ts|tsx)$/.test(p))));
+      if(this.previousConfig!==virtual[fallback])changed.push(fallback);
+      this.previousConfig=virtual[fallback];configs.push(fallback);
     }
     this.vfs=createVirtualFileSystem(virtual);
     const configList=JSON.stringify(configs);
@@ -160,6 +192,9 @@ export class TypedRatchet {
       this.stats.lastMilliseconds=performance.now()-began;
       return {...this.lastAnswer,stats:{...this.stats}};
     }
+    // A failed snapshot must never inherit the previous successful answer on
+    // an identical retry (including the syntactic-zero fast path).
+    this.lastAnswer=null;
     if(this.configList && this.configList!==configList){this.close();this.configReads.clear();}
     if(!this.api) {
       this.api=new API({cwd:this.root,fs:this.host});
@@ -173,8 +208,15 @@ export class TypedRatchet {
     this.configList=configList;this.stats.snapshots++;
     if(process.env.PORTICO_RATCHET_TRACE)process.stderr.write(JSON.stringify({kind:this.kind,stage:'snapshot',milliseconds:performance.now()-began})+'\n');
     const wanted=new Set(input.files),selected=new Map(),contexts=new Map();
-    for(const project of this.snapshot.getProjects()) {
+    for(const config of configs)if(!this.snapshot.getProject(config))throw Error('Missing compiler project: '+config);
+    // Preserve the existing counter's project ordering; the extension-only
+    // fallback is last and cannot replace an app's resolved type context.
+    const projects=[...this.snapshot.getProjects()].sort((a,b)=>(a.configFileName===fallback)-(b.configFileName===fallback));
+    for(const project of projects) {
       const filenames=[...project.program.getSourceFileNames()].sort();
+      const diagnostics=[...project.program.getConfigFileParsingDiagnostics(),...project.program.getSyntacticDiagnostics()];
+      if(diagnostics.length)throw Error('Ratchet parse/config diagnostic: '+diagnostics.slice(0,8)
+        .map(d=>`${d.fileName??project.configFileName}: ${d.code} ${d.text}`).join('; '));
       for(const filename of filenames) {
         const path=relative(this.root,filename);
         if(wanted.has(path)&&!selected.has(path))selected.set(path,project);
@@ -214,6 +256,8 @@ export class TypedRatchet {
         const file=meta.file??project.program.getSourceFile(meta.filename);
         if(!file)throw Error('Missing compiler dependency: '+path);
         const imports=file.imports??[],symbols=project.checker.getSymbolAtLocation(imports),dependencies=new Set();
+        const excludedImport=imports.find(imported=>(imported.text?.startsWith('.')||imported.text?.startsWith('/'))&&
+          (excludedExecutable(imported.text) || /(?:^|\/)(?:tests?|__tests__|scripts|build|dist|Pods|dev)\//.test(imported.text)))?.text;
         let known=!(file.referencedFiles?.length || file.typeReferenceDirectives?.length || file.libReferenceDirectives?.length);
         for(const symbol of symbols) {
           if(!symbol?.declarations?.length){known=false;continue;}
@@ -223,7 +267,7 @@ export class TypedRatchet {
             else if(!declaration.path.split(sep).includes('node_modules'))known=false;
           }
         }
-        const edges={dependencies,known};graph.set(path,edges);
+        const edges={dependencies,known,excludedImport};graph.set(path,edges);
         next.set(path,{oid:meta.oid,global:meta.global,resolution,edges});this.stats.dependencyAnalyses++;
       }
       this.graphs.set(project.configFileName+'\0'+resolution,next);
@@ -239,9 +283,30 @@ export class TypedRatchet {
       const whole=hash([resolution,filenames.map(p=>[p,this.files.get(relative(this.root,p))?.oid??'installed'])]);
       contexts.set(project,{graph,context,whole});
     }
+    // Inventory the whole production-reachable executable closure, including
+    // excluded directories reached through barrels or dynamic imports. A
+    // label cannot hide debt; declaration-only dependencies remain legitimate.
+    const scanFiles=[...input.files],reachable=new Set(scanFiles);
+    for(const path of input.files) {
+      const project=selected.get(path);if(!project)throw Error('No compiler project for '+path);
+      const {graph}=contexts.get(project),seen=new Set(),pending=[path];
+      while(pending.length) {
+        const at=pending.pop();if(seen.has(at))continue;seen.add(at);
+        if(excludedExecutable(at)&&!reachable.has(at)) {
+          reachable.add(at);scanFiles.push(at);selected.set(at,project);
+        }
+        if(graph.get(at)?.excludedImport&&!graph.get(at).dependencies.size)
+          throw Error('Unresolved production import into excluded executable area: '+at+' -> '+graph.get(at).excludedImport);
+        pending.push(...(graph.get(at)?.dependencies??[]));
+      }
+    }
     if(process.env.PORTICO_RATCHET_TRACE)process.stderr.write(JSON.stringify({kind:this.kind,stage:'dependencies',milliseconds:performance.now()-began})+'\n');
     const results={},missing=[],signatures=new Map();
-    for(const path of input.files) {
+    // Newly inventoried files can be present in more than one app project.
+    // Bind their results conservatively to the full resolution environment,
+    // rather than borrowing the importing root's narrower project signature.
+    const extraSignature=scanFiles.length>input.files.length?hash([configs,[...this.files].map(([p,v])=>[p,v.oid])]):null;
+    for(const path of scanFiles) {
       if(this.kind==='query'&&this.invariant.has(path+'\0'+this.files.get(path)?.oid)) {
         results[path]=[];this.stats.reusedFiles++;continue;
       }
@@ -256,7 +321,7 @@ export class TypedRatchet {
       // Unresolved/ambient provenance gets a whole-project signature. It may
       // reuse only when every possible loaded binding and resolution input is
       // identical; it never gets an optimistic per-file dependency key.
-      const signature=hash([context,known?null:whole,[...visited].sort().map(p=>[p,this.files.get(p)?.oid??'missing'])]);
+      const signature=!wanted.has(path)?extraSignature:hash([context,known?null:whole,[...visited].sort().map(p=>[p,this.files.get(p)?.oid??'missing'])]);
       const cached=this.cache.get(path+'\0'+signature);
       if(cached!==undefined){results[path]=cached;this.stats.reusedFiles++;}
       else {missing.push(path);signatures.set(path,signature);}
@@ -268,7 +333,7 @@ export class TypedRatchet {
       }});
       for(const path of missing)results[path]=fresh.filter(site=>site.file===path);
     } else {
-      const fresh=analyseQueryReads({root:this.root,configs:input.configs,files:missing},{snapshot:this.snapshot});
+      const fresh=analyseQueryReads({root:this.root,configs:input.configs,files:missing},{snapshot:this.snapshot,projects});
       for(const path of fresh.invariant)this.invariant.add(path+'\0'+this.files.get(path).oid);
       for(const path of missing)results[path]=fresh.reads[path]??[];
     }
@@ -278,8 +343,8 @@ export class TypedRatchet {
     }
     this.stats.lastMilliseconds=performance.now()-began;
     if(process.env.PORTICO_RATCHET_TRACE)process.stderr.write(JSON.stringify({kind:this.kind,stage:'result',...this.stats})+'\n');
-    this.lastAnswer=this.kind==='census'?{sites:input.files.flatMap(p=>results[p])}:
-      {reads:Object.fromEntries(Object.entries(results).filter(([,lines])=>lines.length))};
+    this.lastAnswer=this.kind==='census'?{sites:scanFiles.flatMap(p=>results[p]),inventory:scanFiles}:
+      {reads:Object.fromEntries(Object.entries(results).filter(([,lines])=>lines.length)),inventory:scanFiles};
     return {...this.lastAnswer,stats:{...this.stats}};
   }
   close(){if(this.api)this.api.close();this.api=null;this.snapshot=null;}

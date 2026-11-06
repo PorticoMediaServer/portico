@@ -2,7 +2,8 @@ import json
 import unittest
 from pathlib import Path
 from commit_bylines import problems
-from engineering_rules import BASELINE, compare, counts, query_reads, tracked
+from engineering_rules import BASELINE, compare, counts, query_reads, tracked, source_counts
+from ratchet_runtime import RatchetRuntime
 
 
 QUERY_FIXTURE = """\
@@ -234,7 +235,17 @@ class EngineeringRuleTests(unittest.TestCase):
 
     def test_the_committed_baseline_matches_the_tree(self):
         import json
-        self.assertEqual(compare(counts(tracked()), json.loads(BASELINE.read_text())), ([], []))
+        with RatchetRuntime(BASELINE.parent.parent):
+            self.assertEqual(compare(source_counts(BASELINE.parent.parent), json.loads(BASELINE.read_text()))[0], [])
+
+    def test_hygiene_accepts_removals_without_baseline_edits(self):
+        import sys
+        from unittest.mock import patch
+        # Exercise the exact assertion required by hygiene, with the review's
+        # setInterval -> setTimeout removal under an unchanged upper bound.
+        found=self.found('setTimeout(tick, 1000);','web/src/probe.ts')
+        with patch.object(sys.modules[__name__],'source_counts',return_value=found):
+            self.test_the_committed_baseline_matches_the_tree()
 
 
 class CommitBylineTests(unittest.TestCase):

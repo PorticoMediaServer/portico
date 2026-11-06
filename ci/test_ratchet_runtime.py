@@ -9,6 +9,11 @@ from ratchet_runtime import Budget, GitBlobs, RatchetFailure, RatchetRuntime, TO
 
 
 class RatchetRuntimeTests(unittest.TestCase):
+    def test_parse_errors_precede_fresh_cached_zero_and_retry_results(self):
+        result=subprocess.run(['node',str(TOOL_ROOT/'ci/ratchet_rejection_fixture.mjs')],cwd=TOOL_ROOT,capture_output=True,text=True,timeout=45)
+        self.assertEqual(result.returncode,0,result.stdout+'\n'+result.stderr)
+        self.assertEqual(json.loads(result.stdout)['assertions'],12)
+
     def test_activation_cannot_spend_a_stale_high_direct_budget(self):
         from client_api_census import base_guard
         key='web/src/a.ts#'+'a'*16

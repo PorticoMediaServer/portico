@@ -38,6 +38,19 @@ global/ambient inputs and configuration. Unresolved dependencies bind the whole
 project. No dependency install or `node_modules` link is created. Each queue
 entry has its own historical HEAD for approval ancestry checks.
 
+Historical dependency inputs must match the final install: lockfiles, npm
+configuration and dependency/workspace fields in package manifests are bound
+before any fresh or cached typed result is accepted. A differing environment
+fails closed and requires entry-bound dependency installs; it cannot be judged
+using the final checkout's declarations. Loaded installed package versions
+must also match their install lockfile (npm build metadata is ignored).
+Executable `.mts`, `.cts`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.js` and `.jsx`
+sources participate. Production imports reaching excluded executable test,
+script or generated-output areas bring those files into the inventory,
+including through barrels; unresolved excluded imports fail closed.
+Source and configuration parsing diagnostics fail before cached or zero results;
+an unsuccessful snapshot never leaves a reusable successful answer.
+
 The internal deadline is 180 seconds per invocation; timeout, worker, object or
 source-read failures fail closed. `PORTICO_RATCHET_BUDGET_SECONDS` may select a
 positive deadline up to 360 seconds; the CI job timeout is unchanged. Reproduce

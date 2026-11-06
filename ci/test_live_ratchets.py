@@ -21,8 +21,9 @@ class LiveRatchets(unittest.TestCase):
         (self.root/self.path).parent.mkdir(parents=True)
         for config in engineering.QUERY_READ_CONFIGS:
             destination=self.root/config;destination.parent.mkdir(parents=True,exist_ok=True)
+            (destination.parent/'ratchet-empty.d.ts').write_text('export {};')
             destination.write_text(json.dumps({'compilerOptions':{'target':'ES2022','lib':['ES2022','DOM'],'strict':True,'types':[]},
-                **({'include':['src/**/*.ts']} if config=='web/tsconfig.json' else {'files':[]})}))
+                **({'include':['src/**/*.ts','src/**/*.tsx']} if config=='web/tsconfig.json' else {'files':['ratchet-empty.d.ts']})}))
         self.prefix='declare function fetch(input: string, init?: object): Promise<unknown>;\n'
         self.source=self.prefix+"fetch('/v1/kept');\nfetch('/v1/removed');\nsetInterval(tick, 1000);\nsetInterval(tick, 1000);\n"
         (self.root/self.path).write_text(self.source)
@@ -47,6 +48,74 @@ class LiveRatchets(unittest.TestCase):
         (self.root/self.path).write_text(self.prefix+"fetch('/v1/kept');\nsetInterval(tick, 1000);\n")
         self.assertEqual(self.checks(self.base),(0,0))
         self.assertEqual(self.git('diff','--name-only'),self.path)
+
+    def test_dependency_lock_history_cannot_restore_removed_debt(self):
+        package=self.root/'node_modules/@test/platform-transport'
+        package.mkdir(parents=True)
+        (self.root/'.git/info/exclude').write_text('node_modules/\n')
+        def install(version):
+            manifest={'dependencies':{'@test/platform-transport':version}}
+            lock={'lockfileVersion':3,'packages':{'':manifest,'node_modules/@test/platform-transport':{'version':version}}}
+            (self.root/'package.json').write_text(json.dumps(manifest))
+            (self.root/'package-lock.json').write_text(json.dumps(lock))
+            (package/'package.json').write_text(json.dumps({'name':'@test/platform-transport','version':version,'types':'index.d.ts'}))
+            parameters='path: string, method?: string' if version=='2.0.0' else 'event: string, category?: string'
+            (package/'index.d.ts').write_text(f'export declare function request({parameters}): void;')
+        (self.root/self.path).write_text("import {request} from '@test/platform-transport'; request('/v1/new', 'POST');")
+        install('2.0.0');self.git('add','.')
+        (self.root/census.BASELINE).write_text(json.dumps(census.counts(census.scan(self.root))))
+        base=self.commit('Version two requester')
+        self.assertEqual(len(census.scan(self.root)),1)
+        self.assertEqual(self.checks(base),(0,0))
+        install('1.0.0');a=self.commit('A downgrades the dependency, removing the typed site')
+        self.assertEqual(len(census.scan(self.root)),0)
+        self.assertEqual(self.checks(base),(1,1),'different dependency inputs require entry-bound installs, not final types')
+        install('2.0.0');b=self.commit('B restores the typed request under the stale bound')
+        self.assertEqual(self.checks(a),(1,1))
+        (self.root/'web/src/clean.ts').write_text('export {};')
+        c=self.commit('C clean')
+        self.assertEqual(self.checks(base,b,c),(1,1),'ALLGREEN history cannot reinterpret A with B types')
+
+    def test_baseline_only_engineering_increases_are_rejected(self):
+        path=self.root/'ci/engineering-rules-baseline.json'
+        baseline=json.loads(path.read_text());baseline['set-interval'][self.path]=99
+        path.write_text(json.dumps(baseline))
+        self.assertEqual(self.checks(self.base),(0,1))
+
+    def test_executable_extensions_cannot_escape_the_inventories(self):
+        for extension in ['mts','cts','mjs','cjs','js','jsx','tsx']:
+            with self.subTest(extension=extension):
+                extra=self.root/f'web/src/extra.{extension}'
+                extra.write_text('export function extra() { return 1; }')
+                (self.root/self.path).write_text(self.source+f"import {{extra}} from './extra.{extension}'; extra();")
+                self.git('add','.')
+                self.assertEqual(self.checks(self.base),(0,0),'the executable extension itself is supported')
+                extra.write_text("export function extra() { fetch('/v1/new'); setInterval(tick, 1000); }")
+                head=self.commit('Import executable '+extension)
+                self.assertEqual(self.checks(self.base,queue_head=head),(1,1))
+                self.git('reset','--hard',self.base)
+
+    def test_production_imports_into_excluded_sources_are_inventoried(self):
+        for statement in ["import {extra} from './__tests__/extra'; extra();",
+                          "import './__tests__/extra';", "import('./__tests__/extra');"]:
+            with self.subTest(statement=statement):
+                extra=self.root/'web/src/__tests__/extra.ts';extra.parent.mkdir(exist_ok=True)
+                extra.write_text('export function extra() { return 1; }')
+                (self.root/self.path).write_text(self.source+statement)
+                self.git('add','.')
+                self.assertEqual(self.checks(self.base),(0,0),'a harmless reachable file remains allowed')
+                extra.write_text("export function extra() { fetch('/v1/new'); setInterval(tick, 1000); }")
+                head=self.commit('Production imports excluded code')
+                self.assertEqual(self.checks(self.base,queue_head=head),(1,1))
+                self.git('reset','--hard',self.base)
+
+    def test_malformed_source_fails_closed_in_both_live_gates(self):
+        (self.root/self.path).write_text('const broken = "unterminated\n')
+        self.assertEqual(self.checks(self.base),(1,1))
+
+    def test_malformed_config_fails_closed(self):
+        (self.root/'web/tsconfig.json').write_text('{"compilerOptions": {"target": "not-a-target"}}')
+        self.assertEqual(self.checks(self.base)[1],1)
 
     def test_named_review_refs_resolve_before_isolated_snapshot_metadata(self):
         self.git('update-ref','refs/remotes/origin/main',self.base)
