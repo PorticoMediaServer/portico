@@ -21,6 +21,14 @@ func NewOperationScope() *OperationScope {
 	life, cancel := context.WithCancel(context.Background())
 	return &OperationScope{life: life, cancel: cancel, done: make(chan struct{})}
 }
+
+type inventoryOperationsKey struct{}
+
+// WithInventoryOperations gives portable directory streams a physical owner
+// spanning the short contexts used to fetch individual scan pages.
+func WithInventoryOperations(ctx context.Context, owner *OperationScope) context.Context {
+	return context.WithValue(ctx, inventoryOperationsKey{}, owner)
+}
 func (s *OperationScope) Context() context.Context { return s.life }
 func (s *OperationScope) Begin() (func(), error) {
 	s.mu.Lock()
