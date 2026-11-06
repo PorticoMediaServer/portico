@@ -28,7 +28,7 @@ legacy layouts fail closed. It executes no bootstrap DDL, ANALYZE, migration,
 repair or seed. It does not inspect user data, prove its integrity or authorize
 access; those are separate startup responsibilities.
 
-The adopted010a file header is explicitly `application_id=0`, `user_version=0`
+The adopted008 file header is explicitly `application_id=0`, `user_version=0`
 and `encoding=UTF-8`. The zeros preserve the reviewed bootstrap; they are not
 layout identity markers. Verification checks them without rewriting them.
 Fresh bootstrap refuses incompatible headers rather than adopting them.
@@ -141,3 +141,20 @@ fresh authority. Directory/EOF/frontier/refusal/Basic and006/009 remain separate
 The native layout fingerprint moves with these exact six artifacts. Existing007
 files fail the new layout assertion and remain untouched; approved test-server
 cutover uses a fresh file, with no conversion or compatibility shim.
+
+
+INT-CHANGE-008 is adopted at debd5c77 after R agreement211. It adds retained
+security command identity/results and exact playback capture/drain receipts,
+original membership/profile births, occurrence/START custody and a bounded
+acknowledged cleanup slot. The authorization view binds those native births;
+equal ID strings cannot revive an old family. The six artifacts are verbatim
+canonical5454be94 bytes, including the complete type and release-index contracts.
+
+This embed opens the storage gate after merge. It does not enable the waiting
+security/progress commands, mint W's internal pending capability, migrate or seed
+existing files, or authorize runtime cutover. Current authority, typed wire/codec,
+producer thresholds, bounded event retention, complete admission and physical
+cleanup, crash/replay and runtime qualification remain implementation gates.
+The native layout fingerprint moves with all six artifacts. Existing010a files
+fail the changed layout assertion and remain untouched; approved test-server
+cutover uses a fresh file with no conversion or compatibility shim.

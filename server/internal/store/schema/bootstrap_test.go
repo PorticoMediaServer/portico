@@ -61,9 +61,9 @@ func TestFreshFileBootstrap(t *testing.T) {
 	}
 	defer reopened.Close()
 	var tables int
-	// CHANGE-007 adds the three account-policy child tables to the persisted layout.
-	if err := reopened.QueryRow("SELECT count(*) FROM sqlite_schema WHERE type='table'").Scan(&tables); err != nil || tables != 700 {
-		t.Fatalf("persisted tables = %d, %v; want 700", tables, err)
+	// CHANGE-008 adds the typed playback command receipt table to the persisted layout.
+	if err := reopened.QueryRow("SELECT count(*) FROM sqlite_schema WHERE type='table'").Scan(&tables); err != nil || tables != 701 {
+		t.Fatalf("persisted tables = %d, %v; want 701", tables, err)
 	}
 }
 

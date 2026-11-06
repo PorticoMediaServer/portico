@@ -1,5 +1,5 @@
 {
-  "ddl_sha256": "14acdcd726a51ac6b8988401a08c0a89c092413a0c963a7e2f887d7b7e7f829c",
+  "ddl_sha256": "debd5c771b520ea7003dcf1042328941b6d090137b8f685100664d35f4ab0d3e",
   "scope": "Conservative10M+capable repeated/high-fanout/time grains at1Mitems, not a claim every server reaches this density. Full release index set includes declared/implicit UNIQUE/PK/rowid paths. No post-release populated-table index addition; new justified empty access relation online.",
   "tables": [
     {
@@ -1107,6 +1107,261 @@
           ],
           "sql": null,
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "authorization_session_families",
+      "grain": "Actual retained session-family per issue; uncapped accounts and own session churn can exceed10M; FIRST floor/scalar retained.",
+      "policy": "non-STRICT + full typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "auth_family_device",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "device_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX auth_family_device ON authorization_session_families(device_id,id)"
+        },
+        {
+          "name": "auth_family_pin_lineage",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "pin_lineage_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX auth_family_pin_lineage ON authorization_session_families(pin_lineage_id,id)"
+        },
+        {
+          "name": "authorization_families_account",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "authority",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "account_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "revoked",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX authorization_families_account ON authorization_session_families(authority,account_id,revoked)"
+        },
+        {
+          "name": "authorization_families_horizon",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "authorization_horizon",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX authorization_families_horizon ON authorization_session_families(authorization_horizon,id)"
+        },
+        {
+          "name": "authorization_families_owner_history",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "authority",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "account_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "revoked",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "revoked_at",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX authorization_families_owner_history ON authorization_session_families(authority,account_id,revoked,revoked_at,id)"
+        },
+        {
+          "name": "authorization_families_retention",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "revoked",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "authorization_horizon",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX authorization_families_retention ON authorization_session_families(revoked,authorization_horizon,id)"
+        },
+        {
+          "name": "authorization_family_teardown_due",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "teardown_due_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX authorization_family_teardown_due ON authorization_session_families(teardown_due_ms,id)"
+        },
+        {
+          "name": "authorization_revoke_operation",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "revoke_operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX authorization_revoke_operation ON authorization_session_families(revoke_operation_id)"
+        },
+        {
+          "name": "identity_device_families_device",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "device_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX identity_device_families_device ON authorization_session_families(device_id)"
+        },
+        {
+          "name": "identity_family_pin_lineages_lineage",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "pin_lineage_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX identity_family_pin_lineages_lineage ON authorization_session_families(pin_lineage_id)"
+        },
+        {
+          "name": "p2_62_purge_families",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "authority",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "account_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "revoked",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX p2_62_purge_families ON authorization_session_families(authority,account_id,profile_id,revoked,id)"
+        },
+        {
+          "name": "sqlite_autoindex_authorization_session_families_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null
         }
       ]
     },
@@ -7171,6 +7426,27 @@
       ]
     },
     {
+      "table": "personal_activity_revisions",
+      "grain": "Retained original profile history/policy header; uncapped accounts/profiles, no eviction.",
+      "policy": "non-STRICT + full typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_personal_activity_revisions_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "profile_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null
+        }
+      ]
+    },
+    {
       "table": "personal_batch_receipts",
       "grain": "retained history/events/replay and sparse user-by-item state",
       "policy": "non-STRICT + typeof + explicit PK NOT NULL",
@@ -7903,8 +8179,8 @@
     },
     {
       "table": "play_history",
-      "grain": "retained history/events/replay and sparse user-by-item state",
-      "policy": "non-STRICT + typeof + explicit PK NOT NULL",
+      "grain": "Immutable own START/TIME/admin event grain; lifetime append-only history.",
+      "policy": "non-STRICT + full typeof + explicit PK NOT NULL",
       "complete_release_indexes": [
         {
           "name": "INTEGER PRIMARY KEY rowid",
@@ -8060,6 +8336,51 @@
           ],
           "sql": "CREATE INDEX play_history_admin_user_start ON play_history(account_key,started_ms,id) WHERE started_ms IS NOT NULL",
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "playback_claim_command_receipts",
+      "grain": "Repeated own capture/drain command results independent of pending clear, ACKed children reclaimed explicitly.",
+      "policy": "non-STRICT + full typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "sqlite_autoindex_playback_claim_command_receipts_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "playback_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_sequence",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null
+        },
+        {
+          "name": "sqlite_autoindex_playback_claim_command_receipts_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null
         }
       ]
     },
@@ -8267,6 +8588,179 @@
           ],
           "sql": null,
           "access": "Declared equality/range/order and exact FK custody; static HN goldens required."
+        }
+      ]
+    },
+    {
+      "table": "playback_personal_claims",
+      "grain": "Actual retained claim per playback occurrence owner; lifetime own plays, no user cap.",
+      "policy": "non-STRICT + full typeof + explicit PK NOT NULL",
+      "complete_release_indexes": [
+        {
+          "name": "playback_claim_start_fk",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "occurrence_start_event_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX playback_claim_start_fk ON playback_personal_claims(occurrence_start_event_id)"
+        },
+        {
+          "name": "playback_claim_subject_fk",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "command_library_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "item_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX playback_claim_subject_fk ON playback_personal_claims(command_library_id,item_id)"
+        },
+        {
+          "name": "playback_pending_start_fk",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "pending_time_start_event_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX playback_pending_start_fk ON playback_personal_claims(pending_time_start_event_id)"
+        },
+        {
+          "name": "playback_personal_claim_item",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "profile_key",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "item_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "accepted_ordinal",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX playback_personal_claim_item ON playback_personal_claims(profile_key,item_id,accepted_ordinal)"
+        },
+        {
+          "name": "playback_receipt_reclaim_due",
+          "unique": false,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "receipt_reclaim_due_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "playback_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX playback_receipt_reclaim_due ON playback_personal_claims(receipt_reclaim_due_ms,playback_id)"
+        },
+        {
+          "name": "playback_reclaim_operation",
+          "unique": true,
+          "origin": "c",
+          "partial": false,
+          "keys": [
+            {
+              "column": "reclaim_operation_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE UNIQUE INDEX playback_reclaim_operation ON playback_personal_claims(reclaim_operation_id)"
+        },
+        {
+          "name": "playback_time_pending",
+          "unique": false,
+          "origin": "c",
+          "partial": true,
+          "keys": [
+            {
+              "column": "profile_key",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "pending_time_activity_generation",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "pending_time_cursor_ms",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "playback_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": "CREATE INDEX playback_time_pending ON playback_personal_claims(profile_key,pending_time_activity_generation,pending_time_cursor_ms,playback_id) WHERE pending_time_from_ms IS NOT NULL"
+        },
+        {
+          "name": "sqlite_autoindex_playback_personal_claims_1",
+          "unique": true,
+          "origin": "pk",
+          "partial": false,
+          "keys": [
+            {
+              "column": "playback_id",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null
+        },
+        {
+          "name": "sqlite_autoindex_playback_personal_claims_2",
+          "unique": true,
+          "origin": "u",
+          "partial": false,
+          "keys": [
+            {
+              "column": "playback_id",
+              "collation": "BINARY",
+              "descending": false
+            },
+            {
+              "column": "command_incarnation",
+              "collation": "BINARY",
+              "descending": false
+            }
+          ],
+          "sql": null
         }
       ]
     },
@@ -10142,5 +10636,5 @@
       "complete_release_indexes": []
     }
   ],
-  "change_control": "UNADOPTED CHANGE-007 over adopted005; W/RD static domain checks, bundled candidate, R and lead adoption precede embed/runtime. CHANGE-010a: original run scope and typed scalar lifecycle result; existing large-grain/index entries unchanged."
+  "change_control": "UNADOPTED CHANGE-008 over adopted010a. Exact fields and seven full indexes; existing hot predicates unchanged. Parent/custody access uses complete FK child prefixes, no exemptions. No later populated-table index addition; use new online table if a genuinely new path is justified."
 }
