@@ -78,6 +78,41 @@ func TestRestartUnknownsAndFailuresCannotBecomeWarmCommits(t *testing.T) {
 	}
 }
 
+func TestRestartFencedCommittedAppendsRetainEventsAndClass(t *testing.T) {
+	c, ss := restartFixture(3)
+	ss[0].Fenced, ss[0].Class, ss[0].Durability = true, "Foreground", "FULL"
+	ss[0].IntendedClass, ss[0].Hold, ss[0].Commit = "Background", 40*time.Millisecond, 35*time.Millisecond
+	ss[1].Fenced, ss[1].Class = true, "Background"
+	ss[1].Hold, ss[1].Commit = 12*time.Millisecond, 11*time.Millisecond
+	r, err := SummarizeRestarts(c, ss, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Fences != 2 || r.Commits != 3 || r.Strata.Failed.Holds != nil || !reflect.DeepEqual(r.Events, ss[:2]) {
+		t.Fatalf("fenced committed append lost event identity or true outcome: %+v", r)
+	}
+	if len(r.ByClass) != 3 {
+		t.Fatal("missing class breakdown", r.ByClass)
+	}
+	for _, g := range r.ByClass {
+		wantFences := 0
+		if g.Class == "Background" || g.Class == "Foreground" {
+			wantFences = 1
+		}
+		if g.Fences != wantFences || g.Strata.Committed.Holds == nil || g.Strata.Committed.Holds.Count != 1 || g.Strata.Failed.Holds != nil {
+			t.Fatalf("fence lost per-class count or committed attribution: %+v", g)
+		}
+	}
+	encoded, err := json.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded RestartReport
+	if err := json.Unmarshal(encoded, &decoded); err != nil || !reflect.DeepEqual(r, decoded) {
+		t.Fatal("fence event/class evidence lost on wire", err)
+	}
+}
+
 func TestRestartFailedFirstWriteRetainsEventAndNoDenominator(t *testing.T) {
 	c, ss := restartFixture(1)
 	ss[0].Outcome, ss[0].OutcomeReason, ss[0].Position = "rolled_back", "failed first write", WALRestartFirst

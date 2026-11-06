@@ -58,9 +58,9 @@ type RestartStrata struct {
 }
 
 type RestartClassReport struct {
-	Recipe, Class, Durability string
-	Restarts, Creations       int
-	Strata                    RestartStrata
+	Recipe, Class, Durability   string
+	Restarts, Creations, Fences int
+	Strata                      RestartStrata
 }
 
 type RestartReport struct {
@@ -73,8 +73,8 @@ type RestartReport struct {
 	RestartsPerCommit, RestartsPer1000Commits              *float64
 	Strata                                                 RestartStrata
 	ByClass                                                []RestartClassReport
-	// Restart, creation, unknown and failed events retain actual and intended
-	// class and their evidence references. Ordinary appends stay in the raw input.
+	// Restart, creation, unknown, failed and fenced events retain actual and
+	// intended class and evidence references. Unfenced ordinary appends stay raw.
 	Events []RestartSample
 }
 
@@ -146,7 +146,7 @@ func SummarizeRestarts(cell RestartCell, samples []RestartSample, refusals int) 
 		if s.Position == WALCreated {
 			r.Creations++
 		}
-		if s.Position == WALRestartFirst || s.Position == WALCreated || s.Position == WALUnknown || s.Outcome != "committed" {
+		if s.Fenced || s.Position == WALRestartFirst || s.Position == WALCreated || s.Position == WALUnknown || s.Outcome != "committed" {
 			r.Events = append(r.Events, s)
 		}
 		k := key{s.Recipe, s.Class, s.Durability}
@@ -161,6 +161,9 @@ func SummarizeRestarts(cell RestartCell, samples []RestartSample, refusals int) 
 	for k, ss := range groups {
 		g := RestartClassReport{Recipe: k.recipe, Class: k.class, Durability: k.durability, Strata: restartStrata(ss)}
 		for _, s := range ss {
+			if s.Fenced {
+				g.Fences++
+			}
 			if s.Position == WALRestartFirst {
 				g.Restarts++
 			}
