@@ -12791,7 +12791,7 @@
       ]
     },
     "internal/storage/inventory_page.go": {
-      "sha256": "4fbb8151709e0250999e0cf0827af2c470dc419e5cc4caa3fb1314277d7dcee4",
+      "sha256": "9e1148196a95f974c8c3ad16df6c5a114a6f367686dc50a938a2d4d5b0b011ff",
       "effects": [
         {
           "table": "*",
@@ -13007,7 +13007,7 @@
       ]
     },
     "internal/storage/supervisor.go": {
-      "sha256": "de40847ef6b212719a6a196953c68907a560db9996273929f95c5bab47f7a3dc",
+      "sha256": "86a892e78602e87d2c4950bbb7937d5f39da355603f797b5736c4ff69ad693f1",
       "effects": [
         {
           "table": "*",
