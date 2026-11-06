@@ -195,6 +195,11 @@ func TestPlanAutoindexBindingRefusalsAndRenumbering(t *testing.T) {
 			d.SQL = strings.Replace(d.SQL, " INDEXED BY sqlite_autoindex_auto_pk_1", "", 1)
 		},
 		func(d *stmt.Definition) { d.Plan.AutoIndexes = append(d.Plan.AutoIndexes, d.Plan.AutoIndexes[0]) },
+		func(d *stmt.Definition) {
+			d.SQL = strings.Replace(d.SQL, "sqlite_autoindex_auto_pk_1", "sqlite_autoindex_auto_pk_99", 1)
+			d.Plan.Indexes[0] = "sqlite_autoindex_auto_pk_99"
+			d.Plan.AutoIndexes[0].Name = "sqlite_autoindex_auto_pk_99"
+		},
 	} {
 		d := autoindexDefinitions()[0]
 		mutate(&d)
@@ -204,6 +209,20 @@ func TestPlanAutoindexBindingRefusalsAndRenumbering(t *testing.T) {
 			if e == nil || g.Receipt() != nil {
 				t.Fatal("invalid autoindex binding qualified", d, e)
 			}
+		}
+	}
+	for _, columns := range [][]stmt.IndexColumn{
+		{{Name: "a", Collation: "NOCASE", Desc: true}}, // a proper prefix is not the declared UNIQUE(a,b)
+		{{Name: "b", Collation: "BINARY"}, {Name: "a", Collation: "NOCASE", Desc: true}},
+	} {
+		d := autoindexDefinitions()[1]
+		d.Plan.AutoIndexes[0].Columns = columns
+		r, err := stmt.Describe([]stmt.Definition{d})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if g, err := plan.Capture(t.Context(), conn, r, f, indexPolicy(t)); err == nil || g.Receipt() != nil {
+			t.Fatal("subset/reordered UNIQUE key qualified", columns, err)
 		}
 	}
 	for _, sql := range []string{

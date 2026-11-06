@@ -1,6 +1,10 @@
 package plan
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+)
 
 func TestAutoindexNativeMetadataFailClosed(t *testing.T) {
 	for _, origin := range []string{"pk", "u"} {
@@ -32,6 +36,19 @@ func TestAutoindexNativeMetadataFailClosed(t *testing.T) {
 		mutate(row)
 		if _, err := autoindexColumns(Rows{Values: [][]any{row}}, table); err == nil {
 			t.Fatal("false key accepted", row)
+		}
+	}
+	columns := []stmt.IndexColumn{{Name: "id", Collation: "BINARY"}}
+	if err := checkAutoindexKey(Rows{Values: [][]any{{int64(0), int64(0), "id"}}}, columns); err != nil {
+		t.Fatal(err)
+	}
+	for _, rows := range [][][]any{
+		nil, {{int64(0), int64(0), "id"}, {int64(1), int64(1), "extra"}},
+		{{int64(1), int64(0), "id"}}, {{int64(0), int64(-2), "id"}},
+		{{int64(0), int64(0), "other"}}, {{int64(0), int64(0)}},
+	} {
+		if err := checkAutoindexKey(Rows{Values: rows}, columns); err == nil {
+			t.Fatal("non-key/incomplete index_info accepted", rows)
 		}
 	}
 }

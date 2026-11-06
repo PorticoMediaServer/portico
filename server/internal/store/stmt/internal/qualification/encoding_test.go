@@ -30,9 +30,14 @@ func TestEncodingEveryDefinitionStringRetainsRawBytes(t *testing.T) {
 		func(d *stmt.Definition, s string) { d.Plan.Waivers[0].Form = s },
 		func(d *stmt.Definition, s string) { d.Plan.Waivers[0].Match = s },
 		func(d *stmt.Definition, s string) { d.Plan.Waivers[0].Reason = s },
+		func(d *stmt.Definition, s string) { d.Plan.AutoIndexes[0].Table = s },
+		func(d *stmt.Definition, s string) { d.Plan.AutoIndexes[0].Name = s },
+		func(d *stmt.Definition, s string) { d.Plan.AutoIndexes[0].Origin = s },
+		func(d *stmt.Definition, s string) { d.Plan.AutoIndexes[0].Columns[0].Name = s },
+		func(d *stmt.Definition, s string) { d.Plan.AutoIndexes[0].Columns[0].Collation = s },
 	} {
 		makeDefinition := func(s string) stmt.Definition {
-			d := stmt.Definition{CallSites: []string{"site"}, Params: []stmt.Param{{}}, Cohorts: []stmt.Cohort{{Bindings: []any{"value"}}}, Plan: stmt.Plan{Indexes: []string{"i"}, PrimaryKeys: []string{"p"}, Seeks: []string{"s"}, AllowedScans: []string{"a"}, Waivers: []stmt.Waiver{{}}}}
+			d := stmt.Definition{CallSites: []string{"site"}, Params: []stmt.Param{{}}, Cohorts: []stmt.Cohort{{Bindings: []any{"value"}}}, Plan: stmt.Plan{Indexes: []string{"i"}, PrimaryKeys: []string{"p"}, Seeks: []string{"s"}, AllowedScans: []string{"a"}, Waivers: []stmt.Waiver{{}}, AutoIndexes: []stmt.AutoIndexBinding{{Columns: []stmt.IndexColumn{{}}}}}}
 			set(&d, s)
 			return d
 		}

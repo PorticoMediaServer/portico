@@ -26,8 +26,13 @@
 // WHERE. SET accepts the scalar subset plus up to eight +/- scalar terms;
 // WHERE uses the unchanged predicate grammar. UPDATE/DELETE may force INDEXED BY.
 // Their WHERE seeks require expected index/PK contracts even if Hot is false.
-// Generated sqlite_autoindex_* names are asserted in Plan.Indexes and actual
-// EQP only; INDEXED BY must not embed them. Explicit names remain forced.
+// Forced sqlite_autoindex_* names require a Plan.AutoIndexes binding certified
+// by Capture against live MAIN index_list origin pk/u and the complete key from
+// index_info/index_xinfo (including collations and direction). PK ordinals must
+// match table_xinfo. The exact name-to-key binding is pinned: a renumbered or
+// changed constraint fails rather than choosing a replacement. Every EQP row
+// must remain SEARCH-only on the certified key; scan/temp waivers cannot bypass
+// this restriction. Other generated-name forcing remains forbidden.
 // INSERT destinations require Capture's index/column and full FK audits instead
 // of a nonexistent destination SEARCH. UPSERT requires one expected full unique
 // index or PK resolved unambiguously by the exact conflict column set. Partial
