@@ -2,12 +2,114 @@ package writer
 
 import (
 	"context"
+	"database/sql/driver"
 	"errors"
+	"io"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
+
+type inventoryScopeCancelConn struct {
+	writerDriverConn
+	point  string
+	cancel func()
+}
+
+func (c *inventoryScopeCancelConn) QueryContext(ctx context.Context, q string, args []driver.NamedValue) (driver.Rows, error) {
+	rows, err := c.writerDriverConn.QueryContext(ctx, q, args)
+	if err == nil && strings.Contains(q, "FROM catalog_libraries") {
+		if c.point == "query" {
+			c.cancel()
+		}
+		return &inventoryScopeCancelRows{Rows: rows, point: c.point, cancel: c.cancel}, nil
+	}
+	return rows, err
+}
+
+type inventoryScopeCancelRows struct {
+	driver.Rows
+	point  string
+	cancel func()
+	once   sync.Once
+}
+
+func (r *inventoryScopeCancelRows) Next(dest []driver.Value) error {
+	err := r.Rows.Next(dest)
+	if r.point == "next" || r.point == "eof" && errors.Is(err, io.EOF) {
+		r.once.Do(r.cancel)
+	}
+	return err
+}
+
+func (r *inventoryScopeCancelRows) Close() error {
+	err := r.Rows.Close()
+	if r.point == "close" {
+		r.once.Do(r.cancel)
+	}
+	return err
+}
+
+func TestInventoryNativeDisclosureLateCancellation(t *testing.T) {
+	w := inventoryDisclosureFixture(t)
+	var sequence int64
+	var name, path string
+	if err := w.db.QueryRowContext(t.Context(), "PRAGMA database_list").Scan(&sequence, &name, &path); err != nil {
+		t.Fatal(err)
+	}
+	for _, point := range []string{"query", "next", "eof", "close"} {
+		for _, lifetime := range []string{"caller", "turn", "same"} {
+			t.Run(point+"/"+lifetime, func(t *testing.T) {
+				if err := w.db.Close(); err != nil {
+					t.Fatal(err)
+				}
+				connector, err := sqliteconn.Connector(path, w.config)
+				if err != nil {
+					t.Fatal(err)
+				}
+				caller, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				cancelRead := cancel
+				w.openPool(connector, func(conn driver.Conn) driver.Conn {
+					return &inventoryScopeCancelConn{writerDriverConn: conn.(writerDriverConn), point: point, cancel: func() { cancelRead() }}
+				})
+				turn, tx := inventoryDisclosureTurn(t, w, inventoryDisclosureDefinitions())
+				var callCtx context.Context = caller
+				if lifetime == "turn" || lifetime == "same" {
+					cancelRead = tx.cancel
+				}
+				if lifetime == "same" {
+					callCtx = tx.ctx
+				}
+				err = checkInventoryNativeScope(callCtx, turn, ScanReceiptRequest{RunID: "scan-hit", LibraryID: 7, LibraryKey: "scan-library"})
+				if !errors.Is(err, context.Canceled) {
+					t.Fatal("late cancellation became successful scope proof", err)
+				}
+				tx.rollback(err)
+				if w.db.Stats().InUse != 0 {
+					t.Fatal("cancelled scope check stranded custody")
+				}
+			})
+		}
+	}
+}
+
+func TestInventoryNativeDisclosureRetirementDoesNotHideHistory(t *testing.T) {
+	w := inventoryDisclosureFixture(t)
+	if _, err := w.db.ExecContext(t.Context(), "UPDATE catalog_libraries SET retired=1 WHERE id=7"); err != nil {
+		t.Fatal(err)
+	}
+	turn, _ := inventoryDisclosureTurn(t, w, inventoryDisclosureDefinitions())
+	if err := checkInventoryNativeScope(t.Context(), turn, ScanReceiptRequest{RunID: "scan-hit", LibraryID: 7, LibraryKey: "scan-library"}); err != nil {
+		t.Fatal("live retirement hid retained historical scope", err)
+	}
+	// This relationship proof confers no fresh permission. The composed
+	// dispatcher must refuse retired-library fresh work AFTER historical lookup.
+}
 
 func inventoryDisclosureFixture(t *testing.T) *executor {
 	t.Helper()
