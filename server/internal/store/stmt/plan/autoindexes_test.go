@@ -200,6 +200,12 @@ func TestPlanAutoindexBindingRefusalsAndRenumbering(t *testing.T) {
 			d.Plan.Indexes[0] = "sqlite_autoindex_auto_pk_99"
 			d.Plan.AutoIndexes[0].Name = "sqlite_autoindex_auto_pk_99"
 		},
+		func(d *stmt.Definition) {
+			// An existing native UNIQUE index still belongs to its own table.
+			d.SQL = strings.Replace(d.SQL, "sqlite_autoindex_auto_pk_1", "sqlite_autoindex_auto_unique_1", 1)
+			d.Plan.Indexes = []string{"sqlite_autoindex_auto_unique_1"}
+			d.Plan.AutoIndexes = autoindexDefinitions()[1].Plan.AutoIndexes
+		},
 	} {
 		d := autoindexDefinitions()[0]
 		mutate(&d)
