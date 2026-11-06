@@ -274,7 +274,15 @@ AND (SELECT j.source_revision=1 AND source_incarnation=e.metadata_incarnation AN
 	}
 	// Historical receipt decoding must not reconstruct from today's object,
 	// directory, source, lease or counters. Destroy/change those CURRENT facts.
-	for _, q := range []string{`DELETE FROM inventory_objects`, `UPDATE inventory_runs SET job_revision=99,job_lease_expires_ms=0 WHERE job_id='fresh-run'`, `UPDATE library_sources SET generation=99,root='/replacement' WHERE id='fresh-source'`} {
+	for _, q := range []string{
+		`DELETE FROM inventory_objects`,
+		`UPDATE inventory_runs SET job_revision=9223372036854775807,discovered=9223372036854775807,job_lease_expires_ms=0 WHERE job_id='fresh-run'`,
+		`UPDATE library_sources SET generation=99,incarnation='later-incarnation',root='/replacement' WHERE id='fresh-source'`,
+		`UPDATE inventory_directories SET pages=9223372036854775807,cursor='later' WHERE job_id='fresh-run'`,
+		`UPDATE catalog_membership_clock SET sequence=9223372036854775807 WHERE singleton=1`,
+		`UPDATE libraries SET data_revision=9223372036854775807,data_order_revision=9223372036854775807,data_metadata_revision=9223372036854775807,age_input_revision=9223372036854775807,age_published_revision=9223372036854775807 WHERE id='fresh-library'`,
+		`UPDATE catalog_assets SET info_epoch=139,file_size_revision=149 WHERE library_id=7`,
+	} {
 		if _, err = e.db.ExecContext(t.Context(), q); err != nil {
 			t.Fatal(err)
 		}
