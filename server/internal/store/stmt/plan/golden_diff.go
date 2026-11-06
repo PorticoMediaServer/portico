@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"sort"
 	"strings"
 )
@@ -20,10 +21,15 @@ type goldenDifference struct {
 	row              *planRowDifference
 }
 
-// CompareJSON keeps exact compacted-JSON equality and reports the first
-// structural difference without rewriting either input. Numbers retain their
+// CompareJSON keeps compacted-JSON equality except the approved whole native
+// compile profiles, and reports the first structural difference without
+// rewriting either input. Numbers retain their
 // original precision. FK audits and statement goldens share these diagnostics.
 func CompareJSON(expected, actual []byte) error {
+	return compareJSONForPlatform(expected, actual, runtime.GOOS+"/"+runtime.GOARCH)
+}
+
+func compareJSONForPlatform(expected, actual []byte, platform string) error {
 	if len(expected) == 0 {
 		return fmt.Errorf("plan: missing reviewed golden")
 	}
@@ -34,6 +40,12 @@ func CompareJSON(expected, actual []byte) error {
 	if err := json.Compact(&got, actual); err != nil {
 		return fmt.Errorf("plan: invalid actual JSON: %w", err)
 	}
+	matched, err := compileOptionEquivalence(want.Bytes(), got.Bytes(), platform)
+	if err != nil {
+		return fmt.Errorf("plan: compile-option profile: %w", err)
+	}
+	want.Reset()
+	want.Write(matched)
 	if bytes.Equal(want.Bytes(), got.Bytes()) {
 		return nil
 	}
