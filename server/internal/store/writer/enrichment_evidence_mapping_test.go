@@ -130,21 +130,23 @@ const evidenceReadbackColumns = `id,subject_id,parser_version,provider,subject_k
  title,original_title,overview,tagline,content_rating,studio,network,country,
  release_date,year,artist,length_millis,artist_type,begin_year,end_year,wikidata_id,
  biography,biography_source,biography_source_url,disambiguation,release_group_id,
- group_title,primary_type,barcode,sealed`
+ group_title,primary_type,barcode,sealed,seal_proof_owner,seal_proof_incarnation,seal_proof_sequence,seal_proof_kind`
 
 func evidenceSQLReadback(t *testing.T, conn *sql.Conn, registry *stmt.Registry) {
 	t.Helper()
 	// Refuse a schema change that leaves a newly added column unobserved.
-	rows, err := conn.QueryContext(t.Context(), "PRAGMA table_info(metadata_evidence)")
+	// Include the adopted generated proof kind too: an added stored OR generated
+	// column must be independently listed/scanned, never filled from PRAGMA.
+	rows, err := conn.QueryContext(t.Context(), "PRAGMA table_xinfo(metadata_evidence)")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var columns []string
 	for rows.Next() {
-		var cid, required, key int
+		var cid, required, key, hidden int
 		var name, kind string
 		var defaultValue any
-		if err := rows.Scan(&cid, &name, &kind, &required, &defaultValue, &key); err != nil {
+		if err := rows.Scan(&cid, &name, &kind, &required, &defaultValue, &key, &hidden); err != nil {
 			rows.Close()
 			t.Fatal(err)
 		}
@@ -201,6 +203,9 @@ func evidenceSQLReadback(t *testing.T, conn *sql.Conn, registry *stmt.Registry) 
 			var length, begin, end sql.NullInt64
 			var artistType sql.NullString
 			var sealed int64
+			var sealProofOwner, sealProofKind sql.NullString
+			var sealProofIncarnation []byte
+			var sealProofSequence sql.NullInt64
 			err = tx.QueryRowContext(t.Context(), "SELECT "+evidenceReadbackColumns+" FROM metadata_evidence WHERE id=?", want.ID).Scan(
 				&got.ID, &got.SubjectID, &got.ParserVersion, &got.Provider, &got.SubjectKind, &got.ProviderID,
 				&got.Language, &got.Region, &got.RequestShape, &digest, &got.ObservedAt, &got.SourceURL, &got.ETag, &got.LastModified,
@@ -208,6 +213,7 @@ func evidenceSQLReadback(t *testing.T, conn *sql.Conn, registry *stmt.Registry) 
 				&got.ReleaseDate, &got.Year, &got.Artist, &length, &artistType, &begin, &end, &got.WikidataID,
 				&got.Biography, &got.BiographySource, &got.BiographySourceURL, &got.Disambiguation, &got.ReleaseGroupID,
 				&got.GroupTitle, &got.PrimaryType, &got.Barcode, &sealed,
+				&sealProofOwner, &sealProofIncarnation, &sealProofSequence, &sealProofKind,
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -223,6 +229,10 @@ func evidenceSQLReadback(t *testing.T, conn *sql.Conn, registry *stmt.Registry) 
 			got.ArtistType = EvidenceText{Value: artistType.String, Present: artistType.Valid}
 			if !reflect.DeepEqual(got, want) || sealed != 0 {
 				t.Fatalf("named header SQL readback differs: got=%+v sealed=%d want=%+v", got, sealed, want)
+			}
+			if sealProofOwner.Valid || sealProofIncarnation != nil || sealProofSequence.Valid || sealProofKind.Valid {
+				t.Fatalf("unsealed header proof fields must be NULL: owner=%+v incarnation=%v sequence=%+v kind=%+v",
+					sealProofOwner, sealProofIncarnation, sealProofSequence, sealProofKind)
 			}
 			violations, err := tx.QueryContext(t.Context(), "PRAGMA foreign_key_check")
 			if err != nil {
