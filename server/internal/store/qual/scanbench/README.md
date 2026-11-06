@@ -47,8 +47,9 @@ uses that transport. Native request root/relative and response path/name/issue
 bytes stay []byte through the helper, DFS and consumer turn. NUL cannot exist
 in an OS filename: injected NUL-bearing paths refuse without consumption.
 Invalid UTF8 bytes are preserved for SC policy refusal, never silently replaced
-or treated as poison/progress authority. The actual SC constructor still waits
-its reviewed merged DTO and trusted W ingress.
+or treated as poison/progress authority. SC's raw-byte constructor/body are on
+main; trusted W run/source/lease preparation, ingress and fresh N1 enable remain
+unavailable. No constructor alone supplies those gates.
 
 DFS retains a cursor per ancestor and at most one observed name per turn.
 Callback failure/refusal stops further reads. It supplies original request/page
@@ -58,7 +59,7 @@ is a fresh traversal, not resolution of a lost response or uncertain COMMIT.
 
 FIRST accepts only N1 new ordinary movie files with progressing nonempty native
 cookies and a separately proved claimed source/run/lease/directory tuple. SC owns
-the public constructor/reference seam (none on base f02070da). W owns actual
+the public constructor/reference seam. W owns actual
 acceptance, receipt resolution, ACK and resource admission. Directory discovery,
 empty EOF, ignored/unsupported entries, existing identity reuse and non-movie
 kinds need their own accepting protocol. Do not skip those observations and call
