@@ -118,15 +118,19 @@ func (s *Service) ControlOperationTx(ctx context.Context, tx *sql.Tx, operation,
 	return nil
 }
 func (s *Service) InterruptOperation(ctx context.Context, operation string) {
-	rows, err := s.db.QueryContext(ctx, `SELECT g.job_id FROM inventory_operation_jobs g JOIN jobs j ON j.id=g.job_id WHERE g.operation_id=? AND j.status IN('paused','cancelled')`, operation)
+	rows, err := s.db.QueryContext(ctx, `SELECT g.job_id,j.status FROM inventory_operation_jobs g JOIN jobs j ON j.id=g.job_id WHERE g.operation_id=? AND j.status IN('paused','cancelled')`, operation)
 	if err != nil {
 		return
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var id string
-		if rows.Scan(&id) == nil {
-			s.stopActive(id)
+		var id, state string
+		if rows.Scan(&id, &state) == nil {
+			if state == "cancelled" {
+				s.retireInventory(id)
+			} else {
+				s.stopActive(id)
+			}
 		}
 	}
 }

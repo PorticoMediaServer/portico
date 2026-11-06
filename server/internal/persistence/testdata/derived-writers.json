@@ -7742,7 +7742,7 @@
       ]
     },
     "internal/ingestion/service.go": {
-      "sha256": "9bc07263f1647702bff1af5474275b76fa6c8980cfe2d2fbcb8d4c81e026a821",
+      "sha256": "88ddef44db9ab2cf99691821cbbd29ec7340cbfec16fe081d3f9fd8b05438461",
       "effects": [
         {
           "table": "*",
