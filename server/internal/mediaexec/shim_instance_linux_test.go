@@ -33,17 +33,18 @@ func TestShimInstanceAcrossPublication(t *testing.T) {
 		if err := unix.Prctl(unix.PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0); err != nil {
 			t.Fatal(err)
 		}
-		runShimInstanceScenario(t, os.Getenv("PORTICO_TEST_SHIM_INSTANCE_DIES") == "1")
+		runShimInstanceScenario(t, os.Getenv("PORTICO_TEST_SHIM_INSTANCE_DIES") == "1", os.Getenv("PORTICO_TEST_SHIM_INSTANCE_RESTART") == "1")
 		return
 	}
-	for _, dies := range []bool{false, true} {
-		t.Run(fmt.Sprintf("parent-dies-%t", dies), func(t *testing.T) {
+	for _, scenario := range []struct{ dies, restart bool }{{false, false}, {true, false}, {true, true}} {
+		dies, restart := scenario.dies, scenario.restart
+		t.Run(fmt.Sprintf("parent-dies-%t-restart-%t", dies, restart), func(t *testing.T) {
 			self, err := os.Executable()
 			if err != nil {
 				t.Fatal(err)
 			}
 			cmd := exec.Command(self, "-test.run=^TestShimInstanceAcrossPublication$", "-test.timeout=20s")
-			cmd.Env = append(os.Environ(), shimInstanceTestMode+"=coordinator", "PORTICO_TEST_SHIM_INSTANCE_DIES="+strconv.Itoa(map[bool]int{false: 0, true: 1}[dies]))
+			cmd.Env = append(os.Environ(), shimInstanceTestMode+"=coordinator", "PORTICO_TEST_SHIM_INSTANCE_DIES="+strconv.Itoa(map[bool]int{false: 0, true: 1}[dies]), "PORTICO_TEST_SHIM_INSTANCE_RESTART="+strconv.Itoa(map[bool]int{false: 0, true: 1}[restart]))
 			if output, err := cmd.CombinedOutput(); err != nil {
 				t.Fatalf("restart scenario: %v\n%s", err, output)
 			}
@@ -51,7 +52,7 @@ func TestShimInstanceAcrossPublication(t *testing.T) {
 	}
 }
 
-func runShimInstanceScenario(t *testing.T, dies bool) {
+func runShimInstanceScenario(t *testing.T, dies, restart bool) {
 	state := t.TempDir()
 	createdR, createdW := shimInstancePipe(t)
 	releaseR, releaseW := shimInstancePipe(t)
@@ -115,19 +116,18 @@ func runShimInstanceScenario(t *testing.T, dies bool) {
 		t.Fatal("shim unexpectedly published before release")
 	}
 	if dies {
-		joinServer() // actual SIGKILL/server Wait precede the replacement's scan
-		// Inject macOS Configure's fence-before-scan ordering on Linux. The
-		// production Linux path intentionally leaves that policy disabled.
-		if err = os.WriteFile(ledger+".instance", []byte("replacement"), 0600); err != nil {
-			t.Fatal(err)
-		}
-		if reaped := configureForTest(t, state); reaped != 0 {
-			t.Fatalf("startup reaped unproven group: %d", reaped)
-		}
-		if err = unix.Kill(shimPID, 0); err != nil {
-			t.Fatalf("macOS-style shim did not survive parent: %v", err)
+		joinServer() // actual death/reparenting, with no probe of the old PID
+		if restart {
+			// Inject macOS Configure's fence-before-scan ordering on Linux.
+			if err = os.WriteFile(ledger+".instance", []byte("replacement"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if reaped := configureForTest(t, state); reaped != 0 {
+				t.Fatalf("startup reaped unproven group: %d", reaped)
+			}
 		}
 	}
+
 	if _, err = releaseW.Write([]byte{1}); err != nil {
 		t.Fatal(err)
 	}
@@ -145,17 +145,23 @@ func runShimInstanceScenario(t *testing.T, dies bool) {
 	}
 	shimJoined = true
 	if dies {
-		if len(marker) != 0 || !status.Exited() || status.ExitStatus() != 23 {
+		wantExit := 23 // parent changed, even without any incarnation change
+		if restart {
+			wantExit = 24
+		} // the existing fence detects restart first
+		if len(marker) != 0 || !status.Exited() || status.ExitStatus() != wantExit {
 			t.Fatalf("late shim executed tool after restart: marker=%v status=%v", marker, status)
 		}
 		if _, err = readEntry(path); err != nil {
 			t.Fatalf("incarnation check did not follow actual publication: %v", err)
 		}
-		if err = SweepLedger(); err != nil {
-			t.Fatal(err)
-		}
-		if _, err = os.Stat(path); !os.IsNotExist(err) {
-			t.Fatalf("dead refused shim retained: %v", err)
+		if restart {
+			if err = SweepLedger(); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = os.Stat(path); !os.IsNotExist(err) {
+				t.Fatalf("dead refused shim retained: %v", err)
+			}
 		}
 	} else if !bytes.Equal(marker, []byte{1}) || !status.Exited() || status.ExitStatus() != 0 {
 		t.Fatalf("live-parent shim refused: marker=%v status=%v", marker, status)
@@ -182,7 +188,8 @@ func TestShimInstanceProcess(t *testing.T) {
 		if err = json.Unmarshal(raw, &spec); err != nil {
 			t.Fatal(err)
 		}
-		spec["g"] = true // inject macOS's incarnation policy on this Linux harness
+		spec["g"] = true        // inject macOS's incarnation policy on this Linux harness
+		spec["p"] = os.Getpid() // capture BEFORE death; execShim uses only getppid
 		if err = os.WriteFile(spec["l"].(string)+".instance", []byte(spec["i"].(string)), 0600); err != nil {
 			t.Fatal(err)
 		}
@@ -228,10 +235,16 @@ func TestShimInstanceProcess(t *testing.T) {
 		if err = os.Setenv(shimInstanceTestMode, "tool"); err != nil {
 			t.Fatal(err)
 		}
-		if err = execShim(spec, inner); err == nil || err.Error() != "media process server incarnation changed before exec" {
-			t.Fatalf("shim returned unexpected error: %v", err)
+		err = execShim(spec, inner)
+		if err != nil {
+			switch err.Error() {
+			case "media process parent changed before exec":
+				os.Exit(23)
+			case "media process server incarnation changed before exec":
+				os.Exit(24)
+			}
 		}
-		os.Exit(23)
+		t.Fatalf("shim returned unexpected error: %v", err)
 	case "tool":
 		if _, err := os.NewFile(5, "tool").Write([]byte{1}); err != nil {
 			t.Fatal(err)
@@ -256,8 +269,10 @@ func TestLinuxShimRetainsParentDeathPolicy(t *testing.T) {
 	if err = json.Unmarshal(raw, &fields); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := fields["g"]; ok {
-		t.Fatal("Linux shim gained a macOS incarnation guard")
+	for _, key := range []string{"g", "p"} {
+		if _, ok := fields[key]; ok {
+			t.Fatalf("Linux shim gained a macOS guard: %s", key)
+		}
 	}
 	cmd, err := CommandArgv(context.Background(), argv)
 	if err != nil {
