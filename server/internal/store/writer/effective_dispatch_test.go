@@ -172,6 +172,10 @@ func TestEffectiveFacadeHistoricalReplayAckAndFloor(t *testing.T) {
 
 type wrappedEffectiveCommand struct{ EffectiveStageBeginCommand }
 
+type foreignEffectiveCommand struct{}
+
+func (foreignEffectiveCommand) isEffectiveStageBeginCommand() { panic("marker invoked") }
+
 func TestEffectiveFacadeDisclosureAndClosedDispatch(t *testing.T) {
 	w, cap, command, executor, _ := effectiveFacadeFixture(t)
 	request := effectiveReference(command)
@@ -184,8 +188,10 @@ func TestEffectiveFacadeDisclosureAndClosedDispatch(t *testing.T) {
 			t.Fatal("invalid capability disclosed receipt", err)
 		}
 	}
-	if _, err := w.StageEffective(t.Context(), cap, wrappedEffectiveCommand{command}); !errors.Is(err, ErrInvalid) {
-		t.Fatal("embedded command escaped closed switch", err)
+	for _, invalid := range []EffectiveStageBeginCommand{nil, (*effectiveStageBeginCommand)(nil), wrappedEffectiveCommand{command}, &wrappedEffectiveCommand{command}, foreignEffectiveCommand{}} {
+		if _, err := w.StageEffective(t.Context(), cap, invalid); !errors.Is(err, ErrInvalid) {
+			t.Fatal("non-concrete command escaped closed switch", err)
+		}
 	}
 	for _, mutate := range []func(*EnrichmentReceiptRequest){
 		func(r *EnrichmentReceiptRequest) { r.EntityID++ }, func(r *EnrichmentReceiptRequest) { r.LibraryID++ }, func(r *EnrichmentReceiptRequest) { r.ProviderOperationID += "foreign" },
@@ -208,6 +214,55 @@ func TestEffectiveFacadeDisclosureAndClosedDispatch(t *testing.T) {
 	}
 	if executor.db.Stats().InUse != 0 {
 		t.Fatal("denial retained connection")
+	}
+}
+
+type revokingDisclosureContext struct {
+	context.Context
+	cancel context.CancelFunc
+	calls  int
+}
+
+func (c *revokingDisclosureContext) Err() error {
+	c.calls++
+	if c.calls == 3 {
+		c.cancel()
+	}
+	return c.Context.Err()
+}
+
+func TestEffectiveFacadeRevokedDuringHistoryDisclosesNoResult(t *testing.T) {
+	w, cap, command, executor, authority := effectiveFacadeFixture(t)
+	seedEffectiveReceipt(t, executor, command)
+	request := effectiveReference(command)
+	for _, entry := range []string{"stage_replay", "resolve", "ack"} {
+		t.Run(entry, func(t *testing.T) {
+			lifetime, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			revoking := &revokingDisclosureContext{Context: lifetime, cancel: cancel}
+			current := &EnrichmentDisclosure{issuer: w, scope: &enrichmentScope{ownerID: cap.scope.ownerID, libraryKey: cap.scope.libraryKey, libraryID: cap.scope.libraryID, entityID: cap.scope.entityID, lifetime: revoking}}
+			var result EffectiveStageResult
+			var ack AckResult
+			var err error
+			switch entry {
+			case "stage_replay":
+				result, err = w.StageEffective(t.Context(), current, command)
+			case "resolve":
+				result, err = w.ResolveEffective(t.Context(), current, request)
+			case "ack":
+				ack, err = w.AckEffective(t.Context(), current, request)
+			}
+			if !errors.Is(err, ErrDisclosureDenied) || result.Value != (EffectiveStageBeginResult{}) || result.Outcome.State != 0 || result.Outcome.Reference != (ReceiptReference{}) || ack.AcknowledgedThrough != 0 {
+				t.Fatal("revoked disclosure leaked saved proof or ACK", result, ack, err)
+			}
+			var floor int64
+			if err := executor.db.QueryRowContext(t.Context(), "SELECT acknowledged_command_sequence FROM metadata_provider_operations WHERE id=?", request.ProviderOperationID).Scan(&floor); err != nil {
+				t.Fatal(err)
+			}
+			if floor != command.request.owner.acknowledgedSequence || authority.Usage()[governor.Background] != (governor.Amounts{}) || executor.db.Stats().InUse != 0 {
+				t.Fatal("revocation committed ACK or stranded custody", floor)
+			}
+		})
 	}
 }
 
