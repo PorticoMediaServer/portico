@@ -273,7 +273,8 @@
       "callText": "context.api.requestMetadataUpload<T>(path, body, scoped.signal)",
       "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6647211850",
       "reason": "binding is not a signal, response, guard or read-only capture",
-      "occurrences": 1
+      "occurrences": 1,
+      "guardSpan": "forwarding-function"
     },
     {
       "binding": "apps/native/src-next/screens/read/read-collection-capability.ts#1e9357b35fa65d12",

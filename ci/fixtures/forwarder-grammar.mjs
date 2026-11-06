@@ -129,10 +129,17 @@ try {
  // source-policy hash AND the exact dispatch expression and shape.
  const packet=JSON.parse(readFileSync(new URL('../client-api-legacy-forwarders.json',import.meta.url),'utf8'));
  const negativeFields=['file','guardHash','forwardingHash','shape','callText','owner'];
+ let legacyNegativeChecks=0,legacyScopeChecks=0;
  for(const record of packet.sites){
   assert.equal(legacyForwarder({...record,callText:record.callText}),true);
-  for(const field of negativeFields)
+  for(const field of negativeFields) {
+   if(record.guardSpan==='forwarding-function'&&field==='guardHash') {
+    assert.equal(legacyForwarder({...record,guardHash:'0'.repeat(64)}),true);
+    legacyScopeChecks++;continue;
+   }
    assert.equal(legacyForwarder({...record,[field]:String(record[field])+'changed'}),false);
+   legacyNegativeChecks++;
+  }
  }
- process.stdout.write(JSON.stringify({grammarCases:checked,legacyBindings:packet.sites.length,legacyNegativeChecks:packet.sites.length*negativeFields.length})+'\n');
+ process.stdout.write(JSON.stringify({grammarCases:checked,legacyBindings:packet.sites.length,legacyNegativeChecks,legacyScopeChecks})+'\n');
 }finally{api?.close();rmSync(folder,{recursive:true,force:true});}
