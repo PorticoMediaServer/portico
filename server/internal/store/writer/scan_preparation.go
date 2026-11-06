@@ -43,7 +43,8 @@ func newScanPreparation(ctx context.Context, opening *scanOpening, owner *stateo
 	var candidate *scanPreparation
 	var lease *stateownership.Lease
 	lifetime := ctx
-	defer func() { out, err = finishCommand(ctx, lifetime, out, err) }()
+	// Registered FIRST, so cleanup runs AFTER the final release check below.
+	// Every check capable of discarding the handle is therefore observed here.
 	defer func() {
 		out, err = finishCommand(ctx, lifetime, out, err)
 		if out == nil {
@@ -59,6 +60,7 @@ func newScanPreparation(ctx context.Context, opening *scanOpening, owner *stateo
 			// The issuer still owns its unconsumed grant on constructor error.
 		}
 	}()
+	defer func() { out, err = finishCommand(ctx, lifetime, out, err) }()
 	if ctx == nil || opening == nil || opening.binding == nil || opening.executor == nil || owner == nil || r == nil || r.executor != opening.executor || r.path != opening.binding.path ||
 		expected.Writer || expected.Class != governor.ScanMinimum || expected.Owner != r.owner || grant == nil ||
 		(expected.Key.Domain != uint16(InventoryCreate) && expected.Key.Domain != uint16(InventoryAccept)) || expected.Key.ID == "" ||

@@ -3,8 +3,10 @@ package writer
 import (
 	"context"
 	"errors"
+	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -12,6 +14,62 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/storage/nativeinventory"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
+
+// Reproduce cancellation specifically BETWEEN constructor release checks.
+// The native grant remains issuer-owned on failure, while every constructor
+// borrow must be released even when the last check discards its only handle.
+type preparationFinishCancelContext struct {
+	context.Context
+	cancel   context.CancelFunc
+	finishes atomic.Int32
+}
+
+func (c *preparationFinishCancelContext) Err() error {
+	pcs := make([]uintptr, 16)
+	n := runtime.Callers(2, pcs)
+	frames := runtime.CallersFrames(pcs[:n])
+	for {
+		f, more := frames.Next()
+		if strings.Contains(f.Function, ".finishCommand[") {
+			if c.finishes.Add(1) == 2 {
+				c.cancel()
+			}
+			break
+		}
+		if !more {
+			break
+		}
+	}
+	return c.Context.Err()
+}
+
+func TestScanPreparationConstructorFinalFinishCancellation(t *testing.T) {
+	opening, owner, r, request, grant := scanPreparationFundingFixture(t, time.Now)
+	base, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	ctx := &preparationFinishCancelContext{Context: base, cancel: cancel}
+	p, err := newScanPreparation(ctx, opening, owner, r, nativeinventory.NewObserver(&scanObservationFaultTransport{}), request, grant,
+		nativeinventory.Request{Root: []byte("/media"), RelativePath: []byte("."), Limit: 1})
+	if p != nil {
+		_ = p.Close(context.Background())
+		t.Fatalf("cancellation missed final release: calls=%d err=%v", ctx.finishes.Load(), err)
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	if r.authority.Usage() == ([4]governor.Amounts{}) {
+		t.Fatal("constructor refunded issuer-owned grant")
+	}
+	if err := r.authority.Retired(grant); err != nil {
+		t.Fatal(err)
+	}
+	if err := opening.close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := owner.Close(); err != nil {
+		t.Fatalf("discarded capability retained native borrow: %v (finish checks=%d)", err, ctx.finishes.Load())
+	}
+}
 
 // Deliberate transport fault fixture only; never a production observer/source
 // or resource proof. Scope/opening/governor ownership are the real W objects.
