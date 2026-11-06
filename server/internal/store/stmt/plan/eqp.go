@@ -34,6 +34,9 @@ func waived(d stmt.Definition, stage, form, match string) bool {
 // This checks rows only: it cannot certify SQL sources, Hot metadata or a
 // registry. Complete qualification requires connection-aware Capture.
 func CheckEQP(d stmt.Definition, eqp Rows) error {
+	if d.Plan.NativeRead != nil {
+		return checkFTSReadEQP(d, eqp)
+	}
 	for _, row := range eqp.Values {
 		if len(row) != 4 {
 			return fmt.Errorf("plan %s: unexpected EQP shape", d.ID)
