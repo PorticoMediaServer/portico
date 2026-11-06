@@ -15,6 +15,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
 type inventoryCancelReadConn struct {
@@ -151,7 +152,8 @@ func inventoryLookupTurn(t *testing.T, w *executor) (*commandTurn, *transaction)
 			steps = append(steps, statementStep{d.ID, Work{2, 100, 1, 0, time.Nanosecond}})
 		}
 	}
-	r, err := stmt.New(definitions)
+	// Cancellation/corrupt-history fault fixtures, not native plan qualification.
+	r, err := stmttest.New(t, definitions)
 	if err != nil {
 		t.Fatal(err)
 	}
