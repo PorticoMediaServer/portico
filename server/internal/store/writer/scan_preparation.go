@@ -158,42 +158,40 @@ func (p *scanPreparation) current() error {
 // runner is accepted. Any failure is sticky for this original preparation.
 func (p *scanPreparation) ObserveInventory(ctx context.Context) (value nativeinventory.Page, err error) {
 	lifetime := ctx
+	// Run after the release check, including ALL early exits before physical
+	// scope acquisition. A canceled/busy attempt cannot leave a reusable owner.
+	defer func() {
+		primary := recover()
+		if p != nil && p.self == p && (err != nil || primary != nil) {
+			p.mu.Lock()
+			p.failed = true
+			p.mu.Unlock()
+		}
+		if primary != nil {
+			panic(primary)
+		}
+	}()
 	defer func() { value, err = finishCommand(ctx, lifetime, value, err) }()
 	if p == nil || p.self != p || ctx == nil {
 		return value, ErrInvalid
 	}
 	lifetime = p.lifetime
-	p.mu.Lock()
-	if p.closed || p.retiring || p.retired || p.failed || p.observing || p.observed != nil {
-		p.mu.Unlock()
-		return value, ErrClosed
-	}
-	if err = p.current(); err != nil {
-		p.mu.Unlock()
-		return value, err
-	}
-	// Retain the invocation BEFORE the observer's preflight. Its inner lease
-	// separately survives an early pending-retirement return from the helper.
-	outer, err := p.scope.Acquire()
+	outer, err := p.beginObservation()
 	if err != nil {
-		p.mu.Unlock()
 		return value, err
 	}
-	p.observing = true
-	p.mu.Unlock()
 	defer func() {
 		primary := recover()
 		outer.Release()
-		p.mu.Lock()
-		p.observing = false
-		err = errors.Join(err, p.current())
-		if p.closed {
-			err = errors.Join(err, ErrClosed)
-		}
-		if err != nil || primary != nil {
-			p.failed = true
-		}
-		p.mu.Unlock()
+		func() {
+			p.mu.Lock()
+			defer p.mu.Unlock()
+			p.observing = false
+			err = errors.Join(err, p.current())
+			if p.closed || p.failed {
+				err = errors.Join(err, ErrClosed)
+			}
+		}()
 		if primary != nil {
 			panic(primary)
 		}
@@ -240,6 +238,27 @@ func (p *scanPreparation) ObserveInventory(ctx context.Context) (value nativeinv
 		value.Issues[i].Reason = bytes.Clone(value.Issues[i].Reason)
 	}
 	return value, nil
+}
+
+// beginObservation changes only the private admission state. Deferred unlock
+// also covers a fallible authority clock before the outer lease is acquired.
+func (p *scanPreparation) beginObservation() (*sourceops.Lease, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed || p.retiring || p.retired || p.failed || p.observing || p.observed != nil {
+		return nil, ErrClosed
+	}
+	if err := p.current(); err != nil {
+		return nil, err
+	}
+	// Retain the invocation BEFORE observer preflight; the observer retains its
+	// own lease through physical helper/permit retirement.
+	outer, err := p.scope.Acquire()
+	if err != nil {
+		return nil, err
+	}
+	p.observing = true
+	return outer, nil
 }
 
 // Close revokes before waiting. Cleanup grace never renews execution time.
