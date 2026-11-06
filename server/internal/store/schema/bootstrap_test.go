@@ -61,7 +61,7 @@ func TestFreshFileBootstrap(t *testing.T) {
 	}
 	defer reopened.Close()
 	var tables int
-	// CHANGE-008 adds the typed playback command receipt table to the persisted layout.
+	// CHANGE-008 adds the typed playback command receipt table; CHANGE-009 adds no tables.
 	if err := reopened.QueryRow("SELECT count(*) FROM sqlite_schema WHERE type='table'").Scan(&tables); err != nil || tables != 701 {
 		t.Fatalf("persisted tables = %d, %v; want 701", tables, err)
 	}
