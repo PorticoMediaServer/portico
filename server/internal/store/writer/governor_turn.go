@@ -15,7 +15,7 @@ import (
 // field. New purposes must acquire an explicit policy here before execution.
 func commandClass(id CommandID) (governor.Class, error) {
 	switch id {
-	case InventoryAccept, BasicAccept:
+	case InventoryAccept, BasicAccept, InventoryCreate, InventoryClaim:
 		return governor.ScanMinimum, nil
 	case ProgressAccept:
 		return governor.Foreground, nil
