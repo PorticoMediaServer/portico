@@ -18,7 +18,7 @@ import (
 )
 
 // These are the ONLY reviewed constrained store sources. All bodies must be
-// type-resolved: host, opposite Linux/non-Linux, and GV's tagged binding audit.
+// type-resolved: host, Linux/non-Unix fixture variants, and GV's tagged audits.
 var openingConstraints = map[string]string{
 	"qual/scanbench/fixture_dir_unix.go":         "//go:build linux || darwin",
 	"qual/scanbench/fixture_dir_other.go":        "//go:build !linux && !darwin",
@@ -159,21 +159,33 @@ func openingCoverage(sources, metadata, typed map[string]bool) error {
 func openingEnv(goos string) []string {
 	var env []string
 	for _, v := range os.Environ() {
-		if !strings.HasPrefix(v, "GOOS=") && !strings.HasPrefix(v, "CGO_ENABLED=") {
+		if !strings.HasPrefix(v, "GOOS=") && !strings.HasPrefix(v, "GOARCH=") && !strings.HasPrefix(v, "CGO_ENABLED=") {
 			env = append(env, v)
 		}
 	}
-	return append(env, "GOOS="+goos, "CGO_ENABLED=0")
+	arch := runtime.GOARCH
+	if goos != runtime.GOOS {
+		arch = "amd64" // supported representative target, never host arm64+Windows by accident
+	}
+	return append(env, "GOOS="+goos, "GOARCH="+arch, "CGO_ENABLED=0")
+}
+
+func openingOtherPlatforms(host string) []string {
+	if host == "linux" {
+		return []string{"windows"}
+	}
+	if host == "darwin" {
+		// Linux and Darwin BOTH exclude !linux && !darwin bodies. Metadata
+		// listing does not replace the Windows profile's real type resolution.
+		return []string{"linux", "windows"}
+	}
+	return []string{"linux"}
 }
 
 func loadOpeningSourceUniverse(root string) ([]*packages.Package, error) {
 	sources, err := openingPhysicalSources(root)
 	if err != nil {
 		return nil, err
-	}
-	other := "linux"
-	if runtime.GOOS == "linux" {
-		other = "windows"
 	}
 	metadata, typed := map[string]bool{}, map[string]bool{}
 	var all []*packages.Package
@@ -183,11 +195,17 @@ func loadOpeningSourceUniverse(root string) ([]*packages.Package, error) {
 		pattern string
 	}{
 		{os.Environ(), []string{"-p=1"}, "./internal/store/..."},
-		{openingEnv(other), []string{"-p=1"}, "./internal/store/..."},
 		// Listing the audit as ignored is insufficient: load its actual body and
 		// dependencies with the exact reviewed tag, then scan the same references.
 		{os.Environ(), []string{"-p=1", "-tags=libc.memgrind"}, "./internal/store/governor"},
 		{os.Environ(), []string{"-p=1", "-tags=memory.counters"}, "./internal/store/governor"},
+	}
+	for _, target := range openingOtherPlatforms(runtime.GOOS) {
+		profiles = append(profiles, struct {
+			env     []string
+			flags   []string
+			pattern string
+		}{openingEnv(target), []string{"-p=1"}, "./internal/store/..."})
 	}
 	for _, profile := range profiles {
 		pkgs, err := packages.Load(&packages.Config{Dir: filepath.Join(root, "../.."), Tests: true, Env: profile.env, BuildFlags: profile.flags,
@@ -235,6 +253,58 @@ func loadOpeningSourceUniverse(root string) ([]*packages.Package, error) {
 		return nil, err
 	}
 	return all, nil
+}
+
+func TestStoreOpeningsPlatformProfilesCoverFixtureBodies(t *testing.T) {
+	dir := filepath.Join("..", "..", "qual", "scanbench")
+	for _, host := range []string{"linux", "darwin", "windows", "freebsd"} {
+		t.Run(host, func(t *testing.T) {
+			for _, file := range []string{"fixture_dir_unix.go", "fixture_dir_other.go", "fixture_dir_test.go"} {
+				covered := false
+				for _, target := range append([]string{host}, openingOtherPlatforms(host)...) {
+					c := build.Default
+					c.GOOS, c.GOARCH, c.CgoEnabled = target, "amd64", false
+					match, err := c.MatchFile(dir, file)
+					if err != nil {
+						t.Fatal(err)
+					}
+					covered = covered || match
+				}
+				if !covered {
+					t.Fatalf("%s host leaves %s untyped", host, file)
+				}
+			}
+		})
+	}
+}
+
+func TestStoreOpeningsForeignProfilePinsSupportedArchitecture(t *testing.T) {
+	t.Setenv("GOOS", "plan9")
+	t.Setenv("GOARCH", "not-a-supported-target")
+	t.Setenv("CGO_ENABLED", "1")
+	target := "windows"
+	if runtime.GOOS == target {
+		target = "linux"
+	}
+	counts := map[string]int{}
+	for _, value := range openingEnv(target) {
+		for _, want := range []string{"GOOS=" + target, "GOARCH=amd64", "CGO_ENABLED=0"} {
+			if value == want {
+				counts[want]++
+			}
+		}
+		if value == "GOOS=plan9" || value == "GOARCH=not-a-supported-target" || value == "CGO_ENABLED=1" {
+			t.Fatal("inherited target escaped normalization", value)
+		}
+	}
+	if len(counts) != 3 {
+		t.Fatal("incomplete explicit cross-target", counts)
+	}
+	for key, n := range counts {
+		if n != 1 {
+			t.Fatal("ambiguous cross-target", key, n)
+		}
+	}
 }
 
 func TestStoreOpeningsInventoryFailsClosed(t *testing.T) {
