@@ -71,6 +71,52 @@ func TestScanPreparationConstructorFinalFinishCancellation(t *testing.T) {
 	}
 }
 
+func TestScanPreparationCanceledBusyAdmissionCannotRetry(t *testing.T) {
+	var armed atomic.Bool
+	entered, release := make(chan struct{}), make(chan struct{})
+	var releaseOnce sync.Once
+	releaseClock := func() { releaseOnce.Do(func() { close(release) }) }
+	defer releaseClock()
+	now := func() time.Time {
+		if armed.Load() {
+			close(entered)
+			<-release
+		}
+		return time.Now()
+	}
+	opening, owner, r, request, grant := scanPreparationFundingFixture(t, now)
+	p, err := newScanPreparation(t.Context(), opening, owner, r, nativeinventory.NewObserver(&scanObservationFaultTransport{}), request, grant,
+		nativeinventory.Request{Root: []byte("/media"), RelativePath: []byte("."), Limit: 1})
+	if err != nil {
+		_ = r.authority.Retired(grant)
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := p.Close(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+	armed.Store(true)
+	done := make(chan error, 1)
+	go func() { done <- r.authority.Check(grant, request) }()
+	<-entered // the actual ledger mutex is held by Authority.Check's clock
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	value, first := p.ObserveInventory(ctx)
+	armed.Store(false)
+	releaseClock()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if !errors.Is(first, context.Canceled) || !errors.Is(first, governor.ErrBusy) || value.Version != 0 {
+		t.Fatal("missed canceled/busy interleaving", value, first)
+	}
+	value, err = p.ObserveInventory(t.Context())
+	if err == nil || value.Version != 0 {
+		t.Fatalf("canceled preparation revived: version=%d err=%v failed=%v", value.Version, err, p.failed)
+	}
+}
+
 // Deliberate transport fault fixture only; never a production observer/source
 // or resource proof. Scope/opening/governor ownership are the real W objects.
 type scanObservationFaultTransport struct {
