@@ -159,11 +159,23 @@ var sqliteKeywords = func() map[string]bool {
 }()
 
 type lintParser struct {
-	tokens     []sqlToken
-	at, depth  int
-	dml        *dmlShape
-	columnRole string
-	sources    []selectSource
+	tokens                             []sqlToken
+	at, depth                          int
+	dml                                *dmlShape
+	columnRole                         string
+	sources                            []selectSource
+	comparisons                        []lintComparison
+	orders                             []lintOrder
+	limit, disjunction, otherPredicate bool
+}
+
+type lintComparison struct {
+	left, right []sqlToken
+	operator    string
+}
+type lintOrder struct {
+	column []sqlToken
+	desc   bool
 }
 
 type selectSource struct {
@@ -302,12 +314,15 @@ func (p *lintParser) predicate() error {
 	if err := p.scalar(); err != nil {
 		return err
 	}
+	leftEnd := p.at
 	if p.take("IS") {
+		p.otherPredicate = true
 		p.take("NOT")
 		return p.need("NULL")
 	}
 	negated := p.take("NOT")
 	if p.take("IN") {
+		p.otherPredicate = true
 		// Only a plain column may introduce a scalar parameter/literal list.
 		left := lintParser{tokens: p.tokens[start : p.at-1]}
 		if negated {
@@ -332,6 +347,7 @@ func (p *lintParser) predicate() error {
 		return p.need(")")
 	}
 	if p.take("BETWEEN") {
+		p.otherPredicate = true
 		if err := p.scalar(); err != nil {
 			return err
 		}
@@ -342,6 +358,7 @@ func (p *lintParser) predicate() error {
 	}
 	for _, operator := range []string{"LIKE", "GLOB", "MATCH", "REGEXP"} {
 		if p.take(operator) {
+			p.otherPredicate = true
 			end := p.at - 1
 			if negated {
 				end--
@@ -367,7 +384,12 @@ func (p *lintParser) predicate() error {
 	}
 	for _, operator := range []string{"=", "==", "!=", "<>", "<", "<=", ">", ">="} {
 		if p.take(operator) {
-			return p.scalar()
+			right := p.at
+			if err := p.scalar(); err != nil {
+				return err
+			}
+			p.comparisons = append(p.comparisons, lintComparison{p.tokens[start:leftEnd], p.tokens[right:p.at], operator})
+			return nil
 		}
 	}
 	return p.fail("expected a supported comparison")
@@ -388,6 +410,7 @@ func (p *lintParser) boolean() error {
 		return err
 	}
 	for p.take("OR") {
+		p.disjunction = true
 		if err := p.conjunction(); err != nil {
 			return err
 		}
@@ -478,18 +501,23 @@ func (p *lintParser) selectStatement() error {
 			return err
 		}
 		for {
+			start := p.at
 			if err := p.column(); err != nil {
 				return err
 			}
+			end := p.at
+			desc := false
 			if !p.take("ASC") {
-				p.take("DESC")
+				desc = p.take("DESC")
 			}
+			p.orders = append(p.orders, lintOrder{p.tokens[start:end], desc})
 			if !p.take(",") {
 				break
 			}
 		}
 	}
 	if p.take("LIMIT") {
+		p.limit = true
 		if p.at >= len(p.tokens) || p.tokens[p.at].kind != 'p' && p.tokens[p.at].kind != 'n' {
 			return p.fail("LIMIT requires a parameter or nonnegative integer")
 		}
@@ -549,12 +577,15 @@ func (p *lintParser) unquotedName() error {
 // range comparisons, NULL tests, grouping or inferred predicate safety.
 func (p *lintParser) joinPoints() error {
 	for {
+		start := p.at
 		if err := p.qualifiedName(); err != nil {
 			return err
 		}
+		leftEnd := p.at
 		if err := p.need("="); err != nil {
 			return err
 		}
+		right := p.at
 		switch {
 		case p.at < len(p.tokens) && (p.tokens[p.at].kind == 'p' || p.tokens[p.at].kind == 'n'):
 			p.at++
@@ -565,6 +596,7 @@ func (p *lintParser) joinPoints() error {
 				return err
 			}
 		}
+		p.comparisons = append(p.comparisons, lintComparison{p.tokens[start:leftEnd], p.tokens[right:p.at], "="})
 		if !p.take("AND") {
 			return nil
 		}

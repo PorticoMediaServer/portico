@@ -129,7 +129,7 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 				return g, fmt.Errorf("plan %s/%s EQP: %w", entry.ID, cohort.Name, err)
 			}
 			var insert *InsertAudit
-			if err := checkAutoindexSearches(autoIndexes, eqp); err != nil {
+			if err := checkAutoindexSearches(entry.Definition, autoIndexes, eqp); err != nil {
 				return g, fmt.Errorf("plan %s/%s: %w", entry.ID, cohort.Name, err)
 			}
 			if table != nil && !mainWriteRoot(full, table.root) {

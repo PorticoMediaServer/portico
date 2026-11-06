@@ -85,6 +85,9 @@ func (p *lintParser) dmlStatement() error {
 				return err
 			}
 			p.dml.index = p.tokens[p.at-1].text
+			if p.tokens[p.at-1].kind != 'w' && isAutoindex(nameKey(p.dml.index)) {
+				return p.fail("generated-key INDEXED BY requires an unquoted name")
+			}
 		}
 		if kind == "UPDATE" {
 			if err := p.need("SET"); err != nil {
