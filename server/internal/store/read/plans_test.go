@@ -214,7 +214,14 @@ func captureBrowse(t *testing.T, f *browseFixture, definitions []stmt.Definition
 	if err != nil {
 		t.Fatal(err)
 	}
-	golden, err := plan.Capture(t.Context(), conn, catalogue, browsePlanFixture(cfg, browsePlanFixtureHash(t), statistics), policy)
+	hash := browsePlanFixtureHash(t)
+	for _, d := range definitions {
+		if strings.HasPrefix(string(d.ID), "read.foreground.") {
+			hash = foregroundFixtureHash(t)
+			break
+		}
+	}
+	golden, err := plan.Capture(t.Context(), conn, catalogue, browsePlanFixture(cfg, hash, statistics), policy)
 	if err != nil {
 		t.Fatal(err)
 	}

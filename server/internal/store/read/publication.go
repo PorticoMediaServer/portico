@@ -1,6 +1,7 @@
 package read
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"time"
@@ -39,9 +40,12 @@ type BrowseOutput struct {
 // includes them and output checks, never only BrowsePage.LookupElapsed.
 type BrowseReadResult struct {
 	Lookup, Publication                     governor.SnapshotResult
+	LookupWindows                           []governor.SnapshotResult
 	LookupStatements, PublicationStatements int
 	Refusal                                 *governor.Refusal
 	Elapsed                                 time.Duration
+	Attempts                                int
+	PublicationWindows                      []governor.SnapshotResult
 }
 
 // Window prepares a private page, joins the lookup's physical cleanup, then
@@ -50,29 +54,97 @@ type BrowseReadResult struct {
 // Every denial, drift, admission/cleanup error or cancellation returns ZERO
 // output. There is no production registration or runtime cutover here.
 func (r *BrowseReader) Window(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in BrowseInput) (page BrowsePage, result BrowseReadResult, err error) {
+	if r == nil {
+		return BrowsePage{}, BrowseReadResult{}, ErrInput
+	}
+	page, result, err = publishRead(ctx, r.snapshots, request, budget, output, in, []readStep[BrowsePage]{func(ctx context.Context, query browseQuery, f browseFence, draft *BrowsePage) error {
+		var err error
+		*draft, err = readBrowsePage(ctx, query, in, f)
+		return err
+	}})
+	if err == nil {
+		page.Statements = result.LookupStatements + result.PublicationStatements
+	}
+	return
+}
+
+// A readStep uses the remaining calls after the shared or source fence.
+// GV enforces eight calls per snapshot. No snapshot crosses a step.
+type readStep[T any] func(context.Context, browseQuery, browseFence, *T) error
+
+// publishRead implements the shared consolidated protocol: full shared fences
+// first/final, exact root/source fences between, and at most one complete retry
+// within the original deadline. Browse is its existing single-lookup subset.
+func publishRead[T any](ctx context.Context, snapshots browseSnapshots, request governor.Request, budget time.Duration, output BrowseOutput, in BrowseInput, steps []readStep[T], roots ...rootRead) (page T, result BrowseReadResult, err error) {
+	started := time.Now()
+	if budget <= 0 || in.Now.IsZero() || len(roots) > 1 {
+		return page, result, ErrInput
+	}
+	deadline := started.Add(min(budget, time.Second))
+	if request.Deadline.Before(deadline) {
+		deadline = request.Deadline
+	}
+	request.Deadline = deadline
+	var copied int64
+	attempts := 1
+	if len(roots) > 0 {
+		attempts = 2
+	}
+	for n := 0; n < attempts; n++ {
+		attemptInput := in
+		attemptInput.Now = in.Now.Add(time.Since(started))
+		var one BrowseReadResult
+		page, one, err = publishAttempt(ctx, snapshots, request, time.Until(deadline), output, attemptInput, steps, &copied, roots...)
+		result.Lookup = one.Lookup
+		result.Publication = one.Publication
+		result.Refusal = one.Refusal
+		result.LookupStatements += one.LookupStatements
+		result.PublicationStatements += one.PublicationStatements
+		result.LookupWindows = append(result.LookupWindows, one.LookupWindows...)
+		if !one.Publication.Started.IsZero() {
+			result.PublicationWindows = append(result.PublicationWindows, one.Publication)
+		}
+		result.Attempts = n + 1
+		if !errors.Is(err, ErrStale) || ctx == nil || ctx.Err() != nil || !time.Now().Before(deadline) {
+			break
+		}
+	}
+	result.Elapsed = time.Since(started)
+	if errors.Is(err, ErrStale) && len(roots) > 0 {
+		result.Refusal = &governor.Refusal{Code: governor.Conflict}
+		err = errors.Join(ErrStale, governor.ErrBusy)
+	}
+	return
+}
+
+type rootRead func(browseQuery) ([]any, error)
+
+func publishAttempt[T any](ctx context.Context, snapshots browseSnapshots, request governor.Request, budget time.Duration, output BrowseOutput, in BrowseInput, steps []readStep[T], copied *int64, roots ...rootRead) (page T, result BrowseReadResult, err error) {
+
+	var zero T
 	started := time.Now()
 	defer func() { result.Elapsed = time.Since(started) }()
-	if r == nil || r.snapshots == nil || ctx == nil || output.Authority == nil || output.Grant == nil || budget <= 0 ||
+	if snapshots == nil || len(steps) == 0 || ctx == nil || output.Authority == nil || output.Grant == nil || budget <= 0 ||
 		len(in.Database) == 0 || len(in.Database) > 256 || len(in.TokenHash) == 0 || len(in.TokenHash) > 256 || in.Library <= 0 || in.Kind <= 0 || in.Kind > 99 || in.Limit < 1 || in.Limit > MaxPage || in.Now.IsZero() {
-		return BrowsePage{}, result, ErrInput
+		return zero, result, ErrInput
 	}
 	if in.Kind > 10 {
-		return BrowsePage{}, result, ErrUnqualified
+		return zero, result, ErrUnqualified
 	}
 	if err := ctx.Err(); err != nil {
-		return BrowsePage{}, result, err
+		return zero, result, err
 	}
-	goBytes := request.Need[governor.MemoryBytes] - r.snapshots.NativeRowReservation()
+	goBytes := request.Need[governor.MemoryBytes] - snapshots.NativeRowReservation()
 	if goBytes <= 0 || output.Request.Writer || output.Request.Owner != request.Owner || output.Request.Class != request.Class || output.Request.Need[governor.MemoryBytes]/2 < goBytes {
-		return BrowsePage{}, result, governor.ErrSnapshotBudget
+		return zero, result, governor.ErrSnapshotBudget
 	}
 	for resource, n := range output.Request.Need {
 		if resource != int(governor.MemoryBytes) && n != 0 {
-			return BrowsePage{}, result, governor.ErrSnapshotBudget
+			return zero, result, governor.ErrSnapshotBudget
 		}
 	}
 	if err := output.Authority.Check(output.Grant, output.Request); err != nil {
-		return BrowsePage{}, result, err
+		return zero, result, err
 	}
 	deadline := started.Add(min(budget, time.Second))
 	for _, limit := range []time.Time{request.Deadline, output.Request.Deadline} {
@@ -86,33 +158,77 @@ func (r *BrowseReader) Window(ctx context.Context, request governor.Request, bud
 	request.Deadline = deadline
 	lookupContext, cancelLookup := context.WithDeadline(ctx, deadline)
 	defer cancelLookup()
-	var draft BrowsePage
+	var draft T
 	var initial browseFence
 	var fenceReady bool
-	result.Lookup, err = r.snapshots.Read(lookupContext, request, time.Until(deadline), func(scope *governor.ReadScope) error {
-		query := func(name string, args ...any) ([][]any, error) {
-			result.LookupStatements++
-			return scope.Query(statementID(name), args...)
+	var source []any
+	for stepIndex, step := range steps {
+		var window governor.SnapshotResult
+		window, err = snapshots.Read(lookupContext, request, time.Until(deadline), func(scope *governor.ReadScope) error {
+			query := func(name string, args ...any) ([][]any, error) {
+				result.LookupStatements++
+				rows, e := scope.Query(readStatementID(name), args...)
+				if e != nil {
+					return nil, e
+				}
+				for _, row := range rows {
+					*copied += 64 + int64(len(row))*32
+					for _, v := range row {
+						switch v := v.(type) {
+						case string:
+							*copied += int64(len(v)) * 2
+						case []byte:
+							*copied += int64(len(v)) * 3
+						}
+					}
+				}
+				if *copied > output.Request.Need[governor.MemoryBytes]/2 {
+					return nil, governor.ErrSnapshotBudget
+				}
+				return rows, nil
+			}
+			var e error
+			if stepIndex == 0 {
+				initial, e = readBrowseFence(query, in)
+				if e != nil {
+					return e
+				}
+				fenceReady = true
+			}
+			if len(roots) > 0 {
+				current, e := roots[0](query)
+				if e != nil {
+					return e
+				}
+				if stepIndex == 0 {
+					source = current
+				} else if !equalSource(source, current) {
+					return ErrStale
+				}
+			}
+
+			return step(scope.Context(), query, initial, &draft)
+		})
+		result.LookupWindows = append(result.LookupWindows, window)
+		result.Lookup = window
+		if window.Refusal != nil {
+			result.Refusal = window.Refusal
+			return zero, result, governor.ErrBusy
 		}
-		var e error
-		initial, e = readBrowseFence(query, in)
-		if e != nil {
-			return e
+		if err != nil {
+			break
 		}
-		fenceReady = true
-		draft, e = readBrowsePage(scope.Context(), query, in, initial)
-		return e
-	})
+	}
 	lookupErr := err
 	if result.Lookup.Refusal != nil {
 		result.Refusal = result.Lookup.Refusal
-		return BrowsePage{}, result, governor.ErrBusy
+		return zero, result, governor.ErrBusy
 	}
 	if !fenceReady {
-		return BrowsePage{}, result, lookupErr
+		return zero, result, lookupErr
 	}
 	if !time.Now().Before(deadline) {
-		return BrowsePage{}, result, errors.Join(lookupErr, ctx.Err(), context.DeadlineExceeded)
+		return zero, result, errors.Join(lookupErr, ctx.Err(), context.DeadlineExceeded)
 	}
 	// A bounded security-only validation may finish after caller cancellation,
 	// but NEVER past the original protected deadline. This lets an observed
@@ -123,10 +239,10 @@ func (r *BrowseReader) Window(ctx context.Context, request governor.Request, bud
 	defer cancelValidation()
 	currentInput := in
 	currentInput.Now = in.Now.Add(time.Since(started))
-	result.Publication, err = r.snapshots.Read(validationContext, request, time.Until(deadline), func(scope *governor.ReadScope) error {
+	result.Publication, err = snapshots.Read(validationContext, request, time.Until(deadline), func(scope *governor.ReadScope) error {
 		query := func(name string, args ...any) ([][]any, error) {
 			result.PublicationStatements++
-			return scope.Query(statementID(name), args...)
+			return scope.Query(readStatementID(name), args...)
 		}
 		current, e := readBrowseFence(query, currentInput)
 		if e != nil {
@@ -134,6 +250,15 @@ func (r *BrowseReader) Window(ctx context.Context, request governor.Request, bud
 		}
 		if current != initial {
 			return ErrStale
+		}
+		if len(roots) > 0 {
+			now, e := roots[0](query)
+			if e != nil {
+				return e
+			}
+			if !equalSource(source, now) {
+				return ErrStale
+			}
 		}
 		return nil
 	})
@@ -143,7 +268,7 @@ func (r *BrowseReader) Window(ctx context.Context, request governor.Request, bud
 		publicationErr = governor.ErrBusy
 	}
 	if errors.Is(publicationErr, ErrDenied) || errors.Is(publicationErr, ErrUnqualified) || errors.Is(publicationErr, ErrStale) {
-		return BrowsePage{}, result, publicationErr
+		return zero, result, publicationErr
 	}
 	if publicationErr == nil {
 		// The token/horizon can expire while final SQL/cleanup is finishing.
@@ -152,21 +277,41 @@ func (r *BrowseReader) Window(ctx context.Context, request governor.Request, bud
 		expires, expiryErr := time.Parse(time.RFC3339Nano, initial.expiresAt)
 		horizon, horizonErr := time.Parse(time.RFC3339Nano, initial.horizon)
 		if expiryErr != nil || horizonErr != nil || !at.Before(expires) || !at.Before(horizon) {
-			return BrowsePage{}, result, ErrDenied
+			return zero, result, ErrDenied
 		}
 	}
 	if err := ctx.Err(); err != nil {
-		return BrowsePage{}, result, err
+		return zero, result, err
 	}
 	if err := errors.Join(lookupErr, publicationErr, validationContext.Err()); err != nil {
-		return BrowsePage{}, result, err
+		return zero, result, err
 	}
 	if !time.Now().Before(deadline) {
-		return BrowsePage{}, result, context.DeadlineExceeded
+		return zero, result, context.DeadlineExceeded
 	}
 	if err := output.Authority.Check(output.Grant, output.Request); err != nil {
-		return BrowsePage{}, result, err
+		return zero, result, err
 	}
-	draft.Statements = result.LookupStatements + result.PublicationStatements
 	return draft, result, nil
+}
+
+// Compare exact native values, including BLOB incarnations and nullable fields.
+func equalSource(a, b []any) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, v := range a {
+		switch v := v.(type) {
+		case []byte:
+			w, ok := b[i].([]byte)
+			if !ok || !bytes.Equal(v, w) {
+				return false
+			}
+		default:
+			if v != b[i] {
+				return false
+			}
+		}
+	}
+	return true
 }

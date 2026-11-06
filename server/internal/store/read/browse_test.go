@@ -42,8 +42,11 @@ type browseFact struct {
 
 func newBrowseFixture(t *testing.T) *browseFixture {
 	t.Helper()
-	f := newBrowseSource(t)
-	definitions := browseDefinitions()
+	return composeBrowseFixture(t, newBrowseSource(t), browseDefinitions())
+}
+
+func composeBrowseFixture(t *testing.T, f *browseFixture, definitions []stmt.Definition) *browseFixture {
+	t.Helper()
 	golden := captureBrowse(t, f, definitions, plan.Unanalyzed)
 	registry, err := stmt.New(definitions, golden.Receipt())
 	if err != nil {

@@ -2,7 +2,7 @@ package read
 
 import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 
-// Definitions remain test-only: no product registration or runtime cutover.
+// Inert compiled definitions: no product registration or runtime cutover.
 func browseDefinitions() []stmt.Definition {
 	i := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Integer} }
 	s := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Text} }
