@@ -130,7 +130,7 @@ type TransportConfig struct {
 	MaxWaiters        int // all callers, including coalesced requests
 	MaxResponseBytes  int64
 	MaxMetadataBytes  int64 // explicit allocation budget; zero disables typed acquisition (no production default)
-	CacheBytes        int64 // conservative body-allocation bound; entry/key metadata is separate
+	CacheBytes        int64 // conservative body+acquisition-metadata allocation bound; entry/key overhead is separate
 	CacheEntries      int
 	CacheTTL          time.Duration
 	RequestTimeout    time.Duration
@@ -195,7 +195,7 @@ func newTransport(cfg TransportConfig, admission NetworkAdmission, fetch Fetch, 
 		cfg.MaxInFlight < 1 || cfg.MaxInFlight > 64 || cfg.MaxPending < cfg.MaxInFlight || cfg.MaxPending > 256 ||
 		cfg.MaxWaiters < cfg.MaxPending || cfg.MaxWaiters > 1024 || cfg.MaxResponseBytes < 1 || cfg.MaxResponseBytes > 4<<20 ||
 		cfg.MaxMetadataBytes < 0 || cfg.MaxMetadataBytes > 64<<20 ||
-		int64(cfg.MaxPending)*cfg.MaxResponseBytes > 64<<20 ||
+		int64(cfg.MaxPending)*(cfg.MaxResponseBytes+cfg.MaxMetadataBytes) > 64<<20 ||
 		cfg.CacheBytes < 0 || cfg.CacheBytes > 64<<20 || cfg.CacheEntries < 0 || cfg.CacheEntries > 4096 ||
 		cfg.CacheTTL < 0 || cfg.CacheTTL > 24*time.Hour || cfg.RequestTimeout <= 0 || cfg.RequestTimeout > time.Minute || admission == nil || fetch == nil || clock == nil {
 		return nil, errors.New("invalid enrichment transport configuration")
