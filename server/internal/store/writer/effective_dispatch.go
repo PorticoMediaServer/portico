@@ -50,18 +50,19 @@ type effectivePlan struct {
 // private composition must own pool/native idle memory and WAL sampling outside
 // command custody. No production profile is inferred from these descriptors.
 type effectiveRuntime struct {
-	mu            sync.Mutex
-	executor      *executor
-	governor      governor.Governor
-	authority     *governor.Authority
-	wal           *governor.WALGate
-	path          string
-	owner         governor.OwnerID
-	plan          effectivePlan
-	inventoryPlan *effectivePlan
-	registry      *stmt.Registry
-	fenced        bool
-	cleanupPanics []terminalPanic
+	mu             sync.Mutex
+	executor       *executor
+	governor       governor.Governor
+	authority      *governor.Authority
+	wal            *governor.WALGate
+	path           string
+	owner          governor.OwnerID
+	plan           effectivePlan
+	inventoryPlan  *effectivePlan
+	lifecyclePlans [2]*effectivePlan // private, explicitly composed create/claim history profiles
+	registry       *stmt.Registry
+	fenced         bool
+	cleanupPanics  []terminalPanic
 
 	clockHighWater time.Time // composition custody under mu, then transferred into the frame
 }
@@ -176,6 +177,7 @@ type commandOutput struct {
 	effective EffectiveStageResult
 	inventory InventoryResult
 	publisher SearchImageStageResult
+	lifecycle scanLifecycleCommandResult
 }
 
 func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, input *effectiveStageBeginCommand, ack bool, scan *inventoryInvocation, publishers ...*publisherInvocation) (out commandOutput, acknowledged AckResult, err error) {
@@ -226,7 +228,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		if input != nil || cap != nil || request != (EnrichmentReceiptRequest{}) {
 			return out, acknowledged, ErrInvalid
 		}
-		if r.inventoryPlan == nil {
+		if scan.lifecycle == 0 && r.inventoryPlan == nil {
 			return out, acknowledged, ErrNotImplemented
 		}
 		if scan.input != nil {
@@ -237,11 +239,25 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		}
 		purpose, plan, reference, key, libraryID = InventoryAccept, r.inventoryPlan, scan.request.Receipt, scan.request.RunID, scan.request.LibraryID
 		outcome = &out.inventory.Outcome
+		if scan.lifecycle != 0 {
+			if scan.input != nil || (scan.lifecycle != InventoryCreate && scan.lifecycle != InventoryClaim) {
+				return out, acknowledged, ErrInvalid
+			}
+			purpose = scan.lifecycle
+			plan = nil // read the one-time installed profile only under runtime custody
+			outcome = &out.lifecycle.Outcome
+		}
 	}
 	if !r.mu.TryLock() {
 		return out, acknowledged, ErrBusy
 	}
 	defer r.mu.Unlock()
+	if scan != nil && scan.lifecycle != 0 {
+		plan = r.lifecyclePlans[int(purpose-InventoryCreate)]
+		if plan == nil {
+			return out, acknowledged, ErrNotImplemented
+		}
+	}
 	defer func() {
 		if primary := recover(); primary != nil {
 			r.fenced = true
@@ -342,7 +358,9 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	turn, err := newCommandTurn(tx, r.registry, plan.steps)
 	if err == nil {
 		if scan != nil {
-			_, err = inventoryOwnerFacts(ctx, turn, scan.request.RunID)
+			if scan.lifecycle == 0 {
+				_, err = inventoryOwnerFacts(ctx, turn, scan.request.RunID)
+			}
 			if err == nil {
 				err = checkInventoryNativeScope(ctx, turn, scan.request)
 			}
@@ -354,7 +372,21 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		err = errors.Join(r.currentCommandDisclosure(w, cap, request, scan, publisher), turn.checkLifetimes(ctx))
 	}
 	var historical bool
-	if err == nil && scan != nil {
+	if err == nil && scan != nil && scan.lifecycle != 0 {
+		if err = turn.requireScanLifecycleMemory(ctx, scanLifecycleHistoryBytes); err == nil {
+			if ack {
+				acknowledged.AcknowledgedThrough, err = acknowledgeScanRunLifecycle(ctx, turn, scan.request, scan.lifecycle)
+			} else {
+				var lookup scanLifecycleReceiptLookup
+				lookup, err = lookupScanRunLifecycle(ctx, turn, scan.request, scan.lifecycle)
+				if err == nil {
+					out.lifecycle = scanLifecycleHistoricalResult(scan.request, lookup)
+					historical = lookup.decision != receiptFresh
+				}
+			}
+		}
+	}
+	if err == nil && scan != nil && scan.lifecycle == 0 {
 		var lookup inventoryReceiptLookup
 		lookup, err = lookupInventoryAccept(ctx, turn, scan.request)
 		// Recheck permission even when lookup reports cancellation/error;
