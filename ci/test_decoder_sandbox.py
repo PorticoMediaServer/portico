@@ -106,7 +106,7 @@ class DecoderSandboxTests(unittest.TestCase):
             self.assertEqual(once[root / 'sources.list'], 'deb http://archive.ubuntu.com/ubuntu noble main\n')
             self.assertEqual(once[sources / 'updates.list'], 'deb http://archive.ubuntu.com/ubuntu noble-updates main\n')
             self.assertEqual(once[sources / 'ubuntu.sources'], fixtures[sources / 'ubuntu.sources'].replace(
-                'http://azure.archive.ubuntu.com/ubuntu/', sandbox.APT_MIRROR).replace('http://security.ubuntu.com/ubuntu', sandbox.APT_MIRROR))
+                'http://azure.archive.ubuntu.com/ubuntu/', sandbox.APT_MIRROR))
             for file in [sources / 'vendor.list', sources / 'ubuntu.sources.save']:
                 self.assertEqual(once[file], fixtures[file])
             self.assertEqual({file: file.read_text() for file in fixtures}, once)
@@ -116,6 +116,36 @@ class DecoderSandboxTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.dict('os.environ', env, clear=True):
             with self.assertRaisesRegex(ValueError, 'no Ubuntu apt mirror'):
                 sandbox.switch_apt_mirror(Path(directory))
+
+    def test_hosted_2404_mirrorlists_are_bypassed_and_effective_uris_logged(self):
+        env = {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted', 'RUNNER_OS': 'Linux'}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sources = root / 'sources.list.d'
+            sources.mkdir()
+            mirrorlist = 'http://azure.archive.ubuntu.com/ubuntu/\nhttp://archive.ubuntu.com/ubuntu/\n'
+            security = 'http://security.ubuntu.com/ubuntu/\n'
+            (root / 'apt-mirrors.txt').write_text(mirrorlist)
+            (root / 'apt-mirrors-security.txt').write_text(security)
+            main = 'mirror+file:/etc/apt/apt-mirrors.txt'
+            secure = 'mirror+file:/etc/apt/apt-mirrors-security.txt'
+            deb822 = ('Types: deb\nURIs: ' + main + '\nSuites: noble noble-updates noble-backports\n'
+                      'Components: main universe\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n\n'
+                      'Types: deb\nURIs: ' + secure + '\nSuites: noble-security\n'
+                      'Components: main universe\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n')
+            (sources / 'ubuntu.sources').write_text(deb822)
+            (root / 'sources.list').write_text('deb ' + main + ' noble main\n')
+            with patch.dict('os.environ', env, clear=True), patch('builtins.print') as log:
+                sandbox.switch_apt_mirror(root)
+                sandbox.switch_apt_mirror(root)
+            self.assertEqual((sources / 'ubuntu.sources').read_text(), deb822.replace(
+                main, sandbox.APT_MIRROR).replace(secure, 'http://security.ubuntu.com/ubuntu'))
+            self.assertEqual((root / 'sources.list').read_text(), 'deb http://archive.ubuntu.com/ubuntu noble main\n')
+            # Only the effective source URI changes: the Azure-first mirrorlist
+            # remains on disk but neither Ubuntu source can select it anymore.
+            self.assertEqual((root / 'apt-mirrors.txt').read_text(), mirrorlist)
+            self.assertEqual((root / 'apt-mirrors-security.txt').read_text(), security)
+            log.assert_any_call('ubuntu.sources: effective Ubuntu apt URIs: http://archive.ubuntu.com/ubuntu, http://security.ubuntu.com/ubuntu', flush=True)
 
     def test_setup_success_does_not_repair_or_switch_mirrors(self):
         env = {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted', 'RUNNER_OS': 'Linux'}

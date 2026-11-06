@@ -32,6 +32,7 @@ APT_UPDATE_SECONDS = 90
 APT_INSTALL_SECONDS = 240
 APT_MIRROR = 'http://archive.ubuntu.com/ubuntu'
 UBUNTU_MIRROR = re.compile(r'https?://(?:[A-Za-z0-9-]+\.)*(?:archive|security)\.ubuntu\.com/ubuntu/?')
+UBUNTU_MIRROR_LIST = re.compile(r'mirror\+file:/etc/apt/apt-mirrors(-security)?\.txt(?=$|\s)')
 
 
 def command(args, timeout=180):
@@ -83,10 +84,18 @@ def switch_apt_mirror(root=Path('/etc/apt')):
         if not path.is_file():
             continue
         original = path.read_text()
-        updated, count = UBUNTU_MIRROR.subn(APT_MIRROR, original)
-        matched += count
+        updated, count = UBUNTU_MIRROR.subn(
+            lambda match: match[0] if '//security.ubuntu.com/ubuntu' in match[0] else APT_MIRROR, original)
+        # Hosted 24.04 images can select Azure indirectly through a mirrorlist.
+        # Bypass that list, including its separate security-suite variant.
+        updated, lists = UBUNTU_MIRROR_LIST.subn(
+            lambda match: 'http://security.ubuntu.com/ubuntu' if match[1] else APT_MIRROR, updated)
+        matched += count + lists
         if updated != original:
             path.write_text(updated)
+        if count or lists:
+            effective = sorted(set(UBUNTU_MIRROR.findall(updated)))
+            print(path.name + ': effective Ubuntu apt URIs: ' + ', '.join(effective), flush=True)
     if not matched:
         raise ValueError('no Ubuntu apt mirror found; refusing unchanged-mirror retry')
     print('Retrying Ubuntu packages through ' + APT_MIRROR, flush=True)
