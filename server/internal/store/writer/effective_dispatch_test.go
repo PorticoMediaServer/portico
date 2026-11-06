@@ -1,0 +1,363 @@
+package writer
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"os"
+	"reflect"
+	"testing"
+	"time"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
+	"github.com/PorticoMediaServer/portico/server/internal/store/schema"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
+)
+
+// Protocol fixtures only: virtual time and deliberately synthetic complete
+// forecasts. This is NOT production source/seal proof or a latency profile.
+func effectiveFacadeFixture(t *testing.T) (*Writer, *EnrichmentDisclosure, *effectiveStageBeginCommand, *executor, *governor.Authority) {
+	t.Helper()
+	executor, _, input, identity := effectiveBeginWholeFixture(t)
+	command, err := newEffectiveStageBeginCommand(identity, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sequence int64
+	var name, path string
+	if err := executor.db.QueryRowContext(t.Context(), "PRAGMA database_list").Scan(&sequence, &name, &path); err != nil {
+		t.Fatal(err)
+	}
+	wal, err := governor.NewWALGate(governor.WALPolicy{HardBytes: 1 << 29, ReserveBytes: 1 << 20, SoftDebtBytes: 1 << 26, ActivePressureBytes: 1 << 28, MaxSampleAge: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan := effectivePlan{recipe: turnRecipe{limit: Work{4096, 1000000, 4096, 32 << 20, 25 * time.Millisecond}, setup: Work{16, 500, 16, 65536, time.Millisecond}, terminal: Work{16, 500, 16, 65536, 8 * time.Millisecond}}, headerSync: Work{WALBytes: 32, Hold: 5 * time.Millisecond}}
+	defs := append(enrichmentEffectiveBeginDefinitions(), enrichmentEffectiveProducerDefinitions()...)
+	defs = append(defs, effectiveDispatchDefinitions()...)
+	for _, def := range defs {
+		plan.steps = append(plan.steps, statementStep{def.ID, Work{16, 2000, 16, 65536, 100 * time.Microsecond}})
+	}
+	plan.need[governor.MemoryBytes] = 128 << 20
+	plan.need[governor.CPUMilli] = 100
+	plan.need[governor.WALBytes] = int64(plan.recipe.limit.WALBytes)
+	plan.need[governor.IOBytes] = 64 << 20
+	plan.io = []governor.DeviceIO{{DeviceID: "protocol-fixture", Class: governor.Seeking, Outstanding: 1, Bytes: 64 << 20}}
+	var partitions [4]governor.Amounts
+	for i := range partitions {
+		partitions[i] = plan.need
+	}
+	g, authority, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 2, Now: executor.now, WAL: wal})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime, err := newEffectiveRuntime(executor, path, g, authority, wal, 1, plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := &Writer{effective: runtime}
+	cap := &EnrichmentDisclosure{issuer: w, scope: &enrichmentScope{ownerID: input.ownerID, libraryKey: "library-native", libraryID: input.entity.libraryID, entityID: input.entity.id, lifetime: t.Context()}}
+	return w, cap, command, executor, authority
+}
+
+func effectiveReference(input *effectiveStageBeginCommand) EnrichmentReceiptRequest {
+	return EnrichmentReceiptRequest{ProviderOperationID: input.request.ownerID, LibraryID: input.request.entity.libraryID, EntityID: input.request.entity.id, Receipt: ReceiptReference{input.identity, input.digest}}
+}
+
+func TestEffectiveFacadeProductionRefusesUnprovedSource(t *testing.T) {
+	w, cap, command, executor, authority := effectiveFacadeFixture(t)
+	request := effectiveReference(command)
+	var originalReceipts int64
+	if err := executor.db.QueryRowContext(t.Context(), "SELECT count(*) FROM enrichment_command_receipts").Scan(&originalReceipts); err != nil {
+		t.Fatal(err)
+	}
+	result, err := w.StageEffective(t.Context(), cap, command)
+	var refusal *Refusal
+	if !errors.As(err, &refusal) || refusal.Code != RefusalUnqualified || result.Outcome.State != Pending || result.Value.ImageID != 0 {
+		t.Fatal("unproved source reached production BEGIN", result, err)
+	}
+	var images, receipts, sequence int64
+	if err := executor.db.QueryRowContext(t.Context(), "SELECT count(*) FROM catalog_credit_images").Scan(&images); err != nil {
+		t.Fatal(err)
+	}
+	if err := executor.db.QueryRowContext(t.Context(), "SELECT count(*) FROM enrichment_command_receipts").Scan(&receipts); err != nil {
+		t.Fatal(err)
+	}
+	if err := executor.db.QueryRowContext(t.Context(), "SELECT last_command_sequence FROM metadata_provider_operations WHERE id=?", request.ProviderOperationID).Scan(&sequence); err != nil {
+		t.Fatal(err)
+	}
+	if images != 0 || receipts != originalReceipts || sequence != command.request.owner.lastSequence || authority.Usage()[governor.Background] != (governor.Amounts{}) || executor.db.Stats().InUse != 0 {
+		t.Fatal("refusal changed durable effects or stranded custody", images, receipts, sequence)
+	}
+	e := result.Outcome.Evidence
+	if e == nil || e.Purpose != EffectiveStage || e.Class != governor.Background || e.Durability != Normal || e.Commit != CommitRolledBack || e.Policy == nil || e.PhysicalReturnedAt == nil || e.WALBefore == nil || e.WALAfter == nil || e.ReturnedAt.Before(*e.PhysicalReturnedAt) {
+		t.Fatal("refusal lost actual frame evidence", e)
+	}
+	resolved, err := w.ResolveEffective(t.Context(), cap, request)
+	if err != nil || resolved.Outcome.State != Pending || resolved.Value.ImageID != 0 {
+		t.Fatal(resolved, err)
+	}
+	if _, err := w.AckEffective(t.Context(), cap, request); !errors.Is(err, ErrResolveRequired) {
+		t.Fatal("ACK invented missing result", err)
+	}
+}
+
+func TestEffectiveFacadeHistoricalReplayAckAndFloor(t *testing.T) {
+	w, cap, command, executor, authority := effectiveFacadeFixture(t)
+	// Seed an independently committed component receipt through the MERGED
+	// private handler. No fixture capability is minted by this implementation.
+	turn, _ := effectiveBeginWholeTurn(t, executor)
+	saved, err := applyEffectiveStageBegin(t.Context(), turn, command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := turn.closeRows(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := turn.transaction.commit(); err != nil {
+		t.Fatal(err)
+	}
+	// Historical disclosure never borrows today's lease/source/policy eligibility.
+	if _, err := executor.db.ExecContext(t.Context(), "UPDATE metadata_provider_operations SET lease_until='1900-01-01T00:00:00Z',source_revision=source_revision+1 WHERE id=?", command.request.ownerID); err != nil {
+		t.Fatal(err)
+	}
+	request := effectiveReference(command)
+	for _, invoke := range []func() (EffectiveStageResult, error){
+		func() (EffectiveStageResult, error) { return w.ResolveEffective(t.Context(), cap, request) },
+		func() (EffectiveStageResult, error) { return w.StageEffective(t.Context(), cap, command) },
+	} {
+		result, err := invoke()
+		if err != nil || result.Outcome.State != Applied || !result.Outcome.Replayed || result.Value != saved || result.Outcome.Reference != request.Receipt {
+			t.Fatal(result, err)
+		}
+		if e := result.Outcome.Evidence; e == nil || e.Commit != CommitSucceeded || e.Policy == nil || e.PhysicalReturnedAt == nil || e.WALAfter == nil {
+			t.Fatal("replay lost THIS call evidence", e)
+		}
+	}
+	for _, mutate := range []func(*EnrichmentReceiptRequest){
+		func(r *EnrichmentReceiptRequest) { r.Receipt.RequestDigest[0]++ },
+		func(r *EnrichmentReceiptRequest) { r.Receipt.Identity.OperationID[0]++ },
+	} {
+		wrong := request
+		mutate(&wrong)
+		if _, err := w.ResolveEffective(t.Context(), cap, wrong); !errors.Is(err, ErrConflict) {
+			t.Fatal("wrong identity disclosed result", err)
+		}
+		if _, err := w.AckEffective(t.Context(), cap, wrong); !errors.Is(err, ErrConflict) {
+			t.Fatal("wrong identity ACKed result", err)
+		}
+	}
+	ack, err := w.AckEffective(t.Context(), cap, request)
+	if err != nil || ack.AcknowledgedThrough != command.identity.Sequence || ack.Evidence == nil || ack.Evidence.Commit != CommitSucceeded {
+		t.Fatal(ack, err)
+	}
+	if _, err := executor.db.ExecContext(t.Context(), "DELETE FROM enrichment_command_receipts WHERE provider_operation_id=?", request.ProviderOperationID); err != nil {
+		t.Fatal(err)
+	}
+	retired, err := w.ResolveEffective(t.Context(), cap, request)
+	if err != nil || retired.Outcome.State != ResultRetired || retired.Value != (EffectiveStageBeginResult{}) {
+		t.Fatal("drained receipt reconstructed Applied", retired, err)
+	}
+	ack, err = w.AckEffective(t.Context(), cap, request)
+	if err != nil || ack.AcknowledgedThrough != command.identity.Sequence {
+		t.Fatal("retained floor not idempotent", ack, err)
+	}
+	if authority.Usage()[governor.Background] != (governor.Amounts{}) || executor.db.Stats().InUse != 0 {
+		t.Fatal("replay/ACK leaked custody")
+	}
+}
+
+type wrappedEffectiveCommand struct{ EffectiveStageBeginCommand }
+
+func TestEffectiveFacadeDisclosureAndClosedDispatch(t *testing.T) {
+	w, cap, command, executor, _ := effectiveFacadeFixture(t)
+	request := effectiveReference(command)
+	cancelled, cancel := context.WithCancel(t.Context())
+	cancel()
+	for _, wrong := range []*EnrichmentDisclosure{nil, {}, {issuer: &Writer{}, scope: cap.scope},
+		{issuer: w, scope: &enrichmentScope{ownerID: cap.scope.ownerID, libraryKey: cap.scope.libraryKey, libraryID: cap.scope.libraryID, entityID: cap.scope.entityID, lifetime: cancelled}},
+	} {
+		if _, err := w.ResolveEffective(t.Context(), wrong, request); !errors.Is(err, ErrDisclosureDenied) {
+			t.Fatal("invalid capability disclosed receipt", err)
+		}
+	}
+	if _, err := w.StageEffective(t.Context(), cap, wrappedEffectiveCommand{command}); !errors.Is(err, ErrInvalid) {
+		t.Fatal("embedded command escaped closed switch", err)
+	}
+	for _, mutate := range []func(*EnrichmentReceiptRequest){
+		func(r *EnrichmentReceiptRequest) { r.EntityID++ }, func(r *EnrichmentReceiptRequest) { r.LibraryID++ }, func(r *EnrichmentReceiptRequest) { r.ProviderOperationID += "foreign" },
+	} {
+		wrong := request
+		mutate(&wrong)
+		if _, err := w.ResolveEffective(t.Context(), cap, wrong); !errors.Is(err, ErrDisclosureDenied) {
+			t.Fatal("scope mismatch admitted", err)
+		}
+	}
+	// Capability scope is rechecked against actual native library identity too.
+	cap.scope.libraryKey = "another-library"
+	if _, err := w.ResolveEffective(t.Context(), cap, request); !errors.Is(err, ErrDisclosureDenied) {
+		t.Fatal("native library mismatch disclosed receipt", err)
+	}
+	cap.scope.libraryKey = "library-native"
+	cap.scope.revoked.Store(true)
+	if _, err := w.ResolveEffective(t.Context(), cap, request); !errors.Is(err, ErrDisclosureDenied) {
+		t.Fatal("revoked capability usable", err)
+	}
+	if executor.db.Stats().InUse != 0 {
+		t.Fatal("denial retained connection")
+	}
+}
+
+func TestEffectivePlanOwnsFiniteRecipe(t *testing.T) {
+	w, _, _, _, _ := effectiveFacadeFixture(t)
+	r := w.effective
+	for _, mutate := range []func(*effectivePlan){
+		func(p *effectivePlan) { p.steps = p.steps[:len(p.steps)-1] },
+		func(p *effectivePlan) { p.steps[0].id = stmt.ID("foreign") },
+		func(p *effectivePlan) { p.steps[0].work.Hold = 25 * time.Millisecond },
+		func(p *effectivePlan) { p.need[governor.WALBytes]-- },
+		func(p *effectivePlan) { p.recipe.limit.Rows = 1 << 32 },
+		func(p *effectivePlan) { p.headerSync = Work{} },
+	} {
+		copyPlan := r.plan
+		copyPlan.steps = append([]statementStep(nil), r.plan.steps...)
+		mutate(&copyPlan)
+		if candidate, err := newEffectiveRuntime(r.executor, r.path, r.governor, r.authority, r.wal, r.owner, copyPlan); err == nil || candidate != nil {
+			t.Fatal("invalid/incomplete recipe accepted")
+		}
+	}
+	copyPlan := r.plan
+	copyPlan.steps = append([]statementStep(nil), r.plan.steps...)
+	copyPlan.io = append([]governor.DeviceIO(nil), r.plan.io...)
+	newRuntime, err := newEffectiveRuntime(r.executor, r.path, r.governor, r.authority, r.wal, r.owner, copyPlan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	copyPlan.steps[0].work.Rows++
+	copyPlan.io[0].DeviceID = "mutated"
+	if reflect.DeepEqual(copyPlan.steps, newRuntime.plan.steps) || newRuntime.plan.io[0].DeviceID == "mutated" {
+		t.Fatal("recipe aliases constructor input")
+	}
+}
+
+func TestEffectiveDispatchNativeCohortsAndPlans(t *testing.T) {
+	w, _, command, executor, _ := effectiveFacadeFixture(t)
+	turn, _ := effectiveBeginWholeTurn(t, executor)
+	if _, err := applyEffectiveStageBegin(t.Context(), turn, command); err != nil {
+		t.Fatal(err)
+	}
+	if err := turn.closeRows(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := turn.transaction.commit(); err != nil {
+		t.Fatal(err)
+	}
+	defs := effectiveDispatchDefinitions()
+	for _, def := range defs {
+		if issues := plan.LintSQL(def.SQL); len(issues) != 0 {
+			t.Fatal(def.ID, issues)
+		}
+	}
+	registry, err := stmt.New(defs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	policyBytes, err := schema.ReadContract("INT-INDEX-POLICY.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy, err := plan.ReadIndexPolicy(policyBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixtureHash := sha256.New()
+	for _, source := range []string{"effective_dispatch_test.go", "enrichment_effective_begin_handler_test.go", "enrichment_effective_begin_facts_test.go"} {
+		body, err := os.ReadFile(source)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fixtureHash.Write(body)
+	}
+	conn, err := executor.db.Conn(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := executor.config
+	config.Synchronous = sqliteconn.Normal
+	golden, err := plan.Capture(t.Context(), conn, registry, plan.Fixture{ConnectionPolicy: config, SHA256: hex.EncodeToString(fixtureHash.Sum(nil)), Statistics: plan.Unanalyzed, Implementations: "closed-effective-disclosure-ack-components"}, policy)
+	closeErr := conn.Close()
+	if err != nil || closeErr != nil {
+		t.Fatal(err, closeErr)
+	}
+	if len(golden.Plans) != 6 || len(golden.Manifest) != 3 {
+		t.Fatal("incomplete exact-cohort plans", len(golden.Plans), len(golden.Manifest))
+	}
+	// Assert cohort populations, not names alone: two actual hits/misses and
+	// stale/pending scalar CAS in one rolled-back private component turn.
+	tx, err := executor.begin(t.Context(), EffectiveStage, w.effective.plan.recipe, &testCustody{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.rollback(nil)
+	steps := make([]statementStep, 0, len(defs))
+	for _, def := range defs {
+		steps = append(steps, statementStep{def.ID, Work{16, 2000, 16, 65536, 100 * time.Microsecond}})
+	}
+	cohortTurn, err := newCommandTurn(tx, registry, steps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, def := range defs {
+		for _, cohort := range def.Cohorts {
+			if def.Kind == stmt.Read {
+				rows, err := cohortTurn.query(t.Context(), cohortTurn.steps[def.ID].statementStep, cohort.Bindings...)
+				if err != nil {
+					t.Fatal(err)
+				}
+				count := 0
+				for rows.Next() {
+					var id int64
+					if err := rows.Scan(&id); err != nil {
+						t.Fatal(err)
+					}
+					count++
+				}
+				if err := rows.Err(); err != nil {
+					t.Fatal(err)
+				}
+				if err := rows.Close(); err != nil {
+					t.Fatal(err)
+				}
+				want := 0
+				if cohort.Name == "library_present" || cohort.Name == "subject_present" {
+					want = 1
+				}
+				if count != want {
+					t.Fatal("false native population", cohort.Name, count, want)
+				}
+			}
+		}
+	}
+	ack := defs[2]
+	for _, index := range []int{1, 0} {
+		cohort := ack.Cohorts[index]
+		result, err := cohortTurn.exec(t.Context(), cohortTurn.steps[ack.ID].statementStep, cohort.Bindings...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		n, err := result.RowsAffected()
+		want := int64(1 - index)
+		if err != nil || n != want {
+			t.Fatal("false scalar CAS population", cohort.Name, n, want, err)
+		}
+	}
+	if err := cohortTurn.closeRows(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.rollback(nil); err != nil {
+		t.Fatal(err)
+	}
+}
