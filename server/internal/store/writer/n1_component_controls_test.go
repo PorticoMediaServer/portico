@@ -221,3 +221,25 @@ func TestN1ComponentEarlyFailureKeepsNullOwnerAndJoins(t *testing.T) {
 		t.Fatal("early-failure native pool did not close")
 	}
 }
+
+func TestN1ComponentExplicitOptInRequiresCompanions(t *testing.T) {
+	if !*n1EnabledFlag {
+		t.Skip("opt-in component controls")
+	}
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, self, "-test.run=^TestN1ComponentMeasurement$", "-n1-component")
+	for _, entry := range os.Environ() {
+		if !strings.HasPrefix(entry, "PORTICO_WRITER_N1_COMPONENT=") && !strings.HasPrefix(entry, "PORTICO_WRITER_N1_COMPONENT_CONFIG=") {
+			cmd.Env = append(cmd.Env, entry)
+		}
+	}
+	output, err := cmd.CombinedOutput()
+	if err == nil || ctx.Err() != nil || !strings.Contains(string(output), "missing PORTICO_WRITER_N1_COMPONENT=1") || strings.Contains(string(output), "SKIP") {
+		t.Fatalf("explicit opt-in did not fail for missing companion env: %v %s", err, output)
+	}
+}

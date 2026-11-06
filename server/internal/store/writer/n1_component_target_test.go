@@ -641,7 +641,7 @@ func TestN1ComponentMeasurement(t *testing.T) {
 		t.Skip("opt-in test-only N1 target requires -n1-component")
 	}
 	if os.Getenv("PORTICO_WRITER_N1_COMPONENT") == "" {
-		t.Skip("opt-in N1 component measurement")
+		t.Fatal("missing PORTICO_WRITER_N1_COMPONENT=1 for explicit component opt-in")
 	}
 	if os.Getenv("PORTICO_WRITER_N1_COMPONENT") != "1" {
 		t.Fatal("invalid component opt-in")
