@@ -51,6 +51,7 @@ func TestTypedDeadlinePreservesOwnerCancellationAndStop(t *testing.T) {
 					t.Fatal("stopped owner callback cancelled deadline", err)
 				}
 				time.Sleep(time.Second)
+				synctest.Wait()
 				if !errors.Is(deadline.Context().Err(), context.DeadlineExceeded) {
 					t.Fatal("original deadline changed", deadline.Context().Err())
 				}
