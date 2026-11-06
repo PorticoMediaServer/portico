@@ -62,6 +62,8 @@ var permittedOpenings = map[openingSite]bool{
 	{"writer/transaction_test.go", openingStore + "writer.faultConnector.Connect", "database/sql/driver.Connector.Connect"}:                      true,
 	{"writer/transaction_test.go", openingStore + "writer.trackedNativeConnector.Connect", "database/sql/driver.Connector.Connect"}:              true,
 	{"writer/transaction_test.go", openingStore + "writer.installFaultPool", "database/sql.OpenDB"}:                                              true, // held-source overlay
+	// Linux crash CP wrapper delegates the shared Connector created in crashCheckpointChild.
+	{"writer/crash_replay_linux_test.go", openingStore + "writer.crashCheckpointConnector.Connect", "database/sql/driver.Connector.Connect"}: true,
 	// Raw is confined to exact discard-only controls and the frame's discard.
 	{"internal/sqliteconn/connection_test.go", openingStore + "internal/sqliteconn.TestReplacementRestoresEveryConnectionSetting", "database/sql.Conn.Raw"}:        true,
 	{"internal/sqliteconn/connection_test.go", openingStore + "internal/sqliteconn.TestReadersAndCheckpointerSharePolicy", "database/sql.Conn.Raw"}:                true,
