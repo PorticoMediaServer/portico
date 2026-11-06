@@ -75,6 +75,8 @@ class LiveRatchets(unittest.TestCase):
         (self.root/'web/src/clean.ts').write_text('export {};')
         c=self.commit('C clean')
         self.assertEqual(self.checks(base,b,c),(1,1),'ALLGREEN history cannot reinterpret A with B types')
+        (package/'package.json').write_text(json.dumps({'name':'@test/platform-transport','version':'9.0.0','types':'index.d.ts'}))
+        self.assertEqual(self.checks(base),(1,1),'even equal entry lockfiles cannot use a mismatched installed package')
 
     def test_baseline_only_engineering_increases_are_rejected(self):
         path=self.root/'ci/engineering-rules-baseline.json'
@@ -112,6 +114,13 @@ class LiveRatchets(unittest.TestCase):
     def test_malformed_source_fails_closed_in_both_live_gates(self):
         (self.root/self.path).write_text('const broken = "unterminated\n')
         self.assertEqual(self.checks(self.base),(1,1))
+
+    def test_reachable_excluded_patterns_are_counted_without_query_reads(self):
+        extra=self.root/'web/src/__tests__/extra.ts';extra.parent.mkdir()
+        extra.write_text('export const extra = () => setInterval(tick, 1000);')
+        (self.root/self.path).write_text(self.source+"import {extra} from './__tests__/extra'; extra();")
+        self.git('add','.')
+        self.assertEqual(self.checks(self.base),(0,1))
 
     def test_malformed_config_fails_closed(self):
         (self.root/'web/tsconfig.json').write_text('{"compilerOptions": {"target": "not-a-target"}}')
