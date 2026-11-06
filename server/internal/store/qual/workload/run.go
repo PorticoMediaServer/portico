@@ -16,6 +16,8 @@ import (
 
 const Version = "portico-sustained-workload-v1"
 
+var errActionRefused = errors.New("workload action refused")
+
 // Config binds ONE already prepared database and host/cache/cadence cell to the
 // external immutable QL manifest. These declarations do not prove provenance.
 // Duration starts AFTER fixture preparation; it may cover tens of minutes.
@@ -160,10 +162,10 @@ func Run(parent context.Context, c Config, streams []Stream, sink Sink) error {
 		sequence++
 		r.Sequence, r.UnitID = sequence, fmt.Sprintf("%s:%d", c.RunID, sequence)
 		r.At = time.Now()
-		if r.Missed > 0 || r.Error != "" || r.Observation != nil && r.Observation.Stub || r.Progress != nil && r.Progress.Unserved != 0 {
+		if r.Missed > 0 || r.Error != "" || r.Observation != nil && (r.Observation.Stub || r.Observation.RefusalError) || r.Progress != nil && r.Progress.Unserved != 0 {
 			complete = false
 		}
-		if r.Error != "" {
+		if r.Error != "" || r.Observation != nil && r.Observation.RefusalError {
 			cancel()
 		}
 		err := sink.Append(r)
@@ -213,11 +215,14 @@ func Run(parent context.Context, c Config, streams []Stream, sink Sink) error {
 						return emitErr
 					}
 					progress.Calls++
-					if !o.CallReturned.IsZero() && !o.CallReturned.Before(offer.ScheduledAt) {
+					if o.CallReturned != nil && !o.CallReturned.IsZero() && !o.CallReturned.Before(offer.ScheduledAt) {
 						duration := o.CallReturned.Sub(offer.ScheduledAt)
 						o.ReadyNS = &duration
 					}
 					err := appendRecord(Record{Kind: "operation", Offer: &offer, Observation: &o, Error: o.CallError})
+					if o.RefusalError {
+						err = errors.Join(err, errActionRefused)
+					}
 					emitErr = errors.Join(emitErr, err)
 					return err
 				}

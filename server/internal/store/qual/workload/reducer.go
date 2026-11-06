@@ -32,10 +32,10 @@ type Classification struct {
 // original mutation's timings or accepted-unit count.
 func RestartSample(cell qual.RestartCell, o Observation, join Classification) (qual.RestartSample, error) {
 	e := o.Evidence
-	if join.BeforeCustodyRefusal || join.Fenced == nil || o.Stub || e == nil || o.HoldNS == nil || *o.HoldNS <= 0 || len(o.EvidenceProblems) != 0 ||
+	if o.CallReturned == nil || join.BeforeCustodyRefusal || join.Fenced == nil || o.Stub || e == nil || o.HoldNS == nil || *o.HoldNS <= 0 || len(o.EvidenceProblems) != 0 ||
 		e.Policy == nil || e.Policy.Engine != "3.53.4" || e.Policy.TempStore != 1 ||
 		e.WALBefore == nil || e.WALAfter == nil || e.WALBefore.ObservedAt.IsZero() || e.WALAfter.ObservedAt.IsZero() ||
-		e.PhysicalReturnedAt == nil || e.ReturnedAt.IsZero() || e.ReturnedAt.Before(*e.PhysicalReturnedAt) || e.ReturnedAt.After(o.CallReturned) {
+		e.PhysicalReturnedAt == nil || e.ReturnedAt.IsZero() || e.ReturnedAt.Before(*e.PhysicalReturnedAt) || e.ReturnedAt.After(*o.CallReturned) {
 		return qual.RestartSample{}, errors.New("raw observation lacks complete owner evidence; retain unreduced")
 	}
 	if join.Ordinal == 0 || join.UnitID == "" || join.Recipe == "" || join.EvidenceRef == "" {
@@ -44,7 +44,7 @@ func RestartSample(cell qual.RestartCell, o Observation, join Classification) (q
 	p := e.Policy
 	if p.JournalMode != "wal" || p.ForeignKeys != 1 || p.Synchronous != int(e.Durability) || p.AutoCheckpoint != 0 ||
 		p.CacheSize >= 0 || p.BusyTimeout != 0 || p.MmapSize != 0 || p.QueryOnly != 0 || p.DQSDDL != 0 || p.DQSDML != 0 ||
-		e.WALBefore.ObservedAt.After(*e.PhysicalReturnedAt) || e.WALAfter.ObservedAt.After(o.CallReturned) {
+		e.WALBefore.ObservedAt.After(*e.PhysicalReturnedAt) || e.WALAfter.ObservedAt.After(*o.CallReturned) {
 		return qual.RestartSample{}, errors.New("contradictory actual policy/WAL observation")
 	}
 	if e.Commit == writer.CommitNotAttempted && (o.CommitNS != nil || e.CommitAttemptedAt != nil || e.CommitReturnedAt != nil) {
@@ -140,8 +140,8 @@ func Reduce(cell qual.RestartCell, raw []Record, joins map[string]Classification
 		if r.Version != Version || r.Label != "DIRECTIONAL" || r.Qualification || r.Cell != cell || r.Sequence != uint64(i+1) || r.RunID == "" || r.UnitID != fmt.Sprintf("%s:%d", raw[0].RunID, r.Sequence) || r.RunID != raw[0].RunID {
 			problem("raw run binding/order mismatch")
 		}
-		if r.Missed != 0 || r.Error != "" || r.Observation != nil && r.Observation.Stub {
-			problem("raw missed/stub/error coverage gap")
+		if r.Missed != 0 || r.Error != "" || r.Observation != nil && (r.Observation.Stub || r.Observation.RefusalError) {
+			problem("raw missed/stub/refusal/error coverage gap")
 		}
 		switch r.Kind {
 		case "start":

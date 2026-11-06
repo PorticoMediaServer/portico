@@ -19,7 +19,8 @@ Trusted composition supplies the actual writer, disclosures, sealed fresh inputs
 and ORIGINAL historical requests. `Inventory` and `Effective` execute real
 ACCEPT/BEGIN → RESOLVE → ACK calls, emitting each result immediately after its
 physical call returns, before the next phase. They check receipt identity,
-replay/result conservation and ACK floor. A failure stops offers in all streams;
+replay/result conservation and ACK floor. A failure, including a typed admission refusal returned with nil native error,
+stops offers in all streams;
 no new identity is minted to recover an uncertain call. Recover the ORIGINAL
 identity through W's owning recovery composition. Resolve and ACK are distinct
 observations and do not pad fresh acceptance counts. One writer stream with a
@@ -91,7 +92,8 @@ W's public error result correctly returns entirely zero. Record kinds:
 
 - `start`: declared duration and schedules/patterns;
 - `operation`: stream/slot/scheduled time, raw this-call result/error/evidence,
-  optional owner HOLD/COMMIT and scheduled-ready duration;
+  optional owner HOLD/COMMIT and scheduled-ready duration. Unmeasured wall
+  intervals and call timestamps are null for stubs and preparation failures;
 - `missed`: skipped slots, without fabricated command samples;
 - `stream_end`: scheduled/offered/emitted-call/missed/unserved counts;
 - `final`: driver return and schedule completeness, with errors.
@@ -114,7 +116,7 @@ reconstruct the failed call. `RefusalError` is NOT before-custody proof.
 
 `Reduce` adds coverage around the shared reducer: it requires the complete raw
 run, exact bindings/order and a join for EVERY writer call. A missing call/join,
-physical ordinal gap, unknown fence, stub, missed slot or incomplete envelope
+physical ordinal gap, unknown fence, stub, refusal, missed slot or incomplete envelope
 withholds the whole-run report. It never drops null attempts and densely
 renumbers successes. Unknown WAL/outcome with complete physical evidence is
 retained in the reducer and withholds its classification ratio. Empty or

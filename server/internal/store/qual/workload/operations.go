@@ -18,8 +18,8 @@ type Observation struct {
 	Phase                     string
 	Stub                      bool
 	Notice                    string `json:",omitempty"`
-	CallStarted, CallReturned time.Time
-	WallNS                    time.Duration
+	CallStarted, CallReturned *time.Time
+	WallNS                    *time.Duration
 	ReadyNS                   *time.Duration // scheduled offer through consumer return; includes driver lag
 	HoldNS, CommitNS          *time.Duration
 	Evidence                  *writer.ExecutionEvidence
@@ -165,8 +165,16 @@ func captureRequested(reference writer.ReceiptReference, phase string, purpose w
 	return o
 }
 
+// observedCall records only an interval actually measured by this driver.
+// Stub and preparation-only observations leave all three timing fields nil.
+func observedCall(phase string, start, end time.Time) Observation {
+	wall := end.Sub(start)
+	return Observation{Phase: phase, CallStarted: &start, CallReturned: &end, WallNS: &wall}
+}
+
 func capture(phase string, purpose writer.CommandID, outcome writer.ReceiptOutcome, result any, err error, start, end time.Time) Observation {
-	o := Observation{Phase: phase, CallStarted: start, CallReturned: end, WallNS: end.Sub(start), Evidence: outcome.Evidence, Outcome: &outcome, Result: result}
+	o := observedCall(phase, start, end)
+	o.Evidence, o.Outcome, o.Result = outcome.Evidence, &outcome, result
 	if err != nil {
 		o.CallError, o.RefusalError = err.Error(), errors.Is(err, writer.ErrRefused)
 	}
@@ -226,13 +234,14 @@ func Browse(reader *read.BrowseReader, prepare func(context.Context, Offer) (Bro
 		page, evidence, err := reader.Window(ctx, in.Request, in.Budget, in.Output, in.Input)
 		err = errors.Join(err, in.Consume(page))
 		end := time.Now()
-		o := Observation{Phase: "BROWSE", CallStarted: start, CallReturned: end, WallNS: end.Sub(start), Result: struct {
+		o := observedCall("BROWSE", start, end)
+		o.Result = struct {
 			Items       int
 			Exhausted   bool
 			Evidence    read.BrowseReadResult
 			ReadyBudget time.Duration
 			Deadline    time.Time
-		}{len(page.Items), page.Exhausted, evidence, in.Budget, in.Request.Deadline}}
+		}{len(page.Items), page.Exhausted, evidence, in.Budget, in.Request.Deadline}
 		if err != nil {
 			o.CallError = err.Error()
 		}
@@ -256,12 +265,22 @@ func Passive(cp *governor.Checkpointer, prepare func(context.Context, Offer) (go
 		start := time.Now()
 		result, err := cp.Step(ctx, request)
 		end := time.Now()
-		o := Observation{Phase: "PASSIVE", CallStarted: start, CallReturned: end, WallNS: end.Sub(start), Result: result, RefusalError: result.Refusal != nil}
-		if err != nil {
-			o.CallError = err.Error()
-		}
-		return errors.Join(err, emit(o))
+		return passiveResult(result, err, start, end, emit)
 	}
+}
+
+// Step can return a typed admission refusal with nil error. Preserve that raw
+// result and native error separately, then fail the action after recording it.
+func passiveResult(result governor.CheckpointResult, err error, start, end time.Time, emit func(Observation) error) error {
+	o := observedCall("PASSIVE", start, end)
+	o.Result, o.RefusalError = result, result.Refusal != nil
+	if err != nil {
+		o.CallError = err.Error()
+	}
+	if o.RefusalError {
+		err = errors.Join(err, errActionRefused)
+	}
+	return errors.Join(err, emit(o))
 }
 
 // WAL uses GV's read-only observer. Only the owning writer/checkpointer may
@@ -279,12 +298,13 @@ func WAL(path string, gate *governor.WALGate) Action {
 		token := gate.Observation()
 		state, err := governor.ReadWAL(path)
 		end := time.Now()
-		o := Observation{Phase: "WAL", CallStarted: start, CallReturned: end, WallNS: end.Sub(start), Result: struct {
+		o := observedCall("WAL", start, end)
+		o.Result = struct {
 			TokenBefore, TokenAfter uint64
 			State                   governor.WALState
 			ResetCount              uint64
 			LastRestart             governor.WALRestartObservation
-		}{token, gate.Observation(), state, gate.ResetCount(), gate.LastRestartObservation()}}
+		}{token, gate.Observation(), state, gate.ResetCount(), gate.LastRestartObservation()}
 		if err != nil {
 			o.CallError = err.Error()
 		}
