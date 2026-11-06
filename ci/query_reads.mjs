@@ -26,19 +26,11 @@ import {API} from 'typescript/unstable/sync';
 import {SyntaxKind} from 'typescript/unstable/ast';
 import {readFileSync} from 'node:fs';
 import {resolve, relative} from 'node:path';
+import {fileURLToPath} from 'node:url';
 
 const REQUESTERS = new Set(['request', 'requestRaw', 'requestConsole']);
 const VERB = /^(?:get|head|post|put|patch|delete|options)$/i;
 const ROUTE_HELPERS = new Set(['routePath', 'encodedRoutePath', 'hostedRoutePath', 'hostedEncodedRoutePath']);
-
-const input = JSON.parse(readFileSync(0, 'utf8'));
-const root = resolve(input.root);
-const wanted = new Set(input.files);
-const api = new API({cwd: root});
-const snapshot = api.updateSnapshot({openProjects: input.configs.map(config => resolve(root, config))});
-const found = {};
-const done = new Set();
-const loaded = new Set();
 
 const literal = node => node && (node.kind === SyntaxKind.StringLiteral || node.kind === SyntaxKind.NoSubstitutionTemplateLiteral) ? node.text : undefined;
 const calleeName = call => {
@@ -62,6 +54,12 @@ const candidate = call => {
   return head?.kind === SyntaxKind.CallExpression && ROUTE_HELPERS.has(calleeName(head)?.text ?? '');
 };
 
+export function analyseQueryReads(input,runtime={}) {
+ const root=resolve(input.root),wanted=new Set(input.files);
+ const api=runtime.snapshot ? null : new API({cwd:root});
+ const snapshot=runtime.snapshot ?? api.updateSnapshot({openProjects:input.configs.map(config=>resolve(root,config))});
+ const found={},done=new Set(),loaded=new Set(),invariant=[];
+ try {
 for (const project of snapshot.getProjects()) {
   const checker = project.checker;
   const names = new Map();
@@ -85,6 +83,9 @@ for (const project of snapshot.getProjects()) {
       node.forEachChild(child => visit(child, inQuery));
     };
     visit(file);
+    // With no syntactic candidate, no type/dependency change can create a read
+    // in this unchanged source. This metadata only avoids repeated work.
+    if(!calls.length&&!services.length)invariant.push(path);
     // Through the viewer cache's own requester (`queries.api.request(…)`): a cache read.
     const throughApi = calls.filter(call => call.expression.kind === SyntaxKind.PropertyAccessExpression
       && call.expression.expression.kind === SyntaxKind.PropertyAccessExpression && call.expression.expression.name.text === 'api');
@@ -152,10 +153,15 @@ for (const project of snapshot.getProjects()) {
     if (all.length) found[path] = all.sort((a, b) => a - b);
   }
 }
-api.close();
+} finally {if(api)api.close();}
 const missing = [...wanted].filter(path => !done.has(path));
 if (missing.length) {
-  process.stderr.write(`query-read: ${missing.length} file(s) belong to no TypeScript project, e.g. ${missing.slice(0, 3).join(', ')}\n`);
-  process.exit(2);
+  const error=new Error(`query-read: ${missing.length} file(s) belong to no TypeScript project, e.g. ${missing.slice(0, 3).join(', ')}`);
+  error.exitCode=2;throw error;
 }
-process.stdout.write(JSON.stringify({reads: found, loaded: [...loaded].sort()}));
+return {reads:found,loaded:[...loaded].sort(),invariant};
+}
+if (process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
+ try {process.stdout.write(JSON.stringify(analyseQueryReads(JSON.parse(readFileSync(0,'utf8')))));}
+ catch(error) {process.stderr.write(error.message+'\n');process.exitCode=error.exitCode??1;}
+}
