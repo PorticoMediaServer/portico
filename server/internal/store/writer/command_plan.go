@@ -57,10 +57,6 @@ func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, 
 	if plan.headerSync.Hold <= 0 || plan.headerSync.WALBytes < 32 || !fits(plan.headerSync, plan.recipe.terminal) || plan.need[governor.IOBytes] < 32 {
 		return effectivePlan{}, invalid("command_header_sync_forecast")
 	}
-	allowed := make(map[stmt.ID]bool, len(defs))
-	for _, def := range defs {
-		allowed[def.ID] = true
-	}
 	remaining := plan.recipe.limit
 	for _, work := range []Work{plan.recipe.setup, plan.recipe.terminal} {
 		if work.Hold <= 0 || !fits(work, remaining) {
@@ -68,29 +64,8 @@ func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, 
 		}
 		remaining = subtract(remaining, work)
 	}
-	for _, step := range plan.steps {
-		if !allowed[step.id] || step.work.Rows == 0 || step.work.VMOps == 0 || step.work.Hold <= 0 {
-			return effectivePlan{}, invalid("command_step")
-		}
-		delete(allowed, step.id) // also rejects duplicates, not only missing IDs
-		uses := 1
-		switch step.id {
-		case enrichmentEffectiveOwner:
-			uses = 3 // current scope, historical resolution, fresh handler
-		case enrichmentEffectiveReceipt:
-			uses = 2 // historical resolution and fresh handler
-		case scanReceiptOwner:
-			uses = 2 // current native bridge and historical resolution
-		}
-		for range uses {
-			if !fits(step.work, remaining) {
-				return effectivePlan{}, ErrQuantum
-			}
-			remaining = subtract(remaining, step.work)
-		}
-	}
-	if len(allowed) != 0 {
-		return effectivePlan{}, invalid("missing_command_step")
+	if _, err := reserveCommandSteps(remaining, plan.steps, defs, purpose); err != nil {
+		return effectivePlan{}, err
 	}
 	plan.steps = append([]statementStep(nil), plan.steps...)
 	plan.io = append([]governor.DeviceIO(nil), plan.io...)

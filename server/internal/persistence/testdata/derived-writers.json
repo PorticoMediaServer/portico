@@ -3935,7 +3935,7 @@
       ]
     },
     "internal/catalog/scalebench/playlist.go": {
-      "sha256": "36663e22a8f8e22e4443b9832f0de05cff6e79807884616c8340e75de5bc79a7",
+      "sha256": "ec1d81f3899ea13784727c6c59d539f5a36a73208e28f7bbe9f1c0dde5c754a3",
       "effects": [
         {
           "table": "*",
@@ -12755,7 +12755,7 @@
       ]
     },
     "internal/storage/client.go": {
-      "sha256": "4afa61cb1f8493536bff391e6a564066331b0945462b17e3ba2a0f255f7e3af9",
+      "sha256": "a6443849bb4b3ed7cbe48267ef1b9619b199272cd81a72ea852c59048e5dd25b",
       "effects": [
         {
           "table": "*",
@@ -12791,7 +12791,7 @@
       ]
     },
     "internal/storage/inventory_page.go": {
-      "sha256": "5c52a6eb7194576d86d1ed09b6d581727a07564d89c2f2ead335c87d9e58f54f",
+      "sha256": "4fbb8151709e0250999e0cf0827af2c470dc419e5cc4caa3fb1314277d7dcee4",
       "effects": [
         {
           "table": "*",

@@ -30,14 +30,16 @@ var crashClock = time.Date(2100, 11, 5, 10, 30, 0, 0, time.UTC)
 type crashCase struct{ Domain, Operation, Boundary, CommitFault string }
 
 type crashWitness struct {
-	Version   int
-	SchemaSHA string
-	Engine    string
-	Case      crashCase
-	Path      string
-	Reference ReceiptReference
-	Saved     EffectiveStageBeginResult
-	Unknown   bool
+	Version          int
+	SchemaSHA        string
+	Engine           string
+	Case             crashCase
+	Path             string
+	Reference        ReceiptReference
+	Saved            EffectiveStageBeginResult
+	InventoryJournal *inventoryCrashJournal // raw pre-COMMIT observation, never a writer result
+	FreshIdentity    *freshCrashIdentity
+	Unknown          bool
 }
 
 func crashPoint(t *testing.T, witness *crashWitness, boundary string) {
@@ -57,9 +59,10 @@ func crashPoint(t *testing.T, witness *crashWitness, boundary string) {
 
 type crashConn struct {
 	writerDriverConn
-	t       *testing.T
-	witness *crashWitness
-	commit  *atomic.Bool
+	t        *testing.T
+	witness  *crashWitness
+	commit   *atomic.Bool
+	afterSQL func(string)
 }
 
 func (c *crashConn) before(q string) {
@@ -74,6 +77,9 @@ func (c *crashConn) before(q string) {
 }
 
 func (c *crashConn) after(q string) {
+	if c.afterSQL != nil {
+		c.afterSQL(q)
+	}
 	switch {
 	case q == "BEGIN IMMEDIATE":
 		crashPoint(c.t, c.witness, "after_begin")
@@ -175,6 +181,10 @@ func (r *crashRows) Close() error {
 }
 
 func installCrashDriver(t *testing.T, e *executor, path string, witness *crashWitness) {
+	installCrashDriverAt(t, e, path, witness, crashClock, nil)
+}
+
+func installCrashDriverAt(t *testing.T, e *executor, path string, witness *crashWitness, clock time.Time, afterSQL func(string)) {
 	t.Helper()
 	if err := e.db.Close(); err != nil {
 		t.Fatal(err)
@@ -185,13 +195,13 @@ func installCrashDriver(t *testing.T, e *executor, path string, witness *crashWi
 	}
 	var committed atomic.Bool
 	e.openPool(connector, func(conn driver.Conn) driver.Conn {
-		return &crashConn{writerDriverConn: conn.(writerDriverConn), t: t, witness: witness, commit: &committed}
+		return &crashConn{writerDriverConn: conn.(writerDriverConn), t: t, witness: witness, commit: &committed, afterSQL: afterSQL}
 	})
 	e.now = func() time.Time {
 		if committed.Load() && e.db.Stats().InUse == 0 {
 			crashPoint(t, witness, "physical_return")
 		}
-		return crashClock
+		return clock
 	}
 	primeEffectiveFixturePool(t, e)
 }
@@ -209,6 +219,10 @@ func TestCrashReplayChild(t *testing.T) {
 	}
 	if witness.Case.Domain == "inventory" {
 		crashInventoryChild(t, &witness)
+		return
+	}
+	if witness.Case.Domain == "inventory_fresh_component" {
+		crashFreshInventoryChild(t, &witness)
 		return
 	}
 	if witness.Case.Domain != "effective" {
@@ -517,7 +531,7 @@ func TestCrashReplayInventoryHistory(t *testing.T) {
 	profile := *prototype.effective.inventoryPlan
 	// Freeze original saved facts before any tested command. No ResolveScan
 	// result or production receipt decoder supplies this expected journal.
-	journal, err := readInventoryCrashJournal(t.Context(), e, requests["hit"].RunID)
+	journal, err := readInventoryCrashJournal(t.Context(), e.db, requests["hit"].RunID)
 	if err != nil {
 		t.Fatal(err)
 	}

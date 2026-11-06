@@ -205,22 +205,23 @@ func capture(phase string, purpose writer.CommandID, outcome writer.ReceiptOutco
 }
 
 type BrowseInput struct {
-	Request governor.Request
-	Budget  time.Duration
-	Output  read.BrowseOutput
-	Input   read.BrowseInput
-	// Consume retains output custody through bounded encoding/consumption and
-	// retires the output through its owning composition, even on read failure.
-	// It executes inside the measured ready interval, after both snapshots.
+	Request       governor.Request
+	Budget        time.Duration
+	Foreground    governor.ForegroundRequest
+	OutputRequest governor.Request
+	Input         read.BrowseInput
+	// Consume joins bounded encoding/IO and drops all page references before
+	// returning. ConsumeForeground owns output/LIVE retirement after it returns.
+	// It runs inside the measured ready interval, even after a failed read.
 	Consume func(read.BrowsePage) error
 }
 
 // Browse measures preparation/queue, both windows and output consumption against
 // the ORIGINAL ready deadline. The protected snapshot ceiling is not a budget.
 // The private BrowseCursor is intentionally not treated as a serializable token.
-func Browse(reader *read.BrowseReader, prepare func(context.Context, Offer) (BrowseInput, error)) Action {
+func Browse(reader *read.BrowseReader, g governor.Governor, authority *governor.Authority, snapshots *governor.Snapshots, prepare func(context.Context, Offer) (BrowseInput, error)) Action {
 	return func(ctx context.Context, offer Offer, emit func(Observation) error) error {
-		if reader == nil || prepare == nil {
+		if reader == nil || g == nil || authority == nil || snapshots == nil || prepare == nil {
 			return preparationError(emit, errors.New("browse composition unavailable"))
 		}
 		start := time.Now()
@@ -231,21 +232,29 @@ func Browse(reader *read.BrowseReader, prepare func(context.Context, Offer) (Bro
 		if in.Consume == nil {
 			return preparationError(emit, errors.New("browse output consumer unavailable"))
 		}
-		page, evidence, err := reader.Window(ctx, in.Request, in.Budget, in.Output, in.Input)
-		err = errors.Join(err, in.Consume(page))
+		var evidence read.BrowseReadResult
+		var items int
+		var exhausted bool
+		consumption, err := read.ConsumeForeground(ctx, g, authority, snapshots, in.Foreground, in.OutputRequest, func(ctx context.Context, output read.BrowseOutput) error {
+			page, result, err := reader.Window(ctx, in.Request, in.Budget, output, in.Input)
+			evidence = result
+			items, exhausted = len(page.Items), page.Exhausted
+			return errors.Join(err, in.Consume(page))
+		})
 		end := time.Now()
 		o := observedCall("BROWSE", start, end)
 		o.Result = struct {
 			Items       int
 			Exhausted   bool
 			Evidence    read.BrowseReadResult
+			Consumption read.ForegroundConsumption
 			ReadyBudget time.Duration
 			Deadline    time.Time
-		}{len(page.Items), page.Exhausted, evidence, in.Budget, in.Request.Deadline}
+		}{items, exhausted, evidence, consumption, in.Budget, in.Request.Deadline}
 		if err != nil {
 			o.CallError = err.Error()
 		}
-		o.RefusalError = evidence.Refusal != nil
+		o.RefusalError = consumption.Refusal != nil || evidence.Refusal != nil
 		return errors.Join(err, emit(o))
 	}
 }

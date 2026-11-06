@@ -39,7 +39,7 @@ func TestForegroundSQLCreditClassCapsAndContinuations(t *testing.T) {
 			in := TitleInput{View: f.input, Item: 1}
 			var castOrd, crewOrd []int64
 			for window := 0; window < 5; window++ {
-				d, result, err := r.Detail(t.Context(), foregroundRequest(), time.Second, f.output, in)
+				d, result, err := r.detail(t.Context(), foregroundRequest(), time.Second, f.output, in)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -113,15 +113,15 @@ func TestReadPublicationRejectsLibraryRootAndOriginDrift(t *testing.T) {
 				switch recipe {
 				case "detail":
 					var d TitleDetail
-					d, result, e = r.Detail(t.Context(), foregroundRequest(), time.Second, f.output, TitleInput{View: f.input, Item: 1, Asset: 1})
+					d, result, e = r.detail(t.Context(), foregroundRequest(), time.Second, f.output, TitleInput{View: f.input, Item: 1, Asset: 1})
 					value, zero = d, TitleDetail{}
 				case "playback":
 					var d PlaybackFile
-					d, result, e = r.Playback(t.Context(), foregroundRequest(), time.Second, f.output, TitleInput{View: f.input, Item: 1, Asset: 1})
+					d, result, e = r.playback(t.Context(), foregroundRequest(), time.Second, f.output, TitleInput{View: f.input, Item: 1, Asset: 1})
 					value, zero = d, PlaybackFile{}
 				case "continue":
 					var d ContinuePage
-					d, result, e = r.ContinueWatching(t.Context(), foregroundRequest(), time.Second, f.output, ContinueInput{View: f.input})
+					d, result, e = r.continueWatching(t.Context(), foregroundRequest(), time.Second, f.output, ContinueInput{View: f.input})
 					value, zero = d, ContinuePage{}
 				case "browse":
 					var d BrowsePage
@@ -152,7 +152,7 @@ func TestForegroundLibraryRootABARetriesBeforePublication(t *testing.T) {
 		}
 	}}
 	r.snapshots = observed
-	d, result, e := r.Detail(t.Context(), foregroundRequest(), time.Second, f.output, TitleInput{View: f.input, Item: 1, Asset: 1})
+	d, result, e := r.detail(t.Context(), foregroundRequest(), time.Second, f.output, TitleInput{View: f.input, Item: 1, Asset: 1})
 	if e != nil || d.File == nil || result.Attempts != 2 {
 		t.Fatalf("root ABA was not discarded and retried: attempts%d err%v", result.Attempts, e)
 	}
@@ -171,7 +171,7 @@ func TestForegroundCreditsWithoutActingLabel(t *testing.T) {
 	f, r := newForegroundFixture(t)
 	f.exec(t, `UPDATE catalog_credits SET department_id=4`)
 	f.exec(t, `DELETE FROM catalog_credit_labels WHERE id=2`)
-	d, result, e := r.Detail(t.Context(), foregroundRequest(), time.Second, f.output, TitleInput{View: f.input, Item: 1})
+	d, result, e := r.detail(t.Context(), foregroundRequest(), time.Second, f.output, TitleInput{View: f.input, Item: 1})
 	if e != nil || len(d.Cast) != 0 || len(d.Crew) != 50 || d.CreditsExhausted || result.LookupStatements != 12 {
 		t.Fatalf("missing Acting label lost crew: cast%d crew%d SQL%d %v", len(d.Cast), len(d.Crew), result.LookupStatements, e)
 	}

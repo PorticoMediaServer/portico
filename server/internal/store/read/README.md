@@ -7,12 +7,52 @@ configuration and fixture, then compose `stmt.New`, `governor.NewSnapshots`,
 `NewBrowseReader` or `NewForegroundReader`. Stored compressed goldens are
 comparison baselines, never execution authority.
 
-Trusted composition provides the database incarnation, already-hashed local
-token, server time, original deadline, request and separately admitted
-`BrowseOutput`. It retains output through encoding and the last consumer. Do
-not retire it when a native snapshot ends. The merged #1119 LIVE API requires a separate
-integration follow-up covering all windows and consumer release. This branch
-uses the existing API and does not claim LIVE admission.
+Trusted composition provides a funded `governor.Config.Foreground`, the paired
+Governor/Authority from `governor.New`, and the ORIGINAL `ForegroundRequest`
+key/owner/ready/protected deadlines. Pure identity checks reject a mismatched
+governor/authority/pool before admission; public reads must use that exact pool.
+Capture `BrowseInput.Now` from the trusted
+server clock at request entry, before admission; the public reader advances it
+through admission and preparation. No default profile or runtime route is chosen.
+
+Use `ConsumeForeground` around exactly one public reader call and all of its
+output consumers. It calls #1119's `AdmitForeground` before the separate8MiB
+output grant and before invoking the consumer callback. Read grants remain12MiB
+per physical window; LIVE charges bookkeeping only, never another20MiB payload.
+Its opaque scope is required by `Window`, `Detail`, `Playback` and
+`ContinueWatching`; hand-built, foreign, altered or retired output cannot bypass
+admission. The scope binds exact issuer/key/owner and both original deadlines.
+
+```go
+consumption, err := read.ConsumeForeground(ctx, g, authority, snapshots, liveRequest,
+    outputRequest, func(ctx context.Context, output read.BrowseOutput) error {
+        page, cost, err := reader.Window(ctx, readRequest, readyBudget, output, input)
+        if err != nil { return err }
+        // Consume/encode/write here and JOIN all owned consumers before return.
+        return encodeAndWrite(ctx, page, cost)
+    })
+```
+
+The output purpose is a memory-only8MiB reservation; its owner matches the LIVE
+request, and its deadline cannot exceed the original protected deadline. Reader
+purposes bind that LIVE key/owner, Foreground class and the unchanged12MiB recipe.
+Admission waiting, output preparation and retries cannot renew the ready budget.
+Read cancellation also follows the ORIGINAL context even if a caller supplies a
+new context. Fresh bounded security validation still preserves denial precedence.
+
+The synchronous callback owns encoding/client IO and MUST join its consumers and
+release page references before returning. A scope cannot be reused for a second
+payload or retained for later work. The driver also joins any already-active read
+and its cancellation callback. It retires output, then LIVE, after callback and
+owned-work completion, including error/cancel/expiry/panic paths. Cancellation,
+expiry, native-window return and a slow consumer never refund LIVE early. If
+output retirement is uncertain, LIVE stays charged. Consumer panics retain their
+original value through cleanup. No goroutine or payload reference may escape the
+callback; any separately retained cache copy requires its own custody.
+
+Baseline fence/statement tests exercise the private read kernels. Separate
+`TestLive*` controls exercise the public paths with real governor admission,
+separate output/read grants and actual retained-consumer boundaries.
 
 The shared publication helper performs the full exact shared fence first and
 in a fresh final window. Composite reads capture root/asset/link/probe source
@@ -66,14 +106,15 @@ If the Acting label is absent, the bounded crew-only variant covers all rows.
 That path uses one fewer statement.
 
 A complete retry may double a recipe's work; all attempts/windows and statement
-counts are returned in `BrowseReadResult`. `Elapsed` includes them, admission and
-cleanup; browse's `LookupElapsed` remains only its business lookup. Failed,
+counts are returned in `BrowseReadResult`. `BrowseReadResult.Elapsed` includes admission, preparation, read windows and
+physical cleanup; `ForegroundConsumption.Elapsed` additionally includes encoding,
+consumer completion and final retirement; browse's `LookupElapsed` remains only its business lookup. Failed,
 stale or refused operations must not be counted as fast successes.
 
 These counts and ready/VM/memory targets are **UNQUALIFIED budget debt**. QL owns
 paired qualification against B-READS: B-R09 detail, B-R13/B-R14 playback, and
-B-R02 for continue watching. Existing12MiB read/8MiB retained-output fixture
-funding is prospective custody, not a 2GB fit or maximum-body proof. The test
+B-R02 for continue watching. The12MiB read/8MiB retained-output recipe and funded test profile are prospective
+custody, not a2GB fit or maximum-body proof. The test
 Reader's64KiB native value/row limit can refuse larger legal descriptions rather
 than truncate them; that legal-maximum/decoder composition needs qualification.
 No production, hosted or reference-host run is implied by local tests.

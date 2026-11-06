@@ -55,10 +55,47 @@ All helpers live in `_linux_test.go`; there are no production hooks or exports.
 V's source-journal approach is applied to these implemented receipt semantics.
 Its broader leaf browse/chronology/keyset controls are separate existing tests;
 the full domain/API/authority/reducer/search reference evaluator remains open.
-Fresh InventoryAccept has no accepting body on this baseline; publisher facade,
+The central fresh Inventory facade, publisher facade,
 final enrichment, security and progress accepting commands also remain outside
-this matrix. These are explicit coverage gaps, not skipped passing cases. Add
-their body/state boundaries when their reviewed implementations land.
+the original matrix. Fresh Inventory's landed private body is covered by the
+component extension below; central fresh acceptance remains gated. These are
+explicit coverage gaps, not skipped passing cases.
+
+`TestCrashReplayFreshInventoryComponent` adds **49** cells for the reviewed NEW
+ordinary movie N1 private body: **41 pinned executed statement boundaries**,
+before/after BEGIN, before/after COMMIT, physical return, private frame return,
+and lost COMMIT replies before/after native commit. The fixture has an existing
+unrated bucket, a clean age publication and one active RAW search bank. Missing
+buckets, dirty-age publication, a building bank, other source classes, Basic,
+Refuse and N>1 are separate coverage. The trace is disarmed before oracle SQL;
+removing/reordering a native phase fails its explicit statement inventory.
+
+The extension calls only the existing W/SC `inventoryFreshFixture` and
+`inventoryFreshTestTurn`, with actual full Capture and the shared governed
+memory/frame/retirement path. It neither constructs a production facade nor
+enables public fresh execution. The body must leave Outcome zero. Its fixed
+2090 clock is before the fixture's captured lease expiry; the EffectiveStage
+2100 clock would be expired input for this fixture. Forecasts/time remain
+synthetic, with no physical or production permission claim.
+
+Every surviving private body return, including the child's `api_return` path,
+is compared in full against independently validated raw receipt/cohort columns
+and original input before it is discarded. This includes the complete scalar
+payload, result digest, allocated member identities and all-zero private Outcome
+(including Evidence); SQL recovery correctness alone cannot qualify the return.
+
+Raw SQL independently checks the whole cohort's row counts, filename/source
+facts, identity/asset/link mapping, scalar/physical contributions, unrated
+counts, library/run/directory/job clocks, source progress and RAW publisher
+intent. No FTS serving publication or Basic readiness is invented. Raw receipt
+and generated-identity journals observed on the original transaction bind
+opaque allocated bytes/IDs across restart, Resolve and ACK; writer results do
+not seed expectations. Eleven native corruption controls exercise the oracle,
+including double counters, a false filename/Basic state, changed search serving
+revision, lost receipt/member identity, unsupported header fields and coherent
+metadata reminting. After a pre-COMMIT crash all effects remain absent; the
+actual public facade still refuses fresh work. Historical recovery uses only
+the existing identity-only Resolve/ACK binding and keeps retired payload zero.
 
 This proves process-crash recovery for the named small fixtures on the bundled
 engine. It does not simulate a crash inside a native statement/fsync, power
@@ -69,7 +106,7 @@ Run the focused controls with concurrency two and a disk-backed scratch root:
 
 ```sh
 GOMAXPROCS=2 go -C server test -p 2 -parallel 2 \
-  -run '^TestCrash(ReplayEffective|ReplayInventoryHistory|OracleRejectsReceiptEffectMutants|InventoryOracleRejects.*)$' \
+  -run '^TestCrash(ReplayEffective|ReplayInventoryHistory|ReplayFreshInventoryComponent|FreshInventoryOracleRejectsCorruption|OracleRejectsReceiptEffectMutants|InventoryOracleRejects.*)$' \
   ./internal/store/writer
 ```
 
