@@ -119,27 +119,34 @@ func refreshWriterWAL(path string, wal *governor.WALGate, now func() time.Time) 
 	return err
 }
 
-func observeWriterWAL(path string, wal *governor.WALGate, now func() time.Time) (*WALObservation, error) {
-	if wal == nil || now == nil {
+func observeWriterWAL(path string, wal *governor.WALGate, now func() time.Time) (observation *WALObservation, err error) {
+	if wal == nil {
 		return nil, invalid("writer_wal_observer")
 	}
 	token := wal.Observation() // must precede the physical read
+	published := false
 	defer func() {
-		if primary := recover(); primary != nil {
+		primary := recover()
+		if !published {
 			// A failed observer cannot leave an earlier sample admissible. The
 			// invalidation is pure and uses no second fallible clock callback.
-			_ = wal.Publish(token, governor.WALState{}, time.Time{})
+			err = errors.Join(err, wal.Publish(token, governor.WALState{}, time.Time{}))
+		}
+		if primary != nil {
 			panic(primary)
 		}
 	}()
+	if now == nil {
+		return nil, invalid("writer_wal_observer")
+	}
 	state, err := governor.ReadWAL(path)
 	if err != nil {
-		// Refuse against an invalid sample, never leave old headroom reusable.
-		return nil, errors.Join(err, wal.Publish(token, governor.WALState{}, time.Time{}))
+		return nil, err
 	}
 	at := now()
 	if err := wal.Publish(token, state, at); err != nil {
 		return nil, err
 	}
+	published = true
 	return &WALObservation{Token: token, ObservedAt: at, State: state}, nil
 }
