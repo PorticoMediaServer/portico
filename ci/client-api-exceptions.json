@@ -1645,5 +1645,148 @@
     "guardHashes": {
       "apps/native/src-next/shell/listening-song-detail.ts#2bab26bc28118986@19da9a26e2aba260859c4d7a9d4848a164ea8d103bff3ab071651c48d6c4a457": "19da9a26e2aba260859c4d7a9d4848a164ea8d103bff3ab071651c48d6c4a457"
     }
+  },
+  "apps/native/src-next/screens/notifications/register.tsx": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "sites": [
+      "apps/native/src-next/screens/notifications/register.tsx#3e9ef048979dc1c1",
+      "apps/native/src-next/screens/notifications/register.tsx#3e9ef048979dc1c1"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/notifications/register.tsx#3e9ef048979dc1c1": "5c716b2f92eec54bf5161f92d160a96f27f8bbf4ec26694a0d4da2262bcc5827"
+    }
+  },
+  "apps/native/src-next/screens/settings-live/LiveRoute.tsx": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "sites": [
+      "apps/native/src-next/screens/settings-live/LiveRoute.tsx#22aafff635b1f14e"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/settings-live/LiveRoute.tsx#22aafff635b1f14e": "f3337664452b186c03ec5c7cedc59370625b8225f56627cb023100df1f225337"
+    }
+  },
+  "apps/native/src-next/screens/settings-live/NativeTVReceiver.tsx": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "sites": [
+      "apps/native/src-next/screens/settings-live/NativeTVReceiver.tsx#d2c78d29a1e1958e"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/settings-live/NativeTVReceiver.tsx#d2c78d29a1e1958e": "12b83dcfafa00b68a7c07dc56640da0bce245aaabb4bad2a04628d7cdb1f361e"
+    }
+  },
+  "apps/native/src-next/screens/settings-live/live-controller.ts": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "sites": [
+      "apps/native/src-next/screens/settings-live/live-controller.ts#61c2c4eda3eac0db",
+      "apps/native/src-next/screens/settings-live/live-controller.ts#a507004d23687bfc"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/settings-live/live-controller.ts#61c2c4eda3eac0db": "ac29dd8faf6f6dc96dbcbf95cd7b0b78fe713aa115cfcacbd6f9500f7505a5d5",
+      "apps/native/src-next/screens/settings-live/live-controller.ts#a507004d23687bfc": "3ed274d061f1eccae77ddc41ee0845ca7006ed75615c9aeade90982782e4b5c9"
+    }
+  },
+  "apps/native/src-next/screens/settings-live/settings-panels.tsx": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "sites": [
+      "apps/native/src-next/screens/settings-live/settings-panels.tsx#1b31452e0e60fbc5"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/settings-live/settings-panels.tsx#1b31452e0e60fbc5": "13f80ea3c80bca29adfa2bb828f45685bb0e0ff16c70fa263942da395b2deaa7"
+    }
+  },
+  "apps/native/src-next/screens/share/NativeContentLinks.tsx": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "sites": [
+      "apps/native/src-next/screens/share/NativeContentLinks.tsx#54deab9656f7855c"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/share/NativeContentLinks.tsx#54deab9656f7855c": "f10cb2a6a71aac724b63d0711feefbbdda7187f2fa1629e2fb2b1cf4529af04f"
+    }
+  },
+  "apps/native/src-next/screens/share/NativeShareLinks.tsx": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "sites": [
+      "apps/native/src-next/screens/share/NativeShareLinks.tsx#54deab9656f7855c"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/share/NativeShareLinks.tsx#54deab9656f7855c": "0b23e9dae06877a4b6efeba8da74eb2806393732f5ba76bf794d64eb7b17d006"
+    }
+  },
+  "apps/native/src-next/shell/bootstrap-services.ts": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "sites": [
+      "apps/native/src-next/shell/bootstrap-services.ts#de7bb4bc80ff725c"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/shell/bootstrap-services.ts#de7bb4bc80ff725c": "4b62d415ec5c785ef36a7993f165dfaa55290e0f51838f59eeede3af604d103f"
+    }
+  },
+  "web/src/screens/account/feedback-controller.ts": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "sites": [
+      "web/src/screens/account/feedback-controller.ts#e6ba4e741880a9f2"
+    ],
+    "guardHashes": {
+      "web/src/screens/account/feedback-controller.ts#e6ba4e741880a9f2": "8fabc2ceab1613fd3df43770c02062e60b3f5a484292363d34071d5e305d82d1"
+    }
+  },
+  "web/src/screens/live/bindings.ts": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "sites": [
+      "web/src/screens/live/bindings.ts#af28195658cca71c"
+    ],
+    "guardHashes": {
+      "web/src/screens/live/bindings.ts#af28195658cca71c": "f13166a190a8b29d6898d2c5eae8c4fcbf555f5957655106e96acae6571fc1e6"
+    }
+  },
+  "web/src/screens/live/recordings-controller.ts": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "sites": [
+      "web/src/screens/live/recordings-controller.ts#f2782b066cfe5bba"
+    ],
+    "guardHashes": {
+      "web/src/screens/live/recordings-controller.ts#f2782b066cfe5bba": "a007af2e3226e20fe6a96d3c837ca1a1455e237f97d0ca4e254609933f42188b"
+    }
+  },
+  "web/src/screens/live/series-rules-bindings.ts": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "sites": [
+      "web/src/screens/live/series-rules-bindings.ts#af28195658cca71c"
+    ],
+    "guardHashes": {
+      "web/src/screens/live/series-rules-bindings.ts#af28195658cca71c": "86a278aee4e2d847a3725e982b0ecd23deb8cb1a3c469a1cb48f9b86e3ced6c9"
+    }
+  },
+  "web/src/shell/bootstrap.ts": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "sites": [
+      "web/src/shell/bootstrap.ts#6d3fdcbd93b6dfef"
+    ],
+    "guardHashes": {
+      "web/src/shell/bootstrap.ts#6d3fdcbd93b6dfef": "a5d4b8afebd17ab6a9744e7c38bf8323fc2bdd2a2958402774c67fc88f78874a"
+    }
+  },
+  "apps/vega/src/bridge/transport.ts": {
+    "category": "platform-transport",
+    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
+    "sites": [
+      "apps/vega/src/bridge/transport.ts#b03829a0bfc20290"
+    ],
+    "guardHashes": {
+      "apps/vega/src/bridge/transport.ts#b03829a0bfc20290": "c12e8a23bbcdbdb0554f6ea8ad987815751a14a44b538317814c2c4500955907"
+    }
   }
 }
