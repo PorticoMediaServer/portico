@@ -22,9 +22,9 @@ func evidenceBuildPinFixture(t *testing.T) (*executor, evidenceBuildPinInput, Co
  VALUES('evidence-original:197',193,'fixture-parser','fixture','movie','opaque:selection','en-CA','CA','detail-v1',
  'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','2026-11-06T12:00:00Z','fixture://component',0)`,
 		`INSERT INTO metadata_evidence_builds(id,evidence_id,generation,owner_operation,owner_incarnation,owner_generation,
- state,phase,cursor,expected_rows,materialized_rows,expected_shape_digest,materialized_digest,materialized_charge,expires_at)
+ state,phase,cursor,expected_rows,materialized_rows,expected_shape_digest,materialized_digest,materialized_charge,expires_at,content_revision)
  SELECT 'build-original:211','evidence-original:197',47,id,command_incarnation,generation,
- 'building','children',1,3,1,'declared-not-verified','component-not-manifest',1024,'2100-11-05T13:00:00Z'
+ 'building','children',1,3,1,'declared-not-verified','component-not-manifest',1024,'2100-11-05T13:00:00Z',1
  FROM metadata_provider_operations WHERE id='operation-one'`,
 	} {
 		if _, err := w.db.ExecContext(t.Context(), q); err != nil {
