@@ -15,7 +15,11 @@ file with exactly these fields:
 {"run_id":"unique-run","host_epoch":"external-epoch","source_commit":"0000000000000000000000000000000000000000","output_path":"/owned/scratch/new.ndjson","fixtures":1}
 ```
 
-Use the actual declared source commit. `fixtures` is1..64; paths are absolute,
+The existing serial loop reuses one pristine schema template and creates one
+fresh owned database at a time. The cap does not promise completion within the
+five-minute cooperative budget; slow or stopped runs remain incomplete.
+
+Use the actual declared source commit. `fixtures` is1..1,000; paths are absolute,
 output is exclusive, and the config limit is16KiB. Unknown/duplicate fields and
 trailing JSON refuse. There is no DB, SQL, profile, budget or proof input. Each
 fresh owned database executes BEGIN, RESOLVE and ACK with the SAME original
