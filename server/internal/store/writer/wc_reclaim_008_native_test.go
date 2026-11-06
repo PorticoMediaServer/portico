@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-func TestWC008NativeReclaimCaptureThenDrainAndNoNext(t *testing.T) {
-	w := wc008NativeExecutor(t)
+func wc008NativeReclaim(t *testing.T, w *executor) wc008ReclaimCommand {
+	t.Helper()
 	p := wc008NativeProgress(t, w, 1000)
 	// TEST ORACLE setup: capture and drain receipts use different source units.
 	wc008NativeExec(t, w, `INSERT INTO playback_claim_command_receipts(playback_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,result_version,applied_ms,source_accepted_ordinal,source_last_accepted_sequence,source_report_sequence,source_occurrence_generation,source_activity_generation,source_history_policy_generation,source_clock_incarnation,result_start_event_id,result_report_sequence,result_pending_sequence,capture_created_start,result_count,result_digest)
@@ -22,6 +22,12 @@ func TestWC008NativeReclaimCaptureThenDrainAndNoNext(t *testing.T) {
 	if err := w.db.QueryRowContext(t.Context(), `SELECT receipt_variable_bytes,control_variable_bytes FROM playback_personal_claims`).Scan(&q.owner.variableBytes, &q.oldControlBytes); err != nil {
 		t.Fatal(err)
 	}
+	return q
+}
+
+func TestWC008NativeReclaimCaptureThenDrainAndNoNext(t *testing.T) {
+	w := wc008NativeExecutor(t)
+	q := wc008NativeReclaim(t, w)
 	for step := 0; step < 2; step++ {
 		if step == 1 {
 			// The supplied old proof can agree with itself yet disagree with
