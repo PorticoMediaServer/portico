@@ -1,7 +1,7 @@
 {
   "format": "en009-independent-normalized-vectors-v1",
   "approved_spec_sha256": "f39cdeae12596bfbd1e9d941968806d94ec0a6db67f68e561997b018443ce55e",
-  "adopted_sql_sha256": "f83d526e0552f053cbb4c11af33d389841fdda4a734e2b00cb54eee8666ac10c",
+  "adopted_sql_sha256": "da7841e26dd347f65554466139dd8eae0f181c9250715dc26d462e0e33b3f1c4",
   "reference_source_sha256": "cbd92242d57fa9ce5471cf972020ba4b208eda935d216febf25d8c99ce721bfd",
   "scope": "DATA-ONLY synthetic native projections/byte/refusal oracles. Observation TEXT64 is inert fixture data, not attestation that HTTP bytes produced these tuples. No actual stage/seal provenance, writer/resource/replay execution or qualification; no W codec/code/output used.",
   "positive": [
