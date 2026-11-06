@@ -28,9 +28,6 @@ type shimSpec struct {
 	// The macOS server publishes its incarnation before scanning the ledger.
 	// A late shim must check that fence after publishing and before exec.
 	InstanceFence bool `json:"g,omitempty"`
-	// Expected immediate parent for macOS's post-publication check. Never
-	// probe this PID: getppid changes on reparenting and cannot confuse reuse.
-	ParentPID int `json:"p,omitempty"`
 	// FileBytes is RLIMIT_FSIZE; negative forbids creating or growing files.
 	FileBytes  int64 `json:"f"`
 	CPUSeconds int   `json:"c,omitempty"`
@@ -151,31 +148,8 @@ func shimArgv(job Job, inner []string) []string {
 		return inner
 	}
 	spec := shimSpec{Instance: instance, Ledger: ledger, InstanceFence: fence, FileBytes: job.MaxFileBytes, CPUSeconds: job.MaxCPUSeconds, Background: job.Background}
-	if runtime.GOOS == "darwin" {
-		spec.ParentPID = os.Getpid()
-	}
 	raw, _ := json.Marshal(spec)
 	return append([]string{helper, ShimFlag, base64.RawURLEncoding.EncodeToString(raw), "--"}, inner...)
-}
-
-// CommandArgv may launch a new child from a storage helper rather than from
-// the server that prepared argv. Capture that actual immediate parent while
-// preserving the server-incarnation fence. ExecArgv replaces an existing helper
-// in place and deliberately keeps its original expected parent unchanged.
-func bindShimLaunchParent(argv []string) ([]string, error) {
-	if runtime.GOOS != "darwin" || len(argv) < 2 || argv[1] != ShimFlag {
-		return argv, nil
-	}
-	spec, inner, err := parseShim(argv[1:])
-	if err != nil {
-		return nil, err
-	}
-	spec.ParentPID = os.Getpid()
-	raw, err := json.Marshal(spec)
-	if err != nil {
-		return nil, err
-	}
-	return append([]string{argv[0], ShimFlag, base64.RawURLEncoding.EncodeToString(raw), "--"}, inner...), nil
 }
 
 // RunHelper is the shim's entry point: the server's main (and a test binary's
@@ -226,9 +200,6 @@ func parseShim(args []string) (shimSpec, []string, error) {
 		return spec, nil, ErrInvalidJob
 	}
 	if spec.InstanceFence && (spec.Ledger == "" || spec.Instance == "") {
-		return spec, nil, ErrInvalidJob
-	}
-	if runtime.GOOS == "darwin" && spec.ParentPID <= 1 {
 		return spec, nil, ErrInvalidJob
 	}
 	return spec, inner, nil
