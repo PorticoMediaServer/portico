@@ -82,9 +82,10 @@ func TestTransportOversizeReportsObservedBytes(t *testing.T) {
 
 func TestTMDBCacheRetainedBackingFitsBudget(t *testing.T) {
 	for _, test := range []struct {
-		mode      TMDBMode
-		bodyBytes int
-	}{{TMDBTwoWorkers128MiB, 65537}, {TMDBOneWorker80MiB, 131073}} {
+		mode           TMDBMode
+		bodyBytes      int
+		allocationCost int64
+	}{{TMDBTwoWorkers128MiB, 65537, 73728}, {TMDBOneWorker80MiB, 131073, 139264}, {TMDBTwoWorkers128MiB, 33, 64}} {
 		t.Run(fmt.Sprint(test.bodyBytes), func(t *testing.T) {
 			policy, err := NewTMDBPolicy(test.mode)
 			if err != nil {
@@ -114,21 +115,39 @@ func TestTMDBCacheRetainedBackingFitsBudget(t *testing.T) {
 			}
 			tr.mu.Lock()
 			defer tr.mu.Unlock()
-			var lengths, capacities int64
+			var lengths, capacities, rounded int64
 			exact := true
 			for _, entry := range tr.cache {
 				body := entry.Value.(cachedResponse).body
 				lengths += int64(len(body))
 				capacities += int64(cap(body))
+				// Independent literal allocator bounds for these non-aligned
+				// sizes; slice capacity is NOT a retained-heap measurement.
+				rounded += test.allocationCost
 				exact = exact && cap(body) == len(body)
 			}
-			t.Logf("entries=%d charged=%d length=%d capacity=%d budget=%d", len(tr.cache), tr.stats.CacheBytes, lengths, capacities, tr.cfg.CacheBytes)
-			if capacities > tr.cfg.CacheBytes {
-				t.Fatalf("retained body capacity exceeds cache budget by %d bytes", capacities-tr.cfg.CacheBytes)
+			t.Logf("entries=%d charged=%d length=%d capacity=%d rounded=%d budget=%d", len(tr.cache), tr.stats.CacheBytes, lengths, capacities, rounded, tr.cfg.CacheBytes)
+			if rounded > tr.cfg.CacheBytes {
+				t.Fatalf("allocator-rounded body storage exceeds cache budget by %d bytes", rounded-tr.cfg.CacheBytes)
 			}
-			if !exact || lengths != tr.stats.CacheBytes || capacities != lengths {
-				t.Fatal("cache does not own exactly its charged body storage")
+			if !exact || rounded != tr.stats.CacheBytes || capacities != lengths {
+				t.Fatal("cache does not charge its allocator-rounded body storage")
 			}
 		})
+	}
+}
+
+func TestTMDBCacheAllocationChargeEdges(t *testing.T) {
+	for _, test := range []struct {
+		bytes  int
+		charge int64
+	}{
+		{0, 0}, {1, 16}, {8, 16}, {16, 16}, {17, 32}, {24, 32}, {33, 64},
+		{513, 1024}, {1025, 2048}, {16385, 32768}, {32768, 32768},
+		{32769, 40960}, {65537, 73728}, {131073, 139264}, {4194304, 4194304},
+	} {
+		if got := cacheBodyCharge(test.bytes); got != test.charge {
+			t.Fatal(test.bytes, got, test.charge)
+		}
 	}
 }
