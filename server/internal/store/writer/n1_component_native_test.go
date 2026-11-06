@@ -27,7 +27,7 @@ type n1Counter struct {
 	value  int64
 }
 
-func (c *n1Counter) set(value int64) { c.value = value; c.Value = &c.value }
+func (c *n1Counter) set(value int64) { c.value = value; c.Value = &c.value; c.Reason = "" }
 
 // Names, units and SQLite's current/cumulative semantics are in the start
 // manifest. None of these DBStatus operations supplies a memory peak.
@@ -53,52 +53,59 @@ type n1NativeSnapshot struct {
 	ConnectionID uint64                      `json:"connection_id"`
 	VMOps        n1Counter                   `json:"vm_operations"`
 	DB           [len(n1StatusOps)]n1Counter `json:"db_status"`
+	High         [len(n1StatusOps)]n1Counter `json:"db_status_raw_high"`
 	WALIO        *sqlite.WALIOStats          `json:"wal_io"`
 	wal          sqlite.WALIOStats
 }
 
 type n1Unit struct {
-	Order        int              `json:"order"`
-	UnitID       string           `json:"unit_id"`
-	ID           stmt.ID          `json:"statement_id"`
-	UseIndex     int              `json:"use_index"`
-	Phase        string           `json:"phase"`
-	StartedNS    *int64           `json:"started_ns"`
-	ReturnedNS   *int64           `json:"returned_ns"`
-	ElapsedNS    *int64           `json:"elapsed_ns"`
-	Error        string           `json:"error"`
-	RowsReturned *int64           `json:"rows_returned"`
-	RowsChanged  *int64           `json:"rows_changed"`
-	RowsExamined *int64           `json:"rows_examined"`
-	RowsRejected *int64           `json:"rows_rejected"`
-	RowsClosed   bool             `json:"rows_closed"`
-	RowsPresent  bool             `json:"rows_present"`
-	VMOps        n1Counter        `json:"vm_operations"`
-	Before       n1NativeSnapshot `json:"before"`
-	After        n1NativeSnapshot `json:"after"`
-	started      time.Time
-	returned     time.Time
-	rows         int64
-	exclusive    bool
+	Order            int     `json:"order"`
+	UnitID           string  `json:"unit_id"`
+	ID               stmt.ID `json:"statement_id"`
+	UseIndex         int     `json:"use_index"`
+	Phase            string  `json:"phase"`
+	StartedNS        *int64  `json:"started_ns"`
+	ReturnedNS       *int64  `json:"returned_ns"`
+	ElapsedNS        *int64  `json:"elapsed_ns"`
+	NativeStartedNS  *int64  `json:"native_started_ns"`
+	NativeReturnedNS *int64  `json:"native_returned_ns"`
+	NativeElapsedNS  *int64  `json:"native_elapsed_ns"`
+	nativeStarted    time.Time
+	Error            string            `json:"error"`
+	RowsReturned     *int64            `json:"rows_returned"`
+	RowsChanged      *int64            `json:"rows_changed"`
+	RowsExamined     *int64            `json:"rows_examined"`
+	RowsRejected     *int64            `json:"rows_rejected"`
+	RowsClosed       bool              `json:"rows_closed"`
+	RowsPresent      bool              `json:"rows_present"`
+	VMOps            n1Counter         `json:"vm_operations"`
+	Before           *n1NativeSnapshot `json:"before"`
+	After            *n1NativeSnapshot `json:"after"`
+	started          time.Time
+	returned         time.Time
+	rows             int64
+	exclusive        bool
 }
 
 type n1Trace struct {
-	origin        time.Time
-	instrument    bool
-	armed         bool
-	units         []n1Unit // fixed backing storage is allocated BEFORE measured custody
-	used          int
-	overflow      bool
-	ids           map[string]stmt.ID
-	uses          map[stmt.ID]int
-	connections   uint64
-	closed        uint64
-	activeRows    int
-	conn          *n1MeasuredConn
-	failQuery     string // control-only injection; never a target/config input
-	closes        [4]n1NativeClose
-	closeCount    int
-	closeOverflow bool
+	libraryVector   [6]int64
+	libraryObserved bool
+	origin          time.Time
+	instrument      bool
+	armed           bool
+	units           []n1Unit // fixed backing storage is allocated BEFORE measured custody
+	used            int
+	overflow        bool
+	ids             map[string]stmt.ID
+	uses            map[stmt.ID]int
+	connections     uint64
+	closed          uint64
+	activeRows      int
+	conn            *n1MeasuredConn
+	failQuery       string // control-only injection; never a target/config input
+	closes          [4]n1NativeClose
+	closeCount      int
+	closeOverflow   bool
 }
 
 func newN1Trace(origin time.Time, instrument bool) *n1Trace {
@@ -121,6 +128,7 @@ func (t *n1Trace) useRegistry(registry *stmt.Registry) {
 
 func (t *n1Trace) nextTurn() {
 	t.armed = false
+	t.libraryObserved = false
 	t.units, t.used, t.overflow = make([]n1Unit, n1UnitLimit), 0, false
 	for id := range t.uses {
 		t.uses[id] = 0
@@ -154,19 +162,23 @@ func (c *n1MeasuredConn) snapshot(out *n1NativeSnapshot, withinHold bool) {
 		out.VMOps.Reason = "native diagnostics unavailable or connection closed"
 		for i := range out.DB {
 			out.DB[i].Reason = out.VMOps.Reason
+			out.High[i].Reason = out.VMOps.Reason
 		}
 	} else {
 		out.VMOps.set(c.native.VMOperations())
 		for i, op := range n1StatusOps {
 			if withinHold && i < 3 {
 				out.DB[i].Reason = "schema/cache/statement memory sampled outside HOLD only; native schema walk is intrusive"
+				out.High[i].Reason = out.DB[i].Reason
 				continue
 			}
-			current, _, err := c.native.Status(op.Op, false) // NEVER reset a counter
+			current, high, err := c.native.Status(op.Op, false) // NEVER reset a counter
 			if err != nil {
 				out.DB[i].Reason = err.Error()
+				out.High[i].Reason = err.Error()
 			} else {
 				out.DB[i].set(int64(current))
+				out.High[i].set(int64(high))
 			}
 		}
 		out.wal = c.native.WALIO()
@@ -177,7 +189,7 @@ func (c *n1MeasuredConn) snapshot(out *n1NativeSnapshot, withinHold bool) {
 
 func (c *n1MeasuredConn) start(query string) *n1Unit {
 	t := c.trace
-	if !t.armed || !t.instrument {
+	if !t.armed {
 		return nil
 	}
 	if t.used == len(t.units) || (t.used == len(t.units)-1 && query != "ROLLBACK") {
@@ -187,6 +199,7 @@ func (c *n1MeasuredConn) start(query string) *n1Unit {
 	u := &t.units[t.used]
 	t.used++
 	u.Order, u.UnitID = t.used, query
+	u.VMOps.Reason = "native request/attribution did not return"
 	u.exclusive = t.activeRows == 0
 	u.Phase = "setup"
 	if id, ok := t.ids[query]; ok {
@@ -198,9 +211,14 @@ func (c *n1MeasuredConn) start(query string) *n1Unit {
 	} else if query == "ROLLBACK" {
 		u.Phase = "rollback"
 	}
-	c.snapshot(&u.Before, true)
 	u.started = time.Now()
 	u.StartedNS = n1NS(t.origin, u.started)
+	if t.instrument {
+		u.Before = &n1NativeSnapshot{}
+		c.snapshot(u.Before, true)
+	}
+	u.nativeStarted = time.Now()
+	u.NativeStartedNS = n1NS(t.origin, u.nativeStarted)
 	return u
 }
 
@@ -208,19 +226,35 @@ func (c *n1MeasuredConn) finish(u *n1Unit, err error) {
 	if u == nil || u.ReturnedNS != nil {
 		return
 	}
-	u.returned = time.Now()
-	u.ReturnedNS = n1NS(c.trace.origin, u.returned)
-	elapsed := u.returned.Sub(u.started).Nanoseconds()
-	u.ElapsedNS = &elapsed
+	nativeReturned := time.Now()
+	u.NativeReturnedNS, u.NativeElapsedNS = n1NS(c.trace.origin, nativeReturned), n1Duration(u.nativeStarted, nativeReturned)
 	if err != nil {
 		u.Error = err.Error()
 	}
-	c.snapshot(&u.After, true)
-	if u.exclusive && c.trace.used == u.Order && u.Before.VMOps.Value != nil && u.After.VMOps.Value != nil && *u.After.VMOps.Value >= *u.Before.VMOps.Value {
-		u.VMOps.set(*u.After.VMOps.Value - *u.Before.VMOps.Value)
+	u.exclusive = u.exclusive && c.trace.used == u.Order
+	if c.trace.instrument {
+		u.After = &n1NativeSnapshot{}
+		c.snapshot(u.After, true)
+		if u.exclusive && c.trace.used == u.Order && u.Before != nil && u.Before.VMOps.Value != nil && u.After.VMOps.Value != nil && *u.After.VMOps.Value >= *u.Before.VMOps.Value {
+			u.VMOps.set(*u.After.VMOps.Value - *u.Before.VMOps.Value)
+		} else {
+			u.VMOps.Reason = "overlapping, missing or regressing native VM counter"
+		}
 	} else {
-		u.VMOps.Reason = "overlapping statement, missing or regressing cumulative native VM counter"
+		u.VMOps.Reason = "timing cohort does not sample native counters inside HOLD"
 	}
+	u.returned = time.Now()
+	u.ReturnedNS, u.ElapsedNS = n1NS(c.trace.origin, u.returned), n1Duration(u.started, u.returned)
+}
+
+func (c *n1MeasuredConn) SQLiteDQS() (ddl, dml int, err error) {
+	u := c.start("native.SQLiteDQS")
+	ddl, dml, err = c.writerDriverConn.SQLiteDQS()
+	if u != nil {
+		u.RowsClosed = true
+	}
+	c.finish(u, err)
+	return
 }
 
 func (c *n1MeasuredConn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
@@ -286,6 +320,19 @@ func (r *n1MeasuredRows) Next(dest []driver.Value) error {
 	err := r.Rows.Next(dest)
 	if err == nil {
 		r.unit.rows++
+		if r.unit.ID == scanFreshLibrary && len(dest) == 6 {
+			var vector [6]int64
+			known := true
+			for i, v := range dest {
+				n, ok := v.(int64)
+				known = known && ok
+				vector[i] = n
+			}
+			if known {
+				r.conn.trace.libraryVector = vector
+				r.conn.trace.libraryObserved = true
+			}
+		}
 	} else if !errors.Is(err, io.EOF) {
 		r.err = errors.Join(r.err, err)
 	}

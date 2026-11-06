@@ -298,6 +298,7 @@ func runN1SteadyTurn(t *testing.T, ctx context.Context, stream *n1Stream, f *inv
 			record.Phase = "physical_return"
 		}
 		record.Complete = record.Error == "" && record.Outcome == "committed" && record.Clock.HoldNS != nil && record.Clock.PhysicalReturnedNS != nil && record.Settings.Actual != nil && record.ConnectionReturned != nil && *record.ConnectionReturned && record.Retired != nil && *record.Retired && usage == ([4]governor.Amounts{}) && !fenced && !ambiguous && retained && !trace.overflow
+		record.Profile = n1BuildProfile(record, trace)
 		if err := stream.append("attempt", map[string]any{"attempt_id": record.ID, "attempt_ordinal": ordinal, "attempt": record}); err != nil {
 			record.Error = n1Join(record.Error, err)
 			record.Complete = false
@@ -350,6 +351,7 @@ func runN1SteadyTurn(t *testing.T, ctx context.Context, stream *n1Stream, f *inv
 		return
 	}
 	record.RequiredBytes = &required
+	record.InputProfile = n1InputProfile(f.current, record.Case)
 	record.NativeBefore = &n1NativeSnapshot{}
 	trace.conn.snapshot(record.NativeBefore, false)
 	record.WALBefore = n1ReadWAL(stream.origin, f.owner.path, f.owner.wal)

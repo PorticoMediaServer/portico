@@ -270,6 +270,8 @@ func n1ReadWAL(origin time.Time, path string, gates ...*governor.WALGate) *n1WAL
 }
 
 type n1Attempt struct {
+	InputProfile           *n1ProfileInput            `json:"input_profile"`
+	Profile                *n1ProfileFacts            `json:"profile_facts"`
 	OriginalID             string                     `json:"original_id,omitempty"`
 	OriginalOrdinal        *int                       `json:"original_ordinal"`
 	OriginalPopulation     string                     `json:"original_population,omitempty"`
@@ -545,6 +547,7 @@ func runN1Attempt(t *testing.T, ctx context.Context, stream *n1Stream, ordinal i
 			record.Error = "test fixture failed during " + record.Phase + "; see native units/test log"
 		}
 		record.Complete = record.Error == "" && record.Outcome == "committed" && record.NativeJoined != nil && *record.NativeJoined && record.Clock.HoldNS != nil && record.Settings.Actual != nil && !record.LedgerOverflow && !record.NativeCloseOverflow
+		record.Profile = n1BuildProfile(record, trace)
 		if err := stream.append("attempt", map[string]any{"attempt_id": record.ID, "attempt_ordinal": ordinal, "attempt": record}); err != nil {
 			t.Error(err)
 		}
@@ -618,9 +621,15 @@ func runN1Attempt(t *testing.T, ctx context.Context, stream *n1Stream, ordinal i
 	}
 	manifestHash := sha256.Sum256(manifest)
 	record.RegistrySHA256 = hex.EncodeToString(manifestHash[:])
+	trace.useRegistry(registry)
 	command = n1SeedCase(t, e, command, cell)
+	record.InputProfile = n1InputProfile(command, cell)
 	n1ReadFixtureFacts(t, ctx, e, record)
-	e.now = time.Now // real owner clock; existing synthetic Work is NOT widened
+	e.now = time.Now // measurement target ALWAYS uses the real clock and unchanged limits
+	if len(options) == 1 && options[0].clock != nil {
+		e.now = options[0].clock
+		record.Unavailable["owner_clock_control"] = "fixed protocol-control clock; not timing/profile evidence"
+	}
 	request, err := command.receiptRequest()
 	if err != nil {
 		t.Fatal(err)
@@ -751,7 +760,7 @@ func TestN1ComponentMeasurement(t *testing.T) {
 	configHash := sha256.Sum256(data)
 	stream := &n1Stream{file: file, origin: origin, base: map[string]any{"schema": "portico-n1-component-v1", "label": "N1 COMPONENT DIRECTIONAL", "qualification": false, "run_id": config.RunID, "process_epoch": fmt.Sprintf("%s/%d/%d", config.RunID, os.Getpid(), origin.UnixNano())}}
 	sources := map[string]string{}
-	for _, path := range []string{"scan_fresh_test.go", "inventory_memory_test.go", "governor_turn_test.go", "schema_fixture_test.go", "transaction_test.go", "n1_component_population_test.go", "n1_component_steady_test.go", "n1_progressive_fixture_test.go", "scan_fresh.go", "scan_fresh_observation.go", "transaction.go", "n1_component_target_test.go", "n1_component_native_test.go", "testdata/scan-inventory-fresh.json"} {
+	for _, path := range []string{"scan_fresh_test.go", "inventory_memory_test.go", "governor_turn_test.go", "schema_fixture_test.go", "transaction_test.go", "n1_component_population_test.go", "n1_component_profile_test.go", "n1_component_steady_test.go", "n1_progressive_fixture_test.go", "scan_fresh.go", "scan_fresh_observation.go", "transaction.go", "n1_component_target_test.go", "n1_component_native_test.go", "testdata/scan-inventory-fresh.json"} {
 		raw, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal("component source pin", err)
@@ -785,6 +794,9 @@ func TestN1ComponentMeasurement(t *testing.T) {
 		sqlHashes[d.ID] = hex.EncodeToString(h[:])
 	}
 	start := map[string]any{"origin_utc": origin.UTC(), "pid": os.Getpid(), "observed_host": host, "host_error": n1Error(hostErr), "host_epoch": config.HostEpoch, "boot_id": strings.TrimSpace(string(boot)), "boot_error": n1Error(bootErr), "declared_source_commit": config.SourceCommit, "binary_sha256": hex.EncodeToString(hash.Sum(nil)), "config_sha256": hex.EncodeToString(configHash[:]), "schema_sha256": schema.SHA256, "source_hashes": sources, "sql_sha256_by_id": sqlHashes, "requested_fixtures": config.Fixtures, "population": *n1PopulationFlag, "declared_warmup": *n1WarmupFlag, "steady_supported": false, "steady_unavailable_reason": errN1ProgressiveFixture.Error(), "case": cell, "cohort": *n1CohortFlag, "clock": "time.Now with monotonic time.Sub before JSON", "synthetic_memory_partition": map[string]uint64{"preparation_bytes": 4 << 20, "nonborrowable_reserve_bytes": 4 << 20}, "synthetic_work_source": "inventoryMemoryFixtureTurn; unchanged test recipe, NOT production profile", "db_status_methods": n1StatusOps, "native_counter_scope": "same physical connection; cumulative/current, reset=false; no native memory peak", "ledger_layout_bytes": reflect.TypeFor[n1Unit]().Size() * n1UnitLimit, "unavailable_reasons": n1Missing}
+	start["observation_method"] = n1ProfileMethod
+	start["timing_observers"] = "both cohorts record bounded native-request/row-close clocks and counts; only native-counters samples native diagnostic getters inside HOLD; all observer costs included"
+	start["qualified_profile_ready"] = false
 	start["population_layout"] = "n1-first-use-v1"
 	if *n1PopulationFlag == "steady" {
 		start["population_layout"], start["steady_supported"], start["steady_unavailable_reason"] = "n1-progressive-steady-v1", true, ""

@@ -73,7 +73,9 @@ a new passing steady subset. This is component preparation, not production
 issuance, whole outer-authority acceptance, a qualified profile or p99 proof.
 The previous first-use pilot and UNKNOWN/deadline tail are unchanged.
 
-`timing` omits per-statement attribution inside HOLD. `native-counters` adds
+Both cohorts now record bounded request/row-close clocks, exact IDs, use counts
+and returned/changed rows inside HOLD. `timing` omits native diagnostic getters;
+`native-counters` adds
 VMOperations, native WALIO and DBStatus cache-event snapshots around exact
 compiled SQL and row close. Its overhead is included, never subtracted. Keep
 these cohorts separate. Native DBStatus cache/schema/statement memory walks are
@@ -230,7 +232,7 @@ The trace SQL/ID map is derived from the ACTUAL complete captured registry,
 including history/library/ACK guards, rather than the old 43-effects list. The
 128-unit ledger is freshly preallocated outside custody for each physical turn,
 flushed after return, and never reused while a record retains its counters.
-Plain timing omits attribution snapshots inside HOLD. Native-counters includes
+Timing omits native counter snapshots inside HOLD while retaining bounded ID/clock/row observations. Native-counters includes
 its observer costs; the ACK current read is labelled post_return_observer when
 its real start follows physical return. It is not charged back into HOLD.
 
@@ -249,3 +251,75 @@ Observed allocations/RSS include that fixture retention and observer overhead;
 these are not production steady residency or a live-memory peak. Setup facts,
 pre/post-close memory, observed physical connection counts, final pool stats and
 actual authority usage retain their own scope instead of being subtracted.
+
+
+## EC4 profile observations, not a qualified profile
+
+Start emits `observation_method=n1-profile-observations-v1`. BOTH cohorts now
+have populated bounded units and `profile_facts.per_id`: every ID in the actual
+captured registry, including observed zero uses on untaken branches. An unreturned
+registry stays unavailable with a reason. Do not pool this observer method with
+Wave1/2: the new timing cohort includes request clocks/counts and row-close
+wrappers, while native-counters additionally includes its diagnostic snapshots.
+All observer overhead stays in HOLD; nothing is subtracted.
+
+Each ID carries request-use/returned/error counts and separate maxima for rows
+returned, rows changed, examined rows, VM operations, native pages, complete IO,
+WAL attempted/written/append/header bytes/header writes/errors and elapsed spans.
+`elapsed_ns` includes the diagnostic wrapper. `native_request_span_ns` excludes
+its before/after diagnostic snapshots but includes native request/open-row/Scan
+lifetime through Close; it is not pure SQLite CPU time. The raw per-use ledger
+remains available. A maximum is null if any requested use lacks that metric;
+observed_subset_max and known/missing-use census remain labelled partial.
+Unused IDs have observed use_count=0 and null costs, never guessed zero costs.
+Error/partial uses stay in the same original/cohort/connection/salt bracket.
+
+VM and WAL deltas require monotonic same-connection, nonoverlapping intervals.
+Raw hook Qualified=false stays raw/incomplete. Written bytes include rewrite
+and spill, so neither append-only bytes nor exact header bytes is synthesized.
+HeaderWrites is a count; multiplying/subtracting 32 bytes is forbidden. Cache
+events/fullscan steps/WAL frames are not native page visits or examined rows.
+Before/after WAL salt is only this call's observed generation scope, not an
+atomic per-statement generation or reset proof. Native operation arrays keep
+policy, DQS, BEGIN, COMMIT and rollback observations separate from registered IDs.
+
+W confirmed that no complete named Setup/Terminal/MAX owner fixture is currently
+available. Their named fields therefore remain null with reasons. The target
+exposes actual native policy/DQS/BEGIN/COMMIT/rollback intervals and separate
+observer brackets: owner HOLD start→first registered request, last registered
+request return→physical/ledger return, DQS→last assertion read, and whole failed
+HOLD when available. These brackets are not labelled complete Setup, Assert or
+Terminal reservations. Individual acquire, discard, retirement, header-sync,
+xSync and reset intervals remain null unless actually exposed. Native Close and
+final fixture join retain their existing separate scopes. Never sum unrelated
+per-ID/bracket maxima to invent a complete owner recipe.
+
+Actual GV request device ID/class/outstanding/reserved bytes are emitted only
+if present in the bound request; they are reservations, not measured service.
+The synthetic fixture currently supplies no device mapping. Complete per-command
+IO and native page counts remain null with reasons, rather than replacing them
+with procfs IO, OS device identity, WAL writes or declared Work Pages.
+
+Input facts retain actual byte/codepoint/escaping lengths, file/root shape,
+declared branch cell and known codec limits, alongside existing actual setup
+profiles/age/cardinality readback and executed IDs. Existing fixtures cover a
+partial branch/input matrix. inventoryProgressiveFixture is one synthetic branch,
+not a legal-MAX source. Complete legal MIN/MAX and full-prefix fields stay null
+with reasons until an owner-selected fixture exists; a long string, registry
+hash, allocation forecast or cumulative WAL length is not that proof.
+
+Incremental LIVE Go/native/bind/row/temp/result/preparation/consumer-retained
+peaks through final release stay null with reasons: no complete live ownership
+hook exists. inventoryFreshRequiredBytes is an allocation-free FORECAST only.
+Existing idle/native checkpoints, allocations, RSS and raw DBStatus high values
+remain separate. Raw high=0 is not a native peak and process lifetime VmHWM is
+not a per-command LIVE peak. `profile_gate_missing` lists these unmet gates and
+`qualified_profile_ready=false`; production enable/profile/caps are unchanged.
+No new run or qualification/reference scheduling follows from this exposure.
+
+The decorator also retains the actual six-scalar registered library read
+(data/order/metadata/age-input/age-published/age-pending) and the completed age
+bucket point-read row count, when reached. These are call-bound native readback,
+not the declared case or a registry hash. Fixed internal clocks in protocol-only
+controls are explicitly labelled; measurement config/flags cannot select them.
+The measurement target retains time.Now, its original quantum and all misses.
