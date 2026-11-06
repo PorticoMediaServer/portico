@@ -35,7 +35,7 @@ func TestPlanReviewAllowListAndNativeCounterexamples(t *testing.T) {
 			if len(plan.LintSQL(d.SQL)) == 0 {
 				t.Fatalf("outside-grammar predicate allowed: %s", condition)
 			}
-			registry, err := stmt.New([]stmt.Definition{d})
+			registry, err := stmt.Describe([]stmt.Definition{d})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -51,7 +51,7 @@ func TestPlanReviewAllowListAndNativeCounterexamples(t *testing.T) {
 			if len(plan.LintSQL(d.SQL)) == 0 {
 				t.Fatal("IN table shorthand allowed")
 			}
-			registry, err := stmt.New([]stmt.Definition{d})
+			registry, err := stmt.Describe([]stmt.Definition{d})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -66,7 +66,7 @@ func TestPlanReviewAllowListAndNativeCounterexamples(t *testing.T) {
 		if len(plan.LintSQL(d.SQL)) == 0 {
 			t.Fatal("window clause allowed without waiver")
 		}
-		registry, err := stmt.New([]stmt.Definition{d})
+		registry, err := stmt.Describe([]stmt.Definition{d})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -203,7 +203,7 @@ func TestPlanSQLiteSubqueryGuardCannotBeWaivedByLint(t *testing.T) {
 		{StatementID: d.ID, Stage: "sql-lint", Form: "sql:SELECT", Match: d.SQL, Reason: "Synthetic test-only outside-grammar waiver; no native permission"},
 		{StatementID: d.ID, Stage: "sql-lint", Form: "sql:outside-grammar", Match: d.SQL, Reason: "Synthetic test-only subquery syntax; native guard must still refuse"},
 	}
-	if _, err := stmt.New([]stmt.Definition{d}); err == nil {
+	if _, err := stmt.Describe([]stmt.Definition{d}); err == nil {
 		t.Fatal("SQL lint waiver accepted by registry")
 	}
 	eqp := reviewRawEQP(t, conn, d.SQL, d.Cohorts[0].Bindings...)
@@ -211,7 +211,7 @@ func TestPlanSQLiteSubqueryGuardCannotBeWaivedByLint(t *testing.T) {
 		t.Fatalf("native guard bypassed: %v", err)
 	}
 	d.Plan.Waivers = nil
-	registry, err := stmt.New([]stmt.Definition{d})
+	registry, err := stmt.Describe([]stmt.Definition{d})
 	if err != nil {
 		t.Fatal(err)
 	}

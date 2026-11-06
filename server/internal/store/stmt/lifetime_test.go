@@ -12,6 +12,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
 func TestRegistryBundledEngineAndIterationCancellation(t *testing.T) {
@@ -21,7 +22,7 @@ func TestRegistryBundledEngineAndIterationCancellation(t *testing.T) {
 		t.Fatalf("bundled engine: %q %v", engine, err)
 	}
 	d := stmt.Definition{ID: "cancel.iteration", SQL: `WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM n WHERE x<5000000) SELECT 1 UNION ALL SELECT sum(x) FROM n`, Owner: "test", CallSites: []string{"lifetime_test.go"}, Kind: stmt.Read, Cohorts: []stmt.Cohort{{Name: "second-row-work"}}}
-	registry, err := stmt.New([]stmt.Definition{d})
+	registry, err := stmttest.New(t, []stmt.Definition{d})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +102,7 @@ func TestRegistryReaderCleanupReleasesWAL(t *testing.T) {
 			defer reader.Close()
 			assertConnection(t, reader, readerCfg)
 			d := stmt.Definition{ID: "read.window", SQL: "SELECT value FROM items ORDER BY id", Owner: "test", CallSites: []string{"lifetime_test.go"}, Kind: stmt.Read, Cohorts: []stmt.Cohort{{Name: "two-rows"}}}
-			registry, err := stmt.New([]stmt.Definition{d})
+			registry, err := stmttest.New(t, []stmt.Definition{d})
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -3,8 +3,11 @@ package plan
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
 // LintSQLOn adds live source/destination resolution to closed syntax checks.
@@ -76,4 +79,46 @@ WHERE schema='main' AND name=? COLLATE NOCASE`, name).Scan(&kind); err != nil {
 
 func sqliteInternalSource(name string) bool {
 	return strings.HasPrefix(strings.ToLower(name), "sqlite_")
+}
+
+// Recheck source classification at mint time under Capture's immutable-fixture
+// and DDL-custody requirement. Seal actual declarations as well as MAIN/type.
+func capturedSources(ctx context.Context, conn *sql.Conn, entries []stmt.Entry) ([]byte, error) {
+	type source struct {
+		Statement stmt.ID `json:"statement"`
+		Name      string  `json:"name"`
+		Schema    string  `json:"schema"`
+		Kind      string  `json:"kind"`
+		SQL       string  `json:"sql"`
+		RootPage  int64   `json:"rootpage"`
+	}
+	result := []source{}
+	for _, entry := range entries {
+		tokens, err := lintTokens(entry.SQL)
+		if err != nil {
+			return nil, err
+		}
+		p := lintParser{tokens: tokens}
+		if err := p.statement(); err != nil {
+			return nil, err
+		}
+		var names []string
+		if p.dml != nil {
+			names = append(names, nameKey(p.dml.table))
+		}
+		for _, s := range p.sources {
+			names = append(names, s.name)
+		}
+		for _, name := range names {
+			if err := mainBaseTable(ctx, conn, name); err != nil {
+				return nil, err
+			}
+			s := source{Statement: entry.ID, Name: name, Schema: "main"}
+			if err := conn.QueryRowContext(ctx, `SELECT type,sql,rootpage FROM main.sqlite_schema WHERE name=? COLLATE NOCASE`, name).Scan(&s.Kind, &s.SQL, &s.RootPage); err != nil {
+				return nil, err
+			}
+			result = append(result, s)
+		}
+	}
+	return json.Marshal(result)
 }

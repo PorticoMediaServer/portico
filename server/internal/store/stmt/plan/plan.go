@@ -13,6 +13,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/internal/qualification"
 )
 
 type Statistics string
@@ -53,7 +54,13 @@ type Golden struct {
 	Manifest    []stmt.Entry     `json:"manifest"`
 	Plans       []StatementPlan  `json:"plans"`
 	ForeignKeys *ForeignKeyAudit `json:"foreignKeys,omitempty"`
+	receipt     stmt.Receipt
 }
+
+// Receipt returns the opaque capability minted only by a complete successful
+// Capture. A zero, failed or JSON-decoded Golden has no registration authority.
+func (g Golden) Receipt() stmt.Receipt { return g.receipt }
+
 type StatementPlan struct {
 	ID        stmt.ID      `json:"id"`
 	Cohort    string       `json:"cohort"`
@@ -145,6 +152,23 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 			g.Plans = append(g.Plans, StatementPlan{ID: entry.ID, Cohort: cohort.Name, Explain: full, QueryPlan: eqp, Insert: insert})
 		}
 	}
+	sources, err := capturedSources(ctx, conn, g.Manifest)
+	if err != nil {
+		return g, err
+	}
+	data, err := g.JSON()
+	if err != nil {
+		return g, err
+	}
+	definitions := make(map[string][]byte, len(g.Manifest))
+	for _, entry := range g.Manifest {
+		definition, err := json.Marshal(entry.Definition)
+		if err != nil {
+			return g, err
+		}
+		definitions[string(entry.ID)] = definition
+	}
+	g.receipt = qualification.Mint(definitions, data, sources)
 	return g, nil
 }
 
