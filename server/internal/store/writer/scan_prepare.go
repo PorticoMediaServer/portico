@@ -2,8 +2,14 @@ package writer
 
 import (
 	"bytes"
+	"errors"
 	"unicode/utf8"
 )
+
+// ErrFilenameUnrepresentable distinguishes invalid UTF-8 native path bytes
+// under CHANGE-003's TEXT path policy. It is a preparation cause, not proof of
+// an eligible InventoryRefuse observation, cursor progress or a stored issue.
+var ErrFilenameUnrepresentable = errors.New("inventory filename is not representable as UTF-8")
 
 // InventoryAcceptInput is the complete ORIGINAL pre-allocation observation.
 // It is not filesystem proof, current disclosure or resource admission. Trusted
@@ -111,9 +117,16 @@ func inventoryPublicPathPreflight(in InventoryAcceptInput) error {
 		}
 		remaining -= uint64(len(v))
 	}
-	for _, v := range paths[1:] {
-		if !utf8.Valid(v) || bytes.IndexByte(v, 0) >= 0 {
+	// NUL is invalid native input, never the filename_unrepresentable poison
+	// case. Check ALL paths first, including mixed NUL/invalid-UTF8 input.
+	for _, v := range paths {
+		if bytes.IndexByte(v, 0) >= 0 {
 			return invalid("inventory_native_path")
+		}
+	}
+	for _, v := range paths[1:] {
+		if !utf8.Valid(v) {
+			return &PolicyError{Field: "inventory_native_path", Cause: ErrFilenameUnrepresentable}
 		}
 	}
 	return nil
