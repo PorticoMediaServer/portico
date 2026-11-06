@@ -49,7 +49,7 @@ func TestGovernedTurnNativeReturnAndWALRefresh(t *testing.T) {
 	}
 	// The ledger and W both retain the original footprint despite mutation.
 	r.Footprint[0].Library = 99
-	if err := c.check(); err != nil {
+	if err := c.check(InventoryAccept, testRecipe().limit); err != nil {
 		t.Fatal("mutable caller footprint rebased grant", err)
 	}
 	r.Footprint[0].Library = 1
@@ -72,7 +72,7 @@ func TestGovernedTurnNativeReturnAndWALRefresh(t *testing.T) {
 	if err := c.retired(); err != nil {
 		t.Fatal("exact retirement not idempotent", err)
 	}
-	if err := c.check(); !errors.Is(err, governor.ErrGrant) {
+	if err := c.check(InventoryAccept, testRecipe().limit); !errors.Is(err, governor.ErrGrant) {
 		t.Fatal("retired grant reusable", err)
 	}
 	if d := g.Try(r); d.Grant != nil || d.Refusal == nil || d.Refusal.Code != governor.FailSafe {
@@ -148,7 +148,7 @@ func TestGovernedTurnExactCompositionPurposeAndForecast(t *testing.T) {
 		t.Fatal(err)
 	}
 	c.fence()
-	if err := c.check(); !errors.Is(err, governor.ErrGrant) {
+	if err := c.check(InventoryAccept, testRecipe().limit); !errors.Is(err, governor.ErrGrant) {
 		t.Fatal("fenced grant still authorizes", err)
 	}
 	if a.Usage()[governor.ScanMinimum][governor.MemoryBytes] == 0 {

@@ -24,7 +24,7 @@ type testCustody struct {
 	checkHook               func()
 }
 
-func (c *testCustody) check() error {
+func (c *testCustody) check(CommandID, Work) error {
 	c.checks++
 	if c.checkHook != nil {
 		c.checkHook()

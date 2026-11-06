@@ -39,6 +39,8 @@ type governedTurn struct {
 	a        *governor.Authority
 	grant    *governor.Grant
 	expected governor.Request
+	purpose  CommandID
+	limit    Work
 	state    atomic.Uint32 // 0 active, 1 retirement attempted, 2 retired, 3 failed
 	fenced   atomic.Bool
 }
@@ -69,12 +71,19 @@ func bindGovernedTurn(id CommandID, limit Work, g governor.Governor, a *governor
 		expected.IO[i].DeviceID = strings.Clone(expected.IO[i].DeviceID)
 	}
 	expected.Footprint = slices.Clone(expected.Footprint)
-	return &governedTurn{g: g, a: a, grant: grant, expected: expected}, nil
+	return &governedTurn{g: g, a: a, grant: grant, expected: expected, purpose: id, limit: limit}, nil
 }
 
-func (c *governedTurn) check() error {
+func (c *governedTurn) check(id CommandID, limit Work) error {
 	if c == nil || c.state.Load() != 0 || c.fenced.Load() {
 		return governor.ErrGrant
+	}
+	class, err := commandClass(id)
+	if err != nil {
+		return err
+	}
+	if id != c.purpose || limit != c.limit || c.expected.Key.Domain != uint16(id) || c.expected.Class != class {
+		return invalid("bound_frame_forecast")
 	}
 	return c.a.Check(c.grant, c.expected)
 }
