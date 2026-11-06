@@ -56,11 +56,11 @@ func effectiveBeginNativePopulation(t *testing.T, w *executor) (effectiveBeginOw
  source_revision,identity_revision,metadata_revision,hierarchy_revision,selection_revision,descriptive_revision,
  policy_incarnation,policy_revision,consent_revision,algorithm,refresh_mode,query_title,query_artist,query_year,
  query_digest,input_digest,selected_id,manual,review_search,qualification,created_at,command_incarnation,
- last_command_sequence,acknowledged_command_sequence,page,after_item)
+ last_command_sequence,acknowledged_command_sequence,page,after_item,source_content_revision)
  VALUES('operation-one',101,'fixture','unadmitted-fixture-phase','staged',31,'native-lease',
  '2026-11-05T12:00:00.000000000Z',?,13,17,19,43,47,53,?,37,41,'native-algorithm','fill_missing',
  'Native query','',2001,'native-query-digest','native-input-digest','opaque:selection',1,0,'native-qualification',
- '2026-11-05T10:00:00.000000000Z',?,11,10,59,'opaque-page:61')`, entityInc[:], policyInc[:], inc[:]); err != nil {
+ '2026-11-05T10:00:00.000000000Z',?,11,10,59,'opaque-page:61',1)`, entityInc[:], policyInc[:], inc[:]); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := w.db.ExecContext(t.Context(), `UPDATE metadata_provider_operations SET
