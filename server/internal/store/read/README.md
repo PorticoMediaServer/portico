@@ -90,6 +90,39 @@ current library age summary, age restrictions on leaves, empty blocked-label
 policy, and no account access policy. Unsupported policies/restricted containers
 fail closed. These recipes do not qualify missing authorization predicates.
 
+## Original-family permission fences
+
+Every successful foreground operation below executes `read.browse.principal` in its initial
+and fresh final shared fence. The statement requires exact
+`f.command_member_incarnation=m.incarnation` and
+`f.command_profile_lifetime=p.lifetime`, in addition to its existing global
+generation, account epoch, current membership/profile/device, credential and
+policy checks. Recreated equal IDs do not revive an older family. The distinct
+family `command_incarnation` identifies commands and cannot replace either
+original birth witness. There is no fallback or execute-time rebasing.
+
+| Public entry point | Shared permission path | Principal statement ID |
+| --- | --- | --- |
+| `BrowseReader.Window` | `publishRead` → `readBrowseFence` | `read.browse.principal` |
+| `ForegroundReader.Detail` | `publishRead` → `readBrowseFence` | `read.browse.principal` |
+| `ForegroundReader.Playback` (start-path lookup, not a start issuer) | `publishRead` → `readBrowseFence` | `read.browse.principal` |
+| `ForegroundReader.ContinueWatching` | `publishRead` → `readBrowseFence` | `read.browse.principal` |
+| `SearchDispatcher.Consume` (all query modes) | `permissionFence` → `readBrowseFence` | `read.browse.principal` |
+
+Search dispatch fences independently of its optional title executor, including
+empty/pending/unavailable responses. Its fresh final fence follows prepare-only
+encoding and precedes the publisher. A callback promise, LIVE admission or
+`SearchRequests.Current` is not authorization. A denial suppresses publication,
+including one observed after cancellation. Other exact fence drift returns a
+typed Conflict refusal; dispatch does not retry an executor/consumer callback.
+
+The dispatcher's own successful checks add **10 SQL calls / two serial windows**
+to any executor's work. `SearchDispatchResult.Read` contains all those windows
+and exact counts even without a native executor, plus any returned executor
+evidence. Each fence-only window has five calls; read/output/LIVE grants and
+ORIGINAL deadlines are unchanged. Whole search cost, maximum-body memory and
+ready latency remain **UNQUALIFIED**, and no native title executor is installed.
+
 Exact normal counts (including shared/source fences and final validation):
 
 | Recipe | Statements | Physical snapshots |

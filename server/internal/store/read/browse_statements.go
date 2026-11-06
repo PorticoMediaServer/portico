@@ -47,7 +47,12 @@ func browseDefinitions() []stmt.Definition {
 		default:
 			empty[0] = int64(3)
 		}
-		out = append(out, stmt.Definition{ID: statementID(name), SQL: sql, Owner: "store/read", CallSites: []string{"store/read/publication.go:BrowseReader.Window"}, Kind: stmt.Read, Params: params, Cohorts: []stmt.Cohort{{Name: "present", Bindings: bindings}, {Name: "empty", Bindings: empty}}, Plan: p})
+		sites := []string{"store/read/publication.go:BrowseReader.Window"}
+		switch name {
+		case "global_authority", "principal", "library_identity", "library", "kind":
+			sites = append(sites, "store/read/search_permission.go:SearchDispatcher.permissionFence")
+		}
+		out = append(out, stmt.Definition{ID: statementID(name), SQL: sql, Owner: "store/read", CallSites: sites, Kind: stmt.Read, Params: params, Cohorts: []stmt.Cohort{{Name: "present", Bindings: bindings}, {Name: "empty", Bindings: empty}}, Plan: p})
 	}
 	add("global_authority", "SELECT authority_generation FROM identity_state WHERE singleton=?", []stmt.Param{i("singleton")}, []any{int64(1)}, stmt.Plan{Hot: true, PrimaryKeys: []string{"identity_state"}, Seeks: []string{"rowid=?"}})
 	add("principal", `SELECT a.id,p.id,m.incarnation,p.lifetime,a.epoch,m.role,m.allowed_libraries,p.allowed_libraries,t.expires_at,f.authorization_horizon,f.authority_generation,m.revision,COALESCE(pr.maximum_age,-1),COALESCE(pr.allow_unrated,1),COALESCE(pr.blocked_labels,'[]'),lim.account_id,p.revision,COALESCE(pr.revision,0)
@@ -61,7 +66,8 @@ LEFT JOIN profile_restrictions AS pr INDEXED BY sqlite_autoindex_profile_restric
 LEFT JOIN access_limits AS lim INDEXED BY sqlite_autoindex_access_limits_1 ON lim.account_id=a.id
 WHERE t.token_hash=? AND t.retired=0 AND t.generation=f.current_generation AND f.revoked=0 AND f.pin_gate=0
 AND f.authority='local' AND d.authority='local' AND d.account_id=a.id AND a.epoch=f.epoch
-AND f.authority_generation=? AND m.disabled=0 AND p.deleted=0`, []stmt.Param{s("token"), i("authority_generation")}, []any{"token", int64(1)}, stmt.Plan{Hot: true, Seeks: []string{"token_hash=?", "account_id=? AND id=?"}, Indexes: []string{"sqlite_autoindex_authorization_family_tokens_1", "sqlite_autoindex_authorization_session_families_1", "sqlite_autoindex_identity_devices_1", "sqlite_autoindex_accounts_1", "sqlite_autoindex_direct_memberships_1", "sqlite_autoindex_direct_profiles_2", "sqlite_autoindex_profile_restrictions_1", "sqlite_autoindex_access_limits_1"}})
+AND f.authority_generation=? AND m.disabled=0 AND p.deleted=0
+AND f.command_member_incarnation=m.incarnation AND f.command_profile_lifetime=p.lifetime`, []stmt.Param{s("token"), i("authority_generation")}, []any{"token", int64(1)}, stmt.Plan{Hot: true, Seeks: []string{"token_hash=?", "account_id=? AND id=?"}, Indexes: []string{"sqlite_autoindex_authorization_family_tokens_1", "sqlite_autoindex_authorization_session_families_1", "sqlite_autoindex_identity_devices_1", "sqlite_autoindex_accounts_1", "sqlite_autoindex_direct_memberships_1", "sqlite_autoindex_direct_profiles_2", "sqlite_autoindex_profile_restrictions_1", "sqlite_autoindex_access_limits_1"}})
 	add("library_identity", "SELECT library_id,root FROM catalog_libraries WHERE id=? AND retired=0", []stmt.Param{i("library")}, []any{int64(1)}, stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_libraries"}, Seeks: []string{"rowid=?"}})
 	add("library", `SELECT l.id,l.data_revision,l.data_order_revision,l.data_metadata_revision,COALESCE(v.revision,0),l.age_input_revision,l.age_published_revision,l.age_pending_operations,l.root,l.playback_origin_incarnation,l.playback_origin_revision
 FROM libraries AS l INDEXED BY sqlite_autoindex_libraries_1

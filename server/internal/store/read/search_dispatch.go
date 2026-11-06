@@ -79,7 +79,8 @@ type SearchDispatchResult struct {
 	Elapsed     time.Duration
 }
 
-// SearchDispatcher adds no SQL/native capability or runtime registration.
+// SearchDispatcher uses the existing captured shared permission statements;
+// it installs no native title executor or product runtime registration.
 // Composition owns/funds SearchRequests metadata separately and closes/drains
 // it after active dispatch calls return. GV alone owns payload/LIVE custody.
 type SearchDispatcher struct {
@@ -129,6 +130,30 @@ func (d *SearchDispatcher) Consume(ctx context.Context, live governor.Foreground
 	in = SearchInput{} // retain neither raw query/session backing nor browse cursors
 	consumption, err := ConsumeForeground(active.Context(), d.governor, d.authority, d.pool, live, output, func(ctx context.Context, custody BrowseOutput) error {
 		view.Now = view.Now.Add(custody.live.started.Sub(started))
+		deadline := earliest(live.ReadyDeadline, live.ProtectedDeadline, request.Deadline, started.Add(min(budget, time.Second)))
+		readCtx, cancel := context.WithDeadline(ctx, deadline)
+		defer cancel()
+		purpose := request
+		purpose.Deadline = deadline
+		out.Read = &BrowseReadResult{Attempts: 1, AdmissionElapsed: custody.live.admission}
+		defer func() { out.Read.Elapsed = time.Since(started) }()
+		initial, e := d.permissionFence(readCtx, purpose, deadline, custody, view, false, out.Read)
+		if e != nil {
+			return e
+		}
+		// Prepare-only consumers cannot publish until a NEW shared fence has
+		// checked the actual principal, including both original birth witnesses.
+		// Cancellation may not suppress an observed denial; validation remains
+		// bounded by the ORIGINAL operation deadline and authorizes no business.
+		finish := func(prior error) error {
+			validation, stop := context.WithDeadline(context.WithoutCancel(readCtx), deadline)
+			defer stop()
+			current, e := d.permissionFence(validation, purpose, deadline, custody, view, true, out.Read)
+			if e == nil && current != initial {
+				e = ErrStale
+			}
+			return searchFenceError(errors.Join(prior, readCtx.Err()), e, out.Read)
+		}
 		page := TitleSearchPage{Disposition: SearchResults}
 		reason := SearchNoReason
 		switch query.Mode() {
@@ -141,21 +166,18 @@ func (d *SearchDispatcher) Consume(ctx context.Context, live governor.Foreground
 				page.Disposition, reason = SearchUnavailable, SearchTitleSourceUnavailable
 				break
 			}
-			deadline := earliest(live.ReadyDeadline, live.ProtectedDeadline, request.Deadline, started.Add(min(budget, time.Second)))
-			readCtx, cancel := context.WithDeadline(ctx, deadline)
-			defer cancel()
 			if e := readCtx.Err(); e != nil {
-				return e
+				return finish(e)
 			}
-			purpose := request
-			purpose.Deadline = deadline
 			var e error
-			page, out.Read, e = d.titles(readCtx, purpose, time.Until(deadline), custody, view, query)
+			var native *BrowseReadResult
+			page, native, e = d.titles(readCtx, purpose, time.Until(deadline), custody, view, query)
+			addSearchReadCost(out.Read, native)
 			if e != nil {
-				return e
+				return finish(e)
 			}
 			if e = readCtx.Err(); e != nil {
-				return e
+				return finish(e)
 			}
 			switch page.Disposition {
 			case SearchPending:
@@ -164,11 +186,11 @@ func (d *SearchDispatcher) Consume(ctx context.Context, live governor.Foreground
 				reason = SearchTitleSourceUnavailable
 			}
 		default:
-			return ErrInput
+			return finish(ErrInput)
 		}
 		owned, e := ownSearchPage(page, view.Limit)
 		if e != nil {
-			return e
+			return finish(e)
 		}
 		out.Disposition, out.Reason = owned.Disposition, reason
 		response := SearchResponse{out.Generation, out.Mode, owned.Disposition, reason, owned.Items}
@@ -176,17 +198,20 @@ func (d *SearchDispatcher) Consume(ctx context.Context, live governor.Foreground
 			if !active.Current() {
 				return errors.Join(ErrSearchSuperseded, ctx.Err())
 			}
-			return errors.Join(ctx.Err(), custody.live.check())
+			return errors.Join(ctx.Err(), readCtx.Err(), custody.live.check())
 		}
 		if e = check(); e != nil {
-			return e
+			return finish(e)
 		}
 		publish, e := consume(ctx, response)
 		if e != nil {
-			return e
+			return finish(e)
 		}
 		if publish == nil {
-			return ErrInput
+			return finish(ErrInput)
+		}
+		if e = finish(check()); e != nil {
+			return e
 		}
 		if e = check(); e != nil {
 			return e
@@ -200,6 +225,9 @@ func (d *SearchDispatcher) Consume(ctx context.Context, live governor.Foreground
 		out.Published = true
 		return nil
 	})
+	if consumption.Refusal == nil && out.Read != nil {
+		consumption.Refusal = out.Read.Refusal
+	}
 	out.Consumption = &consumption
 	if err != nil {
 		out.Published = false

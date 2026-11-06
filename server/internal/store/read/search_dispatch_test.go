@@ -72,7 +72,7 @@ func TestSearchDispatcherModesAndTypedOutcomes(t *testing.T) {
 			}
 			return func(context.Context) error { assertLiveUsage(t, f, 1, 0); published = true; return nil }, nil
 		})
-		if err != nil || !published || !result.Published || result.Read != nil || result.Disposition != tc.state || result.Consumption.AdmissionElapsed <= 0 || result.Elapsed < result.Consumption.Elapsed {
+		if err != nil || !published || !result.Published || result.Read == nil || result.Read.LookupStatements != 5 || result.Read.PublicationStatements != 5 || len(result.Read.LookupWindows) != 1 || len(result.Read.PublicationWindows) != 1 || result.Disposition != tc.state || result.Consumption.AdmissionElapsed <= 0 || result.Elapsed < result.Consumption.Elapsed {
 			t.Fatal(result, err)
 		}
 		assertLiveUsage(t, f, 0, 0)
@@ -271,4 +271,23 @@ func TestSearchDispatcherCancellationAndRevocationBeforePublish(t *testing.T) {
 		}
 		assertLiveUsage(t, f, 0, 0)
 	}
+}
+
+func TestSearchPermissionFencesIncludePublicExecutorCost(t *testing.T) {
+	f, _, d := searchDispatcherFixture(t, 1, nil)
+	d.titles = func(ctx context.Context, purpose governor.Request, budget time.Duration, output BrowseOutput, in BrowseInput, _ search.Query) (TitleSearchPage, *BrowseReadResult, error) {
+		// An actual public reader still consumes the same scope's one operation;
+		// the dispatcher's serial fence-only windows neither deadlock it nor
+		// substitute LIVE for its permission checks. This is not a title search.
+		page, cost, err := f.reader.Window(ctx, purpose, budget, output, in)
+		return TitleSearchPage{Disposition: SearchResults, Items: page.Items}, &cost, err
+	}
+	q, r, o := liveRequests("public-title-executor")
+	result, err := d.Consume(t.Context(), q, r, time.Second, o, dispatcherInput(f, "a"), func(context.Context, SearchResponse) (func(context.Context) error, error) {
+		return func(context.Context) error { return nil }, nil
+	})
+	if err != nil || !result.Published || result.Read == nil || result.Read.LookupStatements != 11 || result.Read.PublicationStatements != 10 || len(result.Read.LookupWindows) != 2 || len(result.Read.PublicationWindows) != 2 {
+		t.Fatal("executor/fence work lost or duplicated", result.Read, err)
+	}
+	assertLiveUsage(t, f, 0, 0)
 }
