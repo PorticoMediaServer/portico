@@ -1,17 +1,16 @@
 // Package read implements harness-only foreground reads of schema-v1. It has
-// no connection, transaction or writer capability. Composition owns GV snapshot
-// admission and separately reserves any output retained after its callback.
+// no connection, transaction or writer capability. Composition supplies bounded
+// GV requests and holds separately reserved output through actual consumption.
 package read
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 	"unicode/utf8"
-
-	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
 
 var (
@@ -50,6 +49,9 @@ type BrowseCursor struct {
 type browseFence struct {
 	database, token, account, profile, membership, lifetime, library                            string
 	epoch, authority, membershipRevision, profileRevision, restrictionRevision                  int64
+	maximumAge, allowUnrated, container                                                         int64
+	role, memberLibraries, profileLibraries, profileLabels, expiresAt, horizon                  string
+	profileRestricted                                                                           bool
 	libraryID, kind, dataRevision, orderRevision, metadataRevision, ageRevision, viewerRevision int64
 	descending, keepArticles                                                                    bool
 }
@@ -68,48 +70,35 @@ type BrowsePage struct {
 	Exhausted                bool
 	Next                     *BrowseCursor
 	RawPositions, Statements int
-	// RawRows counts all fetched rows, including unused lookahead that may be
-	// read again next time. RawPositions counts only cursor positions consumed.
+	// RawRows counts fetched title rows, including unused lookahead that may be
+	// read again next time. Snapshot accounting also charges all fence rows.
+	// RawPositions counts only cursor positions consumed.
 	RawRows int
 	// LookupElapsed includes title SQL and bounded hydration/reduction only.
 	// It omits authority/fences/GV and must never be labelled route latency.
 	LookupElapsed time.Duration
 }
 
-// BrowseWindow is the callable QL read kernel. Invoke only inside Snapshots.Read
-// with its test-only registry, <=1s lifetime and enough raw-row/native/Go memory admission.
-// It includes principal, authority, library, revision and kind checks, plus
-// bounded card hydration. Measure the enclosing GV call as the route equivalent;
-// lookup-only SQL is not that result. No IO, wait, callback or SQL handle escapes.
-// Output retained beyond GV's callback requires separately charged custody.
-//
-// Initial implemented semantic envelope: local viewing sessions, open profiles,
-// and age-restricted leaves. Stored member policies, blocked labels and restricted
-// containers explicitly refuse until their complete bounded verifiers land.
-func BrowseWindow(scope *governor.ReadScope, in BrowseInput) (page BrowsePage, err error) {
-	if scope == nil || len(in.Database) == 0 || len(in.Database) > 256 || len(in.TokenHash) == 0 || len(in.TokenHash) > 256 || in.Library <= 0 || in.Kind <= 0 || in.Kind > 99 || in.Limit < 1 || in.Limit > MaxPage || in.Now.IsZero() {
-		return page, ErrInput
-	}
-	if in.Kind > 10 {
-		return page, ErrUnqualified
-	}
-	query := func(id string, args ...any) ([][]any, error) {
-		page.Statements++
-		return scope.Query(statementID(id), args...)
-	}
+// browseQuery is confined to the registered Query API of one bounded scope.
+type browseQuery func(string, ...any) ([][]any, error)
+
+// readBrowseFence runs identically in the lookup and fresh publication views.
+// Besides revisions, retain the actual policy values used by the item predicate
+// so an unversioned policy drift still cannot release the earlier page.
+func readBrowseFence(query browseQuery, in BrowseInput) (browseFence, error) {
 	global, err := query("global_authority", int64(1))
 	if err != nil {
-		return BrowsePage{}, err
+		return browseFence{}, err
 	}
 	if len(global) != 1 {
-		return BrowsePage{}, ErrDenied
+		return browseFence{}, ErrDenied
 	}
 	a, err := query("principal", in.TokenHash, global[0][0])
 	if err != nil {
-		return BrowsePage{}, err
+		return browseFence{}, err
 	}
 	if len(a) != 1 {
-		return BrowsePage{}, ErrDenied
+		return browseFence{}, ErrDenied
 	}
 	r := a[0]
 	// The same-snapshot global point and joined account/profile/member/device state prove the
@@ -118,53 +107,53 @@ func BrowseWindow(scope *governor.ReadScope, in BrowseInput) (page BrowsePage, e
 	expires, e1 := time.Parse(time.RFC3339Nano, r[8].(string))
 	horizon, e2 := time.Parse(time.RFC3339Nano, r[9].(string))
 	if e1 != nil || e2 != nil || !in.Now.Before(expires) || !in.Now.Before(horizon) {
-		return BrowsePage{}, ErrDenied
+		return browseFence{}, ErrDenied
 	}
 	if r[15] != nil {
-		return BrowsePage{}, ErrUnqualified
+		return browseFence{}, ErrUnqualified
 	}
 	var allowed []string
 	if err = json.Unmarshal([]byte(r[6].(string)), &allowed); err != nil || allowed == nil || len(allowed) > 100 {
-		return BrowsePage{}, ErrUnqualified
+		return browseFence{}, ErrUnqualified
 	}
 	var profileAllowed []string
 	if r[7] != nil {
 		if err = json.Unmarshal([]byte(r[7].(string)), &profileAllowed); err != nil || len(profileAllowed) > 100 {
-			return BrowsePage{}, ErrUnqualified
+			return browseFence{}, ErrUnqualified
 		}
 		// JSON null is not an inherited SQL NULL policy.
 		if profileAllowed == nil {
-			return BrowsePage{}, ErrUnqualified
+			return browseFence{}, ErrUnqualified
 		}
 	}
 	var labels []string
 	if !utf8.ValidString(r[14].(string)) {
-		return BrowsePage{}, ErrUnqualified
+		return browseFence{}, ErrUnqualified
 	}
 	if err = json.Unmarshal([]byte(r[14].(string)), &labels); err != nil || labels == nil || len(labels) > 64 {
-		return BrowsePage{}, ErrUnqualified
+		return browseFence{}, ErrUnqualified
 	}
 	for _, label := range labels {
 		if len(label) == 0 || len(label) > 120 {
-			return BrowsePage{}, ErrUnqualified
+			return browseFence{}, ErrUnqualified
 		}
 	}
 	if len(labels) > 0 {
-		return BrowsePage{}, ErrUnqualified
+		return browseFence{}, ErrUnqualified
 	}
 	bridge, err := query("library_identity", in.Library)
 	if err != nil {
-		return BrowsePage{}, err
+		return browseFence{}, err
 	}
 	if len(bridge) != 1 {
-		return BrowsePage{}, ErrDenied
+		return browseFence{}, ErrDenied
 	}
 	l, err := query("library", r[1].(string), bridge[0][0])
 	if err != nil {
-		return BrowsePage{}, err
+		return browseFence{}, err
 	}
 	if len(l) != 1 {
-		return BrowsePage{}, ErrDenied
+		return browseFence{}, ErrDenied
 	}
 	lr := l[0]
 	lib := lr[0].(string)
@@ -177,28 +166,37 @@ func BrowseWindow(scope *governor.ReadScope, in BrowseInput) (page BrowsePage, e
 		return false
 	}
 	if r[5].(string) != "owner" && !contains(allowed) || r[7] != nil && !contains(profileAllowed) {
-		return BrowsePage{}, ErrDenied
+		return browseFence{}, ErrDenied
 	}
 	if lr[7].(int64) != 0 || lr[5] != lr[6] {
-		return BrowsePage{}, ErrUnqualified
+		return browseFence{}, ErrUnqualified
 	}
 	k, err := query("kind", in.Kind)
 	if err != nil {
-		return BrowsePage{}, err
+		return browseFence{}, err
 	}
 	if len(k) != 1 {
-		return BrowsePage{}, ErrUnqualified
+		return browseFence{}, ErrUnqualified
 	}
 	maximum, unrated := r[12].(int64), r[13].(int64)
 	if k[0][0].(int64) != 0 && (maximum >= 0 || unrated == 0) {
-		return BrowsePage{}, ErrUnqualified
+		return browseFence{}, ErrUnqualified
 	}
 	f := browseFence{database: strings.Clone(in.Database), token: strings.Clone(in.TokenHash), account: r[0].(string), profile: r[1].(string), membership: r[2].(string), lifetime: r[3].(string), library: lib,
 		epoch: r[4].(int64), authority: r[10].(int64), membershipRevision: r[11].(int64), profileRevision: r[16].(int64), restrictionRevision: r[17].(int64),
-		libraryID: in.Library, kind: in.Kind, dataRevision: lr[1].(int64), orderRevision: lr[2].(int64), metadataRevision: lr[3].(int64), viewerRevision: lr[4].(int64), ageRevision: lr[5].(int64), descending: in.Descending, keepArticles: in.KeepArticles}
-	if in.After != nil && in.After.fence != f {
-		return BrowsePage{}, ErrStale
+		libraryID: in.Library, kind: in.Kind, dataRevision: lr[1].(int64), orderRevision: lr[2].(int64), metadataRevision: lr[3].(int64), viewerRevision: lr[4].(int64), ageRevision: lr[5].(int64), maximumAge: maximum, allowUnrated: unrated, container: k[0][0].(int64), role: r[5].(string), memberLibraries: r[6].(string), profileLabels: r[14].(string), expiresAt: r[8].(string), horizon: r[9].(string), profileRestricted: r[7] != nil, descending: in.Descending, keepArticles: in.KeepArticles}
+	if r[7] != nil {
+		f.profileLibraries = r[7].(string)
 	}
+	if in.After != nil && in.After.fence != f {
+		return browseFence{}, ErrStale
+	}
+	return f, nil
+}
+
+// A draft is private until BrowseReader.Window completes fresh validation.
+func readBrowsePage(ctx context.Context, query browseQuery, in BrowseInput, f browseFence) (page BrowsePage, err error) {
+	maximum, unrated := f.maximumAge, f.allowUnrated
 	// Each statement limits RAW positions before live/age rejection. Retired
 	// subjects consume this same budget and advance the raw continuation.
 	name := "title."
@@ -229,7 +227,7 @@ func BrowseWindow(scope *governor.ReadScope, in BrowseInput) (page BrowsePage, e
 	}
 	page.RawRows = len(raw)
 	for _, v := range raw {
-		if err = scope.Context().Err(); err != nil {
+		if err = ctx.Err(); err != nil {
 			return BrowsePage{}, err
 		}
 		page.RawPositions++
