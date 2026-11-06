@@ -2,6 +2,14 @@
   "version": 1,
   "readers": [
     {
+      "package": "server/internal/store/stmt/stmttest",
+      "why": "Checks all production server Go sources for fixture-only registration imports and unreceipted constructors, and compiles an ordinary-binary probe with the server module's Go version",
+      "reads": ["server/*.go", "server/go.mod"],
+      "ignore": ["*_test.go", "*/testdata/*"],
+      "files": ["server/internal/store/stmt/stmttest/registry_test.go"],
+      "tests": ["TestFixtureAdapterRefusesOrdinaryBinary", "TestNoProductionFixtureImportsOrUnreceiptedRegistration"]
+    },
+    {
       "package": "server/internal/identity",
       "why": "Membership authority censuses inspect every production Go writer across build tags and the installed schema trigger bodies",
       "reads": [
