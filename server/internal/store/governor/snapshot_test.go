@@ -16,6 +16,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
 func snapshotFixture(t *testing.T) (string, *sql.Conn) {
@@ -69,7 +70,7 @@ func snapshotRegistry(t *testing.T) *stmt.Registry {
 		definitions = append(definitions, stmt.Definition{ID: id, SQL: query, Owner: "read-test", CallSites: []string{"snapshot-test"}, Kind: stmt.Read, Cohorts: []stmt.Cohort{{Name: "plain"}}})
 	}
 	definitions = append(definitions, stmt.Definition{ID: "arg", SQL: "SELECT ?", Owner: "read-test", CallSites: []string{"snapshot-test"}, Kind: stmt.Read, Params: []stmt.Param{{Name: "value", Type: stmt.Text}}, Cohorts: []stmt.Cohort{{Name: "plain", Bindings: []any{"text"}}}})
-	r, err := stmt.New(definitions)
+	r, err := stmttest.New(t, definitions)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -410,7 +411,7 @@ func TestSnapshotClosedStatementsAndOutputBudgets(t *testing.T) {
 	g, a := snapshotGovernor(t)
 	s, db, c := snapshotReaderDriver(t, path, g, a)
 	for _, sqlText := range []string{"PRAGMA query_only=0", "ATTACH 'other' AS extra", "CREATE TEMP TABLE x(v)", "INSERT INTO temp.x VALUES(1)", "WITH x AS(SELECT 1) DELETE FROM source", "SELECT 1; PRAGMA query_only=0; CREATE TEMP TABLE x(v)"} {
-		reg, err := stmt.New([]stmt.Definition{{ID: "unsafe", SQL: sqlText, Kind: stmt.Read, Owner: "test", CallSites: []string{"test"}, Cohorts: []stmt.Cohort{{Name: "unsafe"}}}})
+		reg, err := stmttest.New(t, []stmt.Definition{{ID: "unsafe", SQL: sqlText, Kind: stmt.Read, Owner: "test", CallSites: []string{"test"}, Cohorts: []stmt.Cohort{{Name: "unsafe"}}}})
 		if err == nil {
 			if _, err = NewSnapshots(c, s.config, g, a, reg); err == nil {
 				t.Fatal("policy changing statement accepted", sqlText)
@@ -746,7 +747,7 @@ func snapshotNativeReservation(t *testing.T, fullAggregate bool) {
 				queryColumns = 4
 			}
 			expression := "SELECT " + strings.TrimSuffix(strings.Repeat("randomblob(12000),", queryColumns), ",")
-			registry, err := stmt.New([]stmt.Definition{
+			registry, err := stmttest.New(t, []stmt.Definition{
 				{ID: "aggregate", SQL: expression, Kind: stmt.Read, Owner: "test", CallSites: []string{"native-reserve"}, Cohorts: []stmt.Cohort{{Name: "all"}}},
 				{ID: "go-aggregate", SQL: strings.ReplaceAll(expression, "12000", "6000"), Kind: stmt.Read, Owner: "test", CallSites: []string{"copy-reserve"}, Cohorts: []stmt.Cohort{{Name: "all"}}},
 			})

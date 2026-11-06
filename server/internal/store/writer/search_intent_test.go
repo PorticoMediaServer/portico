@@ -10,6 +10,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/searchpolicy"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
 func TestSearchInputChangeAdmission(t *testing.T) {
@@ -88,7 +89,7 @@ VALUES(1,'v1',?,?,?,'active',1000)`, searchpolicy.RecipeV1, searchpolicy.EngineV
 	if _, err := w.db.ExecContext(t.Context(), `UPDATE search_revision SET active_generation_id=1 WHERE singleton=1`); err != nil {
 		t.Fatal(err)
 	}
-	r, err := stmt.New(searchInputIntentDefinitions())
+	r, err := stmttest.New(t, searchInputIntentDefinitions())
 	if err != nil {
 		t.Fatal(err)
 	}

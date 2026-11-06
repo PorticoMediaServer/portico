@@ -11,6 +11,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 	"github.com/PorticoMediaServer/portico/server/internal/thirdparty/sqlite"
 )
 
@@ -42,7 +43,7 @@ func snapshotBoundAttempts(t *testing.T, kind stmt.Type) func(bool) {
 	if kind == stmt.Blob {
 		witness = []byte("warm")
 	}
-	registry, err := stmt.New([]stmt.Definition{{ID: "bound", SQL: "SELECT governor_bound_panic(?)", Kind: stmt.Read, Owner: "test", CallSites: []string{"bound-panic"}, Params: []stmt.Param{{Name: "value", Type: kind}}, Cohorts: []stmt.Cohort{{Name: "bound", Bindings: []any{witness}}}}})
+	registry, err := stmttest.New(t, []stmt.Definition{{ID: "bound", SQL: "SELECT governor_bound_panic(?)", Kind: stmt.Read, Owner: "test", CallSites: []string{"bound-panic"}, Params: []stmt.Param{{Name: "value", Type: kind}}, Cohorts: []stmt.Cohort{{Name: "bound", Bindings: []any{witness}}}}})
 	if err != nil {
 		t.Fatal(err)
 	}

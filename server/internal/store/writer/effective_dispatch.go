@@ -33,7 +33,8 @@ type effectiveFixturePermit struct {
 }
 
 type effectivePlan struct {
-	recipe turnRecipe
+	registration stmt.Receipt // required Capture proof; zero fails closed
+	recipe       turnRecipe
 	// Included in the terminal reserve and whole-command IO/WAL forecast, never
 	// an assumed built-in 5ms allowance. Qualification belongs to composition.
 	headerSync Work
@@ -68,7 +69,7 @@ func newEffectiveRuntime(w *executor, path string, g governor.Governor, a *gover
 	}
 	defs := append(enrichmentEffectiveBeginDefinitions(), enrichmentEffectiveProducerDefinitions()...)
 	defs = append(defs, effectiveDispatchDefinitions()...)
-	registry, err := stmt.New(defs)
+	registry, err := stmt.New(defs, plan.registration)
 	if err != nil {
 		return nil, err
 	}

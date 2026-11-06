@@ -510,7 +510,7 @@
               "CacheKiB": 1024,
               "Synchronous": 1
             },
-            "sha256": "a640b1bbfc5c58880feaf1cdb5e0b9d1b9ba1bc5c743d4d04b7ae66652f02067",
+            "sha256": "16b8b7af7e0db77d283c4d5e5606bd2e0f2bb18ae76be927b79e6399c0e003ba",
             "statistics": "unanalyzed",
             "implementations": "bundled SQLite3.53.4; builtin functions/collations; searchInputFixture fixed stale tuple; active_only; compile only, no native-v2 claim"
           },
@@ -24674,7 +24674,7 @@
               "CacheKiB": 1024,
               "Synchronous": 1
             },
-            "sha256": "0e67d10090ce5b83087028c0caeff11c85c709b1b537ede26c37380d6afb1032",
+            "sha256": "f41e67ed2b56ae82fe4ccaa0de135f0561320c3aeb0f47f5dbac6efc2b8f2ea3",
             "statistics": "unanalyzed",
             "implementations": "bundled SQLite3.53.4; builtin functions/collations; searchInputFixture fixed stale tuple; metadata_building_clock; compile only, no native-v2 claim"
           },

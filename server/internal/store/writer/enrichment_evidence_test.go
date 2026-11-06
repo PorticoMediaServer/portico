@@ -12,6 +12,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
 func evidenceHeaderFixture() EvidenceHeaderInput {
@@ -161,7 +162,7 @@ func TestEvidenceHeaderIndependentFieldVector(t *testing.T) {
 
 func TestEvidenceStatementsCompileOnChange001(t *testing.T) {
 	definitions := enrichmentEvidenceDefinitions()
-	registry, err := stmt.New(definitions)
+	registry, err := stmttest.New(t, definitions)
 	if err != nil {
 		t.Fatal(err)
 	}
