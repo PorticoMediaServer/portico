@@ -187,7 +187,7 @@ func TestInventoryFreshObservationRefusesUnsupportedOrChangedFacts(t *testing.T)
 			change(c)
 			if name != "unhashed_mutation" {
 				var err error
-				c.digest, err = canonicalRequestDigest(InventoryAccept, 1, c.identity, c.request)
+				c.digest, err = canonicalRequestDigest(InventoryAccept, inventoryAcceptRequestVersion, c.identity, c.request)
 				if err != nil {
 					t.Fatal(err)
 				}
