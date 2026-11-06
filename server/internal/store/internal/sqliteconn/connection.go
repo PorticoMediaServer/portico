@@ -45,6 +45,13 @@ type Config struct {
 
 var ErrPolicy = errors.New("schema-v1 connection policy mismatch")
 
+// FileMode narrows an opening to an existing file. It does not change the
+// connection policy or authorize a schema/row; the trusted opening must still
+// assert the canonical layout and bind the actual file identity.
+type FileMode uint8
+
+const ExistingFile FileMode = 1
+
 func (c Config) validate() error {
 	if c.Role < Writer || c.Role > Checkpointer || c.CacheKiB <= 0 || c.Connections <= 0 ||
 		(c.Role != Reader && c.Connections != 1) || (c.Synchronous != Normal && c.Synchronous != Full) {
@@ -58,10 +65,15 @@ func (c Config) validate() error {
 
 // Connector accepts an absolute file path, never a caller-supplied DSN or SQL.
 // PRAGMAs are in the immutable DSN; opt-in read limits are set once on each
-// raw physical Connect. No global hook or existing pool is modified.
-func Connector(path string, c Config) (driver.Connector, error) {
+// raw physical Connect. ExistingFile refuses creation on EVERY replacement;
+// without it the original fresh-writer mode remains unchanged. No global hook
+// or existing pool is modified.
+func Connector(path string, c Config, modes ...FileMode) (driver.Connector, error) {
 	if err := c.validate(); err != nil {
 		return nil, err
+	}
+	if len(modes) > 1 || (len(modes) == 1 && modes[0] != ExistingFile) {
+		return nil, ErrPolicy
 	}
 	u, err := fileURI(path)
 	if err != nil {
@@ -69,7 +81,7 @@ func Connector(path string, c Config) (driver.Connector, error) {
 	}
 	q := url.Values{}
 	mode := "rw"
-	if c.Role == Writer {
+	if c.Role == Writer && len(modes) == 0 {
 		mode = "rwc"
 	}
 	if c.Role == Reader {
@@ -137,8 +149,8 @@ func fileURIForPlatform(path string, windows bool) (url.URL, error) {
 // subsequent physical connection receives the SAME settings from Connector.
 // Drivers/harnesses must also Assert at each acquisition boundary and record
 // the returned values with qualification receipts.
-func Open(ctx context.Context, path string, c Config) (*sql.DB, Settings, error) {
-	connector, err := Connector(path, c)
+func Open(ctx context.Context, path string, c Config, modes ...FileMode) (*sql.DB, Settings, error) {
+	connector, err := Connector(path, c, modes...)
 	if err != nil {
 		return nil, Settings{}, err
 	}
