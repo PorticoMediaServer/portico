@@ -10204,6 +10204,20 @@
               ],
               [
                 "table",
+                "access_channel_rules",
+                "access_channel_rules",
+                2282,
+                "CREATE TABLE access_channel_rules(\n account_id TEXT NOT NULL REFERENCES access_limits(account_id),\n ordinal INTEGER NOT NULL CHECK(ordinal\u003e=0),\n channel_id TEXT NOT NULL CHECK(length(channel_id)\u003e0),\n PRIMARY KEY(account_id,ordinal),\n CHECK(typeof(account_id)='text'),\n CHECK(typeof(ordinal)='integer'),\n CHECK(typeof(channel_id)='text')\n) WITHOUT ROWID"
+              ],
+              [
+                "table",
+                "access_denied_labels",
+                "access_denied_labels",
+                2279,
+                "CREATE TABLE access_denied_labels(\n account_id TEXT NOT NULL REFERENCES access_limits(account_id),\n ordinal INTEGER NOT NULL CHECK(ordinal\u003e=0),\n label TEXT NOT NULL CHECK(length(label)\u003e0),\n PRIMARY KEY(account_id,ordinal),\n CHECK(typeof(account_id)='text'),\n CHECK(typeof(ordinal)='integer'),\n CHECK(typeof(label)='text')\n) WITHOUT ROWID"
+              ],
+              [
+                "table",
                 "access_invitation_short_codes",
                 "access_invitation_short_codes",
                 2,
@@ -10229,6 +10243,13 @@
                 "access_receipts",
                 10,
                 "CREATE TABLE access_receipts(\n scope TEXT NOT NULL,\n operation_id TEXT NOT NULL,\n digest TEXT NOT NULL,\n body TEXT NOT NULL,\n created_ms INTEGER NOT NULL,\n PRIMARY KEY(scope,operation_id)\n) STRICT"
+              ],
+              [
+                "table",
+                "access_schedule_windows",
+                "access_schedule_windows",
+                2281,
+                "CREATE TABLE access_schedule_windows(\n account_id TEXT NOT NULL REFERENCES access_limits(account_id),\n ordinal INTEGER NOT NULL CHECK(ordinal\u003e=0),\n day_mask INTEGER NOT NULL CHECK(day_mask BETWEEN 1 AND 127),\n start_minute INTEGER NOT NULL CHECK(start_minute BETWEEN 0 AND 1439),\n end_minute INTEGER NOT NULL CHECK(end_minute BETWEEN 0 AND 1440 AND end_minute\u003c\u003estart_minute),\n PRIMARY KEY(account_id,ordinal),\n CHECK(typeof(account_id)='text'),\n CHECK(typeof(ordinal)='integer'),\n CHECK(typeof(day_mask)='integer'),\n CHECK(typeof(start_minute)='integer'),\n CHECK(typeof(end_minute)='integer')\n) WITHOUT ROWID"
               ],
               [
                 "table",
@@ -15181,7 +15202,7 @@
               ]
             ]
           },
-          "schemaSha256": "4f528734d718e268d0546aa5cd640798d9a2342d98f311a2857862f95c547a24",
+          "schemaSha256": "fd15b64e50fb7eee9e828c6e803e1315d04b6c0e87a9bbae5e687ec6195cead4",
           "statistics": {},
           "statisticsSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
           "pragmas": {
@@ -34368,6 +34389,20 @@
               ],
               [
                 "table",
+                "access_channel_rules",
+                "access_channel_rules",
+                2282,
+                "CREATE TABLE access_channel_rules(\n account_id TEXT NOT NULL REFERENCES access_limits(account_id),\n ordinal INTEGER NOT NULL CHECK(ordinal\u003e=0),\n channel_id TEXT NOT NULL CHECK(length(channel_id)\u003e0),\n PRIMARY KEY(account_id,ordinal),\n CHECK(typeof(account_id)='text'),\n CHECK(typeof(ordinal)='integer'),\n CHECK(typeof(channel_id)='text')\n) WITHOUT ROWID"
+              ],
+              [
+                "table",
+                "access_denied_labels",
+                "access_denied_labels",
+                2279,
+                "CREATE TABLE access_denied_labels(\n account_id TEXT NOT NULL REFERENCES access_limits(account_id),\n ordinal INTEGER NOT NULL CHECK(ordinal\u003e=0),\n label TEXT NOT NULL CHECK(length(label)\u003e0),\n PRIMARY KEY(account_id,ordinal),\n CHECK(typeof(account_id)='text'),\n CHECK(typeof(ordinal)='integer'),\n CHECK(typeof(label)='text')\n) WITHOUT ROWID"
+              ],
+              [
+                "table",
                 "access_invitation_short_codes",
                 "access_invitation_short_codes",
                 2,
@@ -34393,6 +34428,13 @@
                 "access_receipts",
                 10,
                 "CREATE TABLE access_receipts(\n scope TEXT NOT NULL,\n operation_id TEXT NOT NULL,\n digest TEXT NOT NULL,\n body TEXT NOT NULL,\n created_ms INTEGER NOT NULL,\n PRIMARY KEY(scope,operation_id)\n) STRICT"
+              ],
+              [
+                "table",
+                "access_schedule_windows",
+                "access_schedule_windows",
+                2281,
+                "CREATE TABLE access_schedule_windows(\n account_id TEXT NOT NULL REFERENCES access_limits(account_id),\n ordinal INTEGER NOT NULL CHECK(ordinal\u003e=0),\n day_mask INTEGER NOT NULL CHECK(day_mask BETWEEN 1 AND 127),\n start_minute INTEGER NOT NULL CHECK(start_minute BETWEEN 0 AND 1439),\n end_minute INTEGER NOT NULL CHECK(end_minute BETWEEN 0 AND 1440 AND end_minute\u003c\u003estart_minute),\n PRIMARY KEY(account_id,ordinal),\n CHECK(typeof(account_id)='text'),\n CHECK(typeof(ordinal)='integer'),\n CHECK(typeof(day_mask)='integer'),\n CHECK(typeof(start_minute)='integer'),\n CHECK(typeof(end_minute)='integer')\n) WITHOUT ROWID"
               ],
               [
                 "table",
@@ -39345,7 +39387,7 @@
               ]
             ]
           },
-          "schemaSha256": "4f528734d718e268d0546aa5cd640798d9a2342d98f311a2857862f95c547a24",
+          "schemaSha256": "fd15b64e50fb7eee9e828c6e803e1315d04b6c0e87a9bbae5e687ec6195cead4",
           "statistics": {},
           "statisticsSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
           "pragmas": {
