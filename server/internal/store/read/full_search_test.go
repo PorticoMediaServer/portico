@@ -162,8 +162,8 @@ func TestFullSearchDispatcherUsesDedicatedFullSeam(t *testing.T) {
 			after = response.Full.Next
 			return func(context.Context) error { assertLiveUsage(t, f, 1, 0); return nil }, nil
 		})
-		if e != nil || !result.Published || result.Mode != search.ReadFull || result.Read != nil {
-			t.Fatal("model claimed native evidence or failed", result, e)
+		if e != nil || !result.Published || result.Mode != search.ReadFull || result.Read == nil || result.Read.LookupStatements != 5 || result.Read.PublicationStatements != 5 {
+			t.Fatal("model source fabricated evidence or shared fences missing", result, e)
 		}
 		assertLiveUsage(t, f, 0, 0)
 	}
@@ -199,5 +199,46 @@ func TestFullSearchOutputShapeAndCursorDrift(t *testing.T) {
 	}
 	if _, e = ownFullSearchPage(FullSearchPage{Disposition: SearchPending, Hits: []FullSearchHit{{Subject: search.ManifestEntity, ID: 1}}}, 20); e == nil {
 		t.Fatal("partial success accepted")
+	}
+}
+
+func TestFullSearchDispatchRetainsBirthFences(t *testing.T) {
+	for _, phase := range []string{"initial-member", "final-profile", "final-profile-cancel"} {
+		t.Run(phase, func(t *testing.T) {
+			f, requests, _ := searchDispatcherFixture(t, 1, nil)
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			calls := 0
+			d, e := NewFullSearchDispatcher(requests, f.governor, f.authority, f.snapshots, nil, func(context.Context, governor.Request, time.Duration, BrowseOutput, FullSearchInput, search.Query) (FullSearchPage, *BrowseReadResult, error) {
+				calls++
+				f.exec(t, `UPDATE direct_profiles SET lifetime='11111111111111111111111111111111' WHERE id='p'`)
+				if phase == "final-profile-cancel" {
+					cancel()
+					return FullSearchPage{}, nil, context.Canceled
+				}
+				return FullSearchPage{Disposition: SearchResults, Hits: []FullSearchHit{{Subject: search.ManifestEntity, ID: 1, Library: 1, Tier: 0, Item: BrowseItem{ID: 1, Title: "Matrix"}}}}, nil, nil
+			})
+			if e != nil {
+				t.Fatal(e)
+			}
+			if phase == "initial-member" {
+				f.exec(t, `UPDATE direct_memberships SET incarnation='22222222222222222222222222222222' WHERE account_id='a'`)
+			}
+			q, r, o := liveRequests("full-birth")
+			published := false
+			result, e := d.Consume(ctx, q, r, time.Second, o, dispatcherInput(f, "Matrix"), func(context.Context, SearchResponse) (func(context.Context) error, error) {
+				return func(context.Context) error { published = true; return nil }, nil
+			})
+			if !errors.Is(e, ErrDenied) || published || result.Published {
+				t.Fatal("full seam bypassed birth/denial precedence", result, e)
+			}
+			if phase == "initial-member" && calls != 0 {
+				t.Fatal("denied initial entered full source")
+			}
+			if phase != "initial-member" && (calls != 1 || result.Read == nil || result.Read.PublicationStatements != 2) {
+				t.Fatal("final principal not checked", result, e)
+			}
+			assertLiveUsage(t, f, 0, 0)
+		})
 	}
 }
