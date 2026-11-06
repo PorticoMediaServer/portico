@@ -2156,5 +2156,21 @@
         }
       }
     }
+  },
+  "web/scripts/config.mjs": {
+    "category": "non-api-platform",
+    "reason": "Approved exact non-API platform IO: Vite development-server websocket reload.",
+    "sites": [
+      "web/scripts/config.mjs#5d646c8e0e304aba"
+    ],
+    "guardHashes": {
+      "web/scripts/config.mjs#5d646c8e0e304aba": "8ea45d0050236d0cb9f587f6d4f619421289b5fae9de0fad71417df476773eae"
+    },
+    "sourceHashes": {
+      "web/scripts/config.mjs#5d646c8e0e304aba": {
+        "web/scripts/config.mjs": "29bda6841031ed85b1be4ff9876e7d4dde4663076d6485853b8695d298fd2ef4",
+        "web/vite.config.ts": "ef0b2326fd9137bbf372e7b0fbe94446f86715eac959202a061381627bc7cffd"
+      }
+    }
   }
 }
