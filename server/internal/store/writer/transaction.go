@@ -279,6 +279,20 @@ func (w *executor) begin(ctx context.Context, id CommandID, r turnRecipe, c turn
 		return nil, ErrClosed
 	}
 	start := w.now()
+	var clockHighWater time.Time
+	var compositionClock *time.Time
+	if governed, ok := c.(*governedTurn); ok {
+		compositionClock = governed.clockHighWater
+		if compositionClock != nil {
+			clockHighWater = *compositionClock
+		}
+	}
+	if err = observeTime(&clockHighWater, start); err != nil {
+		return nil, err
+	}
+	if compositionClock != nil {
+		*compositionClock = clockHighWater
+	}
 	q, err := NewQuantum(r.limit, r.terminal, start)
 	if err != nil {
 		return nil, err
@@ -297,7 +311,7 @@ func (w *executor) begin(ctx context.Context, id CommandID, r turnRecipe, c turn
 		return nil, err
 	}
 	turnCtx, cancel := context.WithDeadline(ctx, start.Add(r.limit.Hold))
-	t = &transaction{writer: w, ctx: turnCtx, cancel: cancel, custody: c, quantum: q, start: start, limit: r.limit.Hold, workLimit: r.limit, descriptor: desc}
+	t = &transaction{writer: w, ctx: turnCtx, cancel: cancel, custody: c, quantum: q, start: start, clockHighWater: clockHighWater, compositionClock: compositionClock, limit: r.limit.Hold, workLimit: r.limit, descriptor: desc}
 	now := w.now()
 	if err = t.observeTime(now); err != nil {
 		return nil, err
@@ -374,25 +388,55 @@ type transaction struct {
 	poolCloseAttempted  bool
 	primaryPanic        any
 	cleanupPanics       []terminalPanic
+
+	compositionClock *time.Time // real runtime's same mark survives all admission failures
 }
 
 // observeTime records every trusted admission/helper sample, even a helper read
 // that consumes no statement work. Compare both elapsed and wall ordering:
 // persisted Unix timestamps must not regress during a wall-clock adjustment.
 func (t *transaction) observeTime(now time.Time) error {
-	floors := [3]time.Time{t.start, t.clockHighWater}
-	count := 2
+	floors := [3]time.Time{t.start}
+	count := 1
 	if t.quantum != nil {
-		floors[2] = t.quantum.last
+		floors[1] = t.quantum.last
 		count++
 	}
-	for _, floor := range floors[:count] {
+	if t.compositionClock != nil {
+		floors[count] = *t.compositionClock
+		count++
+	}
+	if err := observeTime(&t.clockHighWater, now, floors[:count]...); err != nil {
+		return err
+	}
+	if t.compositionClock != nil {
+		*t.compositionClock = t.clockHighWater
+	}
+	return nil
+}
+
+// The same ordering rule covers pre-BEGIN admission and post-return WAL samples.
+// Their composition-owned mark transfers into the owned turn, then its terminal
+// samples fence the next WAL publication. It grants no work or clock authority.
+func observeTime(highWater *time.Time, now time.Time, floors ...time.Time) error {
+	if now.Before(*highWater) || now.Round(0).Before(highWater.Round(0)) {
+		return ErrQuantum
+	}
+	for _, floor := range floors {
 		if now.Before(floor) || now.Round(0).Before(floor.Round(0)) {
 			return ErrQuantum
 		}
 	}
-	t.clockHighWater = now
+	*highWater = now
 	return nil
+}
+
+func (t *transaction) clockTime() (time.Time, error) {
+	now := t.writer.now()
+	if err := t.observeTime(now); err != nil {
+		return time.Time{}, err
+	}
+	return now, nil
 }
 
 // before is used before each next static statement/sub-batch. Domain SQL and
@@ -453,6 +497,9 @@ func (t *transaction) commit() (turnResult, error) {
 		return t.rollback(err)
 	}
 	start := t.writer.now()
+	if err := t.observeTime(start); err != nil {
+		return t.rollback(err)
+	}
 	t.commitStartedAt = start
 	t.commitAttempted = true
 	_, err = t.conn.ExecContext(t.ctx, "COMMIT")
