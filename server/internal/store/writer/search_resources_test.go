@@ -80,9 +80,7 @@ func TestSearchImageMemorySameGrantPartitionAndPurpose(t *testing.T) {
 	}
 	c.inventoryMemory = inventoryMemoryBudget{}
 	c.searchImageMemory = searchImageMemoryBudget{65536, 1}
-	if err := turn.requireSearchImageMemory(t.Context(), 1); !errors.Is(err, ErrInvalid) {
-		t.Fatal("malformed installed partition", err)
-	}
+	assertPartitionPolicyError(t, turn.requireSearchImageMemory(t.Context(), 1), "search_image_memory_partition")
 	c.searchImageMemory = budget
 	c.expected.Need[governor.MemoryBytes]++
 	if err := turn.requireSearchImageMemory(t.Context(), 1); !errors.Is(err, governor.ErrGrant) {

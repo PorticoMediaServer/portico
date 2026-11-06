@@ -17,5 +17,5 @@ func validateInventoryMemory(b inventoryMemoryBudget, total int64) error {
 // retained-output lifetime custody are not transferred by this check.
 func (t *commandTurn) requireInventoryMemory(ctx context.Context, requiredBytes uint64) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(t), struct{}{}, err) }()
-	return t.requireCommandMemory(ctx, InventoryAccept, requiredBytes)
+	return t.requireCommandMemory(ctx, InventoryAccept, requiredBytes, "inventory_memory_partition")
 }

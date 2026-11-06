@@ -20,7 +20,7 @@ func (t *commandTurn) searchImageTimeMS(ctx context.Context, leaseExpiresMS int6
 // This check neither grants, resizes nor refunds memory.
 func (t *commandTurn) requireSearchImageMemory(ctx context.Context, requiredBytes uint64) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(t), struct{}{}, err) }()
-	return t.requireCommandMemory(ctx, SearchImageStage, requiredBytes)
+	return t.requireCommandMemory(ctx, SearchImageStage, requiredBytes, "search_image_memory_partition")
 }
 
 func checkSearchImageTerminal(ctx context.Context, turn *commandTurn, input *searchImageStageCommand) (err error) {
