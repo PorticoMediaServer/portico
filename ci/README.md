@@ -74,3 +74,5 @@ These are summed test-duration estimates, not measured PR wall time or billed ru
 The native static job typechecks both the application and `apps/native/test/tsconfig.json` once per selected component. The test config includes the complete native test tree; a test-only TypeScript error fails the same required static gate.
 
 The Go inventory includes the `reading_client_integration` test tag. Client-core, reader-core and contracts changes select the real HTTP publication boundary through `source-readers.json`, even without a Go import edge. Only its owning Go shard installs pinned Node/root lockfile dependencies and builds contracts; the same setup applies to the race observer. The integration runs through the ordinary exact-parent and terminal-event accounting, including full merge and nightly plans.
+
+For lane-focused tests, race checks and deliberate plan captures on standard GitHub runners, use [LANE-FOCUSED.md](LANE-FOCUSED.md). Automatic parent sharding is the default, including within a large Go package; every dispatch produces one combined source-bound summary. These results are tests/captures, never timing qualification.
