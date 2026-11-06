@@ -206,6 +206,11 @@ func Check(d stmt.Definition, _ Rows) error {
 // Only Capture may invoke this after live source, policy and DML inspection.
 // CheckEQP and the lexical lint are component checks, not qualification receipts.
 func checkCaptured(d stmt.Definition, eqp Rows, autoIndexes ...AutoIndexAudit) error {
+	if issuerOctetDefinition(d) {
+		if err := checkIssuerOctetPoint(eqp); err != nil {
+			return fmt.Errorf("plan %s: %w", d.ID, err)
+		}
+	}
 	if err := checkBase(d, eqp); err != nil {
 		return err
 	}
@@ -230,14 +235,23 @@ func checkBase(d stmt.Definition, eqp Rows) error {
 }
 
 func checkSyntax(d stmt.Definition) error {
-	return checkSyntaxIssues(d, LintSQL(d.SQL))
+	return checkSyntaxIssues(d, lintSQL(d.SQL, issuerOctetDefinition(d)))
 }
 
 func checkSyntaxOn(ctx context.Context, conn *sql.Conn, d stmt.Definition) error {
-	return checkSyntaxIssues(d, LintSQLOn(ctx, conn, d.SQL))
+	if err := checkSyntaxIssues(d, lintSQLOn(ctx, conn, d.SQL, issuerOctetDefinition(d))); err != nil {
+		return err
+	}
+	if issuerOctetDefinition(d) {
+		return auditIssuerOctetKey(ctx, conn)
+	}
+	return nil
 }
 
 func checkSyntaxIssues(d stmt.Definition, issues []LintIssue) error {
+	if d.ID == issuerSourceLengthsID && !issuerOctetDefinition(d) {
+		return fmt.Errorf("plan %s: issuer byte preflight requires the exact closed read definition", d.ID)
+	}
 	for _, issue := range issues {
 		return fmt.Errorf("plan %s: unapproved SQL lint %s: %s", d.ID, issue.Form, issue.Detail)
 	}

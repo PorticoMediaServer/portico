@@ -18,6 +18,10 @@ type sqlToken struct {
 // lint never attempts to infer the safety of arbitrary SQLite expressions.
 // SQLite's independently checked EQP remains authoritative.
 func LintSQL(sql string) []LintIssue {
+	return lintSQL(sql, false)
+}
+
+func lintSQL(sql string, issuerOctets bool) []LintIssue {
 	tokens, err := lintTokens(sql)
 	if err != nil {
 		return []LintIssue{{"sql:tokenization", err.Error()}}
@@ -48,7 +52,7 @@ func LintSQL(sql string) []LintIssue {
 			add("sql:WINDOW", "window/filter clauses are outside the allowed grammar")
 		}
 	}
-	p := lintParser{tokens: tokens}
+	p := lintParser{tokens: tokens, issuerOctets: issuerOctets}
 	if err := p.statement(); err != nil {
 		add("sql:outside-grammar", err.Error())
 	}
@@ -159,6 +163,7 @@ var sqliteKeywords = func() map[string]bool {
 }()
 
 type lintParser struct {
+	issuerOctets                       bool
 	tokens                             []sqlToken
 	at, depth                          int
 	dml                                *dmlShape
@@ -287,6 +292,9 @@ func (p *lintParser) scalar() error {
 			return p.fail("scalar-call nesting exceeds the closed grammar")
 		}
 		arity, known := scalarCalls[strings.ToUpper(p.tokens[p.at].text)]
+		if p.issuerOctets && strings.EqualFold(p.tokens[p.at].text, "octet_length") {
+			arity, known = [2]int{1, 1}, true
+		}
 		if !known {
 			return p.fail("unknown scalar function")
 		}
