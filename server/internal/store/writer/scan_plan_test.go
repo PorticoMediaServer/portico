@@ -34,7 +34,7 @@ func TestScanInventoryStatementPlans(t *testing.T) {
 	}
 	digest := sha256.Sum256(journal[start:end])
 	fixtureSHA := hex.EncodeToString(digest[:])
-	if fixtureSHA != "912942c1e1ced4cd5b40c9e40d96deff829dfb70d0ed00b1beaa1573b3bdaab9" {
+	if fixtureSHA != "498990719bdefd61b423a99961f74de664c09ff4f7f040af946b79dec53b6723" {
 		t.Fatal("scan fixture journal changed; review source/populations before recording plans")
 	}
 	definitions := append(scanReceiptDefinitions(), scanInventoryDefinitions()...)
@@ -91,7 +91,7 @@ func TestScanInventoryStatementPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(golden.Plans) != 47 || golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 655 {
+	if len(golden.Plans) != 47 || golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 656 {
 		t.Fatalf("incomplete scan evidence: cohorts=%d FK=%v", len(golden.Plans), golden.ForeignKeys != nil)
 	}
 	inserts := 0
@@ -166,5 +166,5 @@ func TestScanInventoryStatementPlans(t *testing.T) {
 	if err := plan.CompareJSON(expectedFK, fkJSON); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("16compiled definitions/47cohorts/7destination audits/655FKs/1965probes; fixture journal%s; no accepting SQL executed", fixtureSHA)
+	t.Logf("16compiled definitions/47cohorts/7destination audits/656FKs/1968probes; fixture journal%s; no accepting SQL executed", fixtureSHA)
 }
