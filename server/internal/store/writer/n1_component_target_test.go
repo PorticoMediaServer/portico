@@ -888,11 +888,11 @@ func TestN1ComponentMeasurement(t *testing.T) {
 		return
 	}
 	if cell.Input == "canonical-max" {
-		proof := n1ConstructorMAX(t, origin)
-		if err := stream.append("constructor_cell", map[string]any{"constructor": proof}); err != nil {
+		proof := n1ConstructorMAX(t, stream)
+		if err := stream.append("constructor_cell", map[string]any{"case_id": proof.CaseID, "constructor": proof}); err != nil {
 			t.Fatal(err)
 		}
-		if err := stream.append("final", map[string]any{"complete": proof.Complete, "physical_execution": false, "constructor_cells": 1, "physical_calls": 0}); err != nil {
+		if err := stream.append("final", map[string]any{"complete": proof.Complete, "physical_execution": false, "constructor_cells": 1, "case_id": proof.CaseID, "physical_calls": 0}); err != nil {
 			t.Fatal(err)
 		}
 		if !proof.Complete {

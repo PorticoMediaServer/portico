@@ -366,7 +366,17 @@ with Wave1/2 or `n1-profile-observations-v1`.
   canonical limit and reject one extra byte. One legal text is grown with NUL
   escaping; title/object/change-token named caps are also present. Its reference,
   actual input counts, encoded bytes, adjacent rejection and allocation-free
-  forecast are emitted as `constructor_cell`, not a physical attempt. Physical
+  forecast are emitted as `constructor_cell`, not a physical attempt. Before
+  EACH at-limit/+1 boundary constructor, a synced `constructor_offer` records
+  stable case/offer ID, constructor ordinal, exact offered canonical bytes and
+  measure source (actual typed seed encoding plus one field's exact byte growth).
+  EACH actual value/error/digest/policy-field/actual-limit result is synced as
+  `constructor_result` immediately on return, before later probes or summary
+  work. An interrupted offer remains unmatched; no result/receipt is invented.
+  Rejected probes have null returned digest; the summary reference is explicitly
+  `accepted_constructor_reference`. Constructor IDs never become physical IDs.
+  The deterministic interruption control stops after +1 offer but before its
+  constructor, retaining the first actual result and unmatched second offer. Physical
   MAX remains gated: forecast exceeds the unchanged 4MiB preparation partition.
   This is not an observed native refusal or a measured LIVE peak. W supplies any
   future suitable test-only owner recipe/partition; this target cannot widen it.

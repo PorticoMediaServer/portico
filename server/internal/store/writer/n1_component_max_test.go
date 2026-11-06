@@ -3,6 +3,7 @@ package writer
 import (
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -42,9 +43,37 @@ func n1CanonicalBytes(c *inventoryAcceptCommand) (uint64, error) {
 	return e.written, e.err
 }
 
+type n1ConstructorOffer struct {
+	CaseID            string          `json:"case_id"`
+	OfferID           string          `json:"offer_id"`
+	Ordinal           int             `json:"constructor_ordinal"`
+	Boundary          string          `json:"boundary"`
+	Identity          CommandIdentity `json:"input_identity"`
+	CapBytes          uint64          `json:"canonical_limit_bytes"`
+	OfferedBytes      uint64          `json:"offered_canonical_bytes"`
+	MeasureSource     string          `json:"measure_source"`
+	ChangedField      string          `json:"changed_field"`
+	ChangedFieldBytes int             `json:"changed_field_bytes"`
+	OfferedNS         *int64          `json:"offered_ns"`
+}
+
+type n1ConstructorResult struct {
+	Offer        n1ConstructorOffer `json:"offer"`
+	StartedNS    *int64             `json:"constructor_started_ns"`
+	ReturnedNS   *int64             `json:"constructor_returned_ns"`
+	ValuePresent bool               `json:"value_present"`
+	InputDigest  *RequestDigest     `json:"returned_input_digest"`
+	Error        string             `json:"actual_constructor_error"`
+	PolicyField  string             `json:"actual_policy_field"`
+	PolicyLimit  *int               `json:"actual_policy_limit"`
+}
+
 type n1ConstructorCell struct {
+	CaseID               string            `json:"case_id"`
+	Offers               int               `json:"constructor_offers"`
+	Results              int               `json:"constructor_results"`
 	Cell                 string            `json:"cell"`
-	Reference            *ReceiptReference `json:"original_reference"`
+	Reference            *ReceiptReference `json:"accepted_constructor_reference"`
 	Input                *n1ProfileInput   `json:"input_facts"`
 	CanonicalBytes       *uint64           `json:"canonical_bytes"`
 	Limit                int               `json:"canonical_limit_bytes"`
@@ -63,10 +92,17 @@ type n1ConstructorCell struct {
 // Pure source-bound constructor/refusal proof. It opens no database, takes no
 // grant and emits no fabricated physical HOLD/attempt/commit. Oversized physical
 // preparation remains gated by W's unchanged 4MiB partition.
-func n1ConstructorMAX(t *testing.T, origin time.Time) *n1ConstructorCell {
+func n1ConstructorMAX(t *testing.T, stream *n1Stream, stopAfterOffer ...int) *n1ConstructorCell {
+	origin := stream.origin
 	t.Helper()
 	out := &n1ConstructorCell{Cell: "constructor_cap_refusal", Limit: maxCanonicalRequestBytes, PreparationBytes: 4 << 20,
 		CapacityGate: "physical canonical-MAX execution CLOSED: forecast exceeds unchanged preparation; no owner recipe/partition increase", StartedNS: n1NS(origin, time.Now())}
+	epoch, ok := stream.base["process_epoch"].(string)
+	if !ok || epoch == "" || len(stopAfterOffer) > 1 {
+		out.Error = "invalid constructor-only source epoch/control"
+		return out
+	}
+	out.CaseID = epoch + "/constructor/canonical-cap"
 	defer func() { out.ReturnedNS = n1NS(origin, time.Now()) }()
 	c, err := n1DomainCapCommand(inventoryFreshRequest(t))
 	if err != nil {
@@ -79,9 +115,45 @@ func n1ConstructorMAX(t *testing.T, origin time.Time) *n1ConstructorCell {
 		out.Error = err.Error()
 		return out
 	}
+	seedCanonicalBytes, seedFieldBytes := used, len(c.request.files[0].metadataLanguage)
+	// This observer always calls SC's actual constructor. No constructor callback
+	// or factory is accepted. Sync the offer BEFORE entry and the actual result
+	// BEFORE any later probe/work, so interruption leaves a joinable raw prefix.
+	construct := func(boundary string, ordinal int, request inventoryAcceptRequest) (*inventoryAcceptCommand, error) {
+		offer := n1ConstructorOffer{CaseID: out.CaseID, OfferID: fmt.Sprintf("%s/%d/%s", out.CaseID, ordinal, boundary), Ordinal: ordinal, Boundary: boundary, Identity: c.identity,
+			CapBytes: maxCanonicalRequestBytes, OfferedBytes: seedCanonicalBytes + uint64(len(request.files[0].metadataLanguage)-seedFieldBytes),
+			MeasureSource: "actual requestEncoder(seed) plus exact byte growth of one unchanged typed metadataLanguage field; source hashes in start", ChangedField: "files[0].metadataLanguage", ChangedFieldBytes: len(request.files[0].metadataLanguage), OfferedNS: n1NS(origin, time.Now())}
+		fields := map[string]any{"case_id": offer.CaseID, "offer_id": offer.OfferID, "constructor_offer": offer}
+		if err := stream.append("constructor_offer", fields); err != nil {
+			return nil, err
+		}
+		out.Offers++
+		if len(stopAfterOffer) == 1 && stopAfterOffer[0] == ordinal {
+			t.Fatal("injected constructor interruption after persisted offer")
+		}
+		started := time.Now()
+		value, actualErr := newInventoryAcceptCommand(c.identity, request)
+		returned := time.Now()
+		result := n1ConstructorResult{Offer: offer, StartedNS: n1NS(origin, started), ReturnedNS: n1NS(origin, returned), ValuePresent: value != nil, Error: n1Error(actualErr)}
+		if value != nil {
+			digest := value.digest
+			result.InputDigest = &digest
+		}
+		var policy *PolicyError
+		if errors.As(actualErr, &policy) {
+			result.PolicyField = policy.Field
+			limit := policy.Limit
+			result.PolicyLimit = &limit
+		}
+		out.Results++
+		if err := stream.append("constructor_result", map[string]any{"case_id": offer.CaseID, "offer_id": offer.OfferID, "constructor_result": result}); err != nil {
+			return value, errors.Join(actualErr, err)
+		}
+		return value, actualErr
+	}
 	r := inventoryTestClone(c.request)
 	r.files[0].metadataLanguage += strings.Repeat("\x00", maxCanonicalRequestBytes-int(used))
-	c, err = newInventoryAcceptCommand(c.identity, r)
+	c, err = construct("at_limit", 1, r)
 	if err != nil {
 		out.Error = err.Error()
 		return out
@@ -107,11 +179,11 @@ func n1ConstructorMAX(t *testing.T, origin time.Time) *n1ConstructorCell {
 	out.ForecastBytes = &required
 	r = inventoryTestClone(c.request)
 	r.files[0].metadataLanguage += "\x00"
-	next, err := newInventoryAcceptCommand(c.identity, r)
+	next, err := construct("limit_plus_one", 2, r)
 	out.LimitPlusOneError = n1Error(err)
 	var policy *PolicyError
 	out.LimitPlusOneRejected = next == nil && errors.As(err, &policy) && policy.Field == "canonical_request_bytes"
-	out.Complete = used == maxCanonicalRequestBytes && out.LimitPlusOneRejected && required > out.PreparationBytes
+	out.Complete = used == maxCanonicalRequestBytes && out.Offers == 2 && out.Results == 2 && stream.err == nil && out.LimitPlusOneRejected && required > out.PreparationBytes
 	if !out.Complete {
 		out.Error = "canonical cap/adjacent rejection or unchanged preparation gate not proven"
 	}
@@ -122,7 +194,8 @@ func TestN1ConstructorMAXBoundary(t *testing.T) {
 	if !*n1EnabledFlag {
 		t.Skip("opt-in bounded 32MiB constructor control")
 	}
-	out := n1ConstructorMAX(t, time.Now())
+	stream := n1ControlStream(t)
+	out := n1ConstructorMAX(t, stream)
 	if !out.Complete || out.Error != "" || out.PhysicalExecution || out.CanonicalBytes == nil || *out.CanonicalBytes != maxCanonicalRequestBytes || out.ReturnedNS == nil {
 		t.Fatal("MAX proof incomplete", out)
 	}
