@@ -2,6 +2,7 @@ package enrich
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,7 +16,7 @@ import (
 const tmdbMovieFixture = `{"id":42,"title":"Title:101","original_title":"Original:103","overview":"Overview é:107","tagline":"Tagline:109","release_date":"2024-02-29","runtime":121,"genres":[{"id":999,"name":"excluded"}],"production_companies":[{"name":"excluded company"}],"credits":{"crew":[{"id":301,"name":"Crew:113","job":"Director","department":"Directing","credit_id":"crew-credit:127"}],"cast":[{"id":201,"name":"Cast:131","character":"Pilot:137","order":7,"credit_id":"cast-credit:139"}]}}`
 
 func tmdbObservation() TMDBMovieObservation {
-	return TMDBMovieObservation{EvidenceID: "evidence:149", SubjectID: 151, ProviderID: "42", Language: "en-CA", Region: "CA", ObservedAt: "2026-11-06T10:23:19.000000137Z", SourceURL: "https://api.themoviedb.org/3/movie/42", ETag: "etag:157", LastModified: "Thu, 05 Nov 2026 10:00:00 GMT"}
+	return TMDBMovieObservation{EvidenceID: "evidence:149", SubjectID: 151, ProviderID: "42", Language: "en-CA", Region: "CA", ObservedAt: "2026-11-06T10:23:19.000000137+00:00", SourceURL: "https://api.themoviedb.org/3/movie/42", ETag: "etag:157", LastModified: "Thu, 05 Nov 2026 10:00:00 GMT"}
 }
 
 func tmdbMoviePolicy(t *testing.T) TMDBPolicy {
@@ -34,7 +35,15 @@ func TestTMDBMovieExactProjectionObservationAndCreditOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := writer.EvidenceHeaderInput{ID: "evidence:149", SubjectID: 151, Provider: "tmdb", SubjectKind: "movie", ProviderID: "42", ParserVersion: "tmdb.movie.header-selected-credits.v1", RequestShape: "tmdb.movie.detail+credits.header-selected-credits.v1", Language: "en-CA", Region: "CA", ObservationDigest: sha256.Sum256(body), ObservedAt: observation.ObservedAt, SourceURL: observation.SourceURL, ETag: observation.ETag, LastModified: observation.LastModified, Title: "Title:101", OriginalTitle: "Original:103", Overview: "Overview é:107", Tagline: "Tagline:109", ReleaseDate: "2024-02-29", Year: 2024, LengthMillis: writer.EvidenceInteger{Value: 7260000, Present: true}}
+	// Independent hashlib answer over ALL474 original UTF8 entity bytes. This
+	// is observation SHA256, not the unselected normalized/source seal codec.
+	known, err := hex.DecodeString("2df3a373feb6960b20f53ba541a43b2fcdba9c4e5c44a60d80e4763d0da8fd59")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var originalDigest [32]byte
+	copy(originalDigest[:], known)
+	h := writer.EvidenceHeaderInput{ID: "evidence:149", SubjectID: 151, Provider: "tmdb", SubjectKind: "movie", ProviderID: "42", ParserVersion: "tmdb.movie.header-selected-credits.v1", RequestShape: "tmdb.movie.detail+credits.header-selected-credits.v1", Language: "en-CA", Region: "CA", ObservationDigest: originalDigest, ObservedAt: observation.ObservedAt, SourceURL: observation.SourceURL, ETag: observation.ETag, LastModified: observation.LastModified, Title: "Title:101", OriginalTitle: "Original:103", Overview: "Overview é:107", Tagline: "Tagline:109", ReleaseDate: "2024-02-29", Year: 2024, LengthMillis: writer.EvidenceInteger{Value: 7260000, Present: true}}
 	wantHeader, err := writer.NewEvidenceHeader(h)
 	if err != nil || !reflect.DeepEqual(doc.Header(), wantHeader) {
 		t.Fatal("native header/whole observation projection mismatch", err)

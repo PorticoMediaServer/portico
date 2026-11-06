@@ -27,6 +27,7 @@ type TMDBMovieObservation struct {
 
 // TMDBMovieDocument represents ONLY the selected scalar header and W-selected
 // credits. It says nothing about excluded child families or current origins.
+// Preparation grants no clearing/completeness authority for excluded families.
 // No raw response/candidate array/discarded credits survive preparation.
 type TMDBMovieDocument struct {
 	header              writer.EvidenceHeader
@@ -37,7 +38,9 @@ type TMDBMovieDocument struct {
 func (d TMDBMovieDocument) Header() writer.EvidenceHeader  { return d.header }
 func (d TMDBMovieDocument) Credits() PreparedScreenCredits { return d.credits }
 
-// These forecasts are informational; W independently derives actual native Q.
+// These forecasts cover current CONTENT fields; W independently derives native
+// Q and reserves prospective proof-reference bytes inside the same6MiB bound.
+// They are not a complete stage admission or physical memory/work forecast.
 func (d TMDBMovieDocument) StoredBytes() int64   { return d.storedBytes }
 func (d TMDBMovieDocument) ContentCharge() int64 { return d.charge }
 
