@@ -35,6 +35,10 @@ const (
 // own source contract before using this same comparison recipe; a policy's
 // input limit is not permission to shorten a catalogue value or omit its proof.
 func LabelKey(raw string, policy LabelPolicy) (string, error) {
+	// Bound caller-owned bytes before even walking UTF8 or counting scalars.
+	if policy != ProfileLabel && policy != AccountLabel || policy == ProfileLabel && len(raw) > 120 || policy == AccountLabel && len(raw) > 480 {
+		return "", ErrLabel
+	}
 	if !utf8.ValidString(raw) {
 		return "", ErrLabel
 	}
