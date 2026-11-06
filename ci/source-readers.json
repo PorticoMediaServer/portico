@@ -119,6 +119,13 @@
       "tests": ["TestStoredPreferencesHaveRuntimeConsumers", "TestStoredSettingsHaveRuntimeConsumers"]
     },
     {
+      "package": "server/internal/compactcatalog/identityvalue",
+      "why": "Compares extracted identity functions with independent legacy references across the existing filename corpus",
+      "reads": ["server/internal/naming/testdata/corpus.json"],
+      "files": ["server/internal/compactcatalog/identityvalue/identity_test.go"],
+      "tests": ["TestLegacyIdentityValueCorpus"]
+    },
+    {
       "package": "server/internal/compactcatalog",
       "why": "Reads the baseline schema of the persistence package",
       "reads": ["server/internal/persistence/migrations/0001_baseline.sql"],
