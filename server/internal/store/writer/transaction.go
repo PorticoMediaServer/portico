@@ -37,7 +37,7 @@ const (
 // grant. The W governor adapter must check the exact v2 request/Grant and retire
 // its physical holding here. No caller can register this through a public API.
 type turnCustody interface {
-	check() error
+	check(CommandID, Work) error
 	retired() error
 	fence()
 }
@@ -291,7 +291,7 @@ func (w *executor) begin(ctx context.Context, id CommandID, r turnRecipe, c turn
 		return nil, ErrInvalid
 	}
 	if err = ctx.Err(); err == nil {
-		err = c.check()
+		err = c.check(id, r.limit)
 	}
 	if err != nil {
 		return nil, err
@@ -300,7 +300,7 @@ func (w *executor) begin(ctx context.Context, id CommandID, r turnRecipe, c turn
 		return nil, err
 	}
 	turnCtx, cancel := context.WithDeadline(ctx, start.Add(r.limit.Hold))
-	t = &transaction{writer: w, ctx: turnCtx, cancel: cancel, custody: c, quantum: q, start: start, limit: r.limit.Hold, descriptor: desc}
+	t = &transaction{writer: w, ctx: turnCtx, cancel: cancel, custody: c, quantum: q, start: start, limit: r.limit.Hold, workLimit: r.limit, descriptor: desc}
 	conn, err := w.db.Conn(turnCtx)
 	t.conn = conn
 	t.raiseDriverPanic(err)
@@ -319,7 +319,7 @@ func (w *executor) begin(ctx context.Context, id CommandID, r turnRecipe, c turn
 		t.policyVerified = err == nil
 	}
 	if err == nil {
-		err = c.check()
+		err = c.check(id, r.limit)
 	}
 	if err == nil {
 		_, err = conn.ExecContext(turnCtx, "BEGIN IMMEDIATE")
@@ -345,6 +345,7 @@ type transaction struct {
 	policyVerified bool
 	start          time.Time
 	limit          time.Duration
+	workLimit      Work
 	begun          bool
 	done           bool
 	// Set before entering the COMMIT driver: no panic/error cleanup may then
@@ -377,7 +378,7 @@ func (t *transaction) before(work Work) error {
 	if err := t.ctx.Err(); err != nil {
 		return err
 	}
-	if err := t.custody.check(); err != nil {
+	if err := t.custody.check(t.descriptor.ID, t.workLimit); err != nil {
 		return err
 	}
 	return t.quantum.TryStep(work, t.writer.now())
@@ -408,7 +409,7 @@ func (t *transaction) commit() (turnResult, error) {
 	defer t.guardPanic()
 	err := t.ctx.Err()
 	if err == nil {
-		err = t.custody.check()
+		err = t.custody.check(t.descriptor.ID, t.workLimit)
 	}
 	if err == nil {
 		err = t.quantum.TryFinish(t.writer.now())
