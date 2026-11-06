@@ -159,6 +159,10 @@ func CommandArgv(ctx context.Context, argv []string, files ...*os.File) (*exec.C
 	if len(argv) == 0 || !filepath.IsAbs(argv[0]) {
 		return nil, ErrInvalidJob
 	}
+	argv, err := bindShimLaunchParent(argv)
+	if err != nil {
+		return nil, err
+	}
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	finish(cmd, files, false)
 	return cmd, nil
