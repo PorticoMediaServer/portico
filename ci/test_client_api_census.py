@@ -441,6 +441,48 @@ function forward(request: V1Request, adopted: boolean) {return wire.send(adopted
                     classify([site],{filename:{'category':'platform-transport','reason':'Matching mutation span','sites':[site['id']],
                                              'guardHashes':{site['id']:site['guardHash']}}})
 
+    def test_implicit_arguments_aliases_are_not_forwarding_policies(self):
+        core='export type V1Request = {path: string; method: string; body?: unknown; signal?: AbortSignal}; export interface V1Http {send(request: V1Request): Promise<unknown>;}'
+        common="import type {V1Http,V1Request} from '../../packages/client-core/src/playback-v1/http';\ndeclare const wire: V1Http, life: AbortSignal;\n"
+        conditional=common+'function forward(request: V1Request, adopted: boolean) {MUTATION return wire.send(adopted ? request : {...request,signal:life});}'
+        lexical=common+'function owner(input: V1Request, adopted: boolean) {return () => {MUTATION return wire.send(adopted ? input : {...input,signal:life});};}'
+        rest='''declare const api: {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>};
+function owner() {return {async request<T>(...args: Parameters<typeof api.request>) {
+ MUTATION return await api.request<T>(...args);
+}};}'''
+        vega='''import {vegaControlHeaderEntries} from '../../packages/client-core/src/vega-control-transport';
+function start(pending: {url:string;method:string;body:string|null;headers:Record<string,string>;xhr?:XMLHttpRequest}) {
+ const xhr=new XMLHttpRequest(); pending.xhr=xhr;
+ MUTATION
+ xhr.open(pending.method,pending.url); xhr.timeout=15000; xhr.withCredentials=false;
+ for (const [key,value] of vegaControlHeaderEntries(pending.headers)) xhr.setRequestHeader(key,value);
+ AFTER
+ xhr.send(pending.body ?? undefined);
+}'''
+        cases=[(conditional.replace('MUTATION',mutation),{'packages/client-core/src/playback-v1/http.ts':core}) for mutation in [
+            'Object.assign(arguments[0],{path:"/made"});',
+            'const copy=arguments[0];const key="path";copy[key]="/made";',
+            '(()=>{Reflect.set(arguments[0],"method","DELETE");})();']]
+        cases.append((lexical.replace('MUTATION','Object.assign(arguments[0],{path:"/made"});'),{'packages/client-core/src/playback-v1/http.ts':core}))
+        cases.append((rest.replace('MUTATION','Object.assign(arguments[2],{extra:true});'),{}))
+        helper={'packages/client-core/src/vega-control-transport.ts':'export declare function vegaControlHeaderEntries(headers: Record<string,string>): ReadonlyArray<readonly [string,string]>;'}
+        for before,after in [
+            ('Object.assign(arguments[0],{url:"/made",method:"DELETE",body:"made"});',''),
+            ('Reflect.set(arguments[0],"url","/made");',''),
+            ('const copy=arguments[0].headers;copy.Extra="made";',''),
+            ('','arguments[0].xhr.setRequestHeader("Extra","made");'),
+            ('','const copy=arguments[0].xhr;const field="withCredentials";copy[field]=true;'),
+            ('','Object.assign(arguments[0].xhr,{withCredentials:true});')]:
+            cases.append((vega.replace('MUTATION',before).replace('AFTER',after),helper))
+        for source,dependencies in cases:
+            with self.subTest(source=source):
+                # The fixture pins its OWN mutated full span. Failure must come
+                # from structural admission, not a stale positive-source hash.
+                root,filename,sites,pin=self.fixture(source,dependencies=dependencies)
+                self.assertTrue(all(not s['forwardedRequest'] for s in sites),sites)
+                with self.assertRaises(ValueError):classify(sites,{filename:pin})
+                self.assertEqual(self.check(root)[0],1)
+
     def test_conditional_signal_and_farewell_shapes_reject_path_or_body_construction(self):
         core='export type V1Request = {path: string; method: string; body?: unknown; signal?: AbortSignal}; export interface V1Http {send(request: V1Request): Promise<unknown>;}'
         source='''import type {V1Http,V1Request} from '../../packages/client-core/src/playback-v1/http';

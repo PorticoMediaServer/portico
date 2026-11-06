@@ -111,6 +111,9 @@ function hasRequestWrites(node, extraRoots=[], extraFields=[], containers=[]) {
     aliases(node);
   } while (previous!==protectedNames.size+builtins.size+mutatorAliases.size);
   function visit(n) {
+    // `arguments` exposes implicit object aliases (also through lexical arrows);
+    // conservatively reject its use instead of admitting unmodelled escapes.
+    if (n.kind===K.Identifier && n.text==='arguments') written=true;
     if (n.kind===K.BinaryExpression && assignments.has(n.operatorToken.kind) && target(n.left)) written=true;
     if ([K.PrefixUnaryExpression,K.PostfixUnaryExpression].includes(n.kind)
         && [K.PlusPlusToken,K.MinusMinusToken].includes(n.operator) && target(n.operand)) written=true;
