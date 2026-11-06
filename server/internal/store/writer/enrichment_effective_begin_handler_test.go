@@ -43,7 +43,7 @@ func effectiveBeginWholeTurn(t *testing.T, w *executor) (*commandTurn, map[stmt.
 func effectiveBeginWholeFixture(t *testing.T) (*executor, *time.Time, effectiveStageBeginRequest, CommandIdentity) {
 	t.Helper()
 	w, _, now := testExecutor(t)
-	*now = time.Now().Add(time.Hour)
+	*now = time.Date(2100, time.November, 5, 10, 30, 0, 0, time.UTC)
 	effectiveBeginNativePopulation(t, w)
 	var assetInc, subjectInc, selectionInc, artInc, linkInc [16]byte
 	for i := range assetInc {
