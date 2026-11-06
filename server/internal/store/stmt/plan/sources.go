@@ -98,6 +98,15 @@ type capturedSource struct {
 func capturedSources(ctx context.Context, conn *sql.Conn, entries []stmt.Entry) ([]capturedSource, error) {
 	result := []capturedSource{}
 	for _, entry := range entries {
+		if entry.Plan.NativeRead != nil {
+			audit, err := inspectFTSRead(ctx, conn, entry.Definition)
+			if err != nil {
+				return nil, err
+			}
+			spec, _ := entry.Plan.NativeRead.Specification()
+			result = append(result, capturedSource{Statement: entry.ID, Name: spec.Table, Schema: "main", Kind: "virtual", SQL: audit.Declaration, RootPage: 0})
+			continue
+		}
 		if entry.Plan.NativeRetained != "" {
 			audit, err := inspectFTSRetained(ctx, conn, entry.Definition)
 			if err != nil {

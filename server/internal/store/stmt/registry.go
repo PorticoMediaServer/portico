@@ -83,8 +83,9 @@ type AutoIndexBinding struct {
 
 // Plan is consumed by the plan harness; a SQL hash alone is not qualification.
 type Plan struct {
-	Hot     bool     `json:"hot"`
-	Indexes []string `json:"indexes"`
+	NativeRead *FTSRead `json:"nativeRead,omitempty"`
+	Hot        bool     `json:"hot"`
+	Indexes    []string `json:"indexes"`
 	// PrimaryKeys names EQP table/alias targets for native PK paths that have no named INDEXED BY path.
 	PrimaryKeys []string `json:"primaryKeys"`
 	// Seeks pins the actual prefix/range constraints, including a separate tie seek.
@@ -146,6 +147,9 @@ func Describe(definitions []Definition) (*Registry, error) {
 		}
 		if _, ok := r.entries[d.ID]; ok {
 			return nil, fmt.Errorf("stmt %q: duplicate ID", d.ID)
+		}
+		if err := validateFTSReadDefinition(d); err != nil {
+			return nil, fmt.Errorf("stmt %q: %w", d.ID, err)
 		}
 		switch d.Kind {
 		case Read, Write, Maintenance, DDL:
@@ -225,6 +229,9 @@ func Describe(definitions []Definition) (*Registry, error) {
 				return nil, fmt.Errorf("stmt %q: empty or duplicate cohort", d.ID)
 			}
 			cohorts[c.Name] = true
+			if err := validateFTSReadBindings(d.Plan.NativeRead, c.Bindings); err != nil {
+				return nil, fmt.Errorf("stmt %q cohort %q: %w", d.ID, c.Name, err)
+			}
 			if err := validate(d.Params, c.Bindings); err != nil {
 				return nil, fmt.Errorf("stmt %q cohort %q: %w", d.ID, c.Name, err)
 			}
@@ -313,6 +320,9 @@ func (s Statement) Bind(args ...any) (Bound, error) {
 	if s.entry == nil || !s.entry.qualified {
 		return Bound{}, fmt.Errorf("stmt: unregistered statement")
 	}
+	if err := validateFTSReadBindings(s.entry.Plan.NativeRead, args); err != nil {
+		return Bound{}, fmt.Errorf("stmt %q: %w", s.entry.ID, err)
+	}
 	if err := validate(s.entry.Params, args); err != nil {
 		return Bound{}, fmt.Errorf("stmt %q: %w", s.entry.ID, err)
 	}
@@ -326,6 +336,11 @@ func (s Statement) Bind(args ...any) (Bound, error) {
 		return Bound{}, fmt.Errorf("stmt %q: %w", s.entry.ID, err)
 	}
 	frozen := cloneArgs(args)
+	if s.entry.Plan.NativeRead != nil {
+		// The bounded MATCH query owns only its charged bytes, even when the
+		// caller supplied a small substring of a larger backing allocation.
+		frozen[0] = strings.Clone(frozen[0].(string))
+	}
 	if s.entry.Plan.NativeInsert != "" {
 		// A bounded slice of a large caller backing string must not retain the
 		// larger allocation for this new native capability's bound lifetime.
@@ -429,6 +444,10 @@ func cloneArgs(args []any) []any {
 	return result
 }
 func cloneDefinition(d Definition) Definition {
+	if d.Plan.NativeRead != nil {
+		copy := *d.Plan.NativeRead
+		d.Plan.NativeRead = &copy
+	}
 	d.CallSites = slices.Clone(d.CallSites)
 	d.Params = slices.Clone(d.Params)
 	if d.Params == nil {

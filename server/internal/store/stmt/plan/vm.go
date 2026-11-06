@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"slices"
+	"strings"
 )
 
 type rootKey struct{ database, page int64 }
@@ -48,6 +49,11 @@ func canonicalVM(vm Rows, roots map[rootKey]string) (Rows, error) {
 	for i, original := range vm.Values {
 		if len(original) != 8 {
 			return Rows{}, fmt.Errorf("plan: unexpected EXPLAIN row %d", i)
+		}
+		for _, value := range original {
+			if text, ok := value.(string); ok && strings.HasPrefix(text, "vtab:") {
+				return Rows{}, fmt.Errorf("plan: vtab operand requires a fixed-slot native audit at row %d", i)
+			}
 		}
 		row := slices.Clone(original)
 		result.Values[i] = row
