@@ -48,6 +48,12 @@ Executable `.mts`, `.cts`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.js` and `.jsx`
 sources participate. Production imports reaching excluded executable test,
 script or generated-output areas bring those files into the inventory,
 including through barrels; unresolved excluded imports fail closed.
+Direct CommonJS `require()` calls are collected from AST nodes, including in
+TypeScript. Relative executable targets from the exact tree are added to the
+compiler inventory until their closure stabilizes; missing, dynamic or
+unsupported targets fail closed. Tracked JSON and Metro bundled PNG loads are
+data. Required-child changes invalidate cached callers across compiler scopes;
+closure expansion is bounded and uses the same invocation deadline.
 Source and configuration parsing diagnostics fail before cached or zero results;
 an unsuccessful snapshot never leaves a reusable successful answer.
 

@@ -116,6 +116,50 @@ class LiveRatchets(unittest.TestCase):
         (self.root/self.path).write_text('const broken = "unterminated\n')
         self.assertEqual(self.checks(self.base),(1,1))
 
+    def test_direct_typescript_require_inventories_executable_closures(self):
+        for extension in ['ts','cts','tsx']:
+            with self.subTest(extension=extension):
+                caller=self.root/f'web/src/common.{extension}'
+                extra=self.root/'web/src/__tests__/extra.cjs';extra.parent.mkdir(exist_ok=True)
+                extra.write_text("exports.extra = function() { fetch('/v1/hidden'); setInterval(tick, 1000); };")
+                caller.write_text("declare function require(path: string): any; const {extra} = require('./__tests__/extra.cjs'); extra();")
+                head=self.commit('Direct require in '+extension)
+                self.assertEqual(self.checks(self.base,queue_head=head),(1,1))
+                # The exact .cts fixture executes actual CommonJS, with IO
+                # replaced by logging stubs rather than performing a request.
+                if extension=='cts':
+                    hook=self.root/'runtime-hook.cjs'
+                    hook.write_text("global.fetch = p => console.log('FETCH '+p); global.tick = () => {}; global.setInterval = () => console.log('TIMER');")
+                    run=subprocess.run(['node','--experimental-strip-types','--require',str(hook),str(caller)],text=True,capture_output=True,check=True)
+                    self.assertIn('FETCH /v1/hidden',run.stdout);self.assertIn('TIMER',run.stdout)
+                    hook.unlink()
+                extra.write_text('exports.extra = function() {return 1;};')
+                self.assertEqual(self.checks(self.base),(0,0))
+                self.git('reset','--hard',self.base)
+
+    def test_verified_commonjs_and_import_equals_controls_are_inventoried(self):
+        for extension,statement in [('ts',"import type {} from './__tests__/extra.cjs'; declare function require(path: string): any; const extra = require('./__tests__/extra.cjs');"),
+                                    ('cts',"import extra = require('./__tests__/extra.cjs');"),
+                                    ('cjs',"const extra = require('./__tests__/extra.cjs');")]:
+            with self.subTest(extension=extension):
+                config=self.root/'web/tsconfig.json';options=json.loads(config.read_text());options['compilerOptions']['allowJs']=True;options['include']=['src/**/*'];config.write_text(json.dumps(options))
+                caller=self.root/f'web/src/common.{extension}'
+                target=self.root/'web/src/__tests__/extra.cjs';target.parent.mkdir(exist_ok=True)
+                target.write_text('exports.extra = function() {return 1;};')
+                caller.write_text(statement+' extra.extra();')
+                self.git('add','.')
+                self.assertEqual(self.checks(self.base),(0,0))
+                target.write_text("exports.extra = function() {fetch('/v1/hidden'); setInterval(tick, 1000);};")
+                head=self.commit('Verified CommonJS load')
+                self.assertEqual(self.checks(self.base,queue_head=head),(1,1))
+                self.git('reset','--hard',self.base)
+
+    def test_direct_require_dynamic_or_missing_targets_fail_closed(self):
+        for expression in ["require('./missing.cjs')", "require('./missing.json')", 'require(specifier)']:
+            with self.subTest(expression=expression):
+                (self.root/self.path).write_text(self.source+'\ndeclare function require(path: string): any; declare const specifier: string; '+expression+';')
+                self.assertEqual(self.checks(self.base),(1,1))
+
     def test_reachable_excluded_patterns_are_counted_without_query_reads(self):
         extra=self.root/'web/src/__tests__/extra.ts';extra.parent.mkdir()
         extra.write_text('export const extra = () => setInterval(tick, 1000);')

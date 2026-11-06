@@ -81,7 +81,20 @@ for(const kind of ['census','query']) {
   check(0,'reachable excluded source is harmless');
   sources['web/src/__tests__/extra.ts']="export function extra() {return fetch('/v1/hidden');}";
   check(1,'unchanged importer inventories requests added to excluded source');
-  assert.equal(worker.stats.projectOpens,1,'compiler projects remain open across all increments');assertions++;
+  assert.equal(worker.stats.projectOpens,1,'compiler projects remain open across ordinary increments');assertions++;
+  sources=initial();
+  sources['web/tsconfig.json']=JSON.stringify({...config,include:['src/**/*.ts']});
+  sources['web/src/caller.ts']="declare function require(path: string): any; const {extra}=require('./__tests__/extra.cjs'); extra();";
+  sources['web/src/__tests__/extra.cjs']="exports.extra = require('./child.cjs').extra;";
+  sources['web/src/__tests__/child.cjs']='exports.extra = () => 1;';
+  check(0,'verified direct CommonJS closure');
+  const opened=worker.stats.projectOpens;
+  sources['web/src/__tests__/child.cjs']="exports.extra = () => fetch('/v1/required');";
+  check(1,'unchanged direct require and barrel follow a changed child');
+  assert.equal(worker.stats.projectOpens,opened,'CommonJS child edits reuse open compiler projects');assertions++;
+  sources['web/src/caller.ts']='export {};';
+  sources['web/src/__tests__/child.cjs']='const broken = "unterminated\n';
+  check(0,'removing the require drops obsolete compiler roots before parse checks');
  } finally {worker.close();}
 }
 console.log(JSON.stringify({assertions,result:'dependency parity holds'}));
