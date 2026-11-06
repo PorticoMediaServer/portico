@@ -122,8 +122,9 @@ func nativeObjectArray(d *json.Decoder, shape nativeShape, limit int) error {
 }
 
 // Detect a native envelope BEFORE encoding/json can repair text or overwrite
-// duplicate fields. Recognize ANY native discriminator, including duplicates
-// and case aliases, so a later legacy discriminator cannot hide a native frame.
+// duplicate fields. A non-null native payload or native operation selects the
+// strict path, including duplicates and case aliases. Null payloads alone keep
+// the legacy path; a later legacy discriminator cannot hide a real native one.
 func nativeEnvelopeCandidate(raw []byte) bool {
 	d := json.NewDecoder(bytes.NewReader(raw))
 	token, err := d.Token()
@@ -139,12 +140,13 @@ func nativeEnvelopeCandidate(raw []byte) bool {
 		if !ok {
 			return false
 		}
-		if strings.EqualFold(key, "nativeInventory") {
-			return true
-		}
+		nativePayload := strings.EqualFold(key, "nativeInventory")
 		var value json.RawMessage
 		if err := d.Decode(&value); err != nil {
-			return false
+			return nativePayload
+		}
+		if nativePayload && !bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+			return true
 		}
 		if strings.EqualFold(key, "operation") {
 			var op string
