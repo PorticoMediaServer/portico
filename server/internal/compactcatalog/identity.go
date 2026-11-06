@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/PorticoMediaServer/portico/server/internal/sorttext"
+	"github.com/PorticoMediaServer/portico/server/internal/compactcatalog/identityvalue"
 )
 
 // A title is its own thing; its files come and go. What makes two files the
@@ -26,32 +26,11 @@ import (
 // IdentityText is a name in the form identities compare: case and accents
 // folded, punctuation and spacing reduced to single spaces. "WALL·E", "Wall-E"
 // and "wall e" are one name; so are "Amélie" and "Amelie".
-func IdentityText(s string) string {
-	var b strings.Builder
-	space := false
-	for _, r := range sorttext.Fold(s) {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) {
-			if space && b.Len() > 0 {
-				b.WriteByte(' ')
-			}
-			space = false
-			b.WriteRune(r)
-			continue
-		}
-		// An apostrophe joins ("Schindler's" and "Schindlers" are one word).
-		if r == '\'' || r == '’' {
-			continue
-		}
-		space = true
-	}
-	return b.String()
-}
+func IdentityText(s string) string { return identityvalue.IdentityText(s) }
 
 // MovieKey names a film by the title and year its file or folder was read as.
 // Two files read as the same film are versions of it.
-func MovieKey(title string, year int) string {
-	return "movie:" + IdentityText(title) + ":" + strconv.Itoa(year)
-}
+func MovieKey(title string, year int) string { return identityvalue.MovieKey(title, year) }
 
 // ShowFolderKey names a show by the folder its episodes sit in (the folder's
 // own name, whichever source it is under). A show is one folder; two folders
