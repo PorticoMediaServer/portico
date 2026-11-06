@@ -98,7 +98,7 @@ func scanFreshDefinitions() []stmt.Definition {
 		case scanFreshJob, scanFreshJobCAS:
 			p.PrimaryKeys, p.Indexes = nil, []string{"sqlite_autoindex_jobs_1"}
 		case scanFreshSource, scanFreshProgressCAS:
-			p.PrimaryKeys, p.Indexes = nil, []string{"sqlite_autoindex_library_sources_1"}
+			p.PrimaryKeys, p.Indexes, p.Seeks = nil, []string{"sqlite_autoindex_library_sources_2"}, []string{"library_id=? AND root=?"}
 		case scanFreshDirectory, scanFreshDirectoryCAS:
 			p.PrimaryKeys, p.Indexes = nil, []string{"sqlite_autoindex_inventory_directories_1"}
 		case scanFreshPath:
@@ -199,7 +199,7 @@ FROM libraries WHERE id=? AND kind='movie' AND metadata_language=?`, stmt.Read,
 		def(scanFreshDirectory, `SELECT pages,skipped FROM inventory_directories
 WHERE job_id=? AND relative_path=? AND identity=? AND revision=? AND cursor=? AND pages=? AND skipped=? AND state='pending'`,
 			stmt.Read, directoryParams, directoryArgs, "inventory_directories", "job_id=? AND relative_path=?"),
-		def(scanFreshPath, `SELECT id FROM inventory_objects WHERE source_id=? AND relative_path=? AND retired=0`, stmt.Read,
+		def(scanFreshPath, `SELECT id FROM inventory_objects INDEXED BY inventory_objects_path WHERE source_id=? AND relative_path=? AND retired=0`, stmt.Read,
 			[]stmt.Param{s("source_id"), s("relative_path")}, []any{"fresh-source", "Arrival.mkv"}, "", ""),
 		def(scanFreshAssetRevision, `SELECT file_size_revision,info_epoch FROM catalog_assets
 WHERE id=? AND library_id=? AND token=? AND path=? AND size=? AND modified_ns=?`, stmt.Read,

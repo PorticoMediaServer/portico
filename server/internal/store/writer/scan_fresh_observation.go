@@ -10,7 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/PorticoMediaServer/portico/server/internal/mediasource"
-	"github.com/PorticoMediaServer/portico/server/internal/storage"
+	"github.com/PorticoMediaServer/portico/server/internal/storage/objectidentity"
 )
 
 // inventoryFreshRequiredBytes forecasts SC's live Go preparation/bind/result
@@ -108,7 +108,7 @@ func prepareInventoryFreshObservation(c *inventoryAcceptCommand) (inventoryObjec
 	if err != nil || gotDigest != c.digest {
 		return zero, ErrConflict
 	}
-	stable := storage.StableObjectIdentity(f.objectIdentity, r.source.rootIdentity)
+	stable := objectidentity.StableObjectIdentity(f.objectIdentity, r.source.rootIdentity)
 	object := stable
 	if object == "" {
 		object = "path:" + f.assetPath
