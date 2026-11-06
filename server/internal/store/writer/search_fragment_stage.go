@@ -37,6 +37,9 @@ func writeSearchFragmentStage(ctx context.Context, turn *commandTurn, c *searchF
 	if native != c.request.snapshot {
 		return out, ErrConflict
 	}
+	if c.payload.row != c.request.row || c.payload.bytes != uint64(len(c.request.row.Prefix)+len(c.request.row.Lexical)+len(c.request.row.Normalized)) {
+		return out, ErrConflict
+	}
 	next, err := planSearchFragmentStage(native, c.payload)
 	if err != nil {
 		return out, err
@@ -49,7 +52,7 @@ func writeSearchFragmentStage(ctx context.Context, turn *commandTurn, c *searchF
 	}
 	s, j, image, seal, p := native.source, native.job, native.image, native.seal, c.payload.row
 	step, _ := searchPublisherStep(turn, searchFragmentInsert)
-	row, err := turn.queryRow(ctx, step, s.entityID, nil, p.Field, p.Ordinal, p.Revision, p.Prefix, p.Lexical, p.Normalized, j.inputGeneration, native.bank.id, image.id)
+	row, err := turn.queryRow(ctx, step, s.entityID, nil, int64(p.Field), p.Ordinal, p.Revision, p.Prefix, p.Lexical, p.Normalized, j.inputGeneration, native.bank.id, image.id)
 	if err != nil {
 		return out, err
 	}
