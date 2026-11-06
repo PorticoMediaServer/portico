@@ -253,6 +253,52 @@ async function guarded(path: string, method: string, body: unknown, signal: Abor
         entry['sites']=[mutated['id']];entry['guardHashes']={mutated['id']:mutated['guardHash']};(root/ALLOWLIST).write_text(json.dumps({filename:entry}))
         code,output=self.check(root);self.assertEqual(code,1);self.assertIn('exception expanded or changed',output)
 
+    def test_combined_raw_cleanup_budget_binds_the_full_policy_and_rejects_rewrites(self):
+        source='''declare const api: {requestRaw(path: string, method: string, options: unknown): Promise<unknown>};
+function screenLifetime(selected: boolean) {
+ return {requestRaw(path: string, method: string, options: unknown) {
+  if (selected) return api.requestRaw(path, method, options);
+  return api.requestRaw(path, method, options);
+ }};
+}
+'''
+        root,filename,sites,pin=self.fixture(source)
+        self.assertEqual(len(sites),2)
+        self.assertEqual(len({(s['id'],s['guardHash']) for s in sites}),1)
+        self.assertEqual(self.check(root)[0],0)
+        # The two identical cleanup calls spend one combined allowance of two.
+        grown=sites+[sites[0]]
+        self.assertEqual(len(classify(grown,{filename:pin})[0]),1)
+        for old,new in [('api.requestRaw(path,','api.requestRaw(path + "/built",'),
+                        ('method, options)','method, {body: options})'),
+                        ('if (selected)','if (!selected)')]:
+            with self.subTest(edit=new):
+                (root/filename).write_text(source.replace(old,new))
+                self.assertEqual(self.check(root)[0],1)
+        # Argument spelling alone does not preserve a reviewed enclosing policy.
+        (root/filename).write_text(source.replace('if (selected)','if (!selected)'))
+        self.assertTrue(all(s['forwardedRequest'] for s in scan(root)))
+
+    def test_cw_rulings_keep_exact_file_qualified_budgets_and_hashes(self):
+        rulings={'6651098315','6654511777','6655467024','6673584916'}
+        ledger=json.loads((ROOT/APPROVALS).read_text())
+        approved={key:value for key,value in ledger.items()
+                  if value['rulingUrl'].rsplit('-',1)[-1] in rulings}
+        self.assertEqual(len(approved),40)
+        self.assertEqual(sum(v['occurrences'] for v in approved.values()),41)
+        exceptions=json.loads((ROOT/ALLOWLIST).read_text())
+        for key,value in approved.items():
+            with self.subTest(site=key):
+                entry=exceptions[key.split('#')[0]]
+                occurrence_budget=entry['sites'].count(key)+int(key in entry.get('additionalSites',{}))
+                self.assertEqual(occurrence_budget,value['occurrences'])
+                site={'file':key.split('#')[0],'id':key,'line':1,
+                      'guardHash':value['guardHash'],'forwardedRequest':True}
+                self.assertEqual(len(classify([site]*occurrence_budget,{site['file']:entry})[1]),occurrence_budget)
+                self.assertEqual(len(classify([site]*(occurrence_budget+1),{site['file']:entry})[0]),1)
+                with self.assertRaises(ValueError):
+                    classify([dict(site,guardHash='0'*64)],{site['file']:entry})
+
     def test_native_url_method_body_and_bound_input_edits_each_invalidate_byte_pins(self):
         source='fun relay() { val method = "GET"; val request = Request.Builder().url(upstream.toString()).method(method, null).build() }\n'
         root,filename,sites,entry=self.fixture(source,'apps/native/Relay.kt','platform-url')
