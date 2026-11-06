@@ -555,7 +555,11 @@ func (t *Transport) acquire(ctx context.Context, key RequestKey) ([]byte, error)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return append([]byte(nil), r.Body...), nil
+	// This body is retained by the flight/cache. Own exactly the storage charged
+	// by remember/evict; append's growth rounding can retain cap > len.
+	owned := make([]byte, len(r.Body))
+	copy(owned, r.Body)
+	return owned, nil
 }
 
 func (t *Transport) evict(e *list.Element) {
