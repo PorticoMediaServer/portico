@@ -21,6 +21,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	recordHelperTestMainEntry()
 	// run() configures mediaexec with this test binary as the limits shim.
 	if handled, _ := mediaexec.RunHelper(os.Args[1:]); handled {
 		os.Exit(1)
@@ -117,7 +118,6 @@ func TestDefaultMediaCompositionAddsScansAndBrowsesWithoutRootsEnv(t *testing.T)
 		}
 		select {
 		case <-deadline:
-			logStorageHelperDiagnostics(t, helperDiagnostics)
 			t.Logf("empty-source timeout: GOOS=%s GOARCH=%s CPU=%d GOMAXPROCS=%d helper=%+v DB=%+v", runtime.GOOS, runtime.GOARCH, runtime.NumCPU(), runtime.GOMAXPROCS(0), store.Supervisor.Stats(), db.Stats())
 			inspect, stop := context.WithTimeout(context.Background(), 500*time.Millisecond)
 			var health, rootIdentity, directoryState, cursor, revision sql.NullString
@@ -129,6 +129,10 @@ func TestDefaultMediaCompositionAddsScansAndBrowsesWithoutRootsEnv(t *testing.T)
 			stacks := make([]byte, 1<<20)
 			n := runtime.Stack(stacks, true)
 			t.Logf("empty-source goroutines (%d/%d bytes):\n%s", n, len(stacks), stacks[:n])
+			logHelperLaunchDiagnostics(t, helper)
+			// Read persisted launch markers after the read-only metadata, so
+			// a child that entered Go late still supplies its original times.
+			logStorageHelperDiagnostics(t, helperDiagnostics)
 			t.Fatalf("source scan did not finish: %+v", current)
 		case <-time.After(25 * time.Millisecond):
 		}
