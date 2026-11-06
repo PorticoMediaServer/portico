@@ -31,7 +31,7 @@ func unguardedCommandFinishes(file *ast.File) []string {
 		if !hasContext {
 			continue
 		}
-		needs := fn.Name.Name == "disclose" || strings.HasPrefix(fn.Name.Name, "checkInventory") || fn.Name.Name == "inventoryTimeMS"
+		needs := fn.Name.Name == "disclose" || strings.HasPrefix(fn.Name.Name, "checkInventory") || fn.Name.Name == "requireInventoryMemory" || fn.Name.Name == "inventoryTimeMS"
 		for _, r := range fn.Type.Results.List {
 			if typ, ok := r.Type.(*ast.Ident); ok && resultTypes[typ.Name] {
 				needs = true
@@ -233,6 +233,7 @@ func TestEveryCommandReleaseUsesSharedFinish(t *testing.T) {
 }
 func TestCommandReleaseGuardRejectsBypasses(t *testing.T) {
 	for _, body := range []string{
+		`func requireInventoryMemory(ctx context.Context)(err error){return nil}`,
 		`func inventoryTimeMS(ctx context.Context)(value int64,err error){return 1,nil}`,
 		`func bypass(ctx context.Context)(out InventoryResult,err error){var v InventoryResult;var e error;saved:=InventoryResult{RunID:"saved"};defer func(){v,e=finishCommand(ctx,ctx,out,err);out,err=saved,e}();_=v;return saved,ErrInvalid}`,
 		`func bypass(ctx context.Context)(out InventoryResult,err error){var v InventoryResult;var e error;defer func(){v,e=finishCommand(ctx,ctx,out,err);out,err=v,nil}();_=e;return InventoryResult{RunID:"saved"},ErrInvalid}`,
