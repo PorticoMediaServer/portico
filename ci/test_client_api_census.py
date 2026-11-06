@@ -47,6 +47,7 @@ class ClientApiCensus(unittest.TestCase):
             with self.subTest(binding=row['binding']):
                 approval=approvals[row['binding']]
                 self.assertEqual(approval['category'],'platform-transport')
+                self.assertEqual(row.get('guardSpan'),approval.get('guardSpan'))
                 self.assertEqual(approval['rulingUrl'],row['rulingUrl'])
                 expected=row.get('forwardingHash') if approval.get('guardSpan')=='forwarding-function' else row['guardHash']
                 self.assertEqual(approval['guardHash'],expected)

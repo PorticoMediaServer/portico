@@ -10,15 +10,19 @@ const identities=new Map();
 for(const s of packet.sites) {
   if(!s||typeof s.binding!=='string'||typeof s.file!=='string'||typeof s.owner!=='string'||typeof s.shape!=='string'
       ||!s.binding.startsWith(s.file+'#')||!Number.isSafeInteger(s.occurrences)||s.occurrences<1
+      ||![undefined,'forwarding-function'].includes(s.guardSpan)||s.guardSpan==='forwarding-function'&&!s.forwardingHash
       ||!s.shape||![s.guardHash,s.callHash,...(s.forwardingHash?[s.forwardingHash]:[])].every(h=>/^[a-f0-9]{64}$/.test(h))
       ||typeof s.callText!=='string'||hash(s.callText)!==s.callHash)
     throw Error('Invalid frozen forwarder binding');
-  const identity=JSON.stringify([s.file,s.guardHash,s.forwardingHash??null,s.callHash,s.shape,s.owner]);
+  const identity=JSON.stringify([s.file,s.guardSpan==='forwarding-function'?'forwarding-function':s.guardHash,s.forwardingHash??null,s.callHash,s.shape,s.owner]);
   if(identities.has(identity))throw Error('Duplicate frozen forwarder binding');
   identities.set(identity,Object.freeze(s));
 }
 export function legacyForwarderPin({file,guardHash,forwardingHash,callText,shape,owner}) {
-  return identities.get(JSON.stringify([file,guardHash,forwardingHash??null,hash(callText),shape,owner]));
+  const policy=identities.get(JSON.stringify([file,guardHash,forwardingHash??null,hash(callText),shape,owner]));
+  const callback=identities.get(JSON.stringify([file,'forwarding-function',forwardingHash??null,hash(callText),shape,owner]));
+  if(policy&&callback)throw Error('Ambiguous frozen forwarder span');
+  return policy??callback;
 }
 export function legacyForwarder(input) {
   return legacyForwarderPin(input)!==undefined;

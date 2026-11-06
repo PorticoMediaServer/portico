@@ -169,6 +169,9 @@ current allowance cannot give another occurrence legacy recognition. The closed
 grammar governs all new pins; an edited legacy span must fit it or return for
 an explicit new ruling and legacy-list update. No app refactoring is required
 to preserve the existing approved spans.
+The separately ruled metadata callback retains its original
+`guardSpan: "forwarding-function"`: its complete callback hash is the binding;
+an unrelated enclosing-component edit does not change that approved span.
 
 Recognition reports `forwardingGrammar: "closed"` or `"frozen-legacy"`, and a
 `grammarRejection` reason for spans outside the grammar. These fields do not
