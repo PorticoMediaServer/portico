@@ -106,7 +106,7 @@ func TestNativeInventoryNULAndUndecodableWireRefuse(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		var again request
+		var again struct{ NativeInventory struct{ RelativePath []byte } }
 		if err := json.Unmarshal(wire, &again); err != nil || !bytes.Equal(again.NativeInventory.RelativePath, raw) {
 			t.Fatal("NUL byte transport changed", err)
 		}
@@ -159,11 +159,15 @@ func TestNativeInventoryCancellationJoinsRealOwner(t *testing.T) {
 	if err := <-result; !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	owner.Close()
-	if err := owner.Wait(t.Context()); err != nil {
-		t.Fatal(err)
-	}
 	if owner.Active() != 0 || c.Supervisor.Active() != 0 {
-		t.Fatal("shutdown left physical helper", owner.Active(), c.Supervisor.Active())
+		t.Fatal("canceled call returned before physical retirement", owner.Active(), c.Supervisor.Active())
 	}
+	if owner.Context().Err() != nil {
+		t.Fatal("operation closed the shared owner")
+	}
+	release, err := owner.Begin()
+	if err != nil {
+		t.Fatal("owner cannot be reused", err)
+	}
+	release()
 }
