@@ -80,7 +80,11 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		return json.NewEncoder(out).Encode(fixture)
+		return json.NewEncoder(out).Encode(struct {
+			Label   string            `json:"label"`
+			Mode    string            `json:"mode"`
+			Fixture scanbench.Fixture `json:"fixture"`
+		}{"DIRECTIONAL", "generation-only", fixture})
 	}
 	if runtime.GOOS != "linux" {
 		return errors.New("FIRST native-cookie traversal harness requires Linux")
