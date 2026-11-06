@@ -63,8 +63,8 @@ func TestSearchReclaimStatementPlans(t *testing.T) {
 	if err := conn.QueryRowContext(t.Context(), "SELECT total_changes()").Scan(&after); err != nil || before != after {
 		t.Fatal("Capture executed effects", before, after, err)
 	}
-	if len(defs) != 17 || len(g.Plans) != 17 || g.ForeignKeys == nil || len(g.ForeignKeys.Plans) != 670 {
-		t.Fatal("incomplete 009 capture inventory", len(defs), len(g.Plans))
+	if len(defs) != 17 || len(g.Plans) != 17 || g.ForeignKeys == nil || len(g.ForeignKeys.Plans) != 671 {
+		t.Fatal("incomplete 010 capture inventory", len(defs), len(g.Plans))
 	}
 	if _, err := stmt.New(defs, g.Receipt()); err != nil {
 		t.Fatal(err)
@@ -120,5 +120,5 @@ func TestSearchReclaimStatementPlans(t *testing.T) {
 	if err := plan.CompareJSON(expected, fkJSON); err != nil {
 		t.Fatal(err)
 	}
-	t.Log("17 IDs / 17 structural cohorts; 1 receipt INSERT + 3 retained-token native deletes; 670 FK / 2010 probes; no accepting or resource qualification")
+	t.Log("17 IDs / 17 structural cohorts; 1 receipt INSERT + 3 retained-token native deletes; 671 FK / 2013 probes; no accepting or resource qualification")
 }
