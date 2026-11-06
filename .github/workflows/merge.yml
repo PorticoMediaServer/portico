@@ -41,7 +41,17 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/native/package-lock.json
+            apps/vega/package-lock.json
+            apps/desktop/package-lock.json
       - run: npm ci --no-audit --no-fund
+      - name: Install typed ratchet owning lockfiles
+        run: |
+          for component in apps/native apps/vega apps/desktop; do
+            (cd "$component" && npm ci --ignore-scripts --legacy-peer-deps --workspaces=false --no-audit --no-fund)
+          done
       - run: python3 -m unittest discover -s ci -p 'test_*.py'
       - run: python3 ci/source_guard.py
       - run: bash ci/secret-scan.sh
