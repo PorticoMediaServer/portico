@@ -5,6 +5,8 @@ import (
 	"errors"
 	"io"
 	"os"
+
+	"github.com/PorticoMediaServer/portico/server/internal/storage/nativeinventory"
 )
 
 // Process exit text is not evidence that a folder was removed. The helper
@@ -21,19 +23,7 @@ func inventoryErrorCode(err error) string {
 	}
 	return "unreadable"
 }
-func inventoryCodeError(code string) error {
-	switch code {
-	case "":
-		return nil
-	case "not_found":
-		return os.ErrNotExist
-	case "changed":
-		return ErrInventoryChanged
-	case "unreadable":
-		return os.ErrPermission
-	}
-	return ErrInventoryChanged
-}
+func inventoryCodeError(code string) error { return nativeinventory.CodeError(code) }
 func inventoryFailure(err error, out io.Writer) error {
 	return json.NewEncoder(out).Encode(InventoryPage{ErrorCode: inventoryErrorCode(err)})
 }

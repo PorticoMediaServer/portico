@@ -6,83 +6,30 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"path/filepath"
 	"runtime"
-	"unicode/utf8"
 
 	"github.com/PorticoMediaServer/portico/server/internal/naming"
+	"github.com/PorticoMediaServer/portico/server/internal/storage/nativeinventory"
 )
 
-// NativeInventoryRequest is a distinct Linux getdents64 wire contract. Path
-// bytes are base64 JSON, never JSON strings. It has no retained-stream cursor
-// mode. Text fields are generated adapter witnesses, not native filenames.
-type NativeInventoryRequest struct {
-	Root, RelativePath                      []byte
-	RootIdentity, DirectoryRevision, Cursor string
-	Limit                                   int
-	FollowSymlinks                          bool
+type NativeInventoryRequest = nativeinventory.Request
+type NativeInventoryEntry = nativeinventory.Entry
+type NativeInventoryIssue = nativeinventory.Issue
+type NativeInventoryPage = nativeinventory.Page
+type nativeInventoryWire = nativeinventory.Wire
+
+var ErrNativeInventory = nativeinventory.ErrNativeInventory
+
+func (c *Client) NativeInventoryObserver() nativeinventory.Observer {
+	return nativeinventory.NewObserver(c)
 }
 
-type NativeInventoryEntry struct {
-	Path, Name                  []byte
-	ObjectIdentity, ChangeToken string
-	Size, ModifiedNS            int64
-	Directory                   bool
-}
-
-type NativeInventoryIssue struct {
-	Path, Reason     []byte
-	Line             int
-	Protect, Warning bool
-}
-
-type NativeInventoryPage struct {
-	Version                                            int
-	ErrorCode                                          string
-	RootIdentity, DirectoryIdentity, DirectoryRevision string
-	Entries                                            []NativeInventoryEntry
-	Issues                                             []NativeInventoryIssue
-	NextCursor                                         string
-	Complete, Unstable                                 bool
-}
-
-type nativeInventoryWire struct {
-	NativeInventoryRequest
-	MountedRoot []byte `json:",omitempty"`
-}
-
-var ErrNativeInventory = errors.New("invalid native-byte inventory transport")
-
-// NativeInventoryPage preserves bytes through the existing supervised helper.
-// A cancelled/deadline call joins its OWN physical retirement for at most five
-// seconds after kill, then returns ErrHelperRetirementPending with zero output.
-// The actual Wait/consumer/permit retains custody; the shared owner is not closed.
-// At a full helper pool new native work refuses without queueing. Legacy calls
-// keep their existing admission and cancellation behavior.
-// There is no fallback to the lossy legacy InventoryPage JSON string protocol.
 func (c *Client) NativeInventoryPage(ctx context.Context, owner *OperationScope, key string, r NativeInventoryRequest) (NativeInventoryPage, error) {
-	if runtime.GOOS != "linux" || owner == nil || !validNativeRequest(r) {
-		return NativeInventoryPage{}, ErrNativeInventory
-	}
-	return c.nativeInventoryOwned(ctx, owner, key, r)
-}
-
-func validNativeRequest(r NativeInventoryRequest) bool {
-	if len(r.Root) > naming.MaxPathBytes || len(r.RelativePath) > naming.MaxPathBytes || len(r.Cursor) > 4096 || r.Limit < 1 || r.Limit > 128 ||
-		bytes.IndexByte(r.Root, 0) >= 0 || bytes.IndexByte(r.RelativePath, 0) >= 0 ||
-		!filepath.IsAbs(string(r.Root)) || string(r.RelativePath) != "." && !filepath.IsLocal(string(r.RelativePath)) {
-		return false
-	}
-	for _, v := range []string{r.RootIdentity, r.DirectoryRevision, r.Cursor} {
-		if len(v) > 4096 || !utf8.ValidString(v) {
-			return false
-		}
-	}
-	return true
+	return c.NativeInventoryObserver().Observe(ctx, owner, key, r)
 }
 
 func nativeInventoryHelper(w *nativeInventoryWire, out io.Writer) (result error) {
-	if runtime.GOOS != "linux" || w == nil || !validNativeRequest(w.NativeInventoryRequest) ||
+	if runtime.GOOS != "linux" || w == nil || !nativeinventory.ValidRequest(w.NativeInventoryRequest) ||
 		len(w.MountedRoot) > naming.MaxPathBytes || bytes.IndexByte(w.MountedRoot, 0) >= 0 {
 		return ErrNativeInventory
 	}
@@ -126,12 +73,8 @@ func nativeInventoryEmit(w *nativeInventoryWire, out io.Writer) error {
 	for _, i := range p.Issues {
 		n.Issues = append(n.Issues, NativeInventoryIssue{Path: []byte(i.Path), Reason: []byte(i.Reason), Line: i.Line, Protect: i.Protect, Warning: i.Warning})
 	}
-	if err := nativePageText(n); err != nil {
+	if err := nativeinventory.ValidatePageText(n); err != nil {
 		return err
 	}
 	return json.NewEncoder(out).Encode(n)
 }
-
-// The sole Begin here is the typed operation lease, not database/sql. Returning
-// its release callback does not invoke arbitrary callable state in this file.
-func nativeInventoryLease(owner *OperationScope) (func(), error) { return owner.Begin() }

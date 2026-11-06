@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server/internal/storage/nativeinventory"
 )
 
 func nativeClient(t *testing.T) (*Client, *OperationScope) {
@@ -102,7 +104,7 @@ func TestNativeInventoryNULAndUndecodableWireRefuse(t *testing.T) {
 	// path policy. They cannot become a truncated valid path or cursor progress.
 	for _, raw := range [][]byte{{0, 0xff}, {0xff, 0}, {1, 0, 1}} {
 		q.RelativePath = raw
-		wire, err := marshalNativeRequest(&nativeInventoryWire{NativeInventoryRequest: q})
+		wire, err := nativeinventory.MarshalRequest(&nativeInventoryWire{NativeInventoryRequest: q})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -174,7 +176,7 @@ func TestNativeInventoryCancellationJoinsRealOwner(t *testing.T) {
 
 func TestNativeInventoryRejectsDuplicateAliasAndUnknownEnvelope(t *testing.T) {
 	root := t.TempDir()
-	good, err := marshalNativeRequest(&nativeInventoryWire{NativeInventoryRequest: NativeInventoryRequest{Root: []byte(root), RelativePath: []byte("."), Limit: 1}})
+	good, err := nativeinventory.MarshalRequest(&nativeInventoryWire{NativeInventoryRequest: NativeInventoryRequest{Root: []byte(root), RelativePath: []byte("."), Limit: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,7 +254,7 @@ func TestNativeInventoryNullPayloadKeepsLegacyPage(t *testing.T) {
 	for _, key := range []string{"nativeInventory", "NativeInventory", "NATIVEINVENTORY", "nAtIvEiNvEnToRy"} {
 		t.Run(key, func(t *testing.T) {
 			wire := append(bytes.Clone(raw[:len(raw)-1]), []byte(`,"`+key+`": null }`)...)
-			if nativeEnvelopeCandidate(wire) {
+			if nativeinventory.EnvelopeCandidate(wire) {
 				t.Fatal("null payload selected native decoding")
 			}
 			var out bytes.Buffer
@@ -264,7 +266,7 @@ func TestNativeInventoryNullPayloadKeepsLegacyPage(t *testing.T) {
 			}
 			for _, value := range []string{`{}`, `[]`, `false`, `0`, `""`} {
 				wire := append(bytes.Clone(raw[:len(raw)-1]), []byte(`,"`+key+`":`+value+`}`)...)
-				if !nativeEnvelopeCandidate(wire) {
+				if !nativeinventory.EnvelopeCandidate(wire) {
 					t.Fatalf("non-null payload %s did not select strict native decoding", value)
 				}
 				out.Reset()

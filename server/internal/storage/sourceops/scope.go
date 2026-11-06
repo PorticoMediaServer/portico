@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 )
 
 // ErrRootLease is shared with the legacy storage API by identity.
@@ -29,25 +30,62 @@ func New() *Scope {
 }
 
 func (s *Scope) Context() context.Context { return s.life }
-func (s *Scope) Begin() (func(), error) {
+
+// Lease is the existing once-only physical-debt release, carried as a typed
+// value so the pure observer never receives or invokes a callback slot.
+type Lease struct {
+	scope *Scope
+	once  sync.Once
+}
+
+func (s *Scope) Acquire() (*Lease, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
 		return nil, ErrRootLease
 	}
 	s.active++
-	var once sync.Once
-	return func() {
-		once.Do(func() {
-			s.mu.Lock()
-			s.active--
-			if s.closed && s.active == 0 {
-				close(s.done)
-			}
-			s.mu.Unlock()
-		})
-	}, nil
+	return &Lease{scope: s}, nil
 }
+
+func (l *Lease) Release() {
+	l.once.Do(func() {
+		s := l.scope
+		s.mu.Lock()
+		s.active--
+		if s.closed && s.active == 0 {
+			close(s.done)
+		}
+		s.mu.Unlock()
+	})
+}
+
+// Begin preserves the original API, release identity and shared accounting.
+func (s *Scope) Begin() (func(), error) {
+	lease, err := s.Acquire()
+	if err != nil {
+		return nil, err
+	}
+	return lease.Release, nil
+}
+
+// Deadline holds exactly the original context cancellation and AfterFunc stop.
+// It owns no scope, budget, process or additional physical-debt ledger.
+type Deadline struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+	stop   func() bool
+}
+
+func NewDeadline(ctx context.Context, timeout time.Duration) *Deadline {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	return &Deadline{ctx: ctx, cancel: cancel}
+}
+func (d *Deadline) Context() context.Context { return d.ctx }
+func (d *Deadline) Cancel()                  { d.cancel() }
+func (d *Deadline) BindOwner(owner *Scope)   { d.stop = context.AfterFunc(owner.Context(), d.cancel) }
+func (d *Deadline) UnbindOwner()             { d.stop() }
+
 func (s *Scope) Close() {
 	s.mu.Lock()
 	if !s.closed {

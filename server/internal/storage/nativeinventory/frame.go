@@ -1,4 +1,4 @@
-package storage
+package nativeinventory
 
 import (
 	"bytes"
@@ -11,11 +11,11 @@ import (
 const nativeInventoryOperation = "inventory-page-native-v1"
 
 type nativeRequestMessage struct {
-	Operation       string               `json:"operation"`
-	NativeInventory *nativeInventoryWire `json:"nativeInventory"`
+	Operation       string `json:"operation"`
+	NativeInventory *Wire  `json:"nativeInventory"`
 }
 
-func marshalNativeRequest(w *nativeInventoryWire) ([]byte, error) {
+func marshalNativeRequest(w *Wire) ([]byte, error) {
 	return json.Marshal(nativeRequestMessage{nativeInventoryOperation, w})
 }
 
@@ -157,7 +157,7 @@ func nativeEnvelopeCandidate(raw []byte) bool {
 	}
 	return false
 }
-func decodeNativeEnvelope(raw []byte) (*nativeInventoryWire, bool, error) {
+func decodeNativeEnvelope(raw []byte) (*Wire, bool, error) {
 	if !nativeEnvelopeCandidate(raw) {
 		return nil, false, nil
 	}

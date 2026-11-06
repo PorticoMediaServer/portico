@@ -31,7 +31,6 @@ var allowed = map[string]bool{
 	// database file, never the server's; no gate applies to it.
 	"internal/livechannels/programme_spool.go": true,
 	// OperationScope.Begin is a goroutine lease, not a transaction.
-	"internal/storage/inventory_native.go":          true,
 	"internal/storage/observed_playback.go":         true,
 	"internal/storage/inventory_page_stream.go":     true,
 	"internal/storage/root_registration_unix.go":    true,

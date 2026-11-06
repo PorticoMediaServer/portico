@@ -3,6 +3,8 @@
 package storage
 
 import (
+	"github.com/PorticoMediaServer/portico/server/internal/storage/nativeinventory"
+
 	"bytes"
 	"context"
 	"encoding/json"
@@ -25,7 +27,7 @@ func TestNativeResponseFixture(t *testing.T) {
 	if err != nil {
 		os.Exit(2)
 	}
-	w, matched, err := decodeNativeEnvelope(raw)
+	w, matched, err := nativeinventory.DecodeEnvelope(raw)
 	if err != nil || !matched || w == nil {
 		os.Exit(3)
 	}
