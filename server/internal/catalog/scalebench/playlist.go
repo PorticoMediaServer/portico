@@ -36,9 +36,18 @@ type playlistOptions struct {
 	pageBudget int // 0 walks to the last page; otherwise stop after this many pages
 	reorders   int // concurrent-reorder writes
 	readers    int // concurrent readers during reorder
+
+	reorderTest *playlistReorderTestHooks // nil outside tests
 }
 
 var playlistExercise playlistOptions
+
+// Tests can hold a real page snapshot across the reorder writes. The command
+// leaves these hooks nil, so its ordinary scheduling and measurements are unchanged.
+type playlistReorderTestHooks struct {
+	pageRead     func(context.Context, error) error
+	beforeWrites func(context.Context) (release func(), err error)
+}
 
 type playlistSortResult struct {
 	Route         string  `json:"route"`
@@ -381,7 +390,7 @@ func walkPlaylist(ctx context.Context, db *sql.DB, s *catalog.Service, viewer ca
 	return walk, nil
 }
 
-func readPlaylistPage(ctx context.Context, db *sql.DB, s *catalog.Service, viewer catalog.Viewer, id, sortID, direction string, limit int, cursor string) (catalog.ContentEnvelope, error) {
+func readPlaylistPage(ctx context.Context, db *sql.DB, s *catalog.Service, viewer catalog.Viewer, id, sortID, direction string, limit int, cursor string, afterRead func(context.Context, error) error) (catalog.ContentEnvelope, error) {
 	var env catalog.ContentEnvelope
 	err := dbwork.WithReadSnapshot(ctx, db, func(inner context.Context) error {
 		var readErr error
@@ -389,6 +398,9 @@ func readPlaylistPage(ctx context.Context, db *sql.DB, s *catalog.Service, viewe
 			ServerID: "scalebench", Viewer: viewer, View: "playlist", EntityID: id,
 			Sort: sortID, Direction: direction, Cursor: cursor, Limit: limit,
 		}, catalog.ResourceActor{Authority: "local", AccountID: playlistActorAccount, ProfileID: "viewer"}, viewer.Libraries)
+		if afterRead != nil {
+			return afterRead(inner, readErr)
+		}
 		return readErr
 	})
 	return env, err
@@ -410,7 +422,7 @@ func playlistFilterCounts(ctx context.Context, db *sql.DB, s *catalog.Service, i
 	}
 	out := []playlistFilterResult{}
 	for _, entry := range viewers {
-		env, err := readPlaylistPage(ctx, db, s, entry.viewer, id, "position", "asc", 100, "")
+		env, err := readPlaylistPage(ctx, db, s, entry.viewer, id, "position", "asc", 100, "", nil)
 		if err != nil {
 			return nil, err
 		}
@@ -478,13 +490,28 @@ func exercisePlaylistReorder(ctx context.Context, db *sql.DB, s *catalog.Service
 	if err := db.QueryRowContext(ctx, `SELECT revision FROM catalog_playlists WHERE token=? AND deleted=0`, id).Scan(&revision); err != nil {
 		return out, err
 	}
+	var afterRead func(context.Context, error) error
+	if playlistExercise.reorderTest != nil {
+		afterRead = playlistExercise.reorderTest.pageRead
+	}
 	stopReaders := startPlaylistReorderReaders(ctx, playlistExercise.readers, func(readCtx context.Context) error {
-		_, err := readPlaylistPage(readCtx, db, s, viewer, id, "position", "asc", playlistExercise.limit, "")
+		_, err := readPlaylistPage(readCtx, db, s, viewer, id, "position", "asc", playlistExercise.limit, "", afterRead)
 		return err
 	})
 	// Writers can return early on cancellation or mutation failure. Readers
 	// must retire before the caller closes the fixture database in every case.
 	defer func() { _, _ = stopReaders() }()
+	var releasePage func()
+	if hooks := playlistExercise.reorderTest; hooks != nil {
+		var err error
+		releasePage, err = hooks.beforeWrites(ctx)
+		if releasePage != nil {
+			defer releasePage() // Also unblock the snapshot on an early writer failure.
+		}
+		if err != nil {
+			return out, err
+		}
+	}
 	for write := 0; write < playlistExercise.reorders; write++ {
 		index := (write * 2) % min(200, len(expected)-1)
 		// Ask for the two occurrences in reverse order: the reorder assigns their
@@ -508,6 +535,9 @@ func exercisePlaylistReorder(ctx context.Context, db *sql.DB, s *catalog.Service
 		revision = receipt.Revision
 		expected[index], expected[index+1] = expected[index+1], expected[index]
 		out.Writes++
+	}
+	if releasePage != nil {
+		releasePage()
 	}
 	reads, err := stopReaders()
 	out.Reads, out.StaleRestarts = reads.n, reads.stale
