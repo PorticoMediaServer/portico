@@ -141,7 +141,36 @@ request with only `signal` replaced, chosen conditionally, and positional
 `farewell(path, method, body)`. Recognition alone grants no allowance: every
 approved playback guard still binds its full enclosing policy and exact budget.
 Adding/replacing path or body fields is not one of these forwarding shapes.
-Deliberately obfuscated evasions through eval, Function constructors or proxy tricks are outside recognizer scope because independent verification and a lead ruling on every exact complete-span hash remain the security boundary.
+New JavaScript forwarders use a closed AST grammar in
+`ci/client_api_forwarder_grammar.mjs`. It admits named guard calls from a finite
+list, verbatim parameters to one named dispatch target, signal references and
+`AbortSignal.any` composition, and response returns. Read-only predicates,
+error exits, `const` bindings, and `try`/`catch`/`finally` support those forms.
+There can be at most one dispatch on an execution path; guards cannot hide a
+second dispatch. Unknown statements, calls, mutable locals, destructuring,
+request aliases, computed calls, and writes have no production and are rejected.
+The grammar does not attempt to prove a named guard's semantics: independent
+verification and the exact full-span ruling still provide that boundary.
+
+Previously approved complex policies remain as **frozen exact legacy cases** in
+`ci/client-api-legacy-forwarders.json`. The packet names the immutable main
+snapshot from which its bindings were taken, the original ruling and occurrence
+budget, the file, full policy hash (and separately approved callback hash where
+present), owner, exact dispatch hash/text and former shape. It is not populated
+from the live approvals ledger. Existing abort-listener cleanup, event resync,
+XHR execution and other richer policies can keep their reviewed bytes without
+extending the grammar for future wrappers. Any changed identity misses the
+frozen case; refreshing only a pin or ruling cannot admit that new shape.
+Removing a frozen case is allowed. Adding a future case requires an explicit
+new decision and a reviewed change to the frozen provenance check.
+
+Recognition reports `forwardingGrammar: "closed"` or `"frozen-legacy"`, and a
+`grammarRejection` reason for spans outside the grammar. These fields do not
+change site identity, span binding, ledger authority or occurrence accounting.
+All references to implicit `arguments` remain rejected across the full bound
+policy, including a policy which would otherwise match a frozen case.
+
+Deliberately obfuscated evasions through eval, Function constructors or proxy tricks remain outside semantic verification by the recognizer; independent verification and a lead ruling on every exact complete-span hash remain the security boundary.
 
 Native byte-transport executors which take an already constructed core request
 are reported too; their migration disposition must preserve platform IO and

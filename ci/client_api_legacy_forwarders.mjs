@@ -1,0 +1,22 @@
+// Generated once from already approved main spans; additions require a fresh
+// explicit ruling. The closed grammar never learns from the live ledger.
+import {createHash} from 'node:crypto';
+import {readFileSync} from 'node:fs';
+const packet=JSON.parse(readFileSync(new URL('./client-api-legacy-forwarders.json',import.meta.url),'utf8'));
+const hash=text=>createHash('sha256').update(text).digest('hex');
+if(packet.sourceCommit!=='71a01131dad6460ea5bdfd095b635d6eaa898fea'||!Array.isArray(packet.sites))
+  throw Error('Invalid frozen forwarder provenance');
+const identities=new Set();
+for(const s of packet.sites) {
+  if(!s||typeof s.binding!=='string'||typeof s.file!=='string'||typeof s.owner!=='string'||typeof s.shape!=='string'
+      ||!s.binding.startsWith(s.file+'#')||!Number.isSafeInteger(s.occurrences)||s.occurrences<1
+      ||!s.shape||![s.guardHash,s.callHash,...(s.forwardingHash?[s.forwardingHash]:[])].every(h=>/^[a-f0-9]{64}$/.test(h))
+      ||typeof s.callText!=='string'||hash(s.callText)!==s.callHash)
+    throw Error('Invalid frozen forwarder binding');
+  const identity=JSON.stringify([s.file,s.guardHash,s.forwardingHash??null,s.callHash,s.shape,s.owner]);
+  if(identities.has(identity))throw Error('Duplicate frozen forwarder binding');
+  identities.add(identity);
+}
+export function legacyForwarder({file,guardHash,forwardingHash,callText,shape,owner}) {
+  return identities.has(JSON.stringify([file,guardHash,forwardingHash??null,hash(callText),shape,owner]));
+}
