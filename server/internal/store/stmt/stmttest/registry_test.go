@@ -3,10 +3,12 @@ package stmttest_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -24,7 +26,41 @@ func TestFixtureAdapterRefusesOrdinaryBinary(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, "go", "run", "./testdata/productionprobe").CombinedOutput()
+	// Compile an ordinary program outside the physical store source tree. A
+	// tracked testdata/*.go program is excluded by go list but still belongs to
+	// the unfiltered connection-opening census, so keep its template non-Go.
+	server, err := filepath.Abs("../../../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	module, err := os.ReadFile(filepath.Join(server, "go.mod"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var goVersion string
+	for line := range strings.SplitSeq(string(module), "\n") {
+		if fields := strings.Fields(line); len(fields) == 2 && fields[0] == "go" {
+			goVersion = fields[1]
+		}
+	}
+	if goVersion == "" {
+		t.Fatal("server module has no Go version")
+	}
+	probe, err := os.ReadFile("testdata/productionprobe/main.go.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	probeModule := fmt.Sprintf("module github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest/productionprobe\n\ngo %s\n\nrequire github.com/PorticoMediaServer/portico/server v0.0.0\n\nreplace github.com/PorticoMediaServer/portico/server => %s\n", goVersion, strconv.Quote(filepath.ToSlash(server)))
+	for name, data := range map[string][]byte{"go.mod": []byte(probeModule), "main.go": probe} {
+		if err := os.WriteFile(filepath.Join(dir, name), data, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cmd := exec.CommandContext(ctx, "go", "run", "-mod=mod", ".")
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "GOWORK=off")
+	out, err := cmd.CombinedOutput()
 	if err != nil || strings.TrimSpace(string(out)) != "production fixture registration refused" {
 		t.Fatalf("ordinary binary bypass: %v: %s", err, out)
 	}
