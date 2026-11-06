@@ -14,7 +14,7 @@ import (
 // cannot silently opt out. Pure unimplemented stubs are the only exception.
 func unguardedCommandFinishes(file *ast.File) []string {
 	var bad []string
-	resultTypes := map[string]bool{"commandOutput": true, "SearchImageStageResult": true, "InventoryResult": true, "EffectiveStageResult": true, "AckResult": true, "EffectiveStageBeginResult": true, "inventoryReceiptLookup": true, "publisherReceiptLookup": true, "publisherInvocation": true, "scanLifecycleReceiptLookup": true, "scanLifecycleCommandResult": true, "scanSourceFacts": true, "searchFragmentStageResult": true}
+	resultTypes := map[string]bool{"commandOutput": true, "SearchImageStageResult": true, "InventoryResult": true, "EffectiveStageResult": true, "AckResult": true, "EffectiveStageBeginResult": true, "inventoryReceiptLookup": true, "publisherReceiptLookup": true, "publisherInvocation": true, "scanLifecycleReceiptLookup": true, "scanLifecycleCommandResult": true, "scanSourceFacts": true, "searchFragmentStageResult": true, "searchHeadPublishResult": true}
 	for _, decl := range file.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Body == nil || fn.Type.Results == nil {
@@ -48,6 +48,7 @@ func unguardedCommandFinishes(file *ast.File) []string {
 		needs = needs || fn.Name.Name == "newScanDriver" || fn.Name.Name == "keepPreparation" || fn.Name.Name == "prepareWork" || fn.Name.Name == "allocateBirth" || fn.Name.Name == "prepareBirth" || fn.Name.Name == "checkBirthAbsence" || fn.Name.Name == "excludeOldWork"
 		needs = needs || fn.Name.Name == "ObserveInventory" || fn.Name.Name == "newScanPreparation"
 		needs = needs || fn.Name.Name == "searchFragmentStageFreshFacts"
+		needs = needs || fn.Name.Name == "searchHeadPublishFreshFacts" || fn.Name.Name == "searchPublisherStageFacts"
 		if !needs {
 			continue
 		}
@@ -251,6 +252,10 @@ func TestCommandReleaseGuardRejectsBypasses(t *testing.T) {
 		`func prepareBirth(ctx context.Context)(out *inventoryCreateCommand,err error){return out,nil}`,
 		`func checkBirthAbsence(ctx context.Context)(err error){return nil}`,
 		`func excludeOldWork(ctx context.Context)(err error){return nil}`,
+		`func headRelease(ctx context.Context)(out searchHeadPublishResult,err error){return searchHeadPublishResult{},nil}`,
+		`func searchHeadPublishFreshFacts(ctx context.Context)(out searchHeadPublishRequest,err error){return searchHeadPublishRequest{},nil}`,
+		`func searchPublisherStageFacts(ctx context.Context)(out searchFragmentStageSnapshot,err error){return searchFragmentStageSnapshot{},nil}`,
+
 		`func newScanPreparation(ctx context.Context)(out *scanPreparation,err error){return &scanPreparation{},nil}`,
 		`func ObserveInventory(ctx context.Context)(value nativeinventory.Page,err error){return nativeinventory.Page{},nil}`,
 		`func fragmentRelease(ctx context.Context)(out searchFragmentStageResult,err error){return searchFragmentStageResult{},nil}`,
