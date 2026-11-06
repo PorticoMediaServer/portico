@@ -3,6 +3,7 @@ package dbwork
 import (
 	"context"
 	"database/sql"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -107,46 +108,73 @@ func TestClosedPoolsDrainBorrowedConnections(t *testing.T) {
 }
 
 func TestBackgroundAndForegroundReadPoolsCannotStarveEachOther(t *testing.T) {
-	db := testDB(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	foreground := []*sql.Conn{}
-	for range 6 {
-		conn, err := db.Conn(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		foreground = append(foreground, conn)
-	}
-	defer func() {
-		for _, conn := range foreground {
-			conn.Close()
-		}
-	}()
-	backgroundCtx := WithClass(ctx, ClassBackgroundMedia)
-	if err := QueryRow(backgroundCtx, db, `SELECT 1`).Scan(new(int)); err != nil {
-		t.Fatal("foreground readers starved background", err)
-	}
-	for _, conn := range foreground {
-		conn.Close()
-	}
-	foreground = nil
-	background := ReadHandle(backgroundCtx, db)
-	backgroundConns := []*sql.Conn{}
-	for range background.Stats().MaxOpenConnections {
-		conn, err := background.Conn(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		backgroundConns = append(backgroundConns, conn)
-	}
-	defer func() {
-		for _, conn := range backgroundConns {
-			conn.Close()
-		}
-	}()
-	if err := QueryRow(ctx, db, `SELECT 1`).Scan(new(int)); err != nil {
-		t.Fatal("background readers starved foreground", err)
+	for _, size := range []string{"default", "maximum"} {
+		t.Run(size, func(t *testing.T) {
+			policy := DefaultPolicy()
+			if size == "maximum" {
+				// Exercise large pools without changing GOMAXPROCS: this test
+				// must also run on the minimum-core CI/host profile.
+				policy.MaxOpenConns, policy.BackgroundConns = hostReaders(16)
+				policy.MaxIdleConns = policy.MaxOpenConns
+			}
+			db, err := OpenHandle(filepath.Join(t.TempDir(), "pools.sqlite"), policy)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { db.Close() })
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			backgroundCtx := WithClass(ctx, ClassBackgroundMedia)
+			background := ReadHandle(backgroundCtx, db)
+			if background == db || background == writerHandle(db) ||
+				db.Stats().MaxOpenConnections != policy.MaxOpenConns || background.Stats().MaxOpenConnections != policy.BackgroundConns {
+				t.Fatal("reader pools are not isolated at the configured capacities")
+			}
+			foreground := []*sql.Conn{}
+			defer func() {
+				for _, conn := range foreground {
+					conn.Close()
+				}
+			}()
+			// Saturate the ACTUAL pool, not a fixed number of loans: the
+			// two-core policy has four connections, while larger hosts have 16.
+			for range db.Stats().MaxOpenConnections {
+				conn, err := db.Conn(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				foreground = append(foreground, conn)
+			}
+			if db.Stats().InUse != policy.MaxOpenConns {
+				t.Fatal("foreground pool was not saturated")
+			}
+			if err := QueryRow(backgroundCtx, db, `SELECT 1`).Scan(new(int)); err != nil {
+				t.Fatal("foreground readers starved background", err)
+			}
+			for _, conn := range foreground {
+				conn.Close()
+			}
+			foreground = nil
+			backgroundConns := []*sql.Conn{}
+			defer func() {
+				for _, conn := range backgroundConns {
+					conn.Close()
+				}
+			}()
+			for range background.Stats().MaxOpenConnections {
+				conn, err := background.Conn(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				backgroundConns = append(backgroundConns, conn)
+			}
+			if background.Stats().InUse != policy.BackgroundConns {
+				t.Fatal("background pool was not saturated")
+			}
+			if err := QueryRow(ctx, db, `SELECT 1`).Scan(new(int)); err != nil {
+				t.Fatal("background readers starved foreground", err)
+			}
+		})
 	}
 }
 
