@@ -85,6 +85,7 @@ request with only `signal` replaced, chosen conditionally, and positional
 `farewell(path, method, body)`. Recognition alone grants no allowance: every
 approved playback guard still binds its full enclosing policy and exact budget.
 Adding/replacing path or body fields is not one of these forwarding shapes.
+Deliberately obfuscated evasions through eval, Function constructors or proxy tricks are outside recognizer scope because independent verification and a lead ruling on every exact complete-span hash remain the security boundary.
 
 Native byte-transport executors which take an already constructed core request
 are reported too; their migration disposition must preserve platform IO and
