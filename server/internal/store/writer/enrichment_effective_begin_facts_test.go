@@ -15,7 +15,6 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/schema"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
-	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
 // A fact population, not a valid producer entry or a verified command result.
@@ -113,7 +112,11 @@ func effectiveBeginFactTurn(t *testing.T, w *executor) (*commandTurn, map[stmt.I
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = tx.rollback(nil) })
-	registry, err := stmttest.New(t, enrichmentEffectiveBeginDefinitions())
+	defs := enrichmentEffectiveBeginDefinitions()
+	config := w.config
+	config.Synchronous = sqliteconn.Normal
+	golden := captureEffectiveFixture(t, tx.conn, config, defs)
+	registry, err := stmt.New(defs, golden.Receipt())
 	if err != nil {
 		t.Fatal(err)
 	}
