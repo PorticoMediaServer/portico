@@ -104,7 +104,7 @@ func enrichmentEffectiveBeginDefinitions() []stmt.Definition {
 				{Name: "lease", Type: stmt.Text}, {Name: "lease_until", Type: stmt.Text},
 				{Name: "page", Type: stmt.Integer}, {Name: "after_item", Type: stmt.Text},
 			},
-			Cohorts: []stmt.Cohort{{Name: "exact_owner_cas", Bindings: []any{int64(307), int64(12), "operation-one", make([]byte, 16), int64(11), int64(11), int64(101), int64(31), "unadmitted-fixture-phase", "staged", "native-lease", "2026-11-05T12:00:00.000000000Z", int64(59), "opaque-page:61"}}},
+			Cohorts: []stmt.Cohort{{Name: "exact_owner_cas", Bindings: []any{int64(307), int64(12), "operation-one", []byte{16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31}, int64(11), int64(11), int64(101), int64(31), "enrichment-v1", "staged", "native-lease", "2100-11-05T12:30:00Z", int64(59), "opaque-page:61"}}},
 			Plan:    stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_metadata_provider_operations_3"}, Seeks: []string{"id=? AND command_incarnation=?"}},
 		},
 		{
