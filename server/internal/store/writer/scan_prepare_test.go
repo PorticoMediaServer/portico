@@ -58,26 +58,6 @@ func TestInventoryPublicPreparationMatchesPrivateAndFreezes(t *testing.T) {
 }
 
 func TestInventoryPublicPreparationNativePathBytes(t *testing.T) {
-	for _, field := range []string{"directory", "relative", "asset"} {
-		for _, raw := range [][]byte{{'a', 0xff, 'b'}, {'a', 0xfe, 'b'}, {'a', 0, 0xff, 'b'}, {'a', 0, 'b'}} {
-			in, id := inventoryPublicInput(t)
-			switch field {
-			case "directory":
-				in.Directory.Path = raw
-			case "relative":
-				in.Files[0].RelativePath = raw
-			case "asset":
-				in.Files[0].AssetPath = raw
-			}
-			before := bytes.Clone(raw)
-			if c, err := NewInventoryAcceptCommand(id, in); c != nil || !errors.Is(err, ErrInvalid) {
-				t.Fatalf("native %s %x produced command/error %v/%v", field, raw, c, err)
-			}
-			if !bytes.Equal(raw, before) {
-				t.Fatal("native refusal mutated input")
-			}
-		}
-	}
 	in, id := inventoryPublicInput(t)
 	in.Files[0].RelativePath = []byte("\u96ea\ufffd.mkv")
 	in.Files[0].AssetPath = append([]byte("/media/"), in.Files[0].RelativePath...)
@@ -99,8 +79,57 @@ func TestInventoryPublicPreparationNativePathBytes(t *testing.T) {
 		t.Fatal("BLOB root was replaced")
 	}
 	in.Source.ResolvedRoot = []byte{'/', 0, 0xff}
-	if c, err = NewInventoryAcceptCommand(id, in); c != nil || !errors.Is(err, ErrInvalid) {
-		t.Fatal("NUL root accepted", c, err)
+	if c, err = NewInventoryAcceptCommand(id, in); c != nil || !errors.Is(err, ErrInvalid) || errors.Is(err, ErrFilenameUnrepresentable) {
+		t.Fatal("NUL root accepted or misclassified", c, err)
+	}
+}
+
+func TestInventoryPublicPreparationUnrepresentableCause(t *testing.T) {
+	inventoryPublicPathCause(t, []byte{'a', 0xff, 'b'}, ErrFilenameUnrepresentable)
+	inventoryPublicPathCause(t, []byte{'a', 0xfe, 'b'}, ErrFilenameUnrepresentable)
+}
+
+func TestInventoryPublicPreparationNULCause(t *testing.T) {
+	inventoryPublicPathCause(t, []byte{'a', 0, 'b'}, ErrInvalid)
+	inventoryPublicPathCause(t, []byte{'a', 0, 0xff, 'b'}, ErrInvalid)
+	// An unsafe root must not be hidden by an unrepresentable leaf.
+	in, id := inventoryPublicInput(t)
+	in.Source.ResolvedRoot = []byte{'/', 0, 'x'}
+	in.Files[0].RelativePath = []byte{'a', 0xff}
+	if c, err := NewInventoryAcceptCommand(id, in); c != nil || !errors.Is(err, ErrInvalid) || errors.Is(err, ErrFilenameUnrepresentable) {
+		t.Fatal("NUL root misclassified as filename refusal", c, err)
+	}
+}
+
+func inventoryPublicPathCause(t *testing.T, raw []byte, want error) {
+	t.Helper()
+	for _, field := range []string{"directory", "relative", "asset"} {
+		t.Run(field, func(t *testing.T) {
+			in, id := inventoryPublicInput(t)
+			switch field {
+			case "directory":
+				in.Directory.Path = raw
+			case "relative":
+				in.Files[0].RelativePath = raw
+			case "asset":
+				in.Files[0].AssetPath = raw
+			}
+			before := bytes.Clone(raw)
+			c, err := NewInventoryAcceptCommand(id, in)
+			if c != nil || !errors.Is(err, want) {
+				t.Fatalf("native %s %x produced command/error %v/%v", field, raw, c, err)
+			}
+			other := ErrInvalid
+			if want == ErrInvalid {
+				other = ErrFilenameUnrepresentable
+			}
+			if errors.Is(err, other) {
+				t.Fatal("native causes collapsed", err)
+			}
+			if !bytes.Equal(raw, before) {
+				t.Fatal("native refusal mutated input")
+			}
+		})
 	}
 }
 
