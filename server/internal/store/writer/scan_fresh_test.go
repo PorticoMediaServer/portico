@@ -1,6 +1,7 @@
 package writer
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -60,9 +61,13 @@ func seedInventoryFresh(t *testing.T, e *executor) *inventoryAcceptCommand {
 			t.Fatal(err)
 		}
 	}
+	// Explicit original scope and full synthetic creation commitment for this
+	// native fixture, independent of its N1 command/receipt and mutable parents.
 	if _, err := e.db.ExecContext(t.Context(), `INSERT INTO inventory_runs(job_id,source_id,source_generation,root_incarnation,root_identity,policy_revision,scan_mode,
-job_lease_owner,job_lease_generation,job_lease_expires_ms,job_revision,command_incarnation,last_command_sequence,acknowledged_command_sequence,discovered)
-VALUES('fresh-run','fresh-source',23,'fresh-incarnation','dev:7:ino:1',7,'first-import',13,17,4000000000000,41,?,18,18,59)`, c.identity.Incarnation[:]); err != nil {
+job_lease_owner,job_lease_generation,job_lease_expires_ms,job_revision,command_incarnation,last_command_sequence,acknowledged_command_sequence,discovered,
+original_library_id,original_library_key,original_resolved_root,original_follow_symlinks,create_operation_id,create_request_digest)
+VALUES('fresh-run','fresh-source',23,'fresh-incarnation','dev:7:ino:1',7,'first-import',13,17,4000000000000,41,?,18,18,59,
+7,'fresh-library','/media',0,?,?)`, c.identity.Incarnation[:], []byte("fresh-create-op!"), bytes.Repeat([]byte{0xe1}, 32)); err != nil {
 		t.Fatal(err)
 	}
 	// Well-formed incompatible stored tuple intentionally proves RAW intent
