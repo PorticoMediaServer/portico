@@ -70,7 +70,7 @@ type Service struct {
 	// reuseMu guards what a scan remembers to spare helper processes
 	// (scan_reuse.go).
 	// pages sizes each scan's inventory steps by measured writer hold.
-	pages pageBudgets
+	pages    pageBudgets
 	reuseMu  sync.Mutex
 	ready    map[string]readyProof
 	accepted map[acceptedKey]acceptedAnalysis
@@ -221,14 +221,10 @@ func (s *Service) Control(ctx context.Context, id, action string, authorize func
 	if err = gated2.Commit(); err != nil {
 		return err
 	}
-	if action != "resume" {
-		s.stopActive(id)
-	}
 	if action == "cancel" {
-		s.forgetListing(id)
-		if s.storage != nil {
-			s.storage.StopInventory(id)
-		}
+		s.retireInventory(id)
+	} else if action != "resume" {
+		s.stopActive(id)
 	}
 	return nil
 }
@@ -286,6 +282,16 @@ func (s *Service) stopActive(id string) {
 	defer s.mu.Unlock()
 	if c := s.active[id]; c != nil {
 		c()
+	}
+}
+
+// retireInventory follows committed terminal cancellation, including jobs
+// between quantums that no longer have an entry in active.
+func (s *Service) retireInventory(id string) {
+	s.stopActive(id)
+	s.forgetListing(id)
+	if s.storage != nil {
+		s.storage.StopInventory(id)
 	}
 }
 
@@ -702,16 +708,15 @@ func quantumRetryable(ctx context.Context, err error) bool {
 }
 
 func (s *Service) InterruptSource(ctx context.Context, source string) {
-	s.mu.Lock()
-	ids := make([]string, 0, len(s.active))
-	for id := range s.active {
-		ids = append(ids, id)
+	rows, err := s.db.QueryContext(ctx, `SELECT job_id FROM inventory_runs WHERE source_id=?`, source)
+	if err != nil {
+		return
 	}
-	s.mu.Unlock()
-	for _, id := range ids {
-		var owner string
-		if s.db.QueryRowContext(ctx, `SELECT source_id FROM inventory_runs WHERE job_id=?`, id).Scan(&owner) == nil && owner == source {
-			s.stopActive(id)
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if rows.Scan(&id) == nil {
+			s.retireInventory(id)
 		}
 	}
 }
@@ -737,19 +742,18 @@ func (s *Service) recoverPolicyChanges(ctx context.Context) {
 	}
 }
 
-// InterruptLibrary stops every scan of a library that is running in this
-// process (the library was removed).
+// InterruptLibrary stops every durable scan of the removed library, including
+// portable reads retained between this process's quantums.
 func (s *Service) InterruptLibrary(ctx context.Context, library string) {
-	s.mu.Lock()
-	ids := make([]string, 0, len(s.active))
-	for id := range s.active {
-		ids = append(ids, id)
+	rows, err := s.db.QueryContext(ctx, `SELECT r.job_id FROM inventory_runs r JOIN jobs j ON j.id=r.job_id WHERE j.library_id=?`, library)
+	if err != nil {
+		return
 	}
-	s.mu.Unlock()
-	for _, id := range ids {
-		var owner string
-		if s.db.QueryRowContext(ctx, `SELECT library_id FROM jobs WHERE id=?`, id).Scan(&owner) == nil && owner == library {
-			s.stopActive(id)
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if rows.Scan(&id) == nil {
+			s.retireInventory(id)
 		}
 	}
 }
