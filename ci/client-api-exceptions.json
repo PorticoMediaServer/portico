@@ -1178,6 +1178,13 @@
     },
     "guardSpans": {
       "apps/native/src-next/screens/read/ReadOwnerEditSheet.tsx#dcf70cf97a348b63": "forwarding-function"
+    },
+    "additionalSites": {
+      "apps/native/src-next/screens/read/ReadOwnerEditSheet.tsx#7b89f2d5e5e92094": {
+        "category": "platform-transport",
+        "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+        "guardHash": "a712a7845f309b93fcbe33fa0d8dce2068dd0dac3642e52f790875f396fca33f"
+      }
     }
   },
   "web/src/screens/read/ReadMetadata.tsx": {
@@ -1257,6 +1264,301 @@
     "guardHashes": {
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoNetwork.kt#4b50cacb05538818": "1b70800fd7d6bf4783357aa7acf9ea8e4805db8bc2327a8c7e12c91437bce22d",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoNetwork.kt#1ccb2cf59526ba16": "1b70800fd7d6bf4783357aa7acf9ea8e4805db8bc2327a8c7e12c91437bce22d"
+    }
+  },
+  "apps/native/src-next/screens/destinations/bulk-media.ts": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/screens/destinations/bulk-media.ts#b74b042f959e0424"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/destinations/bulk-media.ts#b74b042f959e0424": "abe1a9e76ca5c5d819c0afe62943f0147219854e12bbb4b92b487445bd0a975d"
+    }
+  },
+  "apps/native/src-next/screens/destinations/music/model.ts": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/screens/destinations/music/model.ts#afedb5dfc9a95155",
+      "apps/native/src-next/screens/destinations/music/model.ts#96118e5d5bbe5356",
+      "apps/native/src-next/screens/destinations/music/model.ts#1e1f9c6f891100b3"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/destinations/music/model.ts#afedb5dfc9a95155": "48786b7ceeb94607607b9c9820373bfcc0f948a7a53d7ead622979fc46103a89",
+      "apps/native/src-next/screens/destinations/music/model.ts#96118e5d5bbe5356": "97a5580e0429445139cf130c9667a50cc589473c5062281deedaa3fc50bf9697",
+      "apps/native/src-next/screens/destinations/music/model.ts#1e1f9c6f891100b3": "1108b086255a7fdb3c50d49f1106a800e2918cfbd91806309b489e1f3fb4b031"
+    }
+  },
+  "apps/native/src-next/screens/destinations/pins.ts": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/screens/destinations/pins.ts#d7dd10775413b00f"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/destinations/pins.ts#d7dd10775413b00f": "9427b95f948753bba10dcd95f206db4e797fb218aac1aaee90c238ffd634c5e3"
+    }
+  },
+  "apps/native/src-next/screens/home/CustomizeRoute.tsx": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/screens/home/CustomizeRoute.tsx#fc198026f7d5170a"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/home/CustomizeRoute.tsx#fc198026f7d5170a": "c7d7f98da6b693b295cf1192e0327accda1c10061271d15f8448edf148e5249a"
+    }
+  },
+  "apps/native/src-next/screens/home/SeeAllRoute.tsx": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/screens/home/SeeAllRoute.tsx#01f3b009bef7e2a7"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/home/SeeAllRoute.tsx#01f3b009bef7e2a7": "b0645f34796c2d887ba7dc4f1cd28dfddb278bafba2a080e32b579cc4cb1e9cd"
+    }
+  },
+  "apps/native/src-next/screens/home/row-controller.ts": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/screens/home/row-controller.ts#3d277c56669429e1"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/home/row-controller.ts#3d277c56669429e1": "7b214cfe9d192ba4f79cb97aefb7b6e25ea40b5feb7cb8eb5b271b3473f321f1"
+    }
+  },
+  "apps/native/src-next/screens/library/model.ts": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/screens/library/model.ts#4e971c9a12412f91",
+      "apps/native/src-next/screens/library/model.ts#7e32ecf540433e2e"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/library/model.ts#4e971c9a12412f91": "741e1c5ebbcefdfb335f0119214a366b35ad4720c3820de611efd3c8083c877b",
+      "apps/native/src-next/screens/library/model.ts#7e32ecf540433e2e": "53c23e5e1fcbb8fedaca6e4ea8f86b4f560218dae9e2d7f6b0ff013dd67e97f1"
+    }
+  },
+  "apps/native/src-next/screens/library/save-view.ts": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/screens/library/save-view.ts#0264bf6c758646fb"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/library/save-view.ts#0264bf6c758646fb": "bf9a2c33d2cc866e6bf965b4a2cbf69951d89f7d52de3d7229cf7b2f746f558d"
+    }
+  },
+  "apps/native/src-next/screens/read/read-collection-capability.ts": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/screens/read/read-collection-capability.ts#1e9357b35fa65d12"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/read/read-collection-capability.ts#1e9357b35fa65d12": "5e31d5c6147882bcfeebe64fc75d17e37dcfb24b5ec4527e016b16e47a9a94bf"
+    }
+  },
+  "apps/native/src-next/screens/read/read-collection-picker.ts": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/screens/read/read-collection-picker.ts#5c78c5364855e142"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/read/read-collection-picker.ts#5c78c5364855e142": "5cb0be3eb67fee2edcd9d5c2545a2c694e03928ac02a2a410775003ed13c2e5f"
+    }
+  },
+  "apps/native/src-next/screens/search/genre-browse.ts": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/screens/search/genre-browse.ts#641349f525c4db29"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/search/genre-browse.ts#641349f525c4db29": "77f4557012384cc09778945e389d78debce0747ea895936a0a386e3f7c9bb1ab"
+    }
+  },
+  "apps/native/src-next/screens/search/loaded-destinations.ts": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/screens/search/loaded-destinations.ts#1bcaaa47a986e2a3",
+      "apps/native/src-next/screens/search/loaded-destinations.ts#a557fe1f85838ab2"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/search/loaded-destinations.ts#1bcaaa47a986e2a3": "71d8dcb9e2932037997001d2dbc68b41361c196b411aa0a7468cb6994832bfa0",
+      "apps/native/src-next/screens/search/loaded-destinations.ts#a557fe1f85838ab2": "05d48ede3c363ecc6b1cddc0a21034c6fdd249c1c7261f99e319c7aff701f562"
+    }
+  },
+  "apps/native/src-next/screens/search/register.tsx": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "apps/native/src-next/screens/search/register.tsx#d6b3b96a022cdf79"
+    ],
+    "guardHashes": {
+      "apps/native/src-next/screens/search/register.tsx#d6b3b96a022cdf79": "918b16044d43339344cfc2a69394da90434f808e7bdd966d7a3fb45a6fee1d8f"
+    }
+  },
+  "web/src/screens/browse/selection-picker.ts": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "web/src/screens/browse/selection-picker.ts#c4e74cc1afc54ebc"
+    ],
+    "guardHashes": {
+      "web/src/screens/browse/selection-picker.ts#c4e74cc1afc54ebc": "ca658c7090824a30d01b550ae899f90da80f598390e285b61e31e54a5ea4935c"
+    }
+  },
+  "web/src/screens/browse/Library.route.tsx": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "web/src/screens/browse/Library.route.tsx#a26bb5941abc8aed",
+      "web/src/screens/browse/Library.route.tsx#ed07a650668d4637",
+      "web/src/screens/browse/Library.route.tsx#ce814b77766ecb37",
+      "web/src/screens/browse/Library.route.tsx#ddd5347b6fef1465"
+    ],
+    "guardHashes": {
+      "web/src/screens/browse/Library.route.tsx#a26bb5941abc8aed": "cdaa7b4fdc714252e23b91b25da196d17b8f88c840636d9d460d0b6dc4ed9dee",
+      "web/src/screens/browse/Library.route.tsx#ed07a650668d4637": "32cacc3746d2930054f99bbfc196670ec2c987bb847e4ba6488e50eedd91f984",
+      "web/src/screens/browse/Library.route.tsx#ce814b77766ecb37": "cdc368bf7c99d565c6bb2c22bccb149df1d4c9b0505c6283115b9fd1b72d28f1",
+      "web/src/screens/browse/Library.route.tsx#ddd5347b6fef1465": "916153f2ac1bf901d39e467cc928b1d711edfbacaf531ea8773a4afd93521349"
+    }
+  },
+  "web/src/screens/browse/controller.ts": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "web/src/screens/browse/controller.ts#54d5e5281c0a4cf3"
+    ],
+    "guardHashes": {
+      "web/src/screens/browse/controller.ts#54d5e5281c0a4cf3": "062354949b4468535c1c4ff38a9c9c4b8eb635a84d014e1ef32fbcb52cec1519"
+    }
+  },
+  "web/src/screens/browse/play-selection.ts": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "web/src/screens/browse/play-selection.ts#706ca2db4bd6c293"
+    ],
+    "guardHashes": {
+      "web/src/screens/browse/play-selection.ts#706ca2db4bd6c293": "b1713993e8ff965b701b73931846b7c14b0d394fe756778fe0adb6f3c55b6ab5"
+    }
+  },
+  "web/src/screens/browse/selection.tsx": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "web/src/screens/browse/selection.tsx#d0af8da850385bc6"
+    ],
+    "guardHashes": {
+      "web/src/screens/browse/selection.tsx#d0af8da850385bc6": "eb8ee8e776d6b7b97e6d024574e9fb622fbdb5f71e418603296072a649e3c5cb"
+    }
+  },
+  "web/src/screens/detail/bindings.ts": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "web/src/screens/detail/bindings.ts#fe166b3cbcc3f6a0"
+    ],
+    "guardHashes": {
+      "web/src/screens/detail/bindings.ts#fe166b3cbcc3f6a0": "811853a8b77232b7bdd4b1245f70206a15df46a8b680a75a6dff7414fbab14b5"
+    }
+  },
+  "web/src/screens/detail/context.ts": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "web/src/screens/detail/context.ts#ef478ec68426858d",
+      "web/src/screens/detail/context.ts#ef478ec68426858d",
+      "web/src/screens/detail/context.ts#1baa4bff2464df0a",
+      "web/src/screens/detail/context.ts#162d7fd0a85fe3fb"
+    ],
+    "guardHashes": {
+      "web/src/screens/detail/context.ts#ef478ec68426858d": "aba89ba44bd9b2438935cb6c3e85d158a17ad97a5694d35e6ec35e14e4a8f926",
+      "web/src/screens/detail/context.ts#1baa4bff2464df0a": "aba89ba44bd9b2438935cb6c3e85d158a17ad97a5694d35e6ec35e14e4a8f926",
+      "web/src/screens/detail/context.ts#162d7fd0a85fe3fb": "ce032ff75268160962f65675e9bd1d8f34385578bdfc1def401e1abf0030b569"
+    }
+  },
+  "web/src/screens/detail/show-bindings.ts": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "web/src/screens/detail/show-bindings.ts#adb6b274fa9824c8"
+    ],
+    "guardHashes": {
+      "web/src/screens/detail/show-bindings.ts#adb6b274fa9824c8": "45df7dc153bfbef9701c9e544d36591acde90e63cad737a45d8e58abe363bc10"
+    }
+  },
+  "web/src/shell/SelectionSurfaces.tsx": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "web/src/shell/SelectionSurfaces.tsx#b5e906c5b3adabbd"
+    ],
+    "guardHashes": {
+      "web/src/shell/SelectionSurfaces.tsx#b5e906c5b3adabbd": "a0f1184e7f0d2812f078a23acbdf0ca35021e0d9966f7c3b0ab34fcf87acadbc"
+    }
+  },
+  "web/src/shell/entry-metadata.tsx": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "web/src/shell/entry-metadata.tsx#150a33a71dd902c4",
+      "web/src/shell/entry-metadata.tsx#c7f646a0471f6e15",
+      "web/src/shell/entry-metadata.tsx#a43dcffc8886f2de",
+      "web/src/shell/entry-metadata.tsx#a019ba1a4a146af7"
+    ],
+    "guardHashes": {
+      "web/src/shell/entry-metadata.tsx#150a33a71dd902c4": "98aa43e8d7d3c946aea0c2671ad29536ac049249f526fa6d3ac14f1113d0685e",
+      "web/src/shell/entry-metadata.tsx#c7f646a0471f6e15": "39cdc283c205cc9c24b7c54b2415252682fc064a55f4766bb7ee6810207df329",
+      "web/src/shell/entry-metadata.tsx#a43dcffc8886f2de": "38f227069d0ced556e8e34eb7790160fc38ab4ee7727a30b1dcdcf0e7439c379",
+      "web/src/shell/entry-metadata.tsx#a019ba1a4a146af7": "dd4d0a34e00b5931ceff2c61ab6d57ef334ca90971ce6085b75c49c335cfa2e5"
+    }
+  },
+  "web/src/shell/entry-picker.ts": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "web/src/shell/entry-picker.ts#c4e74cc1afc54ebc"
+    ],
+    "guardHashes": {
+      "web/src/shell/entry-picker.ts#c4e74cc1afc54ebc": "ca658c7090824a30d01b550ae899f90da80f598390e285b61e31e54a5ea4935c"
+    }
+  },
+  "web/src/screens/browse/LibraryDeleteSurface.tsx": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "web/src/screens/browse/LibraryDeleteSurface.tsx#867de48889f28e30"
+    ],
+    "guardHashes": {
+      "web/src/screens/browse/LibraryDeleteSurface.tsx#867de48889f28e30": "4c8c7dbd1bc404402deb909145c6152c1df4a605efc4f7ef80fdfb5a23ce54d3"
+    }
+  },
+  "web/src/screens/browse/useBrowseLease.ts": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "web/src/screens/browse/useBrowseLease.ts#5d3c87e835c15a72"
+    ],
+    "guardHashes": {
+      "web/src/screens/browse/useBrowseLease.ts#5d3c87e835c15a72": "5e3ddccd14d6af743d2886387744f4ff792821c9c6bcf40feb8ed8d54a5eba8b"
+    }
+  },
+  "web/src/screens/metadata/NeedsAttention.tsx": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "sites": [
+      "web/src/screens/metadata/NeedsAttention.tsx#7185615a27306623"
+    ],
+    "guardHashes": {
+      "web/src/screens/metadata/NeedsAttention.tsx#7185615a27306623": "40b52140f4fe5c754de8afe82fb44031e76c90ecee2ae07e45314c8bedd0d35e"
     }
   }
 }

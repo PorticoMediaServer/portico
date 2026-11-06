@@ -1861,50 +1861,323 @@
     "spanEvidence": "docs/client-api-rehashes/901-bootstrap.json"
   },
   "web/src/screens/browse/Library.route.tsx#ed07a650668d4637": {
-    "category": "identity-rehash",
-    "reason": "The unchanged Library route forwarding call receives a new census identity when its capability read moves into a named core operation; this is no transport exception.",
-    "condition": "The complete reviewed enclosing function and forwarding call are preserved; no added path, method, body, header or credential selection. The site remains DIRECT at count 1.",
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval. Original direct identity-rehash evidence is retained in prior Git history; this new exact ruling explicitly authorizes the transport exception.",
     "guardHash": "32cacc3746d2930054f99bbfc196670ec2c987bb847e4ba6488e50eedd91f984",
     "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646375725",
-    "previousSiteId": "web/src/screens/browse/Library.route.tsx#e08475db422b5e2e",
-    "previousGuardHash": "898885f2283dcca3dfdc1e257fe9681d5bd5b9d35f89341e75d47fb902744a1b",
-    "previousCommit": "0ecb62138e9091894448b3514cd77b1a6e90b466",
-    "reviewedCommit": "4a6c10dc900dd8c8801862a7f7d7b21ed0045ac6",
-    "pullRequest": "https://github.com/PorticoMediaServer/portico/pull/924",
-    "reviewUrl": "https://github.com/PorticoMediaServer/portico/pull/924#issuecomment-6647296104",
-    "spanEvidence": "docs/client-api-rehashes/924-library-route.json"
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024"
   },
   "web/src/screens/detail/bindings.ts#fe166b3cbcc3f6a0": {
-    "category": "identity-rehash",
-    "reason": "The unchanged detail commandApi forwarding call receives a new census identity when credit reads move into named core operations; this is no transport exception.",
-    "condition": "The complete reviewed enclosing function and forwarding call are preserved; no added path, method, body, header or credential selection. The site remains DIRECT at count 1.",
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval. Original direct identity-rehash evidence is retained in prior Git history; this new exact ruling explicitly authorizes the transport exception.",
     "guardHash": "811853a8b77232b7bdd4b1245f70206a15df46a8b680a75a6dff7414fbab14b5",
     "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646375725",
-    "previousSiteId": "web/src/screens/detail/bindings.ts#13f644ffc6b464d2",
-    "previousGuardHash": "a9f9648a464b24a59aea9568dfe1cb7132583b5b5e5e8c2628640fe808332f97",
-    "previousCommit": "0ecb62138e9091894448b3514cd77b1a6e90b466",
-    "reviewedCommit": "3ba3e22199591f9342867d0dd0502eeba275a469",
-    "pullRequest": "https://github.com/PorticoMediaServer/portico/pull/923",
-    "reviewUrl": "https://github.com/PorticoMediaServer/portico/pull/923#issuecomment-6647247307",
-    "spanEvidence": "docs/client-api-rehashes/923-command.json"
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024"
   },
   "web/src/screens/metadata/NeedsAttention.tsx#7185615a27306623": {
-    "category": "identity-rehash",
-    "reason": "Metadata attention command-envelope extraction changes the complete enclosing component identity while its forwarding call and arguments remain byte-identical.",
-    "condition": "Only the source identity relocates. The enclosing component adds no path, method, body, header or credential construction or selection; the entry/action envelope now belongs to core. One DIRECT occurrence replaces one DIRECT occurrence; this record grants no transport exemption.",
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method and body fully built by named client-core services unchanged; adds only the reviewed lifetime/authority/abort policy. Exact complete canonical span hash and occurrence count 1; any span edit voids approval. Construction ownership and NeedsAttention re-hash verified by the lead on main 61ae3c09.",
     "guardHash": "40b52140f4fe5c754de8afe82fb44031e76c90ecee2ae07e45314c8bedd0d35e",
     "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646375725",
-    "previousSiteId": "web/src/screens/metadata/NeedsAttention.tsx#38965422f45bae69",
-    "previousGuardHash": "0204a4b13f9399756ba5417b8974225c5db1210bcc231c2db207fed881f3e58e",
-    "previousCommit": "acc958909bece78770a59a9d2183e0a811151514",
-    "reviewedCommit": "3854dfecc2193fde8f6747cb18318d4a81209d60",
-    "pullRequest": "https://github.com/PorticoMediaServer/portico/pull/1039",
-    "reviewUrl": "https://github.com/PorticoMediaServer/portico/pull/1039#issuecomment-6655465442",
-    "spanEvidence": "docs/client-api-rehashes/1039-needs-attention.json",
-    "oldSpan": "/**\n * owner-metadata frames 2-4: the titles Portico could not match with confidence, each with\n * why, up to three closest matches, and only the actions the server names for it. The list is\n * the library's own; the server stays the authority on what each row offers.\n */\nexport function NeedsAttention({libraryId, libraryName, api, onOpen, onEdit, artwork}: {artwork?: ShellArtwork; libraryId: string; libraryName?: string; api: Api; onOpen?: (entry: AttentionEntry) => void; onEdit?: (entry: AttentionEntry, anchor: HTMLElement, matching?: boolean) => void}) {\n  const service = useMemo(() => metadataAttentionService(<T,>(path: string, method?: string, body?: unknown) => api.request<T>(path, method, body), libraryId), [api, libraryId]);\n  const [admission, setAdmission] = useState<Admission | null>(null);\n  const liveAdmission = useRef<Admission | null>(null);\n  const [readView, setReadView] = useState<ReadView | null>(null);\n  const [error, setError] = useState<unknown>();\n  const [busy, setBusy] = useState<string>(), [notice, setNotice] = useState<string>();\n  const [searching, setSearching] = useState<AttentionEntry>(), [identifying, setIdentifying] = useState<AttentionEntry>();\n  const [query, setQuery] = useState(''), [typed, setTyped] = useState(''), [provider, setProvider] = useState<(typeof PROVIDERS)[number]>('tmdb');\n  const searchInput = useRef<HTMLInputElement>(null), idInput = useRef<HTMLInputElement>(null);\n  const load = useCallback(async (held: Admission, next: string) => {\n    if (liveAdmission.current !== held || !held.alive || held.reading) return;\n    const current = ++held.generation;\n    held.reading = true;\n    held.failed = undefined; held.failedGeneration = undefined;\n    setReadView(value => value?.admission === held ? {...value, loading: true, error: undefined, failed: undefined} : value);\n    try {\n      const loaded = await held.service.list(next, 25, true);\n      if (liveAdmission.current !== held || !held.alive || current !== held.generation) return;\n      setReadView(value => value?.admission === held ? {...value, page: loaded, cursor: next, loading: false} : value);\n    } catch (value) {\n      // The failed attempt stays retryable at its own cursor; accepted rows and pager stay put.\n      if (liveAdmission.current !== held || !held.alive || current !== held.generation) return;\n      held.failed = next; held.failedGeneration = current;\n      setReadView(state => state?.admission === held ? {...state, loading: false, error: value, failed: next, failedGeneration: current} : state);\n    }\n    finally {\n      if (current === held.generation) {\n        held.reading = false;\n        if (liveAdmission.current === held) setReadView(value => value?.admission === held ? {...value, loading: false} : value);\n      }\n    }\n  }, []);\n  // Admission is layout-committed. A replaced service/API/library retires its predecessor before\n  // paint, and retained callbacks capture their own admission and refuse before any request/state.\n  useLayoutEffect(() => {\n    const previous = liveAdmission.current;\n    if (previous?.service === service) return;\n    if (previous) {previous.alive = false; previous.generation++;}\n    const admitted: Admission = {service, alive: true, generation: 0, reading: false};\n    liveAdmission.current = admitted;\n    setAdmission(admitted);\n    setReadView({admission: admitted, cursor: '', cursors: [], loading: true});\n    void load(admitted, '');\n  }, [service, load]);\n  useLayoutEffect(() => () => { const held = liveAdmission.current; liveAdmission.current = null; if (held) {held.alive = false; held.generation++;} }, []);\n  // Pure render match: the admission must belong to this render's exact service, not just be the\n  // state value, so a replacement render before layout cannot draw the predecessor's rows.\n  const shown = readView && readView.admission === admission && admission?.service === service ? readView : undefined;\n  const page = shown?.page, loading = shown?.loading ?? true, cursors = shown?.cursors ?? [], readError = shown?.error;\n  const retryRead = () => {\n    const held = admission;\n    if (!held || liveAdmission.current !== held || !shown || shown.failed === undefined || held.reading) return;\n    // Only the same still-failed attempt is retryable; a recovered or newer failure is not.\n    if (held.failed !== shown.failed || held.failedGeneration !== shown.failedGeneration) return;\n    void load(held, shown.failed);\n  };\n  // A search or a match settles on the server; a failed read suspends the poll until Retry.\n  const settling = !!page?.entries.some(entry => attentionInProgress(entry.reason));\n  useEffect(() => {\n    if (!settling || !shown || shown.failed !== undefined || shown.loading) return;\n    const held = shown.admission, next = shown.cursor, generation = held.generation;\n    const timer = setInterval(() => {\n      // A queued pre-cleanup tick belongs to its own read generation; a failure or a newer read\n      // invalidates it synchronously instead of reloading the accepted cursor.\n      if (liveAdmission.current !== held || !held.alive || held.reading) return;\n      if (held.generation !== generation || held.failed !== undefined) return;\n      void load(held, next);\n    }, 2000);\n    return () => clearInterval(timer);\n  }, [settling, shown, load]);\n  const send = async (entry: AttentionEntry, command: Omit<AttentionCommand, 'kind' | 'entityId' | 'expectedRevision'>, done: string) => {\n    if (busy) return false;\n    setBusy(entry.entityId); setNotice(undefined); setError(undefined);\n    try {\n      await service.act({kind: entry.kind, entityId: entry.entityId, expectedRevision: entry.revision, ...command});\n      setNotice(done); setSearching(undefined); setIdentifying(undefined);\n      if (admission) await load(admission, shown?.cursor ?? '');\n      return true;\n    } catch (value) {setError(value); return false;}\n    finally {setBusy(undefined);}\n  };\n  const older = () => {\n    const held = admission;\n    if (!held || liveAdmission.current !== held || held.reading || !shown?.page?.nextCursor) return;\n    setReadView(value => value?.admission === held ? {...value, cursors: [...value.cursors, value.cursor]} : value);\n    void load(held, shown.page.nextCursor);\n  };\n  const newer = () => {\n    const held = admission;\n    if (!held || liveAdmission.current !== held || held.reading || !shown?.cursors.length) return;\n    const next = shown.cursors.at(-1)!;\n    setReadView(value => value?.admission === held ? {...value, cursors: value.cursors.slice(0, -1)} : value);\n    void load(held, next);\n  };\n  const id = typedProviderId(typed), bare = !!id && /^\\d+$/.test(id);\n  return <section className={styles.attention}>\n    {error ? <MetadataError error={error} /> : null}\n    {readError ? <div role=\"group\">\n      <MetadataError error={readError} />\n      <Button size=\"small\" icon=\"i-retry\" disabled={loading} loading={loading} onClick={retryRead}>{t('next.browse.retry')}</Button>\n    </div> : null}\n    {notice ? <p className={styles.notice} role=\"status\">{notice}</p> : null}\n    <div className={styles.listBox}>{page?.entries.map(entry => <Row key={entry.entityId} entry={entry} artwork={artwork} busy={busy === entry.entityId}\n      onUse={(candidateKey, order) => void send(entry, {action: 'accept', candidateKey, ...(order ? {order} : {})}, t('server.attention.matched', {title: entry.candidates.find(value => value.key === candidateKey)?.title ?? entry.title}))}\n      onSearch={() => {setQuery(entry.title); setSearching(entry);}}\n      onIdentify={() => {setTyped(''); setProvider('tmdb'); setIdentifying(entry);}}\n      onRetry={() => void send(entry, {action: 'retry'}, t('server.attention.lookingUp'))}\n      onKeep={() => void send(entry, {action: 'dismiss'}, t('metadata.attention.kept'))}\n      onOpen={onOpen ? () => onOpen(entry) : undefined} onEdit={onEdit && (['show', 'album', 'book', 'song'].includes(entry.kind) || entry.kind === 'item' && ['movie', 'episode', 'song', 'audiobook_file'].includes(entry.itemKind)) ? (anchor, matching) => onEdit(entry, anchor, matching) : undefined} />)}</div>\n    {!loading && !error && page && !page.entries.length ? <div className={styles.empty}>\n      <span className={styles.emptyIcon}><Icon name=\"i-check\" size={28}/></span><b>{t('metadata.attention.empty')}</b><p>{libraryName ? t('metadata.attention.emptyLibraryBody', {library: libraryName}) : t('metadata.attention.emptyBody')}</p>\n    </div> : null}\n    {!loading && !error && page?.entries.length ? <p className={styles.listSummary}>{t('metadata.attention.showing', {count: page.entries.length, total: page.total})}</p> : null}\n    {(cursors.length > 0 || page?.nextCursor) ? <div className={styles.pager}>\n      <Button size=\"small\" disabled={loading || !cursors.length} onClick={newer}>{t('web.hostedAccount.newer')}</Button>\n      <Button size=\"small\" disabled={loading || !page?.nextCursor} onClick={older}>{t('web.hostedAccount.older')}</Button>\n    </div> : null}\n    <Dialog width={520} initialFocusRef={searchInput} bodyClassName={styles.dialogBody} open={Boolean(searching)} onOpenChange={open => {if (!open && !busy) setSearching(undefined);}} title={t('server.attention.searchTitle')} description={t('server.attention.searchBody')}\n      footer={<><Button size=\"small\" disabled={Boolean(busy)} onClick={() => setSearching(undefined)}>{t('action.cancel')}</Button>\n        <Button size=\"small\" variant=\"primary\" loading={Boolean(busy)} disabled={query.trim().length < 2} onClick={() => {if (searching) void send(searching, {action: 'search', query: query.trim()}, t('server.attention.searchStarted'));}}><Icon name=\"i-search\" size={18} />{t('web.search.title')}</Button></>}>\n      <form onSubmit={(event: FormEvent) => {event.preventDefault(); if (searching && query.trim().length >= 2 && !busy) void send(searching, {action: 'search', query: query.trim()}, t('server.attention.searchStarted'));}}>\n        <TextField ref={searchInput} label={t('server.attention.searchFor')} value={query} onChange={event => setQuery(event.currentTarget.value)} maxLength={200} />\n      </form>\n    </Dialog>\n    <Dialog width={520} initialFocusRef={idInput} bodyClassName={styles.dialogBody} open={Boolean(identifying)} onOpenChange={open => {if (!open && !busy) setIdentifying(undefined);}} title={t('metadata.attention.enterProviderId')} description={identifying?.title}\n      footer={<><Button size=\"small\" disabled={Boolean(busy)} onClick={() => setIdentifying(undefined)}>{t('action.cancel')}</Button>\n        <Button size=\"small\" variant=\"primary\" loading={Boolean(busy)} disabled={!id} onClick={() => {if (identifying && id) void send(identifying, {action: 'id', providerId: id, ...(bare ? {provider} : {})}, t('server.attention.idSaved'));}}>{t('server.attention.useId')}</Button></>}>\n      <TextField ref={idInput} label={t('server.attention.idLabel')} description={t('server.attention.idHelp')} value={typed} onChange={event => setTyped(event.currentTarget.value)} maxLength={2048} />\n      {bare ? <label className={styles.picker}>\n        <span>{t('server.attention.idProvider')}</span>\n        <select value={provider} onChange={event => setProvider(event.currentTarget.value as (typeof PROVIDERS)[number])}>\n          {PROVIDERS.map(item => <option key={item} value={item}>{providerName(item)}</option>)}\n        </select>\n      </label> : null}\n    </Dialog>\n  </section>;\n}",
-    "newSpan": "/**\n * owner-metadata frames 2-4: the titles Portico could not match with confidence, each with\n * why, up to three closest matches, and only the actions the server names for it. The list is\n * the library's own; the server stays the authority on what each row offers.\n */\nexport function NeedsAttention({libraryId, libraryName, api, onOpen, onEdit, artwork}: {artwork?: ShellArtwork; libraryId: string; libraryName?: string; api: Api; onOpen?: (entry: AttentionEntry) => void; onEdit?: (entry: AttentionEntry, anchor: HTMLElement, matching?: boolean) => void}) {\n  const service = useMemo(() => metadataAttentionService(<T,>(path: string, method?: string, body?: unknown) => api.request<T>(path, method, body), libraryId), [api, libraryId]);\n  const [admission, setAdmission] = useState<Admission | null>(null);\n  const liveAdmission = useRef<Admission | null>(null);\n  const [readView, setReadView] = useState<ReadView | null>(null);\n  const [error, setError] = useState<unknown>();\n  const [busy, setBusy] = useState<string>(), [notice, setNotice] = useState<string>();\n  const [searching, setSearching] = useState<AttentionEntry>(), [identifying, setIdentifying] = useState<AttentionEntry>();\n  const [query, setQuery] = useState(''), [typed, setTyped] = useState(''), [provider, setProvider] = useState<(typeof PROVIDERS)[number]>('tmdb');\n  const searchInput = useRef<HTMLInputElement>(null), idInput = useRef<HTMLInputElement>(null);\n  const load = useCallback(async (held: Admission, next: string) => {\n    if (liveAdmission.current !== held || !held.alive || held.reading) return;\n    const current = ++held.generation;\n    held.reading = true;\n    held.failed = undefined; held.failedGeneration = undefined;\n    setReadView(value => value?.admission === held ? {...value, loading: true, error: undefined, failed: undefined} : value);\n    try {\n      const loaded = await held.service.list(next, 25, true);\n      if (liveAdmission.current !== held || !held.alive || current !== held.generation) return;\n      setReadView(value => value?.admission === held ? {...value, page: loaded, cursor: next, loading: false} : value);\n    } catch (value) {\n      // The failed attempt stays retryable at its own cursor; accepted rows and pager stay put.\n      if (liveAdmission.current !== held || !held.alive || current !== held.generation) return;\n      held.failed = next; held.failedGeneration = current;\n      setReadView(state => state?.admission === held ? {...state, loading: false, error: value, failed: next, failedGeneration: current} : state);\n    }\n    finally {\n      if (current === held.generation) {\n        held.reading = false;\n        if (liveAdmission.current === held) setReadView(value => value?.admission === held ? {...value, loading: false} : value);\n      }\n    }\n  }, []);\n  // Admission is layout-committed. A replaced service/API/library retires its predecessor before\n  // paint, and retained callbacks capture their own admission and refuse before any request/state.\n  useLayoutEffect(() => {\n    const previous = liveAdmission.current;\n    if (previous?.service === service) return;\n    if (previous) {previous.alive = false; previous.generation++;}\n    const admitted: Admission = {service, alive: true, generation: 0, reading: false};\n    liveAdmission.current = admitted;\n    setAdmission(admitted);\n    setReadView({admission: admitted, cursor: '', cursors: [], loading: true});\n    void load(admitted, '');\n  }, [service, load]);\n  useLayoutEffect(() => () => { const held = liveAdmission.current; liveAdmission.current = null; if (held) {held.alive = false; held.generation++;} }, []);\n  // Pure render match: the admission must belong to this render's exact service, not just be the\n  // state value, so a replacement render before layout cannot draw the predecessor's rows.\n  const shown = readView && readView.admission === admission && admission?.service === service ? readView : undefined;\n  const page = shown?.page, loading = shown?.loading ?? true, cursors = shown?.cursors ?? [], readError = shown?.error;\n  const retryRead = () => {\n    const held = admission;\n    if (!held || liveAdmission.current !== held || !shown || shown.failed === undefined || held.reading) return;\n    // Only the same still-failed attempt is retryable; a recovered or newer failure is not.\n    if (held.failed !== shown.failed || held.failedGeneration !== shown.failedGeneration) return;\n    void load(held, shown.failed);\n  };\n  // A search or a match settles on the server; a failed read suspends the poll until Retry.\n  const settling = !!page?.entries.some(entry => attentionInProgress(entry.reason));\n  useEffect(() => {\n    if (!settling || !shown || shown.failed !== undefined || shown.loading) return;\n    const held = shown.admission, next = shown.cursor, generation = held.generation;\n    const timer = setInterval(() => {\n      // A queued pre-cleanup tick belongs to its own read generation; a failure or a newer read\n      // invalidates it synchronously instead of reloading the accepted cursor.\n      if (liveAdmission.current !== held || !held.alive || held.reading) return;\n      if (held.generation !== generation || held.failed !== undefined) return;\n      void load(held, next);\n    }, 2000);\n    return () => clearInterval(timer);\n  }, [settling, shown, load]);\n  const send = async (entry: AttentionEntry, command: Omit<AttentionCommand, 'kind' | 'entityId' | 'expectedRevision'>, done: string) => {\n    if (busy) return false;\n    setBusy(entry.entityId); setNotice(undefined); setError(undefined);\n    try {\n      await service.actOnEntry(entry, command);\n      setNotice(done); setSearching(undefined); setIdentifying(undefined);\n      if (admission) await load(admission, shown?.cursor ?? '');\n      return true;\n    } catch (value) {setError(value); return false;}\n    finally {setBusy(undefined);}\n  };\n  const older = () => {\n    const held = admission;\n    if (!held || liveAdmission.current !== held || held.reading || !shown?.page?.nextCursor) return;\n    setReadView(value => value?.admission === held ? {...value, cursors: [...value.cursors, value.cursor]} : value);\n    void load(held, shown.page.nextCursor);\n  };\n  const newer = () => {\n    const held = admission;\n    if (!held || liveAdmission.current !== held || held.reading || !shown?.cursors.length) return;\n    const next = shown.cursors.at(-1)!;\n    setReadView(value => value?.admission === held ? {...value, cursors: value.cursors.slice(0, -1)} : value);\n    void load(held, next);\n  };\n  const id = typedProviderId(typed), bare = !!id && /^\\d+$/.test(id);\n  return <section className={styles.attention}>\n    {error ? <MetadataError error={error} /> : null}\n    {readError ? <div role=\"group\">\n      <MetadataError error={readError} />\n      <Button size=\"small\" icon=\"i-retry\" disabled={loading} loading={loading} onClick={retryRead}>{t('next.browse.retry')}</Button>\n    </div> : null}\n    {notice ? <p className={styles.notice} role=\"status\">{notice}</p> : null}\n    <div className={styles.listBox}>{page?.entries.map(entry => <Row key={entry.entityId} entry={entry} artwork={artwork} busy={busy === entry.entityId}\n      onUse={(candidateKey, order) => void send(entry, {action: 'accept', candidateKey, ...(order ? {order} : {})}, t('server.attention.matched', {title: entry.candidates.find(value => value.key === candidateKey)?.title ?? entry.title}))}\n      onSearch={() => {setQuery(entry.title); setSearching(entry);}}\n      onIdentify={() => {setTyped(''); setProvider('tmdb'); setIdentifying(entry);}}\n      onRetry={() => void send(entry, {action: 'retry'}, t('server.attention.lookingUp'))}\n      onKeep={() => void send(entry, {action: 'dismiss'}, t('metadata.attention.kept'))}\n      onOpen={onOpen ? () => onOpen(entry) : undefined} onEdit={onEdit && (['show', 'album', 'book', 'song'].includes(entry.kind) || entry.kind === 'item' && ['movie', 'episode', 'song', 'audiobook_file'].includes(entry.itemKind)) ? (anchor, matching) => onEdit(entry, anchor, matching) : undefined} />)}</div>\n    {!loading && !error && page && !page.entries.length ? <div className={styles.empty}>\n      <span className={styles.emptyIcon}><Icon name=\"i-check\" size={28}/></span><b>{t('metadata.attention.empty')}</b><p>{libraryName ? t('metadata.attention.emptyLibraryBody', {library: libraryName}) : t('metadata.attention.emptyBody')}</p>\n    </div> : null}\n    {!loading && !error && page?.entries.length ? <p className={styles.listSummary}>{t('metadata.attention.showing', {count: page.entries.length, total: page.total})}</p> : null}\n    {(cursors.length > 0 || page?.nextCursor) ? <div className={styles.pager}>\n      <Button size=\"small\" disabled={loading || !cursors.length} onClick={newer}>{t('web.hostedAccount.newer')}</Button>\n      <Button size=\"small\" disabled={loading || !page?.nextCursor} onClick={older}>{t('web.hostedAccount.older')}</Button>\n    </div> : null}\n    <Dialog width={520} initialFocusRef={searchInput} bodyClassName={styles.dialogBody} open={Boolean(searching)} onOpenChange={open => {if (!open && !busy) setSearching(undefined);}} title={t('server.attention.searchTitle')} description={t('server.attention.searchBody')}\n      footer={<><Button size=\"small\" disabled={Boolean(busy)} onClick={() => setSearching(undefined)}>{t('action.cancel')}</Button>\n        <Button size=\"small\" variant=\"primary\" loading={Boolean(busy)} disabled={query.trim().length < 2} onClick={() => {if (searching) void send(searching, {action: 'search', query: query.trim()}, t('server.attention.searchStarted'));}}><Icon name=\"i-search\" size={18} />{t('web.search.title')}</Button></>}>\n      <form onSubmit={(event: FormEvent) => {event.preventDefault(); if (searching && query.trim().length >= 2 && !busy) void send(searching, {action: 'search', query: query.trim()}, t('server.attention.searchStarted'));}}>\n        <TextField ref={searchInput} label={t('server.attention.searchFor')} value={query} onChange={event => setQuery(event.currentTarget.value)} maxLength={200} />\n      </form>\n    </Dialog>\n    <Dialog width={520} initialFocusRef={idInput} bodyClassName={styles.dialogBody} open={Boolean(identifying)} onOpenChange={open => {if (!open && !busy) setIdentifying(undefined);}} title={t('metadata.attention.enterProviderId')} description={identifying?.title}\n      footer={<><Button size=\"small\" disabled={Boolean(busy)} onClick={() => setIdentifying(undefined)}>{t('action.cancel')}</Button>\n        <Button size=\"small\" variant=\"primary\" loading={Boolean(busy)} disabled={!id} onClick={() => {if (identifying && id) void send(identifying, {action: 'id', providerId: id, ...(bare ? {provider} : {})}, t('server.attention.idSaved'));}}>{t('server.attention.useId')}</Button></>}>\n      <TextField ref={idInput} label={t('server.attention.idLabel')} description={t('server.attention.idHelp')} value={typed} onChange={event => setTyped(event.currentTarget.value)} maxLength={2048} />\n      {bare ? <label className={styles.picker}>\n        <span>{t('server.attention.idProvider')}</span>\n        <select value={provider} onChange={event => setProvider(event.currentTarget.value as (typeof PROVIDERS)[number])}>\n          {PROVIDERS.map(item => <option key={item} value={item}>{providerName(item)}</option>)}\n        </select>\n      </label> : null}\n    </Dialog>\n  </section>;\n}"
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6673584916"
+  },
+  "apps/native/src-next/screens/destinations/bulk-media.ts#b74b042f959e0424": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Exact (ID, full canonical enclosing-span hash), occurrence count 1; forwards a core-built request unchanged with one dispatch, no retry/construction/modification; adds only reviewed lifetime/currentness checks, epoch signal, cancellation and possible outdated-owner disposal. Any span change voids the ruling. Effective after #1030 merged; metadata/deletion construction is core-owned.",
+    "guardHash": "abe1a9e76ca5c5d819c0afe62943f0147219854e12bbb4b92b487445bd0a975d",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6654511777"
+  },
+  "apps/native/src-next/screens/destinations/music/model.ts#afedb5dfc9a95155": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "48786b7ceeb94607607b9c9820373bfcc0f948a7a53d7ead622979fc46103a89",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651098315"
+  },
+  "apps/native/src-next/screens/destinations/music/model.ts#96118e5d5bbe5356": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "97a5580e0429445139cf130c9667a50cc589473c5062281deedaa3fc50bf9697",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651098315"
+  },
+  "apps/native/src-next/screens/destinations/music/model.ts#1e1f9c6f891100b3": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "1108b086255a7fdb3c50d49f1106a800e2918cfbd91806309b489e1f3fb4b031",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651098315"
+  },
+  "apps/native/src-next/screens/destinations/pins.ts#d7dd10775413b00f": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "9427b95f948753bba10dcd95f206db4e797fb218aac1aaee90c238ffd634c5e3",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651098315"
+  },
+  "apps/native/src-next/screens/home/CustomizeRoute.tsx#fc198026f7d5170a": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "c7d7f98da6b693b295cf1192e0327accda1c10061271d15f8448edf148e5249a",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651098315"
+  },
+  "apps/native/src-next/screens/home/SeeAllRoute.tsx#01f3b009bef7e2a7": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "b0645f34796c2d887ba7dc4f1cd28dfddb278bafba2a080e32b579cc4cb1e9cd",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651098315"
+  },
+  "apps/native/src-next/screens/home/row-controller.ts#3d277c56669429e1": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "7b214cfe9d192ba4f79cb97aefb7b6e25ea40b5feb7cb8eb5b271b3473f321f1",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651098315"
+  },
+  "apps/native/src-next/screens/library/model.ts#4e971c9a12412f91": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "741e1c5ebbcefdfb335f0119214a366b35ad4720c3820de611efd3c8083c877b",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651098315"
+  },
+  "apps/native/src-next/screens/library/model.ts#7e32ecf540433e2e": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "53c23e5e1fcbb8fedaca6e4ea8f86b4f560218dae9e2d7f6b0ff013dd67e97f1",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651098315"
+  },
+  "apps/native/src-next/screens/library/save-view.ts#0264bf6c758646fb": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "bf9a2c33d2cc866e6bf965b4a2cbf69951d89f7d52de3d7229cf7b2f746f558d",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651098315"
+  },
+  "apps/native/src-next/screens/read/ReadOwnerEditSheet.tsx#7b89f2d5e5e92094": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "a712a7845f309b93fcbe33fa0d8dce2068dd0dac3642e52f790875f396fca33f",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651098315"
+  },
+  "apps/native/src-next/screens/read/read-collection-capability.ts#1e9357b35fa65d12": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "5e31d5c6147882bcfeebe64fc75d17e37dcfb24b5ec4527e016b16e47a9a94bf",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651098315"
+  },
+  "apps/native/src-next/screens/read/read-collection-picker.ts#5c78c5364855e142": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "5cb0be3eb67fee2edcd9d5c2545a2c694e03928ac02a2a410775003ed13c2e5f",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651098315"
+  },
+  "apps/native/src-next/screens/search/genre-browse.ts#641349f525c4db29": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "77f4557012384cc09778945e389d78debce0747ea895936a0a386e3f7c9bb1ab",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651098315"
+  },
+  "apps/native/src-next/screens/search/loaded-destinations.ts#1bcaaa47a986e2a3": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "71d8dcb9e2932037997001d2dbc68b41361c196b411aa0a7468cb6994832bfa0",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651098315"
+  },
+  "apps/native/src-next/screens/search/loaded-destinations.ts#a557fe1f85838ab2": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "05d48ede3c363ecc6b1cddc0a21034c6fdd249c1c7261f99e319c7aff701f562",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651098315"
+  },
+  "apps/native/src-next/screens/search/register.tsx#d6b3b96a022cdf79": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "918b16044d43339344cfc2a69394da90434f808e7bdd966d7a3fb45a6fee1d8f",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651098315"
+  },
+  "web/src/screens/browse/selection-picker.ts#c4e74cc1afc54ebc": {
+    "category": "platform-transport",
+    "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "ca658c7090824a30d01b550ae899f90da80f598390e285b61e31e54a5ea4935c",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651098315"
+  },
+  "web/src/screens/browse/Library.route.tsx#a26bb5941abc8aed": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "cdaa7b4fdc714252e23b91b25da196d17b8f88c840636d9d460d0b6dc4ed9dee",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024"
+  },
+  "web/src/screens/browse/Library.route.tsx#ce814b77766ecb37": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "cdc368bf7c99d565c6bb2c22bccb149df1d4c9b0505c6283115b9fd1b72d28f1",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024"
+  },
+  "web/src/screens/browse/controller.ts#54d5e5281c0a4cf3": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "062354949b4468535c1c4ff38a9c9c4b8eb635a84d014e1ef32fbcb52cec1519",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024"
+  },
+  "web/src/screens/browse/play-selection.ts#706ca2db4bd6c293": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "b1713993e8ff965b701b73931846b7c14b0d394fe756778fe0adb6f3c55b6ab5",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024"
+  },
+  "web/src/screens/browse/selection.tsx#d0af8da850385bc6": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "eb8ee8e776d6b7b97e6d024574e9fb622fbdb5f71e418603296072a649e3c5cb",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024"
+  },
+  "web/src/screens/detail/context.ts#ef478ec68426858d": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "aba89ba44bd9b2438935cb6c3e85d158a17ad97a5694d35e6ec35e14e4a8f926",
+    "occurrences": 2,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024"
+  },
+  "web/src/screens/detail/context.ts#1baa4bff2464df0a": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "aba89ba44bd9b2438935cb6c3e85d158a17ad97a5694d35e6ec35e14e4a8f926",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024"
+  },
+  "web/src/screens/detail/show-bindings.ts#adb6b274fa9824c8": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "45df7dc153bfbef9701c9e544d36591acde90e63cad737a45d8e58abe363bc10",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024"
+  },
+  "web/src/shell/SelectionSurfaces.tsx#b5e906c5b3adabbd": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "a0f1184e7f0d2812f078a23acbdf0ca35021e0d9966f7c3b0ab34fcf87acadbc",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024"
+  },
+  "web/src/shell/entry-metadata.tsx#150a33a71dd902c4": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "98aa43e8d7d3c946aea0c2671ad29536ac049249f526fa6d3ac14f1113d0685e",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024"
+  },
+  "web/src/shell/entry-metadata.tsx#c7f646a0471f6e15": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "39cdc283c205cc9c24b7c54b2415252682fc064a55f4766bb7ee6810207df329",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024"
+  },
+  "web/src/shell/entry-metadata.tsx#a43dcffc8886f2de": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "38f227069d0ced556e8e34eb7790160fc38ab4ee7727a30b1dcdcf0e7439c379",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024"
+  },
+  "web/src/shell/entry-metadata.tsx#a019ba1a4a146af7": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "dd4d0a34e00b5931ceff2c61ab6d57ef334ca90971ce6085b75c49c335cfa2e5",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024"
+  },
+  "web/src/shell/entry-picker.ts#c4e74cc1afc54ebc": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
+    "guardHash": "ca658c7090824a30d01b550ae899f90da80f598390e285b61e31e54a5ea4935c",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024"
+  },
+  "web/src/screens/browse/LibraryDeleteSurface.tsx#867de48889f28e30": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method and body fully built by named client-core services unchanged; adds only the reviewed lifetime/authority/abort policy. Exact complete canonical span hash and occurrence count 1; any span edit voids approval. Construction ownership and NeedsAttention re-hash verified by the lead on main 61ae3c09.",
+    "guardHash": "4c8c7dbd1bc404402deb909145c6152c1df4a605efc4f7ef80fdfb5a23ce54d3",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6673584916"
+  },
+  "web/src/screens/browse/Library.route.tsx#ddd5347b6fef1465": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method and body fully built by named client-core services unchanged; adds only the reviewed lifetime/authority/abort policy. Exact complete canonical span hash and occurrence count 1; any span edit voids approval. Construction ownership and NeedsAttention re-hash verified by the lead on main 61ae3c09.",
+    "guardHash": "916153f2ac1bf901d39e467cc928b1d711edfbacaf531ea8773a4afd93521349",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6673584916"
+  },
+  "web/src/screens/browse/useBrowseLease.ts#5d3c87e835c15a72": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method and body fully built by named client-core services unchanged; adds only the reviewed lifetime/authority/abort policy. Exact complete canonical span hash and occurrence count 1; any span edit voids approval. Construction ownership and NeedsAttention re-hash verified by the lead on main 61ae3c09.",
+    "guardHash": "5e3ddccd14d6af743d2886387744f4ff792821c9c6bcf40feb8ed8d54a5eba8b",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6673584916"
+  },
+  "web/src/screens/detail/context.ts#162d7fd0a85fe3fb": {
+    "category": "platform-transport",
+    "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
+    "condition": "Forwards path, method and body fully built by named client-core services unchanged; adds only the reviewed lifetime/authority/abort policy. Exact complete canonical span hash and occurrence count 1; any span edit voids approval. Construction ownership and NeedsAttention re-hash verified by the lead on main 61ae3c09.",
+    "guardHash": "ce032ff75268160962f65675e9bd1d8f34385578bdfc1def401e1abf0030b569",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6673584916"
   }
 }
