@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"math"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -55,12 +54,13 @@ type effectiveRuntime struct {
 	path          string
 	owner         governor.OwnerID
 	plan          effectivePlan
+	inventoryPlan *effectivePlan
 	registry      *stmt.Registry
 	fenced        bool
 	cleanupPanics []terminalPanic
 }
 
-func newEffectiveRuntime(w *executor, path string, g governor.Governor, a *governor.Authority, wal *governor.WALGate, owner governor.OwnerID, plan effectivePlan) (*effectiveRuntime, error) {
+func newEffectiveRuntime(w *executor, path string, g governor.Governor, a *governor.Authority, wal *governor.WALGate, owner governor.OwnerID, plan effectivePlan, inventoryPlans ...effectivePlan) (*effectiveRuntime, error) {
 	if w == nil || w.db == nil || w.now == nil || path == "" || owner == 0 {
 		return nil, ErrInvalid
 	}
@@ -69,75 +69,28 @@ func newEffectiveRuntime(w *executor, path string, g governor.Governor, a *gover
 	}
 	defs := append(enrichmentEffectiveBeginDefinitions(), enrichmentEffectiveProducerDefinitions()...)
 	defs = append(defs, effectiveDispatchDefinitions()...)
+	plan, err := freezeCommandPlan(w, plan, defs, EffectiveStage)
+	if err != nil {
+		return nil, err
+	}
+	if len(inventoryPlans) > 1 {
+		return nil, invalid("inventory_plan_count")
+	}
+	var inventoryPlan *effectivePlan
+	if len(inventoryPlans) == 1 {
+		inventoryDefs := inventoryHistoryDefinitions()
+		frozen, err := freezeCommandPlan(w, inventoryPlans[0], inventoryDefs, InventoryAccept)
+		if err != nil {
+			return nil, err
+		}
+		inventoryPlan = &frozen
+		defs = append(defs, inventoryDefs...)
+	}
 	registry, err := stmt.New(defs, plan.registration)
 	if err != nil {
 		return nil, err
 	}
-	// Each ID occurs at most once except the owner (scope, history, handler) and
-	// receipt (history, handler). Bound the WHOLE path, including terminal reserve.
-	if len(plan.steps) != len(defs) || plan.need[governor.MemoryBytes] <= 0 || plan.need[governor.CPUMilli] <= 0 ||
-		plan.recipe.limit.Rows == 0 || plan.recipe.limit.Rows > math.MaxUint32 || plan.recipe.limit.Pages == 0 || plan.recipe.limit.Pages > math.MaxUint32 ||
-		plan.need[governor.WALBytes] != int64(plan.recipe.limit.WALBytes) || plan.recipe.limit.WALBytes > math.MaxInt64 {
-		return nil, invalid("effective_plan")
-	}
-	if _, err := NewQuantum(plan.recipe.limit, plan.recipe.terminal, w.now()); err != nil {
-		return nil, err
-	}
-	if plan.headerSync.Hold <= 0 || plan.headerSync.WALBytes < 32 || !fits(plan.headerSync, plan.recipe.terminal) ||
-		plan.need[governor.IOBytes] < 32 {
-		return nil, invalid("effective_header_sync_forecast")
-	}
-	seen := make(map[stmt.ID]bool, len(defs))
-	remaining := plan.recipe.limit
-	for _, work := range []Work{plan.recipe.setup, plan.recipe.terminal} {
-		if work.Hold <= 0 || !fits(work, remaining) {
-			return nil, ErrQuantum
-		}
-		remaining = subtract(remaining, work)
-	}
-	for _, step := range plan.steps {
-		if seen[step.id] || step.work.Rows == 0 || step.work.VMOps == 0 || step.work.Hold <= 0 {
-			return nil, invalid("effective_step")
-		}
-		if _, err := registry.Lookup(step.id); err != nil {
-			return nil, err
-		}
-		seen[step.id] = true
-		uses := 1
-		if step.id == enrichmentEffectiveOwner {
-			uses = 3
-		}
-		if step.id == enrichmentEffectiveReceipt {
-			uses = 2
-		}
-		for range uses {
-			if !fits(step.work, remaining) {
-				return nil, ErrQuantum
-			}
-			remaining = subtract(remaining, step.work)
-		}
-	}
-	for _, def := range defs {
-		if !seen[def.ID] {
-			return nil, invalid("missing_effective_step")
-		}
-	}
-	plan.steps = append([]statementStep(nil), plan.steps...)
-	plan.io = append([]governor.DeviceIO(nil), plan.io...)
-	for i := range plan.io {
-		plan.io[i].DeviceID = strings.Clone(plan.io[i].DeviceID)
-	}
-	return &effectiveRuntime{executor: w, governor: g, authority: a, wal: wal, path: strings.Clone(path), owner: owner, plan: plan, registry: registry}, nil
-}
-
-func (r *effectiveRuntime) checkDisclosure(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest) error {
-	if ctx == nil {
-		return ErrInvalid
-	}
-	if err := r.currentDisclosure(w, cap, request); err != nil {
-		return err
-	}
-	return ctx.Err()
+	return &effectiveRuntime{executor: w, governor: g, authority: a, wal: wal, path: strings.Clone(path), owner: owner, plan: plan, inventoryPlan: inventoryPlan, registry: registry}, nil
 }
 
 // Current permission is independent of a caller's cancellation/deadline. In
@@ -196,9 +149,37 @@ func (r *effectiveRuntime) ack(ctx context.Context, w *Writer, cap *EnrichmentDi
 	return result, err
 }
 
-func (r *effectiveRuntime) run(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, input *effectiveStageBeginCommand, ack bool) (out EffectiveStageResult, acknowledged AckResult, err error) {
-	if err := r.checkDisclosure(ctx, w, cap, request); err != nil {
+func (r *effectiveRuntime) run(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, input *effectiveStageBeginCommand, ack bool) (EffectiveStageResult, AckResult, error) {
+	out, acknowledged, err := r.runCommand(ctx, w, cap, request, input, ack, nil)
+	return out.effective, acknowledged, err
+}
+
+type commandOutput struct {
+	effective EffectiveStageResult
+	inventory InventoryResult
+}
+
+func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *EnrichmentDisclosure, request EnrichmentReceiptRequest, input *effectiveStageBeginCommand, ack bool, scan *inventoryInvocation) (out commandOutput, acknowledged AckResult, err error) {
+	if ctx == nil {
+		return out, acknowledged, ErrInvalid
+	}
+	if err := r.currentRunDisclosure(w, cap, request, scan); err != nil {
 		return out, acknowledged, err
+	}
+	if err := ctx.Err(); err != nil {
+		return out, acknowledged, err
+	}
+	purpose, plan, reference, key, libraryID := EffectiveStage, &r.plan, request.Receipt, request.ProviderOperationID, request.LibraryID
+	outcome := &out.effective.Outcome
+	if scan != nil {
+		if input != nil || cap != nil || request != (EnrichmentReceiptRequest{}) {
+			return out, acknowledged, ErrInvalid
+		}
+		if r.inventoryPlan == nil {
+			return out, acknowledged, ErrNotImplemented
+		}
+		purpose, plan, reference, key, libraryID = InventoryAccept, r.inventoryPlan, scan.request.Receipt, scan.request.RunID, scan.request.LibraryID
+		outcome = &out.inventory.Outcome
 	}
 	if !r.mu.TryLock() {
 		return out, acknowledged, ErrBusy
@@ -213,8 +194,8 @@ func (r *effectiveRuntime) run(ctx context.Context, w *Writer, cap *EnrichmentDi
 	if r.fenced {
 		if r.executor.ambiguous {
 			if !ack {
-				out.Outcome.State = ResolveRequired
-				out.Outcome.Reference = request.Receipt
+				outcome.State = ResolveRequired
+				outcome.Reference = reference
 			}
 			return out, acknowledged, ErrResolveRequired
 		}
@@ -229,18 +210,18 @@ func (r *effectiveRuntime) run(ctx context.Context, w *Writer, cap *EnrichmentDi
 	if err != nil {
 		return out, acknowledged, errors.Join(&Refusal{Code: RefusalWAL}, err)
 	}
-	deadline := now.Add(r.plan.recipe.limit.Hold)
+	deadline := now.Add(plan.recipe.limit.Hold)
 	if callerDeadline, ok := ctx.Deadline(); ok && callerDeadline.Before(deadline) {
 		deadline = callerDeadline
 	}
-	class, err := commandClass(EffectiveStage)
+	class, err := commandClass(purpose)
 	if err != nil {
 		return out, acknowledged, err
 	}
-	expected := governor.Request{RestartRisk: risk, Key: governor.JobKey{Domain: uint16(EffectiveStage), ID: request.ProviderOperationID}, Owner: r.owner,
-		Class: class, Writer: true, Need: r.plan.need, IO: r.plan.io, MaxHold: r.plan.recipe.limit.Hold, Deadline: deadline,
-		Budget:    governor.UnitBudget{RawRows: uint32(r.plan.recipe.limit.Rows), VMOps: r.plan.recipe.limit.VMOps, Pages: uint32(r.plan.recipe.limit.Pages)},
-		Footprint: []governor.Scope{{Library: request.LibraryID, Domain: uint16(EffectiveStage)}}}
+	expected := governor.Request{RestartRisk: risk, Key: governor.JobKey{Domain: uint16(purpose), ID: key}, Owner: r.owner,
+		Class: class, Writer: true, Need: plan.need, IO: plan.io, MaxHold: plan.recipe.limit.Hold, Deadline: deadline,
+		Budget:    governor.UnitBudget{RawRows: uint32(plan.recipe.limit.Rows), VMOps: plan.recipe.limit.VMOps, Pages: uint32(plan.recipe.limit.Pages)},
+		Footprint: []governor.Scope{{Library: libraryID, Domain: uint16(purpose)}}}
 	decision := r.governor.Try(expected)
 	if decision.Grant == nil {
 		return out, acknowledged, effectiveAdmissionRefusal(decision.Refusal)
@@ -263,12 +244,12 @@ func (r *effectiveRuntime) run(ctx context.Context, w *Writer, cap *EnrichmentDi
 			}
 		}
 	}()
-	custody, err = bindGovernedTurn(EffectiveStage, r.plan.recipe.limit, r.governor, r.authority, r.wal, decision.Grant, expected)
+	custody, err = bindGovernedTurn(purpose, plan.recipe.limit, r.governor, r.authority, r.wal, decision.Grant, expected)
 	if err != nil {
 		r.fenced = true
 		return out, acknowledged, err
 	}
-	tx, err := r.executor.begin(ctx, EffectiveStage, r.plan.recipe, custody)
+	tx, err := r.executor.begin(ctx, purpose, plan.recipe, custody)
 	if !errors.Is(err, ErrBusy) {
 		transferred = true
 	}
@@ -277,21 +258,45 @@ func (r *effectiveRuntime) run(ctx context.Context, w *Writer, cap *EnrichmentDi
 			r.fenced = true
 		}
 		if !ack && errors.Is(err, ErrResolveRequired) {
-			out.Outcome.State = ResolveRequired
-			out.Outcome.Reference = request.Receipt
+			outcome.State = ResolveRequired
+			outcome.Reference = reference
 		}
 		return out, acknowledged, err
 	}
 	defer tx.rollback(nil) // preserves the PRIMARY panic through frame cleanup
-	turn, err := newCommandTurn(tx, r.registry, r.plan.steps)
+	turn, err := newCommandTurn(tx, r.registry, plan.steps)
 	if err == nil {
-		err = r.disclose(ctx, turn, cap, request)
+		if scan != nil {
+			_, err = inventoryOwnerFacts(ctx, turn, scan.request.RunID)
+			if err == nil {
+				err = checkInventoryNativeScope(ctx, turn, scan.request)
+			}
+		} else {
+			err = r.disclose(ctx, turn, cap, request)
+		}
 	}
 	if err == nil {
-		err = r.checkDisclosure(ctx, w, cap, request)
+		err = errors.Join(r.currentRunDisclosure(w, cap, request, scan), ctx.Err())
 	}
 	var historical bool
-	if err == nil {
+	if err == nil && scan != nil {
+		var lookup inventoryReceiptLookup
+		lookup, err = lookupInventoryAccept(ctx, turn, scan.request)
+		if err == nil {
+			if ack {
+				acknowledged.AcknowledgedThrough, err = acknowledgeInventory(ctx, turn, scan.request, lookup)
+			} else {
+				out.inventory = inventoryHistoricalResult(scan.request, lookup)
+				historical = lookup.decision != receiptFresh
+				if lookup.decision == receiptFresh && scan.accept {
+					// SC's complete fresh effect body and qualified recipe have
+					// not landed. No subset may become Applied.
+					err = &Refusal{Code: RefusalUnqualified}
+				}
+			}
+		}
+	}
+	if err == nil && scan == nil {
 		expectedReceipt := receiptIdentity{request.Receipt.Identity, request.Receipt.RequestDigest}
 		var saved EffectiveStageBeginResult
 		var owner effectiveBeginOwner
@@ -304,24 +309,24 @@ func (r *effectiveRuntime) run(ctx context.Context, w *Writer, cap *EnrichmentDi
 			if ack {
 				acknowledged.AcknowledgedThrough, err = acknowledgeEffective(ctx, turn, request, owner, disposition)
 			} else {
-				out.Outcome.Reference = request.Receipt
+				outcome.Reference = reference
 				switch disposition {
 				case receiptRetired:
-					out.Outcome.State = ResultRetired
+					outcome.State = ResultRetired
 					historical = true
 				case receiptReplay:
-					out.Outcome.State = Applied
-					out.Outcome.Replayed = true
-					out.Value = saved
+					outcome.State = Applied
+					outcome.Replayed = true
+					out.effective.Value = saved
 					historical = true
 				case receiptFresh:
-					out.Outcome.State = Pending
+					outcome.State = Pending
 					if input != nil {
 						permit := cap.scope.fixture
 						if permit == nil || permit.issuer != r || permit.reference != request.Receipt {
 							err = &Refusal{Code: RefusalUnqualified}
 						} else {
-							out.Value, err = applyEffectiveStageBegin(ctx, turn, input)
+							out.effective.Value, err = applyEffectiveStageBegin(ctx, turn, input)
 						}
 					}
 				default:
@@ -335,9 +340,9 @@ func (r *effectiveRuntime) run(ctx context.Context, w *Writer, cap *EnrichmentDi
 	}
 	// A lifetime revoked while reading cannot disclose the saved result or ACK
 	// its floor. Caller cancellation alone does not erase already proven history.
-	permissionErr := r.currentDisclosure(w, cap, request)
+	permissionErr := r.currentRunDisclosure(w, cap, request, scan)
 	if errors.Is(permissionErr, ErrDisclosureDenied) {
-		out = EffectiveStageResult{}
+		out = commandOutput{}
 		acknowledged = AckResult{}
 		historical = false
 	}
@@ -348,21 +353,21 @@ func (r *effectiveRuntime) run(ctx context.Context, w *Writer, cap *EnrichmentDi
 	} else {
 		physical, err = tx.rollback(err)
 	}
-	if !ack && !historical && input != nil {
+	if scan == nil && !ack && !historical && input != nil {
 		if physical.state == commitUnknown {
-			out.Value = EffectiveStageBeginResult{}
-			out.Outcome.State = ResolveRequired
+			out.effective.Value = EffectiveStageBeginResult{}
+			outcome.State = ResolveRequired
 		} else if physical.state == committed {
-			if out.Value.ImageID > 0 {
-				out.Outcome.State = Applied
+			if out.effective.Value.ImageID > 0 {
+				outcome.State = Applied
 			}
 		} else {
-			out.Value = EffectiveStageBeginResult{}
+			out.effective.Value = EffectiveStageBeginResult{}
 		}
 	}
 	if !ack && !historical && !errors.Is(err, ErrDisclosureDenied) && (physical.state == commitUnknown || errors.Is(err, ErrResolveRequired)) {
-		out.Outcome.State = ResolveRequired
-		out.Outcome.Reference = request.Receipt
+		outcome.State = ResolveRequired
+		outcome.Reference = reference
 	}
 	if ack && physical.state != committed {
 		acknowledged.AcknowledgedThrough = 0
@@ -378,10 +383,17 @@ func (r *effectiveRuntime) run(ctx context.Context, w *Writer, cap *EnrichmentDi
 	if r.executor.fenced || r.executor.ambiguous {
 		r.fenced = true
 	}
+	// Revocation during COMMIT/physical return/WAL sampling must also redact
+	// historical data. It never changes the actual physical evidence.
+	if permissionErr := r.currentRunDisclosure(w, cap, request, scan); permissionErr != nil {
+		out = commandOutput{}
+		acknowledged = AckResult{}
+		err = errors.Join(err, permissionErr)
+	}
 	if ack {
 		acknowledged.Evidence = evidence
 	} else {
-		out.Outcome.Evidence = evidence
+		outcome.Evidence = evidence
 	}
 	return out, acknowledged, err
 }
