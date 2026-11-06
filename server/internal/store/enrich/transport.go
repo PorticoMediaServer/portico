@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/PorticoMediaServer/portico/server/internal/supervise"
 )
@@ -47,6 +48,7 @@ type Response struct {
 	Body       []byte
 	Status     int
 	RetryAfter time.Duration
+	Metadata   AcquisitionMetadata
 }
 
 // ProviderError carries the strongest retry floor alongside the original cause.
@@ -127,6 +129,7 @@ type TransportConfig struct {
 	MaxPending        int // includes pacing and in-flight requests; no unbounded queue
 	MaxWaiters        int // all callers, including coalesced requests
 	MaxResponseBytes  int64
+	MaxMetadataBytes  int64 // explicit allocation budget; zero disables typed acquisition (no production default)
 	CacheBytes        int64 // conservative body-allocation bound; entry/key metadata is separate
 	CacheEntries      int
 	CacheTTL          time.Duration
@@ -140,20 +143,25 @@ type TransportStats struct {
 	Requests, Attempts, Reused, Deduplicated, Refused, Failures, Bytes uint64
 	Pending, Waiters, InFlight, PeakInFlight                           int
 	CacheBytes                                                         int64 // conservatively charged backing allocations, not payload len/cap
+	CacheMetadataBytes                                                 int64 // subset of CacheBytes, not an additional pool
 	KeyBytes                                                           int64 // owned key string payloads (config, pending and cached); body allocations separate
 }
 
 type fetchCall struct {
-	done    chan struct{}
-	cancel  context.CancelFunc
-	waiters int
-	body    []byte
-	err     error
+	done           chan struct{}
+	cancel         context.CancelFunc
+	waiters        int
+	body           []byte
+	metadata       AcquisitionMetadata
+	metadataCharge int64
+	err            error
 }
 type cachedResponse struct {
-	key     RequestKey
-	body    []byte
-	expires time.Duration
+	key            RequestKey
+	body           []byte
+	metadata       AcquisitionMetadata
+	metadataCharge int64
+	expires        time.Duration
 }
 
 // Transport has no SQL handle, durable job lease or sleeping goroutine at idle.
@@ -186,6 +194,7 @@ func newTransport(cfg TransportConfig, admission NetworkAdmission, fetch Fetch, 
 	if cfg.Provider == "" || len(cfg.Provider) > 1024 || cfg.RequestsPerSecond < 1 || cfg.RequestsPerSecond > 40 ||
 		cfg.MaxInFlight < 1 || cfg.MaxInFlight > 64 || cfg.MaxPending < cfg.MaxInFlight || cfg.MaxPending > 256 ||
 		cfg.MaxWaiters < cfg.MaxPending || cfg.MaxWaiters > 1024 || cfg.MaxResponseBytes < 1 || cfg.MaxResponseBytes > 4<<20 ||
+		cfg.MaxMetadataBytes < 0 || cfg.MaxMetadataBytes > 64<<20 ||
 		int64(cfg.MaxPending)*cfg.MaxResponseBytes > 64<<20 ||
 		cfg.CacheBytes < 0 || cfg.CacheBytes > 64<<20 || cfg.CacheEntries < 0 || cfg.CacheEntries > 4096 ||
 		cfg.CacheTTL < 0 || cfg.CacheTTL > 24*time.Hour || cfg.RequestTimeout <= 0 || cfg.RequestTimeout > time.Minute || admission == nil || fetch == nil || clock == nil {
@@ -205,16 +214,61 @@ func (t *Transport) Get(ctx context.Context, key RequestKey) (body []byte, err e
 	// Apply the same public guidance to every error exit, including cancellation,
 	// capacity refusal and errors selected after the provider response is handled.
 	defer func() { err = t.withRetryFloor(err) }()
+	document, err := t.get(ctx, key)
+	return document.body, err
+}
+
+// GetDocument is the closed FIRST typed acquisition. Required original metadata
+// must have an explicit trusted resource budget; missing policy refuses before
+// dispatch. Generic body-only Get remains available for its existing callers.
+func (t *Transport) GetDocument(ctx context.Context, key RequestKey) (document AcquisitionDocument, err error) {
+	defer func() {
+		err = t.withRetryFloor(err)
+		if ctx != nil {
+			if cancelled := ctx.Err(); cancelled != nil {
+				// Preserve the strongest direct provider guidance while adding
+				// cancellation; a generic join must not hide it from the caller.
+				if provider, ok := err.(*ProviderError); ok && provider != nil {
+					copy := *provider
+					copy.cause = errors.Join(err, cancelled)
+					err = &copy
+				} else {
+					err = errors.Join(err, cancelled)
+				}
+			}
+		}
+		if err != nil {
+			document = AcquisitionDocument{}
+		}
+	}()
+	if t.cfg.MaxMetadataBytes <= 0 {
+		return AcquisitionDocument{}, ErrTMDBPolicy
+	}
+	if key.Provider != "tmdb" || key.Kind != "movie" || key.Shape != TMDBMovieRequestShape {
+		return AcquisitionDocument{}, ErrAcquisitionMetadata
+	}
+	id, parseErr := strconv.ParseInt(key.ExternalID, 10, 64)
+	if parseErr != nil || id <= 0 || strconv.FormatInt(id, 10) != key.ExternalID || key.Locale == "" || !utf8.ValidString(key.Locale) || strings.IndexByte(key.Locale, 0) >= 0 {
+		return AcquisitionDocument{}, ErrAcquisitionMetadata
+	}
+	document, err = t.get(ctx, key)
+	return document, err
+}
+
+func (t *Transport) get(ctx context.Context, key RequestKey) (AcquisitionDocument, error) {
+	if ctx == nil {
+		return AcquisitionDocument{}, errors.New("invalid enrichment request context")
+	}
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return AcquisitionDocument{}, err
 	}
 	if !key.valid() || key.Provider != t.cfg.Provider {
-		return nil, errors.New("invalid enrichment request key")
+		return AcquisitionDocument{}, errors.New("invalid enrichment request key")
 	}
 	key = key.owned()
-	body, c, err := t.join(key, t.clock.Now())
+	document, c, err := t.join(key, t.clock.Now())
 	if err != nil || c == nil {
-		return body, err
+		return document, err
 	}
 	defer func() {
 		t.mu.Lock()
@@ -227,33 +281,35 @@ func (t *Transport) Get(ctx context.Context, key RequestKey) (body []byte, err e
 	}()
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return AcquisitionDocument{}, ctx.Err()
 	case <-c.done:
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return AcquisitionDocument{}, err
 		}
-		return append([]byte(nil), c.body...), c.err
+		if c.err != nil {
+			return AcquisitionDocument{}, c.err
+		}
+		return cloneAcquisitionDocument(key, c.body, c.metadata, c.metadataCharge), nil
 	}
 }
 
-func (t *Transport) join(key RequestKey, now time.Duration) ([]byte, *fetchCall, error) {
+func (t *Transport) join(key RequestKey, now time.Duration) (AcquisitionDocument, *fetchCall, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.stats.Requests++
 	if t.closed {
-		return nil, nil, ErrClosed
+		return AcquisitionDocument{}, nil, ErrClosed
 	}
 	if t.stats.Waiters >= t.cfg.MaxWaiters {
 		t.stats.Refused++
-		return nil, nil, ErrBusy
+		return AcquisitionDocument{}, nil, ErrBusy
 	}
 	if elem := t.cache[key]; elem != nil {
 		v := elem.Value.(cachedResponse)
 		if now < v.expires {
 			t.lru.MoveToFront(elem)
 			t.stats.Reused++
-			body := append([]byte(nil), v.body...)
-			return body, nil, nil
+			return cloneAcquisitionDocument(key, v.body, v.metadata, v.metadataCharge), nil, nil
 		}
 		t.evict(elem)
 	}
@@ -262,16 +318,16 @@ func (t *Transport) join(key RequestKey, now time.Duration) ([]byte, *fetchCall,
 		// A canceled request retains physical custody but cannot gain new waiters.
 		if c.waiters == 0 {
 			t.stats.Refused++
-			return nil, nil, ErrBusy
+			return AcquisitionDocument{}, nil, ErrBusy
 		}
 		t.stats.Deduplicated++
 	} else {
 		if t.suspended {
-			return nil, nil, t.cooldownErrorLocked(now)
+			return AcquisitionDocument{}, nil, t.cooldownErrorLocked(now)
 		}
 		if len(t.flights) >= t.cfg.MaxPending {
 			t.stats.Refused++
-			return nil, nil, ErrBusy
+			return AcquisitionDocument{}, nil, ErrBusy
 		}
 		workCtx, cancel := context.WithTimeout(t.ctx, t.cfg.RequestTimeout)
 		c = &fetchCall{done: make(chan struct{}), cancel: cancel}
@@ -282,13 +338,13 @@ func (t *Transport) join(key RequestKey, now time.Duration) ([]byte, *fetchCall,
 	}
 	c.waiters++
 	t.stats.Waiters++
-	return nil, c, nil
+	return AcquisitionDocument{}, c, nil
 }
 
 func (t *Transport) run(ctx context.Context, key RequestKey, c *fetchCall) {
 	defer t.wg.Done()
 	defer c.cancel()
-	var body []byte
+	var document AcquisitionDocument
 	var err error
 	var refused bool
 	var expires time.Duration
@@ -296,7 +352,7 @@ func (t *Transport) run(ctx context.Context, key RequestKey, c *fetchCall) {
 	defer func() {
 		failure := recover()
 		if !completed {
-			body = nil
+			document = AcquisitionDocument{}
 			err = ErrWorkerPanic
 		}
 		func() {
@@ -312,9 +368,9 @@ func (t *Transport) run(ctx context.Context, key RequestKey, c *fetchCall) {
 				}
 			}
 			if err == nil && !t.closed && c.waiters > 0 {
-				t.remember(key, body, expires)
+				t.remember(key, document.body, document.metadata, document.metadataCharge, expires)
 			}
-			c.body, c.err = body, err
+			c.body, c.metadata, c.metadataCharge, c.err = document.body, document.metadata, document.metadataCharge, err
 			delete(t.flights, key)
 			t.stats.KeyBytes -= key.bytes()
 			close(c.done)
@@ -325,7 +381,7 @@ func (t *Transport) run(ctx context.Context, key RequestKey, c *fetchCall) {
 			panic(failure)
 		}
 	}()
-	body, err = t.acquire(ctx, key)
+	document, err = t.acquire(ctx, key)
 	// Error hooks are adapter-defined code. Run them inside worker containment,
 	// before terminal finalization, with no mutex held. A typed nil is not guidance.
 	var provider *ProviderError
@@ -376,17 +432,17 @@ func (t *Transport) withRetryFloor(err error) error {
 	guidance.cause = err
 	return &guidance
 }
-func (t *Transport) acquire(ctx context.Context, key RequestKey) ([]byte, error) {
+func (t *Transport) acquire(ctx context.Context, key RequestKey) (AcquisitionDocument, error) {
 	select {
 	case t.slots <- struct{}{}:
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return AcquisitionDocument{}, ctx.Err()
 	}
 	defer func() { <-t.slots }()
 	select {
 	case t.pace <- struct{}{}:
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return AcquisitionDocument{}, ctx.Err()
 	}
 	// State and release are guarded by mu, including acknowledgment from an HTTP
 	// write callback on another goroutine. A return without ack stays conservative.
@@ -423,7 +479,7 @@ func (t *Transport) acquire(ctx context.Context, key RequestKey) ([]byte, error)
 	}()
 	for {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return AcquisitionDocument{}, err
 		}
 		now := t.clock.Now()
 		var delay time.Duration
@@ -437,21 +493,21 @@ func (t *Transport) acquire(ctx context.Context, key RequestKey) ([]byte, error)
 			delay = t.next - now
 		}()
 		if cooldown != nil {
-			return nil, cooldown
+			return AcquisitionDocument{}, cooldown
 		}
 		if delay > 0 {
 			if err := t.clock.Wait(ctx, delay); err != nil {
-				return nil, err
+				return AcquisitionDocument{}, err
 			}
 			continue
 		}
 		var err error
-		retire, err = t.admission.Try(ctx, t.cfg.MaxResponseBytes)
+		retire, err = t.admission.Try(ctx, t.cfg.MaxResponseBytes+t.cfg.MaxMetadataBytes)
 		if err != nil {
-			return nil, err
+			return AcquisitionDocument{}, err
 		}
 		if retire == nil {
-			return nil, errors.New("enrichment admission returned no retirement capability")
+			return AcquisitionDocument{}, errors.New("enrichment admission returned no retirement capability")
 		}
 		now = t.clock.Now()
 		stale := func() bool {
@@ -518,7 +574,7 @@ func (t *Transport) acquire(ctx context.Context, key RequestKey) ([]byte, error)
 		},
 	}
 	if err := dispatch.Check(); err != nil {
-		return nil, err
+		return AcquisitionDocument{}, err
 	}
 	r, err := t.fetch(ctx, key, t.cfg.MaxResponseBytes, dispatch)
 	now := t.clock.Now()
@@ -546,42 +602,54 @@ func (t *Transport) acquire(ctx context.Context, key RequestKey) ([]byte, error)
 		if err == nil && int64(len(r.Body)) > t.cfg.MaxResponseBytes {
 			err = &ResponseSizeError{LimitBytes: t.cfg.MaxResponseBytes, ObservedBytes: int64(len(r.Body))}
 		}
-		if err == nil {
-			t.stats.Bytes += uint64(len(r.Body))
-		}
 	}()
 	if err != nil {
-		return nil, err
+		return AcquisitionDocument{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return AcquisitionDocument{}, err
 	}
-	// Retain an independently owned body. Cache accounting ALSO charges allocator
-	// rounding: an exact slice capacity alone does not bound its heap allocation.
+	var metadata AcquisitionMetadata
+	var metadataCharge int64
+	if t.cfg.MaxMetadataBytes > 0 {
+		var err error
+		metadata, metadataCharge, err = freezeAcquisitionMetadata(key, r.Metadata, t.cfg.MaxMetadataBytes)
+		if err != nil {
+			return AcquisitionDocument{}, err
+		}
+	}
+	// Retain an independently owned body. Metadata was bounded first. Cache
+	// accounting includes allocator rounding for BOTH body and metadata strings.
 	owned := make([]byte, len(r.Body))
 	copy(owned, r.Body)
-	return owned, nil
+	if err := ctx.Err(); err != nil {
+		return AcquisitionDocument{}, err
+	}
+	func() { t.mu.Lock(); defer t.mu.Unlock(); t.stats.Bytes += uint64(len(r.Body)) }()
+	return AcquisitionDocument{body: owned, key: key, metadata: metadata, metadataCharge: metadataCharge}, nil
 }
 
 func (t *Transport) evict(e *list.Element) {
 	v := e.Value.(cachedResponse)
 	delete(t.cache, v.key)
 	t.lru.Remove(e)
-	t.stats.CacheBytes -= cacheBodyCharge(len(v.body))
+	t.stats.CacheBytes -= cacheBodyCharge(len(v.body)) + v.metadataCharge
+	t.stats.CacheMetadataBytes -= v.metadataCharge
 	t.stats.KeyBytes -= v.key.bytes()
 }
 
-func (t *Transport) remember(key RequestKey, body []byte, expires time.Duration) {
-	charge := cacheBodyCharge(len(body))
+func (t *Transport) remember(key RequestKey, body []byte, metadata AcquisitionMetadata, metadataCharge int64, expires time.Duration) {
+	charge := cacheBodyCharge(len(body)) + metadataCharge
 	if t.cfg.CacheTTL == 0 || t.cfg.CacheEntries == 0 || charge > t.cfg.CacheBytes {
 		return
 	}
 	for t.lru.Len() >= t.cfg.CacheEntries || t.stats.CacheBytes+charge > t.cfg.CacheBytes {
 		t.evict(t.lru.Back())
 	}
-	e := t.lru.PushFront(cachedResponse{key: key, body: body, expires: expires})
+	e := t.lru.PushFront(cachedResponse{key: key, body: body, metadata: metadata, metadataCharge: metadataCharge, expires: expires})
 	t.cache[key] = e
 	t.stats.CacheBytes += charge
+	t.stats.CacheMetadataBytes += metadataCharge
 	t.stats.KeyBytes += key.bytes()
 }
 
@@ -632,6 +700,7 @@ func (t *Transport) Close() {
 		t.cache = make(map[RequestKey]*list.Element)
 		t.lru.Init()
 		t.stats.CacheBytes = 0
+		t.stats.CacheMetadataBytes = 0
 		t.stats.KeyBytes = int64(len(t.cfg.Provider))
 	}()
 }
