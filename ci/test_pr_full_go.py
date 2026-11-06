@@ -1,9 +1,11 @@
 import contextlib
 import io
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
+import sys
 import unittest
 from unittest.mock import patch
 
@@ -40,6 +42,17 @@ class FullPackageSelection(unittest.TestCase):
         for paths in [[], ['README.md', 'server/a/README.md'], ['web/src/a.ts'], ['ci/plan.py']]:
             self.assertEqual(plan.full_go_packages(self.packages, paths), set())
 
+    def test_deleted_embeds_keep_owner_from_directory_and_test_patterns(self):
+        for field, pattern, path in [
+                ('EmbedPatterns', 'assets', 'assets/removed.md'),
+                ('TestEmbedPatterns', 'fixtures/*.svg', 'fixtures/removed.svg'),
+                ('XTestEmbedPatterns', 'all:images', 'images/removed.png')]:
+            with self.subTest(field=field):
+                packages = [dict(p) for p in self.packages]
+                packages[0][field] = [pattern]
+                self.assertEqual(plan.full_go_packages(packages, ['server/a/' + path]), {'a', 'b', 'c', 'x'})
+                self.assertEqual(plan.full_go_packages(packages, ['server/a/README.md']), set())
+
     def test_promoted_prs_can_use_twenty_shards_without_changing_queue_cap(self):
         tests = [{'package': 'p', 'name': 'Test' + str(i)} for i in range(200)]
         costs = {'p.' + t['name']: 20 for t in tests}
@@ -48,6 +61,89 @@ class FullPackageSelection(unittest.TestCase):
 
 
 class FullPlan(unittest.TestCase):
+    def test_fixture_and_embed_suffixes_precede_documentation_filtering(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            packages = self.fixture(root)
+            packages[0].update(EmbedFiles=['embedded.md'], TestEmbedFiles=['embedded.svg'],
+                               XTestEmbedFiles=['embedded.png'])
+            security = root / 'server/internal/httpapi'
+            security.mkdir(parents=True)
+            (security / 'a_test.go').write_text('package sample\nfunc TestSecurity(t *testing.T) {}\n')
+            packages.append({'ImportPath': 'example/internal/httpapi', 'Dir': str(security), 'TestGoFiles': ['a_test.go']})
+            inputs = ['server/a/testdata/titlepage.svg', 'server/a/testdata/cover.png',
+                      'server/a/testdata/notes.md', 'server/a/embedded.md',
+                      'server/a/embedded.svg', 'server/a/embedded.png']
+            for name in inputs + ['server/a/README.md', 'server/README.md']:
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('fixture or documentation')
+            def command(args, cwd=None):
+                if args[0] == 'python3': return 'tags'
+                return '\n'.join(map(json.dumps, packages)) if Path(cwd).name == 'server' else ''
+            with patch('plan.ROOT', root), patch('plan.command', side_effect=command), \
+                 patch('plan.source_readers.select', return_value={}):
+                for path in inputs:
+                    for tier in ['short', 'merge']:
+                        with self.subTest(path=path, tier=tier):
+                            selection = plan.make_plan([path], tier=tier)
+                            self.assertIn('a', {p['package'] for p in selection['packages']})
+                            self.assertFalse(run.short_package(selection, 'a'))
+                for tier in ['short', 'merge']:
+                    selection = plan.make_plan(['server/a/README.md', 'server/README.md'], tier=tier)
+                    self.assertEqual(selection['packages'], [])
+                    self.assertEqual(selection['full_go_packages'], [])
+
+    def test_cli_cross_package_rename_promotes_both_owners(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            self.fixture(root)
+            packages = []
+            for name in ['persistence', 'httpapi']:
+                directory = root / 'server/internal' / name
+                directory.mkdir(parents=True)
+                (directory / 'a_test.go').write_text('package sample\nfunc TestOwner(t *testing.T) {}\n')
+                packages.append({'ImportPath': name, 'Dir': str(directory), 'TestGoFiles': ['a_test.go']})
+            def git(*args):
+                return subprocess.check_output(['git', '-c', 'user.name=Justin Ehler', '-c',
+                    'user.email=justin@justinehler.com', *args], cwd=root, text=True, stderr=subprocess.DEVNULL).strip()
+            git('init', '-q')
+            git('config', 'diff.renames', 'true')
+            source = 'server/internal/persistence/testdata/derived-writers.json'
+            destination = 'server/internal/httpapi/testdata/derived-writers.json'
+            for path in [source, destination]:
+                (root / path).parent.mkdir(parents=True, exist_ok=True)
+            (root / source).write_text('{"fixture": "unchanged content"}\n')
+            git('add', '.')
+            git('commit', '-qm', 'Add package fixtures')
+            base = git('rev-parse', 'HEAD')
+            (root / source).rename(root / destination)
+            git('add', '-A')
+            git('commit', '-qm', 'Move unchanged fixture between packages')
+            head = git('rev-parse', 'HEAD')
+            self.assertTrue(git('diff', '--name-status', base, head).startswith('R100\t'))
+            self.assertEqual(git('diff', '--name-only', base, head), destination)  # the inherited trap
+            event = root / 'event.json'
+            event.write_text(json.dumps({'before': base}))
+            output = root / 'selection.json'
+            actual_command = plan.command
+            def command(args, cwd=None):
+                if args[0] == 'python3': return 'tags'
+                if args[0] == 'go':
+                    return '\n'.join(map(json.dumps, packages)) if Path(cwd).name == 'server' else ''
+                return actual_command(args, cwd=root)
+            with patch('plan.ROOT', root), patch('plan.command', side_effect=command), \
+                 patch('plan.source_readers.select', return_value={}), \
+                 patch.dict(os.environ, {'GITHUB_EVENT_NAME': 'push', 'GITHUB_EVENT_PATH': str(event)}, clear=True), \
+                 patch.object(sys, 'argv', ['plan.py', '--output', str(output)]):
+                plan.main()
+            selection = json.loads(output.read_text())
+            self.assertEqual(set(selection['paths']), {source, destination})
+            self.assertEqual(set(selection['full_go_packages']), {'persistence', 'httpapi'})
+            self.assertEqual({t['package'] for t in selection['inventory']}, {'persistence', 'httpapi'})
+            for package in ['persistence', 'httpapi']:
+                self.assertFalse(run.short_package(selection, package))
+
     def test_request_cost_parent_will_run_without_short_on_a_route_change(self):
         package = 'github.com/PorticoMediaServer/portico/server/internal/httpapi'
         def command(args, cwd=None):

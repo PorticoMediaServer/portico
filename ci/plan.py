@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Conservative reset planner. No product tests or builds are executed here."""
 import argparse
+import fnmatch
 import json
 import os
 import math
@@ -118,8 +119,10 @@ def components(paths, full=False):
     if full: return sorted(COMPONENTS), True
     chosen=set(); go=False
     for path in paths:
-        if path.endswith(('.md','.png','.jpg','.jpeg','.gif','.webp','.svg','.ico')) and ((ROOT/path).is_file() or path.startswith(('server/','apikit/'))): continue
+        # Go metadata must distinguish documentation from fixtures/embedded
+        # inputs before their suffix can suppress package discovery.
         if path.startswith(('server/', 'apikit/')): go=True
+        elif path.endswith(('.md','.png','.jpg','.jpeg','.gif','.webp','.svg','.ico')) and (ROOT/path).is_file(): continue
         elif path.startswith('packages/'):
             if path.startswith('packages/contracts/'): go=True
             chosen.update(COMPONENTS[:-1])
@@ -135,24 +138,36 @@ def android_selected(paths, full=False):
         p.startswith(('apps/native/android/','apps/native/modules/','scripts/run-android-harnesses')) or
         (p.startswith('apps/native/') and (p.endswith(('.kt','.kts','.gradle')) or 'AndroidManifest' in p or 'transport' in p.lower())) for p in paths)
 
+def embedded_input(owner, relative, deleted):
+    if relative in owner.get('EmbedFiles',[])+owner.get('TestEmbedFiles',[])+owner.get('XTestEmbedFiles',[]):
+        return True
+    if not deleted: return False
+    # Deleted inputs disappear from EmbedFiles. Directory prefixes preserve
+    # recursive embeds; ambiguous Go pattern syntax conservatively keeps owner.
+    prefixes=['/'.join(relative.split('/')[:i]) for i in range(1,len(relative.split('/'))+1)]
+    patterns=owner.get('EmbedPatterns',[])+owner.get('TestEmbedPatterns',[])+owner.get('XTestEmbedPatterns',[])
+    return any('[' in p or '\\' in p or any(fnmatch.fnmatchcase(prefix,p.removeprefix('all:')) for prefix in prefixes)
+               for p in patterns)
+
 def go_seeds(packages, paths, full=False, diagnostics=None):
     all_packages={p['ImportPath'] for p in packages}
     if full: return all_packages
     seeds=set()
     for path in paths:
         if not path.startswith(('server/','apikit/')): continue
-        if path.endswith(('.md','.png','.jpg','.jpeg','.gif','.webp','.svg','.ico')): continue
+        documentation=path.endswith(('.md','.png','.jpg','.jpeg','.gif','.webp','.svg','.ico'))
         if Path(path).name in ('go.mod','go.sum'):
             if diagnostics is not None: diagnostics.append(path+': Go manifest changed')
             return all_packages
         owners=[p for p in packages if path.startswith(str(Path(p['Dir']).relative_to(ROOT))+'/')]
         if not owners:
+            if documentation and '/testdata/' not in path: continue
             if diagnostics is not None: diagnostics.append(path+': no build-aware owning Go package')
             return all_packages
         owner=max(owners,key=lambda p:len(p['Dir']))
         relative=str(Path(path).relative_to(Path(owner['Dir']).relative_to(ROOT)))
-        embedded=owner.get('EmbedFiles',[])+owner.get('TestEmbedFiles',[])+owner.get('XTestEmbedFiles',[])
-        if not (path.endswith('.go') or relative.startswith('testdata/') or relative in embedded):
+        if not (path.endswith('.go') or relative.startswith('testdata/') or embedded_input(owner,relative,not (ROOT/path).exists())):
+            if documentation and '/testdata/' not in path: continue
             if diagnostics is not None: diagnostics.append(path+': unrecognized non-Go package input')
             return all_packages
         seeds.add(owner['ImportPath'])
@@ -187,9 +202,9 @@ def make_plan(paths, full=False, tier="short"):
     tags=command(['python3','scripts/release-build-tags.py','--capability']).strip()
     if go:
         # Include the real HTTP/client boundary in build-aware test discovery.
-        tags += ',reading_client_integration'
+        listing_tags = tags + ',reading_client_integration'
         for module in ['server','apikit']:
-            raw=command(['go','list','-json','-tags',tags,'./...'], ROOT/module)
+            raw=command(['go','list','-json','-tags',listing_tags,'./...'], ROOT/module)
             listed=decode_stream(raw)
             for p in listed: p['module']=module
             packages.extend(listed); modules.append(module)
@@ -199,6 +214,8 @@ def make_plan(paths, full=False, tier="short"):
         if full: go_fallbacks.append('explicit full inventory')
         elif far: go_fallbacks.append('cross-component/root or contracts change without Go-owned paths')
         seeds = go_seeds(packages, paths, full or far,diagnostics=go_fallbacks)
+        if not seeds and not full and not any(components([p])[1] for p in paths if not p.startswith(('server/','apikit/'))):
+            go_owned=False  # ordinary Go-tree docs needed metadata, not tests
         if tier == 'short': full_packages = full_go_packages(packages, paths)
         chosen=closure(packages,seeds)
         if tier != 'short' and go_owned:
@@ -207,6 +224,8 @@ def make_plan(paths, full=False, tier="short"):
         # files change, which the import graph cannot see. A package already chosen runs all its tests.
         reader_tests={k:v for k,v in reader_packages(packages,readers).items() if k not in chosen}
         chosen.update(reader_tests)
+        go=bool(chosen)
+        if go: tags=listing_tags
         packages=[p for p in packages if p['ImportPath'] in chosen]
         for p in packages:
             # go list's build-aware files; include examples and fuzz seed parents.
@@ -306,7 +325,9 @@ def main():
     elif a.full: paths=[]
     else:
         base,head=base_head(event,os.environ)
-        paths=command(['git','diff','--name-only','-z',base,head]).split('\0'); paths=[p for p in paths if p]
+        # Treat renames as delete+add so both package owners (and source readers)
+        # see their changed input, including a source missing from this checkout.
+        paths=command(['git','diff','--no-renames','--name-only','-z',base,head]).split('\0'); paths=[p for p in paths if p]
     plan=make_plan(paths,a.full,'merge' if a.full and a.tier=='short' else a.tier); plan.update(base=base,head=head)
     Path(a.output).write_text(json.dumps(plan,indent=2)+'\n')
     if os.environ.get('GITHUB_STEP_SUMMARY'):
