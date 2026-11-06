@@ -16,23 +16,26 @@ var ErrObservation = errors.New("invalid or unjoined scan timing observation")
 // Manifest identifies one first-visibility observation window. Source/build/
 // fixture/host evidence is supplied by the owning run, never inferred here.
 type Manifest struct {
-	Run, ClockDomain, FixtureSHA256, SourceSHA, BinarySHA256, HostEpoch, MediaProfile string
+	Run, Database, ClockDomain, FixtureSHA256, SourceSHA, BinarySHA256, HostEpoch, MediaProfile string
 }
 
 type Report struct {
-	Population             string   `json:"population"`
-	Label                  string   `json:"label"`
-	Qualification          bool     `json:"qualification"`
-	Manifest               Manifest `json:"manifest"`
-	AppliedObserved        bool     `json:"applied_observed"`
-	FilenameObserved       bool     `json:"filename_observed"`
-	AppliedObservedNS      *int64   `json:"applied_observed_ns"`
-	FirstFilenameVisibleNS *int64   `json:"first_filename_visible_ns"`
-	AllFilenameVisibleNS   *int64   `json:"all_filename_visible_ns"`
-	FirstBasicNS           *int64   `json:"first_basic_ns"`
-	AllBasicNS             *int64   `json:"all_basic_ns"`
-	Missing                []string `json:"missing"`
-	Rejected               uint64   `json:"rejected_observations"`
+	OriginalReference      *writer.ReceiptReference `json:"original_reference"`
+	TargetLibraryID        int64                    `json:"target_library_id"`
+	TargetSubjectID        int64                    `json:"target_subject_id"`
+	Population             string                   `json:"population"`
+	Label                  string                   `json:"label"`
+	Qualification          bool                     `json:"qualification"`
+	Manifest               Manifest                 `json:"manifest"`
+	AppliedObserved        bool                     `json:"applied_observed"`
+	FilenameObserved       bool                     `json:"filename_observed"`
+	AppliedObservedNS      *int64                   `json:"applied_observed_ns"`
+	FirstFilenameVisibleNS *int64                   `json:"first_filename_visible_ns"`
+	AllFilenameVisibleNS   *int64                   `json:"all_filename_visible_ns"`
+	FirstBasicNS           *int64                   `json:"first_basic_ns"`
+	AllBasicNS             *int64                   `json:"all_basic_ns"`
+	Missing                []string                 `json:"missing"`
+	Rejected               uint64                   `json:"rejected_observations"`
 }
 
 // Clock retains ONE exact N1 Applied target and fixed-size receipt values.
@@ -49,12 +52,13 @@ type Clock struct {
 }
 
 func New(start time.Time, m Manifest) (*Clock, error) {
-	if !monotonic(start) || m.Run == "" || m.ClockDomain == "" || m.HostEpoch == "" || m.MediaProfile == "" ||
+	if !monotonic(start) || m.Run == "" || m.Database == "" || len(m.Database) > 1024 || m.ClockDomain == "" || m.HostEpoch == "" || m.MediaProfile == "" ||
 		len(m.Run) > 1024 || len(m.ClockDomain) > 1024 || len(m.HostEpoch) > 1024 || len(m.MediaProfile) > 128 ||
 		!hex(m.FixtureSHA256, 64) || !hex(m.SourceSHA, 40) || !hex(m.BinarySHA256, 64) {
 		return nil, ErrObservation
 	}
 	m.Run = strings.Clone(m.Run)
+	m.Database = strings.Clone(m.Database)
 	m.ClockDomain = strings.Clone(m.ClockDomain)
 	m.FixtureSHA256 = strings.Clone(m.FixtureSHA256)
 	m.SourceSHA = strings.Clone(m.SourceSHA)
@@ -102,7 +106,7 @@ func (c *Clock) Browse(at time.Time, input read.BrowseInput, page read.BrowsePag
 		return ErrObservation
 	}
 	if callErr != nil || c.appliedAt.IsZero() || !c.at(at) || at.Before(c.appliedAt) || input.Library != c.member.LibraryID ||
-		input.TokenHash == "" || input.Database == "" || len(page.Items) > read.MaxPage {
+		input.TokenHash == "" || input.Database != c.manifest.Database || len(page.Items) > read.MaxPage {
 		return c.reject()
 	}
 	for _, item := range page.Items {
@@ -130,6 +134,10 @@ func (c *Clock) Report() Report {
 	r.Rejected = c.rejected
 	if !c.appliedAt.IsZero() {
 		r.AppliedObserved = true
+		reference := c.reference.Receipt
+		r.OriginalReference = &reference
+		r.TargetLibraryID = c.member.LibraryID
+		r.TargetSubjectID = c.member.SubjectID
 		n := c.appliedAt.Sub(c.start).Nanoseconds()
 		r.AppliedObservedNS = &n
 	} else {
