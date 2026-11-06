@@ -85,3 +85,38 @@ func TestPrepareBasicBudgetAndRawCapsBeforeCleanup(t *testing.T) {
 		t.Fatal("zero payload budget", err)
 	}
 }
+
+func TestPrepareBasicNativeFilenameCause(t *testing.T) {
+	for _, c := range []struct {
+		name, path string
+		cause      error
+	}{
+		{"invalid_utf8", "a\xff.mkv", writer.ErrFilenameUnrepresentable},
+		{"nul", "a\x00.mkv", ErrInvalid},
+		{"mixed_nul_bad_utf8", "a\xff\x00.mkv", ErrInvalid},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			in := basicInput()
+			in.File.RelativePath = c.path
+			before := in
+			got, err := PrepareBasic(in, preparedBasicShape(in), 4096)
+			if !errors.Is(err, c.cause) || !reflect.DeepEqual(got, PreparedBasic{}) || in != before {
+				t.Fatal(got, err, in)
+			}
+			if c.cause == ErrInvalid && errors.Is(err, writer.ErrFilenameUnrepresentable) {
+				t.Fatal("invalid native input classified as poison", err)
+			}
+		})
+	}
+	in := basicInput()
+	in.File.RelativePath = "a\xff.mkv"
+	in.NFO.Revision = strings.Repeat("x", 4096)
+	if got, err := PrepareBasic(in, preparedBasicShape(in), 1); !errors.Is(err, ErrCapacity) || !reflect.DeepEqual(got, PreparedBasic{}) {
+		t.Fatal("filename classification bypassed complete capacity preflight", got, err)
+	}
+	in = basicInput()
+	in.NFO.Revision = "\xff"
+	if got, err := PrepareBasic(in, preparedBasicShape(in), 4096); !errors.Is(err, ErrInvalid) || errors.Is(err, writer.ErrFilenameUnrepresentable) || !reflect.DeepEqual(got, PreparedBasic{}) {
+		t.Fatal("opaque local witness became filename poison", got, err)
+	}
+}

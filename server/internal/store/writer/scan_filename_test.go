@@ -196,3 +196,36 @@ func TestInventoryAcceptRefusesInexactDerivedSort(t *testing.T) {
 		})
 	}
 }
+
+func TestProjectOrdinaryFilenameNativeRootCause(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		edit  func(*InventoryOrdinaryFilenameInput)
+		cause error
+	}{
+		{"root_and_asset", func(in *InventoryOrdinaryFilenameInput) {
+			in.IdentityRoot = []byte("/media/\xff")
+			in.AssetPath = []byte("/media/\xff/Film.mkv")
+		}, ErrFilenameUnrepresentable},
+		{"root_only", func(in *InventoryOrdinaryFilenameInput) { in.IdentityRoot = []byte("/old/\xff") }, ErrFilenameUnrepresentable},
+		{"asset_only", func(in *InventoryOrdinaryFilenameInput) { in.AssetPath = []byte("/media/\xff/Film.mkv") }, ErrFilenameUnrepresentable},
+		{"root_nul_and_asset_bad_utf8", func(in *InventoryOrdinaryFilenameInput) {
+			in.IdentityRoot = []byte("/media/\x00")
+			in.AssetPath = []byte("/media/\xff/Film.mkv")
+		}, ErrInvalid},
+		{"missing_root", func(in *InventoryOrdinaryFilenameInput) { in.IdentityRoot = nil }, ErrInvalid},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			in := ordinaryFilenameInput([]byte("Film.mkv"), "", "en-US")
+			c.edit(&in)
+			root, asset, relative := append([]byte(nil), in.IdentityRoot...), append([]byte(nil), in.AssetPath...), append([]byte(nil), in.RelativePath...)
+			got, err := ProjectOrdinaryFilename(in)
+			if !errors.Is(err, c.cause) || got != (InventoryOrdinaryFilename{}) || string(in.IdentityRoot) != string(root) || string(in.AssetPath) != string(asset) || string(in.RelativePath) != string(relative) {
+				t.Fatal(got, err)
+			}
+			if c.cause == ErrInvalid && errors.Is(err, ErrFilenameUnrepresentable) {
+				t.Fatal("invalid native input classified as poison", err)
+			}
+		})
+	}
+}
