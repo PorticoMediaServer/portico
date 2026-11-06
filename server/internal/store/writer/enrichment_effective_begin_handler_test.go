@@ -402,6 +402,13 @@ func TestEffectiveBeginAtomicEffectsPreserveProgressAndServing(t *testing.T) {
 	if _, err := turn.transaction.commit(); err != nil {
 		t.Fatal(err)
 	}
+	var buildID sql.NullString
+	if err := w.db.QueryRowContext(t.Context(), "SELECT evidence_build_id FROM metadata_provider_operations WHERE id='operation-one'").Scan(&buildID); err != nil {
+		t.Fatal(err)
+	}
+	if buildID.Valid {
+		t.Fatal("image BEGIN created evidence-build custody", buildID.String)
+	}
 	beforeOwner["last_command_sequence"], beforeOwner["credit_image_id"] = int64(12), result.ImageID
 	if got := effectiveBeginSnapshot(t, w.db, "SELECT * FROM metadata_provider_operations WHERE id='operation-one'"); !reflect.DeepEqual(got, beforeOwner) {
 		t.Fatalf("BEGIN changed progress/other owner facts: got %v want %v", got, beforeOwner)
@@ -415,6 +422,44 @@ func TestEffectiveBeginAtomicEffectsPreserveProgressAndServing(t *testing.T) {
 	}
 	if got := effectiveBeginSnapshot(t, w.db, "SELECT * FROM enrichment_command_receipts WHERE command_sequence=12"); !reflect.DeepEqual(got, expected) {
 		t.Fatalf("receipt column readback differs: got %v want %v", got, expected)
+	}
+}
+
+func TestEffectiveBeginPreservesEvidenceBuildCustody(t *testing.T) {
+	w, _, request, identity := effectiveBeginWholeFixture(t)
+	input, err := newEffectiveStageBeginCommand(identity, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Install distinct, FK-valid custody AFTER freezing the image request. This
+	// is a native preservation fixture, not a qualified evidence-stage/sealer.
+	// Its pin is not image authority and must not enter the image request/CAS.
+	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO metadata_evidence_builds(id,evidence_id,generation,owner_operation,owner_incarnation,owner_generation,state,phase,cursor,expected_rows,materialized_rows,expected_shape_digest,materialized_digest,materialized_charge,expires_at)
+ SELECT 'evidence-build:custody','evidence-source',277,id,command_incarnation,generation,'ready','evidence-v1',1,1,1,'declared-shape:custody','materialized:custody',1024,'2100-11-05T13:30:00Z' FROM metadata_provider_operations WHERE id='operation-one'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.db.ExecContext(t.Context(), `UPDATE metadata_provider_operations SET evidence_build_id='evidence-build:custody' WHERE id='operation-one'`); err != nil {
+		t.Fatal(err)
+	}
+	beforeOwner := effectiveBeginSnapshot(t, w.db, "SELECT * FROM metadata_provider_operations WHERE id='operation-one'")
+	beforeBuild := effectiveBeginSnapshot(t, w.db, "SELECT * FROM metadata_evidence_builds WHERE id='evidence-build:custody'")
+	turn, _ := effectiveBeginWholeTurn(t, w)
+	result, err := applyEffectiveStageBegin(t.Context(), turn, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := turn.closeRows(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := turn.transaction.commit(); err != nil {
+		t.Fatal(err)
+	}
+	beforeOwner["last_command_sequence"], beforeOwner["credit_image_id"] = int64(12), result.ImageID
+	if got := effectiveBeginSnapshot(t, w.db, "SELECT * FROM metadata_provider_operations WHERE id='operation-one'"); !reflect.DeepEqual(got, beforeOwner) {
+		t.Fatal("image BEGIN changed existing evidence-build custody or other owner facts")
+	}
+	if got := effectiveBeginSnapshot(t, w.db, "SELECT * FROM metadata_evidence_builds WHERE id='evidence-build:custody'"); !reflect.DeepEqual(got, beforeBuild) {
+		t.Fatal("image BEGIN changed the retained evidence build")
 	}
 }
 

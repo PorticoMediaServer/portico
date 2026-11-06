@@ -81,9 +81,21 @@ func TestEffectiveBeginOperationSchemaCaptureCoverage(t *testing.T) {
 	if err := rows.Close(); err != nil {
 		t.Fatal(err)
 	}
-	// These are outputs/audit text, never request authority. BEGIN preserves all
-	// four exactly, checked by the complete before/after physical snapshot test.
-	passive := map[string]string{"result_digest": "prior provider result output", "created_at": "creation audit", "finished_at": "completion audit", "reason": "completion diagnostic"}
+	// Each non-input has its own contract; custody is not an audit field.
+	// CHANGE-005 evidence-header BEGIN creates and pins the evidence build.
+	// Effective-image BEGIN neither consumes that pin as authority nor creates,
+	// resolves or detaches it. Its source/provenance checks remain independent.
+	// Preserve existing build custody through the original result's ACK; the
+	// native NULL and retained-pin controls below/alongside this test prove that
+	// image BEGIN does not change it. The complete physical snapshot also checks
+	// preservation of the other outputs/audit fields.
+	nonInputs := map[string]string{
+		"result_digest":     "prior provider result output",
+		"created_at":        "creation audit",
+		"finished_at":       "completion audit",
+		"reason":            "completion diagnostic",
+		"evidence_build_id": "evidence-header command custody, preserved through source-dependent result ACK; not image-BEGIN authority",
+	}
 	for _, variant := range []string{"null_set", "distinct_set"} {
 		t.Run(variant, func(t *testing.T) {
 			if variant == "distinct_set" {
@@ -131,7 +143,7 @@ func TestEffectiveBeginOperationSchemaCaptureCoverage(t *testing.T) {
 			for _, column := range columns {
 				got, ok := captured[column]
 				if !ok {
-					if passive[column] == "" {
+					if nonInputs[column] == "" {
 						t.Fatal("native operation column lacks capture or explicit non-input contract", column)
 					}
 					continue
@@ -140,8 +152,8 @@ func TestEffectiveBeginOperationSchemaCaptureCoverage(t *testing.T) {
 					t.Fatalf("native operation column %s not captured exactly: got %v want %v", column, got, physical[column])
 				}
 			}
-			if len(captured)+len(passive) != len(columns) {
-				t.Fatal("stale or duplicate operation coverage", len(captured), len(passive), len(columns))
+			if len(captured)+len(nonInputs) != len(columns) {
+				t.Fatal("stale or duplicate operation coverage", len(captured), len(nonInputs), len(columns))
 			}
 			// Independently decode the coherent non-NULL triple, then refuse FIRST.
 			if variant == "distinct_set" {
