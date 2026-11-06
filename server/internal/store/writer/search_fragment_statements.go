@@ -18,9 +18,31 @@ const (
 	searchFragmentNoHeadDue   stmt.ID = "search.publish.cas.fragment_no_head_due"
 	searchFragmentHeadNoDue   stmt.ID = "search.publish.cas.fragment_head_no_due"
 	searchFragmentHeadDue     stmt.ID = "search.publish.cas.fragment_head_due"
+	searchFragmentImageRead   stmt.ID = "search.publish.owner.fragment_image"
+	searchFragmentSealRead    stmt.ID = "search.publish.owner.fragment_seal"
+	searchFragmentHeldRead    stmt.ID = "search.publish.owner.fragment_held_custody"
 )
 
 const searchFragmentReceiptKind = "fragment_stage"
+
+// Complete finite SQL family for W's composition. Shared source/history IDs
+// retain their existing immutable definitions; no registry or recipe is minted.
+// The complete recipe reserves searchImageHeads twice (24 uses / 23 IDs).
+func searchFragmentDefinitions() []stmt.Definition {
+	defs := searchFragmentStageDefinitions()
+	for _, d := range searchPublisherReceiptDefinitions() {
+		if d.ID == searchPublisherOwnerID || d.ID == searchPublisherIdentity || d.ID == searchPublisherAck {
+			defs = append(defs, d)
+		}
+	}
+	for _, d := range searchImageBeginDefinitions() {
+		switch d.ID {
+		case searchImageSource, searchImageSubject, searchImageLibrary, searchImageBank, searchImageHeads, searchImageJob:
+			defs = append(defs, d)
+		}
+	}
+	return defs
+}
 
 // Finite domain definitions only. W composes the registry/complete profile;
 // the FTS descriptors require their separately reviewed Capture capability.
@@ -28,14 +50,30 @@ func searchFragmentStageDefinitions() []stmt.Definition {
 	i := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Integer} }
 	t := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Text} }
 	b := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Blob} }
-	defs := []stmt.Definition{{ID: searchFragmentInsert, Kind: stmt.Write,
-		SQL: `INSERT INTO search_fragments(owner_entity,owner_person,field,ordinal,source_revision,
+	defs := []stmt.Definition{
+		{ID: searchFragmentImageRead, Kind: stmt.Read,
+			SQL: `SELECT id,entity_id,library_id,kind,search_generation_id,generation,source_incarnation,source_revision,recipe_version
+FROM search_publications WHERE id=? AND person_id IS NULL AND recipe_version=?`,
+			Params: []stmt.Param{i("image_id"), t("recipe")}, Cohorts: []stmt.Cohort{{Name: "captured_staged_image", Bindings: []any{int64(307), searchpolicy.RecipeV1}}},
+			Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"search_publications"}, Seeks: []string{"rowid=?"}}},
+		{ID: searchFragmentSealRead, Kind: stmt.Read,
+			SQL: `SELECT algorithm,seed,expected_digest,expected_fragments,expected_bytes,staged_fragments,staged_bytes,
+verified_fragments,verified_bytes,chain,after_field,after_ordinal,after_fragment_id,sealed
+FROM search_image_seals WHERE publication_id=? AND algorithm=?`,
+			Params: []stmt.Param{i("image_id"), t("algorithm")}, Cohorts: []stmt.Cohort{{Name: "independent_seal_checkpoint", Bindings: []any{int64(307), searchmanifest.Algorithm}}},
+			Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"search_image_seals"}, Seeks: []string{"publication_id=?"}}},
+		{ID: searchFragmentHeldRead, Kind: stmt.Read,
+			SQL:    `SELECT publication_id,live_publication_id,phase FROM search_reclaim_jobs WHERE publication_id=?`,
+			Params: []stmt.Param{i("image_id")}, Cohorts: []stmt.Cohort{{Name: "same_image_held_custody", Bindings: []any{int64(307)}}},
+			Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_search_reclaim_jobs_1"}, Seeks: []string{"publication_id=?"}}},
+		{ID: searchFragmentInsert, Kind: stmt.Write,
+			SQL: `INSERT INTO search_fragments(owner_entity,owner_person,field,ordinal,source_revision,
 prefix_tokens,lexical_tokens,normalized,generation,search_generation_id,publication_id)
 VALUES(?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
-		Params: []stmt.Param{i("entity_id"), {Name: "person_id", Type: stmt.Integer, Nullable: true}, i("field"), i("ordinal"), t("source_revision"),
-			t("prefix_tokens"), t("lexical_tokens"), t("normalized"), i("input_generation"), i("bank_id"), i("image_id")},
-		Cohorts: []stmt.Cohort{{Name: "first_own_title_fragment", Bindings: []any{int64(41), nil, int64(1), int64(0), "11", "000061", "a", "a", int64(5), int64(7), int64(307)}}},
-		Plan:    stmt.Plan{Hot: true}},
+			Params: []stmt.Param{i("entity_id"), {Name: "person_id", Type: stmt.Integer, Nullable: true}, i("field"), i("ordinal"), t("source_revision"),
+				t("prefix_tokens"), t("lexical_tokens"), t("normalized"), i("input_generation"), i("bank_id"), i("image_id")},
+			Cohorts: []stmt.Cohort{{Name: "first_own_title_fragment", Bindings: []any{int64(41), nil, int64(1), int64(0), "11", "000061", "a", "a", int64(5), int64(7), int64(307)}}},
+			Plan:    stmt.Plan{Hot: true}},
 		{ID: searchFragmentSealTotals, Kind: stmt.Write,
 			SQL: `UPDATE search_image_seals SET staged_fragments=?,staged_bytes=?
 WHERE publication_id=? AND algorithm=? AND seed=? AND expected_digest=? AND expected_fragments=? AND expected_bytes=?
