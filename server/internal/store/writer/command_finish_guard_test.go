@@ -32,6 +32,8 @@ func unguardedCommandFinishes(file *ast.File) []string {
 			continue
 		}
 		needs := fn.Name.Name == "disclose" || strings.HasPrefix(fn.Name.Name, "checkInventory") || fn.Name.Name == "requireInventoryMemory" || fn.Name.Name == "inventoryTimeMS" || fn.Name.Name == "searchImageEngine"
+		needs = needs || fn.Name.Name == "scanCreateTimeMS" || fn.Name.Name == "scanClaimTimeMS" || fn.Name.Name == "requireScanLifecycleMemory"
+		needs = needs || fn.Name.Name == "applyInventoryCreate" || fn.Name.Name == "applyInventoryClaim" || fn.Name.Name == "persistScanRunLifecycleResult"
 		for _, r := range fn.Type.Results.List {
 			if typ, ok := r.Type.(*ast.Ident); ok && resultTypes[typ.Name] {
 				needs = true
@@ -44,8 +46,6 @@ func unguardedCommandFinishes(file *ast.File) []string {
 		needs = needs || fn.Name.Name == "acknowledgeSearchPublisher" || fn.Name.Name == "searchImageStageFreshFacts"
 		needs = needs || fn.Name.Name == "acknowledgeScanRunLifecycle"
 		needs = needs || fn.Name.Name == "ObserveInventory" || fn.Name.Name == "newScanPreparation"
-		needs = needs || fn.Name.Name == "scanCreateTimeMS" || fn.Name.Name == "scanClaimTimeMS" || fn.Name.Name == "requireScanLifecycleMemory"
-		needs = needs || fn.Name.Name == "applyInventoryCreate" || fn.Name.Name == "applyInventoryClaim" || fn.Name.Name == "persistScanRunLifecycleResult"
 		if !needs {
 			continue
 		}
@@ -246,6 +246,12 @@ func TestCommandReleaseGuardRejectsBypasses(t *testing.T) {
 		`func ObserveInventory(ctx context.Context)(value nativeinventory.Page,err error){return nativeinventory.Page{},nil}`,
 		`func lookupScanRunLifecycle(ctx context.Context)(value scanLifecycleReceiptLookup,err error){return scanLifecycleReceiptLookup{},nil}`,
 		`func acknowledgeScanRunLifecycle(ctx context.Context)(value int64,err error){return 1,nil}`,
+		`func scanCreateTimeMS(ctx context.Context)(value int64,err error){return 1,nil}`,
+		`func scanClaimTimeMS(ctx context.Context)(value int64,err error){return 1,nil}`,
+		`func requireScanLifecycleMemory(ctx context.Context)(err error){return nil}`,
+		`func applyInventoryCreate(ctx context.Context)(value scanRunLifecycleResult,err error){return value,nil}`,
+		`func applyInventoryClaim(ctx context.Context)(value scanRunLifecycleResult,err error){return value,nil}`,
+		`func persistScanRunLifecycleResult(ctx context.Context)(value scanRunLifecycleResult,err error){return value,nil}`,
 		`func searchImageEngine(ctx context.Context)(out searchpolicy.Engine,err error){return searchpolicy.Engine{Version:"saved"},nil}`,
 		`func acknowledgeSearchPublisher(ctx context.Context,turn *commandTurn,q PublisherReceiptRequest,lookup publisherReceiptLookup)(out int64,err error){return 1,nil}`,
 		`func searchImageStageFreshFacts(ctx context.Context,turn *commandTurn,want searchImageStageRequest)(out searchImageStageRequest,err error){return want,nil}`,
