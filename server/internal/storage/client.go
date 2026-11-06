@@ -6,12 +6,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/mediasource"
+	"github.com/PorticoMediaServer/portico/server/internal/progressio"
+	"github.com/PorticoMediaServer/portico/server/internal/storage/nativeinventory"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/mediasource"
-	"github.com/PorticoMediaServer/portico/server/internal/progressio"
 	"strings"
 	"syscall"
 	"time"
@@ -151,6 +152,7 @@ func (c *Client) InspectRoot(ctx context.Context, path string) (Snapshot, error)
 	e := c.run(ctx, path, "root", path, func(v Snapshot) error { value = v; return nil })
 	return value, e
 }
+
 // Root probe answers. ProbeRoot returns one of these as Snapshot.ErrorCode
 // when the root is provably not there; any error it returns instead says only
 // that the probe did not finish (busy, timed out, the helper failed).
@@ -199,12 +201,12 @@ func Helper(in io.Reader, out io.Writer) (result error) {
 	decoder := json.NewDecoder(io.TeeReader(io.LimitReader(in, 64<<10), &captured))
 	var raw json.RawMessage
 	if e := decoder.Decode(&raw); e != nil {
-		if nativeEnvelopeCandidate(captured.Bytes()) {
+		if nativeinventory.EnvelopeCandidate(captured.Bytes()) {
 			return errors.Join(ErrNativeInventory, e)
 		}
 		return e
 	}
-	if native, matched, e := decodeNativeEnvelope(raw); matched {
+	if native, matched, e := nativeinventory.DecodeEnvelope(raw); matched {
 		if e != nil {
 			return e
 		}

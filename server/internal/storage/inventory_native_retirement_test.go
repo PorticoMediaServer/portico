@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
+	"github.com/PorticoMediaServer/portico/server/internal/storage/nativeinventory"
 )
 
 func TestNativeRetirementGraceIsExactlyFiveSeconds(t *testing.T) {
@@ -27,7 +28,7 @@ func TestNativeRetirementGraceIsExactlyFiveSeconds(t *testing.T) {
 				r := newNativeRetirement(s)
 				start := time.Now()
 				done := make(chan error, 1)
-				go func() { done <- r.wait(cause) }()
+				go func() { done <- r.Wait(cause) }()
 				synctest.Wait()
 				time.Sleep(5*time.Second - time.Nanosecond)
 				select {
@@ -44,8 +45,8 @@ func TestNativeRetirementGraceIsExactlyFiveSeconds(t *testing.T) {
 				if stats := s.Stats(); stats.NativeRetiring != 1 || stats.NativeRetirementOverGrace != 1 {
 					t.Fatal("missing bounded native metrics", stats)
 				}
-				r.retire()
-				r.retire()
+				r.Retire()
+				r.Retire()
 				if stats := s.Stats(); stats.NativeRetiring != 0 || stats.NativeRetirementOverGrace != 1 {
 					t.Fatal("retirement was lost or double-refunded", stats)
 				}
@@ -82,7 +83,7 @@ func TestNativeRetirementWarningIsBoundedAndCannotDelayCaller(t *testing.T) {
 		s := &Supervisor{}
 		r := newNativeRetirement(s)
 		done := make(chan error, 1)
-		go func() { done <- r.wait(context.Canceled) }()
+		go func() { done <- r.Wait(context.Canceled) }()
 		synctest.Wait()
 		time.Sleep(5 * time.Second)
 		synctest.Wait()
@@ -90,22 +91,22 @@ func TestNativeRetirementWarningIsBoundedAndCannotDelayCaller(t *testing.T) {
 			t.Fatal(err)
 		}
 		other := newNativeRetirement(s)
-		if !other.markPending() {
+		if !other.MarkPending() {
 			t.Fatal("pending observation lost")
 		}
-		s.warnNativeRetirement()
+		s.nativeMonitor.Warn()
 		synctest.Wait()
 		sink.mu.Lock()
 		calls, text := sink.calls, sink.text
 		sink.mu.Unlock()
-		if calls != 1 || !strings.Contains(text, "warning: native storage helper retirement") || !s.nativeWarningBusy.Load() {
+		if calls != 1 || !strings.Contains(text, "warning: native storage helper retirement") || !s.nativeMonitor.WarningBusy.Load() {
 			t.Fatal("warnings were absent or unbounded", calls, text)
 		}
 		if stats := s.Stats(); stats.NativeRetiring != 2 || stats.NativeRetirementOverGrace != 2 {
 			t.Fatal("coalesced warnings lost metric observations", stats)
 		}
-		r.retire()
-		other.retire()
+		r.Retire()
+		other.Retire()
 		if s.Stats().NativeRetiring != 0 {
 			t.Fatal("blocked log sink blocked physical retirement")
 		}
@@ -189,7 +190,7 @@ func TestNativeInventoryStuckWaitBoundsCallerAndRetainsCustody(t *testing.T) {
 				if time.Since(cancelledAt) < 5*time.Second {
 					t.Fatal("caller skipped fixed grace")
 				}
-			case <-time.After(2 * nativeRetirementGrace):
+			case <-time.After(2 * nativeinventory.RetirementGrace):
 				t.Fatal("caller hung behind stuck Wait")
 			}
 			if owner.Active() != 1 || s.Active() != 1 || owner.Context().Err() != nil {
@@ -236,4 +237,8 @@ func TestNativeInventoryStuckWaitBoundsCallerAndRetainsCustody(t *testing.T) {
 			}
 		})
 	}
+}
+
+func newNativeRetirement(s *Supervisor) *nativeinventory.Retirement {
+	return nativeinventory.NewRetirement(&s.nativeMonitor)
 }

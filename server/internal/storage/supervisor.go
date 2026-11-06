@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"regexp"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server/internal/childprocess"
 	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
+	"github.com/PorticoMediaServer/portico/server/internal/storage/nativeinventory"
 	"github.com/PorticoMediaServer/portico/server/internal/supervise"
 )
 
@@ -146,9 +146,7 @@ type Supervisor struct {
 	waitNs    atomic.Uint64
 
 	// Two fixed-cardinality native-only metrics, with no path/job labels.
-	nativeRetiring            atomic.Int64
-	nativeRetirementOverGrace atomic.Uint64
-	nativeWarningBusy         atomic.Bool
+	nativeMonitor nativeinventory.Monitor
 	// Deterministic physical-Wait fixture; nil in production.
 	waitForTest func(*exec.Cmd) error
 }
@@ -194,7 +192,7 @@ func (s *Supervisor) Stats() SupervisorStats {
 		InventoryStreamsActive: inventory, InventoryStreamsCapacity: inventoryLimit,
 		Admitted: s.admitted.Load(), InProcess: s.inProcess.Load(), Queued: s.queued.Load(), Refused: s.refused.Load(),
 		QueueWaitMillis: s.waitNs.Load() / uint64(time.Millisecond),
-		NativeRetiring:  s.nativeRetiring.Load(), NativeRetirementOverGrace: s.nativeRetirementOverGrace.Load(),
+		NativeRetiring:  s.nativeMonitor.Active.Load(), NativeRetirementOverGrace: s.nativeMonitor.OverGrace.Load(),
 	}
 }
 
@@ -277,7 +275,7 @@ func (s *Supervisor) run(ctx context.Context, key string, cmd *exec.Cmd, consume
 // of an ingest probe. Playback keeps its bounded client-facing wait.
 func (s *Supervisor) admit(ctx context.Context, key string, limited bool) (pool, error) {
 	p := poolFor(ctx, key)
-	native := nativeInventoryAdmission(ctx)
+	native := nativeinventory.IsNativeContext(ctx)
 	if !native && backgroundPool(p) && !dbwork.WaitBackground(ctx) {
 		return p, ctx.Err()
 	}
@@ -427,7 +425,7 @@ func (s *Supervisor) runAdmission(ctx context.Context, key string, cmd *exec.Cmd
 	// Native work reserves/refuses immediately, before any background-policy
 	// pause. A pause still applies, with that reservation charged until no-start
 	// cancellation or physical return. Legacy admission order is unchanged.
-	if nativeInventoryAdmission(ctx) && (p == poolBackground || p == poolScanProbe) && !dbwork.WaitBackground(ctx) {
+	if nativeinventory.IsNativeContext(ctx) && (p == poolBackground || p == poolScanProbe) && !dbwork.WaitBackground(ctx) {
 		release()
 		return ctx.Err()
 	}
@@ -517,18 +515,6 @@ func (s *Supervisor) waitHelper(cmd *exec.Cmd) error {
 		return s.waitForTest(cmd)
 	}
 	return cmd.Wait()
-}
-
-func (s *Supervisor) warnNativeRetirement() {
-	// Logging cannot extend the caller grace or block the reaper. At most one
-	// warning worker per supervisor can be blocked by a slow operator log sink;
-	// concurrent warnings coalesce, while both scalar metrics retain the facts.
-	if s.nativeWarningBusy.CompareAndSwap(false, true) {
-		supervise.Go("storage.native-retirement-warning", func() {
-			defer s.nativeWarningBusy.Store(false)
-			log.Print("warning: native storage helper retirement exceeds five-second grace; physical owner and helper slot remain held")
-		})
-	}
 }
 
 func (s *Supervisor) Active() int {

@@ -1,4 +1,4 @@
-package storage
+package nativeinventory
 
 import (
 	"bytes"
@@ -107,7 +107,7 @@ func nativeDecode(raw []byte, out any, shape nativeShape) error {
 	return nil
 }
 
-func (w *nativeInventoryWire) UnmarshalJSON(raw []byte) error {
+func (w *Wire) UnmarshalJSON(raw []byte) error {
 	var d struct {
 		Root, RelativePath                      nativeBytes
 		MountedRoot                             json.RawMessage
@@ -129,7 +129,7 @@ func (w *nativeInventoryWire) UnmarshalJSON(raw []byte) error {
 	if !validNativeRequest(request) || bytes.IndexByte(mount, 0) >= 0 {
 		return ErrNativeInventory
 	}
-	*w = nativeInventoryWire{NativeInventoryRequest: request, MountedRoot: []byte(mount)}
+	*w = Wire{NativeInventoryRequest: request, MountedRoot: []byte(mount)}
 	return nil
 }
 

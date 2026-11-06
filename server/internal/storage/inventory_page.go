@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/PorticoMediaServer/portico/server/internal/naming"
+	"github.com/PorticoMediaServer/portico/server/internal/storage/nativeinventory"
 	"io"
 	"os"
 	"os/exec"
@@ -18,7 +19,7 @@ import (
 	"time"
 )
 
-var ErrInventoryChanged = errors.New("inventory directory or root changed")
+var ErrInventoryChanged = nativeinventory.ErrInventoryChanged
 
 // WARNING: this legacy JSON string carrier substitutes U+FFFD for invalid
 // UTF8 native bytes and can collide distinct filenames. Schema-v1 must use
@@ -70,97 +71,35 @@ func RootIdentity(v Snapshot) string {
 	return v.ObjectIdentity
 }
 
-// ownedInventoryWire is the private native-byte variant of the SAME helper
-// spawn. Its input is already bounded/encoded; its owner retires only through
-// RunOwnedCompletion. Legacy calls keep their existing request and Run path.
-type ownedInventoryWire struct {
-	input   []byte
-	retired func()
-	request NativeInventoryRequest
-}
-
-// All existing storage callback/context/lease orchestration stays at the
-// existing supervised spawn, rather than exposing callable flow in the byte DTO.
-func (c *Client) nativeInventoryOwned(ctx context.Context, owner *OperationScope, key string, r NativeInventoryRequest) (NativeInventoryPage, error) {
-	var empty NativeInventoryPage
-	if err := ctx.Err(); err != nil {
-		return empty, err
-	}
-	// A pending-retirement return can outlive the caller's request slices.
-	// Keep the exact bounded validation witnesses owned by the physical work.
-	r.Root = bytes.Clone(r.Root)
-	r.RelativePath = bytes.Clone(r.RelativePath)
-	r.RootIdentity = strings.Clone(r.RootIdentity)
-	r.DirectoryRevision = strings.Clone(r.DirectoryRevision)
-	r.Cursor = strings.Clone(r.Cursor)
+func (c *Client) NativeInventoryPreflight(r nativeinventory.Request) ([]byte, error) {
 	root := string(r.Root)
 	if c.IsRemote(root) {
-		return empty, ErrRemoteCursor
+		return nil, ErrRemoteCursor
 	}
 	path := filepath.Join(root, string(r.RelativePath))
 	if c.Guard != nil {
 		if err := c.Guard(path); err != nil {
-			return empty, err
+			return nil, err
 		}
 	}
-	wire := nativeInventoryWire{NativeInventoryRequest: r}
 	if c.MountedRoot != nil {
-		wire.MountedRoot = []byte(c.MountedRoot(path))
+		return []byte(c.MountedRoot(path)), nil
 	}
-	if len(wire.MountedRoot) > naming.MaxPathBytes || bytes.IndexByte(wire.MountedRoot, 0) >= 0 {
-		return empty, ErrNativeInventory
-	}
-	data, err := marshalNativeRequest(&wire)
-	if err != nil || len(data) > 64<<10 {
-		return empty, ErrNativeInventory
-	}
-	done, err := nativeInventoryLease(owner)
-	if err != nil {
-		return empty, err
-	}
-	retirement := newNativeRetirement(c.Supervisor)
-	timeout := c.Timeout
-	if timeout <= 0 {
-		timeout = 30 * time.Second
-	}
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	ctx = nativeInventoryContext(ctx)
-	stop := context.AfterFunc(owner.Context(), cancel)
-	defer stop()
-	if owner.Context().Err() != nil {
-		cancel()
-	}
-	var page NativeInventoryPage
-	err = c.inventoryRequest(ctx, key, "inventory-page-native-v1", InventoryRequest{}, &page, &ownedInventoryWire{
-		input: data, request: r, retired: func() {
-			retirement.mu.Lock()
-			if retirement.finishLocked() {
-				// Publish metric removal before releasing the shared scope, and
-				// publish this call's barrier only after its owner release.
-				done()
-				close(retirement.done)
-			}
-			retirement.mu.Unlock()
-		},
-	})
-	// Per-operation barrier, NOT shared owner shutdown or cancellation as proof.
-	err = retirement.wait(err)
-	if err == nil {
-		err = inventoryCodeError(page.ErrorCode)
-	}
-	if err != nil {
-		return empty, err
-	}
-	return page, nil
+	return nil, nil
+}
+func (c *Client) NativeInventorySettings() nativeinventory.Settings {
+	return nativeinventory.Settings{Timeout: c.Timeout, Monitor: &c.Supervisor.nativeMonitor}
+}
+func (c *Client) NativeInventoryExchange(ctx context.Context, exchange *nativeinventory.Exchange) error {
+	return c.inventoryRequest(ctx, exchange.Key(), "inventory-page-native-v1", InventoryRequest{}, nil, exchange)
 }
 
-func (c *Client) inventoryRequest(ctx context.Context, key, op string, r InventoryRequest, out any, owned ...*ownedInventoryWire) error {
+func (c *Client) inventoryRequest(ctx context.Context, key, op string, r InventoryRequest, out any, owned ...*nativeinventory.Exchange) error {
 	var data []byte
-	var native *ownedInventoryWire
+	var native *nativeinventory.Exchange
 	if len(owned) > 0 {
 		native = owned[0]
-		data = native.input
+		data = native.Input()
 	} else {
 		if c.Guard != nil {
 			if err := c.Guard(filepath.Join(r.Root, r.RelativePath)); err != nil {
@@ -184,21 +123,7 @@ func (c *Client) inventoryRequest(ctx context.Context, key, op string, r Invento
 	cmd.Stdin = bytes.NewReader(data)
 	consume := func(reader io.Reader) error {
 		if native != nil {
-			raw, err := io.ReadAll(io.LimitReader(reader, (2<<20)+1))
-			if err != nil {
-				return err
-			}
-			if len(raw) > 2<<20 {
-				return ErrNativeInventory
-			}
-			page, ok := out.(*NativeInventoryPage)
-			if !ok {
-				return ErrNativeInventory
-			}
-			if err := json.Unmarshal(raw, page); err != nil {
-				return errors.Join(ErrNativeInventory, err)
-			}
-			return validateNativePage(*page, native.request)
+			return native.Consume(reader)
 		}
 		// Legacy framing/decoding stays byte-for-byte equivalent in behavior.
 		d := json.NewDecoder(io.LimitReader(reader, 2<<20))
@@ -213,7 +138,7 @@ func (c *Client) inventoryRequest(ctx context.Context, key, op string, r Invento
 	}
 
 	if native != nil {
-		return c.Supervisor.RunOwnedCompletion(ctx, "inventory:"+key, cmd, consume, nil, native.retired)
+		return c.Supervisor.RunOwnedCompletion(ctx, "inventory:"+key, cmd, consume, nil, native.Retire)
 	}
 	return c.Supervisor.Run(ctx, "inventory:"+key, cmd, consume)
 }
