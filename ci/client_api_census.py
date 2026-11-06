@@ -377,7 +377,7 @@ def exception_pins(entry):
     if set(entry['sites']) & set(entry.get('additionalSites', {})):
         raise ValueError('Exception ID overlap between sites and additionalSites is forbidden')
     pins = {**{key: {'category': entry['category'], 'reason': entry['reason'], **({'guardHash': entry.get('guardHashes', {}).get(key),
-                **({'guardSpan':entry['guardSpans'][key]} if key in entry.get('guardSpans',{}) else {})} if entry['category'] in {'platform-transport','non-api-platform'} else {}),
+                **({'guardSpan':entry['guardSpans'][key]} if key in entry.get('guardSpans',{}) else {})} if entry['category'] in {'platform-transport','non-api-platform'} or entry.get('guardSpans',{}).get(key)=='native-function' else {}),
                 **({'sourceHashes':entry['sourceHashes'][key]} if key in entry.get('sourceHashes',{}) else {})} for key in entry['sites']},
             **entry.get('additionalSites', {})}
     budgets=Counter(entry['sites'])+Counter(entry.get('additionalSites',{}).keys())
@@ -400,8 +400,19 @@ def exception_counts(exceptions):
 
 
 def matches_guard(site, expected, span=None):
-    field={None:'guardHash','forwarding-function':'forwardingHash'}.get(span)
+    if span=='native-function' and Path(site['file']).suffix not in {'.kt','.java','.m','.mm','.swift','.rs'}:return False
+    field={None:'guardHash','forwarding-function':'forwardingHash','native-function':'constructionHash'}.get(span)
     return field is not None and expected is not None and expected==site.get(field)
+
+
+def validate_native_pin(key, pin, count):
+    if pin.get('guardSpan')!='native-function':return
+    path=key.split('#')[0]
+    if (pin['category'] not in {'platform-transport','platform-url'}
+            or not path.startswith('apps/native/') or Path(path).suffix not in {'.kt','.java','.m','.mm','.swift'}
+            or not re.fullmatch(r'[a-f0-9]{64}',pin.get('guardHash') or '') or count!=1
+            or not isinstance(pin.get('sourceHashes'),dict) or path not in pin['sourceHashes']):
+        raise ValueError(f'{key}: native-function requires one exact native span and its complete policy-source hash')
 
 
 def validate_source_hashes(key, hashes):
@@ -448,12 +459,13 @@ def classify(sites, exceptions, root=None):
             raise ValueError(f'Invalid exception (exact file, approved category and reason required): {path}')
         if not entry.get('sites'): raise ValueError(f'Exception must pin its exact construction/request sites: {path}')
         for key,pin in exception_pins(entry).items():
+            validate_native_pin(key,pin,remaining[path][key])
             if pin['category']=='non-api-platform' or 'sourceHashes' in pin:
                 validate_source_hashes(key,pin.get('sourceHashes'))
                 if root is None:raise ValueError(f'{key}: checking condition source hashes requires the exact source root')
-                for path,digest in pin['sourceHashes'].items():
-                    if condition_source_hash(root,path,key)!=digest:
-                        raise ValueError(f'{key}: reviewed condition source changed: {path}; re-approval is required')
+                for source_path,digest in pin['sourceHashes'].items():
+                    if condition_source_hash(root,source_path,key)!=digest:
+                        raise ValueError(f'{key}: reviewed condition source changed: {source_path}; re-approval is required')
     for site in sites:
         entry = exceptions.get(site['file'])
         pins=exception_pins(entry) if entry else {}
@@ -462,9 +474,9 @@ def classify(sites, exceptions, root=None):
         pin=pins.get(binding)
         allowed = pin is not None and remaining[site['file']][binding] > 0
         if allowed: remaining[site['file']][binding] -= 1
-        if allowed and pin['category']=='platform-transport' and not matches_guard(site,pin.get('guardHash'),pin.get('guardSpan')):
+        if allowed and (pin['category']=='platform-transport' or pin.get('guardSpan')=='native-function') and not matches_guard(site,pin.get('guardHash'),pin.get('guardSpan')):
             raise ValueError(f"{site['file']}:{site['line']}: reviewed guard source changed or is unbound; re-approval and a new guardHash are required")
-        if allowed and pin['category']=='platform-transport' and not site.get('forwardedRequest'):
+        if allowed and pin['category']=='platform-transport' and pin.get('guardSpan')!='native-function' and not site.get('forwardedRequest'):
             raise ValueError(f"{site['file']}:{site['line']}: platform transport must match an approved unchanged request/raw/chapter forwarding shape")
         if allowed and pin['category']=='non-api-platform' and not matches_guard(site,pin.get('guardHash')):
             raise ValueError(f"{site['file']}:{site['line']}: reviewed non-API source span changed; re-approval is required")
@@ -495,10 +507,11 @@ def validate_approvals(approvals):
             raise ValueError(f'{key}: approval requires an exact site, condition, positive multiplicity, category/source binding and lead-ruling URL')
         if entry['category']=='non-api-platform' or 'sourceHashes' in entry:
             validate_source_hashes(key,entry.get('sourceHashes'))
+        validate_native_pin(key,entry,entry['occurrences'])
         if '@' in key and (entry['category']!='platform-transport' or key.rsplit('@',1)[1]!=entry.get('guardHash')
                            or entry['occurrences']!=1 or 'previousSiteId' in entry):
             raise ValueError(f'{key}: paired approval requires its exact full hash, count 1 and an explicit ruling')
-        if 'guardSpan' in entry and (entry['category']!='platform-transport' or entry['guardSpan']!='forwarding-function'):
+        if 'guardSpan' in entry and entry['guardSpan']!='native-function' and (entry['category']!='platform-transport' or entry['guardSpan']!='forwarding-function'):
             raise ValueError(f'{key}: invalid explicitly reviewed forwarding span')
         if entry['category']=='identity-rehash' or entry['rulingUrl']==REHASH_RULING or 'previousSiteId' in entry:
             if (entry['category'] not in {'identity-rehash','platform-transport'}

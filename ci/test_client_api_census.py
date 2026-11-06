@@ -654,6 +654,53 @@ async function load(signal: AbortSignal) {return fetch(asset,{credentials:'omit'
                 code,output=self.check(root)
                 self.assertEqual(code,1);self.assertIn('symlink',output)
 
+    def test_native_function_pins_require_full_span_file_conditions_and_count_one(self):
+        import hashlib
+        source='''fun relay(url: HttpUrl, method: String, body: RequestBody?) {
+ val request = Request.Builder().url(url).method(method, body).build()
+ PorticoTransport.request(request)
+}
+fun decodedLimit(): Int { return 4096 }
+'''
+        root,filename,sites,entry=self.fixture(source,'apps/native/Relay.kt','platform-url')
+        self.assertEqual(len(sites),2)
+        digest=hashlib.sha256((root/filename).read_bytes()).hexdigest()
+        first,second=sites
+        self.assertTrue(first['constructionHash']);self.assertEqual(first['constructionHash'],second['constructionHash'])
+        condition={filename:digest}
+        pin=lambda site,category:dict(category=category,reason='Exact reviewed native policy',
+            guardHash=site['constructionHash'],guardSpan='native-function',sourceHashes=condition)
+        primary=pin(first,'platform-url');extra=pin(second,'platform-transport')
+        entry={'category':primary['category'],'reason':primary['reason'],'sites':[first['id']],
+               'guardHashes':{first['id']:primary['guardHash']},'guardSpans':{first['id']:'native-function'},
+               'sourceHashes':{first['id']:condition},'additionalSites':{second['id']:extra}}
+        ledger={site['id']:{**value,'condition':'The supplied request is executed under the exact native bounds/helper policy',
+                'occurrences':1,'rulingUrl':'https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651110042'}
+                for site,value in [(first,primary),(second,extra)]}
+        (root/ALLOWLIST).write_text(json.dumps({filename:entry}));(root/APPROVALS).write_text(json.dumps(ledger))
+        self.assertEqual(self.check(root)[0],0)
+        self.assertEqual(len(classify(sites,{filename:entry},root=root)[1]),2)
+        for bad in [None,'0'*64]:
+            changed=[dict(first,constructionHash=bad,guardHash=first['constructionHash']),second]
+            with self.assertRaises(ValueError):classify(changed,{filename:entry},root=root)
+        for edit in ['missing-source','null-span','duplicate','javascript']:
+            altered=json.loads(json.dumps(entry));key=first['id'];path=filename
+            if edit=='missing-source':altered['sourceHashes'][key]={'apps/native/Other.kt':'0'*64}
+            if edit=='null-span':altered['guardHashes'][key]=None
+            if edit=='duplicate':altered['sites'].append(key)
+            if edit=='javascript':
+                path='apps/native/Relay.ts';new=path+'#'+key.split('#')[1]
+                altered={'category':'platform-url','reason':'Wrong language','sites':[new],
+                    'guardHashes':{new:first['constructionHash']},'guardSpans':{new:'native-function'},
+                    'sourceHashes':{new:{path:digest}}}
+            with self.subTest(edit=edit),self.assertRaises(ValueError):classify([],{path:altered},root=root)
+        # Same constructor/method span, but a sibling decoder/bounds helper changed.
+        (root/filename).write_text(source.replace('4096','8192'))
+        self.assertEqual(scan(root)[0]['constructionHash'],first['constructionHash'])
+        self.assertEqual(self.check(root)[0],1)
+        (root/filename).write_text(source.replace('.method(method, body)','.method("DELETE", body)'))
+        self.assertEqual(self.check(root)[0],1)
+
     def test_native_url_method_body_and_bound_input_edits_each_invalidate_byte_pins(self):
         source='fun relay() { val method = "GET"; val request = Request.Builder().url(upstream.toString()).method(method, null).build() }\n'
         root,filename,sites,entry=self.fixture(source,'apps/native/Relay.kt','platform-url')
