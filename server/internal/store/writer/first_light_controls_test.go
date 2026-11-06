@@ -24,8 +24,16 @@ func TestFirstLightConfigAndExclusiveOutput(t *testing.T) {
 	if decoded, err := decodeFirstLightConfig(data); err != nil || decoded != config {
 		t.Fatal(decoded, err)
 	}
+	for _, count := range []int{1, 64, 1000} {
+		copy := config
+		copy.Fixtures = count
+		encoded, _ := json.Marshal(copy)
+		if decoded, err := decodeFirstLightConfig(encoded); err != nil || decoded.Fixtures != count {
+			t.Fatal("bounded fixture count refused", count, err)
+		}
+	}
 	for _, mutate := range []func(*firstLightConfig){
-		func(c *firstLightConfig) { c.Fixtures = 0 }, func(c *firstLightConfig) { c.Fixtures = 65 }, func(c *firstLightConfig) { c.OutputPath = "relative" },
+		func(c *firstLightConfig) { c.Fixtures = 0 }, func(c *firstLightConfig) { c.Fixtures = 1001 }, func(c *firstLightConfig) { c.OutputPath = "relative" },
 		func(c *firstLightConfig) { c.SourceCommit = "wrong" }, func(c *firstLightConfig) { c.HostEpoch = "" }, func(c *firstLightConfig) { c.RunID = strings.Repeat("a", 129) },
 	} {
 		copy := config
