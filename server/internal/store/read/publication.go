@@ -16,16 +16,20 @@ type browseSnapshots interface {
 
 // BrowseReader owns the two-view publication protocol, never raw SQL handles.
 // Its snapshot pool and exact admission requests come from trusted composition.
-type BrowseReader struct{ snapshots browseSnapshots }
+type BrowseReader struct {
+	snapshots browseSnapshots
+	pool      *governor.Snapshots
+}
 
 func NewBrowseReader(snapshots *governor.Snapshots) (*BrowseReader, error) {
 	if snapshots == nil {
 		return nil, ErrInput
 	}
-	return &BrowseReader{snapshots: snapshots}, nil
+	return &BrowseReader{snapshots: snapshots, pool: snapshots}, nil
 }
 
-// BrowseOutput proves separate retained-output custody before draft allocation.
+// BrowseOutput is issued by ConsumeForeground after LIVE and separate output
+// admission, before any draft allocation.
 // Composition keeps this memory-only grant charged through the last consumer,
 // including encoding/client IO; Window neither cancels nor retires it. Reserve
 // at least twice the snapshot's Go-copy budget for retained values/DTO overlap.
@@ -34,16 +38,18 @@ type BrowseOutput struct {
 	Authority *governor.Authority
 	Grant     *governor.Grant
 	Request   governor.Request
+	live      *foregroundOutput
 }
 
-// BrowseReadResult includes BOTH physical snapshots. Whole-route measurement
-// includes them and output checks, never only BrowsePage.LookupElapsed.
+// BrowseReadResult records all physical lookup/publication windows and
+// admission elapsed time. ConsumeForeground also measures the final consumer.
 type BrowseReadResult struct {
 	Lookup, Publication                     governor.SnapshotResult
 	LookupWindows                           []governor.SnapshotResult
 	LookupStatements, PublicationStatements int
 	Refusal                                 *governor.Refusal
 	Elapsed                                 time.Duration
+	AdmissionElapsed                        time.Duration
 	Attempts                                int
 	PublicationWindows                      []governor.SnapshotResult
 }
@@ -53,7 +59,17 @@ type BrowseReadResult struct {
 // common-fence equality binds the old business view to that publication view.
 // Every denial, drift, admission/cleanup error or cancellation returns ZERO
 // output. There is no production registration or runtime cutover here.
-func (r *BrowseReader) Window(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in BrowseInput) (page BrowsePage, result BrowseReadResult, err error) {
+func (r *BrowseReader) Window(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in BrowseInput) (BrowsePage, BrowseReadResult, error) {
+	if r == nil {
+		return BrowsePage{}, BrowseReadResult{}, ErrInput
+	}
+	return liveRead(ctx, request, budget, output, r.pool, in.Now, func(ctx context.Context, request governor.Request, budget time.Duration, at time.Time) (BrowsePage, BrowseReadResult, error) {
+		in.Now = at
+		return r.window(ctx, request, budget, output, in)
+	})
+}
+
+func (r *BrowseReader) window(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in BrowseInput) (page BrowsePage, result BrowseReadResult, err error) {
 	if r == nil {
 		return BrowsePage{}, BrowseReadResult{}, ErrInput
 	}
@@ -164,9 +180,25 @@ func publishAttempt[T any](ctx context.Context, snapshots browseSnapshots, reque
 	var source []any
 	for stepIndex, step := range steps {
 		var window governor.SnapshotResult
+		if output.live != nil {
+			if e := output.live.ctx.Err(); e != nil {
+				return zero, result, e
+			}
+			if e := output.live.check(); e != nil {
+				return zero, result, e
+			}
+		}
 		window, err = snapshots.Read(lookupContext, request, time.Until(deadline), func(scope *governor.ReadScope) error {
 			query := func(name string, args ...any) ([][]any, error) {
 				result.LookupStatements++
+				if output.live != nil {
+					if e := output.live.ctx.Err(); e != nil {
+						return nil, e
+					}
+					if e := output.live.check(); e != nil {
+						return nil, e
+					}
+				}
 				rows, e := scope.Query(readStatementID(name), args...)
 				if e != nil {
 					return nil, e
@@ -236,9 +268,20 @@ func publishAttempt[T any](ctx context.Context, snapshots browseSnapshots, reque
 	defer cancelValidation()
 	currentInput := in
 	currentInput.Now = in.Now.Add(time.Since(started))
+	if output.live != nil {
+		if e := output.live.check(); e != nil {
+			return zero, result, errors.Join(lookupErr, e)
+		}
+	}
+
 	result.Publication, err = snapshots.Read(validationContext, request, time.Until(deadline), func(scope *governor.ReadScope) error {
 		query := func(name string, args ...any) ([][]any, error) {
 			result.PublicationStatements++
+			if output.live != nil {
+				if e := output.live.check(); e != nil {
+					return nil, e
+				}
+			}
 			return scope.Query(readStatementID(name), args...)
 		}
 		current, e := readBrowseFence(query, currentInput)

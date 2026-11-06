@@ -25,6 +25,8 @@ import (
 func TestMain(m *testing.M) { os.Exit(schematest.Run(m)) }
 
 type browseFixture struct {
+	governor  governor.Governor
+	authority *governor.Authority
 	path      string
 	conn      *sql.Conn
 	snapshots *governor.Snapshots
@@ -47,6 +49,14 @@ func newBrowseFixture(t *testing.T) *browseFixture {
 
 func composeBrowseFixture(t *testing.T, f *browseFixture, definitions []stmt.Definition) *browseFixture {
 	t.Helper()
+	gc := governor.Config{Now: time.Now, MaxGrantsPerClass: 2}
+	gc.Partitions[governor.Foreground] = governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 20 << 20}
+	return composeReadFixture(t, f, definitions, gc, true)
+}
+
+func composeReadFixture(t *testing.T, f *browseFixture, definitions []stmt.Definition, gc governor.Config, reserveOutput bool) *browseFixture {
+	t.Helper()
+
 	golden := captureBrowse(t, f, definitions, plan.Unanalyzed)
 	registry, err := stmt.New(definitions, golden.Receipt())
 	if err != nil {
@@ -57,14 +67,11 @@ func composeBrowseFixture(t *testing.T, f *browseFixture, definitions []stmt.Def
 	if err != nil {
 		t.Fatal(err)
 	}
-	gc := governor.Config{Now: time.Now, MaxGrantsPerClass: 2}
-	// Retained-output custody overlaps one12MiB physical read grant. This is
-	// test composition, not a production memory/default or GV ceiling change.
-	gc.Partitions[governor.Foreground] = governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 20 << 20}
 	g, a, err := governor.New(gc)
 	if err != nil {
 		t.Fatal(err)
 	}
+	f.governor, f.authority = g, a
 	f.snapshots, err = governor.NewSnapshots(connector, reader, g, a, registry)
 	if err != nil {
 		t.Fatal(err)
@@ -78,6 +85,10 @@ func composeBrowseFixture(t *testing.T, f *browseFixture, definitions []stmt.Def
 	if err != nil {
 		t.Fatal(err)
 	}
+	if !reserveOutput {
+		return f
+	}
+
 	outputRequest := governor.Request{Key: governor.JobKey{Domain: 72, ID: "browse-output"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.MemoryBytes: 8 << 20}, Deadline: time.Now().Add(time.Hour)}
 	decision := g.Try(outputRequest)
 	if decision.Refusal != nil {
@@ -181,9 +192,9 @@ func seedBrowse(t *testing.T, f *browseFixture) {
 func (f *browseFixture) window(t *testing.T, ctx context.Context, in BrowseInput) (BrowsePage, BrowseReadResult, error) {
 	t.Helper()
 	r := governor.Request{Key: governor.JobKey{Domain: 71, ID: "browse-test"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 12 << 20}, Budget: governor.UnitBudget{RawRows: 100, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
-	// The fixture retains its output grant through the test's last consumer.
-	// Window only borrows it; native cleanup cannot refund retained output.
-	return f.reader.Window(ctx, r, time.Second, f.output, in)
+	// This fixture exercises the private fence kernel and retains its output
+	// through the last assertion. TestLive covers mandatory public admission.
+	return f.reader.window(ctx, r, time.Second, f.output, in)
 }
 
 func TestBrowseTraversalMatchesIndependentFacts(t *testing.T) {
