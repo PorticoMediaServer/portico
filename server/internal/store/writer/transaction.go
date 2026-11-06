@@ -150,7 +150,7 @@ func (c *writerConnector) Connect(ctx context.Context) (out driver.Conn, err err
 	scope := &driverSafety{log: c.panics}
 	native = &ownedPhysicalConn{writerDriverConn: conn.(writerDriverConn), faults: c.faults, scope: scope}
 	if c.binding != nil {
-		if err := c.binding.check(); err != nil {
+		if err := c.binding.attest(conn); err != nil {
 			return nil, errors.Join(err, native.Close())
 		}
 	}

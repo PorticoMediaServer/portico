@@ -2,6 +2,7 @@ package writer
 
 import (
 	"context"
+	"database/sql/driver"
 	"errors"
 	"os"
 	"path/filepath"
@@ -32,6 +33,8 @@ type scanOpening struct {
 type scanFileBinding struct {
 	path      string
 	identity  os.FileInfo
+	device    uint64
+	inode     uint64
 	ownership *stateownership.Lease
 	lifetime  context.Context
 	invalid   atomic.Bool
@@ -51,12 +54,37 @@ func (b *scanFileBinding) check() error {
 		if err == nil && (!current.Mode().IsRegular() || !os.SameFile(b.identity, current)) {
 			err = ErrConflict
 		}
+		if err == nil {
+			_, _, err = stateownership.SingleLinkedFileIdentity(current)
+		}
 	}
 	if err != nil {
 		b.invalid.Store(true) // putting an old pathname back never revives it
 		return errors.Join(ErrClosed, err)
 	}
 	return nil
+}
+
+func (b *scanFileBinding) attest(conn driver.Conn) error {
+	if err := b.check(); err != nil {
+		return err
+	}
+	getter, ok := conn.(interface {
+		SQLiteMainFileIdentity() (uint64, uint64, error)
+	})
+	if !ok {
+		b.invalid.Store(true)
+		return errors.Join(ErrClosed, ErrInvalid)
+	}
+	device, inode, err := getter.SQLiteMainFileIdentity()
+	if err == nil && (device != b.device || inode != b.inode) {
+		err = ErrConflict
+	}
+	if err != nil {
+		b.invalid.Store(true)
+		return errors.Join(ErrClosed, err)
+	}
+	return b.check()
 }
 
 // openScanStore is trusted startup, never a worker/public constructor. Cache
@@ -96,7 +124,11 @@ func openScanStore(ctx context.Context, owner *stateownership.Lock, path string,
 	if !info.Mode().IsRegular() {
 		return nil, ErrInvalid
 	}
-	o.binding = &scanFileBinding{path: strings.Clone(path), identity: info, ownership: lease, lifetime: o.lifetime}
+	device, inode, err := stateownership.SingleLinkedFileIdentity(info)
+	if err != nil {
+		return nil, err
+	}
+	o.binding = &scanFileBinding{path: strings.Clone(path), identity: info, device: device, inode: inode, ownership: lease, lifetime: o.lifetime}
 	cfg := sqliteconn.Config{Role: sqliteconn.Writer, Connections: 1, CacheKiB: cacheKiB, Synchronous: sqliteconn.Full}
 	connector, err := sqliteconn.Connector(path, cfg, sqliteconn.ExistingFile)
 	if err != nil {
