@@ -113,6 +113,43 @@ func TestRestartFencedCommittedAppendsRetainEventsAndClass(t *testing.T) {
 	}
 }
 
+func assertRestartCadenceUnavailable(t *testing.T, r RestartReport) {
+	t.Helper()
+	if r.ClassificationComplete || r.RestartsPerCommit != nil || r.RestartsPer1000Commits != nil {
+		t.Fatalf("single unknown published complete numeric cadence: %+v", r)
+	}
+	encoded, err := json.Marshal(r)
+	if err != nil || !strings.Contains(string(encoded), `"RestartsPerCommit":null`) || !strings.Contains(string(encoded), `"RestartsPer1000Commits":null`) {
+		t.Fatalf("unknown cadence ratios must both stay null: %s %v", encoded, err)
+	}
+}
+
+func TestRestartPositionUnknownAloneWithholdsCadence(t *testing.T) {
+	c, ss := restartFixture(2)
+	ss[1].Position, ss[1].UnknownReason = WALUnknown, "position observation gap"
+	r, err := SummarizeRestarts(c, ss, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertRestartCadenceUnavailable(t, r)
+	if r.UnknownPositions != 1 || r.UnknownOutcomes != 0 || r.Commits != 2 || r.FrameCommits != 1 || r.Strata.Committed.Holds.Count != 2 || r.Strata.Unclassified.Holds == nil || r.Strata.Unclassified.Holds.Count != 1 || r.Strata.Failed.Holds != nil || len(r.Events) != 1 || r.Events[0] != ss[1] {
+		t.Fatalf("position-only unknown lost its population or identity: %+v", r)
+	}
+}
+
+func TestRestartOutcomeUnknownAloneWithholdsCadence(t *testing.T) {
+	c, ss := restartFixture(2)
+	ss[1].Outcome, ss[1].OutcomeReason = "unknown", "ambiguous commit return"
+	r, err := SummarizeRestarts(c, ss, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertRestartCadenceUnavailable(t, r)
+	if r.UnknownPositions != 0 || r.UnknownOutcomes != 1 || r.Commits != 1 || r.FrameCommits != 1 || r.Strata.Committed.Holds.Count != 1 || r.Strata.Unclassified.Holds != nil || r.Strata.Failed.Holds == nil || r.Strata.Failed.Holds.Count != 1 || len(r.Events) != 1 || r.Events[0] != ss[1] {
+		t.Fatalf("outcome-only unknown lost its population or identity: %+v", r)
+	}
+}
+
 func TestRestartFailedFirstWriteRetainsEventAndNoDenominator(t *testing.T) {
 	c, ss := restartFixture(1)
 	ss[0].Outcome, ss[0].OutcomeReason, ss[0].Position = "rolled_back", "failed first write", WALRestartFirst
