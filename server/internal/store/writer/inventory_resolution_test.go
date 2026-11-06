@@ -15,7 +15,6 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
-	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
 type inventoryCancelReadConn struct {
@@ -56,7 +55,7 @@ func (r *inventoryCancelReadRows) Close() error {
 }
 
 func TestInventoryLookupLateCancellationReturnsZero(t *testing.T) {
-	w, requests := inventoryLookupFixture(t)
+	w, requests, registry := inventoryLookupFixture(t)
 	var sequence int64
 	var name, path string
 	if err := w.db.QueryRowContext(t.Context(), "PRAGMA database_list").Scan(&sequence, &name, &path); err != nil {
@@ -88,7 +87,7 @@ func TestInventoryLookupLateCancellationReturnsZero(t *testing.T) {
 					w.openPool(connector, func(conn driver.Conn) driver.Conn {
 						return &inventoryCancelReadConn{writerDriverConn: conn.(writerDriverConn), target: target, point: point, cancel: func() { cancelRead() }}
 					})
-					turn, tx := inventoryLookupTurn(t, w)
+					turn, tx := inventoryLookupTurn(t, w, registry)
 					var callCtx context.Context = caller
 					if lifetime == "turn" || lifetime == "same" {
 						cancelRead = tx.cancel
@@ -110,7 +109,7 @@ func TestInventoryLookupLateCancellationReturnsZero(t *testing.T) {
 	}
 }
 
-func inventoryLookupFixture(t *testing.T) (*executor, map[string]ScanReceiptRequest) {
+func inventoryLookupFixture(t *testing.T) (*executor, map[string]ScanReceiptRequest, *stmt.Registry) {
 	t.Helper()
 	w, _, _ := testExecutor(t)
 	populations := seedScanReceiptCohorts(t, w)
@@ -139,30 +138,32 @@ func inventoryLookupFixture(t *testing.T) (*executor, map[string]ScanReceiptRequ
 			t.Fatal(err)
 		}
 	}
-	return w, requests
+	registry := nativeInventoryFixtureRegistry(t, w, inventoryLookupDefinitions(), "inventory_resolution_test.go", "scan_receipts_test.go")
+	return w, requests, registry
 }
 
-func inventoryLookupTurn(t *testing.T, w *executor) (*commandTurn, *transaction) {
-	t.Helper()
+func inventoryLookupDefinitions() []stmt.Definition {
 	var definitions []stmt.Definition
-	var steps []statementStep
 	for _, d := range scanReceiptDefinitions() {
 		if d.ID == scanReceiptOwner || d.ID == scanReceiptLookup || d.ID == scanReceiptResults {
 			definitions = append(definitions, d)
-			steps = append(steps, statementStep{d.ID, Work{2, 100, 1, 0, time.Nanosecond}})
 		}
 	}
-	// Cancellation/corrupt-history fault fixtures, not native plan qualification.
-	r, err := stmttest.New(t, definitions)
-	if err != nil {
-		t.Fatal(err)
+	return definitions
+}
+
+func inventoryLookupTurn(t *testing.T, w *executor, registry *stmt.Registry) (*commandTurn, *transaction) {
+	t.Helper()
+	var steps []statementStep
+	for _, d := range registry.Manifest() {
+		steps = append(steps, statementStep{d.ID, Work{2, 100, 1, 0, time.Nanosecond}})
 	}
 	tx, err := w.begin(t.Context(), InventoryAccept, testRecipe(), &testCustody{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { tx.rollback(nil) })
-	turn, err := newCommandTurn(tx, r, steps)
+	turn, err := newCommandTurn(tx, registry, steps)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,11 +171,11 @@ func inventoryLookupTurn(t *testing.T, w *executor) (*commandTurn, *transaction)
 }
 
 func TestInventoryLookupOriginalHistoryAndFloors(t *testing.T) {
-	w, requests := inventoryLookupFixture(t)
+	w, requests, registry := inventoryLookupFixture(t)
 	for name, want := range map[string]receiptDecision{"hit": receiptReplay, "replay": receiptReplay, "stale": receiptReplay,
 		"missing": receiptFresh, "new": receiptFresh, "floor": receiptRetired, "drained": receiptRetired, "remaining": receiptRetired} {
 		t.Run(name, func(t *testing.T) {
-			turn, tx := inventoryLookupTurn(t, w)
+			turn, tx := inventoryLookupTurn(t, w, registry)
 			if want != receiptReplay {
 				// Any attempt to decode the cohort would exceed this frozen step.
 				step := turn.steps[scanReceiptResults]
@@ -209,7 +210,7 @@ func TestInventoryLookupOriginalHistoryAndFloors(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	turn, _ := inventoryLookupTurn(t, w)
+	turn, _ := inventoryLookupTurn(t, w, registry)
 	got, err := lookupInventoryAccept(t.Context(), turn, requests["hit"])
 	if err != nil || got.result.AcceptedRunRevision != 2 || got.result.SourceIncarnation != "source-incarnation" || got.result.Members[0].AcceptedAssetRevision != 1 {
 		t.Fatal("historical result refetched mutable facts", got, err)
@@ -217,7 +218,7 @@ func TestInventoryLookupOriginalHistoryAndFloors(t *testing.T) {
 }
 
 func TestInventoryLookupRejectsConflictAndIncompleteProof(t *testing.T) {
-	w, requests := inventoryLookupFixture(t)
+	w, requests, registry := inventoryLookupFixture(t)
 	for _, c := range []struct {
 		name string
 		sql  string
@@ -241,7 +242,7 @@ func TestInventoryLookupRejectsConflictAndIncompleteProof(t *testing.T) {
 		{"wrong_member_scope", "", func(r *ScanReceiptRequest) { r.LibraryID = 8 }, ErrResolveRequired},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			turn, tx := inventoryLookupTurn(t, w)
+			turn, tx := inventoryLookupTurn(t, w, registry)
 			if c.sql != "" {
 				// Test-only fault stays in this transaction and is rolled back.
 				if _, err := tx.conn.ExecContext(tx.ctx, c.sql); err != nil {
@@ -262,10 +263,10 @@ func TestInventoryLookupRejectsConflictAndIncompleteProof(t *testing.T) {
 }
 
 func TestInventoryLookupMissingAboveFloorAndN1Boundary(t *testing.T) {
-	w, requests := inventoryLookupFixture(t)
+	w, requests, registry := inventoryLookupFixture(t)
 	for _, count := range []int64{0, 2, math.MaxInt64} {
 		t.Run(strconv.FormatInt(count, 10), func(t *testing.T) {
-			turn, tx := inventoryLookupTurn(t, w)
+			turn, tx := inventoryLookupTurn(t, w, registry)
 			if _, err := tx.conn.ExecContext(tx.ctx, `UPDATE scan_command_receipts SET result_count=? WHERE run_id='scan-hit'`, count); err != nil {
 				t.Fatal(err)
 			}
@@ -289,7 +290,7 @@ func TestInventoryLookupMissingAboveFloorAndN1Boundary(t *testing.T) {
 			tx.rollback(err)
 		})
 	}
-	turn, tx := inventoryLookupTurn(t, w)
+	turn, tx := inventoryLookupTurn(t, w, registry)
 	for _, sql := range []string{`DELETE FROM scan_command_results WHERE run_id='scan-hit'`, `DELETE FROM scan_command_receipts WHERE run_id='scan-hit'`} {
 		if _, err := tx.conn.ExecContext(tx.ctx, sql); err != nil {
 			t.Fatal(err)
@@ -300,7 +301,7 @@ func TestInventoryLookupMissingAboveFloorAndN1Boundary(t *testing.T) {
 		t.Fatal("missing unacked proof became fresh", got, err)
 	}
 	tx.rollback(err)
-	turn, tx = inventoryLookupTurn(t, w)
+	turn, tx = inventoryLookupTurn(t, w, registry)
 	cancelled, cancel := context.WithCancel(t.Context())
 	cancel()
 	got, err = lookupInventoryAccept(cancelled, turn, requests["hit"])

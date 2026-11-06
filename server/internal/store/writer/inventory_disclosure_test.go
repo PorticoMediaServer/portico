@@ -57,6 +57,7 @@ func (r *inventoryScopeCancelRows) Close() error {
 
 func TestInventoryNativeDisclosureLateCancellation(t *testing.T) {
 	w := inventoryDisclosureFixture(t)
+	registry := nativeInventoryFixtureRegistry(t, w, inventoryDisclosureDefinitions(), "inventory_disclosure_test.go", "scan_receipts_test.go")
 	var sequence int64
 	var name, path string
 	if err := w.db.QueryRowContext(t.Context(), "PRAGMA database_list").Scan(&sequence, &name, &path); err != nil {
@@ -78,7 +79,7 @@ func TestInventoryNativeDisclosureLateCancellation(t *testing.T) {
 				w.openPool(connector, func(conn driver.Conn) driver.Conn {
 					return &inventoryScopeCancelConn{writerDriverConn: conn.(writerDriverConn), point: point, cancel: func() { cancelRead() }}
 				})
-				turn, tx := inventoryDisclosureTurn(t, w, inventoryDisclosureDefinitions())
+				turn, tx := inventoryDisclosureTurn(t, w, registry)
 				var callCtx context.Context = caller
 				if lifetime == "turn" || lifetime == "same" {
 					cancelRead = tx.cancel
@@ -101,10 +102,11 @@ func TestInventoryNativeDisclosureLateCancellation(t *testing.T) {
 
 func TestInventoryNativeDisclosureRetirementDoesNotHideHistory(t *testing.T) {
 	w := inventoryDisclosureFixture(t)
+	registry := nativeInventoryFixtureRegistry(t, w, inventoryDisclosureDefinitions(), "inventory_disclosure_test.go", "scan_receipts_test.go")
 	if _, err := w.db.ExecContext(t.Context(), "UPDATE catalog_libraries SET retired=1 WHERE id=7"); err != nil {
 		t.Fatal(err)
 	}
-	turn, _ := inventoryDisclosureTurn(t, w, inventoryDisclosureDefinitions())
+	turn, _ := inventoryDisclosureTurn(t, w, registry)
 	if err := checkInventoryNativeScope(t.Context(), turn, ScanReceiptRequest{RunID: "scan-hit", LibraryID: 7, LibraryKey: "scan-library"}); err != nil {
 		t.Fatal("live retirement hid retained historical scope", err)
 	}
@@ -122,31 +124,37 @@ func inventoryDisclosureFixture(t *testing.T) *executor {
 	return w
 }
 
-func inventoryDisclosureTurn(t *testing.T, w *executor, definitions []stmt.Definition) (*commandTurn, *transaction) {
+func inventoryDisclosureTurn(t *testing.T, w *executor, registry *stmt.Registry) (*commandTurn, *transaction) {
 	t.Helper()
-	// Fault/cancel fixtures use the guarded test registry, never qualification.
-	r, err := stmttest.New(t, definitions)
-	if err != nil {
-		t.Fatal(err)
-	}
 	tx, err := w.begin(t.Context(), InventoryAccept, testRecipe(), &testCustody{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { tx.rollback(nil) })
 	var steps []statementStep
-	for _, d := range definitions {
+	for _, d := range registry.Manifest() {
 		steps = append(steps, statementStep{d.ID, Work{2, 100, 1, 0, time.Nanosecond}})
 	}
-	turn, err := newCommandTurn(tx, r, steps)
+	turn, err := newCommandTurn(tx, registry, steps)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return turn, tx
 }
 
+// Deliberately malformed projection/row-count SQL is fault-only evidence.
+func inventoryDisclosureFaultTurn(t *testing.T, w *executor, defs []stmt.Definition) (*commandTurn, *transaction) {
+	t.Helper()
+	registry, err := stmttest.New(t, defs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return inventoryDisclosureTurn(t, w, registry)
+}
+
 func TestInventoryNativeDisclosureScope(t *testing.T) {
 	w := inventoryDisclosureFixture(t)
+	registry := nativeInventoryFixtureRegistry(t, w, inventoryDisclosureDefinitions(), "inventory_disclosure_test.go", "scan_receipts_test.go")
 	base := ScanReceiptRequest{RunID: "scan-hit", LibraryID: 7, LibraryKey: "scan-library"}
 	for _, c := range []struct {
 		name string
@@ -164,7 +172,7 @@ func TestInventoryNativeDisclosureScope(t *testing.T) {
 		{"invalid_utf8", func(r *ScanReceiptRequest) { r.LibraryKey = "\xff" }, ErrDisclosureDenied},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			turn, tx := inventoryDisclosureTurn(t, w, inventoryDisclosureDefinitions())
+			turn, tx := inventoryDisclosureTurn(t, w, registry)
 			r := base
 			if c.edit != nil {
 				c.edit(&r)
@@ -187,7 +195,7 @@ func TestInventoryNativeDisclosureScope(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	turn, _ := inventoryDisclosureTurn(t, w, inventoryDisclosureDefinitions())
+	turn, _ := inventoryDisclosureTurn(t, w, registry)
 	if err := checkInventoryNativeScope(t.Context(), turn, base); err != nil {
 		t.Fatal("fresh eligibility hid historical scope", err)
 	}
@@ -195,6 +203,7 @@ func TestInventoryNativeDisclosureScope(t *testing.T) {
 
 func TestInventoryNativeDisclosureRejectsFaultedRowsAndCancel(t *testing.T) {
 	w := inventoryDisclosureFixture(t)
+	registry := nativeInventoryFixtureRegistry(t, w, inventoryDisclosureDefinitions(), "inventory_disclosure_test.go", "scan_receipts_test.go")
 	r := ScanReceiptRequest{RunID: "scan-hit", LibraryID: 7, LibraryKey: "scan-library"}
 	for _, c := range []struct {
 		name string
@@ -215,7 +224,7 @@ func TestInventoryNativeDisclosureRejectsFaultedRowsAndCancel(t *testing.T) {
 					definitions[i].SQL = c.sql
 				}
 			}
-			turn, tx := inventoryDisclosureTurn(t, w, definitions)
+			turn, tx := inventoryDisclosureFaultTurn(t, w, definitions)
 			err := checkInventoryNativeScope(t.Context(), turn, r)
 			if !errors.Is(err, c.want) {
 				t.Fatal(err)
@@ -223,7 +232,7 @@ func TestInventoryNativeDisclosureRejectsFaultedRowsAndCancel(t *testing.T) {
 			tx.rollback(err)
 		})
 	}
-	turn, tx := inventoryDisclosureTurn(t, w, inventoryDisclosureDefinitions())
+	turn, tx := inventoryDisclosureTurn(t, w, registry)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	if err := checkInventoryNativeScope(ctx, turn, r); !errors.Is(err, context.Canceled) {
@@ -237,10 +246,11 @@ func TestInventoryNativeDisclosureRejectsFaultedRowsAndCancel(t *testing.T) {
 
 func TestInventoryNativeDisclosureRequiresClosedReadSteps(t *testing.T) {
 	w := inventoryDisclosureFixture(t)
+	registry := nativeInventoryFixtureRegistry(t, w, inventoryDisclosureDefinitions(), "inventory_disclosure_test.go", "scan_receipts_test.go")
 	r := ScanReceiptRequest{RunID: "scan-hit", LibraryID: 7, LibraryKey: "scan-library"}
 	for _, id := range []stmt.ID{inventoryDisclosureJob, inventoryDisclosureLibrary} {
 		for _, missing := range []bool{false, true} {
-			turn, tx := inventoryDisclosureTurn(t, w, inventoryDisclosureDefinitions())
+			turn, tx := inventoryDisclosureTurn(t, w, registry)
 			if missing {
 				delete(turn.steps, id)
 			} else {
