@@ -119,6 +119,13 @@
       "tests": ["TestStoredPreferencesHaveRuntimeConsumers", "TestStoredSettingsHaveRuntimeConsumers"]
     },
     {
+      "package": "server/internal/store/writer",
+      "why": "Checks the complete ordinary filename identity and sort projection against the existing movie filename corpus",
+      "reads": ["server/internal/naming/testdata/corpus.json"],
+      "files": ["server/internal/store/writer/scan_filename_test.go"],
+      "tests": ["TestProjectOrdinaryFilenameExistingMovieCorpus"]
+    },
+    {
       "package": "server/internal/compactcatalog/identityvalue",
       "why": "Compares extracted identity functions with independent legacy references across the existing filename corpus",
       "reads": ["server/internal/naming/testdata/corpus.json"],
