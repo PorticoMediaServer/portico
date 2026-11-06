@@ -148,3 +148,32 @@ func TestPlanCompileProfilePreservesOtherBytes(t *testing.T) {
 		t.Fatal("fixture/golden inputs were rewritten")
 	}
 }
+
+// Reordering BOTH inputs must refuse even though removing the two pair rows
+// leaves the same ordered54-option digest and the profiles still match.
+func TestPlanCompileProfileRejectsReorderedPairs(t *testing.T) {
+	for _, prefix := range []string{"COMPILER=", "MUTEX_"} {
+		for _, reviewed := range []string{"linux/amd64", "darwin/arm64"} {
+			t.Run(prefix+reviewed, func(t *testing.T) {
+				reorder := func(v map[string]any) {
+					rows := v["environment"].(map[string]any)["compileOptions"].(map[string]any)
+					options := rows["values"].([]any)
+					for i, row := range options {
+						if strings.HasPrefix(row.([]any)[0].(string), prefix) {
+							moved := append([]any(nil), options[:i]...)
+							moved = append(moved, options[i+1:]...)
+							rows["values"] = append(moved, row)
+							return
+						}
+					}
+					t.Fatal("test pair row absent")
+				}
+				want := compileFixture(t, reviewed, reorder)
+				got := compileFixture(t, "linux/amd64", reorder)
+				if err := compareJSONForPlatform(want, got, "linux/amd64"); err == nil || !strings.Contains(err.Error(), "option at row") {
+					t.Fatalf("reordered whole profile accepted or wrong refusal: %v", err)
+				}
+			})
+		}
+	}
+}

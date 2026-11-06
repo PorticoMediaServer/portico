@@ -17,6 +17,9 @@ type compileProfile struct{ platform, compiler, mutex string }
 // SHA256 of the exact ordered JSON array of all54 other reviewed options.
 const approvedOtherOptionsSHA256 = "d0fa9d3823cc55e94b4a15d0536cab79db9c4521f9449c92f88d3391a54297b2"
 
+// Zero-based positions in both complete approved56-option vectors.
+const approvedCompilerPosition, approvedMutexPosition = 1, 51
+
 type compileSpan struct {
 	path       string
 	start, end int
@@ -81,7 +84,7 @@ func identifyCompileProfile(raw []byte) (compileProfile, error) {
 	var compiler, mutex string
 	threadsafe := false
 	var otherOptions []string
-	for _, row := range rows.Values {
+	for position, row := range rows.Values {
 		if len(row) != 1 {
 			return compileProfile{}, fmt.Errorf("invalid compile option row")
 		}
@@ -90,12 +93,18 @@ func identifyCompileProfile(raw []byte) (compileProfile, error) {
 			return compileProfile{}, fmt.Errorf("non-text compile option")
 		}
 		if strings.HasPrefix(value, "COMPILER=") {
+			if position != approvedCompilerPosition {
+				return compileProfile{}, fmt.Errorf("compiler option at row%d, want%d", position, approvedCompilerPosition)
+			}
 			if compiler != "" {
 				return compileProfile{}, fmt.Errorf("duplicate compiler option")
 			}
 			compiler = value
 		}
 		if strings.HasPrefix(value, "MUTEX_") {
+			if position != approvedMutexPosition {
+				return compileProfile{}, fmt.Errorf("mutex option at row%d, want%d", position, approvedMutexPosition)
+			}
 			if mutex != "" {
 				return compileProfile{}, fmt.Errorf("extra mutex option")
 			}
