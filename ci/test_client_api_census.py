@@ -248,6 +248,32 @@ async fn load<'a>(client: {binding}, url: &str) {{
             self.assertEqual([{k:v for k,v in s.items() if k!='line'} for s in native_sites(path,changed)],
                              [{k:v for k,v in s.items() if k!='line'} for s in original])
 
+    def test_kotlin_try_expression_ids_ignore_edits_before_and_after_the_site(self):
+        source='fun relay(url: HttpUrl) = try { Request.Builder().url(url).build() } catch (error: Exception) { null }'
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            def identities(path, text):
+                destination=root/path;destination.parent.mkdir(parents=True,exist_ok=True);destination.write_text(text)
+                return [(s['id'],s['constructionHash']) for s in scan(root,[path])]
+            path='apps/native/Relay.kt'
+            expected=identities(path,'object Relay {\n'+source+'\n}')
+            self.assertEqual(len(expected),1);self.assertIsNotNone(expected[0][1])
+            for member in ['private const val VERSION = 1', 'val unrelated = "x"',
+                           'var unrelated = 1', '@Suppress("unused")\n internal fun helper() = 1',
+                           '@Marker\n class Other', 'object Other {}']:
+                other=member.replace('VERSION','AFTER_VERSION').replace('unrelated','other').replace('helper','helperAfter').replace('Other','OtherAfter')
+                for before,after in [(member,''),('',member),(member,other)]:
+                    with self.subTest(member=member,before=bool(before),after=bool(after)):
+                        self.assertEqual(identities(path,'object Relay {\n'+before+'\n'+source+'\n'+after+'\n}'),expected)
+            actual_path='apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt'
+            actual=(ROOT/actual_path).read_text();expected=identities(actual_path,actual)
+            before=actual.replace('  private fun wireRequest','  private const val REVIEW_BEFORE = 1\n\n  private fun wireRequest',1)
+            after=actual.replace('  internal fun bulkMetadataPreview','  @Suppress("unused")\n  internal fun bulkMetadataPreview',1)
+            both=before.replace('  internal fun bulkMetadataPreview','  @Suppress("unused")\n  internal fun bulkMetadataPreview',1)
+            for changed in [before,after,both]:
+                self.assertNotEqual(changed,actual)
+                self.assertEqual(identities(actual_path,changed),expected)
+
     def test_transport_rehash_budget_is_shared_with_retained_and_split_pins(self):
         def approval(guard,**extra):return dict(category='platform-transport',guardHash=guard,occurrences=1,**extra)
         old={'old':approval('a')}
