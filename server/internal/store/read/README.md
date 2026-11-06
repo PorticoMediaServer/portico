@@ -169,9 +169,43 @@ same LIVE/output lifetime. Generation must survive transport for ordering of
 responses already in flight; supersession cannot retract delivered bytes.
 
 No native title executor is installed here. Missing sources return typed
-unavailable; sources may return typed pending without partial items. Full-mode
-and explicit show-more queries return unavailable, never an approximation from
-title candidates. A future native source must use the same pool's public LIVE
+unavailable; sources may return typed pending without partial items. A future native source must use the same pool's public LIVE
 read and accepted authority/bank/profile/source plus HN fixed-slot attestation.
 The synthetic title controls prove dispatch/custody only, not that native seam.
 No runtime route or full-search execution is enabled.
+
+## Full-search components
+
+`NewFullSearchDispatcher` adds a separate optional `FullSearchRead` callback for
+full and explicit show-more queries. The original constructor remains valid;
+an absent callback returns typed unavailable, with no title-only approximation.
+Both paths retain the dispatcher's initial/final principal fences, ORIGINAL
+deadlines, joined consumer and separate LIVE/read/output custody. Callback cost
+is added to those ten fence statements, never substituted for route cost.
+
+`FullSearchDefinitions` is an inert catalogue of fourteen ordinary MAIN reads:
+bounded person-credit, artist-album, song-artist, show-child and authored-member
+reverse pages, plus physical logical-field sibling pages. Actual Capture
+goldens cover all definitions in present/empty and analyzed/unanalyzed cohorts.
+Each page charges at most64 raw positions before eligibility filtering. Person
+credit continuations cover image, ordinal and entity tails independently.
+These raw relations do not certify visibility, accepted heads or automatic
+collection membership. The draft album ID-order index is still required.
+
+Private proof reducers verify complete logical fields, exact distinct-term
+populations, mixed work/owner conjunctions and canonical source/route winners.
+Title tiers precede foreign owner-name-only tier5; entity/person identities stay
+disjoint. Native rowid order is not logical-source order: canonical-first
+posting proofs must cover all five literal slots before a population is exact.
+The bounded top-K retains at most20 results; incomplete proof/frontier returns
+pending with no partial page. CJK siblings reuse `search.CJKFieldMatcher`.
+
+There is **no native full-search executor installed**. The positive dispatch
+and ranking tests use explicit synthetic accepted-source data. Ordinary sibling
+tests execute real captured SQL, while native MATCH candidate selection remains
+gated on HN's fixed-slot READ Capture capability. Its eventual adapter must
+produce actual current bank/profile/head/visibility and canonical-first proofs;
+the private reducers and public callback cannot mint that authority. The opaque
+rank cursor is query/bank-bound harness state, not an authenticated wire cursor.
+No INSERT receipt is READ authority, no publisher is installed, and whole-route
+cost, maximum-body memory and ready/physical fit remain **UNQUALIFIED**.
