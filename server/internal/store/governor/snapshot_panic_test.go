@@ -10,6 +10,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 	"github.com/PorticoMediaServer/portico/server/internal/thirdparty/sqlite"
 )
 
@@ -46,7 +47,7 @@ func TestSnapshotNativePanicReleasesBorrowBeforeRethrow(t *testing.T) {
 				t.Fatal(err)
 			}
 			c := &snapshotConnector{Connector: connector}
-			registry, err := stmt.New([]stmt.Definition{{ID: "panic", SQL: "SELECT randomblob(12000),governor_snapshot_panic(value) FROM source", Kind: stmt.Read, Owner: "test", CallSites: []string{"native-panic"}, Cohorts: []stmt.Cohort{{Name: "panic"}}}})
+			registry, err := stmttest.New(t, []stmt.Definition{{ID: "panic", SQL: "SELECT randomblob(12000),governor_snapshot_panic(value) FROM source", Kind: stmt.Read, Owner: "test", CallSites: []string{"native-panic"}, Cohorts: []stmt.Cohort{{Name: "panic"}}}})
 			if err != nil {
 				t.Fatal(err)
 			}

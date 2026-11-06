@@ -11,6 +11,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/schema"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
 func TestScanStatementClosedGrammar(t *testing.T) {
@@ -27,7 +28,7 @@ func TestScanStatementClosedGrammar(t *testing.T) {
 
 func TestScanReceiptDefinitionsNativeCompile(t *testing.T) {
 	definitions := append(scanReceiptDefinitions(), scanInventoryDefinitions()...)
-	registry, err := stmt.New(definitions)
+	registry, err := stmttest.New(t, definitions)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +163,7 @@ object_id,library_id,subject_id,asset_id,accepted_asset_revision) VALUES(?,?,1,?
 
 func scanFixtureTurn(t *testing.T, w *executor) (*transaction, *stmt.Registry) {
 	t.Helper()
-	r, err := stmt.New(scanReceiptDefinitions())
+	r, err := stmttest.New(t, scanReceiptDefinitions())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -418,7 +419,7 @@ func TestScanReceiptNewOrdinarySourceStatements(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	registry, err := stmt.New(scanInventoryDefinitions())
+	registry, err := stmttest.New(t, scanInventoryDefinitions())
 	if err != nil {
 		t.Fatal(err)
 	}
