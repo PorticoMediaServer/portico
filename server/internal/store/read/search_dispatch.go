@@ -36,6 +36,7 @@ type SearchInput struct {
 	View          BrowseInput
 	Session, Text string
 	ShowMore      bool
+	FullAfter     *FullSearchCursor
 }
 
 // TitleSearchPage is a draft executor seam, not native serving authority.
@@ -58,6 +59,7 @@ type SearchResponse struct {
 	Disposition SearchDisposition
 	Reason      SearchReason
 	Items       []BrowseItem
+	Full        *FullSearchPage
 }
 
 // SearchConsumer prepares bounded encoding without publishing or retaining
@@ -89,13 +91,14 @@ type SearchDispatcher struct {
 	authority *governor.Authority
 	pool      *governor.Snapshots
 	titles    TitleSearchRead
+	full      FullSearchRead
 }
 
 func NewSearchDispatcher(requests *search.SearchRequests, g governor.Governor, a *governor.Authority, pool *governor.Snapshots, titles TitleSearchRead) (*SearchDispatcher, error) {
 	if requests == nil || a == nil || !a.Owns(g) || pool == nil || !pool.OwnedBy(a) {
 		return nil, ErrInput
 	}
-	return &SearchDispatcher{requests, g, a, pool, titles}, nil
+	return &SearchDispatcher{requests: requests, governor: g, authority: a, pool: pool, titles: titles}, nil
 }
 
 func (d *SearchDispatcher) Consume(ctx context.Context, live governor.ForegroundRequest, request governor.Request, budget time.Duration, output governor.Request, in SearchInput, consume SearchConsumer) (out SearchDispatchResult, err error) {
@@ -115,6 +118,13 @@ func (d *SearchDispatcher) Consume(ctx context.Context, live governor.Foreground
 	query, err := search.PlanQuery(in.Text, in.ShowMore)
 	if err != nil {
 		return out, err // invalid input never supersedes a valid active request
+	}
+	if in.FullAfter != nil && query.Mode() == search.ReadTitles {
+		return out, ErrInput
+	}
+	var after *FullSearchCursor
+	if query.Mode() == search.ReadFull {
+		after = cloneFullCursor(in.FullAfter)
 	}
 	out.Mode = query.Mode()
 	active, err := d.requests.Begin(ctx, in.Session)
@@ -155,12 +165,43 @@ func (d *SearchDispatcher) Consume(ctx context.Context, live governor.Foreground
 			return searchFenceError(errors.Join(prior, readCtx.Err()), e, out.Read)
 		}
 		page := TitleSearchPage{Disposition: SearchResults}
+		var fullPage *FullSearchPage
 		reason := SearchNoReason
 		switch query.Mode() {
 		case search.ReadNothing:
 			// A valid cleared query still supersedes old work and sends generation.
 		case search.ReadFull:
-			page.Disposition, reason = SearchUnavailable, SearchFullModeUnsupported
+			if d.full == nil {
+				page.Disposition, reason = SearchUnavailable, SearchFullModeUnsupported
+				break
+			}
+			deadline := earliest(live.ReadyDeadline, live.ProtectedDeadline, request.Deadline, started.Add(min(budget, time.Second)))
+			readCtx, cancel := context.WithDeadline(ctx, deadline)
+			defer cancel()
+			if e := readCtx.Err(); e != nil {
+				return e
+			}
+			purpose := request
+			purpose.Deadline = deadline
+			p, cost, e := d.full(readCtx, purpose, time.Until(deadline), custody, FullSearchInput{View: view, After: after}, query)
+			out.Read = cost
+			if e != nil {
+				return e
+			}
+			if e = readCtx.Err(); e != nil {
+				return e
+			}
+			owned, e := ownFullSearchPage(p, view.Limit)
+			if e != nil {
+				return e
+			}
+			fullPage = &owned
+			page.Disposition = owned.Disposition
+			if owned.Disposition == SearchPending {
+				reason = SearchSourcePending
+			} else if owned.Disposition == SearchUnavailable {
+				reason = SearchFullModeUnsupported
+			}
 		case search.ReadTitles:
 			if d.titles == nil {
 				page.Disposition, reason = SearchUnavailable, SearchTitleSourceUnavailable
@@ -193,7 +234,7 @@ func (d *SearchDispatcher) Consume(ctx context.Context, live governor.Foreground
 			return finish(e)
 		}
 		out.Disposition, out.Reason = owned.Disposition, reason
-		response := SearchResponse{out.Generation, out.Mode, owned.Disposition, reason, owned.Items}
+		response := SearchResponse{Generation: out.Generation, Mode: out.Mode, Disposition: owned.Disposition, Reason: reason, Items: owned.Items, Full: fullPage}
 		check := func() error {
 			if !active.Current() {
 				return errors.Join(ErrSearchSuperseded, ctx.Err())
