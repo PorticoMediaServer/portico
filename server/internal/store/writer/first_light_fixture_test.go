@@ -85,7 +85,11 @@ func newEffectiveFirstLightFixture(t *testing.T, clock func() time.Time) *effect
 		t.Fatal("fixture is not fresh zero-WAL", state, err)
 	}
 	w.now = clock
-	facade, disclosure, command, _, authority := bindEffectiveFixtureRuntime(t, w, command)
+	facade, disclosure, command, _, authority := bindEffectiveFixtureRuntime(t, w, command, w.config)
+	state, err = governor.ReadWAL(path)
+	if err != nil || state.Frames != 0 || state.Backfill != 0 || state.ActiveBytes != 0 {
+		t.Fatal("native registration setup changed fresh zero-WAL", state, err)
+	}
 	// The only fixture-permit mint is test-only and binds the complete ORIGINAL
 	// request. Flags/digests in a public packet never create this capability.
 	disclosure.scope.fixture = &effectiveFixturePermit{issuer: facade.effective, reference: ReceiptReference{command.identity, command.digest}}

@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
-	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
 func effectiveBeginWholeTurn(t *testing.T, w *executor) (*commandTurn, map[stmt.ID]statementStep) {
@@ -23,7 +23,10 @@ func effectiveBeginWholeTurn(t *testing.T, w *executor) (*commandTurn, map[stmt.
 	}
 	t.Cleanup(func() { _, _ = tx.rollback(nil) })
 	defs := append(enrichmentEffectiveBeginDefinitions(), enrichmentEffectiveProducerDefinitions()...)
-	registry, err := stmttest.New(t, defs)
+	config := w.config
+	config.Synchronous = sqliteconn.Normal
+	golden := captureEffectiveFixture(t, tx.conn, config, defs)
+	registry, err := stmt.New(defs, golden.Receipt())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -3,6 +3,7 @@ package writer
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"os"
@@ -15,7 +16,6 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/schema"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
-	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
 // Protocol fixtures only: virtual time and deliberately synthetic complete
@@ -27,10 +27,12 @@ func effectiveFacadeFixture(t *testing.T) (*Writer, *EnrichmentDisclosure, *effe
 	if err != nil {
 		t.Fatal(err)
 	}
-	return bindEffectiveFixtureRuntime(t, executor, command)
+	config := executor.config
+	config.Synchronous = sqliteconn.Normal // preparatory component turn completed
+	return bindEffectiveFixtureRuntime(t, executor, command, config)
 }
 
-func bindEffectiveFixtureRuntime(t *testing.T, executor *executor, command *effectiveStageBeginCommand) (*Writer, *EnrichmentDisclosure, *effectiveStageBeginCommand, *executor, *governor.Authority) {
+func bindEffectiveFixtureRuntime(t *testing.T, executor *executor, command *effectiveStageBeginCommand, config sqliteconn.Config) (*Writer, *EnrichmentDisclosure, *effectiveStageBeginCommand, *executor, *governor.Authority) {
 	t.Helper()
 	input := command.request
 	var sequence int64
@@ -43,6 +45,18 @@ func bindEffectiveFixtureRuntime(t *testing.T, executor *executor, command *effe
 		t.Fatal(err)
 	}
 	plan := effectiveFixturePlan()
+	defs := append(enrichmentEffectiveBeginDefinitions(), enrichmentEffectiveProducerDefinitions()...)
+	defs = append(defs, effectiveDispatchDefinitions()...)
+	conn, err := executor.db.Conn(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	golden := captureEffectiveFixture(t, conn, config, defs)
+	if err := conn.Close(); err != nil {
+		t.Fatal(err)
+	}
+	plan.registration = golden.Receipt()
 	var partitions [4]governor.Amounts
 	for i := range partitions {
 		partitions[i] = plan.need
@@ -58,6 +72,44 @@ func bindEffectiveFixtureRuntime(t *testing.T, executor *executor, command *effe
 	w := &Writer{effective: runtime}
 	cap := &EnrichmentDisclosure{issuer: w, scope: &enrichmentScope{ownerID: input.ownerID, libraryKey: "library-native", libraryID: input.entity.libraryID, entityID: input.entity.id, lifetime: t.Context()}}
 	return w, cap, command, executor, authority
+}
+
+// Native qualification is setup work on the actual owned fixture, outside
+// measured command custody. Resource forecasts and source/seal authority remain
+// synthetic/test-only; an EXPLAIN receipt does not certify either of them.
+func captureEffectiveFixture(t *testing.T, conn *sql.Conn, config sqliteconn.Config, defs []stmt.Definition) plan.Golden {
+	t.Helper()
+	catalogue, err := stmt.Describe(defs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := schema.ReadContract("INT-INDEX-POLICY.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy, err := plan.ReadIndexPolicy(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash := sha256.New()
+	for _, name := range []string{"effective_dispatch_test.go", "enrichment_effective_begin_handler_test.go", "enrichment_effective_begin_facts_test.go"} {
+		data, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		hash.Write(data)
+	}
+	golden, err := plan.Capture(t.Context(), conn, catalogue, plan.Fixture{
+		ConnectionPolicy: config, SHA256: hex.EncodeToString(hash.Sum(nil)), Statistics: plan.Unanalyzed,
+		Implementations: "owned effective component/first-light fixture setup; actual native qualification, synthetic resource forecasts and test-only source permission",
+	}, policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(golden.Manifest) != len(defs) || golden.Receipt() == nil {
+		t.Fatal("incomplete native registration proof", len(golden.Manifest), len(defs))
+	}
+	return golden
 }
 
 func effectiveFixturePlan() effectivePlan {
