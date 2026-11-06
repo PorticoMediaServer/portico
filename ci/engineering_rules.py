@@ -1,12 +1,17 @@
 """Ratchets for docs/ENGINEERING-RULES.md: per-file counts of known-bad patterns may fall, never rise.
 
-python3 ci/engineering_rules.py            check tracked client sources against the baseline
-python3 ci/engineering_rules.py --update   rewrite the baseline after a count fell
+python3 ci/engineering_rules.py            check tracked sources against baseline upper bounds
+python3 ci/engineering_rules.py --base SHA also forbid growth against live merge-base counts
+python3 ci/engineering_rules.py --update   optionally lower the baseline after a count fell
 """
 import json
+import argparse
 import re
 import sys
+import subprocess
 from pathlib import Path
+from ratchet_base import merge_base, source_snapshot, check_queue
+from ratchet_runtime import RatchetRuntime, active_runtime, source_text
 
 ROOT = Path(__file__).resolve().parent.parent
 BASELINE = ROOT / 'ci' / 'engineering-rules-baseline.json'
@@ -126,9 +131,9 @@ def exempt(path, allowed):
     return any(path == home or home.endswith('/') and path.startswith(home) for home in allowed)
 
 
-def tracked():
+def tracked(root=ROOT):
     import subprocess
-    out = subprocess.run(['git', 'ls-files', '-z'], cwd=ROOT, check=True, capture_output=True).stdout.decode()
+    out = subprocess.run(['git', 'ls-files', '-z'], cwd=root, check=True, capture_output=True).stdout.decode()
     return [p for p in out.split('\0') if p and SOURCES.match(p) and not TESTS.search(p)]
 
 
@@ -154,6 +159,8 @@ def query_reads(paths, root=ROOT, configs=QUERY_READ_CONFIGS):
     directories (tracked or not, counted or exempt, and the configs they extend), the request, the counter and the
     lockfile (for node_modules). A file the programs loaded from anywhere else is recorded with the answer and
     checked again before the answer is reused."""
+    runtime=active_runtime(root)
+    if runtime:return runtime.query(runtime.current(root),paths,configs)
     import hashlib
     import os
     import subprocess
@@ -221,7 +228,7 @@ def counts(paths, read=lambda p: (ROOT / p).read_text(encoding='utf-8', errors='
 
 def compare(found, baseline):
     """Problems as (rule, path, now, allowed) for every count above the baseline, and a separate
-    list of counts that fell below it (the baseline must then be lowered)."""
+    list of counts that fell below it (baseline refreshes are optional)."""
     risen, fallen = [], []
     for rule, _, _ in RULES:
         now, was = found.get(rule, {}), baseline.get(rule, {})
@@ -234,22 +241,60 @@ def compare(found, baseline):
     return risen, fallen
 
 
-def main(argv):
-    found = counts(tracked())
-    if '--update' in argv:
-        BASELINE.write_text(json.dumps(found, indent=1, sort_keys=True) + '\n')
+def source_counts(root, paths=None, configs=QUERY_READ_CONFIGS):
+    paths=tracked(root) if paths is None else [p for p in paths if SOURCES.match(p) and not TESTS.search(p)]
+    reads=query_reads([p for p in paths if not exempt(p,dict((r,a)for r,a,_ in RULES)['query-read'])],root=root,configs=configs)
+    runtime=active_runtime(root)
+    if runtime:
+        view=runtime.current(root);found={}
+        for path in paths:
+            _,oid,data=view.records[path];key=(path,oid,tuple(reads.get(path,[])))
+            if key not in runtime.rule_counts:
+                runtime.rule_counts[key]=counts([path],read=lambda _:source_text(data,errors='replace'),reads=reads)
+            for rule,files in runtime.rule_counts[key].items():found.setdefault(rule,{}).update(files)
+        return found
+    return counts(paths,read=lambda p:(root/p).read_text(encoding='utf-8',errors='replace'),reads=reads)
+
+
+def _main(argv, root=ROOT, paths=None):
+    write_root=root
+    view=active_runtime(root).current(root,paths);root=view.root;paths=view.paths
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--update',action='store_true');parser.add_argument('--base');parser.add_argument('--predecessor');parser.add_argument('--queue-head')
+    args=parser.parse_args(argv)
+    if args.queue_head and not args.base:parser.error('--queue-head requires --base')
+    for field in ['base','predecessor','queue_head']:
+        if getattr(args,field):setattr(args,field,active_runtime(root).git.git(['rev-parse','--verify',getattr(args,field)+'^{commit}']).decode().strip())
+    queue_errors=check_queue(root,args.base,args.queue_head,lambda parent,snapshot,paths:main(['--base',parent],root=snapshot,paths=paths)) if args.queue_head else []
+    found=source_counts(root,paths)
+    baseline_path=root/BASELINE.relative_to(ROOT)
+    baseline=json.loads(baseline_path.read_text())
+    risen,_=compare(found,baseline)
+    for ref in dict.fromkeys(merge_base(root,ref)for ref in [args.base,args.predecessor]if ref):
+        with source_snapshot(root,ref) as (snapshot,paths):
+            previous=source_counts(snapshot,paths)
+        risen+=compare(found,previous)[0]
+    for rule, path, a, b in sorted(set(risen)):
+        print(f'{path}: {rule} {a} (allowed {b}). See docs/ENGINEERING-RULES.md: {GUIDE[rule]}.')
+    for error in queue_errors:print(error)
+    if queue_errors:return 1
+    if risen:return 1
+    if args.update:
+        (write_root/BASELINE.relative_to(ROOT)).write_text(json.dumps(found, indent=1, sort_keys=True) + '\n')
         print(f'engineering-rules baseline written ({sum(len(v) for v in found.values())} files)')
         return 0
-    baseline = json.loads(BASELINE.read_text())
-    risen, fallen = compare(found, baseline)
-    for rule, path, a, b in risen:
-        print(f'{path}: {rule} {a} (baseline {b}). See docs/ENGINEERING-RULES.md: {GUIDE[rule]}.')
-    for rule, path, a, b in fallen:
-        print(f'{path}: {rule} fell to {a} (baseline {b}). Lock it in: python3 ci/engineering_rules.py --update')
-    if risen or fallen:
-        return 1
     print('engineering rules hold')
     return 0
+
+
+def main(argv, root=ROOT, paths=None):
+    try:
+        if runtime:=active_runtime(root):
+            status=_main(argv,root,paths);runtime.ensure_head();return status
+        with RatchetRuntime(root) as runtime:
+            status=_main(argv,root,paths);runtime.ensure_head();return status
+    except (ValueError,OSError,RuntimeError,subprocess.CalledProcessError) as error:
+        print(f'Engineering ratchet failed closed: {error}',file=sys.stderr);return 1
 
 
 if __name__ == '__main__':
