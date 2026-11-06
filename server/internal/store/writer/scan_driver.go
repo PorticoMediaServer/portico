@@ -131,28 +131,41 @@ func (d *ScanDriver) Close(ctx context.Context) error {
 	if d.released {
 		return nil
 	}
+	// Revoke observation before any wait, but retain its memory while a native
+	// command can still use the frozen input. Cancellation is not native return.
+	if d.preparation != nil {
+		d.preparation.revoke()
+	}
+	if d.work != nil {
+		if d.work.preparation != d.preparation {
+			return ErrInvalid
+		}
+		if !d.work.nativeReturned() {
+			return ErrResolveRequired
+		}
+	}
+	if d.birth != nil && d.birth.preparation != nil && d.birth.preparation != d.preparation {
+		return ErrInvalid
+	}
+	// No native frame can use these command/input roots now. Drop them BEFORE
+	// preparation retirement refunds memory. The preparation itself clears its
+	// owned request and observed page before that refund, even if another owner
+	// still has a closed handle. A failed helper join keeps d.preparation charged.
+	d.work, d.birth = nil, nil
 	if d.preparation != nil {
 		if err := d.preparation.Close(ctx); err != nil {
 			return err
 		}
-	}
-	if d.work != nil {
-		if d.work.preparation != nil {
-			if err := d.work.preparation.Close(ctx); err != nil {
-				return err
-			}
-		}
-		if !d.work.physicallyReturned() {
-			return ErrResolveRequired
-		}
+		d.preparation = nil
 	}
 	if err := d.ownership.Close(); err != nil {
 		return err
 	}
 	d.stopOpening()
 	d.released = true
-	// The closed driver stays registered as a tombstone. Its leases/capabilities
-	// can never be recaptured by another driver on this opening.
+	d.observer, d.retention = nativeinventory.Observer{}, nil
+	// Only closed issuer/opening identity remains on the permanent tombstone;
+	// no preparation, birth command or frame roots survive their memory refund.
 	return nil
 }
 

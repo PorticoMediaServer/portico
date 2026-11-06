@@ -125,6 +125,16 @@ func (w *scanDriverWork) physicallyReturned() bool {
 			return false
 		}
 	}
+	return w.nativeReturned()
+}
+
+// Close must not refund frozen preparation memory while its submitted native
+// frame can still read it. This excludes only native/frame custody; preparation
+// retirement remains independently required by physicallyReturned above.
+func (w *scanDriverWork) nativeReturned() bool {
+	if w == nil {
+		return false
+	}
 	switch w.submission {
 	case scanPrepared, scanNoGrant:
 		return true

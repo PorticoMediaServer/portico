@@ -280,10 +280,7 @@ func (p *scanPreparation) Close(ctx context.Context) error {
 		p.mu.Unlock()
 		return ErrClosed
 	}
-	p.closed = true
-	p.cancel()
-	p.scope.Close()
-	p.runtime.governor.Cancel(p.grant) // no refund; actual Scope join still required
+	p.revokeLocked()
 	p.mu.Unlock()
 	cleanup, cancel := context.WithTimeout(ctx, nativeinventory.RetirementGrace)
 	defer cancel()
@@ -302,6 +299,12 @@ func (p *scanPreparation) Close(ctx context.Context) error {
 	if err := p.ownership.Close(); err != nil {
 		return err
 	}
+	// Native helper/permit and borrower have actually returned. Discard every
+	// owned payload BEFORE returning its reservation, including data retained by
+	// closed handles outside the driver. No tombstone or cancelled Scope is a
+	// memory owner after Retired. Keep only bounded closed-custody identity.
+	p.request, p.observed, p.expected, p.key = nativeinventory.Request{}, nil, governor.Request{}, ""
+	p.observer = nativeinventory.Observer{}
 	if err := p.runtime.authority.Retired(p.grant); err != nil {
 		return err
 	}
@@ -309,4 +312,20 @@ func (p *scanPreparation) Close(ctx context.Context) error {
 	p.stopScope()
 	p.stopOpening()
 	return nil
+}
+
+// Revocation retains all physical and memory custody until Close joins it.
+func (p *scanPreparation) revoke() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if !p.retired {
+		p.revokeLocked()
+	}
+}
+
+func (p *scanPreparation) revokeLocked() {
+	p.closed = true
+	p.cancel()
+	p.scope.Close()
+	p.runtime.governor.Cancel(p.grant)
 }
