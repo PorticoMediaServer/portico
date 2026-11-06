@@ -223,7 +223,6 @@ func (t *Transport) Get(ctx context.Context, key RequestKey) (body []byte, err e
 // dispatch. Generic body-only Get remains available for its existing callers.
 func (t *Transport) GetDocument(ctx context.Context, key RequestKey) (document AcquisitionDocument, err error) {
 	defer func() {
-		err = t.withRetryFloor(err)
 		if ctx != nil {
 			if cancelled := ctx.Err(); cancelled != nil {
 				// Preserve the strongest direct provider guidance while adding
@@ -237,6 +236,9 @@ func (t *Transport) GetDocument(ctx context.Context, key RequestKey) (document A
 				}
 			}
 		}
+		// Include a cancellation first observed at this return boundary, even
+		// after a successful cache hit, before attaching the provider floor.
+		err = t.withRetryFloor(err)
 		if err != nil {
 			document = AcquisitionDocument{}
 		}
