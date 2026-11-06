@@ -11,19 +11,17 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
 )
 
 // Explicit test composition, not a default profile or physical-fit claim.
 func newLiveFixture(t *testing.T, clocks ...func() time.Time) (*browseFixture, *ForegroundReader) {
 	t.Helper()
-	gc := governor.Config{Now: time.Now, MaxGrantsPerClass: 16, Foreground: &governor.ForegroundProfile{
-		AssignedBytes: 1_600_000_000, EffectiveBytes: 1_600_000_000, NonBrowseBytes: 1140 << 20,
-		MinimumLive: 4, MaxWaiters: 1, BookkeepingBytes: 4096, MaxWait: 50 * time.Millisecond,
-	}}
+	now := time.Now
 	if len(clocks) > 0 {
-		gc.Now = clocks[0]
+		now = clocks[0]
 	}
-	gc.Partitions[governor.Foreground] = governor.Amounts{governor.Reader: 1, governor.MemoryBytes: (80 << 20) + 5*4096, governor.QueueBytes: 5 * 4096}
+	gc := readfixture.LiveConfig(now)
 	f := composeReadFixture(t, newForegroundSource(t), HarnessDefinitions(), gc, false)
 	r, e := NewForegroundReader(f.snapshots)
 	if e != nil {
@@ -32,13 +30,7 @@ func newLiveFixture(t *testing.T, clocks ...func() time.Time) (*browseFixture, *
 	return f, r
 }
 func liveRequests(id string) (governor.ForegroundRequest, governor.Request, governor.Request) {
-	now := time.Now()
-	q := governor.ForegroundRequest{Key: governor.JobKey{Domain: 73, ID: id}, Owner: 1, ReadyDeadline: now.Add(time.Second), ProtectedDeadline: now.Add(3 * time.Second)}
-	read := foregroundRequest()
-	read.Key = q.Key
-	read.Deadline = q.ProtectedDeadline
-	output := governor.Request{Key: governor.JobKey{Domain: 74, ID: id}, Owner: q.Owner, Class: governor.Foreground, Need: governor.Amounts{governor.MemoryBytes: 8 << 20}, Deadline: q.ProtectedDeadline}
-	return q, read, output
+	return readfixture.Requests(id, time.Now())
 }
 func assertLiveUsage(t *testing.T, f *browseFixture, live int, readers int64) {
 	t.Helper()

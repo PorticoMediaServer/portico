@@ -40,7 +40,7 @@ type inventoryMemoryFixture struct {
 	steps     []statementStep
 }
 
-func newInventoryMemoryFixture(t *testing.T, w *executor, registry *stmt.Registry, input *inventoryAcceptCommand, budget inventoryMemoryBudget) *inventoryMemoryFixture {
+func newInventoryMemoryFixture(t *testing.T, w *executor, registry *stmt.Registry, input *inventoryAcceptCommand, budget inventoryMemoryBudget, foreground ...governor.Config) *inventoryMemoryFixture {
 	t.Helper()
 	if input == nil || !input.valid || registry == nil {
 		t.Fatal("missing component input/registry")
@@ -57,7 +57,14 @@ func newInventoryMemoryFixture(t *testing.T, w *executor, registry *stmt.Registr
 	}
 	recipe := turnRecipe{limit: Work{4096, 1000000, 4096, 32 << 20, 25 * time.Millisecond}, setup: Work{16, 500, 16, 65536, time.Millisecond}, terminal: Work{16, 500, 16, 65536, 8 * time.Millisecond}}
 	now := w.now
-	g, a, wal, request := governedFixture(t, now, governedFixtureProfile{recipe, total})
+	if len(foreground) > 1 {
+		t.Fatal("multiple foreground fixture configurations")
+	}
+	var foregroundConfig *governor.Config
+	if len(foreground) == 1 {
+		foregroundConfig = &foreground[0]
+	}
+	g, a, wal, request := governedFixtureWithForeground(t, now, foregroundConfig, governedFixtureProfile{recipe, total})
 	request.Key.ID = input.request.scope.runID
 	request.Footprint = []governor.Scope{{Library: input.request.scope.libraryID, Domain: uint16(InventoryAccept)}}
 	var seq int64

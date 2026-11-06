@@ -2,7 +2,6 @@ package read
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"reflect"
@@ -10,53 +9,12 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
 )
 
 func newForegroundSource(t *testing.T) *browseFixture {
 	t.Helper()
-	f := newBrowseSource(t)
-	for _, q := range []string{
-		`INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id) VALUES(1,'asset','/media/title.mkv',1000,1,'matroska','h264','aac',1920,1080,120.0,1)`,
-		`INSERT INTO catalog_asset_links(entity_id,asset_id,library_id) VALUES(1,1,1)`,
-		`INSERT INTO asset_stream_facts(asset_id,revision,size,modified_ns,fingerprint) VALUES('asset',1,1000,1,'f')`,
-		`INSERT INTO asset_chapter_facts(asset_id,revision,size,modified_ns,status,fingerprint) VALUES('asset',1,1000,1,'ready','f')`,
-		`INSERT INTO asset_streams(asset_id,stream_index,type,codec,language,title,channels,channel_layout,is_default,is_forced) VALUES('asset',0,'video','h264','','',0,'',1,0),('asset',1,'audio','aac','eng','English',2,'stereo',1,0)`,
-		`INSERT INTO asset_chapters(asset_id,chapter_index,title,start_seconds,end_seconds) VALUES('asset',0,'Opening',0.0,60.0),('asset',1,'End',60.0,120.0)`,
-		`INSERT INTO catalog_credit_labels(id,label) VALUES(1,'Actor'),(2,'Acting'),(3,'Director'),(4,'Directing')`,
-		`INSERT INTO catalog_credit_images(id,entity_id,entity_incarnation,source_revision,identity_revision,metadata_revision,owner_revision,policy_incarnation,policy_revision,consent_revision,metadata_language,source_manifest_digest,build_request_digest,manifest_algorithm,build_expected_count,build_expected_bytes,build_expected_digest,build_seed,build_chain,current_input_digest,command_incarnation,sealed,manifest_digest) SELECT 1,id,metadata_incarnation,1,1,1,1,zeroblob(16),0,0,'en',zeroblob(32),zeroblob(32),'test',0,0,zeroblob(32),zeroblob(32),zeroblob(32),zeroblob(32),zeroblob(16),1,zeroblob(32) FROM catalog_entities WHERE id=1`,
-		`UPDATE catalog_entities SET credit_image_id=1 WHERE id=1`,
-		`UPDATE catalog_entities SET parent_id=1 WHERE id BETWEEN 2 AND 100`,
-	} {
-		f.exec(t, q)
-	}
-	for _, q := range []string{
-		`INSERT INTO artwork_blobs(digest,mime,width,height,bytes,created_at) VALUES(printf('%064d',1),'image/png',1,1,1,'2026-11-06T00:00:00Z')`,
-		`INSERT INTO artwork_sources(digest,accepted_mime,accepted_width,accepted_height,small_blob,large_blob,ambient_blob,large_edge,small_outlier,large_outlier,encoder_revision,created_at) SELECT printf('%064d',1),'image/png',1,1,digest,digest,digest,1280,0,0,1,created_at FROM artwork_blobs`,
-		`INSERT INTO artwork_selections(kind,entity_id,role,choice,digest,provider,image_id,origin,attribution,source_fence,actor,observed_at) SELECT 'entity',1,'poster','matched',digest,'provider','matched','provider','','f','test',created_at FROM artwork_sources`,
-		`INSERT INTO artwork_selections(kind,entity_id,role,choice,digest,provider,image_id,origin,attribution,source_fence,actor,observed_at) SELECT 'entity',1,'poster','locked',digest,'owner','locked','owner','','f','test',created_at FROM artwork_sources`,
-	} {
-		f.exec(t, q)
-	}
-	f.exec(t, "BEGIN")
-	for id := int64(0); id < 150; id++ {
-		role, dept := int64(1), int64(2)
-		if id >= 100 {
-			role, dept = 3, 4
-		}
-		f.exec(t, `INSERT INTO catalog_credits(image_id,entity_id,ord,role_id,department_id,credited_name,provider,credit_id,source_ordinal) VALUES(1,1,?,?,?,?,'test',?,?)`, id, role, dept, fmt.Sprintf("Person %d", id), fmt.Sprint(id), id)
-	}
-	for id := int64(1); id <= 200; id++ {
-		public := make([]byte, 16)
-		binary.LittleEndian.PutUint64(public, uint64(id))
-		at := "2026-11-05T12:00:00.000000000Z"
-		if id > 100 {
-			at = "2026-11-05T11:00:00.000000000Z"
-		}
-		f.exec(t, `INSERT INTO personal_items(profile_id,item_public_id,item_id,library_id,resume_position,activity_at,activity_state) VALUES('p',?,?,1,500,?,'in_progress')`, public, id, at)
-	}
-	f.exec(t, `INSERT INTO personal_items(profile_id,item_public_id,item_id,library_id,resume_position,activity_at,activity_state) SELECT 'q',public_id,id,library_id,999,'2026-11-06T12:00:00.000000000Z','in_progress' FROM catalog_entities WHERE id=1`)
-	f.exec(t, "COMMIT")
-	return f
+	return attachReadSource(readfixture.Foreground(t))
 }
 func newForegroundFixture(t *testing.T) (*browseFixture, *ForegroundReader) {
 	t.Helper()
@@ -67,9 +25,7 @@ func newForegroundFixture(t *testing.T) (*browseFixture, *ForegroundReader) {
 	}
 	return f, r
 }
-func foregroundRequest() governor.Request {
-	return governor.Request{Key: governor.JobKey{Domain: 73, ID: "foreground-test"}, Owner: 1, Class: governor.Foreground, Need: governor.Amounts{governor.Reader: 1, governor.MemoryBytes: 12 << 20}, Budget: governor.UnitBudget{RawRows: 2048, VMOps: 100000, Pages: 256}, Deadline: time.Now().Add(time.Second)}
-}
+func foregroundRequest() governor.Request { return readfixture.ReadRequest() }
 func TestForegroundDetailAndPlayback(t *testing.T) {
 	f, r := newForegroundFixture(t)
 	in := TitleInput{View: f.input, Item: 1, Asset: 1}

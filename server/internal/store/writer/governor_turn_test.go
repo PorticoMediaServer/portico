@@ -16,6 +16,10 @@ type governedFixtureProfile struct {
 }
 
 func governedFixture(t *testing.T, now func() time.Time, profiles ...governedFixtureProfile) (governor.Governor, *governor.Authority, *governor.WALGate, governor.Request) {
+	return governedFixtureWithForeground(t, now, nil, profiles...)
+}
+
+func governedFixtureWithForeground(t *testing.T, now func() time.Time, foreground *governor.Config, profiles ...governedFixtureProfile) (governor.Governor, *governor.Authority, *governor.WALGate, governor.Request) {
 	t.Helper()
 	profile := governedFixtureProfile{testRecipe(), 65536}
 	if len(profiles) > 2 {
@@ -50,7 +54,13 @@ func governedFixture(t *testing.T, now func() time.Time, profiles ...governedFix
 			}
 		}
 	}
-	g, a, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 4, Now: now, WAL: wal})
+	cfg := governor.Config{Partitions: partitions, MaxGrantsPerClass: 4, Now: now, WAL: wal}
+	if foreground != nil {
+		cfg.Foreground = foreground.Foreground
+		cfg.Partitions[governor.Foreground] = foreground.Partitions[governor.Foreground]
+		cfg.MaxGrantsPerClass = foreground.MaxGrantsPerClass
+	}
+	g, a, err := governor.New(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
