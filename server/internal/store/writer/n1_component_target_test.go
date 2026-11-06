@@ -208,17 +208,25 @@ type n1File struct {
 }
 
 type n1WAL struct {
-	StartedNS  int64              `json:"started_ns"`
-	ReturnedNS int64              `json:"returned_ns"`
-	Token      *uint64            `json:"gate_token"`
-	State      *governor.WALState `json:"state"`
-	Error      string             `json:"error"`
-	Header     []byte             `json:"header"`
-	Files      map[string]n1File  `json:"files"`
+	StartedNS    int64              `json:"started_ns"`
+	ReturnedNS   int64              `json:"returned_ns"`
+	Token        *uint64            `json:"gate_token"`
+	TokenAfter   *uint64            `json:"gate_token_after"`
+	GateBeforeNS *int64             `json:"gate_before_ns"`
+	GateAfterNS  *int64             `json:"gate_after_ns"`
+	State        *governor.WALState `json:"state"`
+	Error        string             `json:"error"`
+	Header       []byte             `json:"header"`
+	Files        map[string]n1File  `json:"files"`
 }
 
-func n1ReadWAL(origin time.Time, path string) *n1WAL {
+func n1ReadWAL(origin time.Time, path string, gates ...*governor.WALGate) *n1WAL {
 	out := &n1WAL{StartedNS: time.Since(origin).Nanoseconds(), Files: map[string]n1File{}}
+	if len(gates) == 1 && gates[0] != nil {
+		token := gates[0].Observation()
+		out.Token = &token
+		out.GateBeforeNS = n1NS(origin, time.Now())
+	}
 	state, err := governor.ReadWAL(path)
 	if err == nil {
 		out.State = &state
@@ -252,11 +260,25 @@ func n1ReadWAL(origin time.Time, path string) *n1WAL {
 		}
 		_ = file.Close()
 	}
+	if len(gates) == 1 && gates[0] != nil {
+		token := gates[0].Observation()
+		out.TokenAfter = &token
+		out.GateAfterNS = n1NS(origin, time.Now())
+	}
 	out.ReturnedNS = time.Since(origin).Nanoseconds()
 	return out
 }
 
 type n1Attempt struct {
+	OriginalID             string                     `json:"original_id,omitempty"`
+	OriginalOrdinal        *int                       `json:"original_ordinal"`
+	OriginalPopulation     string                     `json:"original_population,omitempty"`
+	TurnRole               string                     `json:"turn_role,omitempty"`
+	BeginSucceeded         *bool                      `json:"begin_succeeded"`
+	HistoricalResult       *inventoryAcceptResult     `json:"historical_result"`
+	HistoricalDigest       *ResultDigest              `json:"historical_result_digest"`
+	AcknowledgedThrough    *int64                     `json:"acknowledged_through"`
+	CurrentSnapshot        *n1CurrentSnapshot         `json:"post_ack_current_snapshot"`
 	Ordinal                int                        `json:"attempt_ordinal"`
 	ID                     string                     `json:"attempt_id"`
 	Case                   n1Case                     `json:"case"`
@@ -319,10 +341,11 @@ var n1Missing = map[string]string{
 	"canonical_encoded_bytes": "existing canonical digest API does not return encoded byte count",
 	"acquire_assert_begin":    "turn_setup is enclosing fixture call; exact acquire/assert phases not exposed",
 	"whole_legal_min_max":     "fixture and escaped-evidence sample are a partial input matrix",
-	"cache_population":        "explicit first-command population; setup touches OS cache; neither OS-cold, warmed steady state nor sustained reset",
+	"cache_population":        "declared source-bound population; OS cache is uncontrolled; no OS-cold or reset proof",
 	"owner_intervals":         "null means phase not reached or private fixture did not return its owner view; no timing reconstructed",
 	"settings_actual":         "null until an actual verified Settings observation is available from the private turn",
 	"rows_changed_returning":  "native driver rows expose RETURNING rows, not a separate changed-row count",
+	"fixture_memory":          "observed allocation/RSS includes bounded fixture cleanup callbacks and observer overhead; not production residency or a live ownership peak",
 }
 
 type n1Stream struct {
@@ -397,6 +420,86 @@ func n1SeedCase(t *testing.T, e *executor, c *inventoryAcceptCommand, cell n1Cas
 	return c
 }
 
+// Existing read-only fixture facts, outside physical custody for both layouts.
+func n1ReadFixtureFacts(t *testing.T, ctx context.Context, e *executor, record *n1Attempt) {
+	t.Helper()
+	record.AgeState = make([]int64, 3)
+	if err := e.db.QueryRowContext(ctx, `SELECT age_input_revision,age_published_revision,age_pending_operations FROM libraries WHERE id='fresh-library'`).Scan(&record.AgeState[0], &record.AgeState[1], &record.AgeState[2]); err != nil {
+		t.Fatal(err)
+	}
+	profiles, err := e.db.QueryContext(ctx, `SELECT id,bank_key,recipe_version,engine_version,unicode_fingerprint,state FROM search_generations ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for profiles.Next() {
+		var p n1StoredProfile
+		if err := profiles.Scan(&p.ID, &p.BankKey, &p.Recipe, &p.Engine, &p.Unicode, &p.State); err != nil {
+			_ = profiles.Close()
+			t.Fatal(err)
+		}
+		record.StoredProfiles = append(record.StoredProfiles, p)
+	}
+	if err := errors.Join(profiles.Err(), profiles.Close()); err != nil {
+		t.Fatal(err)
+	}
+	record.Cardinalities = map[string]int64{}
+	for _, table := range []string{"libraries", "library_sources", "inventory_runs", "catalog_entities", "catalog_assets", "search_generations", "catalog_age_item_counts"} {
+		var n int64
+		if err := e.db.QueryRowContext(ctx, "SELECT count(*) FROM "+table).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		record.Cardinalities[table] = n
+	}
+}
+
+// Copy actual private owner facts only; absent phases stay null.
+func n1ObserveOwner(record *n1Attempt, turn *commandTurn, origin time.Time) {
+	tx := turn.transaction
+	record.Clock.HoldStartedNS, record.Clock.PhysicalReturnedNS = n1NS(origin, tx.start), n1NS(origin, tx.physicalReturnedAt)
+	if !tx.start.IsZero() && !tx.physicalReturnedAt.IsZero() {
+		n := tx.physicalReturnedAt.Sub(tx.start).Nanoseconds()
+		record.Clock.HoldNS = &n
+	}
+	record.Clock.CommitAttemptedNS, record.Clock.CommitReturnedNS = n1NS(origin, tx.commitStartedAt), n1NS(origin, tx.commitReturnedAt)
+	if !tx.commitStartedAt.IsZero() && !tx.commitReturnedAt.IsZero() {
+		n := tx.commitReturnedAt.Sub(tx.commitStartedAt).Nanoseconds()
+		record.Clock.CommitNS = &n
+	}
+	if !tx.commitReturnedAt.IsZero() && !tx.physicalReturnedAt.IsZero() {
+		record.Clock.PostCommitToPhysicalReturnNS = n1Duration(tx.commitReturnedAt, tx.physicalReturnedAt)
+	}
+	notAttempted := !tx.commitAttempted
+	record.Clock.CommitNotAttempted = &notAttempted
+	verified := tx.policyVerified
+	record.Settings.PolicyVerified = &verified
+	if verified {
+		actual := tx.settings
+		record.Settings.Actual = &actual
+		record.Settings.DQSDDL, record.Settings.DQSDML = &actual.DQSDDL, &actual.DQSDML
+	}
+	if c, ok := tx.custody.(*governedTurn); ok {
+		request, limit := c.expected, tx.workLimit
+		record.BoundRequest, record.WorkLimit = &request, &limit
+		record.MemoryPartition = map[string]uint64{"preparation_bytes": c.inventoryMemory.preparationBytes, "nonborrowable_reserve_bytes": c.inventoryMemory.reservedBytes}
+	}
+	if !tx.start.IsZero() {
+		n := 1
+		record.PhysicalAttemptOrdinal = &n
+	}
+	record.ConnectionReturned, record.Retired = &tx.connectionReturned, &tx.retirementComplete
+	switch tx.result.state {
+	case committed:
+		record.Outcome = "committed"
+	case rolledBack:
+		record.Outcome = "rolled_back"
+	case commitUnknown:
+		record.Outcome = "unknown"
+	}
+	if tx.finishErr != nil {
+		record.Error = n1Join(record.Error, tx.finishErr)
+	}
+}
+
 // One original, one fresh component on the existing W fixture. No public
 // issuer, dispatcher, opening constructor, grant or recipe is reproduced here.
 func runN1Attempt(t *testing.T, ctx context.Context, stream *n1Stream, ordinal int, cell n1Case, cohort, failQuery string, observed **n1Attempt, options ...n1AttemptOptions) (record *n1Attempt) {
@@ -457,50 +560,7 @@ func runN1Attempt(t *testing.T, ctx context.Context, stream *n1Stream, ordinal i
 					record.Error = n1Join(record.Error, err)
 				}
 			}
-			tx := turn.transaction
-			record.Clock.HoldStartedNS, record.Clock.PhysicalReturnedNS = n1NS(stream.origin, tx.start), n1NS(stream.origin, tx.physicalReturnedAt)
-			if !tx.start.IsZero() && !tx.physicalReturnedAt.IsZero() {
-				n := tx.physicalReturnedAt.Sub(tx.start).Nanoseconds()
-				record.Clock.HoldNS = &n
-			}
-			record.Clock.CommitAttemptedNS, record.Clock.CommitReturnedNS = n1NS(stream.origin, tx.commitStartedAt), n1NS(stream.origin, tx.commitReturnedAt)
-			if !tx.commitStartedAt.IsZero() && !tx.commitReturnedAt.IsZero() {
-				n := tx.commitReturnedAt.Sub(tx.commitStartedAt).Nanoseconds()
-				record.Clock.CommitNS = &n
-			}
-			if !tx.commitReturnedAt.IsZero() && !tx.physicalReturnedAt.IsZero() {
-				record.Clock.PostCommitToPhysicalReturnNS = n1Duration(tx.commitReturnedAt, tx.physicalReturnedAt)
-			}
-			notAttempted := !tx.commitAttempted
-			record.Clock.CommitNotAttempted = &notAttempted
-			verified := tx.policyVerified
-			record.Settings.PolicyVerified = &verified
-			if verified {
-				actual := tx.settings
-				record.Settings.Actual = &actual
-				record.Settings.DQSDDL, record.Settings.DQSDML = &actual.DQSDDL, &actual.DQSDML
-			}
-			if c, ok := tx.custody.(*governedTurn); ok {
-				request, limit := c.expected, tx.workLimit
-				record.BoundRequest, record.WorkLimit = &request, &limit
-				record.MemoryPartition = map[string]uint64{"preparation_bytes": c.inventoryMemory.preparationBytes, "nonborrowable_reserve_bytes": c.inventoryMemory.reservedBytes}
-			}
-			if !tx.start.IsZero() {
-				n := 1
-				record.PhysicalAttemptOrdinal = &n
-			}
-			record.ConnectionReturned, record.Retired = &tx.connectionReturned, &tx.retirementComplete
-			switch tx.result.state {
-			case committed:
-				record.Outcome = "committed"
-			case rolledBack:
-				record.Outcome = "rolled_back"
-			case commitUnknown:
-				record.Outcome = "unknown"
-			}
-			if tx.finishErr != nil {
-				record.Error = n1Join(record.Error, tx.finishErr)
-			}
+			n1ObserveOwner(record, turn, stream.origin)
 		}
 		trace.armed = false
 		record.Continuity.observeAfter(trace)
@@ -559,25 +619,7 @@ func runN1Attempt(t *testing.T, ctx context.Context, stream *n1Stream, ordinal i
 	manifestHash := sha256.Sum256(manifest)
 	record.RegistrySHA256 = hex.EncodeToString(manifestHash[:])
 	command = n1SeedCase(t, e, command, cell)
-	record.AgeState = make([]int64, 3)
-	if err := e.db.QueryRowContext(ctx, `SELECT age_input_revision,age_published_revision,age_pending_operations FROM libraries WHERE id='fresh-library'`).Scan(&record.AgeState[0], &record.AgeState[1], &record.AgeState[2]); err != nil {
-		t.Fatal(err)
-	}
-	profiles, err := e.db.QueryContext(ctx, `SELECT id,bank_key,recipe_version,engine_version,unicode_fingerprint,state FROM search_generations ORDER BY id`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for profiles.Next() {
-		var p n1StoredProfile
-		if err := profiles.Scan(&p.ID, &p.BankKey, &p.Recipe, &p.Engine, &p.Unicode, &p.State); err != nil {
-			_ = profiles.Close()
-			t.Fatal(err)
-		}
-		record.StoredProfiles = append(record.StoredProfiles, p)
-	}
-	if err := errors.Join(profiles.Err(), profiles.Close()); err != nil {
-		t.Fatal(err)
-	}
+	n1ReadFixtureFacts(t, ctx, e, record)
 	e.now = time.Now // real owner clock; existing synthetic Work is NOT widened
 	request, err := command.receiptRequest()
 	if err != nil {
@@ -594,14 +636,7 @@ func runN1Attempt(t *testing.T, ctx context.Context, stream *n1Stream, ordinal i
 		t.Fatal(err)
 	}
 	record.RequiredBytes = &required
-	record.Cardinalities = map[string]int64{}
-	for _, table := range []string{"libraries", "library_sources", "inventory_runs", "catalog_entities", "catalog_assets", "search_generations", "catalog_age_item_counts"} {
-		var n int64
-		if err := e.db.QueryRowContext(ctx, "SELECT count(*) FROM "+table).Scan(&n); err != nil {
-			t.Fatal(err)
-		}
-		record.Cardinalities[table] = n
-	}
+
 	if population == "first-use-reopen" {
 		if err := e.db.Close(); err != nil {
 			t.Fatal(err)
@@ -698,6 +733,11 @@ func TestN1ComponentMeasurement(t *testing.T) {
 	if err := validateN1Population(*n1PopulationFlag, *n1WarmupFlag); err != nil {
 		t.Fatal(err)
 	}
+	if *n1PopulationFlag == "steady" {
+		if err := validateN1SteadyCase(cell); err != nil {
+			t.Fatal(err)
+		}
+	}
 	file, err := openFirstLightOutput(config.OutputPath)
 	if err != nil {
 		t.Fatal(err)
@@ -711,7 +751,7 @@ func TestN1ComponentMeasurement(t *testing.T) {
 	configHash := sha256.Sum256(data)
 	stream := &n1Stream{file: file, origin: origin, base: map[string]any{"schema": "portico-n1-component-v1", "label": "N1 COMPONENT DIRECTIONAL", "qualification": false, "run_id": config.RunID, "process_epoch": fmt.Sprintf("%s/%d/%d", config.RunID, os.Getpid(), origin.UnixNano())}}
 	sources := map[string]string{}
-	for _, path := range []string{"scan_fresh_test.go", "inventory_memory_test.go", "governor_turn_test.go", "schema_fixture_test.go", "transaction_test.go", "n1_component_population_test.go", "scan_fresh.go", "scan_fresh_observation.go", "transaction.go", "n1_component_target_test.go", "n1_component_native_test.go", "testdata/scan-inventory-fresh.json"} {
+	for _, path := range []string{"scan_fresh_test.go", "inventory_memory_test.go", "governor_turn_test.go", "schema_fixture_test.go", "transaction_test.go", "n1_component_population_test.go", "n1_component_steady_test.go", "n1_progressive_fixture_test.go", "scan_fresh.go", "scan_fresh_observation.go", "transaction.go", "n1_component_target_test.go", "n1_component_native_test.go", "testdata/scan-inventory-fresh.json"} {
 		raw, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal("component source pin", err)
@@ -736,11 +776,28 @@ func TestN1ComponentMeasurement(t *testing.T) {
 	host, hostErr := os.Hostname()
 	boot, bootErr := os.ReadFile("/proc/sys/kernel/random/boot_id")
 	sqlHashes := map[stmt.ID]string{}
-	for _, d := range scanInventoryFreshDefinitions() {
+	definitions := scanInventoryFreshDefinitions()
+	if *n1PopulationFlag == "steady" {
+		definitions = inventoryCommandDefinitions()
+	}
+	for _, d := range definitions {
 		h := sha256.Sum256([]byte(d.SQL))
 		sqlHashes[d.ID] = hex.EncodeToString(h[:])
 	}
 	start := map[string]any{"origin_utc": origin.UTC(), "pid": os.Getpid(), "observed_host": host, "host_error": n1Error(hostErr), "host_epoch": config.HostEpoch, "boot_id": strings.TrimSpace(string(boot)), "boot_error": n1Error(bootErr), "declared_source_commit": config.SourceCommit, "binary_sha256": hex.EncodeToString(hash.Sum(nil)), "config_sha256": hex.EncodeToString(configHash[:]), "schema_sha256": schema.SHA256, "source_hashes": sources, "sql_sha256_by_id": sqlHashes, "requested_fixtures": config.Fixtures, "population": *n1PopulationFlag, "declared_warmup": *n1WarmupFlag, "steady_supported": false, "steady_unavailable_reason": errN1ProgressiveFixture.Error(), "case": cell, "cohort": *n1CohortFlag, "clock": "time.Now with monotonic time.Sub before JSON", "synthetic_memory_partition": map[string]uint64{"preparation_bytes": 4 << 20, "nonborrowable_reserve_bytes": 4 << 20}, "synthetic_work_source": "inventoryMemoryFixtureTurn; unchanged test recipe, NOT production profile", "db_status_methods": n1StatusOps, "native_counter_scope": "same physical connection; cumulative/current, reset=false; no native memory peak", "ledger_layout_bytes": reflect.TypeFor[n1Unit]().Size() * n1UnitLimit, "unavailable_reasons": n1Missing}
+	start["population_layout"] = "n1-first-use-v1"
+	if *n1PopulationFlag == "steady" {
+		start["population_layout"], start["steady_supported"], start["steady_unavailable_reason"] = "n1-progressive-steady-v1", true, ""
+		start["requested_databases"], start["requested_measured_originals"], start["requested_warmup_originals"] = 1, config.Fixtures, *n1WarmupFlag
+		delete(start, "requested_fixtures") // config field means measured originals in this explicit layout
+		missing := make(map[string]string, len(n1Missing))
+		for key, value := range n1Missing {
+			if key != "gate_token" {
+				missing[key] = value
+			}
+		}
+		start["unavailable_reasons"] = missing
+	}
 	if err := stream.append("start", start); err != nil {
 		t.Fatal(err)
 	}
@@ -748,6 +805,19 @@ func TestN1ComponentMeasurement(t *testing.T) {
 	defer stop()
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
+	if *n1PopulationFlag == "steady" {
+		summary := &n1SteadySummary{}
+		t.Run("steady", func(t *testing.T) {
+			runN1Steady(t, ctx, stream, config.Fixtures, *n1WarmupFlag, *n1CohortFlag, n1SteadyControls{clock: time.Now}, summary)
+		})
+		if err := stream.append("final", map[string]any{"population": "steady", "population_layout": "n1-progressive-steady-v1", "case": cell, "cohort": *n1CohortFlag, "steady": summary, "complete": summary.Complete, "consumer": "not exercised"}); err != nil {
+			t.Error(err)
+		}
+		if !summary.Complete {
+			t.Error("N1 steady component incomplete; retain all warmup/measured/physical records")
+		}
+		return
+	}
 	offered, started, physical, complete, failed, unknown, refused, fenced, joined := 0, 0, 0, 0, 0, 0, 0, 0, 0
 	stopReason := ""
 	defer func() {

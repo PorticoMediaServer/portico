@@ -16,10 +16,11 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 )
 
-var n1PopulationFlag = flag.String("n1-component-population", "first-use-reopen", "first-use-reopen or setup-retained-first-use; steady requires W's progressive fixture")
-var n1WarmupFlag = flag.Int("n1-component-warmup", 0, "declared real-original warmup count; currently unavailable without W's progressive fixture")
+var n1PopulationFlag = flag.String("n1-component-population", "first-use-reopen", "first-use-reopen, setup-retained-first-use or steady (retained progressive fixture)")
+var n1WarmupFlag = flag.Int("n1-component-warmup", 0, "0 for first-use; 1..64 actual fresh originals before steady measured originals")
 
-var errN1ProgressiveFixture = errors.New("N1 steady/warmup unavailable: W-owned persistent next-original/run/receipt progression fixture required")
+var errN1ProgressiveFixture = errors.New("N1 first-use population is not warmed steady state; positive warmup requires steady mode")
+var errN1WarmupRequired = errors.New("N1 steady requires 1..64 retained fresh-original warmup commands")
 
 func validateN1Population(mode string, warmup int) error {
 	if warmup < 0 || warmup > 64 {
@@ -28,7 +29,13 @@ func validateN1Population(mode string, warmup int) error {
 	if mode != "first-use-reopen" && mode != "setup-retained-first-use" && mode != "steady" {
 		return ErrInvalid
 	}
-	if mode == "steady" || warmup > 0 {
+	if mode == "steady" {
+		if warmup == 0 {
+			return errN1WarmupRequired
+		}
+		return nil
+	}
+	if warmup > 0 {
 		return errN1ProgressiveFixture
 	}
 	return nil
@@ -186,17 +193,20 @@ func TestN1ComponentPhysicalReplacementIsObserved(t *testing.T) {
 	}
 }
 
-func TestN1ComponentSteadyRequiresProgressiveOwnerFixture(t *testing.T) {
+func TestN1ComponentSteadyRequiresPositiveWarmup(t *testing.T) {
 	if !*n1EnabledFlag {
 		t.Skip("opt-in component control")
 	}
 	for _, request := range []struct {
 		mode   string
 		warmup int
-	}{{"steady", 0}, {"steady", 2}, {"setup-retained-first-use", 1}} {
+	}{{"first-use-reopen", 1}, {"setup-retained-first-use", 1}} {
 		if !errors.Is(validateN1Population(request.mode, request.warmup), errN1ProgressiveFixture) {
-			t.Fatal("invented fresh progression for steady request")
+			t.Fatal("warmup mixed into first-use population")
 		}
+	}
+	if !errors.Is(validateN1Population("steady", 0), errN1WarmupRequired) || validateN1Population("steady", 2) != nil {
+		t.Fatal("steady warmup contract")
 	}
 	if validateN1Population("first-use-reopen", 0) != nil || validateN1Population("setup-retained-first-use", 0) != nil {
 		t.Fatal("first-use modes refused")
@@ -230,7 +240,7 @@ func TestN1ComponentSteadyPreflightDoesNotOpenOutput(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, self, "-test.run=^TestN1ComponentMeasurement$", "-n1-component", "-n1-component-population=steady", "-n1-component-warmup=1")
+	cmd := exec.CommandContext(ctx, self, "-test.run=^TestN1ComponentMeasurement$", "-n1-component", "-n1-component-population=steady", "-n1-component-warmup=0")
 	for _, entry := range os.Environ() {
 		if !strings.HasPrefix(entry, "PORTICO_WRITER_N1_COMPONENT=") && !strings.HasPrefix(entry, "PORTICO_WRITER_N1_COMPONENT_CONFIG=") {
 			cmd.Env = append(cmd.Env, entry)
@@ -238,8 +248,8 @@ func TestN1ComponentSteadyPreflightDoesNotOpenOutput(t *testing.T) {
 	}
 	cmd.Env = append(cmd.Env, "PORTICO_WRITER_N1_COMPONENT=1", "PORTICO_WRITER_N1_COMPONENT_CONFIG="+config)
 	log, err := cmd.CombinedOutput()
-	if err == nil || ctx.Err() != nil || !strings.Contains(string(log), errN1ProgressiveFixture.Error()) {
-		t.Fatalf("steady request did not fail on owner dependency: %v %s", err, log)
+	if err == nil || ctx.Err() != nil || !strings.Contains(string(log), errN1WarmupRequired.Error()) {
+		t.Fatalf("steady request did not fail missing warmup: %v %s", err, log)
 	}
 	if _, err := os.Stat(output); !os.IsNotExist(err) {
 		t.Fatal("unavailable steady request emitted output", err)
