@@ -37,7 +37,6 @@ type crashWitness struct {
 	Path      string
 	Reference ReceiptReference
 	Saved     EffectiveStageBeginResult
-	Inventory InventoryResult
 	Unknown   bool
 }
 
@@ -266,14 +265,9 @@ func crashInventoryChild(t *testing.T, witness *crashWitness) {
 	w = bindCrashInventory(t, e, w.effective.path, *w.effective.inventoryPlan)
 	q := requests["hit"]
 	cap := inventoryTestDisclosure(t, w, q)
-	var err error
-	witness.Inventory, err = w.ResolveScan(t.Context(), cap, q)
-	if err != nil || witness.Inventory.Outcome.State != Applied {
-		t.Fatal(witness.Inventory, err)
-	}
-	witness.Inventory.Outcome.Evidence = nil
 	witness.Reference, witness.Path = q.Receipt, w.effective.path
 	installCrashDriver(t, e, witness.Path, witness)
+	var err error
 	var result InventoryResult
 	var ack AckResult
 	switch witness.Case.Operation {
@@ -361,7 +355,7 @@ func runCrashChild(t *testing.T, cell crashCase) crashWitness {
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestCrashReplayChild$", "-test.count=1", "-test.timeout=25s")
-	cmd.Env = append(os.Environ(), "PORTICO_CRASH_CASE="+string(encoded), "TMPDIR="+scratch)
+	cmd.Env = append(os.Environ(), "PORTICO_CRASH_CASE="+string(encoded), "TMPDIR="+scratch, "GOTMPDIR="+scratch)
 	cmd.ExtraFiles = []*os.File{writer}
 	var output bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &output, &output
@@ -521,6 +515,12 @@ func bindCrashInventory(t *testing.T, e *executor, path string, inventory effect
 func TestCrashReplayInventoryHistory(t *testing.T) {
 	prototype, requests, e, _ := inventoryFacadeFixture(t)
 	profile := *prototype.effective.inventoryPlan
+	// Freeze original saved facts before any tested command. No ResolveScan
+	// result or production receipt decoder supplies this expected journal.
+	journal, err := readInventoryCrashJournal(t.Context(), e, requests["hit"].RunID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := e.close(); err != nil {
 		t.Fatal(err)
 	}
@@ -532,13 +532,13 @@ func TestCrashReplayInventoryHistory(t *testing.T) {
 		for _, boundary := range boundaries {
 			t.Run(operation+"/"+boundary, func(t *testing.T) {
 				witness := runCrashChild(t, crashCase{"inventory", operation, boundary, ""})
-				verifyInventoryCrash(t, requests["hit"], profile, witness)
+				verifyInventoryCrash(t, requests["hit"], profile, journal, witness)
 			})
 		}
 		for _, fault := range []string{"before", "after"} {
 			t.Run(operation+"/uncertain_return/"+fault, func(t *testing.T) {
 				witness := runCrashChild(t, crashCase{"inventory", operation, "uncertain_return", fault})
-				verifyInventoryCrash(t, requests["hit"], profile, witness)
+				verifyInventoryCrash(t, requests["hit"], profile, journal, witness)
 			})
 		}
 	}
