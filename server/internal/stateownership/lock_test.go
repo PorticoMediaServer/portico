@@ -278,3 +278,46 @@ func TestStateOwnershipChild(t *testing.T) {
 	fmt.Fprintln(os.Stdout, "owned")
 	_, _ = io.Copy(io.Discard, os.Stdin)
 }
+
+func TestStateOwnershipOneStoreClaimAndRevokedLifetime(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "server.lock")
+	l := nativeLock(t, path)
+	store, err := l.ClaimStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, err := l.ClaimStore(); v != nil || !errors.Is(err, ErrBusy) {
+		t.Fatal("two live store openings", v, err)
+	}
+	borrow, err := l.Borrow()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := borrow.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := l.ClaimStore(); v != nil || !errors.Is(err, ErrBusy) {
+		t.Fatal("unrelated borrower released store claim", v, err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if store.Lifetime().Err() == nil {
+		t.Fatal("released store lifetime survived")
+	}
+	store, err = l.ClaimStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Close(); !errors.Is(err, ErrBusy) {
+		t.Fatal(err)
+	}
+	if store.Lifetime().Err() == nil {
+		t.Fatal("closing root did not revoke store lifetime")
+	}
+	requireHeld(t, path)
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	nativeLock(t, path)
+}
