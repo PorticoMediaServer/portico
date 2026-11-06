@@ -206,16 +206,13 @@ func mapFTSInsertVM(vm Rows, identity string) (Rows, error) {
 		}
 	}
 	ptr, ok := vm.Values[6][5].(string)
-	if !ok || !strings.HasPrefix(ptr, "vtab:") || len(ptr) <= len("vtab:") {
+	if !ok || !strings.HasPrefix(ptr, "vtab:") || len(ptr) <= len("vtab:") || len(ptr) > len("vtab:")+16 || ptr[len("vtab:")] == '0' {
 		return Rows{}, fmt.Errorf("FTS INSERT has no native pVtab")
 	}
 	for _, c := range ptr[len("vtab:"):] {
-		if !(c >= '0' && c <= '9' || c >= 'A' && c <= 'F' || c >= 'a' && c <= 'f') {
+		if !(c >= '0' && c <= '9' || c >= 'A' && c <= 'F') {
 			return Rows{}, fmt.Errorf("invalid native pVtab format")
 		}
-	}
-	if ptr == "vtab:0" {
-		return Rows{}, fmt.Errorf("null native pVtab")
 	}
 	if len(vm.Values[8]) != 8 {
 		return Rows{}, fmt.Errorf("invalid FTS transaction opcode")
