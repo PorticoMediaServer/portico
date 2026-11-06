@@ -7,6 +7,10 @@
 // known scalar calls (at most 16 levels), column collations and ORDER BY/LIMIT
 // keysets. Unknown predicates, grouped expressions, CASE, windows, CTEs and
 // subqueries are flagged; the lint never infers safety from arbitrary SQL.
+// SELECT also accepts explicit INNER/LEFT/CROSS JOIN of named tables, explicit
+// AS aliases and per-table INDEXED BY/NOT INDEXED. Every join requires ON with
+// ANDed column=column/parameter/integer points only. Comma/bare/NATURAL/RIGHT/
+// FULL joins, USING and grouped/table-function sources remain unsupported.
 // INSERT accepts one explicit column/parameter VALUES row, optional named
 // ON CONFLICT(columns) DO NOTHING/DO UPDATE SET column=excluded.column|?,
 // and plain-column RETURNING. UPDATE requires SET and WHERE, DELETE requires

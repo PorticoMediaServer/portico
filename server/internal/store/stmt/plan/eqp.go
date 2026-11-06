@@ -16,7 +16,7 @@ const eqpConstraint = eqpName + `(?:=|>=|<=|>|<)\?`
 
 var expectedSearch = regexp.MustCompile(`^SEARCH ` + eqpName +
 	` USING (?:(?:COVERING )?INDEX ` + eqpName + `|(?:INTEGER )?PRIMARY KEY)` +
-	` \(` + eqpConstraint + `(?: AND ` + eqpConstraint + `)*\)$`)
+	` \(` + eqpConstraint + `(?: AND ` + eqpConstraint + `)*\)(?: LEFT-JOIN)?$`)
 
 func waived(d stmt.Definition, stage, form, match string) bool {
 	for _, w := range d.Plan.Waivers {
