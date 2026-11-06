@@ -58,9 +58,10 @@ func lookupInventoryAccept(ctx context.Context, turn *commandTurn, request ScanR
 	}
 	var operation, digest, resultDigest []byte
 	var kind string
+	var sourceRevision sql.NullString
 	v := inventoryAcceptResult{RunID: request.RunID}
 	err = row.Scan(&operation, &digest, &kind, &v.AcceptedRunRevision, &v.AppliedMS,
-		&v.SourceID, &v.SourceIncarnation, &v.SourceRevision, &v.NextCursor, &v.ResultCount, &resultDigest)
+		&v.SourceID, &v.SourceIncarnation, &sourceRevision, &v.NextCursor, &v.ResultCount, &resultDigest)
 	var facts receiptFacts
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -73,8 +74,13 @@ func lookupInventoryAccept(ctx context.Context, turn *commandTurn, request ScanR
 		copy(facts.identity.command.OperationID[:], operation)
 		copy(facts.identity.digest[:], digest)
 		copy(facts.resultDigest[:], resultDigest)
-		if kind == scanInventoryReceiptKind {
+		switch kind {
+		case scanInventoryReceiptKind:
 			facts.kind = InventoryAccept
+		case "inventory_create":
+			facts.kind = InventoryCreate
+		case "inventory_claim":
+			facts.kind = InventoryClaim
 		}
 	}
 	if err != nil {
@@ -91,6 +97,13 @@ func lookupInventoryAccept(ctx context.Context, turn *commandTurn, request ScanR
 		}
 		return out, nil // floor precedes any possibly drained result-cohort decode
 	}
+	// Lifecycle uses a genuine SQL NULL and a distinct closed result. Classify
+	// its purpose before decoding an N1 observation revision; never coalesce it
+	// into empty TEXT or return a conversion error in place of kind conflict.
+	if !sourceRevision.Valid {
+		return inventoryReceiptLookup{}, ErrResolveRequired
+	}
+	v.SourceRevision = sourceRevision.String
 	if v.ResultCount <= 0 {
 		return inventoryReceiptLookup{}, ErrResolveRequired
 	}
