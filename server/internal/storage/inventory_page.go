@@ -7,11 +7,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/naming"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/naming"
 	"runtime"
 	"strconv"
 	"strings"
@@ -66,27 +66,48 @@ func RootIdentity(v Snapshot) string {
 	// folder from the admitted mount. Never substitute a pathname as identity.
 	return v.ObjectIdentity
 }
-func (c *Client) inventoryRequest(ctx context.Context, key, op string, r InventoryRequest, out any) error {
-	if c.Guard != nil {
-		if err := c.Guard(filepath.Join(r.Root, r.RelativePath)); err != nil {
-			return err
+
+// ownedInventoryWire is the private native-byte variant of the SAME helper
+// spawn. Its input is already bounded/encoded; its owner retires only through
+// RunOwnedCompletion. Legacy calls keep their existing request and Run path.
+type ownedInventoryWire struct {
+	input    []byte
+	retired  func()
+	validate func() error
+}
+
+func (c *Client) inventoryRequest(ctx context.Context, key, op string, r InventoryRequest, out any, owned ...*ownedInventoryWire) error {
+	var data []byte
+	var native *ownedInventoryWire
+	if len(owned) > 0 {
+		native = owned[0]
+		data = native.input
+	} else {
+		if c.Guard != nil {
+			if err := c.Guard(filepath.Join(r.Root, r.RelativePath)); err != nil {
+				return err
+			}
 		}
+		timeout := c.Timeout
+		if timeout <= 0 {
+			timeout = 30 * time.Second
+		}
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+		req := request{Operation: op, Path: filepath.Join(r.Root, r.RelativePath), Inventory: &r}
+		if c.MountedRoot != nil {
+			req.MountedRoot = c.MountedRoot(req.Path)
+		}
+		data, _ = json.Marshal(req)
 	}
-	timeout := c.Timeout
-	if timeout <= 0 {
-		timeout = 30 * time.Second
-	}
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	req := request{Operation: op, Path: filepath.Join(r.Root, r.RelativePath), Inventory: &r}
-	if c.MountedRoot != nil {
-		req.MountedRoot = c.MountedRoot(req.Path)
-	}
-	data, _ := json.Marshal(req)
 	cmd := exec.Command(c.Binary, "--portico-storage-helper")
 	cmd.Stdin = bytes.NewReader(data)
-	return c.Supervisor.Run(ctx, "inventory:"+key, cmd, func(reader io.Reader) error {
+	consume := func(reader io.Reader) error {
 		d := json.NewDecoder(io.LimitReader(reader, 2<<20))
+		if native != nil {
+			d.DisallowUnknownFields()
+		}
 		if err := d.Decode(out); err != nil {
 			return err
 		}
@@ -94,9 +115,17 @@ func (c *Client) inventoryRequest(ctx context.Context, key, op string, r Invento
 		if err := d.Decode(&extra); err != io.EOF {
 			return errors.New("invalid inventory response")
 		}
+		if native != nil {
+			return native.validate()
+		}
 		return nil
-	})
+	}
+	if native != nil {
+		return c.Supervisor.RunOwnedCompletion(ctx, "inventory:"+key, cmd, consume, nil, native.retired)
+	}
+	return c.Supervisor.Run(ctx, "inventory:"+key, cmd, consume)
 }
+
 func (c *Client) InventoryPage(ctx context.Context, key string, r InventoryRequest) (InventoryPage, error) {
 	var page InventoryPage
 	if c.IsRemote(r.Root) {

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"time"
@@ -104,24 +103,14 @@ func (c *Client) NativeInventoryPage(ctx context.Context, owner *OperationScope,
 	if owner.Context().Err() != nil {
 		cancel()
 	}
-	cmd := exec.Command(c.Binary, "--portico-storage-helper")
-	cmd.Stdin = bytes.NewReader(data)
 	var page NativeInventoryPage
-	err = c.Supervisor.RunOwnedCompletion(ctx, "inventory:"+key, cmd, func(in io.Reader) error {
-		d := json.NewDecoder(io.LimitReader(in, 2<<20))
-		d.DisallowUnknownFields()
-		if err := d.Decode(&page); err != nil {
-			return err
-		}
-		var extra any
-		if err := d.Decode(&extra); err != io.EOF {
-			return ErrNativeInventory
-		}
-		if page.Version != 1 || len(page.Entries) > r.Limit || len(page.Issues) > 512 {
-			return ErrNativeInventory
-		}
-		return nativePageText(page)
-	}, nil, done)
+	err = c.inventoryRequest(ctx, key, "inventory-page-native-v1", InventoryRequest{}, &page, &ownedInventoryWire{
+		input: data, retired: done, validate: func() error {
+			if page.Version != 1 || len(page.Entries) > r.Limit || len(page.Issues) > 512 {
+				return ErrNativeInventory
+			}
+			return nativePageText(page)
+		}})
 	if err == nil {
 		err = inventoryCodeError(page.ErrorCode)
 	}
