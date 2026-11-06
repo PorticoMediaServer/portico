@@ -543,7 +543,7 @@ func (t *Transport) acquire(ctx context.Context, key RequestKey) ([]byte, error)
 			err = &ProviderError{Status: r.Status}
 		}
 		if err == nil && int64(len(r.Body)) > t.cfg.MaxResponseBytes {
-			err = ErrResponse
+			err = &ResponseSizeError{LimitBytes: t.cfg.MaxResponseBytes, ObservedBytes: int64(len(r.Body))}
 		}
 		if err == nil {
 			t.stats.Bytes += uint64(len(r.Body))
