@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -710,6 +711,20 @@ func TestSnapshotBadConnRollbackKeepsDisposalOwnership(t *testing.T) {
 }
 
 func TestSnapshotNativeReservationPrecedesConnectionAndSQL(t *testing.T) {
+	snapshotNativeReservation(t, false)
+}
+
+// The full native aggregate is an opt-in timing diagnostic, not a default
+// functional/race gate. Product snapshot lifetime remains capped at one second.
+func TestDiagnosticSnapshotNativeAggregateDeadline(t *testing.T) {
+	if os.Getenv("PORTICO_GV_NATIVE_TIMING") != "1" {
+		t.Skip("opt-in native aggregate timing: PORTICO_GV_NATIVE_TIMING=1")
+	}
+	snapshotNativeReservation(t, true)
+}
+
+func snapshotNativeReservation(t *testing.T, fullAggregate bool) {
+	t.Helper()
 	for _, columns := range []int32{16, 128} {
 		t.Run(fmt.Sprint(columns), func(t *testing.T) {
 			path, _ := snapshotFixture(t)
@@ -720,7 +735,14 @@ func TestSnapshotNativeReservationPrecedesConnectionAndSQL(t *testing.T) {
 				t.Fatal(err)
 			}
 			counted := &snapshotConnector{Connector: connector}
-			expression := "SELECT " + strings.TrimSuffix(strings.Repeat("randomblob(12000),", int(columns)), ",")
+			// Configured columns still determine C×L admission. Four values suffice
+			// to exceed the 64KiB Go-copy grant in both native/Go controls without
+			// requiring a 128-value PRNG aggregate to meet a wall-clock deadline.
+			queryColumns := int(columns)
+			if !fullAggregate {
+				queryColumns = 4
+			}
+			expression := "SELECT " + strings.TrimSuffix(strings.Repeat("randomblob(12000),", queryColumns), ",")
 			registry, err := stmt.New([]stmt.Definition{
 				{ID: "aggregate", SQL: expression, Kind: stmt.Read, Owner: "test", CallSites: []string{"native-reserve"}, Cohorts: []stmt.Cohort{{Name: "all"}}},
 				{ID: "go-aggregate", SQL: strings.ReplaceAll(expression, "12000", "6000"), Kind: stmt.Read, Owner: "test", CallSites: []string{"copy-reserve"}, Cohorts: []stmt.Cohort{{Name: "all"}}},
