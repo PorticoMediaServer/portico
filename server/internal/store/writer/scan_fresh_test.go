@@ -6,6 +6,7 @@ import (
 	"errors"
 	"math"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -193,54 +194,11 @@ func TestInventoryFreshObservationRefusesUnsupportedOrChangedFacts(t *testing.T)
 // This fixture uses W's actual grant binding/frame, with explicit synthetic
 // numerical test inputs. It is neither a runtime constructor nor a production
 // ScanDriver/profile. Positive controls cannot borrow plain testCustody.
-func inventoryFreshTestTurn(t *testing.T, e *executor, path string, registry *stmt.Registry) (*commandTurn, *governor.Authority) {
+func inventoryFreshTestTurn(t *testing.T, e *executor, _ string, registry *stmt.Registry) (*commandTurn, *governor.Authority) {
 	t.Helper()
-	recipe := turnRecipe{limit: Work{4096, 2000000, 4096, 32 << 20, 25 * time.Millisecond},
-		setup: Work{16, 500, 16, 65536, time.Millisecond}, terminal: Work{16, 500, 16, 65536, 8 * time.Millisecond}}
-	wal, err := governor.NewWALGate(governor.WALPolicy{HardBytes: 1 << 29, ReserveBytes: 1 << 20, SoftDebtBytes: 1 << 26, ActivePressureBytes: 1 << 28, MaxSampleAge: time.Second})
-	if err != nil {
-		t.Fatal(err)
-	}
-	r := governor.Request{Key: governor.JobKey{Domain: uint16(InventoryAccept), ID: "fresh-run"}, Owner: 1, Class: governor.ScanMinimum,
-		Writer: true, MaxHold: recipe.limit.Hold, Deadline: e.now().Add(time.Second),
-		Budget:    governor.UnitBudget{RawRows: uint32(recipe.limit.Rows), VMOps: recipe.limit.VMOps, Pages: uint32(recipe.limit.Pages)},
-		Footprint: []governor.Scope{{Library: 7, Domain: 1, Source: 1}}}
-	r.Need[governor.WALBytes], r.Need[governor.MemoryBytes] = int64(recipe.limit.WALBytes), 8<<20
-	var partitions [4]governor.Amounts
-	for i := range partitions {
-		partitions[i] = r.Need
-	}
-	g, a, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 2, Now: e.now, WAL: wal})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = refreshWriterWAL(path, wal, e.now); err != nil {
-		t.Fatal(err)
-	}
-	d := g.Try(r)
-	if d.Grant == nil {
-		t.Fatal(d.Refusal)
-	}
-	custody, err := bindGovernedTurn(InventoryAccept, recipe.limit, g, a, wal, d.Grant, r)
-	if err != nil {
-		t.Fatal(err)
-	}
-	custody.inventoryMemory = inventoryMemoryBudget{preparationBytes: 4 << 20, reservedBytes: 4 << 20}
-	tx, err := e.begin(t.Context(), InventoryAccept, recipe, custody)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _, _ = tx.rollback(nil) })
-	var steps []statementStep
-	for _, entry := range registry.Manifest() {
-		steps = append(steps, statementStep{entry.ID, Work{16, 16000, 16, 32768, 100 * time.Microsecond}})
-	}
-	turn, err := newCommandTurn(tx, registry, steps)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = turn.closeRows() })
-	return turn, a
+	// W owns this actual governor/frame fixture. Only the private TEST memory
+	// partition is supplied here; no fixture bridge or Work profile is copied.
+	return inventoryMemoryFixtureTurn(t, e, registry, inventoryFreshRequest(t), inventoryMemoryBudget{preparationBytes: 4 << 20, reservedBytes: 4 << 20})
 }
 
 func inventoryFreshAssertAbsent(t *testing.T, e *executor) {
@@ -468,6 +426,58 @@ func TestInventoryFreshCounterAndPreparationBounds(t *testing.T) {
 	}); allocs != 0 {
 		t.Fatal("forecast allocated", allocs)
 	}
+	for name, mutate := range map[string]func(*inventoryAcceptCommand){
+		"scope_limit":        func(c *inventoryAcceptCommand) { c.request.source.id = strings.Repeat("x", 1024) },
+		"change_token_limit": func(c *inventoryAcceptCommand) { c.request.files[0].changeToken = strings.Repeat("x", 4097) },
+		"object_limit":       func(c *inventoryAcceptCommand) { c.request.files[0].objectIdentity = strings.Repeat("x", 8193) },
+		"request_limit": func(c *inventoryAcceptCommand) {
+			c.request.source.resolvedRoot = make([]byte, maxCanonicalRequestBytes)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := inventoryFreshRequest(t)
+			mutate(c)
+			if bytes, err := inventoryFreshRequiredBytes(c); err == nil || bytes != 0 {
+				t.Fatal("unsupported evidence allocated forecast", bytes, err)
+			}
+		})
+	}
+}
+
+func TestInventoryFreshEscapingPreparationAllocationBound(t *testing.T) {
+	base := inventoryFreshRequest(t)
+	r := base.request
+	r.files = append([]inventoryFile(nil), r.files...)
+	r.source.id = strings.Repeat("<&>", 250)
+	r.files[0].changeToken = strings.Repeat("\x00", 4096)
+	r.files[0].objectIdentity = strings.Repeat("&", 8192)
+	evidence := mediasource.InventoryEvidence{Kind: "local", Scope: r.source.id + ":" + r.source.incarnation, Object: r.files[0].objectIdentity,
+		Size: math.MaxInt64, ModifiedNS: math.MinInt64, ChangeToken: r.files[0].changeToken}
+	r.files[0].size, r.files[0].modifiedNS = evidence.Size, evidence.ModifiedNS
+	var err error
+	r.files[0].revision, err = evidence.Revision()
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := newInventoryAcceptCommand(base.identity, r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	budget, err := inventoryFreshRequiredBytes(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := testing.Benchmark(func(b *testing.B) {
+		for range b.N {
+			if _, err := prepareInventoryFreshObservation(c); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	if result.N < 1 || result.AllocedBytesPerOp() < 1 || uint64(result.AllocedBytesPerOp()) > budget {
+		t.Fatal("preparation exceeds its whole-frame envelope", result.AllocedBytesPerOp(), budget)
+	}
+	t.Logf("escaped pure preparation allocates %d bytes/op within %d-byte WHOLE SC envelope; excludes W/native reserve and is not physical peak/hold qualification", result.AllocedBytesPerOp(), budget)
 }
 
 func TestInventoryFreshBodyRequiresRealMemoryAndReturnsZeroOnCancel(t *testing.T) {

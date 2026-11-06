@@ -31,7 +31,7 @@ func applyInventoryFreshAggregates(ctx context.Context, turn *commandTurn, c *in
 	if a.scalarRevision <= 0 || a.aggregateRevision <= 0 || a.admissionRevision <= 0 {
 		return ErrConflict
 	}
-	row, err = turn.queryRow(ctx, turn.steps[scanFreshEntityInitial].statementStep, file.size, int64(-1), nil, nil, int64(0), int64(0), nil,
+	row, err = turn.queryRow(ctx, turn.steps[scanFreshEntityInitial].statementStep, file.size, int64(-1), nil, nil, int64(0), int64(0), nil, nil,
 		a.subjectID, r.scope.libraryID, a.metadata[:], a.entityRevision, a.scalarRevision, a.aggregateRevision, a.admissionRevision)
 	if err != nil {
 		return err

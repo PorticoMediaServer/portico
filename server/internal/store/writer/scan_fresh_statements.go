@@ -236,13 +236,13 @@ AND kind='movie' AND metadata_language=?`, stmt.Write,
 		def(scanFreshEntityFacts, `SELECT scalar_source_revision,aggregate_revision,admission_revision FROM catalog_entities WHERE id=? AND library_id=? AND metadata_incarnation=? AND revision=? AND retired=0`, stmt.Read,
 			[]stmt.Param{i("entity_id"), i("library_id"), b("metadata_incarnation"), i("entity_revision")}, []any{int64(31), int64(7), make([]byte, 16), int64(1)}, "catalog_entities", "rowid=?"),
 		def(scanFreshEntityInitial, `UPDATE catalog_entities SET file_size_key=?,admission_allow_age=?,admission_known_age=?,admission_own_age=?,admission_member_count=?,admission_unrated_members=?,admission_min_known_age=?,
-duration_key=0,community_rating_key=0,critic_rating_key=0,resolution_key=0,latest_aired_key='',episode_count=0,aggregate_publication_id=NULL
+duration_key=0,community_rating_key=0,critic_rating_key=0,resolution_key=0,latest_aired_key='',episode_count=0,aggregate_publication_id=?
 WHERE id=? AND library_id=? AND metadata_incarnation=? AND revision=? AND scalar_source_revision=? AND aggregate_revision=? AND admission_revision=? AND retired=0
 RETURNING revision,scalar_source_revision,aggregate_revision,admission_revision,file_size_key,resolution_key,duration_key,community_rating_key,critic_rating_key,
 latest_aired_key,episode_count,admission_allow_age,admission_known_age,admission_own_age,admission_member_count,admission_unrated_members,admission_min_known_age,aggregate_publication_id`, stmt.Write,
-			[]stmt.Param{i("file_size"), nullable("allow_age", stmt.Integer), nullable("known_age", stmt.Integer), nullable("own_age", stmt.Integer), i("member_count"), i("unrated_members"), nullable("min_known_age", stmt.Integer),
+			[]stmt.Param{i("file_size"), nullable("allow_age", stmt.Integer), nullable("known_age", stmt.Integer), nullable("own_age", stmt.Integer), i("member_count"), i("unrated_members"), nullable("min_known_age", stmt.Integer), nullable("aggregate_publication_id", stmt.Integer),
 				i("entity_id"), i("library_id"), b("metadata_incarnation"), i("entity_revision"), i("scalar_source_revision"), i("aggregate_revision"), i("admission_revision")},
-			[]any{int64(42), int64(-1), nil, nil, int64(0), int64(0), nil, int64(31), int64(7), make([]byte, 16), int64(1), int64(1), int64(1), int64(1)}, "catalog_entities", "rowid=?"),
+			[]any{int64(42), int64(-1), nil, nil, int64(0), int64(0), nil, nil, int64(31), int64(7), make([]byte, 16), int64(1), int64(1), int64(1), int64(1)}, "catalog_entities", "rowid=?"),
 		def(scanFreshScalarInsert, `INSERT INTO catalog_scalar_contributions(library_id,parent_id,contributor_id,source,contributor_revision,membership_sequence,
 duration,community_rating,critic_rating,resolution,latest_aired_key,admission_age) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`, stmt.Write,
 			[]stmt.Param{i("library_id"), i("parent_id"), i("contributor_id"), i("source"), i("contributor_revision"), i("membership_sequence"), nullable("duration", stmt.Real), nullable("community_rating", stmt.Real),
