@@ -278,9 +278,14 @@ type inventoryCrashJournal struct {
 	Children []inventoryCrashChild
 }
 
-func readInventoryCrashJournal(ctx context.Context, e *executor, run string) (out inventoryCrashJournal, err error) {
+type inventoryCrashReader interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
+
+func readInventoryCrashJournal(ctx context.Context, reader inventoryCrashReader, run string) (out inventoryCrashJournal, err error) {
 	h := &out.Header
-	err = e.db.QueryRowContext(ctx, `SELECT run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,
+	err = reader.QueryRowContext(ctx, `SELECT run_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,
  accepted_revision,applied_ms,source_id,source_incarnation,source_revision,change_id,next_cursor,
  next_family,next_copy_phase,next_copy_id,next_copy_aux,next_copy_key,next_copy_key2,next_copy_key3,
  after_entity,expected_epoch,result_count,result_digest,refused_relative_path,refusal_code,cursor_kind,
@@ -294,7 +299,7 @@ func readInventoryCrashJournal(ctx context.Context, e *executor, run string) (ou
 	if err != nil {
 		return out, err
 	}
-	rows, err := e.db.QueryContext(ctx, `SELECT run_id,command_incarnation,command_sequence,input_ordinal,child_kind,child_ordinal,
+	rows, err := reader.QueryContext(ctx, `SELECT run_id,command_incarnation,command_sequence,input_ordinal,child_kind,child_ordinal,
  object_id,library_id,subject_id,asset_id,accepted_asset_revision FROM scan_command_results WHERE run_id=?
  ORDER BY command_incarnation,command_sequence,input_ordinal,child_kind,child_ordinal`, run)
 	if err != nil {
@@ -373,7 +378,7 @@ func verifyInventoryCrash(t *testing.T, q ScanReceiptRequest, profile effectiveP
 		t.Fatal("Inventory original receipt changed", witness.Reference, q.Receipt)
 	}
 	e := reopenCrashExecutor(t, witness.Path)
-	saved, err := readInventoryCrashJournal(t.Context(), e, q.RunID)
+	saved, err := readInventoryCrashJournal(t.Context(), e.db, q.RunID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -422,7 +427,7 @@ func verifyInventoryCrash(t *testing.T, q ScanReceiptRequest, profile effectiveP
 			t.Fatal("Inventory ACK was not idempotent", ack, err)
 		}
 	}
-	after, err := readInventoryCrashJournal(t.Context(), e, q.RunID)
+	after, err := readInventoryCrashJournal(t.Context(), e.db, q.RunID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -449,7 +454,7 @@ func TestCrashInventoryOracleRejectsProjectionDrift(t *testing.T) {
 	w, requests, e, _ := inventoryFacadeFixture(t)
 	q := requests["hit"]
 	cap := inventoryTestDisclosure(t, w, q)
-	saved, err := readInventoryCrashJournal(t.Context(), e, q.RunID)
+	saved, err := readInventoryCrashJournal(t.Context(), e.db, q.RunID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -504,7 +509,7 @@ func TestCrashInventoryOracleRejectsRetiredCorruption(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			w, requests, e, _ := inventoryFacadeFixture(t)
 			q := requests["hit"]
-			journal, err := readInventoryCrashJournal(t.Context(), e, q.RunID)
+			journal, err := readInventoryCrashJournal(t.Context(), e.db, q.RunID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -525,7 +530,7 @@ func TestCrashInventoryOracleRejectsRetiredCorruption(t *testing.T) {
 			// These corruptions satisfy layout/integrity/FKs and are below the
 			// ACK floor. Only exact raw-journal comparison detects the loss.
 			survivor := reopenCrashExecutor(t, w.effective.path)
-			got, err := readInventoryCrashJournal(t.Context(), survivor, q.RunID)
+			got, err := readInventoryCrashJournal(t.Context(), survivor.db, q.RunID)
 			if err != nil {
 				t.Fatal(err)
 			}
