@@ -165,6 +165,9 @@ func Run(parent context.Context, c Config, streams []Stream, sink Sink) error {
 		if r.Missed > 0 || r.Error != "" || r.Observation != nil && (r.Observation.Stub || r.Observation.RefusalError) || r.Progress != nil && r.Progress.Unserved != 0 {
 			complete = false
 		}
+		if r.Observation != nil && r.Observation.Progress != nil {
+			complete = false
+		} // values/lineage stage; no native composition yet
 		if r.Error != "" || r.Observation != nil && r.Observation.RefusalError {
 			cancel()
 		}

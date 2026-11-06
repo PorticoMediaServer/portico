@@ -31,6 +31,9 @@ type Classification struct {
 // Historic RESOLVE/ACK keep their own recipe and THIS-call timings, not the
 // original mutation's timings or accepted-unit count.
 func RestartSample(cell qual.RestartCell, o Observation, join Classification) (qual.RestartSample, error) {
+	if o.Progress != nil {
+		return qual.RestartSample{}, ErrWCComposition
+	}
 	e := o.Evidence
 	if o.CallReturned == nil || join.BeforeCustodyRefusal || join.Fenced == nil || o.Stub || e == nil || o.HoldNS == nil || *o.HoldNS <= 0 || len(o.EvidenceProblems) != 0 ||
 		e.Policy == nil || e.Policy.Engine != "3.53.4" || e.Policy.TempStore != 1 ||
@@ -137,6 +140,9 @@ func Reduce(cell qual.RestartCell, raw []Record, joins map[string]Classification
 		problem("missing declared schedules")
 	}
 	for i, r := range raw {
+		if r.Observation != nil && r.Observation.Progress != nil {
+			problem("progress metadata has no executable owner composition yet")
+		}
 		if r.Version != Version || r.Label != "DIRECTIONAL" || r.Qualification || r.Cell != cell || r.Sequence != uint64(i+1) || r.RunID == "" || r.UnitID != fmt.Sprintf("%s:%d", raw[0].RunID, r.Sequence) || r.RunID != raw[0].RunID {
 			problem("raw run binding/order mismatch")
 		}

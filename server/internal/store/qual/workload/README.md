@@ -49,7 +49,7 @@ streams := []workload.Stream{
         {Name: "observe", Run: workload.WAL(databasePath, walGate)},
     }},
     {Name: "security", Every: 2*time.Second, Pattern: []workload.Step{
-        {Name: "security-STUB", Run: workload.StubCadence("WC FULL unavailable; no security write")},
+        {Name: "security-STUB", Run: workload.StubCadence("WC native Resolve/ACK/fixture composition unavailable; no security write")},
     }},
 }
 err := workload.Run(ctx, config, streams, workload.JSONSink{Output: freshOwnedFile})
@@ -210,3 +210,77 @@ writer action performs no native write: it proves scheduler overlap/join behavio
 not real scan/enrichment coexistence. Native paired execution still requires W's
 reviewed single-database legal issuance/diagnostic composition. No database
 performance is established.
+
+
+## Progress, mixed security and lineage: values stage
+
+`ProgressCapture()`, `ProgressDrain()` and `Security()` are explicit CLOSED
+native execution gates. `WCCadence(name, every, offset, pattern)` freezes a
+bounded serial pattern mixing progress `capture_report`/`drain_piece` with
+`admin_revoke`: intended Foreground/NORMAL and Recovery/FULL respectively.
+Patterns may contain several captures or drains per security tick; they do not
+assume one capture equals one drain. The metadata is not actual policy, a grant,
+a physical call or a FULL commit. Each currently emits an untimed STUB and
+returns `ErrWCComposition`; Run stops new offers and withholds completion.
+No callback, caller flag or SQL input can open the gate.
+
+Progress's component body (#1199) is merged; security targets draft #1201 head
+`8b4db2f580a8fda2936dc5d6112ff3573c8d5873`. This first slice imports no draft
+implementation and enables neither. WC's REAL original classifier, floor-only
+ACK and api_events helper are the next dependency. Then QS will factor ONE
+TEST-only owner fixture with the same executor, full actual Capture registry,
+governor/grant and immutable originals, actual Resolve → ACK → native current
+snapshot before advancing. `wc008NativeTurn`/`testCustody` and SQL floor repair
+cannot substitute for it. W checks authority and WC checks domain; production
+issuer, profile and enable remain separate. No Netcup/native run is authorized
+by these values or by the example.
+
+Sustained-v1's optional `Observation.Progress` carries bounded `ProgressFact`
+values. `SourceID` is stable across capture/coalesced/pending/drained/error/unknown
+records; the original receipt remains in Observation.Requested. Owner scope
+keeps actual playback/command/clock incarnations and occurrence/activity/remember
+generations. Report sequence, accepted sequence and accepted ordinal are
+separate actual native units, never aliases or driver ordinals. Nullable owner,
+physical ID/order, range, counter or linkage facts retain missing reasons; a
+zero is not fabricated for an unavailable observation. Coalesced sources have
+no new physical ID and require an explicit nonphysical reason.
+
+A physical capture must provide its actual accepted `PendingRange`/cursor and
+`AcceptedCaptureID=SourceID`. Logical coalesced sources can only attach to that
+observed parent and remain within its native range; they cannot create, extend
+or replace a pending obligation. Any live binding on the actual claim key
+(playback + command incarnation) blocks replacement even if proof generations
+change. Drain binds its own actual pending counters to that accepted parent,
+not just to the presence of fields. The binding survives split drains until
+native final clear, including when an individual contributing source retires.
+
+Each drain's actual physical call/order, consumed range, native nonnegative
+CreditedMS, pending flag/cursor and bounded source-ID/counter/range edges stay
+separate. FIRST pieces fit one UTC quarter. Edge UNION must cover the actual
+consumed interval; overlapping coalesced sources are not double-counted by
+summed lengths. Pending cursor is actual, and the final NULL clear stays NULL.
+Edges report remaining/drained source dispositions explicitly. Native credited
+milliseconds are never inferred from ranges. Unknown/error/refused/fenced or
+missing edges stop the lineage check and withhold coverage; aggregate counts
+cannot repair a gap or create a passing subset.
+
+The cycle-free `internal/progresslineage` checker stores only diagnostic IDs,
+counters and ranges: 128 pending sources/owner scopes, 128 edges per drain and
+4096 observed capture IDs plus 4096 drain IDs. These are harness memory bounds,
+not product caps or new profile allowances. Emit EVERY raw fact before applying
+the check, including rejected/overflow facts; overflow is incomplete, never a
+silent drop. Linkage Complete certifies these metadata constraints only. While
+native composition is closed, Run and the workload coverage wrapper reject ANY
+progress metadata as native report input, even if a caller claims Complete.
+The shared qual reducer remains unchanged.
+
+`workload.WALSnapshot`/file types are aliases to the ONE unchanged read-only
+implementation in `internal/walobserve`. A W-private test fixture can now import
+it without a workload→writer test import cycle. `walobserve.Observe` uses the
+same GV parser, bounded file/header probes, metadata/token ordering and derived
+observer durations; it issues no grant, admission publication or reset proof.
+Optional `Observation.WALBefore`/`WALAfter` provide advisory slots for the future
+source-bound driver. Until then they stay absent, never fake zero snapshots.
+Owner Evidence/HOLD/commit/error/fence/native facts remain independent. Existing
+original ready/consumer timing is preserved; a read-only security check or
+coalesced capture does not add a FULL commit.
