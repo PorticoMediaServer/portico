@@ -28,6 +28,7 @@ type scanOpening struct {
 	cancel    context.CancelFunc
 	stopOwner func() bool
 	closed    bool
+	driver    *ScanDriver // sole issuer; protected by mu, retained after close
 }
 
 type scanFileBinding struct {

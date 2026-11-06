@@ -120,6 +120,8 @@ func TestScanPreparationCanceledBusyAdmissionCannotRetry(t *testing.T) {
 // Deliberate transport fault fixture only; never a production observer/source
 // or resource proof. Scope/opening/governor ownership are the real W objects.
 type scanObservationFaultTransport struct {
+	page string // optional controlled native wire fixture; empty preserves existing controls
+
 	preflight     chan struct{}
 	release       chan struct{}
 	panicExchange bool
@@ -147,7 +149,11 @@ func (f *scanObservationFaultTransport) NativeInventoryExchange(ctx context.Cont
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return e.Consume(strings.NewReader(`{"Version":1,"RootIdentity":"root","DirectoryIdentity":"directory","DirectoryRevision":"revision","Complete":true,"Entries":[{"Path":"L21lZGlhL2EubWt2","Name":"YS5ta3Y=","ObjectIdentity":"native-object","ChangeToken":"token","Size":1,"ModifiedNS":1}],"Issues":[{"Path":"L21lZGlhL2lzc3Vl","Reason":"dW5yZWFkYWJsZQ=="}]}`))
+	payload := `{"Version":1,"RootIdentity":"root","DirectoryIdentity":"directory","DirectoryRevision":"revision","Complete":true,"Entries":[{"Path":"L21lZGlhL2EubWt2","Name":"YS5ta3Y=","ObjectIdentity":"native-object","ChangeToken":"token","Size":1,"ModifiedNS":1}],"Issues":[{"Path":"L21lZGlhL2lzc3Vl","Reason":"dW5yZWFkYWJsZQ=="}]}`
+	if f.page != "" {
+		payload = f.page
+	}
+	return e.Consume(strings.NewReader(payload))
 }
 
 func scanPreparationFundingFixture(t *testing.T, now func() time.Time, memory ...int64) (*scanOpening, *stateownership.Lock, *effectiveRuntime, governor.Request, *governor.Grant) {
