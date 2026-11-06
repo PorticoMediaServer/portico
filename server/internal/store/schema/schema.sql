@@ -4620,6 +4620,12 @@ CREATE TABLE inventory_run_targets(
 
 CREATE TABLE inventory_runs (
  job_id TEXT PRIMARY KEY REFERENCES jobs(id),
+ original_library_id INTEGER NOT NULL CHECK(original_library_id>0) REFERENCES catalog_libraries(id) ON DELETE NO ACTION ON UPDATE NO ACTION,
+ original_library_key TEXT NOT NULL CHECK(length(original_library_key)>0),
+ original_resolved_root TEXT NOT NULL CHECK(length(CAST(original_resolved_root AS BLOB))>0 AND instr(original_resolved_root,char(0))=0),
+ original_follow_symlinks INTEGER NOT NULL CHECK(original_follow_symlinks IN(0,1)),
+ create_operation_id BLOB NOT NULL CHECK(length(create_operation_id)=16),
+ create_request_digest BLOB NOT NULL CHECK(length(create_request_digest)=32),
  source_id TEXT NOT NULL REFERENCES library_sources(id),
  source_generation INTEGER NOT NULL,
  root_incarnation TEXT NOT NULL,
@@ -14102,12 +14108,12 @@ CREATE TABLE scan_command_receipts(
  command_sequence INTEGER NOT NULL CHECK(command_sequence>0),
  operation_id BLOB NOT NULL CHECK(length(operation_id)=16),
  request_digest BLOB NOT NULL CHECK(length(request_digest)=32),
- command_kind TEXT NOT NULL CHECK(command_kind IN('inventory_accept','inventory_refuse','basic_stage','basic_seal','basic_accept')),
+ command_kind TEXT NOT NULL CHECK(command_kind IN('inventory_create','inventory_claim','inventory_accept','inventory_refuse','basic_stage','basic_seal','basic_accept')),
  accepted_revision INTEGER NOT NULL CHECK(accepted_revision>=0),
  applied_ms INTEGER NOT NULL CHECK(applied_ms>=0),
  source_id TEXT NOT NULL,
  source_incarnation TEXT NOT NULL,
- source_revision TEXT NOT NULL,
+ source_revision TEXT,
  change_id INTEGER,
  next_cursor TEXT NOT NULL,
  next_family INTEGER NOT NULL DEFAULT 0,
@@ -14129,6 +14135,17 @@ CREATE TABLE scan_command_receipts(
  cursor_directory_revision BLOB,
  cursor_expected_payload BLOB,
  cursor_next_payload BLOB,
+ result_lease_owner INTEGER,
+ result_lease_generation INTEGER,
+ result_lease_expires_ms INTEGER,
+ result_acknowledged_sequence INTEGER,
+ result_discovered INTEGER,
+ result_processed INTEGER,
+ result_root_identity TEXT,
+ result_root_revision TEXT,
+ result_root_cursor TEXT,
+ result_root_pages INTEGER,
+ result_root_skipped INTEGER,
  CHECK((command_kind='inventory_refuse')=(refused_relative_path IS NOT NULL)),
  CHECK((refused_relative_path IS NULL)=(refusal_code IS NULL)),
  CHECK((refused_relative_path IS NULL)=(cursor_kind IS NULL)),
@@ -14150,6 +14167,49 @@ CREATE TABLE scan_command_receipts(
  CHECK(typeof("cursor_directory_revision")IN('null','blob')),
  CHECK(typeof("cursor_expected_payload")IN('null','blob')),
  CHECK(typeof("cursor_next_payload")IN('null','blob')),
+ CHECK((command_kind IN('inventory_create','inventory_claim'))=(source_revision IS NULL)),
+ CHECK((command_kind IN('inventory_create','inventory_claim'))=(result_lease_owner IS NOT NULL)),
+ CHECK((result_lease_owner IS NULL)=(result_lease_generation IS NULL)),
+ CHECK((result_lease_owner IS NULL)=(result_lease_expires_ms IS NULL)),
+ CHECK((result_lease_owner IS NULL)=(result_acknowledged_sequence IS NULL)),
+ CHECK((result_lease_owner IS NULL)=(result_discovered IS NULL)),
+ CHECK((result_lease_owner IS NULL)=(result_processed IS NULL)),
+ CHECK((result_lease_owner IS NULL)=(result_root_identity IS NULL)),
+ CHECK((result_lease_owner IS NULL)=(result_root_revision IS NULL)),
+ CHECK((result_lease_owner IS NULL)=(result_root_cursor IS NULL)),
+ CHECK((result_lease_owner IS NULL)=(result_root_pages IS NULL)),
+ CHECK((result_lease_owner IS NULL)=(result_root_skipped IS NULL)),
+ CHECK(typeof(result_lease_owner) IN('null','integer')),
+ CHECK(result_lease_owner IS NULL OR (result_lease_owner>=0)),
+ CHECK(typeof(result_lease_generation) IN('null','integer')),
+ CHECK(result_lease_generation IS NULL OR (result_lease_generation>=0)),
+ CHECK(typeof(result_lease_expires_ms) IN('null','integer')),
+ CHECK(result_lease_expires_ms IS NULL OR (result_lease_expires_ms>=0)),
+ CHECK(typeof(result_acknowledged_sequence) IN('null','integer')),
+ CHECK(result_acknowledged_sequence IS NULL OR (result_acknowledged_sequence>=0 AND result_acknowledged_sequence<command_sequence)),
+ CHECK(typeof(result_discovered) IN('null','integer')),
+ CHECK(result_discovered IS NULL OR (result_discovered>=0)),
+ CHECK(typeof(result_processed) IN('null','integer')),
+ CHECK(result_processed IS NULL OR (result_processed>=0)),
+ CHECK(typeof(result_root_identity) IN('null','text')),
+ CHECK(result_root_identity IS NULL OR (length(CAST(result_root_identity AS BLOB))>0)),
+ CHECK(typeof(result_root_revision) IN('null','text')),
+ CHECK(result_root_revision IS NULL OR (length(CAST(result_root_revision AS BLOB))>0)),
+ CHECK(typeof(result_root_cursor) IN('null','text')),
+ CHECK(typeof(result_root_pages) IN('null','integer')),
+ CHECK(result_root_pages IS NULL OR (result_root_pages>=0)),
+ CHECK(typeof(result_root_skipped) IN('null','integer')),
+ CHECK(result_root_skipped IS NULL OR (result_root_skipped>=0 AND result_root_skipped<=result_root_pages)),
+ CHECK(command_kind NOT IN('inventory_create','inventory_claim') OR
+   (accepted_revision>0 AND result_count=0 AND change_id IS NULL AND source_revision IS NULL AND next_cursor='' AND
+    next_family=0 AND next_copy_phase=0 AND next_copy_id=0 AND next_copy_aux=0 AND
+    next_copy_key='' AND next_copy_key2='' AND next_copy_key3='' AND after_entity=0 AND expected_epoch=0)),
+ CHECK(command_kind<>'inventory_create' OR
+   (command_sequence=1 AND accepted_revision=1 AND result_acknowledged_sequence=0 AND
+    result_lease_owner=0 AND result_lease_generation=0 AND result_lease_expires_ms=0 AND
+    result_discovered=0 AND result_processed=0 AND result_root_cursor='' AND result_root_pages=0 AND result_root_skipped=0)),
+ CHECK(command_kind<>'inventory_claim' OR
+   (result_lease_owner>0 AND result_lease_generation>0 AND result_lease_expires_ms>applied_ms)),
  PRIMARY KEY(run_id,command_incarnation,command_sequence),
  UNIQUE(operation_id),
  FOREIGN KEY(run_id,command_incarnation) REFERENCES inventory_runs(job_id,command_incarnation),
@@ -14700,3 +14760,7 @@ CREATE TABLE access_channel_rules(
  CHECK(typeof(ordinal)='integer'),
  CHECK(typeof(channel_id)='text')
 ) WITHOUT ROWID;
+
+-- CHANGE-010a proposal only: original-scope retention and stable create identity.
+CREATE INDEX inventory_runs_original_library ON inventory_runs(original_library_id,job_id);
+CREATE UNIQUE INDEX inventory_runs_create_operation ON inventory_runs(create_operation_id);
