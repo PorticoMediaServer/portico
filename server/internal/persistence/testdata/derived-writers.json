@@ -13007,7 +13007,7 @@
       ]
     },
     "internal/storage/supervisor.go": {
-      "sha256": "86a892e78602e87d2c4950bbb7937d5f39da355603f797b5736c4ff69ad693f1",
+      "sha256": "27a67cf90eec213ff9cd9e90526b5218643ae2819f5f0cc39a0e20de0f22c4c7",
       "effects": [
         {
           "table": "*",
