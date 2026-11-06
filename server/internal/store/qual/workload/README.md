@@ -59,6 +59,27 @@ whole-prefix forecast, native policy and physical-return protocol; no SQL or
 forced reset enters this package. WAL observes through GV's read-only parser,
 retaining allocation, active prefix, debt, salts/frames, before/after gate tokens,
 reset counter and last event. It NEVER publishes samples or changes admission.
+Its result is the named `*WALSnapshot`: timestamped before/after tokens, GV
+parser interval and nullable state, metadata-read interval, and bounded file
+probes on either side of that parser call. Each file probe retains observed
+length, optional OS device/inode, at most32 raw header bytes (including a short
+prefix), read/close errors and its own monotonic duration. Zero length/token is
+an observed value; an unopened file or failed parser has null data. `ReadNS`,
+`MetadataNS` and file `ElapsedNS` are derived before JSON, and are observer cost,
+never writer HOLD or header-sync latency. No native write/xSync counter is
+available through this read-only seam.
+
+The final token is read AFTER reset/event getters. `TokensEqual`, `SameFile`
+and `HeaderEqual` describe only the probes; none certifies an atomic sample,
+same-database authority, whole-run coverage, absence of a reset, or a reset.
+In particular, GV `Publish` can update metadata without advancing its token,
+and a replacement can occur between path reads. `LastRestart` with sequence0
+or zero event time is a raw empty getter result, not a timestamped event. QL
+must bind actual physical attempts and owned file lifetime before classifying.
+The filename is a declared observation input, not W's opening/file capability.
+Header/file probe errors remain raw gaps even when GV's separate parser call
+succeeds; the parser's error still stops the action after emission. Consumers
+must not turn optional-probe gaps into complete cadence/bound proof.
 The observation is advisory and can race; QL must join/deduplicate events and
 retain unknown/stale states. CP completion/allocation/token changes do not prove
 a reset. Creation is not reset. Only owning composition may attest freshness.

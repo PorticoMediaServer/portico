@@ -304,16 +304,10 @@ func WAL(path string, gate *governor.WALGate) Action {
 			return preparationError(emit, err)
 		}
 		start := time.Now()
-		token := gate.Observation()
-		state, err := governor.ReadWAL(path)
+		result, err := observeWAL(path, gate, governor.ReadWAL, time.Now)
 		end := time.Now()
 		o := observedCall("WAL", start, end)
-		o.Result = struct {
-			TokenBefore, TokenAfter uint64
-			State                   governor.WALState
-			ResetCount              uint64
-			LastRestart             governor.WALRestartObservation
-		}{token, gate.Observation(), state, gate.ResetCount(), gate.LastRestartObservation()}
+		o.Result = result
 		if err != nil {
 			o.CallError = err.Error()
 		}
