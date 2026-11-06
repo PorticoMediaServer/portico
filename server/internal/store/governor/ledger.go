@@ -1,6 +1,7 @@
 package governor
 
 import (
+	"context"
 	"errors"
 	"math"
 	"slices"
@@ -28,6 +29,7 @@ var (
 // resource capacities, not a service/fairness schedule or hardware qualification.
 // Now must be a bounded monotonic clock, safe for concurrent calls.
 type Config struct {
+	Foreground *ForegroundProfile // optional trusted whole-server LIVE admission profile
 	Partitions [4]Amounts
 	// MaxGrantsPerClass bounds retained metadata independently for each class,
 	// so background descriptors cannot exhaust protected classes.
@@ -41,16 +43,19 @@ type Config struct {
 type holding struct {
 	grant      *Grant
 	request    Request
+	foreground *foregroundHolding
 	checkpoint bool // private native checkpoint turn; never selected by workers
 }
 
 type ledger struct {
-	mu       sync.Mutex
-	config   Config
-	used     [4]Amounts
-	counts   [4]int
-	live     map[uint64]*holding
-	sequence uint64
+	foreground     foregroundLedger
+	foregroundWait func(context.Context, time.Time, <-chan struct{})
+	mu             sync.Mutex
+	config         Config
+	used           [4]Amounts
+	counts         [4]int
+	live           map[uint64]*holding
+	sequence       uint64
 	// Low bit is static mode; remaining bits are the epoch. Fencing does not
 	// acquire the admission mutex and never clears physical debt.
 	state atomic.Uint64
@@ -75,7 +80,13 @@ func New(c Config) (Governor, *Authority, error) {
 			total[k] += n
 		}
 	}
-	g := &ledger{config: c, live: make(map[uint64]*holding, 4*c.MaxGrantsPerClass)}
+	foreground, err := configureForeground(c)
+	if err != nil {
+		return nil, nil, err
+	}
+	c.Foreground = nil // do not retain a mutable caller-owned profile pointer
+	g := &ledger{foreground: foreground, config: c, live: make(map[uint64]*holding, 4*c.MaxGrantsPerClass)}
+	g.foregroundWait = g.waitForeground
 	g.state.Store(2)
 	return g, &Authority{g}, nil
 }
@@ -87,9 +98,16 @@ func (g *ledger) Try(r Request) Decision { return g.try(r, false, nil) }
 func (a *Authority) tryCheckpoint(r Request) Decision { return a.ledger.try(r, true, nil) }
 
 func (g *ledger) try(r Request, checkpoint bool, ticket *checkpointTicket) Decision {
+	return g.tryMode(r, checkpoint, ticket, nil)
+}
+func (g *ledger) tryMode(r Request, checkpoint bool, ticket *checkpointTicket, foreground *foregroundHolding) Decision {
 	now := g.config.Now()
 	refuse := func(code RefusalCode) Decision {
-		return Decision{Refusal: &Refusal{Code: code, RetryAt: now.Add(100 * time.Millisecond)}}
+		retryAt := now.Add(100 * time.Millisecond)
+		if foreground != nil {
+			retryAt = minTime(retryAt, foreground.waitUntil)
+		}
+		return Decision{Refusal: &Refusal{Code: code, RetryAt: retryAt}}
 	}
 	if !validRequest(r) || (r.RestartRisk != (WALRestartRisk{}) && (!r.Writer || g.config.WAL == nil)) {
 		return refuse(Invalid)
@@ -147,6 +165,19 @@ func (g *ledger) try(r Request, checkpoint bool, ticket *checkpointTicket) Decis
 			return refuse(code)
 		}
 	}
+	if foreground != nil {
+		if !now.Before(foreground.waitUntil) {
+			return refuse(Deadline)
+		}
+		g.promoteForeground(now)
+		foreground.waiting = g.foreground.live == g.foreground.capacity
+		if foreground.waiting && g.foreground.waiters == g.foreground.profile.MaxWaiters {
+			return refuse(Capacity)
+		}
+		if foreground.waiting {
+			foreground.wake = make(chan struct{})
+		}
+	}
 	// Only admitted, bounded metadata is copied. Work buffers are allocated by
 	// the driver after Check, under the granted byte custody.
 	r.Key.ID = strings.Clone(r.Key.ID)
@@ -157,7 +188,14 @@ func (g *ledger) try(r Request, checkpoint bool, ticket *checkpointTicket) Decis
 	r.Footprint = slices.Clone(r.Footprint)
 	g.sequence++
 	p := &Grant{id: g.sequence, epoch: state, issuer: g}
-	g.live[p.id] = &holding{grant: p, request: r, checkpoint: checkpoint}
+	g.live[p.id] = &holding{grant: p, request: r, checkpoint: checkpoint, foreground: foreground}
+	if foreground != nil {
+		if foreground.waiting {
+			g.foreground.waiters++
+		} else {
+			g.foreground.live++
+		}
+	}
 	g.counts[r.Class]++
 	for k, n := range r.Need {
 		g.used[r.Class][k] += n
@@ -202,6 +240,9 @@ func (g *ledger) Cancel(p *Grant) {
 // priority string. Cancellation/fencing during a running operation revokes new
 // operations; it cannot preempt an fsync or refund that operation's custody.
 func (a *Authority) Check(p *Grant, expected Request) error {
+	return a.check(p, expected, time.Time{})
+}
+func (a *Authority) check(p *Grant, expected Request, readyDeadline time.Time) error {
 	g := a.ledger
 	if !g.mu.TryLock() {
 		return ErrBusy
@@ -209,7 +250,8 @@ func (a *Authority) Check(p *Grant, expected Request) error {
 	defer g.mu.Unlock()
 	h := g.find(p)
 	if h == nil || p.cancelled.Load() || p.epoch != g.state.Load() ||
-		!h.request.Deadline.After(g.config.Now()) || !sameRequest(h.request, expected) {
+		!h.request.Deadline.After(g.config.Now()) || !sameRequest(h.request, expected) ||
+		(!readyDeadline.IsZero() && (h.foreground == nil || h.foreground.waiting || !h.foreground.readyDeadline.Equal(readyDeadline))) {
 		return ErrGrant
 	}
 	return nil
@@ -253,6 +295,14 @@ func (a *Authority) Retired(p *Grant) error {
 	}
 	g.counts[h.request.Class]--
 	delete(g.live, p.id)
+	if h.foreground != nil {
+		if h.foreground.waiting {
+			g.foreground.waiters--
+		} else {
+			g.foreground.live--
+		}
+		g.promoteForeground(g.config.Now())
+	}
 	return nil
 }
 
