@@ -125,6 +125,9 @@ func TestGovernedTurnExactCompositionPurposeAndForecast(t *testing.T) {
 	if _, err := bindGovernedTurn(SecurityAccept, testRecipe().limit, g, a, wal, d.Grant, r); !errors.Is(err, ErrInvalid) {
 		t.Fatal("scan grant acquired security class", err)
 	}
+	if _, err := bindGovernedTurn(BasicAccept, testRecipe().limit, g, a, wal, d.Grant, r); !errors.Is(err, ErrInvalid) {
+		t.Fatal("same-class grant borrowed by another command purpose", err)
+	}
 	for _, change := range []func(*Work){
 		func(v *Work) { v.Rows++ }, func(v *Work) { v.Pages++ }, func(v *Work) { v.VMOps++ }, func(v *Work) { v.WALBytes++ }, func(v *Work) { v.Hold++ },
 		func(v *Work) { v.Rows = uint64(math.MaxUint32) + 1 }, func(v *Work) { v.Pages = uint64(math.MaxUint32) + 1 }, func(v *Work) { v.WALBytes = uint64(math.MaxInt64) + 1 },
@@ -150,6 +153,32 @@ func TestGovernedTurnExactCompositionPurposeAndForecast(t *testing.T) {
 	}
 	if a.Usage()[governor.ScanMinimum][governor.MemoryBytes] == 0 {
 		t.Fatal("fence refunded physical holding")
+	}
+}
+
+func TestCommandClassesAreClosedAndExplicit(t *testing.T) {
+	for _, c := range []struct {
+		id    CommandID
+		class governor.Class
+	}{
+		{InventoryAccept, governor.ScanMinimum}, {BasicAccept, governor.ScanMinimum},
+		{ProgressAccept, governor.Foreground}, {SecurityAccept, governor.Recovery},
+		{EvidenceStage, governor.Background}, {CreditStage, governor.Background},
+		{PeopleStage, governor.Background}, {EnrichAccept, governor.Background},
+		{SearchFragmentStage, governor.Background}, {SearchHeadPublish, governor.Background},
+		{SearchFragmentReclaim, governor.Background}, {SearchImageReclaim, governor.Background},
+		{SearchGenerationAdvance, governor.Background}, {SearchGenerationFlip, governor.Background},
+		{PeopleHeadPublish, governor.Background}, {SearchImageStage, governor.Background},
+		{SearchSeal, governor.Background}, {EffectiveStage, governor.Background},
+	} {
+		if got, err := commandClass(c.id); err != nil || got != c.class {
+			t.Fatal(c.id, got, err)
+		}
+	}
+	for _, id := range []CommandID{0, 19, 255} {
+		if _, err := commandClass(id); !errors.Is(err, ErrInvalid) {
+			t.Fatal("unknown purpose acquired a class", id, err)
+		}
 	}
 }
 

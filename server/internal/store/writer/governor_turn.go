@@ -23,7 +23,7 @@ func commandClass(id CommandID) (governor.Class, error) {
 		return governor.Recovery, nil
 	case EvidenceStage, CreditStage, PeopleStage, EnrichAccept, SearchFragmentStage,
 		SearchHeadPublish, SearchFragmentReclaim, SearchImageReclaim, SearchGenerationAdvance,
-		SearchGenerationFlip, PeopleHeadPublish, SearchImageStage, SearchSeal:
+		SearchGenerationFlip, PeopleHeadPublish, SearchImageStage, SearchSeal, EffectiveStage:
 		return governor.Background, nil
 	default:
 		return 0, invalid("command_class")
@@ -53,7 +53,7 @@ func bindGovernedTurn(id CommandID, limit Work, g governor.Governor, a *governor
 	}
 	if limit.Rows == 0 || limit.Rows > math.MaxUint32 || limit.Pages == 0 || limit.Pages > math.MaxUint32 ||
 		limit.VMOps == 0 || limit.WALBytes == 0 || limit.WALBytes > math.MaxInt64 || limit.Hold <= 0 || limit.Hold > MaxCommandHold ||
-		!expected.Writer || expected.Class != class || expected.MaxHold != limit.Hold ||
+		!expected.Writer || expected.Key.Domain != uint16(id) || expected.Class != class || expected.MaxHold != limit.Hold ||
 		expected.Budget != (governor.UnitBudget{RawRows: uint32(limit.Rows), VMOps: limit.VMOps, Pages: uint32(limit.Pages)}) ||
 		expected.Need[governor.WALBytes] != int64(limit.WALBytes) {
 		return nil, invalid("command_forecast")
