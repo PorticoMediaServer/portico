@@ -56,6 +56,13 @@ func PrepareTMDBMovie(policy TMDBPolicy, observation TMDBMovieObservation, body 
 	if int64(len(body)) > limits.ResponseBytes {
 		return TMDBMovieDocument{}, &ResponseSizeError{LimitBytes: limits.ResponseBytes, ObservedBytes: int64(len(body))}
 	}
+	// Check borrowed native control keys before copying the response or any
+	// observation strings. Complete retained occurrences are checked after the
+	// bounded count pass, before allocating decoded candidates/selected copies.
+	h := writer.EvidenceHeaderInput{ID: observation.EvidenceID, SubjectID: observation.SubjectID, ParserVersion: TMDBMovieParserVersion, Provider: "tmdb", SubjectKind: "movie", ProviderID: observation.ProviderID, Language: observation.Language, Region: observation.Region, RequestShape: TMDBMovieRequestShape, ObservedAt: observation.ObservedAt, ETag: observation.ETag, LastModified: observation.LastModified}
+	if _, err := writer.CheckEvidenceStageControls(h, 0, 0); err != nil {
+		return TMDBMovieDocument{}, errors.Join(ErrTMDBMovie, err)
+	}
 	frozen := make([]byte, len(body))
 	copy(frozen, body)
 	if !validTMDBJSON(frozen) {
@@ -72,12 +79,19 @@ func PrepareTMDBMovie(policy TMDBPolicy, observation TMDBMovieObservation, body 
 	if wire.id <= 0 || strconv.FormatInt(wire.id, 10) != observation.ProviderID || strings.TrimSpace(wire.title) == "" || (wire.runtime != nil && (*wire.runtime < 0 || *wire.runtime > math.MaxInt64/60000)) {
 		return TMDBMovieDocument{}, ErrTMDBMovie
 	}
+	// W owns both caps and selection. Only the number of retained key
+	// occurrences is forecast here; no credit or ranking is selected by EN.
+	if _, err := writer.CheckEvidenceStageControls(h, min(count.cast, writer.MaxCastCredits), min(count.crew, writer.MaxCrewCredits)); err != nil {
+		return TMDBMovieDocument{}, errors.Join(ErrTMDBMovie, err)
+	}
 	candidates := tmdbCreditBuffer{rows: make([]ScreenCredit, count.cast+count.crew)}
 	selected, err := candidates.prepare(ProviderRef{"tmdb", Movie, observation.ProviderID}, frozen, count)
 	if err != nil {
 		return TMDBMovieDocument{}, errors.Join(ErrTMDBMovie, err)
 	}
-	h := writer.EvidenceHeaderInput{ID: observation.EvidenceID, SubjectID: observation.SubjectID, ParserVersion: TMDBMovieParserVersion, Provider: "tmdb", SubjectKind: "movie", ProviderID: observation.ProviderID, Language: observation.Language, Region: observation.Region, RequestShape: TMDBMovieRequestShape, ObservationDigest: sha256.Sum256(frozen), ObservedAt: observation.ObservedAt, SourceURL: safeURL, ETag: observation.ETag, LastModified: observation.LastModified, Title: wire.title, OriginalTitle: wire.original, Overview: wire.overview, Tagline: wire.tagline, ReleaseDate: wire.release}
+	h.ObservationDigest = sha256.Sum256(frozen)
+	h.SourceURL = safeURL
+	h.Title, h.OriginalTitle, h.Overview, h.Tagline, h.ReleaseDate = wire.title, wire.original, wire.overview, wire.tagline, wire.release
 	if wire.release != "" {
 		date, err := time.Parse("2006-01-02", wire.release)
 		if err != nil {
