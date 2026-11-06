@@ -19,7 +19,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 )
 
-func policyKeysetFixture(t *testing.T, analyzed bool) (*sql.Conn, plan.Fixture, plan.IndexPolicy) {
+func policyKeysetFixture(t *testing.T, analyzed bool, extraSeed ...string) (*sql.Conn, plan.Fixture, plan.IndexPolicy) {
 	t.Helper()
 	writer, _, f, _ := fixture(t)
 	if _, err := writer.ExecContext(t.Context(), "DROP TABLE items"); err != nil {
@@ -33,6 +33,7 @@ func policyKeysetFixture(t *testing.T, analyzed bool) (*sql.Conn, plan.Fixture, 
 		`INSERT INTO access_limits(account_id) VALUES('a')`,
 		`INSERT INTO access_denied_labels(account_id,ordinal,label) VALUES('a',0,'alpha'),('a',1,'beta')`,
 	}
+	seed = append(seed, extraSeed...)
 	hash := sha256.New()
 	for _, q := range seed {
 		if _, err := writer.ExecContext(t.Context(), q); err != nil {
@@ -151,7 +152,12 @@ func TestPlanAutoindexPolicyChildKeysetGolden(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join("testdata", "autoindex-keysets.json.gz")
+	checkAutoindexKeysetGolden(t, "autoindex-keysets.json.gz", data)
+}
+
+func checkAutoindexKeysetGolden(t *testing.T, name string, data []byte) {
+	t.Helper()
+	path := filepath.Join("testdata", name)
 	if *recordAutoindexPlans {
 		var buf bytes.Buffer
 		w := gzip.NewWriter(&buf)
@@ -398,4 +404,110 @@ func TestPlanAutoindexLimitBindingRefusesUnboundedExecution(t *testing.T) {
 			t.Fatal("non-positive/overflow literal qualified", literal, err)
 		}
 	}
+}
+
+func TestPlanAutoindexInclusiveChannelKeysetsGolden(t *testing.T) {
+	type snapshot struct {
+		Fixture                    plan.Fixture
+		Connection                 sqliteconn.Settings
+		Schema, Policy, Statistics string
+		Manifest                   []stmt.Entry
+		Plans                      []plan.StatementPlan
+	}
+	var snapshots []snapshot
+	for _, analyzed := range []bool{false, true} {
+		conn, f, policy := policyKeysetFixture(t, analyzed,
+			`INSERT INTO access_channel_rules(account_id,ordinal,channel_id) VALUES('a',0,'zero'),('a',2,'two')`)
+		f.Implementations = "actual CHANGE-007 channel-rule PK; one account/two channels; fixed Reader; inclusive endpoints and one-row keyset SQL facts only"
+		var defs []stmt.Definition
+		for _, c := range []struct {
+			id, operator, order, native string
+			endpoint                    int64
+		}{
+			{"ge", ">=", "", ">", 0},
+			{"le", "<=", " DESC", "<", 2},
+		} {
+			defs = append(defs, stmt.Definition{ID: stmt.ID("auto.policy.channel_" + c.id), Owner: "plan-keyset-regression", CallSites: []string{"autoindex_keysets_test.go"}, Kind: stmt.Read,
+				SQL:     "SELECT c.ordinal,c.channel_id FROM access_channel_rules AS c INDEXED BY sqlite_autoindex_access_channel_rules_1 WHERE c.account_id=? AND c.ordinal" + c.operator + "? ORDER BY c.ordinal" + c.order + " LIMIT 1",
+				Params:  []stmt.Param{{Name: "account", Type: stmt.Text}, {Name: "endpoint", Type: stmt.Integer}},
+				Cohorts: []stmt.Cohort{{Name: "present", Bindings: []any{"a", c.endpoint}}, {Name: "missing", Bindings: []any{"absent", c.endpoint}}},
+				Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_access_channel_rules_1"}, Seeks: []string{"account_id=? AND ordinal" + c.native + "?"},
+					AutoIndexes: []stmt.AutoIndexBinding{{Table: "access_channel_rules", Name: "sqlite_autoindex_access_channel_rules_1", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "account_id", Collation: "BINARY"}, {Name: "ordinal", Collation: "BINARY"}}}}}})
+		}
+		catalogue, err := stmt.Describe(defs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		g, err := plan.Capture(t.Context(), conn, catalogue, f, policy)
+		if err != nil {
+			t.Fatal(err)
+		}
+		registry, err := stmt.New(defs, g.Receipt())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, d := range defs {
+			s, err := registry.Lookup(d.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, cohort := range d.Cohorts {
+				bound, err := s.Bind(cohort.Bindings...)
+				if err != nil {
+					t.Fatal(err)
+				}
+				rows, err := bound.QueryContext(t.Context(), conn)
+				if err != nil {
+					t.Fatal(err)
+				}
+				count := 0
+				for rows.Next() {
+					var ordinal int64
+					var channel string
+					if err := rows.Scan(&ordinal, &channel); err != nil {
+						rows.Close()
+						t.Fatal(err)
+					}
+					if ordinal != cohort.Bindings[1].(int64) {
+						rows.Close()
+						t.Fatal("inclusive SQL lost its endpoint", d.ID, ordinal, cohort.Bindings[1])
+					}
+					count++
+				}
+				if err := rows.Err(); err != nil {
+					rows.Close()
+					t.Fatal(err)
+				}
+				if err := rows.Close(); err != nil {
+					t.Fatal(err)
+				}
+				want := 1
+				if cohort.Name == "missing" {
+					want = 0
+				}
+				if count != want {
+					t.Fatal("inclusive page cardinality", d.ID, cohort.Name, count, want)
+				}
+			}
+		}
+		bad := registry.Manifest()[0].Definition
+		bad.SQL = strings.Replace(bad.SQL, " ORDER BY", " AND c.ordinal<=? ORDER BY", 1)
+		bad.Params = append(bad.Params, stmt.Param{Name: "other_endpoint", Type: stmt.Integer})
+		for i := range bad.Cohorts {
+			bad.Cohorts[i].Bindings = append(bad.Cohorts[i].Bindings, int64(2))
+		}
+		catalogue, err = stmt.Describe([]stmt.Definition{bad})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if denied, err := plan.Capture(t.Context(), conn, catalogue, f, policy); err == nil || denied.Receipt() != nil || !strings.Contains(err.Error(), "leading key prefix") {
+			t.Fatal("two inclusive ranges qualified or failed before the range guard", err)
+		}
+		snapshots = append(snapshots, snapshot{f, g.Environment.Connection, g.Environment.SchemaSHA256, g.Environment.IndexPolicySHA256, g.Environment.StatisticsSHA256, g.Manifest, g.Plans})
+	}
+	data, err := json.MarshalIndent(snapshots, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkAutoindexKeysetGolden(t, "autoindex-inclusive.json.gz", data)
 }
