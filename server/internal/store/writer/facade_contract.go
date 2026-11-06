@@ -32,7 +32,10 @@ type ScanDisclosure struct {
 	issuer *Writer
 	scope  *scanScope
 }
-type PublisherDisclosure struct{ issuer *Writer }
+type PublisherDisclosure struct {
+	issuer *Writer
+	scope  *publisherScope
+}
 type EnrichmentDisclosure struct {
 	issuer *Writer
 	scope  *enrichmentScope
@@ -193,16 +196,43 @@ func (w *Writer) AckScan(ctx context.Context, disclosure *ScanDisclosure, reques
 
 // StageSearchImage allocates a hidden image/seal/held-reclaimer in the publisher
 // owner's transaction/receipt. It creates no FTS/head/availability publication.
-func (*Writer) StageSearchImage(context.Context, *PublisherDisclosure, SearchImageStageCommand) (SearchImageStageResult, error) {
-	return SearchImageStageResult{}, ErrNotImplemented
+func (w *Writer) StageSearchImage(ctx context.Context, disclosure *PublisherDisclosure, input SearchImageStageCommand) (released SearchImageStageResult, releaseErr error) {
+	defer func() { released, releaseErr = finishCommand(ctx, ctx, released, releaseErr) }()
+	if w == nil || w.effective == nil {
+		return SearchImageStageResult{}, ErrNotImplemented
+	}
+	invocation, err := preparePublisherInvocation(ctx, w, disclosure, publisherStageImage, PublisherReceiptRequest{}, input)
+	if err != nil {
+		return SearchImageStageResult{}, err
+	}
+	out, _, err := w.effective.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, false, nil, &invocation)
+	return out.publisher, err
 }
 
-func (*Writer) ResolveSearchImage(context.Context, *PublisherDisclosure, PublisherReceiptRequest) (SearchImageStageResult, error) {
-	return SearchImageStageResult{}, ErrNotImplemented
+func (w *Writer) ResolveSearchImage(ctx context.Context, disclosure *PublisherDisclosure, request PublisherReceiptRequest) (released SearchImageStageResult, releaseErr error) {
+	defer func() { released, releaseErr = finishCommand(ctx, ctx, released, releaseErr) }()
+	if w == nil || w.effective == nil {
+		return SearchImageStageResult{}, ErrNotImplemented
+	}
+	invocation, err := preparePublisherInvocation(ctx, w, disclosure, publisherResolveImage, request, nil)
+	if err != nil {
+		return SearchImageStageResult{}, err
+	}
+	out, _, err := w.effective.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, false, nil, &invocation)
+	return out.publisher, err
 }
 
-func (*Writer) AckSearchImage(context.Context, *PublisherDisclosure, PublisherReceiptRequest) (AckResult, error) {
-	return AckResult{}, ErrNotImplemented
+func (w *Writer) AckSearchImage(ctx context.Context, disclosure *PublisherDisclosure, request PublisherReceiptRequest) (released AckResult, releaseErr error) {
+	defer func() { released, releaseErr = finishCommand(ctx, ctx, released, releaseErr) }()
+	if w == nil || w.effective == nil {
+		return AckResult{}, ErrNotImplemented
+	}
+	invocation, err := preparePublisherInvocation(ctx, w, disclosure, publisherAckImage, request, nil)
+	if err != nil {
+		return AckResult{}, err
+	}
+	_, ack, err := w.effective.runCommand(ctx, w, nil, EnrichmentReceiptRequest{}, nil, true, nil, &invocation)
+	return ack, err
 }
 
 // StageEffective is ONLY hidden EffectiveStage BEGIN, not EvidenceStage,
