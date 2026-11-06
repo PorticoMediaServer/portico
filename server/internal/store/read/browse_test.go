@@ -54,10 +54,10 @@ func composeBrowseFixture(t *testing.T, f *browseFixture, definitions []stmt.Def
 	return composeReadFixture(t, f, definitions, gc, true)
 }
 
-func composeReadFixture(t *testing.T, f *browseFixture, definitions []stmt.Definition, gc governor.Config, reserveOutput bool) *browseFixture {
+func composeReadFixture(t *testing.T, f *browseFixture, definitions []stmt.Definition, gc governor.Config, reserveOutput bool, fixtureHashes ...string) *browseFixture {
 	t.Helper()
 
-	golden := captureBrowse(t, f, definitions, plan.Unanalyzed)
+	golden := captureBrowse(t, f, definitions, plan.Unanalyzed, fixtureHashes...)
 	registry, err := stmt.New(definitions, golden.Receipt())
 	if err != nil {
 		t.Fatal(err)
