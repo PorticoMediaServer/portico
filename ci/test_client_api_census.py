@@ -219,6 +219,35 @@ async fn load<'a>(client: {binding}, url: &str) {{
         for invalid in [source[:-1],source.replace('(error: Exception)','error'),source.replace('catch (error: Exception) { null }','finally {')]:
             self.assertIsNone(native_sites('apps/native/Relay.kt',invalid)[0]['constructionHash'])
 
+    def test_kotlin_try_expression_identity_ignores_complete_sibling_prefixes(self):
+        import hashlib
+        source='fun relay(url: HttpUrl) = try { Request.Builder().url(url).build() } catch (error: Exception) { null }'
+        expected=hashlib.sha256(source.encode()).hexdigest()
+        for sibling in ['@Suppress("unused")\n internal fun next() = 1',
+                        'private const val REVIEW_VERSION = 1',
+                        '@kotlin.Suppress(names = arrayOf("unused", nested("x")))\n private inline fun next() = 1',
+                        '@get:[First Second(nested(arrayOf("x")))]\n lateinit var next: String',
+                        '@`Suppress`("unused")\n internal fun next() = 1',
+                        '@Marker\n public abstract class Next',
+                        'data class Next(val value: Int)', 'expect fun next(): Int',
+                        '@Marker\n actual fun next() = 1']:
+            with self.subTest(sibling=sibling):
+                self.assertEqual(native_sites('apps/native/Relay.kt',source+'\n'+sibling)[0]['constructionHash'],expected)
+        for tail in ['@Suppress("unfinished"\n internal fun next() = 1',
+                     '@get:[First Second\n val next = 1', '@Marker\n rewrite(path)',
+                     '@Marker\n ?: fallback()', '\n inline fun() = other']:
+            with self.subTest(tail=tail):
+                self.assertIsNone(native_sites('apps/native/Relay.kt',source+'\n'+tail)[0]['constructionHash'])
+        # The exact two review reproductions on the actual owner leave every
+        # wireRequest byte and its complete construction identity unchanged.
+        path='apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt'
+        actual=(ROOT/path).read_text();original=native_sites(path,actual)
+        for prefix in ['@Suppress("unused")\n    ', 'private const val REVIEW_VERSION = 1\n    ']:
+            changed=actual.replace('internal fun bulkMetadataPreview',prefix+'internal fun bulkMetadataPreview')
+            self.assertNotEqual(actual,changed)
+            self.assertEqual([{k:v for k,v in s.items() if k!='line'} for s in native_sites(path,changed)],
+                             [{k:v for k,v in s.items() if k!='line'} for s in original])
+
     def test_transport_rehash_budget_is_shared_with_retained_and_split_pins(self):
         def approval(guard,**extra):return dict(category='platform-transport',guardHash=guard,occurrences=1,**extra)
         old={'old':approval('a')}

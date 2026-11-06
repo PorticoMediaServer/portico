@@ -116,6 +116,10 @@ Kotlin standalone `= try { ... } catch (...) { ... } finally { ... }`
 expressions bind the signature and every catch/finally clause. Chained, Elvis,
 cast or unknown infix continuations remain unbound until their complete
 expression is supported; the detector never pins a partial try-expression.
+Following members are recognized through balanced annotations, use-site groups
+and [Kotlin declaration modifiers](https://kotlinlang.org/spec/syntax-and-grammar.html).
+Those prefixes stay outside the preceding function span. Incomplete annotation
+groups and anonymous-function infix operands remain unbound.
 
 The initial slice inventory is in [client-api-slices.md](client-api-slices.md).
 Each slice migrates every surface for its domain, keeps the wire and behavior,
