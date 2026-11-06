@@ -1,6 +1,9 @@
 package read
 
-import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+import (
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"strconv"
+)
 
 // These inert definitions are available only to explicit harness composition.
 func foregroundDefinitions() []stmt.Definition {
@@ -44,10 +47,32 @@ WHERE e.id=? AND e.library_id=? AND e.kind=?`, []stmt.Param{s("profile"), i("ite
 	add("children", "SELECT "+entity+`,e.kind,k.container FROM catalog_entities AS e INDEXED BY catalog_entities_parent
 CROSS JOIN catalog_kinds AS k ON k.id=e.kind WHERE parent_id IS NOT NULL AND e.parent_id=? AND e.id>? ORDER BY e.id LIMIT ?`, []stmt.Param{i("parent"), i("after"), i("limit")}, []any{int64(1), int64(0), int64(64)}, stmt.Plan{Hot: true, Indexes: []string{"catalog_entities_parent"}, PrimaryKeys: []string{"k"}, Seeks: []string{"parent_id=? AND id>?"}})
 	add("images", `SELECT role,choice,digest,provider,origin,revision FROM artwork_selections WHERE kind='entity' AND entity_id=? ORDER BY role,choice LIMIT ?`, []stmt.Param{i("item"), i("limit")}, []any{int64(1), int64(129)}, stmt.Plan{Hot: true, PrimaryKeys: []string{"artwork_selections"}, Seeks: []string{"kind=? AND entity_id=?"}})
-	add("credits", `SELECT c.ord,c.person_id,c.credited_name,r.label,d.label FROM catalog_credits AS c INDEXED BY catalog_credits_entity
+
+	classKey := key("catalog_credit_labels", "sqlite_autoindex_catalog_credit_labels_1", "u", "label")
+	add("credits.class", `SELECT id FROM catalog_credit_labels INDEXED BY sqlite_autoindex_catalog_credit_labels_1 WHERE label=?`, []stmt.Param{s("label")}, []any{"Acting"}, stmt.Plan{Hot: true, Indexes: []string{classKey.Name}, AutoIndexes: []stmt.AutoIndexBinding{classKey}})
+
+	// department_id has a mandatory FK; the left point join preserves that label
+	// lookup without a planner-added prefilter/Bloom pass over the label table.
+	for _, class := range []struct {
+		name, predicate string
+		limit           int64
+	}{
+		{"cast", "c.department_id=?", 100},
+		{"crew", "c.department_id<>?", 50},
+	} {
+		params := []stmt.Param{i("item"), i("image"), i("after"), i("department")}
+		bindings := []any{int64(1), int64(1), int64(-1), int64(2)}
+		add("credits."+class.name, `SELECT c.ord,c.person_id,c.credited_name,r.label,d.label FROM catalog_credits AS c INDEXED BY catalog_credits_entity
+CROSS JOIN catalog_credit_labels AS r ON r.id=c.role_id
+LEFT JOIN catalog_credit_labels AS d ON d.id=c.department_id
+WHERE c.entity_id=? AND c.image_id=? AND c.ord>? AND `+class.predicate+` ORDER BY c.ord LIMIT `+strconv.FormatInt(class.limit, 10), params, bindings, stmt.Plan{Hot: true, Indexes: []string{"catalog_credits_entity"}, PrimaryKeys: []string{"r", "d"}, Seeks: []string{"entity_id=? AND image_id=? AND ord>?"}})
+
+	}
+
+	add("credits.crew.all", `SELECT c.ord,c.person_id,c.credited_name,r.label,d.label FROM catalog_credits AS c INDEXED BY catalog_credits_entity
 CROSS JOIN catalog_credit_labels AS r ON r.id=c.role_id
 CROSS JOIN catalog_credit_labels AS d ON d.id=c.department_id
-WHERE c.entity_id=? AND c.image_id=? AND c.ord>? ORDER BY c.ord LIMIT ?`, []stmt.Param{i("item"), i("image"), i("after"), i("limit")}, []any{int64(1), int64(1), int64(-1), int64(160)}, stmt.Plan{Hot: true, Indexes: []string{"catalog_credits_entity"}, PrimaryKeys: []string{"r", "d"}, Seeks: []string{"entity_id=? AND image_id=? AND ord>?"}})
+WHERE c.entity_id=? AND c.image_id=? AND c.ord>? ORDER BY c.ord LIMIT 50`, []stmt.Param{i("item"), i("image"), i("after")}, []any{int64(1), int64(1), int64(-1)}, stmt.Plan{Hot: true, Indexes: []string{"catalog_credits_entity"}, PrimaryKeys: []string{"r", "d"}, Seeks: []string{"entity_id=? AND image_id=? AND ord>?"}})
 
 	add("versions", `SELECT l.asset_id,l.part_index,l.edition,l.available FROM catalog_asset_links AS l INDEXED BY catalog_asset_links_order WHERE l.entity_id=? ORDER BY l.part_index,l.asset_id LIMIT ?`, []stmt.Param{i("item"), i("limit")}, []any{int64(1), int64(17)}, stmt.Plan{Hot: true, Indexes: []string{"catalog_asset_links_order"}, Seeks: []string{"entity_id=?"}})
 	sf := key("asset_stream_facts", "sqlite_autoindex_asset_stream_facts_1", "pk", "asset_id")

@@ -10,13 +10,15 @@ comparison baselines, never execution authority.
 Trusted composition provides the database incarnation, already-hashed local
 token, server time, original deadline, request and separately admitted
 `BrowseOutput`. It retains output through encoding and the last consumer. Do
-not retire it when a native snapshot ends. The upcoming #1119 LIVE grant is a
-separate admission dependency: it must cover all windows and consumer release.
-This branch does not import its unmerged implementation or claim LIVE admission.
+not retire it when a native snapshot ends. The merged #1119 LIVE API requires a separate
+integration follow-up covering all windows and consumer release. This branch
+uses the existing API and does not claim LIVE admission.
 
 The shared publication helper performs the full exact shared fence first and
 in a fresh final window. Composite reads capture root/asset/link/probe source
-values in the first window and compare them at final publication. Middle windows
+values in the first window and compare them at final publication. The shared
+fence also retains both library roots and the full library origin incarnation
+and revision. Middle windows
 run business reads only, with no shared or item/source re-fencing. Each window has
 at most eight registered calls and uses the original operation deadline. One
 whole-operation retry is allowed for source/revision drift; a second drift gives
@@ -27,8 +29,8 @@ all windows and retries are conservatively bounded against retained custody.
 Callable recipes:
 
 - `Detail`: direct-child ID keysets, effective locked/matched artwork per role,
-  accepted sealed credit-image rows (100 cast/50 crew per window, with raw
-  continuation for additional manual credits), up to16 version descriptors and
+  accepted sealed credit-image rows (independent SQL LIMIT100 cast/LIMIT50 crew
+  reads, each with its own ordinal continuation for additional manual credits), up to16 version descriptors and
   optional selected-file streams/chapters. A child or credit tail is explicit,
   including empty non-exhausted windows. Children are direct relations, not an
   eager recursive hierarchy or final product-specific episode ordering.
@@ -53,10 +55,15 @@ Exact normal counts (including shared/source fences and final validation):
 | Recipe | Statements | Physical snapshots |
 | --- | ---: | ---: |
 | Browse |11–12|2|
-| Detail without selected file |17|3|
-| Detail with selected file |24|4|
+| Detail without selected file |19|3|
+| Detail with selected file |26|4|
 | Playback lookup |19|3|
 | Continue watching |11–12|2|
+
+When a credit class fills its SQL cap, its exhaustion remains unknown until a
+subsequent window confirms the tail; no extra credit row is fetched as lookahead.
+If the Acting label is absent, the bounded crew-only variant covers all rows.
+That path uses one fewer statement.
 
 A complete retry may double a recipe's work; all attempts/windows and statement
 counts are returned in `BrowseReadResult`. `Elapsed` includes them, admission and
