@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/searchpolicy"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
@@ -68,30 +67,15 @@ func TestSearchImageBeginStatementPlans(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer conn.Close()
-	// Assert FULL startup, then capture the actual NORMAL command policy in
-	// W's owned frame. Its synthetic control clock is NOT hold qualification.
+	// Complete structural Capture on the actual FULL startup connection,
+	// BEFORE W's admitted BEGIN. Component execution separately asserts the
+	// actual NORMAL policy selected by W's shared searchResourcesFixture.
 	startup, err := sqliteconn.Assert(t.Context(), conn, w.config)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("FULL startup settings: %+v", startup)
-	if err := conn.Close(); err != nil {
-		t.Fatal(err)
-	}
-	recipe := turnRecipe{limit: Work{4096, 1000000, 4096, 32 << 20, 25 * time.Millisecond}, setup: Work{16, 500, 16, 65536, time.Millisecond}, terminal: Work{16, 500, 16, 65536, time.Millisecond}}
-	tx, err := w.begin(t.Context(), SearchImageStage, recipe, &testCustody{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tx.rollback(nil)
-	conn = tx.conn
+	t.Logf("FULL pre-BEGIN capture settings: %+v", startup)
 	config := w.config
-	config.Synchronous = sqliteconn.Normal
-	actualSettings, err := sqliteconn.Assert(t.Context(), conn, config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("NORMAL image-stage settings: %+v", actualSettings)
 	defs := append(searchPublisherReceiptDefinitions(), searchImageBeginDefinitions()...)
 	catalogue, err := stmt.Describe(defs)
 	if err != nil {
@@ -186,5 +170,5 @@ func TestSearchImageBeginStatementPlans(t *testing.T) {
 	if err := plan.CompareJSON(expected, fkJSON); err != nil {
 		t.Fatal(err)
 	}
-	t.Log("18 definitions/39 cohorts/4 INSERT destination audits/655 FK/1965 probes; FULL startup and NORMAL protected settings; no accepting or native eligibility claim")
+	t.Log("18 definitions/39 cohorts/4 INSERT destination audits/655 FK/1965 probes; FULL pre-BEGIN Capture; NORMAL execution separately asserted in W shared fixture; no accepting or native eligibility claim")
 }

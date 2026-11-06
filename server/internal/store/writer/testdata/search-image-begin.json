@@ -4,7 +4,7 @@
       "Engine": "3.53.4",
       "JournalMode": "wal",
       "ForeignKeys": 1,
-      "Synchronous": 1,
+      "Synchronous": 2,
       "AutoCheckpoint": 0,
       "CacheSize": -1024,
       "BusyTimeout": 0,
@@ -18,9 +18,9 @@
         "Role": 1,
         "Connections": 1,
         "CacheKiB": 1024,
-        "Synchronous": 1
+        "Synchronous": 2
       },
-      "sha256": "dc8fbee2ea67f751961d2e0ef939bc38909f67cf32a04f23d3cc0dd1d7505ad4",
+      "sha256": "20a8ed8ab47d9977d681604d57e24ceb369524f7d1e909ee4ec131faa2cf92c6",
       "statistics": "unanalyzed",
       "implementations": "image-BEGIN native SQL/receipt compile only; distinct history states/four nullable owner vectors; fixed stale bank; no live engine or resource/disclosure authority"
     },
@@ -14812,7 +14812,7 @@
         ],
         "values": [
           [
-            1
+            2
           ]
         ]
       },
