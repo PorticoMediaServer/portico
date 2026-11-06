@@ -61,7 +61,7 @@
 // mints an opaque production registration receipt bound to the exact frozen
 // definitions, actual native plans and MAIN base-table classification. New
 // binds their raw bytes using a typed, length-prefixed canonical encoding;
-// JSON is presentation only. Capture and New reject invalid-UTF-8 SQL. Other
+// JSON is presentation only. Describe, Capture and New reject invalid-UTF-8 SQL. Other
 // strings, native numeric bits and nil/empty values retain exact identity.
 // A definition field is never omitted because of a JSON tag or conversion.
 // New requires matching receipts; caller Hot metadata, zero/failed/decoded goldens
