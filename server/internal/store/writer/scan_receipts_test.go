@@ -142,9 +142,16 @@ VALUES(41,'scan-fixture-asset',7,'/media/Arrival.mkv',42,1,'','','',0,0,0)`)
 		exec(`INSERT INTO library_sources(id,library_id,configured_root,root,generation,incarnation,root_identity)
 VALUES(?,'scan-library',?,?,?,?,'root')`, source, "/media/"+p.name, "/media/"+p.name, generation, currentIncarnation)
 		exec(`INSERT INTO jobs(id,library_id,status,created_at) VALUES(?,'scan-library','running','2026-11-05T00:00:00Z')`, run)
+		// Explicit immutable creation anchors for these SQL-fact populations,
+		// not a lifecycle request digest or a lookup of mutable parent scope.
+		// Creation operations are distinct from every N1 receipt operation.
+		createOperation := bytes.Repeat([]byte{byte(0x60 + i)}, 16)
+		createDigest := bytes.Repeat([]byte{byte(0xc0 + i)}, 32)
 		exec(`INSERT INTO inventory_runs(job_id,source_id,source_generation,root_incarnation,root_identity,policy_revision,
-command_incarnation,last_command_sequence,acknowledged_command_sequence,job_lease_owner,job_lease_generation,job_lease_expires_ms)
-VALUES(?,?,1,'source-incarnation','root',1,?,?,?,?,?,200)`, run, source, make([]byte, 16), p.last, p.ack, int64(1), leaseGeneration)
+command_incarnation,last_command_sequence,acknowledged_command_sequence,job_lease_owner,job_lease_generation,job_lease_expires_ms,
+original_library_id,original_library_key,original_resolved_root,original_follow_symlinks,create_operation_id,create_request_digest)
+VALUES(?,?,1,'source-incarnation','root',1,?,?,?,?,?,200,7,'scan-library',?,0,?,?)`,
+			run, source, make([]byte, 16), p.last, p.ack, int64(1), leaseGeneration, "/media/"+p.name, createOperation, createDigest)
 		if p.last == 0 {
 			continue
 		}
