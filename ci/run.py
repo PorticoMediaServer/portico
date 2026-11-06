@@ -145,7 +145,9 @@ def go(plan,index,report=None):
     def command(groups, whole):
         args=['go','test','-json','-count=1','-p='+workers,'-timeout=780s','-tags',plan['tags']]
         if os.environ.get('PORTICO_CI_GO_RACE')=='1': args+=['-race']
-        if plan.get('tier')=='short': args+=['-short']
+        modes={short_package(plan, package) for package,tests in groups}
+        if len(modes)!=1: raise ValueError('Go batch mixes short and full packages')
+        if modes=={True}: args+=['-short']
         if not whole: args+=['-run','^(?:'+'|'.join(re.escape(t['name']) for t in groups[0][1])+')$']
         return args+[package for package,tests in groups]
     def execute_batch(module, groups, whole):
@@ -212,6 +214,9 @@ def go(plan,index,report=None):
                 for line in lines: print(line, flush=True)
     if blocked: raise SystemExit(1)
 
+def short_package(plan, package):
+    return plan.get('tier')=='short' and package not in plan.get('full_go_packages', [])
+
 def batches(plan, selected):
     grouped={}
     for t in selected: grouped.setdefault((t['module'],t['package']),[]).append(t)
@@ -219,9 +224,9 @@ def batches(plan, selected):
     for t in plan['all_inventory']: all_tests.setdefault(t['package'],set()).add(t['name'])
     complete={}; partial=[]
     for (module,package),tests in sorted(grouped.items()):
-        if {t['name'] for t in tests} == all_tests[package]: complete.setdefault(module,[]).append((package,tests))
+        if {t['name'] for t in tests} == all_tests[package]: complete.setdefault((module,short_package(plan,package)),[]).append((package,tests))
         else: partial.append((module,[(package,tests)],False))
-    return [(m,groups,True) for m,groups in sorted(complete.items())]+partial
+    return [(m,groups,True) for (m,short),groups in sorted(complete.items())]+partial
 
 def build_helper(plan):
     (ROOT/'ci-tools').mkdir(exist_ok=True)

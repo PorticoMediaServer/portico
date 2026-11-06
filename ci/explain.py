@@ -48,6 +48,10 @@ def render_summary(plan):
               '<pre>' + '\n'.join(f"{i}: {len(shard)} parents, {seconds:.1f}s" for i, (shard, seconds) in enumerate(zip(plan['shards'], plan['predicted_seconds']))) + '</pre>\n']
     if why.get('source_readers'):
         lines.append('<details><summary>Source-reading tests selected by the files they read: ' + str(len(why['source_readers'])) + '</summary><pre>' + escape('\n'.join(why['source_readers'][:100])) + '</pre></details>\n')
+    if plan.get('tier')=='short':
+        lines.append('PR Go packages without -short (changed owners and direct reverse dependencies):<pre>' +
+                     escape('\n'.join(plan.get('full_go_packages', [])) or '(none)') + '</pre>\n')
+        lines.append(f"Additional modeled Go test work versus all-short: {plan.get('full_go_extra_seconds',0)/60:.1f} summed parent-test minutes; unmeasured parents use the existing 1s estimate. Setup/compilation and package parallelism are not modeled.\n")
     for item in plan['js']:
         component = item['component']; detail = why['js'].get(component, {})
         estimates = ', '.join(f'{v:.1f}s' for v in item.get('predicted_seconds', [])) or 'unmeasured'
