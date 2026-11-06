@@ -24,15 +24,21 @@ func inventoryHistoryDefinitions() []stmt.Definition {
 
 // freezeCommandPlan is private composition, not caller budget admission or a
 // qualification claim. Reserve every possible registered use, setup and
-// terminal before any BEGIN. The two domains share ONE registry and executor.
+// terminal before any BEGIN. All domains share ONE registry and executor.
 func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, purpose CommandID) (effectivePlan, error) {
-	if purpose != EffectiveStage && purpose != InventoryAccept {
+	if purpose != EffectiveStage && purpose != InventoryAccept && purpose != SearchImageStage {
 		return effectivePlan{}, invalid("command_plan_purpose")
 	}
 	if purpose != InventoryAccept && plan.inventoryMemory != (inventoryMemoryBudget{}) {
 		return effectivePlan{}, invalid("memory_purpose")
 	}
+	if purpose != SearchImageStage && plan.searchImageMemory != (searchImageMemoryBudget{}) {
+		return effectivePlan{}, invalid("memory_purpose")
+	}
 	if err := validateInventoryMemory(plan.inventoryMemory, plan.need[governor.MemoryBytes]); err != nil {
+		return effectivePlan{}, err
+	}
+	if err := validateSearchImageMemory(plan.searchImageMemory, plan.need[governor.MemoryBytes]); err != nil {
 		return effectivePlan{}, err
 	}
 	// Each profile must itself carry a real matching registration. Another

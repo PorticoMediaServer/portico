@@ -37,11 +37,12 @@ type effectivePlan struct {
 	recipe       turnRecipe
 	// Included in the terminal reserve and whole-command IO/WAL forecast, never
 	// an assumed built-in 5ms allowance. Qualification belongs to composition.
-	headerSync      Work
-	steps           []statementStep
-	need            governor.Amounts
-	io              []governor.DeviceIO
-	inventoryMemory inventoryMemoryBudget // private whole-unit partition; zero is unqualified
+	headerSync        Work
+	steps             []statementStep
+	need              governor.Amounts
+	io                []governor.DeviceIO
+	inventoryMemory   inventoryMemoryBudget // private whole-unit partition; zero is unqualified
+	searchImageMemory searchImageMemoryBudget
 }
 
 // No runtime registration, worker budget or callbacks are accepted. The actual
@@ -311,6 +312,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		return out, acknowledged, err
 	}
 	custody.inventoryMemory = plan.inventoryMemory // immutable W profile, never a worker override
+	custody.searchImageMemory = plan.searchImageMemory
 	custody.clockHighWater = &r.clockHighWater
 	tx, err = r.executor.begin(ctx, purpose, plan.recipe, custody)
 	if !errors.Is(err, ErrBusy) {

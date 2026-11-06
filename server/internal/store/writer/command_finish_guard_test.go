@@ -37,6 +37,10 @@ func unguardedCommandFinishes(file *ast.File) []string {
 				needs = true
 			}
 		}
+		// Closed publisher and shared resource helpers release either a scalar
+		// timestamp or error, so result-type discovery alone cannot cover them.
+		needs = needs || strings.HasPrefix(fn.Name.Name, "checkSearchImage") || fn.Name.Name == "requireSearchImageMemory" ||
+			fn.Name.Name == "searchImageTimeMS" || fn.Name.Name == "commandTimeMS" || fn.Name.Name == "requireCommandMemory"
 		if !needs {
 			continue
 		}
@@ -250,6 +254,11 @@ func TestCommandReleaseGuardRejectsBypasses(t *testing.T) {
 		`func bypass(ctx context.Context)(InventoryResult,error){if true{return InventoryResult{},nil};defer func(){finishCommand()}();return InventoryResult{},nil}`,
 		`func bypass(ctx context.Context)(InventoryResult,error){defer func(){}();return InventoryResult{},nil}`,
 		`func bypass(ctx context.Context)(InventoryResult,error){defer func(){finishCommand()}();return InventoryResult{},nil}`,
+		`func searchImageTimeMS(ctx context.Context)(value int64,err error){return 1,nil}`,
+		`func commandTimeMS(ctx context.Context)(value int64,err error){return 1,nil}`,
+		`func requireCommandMemory(ctx context.Context)(err error){return nil}`,
+		`func requireSearchImageMemory(ctx context.Context)(err error){return nil}`,
+		`func checkSearchImageTerminal(ctx context.Context)(err error){return nil}`,
 	} {
 		file, err := parser.ParseFile(token.NewFileSet(), "control.go", "package writer\n"+body, 0)
 		if err != nil {
