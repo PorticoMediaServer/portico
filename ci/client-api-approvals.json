@@ -2814,5 +2814,17 @@
       "https://github.com/PorticoMediaServer/portico/pull/1005",
       "https://github.com/PorticoMediaServer/portico/pull/1015"
     ]
+  },
+  "web/scripts/config.mjs#5d646c8e0e304aba": {
+    "category": "non-api-platform",
+    "reason": "Approved exact non-API platform IO: Vite development-server websocket reload.",
+    "condition": "Vite development-server reload message only: sends exactly {type: full-reload} through the Vite server ws object when gallery family files are added or removed; no Portico/Hosted API URL, auth, credential or domain JSON. Full configureServer guard, source and Vite plugin configuration are bound; any edit needs re-approval.",
+    "guardHash": "8ea45d0050236d0cb9f587f6d4f619421289b5fae9de0fad71417df476773eae",
+    "sourceHashes": {
+      "web/scripts/config.mjs": "29bda6841031ed85b1be4ff9876e7d4dde4663076d6485853b8695d298fd2ef4",
+      "web/vite.config.ts": "ef0b2326fd9137bbf372e7b0fbe94446f86715eac959202a061381627bc7cffd"
+    },
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6678630200"
   }
 }
