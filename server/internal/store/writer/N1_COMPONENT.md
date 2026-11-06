@@ -255,7 +255,7 @@ actual authority usage retain their own scope instead of being subtracted.
 
 ## EC4 profile observations, not a qualified profile
 
-Start emits `observation_method=n1-profile-observations-v1`. BOTH cohorts now
+Start emits `observation_method=n1-owner-max-observations-v1`. BOTH cohorts now
 have populated bounded units and `profile_facts.per_id`: every ID in the actual
 captured registry, including observed zero uses on untaken branches. An unreturned
 registry stays unavailable with a reason. Do not pool this observer method with
@@ -283,16 +283,19 @@ Before/after WAL salt is only this call's observed generation scope, not an
 atomic per-statement generation or reset proof. Native operation arrays keep
 policy, DQS, BEGIN, COMMIT and rollback observations separate from registered IDs.
 
-W confirmed that no complete named Setup/Terminal/MAX owner fixture is currently
-available. Their named fields therefore remain null with reasons. The target
-exposes actual native policy/DQS/BEGIN/COMMIT/rollback intervals and separate
-observer brackets: owner HOLD start→first registered request, last registered
-request return→physical/ledger return, DQS→last assertion read, and whole failed
-HOLD when available. These brackets are not labelled complete Setup, Assert or
-Terminal reservations. Individual acquire, discard, retirement, header-sync,
-xSync and reset intervals remain null unless actually exposed. Native Close and
-final fixture join retain their existing separate scopes. Never sum unrelated
-per-ID/bracket maxima to invent a complete owner recipe.
+W's fixed-size owner hook supplies `owner_window` bound to THIS sequential
+invocation's actual setup entry. Stale/absent observations remain null (ErrBusy
+creates none). Setup and Terminal use the owner's real monotonic clock; legacy
+HOLD/COMMIT/physicalReturnedAt remain distinct. Successful Setup ends after setup;
+failed Setup ends after cleanup and OVERLAPS Terminal. Never add those intervals.
+Terminal preserves its actual attempt return plus separate native-return and
+custody-retirement entry/return/completed facts, including partial/error paths.
+NativeReturnedAt means required borrower/quarantine return, not idle native Close.
+Actual native Close intervals stay in the decorator ledger. No callback runs in
+HOLD, no missing end is reconstructed, and no observed duration becomes a bound.
+Acquisition, complete Assert, isolated header-sync/xSync remain null unless
+separately observed; native policy brackets are not promoted into those phases.
+Never sum unrelated per-ID/bracket maxima to invent an owner recipe.
 
 Actual GV request device ID/class/outstanding/reserved bytes are emitted only
 if present in the bound request; they are reservations, not measured service.
@@ -304,9 +307,9 @@ Input facts retain actual byte/codepoint/escaping lengths, file/root shape,
 declared branch cell and known codec limits, alongside existing actual setup
 profiles/age/cardinality readback and executed IDs. Existing fixtures cover a
 partial branch/input matrix. inventoryProgressiveFixture is one synthetic branch,
-not a legal-MAX source. Complete legal MIN/MAX and full-prefix fields stay null
-with reasons until an owner-selected fixture exists; a long string, registry
-hash, allocation forecast or cumulative WAL length is not that proof.
+not a legal-MAX source. Complete legal MIN/MAX stays null with reasons: the named cap/prefix cells
+below prove their exact source shape, not an entire simultaneous MAX envelope.
+A registry hash, forecast or cumulative WAL length is not that proof.
 
 Incremental LIVE Go/native/bind/row/temp/result/preparation/consumer-retained
 peaks through final release stay null with reasons: no complete live ownership
@@ -323,3 +326,60 @@ bucket point-read row count, when reached. These are call-bound native readback,
 not the declared case or a registry hash. Fixed internal clocks in protocol-only
 controls are explicitly labelled; measurement config/flags cannot select them.
 The measurement target retains time.Now, its original quantum and all misses.
+
+
+## Owner and source-bound cap cells
+
+The same explicit opt-in/config are required. Each new cell requires
+`fixtures: 1` and zero warmup; these are separate populations, never steady timing
+replicates or a Cartesian sweep. `n1-owner-max-observations-v1` must not be pooled
+with Wave1/2 or `n1-profile-observations-v1`.
+
+- `-n1-component-population=owner-window -n1-component-owner-cell=commit|rollback|discard|startup|reset|restart`
+  uses `active/current/present/fixture`. Commit/rollback use the retained setup
+  connection. Startup measures a first-use connection after the canonical setup
+  pool was joined, not OS-cold/fresh-file startup. Discard deliberately refuses
+  ROLLBACK before native entry; its injected request span/counters stay null,
+  while actual native Close/return/retirement remain observable. Only the exact
+  injected failure and complete joins complete this deliberate-error cell;
+  unexpected errors remain incomplete. Raw rollback/discard attempt `complete`
+  stays false because it is not a committed command; the final owner-cell
+  completeness describes the declared negative control, never qualification.
+- RESET remains unavailable/incomplete: no existing closed owner fixture proves
+  a fully-backfilled native checkpoint restart/truncation and the following
+  command's header/generation. The requested target emits the gap and fails,
+  with no physical attempt/zero sample. No raw checkpoint is added. Pooled
+  ResetSession, salt equality, PASSIVE and allocation are not reset proof.
+- RESTART commits one original, joins the old executor, then uses W's existing
+  canonical opening on the same native file. The initial unobserved opening
+  connection is joined and checked for sticky close faults before the test-only
+  decoration seam is applied; its count/scope are explicit. Replacement uses
+  `ExistingFile` and the actual native binding. The same governor/recipe/full
+  recaptured registry and saved original continue through actual Resolve/ACK/
+  snapshot. The old executor stays closed; no state or SQL ACK is repaired.
+  This is COMPONENT restart only, not production fresh lease/issuer recovery.
+  Two decorated physical connections plus the separately labelled initial W
+  opening connection are not silently represented as one lifetime.
+- `-n1-component-case=dual/current/absent/canonical-max` with default first-use
+  population is a PURE constructor/refusal proof, opening no DB/taking no grant.
+  SC's actual immutable constructor and typed encoder accept exactly the 32MiB
+  canonical limit and reject one extra byte. One legal text is grown with NUL
+  escaping; title/object/change-token named caps are also present. Its reference,
+  actual input counts, encoded bytes, adjacent rejection and allocation-free
+  forecast are emitted as `constructor_cell`, not a physical attempt. Physical
+  MAX remains gated: forecast exceeds the unchanged 4MiB preparation partition.
+  This is not an observed native refusal or a measured LIVE peak. W supplies any
+  future suitable test-only owner recipe/partition; this target cannot widen it.
+- `-n1-component-population=full-prefix -n1-component-case=dual/current/absent/domain-cap`
+  executes one escaped/domain-cap original through the SAME progressive fixture:
+  fresh BEGIN, saved-original Resolve, ACK, actual joined current snapshot.
+  Object=8192 escaped bytes, change token=4096 escaped bytes, title=1000 codepoints
+  use SC's revision/immutable constructor. All command effects and both RAW banks
+  remain present. Each role has its own actual owner intervals/physical ordinal;
+  all three retain the original identity/digest. Only actual final ACK/snapshot
+  earns full-prefix=true; failed Resolve retains its prefix and stops. This is
+  not canonical32MiB physical MAX, a dirty-WAL population or production authority.
+
+Counters stay raw/null, including pages/header-sync/xSync/LIVE gaps. The exact
+owner hook dependency and source epoch must be pinned for any later QL run.
+There is no automatic run, limit increase or qualification scheduling here.

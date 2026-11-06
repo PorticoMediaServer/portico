@@ -102,6 +102,8 @@ type n1Trace struct {
 	closed          uint64
 	activeRows      int
 	conn            *n1MeasuredConn
+	discardInjected bool
+	failExec        string // closed deliberate-discard test cell; no SQL/config input
 	failQuery       string // control-only injection; never a target/config input
 	closes          [4]n1NativeClose
 	closeCount      int
@@ -261,6 +263,21 @@ func (c *n1MeasuredConn) ExecContext(ctx context.Context, query string, args []d
 	u := c.start(query)
 	if c.trace.overflow && query != "ROLLBACK" {
 		return nil, errN1LedgerFull
+	}
+	if c.trace.armed && c.trace.failExec != "" && query == c.trace.failExec {
+		c.trace.discardInjected = true
+		err := errN1Discard
+		c.finish(u, err)
+		if u != nil {
+			u.exclusive = false
+			u.Before = nil
+			u.After = nil
+			u.NativeStartedNS = nil
+			u.NativeReturnedNS = nil
+			u.NativeElapsedNS = nil
+			u.VMOps = n1Counter{Reason: "deliberate fault before native entry"}
+		}
+		return nil, err
 	}
 	r, err := c.writerDriverConn.ExecContext(ctx, query, args)
 	if u != nil && r != nil {

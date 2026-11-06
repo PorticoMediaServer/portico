@@ -161,4 +161,7 @@ func TestN1ComponentSteadyPreBeginFailureKeepsNullOwner(t *testing.T) {
 	if r.PhysicalAttemptOrdinal != nil || r.BeginSucceeded != nil || r.Clock.HoldNS != nil || r.Settings.Actual != nil || r.Settings.PolicyVerified != nil || r.Error == "" || r.Settings.AssertError == "" || r.Outcome != "unobserved" {
 		t.Fatal("unreturned owner view reconstructed", r)
 	}
+	if r.OwnerWindow == nil || !r.OwnerWindow.Bound || r.OwnerWindow.SetupComplete || r.OwnerWindow.Setup.ElapsedNS == nil || r.OwnerWindow.Terminal.ElapsedNS == nil || r.OwnerWindow.NativeReturnedNS == nil || r.OwnerWindow.CustodyRetiredNS == nil {
+		t.Fatal("failed setup lost new call-bound cleanup/retirement observation")
+	}
 }

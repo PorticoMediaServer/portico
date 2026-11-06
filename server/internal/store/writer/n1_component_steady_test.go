@@ -50,7 +50,11 @@ type n1CurrentSnapshot struct {
 	Processed            int64  `json:"processed"`
 }
 
+var n1FullPrefixCase = n1Case{"dual", "current", "absent", "domain-cap"}
+
 type n1SteadySummary struct {
+	Restart             *n1ComponentRestart      `json:"component_restart"`
+	FullPrefix          *bool                    `json:"complete_escaped_domain_cap_full_prefix"`
 	RequestedWarmup     int                      `json:"requested_warmup_originals"`
 	RequestedMeasured   int                      `json:"requested_measured_originals"`
 	OpenedDatabases     *int                     `json:"opened_databases"`
@@ -84,6 +88,8 @@ type n1FixtureSetup struct {
 }
 
 type n1SteadyControls struct {
+	restart             bool             // component-only canonical close/reopen, no production authority
+	fullPrefix          bool             // closed target cell, not a recipe/limit selector
 	clock               func() time.Time // target ALWAYS passes time.Now; controls may freeze
 	failOriginal        int
 	failRole, failQuery string // no config/flag accepts these fault controls
@@ -128,7 +134,11 @@ func runN1Steady(t *testing.T, ctx context.Context, stream *n1Stream, measured, 
 		}
 		summary.Complete = summary.StopReason == "" && stream.err == nil && summary.NativeJoined != nil && *summary.NativeJoined && !summary.NativeCloseOverflow && summary.Warmup.Complete == warmup && summary.Measured.Complete == measured && summary.Warmup.FreshBegins == warmup && summary.Measured.FreshBegins == measured
 	}()
-	if err := validateN1Population("steady", warmup); err != nil {
+	if (control.fullPrefix || control.restart) && (measured != 1 || warmup != 0) {
+		summary.StopReason = ErrInvalid.Error()
+		return
+	}
+	if err := validateN1Population("steady", warmup); err != nil && !control.fullPrefix && !control.restart {
 		summary.StopReason = err.Error()
 		return
 	}
@@ -141,6 +151,9 @@ func runN1Steady(t *testing.T, ctx context.Context, stream *n1Stream, measured, 
 		return
 	}
 	fixture = newInventoryProgressiveFixture(t, warmup+measured, control.clock, trace.decorate)
+	if control.fullPrefix {
+		fixture.base = n1SeedCase(t, fixture.owner.executor, fixture.base, n1FullPrefixCase)
+	}
 	opened := 1
 	summary.OpenedDatabases = &opened
 	summary.AfterFixture = n1Memory(stream.origin)
@@ -177,12 +190,36 @@ func runN1Steady(t *testing.T, ctx context.Context, stream *n1Stream, measured, 
 			summary.StopReason = err.Error()
 			return
 		}
+		if control.fullPrefix {
+			command, err = n1DomainCapCommand(command)
+			if err != nil {
+				summary.StopReason = err.Error()
+				return
+			}
+			fixture.current = command // before custody; this frozen original is used by ALL three roles
+		}
 		for _, role := range []string{"fresh_begin", "resolve", "ack"} {
 			attemptOrdinal++
 			summary.Turns[role].Started++
 			record := runN1SteadyTurn(t, ctx, stream, fixture, trace, summary, original, attemptOrdinal, population, role, cohort, baseline, control)
+			if control.restart && role == "fresh_begin" && record.Complete && stream.err == nil {
+				summary.Restart = n1RestartComponent(t, fixture, trace, stream.origin)
+				if !summary.Restart.Complete {
+					summary.StopReason = summary.Restart.Error
+					return
+				}
+				baseline = trace.conn.id
+			}
 			if !record.Complete || stream.err != nil {
 				summary.StopReason = n1Join("incomplete "+population+" "+role, errors.Join(errors.New(record.Error), stream.err))
+				return
+			}
+		}
+		if control.fullPrefix {
+			complete := fixture.ready && fixture.resolved != nil && fixture.acknowledged != nil && *fixture.acknowledged == command.identity.Sequence && fixture.joined() == nil
+			summary.FullPrefix = &complete
+			if !complete {
+				summary.StopReason = "full-prefix actual ACK/join gate incomplete"
 				return
 			}
 		}
@@ -206,6 +243,14 @@ func runN1SteadyTurn(t *testing.T, ctx context.Context, stream *n1Stream, f *inv
 		t.Fatal(err)
 	}
 	record = &n1Attempt{ID: originalID + "/" + role, Ordinal: ordinal, OriginalID: originalID, OriginalOrdinal: &original, OriginalPopulation: population, TurnRole: role, Reference: &q.Receipt, DatabaseID: summary.DatabaseID, DatabasePath: f.owner.path, RegistrySHA256: summary.RegistrySHA256, Case: n1Case{"active", "current", "present", "fixture"}, Cohort: cohort, Outcome: "unobserved", Phase: "prepared", Memory: map[string]*n1MemorySample{}, Unavailable: map[string]string{}}
+	if control.restart {
+		record.OwnerCell = "restart"
+		record.OriginalPopulation = "component-restart"
+	}
+	if control.fullPrefix {
+		record.Case = n1FullPrefixCase
+		record.OriginalPopulation = "full-prefix"
+	}
 	for key, value := range n1Missing {
 		record.Unavailable[key] = value
 	}
@@ -213,9 +258,16 @@ func runN1SteadyTurn(t *testing.T, ctx context.Context, stream *n1Stream, f *inv
 	record.Unavailable["native_joined"] = "persistent pool stays alive across turns; final fixture close carries native join observations"
 	record.Unavailable["native_closes"] = "final.steady.native_closes is emitted after fixture teardown; per-turn continuity counts end before teardown"
 	record.Continuity = n1ConnectionContinuity{Population: "steady", BeforeID: &baseline, WarmupRequested: summary.RequestedWarmup, WarmupCompleted: summary.Warmup.Complete, WarmupOriginals: append([]ReceiptReference{}, summary.WarmupOriginals...), DeliberateErrorControl: control.failRole != ""}
+	if control.fullPrefix {
+		record.Continuity.Population = "full-prefix"
+	}
+	if control.restart {
+		record.Continuity.Population = "component-restart"
+	}
 	beforeID, connections, closes := trace.conn.id, trace.connections, trace.closeCount
 	record.Continuity.BeforeID, record.Continuity.ConnectionsBefore, record.Continuity.NativeClosesBefore = &beforeID, &connections, &closes
 	var turn *commandTurn
+	var ownerStarted time.Time
 	returned := false
 	defer func() {
 		if turn == nil {
@@ -251,14 +303,22 @@ func runN1SteadyTurn(t *testing.T, ctx context.Context, stream *n1Stream, f *inv
 				record.PhysicalAttemptOrdinal = &physical
 			}
 		}
+		n1ObserveOwnerWindow(record, f.owner.executor, stream.origin, ownerStarted)
 		record.Continuity.observeAfter(trace)
-		retained := record.Continuity.Same != nil && *record.Continuity.Same && trace.conn.id == baseline && trace.connections == 1 && trace.closeCount == 0 && !trace.closeOverflow
+		expectedConnections, expectedCloses := uint64(1), 0
+		if control.restart && role != "fresh_begin" {
+			expectedConnections, expectedCloses = 2, 1
+		}
+		retained := record.Continuity.Same != nil && *record.Continuity.Same && trace.conn.id == baseline && trace.connections == expectedConnections && trace.closeCount == expectedCloses && !trace.closeOverflow
 		if !retained {
 			record.Error = n1Join(record.Error, errors.New("persistent physical connection interrupted; no replacement success population"))
 		}
-		record.Continuity.SteadyEligible = population == "measured" && summary.Warmup.Complete == summary.RequestedWarmup && retained && control.failRole == ""
+		record.Continuity.SteadyEligible = !control.fullPrefix && !control.restart && population == "measured" && summary.Warmup.Complete == summary.RequestedWarmup && retained && control.failRole == ""
 		if !record.Continuity.SteadyEligible {
 			record.Continuity.UnavailableReason = "warmup or deliberate-error cohort, or physical continuity gap"
+			if control.fullPrefix || control.restart {
+				record.Continuity.UnavailableReason = "separate source-bound component cell, not a warm steady population; inspect physical lifetime facts"
+			}
 		}
 		record.Units, record.LedgerOverflow = trace.units[:trace.used], trace.overflow
 		for i := range record.Units {
@@ -298,6 +358,10 @@ func runN1SteadyTurn(t *testing.T, ctx context.Context, stream *n1Stream, f *inv
 			record.Phase = "physical_return"
 		}
 		record.Complete = record.Error == "" && record.Outcome == "committed" && record.Clock.HoldNS != nil && record.Clock.PhysicalReturnedNS != nil && record.Settings.Actual != nil && record.ConnectionReturned != nil && *record.ConnectionReturned && record.Retired != nil && *record.Retired && usage == ([4]governor.Amounts{}) && !fenced && !ambiguous && retained && !trace.overflow
+		if control.fullPrefix && role == "ack" && record.Complete {
+			complete := f.ready && f.resolved != nil && f.acknowledged != nil && f.joined() == nil
+			record.FullPrefix = &complete
+		}
 		record.Profile = n1BuildProfile(record, trace)
 		if err := stream.append("attempt", map[string]any{"attempt_id": record.ID, "attempt_ordinal": ordinal, "attempt": record}); err != nil {
 			record.Error = n1Join(record.Error, err)
@@ -356,7 +420,7 @@ func runN1SteadyTurn(t *testing.T, ctx context.Context, stream *n1Stream, f *inv
 	trace.conn.snapshot(record.NativeBefore, false)
 	record.WALBefore = n1ReadWAL(stream.origin, f.owner.path, f.owner.wal)
 	record.Memory["before_turn"] = n1Memory(stream.origin)
-	if err := stream.append("attempt_start", map[string]any{"attempt_id": record.ID, "attempt_ordinal": ordinal, "original_id": originalID, "original_ordinal": original, "original_population": population, "turn_role": role, "original_reference": record.Reference, "database_id": summary.DatabaseID, "database_path": f.owner.path, "declared_warmup": summary.RequestedWarmup}); err != nil {
+	if err := stream.append("attempt_start", map[string]any{"attempt_id": record.ID, "attempt_ordinal": ordinal, "original_id": originalID, "original_ordinal": original, "original_population": record.OriginalPopulation, "turn_role": role, "original_reference": record.Reference, "database_id": summary.DatabaseID, "database_path": f.owner.path, "declared_warmup": summary.RequestedWarmup}); err != nil {
 		record.Error = err.Error()
 		return
 	}
@@ -366,6 +430,7 @@ func runN1SteadyTurn(t *testing.T, ctx context.Context, stream *n1Stream, f *inv
 	}
 	trace.armed = true
 	started := time.Now()
+	ownerStarted = started
 	record.Phase = role
 	switch role {
 	case "fresh_begin":
