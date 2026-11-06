@@ -41,6 +41,7 @@ func unguardedCommandFinishes(file *ast.File) []string {
 		// timestamp or error, so result-type discovery alone cannot cover them.
 		needs = needs || strings.HasPrefix(fn.Name.Name, "checkSearchImage") || fn.Name.Name == "requireSearchImageMemory" ||
 			fn.Name.Name == "searchImageTimeMS" || fn.Name.Name == "commandTimeMS" || fn.Name.Name == "requireCommandMemory"
+		needs = needs || fn.Name.Name == "acknowledgeSearchPublisher" || fn.Name.Name == "searchImageStageFreshFacts"
 		if !needs {
 			continue
 		}
@@ -238,6 +239,8 @@ func TestEveryCommandReleaseUsesSharedFinish(t *testing.T) {
 func TestCommandReleaseGuardRejectsBypasses(t *testing.T) {
 	for _, body := range []string{
 		`func searchImageEngine(ctx context.Context)(out searchpolicy.Engine,err error){return searchpolicy.Engine{Version:"saved"},nil}`,
+		`func acknowledgeSearchPublisher(ctx context.Context,turn *commandTurn,q PublisherReceiptRequest,lookup publisherReceiptLookup)(out int64,err error){return 1,nil}`,
+		`func searchImageStageFreshFacts(ctx context.Context,turn *commandTurn,want searchImageStageRequest)(out searchImageStageRequest,err error){return want,nil}`,
 		`func requireInventoryMemory(ctx context.Context)(err error){return nil}`,
 		`func inventoryTimeMS(ctx context.Context)(value int64,err error){return 1,nil}`,
 		`func bypass(ctx context.Context)(out InventoryResult,err error){var v InventoryResult;var e error;saved:=InventoryResult{RunID:"saved"};defer func(){v,e=finishCommand(ctx,ctx,out,err);out,err=saved,e}();_=v;return saved,ErrInvalid}`,
