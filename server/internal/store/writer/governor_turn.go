@@ -35,14 +35,15 @@ func commandClass(id CommandID) (governor.Class, error) {
 // Its request includes complete command/receipt/terminal forecasts. Input and
 // output preparation and idle pool/native memory retain separate lifetime custody.
 type governedTurn struct {
-	g        governor.Governor
-	a        *governor.Authority
-	grant    *governor.Grant
-	expected governor.Request
-	purpose  CommandID
-	limit    Work
-	state    atomic.Uint32 // 0 active, 1 retirement attempted, 2 retired, 3 failed
-	fenced   atomic.Bool
+	g               governor.Governor
+	a               *governor.Authority
+	grant           *governor.Grant
+	expected        governor.Request
+	purpose         CommandID
+	limit           Work
+	inventoryMemory inventoryMemoryBudget // installed once by closed W composition before BEGIN
+	state           atomic.Uint32         // 0 active, 1 retirement attempted, 2 retired, 3 failed
+	fenced          atomic.Bool
 }
 
 func bindGovernedTurn(id CommandID, limit Work, g governor.Governor, a *governor.Authority, wal *governor.WALGate, grant *governor.Grant, expected governor.Request) (*governedTurn, error) {

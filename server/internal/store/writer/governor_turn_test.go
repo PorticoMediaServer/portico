@@ -10,16 +10,31 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
 
-func governedFixture(t *testing.T, now func() time.Time) (governor.Governor, *governor.Authority, *governor.WALGate, governor.Request) {
+type governedFixtureProfile struct {
+	recipe      turnRecipe
+	memoryBytes int64
+}
+
+func governedFixture(t *testing.T, now func() time.Time, profiles ...governedFixtureProfile) (governor.Governor, *governor.Authority, *governor.WALGate, governor.Request) {
 	t.Helper()
+	profile := governedFixtureProfile{testRecipe(), 65536}
+	if len(profiles) > 1 {
+		t.Fatal("multiple test profiles")
+	}
+	if len(profiles) == 1 {
+		profile = profiles[0]
+	}
+	if profile.memoryBytes <= 0 {
+		t.Fatal("invalid test memory")
+	}
 	wal, err := governor.NewWALGate(governor.WALPolicy{HardBytes: 1 << 29, ReserveBytes: 1 << 20, SoftDebtBytes: 1 << 26, ActivePressureBytes: 1 << 28, MaxSampleAge: time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := governor.Request{Key: governor.JobKey{Domain: uint16(InventoryAccept), ID: "synthetic/run"}, Owner: 1, Class: governor.ScanMinimum, Writer: true, MaxHold: testRecipe().limit.Hold, Deadline: now().Add(time.Second),
-		Budget: governor.UnitBudget{RawRows: 100, VMOps: 10000, Pages: 100}, Footprint: []governor.Scope{{Library: 1, Domain: 1, Source: 1}}}
-	r.Need[governor.WALBytes] = int64(testRecipe().limit.WALBytes)
-	r.Need[governor.MemoryBytes] = 65536
+	r := governor.Request{Key: governor.JobKey{Domain: uint16(InventoryAccept), ID: "synthetic/run"}, Owner: 1, Class: governor.ScanMinimum, Writer: true, MaxHold: profile.recipe.limit.Hold, Deadline: now().Add(time.Second),
+		Budget: governor.UnitBudget{RawRows: uint32(profile.recipe.limit.Rows), VMOps: profile.recipe.limit.VMOps, Pages: uint32(profile.recipe.limit.Pages)}, Footprint: []governor.Scope{{Library: 1, Domain: 1, Source: 1}}}
+	r.Need[governor.WALBytes] = int64(profile.recipe.limit.WALBytes)
+	r.Need[governor.MemoryBytes] = profile.memoryBytes
 	var partitions [4]governor.Amounts
 	for i := range partitions {
 		partitions[i] = r.Need

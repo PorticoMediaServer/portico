@@ -29,6 +29,12 @@ func freezeCommandPlan(w *executor, plan effectivePlan, defs []stmt.Definition, 
 	if purpose != EffectiveStage && purpose != InventoryAccept {
 		return effectivePlan{}, invalid("command_plan_purpose")
 	}
+	if purpose != InventoryAccept && plan.inventoryMemory != (inventoryMemoryBudget{}) {
+		return effectivePlan{}, invalid("memory_purpose")
+	}
+	if err := validateInventoryMemory(plan.inventoryMemory, plan.need[governor.MemoryBytes]); err != nil {
+		return effectivePlan{}, err
+	}
 	// Each profile must itself carry a real matching registration. Another
 	// profile's broad receipt must never compensate for a missing/foreign one.
 	if _, err := stmt.New(defs, plan.registration); err != nil {
