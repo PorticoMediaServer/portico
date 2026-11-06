@@ -2179,5 +2179,117 @@
     "guardHash": "ce032ff75268160962f65675e9bd1d8f34385578bdfc1def401e1abf0030b569",
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6673584916"
+  },
+  "apps/native/src-next/platform/playback/runtime.ts#6eaf5d1ad651ca99@f44e7e7eb6b9138dc4de4a05d16d7880b17eac47f8a50c506922159db7ae9cf1": {
+    "category": "platform-transport",
+    "reason": "Approved playback transport: forwards the named core-built request unchanged with only reviewed lifetime, signal, custody or original-owner delivery policy.",
+    "condition": "Exact file-qualified ID/full enclosing-policy hash pair, occurrence count 1. Core owns request path, method, body and auth; signal-only conditional copies, preparingStarts comparison/custody WeakMap recording and original-owner DELETE/farewell are approved. A retired PlaybackScopeHttp response must never be returned. Any span edit voids approval.",
+    "guardHash": "f44e7e7eb6b9138dc4de4a05d16d7880b17eac47f8a50c506922159db7ae9cf1",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648755492"
+  },
+  "apps/native/src-next/platform/playback/runtime.ts#6eaf5d1ad651ca99@00c5268ce1a661828f910de7315eb45f063bbff18711340b9649192d07384e74": {
+    "category": "platform-transport",
+    "reason": "Approved playback transport: forwards the named core-built request unchanged with only reviewed lifetime, signal, custody or original-owner delivery policy.",
+    "condition": "Exact file-qualified ID/full enclosing-policy hash pair, occurrence count 1. Core owns request path, method, body and auth; signal-only conditional copies, preparingStarts comparison/custody WeakMap recording and original-owner DELETE/farewell are approved. A retired PlaybackScopeHttp response must never be returned. Any span edit voids approval.",
+    "guardHash": "00c5268ce1a661828f910de7315eb45f063bbff18711340b9649192d07384e74",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648755492"
+  },
+  "apps/native/src-next/platform/playback/runtime.ts#b93c2b0e400ec9e1@00c5268ce1a661828f910de7315eb45f063bbff18711340b9649192d07384e74": {
+    "category": "platform-transport",
+    "reason": "Approved playback transport: forwards the named core-built request unchanged with only reviewed lifetime, signal, custody or original-owner delivery policy.",
+    "condition": "Exact file-qualified ID/full enclosing-policy hash pair, occurrence count 1. Core owns request path, method, body and auth; signal-only conditional copies, preparingStarts comparison/custody WeakMap recording and original-owner DELETE/farewell are approved. A retired PlaybackScopeHttp response must never be returned. Any span edit voids approval.",
+    "guardHash": "00c5268ce1a661828f910de7315eb45f063bbff18711340b9649192d07384e74",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648755492"
+  },
+  "apps/native/src-next/platform/playback/runtime.ts#f0a2d245dacf0916@3e52b00e01c8abbe3e54532d7c7d6a5c58164769f48772a297f918ba2e290d95": {
+    "category": "platform-transport",
+    "reason": "Approved playback transport: forwards the named core-built request unchanged with only reviewed lifetime, signal, custody or original-owner delivery policy.",
+    "condition": "Exact file-qualified ID/full enclosing-policy hash pair, occurrence count 1. Core owns request path, method, body and auth; signal-only conditional copies, preparingStarts comparison/custody WeakMap recording and original-owner DELETE/farewell are approved. A retired PlaybackScopeHttp response must never be returned. Any span edit voids approval.",
+    "guardHash": "3e52b00e01c8abbe3e54532d7c7d6a5c58164769f48772a297f918ba2e290d95",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648755492"
+  },
+  "apps/native/src-next/platform/playback/runtime.ts#f0a2d245dacf0916@cb71f4b57795a2bf02ec76d8a1a6bc8df1fc729a6f78f5227d0ec6fc30b8ee8d": {
+    "category": "platform-transport",
+    "reason": "Approved playback transport: forwards the named core-built request unchanged with only reviewed lifetime, signal, custody or original-owner delivery policy.",
+    "condition": "Exact file-qualified ID/full enclosing-policy hash pair, occurrence count 1. Core owns request path, method, body and auth; signal-only conditional copies, preparingStarts comparison/custody WeakMap recording and original-owner DELETE/farewell are approved. A retired PlaybackScopeHttp response must never be returned. Any span edit voids approval.",
+    "guardHash": "cb71f4b57795a2bf02ec76d8a1a6bc8df1fc729a6f78f5227d0ec6fc30b8ee8d",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648755492"
+  },
+  "apps/native/src-next/platform/playback/scope-http.ts#21d1e987785bc408@df9d221d595a8aaa20f471e2d85ca782437f9c6f81a2d3e0562285798b67998a": {
+    "category": "platform-transport",
+    "reason": "Approved playback transport: forwards the named core-built request unchanged with only reviewed lifetime, signal, custody or original-owner delivery policy.",
+    "condition": "Exact file-qualified ID/full enclosing-policy hash pair, occurrence count 1. Core owns request path, method, body and auth; signal-only conditional copies, preparingStarts comparison/custody WeakMap recording and original-owner DELETE/farewell are approved. A retired PlaybackScopeHttp response must never be returned. Any span edit voids approval.",
+    "guardHash": "df9d221d595a8aaa20f471e2d85ca782437f9c6f81a2d3e0562285798b67998a",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648755492"
+  },
+  "web/src/platform/playback/runtime.ts#692bd4c5a755f009@9b1d40470518b6b5f06e5a206ab8551ca2cc17e4e5dce806ac4ae146fac740fa": {
+    "category": "platform-transport",
+    "reason": "Approved playback transport: forwards the named core-built request unchanged with only reviewed lifetime, signal, custody or original-owner delivery policy.",
+    "condition": "Exact file-qualified ID/full enclosing-policy hash pair, occurrence count 1. Core owns request path, method, body and auth; signal-only conditional copies, preparingStarts comparison/custody WeakMap recording and original-owner DELETE/farewell are approved. A retired PlaybackScopeHttp response must never be returned. Any span edit voids approval.",
+    "guardHash": "9b1d40470518b6b5f06e5a206ab8551ca2cc17e4e5dce806ac4ae146fac740fa",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648755492"
+  },
+  "web/src/platform/playback/runtime.ts#6b285d4646a96382@1ab910a28f67251b5839683ff9e60bf474134c951bda979db7749e24a211beaf": {
+    "category": "platform-transport",
+    "reason": "Approved playback transport: forwards the named core-built request unchanged with only reviewed lifetime, signal, custody or original-owner delivery policy.",
+    "condition": "Exact file-qualified ID/full enclosing-policy hash pair, occurrence count 1. Core owns request path, method, body and auth; signal-only conditional copies, preparingStarts comparison/custody WeakMap recording and original-owner DELETE/farewell are approved. A retired PlaybackScopeHttp response must never be returned. Any span edit voids approval.",
+    "guardHash": "1ab910a28f67251b5839683ff9e60bf474134c951bda979db7749e24a211beaf",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648755492"
+  },
+  "web/src/platform/playback/runtime.ts#78dc8210c398edf9@1ab910a28f67251b5839683ff9e60bf474134c951bda979db7749e24a211beaf": {
+    "category": "platform-transport",
+    "reason": "Approved playback transport: forwards the named core-built request unchanged with only reviewed lifetime, signal, custody or original-owner delivery policy.",
+    "condition": "Exact file-qualified ID/full enclosing-policy hash pair, occurrence count 1. Core owns request path, method, body and auth; signal-only conditional copies, preparingStarts comparison/custody WeakMap recording and original-owner DELETE/farewell are approved. A retired PlaybackScopeHttp response must never be returned. Any span edit voids approval.",
+    "guardHash": "1ab910a28f67251b5839683ff9e60bf474134c951bda979db7749e24a211beaf",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648755492"
+  },
+  "web/src/platform/playback/runtime.ts#ea423be48cb3f904@1ab910a28f67251b5839683ff9e60bf474134c951bda979db7749e24a211beaf": {
+    "category": "platform-transport",
+    "reason": "Approved playback transport: forwards the named core-built request unchanged with only reviewed lifetime, signal, custody or original-owner delivery policy.",
+    "condition": "Exact file-qualified ID/full enclosing-policy hash pair, occurrence count 1. Core owns request path, method, body and auth; signal-only conditional copies, preparingStarts comparison/custody WeakMap recording and original-owner DELETE/farewell are approved. A retired PlaybackScopeHttp response must never be returned. Any span edit voids approval.",
+    "guardHash": "1ab910a28f67251b5839683ff9e60bf474134c951bda979db7749e24a211beaf",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648755492"
+  },
+  "web/src/platform/playback/runtime.ts#53df8861a53fc1ec@33fd90a3b9c4e49d28d4128de1e05798a3d438dc92632e9e7f9d839845850620": {
+    "category": "platform-transport",
+    "reason": "Approved playback transport: forwards the named core-built request unchanged with only reviewed lifetime, signal, custody or original-owner delivery policy.",
+    "condition": "Exact file-qualified ID/full enclosing-policy hash pair, occurrence count 1. Core owns request path, method, body and auth; signal-only conditional copies, preparingStarts comparison/custody WeakMap recording and original-owner DELETE/farewell are approved. A retired PlaybackScopeHttp response must never be returned. Any span edit voids approval.",
+    "guardHash": "33fd90a3b9c4e49d28d4128de1e05798a3d438dc92632e9e7f9d839845850620",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648755492"
+  },
+  "web/src/platform/playback/runtime.ts#d08cac842cd1705e@b47ffc309d78d47a4485776f3ba41802d129a8c35b6c9a7d5f39b15b48d9643f": {
+    "category": "platform-transport",
+    "reason": "Approved playback transport: forwards the named core-built request unchanged with only reviewed lifetime, signal, custody or original-owner delivery policy.",
+    "condition": "Exact file-qualified ID/full enclosing-policy hash pair, occurrence count 1. Core owns request path, method, body and auth; signal-only conditional copies, preparingStarts comparison/custody WeakMap recording and original-owner DELETE/farewell are approved. A retired PlaybackScopeHttp response must never be returned. Any span edit voids approval.",
+    "guardHash": "b47ffc309d78d47a4485776f3ba41802d129a8c35b6c9a7d5f39b15b48d9643f",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648755492"
+  },
+  "web/src/platform/playback/start-owner.ts#6c05124bbe8c6d46@e2bf1a64361d77e2fc960f785e7030e39608a1640ff7ff81d55bfdb54349d3fe": {
+    "category": "platform-transport",
+    "reason": "Approved playback transport: forwards the named core-built request unchanged with only reviewed lifetime, signal, custody or original-owner delivery policy.",
+    "condition": "Exact file-qualified ID/full enclosing-policy hash pair, occurrence count 1. Core owns request path, method, body and auth; signal-only conditional copies, preparingStarts comparison/custody WeakMap recording and original-owner DELETE/farewell are approved. A retired PlaybackScopeHttp response must never be returned. Any span edit voids approval.",
+    "guardHash": "e2bf1a64361d77e2fc960f785e7030e39608a1640ff7ff81d55bfdb54349d3fe",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648755492"
+  },
+  "apps/native/src-next/shell/listening-song-detail.ts#2bab26bc28118986@19da9a26e2aba260859c4d7a9d4848a164ea8d103bff3ab071651c48d6c4a457": {
+    "category": "platform-transport",
+    "reason": "Approved playback transport: forwards the named core-built request unchanged with only reviewed lifetime, signal, custody or original-owner delivery policy.",
+    "condition": "Exact file-qualified ID/full enclosing-policy hash pair, occurrence count 1. Core owns request path, method, body and auth; signal-only conditional copies, preparingStarts comparison/custody WeakMap recording and original-owner DELETE/farewell are approved. A retired PlaybackScopeHttp response must never be returned. Any span edit voids approval.",
+    "guardHash": "19da9a26e2aba260859c4d7a9d4848a164ea8d103bff3ab071651c48d6c4a457",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648755492"
   }
 }
