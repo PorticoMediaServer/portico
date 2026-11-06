@@ -128,12 +128,9 @@ func TestInstanceLockStartupFailureHelper(t *testing.T) {
 		}
 	}()
 	err := runWithInstanceLock(func(path string) (*instanceLock, error) {
-		lock, err := acquireInstanceLockWith(path, func(*os.File) error {
-			if mode == "silent" {
-				return nil
-			}
-			return errInstanceLockUnsupported
-		})
+		// Native unavailable/silent-lock behavior is tested in stateownership;
+		// this startup test checks the refusal's exact diagnostic and ordering.
+		lock, err := (*instanceLock)(nil), errInstanceLockUnsupported
 		close(started)
 		return lock, err
 	})

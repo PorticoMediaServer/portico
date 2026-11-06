@@ -1,9 +1,8 @@
 package main
 
 import (
-	"errors"
 	"fmt"
-	"os"
+	"github.com/PorticoMediaServer/portico/server/internal/stateownership"
 )
 
 // The whole architecture rests on "one process, one SQLite file, one writer",
@@ -24,12 +23,12 @@ import (
 // second instance never touches the file at all.
 
 // errInstanceLockHeld means another process holds the state directory.
-var errInstanceLockHeld = errors.New("another Portico server is already using this state directory")
+var errInstanceLockHeld = stateownership.ErrHeld
 
 // errInstanceLockUnsupported means the filesystem cannot answer the question.
 // Some network and bind-mounted filesystems do not honour advisory locks. State
 // on those filesystems is unsafe; startup must refuse before opening it.
-var errInstanceLockUnsupported = errors.New("this filesystem does not support advisory locking")
+var errInstanceLockUnsupported = stateownership.ErrUnsupported
 
 const instanceLockStorageAdvice = "Portico's state folder must be on storage with working file locks: a local disk or a Docker volume. Media libraries can stay on network storage. Two servers must never share one state folder, including from different machines."
 
@@ -46,61 +45,10 @@ func (e *instanceLockFailure) Error() string {
 
 func (e *instanceLockFailure) Unwrap() error { return e.cause }
 
-// instanceLock is a held exclusive lock on the state directory's lock file.
-type instanceLock struct{ file *os.File }
+// instanceLock reuses the actual shared native state lock. Trusted store
+// composition may borrow it; shutdown cannot unlock borrowed physical work.
+type instanceLock = stateownership.Lock
 
-// acquireInstanceLock takes the lock, or reports why it could not.
 func acquireInstanceLock(path string) (*instanceLock, error) {
-	return acquireInstanceLockWith(path, lockInstanceFile)
-}
-
-func acquireInstanceLockWith(path string, lock func(*os.File) error) (*instanceLock, error) {
-	// Go opens these descriptors close-on-exec. Keep that default: FFmpeg and
-	// other children must not inherit the lock and extend its owner's lifetime.
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0600)
-	if err != nil {
-		return nil, err
-	}
-	if err = lock(file); err != nil {
-		file.Close()
-		return nil, err
-	}
-	// A successful syscall is not enough on filesystems that silently ignore
-	// advisory locks. A distinct open-file description must be refused. This
-	// cannot detect cross-host NFS configured with host-local flock semantics;
-	// sharing one state folder between machines remains unsupported.
-	probe, err := os.OpenFile(path, os.O_RDWR, 0)
-	if err != nil {
-		file.Close()
-		return nil, err
-	}
-	firstInfo, firstErr := file.Stat()
-	probeInfo, probeErr := probe.Stat()
-	if firstErr != nil || probeErr != nil || !os.SameFile(firstInfo, probeInfo) {
-		probe.Close()
-		file.Close()
-		return nil, fmt.Errorf("%w: lock file changed while checking exclusivity", errInstanceLockUnsupported)
-	}
-	err = lock(probe)
-	closeErr := probe.Close()
-	if !errors.Is(err, errInstanceLockHeld) || closeErr != nil {
-		file.Close()
-		if err == nil {
-			return nil, fmt.Errorf("%w: a second handle acquired the exclusive lock", errInstanceLockUnsupported)
-		}
-		return nil, fmt.Errorf("cannot verify exclusive state locking: %w", errors.Join(err, closeErr))
-	}
-	return &instanceLock{file: file}, nil
-}
-
-// Close releases the lock. The OS would release it anyway when the process ends;
-// this makes an orderly shutdown orderly.
-func (l *instanceLock) Close() error {
-	if l == nil || l.file == nil {
-		return nil
-	}
-	unlockInstanceFile(l.file)
-	err := l.file.Close()
-	l.file = nil
-	return err
+	return stateownership.Acquire(path)
 }

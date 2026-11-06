@@ -1,6 +1,6 @@
 //go:build !windows
 
-package main
+package stateownership
 
 import (
 	"errors"
@@ -17,11 +17,11 @@ func lockInstanceFile(file *os.File) error {
 	case err == nil:
 		return nil
 	case errors.Is(err, syscall.EWOULDBLOCK), errors.Is(err, syscall.EAGAIN), errors.Is(err, syscall.EACCES):
-		return errInstanceLockHeld
+		return ErrHeld
 	case errors.Is(err, syscall.ENOTSUP), errors.Is(err, syscall.EOPNOTSUPP), errors.Is(err, syscall.ENOLCK), errors.Is(err, syscall.EINVAL), errors.Is(err, syscall.ENOSYS):
 		// A bind-mounted state directory on some network filesystems answers this
 		// way. Startup refuses before opening state on unsupported storage.
-		return errInstanceLockUnsupported
+		return ErrUnsupported
 	default:
 		return err
 	}
