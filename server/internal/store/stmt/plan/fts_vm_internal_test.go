@@ -43,6 +43,7 @@ func TestFTSVMMapsOnlyTwoDestinationProvenOperands(t *testing.T) {
 		"third_vtab":      func(r *Rows) { r.Values[10][5] = "vtab:123ABCD" },
 		"other_operand":   func(r *Rows) { r.Values[6][6] = int64(3) },
 		"truncated_row":   func(r *Rows) { r.Values[6] = nil },
+		"zero_pointer":    func(r *Rows) { r.Values[6][5], r.Values[9][5] = "vtab:00", "vtab:00" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			in := ftsVMFixture()
