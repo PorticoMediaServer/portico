@@ -6,6 +6,7 @@ import (
 	"container/list"
 	"context"
 	"errors"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -126,7 +127,7 @@ type TransportConfig struct {
 	MaxPending        int // includes pacing and in-flight requests; no unbounded queue
 	MaxWaiters        int // all callers, including coalesced requests
 	MaxResponseBytes  int64
-	CacheBytes        int64
+	CacheBytes        int64 // conservative body-allocation bound; entry/key metadata is separate
 	CacheEntries      int
 	CacheTTL          time.Duration
 	RequestTimeout    time.Duration
@@ -138,8 +139,8 @@ type TransportConfig struct {
 type TransportStats struct {
 	Requests, Attempts, Reused, Deduplicated, Refused, Failures, Bytes uint64
 	Pending, Waiters, InFlight, PeakInFlight                           int
-	CacheBytes                                                         int64
-	KeyBytes                                                           int64 // owned key string payloads (config, pending and cached); body bytes separate
+	CacheBytes                                                         int64 // conservatively charged backing allocations, not payload len/cap
+	KeyBytes                                                           int64 // owned key string payloads (config, pending and cached); body allocations separate
 }
 
 type fetchCall struct {
@@ -555,8 +556,8 @@ func (t *Transport) acquire(ctx context.Context, key RequestKey) ([]byte, error)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	// This body is retained by the flight/cache. Own exactly the storage charged
-	// by remember/evict; append's growth rounding can retain cap > len.
+	// Retain an independently owned body. Cache accounting ALSO charges allocator
+	// rounding: an exact slice capacity alone does not bound its heap allocation.
 	owned := make([]byte, len(r.Body))
 	copy(owned, r.Body)
 	return owned, nil
@@ -566,21 +567,45 @@ func (t *Transport) evict(e *list.Element) {
 	v := e.Value.(cachedResponse)
 	delete(t.cache, v.key)
 	t.lru.Remove(e)
-	t.stats.CacheBytes -= int64(len(v.body))
+	t.stats.CacheBytes -= cacheBodyCharge(len(v.body))
 	t.stats.KeyBytes -= v.key.bytes()
 }
 
 func (t *Transport) remember(key RequestKey, body []byte, expires time.Duration) {
-	if t.cfg.CacheTTL == 0 || t.cfg.CacheEntries == 0 || int64(len(body)) > t.cfg.CacheBytes {
+	charge := cacheBodyCharge(len(body))
+	if t.cfg.CacheTTL == 0 || t.cfg.CacheEntries == 0 || charge > t.cfg.CacheBytes {
 		return
 	}
-	for t.lru.Len() >= t.cfg.CacheEntries || t.stats.CacheBytes+int64(len(body)) > t.cfg.CacheBytes {
+	for t.lru.Len() >= t.cfg.CacheEntries || t.stats.CacheBytes+charge > t.cfg.CacheBytes {
 		t.evict(t.lru.Back())
 	}
 	e := t.lru.PushFront(cachedResponse{key: key, body: body, expires: expires})
 	t.cache[key] = e
-	t.stats.CacheBytes += int64(len(body))
+	t.stats.CacheBytes += charge
 	t.stats.KeyBytes += key.bytes()
+}
+
+// Go's noscan []byte objects use size classes through 32KiB, then 8KiB pages.
+// Next-power-of-two (at least a 16B tiny block) conservatively bounds the small
+// classes without depending on a private runtime table. Saturation keeps a
+// future oversized input from wrapping into a small cache debit. Cache entry/
+// key metadata and runtime/span overhead have their separate reservation; this
+// bound concerns retained body objects, not whole-process RSS qualification.
+func cacheBodyCharge(n int) int64 {
+	if n == 0 {
+		return 0
+	}
+	if n <= 32<<10 {
+		charge := int64(16)
+		for charge < int64(n) {
+			charge *= 2
+		}
+		return charge
+	}
+	if int64(n) > math.MaxInt64-8191 {
+		return math.MaxInt64
+	}
+	return (int64(n) + 8191) &^ 8191
 }
 
 func (t *Transport) Stats() TransportStats {

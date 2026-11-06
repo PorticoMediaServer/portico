@@ -163,7 +163,7 @@ func TestTransportOneCallerCannotCancelOtherWaiters(t *testing.T) {
 
 func TestTransportKeysAndCacheBounds(t *testing.T) {
 	cfg := config()
-	cfg.CacheBytes = 6
+	cfg.CacheBytes = 32 // two tiny body allocations, conservatively16B each
 	cfg.CacheEntries = 2
 	tr := broker(t, cfg, admissionFunc(allowed), func(context.Context, RequestKey, int64) (Response, error) {
 		return Response{Status: 200, Body: []byte("abc")}, nil
@@ -178,7 +178,7 @@ func TestTransportKeysAndCacheBounds(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if tr.Stats().Attempts != 5 || tr.Stats().CacheBytes != 6 {
+	if tr.Stats().Attempts != 5 || tr.Stats().CacheBytes != 32 {
 		t.Fatal(tr.Stats())
 	}
 	if _, err := tr.Get(context.Background(), keys[4]); err != nil {
@@ -474,7 +474,7 @@ func TestTransportCountsOwnedKeyPayloads(t *testing.T) {
 	if _, err := tr.Get(context.Background(), k); err != nil {
 		t.Fatal(err)
 	}
-	if s := tr.Stats(); s.KeyBytes != int64(len(cfg.Provider))+k.bytes() || s.CacheBytes != 2 {
+	if s := tr.Stats(); s.KeyBytes != int64(len(cfg.Provider))+k.bytes() || s.CacheBytes != 16 {
 		t.Fatalf("key/body accounting %+v", s)
 	}
 	tr.Close()
