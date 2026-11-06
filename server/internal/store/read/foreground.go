@@ -8,15 +8,18 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
 
-// ForegroundReader is harness-only. Trusted composition supplies the same
-// snapshot pool and retained-output custody as browse; no SQL handle escapes.
-type ForegroundReader struct{ snapshots browseSnapshots }
+// ForegroundReader is harness-only. Public reads require a ConsumeForeground
+// scope bound to this snapshot pool; no SQL handle escapes.
+type ForegroundReader struct {
+	snapshots browseSnapshots
+	pool      *governor.Snapshots
+}
 
 func NewForegroundReader(s *governor.Snapshots) (*ForegroundReader, error) {
 	if s == nil {
 		return nil, ErrInput
 	}
-	return &ForegroundReader{snapshots: s}, nil
+	return &ForegroundReader{snapshots: s, pool: s}, nil
 }
 
 var ErrNotReady = errors.New("foreground source facts are not ready")
@@ -104,6 +107,16 @@ func stateValue(row []any) UserState {
 // selected file's <=255 streams/class and512 chapters. A pending raw child or
 // credit window is explicit; it is never a successful exhaustive empty list.
 func (r *ForegroundReader) Detail(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in TitleInput) (TitleDetail, BrowseReadResult, error) {
+	if r == nil {
+		return TitleDetail{}, BrowseReadResult{}, ErrInput
+	}
+	return liveRead(ctx, request, budget, output, r.pool, in.View.Now, func(ctx context.Context, request governor.Request, budget time.Duration, at time.Time) (TitleDetail, BrowseReadResult, error) {
+		in.View.Now = at
+		return r.detail(ctx, request, budget, output, in)
+	})
+}
+
+func (r *ForegroundReader) detail(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in TitleInput) (TitleDetail, BrowseReadResult, error) {
 	if r == nil || !validTitle(in) {
 		return TitleDetail{}, BrowseReadResult{}, ErrInput
 	}
@@ -273,6 +286,16 @@ func (r *ForegroundReader) Detail(ctx context.Context, request governor.Request,
 // Playback resolves a selected current link and ready file/stream facts. It
 // mints no playback authority and performs no IO or durable session start.
 func (r *ForegroundReader) Playback(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in TitleInput) (PlaybackFile, BrowseReadResult, error) {
+	if r == nil {
+		return PlaybackFile{}, BrowseReadResult{}, ErrInput
+	}
+	return liveRead(ctx, request, budget, output, r.pool, in.View.Now, func(ctx context.Context, request governor.Request, budget time.Duration, at time.Time) (PlaybackFile, BrowseReadResult, error) {
+		in.View.Now = at
+		return r.playback(ctx, request, budget, output, in)
+	})
+}
+
+func (r *ForegroundReader) playback(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in TitleInput) (PlaybackFile, BrowseReadResult, error) {
 	if r == nil || !validTitle(in) || in.Asset == 0 || in.After != nil {
 		return PlaybackFile{}, BrowseReadResult{}, ErrInput
 	}

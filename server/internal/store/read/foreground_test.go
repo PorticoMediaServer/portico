@@ -73,7 +73,7 @@ func foregroundRequest() governor.Request {
 func TestForegroundDetailAndPlayback(t *testing.T) {
 	f, r := newForegroundFixture(t)
 	in := TitleInput{View: f.input, Item: 1, Asset: 1}
-	d, result, e := r.Detail(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	d, result, e := r.detail(t.Context(), foregroundRequest(), time.Second, f.output, in)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -84,17 +84,17 @@ func TestForegroundDetailAndPlayback(t *testing.T) {
 		t.Fatal("missing child continuation")
 	}
 	in.After = d.Next
-	next, _, e := r.Detail(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	next, _, e := r.detail(t.Context(), foregroundRequest(), time.Second, f.output, in)
 	if e != nil || len(next.Children) == 0 || next.Children[0].ID <= d.Children[39].ID {
 		t.Fatal("child continuation", e)
 	}
 	in.After = nil
-	file, result, e := r.Playback(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	file, result, e := r.playback(t.Context(), foregroundRequest(), time.Second, f.output, in)
 	if e != nil || file.Path != "/media/title.mkv" || file.Size != 1000 || len(file.Streams) != 2 || result.LookupStatements != 11 {
 		t.Fatalf("playback=%+v result=%+v err=%v", file, result, e)
 	}
 	f.exec(t, `UPDATE catalog_assets SET modified_ns=2 WHERE id=1`)
-	file, _, e = r.Playback(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	file, _, e = r.playback(t.Context(), foregroundRequest(), time.Second, f.output, in)
 	if !errors.Is(e, ErrNotReady) || !reflect.DeepEqual(file, PlaybackFile{}) {
 		t.Fatal("stale file facts escaped", e)
 	}
@@ -106,7 +106,7 @@ func TestForegroundContinueOwnStateAndRawTraversal(t *testing.T) {
 	var ids []int64
 	var last *ContinueCursor
 	for n := 0; n < 100; n++ {
-		page, result, e := r.ContinueWatching(t.Context(), foregroundRequest(), time.Second, f.output, in)
+		page, result, e := r.continueWatching(t.Context(), foregroundRequest(), time.Second, f.output, in)
 		if e != nil {
 			t.Fatal(e)
 		}
@@ -140,13 +140,13 @@ func TestForegroundContinueOwnStateAndRawTraversal(t *testing.T) {
 	}
 	f.exec(t, `INSERT INTO viewer_revisions(profile_id,library_id,revision) VALUES('p','movies',2)`)
 	in.After = last
-	page, _, e := r.ContinueWatching(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	page, _, e := r.continueWatching(t.Context(), foregroundRequest(), time.Second, f.output, in)
 	if !errors.Is(e, ErrStale) || !reflect.DeepEqual(page, ContinuePage{}) {
 		t.Fatal("stale own state cursor", e)
 	}
 	in.After = nil
 	f.exec(t, `UPDATE catalog_entities SET retired=1`)
-	page, _, e = r.ContinueWatching(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	page, _, e = r.continueWatching(t.Context(), foregroundRequest(), time.Second, f.output, in)
 	if e != nil || len(page.Items) != 0 || page.Exhausted || page.RawPositions != MaxRaw || page.Next == nil {
 		t.Fatalf("hidden raw tail: %+v %v", page, e)
 	}
@@ -161,21 +161,21 @@ func TestForegroundPublicationDeniesAllRecipes(t *testing.T) {
 			switch recipe {
 			case "detail":
 				var d TitleDetail
-				d, _, e = r.Detail(t.Context(), foregroundRequest(), time.Second, f.output, TitleInput{View: f.input, Item: 1, Asset: 1})
+				d, _, e = r.detail(t.Context(), foregroundRequest(), time.Second, f.output, TitleInput{View: f.input, Item: 1, Asset: 1})
 				value = d
 				if !reflect.DeepEqual(d, TitleDetail{}) {
 					t.Fatal("detail leak")
 				}
 			case "playback":
 				var d PlaybackFile
-				d, _, e = r.Playback(t.Context(), foregroundRequest(), time.Second, f.output, TitleInput{View: f.input, Item: 1, Asset: 1})
+				d, _, e = r.playback(t.Context(), foregroundRequest(), time.Second, f.output, TitleInput{View: f.input, Item: 1, Asset: 1})
 				value = d
 				if !reflect.DeepEqual(d, PlaybackFile{}) {
 					t.Fatal("playback leak")
 				}
 			case "continue":
 				var d ContinuePage
-				d, _, e = r.ContinueWatching(t.Context(), foregroundRequest(), time.Second, f.output, ContinueInput{View: f.input})
+				d, _, e = r.continueWatching(t.Context(), foregroundRequest(), time.Second, f.output, ContinueInput{View: f.input})
 				value = d
 				if !reflect.DeepEqual(d, ContinuePage{}) {
 					t.Fatal("continue leak")
@@ -191,7 +191,7 @@ func TestForegroundCancellation(t *testing.T) {
 	f, r := newForegroundFixture(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	r.snapshots = &browseBoundarySnapshots{Snapshots: f.snapshots, afterBusiness: cancel}
-	d, _, e := r.Detail(ctx, foregroundRequest(), time.Second, f.output, TitleInput{View: f.input, Item: 1, Asset: 1})
+	d, _, e := r.detail(ctx, foregroundRequest(), time.Second, f.output, TitleInput{View: f.input, Item: 1, Asset: 1})
 	if !errors.Is(e, context.Canceled) || !reflect.DeepEqual(d, TitleDetail{}) {
 		t.Fatal("cancellation leaked output", e)
 	}
@@ -219,7 +219,7 @@ func TestForegroundSourceDriftRetriesOnce(t *testing.T) {
 					f.exec(t, `UPDATE catalog_entities SET revision=revision+1 WHERE id=1`)
 				}
 			}}
-			d, result, e := r.Detail(t.Context(), foregroundRequest(), time.Second, f.output, TitleInput{View: f.input, Item: 1, Asset: 1})
+			d, result, e := r.detail(t.Context(), foregroundRequest(), time.Second, f.output, TitleInput{View: f.input, Item: 1, Asset: 1})
 			if e != nil || d.Item.Revision != 2 || result.Attempts != 2 {
 				t.Fatalf("retry revision%d attempts%d err%v", d.Item.Revision, result.Attempts, e)
 			}
@@ -227,7 +227,7 @@ func TestForegroundSourceDriftRetriesOnce(t *testing.T) {
 	}
 	f, r := newForegroundFixture(t)
 	r.snapshots = &foregroundBoundary{Snapshots: f.snapshots, mutate: func(int) { f.exec(t, `UPDATE catalog_entities SET revision=revision+1 WHERE id=1`) }}
-	d, result, e := r.Detail(t.Context(), foregroundRequest(), time.Second, f.output, TitleInput{View: f.input, Item: 1, Asset: 1})
+	d, result, e := r.detail(t.Context(), foregroundRequest(), time.Second, f.output, TitleInput{View: f.input, Item: 1, Asset: 1})
 	if !errors.Is(e, governor.ErrBusy) || !errors.Is(e, ErrStale) || result.Attempts != 2 || result.Refusal == nil || result.Refusal.Code != governor.Conflict || !reflect.DeepEqual(d, TitleDetail{}) {
 		t.Fatalf("retry bound attempts%d err%v", result.Attempts, e)
 	}
@@ -246,7 +246,7 @@ func TestForegroundPublicationAfterEveryBusinessWindow(t *testing.T) {
 					f.exec(t, `UPDATE authorization_session_families SET revoked=1`)
 				}
 			}}
-			d, _, e := r.Detail(t.Context(), foregroundRequest(), time.Second, f.output, TitleInput{View: f.input, Item: 1, Asset: 1})
+			d, _, e := r.detail(t.Context(), foregroundRequest(), time.Second, f.output, TitleInput{View: f.input, Item: 1, Asset: 1})
 			if !errors.Is(e, ErrDenied) || !reflect.DeepEqual(d, TitleDetail{}) {
 				t.Fatal("late revocation", e)
 			}
@@ -264,18 +264,18 @@ func TestForegroundLegalCapsAndOverLimitRefusal(t *testing.T) {
 	}
 	f.exec(t, "COMMIT")
 	in := TitleInput{View: f.input, Item: 1, Asset: 1}
-	file, _, e := r.Playback(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	file, _, e := r.playback(t.Context(), foregroundRequest(), time.Second, f.output, in)
 	if e != nil || len(file.Streams) != 256 || len(file.Chapters) != 512 {
 		t.Fatal("legal caps refused", e)
 	}
 	f.exec(t, `INSERT INTO asset_chapters(asset_id,chapter_index,title,start_seconds,end_seconds) VALUES('asset',512,'Excess',0.0,1.0)`)
-	file, _, e = r.Playback(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	file, _, e = r.playback(t.Context(), foregroundRequest(), time.Second, f.output, in)
 	if !errors.Is(e, ErrUnqualified) || !reflect.DeepEqual(file, PlaybackFile{}) {
 		t.Fatal("chapter overflow", e)
 	}
 	f.exec(t, `DELETE FROM asset_chapters WHERE chapter_index=512`)
 	f.exec(t, `INSERT INTO asset_streams(asset_id,stream_index,type,codec,language,title,channels,channel_layout,is_default,is_forced) VALUES('asset',256,'video','h264','','',0,'',0,0)`)
-	file, _, e = r.Playback(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	file, _, e = r.playback(t.Context(), foregroundRequest(), time.Second, f.output, in)
 	if !errors.Is(e, ErrUnqualified) || !reflect.DeepEqual(file, PlaybackFile{}) {
 		t.Fatal("stream class overflow", e)
 	}
@@ -284,12 +284,12 @@ func TestForegroundCreditsContinueWithoutManualTrimming(t *testing.T) {
 	f, r := newForegroundFixture(t)
 	f.exec(t, `INSERT INTO catalog_credits(image_id,entity_id,ord,role_id,department_id,credited_name,provider,credit_id,source_ordinal) VALUES(1,1,150,1,2,'Owner extra','owner','extra',150)`)
 	in := TitleInput{View: f.input, Item: 1}
-	d, _, e := r.Detail(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	d, _, e := r.detail(t.Context(), foregroundRequest(), time.Second, f.output, in)
 	if e != nil || len(d.Cast) != 100 || len(d.Crew) != 50 || d.CreditsExhausted || d.Next == nil {
 		t.Fatal("credit cap continuation", e)
 	}
 	in.After = d.Next
-	d, _, e = r.Detail(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	d, _, e = r.detail(t.Context(), foregroundRequest(), time.Second, f.output, in)
 	if e != nil || len(d.Cast) != 1 || d.Cast[0].Name != "Owner extra" || !d.CreditsExhausted {
 		t.Fatal("manual credit lost", e)
 	}
@@ -299,12 +299,12 @@ func TestForegroundInvalidClockAndContinuationSource(t *testing.T) {
 	f, r := newForegroundFixture(t)
 	in := TitleInput{View: f.input, Item: 1}
 	in.View.Now = time.Time{}
-	d, _, e := r.Detail(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	d, _, e := r.detail(t.Context(), foregroundRequest(), time.Second, f.output, in)
 	if !errors.Is(e, ErrInput) || !reflect.DeepEqual(d, TitleDetail{}) {
 		t.Fatal("missing trusted clock accepted", e)
 	}
 	in.View = f.input
-	d, _, e = r.Detail(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	d, _, e = r.detail(t.Context(), foregroundRequest(), time.Second, f.output, in)
 	if e != nil || d.Next == nil {
 		t.Fatal("source cursor fixture", e)
 	}
@@ -312,7 +312,7 @@ func TestForegroundInvalidClockAndContinuationSource(t *testing.T) {
 	// Even an unversioned library change must not let the old item cursor bind a
 	// new root/source revision.
 	f.exec(t, `UPDATE catalog_entities SET revision=revision+1 WHERE id=1`)
-	d, _, e = r.Detail(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	d, _, e = r.detail(t.Context(), foregroundRequest(), time.Second, f.output, in)
 	if !errors.Is(e, ErrStale) || !reflect.DeepEqual(d, TitleDetail{}) {
 		t.Fatal("continuation source drift escaped", e)
 	}

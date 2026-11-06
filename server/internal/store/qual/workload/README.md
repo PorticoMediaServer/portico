@@ -37,7 +37,7 @@ streams := []workload.Stream{
         {Name: "effective", Run: workload.Effective(w, enrichDisclosure, nextEffective)},
     }},
     {Name: "browse", Every: 50*time.Millisecond, Pattern: []workload.Step{
-        {Name: "browse-ready", Run: workload.Browse(reader, nextBrowse)},
+        {Name: "browse-ready", Run: workload.Browse(reader, g, authority, snapshots, nextBrowse)},
     }},
     {Name: "checkpoint", Every: 250*time.Millisecond, Pattern: []workload.Step{
         {Name: "passive", Run: workload.Passive(checkpointer, nextCheckpoint)},
@@ -64,10 +64,14 @@ retain unknown/stale states. CP completion/allocation/token changes do not prove
 a reset. Creation is not reset. Only owning composition may attest freshness.
 
 `Browse` calls RD's real two-window facade and retains both snapshot results.
-Its trusted `prepare` callback must bind the original ready deadline and obtain
-output custody. `Consume` is required and runs after Window even on read failure,
-so it can encode/consume and retire that output through its owner. The measured
-wall interval includes preparation, both windows and consumer work. `ReadyNS`
+Its trusted `prepare` callback supplies the ORIGINAL foreground/read deadlines,
+the separate output request and trusted request-entry clock; it does not allocate
+a payload or output grant. The adapter calls `read.ConsumeForeground` to admit
+LIVE before output/draft allocation. `Consume` is required and runs after Window
+even on read failure; it joins encoding/IO and drops all page references before
+returning. The driver then retires output and LIVE. Raw read and full-consumption
+evidence remain separate. The measured wall interval includes preparation,
+admission, both windows, consumer work and cleanup. `ReadyNS`
 adds scheduling delay from the original offer; it is not HTTP/network latency.
 The result retains the original ready budget and deadline. Compare paired
 foreground-only/ingest cohorts against B-READS at the declared library size:
@@ -75,8 +79,8 @@ for sorted browse40 at 1M the proposed p95/p99 ready budgets are 50/150 ms;
 background delta p95 ≤10 ms/p99 ≤25 ms. The ≤1 s snapshot protection ceiling is
 not a ready budget. This package computes no gate verdict.
 
-RD2 reads and WC progress/security are not available as executable facades in
-this base. `StubCadence` records missing capability at the declared cadence,
+RD2 read adapters and WC progress/security adapters are not supplied here.
+`StubCadence` records missing capability at the declared cadence,
 performs NO write and has null HOLD/COMMIT/ready fields. A stub prevents schedule
 completion and whole-run reduction. The `Action` contract accommodates future
 typed adapters without expanding the writer registry or inventing a command.

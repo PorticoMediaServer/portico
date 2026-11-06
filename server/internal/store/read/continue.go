@@ -32,6 +32,16 @@ type ContinuePage struct {
 // denied/removed/other-library rows still advance its continuation. This leaf
 // recipe refuses containers; Home's container/on-deck projection is separate.
 func (r *ForegroundReader) ContinueWatching(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in ContinueInput) (ContinuePage, BrowseReadResult, error) {
+	if r == nil {
+		return ContinuePage{}, BrowseReadResult{}, ErrInput
+	}
+	return liveRead(ctx, request, budget, output, r.pool, in.View.Now, func(ctx context.Context, request governor.Request, budget time.Duration, at time.Time) (ContinuePage, BrowseReadResult, error) {
+		in.View.Now = at
+		return r.continueWatching(ctx, request, budget, output, in)
+	})
+}
+
+func (r *ForegroundReader) continueWatching(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in ContinueInput) (ContinuePage, BrowseReadResult, error) {
 	if r == nil || in.View.After != nil || in.View.Descending || in.View.KeepArticles {
 		return ContinuePage{}, BrowseReadResult{}, ErrInput
 	}
