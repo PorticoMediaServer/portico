@@ -354,7 +354,7 @@ def verified_detection_counts(root, base, baseline, old_baseline, old_exceptions
             raise ValueError(f'{key}: detection addition requires exact count, reason and lead-ruling URL')
     if subprocess.run(['git','merge-base','--is-ancestor',source,base],cwd=root).returncode:
         raise ValueError('Detection sourceCommit must be an ancestor of the PR base')
-    old_pins={key for entry in old_exceptions.values() for key in exception_pins(entry)}
+    old_pins={source_id(key) for entry in old_exceptions.values() for key in exception_pins(entry)}
     candidates=set(rising)&entries.keys()-old_pins
     if not candidates:return {}
     original=counts(scan_snapshot(root,source))

@@ -15,6 +15,40 @@ const literal = n => n?.kind === K.StringLiteral || n?.kind === K.NoSubstitution
 const requestNames = new Set(['request', 'requestRaw', 'requestConsole', 'requestDirect', 'send', 'fetch', 'fetcher', 'nativeNetworkFetch', 'nativeSignInFetch', 'networkFetch', 'nativeRequest', 'exchange', 'readJson', 'readJSON']);
 const builders = new Set(['routePath', 'encodedRoutePath', 'hostedRoutePath', 'hostedEncodedRoutePath']);
 const sites = [];
+// Shape recognition must reject construction even under a newly rebound hash.
+// Inspect the complete policy, including conditional tests and signal values.
+function hasRequestWrites(node, extraRoots=[], extraFields=[], containers=[]) {
+  const protectedNames=new Set(['request','path','method','body','headers','signal',...extraRoots]);
+  const protectedFields=new Set([...protectedNames,...extraFields]);
+  const assignments=new Set([K.EqualsToken,K.PlusEqualsToken,K.MinusEqualsToken,K.AsteriskEqualsToken,
+    K.AsteriskAsteriskEqualsToken,K.SlashEqualsToken,K.PercentEqualsToken,K.LessThanLessThanEqualsToken,
+    K.GreaterThanGreaterThanEqualsToken,K.GreaterThanGreaterThanGreaterThanEqualsToken,
+    K.AmpersandEqualsToken,K.BarEqualsToken,K.CaretEqualsToken,K.AmpersandAmpersandEqualsToken,
+    K.BarBarEqualsToken,K.QuestionQuestionEqualsToken]);
+  let written=false;
+  function target(n, member=false) {
+    if (!n) return false;
+    if (n.kind===K.Identifier) return protectedNames.has(n.text) || !member && containers.includes(n.text);
+    if ([K.ParenthesizedExpression,K.AsExpression,K.NonNullExpression,K.TypeAssertionExpression].includes(n.kind)) return target(n.expression,member);
+    if (n.kind===K.PropertyAccessExpression) return protectedFields.has(n.name.text) || target(n.expression,true);
+    if (n.kind===K.ElementAccessExpression) return protectedFields.has(literal(n.argumentExpression)) || target(n.expression,true);
+    if (n.kind===K.ObjectLiteralExpression) return n.properties.some(p=>target(p.initializer ?? p.name ?? p.expression));
+    if (n.kind===K.ArrayLiteralExpression) return n.elements.some(p=>target(p.expression ?? p));
+    return false;
+  }
+  function visit(n) {
+    if (n.kind===K.BinaryExpression && assignments.has(n.operatorToken.kind) && target(n.left)) written=true;
+    if ([K.PrefixUnaryExpression,K.PostfixUnaryExpression].includes(n.kind)
+        && [K.PlusPlusToken,K.MinusMinusToken].includes(n.operator) && target(n.operand)) written=true;
+    if (n.kind===K.DeleteExpression && target(n.expression)) written=true;
+    if ([K.ForOfStatement,K.ForInStatement].includes(n.kind) && target(n.initializer)) written=true;
+    if (n.kind===K.CallExpression && n.expression.kind===K.PropertyAccessExpression
+        && ['assign','defineProperty','defineProperties','set','deleteProperty'].includes(n.expression.name.text)
+        && ['Object','Reflect'].includes(n.expression.expression?.text) && target(n.arguments[0])) written=true;
+    n.forEachChild(visit);
+  }
+  visit(node);return written;
+}
 try {
   const config = join(scratch, 'tsconfig.json');
   writeFileSync(config, JSON.stringify({compilerOptions: {target:'ES2022', module:'ESNext', moduleResolution:'bundler', jsx:'react-jsx', allowJs:true, noEmit:true, skipLibCheck:true, types:[], paths:{'@core/*':[resolve(root,'packages/client-core/src/*')], '@core':[resolve(root,'packages/client-core/src/index.ts')]}}, files:files.map(f=>resolve(root,f))}));
@@ -176,9 +210,9 @@ try {
       if (callName==='requestBounded' && args.length===3 && sameNames(['path','maxBytes']) && ['path','maxBytes'].every(parameter)) forwardingShape='bounded';
       if (callName==='routeFetch' && args.length===2 && args[0]?.kind===K.Identifier && parameter(args[0].text) && signalOptions(args[1])) forwardingShape='fetch-signal-options';
       if (callName==='send' && args.length===1 && (args[0]?.kind===K.Identifier && parameter(args[0].text) || signalOptions(args[0]))) forwardingShape='request-object';
-      if (callName==='send' && args.length===1 && conditionalSignalCopy(args[0])) forwardingShape='conditional-signal';
+      if (callName==='send' && args.length===1 && conditionalSignalCopy(args[0]) && !hasRequestWrites(guard ?? contract ?? c)) forwardingShape='conditional-signal';
       if (callName==='farewell' && args.length===3 && sameNames(['path','method','body'])
-          && ['path','method','body'].every(parameter)) forwardingShape='farewell';
+          && ['path','method','body'].every(parameter) && !hasRequestWrites(guard ?? contract ?? c)) forwardingShape='farewell';
       if (callName==='request' && args.length===4 && args[0]?.kind===K.Identifier && args[0].text==='path' && parameter('path')
           && literal(args[1])==='GET' && args[2]?.kind===K.Identifier && args[2].text==='undefined') forwardingShape='read-only';
       if (chapterGuard && callName==='request' && args.length===4 && args[0]?.kind===K.Identifier && args[0].text==='path' && literal(args[1])==='GET' && args[2]?.kind===K.Identifier && args[2].text==='undefined') forwardingShape='chapter-read';

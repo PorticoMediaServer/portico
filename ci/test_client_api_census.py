@@ -316,6 +316,60 @@ function second() {return {send(request: V1Request) {const owner = 2;return wire
         with redirect_stdout(io.StringIO()),redirect_stderr(io.StringIO()):
             self.assertEqual(main(['--update','--base','HEAD'],root=root),1)
 
+    def test_activated_pairs_cannot_respend_the_historical_detection_budget(self):
+        core='export type V1Request = {path: string; method: string}; export interface V1Http {send(request: V1Request): Promise<unknown>;}'
+        source='''import type {V1Http,V1Request} from '../../packages/client-core/src/playback-v1/http';
+declare const wire: V1Http;
+function first() {return {send(request: V1Request) {const owner=1;return wire.send(request);}};}
+function second() {return {send(request: V1Request) {const owner=2;return wire.send(request);}};}
+'''
+        root,filename,sites,_=self.fixture(source,dependencies={'packages/client-core/src/playback-v1/http.ts':core})
+        key=sites[0]['id'];self.assertEqual({s['id'] for s in sites},{key})
+        original=self.git(root,'rev-parse','HEAD').strip()
+        pairs=[key+'@'+s['guardHash'] for s in sites]
+        pin={'category':'platform-transport','reason':'Reviewed pair','sites':pairs,
+             'guardHashes':{k:s['guardHash'] for k,s in zip(pairs,sites)}}
+        ledger={k:{'category':pin['category'],'reason':pin['reason'],'guardHash':s['guardHash'],
+                   'condition':'Exact full span','occurrences':1,
+                   'rulingUrl':'https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648755492'}
+                for k,s in zip(pairs,sites)}
+        (root/ALLOWLIST).write_text(json.dumps({filename:pin}));(root/APPROVALS).write_text(json.dumps(ledger))
+        (root/DETECTIONS).write_text(json.dumps({'sourceCommit':original,'sites':{key:{'occurrences':2,
+            'reason':'Historical detection improvement','rulingUrl':'https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885'}}}))
+        self.git(root,'add','.');self.git(root,'commit','-qm','Activate two pairs with historical detection manifest')
+        self.assertEqual(self.check(root)[0],0)
+        # Keep both original pairs and the historical manifest unchanged. A third
+        # call must fail even after increasing its DIRECT baseline to one.
+        (root/filename).write_text(source+source.splitlines()[2].replace('first','third').replace('owner=1','owner=3')+'\n')
+        (root/BASELINE).write_text(json.dumps({key:1}))
+        import io
+        from contextlib import redirect_stdout,redirect_stderr
+        with redirect_stdout(io.StringIO()),redirect_stderr(io.StringIO()):
+            self.assertEqual(main(['--update','--base','HEAD'],root=root),1)
+
+    def test_conditional_rebinding_cannot_turn_explicit_writes_into_forwarding(self):
+        core='export type V1Request = {path: string; method: string; body?: unknown; headers?: Record<string,string>; signal?: AbortSignal}; export interface V1Http {send(request: V1Request): Promise<unknown>;}'
+        source='''import type {V1Http,V1Request} from '../../packages/client-core/src/playback-v1/http';
+declare const wire: V1Http, life: AbortSignal;
+function forward(request: V1Request, adopted: boolean) {return wire.send(adopted ? request : {...request,signal:life});}
+'''
+        root,filename,_,_=self.fixture(source,dependencies={'packages/client-core/src/playback-v1/http.ts':core})
+        for condition in ['(request = {...request,path: request.path + "/made"})',
+                          '(request.path = "/made")','(request.method = "DELETE")',
+                          '(request.body = {})','(request.headers = {})','(request.signal = life)',
+                          '(request.headers!["Secret"] = "made")','(delete request.body)',
+                          '(request.path += "/made")']:
+            for target in ['adopted','signal:life']:
+                changed=(source.replace('wire.send(adopted ?', 'wire.send('+condition+' ?') if target=='adopted'
+                         else source.replace('signal:life','signal:('+condition+',life)'))
+                (root/filename).write_text(changed);sites=scan(root)
+                self.assertTrue(sites)
+                self.assertTrue(all(not s['forwardedRequest'] for s in sites),(condition,target))
+                # Even a freshly rebound exact hash must not exempt construction.
+                pin={filename:{'category':'platform-transport','reason':'Reviewed','sites':[s['id'] for s in sites],
+                               'guardHashes':{s['id']:s['guardHash'] for s in sites}}}
+                with self.assertRaises(ValueError):classify(sites,pin)
+
     def test_conditional_signal_and_farewell_shapes_reject_path_or_body_construction(self):
         core='export type V1Request = {path: string; method: string; body?: unknown; signal?: AbortSignal}; export interface V1Http {send(request: V1Request): Promise<unknown>;}'
         source='''import type {V1Http,V1Request} from '../../packages/client-core/src/playback-v1/http';
