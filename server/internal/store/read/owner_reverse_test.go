@@ -50,7 +50,7 @@ func seedOwnerRelations(t *testing.T, f *browseFixture) {
 		t.Fatal(e)
 	}
 	profile := searchpolicy.Compiled()
-	f.exec(t, `INSERT INTO search_generations(id,bank_key,recipe_version,engine_version,unicode_fingerprint,state,created_ms) VALUES(1,'v1',?,?,?,'active',0)`, profile.RecipeVersion, profile.EngineVersion, profile.UnicodeFingerprint)
+	f.exec(t, `INSERT INTO search_generations(id,bank_key,recipe_version,engine_version,unicode_fingerprint,state,created_ms,command_incarnation) VALUES(1,'v1',?,?,?,'active',0,zeroblob(16))`, profile.RecipeVersion, profile.EngineVersion, profile.UnicodeFingerprint)
 	title := search.PrepareTitle("Title 1")
 	f.exec(t, `INSERT INTO search_publications(id,entity_id,search_generation_id,library_id,kind,generation,source_incarnation,source_revision,recipe_version,title,title_fold,title_prefix_tokens,initial_prefix_tokens) SELECT 1,id,1,library_id,kind,1,metadata_incarnation,revision,?,title,?,?,? FROM catalog_entities WHERE id=1`, profile.RecipeVersion, title.Fold(), title.PrefixTokens(), title.InitialTokens())
 	for ord := 0; ord < p.Len(); ord++ {
