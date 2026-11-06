@@ -1168,6 +1168,35 @@ var ErrHLSArtifactNotFound = errors.New("stream artifact not found")
 
 var artifactName = regexp.MustCompile(`^(master\.m3u8|video\.m3u8|text-[0-9]{1,2}\.m3u8|audio-[0-9]{1,2}\.m3u8|init\.mp4|segment-[0-9]{6}\.(?:ts|m4s)|audio-[0-9]{1,2}-init\.mp4|audio-[0-9]{1,2}-[0-9]{6}\.(?:ts|m4s))$`)
 
+// Membership comes from the presentation plan, not from output readiness. An
+// undeclared name must never wait for, restart or read a producer's output.
+func hlsArtifactDeclared(name string, p *DeliveryPlan) bool {
+	if strings.HasPrefix(name, "audio-") {
+		return renditionArtifactDeclared(name, p)
+	}
+	if strings.HasPrefix(name, "text-") {
+		if p != nil {
+			for ordinal := range manifestTextRenditions(p) {
+				if name == "text-"+strconv.Itoa(ordinal)+".m3u8" {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	fragmented := p != nil && p.OutputContainer == "fmp4_hls"
+	switch name {
+	case "master.m3u8":
+		return true
+	case "video.m3u8":
+		return p != nil && (len(p.Renditions) > 0 || len(p.TextRenditions) > 0 || fragmented)
+	case "init.mp4":
+		return fragmented
+	}
+	_, segment := hlsSegmentIndex(name)
+	return segment && (fragmented && strings.HasSuffix(name, ".m4s") || !fragmented && strings.HasSuffix(name, ".ts"))
+}
+
 func (h *HLS) File(grant, name string) (string, error) {
 	return h.FileContext(context.Background(), grant, name)
 }
@@ -1195,6 +1224,18 @@ func (h *HLS) FileContext(ctx context.Context, grant, name string) (string, erro
 	}
 	if e != nil {
 		return "", e
+	}
+	delivery, err := loadDeliveryPlan(ctx, h.db, id)
+	if err != nil {
+		return "", err
+	}
+	if delivery != nil && (strings.HasPrefix(name, "text-") || name == "video.m3u8") {
+		if err := h.loadTextRenditions(ctx, id, delivery); err != nil {
+			return "", err
+		}
+	}
+	if !hlsArtifactDeclared(name, delivery) {
+		return "", ErrHLSArtifactNotFound
 	}
 	if err := h.waitOutputMove(ctx, id); err != nil {
 		return "", err
@@ -1224,14 +1265,7 @@ func (h *HLS) FileContext(ctx context.Context, grant, name string) (string, erro
 		}
 		return "", ErrSegmentPreparing
 	}
-	delivery, err := loadDeliveryPlan(ctx, h.db, id)
-	if err != nil {
-		return "", err
-	}
 	if strings.HasPrefix(name, "audio-") {
-		if delivery == nil || len(delivery.Renditions) == 0 {
-			return "", ErrHLSArtifactNotFound
-		}
 		return h.renditionFile(ctx, id, name, delivery)
 	}
 	path := filepath.Join(h.outputDir(id), name)

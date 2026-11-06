@@ -10568,7 +10568,7 @@
       ]
     },
     "internal/playback/finite_hls.go": {
-      "sha256": "c3f28624c913b1018212b9e96ad12551bd73e057ffe259ae312cc8ed7b1153ec",
+      "sha256": "361ddab9117aa166b76196263d0de8fca175fe3b4a225975107a4d2cf1402fa0",
       "effects": [
         {
           "table": "*",
@@ -10577,7 +10577,7 @@
       ]
     },
     "internal/playback/hls.go": {
-      "sha256": "11097f9da2cdba927de85fb28f31661e2fabe264c0ed1f5addfc9d5d21df6cbe",
+      "sha256": "8855bc8d043110b961a9235941cae0abaab76cf6ab345017cc95425d38fe5fd8",
       "effects": [
         {
           "table": "*",
@@ -10676,7 +10676,7 @@
       ]
     },
     "internal/playback/hls_renditions.go": {
-      "sha256": "0dbb171cde7437572f83c2c345b434820823036d6cb0b53abd3ec77a4f34371d",
+      "sha256": "b880f0ede5aeb535afc95dcbf1b252040ffd821a6776ce2cf942970cbe065f31",
       "effects": [
         {
           "table": "*",

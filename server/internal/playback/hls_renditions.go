@@ -914,34 +914,48 @@ func (h *HLS) produceRendition(ctx context.Context, id string, r AudioRenditionP
 	}
 }
 
+func renditionArtifactDeclared(name string, p *DeliveryPlan) bool {
+	if p == nil {
+		return false
+	}
+	for ordinal, r := range p.Renditions {
+		if r.Ordinal != ordinal {
+			continue
+		}
+		if name == fmt.Sprintf("audio-%d.m3u8", r.Ordinal) || renditionPackaging(r) == "fmp4_hls" && name == renditionInitFile(r.Ordinal) {
+			return true
+		}
+	}
+	parts := renditionSegmentName.FindStringSubmatch(name)
+	if parts == nil {
+		return false
+	}
+	ordinal, _ := strconv.Atoi(parts[1])
+	index, _ := strconv.Atoi(parts[2])
+	return ordinal < len(p.Renditions) && index < hlsSegmentCount(p.Duration) && name == renditionSegmentFile(p.Renditions[ordinal], index)
+}
+
 func (h *HLS) renditionFile(ctx context.Context, id, name string, p *DeliveryPlan) (string, error) {
+	if !renditionArtifactDeclared(name, p) {
+		return "", ErrHLSArtifactNotFound
+	}
 	path := filepath.Join(h.outputDir(id), name)
 	parts := renditionSegmentName.FindStringSubmatch(name)
 	if parts == nil {
 		if isRenditionInit(name) {
 			var ordinal int
-			if _, err := fmt.Sscanf(name, "audio-%d-init.mp4", &ordinal); err != nil || ordinal < 0 || ordinal >= len(p.Renditions) || renditionPackaging(p.Renditions[ordinal]) != "fmp4_hls" {
-				return "", ErrHLSArtifactNotFound
-			}
+			fmt.Sscanf(name, "audio-%d-init.mp4", &ordinal)
 			if !segmentReady(path) {
 				if err := h.startRendition(ctx, id, p.Renditions[ordinal], 0); err != nil {
 					return "", err
 				}
 				return "", ErrSegmentPreparing
 			}
-		} else {
-			var ordinal int
-			if _, err := fmt.Sscanf(name, "audio-%d.m3u8", &ordinal); err != nil || ordinal < 0 || ordinal >= len(p.Renditions) {
-				return "", ErrHLSArtifactNotFound
-			}
 		}
 		return path, nil
 	}
 	ordinal, _ := strconv.Atoi(parts[1])
 	index, _ := strconv.Atoi(parts[2])
-	if ordinal >= len(p.Renditions) || index >= hlsSegmentCount(p.Duration) || name != renditionSegmentFile(p.Renditions[ordinal], index) {
-		return "", ErrHLSArtifactNotFound
-	}
 	key := renditionKey(id, ordinal)
 	if segmentReady(path) {
 		h.noteRenditionServed(id, key, index)
