@@ -2,8 +2,8 @@ package httpapi
 
 import (
 	"encoding/json"
-	"net/http/httptest"
 	"github.com/PorticoMediaServer/portico/server/internal/httpapi/fixture"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -14,11 +14,13 @@ import (
 // it gets its own test: one request in, a number out, attributed to the route
 // that produced it.
 //
-// The route is not a strict one. `GET /v1/me` is registered on the default lane
-// (route_lanes.go), and `strictPrincipal` is false for that lane, so
-// `resolvePrincipal` consults the principal cache on any non-private peer
-// (router.go). A session that has already been resolved is therefore answered
-// from memory and legitimately charges no statement and no pooled connection.
+// GET /v1/me explicitly resolves strict identity so an authority-change refresh
+// cannot keep an old role. Measure the principal cache on GET /v1/rating-systems
+// instead: its default-lane authorizer uses d.principal and its payload is build-
+// static. On a non-private peer, resolvePrincipal consults the principal cache.
+// The registry still reads the device binding even on a hit, so a warm request
+// need not be free. Cost reduction plus cache counters prove reuse; after an
+// authority rotation, both a new miss and increased cost prove live resolution.
 // "The first request charges SQL" is a claim about cache state, not about the
 // route, so this test establishes the state itself:
 //
@@ -45,22 +47,22 @@ func TestRequestCostIsAttributedToOneRoute(t *testing.T) {
 	// Settle the owner's own principal first, so the counter reads below cannot
 	// contribute a miss of their own even if this fixture's peer were treated as
 	// remote rather than home.
-	if code, _, body := f.callTimed(f.owner.AccessToken, "GET", "/v1/me", nil); code != 200 {
-		t.Fatalf("owner GET /v1/me %d %s", code, body)
+	if code, _, body := f.callTimed(f.owner.AccessToken, "GET", "/v1/rating-systems", nil); code != 200 {
+		t.Fatalf("owner GET /v1/rating-systems %d %s", code, body)
 	}
 	hitsBefore, missesBefore := principalCacheCounters(t, f)
 
 	ResetRouteCosts()
 	observedBefore := dbworkReads()
-	if code, _, body := f.callTimed(coldToken, "GET", "/v1/me", nil); code != 200 {
-		t.Fatalf("cold GET /v1/me %d %s", code, body)
+	if code, _, body := f.callTimed(coldToken, "GET", "/v1/rating-systems", nil); code != 200 {
+		t.Fatalf("cold GET /v1/rating-systems %d %s", code, body)
 	}
-	cold := RouteCostFor("GET /v1/me")
+	cold := RouteCostFor("GET /v1/rating-systems")
 	if cold.Requests != 1 {
 		t.Fatalf("expected one measured request, got %d", cold.Requests)
 	}
 	if cold.Lane != "default" {
-		t.Fatalf("GET /v1/me ran on lane %q, not the default lane this test's cache states assume", cold.Lane)
+		t.Fatalf("GET /v1/rating-systems ran on lane %q, not the default lane this test's cache states assume", cold.Lane)
 	}
 	if cold.Statements == 0 {
 		t.Fatal("a first, uncached authentication ran no statements, which cannot be true")
@@ -80,10 +82,10 @@ func TestRequestCostIsAttributedToOneRoute(t *testing.T) {
 	// The immediate repeat. It is allowed to cost nothing — that is the point of
 	// the cache — but then it must cost nothing because the cache served it.
 	ResetRouteCosts()
-	if code, _, body := f.callTimed(coldToken, "GET", "/v1/me", nil); code != 200 {
-		t.Fatalf("warm GET /v1/me %d %s", code, body)
+	if code, _, body := f.callTimed(coldToken, "GET", "/v1/rating-systems", nil); code != 200 {
+		t.Fatalf("warm GET /v1/rating-systems %d %s", code, body)
 	}
-	warm := RouteCostFor("GET /v1/me")
+	warm := RouteCostFor("GET /v1/rating-systems")
 	hitsAfter, missesAfter := principalCacheCounters(t, f)
 	if warm.Requests != 1 {
 		t.Fatalf("the repeat was measured %d times, not once: %#v", warm.Requests, warm)
@@ -97,7 +99,7 @@ func TestRequestCostIsAttributedToOneRoute(t *testing.T) {
 	if missesAfter != missesBefore+1 {
 		t.Fatalf("expected exactly one live resolution in the window (the cold request), saw %d more misses (misses %d -> %d, hits %d -> %d)", missesAfter-missesBefore, missesBefore, missesAfter, hitsBefore, hitsAfter)
 	}
-	t.Logf("GET /v1/me cold statements=%d transactions=%d acquisitions=%d | warm statements=%d transactions=%d acquisitions=%d (cache hits %d -> %d, misses %d -> %d)",
+	t.Logf("GET /v1/rating-systems cold statements=%d transactions=%d acquisitions=%d | warm statements=%d transactions=%d acquisitions=%d (cache hits %d -> %d, misses %d -> %d)",
 		cold.Statements, cold.Transactions, cold.Acquisitions, warm.Statements, warm.Transactions, warm.Acquisitions,
 		hitsBefore, hitsAfter, missesBefore, missesAfter)
 
@@ -108,12 +110,19 @@ func TestRequestCostIsAttributedToOneRoute(t *testing.T) {
 	// came from a valid entry, not from a route the meter stopped watching.
 	dbwork.BumpAuthority()
 	ResetRouteCosts()
-	if code, _, body := f.callTimed(coldToken, "GET", "/v1/me", nil); code != 200 {
-		t.Fatalf("rotated GET /v1/me %d %s", code, body)
+	if code, _, body := f.callTimed(coldToken, "GET", "/v1/rating-systems", nil); code != 200 {
+		t.Fatalf("rotated GET /v1/rating-systems %d %s", code, body)
 	}
-	rotated := RouteCostFor("GET /v1/me")
+	rotated := RouteCostFor("GET /v1/rating-systems")
 	if rotated.Requests != 1 || rotated.Statements == 0 || rotated.Acquisitions == 0 {
 		t.Fatalf("after an authority rotation the same session was still answered for free: %#v", rotated)
+	}
+	hitsRotated, missesRotated := principalCacheCounters(t, f)
+	if hitsRotated != hitsAfter || missesRotated != missesAfter+1 {
+		t.Fatalf("authority rotation did not force one live resolution (hits %d -> %d, misses %d -> %d)", hitsAfter, hitsRotated, missesAfter, missesRotated)
+	}
+	if rotated.Statements <= warm.Statements {
+		t.Fatalf("authority rotation cost %d statements against the warm request's %d; the device-binding read alone cannot prove fresh authentication", rotated.Statements, warm.Statements)
 	}
 
 	ResetRouteCosts()
@@ -129,10 +138,10 @@ func TestRequestCostIsAttributedToOneRoute(t *testing.T) {
 	// not seeing the composition. The authentication number is the cold one: the
 	// warm repeat is allowed to be zero and cannot set the bar.
 	if home.Statements <= cold.Statements {
-		t.Fatalf("home (%d statements) did not cost more than a cold /v1/me (%d)", home.Statements, cold.Statements)
+		t.Fatalf("home (%d statements) did not cost more than a cold /v1/rating-systems (%d)", home.Statements, cold.Statements)
 	}
 	// Nothing else may have been attributed to this route.
-	if other := RouteCostFor("GET /v1/me"); other.Requests != 0 {
+	if other := RouteCostFor("GET /v1/rating-systems"); other.Requests != 0 {
 		t.Fatalf("a second route was charged for this request: %#v", other)
 	}
 }
