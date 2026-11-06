@@ -54,16 +54,24 @@ fixture teardown. Native close records are emitted AFTER teardown, so
 mode observes only its decorated measured pool, not the already-closed,
 unobserved setup connection. Absent before-boundary counts stay null.
 
-The lead's steady-state timing population requires a warm PERSISTENT physical
-connection/cache across genuine fresh legal commands. That W-owned progressive
-original/run/cursor/receipt/ACK fixture is not supplied by this target. `steady`
-and positive `-n1-component-warmup` requests therefore fail explicitly before
-opening output or running commands. Declared/observed warmup is currently zero,
-with no warmup originals and `steady_eligible=false`. Neither replay, SQL reset,
-nor repeated fresh databases substitute for that missing fixture. Cold startup,
-replacement, deliberate errors and native-counter cohorts cannot be pooled into
-steady timing; an unexpected failure stays in its requested population and stops
-the run. This update does not alter the previous pilot or UNKNOWN/deadline tail.
+`-n1-component-population=steady -n1-component-warmup=1..64` retains the
+reviewed progressive fixture's ONE physical writer connection/cache across real
+fresh originals. The five-field config's `fixtures` now explicitly means 1..64
+MEASURED originals in the `n1-progressive-steady-v1` layout, after the separate
+warmup originals; exactly one database is requested. The start record replaces
+`requested_fixtures` with explicit database, warmup and measured-original counts.
+The historical first-use layouts and their config meaning remain separate.
+
+Steady currently supports **only active/current/present/fixture**. Other cells,
+zero warmup, and warmup attached to a first-use mode fail before opening output.
+There is no SQL reset to preserve an absent bucket or replay to generate traffic.
+Warmup means completed fresh effects → Resolve → ACK → current snapshot on the
+retained connection. Exact warmup references/counts are carried into measured
+turns. An unexpected failure remains in its original population, stops all later
+offering and makes the final component incomplete. A replacement never becomes
+a new passing steady subset. This is component preparation, not production
+issuance, whole outer-authority acceptance, a qualified profile or p99 proof.
+The previous first-use pilot and UNKNOWN/deadline tail are unchanged.
 
 `timing` omits per-statement attribution inside HOLD. `native-counters` adds
 VMOperations, native WALIO and DBStatus cache-event snapshots around exact
@@ -179,6 +187,65 @@ path. No SQL reset, state repair, constructor/grant clone, callback issuer or
 production disclosure is introduced. Correctness controls freeze only their
 protocol clock; later measurements must pass the real owner clock.
 
-This fixture PR does not run or enable steady measurement. The existing target's
-positive-warmup/steady requests stay explicitly unavailable until reviewed,
-merged fixture integration and its source-bound raw output are available to QL.
+The opt-in target now composes this reviewed fixture; the target always supplies
+`time.Now`. Functional controls may use a frozen protocol clock and are never
+measurements. No run or scheduling follows from enabling this test-only path.
+
+## Progressive steady raw layout
+
+The NDJSON schema remains `portico-n1-component-v1`, with start declaring
+`population_layout="n1-progressive-steady-v1"`. Keep source/layout, host/resource
+and cache epochs separate from all first-use pilots. Every original has its own
+`original_id`, contiguous `original_ordinal`, immutable `original_reference` and
+`original_population=warmup|measured`. Each gets distinct call/attempt IDs with
+`turn_role=fresh_begin|resolve|ack`; each call emits attempt_start BEFORE custody
+and one bounded attempt AFTER its physical call/cleanup returns. The same
+original reference joins all three roles. `physical_attempt_ordinal` counts
+known actual owner intervals across ALL roles in this ONE database. An owner
+view not returned by the helper stays null/unprojectable, with an unobserved
+census entry and sticky stop; zero is not pre-admission/rollback proof.
+
+The final record's `steady.warmup` and `steady.measured` each report offered,
+known `fresh_begins`, and complete ORIGINALS. Only actual returned fresh-BEGIN
+owners count toward original N; Resolve/ACK are separate physical turns, never
+extra originals. `turns_by_role` retains all started calls, known physical
+intervals, returned/committed/rolled_back/unknown/unobserved/error/refusal/fence
+counts. Complete original requires all three successful physical turns plus the
+native current snapshot. An attempt's complete means that ONE physical component
+turn, never whole command/profile qualification. Per-call owner HOLD/COMMIT,
+actual Settings, governor request, custody/connection return and fence facts are
+separate. `begin_succeeded=true` means the actual owner returned a native-BEGIN
+turn, not its post-COMMIT current open flag. The unreturned view stays null.
+
+Fresh turn_setup encloses the fixture Begin plus history MISS/library guards;
+its invocation encloses SC's effects. Resolve/ACK invocation encloses the whole
+existing helper; exact internal setup is null. ACK's invocation also encloses
+its post-return snapshot, while HOLD ends at the actual physical return.
+`historical_result`/digest come from successful actual Resolve; ACK's scalar
+handler return and physical outcome remain separate. `post_ack_current_snapshot`
+is emitted only after a successful native current read. No public Evidence or
+Applied outcome is manufactured, including on errors.
+
+The trace SQL/ID map is derived from the ACTUAL complete captured registry,
+including history/library/ACK guards, rather than the old 43-effects list. The
+128-unit ledger is freshly preallocated outside custody for each physical turn,
+flushed after return, and never reused while a record retains its counters.
+Plain timing omits attribution snapshots inside HOLD. Native-counters includes
+its observer costs; the ACK current read is labelled post_return_observer when
+its real start follows physical return. It is not charged back into HOLD.
+
+Continuity after fields end after each physical call/current snapshot, BEFORE
+fixture teardown. Per-turn native_joined stays null: that connection deliberately
+stays alive. Final `steady.native_closes` and `native_joined_after_fixture_close`
+are emitted AFTER the single fixture teardown, including its final native Close.
+Completed means native Close returned, with error separately retained; it is not
+independent custody proof. WAL samples carry actual gate tokens before/after the
+bounded parser/file probes plus getter timestamps. Equality is not atomicity,
+reset, publication or owner proof. Missing policy/VM/memory/IO/xSync dimensions
+stay null with reasons; no native/vendor machinery or shared reducer was added.
+
+The existing fixture retains bounded test cleanup callbacks until its scope ends.
+Observed allocations/RSS include that fixture retention and observer overhead;
+these are not production steady residency or a live-memory peak. Setup facts,
+pre/post-close memory, observed physical connection counts, final pool stats and
+actual authority usage retain their own scope instead of being subtracted.

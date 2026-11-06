@@ -110,6 +110,23 @@ func newN1Trace(origin time.Time, instrument bool) *n1Trace {
 	return t
 }
 
+// Bind exact SQL/IDs from the ACTUAL complete captured registry, not a copied
+// effects-only list. All allocation/reset happens outside physical custody.
+func (t *n1Trace) useRegistry(registry *stmt.Registry) {
+	t.ids, t.uses = map[string]stmt.ID{}, map[stmt.ID]int{}
+	for _, entry := range registry.Manifest() {
+		t.ids[entry.SQL], t.uses[entry.ID] = entry.ID, 0
+	}
+}
+
+func (t *n1Trace) nextTurn() {
+	t.armed = false
+	t.units, t.used, t.overflow = make([]n1Unit, n1UnitLimit), 0, false
+	for id := range t.uses {
+		t.uses[id] = 0
+	}
+}
+
 // This decorates the existing pool, on the SAME executor/file. It neither
 // opens nor admits a command. Native access stays private to this test binary.
 func (t *n1Trace) decorate(conn driver.Conn) driver.Conn {

@@ -1,0 +1,426 @@
+package writer
+
+import (
+	"context"
+	"crypto/sha256"
+	"database/sql"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
+)
+
+func validateN1SteadyCase(cell n1Case) error {
+	if cell != (n1Case{"active", "current", "present", "fixture"}) {
+		return errors.New("steady component currently supports only active/current/present/fixture; no reset to maintain absent/other cells")
+	}
+	return nil
+}
+
+type n1OriginalCensus struct {
+	Offered     int `json:"offered"`
+	FreshBegins int `json:"fresh_begins"`
+	Complete    int `json:"complete"`
+}
+
+type n1TurnCensus struct {
+	Started    int `json:"call_started"`
+	Physical   int `json:"known_physical_intervals"`
+	Returned   int `json:"physically_returned"`
+	Committed  int `json:"committed"`
+	RolledBack int `json:"rolled_back"`
+	Unknown    int `json:"unknown"`
+	Unobserved int `json:"unobserved"`
+	Errors     int `json:"errors"`
+	Refused    int `json:"known_refusals"`
+	Fenced     int `json:"known_fenced"`
+}
+
+type n1CurrentSnapshot struct {
+	RunRevision          int64  `json:"run_revision"`
+	LastSequence         int64  `json:"last_sequence"`
+	AcknowledgedSequence int64  `json:"acknowledged_sequence"`
+	Cursor               string `json:"cursor"`
+	Pages                int64  `json:"pages"`
+	Discovered           int64  `json:"discovered"`
+	Processed            int64  `json:"processed"`
+}
+
+type n1SteadySummary struct {
+	RequestedWarmup     int                      `json:"requested_warmup_originals"`
+	RequestedMeasured   int                      `json:"requested_measured_originals"`
+	OpenedDatabases     *int                     `json:"opened_databases"`
+	Warmup              n1OriginalCensus         `json:"warmup"`
+	Measured            n1OriginalCensus         `json:"measured"`
+	Turns               map[string]*n1TurnCensus `json:"turns_by_role"`
+	KnownPhysicalTurns  int                      `json:"known_physical_turns"`
+	WarmupOriginals     []ReceiptReference       `json:"completed_warmup_originals"`
+	DatabaseID          string                   `json:"database_id"`
+	RegistrySHA256      string                   `json:"captured_registry_manifest_sha256"`
+	FixtureSetup        *n1FixtureSetup          `json:"fixture_setup_facts"`
+	PoolStats           *sql.DBStats             `json:"pool_stats_after_fixture_close"`
+	Usage               *[4]governor.Amounts     `json:"authority_usage_after_fixture_close"`
+	ConnectionsOpened   *uint64                  `json:"observed_physical_connections_opened"`
+	ConnectionsClosed   *uint64                  `json:"observed_physical_connections_closed"`
+	NativeCloses        []n1NativeClose          `json:"native_closes"`
+	NativeCloseOverflow bool                     `json:"native_close_overflow"`
+	NativeJoined        *bool                    `json:"native_joined_after_fixture_close"`
+	BeforeFixture       *n1MemorySample          `json:"memory_before_fixture"`
+	AfterFixture        *n1MemorySample          `json:"memory_after_fixture_setup"`
+	BeforeClose         *n1MemorySample          `json:"memory_before_fixture_close"`
+	AfterClose          *n1MemorySample          `json:"memory_after_fixture_close"`
+	Complete            bool                     `json:"complete"`
+	StopReason          string                   `json:"stop_reason"`
+}
+
+type n1FixtureSetup struct {
+	AgeState       []int64           `json:"age_input_published_pending"`
+	StoredProfiles []n1StoredProfile `json:"stored_search_profiles"`
+	Cardinalities  map[string]int64  `json:"cardinalities"`
+}
+
+type n1SteadyControls struct {
+	clock               func() time.Time // target ALWAYS passes time.Now; controls may freeze
+	failOriginal        int
+	failRole, failQuery string // no config/flag accepts these fault controls
+}
+
+// This retains the reviewed owner fixture; it neither opens a second writer nor
+// reimplements grants, Resolve, ACK, snapshot or original progression.
+func runN1Steady(t *testing.T, ctx context.Context, stream *n1Stream, measured, warmup int, cohort string, control n1SteadyControls, summary *n1SteadySummary) {
+	t.Helper()
+	*summary = n1SteadySummary{RequestedWarmup: warmup, RequestedMeasured: measured, Turns: map[string]*n1TurnCensus{}, WarmupOriginals: []ReceiptReference{}}
+	for _, role := range []string{"fresh_begin", "resolve", "ack"} {
+		summary.Turns[role] = &n1TurnCensus{}
+	}
+	summary.BeforeFixture = n1Memory(stream.origin)
+	trace := newN1Trace(stream.origin, cohort == "native-counters")
+	var fixture *inventoryProgressiveFixture
+	defer func() {
+		trace.armed = false
+		if fixture != nil {
+			if fixture.turn != nil && !fixture.turn.transaction.done {
+				_, err := fixture.turn.transaction.rollback(nil)
+				summary.StopReason = n1Join(summary.StopReason, err)
+			}
+			summary.BeforeClose = n1Memory(stream.origin)
+			err := fixture.owner.executor.close()
+			summary.StopReason = n1Join(summary.StopReason, err)
+			w := fixture.owner.executor
+			w.physicalFaults.mu.Lock()
+			failed := w.physicalFaults.failed
+			w.physicalFaults.mu.Unlock()
+			stats := w.db.Stats()
+			usage, opened, closed := fixture.owner.authority.Usage(), trace.connections, trace.closed
+			summary.PoolStats, summary.Usage, summary.ConnectionsOpened, summary.ConnectionsClosed = &stats, &usage, &opened, &closed
+			joined := err == nil && w.closed && !failed && stats.InUse == 0 && stats.OpenConnections == 0 && trace.connections == trace.closed && fixture.owner.authority.Usage() == ([4]governor.Amounts{})
+			summary.NativeJoined = &joined
+			summary.AfterClose = n1Memory(stream.origin)
+		}
+		summary.NativeCloses, summary.NativeCloseOverflow = trace.closes[:trace.closeCount], trace.closeOverflow
+		summary.StopReason = n1Join(summary.StopReason, ctx.Err())
+		if t.Failed() {
+			summary.StopReason = n1Join(summary.StopReason, errors.New("fixture/control failed; retain partial wire and test log"))
+		}
+		summary.Complete = summary.StopReason == "" && stream.err == nil && summary.NativeJoined != nil && *summary.NativeJoined && !summary.NativeCloseOverflow && summary.Warmup.Complete == warmup && summary.Measured.Complete == measured && summary.Warmup.FreshBegins == warmup && summary.Measured.FreshBegins == measured
+	}()
+	if err := validateN1Population("steady", warmup); err != nil {
+		summary.StopReason = err.Error()
+		return
+	}
+	if measured < 1 || measured > 64 || warmup+measured > inventoryProgressiveLimit || control.clock == nil {
+		summary.StopReason = ErrInvalid.Error()
+		return
+	}
+	if err := ctx.Err(); err != nil {
+		summary.StopReason = err.Error()
+		return
+	}
+	fixture = newInventoryProgressiveFixture(t, warmup+measured, control.clock, trace.decorate)
+	opened := 1
+	summary.OpenedDatabases = &opened
+	summary.AfterFixture = n1Memory(stream.origin)
+	summary.DatabaseID = fmt.Sprintf("%s/steady-db", stream.base["process_epoch"])
+	raw, err := json.Marshal(fixture.owner.registry.Manifest())
+	if err != nil {
+		summary.StopReason = err.Error()
+		return
+	}
+	hash := sha256.Sum256(raw)
+	summary.RegistrySHA256 = hex.EncodeToString(hash[:])
+	trace.useRegistry(fixture.owner.registry)
+	if trace.conn == nil {
+		summary.StopReason = "setup physical connection unavailable"
+		return
+	}
+	baseline := trace.conn.id
+	facts := &n1Attempt{}
+	n1ReadFixtureFacts(t, ctx, fixture.owner.executor, facts)
+	summary.FixtureSetup = &n1FixtureSetup{facts.AgeState, facts.StoredProfiles, facts.Cardinalities}
+	attemptOrdinal := 0
+	for original := 1; original <= warmup+measured; original++ {
+		if err := ctx.Err(); err != nil {
+			summary.StopReason = err.Error()
+			return
+		}
+		census, population := &summary.Warmup, "warmup"
+		if original > warmup {
+			census, population = &summary.Measured, "measured"
+		}
+		census.Offered++
+		command, err := fixture.NextOriginal()
+		if err != nil {
+			summary.StopReason = err.Error()
+			return
+		}
+		for _, role := range []string{"fresh_begin", "resolve", "ack"} {
+			attemptOrdinal++
+			summary.Turns[role].Started++
+			record := runN1SteadyTurn(t, ctx, stream, fixture, trace, summary, original, attemptOrdinal, population, role, cohort, baseline, control)
+			if !record.Complete || stream.err != nil {
+				summary.StopReason = n1Join("incomplete "+population+" "+role, errors.Join(errors.New(record.Error), stream.err))
+				return
+			}
+		}
+		census.Complete++
+		if population == "warmup" {
+			summary.WarmupOriginals = append(summary.WarmupOriginals, ReceiptReference{command.identity, command.digest})
+		}
+	}
+}
+
+func runN1SteadyTurn(t *testing.T, ctx context.Context, stream *n1Stream, f *inventoryProgressiveFixture, trace *n1Trace, summary *n1SteadySummary, original, ordinal int, population, role, cohort string, baseline uint64, control n1SteadyControls) (record *n1Attempt) {
+	t.Helper()
+	trace.nextTurn()
+	trace.failQuery = ""
+	if control.failOriginal == original && control.failRole == role {
+		trace.failQuery = control.failQuery
+	}
+	originalID := fmt.Sprintf("%s/original/%d", stream.base["process_epoch"], original)
+	q, err := f.current.receiptRequest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	record = &n1Attempt{ID: originalID + "/" + role, Ordinal: ordinal, OriginalID: originalID, OriginalOrdinal: &original, OriginalPopulation: population, TurnRole: role, Reference: &q.Receipt, DatabaseID: summary.DatabaseID, DatabasePath: f.owner.path, RegistrySHA256: summary.RegistrySHA256, Case: n1Case{"active", "current", "present", "fixture"}, Cohort: cohort, Outcome: "unobserved", Phase: "prepared", Memory: map[string]*n1MemorySample{}, Unavailable: map[string]string{}}
+	for key, value := range n1Missing {
+		record.Unavailable[key] = value
+	}
+	delete(record.Unavailable, "gate_token")
+	record.Unavailable["native_joined"] = "persistent pool stays alive across turns; final fixture close carries native join observations"
+	record.Unavailable["native_closes"] = "final.steady.native_closes is emitted after fixture teardown; per-turn continuity counts end before teardown"
+	record.Continuity = n1ConnectionContinuity{Population: "steady", BeforeID: &baseline, WarmupRequested: summary.RequestedWarmup, WarmupCompleted: summary.Warmup.Complete, WarmupOriginals: append([]ReceiptReference{}, summary.WarmupOriginals...), DeliberateErrorControl: control.failRole != ""}
+	beforeID, connections, closes := trace.conn.id, trace.connections, trace.closeCount
+	record.Continuity.BeforeID, record.Continuity.ConnectionsBefore, record.Continuity.NativeClosesBefore = &beforeID, &connections, &closes
+	var turn *commandTurn
+	returned := false
+	defer func() {
+		if turn == nil {
+			switch role {
+			case "fresh_begin":
+				turn = f.turn
+			case "resolve":
+				turn = f.resolveTurn
+			case "ack":
+				turn = f.ackTurn
+			}
+		}
+		if !returned && record.Error == "" {
+			record.Error = "helper did not return; partial owner view only"
+		}
+		trace.armed = false
+		if turn != nil {
+			rowsErr := turn.closeRows()
+			closed := rowsErr == nil
+			record.RowsClosed = &closed
+			if !turn.transaction.done {
+				_, rollbackErr := turn.transaction.rollback(rowsErr)
+				record.Error = n1Join(record.Error, rollbackErr)
+			}
+			n1ObserveOwner(record, turn, stream.origin)
+			// owner.begin returns a commandTurn only after native BEGIN succeeds.
+			// tx.begun is the CURRENT open state, cleared by commit/rollback.
+			began := true
+			record.BeginSucceeded = &began
+			if !turn.transaction.start.IsZero() {
+				summary.KnownPhysicalTurns++
+				physical := summary.KnownPhysicalTurns
+				record.PhysicalAttemptOrdinal = &physical
+			}
+		}
+		record.Continuity.observeAfter(trace)
+		retained := record.Continuity.Same != nil && *record.Continuity.Same && trace.conn.id == baseline && trace.connections == 1 && trace.closeCount == 0 && !trace.closeOverflow
+		if !retained {
+			record.Error = n1Join(record.Error, errors.New("persistent physical connection interrupted; no replacement success population"))
+		}
+		record.Continuity.SteadyEligible = population == "measured" && summary.Warmup.Complete == summary.RequestedWarmup && retained && control.failRole == ""
+		if !record.Continuity.SteadyEligible {
+			record.Continuity.UnavailableReason = "warmup or deliberate-error cohort, or physical continuity gap"
+		}
+		record.Units, record.LedgerOverflow = trace.units[:trace.used], trace.overflow
+		for i := range record.Units {
+			u := &record.Units[i]
+			if record.Clock.PhysicalReturnedNS != nil && u.StartedNS != nil && *u.StartedNS > *record.Clock.PhysicalReturnedNS {
+				u.Phase = "post_return_observer"
+			}
+			if u.Phase == "rollback" {
+				record.Clock.RollbackStartedNS, record.Clock.RollbackReturnedNS, record.Clock.RollbackNS = u.StartedNS, u.ReturnedNS, u.ElapsedNS
+			}
+			if u.UnitID == "BEGIN IMMEDIATE" {
+				record.Clock.BeginNS = u.ElapsedNS
+			}
+			if u.Error != "" && u.ID == "" && u.Phase == "setup" {
+				record.Settings.AssertError = n1Join(record.Settings.AssertError, errors.New(u.Error))
+			}
+		}
+		if trace.conn != nil {
+			id := trace.conn.id
+			record.Settings.ConnectionID = &id
+		}
+		if trace.conn != nil && !trace.conn.closed {
+			record.NativeAfter = &n1NativeSnapshot{}
+			trace.conn.snapshot(record.NativeAfter, false)
+		} else {
+			record.Unavailable["native_after"] = "physical connection unavailable or closed before external getter"
+		}
+		record.WALAfter = n1ReadWAL(stream.origin, f.owner.path, f.owner.wal)
+		fenced, ambiguous := f.owner.executor.fenced, f.owner.executor.ambiguous
+		record.Fenced, record.Ambiguous = &fenced, &ambiguous
+		usage := f.owner.authority.Usage()
+		record.Usage = &usage
+		stats := f.owner.executor.db.Stats()
+		record.PoolStats = &stats
+		record.Memory["after_physical_return"] = n1Memory(stream.origin)
+		if record.Clock.PhysicalReturnedNS != nil {
+			record.Phase = "physical_return"
+		}
+		record.Complete = record.Error == "" && record.Outcome == "committed" && record.Clock.HoldNS != nil && record.Clock.PhysicalReturnedNS != nil && record.Settings.Actual != nil && record.ConnectionReturned != nil && *record.ConnectionReturned && record.Retired != nil && *record.Retired && usage == ([4]governor.Amounts{}) && !fenced && !ambiguous && retained && !trace.overflow
+		if err := stream.append("attempt", map[string]any{"attempt_id": record.ID, "attempt_ordinal": ordinal, "attempt": record}); err != nil {
+			record.Error = n1Join(record.Error, err)
+			record.Complete = false
+		}
+		c := summary.Turns[role]
+		if record.PhysicalAttemptOrdinal != nil {
+			c.Physical++
+		}
+		if record.Clock.PhysicalReturnedNS != nil {
+			c.Returned++
+			record.Phase = "physical_return"
+		}
+		switch record.Outcome {
+		case "committed":
+			c.Committed++
+		case "rolled_back":
+			c.RolledBack++
+		case "unknown":
+			c.Unknown++
+		default:
+			c.Unobserved++
+		}
+		if record.Error != "" {
+			c.Errors++
+		}
+		if record.Refusal != nil && *record.Refusal {
+			c.Refused++
+		}
+		if record.Fenced != nil && *record.Fenced {
+			c.Fenced++
+		}
+		if role == "fresh_begin" && record.BeginSucceeded != nil && *record.BeginSucceeded {
+			if population == "warmup" {
+				summary.Warmup.FreshBegins++
+			} else {
+				summary.Measured.FreshBegins++
+			}
+		}
+
+	}()
+	for i, text := range inventoryRequestTexts(&f.current.request) {
+		if record.InputLengths == nil {
+			record.InputLengths = map[string]int{}
+		}
+		record.InputLengths[fmt.Sprintf("text_%02d", i)] = len(*text)
+	}
+	required, err := inventoryFreshRequiredBytes(f.current)
+	if err != nil {
+		record.Error = err.Error()
+		return
+	}
+	record.RequiredBytes = &required
+	record.NativeBefore = &n1NativeSnapshot{}
+	trace.conn.snapshot(record.NativeBefore, false)
+	record.WALBefore = n1ReadWAL(stream.origin, f.owner.path, f.owner.wal)
+	record.Memory["before_turn"] = n1Memory(stream.origin)
+	if err := stream.append("attempt_start", map[string]any{"attempt_id": record.ID, "attempt_ordinal": ordinal, "original_id": originalID, "original_ordinal": original, "original_population": population, "turn_role": role, "original_reference": record.Reference, "database_id": summary.DatabaseID, "database_path": f.owner.path, "declared_warmup": summary.RequestedWarmup}); err != nil {
+		record.Error = err.Error()
+		return
+	}
+	if err := ctx.Err(); err != nil {
+		record.Error = err.Error()
+		return
+	}
+	trace.armed = true
+	started := time.Now()
+	record.Phase = role
+	switch role {
+	case "fresh_begin":
+		record.Clock.TurnSetupStartedNS = n1NS(stream.origin, started)
+		turn, err = f.Begin(t)
+		if turn == nil {
+			turn = f.turn
+		} // preserve a begun frame whose fresh guards failed
+		returned := time.Now()
+		record.Clock.TurnSetupReturnedNS = n1NS(stream.origin, returned)
+		record.Clock.TurnSetupNS = n1Duration(started, returned)
+		if err == nil {
+			invoke := time.Now()
+			record.Clock.InvocationStartedNS = n1NS(stream.origin, invoke)
+			out, callErr := applyInventoryAccept(ctx, turn, f.current)
+			end := time.Now()
+			record.Clock.InvocationReturnedNS = n1NS(stream.origin, end)
+			record.Clock.InvocationNS = n1Duration(invoke, end)
+			record.Result = &out
+			err = callErr
+			if err == nil {
+				err = f.finish(turn)
+			} else {
+				_, err = turn.transaction.rollback(err)
+			}
+		}
+	case "resolve":
+		record.Clock.InvocationStartedNS = n1NS(stream.origin, started)
+		err = f.Resolve(t)
+		turn = f.resolveTurn
+		if f.resolved != nil {
+			value, digest := f.resolved.result, f.resolved.digest
+			record.HistoricalResult, record.HistoricalDigest = &value, &digest
+		}
+	case "ack":
+		record.Clock.InvocationStartedNS = n1NS(stream.origin, started)
+		err = f.AckAndSnapshot(t)
+		turn = f.ackTurn
+		record.AcknowledgedThrough = f.acknowledged
+		if f.ready {
+			s := f.snapshot
+			record.CurrentSnapshot = &n1CurrentSnapshot{s.run.revision, s.run.lastSequence, s.run.acknowledgedSequence, s.directory.expectedCursor, s.directory.pages, s.discovered, s.processed}
+		}
+	}
+	if role != "fresh_begin" {
+		returned := time.Now()
+		record.Clock.InvocationReturnedNS = n1NS(stream.origin, returned)
+		record.Clock.InvocationNS = n1Duration(started, returned)
+	}
+	if err != nil {
+		record.Error = err.Error()
+		var refusal *Refusal
+		refused := errors.As(err, &refusal) || errors.Is(err, ErrQuantum)
+		record.Refusal = &refused
+		f.stop(err)
+	}
+	record.Phase = "call_return"
+	returned = true
+	return
+}

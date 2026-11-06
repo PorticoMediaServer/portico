@@ -2,6 +2,7 @@ package writer
 
 import (
 	"bytes"
+	"database/sql/driver"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -24,6 +25,9 @@ type inventoryProgressiveFixture struct {
 	base           *inventoryAcceptCommand
 	current        *inventoryAcceptCommand
 	turn           *commandTurn
+	resolveTurn    *commandTurn // observation-only private owner views
+	ackTurn        *commandTurn
+	acknowledged   *int64 // actual handler return; separate from physical outcome
 	resolved       *inventoryReceiptLookup
 	snapshot       inventoryProgressiveSnapshot
 	limit, offered int
@@ -39,12 +43,12 @@ type inventoryProgressiveSnapshot struct {
 	discovered, processed int64
 }
 
-func newInventoryProgressiveFixture(t *testing.T, count int, clock func() time.Time) *inventoryProgressiveFixture {
+func newInventoryProgressiveFixture(t *testing.T, count int, clock func() time.Time, decorate ...func(driver.Conn) driver.Conn) *inventoryProgressiveFixture {
 	t.Helper()
 	if count < 1 || count > inventoryProgressiveLimit || clock == nil {
 		t.Fatal("invalid bounded progressive fixture request")
 	}
-	e, _, original, registry := inventoryFreshFixtureDefinitions(t, inventoryCommandDefinitions())
+	e, _, original, registry := inventoryFreshFixtureDefinitions(t, inventoryCommandDefinitions(), decorate...)
 	e.now = clock // before the first BEGIN; protocol controls may freeze it
 	owner := newInventoryMemoryFixture(t, e, registry, original, inventoryMemoryBudget{preparationBytes: 4 << 20, reservedBytes: 4 << 20})
 	f := &inventoryProgressiveFixture{owner: owner, base: original, limit: count, ready: true}
@@ -105,6 +109,8 @@ func (f *inventoryProgressiveFixture) NextOriginal() (*inventoryAcceptCommand, e
 		return nil, f.stop(err)
 	}
 	f.current, f.turn, f.resolved = command, nil, nil
+	f.resolveTurn, f.ackTurn = nil, nil
+	f.acknowledged = nil
 	f.offered++
 	f.ready = false
 	return command, nil
@@ -163,6 +169,7 @@ func (f *inventoryProgressiveFixture) Resolve(t *testing.T) error {
 		return f.stop(err)
 	}
 	turn, err := f.owner.begin(t, f.current)
+	f.resolveTurn = turn
 	if err != nil {
 		return f.stop(err)
 	}
@@ -200,6 +207,7 @@ func (f *inventoryProgressiveFixture) AckAndSnapshot(t *testing.T) error {
 		return f.stop(err)
 	}
 	turn, err := f.owner.begin(t, f.current)
+	f.ackTurn = turn
 	if err != nil {
 		return f.stop(err)
 	}
@@ -215,6 +223,7 @@ func (f *inventoryProgressiveFixture) AckAndSnapshot(t *testing.T) error {
 	if err != nil {
 		return f.stop(err)
 	}
+	f.acknowledged = &ack
 	if ack != q.Receipt.Identity.Sequence {
 		return f.stop(ErrResolveRequired)
 	}
