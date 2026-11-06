@@ -13,7 +13,7 @@ import (
 const (
 	inventoryOrdinaryBatch  = "ordinary_batch"
 	inventoryLinuxCursor    = "local_getdents64_cookie_v1"
-	maxInventoryAcceptFiles = 1 // FIRST qualified shape only; not a catalogue cap
+	maxInventoryAcceptFiles = 1 // FIRST preparation shape; widening requires qualification
 )
 
 // These values are the COMPLETE original PRE-allocation input, not disclosure
