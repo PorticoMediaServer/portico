@@ -20,7 +20,7 @@
         "CacheKiB": 1024,
         "Synchronous": 2
       },
-      "sha256": "2eaf07624e5d5abc7ed6d616b466122bcf52914eda5eb3facd31447080c1f3f3",
+      "sha256": "27c29e92ca962c6457ec27daac7d608f73f5c23835d0bfb83e2e7646523fb5f1",
       "statistics": "unanalyzed",
       "implementations": "FIRST entity own-primary-title fragment; independent three fixed FTS columns including empty TEXT; distinct original history; FULL pre-BEGIN only; no governor, native Work or runtime eligibility qualification"
     },
