@@ -72,17 +72,23 @@ func PrepareTMDBMovie(policy TMDBPolicy, observation TMDBMovieObservation, body 
 	if err != nil {
 		return TMDBMovieDocument{}, errors.Join(ErrTMDBMovie, err)
 	}
-	wire, count, err := readTMDBMovie(frozen, nil, tmdbMovieCounts{})
+	// A no-copy span walk counts retained key occurrences before the typed
+	// decoder materializes ANY candidate text, even temporary RawMessages.
+	count, err := countTMDBMovieCredits(frozen)
 	if err != nil {
 		return TMDBMovieDocument{}, err
 	}
-	if wire.id <= 0 || strconv.FormatInt(wire.id, 10) != observation.ProviderID || strings.TrimSpace(wire.title) == "" || (wire.runtime != nil && (*wire.runtime < 0 || *wire.runtime > math.MaxInt64/60000)) {
-		return TMDBMovieDocument{}, ErrTMDBMovie
-	}
-	// W owns both caps and selection. Only the number of retained key
-	// occurrences is forecast here; no credit or ranking is selected by EN.
 	if _, err := writer.CheckEvidenceStageControls(h, min(count.cast, writer.MaxCastCredits), min(count.crew, writer.MaxCrewCredits)); err != nil {
 		return TMDBMovieDocument{}, errors.Join(ErrTMDBMovie, err)
+	}
+	// Only admitted input reaches the existing scalar/full-shape decoder.
+	// Its legacy count-mode copies now occur AFTER the aggregate preflight.
+	wire, actual, err := readTMDBMovie(frozen, nil, tmdbMovieCounts{})
+	if err != nil || actual != count {
+		return TMDBMovieDocument{}, ErrTMDBMovie
+	}
+	if wire.id <= 0 || strconv.FormatInt(wire.id, 10) != observation.ProviderID || strings.TrimSpace(wire.title) == "" || (wire.runtime != nil && (*wire.runtime < 0 || *wire.runtime > math.MaxInt64/60000)) {
+		return TMDBMovieDocument{}, ErrTMDBMovie
 	}
 	candidates := tmdbCreditBuffer{rows: make([]ScreenCredit, count.cast+count.crew)}
 	selected, err := candidates.prepare(ProviderRef{"tmdb", Movie, observation.ProviderID}, frozen, count)
