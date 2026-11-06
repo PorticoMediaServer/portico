@@ -177,3 +177,25 @@ func TestPlanCompileProfileRejectsReorderedPairs(t *testing.T) {
 		}
 	}
 }
+
+func TestPlanCompileProfileRejectsCompilerRowSwap(t *testing.T) {
+	for _, reviewed := range []string{"linux/amd64", "darwin/arm64"} {
+		t.Run(reviewed, func(t *testing.T) {
+			swap := func(v map[string]any) {
+				rows := v["environment"].(map[string]any)["compileOptions"].(map[string]any)["values"].([]any)
+				rows[0], rows[1] = rows[1], rows[0]
+				if !strings.HasPrefix(rows[51].([]any)[0].(string), "MUTEX_") {
+					t.Fatal("compiler control moved the mutex row")
+				}
+			}
+			// Removing COMPILER from either vector still yields the exact54
+			// other options, and MUTEX stays51. Only the compiler pin refuses.
+			want := compileFixture(t, reviewed, swap)
+			got := compileFixture(t, "linux/amd64", swap)
+			err := compareJSONForPlatform(want, got, "linux/amd64")
+			if err == nil || !strings.Contains(err.Error(), "compiler option at row0, want1") {
+				t.Fatalf("compiler row swap accepted or wrong refusal: %v", err)
+			}
+		})
+	}
+}
