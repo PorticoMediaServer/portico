@@ -45,16 +45,7 @@ func (c *testCustody) fence() { c.fences++ }
 
 func testExecutor(t *testing.T) (*executor, string, *time.Time) {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "writer.sqlite")
-	w, err := newEmptyExecutor(t.Context(), path, 1024)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if err := w.close(); err != nil {
-			t.Error(err)
-		}
-	})
+	w, path := testCanonicalExecutor(t)
 	// Control protocol transitions with a virtual clock. This is not latency
 	// qualification on a shared CI VM; actual SQL/cancellation is tested below.
 	now := time.Now().Add(time.Hour)
@@ -450,7 +441,19 @@ func TestTransactionAdmissionAndCompleteOverrunFailClosed(t *testing.T) {
 }
 
 func TestEmptyExecutorRefusesExistingLayoutAndRetirementFailure(t *testing.T) {
-	w, path, _ := testExecutor(t)
+	// This is a genuine fresh-startup/refusal control, not a copied fixture.
+	path := filepath.Join(t.TempDir(), "fresh-writer.sqlite")
+	w, err := newEmptyExecutor(t.Context(), path, 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := w.close(); err != nil {
+			t.Error(err)
+		}
+	})
+	now := time.Now().Add(time.Hour)
+	w.now = func() time.Time { return now }
 	if other, err := newEmptyExecutor(t.Context(), path, 1024); err == nil {
 		other.close()
 		t.Fatal("bootstrap reused nonempty layout")
