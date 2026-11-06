@@ -31,6 +31,8 @@ var openingConstraints = map[string]string{
 	"qual/namespace_other.go":                    "//go:build !linux",
 	"governor/snapshot_binding_audit_test.go":    "//go:build libc.memgrind",
 	"governor/snapshot_binding_counters_test.go": "//go:build memory.counters && !libc.memgrind",
+
+	"writer/crash_inventory_history_linux_test.go": "", // implicit _linux suffix; history SIGKILL/reopen controls are Linux-only
 }
 
 func openingPhysicalSources(root string) (map[string]bool, error) {

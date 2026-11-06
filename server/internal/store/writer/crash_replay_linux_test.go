@@ -42,6 +42,8 @@ type crashWitness struct {
 	InventoryJournal *inventoryCrashJournal // raw pre-COMMIT observation, never a writer result
 	FreshIdentity    *freshCrashIdentity
 	Unknown          bool
+
+	HistoryState map[string][32]byte
 }
 
 func crashPoint(t *testing.T, witness *crashWitness, boundary string) {
@@ -229,6 +231,10 @@ func TestCrashReplayChild(t *testing.T) {
 	}
 	if witness.Case.Domain == "inventory_fresh_component" {
 		crashFreshInventoryChild(t, &witness)
+		return
+	}
+	if witness.Case.Domain == "inventory_native" {
+		crashInventoryNativeFixture(t, &witness)
 		return
 	}
 	if witness.Case.Domain != "effective" {
