@@ -15,7 +15,7 @@ import (
 // namespace; it is never an inode, source ID, root hash or observation revision.
 type InventoryOrdinaryFilename struct {
 	SourceKey  string
-	Year, Part int
+	Year, Part int64
 	Metadata   InventoryFilenameMetadata
 }
 
@@ -72,10 +72,11 @@ func ProjectOrdinaryFilename(input InventoryOrdinaryFilenameInput) (InventoryOrd
 		part = reading.Parts[0].Value
 	}
 	// Match AttachMovieTx BEFORE display fallback. An uninterpretable title's
-	// locator is the complete existing ItemKey call, including a split part.
+	// locator is the complete existing ItemKey call, with its literal part0.
+	// The actual parsed part is returned independently for the source link.
 	key := identityvalue.MovieKey(title, year)
 	if identityvalue.IdentityText(title) == "" {
-		key = identityvalue.ItemKey(string(input.IdentityRoot), string(input.AssetPath), part)
+		key = identityvalue.ItemKey(string(input.IdentityRoot), string(input.AssetPath), 0)
 	}
 	if title == "" {
 		base := path.Base(relative)
@@ -91,5 +92,5 @@ func ProjectOrdinaryFilename(input InventoryOrdinaryFilenameInput) (InventoryOrd
 	if err != nil {
 		return InventoryOrdinaryFilename{}, err
 	}
-	return InventoryOrdinaryFilename{SourceKey: key, Year: year, Part: part, Metadata: metadata}, nil
+	return InventoryOrdinaryFilename{SourceKey: key, Year: int64(year), Part: int64(part), Metadata: metadata}, nil
 }

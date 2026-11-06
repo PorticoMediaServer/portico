@@ -70,15 +70,10 @@ func TestProjectOrdinaryFilenameExistingMovieCorpus(t *testing.T) {
 		key := identityvalue.MovieKey(c.Title, c.Year)
 		if identityvalue.IdentityText(c.Title) == "" {
 			input := ordinaryFilenameInput([]byte(c.Path), "", "en-US")
-			reading := naming.Read(c.Path, "movie")
-			part := 0
-			if len(reading.Parts) > 0 {
-				part = reading.Parts[0].Value
-			}
-			key = identityvalue.ItemKey(string(input.IdentityRoot), string(input.AssetPath), part)
+			key = identityvalue.ItemKey(string(input.IdentityRoot), string(input.AssetPath), 0)
 		}
 		metadata, e := ProjectFilenameMetadata(c.Title, "", "en-US")
-		if e != nil || got.SourceKey != key || got.Year != c.Year || got.Metadata != metadata {
+		if e != nil || got.SourceKey != key || got.Year != int64(c.Year) || got.Metadata != metadata {
 			t.Fatalf("%q: got%+v expected key%q year%d metadata%+v (%v)", c.Path, got, key, c.Year, metadata, e)
 		}
 	}
@@ -109,10 +104,10 @@ func TestProjectOrdinaryFilenameCompleteLegacyLocatorCall(t *testing.T) {
 	}
 	// identityvalue.ItemKey is independently byte-proved against the frozen
 	// pre-extraction implementation in the dependency's complete corpus test.
-	if a.SourceKey != identityvalue.ItemKey(root, string(inside.AssetPath), 2) || b.SourceKey != identityvalue.ItemKey(root, string(out.AssetPath), 2) || a.SourceKey == b.SourceKey || b.Part != 2 {
+	if a.SourceKey != identityvalue.ItemKey(root, string(inside.AssetPath), 0) || b.SourceKey != identityvalue.ItemKey(root, string(out.AssetPath), 0) || a.SourceKey == b.SourceKey || b.Part != 2 {
 		t.Fatal(a, b)
 	}
-	if b.SourceKey == identityvalue.ItemKey("", string(relative), 2) {
+	if b.SourceKey == identityvalue.ItemKey("", string(relative), 0) {
 		t.Fatal("outside-root path was replaced by a synthetic relative locator", b)
 	}
 	// A required display fallback must not invent a logical movie identity
@@ -124,7 +119,7 @@ func TestProjectOrdinaryFilenameCompleteLegacyLocatorCall(t *testing.T) {
 		t.Fatalf("empty-title fixture changed: %+v", r)
 	}
 	got, err := ProjectOrdinaryFilename(empty)
-	if err != nil || got.Metadata.Title != "pt2" || got.SourceKey != identityvalue.ItemKey(string(empty.IdentityRoot), string(empty.AssetPath), r.Parts[0].Value) {
+	if err != nil || got.Metadata.Title != "pt2" || got.SourceKey != identityvalue.ItemKey(string(empty.IdentityRoot), string(empty.AssetPath), 0) {
 		t.Fatal(got, err)
 	}
 }
@@ -154,5 +149,50 @@ func TestProjectOrdinaryFilenameRawPolicyAndBudget(t *testing.T) {
 	}
 	if got, err := ProjectOrdinaryFilename(ordinaryFilenameInput([]byte("Film.mkv"), "\xff", "en-US")); !errors.Is(err, ErrInvalid) || errors.Is(err, ErrFilenameUnrepresentable) || got != (InventoryOrdinaryFilename{}) {
 		t.Fatal("metadata is not a native-path poison reason", got, err)
+	}
+}
+
+func TestInventoryAcceptCanonicalEmptySortProjection(t *testing.T) {
+	input, identity := inventoryPublicInput(t)
+	projection, err := ProjectOrdinaryFilename(ordinaryFilenameInput([]byte("!!!.mkv"), "", "en-US"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := &input.Files[0]
+	m := projection.Metadata
+	f.RelativePath = []byte("!!!.mkv")
+	f.AssetPath = []byte("/media/!!!.mkv")
+	f.SourceKey = projection.SourceKey
+	f.Year = projection.Year
+	f.Title, f.SortTitle, f.SortKey, f.SortHead = m.Title, m.SortTitle, m.SortKey, m.SortHead
+	f.SortKeyKeepArticles, f.SortHeadKeepArticles, f.MetadataLanguage = m.SortKeyKeepArticles, m.SortHeadKeepArticles, m.MetadataLanguage
+	command, err := NewInventoryAcceptCommand(identity, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := command.(*inventoryAcceptCommand).request.files[0]
+	if got.title != "!!!" || got.sortKey != "" || got.sortHead != "" || got.sortKeyKeepArticles != "" || got.sortHeadKeepArticles != "" {
+		t.Fatal(got)
+	}
+}
+
+func TestInventoryAcceptRefusesInexactDerivedSort(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		edit func(*InventoryFilenameInput)
+	}{
+		{"forged_empty_key", func(f *InventoryFilenameInput) { f.SortKey = "" }},
+		{"different_nonempty_key", func(f *InventoryFilenameInput) { f.SortKey = "another" }},
+		{"different_head", func(f *InventoryFilenameInput) { f.SortHead = "z" }},
+		{"different_keep_key", func(f *InventoryFilenameInput) { f.SortKeyKeepArticles = "another" }},
+		{"different_keep_head", func(f *InventoryFilenameInput) { f.SortHeadKeepArticles = "z" }},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			input, identity := inventoryPublicInput(t)
+			c.edit(&input.Files[0])
+			if got, err := NewInventoryAcceptCommand(identity, input); !errors.Is(err, ErrInvalid) || got != nil {
+				t.Fatal(got, err)
+			}
+		})
 	}
 }
