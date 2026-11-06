@@ -38,8 +38,8 @@ func TestPlanCanonicalSchemaFKAndStatementContracts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(fk.Plans) != 650 {
-		t.Fatalf("FK coverage: %d, want 650; review schema change and full enforcement audit", len(fk.Plans))
+	if len(fk.Plans) != 652 {
+		t.Fatalf("FK coverage: %d, want 652; review schema change and full enforcement audit", len(fk.Plans))
 	}
 	checkFKGolden(t, fk)
 	registry := canonicalRegistry(t, policy)
@@ -48,7 +48,7 @@ func TestPlanCanonicalSchemaFKAndStatementContracts(t *testing.T) {
 		t.Fatal(err)
 	}
 	// All 28 cohorts were independently regenerated on approved 291ab3ac,
-	// 567267b7, 5f3c7f67 and adopted abf43774 with the same VM canonicalization. EQP
+	// 567267b7, 5f3c7f67, abf43774 and adopted 45c96755 with the same VM canonicalization. EQP
 	// notused is now also a placeholder; removing forced autoindex names
 	// changes no other field. Stop before
 	// recording if any opcode/operand/EQP beyond physical identifiers changes.
