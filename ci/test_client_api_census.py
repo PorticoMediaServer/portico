@@ -279,6 +279,66 @@ function screenLifetime(selected: boolean) {
         (root/filename).write_text(source.replace('if (selected)','if (!selected)'))
         self.assertTrue(all(s['forwardedRequest'] for s in scan(root)))
 
+    def test_distinct_spans_sharing_an_id_require_separate_count_one_bindings(self):
+        from client_api_census import validate_approvals
+        core='export type V1Request = {path: string; method: string; body?: unknown; signal?: AbortSignal}; export interface V1Http {send(request: V1Request): Promise<unknown>;}'
+        source='''import type {V1Http,V1Request} from '../../packages/client-core/src/playback-v1/http';
+declare const wire: V1Http;
+function first() {return {send(request: V1Request) {const owner = 1;return wire.send(request);}};}
+function second() {return {send(request: V1Request) {const owner = 2;return wire.send(request);}};}
+'''
+        root,filename,sites,_=self.fixture(source,dependencies={'packages/client-core/src/playback-v1/http.ts':core})
+        self.assertEqual(len({s['id'] for s in sites}),1)
+        self.assertEqual(len({s['guardHash'] for s in sites}),2)
+        key=sites[0]['id']
+        (root/ALLOWLIST).write_text('{}');(root/BASELINE).write_text(json.dumps({key:2}))
+        self.git(root,'add','.');self.git(root,'commit','-qm','Record two direct spans')
+        pairs=[s['id']+'@'+s['guardHash'] for s in sites]
+        pin={'category':'platform-transport','reason':'Two separately reviewed core forwards',
+             'sites':pairs,'guardHashes':{pair:s['guardHash'] for pair,s in zip(pairs,sites)}}
+        ledger={pair:{'category':pin['category'],'reason':pin['reason'],'guardHash':s['guardHash'],
+                       'condition':'Exact complete span and count one','occurrences':1,
+                       'rulingUrl':'https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648755492'}
+                for pair,s in zip(pairs,sites)}
+        (root/ALLOWLIST).write_text(json.dumps({filename:pin}));(root/APPROVALS).write_text(json.dumps(ledger))
+        (root/BASELINE).write_text('{}')
+        self.assertEqual(self.check(root)[0],0)
+        for bad in [dict(pin,sites=[pairs[0],pairs[0]]),dict(pin,sites=pairs+[key])]:
+            with self.assertRaises(ValueError):classify(sites,{filename:bad})
+        grown=json.loads(json.dumps(ledger));grown[pairs[0]]['occurrences']=2
+        with self.assertRaises(ValueError):validate_approvals(grown)
+        # A third unapproved span must not spend the old DIRECT budget again
+        # while the other two old occurrences become exceptions in the same PR.
+        (root/filename).write_text(source+source.splitlines()[2].replace('first','third').replace('owner = 1','owner = 3')+'\n')
+        (root/BASELINE).write_text(json.dumps({key:2}))
+        import io
+        from contextlib import redirect_stdout,redirect_stderr
+        with redirect_stdout(io.StringIO()),redirect_stderr(io.StringIO()):
+            self.assertEqual(main(['--update','--base','HEAD'],root=root),1)
+
+    def test_conditional_signal_and_farewell_shapes_reject_path_or_body_construction(self):
+        core='export type V1Request = {path: string; method: string; body?: unknown; signal?: AbortSignal}; export interface V1Http {send(request: V1Request): Promise<unknown>;}'
+        source='''import type {V1Http,V1Request} from '../../packages/client-core/src/playback-v1/http';
+import type {HttpLocalApi} from '../../packages/client-core/src/index';
+declare const wire: V1Http, life: AbortSignal;
+declare const api: HttpLocalApi;
+function conditional(request: V1Request, adopted: boolean) {return wire.send(adopted ? request : {...request,signal: life});}
+function farewell(path: string, method: string, body: unknown) {return api.farewell(path,method,body);}
+'''
+        root,filename,sites,_=self.fixture(source,dependencies={'packages/client-core/src/playback-v1/http.ts':core,
+            'packages/client-core/src/index.ts':'export declare class HttpLocalApi {farewell(path: string, method: string, body: unknown): void;}'})
+        self.assertEqual([s['forwardingShape'] for s in sites],['conditional-signal','farewell'])
+        self.assertEqual(self.check(root)[0],0)
+        for old,new in [('{...request,signal: life}','{...request,path: request.path + "/made",signal: life}'),
+                        ('{...request,signal: life}','{...request,body: {},signal: life}'),
+                        ('api.farewell(path,method,body)','api.farewell(path + "/made",method,body)'),
+                        ('api.farewell(path,method,body)','api.farewell(path,method,{body})')]:
+            with self.subTest(edit=new):
+                (root/filename).write_text(source.replace(old,new))
+                changed=scan(root)
+                self.assertTrue(any(not s['forwardedRequest'] for s in changed))
+                self.assertEqual(self.check(root)[0],1)
+
     def test_cw_rulings_keep_exact_file_qualified_budgets_and_hashes(self):
         rulings={'6651098315','6654511777','6655467024','6673584916'}
         ledger=json.loads((ROOT/APPROVALS).read_text())

@@ -160,6 +160,14 @@ try {
       const signalOptions = n => n?.kind===K.ObjectLiteralExpression && n.properties.length===2
         && n.properties[0].kind===K.SpreadAssignment && n.properties[0].expression.kind===K.Identifier && parameter(n.properties[0].expression.text)
         && [K.PropertyAssignment,K.ShorthandPropertyAssignment].includes(n.properties[1].kind) && nameOf(n.properties[1].name)==='signal';
+      const unchangedRequest = n => n?.kind===K.Identifier && parameter(n.text);
+      // Reviewed conditional delivery changes only the signal, on the same
+      // request in both branches. A copied body/path or another object fails.
+      const signalCopyOf = (n,original) => signalOptions(n)
+        && n.properties[0].expression.text===original.text;
+      const conditionalSignalCopy = n => n?.kind===K.ConditionalExpression
+        && (unchangedRequest(n.whenTrue) && signalCopyOf(n.whenFalse,n.whenTrue)
+          || unchangedRequest(n.whenFalse) && signalCopyOf(n.whenTrue,n.whenFalse));
       if (callName==='requestRaw' && args.length===3 && sameNames(['path','method']) && ['path','method'].every(parameter) && signalOptions(args[2])) forwardingShape='raw-signal-options';
       if (callName==='requestConsole' && args.length===4 && sameNames(['path','method','body']) && ['path','method','body'].every(parameter)) forwardingShape='console';
       if (callName==='request' && args.length===5 && sameNames(['path','method','body']) && ['path','method','body'].every(parameter) && args[4]?.kind===K.Identifier && parameter(args[4].text)) forwardingShape='request-options';
@@ -168,6 +176,9 @@ try {
       if (callName==='requestBounded' && args.length===3 && sameNames(['path','maxBytes']) && ['path','maxBytes'].every(parameter)) forwardingShape='bounded';
       if (callName==='routeFetch' && args.length===2 && args[0]?.kind===K.Identifier && parameter(args[0].text) && signalOptions(args[1])) forwardingShape='fetch-signal-options';
       if (callName==='send' && args.length===1 && (args[0]?.kind===K.Identifier && parameter(args[0].text) || signalOptions(args[0]))) forwardingShape='request-object';
+      if (callName==='send' && args.length===1 && conditionalSignalCopy(args[0])) forwardingShape='conditional-signal';
+      if (callName==='farewell' && args.length===3 && sameNames(['path','method','body'])
+          && ['path','method','body'].every(parameter)) forwardingShape='farewell';
       if (callName==='request' && args.length===4 && args[0]?.kind===K.Identifier && args[0].text==='path' && parameter('path')
           && literal(args[1])==='GET' && args[2]?.kind===K.Identifier && args[2].text==='undefined') forwardingShape='read-only';
       if (chapterGuard && callName==='request' && args.length===4 && args[0]?.kind===K.Identifier && args[0].text==='path' && literal(args[1])==='GET' && args[2]?.kind===K.Identifier && args[2].text==='undefined') forwardingShape='chapter-read';

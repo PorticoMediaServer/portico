@@ -375,9 +375,26 @@ def compare(actual, baseline):
 def exception_pins(entry):
     if set(entry['sites']) & set(entry.get('additionalSites', {})):
         raise ValueError('Exception ID overlap between sites and additionalSites is forbidden')
-    return {**{key: {'category': entry['category'], 'reason': entry['reason'], **({'guardHash': entry.get('guardHashes', {}).get(key),
+    pins = {**{key: {'category': entry['category'], 'reason': entry['reason'], **({'guardHash': entry.get('guardHashes', {}).get(key),
                 **({'guardSpan':entry['guardSpans'][key]} if key in entry.get('guardSpans',{}) else {})} if entry['category']=='platform-transport' else {})} for key in entry['sites']},
             **entry.get('additionalSites', {})}
+    budgets=Counter(entry['sites'])+Counter(entry.get('additionalSites',{}).keys())
+    for key,pin in pins.items():
+        if '@' not in key:continue
+        site,span=key.rsplit('@',1)
+        if (not re.fullmatch(r'.+#[a-f0-9]{16}',site) or not re.fullmatch(r'[a-f0-9]{64}',span)
+                or pin['category']!='platform-transport' or pin.get('guardHash')!=span or budgets[key]!=1):
+            raise ValueError(f'{key}: an exact ID/hash pair requires its full guardHash and occurrence count 1')
+        if site in pins:raise ValueError(f'{key}: paired and unqualified allowances cannot overlap')
+    return pins
+
+
+def source_id(key):
+    return key.rsplit('@',1)[0] if '@' in key else key
+
+
+def exception_counts(exceptions):
+    return sum((Counter(e['sites'])+Counter(e.get('additionalSites',{}).keys()) for e in exceptions.values()),Counter())
 
 
 def matches_guard(site, expected, span=None):
@@ -395,14 +412,18 @@ def classify(sites, exceptions):
         if not entry.get('sites'): raise ValueError(f'Exception must pin its exact construction/request sites: {path}')
     for site in sites:
         entry = exceptions.get(site['file'])
-        pin = exception_pins(entry).get(site['id']) if entry else None
-        allowed = pin is not None and remaining[site['file']][site['id']] > 0
-        if allowed: remaining[site['file']][site['id']] -= 1
+        pins=exception_pins(entry) if entry else {}
+        pair=site['id']+'@'+str(site.get('guardHash'))
+        binding=pair if pair in pins else site['id']
+        pin=pins.get(binding)
+        allowed = pin is not None and remaining[site['file']][binding] > 0
+        if allowed: remaining[site['file']][binding] -= 1
         if allowed and pin['category']=='platform-transport' and not matches_guard(site,pin.get('guardHash'),pin.get('guardSpan')):
             raise ValueError(f"{site['file']}:{site['line']}: reviewed guard source changed or is unbound; re-approval and a new guardHash are required")
         if allowed and pin['category']=='platform-transport' and not site.get('forwardedRequest'):
             raise ValueError(f"{site['file']}:{site['line']}: platform transport must match an approved unchanged request/raw/chapter forwarding shape")
-        (exempt if allowed else direct).append(site)
+        if allowed:exempt.append(dict(site,exceptionId=binding))
+        else:direct.append(site)
     return direct, exempt
 
 
@@ -418,13 +439,16 @@ def approval_for(approvals, key, pin, count):
 
 def validate_approvals(approvals):
     for key, entry in approvals.items():
-        if (not re.fullmatch(r'.+#[a-f0-9]{16}', key) or not entry.get('reason', '').strip()
+        if (not re.fullmatch(r'.+#[a-f0-9]{16}(?:@[a-f0-9]{64})?', key) or not entry.get('reason', '').strip()
                 or not entry.get('condition', '').strip() or type(entry.get('occurrences')) is not int or entry['occurrences'] < 1
                 or entry.get('category') not in {'platform-transport','platform-url','native-extension','native-listening','separate-product','identity-rehash'}
                 or not isinstance(entry.get('rulingUrl'),str)
                 or not re.fullmatch(r'https://github\.com/PorticoMediaServer/portico/(?:pull|issues)/[1-9]\d*#issuecomment-[1-9]\d*',entry['rulingUrl'])
                 or entry['category'] in {'platform-transport','identity-rehash'} and not re.fullmatch(r'[a-f0-9]{64}',entry.get('guardHash',''))):
             raise ValueError(f'{key}: approval requires an exact site, condition, positive multiplicity, category/source binding and lead-ruling URL')
+        if '@' in key and (entry['category']!='platform-transport' or key.rsplit('@',1)[1]!=entry.get('guardHash')
+                           or entry['occurrences']!=1 or 'previousSiteId' in entry):
+            raise ValueError(f'{key}: paired approval requires its exact full hash, count 1 and an explicit ruling')
         if 'guardSpan' in entry and (entry['category']!='platform-transport' or entry['guardSpan']!='forwarding-function'):
             raise ValueError(f'{key}: invalid explicitly reviewed forwarding span')
         if entry['category']=='identity-rehash' or entry['rulingUrl']==REHASH_RULING or 'previousSiteId' in entry:
@@ -523,7 +547,7 @@ def rehash_counts(baseline, old_baseline, moves):
     return permitted
 
 
-def base_guard(baseline, exceptions, old_baseline, old_exceptions, approvals=None, detections=None, rehashes=None):
+def base_guard(baseline, exceptions, old_baseline, old_exceptions, approvals=None, detections=None, rehashes=None, site_counts=None):
     permitted={**old_baseline}
     for key,count in (detections or {}).items():permitted[key]=max(permitted.get(key,0),count)
     for key,count in rehash_counts(baseline,old_baseline,rehashes or {}).items():permitted[key]=max(permitted.get(key,0),count)
@@ -532,6 +556,18 @@ def base_guard(baseline, exceptions, old_baseline, old_exceptions, approvals=Non
     # source hash, reason/category and complete multiplicity. Ledger edits are
     # themselves reviewable; an old approval cannot authorize a larger count.
     approvals = approvals or {}
+    before=exception_counts(old_exceptions);after=exception_counts(exceptions)
+    # Converting DIRECT duplicates to distinct paired exceptions must not let an
+    # extra occurrence spend the same old DIRECT budget a second time. Check the
+    # complete source multiset (before classification), not only the residuals.
+    paired={source_id(key) for key in after if '@' in key and after[key]>before[key]}
+    old_total=Counter(old_baseline)
+    for key,n in before.items():old_total[source_id(key)]+=n
+    for key in paired:
+        if site_counts is None:
+            errors.append(f'{key}: paired activation requires complete source occurrence counts')
+        elif site_counts.get(key,0)>old_total[key]:
+            errors.append(f'{key}: paired activation grows total source occurrences; a new detection ruling is required')
     for path,entry in exceptions.items():
         pins=exception_pins(entry);old=old_exceptions.get(path)
         previous=exception_pins(old) if old else {}
@@ -583,10 +619,10 @@ def main(argv=None, root=ROOT):
                 for key,count in detections.items():permitted[key]=max(permitted.get(key,0),count)
                 for key,count in rehash_counts(actual,old_baseline,moves).items():permitted[key]=max(permitted.get(key,0),count)
                 new,_=compare(actual,permitted)
-                new+=base_guard(actual if a.update else baseline,exceptions,old_baseline,old_exceptions or {},approvals,detections,moves)
+                new+=base_guard(actual if a.update else baseline,exceptions,old_baseline,old_exceptions or {},approvals,detections,moves,counts(sites))
             except ValueError as error: new.append(str(error))
-    pinned = sum((Counter(e['sites']) + Counter(e.get('additionalSites', {}).keys()) for e in exceptions.values()), Counter())
-    stale_exceptions = list((pinned - Counter(counts(exempt))).elements())
+    pinned = exception_counts(exceptions)
+    stale_exceptions = list((pinned - Counter(s.get('exceptionId',s['id']) for s in exempt)).elements())
     if stale_exceptions:new += [f'{site}: stale exception; remove its allowance' for site in stale_exceptions]
     if a.report:a.report.write_text(json.dumps({'direct':direct,'exceptions':exempt},indent=2)+'\n')
     if new:
