@@ -72,6 +72,12 @@ func (*searchImageStageCommand) isSearchImageStageCommand() {}
 
 var _ SearchImageStageCommand = (*searchImageStageCommand)(nil)
 
+// Complete v1 typed-request wire excluding the thirteen TEXT byte payloads:
+// codec/identity header, type descriptors, field names, LP lengths, arrays and
+// native scalar values. This fixed-shape request has no pointers or slices;
+// the shared encoder test pins this bound when its shape or codec changes.
+const searchImageStageFixedBytes = 3554
+
 // Preparation only, under separately charged custody BEFORE a writer hold.
 // A structurally valid packet grants no lease, current source or native-slot
 // authority. Fresh execution must rederive the manifest seed from actual native
@@ -81,7 +87,7 @@ func newSearchImageStageCommand(identity CommandIdentity, in searchImageStageReq
 		&in.bank.profile.RecipeVersion, &in.bank.profile.EngineVersion, &in.bank.profile.UnicodeFingerprint,
 		&in.source.title, &in.owner.recipe, &in.owner.phase, &in.owner.contentDigest,
 		&in.header.titleFold, &in.header.titlePrefixTokens, &in.header.initialPrefixTokens}
-	var total uint64
+	total := uint64(searchImageStageFixedBytes)
 	// Check all lengths before inspecting UTF-8, cloning, deriving or hashing.
 	// This codec envelope is preparation, never a production Work forecast.
 	for _, p := range text {
