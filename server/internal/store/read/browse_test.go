@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -324,5 +325,36 @@ func TestBrowseCancellationAndLimits(t *testing.T) {
 	}
 	if _, _, err := f.window(t, t.Context(), f.input); err != nil {
 		t.Fatal("reader was not returned", err)
+	}
+}
+
+// json_valid is not typed-array validation, and a valid nonempty policy must
+// also refuse until the complete item predicate exists. These cases establish
+// fail-closed admission only; they do NOT qualify that missing predicate.
+func TestBrowseProfileLabelsFailClosed(t *testing.T) {
+	f := newBrowseFixture(t)
+	f.exec(t, `INSERT INTO profile_restrictions(profile_id) VALUES('p')`)
+	tooMany := make([]string, 65)
+	for i := range tooMany {
+		tooMany[i] = "label"
+	}
+	list, err := json.Marshal(tooMany)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, raw := range []string{`null`, `{}`, `false`, `123`, `"label"`, `[null]`, `[1]`, `[""]`, `["Horror"]`, `["` + strings.Repeat("a", 121) + `"]`, string(list)} {
+		f.exec(t, `UPDATE profile_restrictions SET blocked_labels=? WHERE profile_id='p'`, raw)
+		page, _, err := f.window(t, t.Context(), f.input)
+		if !errors.Is(err, ErrUnqualified) || len(page.Items) > 0 || page.Next != nil {
+			t.Fatalf("unsupported/malformed profile%q admitted: %+v %v", raw, page, err)
+		}
+	}
+	// Broken JSON syntax is refused by canonical storage itself.
+	if _, err := f.conn.ExecContext(t.Context(), `UPDATE profile_restrictions SET blocked_labels='[' WHERE profile_id='p'`); err == nil {
+		t.Fatal("canonical JSON syntax guard absent")
+	}
+	f.exec(t, `UPDATE profile_restrictions SET blocked_labels='[]' WHERE profile_id='p'`)
+	if page, _, err := f.window(t, t.Context(), f.input); err != nil || len(page.Items) == 0 {
+		t.Fatal("empty-label envelope should still browse", err)
 	}
 }
