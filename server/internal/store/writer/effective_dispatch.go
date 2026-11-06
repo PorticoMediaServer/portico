@@ -389,6 +389,9 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	if turn != nil {
 		err = errors.Join(err, turn.closeRows())
 	}
+	if err == nil && scan != nil && scan.input != nil && !historical {
+		err = checkInventoryTerminal(ctx, turn, scan.input)
+	}
 	// No partial result survives ANY preterminal failure. The same helper
 	// runs again at final publication after physical return and all cleanup.
 	checked, checkedErr := finishCommand(ctx, tx.ctx, commandCompletion{out, acknowledged}, errors.Join(err, r.currentRunDisclosure(w, cap, request, scan)))
