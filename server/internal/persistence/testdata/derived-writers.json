@@ -12746,7 +12746,7 @@
       ]
     },
     "internal/storage/client.go": {
-      "sha256": "a6443849bb4b3ed7cbe48267ef1b9619b199272cd81a72ea852c59048e5dd25b",
+      "sha256": "6a3ac2584f77ef9d69919180344cc09b7c397a39aba26406d87c8f46f3405a90",
       "effects": [
         {
           "table": "*",
@@ -12782,7 +12782,7 @@
       ]
     },
     "internal/storage/inventory_page.go": {
-      "sha256": "9e1148196a95f974c8c3ad16df6c5a114a6f367686dc50a938a2d4d5b0b011ff",
+      "sha256": "48636445bec8dbfa8ef3fb2be2aae927cbe5c28f88dcf8133a2fb932b49b7aef",
       "effects": [
         {
           "table": "*",
@@ -12989,7 +12989,7 @@
       ]
     },
     "internal/storage/sourceops/scope.go": {
-      "sha256": "ad7f7b6ba4a2c6a0736066bac868775e485a0bf02bb0eedb6d198933d6712420",
+      "sha256": "7319a2d7c020c12c4e4b16f0672c3633f7cd870c2ac346966a4020cb3cfe0609",
       "effects": [
         {
           "table": "*",
@@ -12998,7 +12998,7 @@
       ]
     },
     "internal/storage/supervisor.go": {
-      "sha256": "27a67cf90eec213ff9cd9e90526b5218643ae2819f5f0cc39a0e20de0f22c4c7",
+      "sha256": "f3c68467ecadcc2d62be7171d38582938b46ceff2c781948f2e1b4e690cc499c",
       "effects": [
         {
           "table": "*",
