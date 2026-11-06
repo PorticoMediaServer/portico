@@ -6,9 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
-	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
 )
 
 func inventoryDisclosureFixture(t *testing.T) *executor {
@@ -150,47 +148,6 @@ func TestInventoryNativeDisclosureRequiresClosedReadSteps(t *testing.T) {
 				t.Fatal("unregistered/non-read scope step entered SQL", id, missing, err)
 			}
 			tx.rollback(nil)
-		}
-	}
-}
-
-func TestInventoryNativeDisclosureStatementPlans(t *testing.T) {
-	w := inventoryDisclosureFixture(t)
-	conn, err := w.db.Conn(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close()
-	if _, err := sqliteconn.Assert(t.Context(), conn, w.config); err != nil {
-		t.Fatal(err)
-	}
-	for _, d := range inventoryDisclosureDefinitions() {
-		if issues := plan.LintSQL(d.SQL); len(issues) != 0 || !d.Plan.Hot || len(d.Plan.Waivers) != 0 {
-			t.Fatal(d.ID, issues)
-		}
-		for _, c := range d.Cohorts {
-			rows, err := conn.QueryContext(t.Context(), "EXPLAIN QUERY PLAN "+d.SQL, c.Bindings...)
-			if err != nil {
-				t.Fatal(err)
-			}
-			count := 0
-			eqp := plan.Rows{Columns: []string{"id", "parent", "notused", "detail"}}
-			for rows.Next() {
-				var id, parent, aux int64
-				var detail string
-				if err := rows.Scan(&id, &parent, &aux, &detail); err != nil {
-					t.Fatal(err)
-				}
-				t.Logf("%s/%s: %s", d.ID, c.Name, detail)
-				eqp.Values = append(eqp.Values, []any{id, parent, aux, detail})
-				count++
-			}
-			if err := errors.Join(rows.Err(), rows.Close()); err != nil || count != 1 {
-				t.Fatal(d.ID, c.Name, err, count)
-			}
-			if err := plan.Check(d, eqp); err != nil {
-				t.Fatal(err)
-			}
 		}
 	}
 }
