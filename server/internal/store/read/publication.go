@@ -68,12 +68,12 @@ func (r *BrowseReader) Window(ctx context.Context, request governor.Request, bud
 	return
 }
 
-// A readStep uses the remaining calls after the shared or source fence.
+// A readStep uses the remaining calls after any first-window fence.
 // GV enforces eight calls per snapshot. No snapshot crosses a step.
 type readStep[T any] func(context.Context, browseQuery, browseFence, *T) error
 
 // publishRead implements the shared consolidated protocol: full shared fences
-// first/final, exact root/source fences between, and at most one complete retry
+// first/final, root/source comparison at final publication, and one complete retry
 // within the original deadline. Browse is its existing single-lookup subset.
 func publishRead[T any](ctx context.Context, snapshots browseSnapshots, request governor.Request, budget time.Duration, output BrowseOutput, in BrowseInput, steps []readStep[T], roots ...rootRead) (page T, result BrowseReadResult, err error) {
 	started := time.Now()
@@ -195,17 +195,14 @@ func publishAttempt[T any](ctx context.Context, snapshots browseSnapshots, reque
 				}
 				fenceReady = true
 			}
-			if len(roots) > 0 {
-				current, e := roots[0](query)
+			if stepIndex == 0 && len(roots) > 0 {
+				source, e = roots[0](query)
 				if e != nil {
 					return e
 				}
-				if stepIndex == 0 {
-					source = current
-				} else if !equalSource(source, current) {
-					return ErrStale
-				}
 			}
+			// Middle windows run business reads only. The fresh final shared
+			// fence and root/source comparison reject any torn private draft.
 
 			return step(scope.Context(), query, initial, &draft)
 		})
