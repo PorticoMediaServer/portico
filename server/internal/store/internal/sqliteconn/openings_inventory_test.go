@@ -32,6 +32,8 @@ var openingConstraints = map[string]string{
 	"governor/snapshot_binding_audit_test.go":    "//go:build libc.memgrind",
 	"governor/snapshot_binding_counters_test.go": "//go:build memory.counters && !libc.memgrind",
 
+	"internal/sqliteconn/ownership_lifetime_linux_test.go": "", // implicit _linux suffix; real SIGKILL/native lifetime witnesses are Linux-only
+
 	"writer/crash_inventory_history_linux_test.go": "", // implicit _linux suffix; history SIGKILL/reopen controls are Linux-only
 }
 
