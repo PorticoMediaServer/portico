@@ -73,6 +73,8 @@ func TestAcquisitionDocumentPreservesOriginalMetadataOnReuse(t *testing.T) {
 	copyMeta.ObservedAt = "invented"
 	input.ObservedAt = "later fetch"
 	input.ETag = "later validator"
+	input.LastModified = "later Last-Modified"
+	input.SourceURL = "https://api.themoviedb.org/3/movie/42?api_key=later-secret"
 	clock.advance(5 * time.Second)
 	second, err := tr.GetDocument(t.Context(), documentKey())
 	if err != nil || second.Metadata() != expected || first.Metadata() != expected || string(second.Body()) != "hello" || calls.Load() != 1 {
@@ -91,6 +93,37 @@ func TestAcquisitionDocumentPreservesOriginalMetadataOnReuse(t *testing.T) {
 	stats := tr.Stats()
 	if stats.CacheMetadataBytes != 176 || stats.CacheBytes != 192 || stats.Reused != 1 {
 		t.Fatal("metadata is uncharged/additional to cache cap", stats)
+	}
+}
+
+func TestAcquisitionDocumentNeverCachesCredentialCarriers(t *testing.T) {
+	const safe = "https://api.themoviedb.org/3/movie/42"
+	for _, raw := range []string{
+		safe + "?api_key=credential-fixture&language=en-CA",
+		safe + "?%61pi%5fkey=credential-fixture&ACCESS_TOKEN=credential-fixture",
+		safe + "?unknown_credential=credential-fixture#api_key=credential-fixture",
+		"https://user:credential-fixture@api.themoviedb.org/3/movie/42",
+		"https://API.THEMOVIEDB.ORG:443/3/movie/42?api_key=credential-fixture",
+	} {
+		t.Run(raw, func(t *testing.T) {
+			original := documentMetadata()
+			original.SourceURL = raw
+			tr := broker(t, documentConfig(), admissionFunc(allowed), func(context.Context, RequestKey, int64) (Response, error) {
+				return Response{Status: 200, Body: []byte("complete"), Metadata: original}, nil
+			})
+			for range 2 {
+				doc, err := tr.GetDocument(t.Context(), documentKey())
+				if err != nil || doc.Metadata().SourceURL != safe || doc.Metadata().ObservedAt != original.ObservedAt || doc.Metadata().ETag != original.ETag || doc.Metadata().LastModified != original.LastModified {
+					t.Fatal("unsafe/fabricated original acquisition metadata", err)
+				}
+			}
+			tr.mu.Lock()
+			retained := tr.cache[documentKey()].Value.(cachedResponse).metadata
+			tr.mu.Unlock()
+			if retained.SourceURL != safe || strings.Contains(retained.SourceURL, "credential-fixture") || tr.Stats().Reused != 1 {
+				t.Fatal("credential carrier retained in cache")
+			}
+		})
 	}
 }
 
@@ -227,14 +260,47 @@ func TestAcquisitionDocumentEarlyRefusalKeepsProviderFloor(t *testing.T) {
 
 type acquisitionCancelAtReturn struct {
 	context.Context
-	reads atomic.Int32
+	reads    atomic.Int32
+	cancelOn int32
 }
 
 func (c *acquisitionCancelAtReturn) Err() error {
-	if c.reads.Add(1) >= 3 {
+	threshold := c.cancelOn
+	if threshold == 0 {
+		threshold = 3
+	}
+	if c.reads.Add(1) >= threshold {
 		return context.Canceled
 	}
 	return nil
+}
+
+func TestAcquisitionDocumentCacheReturnCancellationKeepsProviderFloor(t *testing.T) {
+	tr := broker(t, documentConfig(), admissionFunc(allowed), func(_ context.Context, k RequestKey, _ int64) (Response, error) {
+		if k.ExternalID == "43" {
+			return Response{Status: 429, RetryAfter: 48 * time.Hour}, nil
+		}
+		return Response{Status: 200, Body: []byte("complete"), Metadata: documentMetadata()}, nil
+	})
+	clock := newFakeClock()
+	tr.clock = clock
+	if _, err := tr.GetDocument(t.Context(), documentKey()); err != nil {
+		t.Fatal(err)
+	}
+	clock.advance(time.Second)
+	limited := documentKey()
+	limited.ExternalID = "43"
+	if _, err := tr.GetDocument(t.Context(), limited); err == nil {
+		t.Fatal("provider floor absent")
+	}
+	// Cache reuse succeeds without dispatch during suspension. Cancellation
+	// first observed at the final return must still expose that retained floor.
+	ctx := &acquisitionCancelAtReturn{Context: context.Background(), cancelOn: 2}
+	doc, err := tr.GetDocument(ctx, documentKey())
+	var provider *ProviderError
+	if !reflect.DeepEqual(doc, AcquisitionDocument{}) || !errors.Is(err, context.Canceled) || !errors.As(err, &provider) || provider.RetryAfter < 47*time.Hour || !provider.Suspended {
+		t.Fatal("late cache cancellation hid retained provider floor", err)
+	}
 }
 
 func TestAcquisitionDocumentReturnCancellationPreservesLongFloor(t *testing.T) {
