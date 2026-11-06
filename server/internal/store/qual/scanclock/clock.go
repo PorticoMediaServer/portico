@@ -1,5 +1,6 @@
-// Package scanclock measures harness-only observed filename availability. It
-// neither accepts inventory nor supplies writer, browse or completion authority.
+// Package scanclock retains harness-only acceptance observations. Filename
+// visibility remains unmeasured without a current public-facade witness joining
+// the original receipt's object, asset and accepted revision to reader state.
 package scanclock
 
 import (
@@ -39,18 +40,21 @@ type Report struct {
 }
 
 // Clock retains ONE exact N1 Applied target and fixed-size receipt values.
-// It measures the first matching browse observation for that declared target,
-// not an unproved whole-library first/all milestone. It is single-owner only.
+// A browse row alone cannot prove that target's current visibility. It is
+// single-owner only and supplies no writer, read or completion authority.
 type Clock struct {
-	manifest  Manifest
-	start     time.Time
-	reference writer.ScanReceiptRequest
-	member    writer.InventoryMember
-	appliedAt time.Time
-	visibleAt time.Time
-	rejected  uint64
+	manifest                              Manifest
+	start                                 time.Time
+	reference                             writer.ScanReceiptRequest
+	member                                writer.InventoryMember
+	appliedAt                             time.Time
+	rejected                              uint64
+	nonPositiveOrigin, nonPositiveApplied bool
 }
 
+// New's start is the actual offer of the scan's first supervised native
+// traversal operation, before starting that request, in the owning process.
+// This constructor does not observe or attest that externally supplied event.
 func New(start time.Time, m Manifest) (*Clock, error) {
 	if !monotonic(start) || m.Run == "" || m.Database == "" || len(m.Database) > 1024 || m.ClockDomain == "" || m.HostEpoch == "" || m.MediaProfile == "" ||
 		len(m.Run) > 1024 || len(m.ClockDomain) > 1024 || len(m.HostEpoch) > 1024 || len(m.MediaProfile) > 128 ||
@@ -97,30 +101,28 @@ func (c *Clock) Applied(at time.Time, original writer.ScanReceiptRequest, result
 	return nil
 }
 
-// Browse observes a released, CURRENT-authority browse page for the same
-// library. Only the exact retained subject appearing with a filename and
-// revision creates a serving milestone. No row, read error or other library
-// means unavailable. The collector opens no reader and mints no viewer token.
+// Browse checks timing and scope of a supplied released page, but returns
+// ErrObservation: no supported current public-facade witness joins it to the
+// original object's asset and accepted revision, or revalidates that receipt.
+// Subject/title/public ID alone cannot prove this. Browse.Revision is an entity
+// revision, not AcceptedAssetRevision (asset info_epoch); they are never equated.
+// Visibility stays null until that witness contract exists. No hook is minted.
 func (c *Clock) Browse(at time.Time, input read.BrowseInput, page read.BrowsePage, callErr error) error {
 	if c == nil {
 		return ErrObservation
 	}
-	if callErr != nil || c.appliedAt.IsZero() || !c.at(at) || at.Before(c.appliedAt) || input.Library != c.member.LibraryID ||
+	if !c.at(at) {
+		return c.reject()
+	}
+	if !c.appliedAt.IsZero() && !at.After(c.appliedAt) {
+		c.nonPositiveApplied = true
+		return c.reject()
+	}
+	if callErr != nil || c.appliedAt.IsZero() || input.Library != c.member.LibraryID ||
 		input.TokenHash == "" || input.Database != c.manifest.Database || len(page.Items) > read.MaxPage {
 		return c.reject()
 	}
-	for _, item := range page.Items {
-		if item.ID == c.member.SubjectID {
-			if item.Title == "" || item.Revision <= 0 {
-				return c.reject()
-			}
-			if c.visibleAt.IsZero() {
-				c.visibleAt = at
-			}
-			return nil
-		}
-	}
-	return nil // observed page, but no proof this target is visible yet
+	return c.reject() // current object/asset/revision/receipt witness unavailable
 }
 
 func (c *Clock) Report() Report {
@@ -132,6 +134,12 @@ func (c *Clock) Report() Report {
 	}
 	r.Manifest = c.manifest
 	r.Rejected = c.rejected
+	if c.nonPositiveOrigin {
+		r.Missing = append(r.Missing, "non-positive traversal-offer-to-observation interval refused")
+	}
+	if c.nonPositiveApplied {
+		r.Missing = append(r.Missing, "non-positive Applied-to-browse interval refused")
+	}
 	if !c.appliedAt.IsZero() {
 		r.AppliedObserved = true
 		reference := c.reference.Receipt
@@ -143,18 +151,21 @@ func (c *Clock) Report() Report {
 	} else {
 		r.Missing = append(r.Missing, "actual fresh Applied observation unavailable")
 	}
-	if !c.visibleAt.IsZero() {
-		r.FilenameObserved = true
-		n := c.visibleAt.Sub(c.start).Nanoseconds()
-		r.FirstFilenameVisibleNS = &n
-	} else {
-		r.Missing = append(r.Missing, "matching actual browse visibility unavailable")
-	}
+	r.Missing = append(r.Missing, "current public-facade witness joining original receipt/object/asset/info_epoch to reader visibility unavailable")
 	return r
 }
-func (c *Clock) at(at time.Time) bool { return monotonic(at) && !at.Before(c.start) }
-func (c *Clock) reject() error        { c.rejected++; return ErrObservation }
-func monotonic(t time.Time) bool      { return !t.IsZero() && t != t.Round(0) }
+func (c *Clock) at(at time.Time) bool {
+	if !monotonic(at) {
+		return false
+	}
+	if !at.After(c.start) {
+		c.nonPositiveOrigin = true
+		return false
+	}
+	return true
+}
+func (c *Clock) reject() error   { c.rejected++; return ErrObservation }
+func monotonic(t time.Time) bool { return !t.IsZero() && t != t.Round(0) }
 func hex(s string, n int) bool {
 	if len(s) != n {
 		return false
