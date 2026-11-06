@@ -424,6 +424,15 @@ func TestEffectiveBeginAtomicEffectsPreserveProgressAndServing(t *testing.T) {
 		"provider_operation_id": "operation-one", "command_incarnation": identity.Incarnation[:], "command_sequence": int64(12), "operation_id": identity.OperationID[:], "request_digest": input.digest[:], "command_kind": "effective_stage",
 		"accepted_revision": int64(203), "applied_ms": now.UnixMilli(), "entity_id": int64(101), "after_item": "opaque-page:61", "after_ordinal": int64(0), "publication_id": nil, "effective_image_id": result.ImageID, "effective_image_revision": result.ImageRevision, "result_count": int64(0), "result_digest": result.Digest[:],
 	}
+	// Closed legacy hidden-BEGIN result: new009 seal/dependency payload is NULL,
+	// not a fabricated seal or a source-provenance-qualified result.
+	expected["proof_revision"], expected["proof_pin_count"], expected["proof_cleanup_after_sequence"] = int64(1), int64(0), int64(0)
+	for _, column := range []string{
+		"seal_version", "seal_evidence_id", "seal_subject_id", "seal_parser_version", "seal_provider", "seal_subject_kind", "seal_provider_id", "seal_language", "seal_region", "seal_request_shape", "seal_observation_digest", "seal_owner_generation", "seal_build_id", "seal_build_generation", "seal_content_revision", "seal_algorithm", "seal_commitment", "seal_verified_rows", "seal_canonical_bytes", "seal_retained_bytes",
+		"proof_reclaim_due_ms", "upstream_evidence_owner", "upstream_evidence_incarnation", "upstream_evidence_sequence", "upstream_evidence_kind", "source_dependency_owner", "source_dependency_incarnation", "source_dependency_sequence", "source_dependency_kind", "source_dependency_publication_id", "source_dependency_provider",
+	} {
+		expected[column] = nil
+	}
 	if got := effectiveBeginSnapshot(t, w.db, "SELECT * FROM enrichment_command_receipts WHERE command_sequence=12"); !reflect.DeepEqual(got, expected) {
 		t.Fatalf("receipt column readback differs: got %v want %v", got, expected)
 	}
@@ -438,8 +447,8 @@ func TestEffectiveBeginPreservesEvidenceBuildCustody(t *testing.T) {
 	// Install distinct, FK-valid custody AFTER freezing the image request. This
 	// is a native preservation fixture, not a qualified evidence-stage/sealer.
 	// Its pin is not image authority and must not enter the image request/CAS.
-	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO metadata_evidence_builds(id,evidence_id,generation,owner_operation,owner_incarnation,owner_generation,state,phase,cursor,expected_rows,materialized_rows,expected_shape_digest,materialized_digest,materialized_charge,expires_at)
- SELECT 'evidence-build:custody','evidence-source',277,id,command_incarnation,generation,'ready','evidence-v1',1,1,1,'declared-shape:custody','materialized:custody',1024,'2100-11-05T13:30:00Z' FROM metadata_provider_operations WHERE id='operation-one'`); err != nil {
+	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO metadata_evidence_builds(id,evidence_id,generation,owner_operation,owner_incarnation,owner_generation,state,phase,cursor,expected_rows,materialized_rows,expected_shape_digest,materialized_digest,materialized_charge,expires_at,content_revision)
+ SELECT 'evidence-build:custody','evidence-source',277,id,command_incarnation,generation,'ready','evidence-v1',1,1,1,'declared-shape:custody','materialized:custody',1024,'2100-11-05T13:30:00Z',1 FROM metadata_provider_operations WHERE id='operation-one'`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := w.db.ExecContext(t.Context(), `UPDATE metadata_provider_operations SET evidence_build_id='evidence-build:custody' WHERE id='operation-one'`); err != nil {
@@ -464,6 +473,77 @@ func TestEffectiveBeginPreservesEvidenceBuildCustody(t *testing.T) {
 	}
 	if got := effectiveBeginSnapshot(t, w.db, "SELECT * FROM metadata_evidence_builds WHERE id='evidence-build:custody'"); !reflect.DeepEqual(got, beforeBuild) {
 		t.Fatal("image BEGIN changed the retained evidence build")
+	}
+}
+
+func TestEffectiveBeginPreserves009SourceCustody(t *testing.T) {
+	w, _, request, identity := effectiveBeginWholeFixture(t)
+	input, err := newEffectiveStageBeginCommand(identity, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Install FK-valid native custody AFTER freezing legacy hidden-BEGINv1.
+	// Deliberately unqualified fixture algorithms/commitments do not establish
+	// real source-seal provenance or enable the future production proof variant.
+	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO enrichment_command_receipts(
+ provider_operation_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,
+ accepted_revision,applied_ms,entity_id,after_item,after_ordinal,publication_id,effective_image_id,effective_image_revision,result_count,result_digest,
+ seal_version,seal_evidence_id,seal_subject_id,seal_parser_version,seal_provider,seal_subject_kind,seal_provider_id,seal_language,seal_region,seal_request_shape,seal_observation_digest,
+ seal_owner_generation,seal_build_id,seal_build_generation,seal_content_revision,seal_algorithm,seal_commitment,seal_verified_rows,seal_canonical_bytes,seal_retained_bytes,proof_pin_count)
+ SELECT o.id,o.command_incarnation,7,?,?,'evidence_seal',203,1793861096000,o.entity_id,o.after_item,1,NULL,NULL,NULL,0,?,
+ 1,e.id,e.subject_id,e.parser_version,e.provider,e.subject_kind,e.provider_id,e.language,e.region,e.request_shape,e.digest,
+ o.generation,'historical-build:277',277,1,'fixture-unqualified-evidence',?,1,307,8876032,2
+ FROM metadata_provider_operations o JOIN metadata_evidence e ON e.id='evidence-source' WHERE o.id='operation-one'`,
+		[]byte{241, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, make([]byte, 32), make([]byte, 32), make([]byte, 32)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.db.ExecContext(t.Context(), `UPDATE metadata_evidence SET seal_proof_owner='operation-one',
+ seal_proof_incarnation=?,seal_proof_sequence=7 WHERE id='evidence-source'`, identity.Incarnation[:]); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.db.ExecContext(t.Context(), `INSERT INTO credit_source_publications(publication_id,entity_id,provider,accepted_record_reference,observed_at,member_count,sealed)
+ VALUES('ccddeeff00112233445566778899aabb',101,'fixture','opaque-source:313','2026-11-05T09:59:00Z',0,0)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.db.ExecContext(t.Context(), `UPDATE metadata_provider_operations SET
+ source_content_revision=1,source_publication_id='ccddeeff00112233445566778899aabb',source_owner_generation=generation,
+ source_evidence_id='evidence-source',source_subject_id=601,source_parser_version='parser/v1',
+ source_next_position=0,source_expected_members=0,source_expected_bytes=319,source_algorithm='fixture-unqualified-source',source_version=1,source_expected_commitment=?,
+ source_evidence_owner=id,source_evidence_incarnation=command_incarnation,source_evidence_sequence=7,
+ proof_stage_slot=0,proof_pin_units=2,proof_reserved_bytes=17752064
+ WHERE id='operation-one'`, make([]byte, 32)); err != nil {
+		t.Fatal(err)
+	}
+	beforeOwner := effectiveBeginSnapshot(t, w.db, "SELECT * FROM metadata_provider_operations WHERE id='operation-one'")
+	if beforeOwner["source_evidence_kind"] != "evidence_seal" || beforeOwner["source_content_revision"] != int64(1) {
+		t.Fatal("fixture lacks distinct actual009 custody")
+	}
+	beforeEvidence := effectiveBeginSnapshot(t, w.db, "SELECT * FROM metadata_evidence WHERE id='evidence-source'")
+	beforeSource := effectiveBeginSnapshot(t, w.db, "SELECT * FROM credit_source_publications WHERE publication_id='ccddeeff00112233445566778899aabb'")
+	beforeProof := effectiveBeginSnapshot(t, w.db, "SELECT * FROM enrichment_command_receipts WHERE provider_operation_id='operation-one' AND command_sequence=7")
+	turn, _ := effectiveBeginWholeTurn(t, w)
+	result, err := applyEffectiveStageBegin(t.Context(), turn, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := turn.closeRows(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := turn.transaction.commit(); err != nil {
+		t.Fatal(err)
+	}
+	beforeOwner["last_command_sequence"], beforeOwner["credit_image_id"] = int64(12), result.ImageID
+	if got := effectiveBeginSnapshot(t, w.db, "SELECT * FROM metadata_provider_operations WHERE id='operation-one'"); !reflect.DeepEqual(got, beforeOwner) {
+		t.Fatal("legacy image BEGIN changed009 source pin/intent/accounting/cleanup or other owner facts")
+	}
+	for query, expected := range map[string]map[string]any{
+		"SELECT * FROM metadata_evidence WHERE id='evidence-source'":                                                   beforeEvidence,
+		"SELECT * FROM credit_source_publications WHERE publication_id='ccddeeff00112233445566778899aabb'":             beforeSource,
+		"SELECT * FROM enrichment_command_receipts WHERE provider_operation_id='operation-one' AND command_sequence=7": beforeProof,
+	} {
+		if got := effectiveBeginSnapshot(t, w.db, query); !reflect.DeepEqual(got, expected) {
+			t.Fatal("legacy image BEGIN changed retained source/proof facts", query)
+		}
 	}
 }
 
