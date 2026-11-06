@@ -22,9 +22,14 @@ func n1DomainCapCommand(c *inventoryAcceptCommand) (*inventoryAcceptCommand, err
 	f.changeToken = strings.Repeat("\x00", 4096)
 	f.title = strings.Repeat("<", MaxTitleCharacters)
 	f.sortTitle = f.title
+	projection, err := ProjectFilenameMetadata(f.title, f.sortTitle, f.metadataLanguage)
+	if err != nil {
+		return nil, err
+	}
+	f.sortKey, f.sortHead = projection.SortKey, projection.SortHead
+	f.sortKeyKeepArticles, f.sortHeadKeepArticles = projection.SortKeyKeepArticles, projection.SortHeadKeepArticles
 	evidence := mediasource.InventoryEvidence{Kind: "local", Scope: r.source.id + ":" + r.source.incarnation,
 		Object: objectidentity.StableObjectIdentity(f.objectIdentity, r.source.rootIdentity), Size: f.size, ModifiedNS: f.modifiedNS, ChangeToken: f.changeToken}
-	var err error
 	f.revision, err = evidence.Revision()
 	if err != nil {
 		return nil, err
