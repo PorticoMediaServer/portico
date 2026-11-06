@@ -1,12 +1,10 @@
 package writer
 
-import (
-	"fmt"
-	"strings"
-	"unicode/utf8"
-)
+import "strings"
 
-const enrichmentRetainedControlBytes uint64 = 64 << 10
+// Fixed projection scratch capacity, not a legal-input limit: the complete
+// adopted table/cardinality layout below has fewer than4096 string slots.
+const enrichmentControlProjectionSlots = 4096
 
 // A CLOSED accounting projection of actual retained native rows, not generic
 // persistence, a request codec, a caller-selected quota or verified provenance.
@@ -22,19 +20,12 @@ type enrichmentControlRecord struct {
 }
 type enrichmentControlCapture struct{ records []enrichmentControlRecord }
 
-type EnrichmentControlSizeError struct{ LimitBytes, ObservedBytes uint64 }
-
-func (e *EnrichmentControlSizeError) Error() string {
-	return fmt.Sprintf("enrichment retained control bytes %d exceed %d", e.ObservedBytes, e.LimitBytes)
-}
-func (*EnrichmentControlSizeError) Unwrap() error { return ErrCap }
-
-// Preflight BEFORE derived allocation, cloning or calling W's codec. Content
-// strings/source tuple payloads use their SEPARATE adopted limits. Native key
-// occurrences within content are included here too. Secondary copies and fixed
-// generated-kind/BLOB/integer/record cells remain in the complete W forecast.
+// Preflight BEFORE variable-string cloning or calling W's normalized codec.
+// EN checks only native field/null/cardinality projection. W's ONE byte/text
+// checker handles all supplied physical occurrences; no local counter/limit.
 func preflightEnrichmentControls(c enrichmentControlCapture) (uint64, error) {
-	var total uint64
+	var occurrences [enrichmentControlProjectionSlots]string
+	n := 0
 	counts := make(map[string]int, 16)
 	for _, row := range c.records {
 		bound, layout := enrichmentControlLayout(row.table)
@@ -45,29 +36,30 @@ func preflightEnrichmentControls(c enrichmentControlCapture) (uint64, error) {
 		if counts[row.table] > bound {
 			return 0, invalid("control_closure_cardinality")
 		}
-		columns := strings.Fields(layout)
-		if len(columns) != len(row.text) {
+		columns := 0
+		if layout != "" {
+			columns = 1 + strings.Count(layout, " ")
+		}
+		if columns != len(row.text) {
 			return 0, invalid("control_native_columns")
 		}
-		for i, v := range row.text {
-			nullable := strings.HasSuffix(columns[i], "?")
+		for _, v := range row.text {
+			field, rest, _ := strings.Cut(layout, " ")
+			layout = rest
 			if !v.Present {
-				if !nullable || v.Value != "" {
+				if !strings.HasSuffix(field, "?") || v.Value != "" {
 					return 0, invalid("control_null_shape")
 				}
 				continue
 			}
-			n := uint64(len(v.Value))
-			if n > enrichmentRetainedControlBytes-total {
-				return 0, &EnrichmentControlSizeError{enrichmentRetainedControlBytes, total + n}
+			if n == len(occurrences) {
+				return 0, invalid("control_projection_capacity")
 			}
-			if !utf8.ValidString(v.Value) || strings.IndexByte(v.Value, 0) >= 0 {
-				return 0, invalid("control_text")
-			}
-			total += n
+			occurrences[n] = v.Value
+			n++
 		}
 	}
-	return total, nil
+	return CheckSealControlStrings(occurrences[:n])
 }
 
 // Exact adopted009 stored TEXT projection. '?' denotes native nullable TEXT.

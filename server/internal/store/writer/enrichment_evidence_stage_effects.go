@@ -32,10 +32,11 @@ func forecastEvidenceStage(p EvidenceStagePayload, proofOwner string) (evidenceS
 	if !p.valid || proofOwner == "" || !sealNativeText(proofOwner) {
 		return evidenceStageForecast{}, ErrInvalid
 	}
-	bytes := p.baseBytes + uint64(len(proofOwner)) + 16
-	if bytes > evidenceStageContentBytes {
-		return evidenceStageForecast{}, &PolicyError{Field: "tmdb_stage_content_bytes", Limit: int(evidenceStageContentBytes), Cause: ErrCap}
+	referenceBytes := uint64(len(proofOwner)) + 16
+	if err := CheckEvidenceSealContentBytes(p.baseBytes, referenceBytes); err != nil {
+		return evidenceStageForecast{}, err
 	}
+	bytes := p.baseBytes + referenceBytes
 	return evidenceStageForecast{bytes, uint64(512*(1+len(p.credits))) + 8*bytes}, nil
 }
 
