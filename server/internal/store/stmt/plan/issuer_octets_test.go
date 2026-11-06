@@ -3,15 +3,19 @@ package plan_test
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"flag"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/schema"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/plan"
+	sqlite "github.com/PorticoMediaServer/portico/server/internal/thirdparty/sqlite"
 )
 
 var recordIssuerOctets = flag.Bool("record-issuer-octets", false, "deliberately record the closed issuer byte-preflight point")
@@ -187,5 +191,53 @@ func TestIssuerSourceOctetLengthsRejectPartialNativeKey(t *testing.T) {
 	}
 	if _, err := captureIssuerOctets(t, conn, f, indexPolicy(t), issuerOctetsDefinition()); err == nil || !strings.Contains(err.Error(), "native key must be exactly id") {
 		t.Fatal("partial composite key refused", err)
+	}
+}
+
+// Use the same test binary in a separate process: registering the reviewer's
+// application override must not change any other test's physical connections.
+func TestIssuerSourceOctetLengthsForgedFunctionCatalogue(t *testing.T) {
+	const childFlag = "PORTICO_ISSUER_OCTET_SHADOW_CHILD"
+	if os.Getenv(childFlag) != "1" {
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+		defer cancel()
+		command := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestIssuerSourceOctetLengthsForgedFunctionCatalogue$", "-test.count=1")
+		command.Env = append(os.Environ(), childFlag+"=1")
+		if output, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("native override child: %v\n%s", err, output)
+		}
+		return
+	}
+	if err := sqlite.RegisterDeterministicScalarFunction("OCTET_LENGTH", 1, func(_ *sqlite.FunctionContext, _ []driver.Value) (driver.Value, error) { return int64(777), nil }); err != nil {
+		t.Fatal(err)
+	}
+	conn, f, policy := issuerOctetsFixture(t)
+	var overridden int64
+	if err := conn.QueryRowContext(t.Context(), "SELECT octet_length(root) FROM library_sources WHERE id='source'").Scan(&overridden); err != nil || overridden != 777 {
+		t.Fatal("actual application override did not run", overridden, err)
+	}
+	for _, scope := range []string{"TEMP", "MAIN"} {
+		t.Run(scope, func(t *testing.T) {
+			// Both ordinary-table namespaces could forge the old unqualified SELECT.
+			create := "CREATE TEMP TABLE pragma_function_list AS SELECT * FROM main.pragma_function_list() WHERE builtin=1"
+			if scope == "MAIN" {
+				create = "CREATE TABLE main.pragma_function_list AS SELECT * FROM main.pragma_function_list() WHERE builtin=1"
+			}
+			if _, err := conn.ExecContext(t.Context(), create); err != nil {
+				t.Fatal(err)
+			}
+			defer conn.ExecContext(t.Context(), "DROP TABLE "+strings.ToLower(scope)+".pragma_function_list")
+			var counterfeit int64
+			if err := conn.QueryRowContext(t.Context(), "SELECT count(*) FROM pragma_function_list WHERE name='octet_length' COLLATE NOCASE AND narg IN(1,-1)").Scan(&counterfeit); err != nil || counterfeit != 1 {
+				t.Fatal("forged builtin catalogue not installed", counterfeit, err)
+			}
+			g, err := captureIssuerOctets(t, conn, f, policy, issuerOctetsDefinition())
+			if err == nil || !strings.Contains(err.Error(), "unshadowed native") {
+				t.Fatal("forged catalogue authorized application function", err)
+			}
+			if _, err := stmt.New([]stmt.Definition{issuerOctetsDefinition()}, g.Receipt()); err == nil {
+				t.Fatal("refused native audit minted authority")
+			}
+		})
 	}
 }

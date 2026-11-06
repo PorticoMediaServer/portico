@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
@@ -30,11 +31,30 @@ func issuerOctetDefinition(d stmt.Definition) bool {
 // Source classification is checked by the ordinary MAIN/TEMP/view guard. Check
 // the live native key too: the single id equality must bound at most one row.
 func auditIssuerOctetKey(ctx context.Context, conn *sql.Conn) error {
-	functions, err := query(ctx, conn, "SELECT builtin,narg FROM pragma_function_list WHERE name='octet_length' COLLATE NOCASE AND narg IN(1,-1)")
+	// Read the native pragma directly. A TEMP or MAIN object named
+	// pragma_function_list must never be able to forge this builtin audit.
+	functions, err := query(ctx, conn, "PRAGMA function_list")
 	if err != nil {
 		return err
 	}
-	if len(functions.Values) != 1 || len(functions.Values[0]) != 2 || functions.Values[0][0] != int64(1) || functions.Values[0][1] != int64(1) {
+	matches := 0
+	for _, row := range functions.Values {
+		if len(row) != 6 {
+			return fmt.Errorf("issuer preflight: unexpected native function metadata")
+		}
+		name, nameOK := row[0].(string)
+		arity, arityOK := row[4].(int64)
+		if !nameOK || !arityOK {
+			return fmt.Errorf("issuer preflight: invalid native function metadata")
+		}
+		if strings.EqualFold(name, "octet_length") && (arity == 1 || arity == -1) {
+			if row[1] != int64(1) || arity != 1 {
+				return fmt.Errorf("issuer preflight: unshadowed native one-argument octet_length required")
+			}
+			matches++
+		}
+	}
+	if matches != 1 {
 		return fmt.Errorf("issuer preflight: unshadowed native one-argument octet_length required")
 	}
 	indexes, err := query(ctx, conn, "PRAGMA main.index_list(library_sources)")
