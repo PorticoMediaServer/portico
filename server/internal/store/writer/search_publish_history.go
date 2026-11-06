@@ -105,7 +105,7 @@ func lookupSearchImageStage(ctx context.Context, turn *commandTurn, q PublisherR
 	if err != nil {
 		return out, err
 	}
-	row, err = turn.queryRow(ctx, step, q.JobID, q.Receipt.Identity.Incarnation[:], q.Receipt.Identity.Sequence)
+	row, err = turn.queryRow(ctx, step, q.JobID, q.Receipt.Identity.Incarnation[:], q.Receipt.Identity.Sequence, searchmanifest.Algorithm)
 	if err != nil {
 		return out, err
 	}

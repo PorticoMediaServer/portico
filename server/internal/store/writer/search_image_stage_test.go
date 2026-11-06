@@ -8,14 +8,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/searchmanifest"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/searchpolicy"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
-// Private native body controls. These do not construct PublisherDisclosure or
-// enable W's facade; physical engine-pair/lease/memory/admission are W-owned.
-// Capture genuinely qualifies the SQL, not the synthetic component forecasts.
+// Private native domain controls on W's real governor/frame/engine/time and
+// memory seam, with synthetic component resource figures. These do not mint
+// PublisherDisclosure, enable the public facade or qualify a production profile.
 func searchImageStageFixture(t *testing.T) (*executor, *stmt.Registry) {
 	t.Helper()
 	w := searchImageStagePlanFixture(t)
@@ -75,9 +76,33 @@ func searchImageStageNativeCommand(t *testing.T, job int64) *searchImageStageCom
 	return c
 }
 
-func searchImageStageTurn(t *testing.T, w *executor, r *stmt.Registry, c *testCustody) *commandTurn {
+func searchImageStageTurn(t *testing.T, w *executor, r *stmt.Registry) *commandTurn {
 	t.Helper()
 	recipe := turnRecipe{limit: Work{4096, 1000000, 4096, 32 << 20, 25 * time.Millisecond}, setup: Work{16, 500, 16, 65536, time.Millisecond}, terminal: Work{16, 500, 16, 65536, time.Millisecond}}
+	// Real SAME governor/GV-WAL binder/frame; resource numbers are synthetic
+	// component controls, never a production complete profile.
+	g, a, wal, request := governedFixture(t, w.now, governedFixtureProfile{recipe, 8 << 20})
+	request.Key = governor.JobKey{Domain: uint16(SearchImageStage), ID: "component/image-stage"}
+	request.Class = governor.Background
+	request.Footprint = []governor.Scope{{Library: 3, Domain: uint16(SearchImageStage)}}
+	var seq int64
+	var name, path string
+	if err := w.db.QueryRowContext(t.Context(), "PRAGMA database_list").Scan(&seq, &name, &path); err != nil {
+		t.Fatal(err)
+	}
+	if err := refreshWriterWAL(path, wal, w.now); err != nil {
+		t.Fatal(err)
+	}
+	decision := g.Try(request)
+	if decision.Grant == nil {
+		t.Fatal(decision.Refusal)
+	}
+	c, err := bindGovernedTurn(SearchImageStage, recipe.limit, g, a, wal, decision.Grant, request)
+	if err != nil {
+		_ = a.Retired(decision.Grant)
+		t.Fatal(err)
+	}
+	c.searchImageMemory = searchImageMemoryBudget{4 << 20, 4 << 20}
 	tx, err := w.begin(t.Context(), SearchImageStage, recipe, c)
 	if err != nil {
 		t.Fatal(err)
@@ -98,13 +123,9 @@ func TestSearchImageStageNativeAllocationAndOriginalReplay(t *testing.T) {
 	w, registry := searchImageStageFixture(t)
 	for _, job := range []int64{29, 35, 36, 37} {
 		command := searchImageStageNativeCommand(t, job)
-		turn := searchImageStageTurn(t, w, registry, &testCustody{})
+		turn := searchImageStageTurn(t, w, registry)
 		sharedBefore := searchImageSharedFacts(t, turn)
-		sample, err := turn.transaction.clockTime()
-		if err != nil {
-			t.Fatal(err)
-		}
-		result, err := writeSearchImageStage(t.Context(), turn, command, sample.UnixMilli())
+		result, err := applySearchImageStage(t.Context(), turn, command)
 		if err != nil {
 			t.Fatalf("job%d: %v", job, err)
 		}
@@ -158,8 +179,15 @@ func TestSearchImageStageNativeAllocationAndOriginalReplay(t *testing.T) {
 		if _, err := w.db.ExecContext(t.Context(), `UPDATE search_publish_jobs SET job_revision=?,source_revision=102,input_generation=99,job_lease_expires_ms=0 WHERE id=?`, int64(math.MaxInt64), job); err != nil {
 			t.Fatal(err)
 		}
-		turn = searchImageStageTurn(t, w, registry, &testCustody{})
-		again, err := writeSearchImageStage(t.Context(), turn, command, -1)
+		turn = searchImageStageTurn(t, w, registry)
+		// History needs neither a fresh memory partition nor any fresh/effect
+		// definition; current facts above intentionally no longer match input.
+		turn.transaction.custody.(*governedTurn).searchImageMemory = searchImageMemoryBudget{}
+		for _, definition := range searchImageBeginDefinitions() {
+			delete(turn.steps, definition.ID)
+		}
+		delete(turn.steps, searchPublisherImagePut)
+		again, err := applySearchImageStage(t.Context(), turn, command)
 		if err != nil || again != result {
 			t.Fatal("fresh/overflow/lease checks hid historical receipt", again, err)
 		}
@@ -181,11 +209,11 @@ func TestSearchImageStageNativeWitnessRefusalRollsBack(t *testing.T) {
 		`UPDATE search_publish_jobs SET content_digest='old-stage-proof' WHERE id=29`,
 		`UPDATE search_publish_jobs SET job_revision=20 WHERE id=29`,
 	} {
-		turn := searchImageStageTurn(t, w, registry, &testCustody{})
+		turn := searchImageStageTurn(t, w, registry)
 		if _, err := turn.transaction.conn.ExecContext(turn.transaction.ctx, mutation); err != nil {
 			t.Fatal(err)
 		}
-		result, err := writeSearchImageStage(t.Context(), turn, command, 1000)
+		result, err := applySearchImageStage(t.Context(), turn, command)
 		if !errors.Is(err, ErrConflict) || result != (SearchImageStageResult{}) {
 			t.Fatal(mutation, result, err)
 		}
@@ -211,14 +239,13 @@ func TestSearchImageStageRollbackAtEveryEffect(t *testing.T) {
 	// Two receipt reads + six native fresh reads, then five effects. Refuse
 	// each effect admission in the SAME frame; rollback removes every prefix.
 	for at := 0; at < 5; at++ {
-		custody := &testCustody{}
-		turn := searchImageStageTurn(t, w, registry, custody)
+		turn := searchImageStageTurn(t, w, registry)
 		ids := [...]stmt.ID{searchImageInsert, searchImageSealInsert, searchImageReclaimInsert, searchImageAttachHeadDue, searchPublisherImagePut}
 		id := ids[at]
 		step := turn.steps[id]
 		step.work.Rows = turn.transaction.workLimit.Rows + 1
 		turn.steps[id] = step
-		result, err := writeSearchImageStage(t.Context(), turn, command, 1000)
+		result, err := applySearchImageStage(t.Context(), turn, command)
 		if !errors.Is(err, ErrQuantum) || result != (SearchImageStageResult{}) {
 			t.Fatal(result, err)
 		}
@@ -254,8 +281,8 @@ func TestSearchImageStageReceiptCollisionRollsBackWholeImage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	turn := searchImageStageTurn(t, w, registry, &testCustody{})
-	out, err := writeSearchImageStage(t.Context(), turn, command, 1000)
+	turn := searchImageStageTurn(t, w, registry)
+	out, err := applySearchImageStage(t.Context(), turn, command)
 	if err == nil || out != (SearchImageStageResult{}) {
 		t.Fatal("receipt UNIQUE failure exposed a partial allocation", out, err)
 	}

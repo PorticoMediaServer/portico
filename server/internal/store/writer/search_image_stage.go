@@ -10,12 +10,11 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
-// Private body, NOT an admission/disclosure/clock factory. W's sole dispatcher
-// must establish current disclosure, ORIGINAL receipt miss, same-PHYSICAL engine
-// eligibility and complete memory/work/lease custody before fresh invocation.
-// appliedMS is sampled by W, never serialized in the original request. W owns
-// the final lease/permission/lifetime check, COMMIT truth and Applied projection.
-func writeSearchImageStage(ctx context.Context, turn *commandTurn, c *searchImageStageCommand, appliedMS int64) (out SearchImageStageResult, err error) {
+// Closed domain entry on W's SAME admitted turn. W establishes current opaque
+// and retained native disclosure before invoking it, and alone owns terminal
+// permission/COMMIT truth and the public Applied projection. Original history
+// precedes every fresh source, memory, profile, physical engine and lease check.
+func applySearchImageStage(ctx context.Context, turn *commandTurn, c *searchImageStageCommand) (out SearchImageStageResult, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	if ctx == nil || turn == nil || turn.transaction == nil || turn.transaction.descriptor.ID != SearchImageStage || c == nil || !c.valid {
 		return out, ErrInvalid
@@ -32,9 +31,6 @@ func writeSearchImageStage(ctx context.Context, turn *commandTurn, c *searchImag
 	if lookup.decision != receiptFresh {
 		return out, ErrResolveRequired
 	}
-	if appliedMS < 0 || appliedMS >= c.request.owner.leaseExpiresMS {
-		return out, ErrConflict
-	}
 	// Fail absent registration BEFORE any fresh read/allocation/effect. No Work is
 	// created here; only W's exact immutable registered steps may execute.
 	for _, id := range [...]stmt.ID{searchImageSource, searchImageSubject, searchImageBank, searchImageHeads, searchImageLibrary, searchImageJob, searchImageInsert, searchImageSealInsert, searchImageReclaimInsert, searchImageAttachNoHeadNoDue, searchImageAttachNoHeadDue, searchImageAttachHeadNoDue, searchImageAttachHeadDue} {
@@ -45,7 +41,31 @@ func writeSearchImageStage(ctx context.Context, turn *commandTurn, c *searchImag
 	if _, err := searchPublisherStep(turn, searchPublisherImagePut); err != nil {
 		return out, err
 	}
+	required, err := searchImageFreshRequiredBytes(c)
+	if err != nil {
+		return out, err
+	}
+	if err := turn.requireSearchImageMemory(ctx, required); err != nil {
+		return out, err
+	}
+	// The original complete packet is rehashed only within that same memory
+	// reservation. Allocated image IDs/time never enter the request digest.
+	digest, err := canonicalRequestDigest(SearchImageStage, 1, c.identity, c.request)
+	if err != nil || digest != c.digest {
+		return out, ErrConflict
+	}
 	native, err := searchImageStageFreshFacts(ctx, turn, c.request)
+	if err != nil {
+		return out, err
+	}
+	actual, err := turn.searchImageEngine(ctx)
+	if err != nil {
+		return out, err
+	}
+	if searchpolicy.Compare(native.bank.profile, actual).State != searchpolicy.Current {
+		return out, ErrConflict
+	}
+	appliedMS, err := turn.searchImageTimeMS(ctx, native.owner.leaseExpiresMS)
 	if err != nil {
 		return out, err
 	}
@@ -123,6 +143,9 @@ func writeSearchImageStage(ctx context.Context, turn *commandTurn, c *searchImag
 	if changed != 1 {
 		return out, ErrResolveRequired
 	}
+	if err := checkSearchImageTerminal(ctx, turn, c); err != nil {
+		return out, err
+	}
 	return out, nil // ZERO Outcome: a body return is not physical COMMIT truth.
 }
 
@@ -139,7 +162,7 @@ func searchImageStageFreshFacts(ctx context.Context, turn *commandTurn, want sea
 		}
 		return turn.queryRow(ctx, step, args...)
 	}
-	row, err := query(searchImageJob, want.owner.id)
+	row, err := query(searchImageJob, want.owner.id, want.owner.recipe, want.owner.phase, want.owner.contentDigest)
 	if err != nil {
 		return out, err
 	}
@@ -199,7 +222,7 @@ func searchImageStageFreshFacts(ctx context.Context, turn *commandTurn, want sea
 	if library != s.libraryID {
 		return out, ErrConflict
 	}
-	row, err = query(searchImageBank, want.bank.id)
+	row, err = query(searchImageBank, want.bank.id, want.bank.key, want.bank.role, want.bank.profile.RecipeVersion, want.bank.profile.EngineVersion, want.bank.profile.UnicodeFingerprint)
 	if err != nil {
 		return out, err
 	}
@@ -207,9 +230,9 @@ func searchImageStageFreshFacts(ctx context.Context, turn *commandTurn, want sea
 	if err := row.Scan(&b.id, &b.key, &b.role, &b.profile.RecipeVersion, &b.profile.EngineVersion, &b.profile.UnicodeFingerprint); err != nil {
 		return out, errors.Join(ErrConflict, err)
 	}
-	// This is metadata eligibility ONLY; actual physical engine-pair attestation
-	// stays in W's live connection-bound publisher seam, never a fake Engine.
-	if b != want.bank || b.profile != searchpolicy.Compiled() {
+	// Exact captured tuple; compatibility is checked separately against W's
+	// actual same-physical engine. This read cannot manufacture that evidence.
+	if b != want.bank {
 		return out, ErrConflict
 	}
 	out.bank = b

@@ -38,8 +38,8 @@ WHERE publish_job_id=? AND command_incarnation=? AND command_sequence=?`,
 after_field,after_ordinal,after_fragment_id,seal_chain,published_generation,
 staged_fragments,staged_bytes,verified_fragments,verified_bytes,seal_algorithm
 FROM search_publish_receipts
-WHERE publish_job_id=? AND command_incarnation=? AND command_sequence=?`,
-			Params: []stmt.Param{i("job_id"), b("incarnation"), i("sequence")}},
+WHERE publish_job_id=? AND command_incarnation=? AND command_sequence=? AND seal_algorithm=?`,
+			Params: []stmt.Param{i("job_id"), b("incarnation"), i("sequence"), t("algorithm")}},
 		{ID: searchPublisherAck, Kind: stmt.Write,
 			SQL: `UPDATE search_publish_jobs SET acknowledged_command_sequence=?
 WHERE id=? AND command_incarnation=? AND last_command_sequence=? AND acknowledged_command_sequence=?`,
@@ -89,6 +89,9 @@ verified_fragments,verified_bytes,seal_algorithm) VALUES(?,?,?,?,?,?,?,?,?,?,?,?
 			args := []any{cohort.job}
 			if d.ID != searchPublisherOwnerID {
 				args = append(args, inc[:], int64(8))
+			}
+			if d.ID == searchPublisherImageRead {
+				args = append(args, searchmanifest.Algorithm)
 			}
 			d.Cohorts = append(d.Cohorts, stmt.Cohort{Name: cohort.name, Bindings: args})
 		}
