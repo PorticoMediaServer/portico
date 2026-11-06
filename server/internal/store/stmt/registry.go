@@ -130,6 +130,9 @@ func Describe(definitions []Definition) (*Registry, error) {
 	r := &Registry{entries: make(map[ID]*Entry, len(definitions))}
 	for _, input := range definitions {
 		d := cloneDefinition(input)
+		if !utf8.ValidString(d.SQL) {
+			return nil, fmt.Errorf("stmt %q: SQL must be valid UTF-8", d.ID)
+		}
 		if d.ID == "" || d.Owner == "" || len(d.CallSites) == 0 {
 			return nil, fmt.Errorf("stmt %q: ID, owner and call sites required", d.ID)
 		}

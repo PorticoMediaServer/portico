@@ -67,12 +67,13 @@ func TestPlanReceiptRejectsInvalidSQLAndJSONCollisions(t *testing.T) {
 		invalid.SQL = "SELECT '" + raw + "' FROM items WHERE id=?"
 		invalid.Params = []stmt.Param{{Name: "id", Type: stmt.Integer}}
 		invalid.Cohorts = []stmt.Cohort{{Name: "one", Bindings: []any{int64(1)}}}
-		catalogue, err := stmt.Describe([]stmt.Definition{invalid}) // inert only
-		if err != nil {
-			t.Fatal(err)
+		catalogue, err := stmt.Describe([]stmt.Definition{invalid})
+		if err == nil || !strings.Contains(err.Error(), "UTF-8") || catalogue != nil {
+			t.Fatal("invalid UTF-8 SQL described", err)
 		}
-		if bad, err := plan.Capture(t.Context(), conn, catalogue, f, indexPolicy(t)); err == nil || !strings.Contains(err.Error(), "UTF-8") || bad.Receipt() != nil {
-			t.Fatal("invalid UTF-8 SQL captured", err)
+		// A rejected catalogue cannot supply any native registration proof.
+		if bad, err := plan.Capture(t.Context(), conn, catalogue, f, indexPolicy(t)); err == nil || bad.Receipt() != nil {
+			t.Fatal("rejected UTF-8 catalogue supplied a receipt", err)
 		}
 		if bad, err := stmt.New([]stmt.Definition{invalid}, g.Receipt()); err == nil || !strings.Contains(err.Error(), "UTF-8") || bad != nil {
 			t.Fatal("invalid UTF-8 SQL registered", err)
