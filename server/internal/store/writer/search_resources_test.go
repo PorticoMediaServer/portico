@@ -10,10 +10,36 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 )
 
+// Closed component profiles only. Domains cannot supply a replacement recipe,
+// construct a second grant or treat these synthetic figures as qualification.
+type searchResourceFixtureProfile uint8
+
+const searchImageStatementFixture searchResourceFixtureProfile = 1
+
 // Actual SAME governor/binder/frame; synthetic component resources, no public
 // writer/capability/production recipe or native statement registration supplied.
-func searchResourcesFixture(t *testing.T, w *executor, path string, budget searchImageMemoryBudget) (*commandTurn, *governor.Authority) {
+// SQL controls must complete their real Capture BEFORE calling this helper,
+// then construct newCommandTurn on the returned SAME transaction.
+func searchResourcesFixture(t *testing.T, w *executor, path string, budget searchImageMemoryBudget, profiles ...searchResourceFixtureProfile) (*commandTurn, *governor.Authority) {
 	t.Helper()
+	recipe, library := testRecipe(), int64(1)
+	if len(profiles) > 1 {
+		t.Fatal("multiple search fixture profiles")
+	}
+	if len(profiles) == 1 {
+		if profiles[0] != searchImageStatementFixture {
+			t.Fatal("unknown search fixture profile")
+		}
+		// Eighteen closed image/receipt statement reservations, each
+		// {16 rows,2000 VM,16 pages,65536 WAL,100us}, plus the complete
+		// setup and terminal reserves below. NOT a measured native profile.
+		recipe = turnRecipe{
+			limit:    Work{320, 37000, 320, 1310720, 25 * time.Millisecond},
+			setup:    Work{16, 500, 16, 65536, time.Millisecond},
+			terminal: Work{16, 500, 16, 65536, time.Millisecond},
+		}
+		library = 3 // actual image-BEGIN native fixture library
+	}
 	total := int64(65536)
 	if budget != (searchImageMemoryBudget{}) {
 		if budget.preparationBytes > math.MaxInt64 || budget.reservedBytes > math.MaxInt64-budget.preparationBytes {
@@ -24,10 +50,10 @@ func searchResourcesFixture(t *testing.T, w *executor, path string, budget searc
 	if err := validateSearchImageMemory(budget, total); err != nil {
 		t.Fatal(err)
 	}
-	g, a, wal, request := governedFixture(t, func() time.Time { return w.now() }, governedFixtureProfile{testRecipe(), total})
+	g, a, wal, request := governedFixture(t, func() time.Time { return w.now() }, governedFixtureProfile{recipe, total})
 	request.Key = governor.JobKey{Domain: uint16(SearchImageStage), ID: "component/publisher"}
 	request.Class = governor.Background
-	request.Footprint = []governor.Scope{{Library: 1, Domain: uint16(SearchImageStage)}}
+	request.Footprint = []governor.Scope{{Library: library, Domain: uint16(SearchImageStage)}}
 	if err := refreshWriterWAL(path, wal, w.now); err != nil {
 		t.Fatal(err)
 	}
@@ -35,18 +61,51 @@ func searchResourcesFixture(t *testing.T, w *executor, path string, budget searc
 	if decision.Grant == nil {
 		t.Fatal(decision.Refusal)
 	}
-	c, err := bindGovernedTurn(SearchImageStage, testRecipe().limit, g, a, wal, decision.Grant, request)
+	c, err := bindGovernedTurn(SearchImageStage, recipe.limit, g, a, wal, decision.Grant, request)
 	if err != nil {
 		_ = a.Retired(decision.Grant)
 		t.Fatal(err)
 	}
 	c.searchImageMemory = budget
-	tx, err := w.begin(t.Context(), SearchImageStage, testRecipe(), c)
+	tx, err := w.begin(t.Context(), SearchImageStage, recipe, c)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { tx.rollback(nil) })
 	return &commandTurn{transaction: tx}, a
+}
+
+func TestSearchImageStatementFixtureReservesWholeTurn(t *testing.T) {
+	w, path, _ := testExecutor(t)
+	turn, a := searchResourcesFixture(t, w, path, searchImageMemoryBudget{4 << 20, 4 << 20}, searchImageStatementFixture)
+	c := turn.transaction.custody.(*governedTurn)
+	wantScope := governor.Scope{Library: 3, Domain: uint16(SearchImageStage)}
+	if c.expected.Class != governor.Background || len(c.expected.Footprint) != 1 || c.expected.Footprint[0] != wantScope {
+		t.Fatal("statement profile lost its exact background scope", c.expected)
+	}
+	before := a.Usage()
+	// Prospective ledger controls only: no accepting SQL or public issuer.
+	step := Work{16, 2000, 16, 65536, 100 * time.Microsecond}
+	for n := 0; n < 18; n++ {
+		if err := turn.transaction.before(step); err != nil {
+			t.Fatal("complete finite inventory refused", n, err)
+		}
+	}
+	if err := turn.transaction.before(step); !errors.Is(err, ErrQuantum) {
+		t.Fatal("extra statement borrowed terminal reserve", err)
+	}
+	if err := turn.requireSearchImageMemory(t.Context(), 4<<20); err != nil {
+		t.Fatal(err)
+	}
+	if a.Usage() != before {
+		t.Fatal("prospective work refunded the physical grant")
+	}
+	if _, err := turn.transaction.rollback(nil); err != nil {
+		t.Fatal(err)
+	}
+	if a.Usage() != ([4]governor.Amounts{}) || w.db.Stats().InUse != 0 {
+		t.Fatal("physical return did not retire the grant")
+	}
 }
 
 func TestSearchImageMemorySameGrantPartitionAndPurpose(t *testing.T) {
