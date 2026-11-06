@@ -29,8 +29,9 @@ type wcReclaimChild struct {
 	variableBytes int64 // actual persisted native bytes, not a caller's estimate
 }
 
-// The bounded post-candidate probe is qualified by its FULL owner and exact
-// range. Absence is meaningful only for that range; it is not a caller waiver.
+// Each bounded first-child probe is qualified by its FULL owner and exact
+// range. Its nextSequence must be the native indexed ORDER BY sequence LIMIT 1
+// observation, or zero for absence; preparation does not attest that query.
 type wcReclaimProbe struct {
 	playbackID                string
 	incarnation               [16]byte
@@ -56,8 +57,9 @@ type wcReclaimInput struct {
 	owner                    wcReclaimOwner
 	command                  CommandIdentity
 	expectedOldSlot, oldSlot wcReclaimSlot
+	firstProbe               wcReclaimProbe // (OLD cursor, ACK], before selecting child
 	child                    *wcReclaimChild
-	probe                    wcReclaimProbe
+	probe                    wcReclaimProbe // (selected child, ACK], or OLD cursor if absent
 }
 
 type wcReclaimPrepared struct {
@@ -106,12 +108,16 @@ func prepareWCReclaim(in wcReclaimInput) (wcReclaimPrepared, error) {
 	if !validWCReclaimSlot(in.oldSlot, o) {
 		return zero, ErrResolveRequired
 	}
+	if !validWCReclaimProbe(in.firstProbe, o, o.afterSequence) {
+		return zero, ErrConflict
+	}
 	rows, bytes, cursor := o.rows, o.variableBytes, o.afterSequence
 	var key wcReclaimKey
 	var debit int64
 	if c := in.child; c != nil {
 		if c.key.playbackID != o.playbackID || c.key.incarnation != o.incarnation ||
-			c.key.sequence <= cursor || c.key.sequence > o.acknowledgedSequence {
+			c.key.sequence <= cursor || c.key.sequence > o.acknowledgedSequence ||
+			c.key.sequence != in.firstProbe.nextSequence {
 			return zero, ErrConflict
 		}
 		if rows == 0 || c.variableBytes <= 0 || c.variableBytes > bytes {
@@ -119,14 +125,11 @@ func prepareWCReclaim(in wcReclaimInput) (wcReclaimPrepared, error) {
 		}
 		key, debit, cursor = c.key, c.variableBytes, c.key.sequence
 		rows, bytes = rows-1, bytes-c.variableBytes
+	} else if in.firstProbe.nextSequence != 0 {
+		return zero, ErrResolveRequired
 	}
 	p := in.probe
-	if p.playbackID != o.playbackID || p.incarnation != o.incarnation ||
-		p.afterSequence != cursor || p.throughACK != o.acknowledgedSequence {
-		return zero, ErrConflict
-	}
-	if p.nextSequence < 0 || p.nextSequence != 0 &&
-		(p.nextSequence <= cursor || p.nextSequence > o.acknowledgedSequence) {
+	if !validWCReclaimProbe(p, o, cursor) {
 		return zero, ErrConflict
 	}
 	noNext := p.nextSequence == 0
@@ -142,6 +145,12 @@ func prepareWCReclaim(in wcReclaimInput) (wcReclaimPrepared, error) {
 		remove: in.child != nil, key: key, removedVariableBytes: debit,
 		afterSequence: cursor, remainingRows: rows, remainingVariableBytes: bytes, noNext: noNext,
 	}, nil
+}
+
+func validWCReclaimProbe(p wcReclaimProbe, o wcReclaimOwner, cursor int64) bool {
+	return p.playbackID == o.playbackID && p.incarnation == o.incarnation &&
+		p.afterSequence == cursor && p.throughACK == o.acknowledgedSequence &&
+		(p.nextSequence == 0 || p.nextSequence > cursor && p.nextSequence <= o.acknowledgedSequence)
 }
 
 func validWCReclaimSlot(s wcReclaimSlot, owner wcReclaimOwner) bool {
