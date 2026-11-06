@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 	"strconv"
 	"strings"
 	"syscall"
@@ -19,6 +18,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/PorticoMediaServer/portico/server/internal/decodertest"
+	"github.com/PorticoMediaServer/portico/server/internal/storagepaths"
 )
 
 func configureForTest(t *testing.T, state string) int {
@@ -154,17 +154,50 @@ func TestLedgerRecordsSweepsAndReapsOnlyProvenGroups(t *testing.T) {
 	ffmpeg := decodertest.QualifiedFFmpeg(t)
 	state := t.TempDir()
 	configureForTest(t, state)
-	cmd, err := Command(longJob(ffmpeg))
+	// FFmpeg can emit progress only after the shim has finished recordSelf and
+	// exec'd the tool. Filename visibility alone races OpenFile -> WriteString:
+	// a fresh incomplete identity is correctly ignored by the reaper.
+	job := longJob(ffmpeg)
+	job.Args = append([]string{"-progress", "pipe:1", "-nostats"}, job.Args...)
+	cmd, err := Command(job)
 	if err != nil {
 		t.Fatal(err)
 	}
+	ready, output, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ready.Close(); _ = output.Close() })
+	cmd.Stdout = output
 	if err = cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
+	_ = output.Close()
+	waited := make(chan error, 1)
+	running := cmd
+	waiting, joined := false, false
+	t.Cleanup(func() {
+		if joined {
+			return
+		}
+		if waiting {
+			// The reaper already signalled this group. Join the one Wait;
+			// never signal a PID after Wait may have made it reusable.
+			<-waited
+		} else {
+			_ = unix.Kill(-running.Process.Pid, unix.SIGKILL)
+			_ = running.Wait()
+		}
+	})
+	if err = ready.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = bufio.NewReader(ready).ReadString('\n'); err != nil {
+		t.Fatalf("job did not signal readiness after ledger publication: %v", err)
+	}
 	pid := strconv.Itoa(cmd.Process.Pid)
-	deadline := time.Now().Add(5 * time.Second)
-	for !contains(ledgerEntries(t, state), pid) && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
+	if _, err = readEntry(storagepaths.Path(state, "run", "media-processes", pid)); err != nil {
+		t.Fatalf("running job has no complete ledger identity: %v", err)
 	}
 	if !contains(ledgerEntries(t, state), pid) {
 		t.Fatalf("running job not in the ledger: %v", ledgerEntries(t, state))
@@ -189,10 +222,11 @@ func TestLedgerRecordsSweepsAndReapsOnlyProvenGroups(t *testing.T) {
 	if reaped != 1 {
 		t.Fatalf("reaped %d groups, want 1", reaped)
 	}
-	waited := make(chan error, 1)
-	go func() { waited <- cmd.Wait() }()
+	waiting = true
+	go func() { waited <- running.Wait() }()
 	select {
 	case err = <-waited:
+		joined = true
 		var exit *exec.ExitError
 		if !errors.As(err, &exit) || exit.Sys().(syscall.WaitStatus).Signal() != syscall.SIGKILL {
 			t.Fatalf("job was not killed: %v", err)
