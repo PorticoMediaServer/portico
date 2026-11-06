@@ -9,10 +9,9 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 )
 
-// Writer is the sole typed writer facade. This contract-only version has no
-// opener, resources or executable commands. Its zero value grants no authority.
-// Startup and capability issuance follow in a reviewed implementation.
-type Writer struct{ unavailable struct{} }
+// Writer is the sole typed writer facade. Its zero value grants no authority.
+// Opening and trusted capability issuance are private composition operations.
+type Writer struct{ effective *effectiveRuntime }
 
 // Commands are sealed preparation values implemented inside writer's domain
 // files. Constructors must freeze the COMPLETE pre-allocation request and use
@@ -31,7 +30,10 @@ func (*effectiveStageBeginCommand) isEffectiveStageBeginCommand() {}
 // scan ingress is internal ScanDriver only, not session/credential ingress.
 type ScanDisclosure struct{ issuer *Writer }
 type PublisherDisclosure struct{ issuer *Writer }
-type EnrichmentDisclosure struct{ issuer *Writer }
+type EnrichmentDisclosure struct {
+	issuer *Writer
+	scope  *enrichmentScope
+}
 
 // ReceiptReference identifies the ORIGINAL command, never a new retry identity.
 // RequestDigest authorizes nothing. Resolve and ACK check CURRENT disclosure,
@@ -182,14 +184,29 @@ func (*Writer) AckSearchImage(context.Context, *PublisherDisclosure, PublisherRe
 
 // StageEffective is ONLY hidden EffectiveStage BEGIN, not EvidenceStage,
 // materialized members, sealing, serving-head acceptance or final EnrichAccept.
-func (*Writer) StageEffective(context.Context, *EnrichmentDisclosure, EffectiveStageBeginCommand) (EffectiveStageResult, error) {
-	return EffectiveStageResult{}, ErrNotImplemented
+func (w *Writer) StageEffective(ctx context.Context, disclosure *EnrichmentDisclosure, command EffectiveStageBeginCommand) (EffectiveStageResult, error) {
+	if w == nil || w.effective == nil {
+		return EffectiveStageResult{}, ErrNotImplemented
+	}
+	input, ok := command.(*effectiveStageBeginCommand)
+	if !ok || input == nil || !input.valid {
+		return EffectiveStageResult{}, ErrInvalid
+	}
+	r := EnrichmentReceiptRequest{ProviderOperationID: input.request.ownerID, LibraryID: input.request.entity.libraryID,
+		EntityID: input.request.entity.id, Receipt: ReceiptReference{input.identity, input.digest}}
+	return w.effective.execute(ctx, w, disclosure, r, input)
 }
 
-func (*Writer) ResolveEffective(context.Context, *EnrichmentDisclosure, EnrichmentReceiptRequest) (EffectiveStageResult, error) {
-	return EffectiveStageResult{}, ErrNotImplemented
+func (w *Writer) ResolveEffective(ctx context.Context, disclosure *EnrichmentDisclosure, request EnrichmentReceiptRequest) (EffectiveStageResult, error) {
+	if w == nil || w.effective == nil {
+		return EffectiveStageResult{}, ErrNotImplemented
+	}
+	return w.effective.execute(ctx, w, disclosure, request, nil)
 }
 
-func (*Writer) AckEffective(context.Context, *EnrichmentDisclosure, EnrichmentReceiptRequest) (AckResult, error) {
-	return AckResult{}, ErrNotImplemented
+func (w *Writer) AckEffective(ctx context.Context, disclosure *EnrichmentDisclosure, request EnrichmentReceiptRequest) (AckResult, error) {
+	if w == nil || w.effective == nil {
+		return AckResult{}, ErrNotImplemented
+	}
+	return w.effective.ack(ctx, w, disclosure, request)
 }
