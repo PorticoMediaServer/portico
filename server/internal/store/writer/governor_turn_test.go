@@ -18,10 +18,10 @@ type governedFixtureProfile struct {
 func governedFixture(t *testing.T, now func() time.Time, profiles ...governedFixtureProfile) (governor.Governor, *governor.Authority, *governor.WALGate, governor.Request) {
 	t.Helper()
 	profile := governedFixtureProfile{testRecipe(), 65536}
-	if len(profiles) > 1 {
+	if len(profiles) > 2 {
 		t.Fatal("multiple test profiles")
 	}
-	if len(profiles) == 1 {
+	if len(profiles) >= 1 {
 		profile = profiles[0]
 	}
 	if profile.memoryBytes <= 0 {
@@ -38,6 +38,17 @@ func governedFixture(t *testing.T, now func() time.Time, profiles ...governedFix
 	var partitions [4]governor.Amounts
 	for i := range partitions {
 		partitions[i] = r.Need
+		if len(profiles) == 2 {
+			if profiles[1] != profile {
+				t.Fatal("extra fixture unit must be identical")
+			}
+			for resource, n := range partitions[i] {
+				if n > int64(^uint64(0)>>1)/2 {
+					t.Fatal("fixture capacity overflow")
+				}
+				partitions[i][resource] = n * 2
+			}
+		}
 	}
 	g, a, err := governor.New(governor.Config{Partitions: partitions, MaxGrantsPerClass: 4, Now: now, WAL: wal})
 	if err != nil {
