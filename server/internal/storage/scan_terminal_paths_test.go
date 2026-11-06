@@ -19,6 +19,9 @@ import (
 )
 
 func TestScanTerminalPathsRetireBetweenTurns(t *testing.T) {
+	previous := storage.DefaultBackgroundLimit
+	storage.DefaultBackgroundLimit = 1
+	t.Cleanup(func() { storage.DefaultBackgroundLimit = previous })
 	db, err := persistence.Open(filepath.Join(t.TempDir(), "terminal.sqlite"))
 	if err != nil {
 		t.Fatal(err)

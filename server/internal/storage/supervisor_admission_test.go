@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server/internal/dbwork"
 )
 
 // Fifty viewers pressing play in the same second are a burst, not an overload.
@@ -220,17 +222,49 @@ func TestOwnerBackgroundPriorityChangesCapacityWithoutStoppingActiveWork(t *test
 	if err := s.SetBackgroundTaskPriority("normal"); err != nil {
 		t.Fatal(err)
 	}
-	if stats := s.Stats(); stats.BackgroundCapacity != max(1, runtime.NumCPU()) || stats.ScanProbeCapacity != max(1, runtime.NumCPU()) {
+	if stats := s.Stats(); stats.BackgroundCapacity != max(1, runtime.NumCPU()) || stats.ScanProbeCapacity != max(1, runtime.NumCPU()) || stats.InventoryStreamsCapacity != 2 {
 		t.Fatalf("normal background capacities %#v", stats)
 	}
 	if err := s.SetBackgroundTaskPriority("lower"); err != nil {
 		t.Fatal(err)
 	}
-	if stats := s.Stats(); stats.BackgroundCapacity != max(1, DefaultBackgroundLimit) || stats.ScanProbeCapacity != max(1, DefaultBackgroundLimit) {
+	if stats := s.Stats(); stats.BackgroundCapacity != max(1, DefaultBackgroundLimit) || stats.ScanProbeCapacity != max(1, DefaultBackgroundLimit) || stats.InventoryStreamsCapacity != 2 {
 		t.Fatalf("lower background capacities %#v", stats)
 	}
 	if err := s.SetBackgroundTaskPriority("paused"); err == nil || s.BackgroundTaskPriority() != "lower" {
 		t.Fatal("invalid owner setting changed effective priority")
+	}
+}
+
+func TestRetainedInventoryAdmissionHonorsBackgroundPauseAndPriority(t *testing.T) {
+	defer dbwork.SetBackgroundPolicy(dbwork.SpeedNormal, 0)
+	dbwork.SetBackgroundPolicy(dbwork.SpeedNormal, time.Now().Add(time.Hour).UnixMilli())
+	s := &Supervisor{Limit: 1}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- s.RunFunc(ctx, "inventory-stream:paused", func(_ context.Context, low bool) error {
+			if !low {
+				t.Error("retained producer lost low background priority")
+			}
+			if stats := s.Stats(); stats.InventoryStreamsActive != 1 || stats.BackgroundActive != 0 || s.Active() != 1 {
+				t.Error("retained producer lost supervisor accounting", stats)
+			}
+			return nil
+		})
+	}()
+	select {
+	case err := <-done:
+		t.Fatal("paused retained producer started", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	if s.Active() != 0 {
+		t.Fatal("paused retained producer occupied a supervisor slot")
+	}
+	dbwork.SetBackgroundPolicy(dbwork.SpeedNormal, 0)
+	if err := <-done; err != nil || s.Active() != 0 {
+		t.Fatal("retained producer did not resume and release", err)
 	}
 }
 

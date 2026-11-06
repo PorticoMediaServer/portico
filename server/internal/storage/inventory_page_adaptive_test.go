@@ -133,6 +133,9 @@ func TestRetainedProducerReplaysFirstPageAfterBudgetChanges(t *testing.T) {
 }
 
 func TestRetainedProducerRetiresOnlyItsJobThenJoinsItsRun(t *testing.T) {
+	previous := DefaultBackgroundLimit
+	DefaultBackgroundLimit = 1
+	t.Cleanup(func() { DefaultBackgroundLimit = previous })
 	binary, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
@@ -164,6 +167,20 @@ func TestRetainedProducerRetiresOnlyItsJobThenJoinsItsRun(t *testing.T) {
 			t.Fatal("fixture did not retain a job's producer", job, page)
 		}
 		pages[job] = page
+	}
+	stats := c.Supervisor.Stats()
+	if stats.InventoryStreamsActive != 2 || stats.InventoryStreamsCapacity != 2 || stats.BackgroundActive != 0 || stats.BackgroundCapacity != 1 {
+		t.Fatal("idle retained streams consumed short-helper capacity", stats)
+	}
+	page, err := c.retainedInventoryPage(ctx, "over-cap-job", r)
+	if !errors.Is(err, ErrBusy) || !reflect.DeepEqual(page, InventoryPage{}) || owner.Active() != 2 || c.SourceOperations.Active() != 2 {
+		t.Fatal("retained admission exceeded the two physical producer slots", page, err, owner.Active(), c.SourceOperations.Active())
+	}
+	check, cancel := context.WithTimeout(ctx, 3*time.Second)
+	observed, err := c.InventoryDirectory(check, "validate-between-pages", r)
+	cancel()
+	if err != nil || !observed.Directory {
+		t.Fatal("idle retained streams blocked directory validation", observed, err)
 	}
 	inventoryStreams.Lock()
 	first := inventoryStreams.byID[strings.Split(pages["cancelled-job"].NextCursor, ":")[1]]

@@ -198,7 +198,7 @@ func awaitStreamPageContext(t *testing.T, ctx context.Context, c *Client, key st
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	t.Fatal("retained stream never progressed")
+	t.Fatal("retained stream never progressed", key, c.Supervisor.Stats())
 	return InventoryPage{}
 }
 func TestRetainedProducerSurvivesRequestDeadlineAndReplaysPage(t *testing.T) {
