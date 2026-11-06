@@ -56,3 +56,6 @@ reporting controls, never measurements or evidence of actual restart frequency.
 The planned sustained-workload cadence target is approximately one restart per
 200 commits (0.005 per commit, five per 1,000). Report the actual ratio and raw
 counts; this descriptive reducer does not turn that target into a gate verdict.
+Fenced attempts, including committed appends, retain event IDs and evidence
+references with their true outcome; each recipe/class/durability reports its
+fence count separately.
