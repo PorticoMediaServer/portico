@@ -51,79 +51,68 @@ type evidenceStagePrefix struct {
 	expires                      string
 }
 
+const evidenceStageHeader009 stmt.ID = "enrichment.evidence_stage.header_009"
+const evidenceStagePrefixRead stmt.ID = "enrichment.evidence_stage.prefix"
+
 func enrichmentEvidenceStageEffectDefinitions() []stmt.Definition {
-	guard := `EXISTS(SELECT 1 FROM metadata_provider_operations o WHERE ` + sealOwnerPredicate + ` AND o.evidence_build_id IS NULL)`
-	prefix := `b.id=? AND b.evidence_id=? AND b.generation=? AND b.content_revision=? AND b.cursor=? AND b.materialized_rows=b.cursor AND b.materialized_charge=?
- AND b.expected_rows=? AND b.state='building' AND b.phase='children'
- AND EXISTS(SELECT 1 FROM metadata_evidence e WHERE e.id=b.evidence_id AND e.sealed=0 AND e.seal_proof_owner IS NULL)
- AND EXISTS(SELECT 1 FROM metadata_provider_operations o WHERE ` + sealOwnerPredicate + ` AND o.evidence_build_id=b.id AND b.owner_operation=o.id AND b.owner_incarnation=o.command_incarnation AND b.owner_generation=o.generation)`
-	prefixParams := []stmt.Param{{Name: "build", Type: stmt.Text}, {Name: "evidence", Type: stmt.Text}, {Name: "build_generation", Type: stmt.Integer}, {Name: "content_revision", Type: stmt.Integer}, {Name: "next", Type: stmt.Integer}, {Name: "charge", Type: stmt.Integer}, {Name: "expected_rows", Type: stmt.Integer}}
-	defs := []stmt.Definition{{
-		ID: evidenceStageBuild009, Owner: "writer.enrichment", Kind: stmt.Write,
-		SQL: `INSERT INTO metadata_evidence_builds(id,evidence_id,generation,owner_operation,owner_incarnation,owner_generation,parent_build,state,phase,cursor,expected_rows,materialized_rows,expected_shape_digest,materialized_digest,materialized_charge,expires_at,content_revision)
- SELECT ?,?,?,o.id,o.command_incarnation,o.generation,NULL,'building','children',1,?,1,?,'',?,?,1 FROM metadata_provider_operations o
- WHERE ` + sealOwnerPredicate + ` AND o.evidence_build_id IS NULL`,
-		Params: append([]stmt.Param{{Name: "build", Type: stmt.Text}, {Name: "evidence", Type: stmt.Text}, {Name: "build_generation", Type: stmt.Integer}, {Name: "expected_rows", Type: stmt.Integer}, {Name: "declared_manifest", Type: stmt.Text}, {Name: "header_charge", Type: stmt.Integer}, {Name: "expires", Type: stmt.Text}}, sealScopeParams()...),
-	}, {
-		ID: evidenceStageCredit, Owner: "writer.enrichment", Kind: stmt.Write,
-		SQL: `INSERT INTO metadata_evidence_credits(provider,evidence_kind,credit_class,evidence_id,scope,ordinal,provider_person_id,name,role,department,credit_id,source_ordinal,billing)
- SELECT ?,'movie',?,?,'',?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM metadata_evidence_builds b WHERE ` + prefix + `)`,
-		Params: append(append([]stmt.Param{{Name: "row_provider", Type: stmt.Text}, {Name: "class", Type: stmt.Text}, {Name: "evidence_id", Type: stmt.Text}, {Name: "ordinal", Type: stmt.Integer}, {Name: "provider_person", Type: stmt.Text}, {Name: "name", Type: stmt.Text}, {Name: "role", Type: stmt.Text}, {Name: "department", Type: stmt.Text}, {Name: "credit_id", Type: stmt.Text}, {Name: "source_ordinal", Type: stmt.Integer}, {Name: "billing", Type: stmt.Integer, Nullable: true}}, prefixParams...), sealScopeParams()...),
-	}, {
-		ID: evidenceStageAdvance, Owner: "writer.enrichment", Kind: stmt.Write,
-		SQL:    `UPDATE metadata_evidence_builds AS b SET cursor=cursor+?,materialized_rows=materialized_rows+?,materialized_charge=materialized_charge+?,content_revision=content_revision+1 WHERE ` + prefix + ` RETURNING cursor,content_revision,materialized_charge`,
-		Params: append(append([]stmt.Param{{Name: "count", Type: stmt.Integer}, {Name: "row_count", Type: stmt.Integer}, {Name: "charge_delta", Type: stmt.Integer}}, prefixParams...), sealScopeParams()...),
-	}, {
-		ID: evidenceStageAccountingInsert, Owner: "writer.enrichment", Kind: stmt.Write,
-		SQL:    `INSERT INTO metadata_evidence_accounting(evidence_id,charge,observed_at,retention_refs,direct_refs,release_refs) SELECT ?,?,?,0,0,0 WHERE ` + guard,
-		Params: append([]stmt.Param{{Name: "evidence", Type: stmt.Text}, {Name: "charge", Type: stmt.Integer}, {Name: "observed_at", Type: stmt.Text}}, sealScopeParams()...),
-	}, {
-		ID: evidenceStageAccountingDelta, Owner: "writer.enrichment", Kind: stmt.Write,
-		SQL:    `UPDATE metadata_evidence_accounting SET charge=charge+? WHERE evidence_id=? AND charge=? AND retention_refs=0 AND direct_refs=0 AND release_refs=0`,
-		Params: []stmt.Param{{Name: "delta", Type: stmt.Integer}, {Name: "evidence", Type: stmt.Text}, {Name: "old_charge", Type: stmt.Integer}},
-	}, {
-		ID: evidenceStageTotalsDelta, Owner: "writer.enrichment", Kind: stmt.Write,
-		SQL:    `UPDATE metadata_evidence_totals SET charge=charge+?,other_evidence=other_evidence+? WHERE provider=? AND charge=? AND other_evidence=?`,
-		Params: []stmt.Param{{Name: "delta", Type: stmt.Integer}, {Name: "new_other", Type: stmt.Integer}, {Name: "provider", Type: stmt.Text}, {Name: "old_charge", Type: stmt.Integer}, {Name: "old_other", Type: stmt.Integer}},
-	}}
-	// Named deterministic bind shapes are not plan/resource qualification.
-	for i := range defs {
-		switch defs[i].ID {
-		case evidenceStageBuild009, evidenceStageAccountingInsert:
-			defs[i].CallSites = []string{"writer/enrichment_evidence_stage_effects.go:createEvidenceBuild"}
-		case evidenceStageCredit, evidenceStageAdvance:
-			defs[i].CallSites = []string{"writer/enrichment_evidence_stage_effects.go:stageEvidenceCredits"}
-		case evidenceStageAccountingDelta:
-			defs[i].CallSites = []string{"writer/enrichment_evidence_stage_effects.go:stageEvidenceCredits", "writer/enrichment_source_seal_receipts.go:accountEvidenceSealReference"}
-		case evidenceStageTotalsDelta:
-			defs[i].CallSites = []string{"writer/enrichment_evidence_stage_effects.go:createEvidenceBuild", "writer/enrichment_evidence_stage_effects.go:stageEvidenceCredits", "writer/enrichment_source_seal_receipts.go:accountEvidenceSealReference"}
+
+	prefix := `id=? AND evidence_id=? AND generation=? AND content_revision=? AND cursor=? AND materialized_rows=cursor AND materialized_charge=? AND expected_rows=? AND owner_operation=? AND owner_incarnation=? AND owner_generation=? AND state='building' AND phase='children'`
+	pp := []stmt.Param{{Name: "build", Type: stmt.Text}, {Name: "evidence", Type: stmt.Text}, {Name: "build_generation", Type: stmt.Integer}, {Name: "revision", Type: stmt.Integer}, {Name: "next", Type: stmt.Integer}, {Name: "charge", Type: stmt.Integer}, {Name: "expected", Type: stmt.Integer}, {Name: "owner", Type: stmt.Text}, {Name: "incarnation", Type: stmt.Blob}, {Name: "owner_generation", Type: stmt.Integer}}
+
+	var header stmt.Definition
+	for _, d := range enrichmentEvidenceDefinitions() {
+		if d.ID == enrichmentEvidenceInsert {
+			header = d
 		}
-		var args []any
-		switch defs[i].ID {
-		case evidenceStageBuild009:
-			args = append([]any{"build-new", "evidence-native:149", int64(47), int64(4), makeHexZero(), int64(4096), "2100-11-05T13:00:00Z"}, sealScopeCohort()...)
-		case evidenceStageCredit:
-			args = append([]any{"fixture", "cast", "evidence-original:197", int64(0), "173", "Name", "Pilot", "Acting", "credit:193", int64(7), int64(0)}, evidencePrefixCohort()...)
-		case evidenceStageAdvance:
-			args = append([]any{int64(1), int64(1), int64(512)}, evidencePrefixCohort()...)
-		case evidenceStageAccountingInsert:
-			args = append([]any{"evidence-original:197", int64(1024), "2026-11-06T12:00:00Z"}, sealScopeCohort()...)
-		case evidenceStageAccountingDelta:
-			args = []any{int64(512), "evidence-original:197", int64(1024)}
-		case evidenceStageTotalsDelta:
-			args = []any{int64(512), int64(0), "fixture", int64(1024), int64(1)}
-		}
-		defs[i].Cohorts = []stmt.Cohort{{Name: "native_prefix_shape", Bindings: args}}
 	}
-	return defs
+	header.ID = evidenceStageHeader009
+	header.SQL = `INSERT INTO metadata_evidence(id,subject_id,parser_version,provider,subject_kind,provider_id,language,region,request_shape,digest,observed_at,source_url,etag,last_modified,title,original_title,overview,tagline,content_rating,studio,network,country,release_date,year,artist,length_millis,artist_type,begin_year,end_year,wikidata_id,biography,biography_source,biography_source_url,disambiguation,release_group_id,group_title,primary_type,barcode,sealed) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+	header.Params = append(header.Params, stmt.Param{Name: "sealed", Type: stmt.Integer})
+	for i := range header.Cohorts {
+		header.Cohorts[i].Bindings = append(header.Cohorts[i].Bindings, int64(0))
+	}
+	defs := []stmt.Definition{header,
+		{ID: evidenceStageBuild009, SQL: `INSERT INTO metadata_evidence_builds(id,evidence_id,generation,owner_operation,owner_incarnation,owner_generation,parent_build,state,phase,cursor,expected_rows,materialized_rows,expected_shape_digest,materialized_digest,materialized_charge,expires_at,content_revision) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, Params: []stmt.Param{{Name: "build", Type: stmt.Text}, {Name: "evidence", Type: stmt.Text}, {Name: "build_generation", Type: stmt.Integer}, {Name: "owner", Type: stmt.Text}, {Name: "incarnation", Type: stmt.Blob}, {Name: "owner_generation", Type: stmt.Integer}, {Name: "parent", Type: stmt.Text, Nullable: true}, {Name: "state", Type: stmt.Text}, {Name: "phase", Type: stmt.Text}, {Name: "cursor", Type: stmt.Integer}, {Name: "expected", Type: stmt.Integer}, {Name: "materialized", Type: stmt.Integer}, {Name: "declared", Type: stmt.Text}, {Name: "prefix", Type: stmt.Text}, {Name: "charge", Type: stmt.Integer}, {Name: "expires", Type: stmt.Text}, {Name: "revision", Type: stmt.Integer}}},
+		{ID: evidenceStageCredit, SQL: `INSERT INTO metadata_evidence_credits(provider,evidence_kind,credit_class,evidence_id,scope,ordinal,provider_person_id,name,role,department,credit_id,source_ordinal,billing) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`, Params: []stmt.Param{{Name: "provider", Type: stmt.Text}, {Name: "kind", Type: stmt.Text}, {Name: "class", Type: stmt.Text}, {Name: "evidence", Type: stmt.Text}, {Name: "scope", Type: stmt.Text}, {Name: "ordinal", Type: stmt.Integer}, {Name: "person", Type: stmt.Text}, {Name: "name", Type: stmt.Text}, {Name: "role", Type: stmt.Text}, {Name: "department", Type: stmt.Text}, {Name: "credit", Type: stmt.Text}, {Name: "source_ordinal", Type: stmt.Integer}, {Name: "billing", Type: stmt.Integer, Nullable: true}}},
+		{ID: evidenceStagePrefixRead, Kind: stmt.Read, SQL: `SELECT cursor FROM metadata_evidence_builds WHERE ` + prefix, Params: pp},
+		{ID: evidenceStageAdvance, SQL: `UPDATE metadata_evidence_builds SET cursor=cursor+?,materialized_rows=materialized_rows+?,materialized_charge=materialized_charge+?,content_revision=content_revision+1 WHERE ` + prefix + ` RETURNING cursor,content_revision,materialized_charge`, Params: append([]stmt.Param{{Name: "count", Type: stmt.Integer}, {Name: "row_count", Type: stmt.Integer}, {Name: "delta", Type: stmt.Integer}}, pp...)},
+		{ID: evidenceStageAccountingInsert, SQL: `INSERT INTO metadata_evidence_accounting(evidence_id,charge,observed_at,retention_refs,direct_refs,release_refs) VALUES(?,?,?,?,?,?)`, Params: []stmt.Param{{Name: "evidence", Type: stmt.Text}, {Name: "charge", Type: stmt.Integer}, {Name: "observed", Type: stmt.Text}, {Name: "retention", Type: stmt.Integer}, {Name: "direct", Type: stmt.Integer}, {Name: "release", Type: stmt.Integer}}},
+		{ID: evidenceStageAccountingDelta, SQL: `UPDATE metadata_evidence_accounting SET charge=charge+? WHERE evidence_id=? AND charge=? AND retention_refs=0 AND direct_refs=0 AND release_refs=0`, Params: []stmt.Param{{Name: "delta", Type: stmt.Integer}, {Name: "evidence", Type: stmt.Text}, {Name: "old_charge", Type: stmt.Integer}}},
+		{ID: evidenceStageTotalsDelta, SQL: `UPDATE metadata_evidence_totals SET charge=charge+?,other_evidence=other_evidence+? WHERE provider=? AND charge=? AND other_evidence=?`, Params: []stmt.Param{{Name: "delta", Type: stmt.Integer}, {Name: "new_other", Type: stmt.Integer}, {Name: "provider", Type: stmt.Text}, {Name: "old_charge", Type: stmt.Integer}, {Name: "old_other", Type: stmt.Integer}}},
+	}
+	for i := range defs {
+		defs[i].Owner = "writer.enrichment"
+		if defs[i].ID != evidenceStagePrefixRead {
+			defs[i].Kind = stmt.Write
+		}
+		defs[i].CallSites = []string{"writer/enrichment_evidence_stage_effects.go:createEvidenceBuild", "writer/enrichment_evidence_stage_effects.go:stageEvidenceCredits", "writer/enrichment_source_seal_receipts.go:accountEvidenceSealReference"}
+		if len(defs[i].Cohorts) == 0 {
+			defs[i].Cohorts = []stmt.Cohort{{Name: "missing_native_keys", Bindings: missingSealBindings(defs[i].Params)}}
+		}
+	}
+	return enrichmentStagePlanHints(defs)
 }
 
-func makeHexZero() string { return "0000000000000000000000000000000000000000000000000000000000000000" }
-func evidencePrefixCohort() []any {
-	return append([]any{"build-original:211", "evidence-original:197", int64(47), int64(1), int64(1), int64(1024), int64(3)}, sealScopeCohort()...)
+// Explicit absent-key bind shape, not a successful/qualified producer cohort.
+func missingSealBindings(params []stmt.Param) []any {
+	args := make([]any, len(params))
+	for i, p := range params {
+		if p.Nullable {
+			continue
+		}
+		switch p.Type {
+		case stmt.Text:
+			args[i] = "missing"
+		case stmt.Integer:
+			args[i] = int64(1)
+		case stmt.Blob:
+			args[i] = make([]byte, 32)
+		}
+	}
+	return args
 }
 func (p evidenceStagePrefix) values(scope sealOwnerScope) []any {
-	return append([]any{p.root.buildID, p.root.evidenceID, p.root.buildGeneration, p.root.revision, p.next, p.charge, p.root.rows}, scope.values()...)
+	return []any{p.root.buildID, p.root.evidenceID, p.root.buildGeneration, p.root.revision, p.next, p.charge, p.root.rows, scope.ownerID, scope.identity.Incarnation[:], scope.generation}
 }
 
 func stageEvidenceCredits(ctx context.Context, turn *commandTurn, scope sealOwnerScope, p evidenceStagePrefix, rows []EvidenceCreditInput) (out evidenceStagePrefix, err error) {
@@ -154,12 +143,23 @@ func stageEvidenceCredits(ctx context.Context, turn *commandTurn, scope sealOwne
 	if p.charge > int64(evidenceStageMaximumCharge)-delta || p.providerCharge > math.MaxInt64-delta {
 		return out, ErrCap
 	}
+	if _, _, err := observeSealOwner(ctx, turn, scope); err != nil {
+		return out, err
+	}
+	build, err := readStageBuild(ctx, turn, p.root.buildID)
+	if err != nil {
+		return out, err
+	}
+	if !build.matches(scope, p.root) || build.cursor != p.next || build.rows != p.next || build.charge != p.charge {
+		return out, ErrConflict
+	}
+
 	for _, r := range rows {
-		args := append([]any{scope.provider, string(r.Class), p.root.evidenceID, r.Ordinal, r.ProviderPersonID, r.Name, r.Role, r.Department, r.CreditID, r.SourceOrdinal, evidenceIntegerValue(r.Billing)}, p.values(scope)...)
-		if err := execSealOne(ctx, turn, evidenceStageCredit, args...); err != nil {
+		if err := execSealOne(ctx, turn, evidenceStageCredit, scope.provider, "movie", string(r.Class), p.root.evidenceID, "", r.Ordinal, r.ProviderPersonID, r.Name, r.Role, r.Department, r.CreditID, r.SourceOrdinal, evidenceIntegerValue(r.Billing)); err != nil {
 			return out, err
 		}
 	}
+
 	step, err := sealStep(turn, evidenceStageAdvance)
 	if err != nil {
 		return out, err
@@ -224,17 +224,19 @@ func createEvidenceBuild(ctx context.Context, turn *commandTurn, scope sealOwner
 	if p.providerCharge > math.MaxInt64-headerCharge {
 		return out, ErrCap
 	}
-	if err := execSealOne(ctx, turn, enrichmentEvidenceInsert, evidenceHeaderValues(payload.header.input)...); err != nil {
+	if _, _, err := observeSealOwner(ctx, turn, scope); err != nil {
 		return out, err
 	}
-	args := append([]any{p.root.buildID, p.root.evidenceID, p.root.buildGeneration, p.root.rows, hex.EncodeToString(p.manifest.commitment[:]), headerCharge, p.expires}, scope.values()...)
-	if err := execSealOne(ctx, turn, evidenceStageBuild009, args...); err != nil {
+	if err := execSealOne(ctx, turn, evidenceStageHeader009, append(evidenceHeaderValues(payload.header.input), int64(0))...); err != nil {
 		return out, err
 	}
-	args = append([]any{p.root.evidenceID, headerCharge, payload.header.input.ObservedAt}, scope.values()...)
-	if err := execSealOne(ctx, turn, evidenceStageAccountingInsert, args...); err != nil {
+	if err := execSealOne(ctx, turn, evidenceStageBuild009, p.root.buildID, p.root.evidenceID, p.root.buildGeneration, scope.ownerID, scope.identity.Incarnation[:], scope.generation, nil, "building", "children", int64(1), p.root.rows, int64(1), hex.EncodeToString(p.manifest.commitment[:]), "", headerCharge, p.expires, int64(1)); err != nil {
 		return out, err
 	}
+	if err := execSealOne(ctx, turn, evidenceStageAccountingInsert, p.root.evidenceID, headerCharge, payload.header.input.ObservedAt, int64(0), int64(0), int64(0)); err != nil {
+		return out, err
+	}
+
 	if err := execSealOne(ctx, turn, evidenceStageTotalsDelta, headerCharge, int64(1), scope.provider, p.providerCharge, p.providerOther); err != nil {
 		return out, err
 	}

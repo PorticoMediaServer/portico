@@ -1,7 +1,10 @@
 package writer
 
 import (
+	"bytes"
+	"context"
 	"database/sql"
+	"errors"
 	"math"
 	"time"
 
@@ -21,42 +24,14 @@ type sealOwnerScope struct {
 	selectionRequested, selectionObserved                                 string
 }
 
-const sealOwnerPredicate = `o.id=? AND o.command_incarnation=? AND o.generation=?
- AND o.last_command_sequence=? AND o.acknowledged_command_sequence=? AND o.entity_id=? AND o.provider=?
- AND o.phase='enrichment-v1' AND o.status='staged' AND o.lease=? AND o.lease_until=?
- AND o.page=? AND o.after_item=? AND o.selected_id=? AND o.source_content_revision=?
- AND EXISTS(SELECT 1 FROM catalog_entities e WHERE e.id=o.entity_id AND e.kind=1 AND e.metadata_incarnation=? AND e.revision=?)
- AND EXISTS(SELECT 1 FROM metadata_subject_providers p WHERE p.entity_id=o.entity_id AND p.provider=o.provider AND p.role='primary'
- AND p.incarnation=? AND p.revision=? AND p.subject_kind='movie' AND p.provider_id=o.selected_id AND p.status='selected'
- AND p.requested_id=? AND p.observed_at=? AND p.accepted_evidence_id IS ? AND p.accepted_set_id IS ?
- AND p.accepted_publication_id IS ? AND p.accepted_track_id IS ?)`
+const sealOwnerPredicate = `id=? AND command_incarnation=? AND generation=? AND last_command_sequence=? AND acknowledged_command_sequence=? AND entity_id=? AND provider=? AND phase='enrichment-v1' AND status='staged' AND lease=? AND lease_until=? AND page=? AND after_item=? AND selected_id=? AND source_content_revision=?`
+const sealTargetOwnerPredicate = sealOwnerPredicate
 
 func sealScopeParams() []stmt.Param {
-	return []stmt.Param{
-		{Name: "owner", Type: stmt.Text}, {Name: "incarnation", Type: stmt.Blob}, {Name: "generation", Type: stmt.Integer},
-		{Name: "last", Type: stmt.Integer}, {Name: "ack", Type: stmt.Integer}, {Name: "entity", Type: stmt.Integer}, {Name: "provider", Type: stmt.Text},
-		{Name: "lease", Type: stmt.Text}, {Name: "lease_until", Type: stmt.Text}, {Name: "page", Type: stmt.Integer},
-		{Name: "after_item", Type: stmt.Text}, {Name: "selected_id", Type: stmt.Text}, {Name: "source_revision", Type: stmt.Integer},
-		{Name: "entity_incarnation", Type: stmt.Blob}, {Name: "entity_revision", Type: stmt.Integer},
-		{Name: "selection_incarnation", Type: stmt.Blob}, {Name: "selection_revision", Type: stmt.Integer},
-		{Name: "requested_id", Type: stmt.Text}, {Name: "selection_observed", Type: stmt.Text},
-		{Name: "accepted_evidence", Type: stmt.Text, Nullable: true}, {Name: "accepted_set", Type: stmt.Text, Nullable: true},
-		{Name: "accepted_publication", Type: stmt.Text, Nullable: true}, {Name: "accepted_track", Type: stmt.Text, Nullable: true},
-	}
+	return []stmt.Param{{Name: "owner", Type: stmt.Text}, {Name: "incarnation", Type: stmt.Blob}, {Name: "generation", Type: stmt.Integer}, {Name: "last", Type: stmt.Integer}, {Name: "ack", Type: stmt.Integer}, {Name: "entity", Type: stmt.Integer}, {Name: "provider", Type: stmt.Text}, {Name: "lease", Type: stmt.Text}, {Name: "lease_until", Type: stmt.Text}, {Name: "page", Type: stmt.Integer}, {Name: "after_item", Type: stmt.Text}, {Name: "selected_id", Type: stmt.Text}, {Name: "source_revision", Type: stmt.Integer}}
 }
-
-func nullableSealText(v sql.NullString) any {
-	if v.Valid {
-		return v.String
-	}
-	return nil
-}
-
 func (s sealOwnerScope) values() []any {
-	return []any{s.ownerID, s.identity.Incarnation[:], s.generation, s.last, s.ack, s.entityID, s.provider,
-		s.lease, s.leaseUntil, s.page, s.afterItem, s.selectedID, s.sourceRevision,
-		s.entityIncarnation[:], s.entityRevision, s.selection.Incarnation[:], s.selection.Revision, s.selectionRequested, s.selectionObserved,
-		nullableSealText(s.selection.Evidence), nullableSealText(s.selection.Set), nullableSealText(s.selection.Publication), nullableSealText(s.selection.Track)}
+	return []any{s.ownerID, s.identity.Incarnation[:], s.generation, s.last, s.ack, s.entityID, s.provider, s.lease, s.leaseUntil, s.page, s.afterItem, s.selectedID, s.sourceRevision}
 }
 
 func (s sealOwnerScope) valid() bool {
@@ -97,13 +72,54 @@ func sealStep(turn *commandTurn, id stmt.ID) (statementStep, error) {
 
 // Deterministic native component population, not disclosure/proof authority.
 // HN qualifies these closed statements against the final complete producer.
+
 func sealScopeCohort() []any {
-	inc, entityInc := make([]byte, 16), make([]byte, 16)
+	inc := make([]byte, 16)
 	for i := range inc {
 		inc[i] = byte(16 + i)
-		entityInc[i] = byte(48 + i)
 	}
-	selection := make([]byte, 16)
-	selection[0] = 71
-	return []any{"operation-one", inc, int64(31), int64(11), int64(11), int64(101), "fixture", "native-lease", "2100-11-05T12:00:00Z", int64(59), "opaque-page:61", "opaque:selection", int64(1), entityInc, int64(203), selection, int64(73), "", "2026-11-06T12:00:00Z", nil, nil, nil, nil}
+	return []any{"operation-one", inc, int64(31), int64(11), int64(11), int64(101), "fixture", "native-lease", "2100-11-05T12:00:00Z", int64(59), "opaque-page:61", "opaque:selection", int64(1)}
+}
+
+const sealObservedOwner stmt.ID = "enrichment.stage.owner_observed"
+
+func enrichmentSealScopeDefinitions() []stmt.Definition {
+	defs := []stmt.Definition{{ID: sealObservedOwner, Owner: "writer.enrichment", Kind: stmt.Read, CallSites: []string{"writer/enrichment_source_seal_scope.go:observeSealOwner"}, SQL: `SELECT o.command_incarnation,o.generation,o.last_command_sequence,o.acknowledged_command_sequence,o.entity_id,o.provider,o.phase,o.status,o.lease,o.lease_until,o.page,o.after_item,o.selected_id,o.source_content_revision,e.metadata_incarnation,e.revision,e.kind,p.incarnation,p.revision,p.role,p.subject_kind,p.provider_id,p.status,p.requested_id,p.observed_at,p.accepted_evidence_id,p.accepted_set_id,p.accepted_publication_id,p.accepted_track_id
+ FROM metadata_provider_operations AS o INNER JOIN catalog_entities AS e ON e.id=o.entity_id INNER JOIN metadata_subject_providers AS p ON p.entity_id=o.entity_id AND p.provider=o.provider WHERE o.id=? AND p.role='primary'`, Params: []stmt.Param{{Name: "owner", Type: stmt.Text}}, Cohorts: []stmt.Cohort{{Name: "native_selected_owner", Bindings: []any{"operation-one"}}}, Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_metadata_provider_operations_1"}, Seeks: []string{"entity_id=? AND provider=? AND role=?"}}}}
+	return enrichmentStagePlanHints(defs)
+}
+
+// Complete current witness read is separate from scalar DML. There is no
+// callback/interleaving between it and the covering CAS on this SAME frame.
+// It is a domain precondition, not W's full principal/source/policy proof.
+func observeSealOwner(ctx context.Context, turn *commandTurn, want sealOwnerScope) (int64, string, error) {
+	if !want.valid() {
+		return 0, "", ErrInvalid
+	}
+	step, err := sealStep(turn, sealObservedOwner)
+	if err != nil {
+		return 0, "", err
+	}
+	row, err := turn.queryRow(ctx, step, want.ownerID)
+	if err != nil {
+		return 0, "", err
+	}
+	var inc, einc, pinc []byte
+	var g, last, ack, eid, page, r, er, kind int64
+	var provider, phase, status, lease, until, after, selected, requested, observed string
+	var p effectiveBeginSelection
+	if err := row.Scan(&inc, &g, &last, &ack, &eid, &provider, &phase, &status, &lease, &until, &page, &after, &selected, &r, &einc, &er, &kind, &pinc, &p.Revision, &p.Role, &p.Kind, &p.ID, &p.Status, &requested, &observed, &p.Evidence, &p.Set, &p.Publication, &p.Track); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, "", ErrConflict
+		}
+		return 0, "", err
+	}
+	if len(pinc) != 16 {
+		return 0, "", ErrConflict
+	}
+	copy(p.Incarnation[:], pinc)
+	if !bytes.Equal(inc, want.identity.Incarnation[:]) || g != want.generation || last != want.last || ack != want.ack || eid != want.entityID || provider != want.provider || phase != effectiveBeginPhase || status != "staged" || lease != want.lease || until != want.leaseUntil || page != want.page || after != want.afterItem || selected != want.selectedID || r != want.sourceRevision || !bytes.Equal(einc, want.entityIncarnation[:]) || er != want.entityRevision || kind != 1 || p != want.selection || requested != want.selectionRequested || observed != want.selectionObserved {
+		return 0, "", ErrConflict
+	}
+	return er, after, nil
 }

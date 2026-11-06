@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
@@ -14,98 +13,146 @@ const (
 	sealCandidateParent       stmt.ID = "enrichment.candidate_retire.parent"
 	sealCandidateAdvance      stmt.ID = "enrichment.candidate_retire.advance"
 	sealCandidateReady        stmt.ID = "enrichment.candidate_retire.ready"
-	sealCandidateChildQuantum         = 16 // physical write quantum, not a retained-input cap
+	sealCandidateReasonRead   stmt.ID = "enrichment.candidate_retire.reason_keys"
+	sealCandidateAliasRead    stmt.ID = "enrichment.candidate_retire.alias_keys"
+	sealCandidateChildQuantum         = 16
 )
 
 func enrichmentCandidateRetirementDefinitions() []stmt.Definition {
-	// Closed FIRST chooses the ADOPTED zero-candidate path: actual primary/
-	// selected binding is rechecked, then ALL reasons/aliases/parents retire.
-	// No unbounded empty child rows survive the tight proof-closure budget.
-	first := `SELECT c.id FROM metadata_candidates c WHERE c.operation_id=? ORDER BY c.id LIMIT 1`
-	guard := `EXISTS(SELECT 1 FROM metadata_provider_operations o WHERE ` + sealOwnerPredicate + `)`
-	defs := []stmt.Definition{}
-	for _, pair := range []struct {
-		id    stmt.ID
-		table string
-	}{{sealCandidateReasons, "metadata_candidate_reasons"}, {sealCandidateAliases, "metadata_candidate_aliases"}} {
-		defs = append(defs, stmt.Definition{ID: pair.id, Owner: "writer.enrichment", Kind: stmt.Write,
-			CallSites: []string{"writer/enrichment_source_seal_candidates.go:retireSealCandidates"},
-			SQL:       `DELETE FROM ` + pair.table + ` WHERE (candidate_id,ordinal) IN (SELECT candidate_id,ordinal FROM ` + pair.table + ` WHERE candidate_id=(` + first + `) ORDER BY ordinal LIMIT 16) AND ` + guard,
-			Params:    append([]stmt.Param{{Name: "candidate_owner", Type: stmt.Text}}, sealScopeParams()...)})
+	key := []stmt.Param{{Name: "candidate", Type: stmt.Text}, {Name: "ordinal", Type: stmt.Integer}}
+	defs := []stmt.Definition{
+		{ID: sealCandidateReasons, Kind: stmt.Write, SQL: `DELETE FROM metadata_candidate_reasons WHERE candidate_id=? AND ordinal=?`, Params: key},
+		{ID: sealCandidateAliases, Kind: stmt.Write, SQL: `DELETE FROM metadata_candidate_aliases WHERE candidate_id=? AND ordinal=?`, Params: key},
+		{ID: sealCandidateParent, Kind: stmt.Write, SQL: `DELETE FROM metadata_candidates WHERE id=? AND operation_id=? RETURNING evidence_id`, Params: []stmt.Param{{Name: "candidate", Type: stmt.Text}, {Name: "owner", Type: stmt.Text}}},
+		{ID: sealCandidateAdvance, Kind: stmt.Write, SQL: `UPDATE metadata_provider_operations SET source_content_revision=source_content_revision+1 WHERE ` + sealOwnerPredicate + ` RETURNING source_content_revision`, Params: sealScopeParams()},
+		{ID: sealCandidateReady, Kind: stmt.Read, SQL: `SELECT id,evidence_id FROM metadata_candidates INDEXED BY metadata_candidate_operation WHERE operation_id=? ORDER BY id LIMIT 1`, Params: []stmt.Param{{Name: "owner", Type: stmt.Text}}},
+		{ID: sealCandidateReasonRead, Kind: stmt.Read, SQL: `SELECT ordinal FROM metadata_candidate_reasons WHERE candidate_id=? ORDER BY ordinal LIMIT 16`, Params: []stmt.Param{{Name: "candidate", Type: stmt.Text}}},
+		{ID: sealCandidateAliasRead, Kind: stmt.Read, SQL: `SELECT ordinal FROM metadata_candidate_aliases WHERE candidate_id=? ORDER BY ordinal LIMIT 16`, Params: []stmt.Param{{Name: "candidate", Type: stmt.Text}}},
 	}
-	defs = append(defs, stmt.Definition{ID: sealCandidateParent, Owner: "writer.enrichment", Kind: stmt.Write,
-		CallSites: []string{"writer/enrichment_source_seal_candidates.go:retireSealCandidates"},
-		SQL: `DELETE FROM metadata_candidates WHERE id=(` + first + `) AND NOT EXISTS(SELECT 1 FROM metadata_candidate_reasons r WHERE r.candidate_id=metadata_candidates.id)
- AND NOT EXISTS(SELECT 1 FROM metadata_candidate_aliases a WHERE a.candidate_id=metadata_candidates.id) AND ` + guard + ` RETURNING evidence_id`,
-		Params: append([]stmt.Param{{Name: "candidate_owner", Type: stmt.Text}}, sealScopeParams()...)},
-		stmt.Definition{ID: sealCandidateAdvance, Owner: "writer.enrichment", Kind: stmt.Write,
-			CallSites: []string{"writer/enrichment_source_seal_candidates.go:retireSealCandidates"},
-			SQL:       `UPDATE metadata_provider_operations AS o SET source_content_revision=source_content_revision+1 WHERE ` + sealOwnerPredicate + ` RETURNING source_content_revision`, Params: sealScopeParams()},
-		stmt.Definition{ID: sealCandidateReady, Owner: "writer.enrichment", Kind: stmt.Read, Plan: stmt.Plan{Hot: true},
-			CallSites: []string{"writer/enrichment_source_seal_candidates.go:sealCandidatesRetired"},
-			SQL:       `SELECT NOT EXISTS(SELECT 1 FROM metadata_candidates c WHERE c.operation_id=o.id) FROM metadata_provider_operations o WHERE ` + sealOwnerPredicate, Params: sealScopeParams()})
 	for i := range defs {
-		args := sealScopeCohort()
-		if defs[i].ID == sealCandidateReasons || defs[i].ID == sealCandidateAliases || defs[i].ID == sealCandidateParent {
-			args = append([]any{"operation-one"}, args...)
-		}
-		defs[i].Cohorts = []stmt.Cohort{{Name: "native_candidate_binding", Bindings: args}}
+		defs[i].Owner = "writer.enrichment"
+		defs[i].CallSites = []string{"writer/enrichment_source_seal_candidates.go:retireSealCandidates", "writer/enrichment_source_seal_candidates.go:sealCandidatesRetired"}
+		defs[i].Cohorts = []stmt.Cohort{{Name: "absent_candidate_keys", Bindings: missingSealBindings(defs[i].Params)}}
 	}
-	return defs
+	return enrichmentStagePlanHints(defs)
 }
 
 type candidateRetirementProgress struct {
-	removedEvidence                        sql.NullString // physical unlink fact, never an accounting refund
+	removedEvidence                        sql.NullString
 	reasons, aliases, candidates, revision int64
 	complete                               bool
 }
 
-// Private physical effect body only. The enclosing W command owns original
-// receipt resolution, complete authority/admission, last/ACK and commit/rollback.
-// A successful partial chunk is durable ONLY together with that typed receipt.
+func candidateChildKeys(ctx context.Context, turn *commandTurn, id stmt.ID, candidate string) ([]int64, error) {
+	step, err := sealStep(turn, id)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := turn.query(ctx, step, candidate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	keys := make([]int64, 0, sealCandidateChildQuantum)
+	for rows.Next() {
+		var n int64
+		if err := rows.Scan(&n); err != nil {
+			return nil, err
+		}
+		if len(keys) == sealCandidateChildQuantum {
+			return nil, ErrInvalid
+		}
+		keys = append(keys, n)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	return keys, nil
+}
+func firstSealCandidate(ctx context.Context, turn *commandTurn, owner string) (string, bool, error) {
+	step, err := sealStep(turn, sealCandidateReady)
+	if err != nil {
+		return "", false, err
+	}
+	row, err := turn.queryRow(ctx, step, owner)
+	if err != nil {
+		return "", false, err
+	}
+	var id string
+	var evidence sql.NullString
+	if err := row.Scan(&id, &evidence); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return id, true, nil
+}
+
+// FIRST uses the adopted zero-candidate option only with the independently
+// selected native binding. Bounded child-first PK writes, then covering R CAS;
+// receipt/last/accounting/terminal and whole rollback remain W-owned.
 func retireSealCandidates(ctx context.Context, turn *commandTurn, scope sealOwnerScope) (out candidateRetirementProgress, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	if _, err := scope.checkLease(turn); err != nil {
 		return out, err
 	}
-	args := append([]any{scope.ownerID}, scope.values()...)
-	counts := []*int64{&out.reasons, &out.aliases}
-	for i, id := range []stmt.ID{sealCandidateReasons, sealCandidateAliases} {
-		step, err := sealStep(turn, id)
-		if err != nil {
-			return out, err
-		}
-		result, err := turn.exec(ctx, step, args...)
-		if err != nil {
-			return out, err
-		}
-		changed, err := result.RowsAffected()
-		if err != nil {
-			return out, err
-		}
-		bound := int64(sealCandidateChildQuantum)
-		if changed < 0 || changed > bound {
-			return out, invalid("candidate_retirement_quantum")
-		}
-		*counts[i] = changed
+	if _, _, err := observeSealOwner(ctx, turn, scope); err != nil {
+		return out, err
 	}
-	step, err := sealStep(turn, sealCandidateParent)
+	candidate, found, err := firstSealCandidate(ctx, turn, scope.ownerID)
 	if err != nil {
 		return out, err
 	}
-	row, err := turn.queryRow(ctx, step, args...)
+	out.revision = scope.sourceRevision
+	if !found {
+		out.complete = true
+		return out, nil
+	}
+	for i, pair := range []struct{ read, write stmt.ID }{{sealCandidateReasonRead, sealCandidateReasons}, {sealCandidateAliasRead, sealCandidateAliases}} {
+		keys, err := candidateChildKeys(ctx, turn, pair.read, candidate)
+		if err != nil {
+			return out, err
+		}
+		for _, key := range keys {
+			if err := execSealOne(ctx, turn, pair.write, candidate, key); err != nil {
+				return out, err
+			}
+		}
+		if i == 0 {
+			out.reasons = int64(len(keys))
+		} else {
+			out.aliases = int64(len(keys))
+		}
+	}
+	reasons, err := candidateChildKeys(ctx, turn, sealCandidateReasonRead, candidate)
 	if err != nil {
 		return out, err
 	}
-	if err := row.Scan(&out.removedEvidence); err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
+	aliases, err := candidateChildKeys(ctx, turn, sealCandidateAliasRead, candidate)
+	if err != nil {
+		return out, err
+	}
+	if len(reasons) == 0 && len(aliases) == 0 {
+		step, err := sealStep(turn, sealCandidateParent)
+		if err != nil {
 			return out, err
 		}
-	} else {
+		row, err := turn.queryRow(ctx, step, candidate, scope.ownerID)
+		if err != nil {
+			return out, err
+		}
+		if err := row.Scan(&out.removedEvidence); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return out, ErrConflict
+			}
+			return out, err
+		}
 		out.candidates = 1
 	}
-
-	out.revision = scope.sourceRevision
 	if out.reasons+out.aliases+out.candidates > 0 {
 		step, err := sealStep(turn, sealCandidateAdvance)
 		if err != nil {
@@ -129,25 +176,10 @@ func retireSealCandidates(ctx context.Context, turn *commandTurn, scope sealOwne
 	out.complete, err = sealCandidatesRetired(ctx, turn, scope)
 	return out, err
 }
-
 func sealCandidatesRetired(ctx context.Context, turn *commandTurn, scope sealOwnerScope) (bool, error) {
-	step, err := sealStep(turn, sealCandidateReady)
-	if err != nil {
+	if _, _, err := observeSealOwner(ctx, turn, scope); err != nil {
 		return false, err
 	}
-	row, err := turn.queryRow(ctx, step, scope.values()...)
-	if err != nil {
-		return false, err
-	}
-	var ready int64
-	if err := row.Scan(&ready); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return false, ErrConflict
-		}
-		return false, err
-	}
-	if ready != 0 && ready != 1 {
-		return false, ErrInvalid
-	}
-	return ready == 1, nil
+	_, found, err := firstSealCandidate(ctx, turn, scope.ownerID)
+	return !found, err
 }

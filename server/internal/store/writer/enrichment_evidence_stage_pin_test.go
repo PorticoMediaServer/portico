@@ -47,12 +47,12 @@ func evidenceBuildPinTurn(t *testing.T, w *executor) (*commandTurn, statementSte
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = tx.rollback(nil) })
-	registry, err := stmttest.New(t, enrichmentEvidencePinDefinitions())
+	registry, err := stmttest.New(t, append(enrichmentEvidencePinDefinitions(), enrichmentStageFactDefinitions()...))
 	if err != nil {
 		t.Fatal(err)
 	}
 	step := statementStep{enrichmentEvidencePinBuild, Work{16, 10000, 64, 65536, time.Millisecond}}
-	turn, err := newCommandTurn(tx, registry, []statementStep{step})
+	turn, err := newCommandTurn(tx, registry, []statementStep{step, {stageBuildFacts, Work{16, 10000, 64, 65536, time.Millisecond}}})
 	if err != nil {
 		t.Fatal(err)
 	}

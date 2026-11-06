@@ -40,41 +40,34 @@ type sealMutationFacts struct {
 }
 
 func enrichmentSealAdvanceDefinitions() []stmt.Definition {
-	owner := `EXISTS(SELECT 1 FROM metadata_provider_operations o WHERE ` + sealOwnerPredicate + `
- AND NOT EXISTS(SELECT 1 FROM metadata_candidates c WHERE c.operation_id=o.id)`
+
 	defs := []stmt.Definition{{
 		ID: enrichmentEvidenceSealAdvance, Owner: "writer.enrichment", Kind: stmt.Write,
 		CallSites: []string{"writer/enrichment_source_seal_effects.go:advanceEvidenceSeal"},
-		SQL: `UPDATE metadata_evidence_builds AS b SET content_revision=content_revision+1
- WHERE b.id=? AND b.evidence_id=? AND b.generation=? AND b.content_revision=?
- AND b.cursor=? AND b.expected_rows=? AND b.materialized_rows=? AND b.state='building' AND b.phase='children'
- AND EXISTS(SELECT 1 FROM metadata_evidence e WHERE e.id=b.evidence_id AND e.subject_id=? AND e.parser_version=? AND e.sealed=0 AND e.seal_proof_owner IS NULL)
- AND ` + owner + ` AND o.evidence_build_id=b.id AND b.owner_operation=o.id AND b.owner_incarnation=o.command_incarnation AND b.owner_generation=o.generation)
- RETURNING content_revision,cursor,
- (SELECT e.revision FROM catalog_entities e JOIN metadata_provider_operations o ON o.entity_id=e.id WHERE o.id=metadata_evidence_builds.owner_operation),
- (SELECT after_item FROM metadata_provider_operations o WHERE o.id=metadata_evidence_builds.owner_operation)`,
-		Params: append([]stmt.Param{{Name: "build", Type: stmt.Text}, {Name: "evidence", Type: stmt.Text}, {Name: "build_generation", Type: stmt.Integer}, {Name: "content_revision", Type: stmt.Integer},
-			{Name: "cursor", Type: stmt.Integer}, {Name: "expected_rows", Type: stmt.Integer}, {Name: "materialized_rows", Type: stmt.Integer}, {Name: "subject", Type: stmt.Integer}, {Name: "parser", Type: stmt.Text}}, sealScopeParams()...),
+		SQL: `UPDATE metadata_evidence_builds SET content_revision=content_revision+1
+ WHERE metadata_evidence_builds.id=? AND metadata_evidence_builds.evidence_id=? AND metadata_evidence_builds.generation=? AND metadata_evidence_builds.content_revision=?
+ AND metadata_evidence_builds.cursor=? AND metadata_evidence_builds.expected_rows=? AND metadata_evidence_builds.materialized_rows=? AND metadata_evidence_builds.state='building' AND metadata_evidence_builds.phase='children'
+ AND owner_operation=? AND owner_incarnation=? AND owner_generation=?
+ RETURNING content_revision,cursor`,
+		Params: []stmt.Param{{Name: "build", Type: stmt.Text}, {Name: "evidence", Type: stmt.Text}, {Name: "build_generation", Type: stmt.Integer}, {Name: "revision", Type: stmt.Integer}, {Name: "cursor", Type: stmt.Integer}, {Name: "expected", Type: stmt.Integer}, {Name: "materialized", Type: stmt.Integer}, {Name: "owner", Type: stmt.Text}, {Name: "incarnation", Type: stmt.Blob}, {Name: "owner_generation", Type: stmt.Integer}},
 	}, {
 		ID: enrichmentSourceSealAdvance, Owner: "writer.enrichment", Kind: stmt.Write,
 		CallSites: []string{"writer/enrichment_source_seal_effects.go:advanceSourceSeal"},
-		SQL: `UPDATE metadata_provider_operations AS o SET source_content_revision=source_content_revision+1
- WHERE ` + sealOwnerPredicate + ` AND NOT EXISTS(SELECT 1 FROM metadata_candidates c WHERE c.operation_id=o.id)
- AND source_publication_id=? AND source_owner_generation=o.generation AND source_evidence_id=? AND source_subject_id=? AND source_parser_version=?
+		SQL: `UPDATE metadata_provider_operations SET source_content_revision=source_content_revision+1
+ WHERE ` + sealTargetOwnerPredicate + `
+ AND source_publication_id=? AND source_owner_generation=metadata_provider_operations.generation AND source_evidence_id=? AND source_subject_id=? AND source_parser_version=?
  AND source_next_position=? AND source_expected_members=? AND source_next_position=source_expected_members
  AND source_algorithm=? AND source_version=? AND source_expected_bytes=? AND source_expected_commitment=?
  AND source_evidence_owner=? AND source_evidence_incarnation=? AND source_evidence_sequence=?
- AND EXISTS(SELECT 1 FROM credit_source_publications p WHERE p.publication_id=o.source_publication_id AND p.entity_id=o.entity_id AND p.provider=o.provider
- AND p.member_count=o.source_expected_members AND p.sealed=0 AND p.seal_proof_owner IS NULL)
- RETURNING source_content_revision,source_next_position,
- (SELECT revision FROM catalog_entities WHERE id=metadata_provider_operations.entity_id),after_item`,
+ RETURNING source_content_revision,source_next_position`,
 		Params: append(sealScopeParams(), []stmt.Param{{Name: "publication", Type: stmt.Text}, {Name: "evidence", Type: stmt.Text}, {Name: "subject", Type: stmt.Integer}, {Name: "parser", Type: stmt.Text},
 			{Name: "next", Type: stmt.Integer}, {Name: "expected", Type: stmt.Integer}, {Name: "algorithm", Type: stmt.Text}, {Name: "version", Type: stmt.Integer}, {Name: "bytes", Type: stmt.Integer}, {Name: "commitment", Type: stmt.Blob},
 			{Name: "upstream_owner", Type: stmt.Text}, {Name: "upstream_incarnation", Type: stmt.Blob}, {Name: "upstream_sequence", Type: stmt.Integer}}...),
 	}}
-	defs[0].Cohorts = []stmt.Cohort{{Name: "native_complete_evidence_prefix", Bindings: append([]any{"build-original:211", "evidence-original:197", int64(47), int64(1), int64(3), int64(3), int64(3), int64(193), "fixture-parser"}, sealScopeCohort()...)}}
-	defs[1].Cohorts = []stmt.Cohort{{Name: "missing_source_custody", Bindings: append(sealScopeCohort(), "00112233445566778899aabbccddeeff", "evidence-original:197", int64(193), "fixture-parser", int64(0), int64(0), normalizedSourceAlgorithm, int64(1), int64(917), make([]byte, 32), "operation-one", sealScopeCohort()[1], int64(7))}}
-	return defs
+	for i := range defs {
+		defs[i].Cohorts = []stmt.Cohort{{Name: "missing_native_keys", Bindings: missingSealBindings(defs[i].Params)}}
+	}
+	return enrichmentStagePlanHints(defs)
 
 }
 
@@ -87,8 +80,25 @@ func advanceEvidenceSeal(ctx context.Context, turn *commandTurn, scope sealOwner
 	if root.buildID == "" || root.evidenceID == "" || root.parser == "" || root.buildGeneration <= 0 || root.subjectID <= 0 || root.revision <= 0 || root.revision == math.MaxInt64 || root.rows < 1 || root.rows > 1+MaxCastCredits+MaxCrewCredits {
 		return out, ErrInvalid
 	}
-	args := []any{root.buildID, root.evidenceID, root.buildGeneration, root.revision, root.rows, root.rows, root.rows, root.subjectID, root.parser}
-	args = append(args, scope.values()...)
+	if _, _, err := observeSealOwner(ctx, turn, scope); err != nil {
+		return out, err
+	}
+	ready, err := sealCandidatesRetired(ctx, turn, scope)
+	if err != nil {
+		return out, err
+	}
+	if !ready {
+		return out, ErrBusy
+	}
+	build, err := readStageBuild(ctx, turn, root.buildID)
+	if err != nil {
+		return out, err
+	}
+	if !build.matches(scope, root) || build.cursor != root.rows || build.rows != root.rows {
+		return out, ErrConflict
+	}
+	args := []any{root.buildID, root.evidenceID, root.buildGeneration, root.revision, root.rows, root.rows, root.rows, scope.ownerID, scope.identity.Incarnation[:], scope.generation}
+
 	out, err = readSealAdvance(ctx, turn, enrichmentEvidenceSealAdvance, args, root.revision, root.rows, scope, ms)
 	return out, err
 }
@@ -103,6 +113,33 @@ func advanceSourceSeal(ctx context.Context, turn *commandTurn, scope sealOwnerSc
 		root.manifest.algorithm != normalizedSourceAlgorithm || root.manifest.version != 1 || root.manifest.rows != root.expected || root.manifest.bytes <= 0 || uint64(root.manifest.bytes) > maxCanonicalRequestBytes {
 		return out, ErrInvalid
 	}
+	if _, _, err := observeSealOwner(ctx, turn, scope); err != nil {
+		return out, err
+	}
+	ready, err := sealCandidatesRetired(ctx, turn, scope)
+	if err != nil {
+		return out, err
+	}
+	if !ready {
+		return out, ErrBusy
+	}
+	prefix := sourceStagePrefix{operationID: scope.ownerID, provider: scope.provider, publicationID: root.publicationID, phase: effectiveBeginPhase, status: "staged", lease: scope.lease, leaseUntil: scope.leaseUntil, incarnation: scope.identity.Incarnation, entityID: scope.entityID, generation: scope.generation, ownerGeneration: scope.generation, revision: scope.sourceRevision, next: root.next, expected: root.expected, lastSequence: scope.last, acknowledgedSequence: scope.ack}
+	check, err := sealStep(turn, sourceStagePrefixRead)
+	if err != nil {
+		return out, err
+	}
+	r, err := turn.queryRow(ctx, check, sourcePrefixBindings(prefix, scope.identity)...)
+	if err != nil {
+		return out, err
+	}
+	var next int64
+	if err := r.Scan(&next); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return out, ErrConflict
+		}
+		return out, err
+	}
+
 	args := append(scope.values(), root.publicationID, root.evidenceID, root.subjectID, root.parser, root.next, root.expected, root.manifest.algorithm, root.manifest.version, root.manifest.bytes, root.manifest.commitment[:], root.upstreamOwner, root.upstreamIncarnation[:], root.upstreamSequence)
 	out, err = readSealAdvance(ctx, turn, enrichmentSourceSealAdvance, args, scope.sourceRevision, root.next, scope, ms)
 	return out, err
@@ -118,12 +155,21 @@ func readSealAdvance(ctx context.Context, turn *commandTurn, id stmt.ID, args []
 		return sealMutationFacts{}, err
 	}
 	var out sealMutationFacts
-	if err := row.Scan(&out.revision, &out.next, &out.observedCatalogRevision, &out.afterItem); err != nil {
+	if err := row.Scan(&out.revision, &out.next); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return sealMutationFacts{}, ErrConflict
 		}
 		return sealMutationFacts{}, err
 	}
+	current := scope
+	if id == enrichmentSourceSealAdvance {
+		current.sourceRevision = out.revision
+	}
+	out.observedCatalogRevision, out.afterItem, err = observeSealOwner(ctx, turn, current)
+	if err != nil {
+		return sealMutationFacts{}, err
+	}
+
 	if out.revision != oldRevision+1 || out.next != next || out.observedCatalogRevision != scope.entityRevision || out.afterItem != scope.afterItem {
 		return sealMutationFacts{}, ErrConflict
 	}

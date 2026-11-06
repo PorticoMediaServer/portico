@@ -36,8 +36,9 @@ func sourceSealFixture(t *testing.T) (*executor, sealOwnerScope, sourceSealRoot,
 	return w, scope, root, sealReceiptContent{h, root.manifest, 8876032}
 }
 func sourceSealDefinitions() []stmt.Definition {
-	return append(append([]stmt.Definition{}, enrichmentSealAdvanceDefinitions()...), append(enrichmentSealReceiptDefinitions(), enrichmentSourceAllocationDefinitions()...)...)
+	return append(append(append(enrichmentSealAdvanceDefinitions(), enrichmentSealReceiptDefinitions()...), enrichmentSourceAllocationDefinitions()...), enrichmentSourceStageDefinitions()...)
 }
+
 func TestSourceSealReceiptRetainsUpstreamAndNativeCursor(t *testing.T) {
 	w, scope, root, content := sourceSealFixture(t)
 	turn := sealEffectTurn(t, w, sourceSealDefinitions())

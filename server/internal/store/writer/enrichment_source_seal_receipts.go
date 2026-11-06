@@ -1,9 +1,11 @@
 package writer
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"strings"
 )
 
 const (
@@ -103,27 +105,28 @@ func enrichmentSealReceiptDefinitions() []stmt.Definition {
 			}, sealScopeParams()...)},
 		{ID: evidenceSealBodyAttach, Owner: "writer.enrichment", Kind: stmt.Write,
 			SQL: `UPDATE metadata_evidence SET sealed=1,seal_proof_owner=?,seal_proof_incarnation=?,seal_proof_sequence=?
- WHERE id=? AND subject_id=? AND parser_version=? AND sealed=0 AND seal_proof_owner IS NULL
- AND EXISTS(SELECT 1 FROM enrichment_command_receipts r WHERE r.provider_operation_id=? AND r.command_incarnation=? AND r.command_sequence=?
- AND r.command_kind='evidence_seal' AND r.seal_evidence_id=metadata_evidence.id AND r.seal_subject_id=metadata_evidence.subject_id AND r.seal_parser_version=metadata_evidence.parser_version AND r.seal_content_revision=? AND EXISTS(SELECT 1 FROM metadata_evidence_builds b WHERE b.id=r.seal_build_id AND b.evidence_id=r.seal_evidence_id AND b.generation=r.seal_build_generation AND b.content_revision=r.seal_content_revision AND b.cursor=r.seal_verified_rows AND b.materialized_rows=b.cursor AND b.expected_rows=b.cursor AND b.owner_operation=r.provider_operation_id AND b.owner_incarnation=r.command_incarnation AND b.owner_generation=r.seal_owner_generation))`,
-			Params: []stmt.Param{{Name: "owner", Type: stmt.Text}, {Name: "incarnation", Type: stmt.Blob}, {Name: "sequence", Type: stmt.Integer}, {Name: "evidence", Type: stmt.Text}, {Name: "subject", Type: stmt.Integer}, {Name: "parser", Type: stmt.Text}, {Name: "proof_owner", Type: stmt.Text}, {Name: "proof_incarnation", Type: stmt.Blob}, {Name: "proof_sequence", Type: stmt.Integer}, {Name: "revision", Type: stmt.Integer}}},
+ WHERE id=? AND subject_id=? AND parser_version=? AND sealed=0 AND seal_proof_owner IS NULL`,
+			Params: []stmt.Param{{Name: "owner", Type: stmt.Text}, {Name: "incarnation", Type: stmt.Blob}, {Name: "sequence", Type: stmt.Integer}, {Name: "evidence", Type: stmt.Text}, {Name: "subject", Type: stmt.Integer}, {Name: "parser", Type: stmt.Text}}},
 		{ID: sourceSealBodyAttach, Owner: "writer.enrichment", Kind: stmt.Write,
 			SQL: `UPDATE credit_source_publications SET sealed=1,seal_proof_owner=?,seal_proof_incarnation=?,seal_proof_sequence=?
- WHERE publication_id=? AND entity_id=? AND provider=? AND member_count=? AND sealed=0 AND seal_proof_owner IS NULL
- AND EXISTS(SELECT 1 FROM enrichment_command_receipts r WHERE r.provider_operation_id=? AND r.command_incarnation=? AND r.command_sequence=?
- AND r.command_kind='credit_source_seal' AND r.publication_id=credit_source_publications.publication_id AND r.entity_id=credit_source_publications.entity_id AND r.seal_provider=credit_source_publications.provider AND r.seal_content_revision=?)`,
-			Params: []stmt.Param{{Name: "owner", Type: stmt.Text}, {Name: "incarnation", Type: stmt.Blob}, {Name: "sequence", Type: stmt.Integer}, {Name: "publication", Type: stmt.Text}, {Name: "entity", Type: stmt.Integer}, {Name: "provider", Type: stmt.Text}, {Name: "count", Type: stmt.Integer}, {Name: "proof_owner", Type: stmt.Text}, {Name: "proof_incarnation", Type: stmt.Blob}, {Name: "proof_sequence", Type: stmt.Integer}, {Name: "revision", Type: stmt.Integer}}},
+ WHERE publication_id=? AND entity_id=? AND provider=? AND member_count=? AND sealed=0 AND seal_proof_owner IS NULL`,
+			Params: []stmt.Param{{Name: "owner", Type: stmt.Text}, {Name: "incarnation", Type: stmt.Blob}, {Name: "sequence", Type: stmt.Integer}, {Name: "publication", Type: stmt.Text}, {Name: "entity", Type: stmt.Integer}, {Name: "provider", Type: stmt.Text}, {Name: "count", Type: stmt.Integer}}},
 		{ID: sourceSealUpstreamPin, Owner: "writer.enrichment", Kind: stmt.Write,
 			SQL: `UPDATE enrichment_command_receipts SET proof_pin_count=proof_pin_count+1,proof_revision=proof_revision+1
  WHERE provider_operation_id=? AND command_incarnation=? AND command_sequence=? AND command_kind='evidence_seal'
  AND seal_evidence_id=? AND seal_subject_id=? AND seal_parser_version=? AND proof_revision=? AND proof_pin_count=? AND proof_pin_count>0 AND proof_revision<9223372036854775807 AND proof_pin_count<9223372036854775807`,
 			Params: []stmt.Param{{Name: "owner", Type: stmt.Text}, {Name: "incarnation", Type: stmt.Blob}, {Name: "sequence", Type: stmt.Integer}, {Name: "evidence", Type: stmt.Text}, {Name: "subject", Type: stmt.Integer}, {Name: "parser", Type: stmt.Text}, {Name: "proof_revision", Type: stmt.Integer}, {Name: "proof_pin_count", Type: stmt.Integer}}},
 	}
+	for i := 0; i < 2; i++ {
+		cols := strings.Split(strings.Split(defs[i].SQL, "(")[1], ")")[0]
+		defs[i].SQL = "INSERT INTO enrichment_command_receipts(" + cols + ") VALUES(" + strings.TrimSuffix(strings.Repeat("?,", len(strings.Split(cols, ","))), ",") + ")"
+		defs[i].Params = append(defs[i].Params[:len(defs[i].Params)-len(sealScopeParams())], stmt.Param{Name: "native_kind", Type: stmt.Text}, stmt.Param{Name: "native_count", Type: stmt.Integer}, stmt.Param{Name: "native_pins", Type: stmt.Integer})
+	}
+
 	defs = append(defs, stmt.Definition{ID: evidenceSealBuildFinalize, Owner: "writer.enrichment", Kind: stmt.Write,
 		SQL: `UPDATE metadata_evidence_builds SET materialized_charge=materialized_charge+?,materialized_digest=?
- WHERE id=? AND evidence_id=? AND generation=? AND content_revision=? AND cursor=? AND materialized_rows=cursor AND expected_rows=cursor AND materialized_charge=?
- AND EXISTS(SELECT 1 FROM metadata_evidence e WHERE e.id=metadata_evidence_builds.evidence_id AND e.sealed=1 AND e.seal_proof_owner=? AND e.seal_proof_incarnation=? AND e.seal_proof_sequence=?)`,
-		Params: []stmt.Param{{Name: "proof_bytes_charge", Type: stmt.Integer}, {Name: "manifest", Type: stmt.Text}, {Name: "build", Type: stmt.Text}, {Name: "evidence", Type: stmt.Text}, {Name: "generation", Type: stmt.Integer}, {Name: "revision", Type: stmt.Integer}, {Name: "cursor", Type: stmt.Integer}, {Name: "old_charge", Type: stmt.Integer}, {Name: "owner", Type: stmt.Text}, {Name: "incarnation", Type: stmt.Blob}, {Name: "sequence", Type: stmt.Integer}}})
+ WHERE id=? AND evidence_id=? AND generation=? AND content_revision=? AND cursor=? AND materialized_rows=cursor AND expected_rows=cursor AND materialized_charge=?`,
+		Params: []stmt.Param{{Name: "proof_bytes_charge", Type: stmt.Integer}, {Name: "manifest", Type: stmt.Text}, {Name: "build", Type: stmt.Text}, {Name: "evidence", Type: stmt.Text}, {Name: "generation", Type: stmt.Integer}, {Name: "revision", Type: stmt.Integer}, {Name: "cursor", Type: stmt.Integer}, {Name: "old_charge", Type: stmt.Integer}}})
 	for i := range defs {
 		switch defs[i].ID {
 		case evidenceSealReceiptInsert, evidenceSealBodyAttach:
@@ -150,7 +153,7 @@ func enrichmentSealReceiptDefinitions() []stmt.Definition {
 		}
 		defs[i].Cohorts = []stmt.Cohort{{Name: "missing_owner_shape", Bindings: args}}
 	}
-	return defs
+	return enrichmentStagePlanHints(defs)
 }
 
 // Same-turn OLD->NEW native CONTENT Q exactly once. The build charge is a
@@ -163,7 +166,15 @@ func accountEvidenceSealReference(ctx context.Context, turn *commandTurn, scope 
 	if !scope.valid() || facts.revision != root.revision+1 || facts.next != root.rows || oldCharge < 512 || providerCharge < oldCharge || oldCharge > int64(evidenceStageMaximumCharge)-delta || providerCharge > 9223372036854775807-delta || providerOther < 1 || m.algorithm != normalizedEvidenceAlgorithm || m.rows != root.rows {
 		return ErrInvalid
 	}
-	if err := execSealOne(ctx, turn, evidenceSealBuildFinalize, delta, hex.EncodeToString(m.commitment[:]), root.buildID, root.evidenceID, root.buildGeneration, facts.revision, facts.next, oldCharge, scope.ownerID, scope.identity.Incarnation[:], scope.identity.Sequence); err != nil {
+	proof, err := readStageEvidenceProof(ctx, turn, root.evidenceID)
+	if err != nil {
+		return err
+	}
+	if proof.sealed != 1 || !proof.owner.Valid || proof.owner.String != scope.ownerID || !bytes.Equal(proof.inc, scope.identity.Incarnation[:]) || proof.sequence != scope.identity.Sequence {
+		return ErrConflict
+	}
+
+	if err := execSealOne(ctx, turn, evidenceSealBuildFinalize, delta, hex.EncodeToString(m.commitment[:]), root.buildID, root.evidenceID, root.buildGeneration, facts.revision, facts.next, oldCharge); err != nil {
 		return err
 	}
 	if err := execSealOne(ctx, turn, evidenceStageAccountingDelta, delta, root.evidenceID, oldCharge); err != nil {
@@ -189,12 +200,25 @@ func writeEvidenceSealReceipt(ctx context.Context, turn *commandTurn, scope seal
 	if !validSealReceipt(scope, facts, c, normalizedEvidenceAlgorithm) || facts.revision != root.revision+1 || facts.next != root.rows || root.rows < 1 || c.header.ID != root.evidenceID || c.header.SubjectID != root.subjectID || c.header.ParserVersion != root.parser {
 		return ErrInvalid
 	}
+	build, err := readStageBuild(ctx, turn, root.buildID)
+	if err != nil {
+		return err
+	}
+	currentRoot := root
+	currentRoot.revision = facts.revision
+	if !build.matches(scope, currentRoot) || build.cursor != facts.next || build.rows != facts.next || build.declared != hex.EncodeToString(c.manifest.commitment[:]) {
+		return ErrConflict
+	}
+
 	args := append(sealReceiptValues(scope, facts, c, result), root.buildID, root.buildGeneration)
-	args = append(args, scope.values()...)
+	if _, _, err := observeSealOwner(ctx, turn, scope); err != nil {
+		return err
+	}
+	args = append(args, "evidence_seal", int64(0), int64(1))
 	if err := execSealOne(ctx, turn, evidenceSealReceiptInsert, args...); err != nil {
 		return err
 	}
-	return execSealOne(ctx, turn, evidenceSealBodyAttach, scope.ownerID, scope.identity.Incarnation[:], scope.identity.Sequence, root.evidenceID, root.subjectID, root.parser, scope.ownerID, scope.identity.Incarnation[:], scope.identity.Sequence, facts.revision)
+	return execSealOne(ctx, turn, evidenceSealBodyAttach, scope.ownerID, scope.identity.Incarnation[:], scope.identity.Sequence, root.evidenceID, root.subjectID, root.parser)
 }
 
 func writeSourceSealReceipt(ctx context.Context, turn *commandTurn, scope sealOwnerScope, root sourceSealRoot, facts sealMutationFacts, c sealReceiptContent, result ResultDigest, upstreamProofRevision, upstreamPins int64) (err error) {
@@ -206,12 +230,15 @@ func writeSourceSealReceipt(ctx context.Context, turn *commandTurn, scope sealOw
 	current := scope
 	current.sourceRevision = facts.revision
 	args := append(sealReceiptValues(scope, facts, c, result), root.publicationID, root.upstreamOwner, root.upstreamIncarnation[:], root.upstreamSequence)
-	args = append(args, current.values()...)
+	if _, _, err := observeSealOwner(ctx, turn, current); err != nil {
+		return err
+	}
+	args = append(args, "credit_source_seal", int64(0), int64(1))
 	if err := execSealOne(ctx, turn, sourceSealReceiptInsert, args...); err != nil {
 		return err
 	}
 	if err := execSealOne(ctx, turn, sourceSealUpstreamPin, root.upstreamOwner, root.upstreamIncarnation[:], root.upstreamSequence, root.evidenceID, root.subjectID, root.parser, upstreamProofRevision, upstreamPins); err != nil {
 		return err
 	}
-	return execSealOne(ctx, turn, sourceSealBodyAttach, scope.ownerID, scope.identity.Incarnation[:], scope.identity.Sequence, root.publicationID, scope.entityID, scope.provider, root.expected, scope.ownerID, scope.identity.Incarnation[:], scope.identity.Sequence, facts.revision)
+	return execSealOne(ctx, turn, sourceSealBodyAttach, scope.ownerID, scope.identity.Incarnation[:], scope.identity.Sequence, root.publicationID, scope.entityID, scope.provider, root.expected)
 }

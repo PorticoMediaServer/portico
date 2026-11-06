@@ -41,11 +41,6 @@ func evidenceProducerFixture(t *testing.T) (*executor, sealOwnerScope, EvidenceS
 }
 func evidenceProducerDefinitions() []stmt.Definition {
 	var defs []stmt.Definition
-	for _, d := range enrichmentEvidenceDefinitions() {
-		if d.ID == enrichmentEvidenceInsert {
-			defs = append(defs, d)
-		}
-	}
 	defs = append(defs, enrichmentEvidencePinDefinitions()...)
 	defs = append(defs, enrichmentEvidenceStageEffectDefinitions()...)
 	defs = append(defs, enrichmentSealAdvanceDefinitions()...)

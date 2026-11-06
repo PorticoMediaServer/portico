@@ -19,7 +19,7 @@ func TestEvidenceSealCASRequiresCompletePrefixAndNoCandidates(t *testing.T) {
 			root := evidenceSealRoot{buildID: "build-original:211", evidenceID: "evidence-original:197", parser: "fixture-parser", buildGeneration: 47, revision: 1, subjectID: 193, rows: 3}
 			got, err := advanceEvidenceSeal(t.Context(), turn, scope, root)
 			if candidate {
-				if !errors.Is(err, ErrConflict) || got != (sealMutationFacts{}) {
+				if !errors.Is(err, ErrBusy) || got != (sealMutationFacts{}) {
 					t.Fatal("unretired candidates sealed", got, err)
 				}
 				return
