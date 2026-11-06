@@ -120,6 +120,13 @@ Following members are recognized through balanced annotations, use-site groups
 and [Kotlin declaration modifiers](https://kotlinlang.org/spec/syntax-and-grammar.html).
 Those prefixes stay outside the preceding function span. Incomplete annotation
 groups and anonymous-function infix operands remain unbound.
+Kotlin boundaries require a real function name after a receiver. Only lexical
+newlines outside comments and literals can separate a following declaration;
+comment newlines cannot terminate a policy-bearing continuation. Unicode letter
+identifiers and backtick names follow the same declaration check. Nested string
+interpolation, raw-string closing quotes and nested comments retain their full
+source ranges. Compiling native-test fixtures cover those boundaries and their
+URL-policy mutations; the Python model tests read the same fixture source.
 
 The initial slice inventory is in [client-api-slices.md](client-api-slices.md).
 Each slice migrates every surface for its domain, keeps the wire and behavior,

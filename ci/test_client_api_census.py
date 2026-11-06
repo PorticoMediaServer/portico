@@ -260,7 +260,8 @@ async fn load<'a>(client: {binding}, url: &str) {{
             self.assertEqual(len(expected),1);self.assertIsNotNone(expected[0][1])
             for member in ['private const val VERSION = 1', 'val unrelated = "x"',
                            'var unrelated = 1', '@Suppress("unused")\n internal fun helper() = 1',
-                           '@Marker\n class Other', 'object Other {}']:
+                           '@Marker\n class Other', 'object Other {}',
+                           'internal fun élève() = 1', '@Étiquette\n internal fun unrelated() = 1']:
                 other=member.replace('VERSION','AFTER_VERSION').replace('unrelated','other').replace('helper','helperAfter').replace('Other','OtherAfter')
                 for before,after in [(member,''),('',member),(member,other)]:
                     with self.subTest(member=member,before=bool(before),after=bool(after)):
@@ -273,6 +274,82 @@ async fn load<'a>(client: {binding}, url: &str) {{
             for changed in [before,after,both]:
                 self.assertNotEqual(changed,actual)
                 self.assertEqual(identities(actual_path,changed),expected)
+            for member in ['internal fun élève() = 1', '@Étiquette\n  internal fun unrelated() = 1']:
+                before=actual.replace('  private fun wireRequest','  '+member+'\n  private fun wireRequest',1)
+                after=actual.replace('  internal fun bulkMetadataPreview','  '+member+'\n  internal fun bulkMetadataPreview',1)
+                for changed in [before,after]:self.assertEqual(identities(actual_path,changed),expected)
+
+    def test_kotlin_compiling_continuations_never_bind_a_try_prefix(self):
+        import hashlib,re
+        fixture=ROOT/'apps/native/android/app/src/test/java/tv/getportico/portico/census/ClientApiSpanFixtures.kt'
+        pieces=re.split(r'// CASE ([\w-]+)\n',fixture.read_text())
+        cases=dict(zip(pieces[1::2],pieces[2::2]))
+        for name in ['anonymous-nullable','anonymous-parenthesized','anonymous-generic','unicode-infix','postfix','elvis','operator','cast']:
+            for replacement in ['url(other)','url(url)']:
+                with self.subTest(case=name,policy=replacement):
+                    original=cases[name];relay=original.index('fun relay(')
+                    suffix=original[relay:].replace('url(other)',replacement)
+                    if name=='operator' and replacement=='url(url)':suffix=suffix.replace('+ other','+ url')
+                    source=original[:relay]+suffix
+                    sites=native_sites('apps/native/Relay.kt',source)
+                    self.assertTrue(sites)
+                    self.assertTrue(all(s['constructionHash'] is None for s in sites),sites)
+                    with tempfile.TemporaryDirectory() as folder:
+                        root=Path(folder);path='apps/native/Relay.kt';at=root/path;at.parent.mkdir(parents=True);at.write_text(source)
+                        first=scan(root,[path])[0];key=first['id']
+                        start=source.index('fun relay(');end=source.index('} catch (e: IOException) { null }',start)+len('} catch (e: IOException) { null }')
+                        partial=hashlib.sha256(source[start:end].encode()).hexdigest()
+                        pin={'category':'platform-url','reason':'No partial policy','sites':[key],
+                             'guardHashes':{key:partial},'guardSpans':{key:'native-function'},
+                             'sourceHashes':{key:{path:hashlib.sha256(source.encode()).hexdigest()}}}
+                        with self.assertRaises(ValueError):classify([first],{path:pin},root=root)
+
+    def test_kotlin_unicode_and_named_receiver_siblings_preserve_complete_spans(self):
+        import hashlib,re
+        fixture=ROOT/'apps/native/android/app/src/test/java/tv/getportico/portico/census/ClientApiSpanFixtures.kt'
+        pieces=re.split(r'// CASE ([\w-]+)\n',fixture.read_text());cases=dict(zip(pieces[1::2],pieces[2::2]))
+        for name in ['unicode-function','unicode-annotation','named-receivers','literal-trivia']:
+            with self.subTest(case=name):
+                source=cases[name];start=source.index('fun relay(');end=source.index('} catch (e: IOException) { null }',start)+len('} catch (e: IOException) { null }')
+                expected=hashlib.sha256(source[start:end].encode()).hexdigest()
+                sites=native_sites('apps/native/Relay.kt',source)
+                self.assertEqual(len(sites),1)
+                self.assertEqual(sites[0]['constructionHash'],expected)
+        # Every compiled named/Unicode receiver is also checked as the first
+        # sibling. A later accepted member must not hide an unsupported header.
+        source=cases['named-receivers'];start=source.index('fun relay(');end=source.index('} catch (e: IOException) { null }',start)+len('} catch (e: IOException) { null }')
+        relay=source[start:end];expected=hashlib.sha256(relay.encode()).hexdigest()
+        for member in source[end:].splitlines():
+            if 'fun ' not in member:continue
+            with self.subTest(first_sibling=member):
+                sites=native_sites('apps/native/Relay.kt',relay+'\n'+member)
+                self.assertEqual(len(sites),1);self.assertEqual(sites[0]['constructionHash'],expected)
+        path='apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt'
+        actual=(ROOT/path).read_text();original=native_sites(path,actual)
+        for prefix in ['internal fun élève() = 1\n  ', '@Étiquette\n  internal fun unrelated() = 1\n  ']:
+            source=actual.replace('internal fun bulkMetadataPreview',prefix+'internal fun bulkMetadataPreview',1)
+            self.assertNotEqual(source,actual)
+            self.assertEqual([{k:v for k,v in s.items() if k!='line'} for s in native_sites(path,source)],
+                             [{k:v for k,v in s.items() if k!='line'} for s in original])
+
+    def test_kotlin_statement_breaks_exclude_comments_and_literal_payloads(self):
+        import hashlib
+        source='fun relay(url: HttpUrl): Request? = try { Request.Builder().url(url).build() } catch (e: Exception) { null }'
+        expected=hashlib.sha256(source.encode()).hexdigest();named='inline fun Request?.named(): Request? = this'
+        anonymous='inline fun Request?.(): Request? = this'
+        for gap in [' ', ' /*\n*/ ', ' /*\r\n*/ ', ' /* outer\n/* nested */ */ ', ' /* ;\n */ ']:
+            for tail in [named,anonymous]:
+                with self.subTest(gap=gap,tail=tail):
+                    self.assertIsNone(native_sites('apps/native/Relay.kt',source+gap+tail)[0]['constructionHash'])
+        for gap in ['\n','\r\n',' /* hidden\n */\n','\n/* hidden\n*/ ',' // line comment\n']:
+            with self.subTest(gap=gap):
+                self.assertEqual(native_sites('apps/native/Relay.kt',source+gap+named)[0]['constructionHash'],expected)
+                self.assertIsNone(native_sites('apps/native/Relay.kt',source+gap+anonymous)[0]['constructionHash'])
+        for tail in [' /*\n', ' /* nested /*\n */', ' "unfinished', ' """unfinished', ' `unfinished',
+                     '\nfun Request?.()', '\nfun (Request?).()', '\nfun List<Request?>.()',
+                     '\nfun ((Request?) -> Request?).()']:
+            with self.subTest(tail=tail):
+                self.assertIsNone(native_sites('apps/native/Relay.kt',source+tail)[0]['constructionHash'])
 
     def test_transport_rehash_budget_is_shared_with_retained_and_split_pins(self):
         def approval(guard,**extra):return dict(category='platform-transport',guardHash=guard,occurrences=1,**extra)
