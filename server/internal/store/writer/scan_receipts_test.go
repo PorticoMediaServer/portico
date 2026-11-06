@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"database/sql"
 	"errors"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -32,15 +31,7 @@ func TestScanReceiptDefinitionsNativeCompile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w, err := newEmptyExecutor(t.Context(), filepath.Join(t.TempDir(), "scan-receipts.sqlite"), 1024)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if err := w.close(); err != nil {
-			t.Error(err)
-		}
-	})
+	w, _ := testCanonicalExecutor(t)
 	conn, err := w.db.Conn(t.Context())
 	if err != nil {
 		t.Fatal(err)
