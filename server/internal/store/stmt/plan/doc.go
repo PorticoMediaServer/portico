@@ -11,6 +11,11 @@
 // AS aliases and per-table INDEXED BY/NOT INDEXED. Every join requires ON with
 // ANDed column=column/parameter/integer points only. Comma/bare/NATURAL/RIGHT/
 // FULL joins, USING and grouped/table-function sources remain unsupported.
+// Joined factors require AS aliases; joined identifiers must be unquoted and
+// sources unqualified. All SELECT sources must resolve to ordinary MAIN base
+// tables. LintSQLOn performs this live check (including TEMP shadow rejection);
+// Capture always invokes it. SQL-only LintSQL cannot certify catalog identity.
+// Views, virtual/shadow tables and unresolved sources grant no qualification.
 // INSERT accepts one explicit column/parameter VALUES row, optional named
 // ON CONFLICT(columns) DO NOTHING/DO UPDATE SET column=excluded.column|?,
 // and plain-column RETURNING. UPDATE requires SET and WHERE, DELETE requires

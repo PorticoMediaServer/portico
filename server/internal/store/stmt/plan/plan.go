@@ -86,7 +86,7 @@ func Capture(ctx context.Context, conn *sql.Conn, registry *stmt.Registry, fixtu
 		if err := policy.CheckPredicates(entry.Definition, env.Schema); err != nil {
 			return g, err
 		}
-		if err := checkSyntax(entry.Definition); err != nil {
+		if err := checkSyntaxOn(ctx, conn, entry.Definition); err != nil {
 			return g, err
 		}
 		shape, err := dmlSQL(entry.SQL)
@@ -175,7 +175,15 @@ func checkBase(d stmt.Definition, eqp Rows) error {
 }
 
 func checkSyntax(d stmt.Definition) error {
-	for _, issue := range LintSQL(d.SQL) {
+	return checkSyntaxIssues(d, LintSQL(d.SQL))
+}
+
+func checkSyntaxOn(ctx context.Context, conn *sql.Conn, d stmt.Definition) error {
+	return checkSyntaxIssues(d, LintSQLOn(ctx, conn, d.SQL))
+}
+
+func checkSyntaxIssues(d stmt.Definition, issues []LintIssue) error {
+	for _, issue := range issues {
 		return fmt.Errorf("plan %s: unapproved SQL lint %s: %s", d.ID, issue.Form, issue.Detail)
 	}
 	if index := forcedAutoindex(d.SQL); index != "" {
