@@ -29,7 +29,17 @@ REQUIRED = {
 
 
 def command(args, timeout=180):
-    subprocess.run(args, check=True, timeout=timeout)
+    process = subprocess.Popen(args, start_new_session=True)
+    try:
+        returncode = process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        # apt runs as root under sudo; kill its whole group, not just sudo.
+        subprocess.run(['sudo', 'kill', '-KILL', '--', '-' + str(process.pid)],
+                       check=True, timeout=30)
+        process.wait(timeout=30)
+        raise
+    if returncode:
+        raise subprocess.CalledProcessError(returncode, args)
 
 
 def setup():
@@ -41,8 +51,10 @@ def setup():
         raise ValueError('sandbox setup requires a disposable GitHub-hosted Linux runner')
     for attempt in range(2):
         try:
-            command(['sudo', 'apt-get', '-o', 'Acquire::Retries=3', 'update'], timeout=300)
-            command(['sudo', 'apt-get', '-o', 'Acquire::Retries=3', 'install', '-y',
+            command(['sudo', 'apt-get', '-o', 'Acquire::Retries=3',
+                     '-o', 'DPkg::Lock::Timeout=60', 'update'], timeout=300)
+            command(['sudo', 'apt-get', '-o', 'Acquire::Retries=3',
+                     '-o', 'DPkg::Lock::Timeout=60', 'install', '-y',
                      '--no-install-recommends', 'bubblewrap', 'ffmpeg'], timeout=600)
             break
         except (subprocess.TimeoutExpired, subprocess.CalledProcessError):

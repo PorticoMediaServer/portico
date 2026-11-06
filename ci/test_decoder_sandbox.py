@@ -1,7 +1,7 @@
 from pathlib import Path
 import subprocess
 import unittest
-from unittest.mock import call, patch
+from unittest.mock import Mock, call, patch
 
 from run import aggregate
 import decoder_sandbox as sandbox
@@ -40,29 +40,77 @@ class DecoderSandboxTests(unittest.TestCase):
             sandbox.verify(events + [extra, dict(extra, Action='fail')], 0)
 
     def test_setup_refuses_non_hosted_machines_before_any_command(self):
-        with patch.dict('os.environ', {}, clear=True), patch.object(sandbox, 'command') as command:
-            with self.assertRaises(ValueError):
-                sandbox.setup()
-            command.assert_not_called()
+        hosted = {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted', 'RUNNER_OS': 'Linux'}
+        environments = [{}, dict(hosted, GITHUB_ACTIONS='false'),
+                        dict(hosted, RUNNER_ENVIRONMENT='self-hosted'), dict(hosted, RUNNER_OS='macOS')]
+        for env in environments:
+            with self.subTest(env=env), patch.dict('os.environ', env, clear=True), \
+                 patch.object(sandbox, 'command') as command:
+                with self.assertRaises(ValueError):
+                    sandbox.setup()
+                command.assert_not_called()
+
+    def test_command_starts_an_isolated_group_and_checks_exit_status(self):
+        args = ['sudo', 'apt-get', 'update']
+        for returncode in [0, 100]:
+            with self.subTest(returncode=returncode), \
+                 patch.object(sandbox.subprocess, 'Popen') as popen, \
+                 patch.object(sandbox.subprocess, 'run') as kill:
+                process = popen.return_value
+                process.wait.return_value = returncode
+                if returncode:
+                    with self.assertRaises(subprocess.CalledProcessError) as raised:
+                        sandbox.command(args, timeout=300)
+                    self.assertEqual(raised.exception.returncode, returncode)
+                    self.assertEqual(raised.exception.cmd, args)
+                else:
+                    sandbox.command(args, timeout=300)
+                popen.assert_called_once_with(args, start_new_session=True)
+                process.wait.assert_called_once_with(timeout=300)
+                kill.assert_not_called()
+
+    def test_command_kills_privileged_group_and_waits_before_propagating_timeout(self):
+        args = ['sudo', 'apt-get', 'install', 'bubblewrap', 'ffmpeg']
+        error = subprocess.TimeoutExpired(args, 600)
+        with patch.object(sandbox.subprocess, 'Popen') as popen, \
+             patch.object(sandbox.subprocess, 'run') as kill:
+            process = popen.return_value
+            process.pid = 2798
+            process.wait.side_effect = [error, -9]
+            events = Mock()
+            events.attach_mock(process.wait, 'wait')
+            events.attach_mock(kill, 'kill')
+            with self.assertRaises(subprocess.TimeoutExpired) as raised:
+                sandbox.command(args, timeout=600)
+            self.assertIs(raised.exception, error)
+            popen.assert_called_once_with(args, start_new_session=True)
+            self.assertEqual(events.mock_calls, [
+                call.wait(timeout=600),
+                call.kill(['sudo', 'kill', '-KILL', '--', '-2798'], check=True, timeout=30),
+                call.wait(timeout=30),
+            ])
 
     def test_setup_retries_apt_sequence_with_apt_timeouts(self):
-        update = call(['sudo', 'apt-get', '-o', 'Acquire::Retries=3', 'update'],
-                      check=True, timeout=300)
-        install = call(['sudo', 'apt-get', '-o', 'Acquire::Retries=3', 'install', '-y',
-                        '--no-install-recommends', 'bubblewrap', 'ffmpeg'], check=True, timeout=600)
-        checks = [call(['sudo', 'sysctl', '-w', setting], check=True, timeout=180) for setting in
+        update = call(['sudo', 'apt-get', '-o', 'Acquire::Retries=3',
+                       '-o', 'DPkg::Lock::Timeout=60', 'update'],
+                      timeout=300)
+        install = call(['sudo', 'apt-get', '-o', 'Acquire::Retries=3',
+                        '-o', 'DPkg::Lock::Timeout=60', 'install', '-y',
+                        '--no-install-recommends', 'bubblewrap', 'ffmpeg'], timeout=600)
+        checks = [call(['sudo', 'sysctl', '-w', setting]) for setting in
                   ['kernel.apparmor_restrict_unprivileged_userns=0', 'kernel.unprivileged_userns_clone=1']]
         checks.append(call(['bwrap', '--unshare-all', '--die-with-parent', '--ro-bind', '/', '/',
-                            '--proc', '/proc', '--dev', '/dev', '--cap-drop', 'ALL', '/bin/true'],
-                           check=True, timeout=180))
+                            '--proc', '/proc', '--dev', '/dev', '--cap-drop', 'ALL', '/bin/true']))
         env = {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted', 'RUNNER_OS': 'Linux'}
         for error in [subprocess.TimeoutExpired('apt-get', 300),
-                      subprocess.CalledProcessError(1, 'apt-get')]:
+                      subprocess.TimeoutExpired('apt-get', 600),
+                      subprocess.CalledProcessError(1, 'apt-get'),
+                      subprocess.CalledProcessError(100, 'apt-get')]:
             for failed_step in [0, 1]:
                 with self.subTest(error=type(error).__name__, failed_step=failed_step), \
                      patch.dict('os.environ', env, clear=True), \
                      patch.object(Path, 'exists', return_value=True), \
-                     patch.object(sandbox.subprocess, 'run',
+                     patch.object(sandbox, 'command',
                                   side_effect=[None] * failed_step + [error] + [None] * 5) as run, \
                      patch.object(sandbox.time, 'sleep') as sleep:
                     sandbox.setup()
@@ -73,7 +121,8 @@ class DecoderSandboxTests(unittest.TestCase):
     def test_setup_stops_after_one_retry_and_does_not_retry_other_failures(self):
         env = {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted', 'RUNNER_OS': 'Linux'}
         for error in [subprocess.TimeoutExpired('setup', 180),
-                      subprocess.CalledProcessError(1, 'setup'), OSError('setup failed')]:
+                      subprocess.CalledProcessError(1, 'setup'),
+                      subprocess.CalledProcessError(100, 'apt-get'), OSError('setup failed')]:
             for failed_step in range(5):
                 retry = failed_step < 2 and not isinstance(error, OSError)
                 # A second failure must propagate, even when the first was retried.
@@ -81,7 +130,7 @@ class DecoderSandboxTests(unittest.TestCase):
                 with self.subTest(error=type(error).__name__, failed_step=failed_step), \
                      patch.dict('os.environ', env, clear=True), \
                      patch.object(Path, 'exists', return_value=True), \
-                     patch.object(sandbox.subprocess, 'run', side_effect=effects) as run, \
+                     patch.object(sandbox, 'command', side_effect=effects) as run, \
                      patch.object(sandbox.time, 'sleep') as sleep:
                     with self.assertRaises(type(error)):
                         sandbox.setup()
