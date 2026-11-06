@@ -107,9 +107,8 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	}
 	client := storage.New(binary)
 	scope := storage.NewOperationScope()
-	client.SourceOperations = scope
 	start := time.Now()
-	r.Counts, err = scan.WalkInventory(ctx, client, "schema-v1-scanbench", *root, 256<<10, func(_ context.Context, _ scan.InventoryTurn) error { return nil })
+	r.Counts, err = scan.WalkInventory(ctx, client, scope, "schema-v1-scanbench", []byte(*root), 256<<10, func(_ context.Context, _ scan.InventoryTurn) error { return nil })
 	// Cancellation is not physical retirement. Join this owner's exact work,
 	// including failures, before stopping the traversal clock and reporting.
 	scope.Close()
