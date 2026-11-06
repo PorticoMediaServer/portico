@@ -27,6 +27,7 @@ func TestScanbenchTraversalKeepsAvailabilityUnknown(t *testing.T) {
 	if err := run(t.Context(), []string{"-mode", "generate", "-root", root, "-template", template, "-files", "3"}, &out); err != nil {
 		t.Fatal(err)
 	}
+	assertQualificationFalse(t, out.Bytes())
 	var generated struct {
 		Label, Mode string
 		Fixture     struct{ Files int }
@@ -38,6 +39,7 @@ func TestScanbenchTraversalKeepsAvailabilityUnknown(t *testing.T) {
 	if err := run(t.Context(), []string{"-root", root, "-source-sha", strings.Repeat("a", 40)}, &out); err != nil {
 		t.Fatal(err)
 	}
+	assertQualificationFalse(t, out.Bytes())
 	var r report
 	if err := json.Unmarshal(out.Bytes(), &r); err != nil {
 		t.Fatal(err)
@@ -52,11 +54,24 @@ func TestScanbenchTraversalKeepsAvailabilityUnknown(t *testing.T) {
 	if err := run(ctx, []string{"-root", root, "-source-sha", strings.Repeat("a", 40)}, &out); err == nil {
 		t.Fatal("canceled traversal succeeded")
 	}
+	assertQualificationFalse(t, out.Bytes())
 	if err := json.Unmarshal(out.Bytes(), &r); err != nil {
 		t.Fatal(err)
 	}
 	if r.TraversalCompleted || r.Error == "" || r.BasicNS != nil || r.FilenameVisibleNS != nil {
 		t.Fatal("canceled scan reported completion")
+	}
+}
+
+func assertQualificationFalse(t *testing.T, raw []byte) {
+	t.Helper()
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		t.Fatal(err)
+	}
+	value, present := fields["qualification"]
+	if !present || !bytes.Equal(value, []byte("false")) {
+		t.Fatal("qualification must be present and false", string(raw))
 	}
 }
 
