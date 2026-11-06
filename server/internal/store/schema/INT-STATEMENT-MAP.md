@@ -501,3 +501,26 @@ FIRST code is only filename_unrepresentable and cursor tag only local_getdents64
 Rows are sought through existing directory PK and receipt PK. Model goldens are in INT-CHANGE-003-CONTROLS/RESULTS; all actual FK plans are separately retained. Full production registration/policy/source/capability/cursor/isolation proof and crash/physical qualification remain W/SC/HN/QL gates.
 
 R-26/R-27/R-28 are FIRST-EXECUTION gates: expose truthful permission-scoped diagnostics; bound diagnostic/receipt bytes, retained-run debt and complete indexed cleanup before owner deletion; protection must use native bytes or a validated reason-specific inverse codec, never escaped display as native identity. No cascade drain, silent truncation or ACK-away of the only protection proof. Full static HN statements and actual W/SC/QL qualification are required before enabling Refuse.
+
+
+## CHANGE-005 proposed build custody statements
+
+Not adopted or an execution grant. Raw-schema plans are in INT-CHANGE-005-BUNDLED/FK; actual W source/permission/receipt/G forecasts still required. The generation below is the captured operation generation, not the build cursor generation.
+
+```sql
+SELECT evidence_build_id,generation,command_incarnation,last_command_sequence,acknowledged_command_sequence
+FROM metadata_provider_operations WHERE id=:op;
+SELECT evidence_id,owner_operation,owner_incarnation,owner_generation,generation,state,parent_build
+FROM metadata_evidence_builds WHERE id=:build;
+SELECT id,evidence_id,owner_generation,generation,state
+FROM metadata_evidence_builds INDEXED BY metadata_build_root_active
+WHERE owner_operation=:op AND owner_incarnation=:nonce
+AND owner_operation<>'' AND parent_build IS NULL AND state IN('building','ready') LIMIT 1;
+SELECT id FROM metadata_evidence_builds INDEXED BY metadata_build_owner
+WHERE owner_operation=:op AND owner_incarnation=:nonce AND state=:state AND id>:after
+ORDER BY id LIMIT :n;
+SELECT id FROM metadata_evidence_builds INDEXED BY metadata_build_state
+WHERE state=:state AND id>:after ORDER BY id LIMIT :n;
+```
+
+Root lookup repeats its exact predicate. Discovery is finite keyset work, never a startup census or permission to detach/reclaim. Exact source ownership, provider/entity/root identity, current operation generation and lease are rechecked by the fresh typed command after original historical resolution. Neither root uniqueness nor a historical owner FK supplies those predicates. No publisher cursor field is a build-ID carrier.

@@ -10754,6 +10754,8 @@ CREATE TABLE metadata_evidence_builds(
  evidence_id TEXT NOT NULL UNIQUE REFERENCES metadata_evidence(id),
  generation INTEGER NOT NULL CHECK(generation>0),
  owner_operation TEXT NOT NULL,
+ owner_incarnation BLOB CHECK(owner_incarnation IS NULL OR length(owner_incarnation)=16),
+ owner_generation INTEGER CHECK(owner_generation IS NULL OR owner_generation>0),
  parent_build TEXT REFERENCES metadata_evidence_builds(id),
  state TEXT NOT NULL CHECK(state IN('building','ready','aborting','retiring','done')),
  phase TEXT NOT NULL,
@@ -10777,7 +10779,12 @@ CREATE TABLE metadata_evidence_builds(
  CHECK(typeof("expected_shape_digest")IN('null','text')),
  CHECK(typeof("materialized_digest")IN('null','text')),
  CHECK(typeof("materialized_charge")IN('null','integer')),
- CHECK(typeof("expires_at")IN('null','text'))
+ CHECK(typeof("expires_at")IN('null','text')),
+ UNIQUE(id,owner_operation,owner_incarnation),
+ FOREIGN KEY(owner_operation,owner_incarnation) REFERENCES metadata_provider_operations(id,command_incarnation),
+ CHECK((owner_operation='')=(owner_incarnation IS NULL) AND (owner_operation='')=(owner_generation IS NULL)),
+ CHECK(typeof("owner_incarnation")IN('null','blob')),
+ CHECK(typeof("owner_generation")IN('null','integer'))
 );
 
 CREATE TABLE metadata_evidence_aliases(
@@ -11142,6 +11149,7 @@ CREATE TABLE metadata_provider_operations(
  last_command_sequence INTEGER NOT NULL DEFAULT 0 CHECK(last_command_sequence>=0),
  acknowledged_command_sequence INTEGER NOT NULL DEFAULT 0 CHECK(acknowledged_command_sequence>=0),
  credit_image_id INTEGER,
+ evidence_build_id TEXT,
  UNIQUE(provider,id),
  FOREIGN KEY(entity_id,provider,set_subject_kind,set_provider_id,set_id) REFERENCES metadata_publication_sets(entity_id,provider,subject_kind,provider_id,id),
  CHECK((set_id IS NULL)=(set_subject_kind IS NULL) AND (set_id IS NULL)=(set_provider_id IS NULL)),
@@ -11192,7 +11200,9 @@ CREATE TABLE metadata_provider_operations(
  CHECK(typeof("last_command_sequence")IN('null','integer')),
  CHECK(typeof("acknowledged_command_sequence")IN('null','integer')),
  FOREIGN KEY(credit_image_id,entity_id) REFERENCES catalog_credit_images(id,entity_id),
- CHECK(typeof("credit_image_id")IN('null','integer'))
+ CHECK(typeof("credit_image_id")IN('null','integer')),
+ FOREIGN KEY(evidence_build_id,id,command_incarnation) REFERENCES metadata_evidence_builds(id,owner_operation,owner_incarnation),
+ CHECK(typeof("evidence_build_id")IN('null','text'))
 );
 
 CREATE TABLE metadata_operation_subjects(
@@ -14649,3 +14659,7 @@ CREATE TABLE metadata_repair_command_receipts(
  CHECK(typeof("result_count")IN('null','integer')),
  CHECK(typeof("result_digest")IN('null','blob'))
 ) WITHOUT ROWID;
+-- CHANGE-005: root build custody and bounded discovery; proposal only.
+CREATE UNIQUE INDEX metadata_build_root_active ON metadata_evidence_builds(owner_operation,owner_incarnation) WHERE owner_operation<>'' AND parent_build IS NULL AND state IN('building','ready');
+CREATE INDEX metadata_build_owner ON metadata_evidence_builds(owner_operation,owner_incarnation,state,id);
+CREATE INDEX metadata_build_state ON metadata_evidence_builds(state,id);
