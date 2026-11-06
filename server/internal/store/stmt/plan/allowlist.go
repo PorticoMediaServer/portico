@@ -428,19 +428,21 @@ func (p *lintParser) selectStatement() error {
 		}
 	}
 	if p.take("FROM") {
-		if err := p.qualifiedName(); err != nil {
+		if err := p.selectTable(); err != nil {
 			return err
 		}
-		if p.take("AS") {
-			if err := p.name(); err != nil {
+		for p.peek("INNER") || p.peek("LEFT") || p.peek("CROSS") {
+			p.at++
+			if err := p.need("JOIN"); err != nil {
 				return err
 			}
-		}
-		if p.take("INDEXED") {
-			if err := p.need("BY"); err != nil {
+			if err := p.selectTable(); err != nil {
 				return err
 			}
-			if err := p.name(); err != nil {
+			if err := p.need("ON"); err != nil {
+				return err
+			}
+			if err := p.joinPoints(); err != nil {
 				return err
 			}
 		}
@@ -473,4 +475,55 @@ func (p *lintParser) selectStatement() error {
 		p.at++
 	}
 	return nil
+}
+
+// Only named tables, explicit AS aliases and one native index selection are
+// understood. Parenthesized joins, table functions and implicit aliases remain
+// outside the grammar. NOT INDEXED does not grant an EQP scan exception.
+func (p *lintParser) selectTable() error {
+	if err := p.qualifiedName(); err != nil {
+		return err
+	}
+	if p.take("AS") {
+		if err := p.name(); err != nil {
+			return err
+		}
+	}
+	if p.take("INDEXED") {
+		if err := p.need("BY"); err != nil {
+			return err
+		}
+		return p.name()
+	}
+	if p.take("NOT") {
+		return p.need("INDEXED")
+	}
+	return nil
+}
+
+// JOIN ON has a narrower grammar than WHERE: ANDed column=column/parameter/
+// integer points only. It deliberately has no OR, functions, literal strings,
+// range comparisons, NULL tests, grouping or inferred predicate safety.
+func (p *lintParser) joinPoints() error {
+	for {
+		if err := p.qualifiedName(); err != nil {
+			return err
+		}
+		if err := p.need("="); err != nil {
+			return err
+		}
+		switch {
+		case p.at < len(p.tokens) && (p.tokens[p.at].kind == 'p' || p.tokens[p.at].kind == 'n'):
+			p.at++
+		case p.at+1 < len(p.tokens) && (p.peek("+") || p.peek("-")) && p.tokens[p.at+1].kind == 'n':
+			p.at += 2
+		default:
+			if err := p.qualifiedName(); err != nil {
+				return err
+			}
+		}
+		if !p.take("AND") {
+			return nil
+		}
+	}
 }

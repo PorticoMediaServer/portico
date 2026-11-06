@@ -91,6 +91,7 @@ func TestPlanNativeEQPClosedShapes(t *testing.T) {
 		"SEARCH items USING INDEX item_sort (library_id=? AND key>? AND id<?)",
 		"SEARCH items USING COVERING INDEX item_sort (library_id=? AND key>=? AND key<=?)",
 		"SEARCH items USING INTEGER PRIMARY KEY (rowid=?)",
+		"SEARCH child USING COVERING INDEX child_parent (parent_id=?) LEFT-JOIN",
 		"search items using primary key (id=?)",
 	} {
 		if err := plan.CheckEQP(d, row(detail)); err != nil {
@@ -98,24 +99,26 @@ func TestPlanNativeEQPClosedShapes(t *testing.T) {
 		}
 	}
 	for detail, form := range map[string]string{
-		"USING ROWID SEARCH ON TABLE rhs FOR IN-OPERATOR":              "FOR IN-OPERATOR",
-		"USING INDEX rhs_key FOR IN-OPERATOR":                          "FOR IN-OPERATOR",
-		"LIST SUBQUERY 1":                                              "SUBQUERY",
-		"SCALAR SUBQUERY 1":                                            "SUBQUERY",
-		"CORRELATED 1":                                                 "CORRELATED",
-		"BLOOM FILTER ON rhs (id=?)":                                   "BLOOM FILTER",
-		"AUTOMATIC INDEX":                                              "AUTOMATIC INDEX",
-		"SEARCH rhs USING AUTOMATIC PARTIAL COVERING INDEX (id=?)":     "AUTOMATIC INDEX",
-		"USE TEMP B-TREE FOR GROUP BY":                                 "USE TEMP B-TREE",
-		"USE TEMP B-TREE FOR DISTINCT":                                 "USE TEMP B-TREE",
-		"SCAN items USING COVERING INDEX item_sort":                    "SCAN",
-		"SEARCH items USING INTEGER PRIMARY KEY (rowid=?) unexpected":  "UNRECOGNIZED EQP",
-		"SEARCH items USING INDEX item_sort (ANY(kind) AND key=?)":     "UNRECOGNIZED EQP",
-		"SEARCH items USING INDEX item_sort (id=?) (unknown operator)": "UNRECOGNIZED EQP",
-		"SEARCH items USING INDEX item_sort (unknown constraint)":      "UNRECOGNIZED EQP",
-		"SEARCH items USING INDEX item_sort":                           "UNRECOGNIZED EQP",
-		"FUTURE EPHEMERAL OPERATOR rhs":                                "UNRECOGNIZED EQP",
-		"":                                                             "UNRECOGNIZED EQP",
+		"SEARCH child USING INDEX child_parent (parent_id=?) LEFT JOIN":          "UNRECOGNIZED EQP",
+		"SEARCH child USING INDEX child_parent (parent_id=?) LEFT-JOIN trailing": "UNRECOGNIZED EQP",
+		"USING ROWID SEARCH ON TABLE rhs FOR IN-OPERATOR":                        "FOR IN-OPERATOR",
+		"USING INDEX rhs_key FOR IN-OPERATOR":                                    "FOR IN-OPERATOR",
+		"LIST SUBQUERY 1":                                                        "SUBQUERY",
+		"SCALAR SUBQUERY 1":                                                      "SUBQUERY",
+		"CORRELATED 1":                                                           "CORRELATED",
+		"BLOOM FILTER ON rhs (id=?)":                                             "BLOOM FILTER",
+		"AUTOMATIC INDEX":                                                        "AUTOMATIC INDEX",
+		"SEARCH rhs USING AUTOMATIC PARTIAL COVERING INDEX (id=?)":               "AUTOMATIC INDEX",
+		"USE TEMP B-TREE FOR GROUP BY":                                           "USE TEMP B-TREE",
+		"USE TEMP B-TREE FOR DISTINCT":                                           "USE TEMP B-TREE",
+		"SCAN items USING COVERING INDEX item_sort":                              "SCAN",
+		"SEARCH items USING INTEGER PRIMARY KEY (rowid=?) unexpected":            "UNRECOGNIZED EQP",
+		"SEARCH items USING INDEX item_sort (ANY(kind) AND key=?)":               "UNRECOGNIZED EQP",
+		"SEARCH items USING INDEX item_sort (id=?) (unknown operator)":           "UNRECOGNIZED EQP",
+		"SEARCH items USING INDEX item_sort (unknown constraint)":                "UNRECOGNIZED EQP",
+		"SEARCH items USING INDEX item_sort":                                     "UNRECOGNIZED EQP",
+		"FUTURE EPHEMERAL OPERATOR rhs":                                          "UNRECOGNIZED EQP",
+		"":                                                                       "UNRECOGNIZED EQP",
 	} {
 		t.Run(detail, func(t *testing.T) {
 			d := d
