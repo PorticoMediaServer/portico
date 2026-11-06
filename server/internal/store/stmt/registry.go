@@ -9,11 +9,15 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"slices"
 	"sort"
 	"strings"
+
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/internal/qualification"
 )
 
 type ID string
@@ -85,7 +89,14 @@ type Definition struct {
 type Entry struct {
 	Definition
 	SQLSHA256 string `json:"sqlSha256"`
+	qualified bool
 }
+
+// Receipt is an opaque Capture-minted capability. Its implementation and mint
+// are internal; nil/zero values and JSON data cannot authorize registration.
+type Receipt = qualification.Receipt
+
+var ErrUnqualified = errors.New("stmt: executable registration requires a matching Capture receipt")
 
 // Registry is immutable after New; there is no global mutable registration hook.
 type Registry struct{ entries map[ID]*Entry }
@@ -96,10 +107,9 @@ type Bound struct {
 }
 
 // New freezes declarations and typed bindings, not source/plan certification.
-// Plan.Hot is caller metadata, never a qualification result. Owners must qualify
-// the finite registry through the connection-aware plan harness; registration
-// and Bound execution confer no authorization or Capture receipt.
-func New(definitions []Definition) (*Registry, error) {
+// Describe validates and freezes an INERT catalogue for Capture/manifest review.
+// Lookup, binding and execution remain unavailable until New verifies receipts.
+func Describe(definitions []Definition) (*Registry, error) {
 	r := &Registry{entries: make(map[ID]*Entry, len(definitions))}
 	for _, input := range definitions {
 		d := cloneDefinition(input)
@@ -167,9 +177,43 @@ func New(definitions []Definition) (*Registry, error) {
 	}
 	return r, nil
 }
+
+// New creates an executable registry only from exact Capture-qualified
+// definitions. Hot is a declared contract, never a caller-issued capability.
+// Multiple receipts permit finite composition of separately captured variants.
+func New(definitions []Definition, receipts ...Receipt) (*Registry, error) {
+	r, err := Describe(definitions)
+	if err != nil {
+		return nil, err
+	}
+	if len(r.entries) == 0 {
+		return nil, ErrUnqualified
+	}
+	for id, e := range r.entries {
+		data, err := json.Marshal(e.Definition)
+		if err != nil {
+			return nil, err
+		}
+		allowed := false
+		for _, proof := range receipts {
+			if qualification.Allows(proof, string(id), data) {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			return nil, fmt.Errorf("stmt %q: %w", id, ErrUnqualified)
+		}
+		e.qualified = true
+	}
+	return r, nil
+}
 func (r *Registry) Lookup(id ID) (Statement, error) {
 	if r != nil {
 		if e, ok := r.entries[id]; ok {
+			if !e.qualified {
+				return Statement{}, fmt.Errorf("stmt %q: %w", id, ErrUnqualified)
+			}
 			return Statement{entry: e}, nil
 		}
 	}
@@ -189,13 +233,13 @@ func (r *Registry) Manifest() []Entry {
 	return result
 }
 func (s Statement) Definition() (Definition, error) {
-	if s.entry == nil {
+	if s.entry == nil || !s.entry.qualified {
 		return Definition{}, fmt.Errorf("stmt: unregistered statement")
 	}
 	return cloneDefinition(s.entry.Definition), nil
 }
 func (s Statement) Bind(args ...any) (Bound, error) {
-	if s.entry == nil {
+	if s.entry == nil || !s.entry.qualified {
 		return Bound{}, fmt.Errorf("stmt: unregistered statement")
 	}
 	if err := validate(s.entry.Params, args); err != nil {
@@ -214,7 +258,7 @@ type Queryer interface {
 }
 
 func (b Bound) ExecContext(ctx context.Context, executor Execer) (sql.Result, error) {
-	if b.entry == nil {
+	if b.entry == nil || !b.entry.qualified {
 		return nil, fmt.Errorf("stmt: unbound statement")
 	}
 	if b.entry.Kind == Read {
@@ -226,7 +270,7 @@ func (b Bound) ExecContext(ctx context.Context, executor Execer) (sql.Result, er
 // QueryContext also supports accepting writes with RETURNING; Kind is manifest
 // metadata, not a read authorization boundary. The owner supplies the connection.
 func (b Bound) QueryContext(ctx context.Context, executor Queryer) (*sql.Rows, error) {
-	if b.entry == nil {
+	if b.entry == nil || !b.entry.qualified {
 		return nil, fmt.Errorf("stmt: unbound statement")
 	}
 	return executor.QueryContext(ctx, b.entry.SQL, cloneArgs(b.args)...)
@@ -309,7 +353,7 @@ type Row struct {
 }
 
 func (b Bound) QueryRowContext(ctx context.Context, executor RowQueryer) Row {
-	if b.entry == nil {
+	if b.entry == nil || !b.entry.qualified {
 		return Row{err: fmt.Errorf("stmt: unbound statement")}
 	}
 	return Row{row: executor.QueryRowContext(ctx, b.entry.SQL, cloneArgs(b.args)...)}

@@ -48,7 +48,7 @@ func TestPlanOptimizedINNeedsNativeWaiver(t *testing.T) {
 			if err := plan.CheckEQP(d, eqp); err == nil || !strings.Contains(err.Error(), "forbidden plan FOR IN-OPERATOR") {
 				t.Fatalf("optimized IN native guard failed: %v", err)
 			}
-			r, err := stmt.New([]stmt.Definition{d})
+			r, err := stmt.Describe([]stmt.Definition{d})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -72,7 +72,7 @@ func TestPlanOptimizedINNeedsNativeWaiver(t *testing.T) {
 		for _, name := range []string{"id", "first", "second"}[:len(tc.bindings)] {
 			d.Params = append(d.Params, stmt.Param{Name: name, Type: stmt.Integer})
 		}
-		r, err := stmt.New([]stmt.Definition{d})
+		r, err := stmt.Describe([]stmt.Definition{d})
 		if err != nil {
 			t.Fatal(err)
 		}

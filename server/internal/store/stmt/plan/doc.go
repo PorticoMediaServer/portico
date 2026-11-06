@@ -47,6 +47,15 @@
 // are immutable manifest data for explicit PR approval; the current baseline
 // inventory is empty.
 //
+// Describe freezes an inert catalogue. Only a complete successful Capture
+// mints an opaque production registration receipt bound to the exact frozen
+// definitions, actual native plans and MAIN base-table classification. New
+// requires matching receipts; caller Hot metadata, zero/failed/decoded goldens
+// and connection-free Check confer no execution authority. Receipts qualify the
+// captured immutable schema/policy; private executor/DDL custody and command or
+// principal authorization remain separate. The stmttest fault-fixture adapter
+// refuses ordinary binaries and is forbidden in non-test imports.
+//
 // Each cohort retains the full EXPLAIN VM and exact EQP. Only Transaction's
 // checked schema cookie is replaced with a placeholder, and literal b-tree
 // roots become database-qualified object names from sqlite_schema. All other

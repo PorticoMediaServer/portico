@@ -77,7 +77,7 @@ func TestPlanDMLNativeLookupsAndInsertAudit(t *testing.T) {
 		return d
 	}
 	capture := func(sql string, contract stmt.Plan) (plan.Golden, error) {
-		r, err := stmt.New([]stmt.Definition{makeDef(sql, contract)})
+		r, err := stmt.Describe([]stmt.Definition{makeDef(sql, contract)})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -151,11 +151,11 @@ func TestPlanDMLNativeLookupsAndInsertAudit(t *testing.T) {
 		for _, issue := range plan.LintSQL(sql) {
 			d.Plan.Waivers = append(d.Plan.Waivers, stmt.Waiver{StatementID: d.ID, Stage: "sql-lint", Form: issue.Form, Match: sql, Reason: "Synthetic regression; no destination audit permission"})
 		}
-		if _, err := stmt.New([]stmt.Definition{d}); err == nil {
+		if _, err := stmt.Describe([]stmt.Definition{d}); err == nil {
 			t.Fatal("SQL lint waiver accepted")
 		}
 		d.Plan.Waivers = nil
-		r, err := stmt.New([]stmt.Definition{d})
+		r, err := stmt.Describe([]stmt.Definition{d})
 		if err != nil {
 			t.Fatal(err)
 		}
