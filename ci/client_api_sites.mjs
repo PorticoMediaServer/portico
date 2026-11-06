@@ -25,26 +25,107 @@ function hasRequestWrites(node, extraRoots=[], extraFields=[], containers=[]) {
     K.GreaterThanGreaterThanEqualsToken,K.GreaterThanGreaterThanGreaterThanEqualsToken,
     K.AmpersandEqualsToken,K.BarEqualsToken,K.CaretEqualsToken,K.AmpersandAmpersandEqualsToken,
     K.BarBarEqualsToken,K.QuestionQuestionEqualsToken]);
+  const mutators=new Set(['assign','defineProperty','defineProperties','set','deleteProperty',
+    'setPrototypeOf','preventExtensions','seal','freeze']);
+  const builtins=new Set(['Object','Reflect']), mutatorAliases=new Set();
+  const functions=new Map();
+  // Parentheses, casts, optional members and comma-selected callees do not
+  // change provenance. Names are deliberately over-approximated within this
+  // complete guard, so shadowing cannot grant admission to a possible write.
+  function normalize(n) {
+    while (n) {
+      if ([K.ParenthesizedExpression,K.AsExpression,K.NonNullExpression,K.TypeAssertionExpression,K.SatisfiesExpression].includes(n.kind)) n=n.expression;
+      else if (n.kind===K.BinaryExpression && n.operatorToken.kind===K.CommaToken) n=n.right;
+      else break;
+    }
+    return n;
+  }
+  function member(n) {
+    n=normalize(n);
+    if (n?.kind===K.PropertyAccessExpression) return {receiver:normalize(n.expression),name:n.name.text};
+    if (n?.kind===K.ElementAccessExpression) return {receiver:normalize(n.expression),name:literal(normalize(n.argumentExpression)),computed:true};
+  }
+  function mutator(n) {
+    n=normalize(n);
+    if (n?.kind===K.Identifier && mutatorAliases.has(n.text)) return true;
+    const access=member(n);
+    return access && builtins.has(access.receiver?.text)
+      && (mutators.has(access.name) || access.computed && access.name===undefined);
+  }
   let written=false;
   function target(n, member=false) {
+    n=normalize(n);
     if (!n) return false;
     if (n.kind===K.Identifier) return protectedNames.has(n.text) || !member && containers.includes(n.text);
-    if ([K.ParenthesizedExpression,K.AsExpression,K.NonNullExpression,K.TypeAssertionExpression].includes(n.kind)) return target(n.expression,member);
     if (n.kind===K.PropertyAccessExpression) return protectedFields.has(n.name.text) || target(n.expression,true);
     if (n.kind===K.ElementAccessExpression) return protectedFields.has(literal(n.argumentExpression)) || target(n.expression,true);
     if (n.kind===K.ObjectLiteralExpression) return n.properties.some(p=>target(p.initializer ?? p.name ?? p.expression));
     if (n.kind===K.ArrayLiteralExpression) return n.elements.some(p=>target(p.expression ?? p));
+    if (n.kind===K.SpreadElement || n.kind===K.SpreadAssignment) return target(n.expression);
+    if (n.kind===K.ConditionalExpression) return target(n.whenTrue) || target(n.whenFalse);
     return false;
   }
+  function bind(pattern, names) {
+    if (!pattern) return;
+    if (pattern.kind===K.Identifier) names.add(pattern.text);
+    else if (pattern.kind===K.BindingElement) bind(pattern.name,names);
+    else if ([K.ObjectBindingPattern,K.ArrayBindingPattern].includes(pattern.kind)) pattern.elements.forEach(p=>bind(p,names));
+    else if (pattern.kind===K.ObjectLiteralExpression) pattern.properties.forEach(p=>bind(p.initializer ?? p.name ?? p.expression,names));
+    else if (pattern.kind===K.ArrayLiteralExpression) pattern.elements.forEach(p=>bind(p,names));
+    else if ([K.SpreadElement,K.SpreadAssignment].includes(pattern.kind)) bind(pattern.expression,names);
+    else if (pattern.kind===K.BinaryExpression && pattern.operatorToken.kind===K.EqualsToken) bind(pattern.left,names);
+  }
+  function rememberFunction(n) {
+    if (n.kind===K.FunctionDeclaration && n.name) functions.set(n.name.text,n);
+    if (n.kind===K.VariableDeclaration && [K.ArrowFunction,K.FunctionExpression].includes(normalize(n.initializer)?.kind)) functions.set(n.name?.text,normalize(n.initializer));
+    n.forEachChild(rememberFunction);
+  }
+  rememberFunction(node);
+  // Reach a fixed point before checking writes: declarations, later assignments,
+  // nested/destructured references and local/IIFE parameters can all alias the
+  // actual forwarded parameter, regardless of its spelling or declaration order.
+  function aliases(n) {
+    const declaration=n.kind===K.VariableDeclaration;
+    const assignment=n.kind===K.BinaryExpression && n.operatorToken.kind===K.EqualsToken;
+    const pattern=declaration ? n.name : assignment ? n.left : undefined;
+    const value=normalize(declaration ? n.initializer : assignment ? n.right : undefined);
+    if (pattern && value) {
+      if (target(value)) bind(pattern,protectedNames);
+      if (value.kind===K.Identifier && builtins.has(value.text)) {
+        if (pattern.kind===K.Identifier) builtins.add(pattern.text);
+        if (pattern.kind===K.ObjectBindingPattern) for (const element of pattern.elements)
+          if (mutators.has(element.propertyName?.text ?? element.name?.text)) bind(element.name,mutatorAliases);
+      }
+      if (mutator(value)) bind(pattern,mutatorAliases);
+    }
+    if (n.kind===K.CallExpression) {
+      const callee=normalize(n.expression);
+      const fn=[K.ArrowFunction,K.FunctionExpression].includes(callee?.kind) ? callee : functions.get(callee?.text);
+      fn?.parameters?.forEach((p,i)=>{if (target(n.arguments[i])) bind(p.name,protectedNames);});
+    }
+    n.forEachChild(aliases);
+  }
+  let previous;
+  do {
+    previous=protectedNames.size+builtins.size+mutatorAliases.size;
+    aliases(node);
+  } while (previous!==protectedNames.size+builtins.size+mutatorAliases.size);
   function visit(n) {
     if (n.kind===K.BinaryExpression && assignments.has(n.operatorToken.kind) && target(n.left)) written=true;
     if ([K.PrefixUnaryExpression,K.PostfixUnaryExpression].includes(n.kind)
         && [K.PlusPlusToken,K.MinusMinusToken].includes(n.operator) && target(n.operand)) written=true;
     if (n.kind===K.DeleteExpression && target(n.expression)) written=true;
     if ([K.ForOfStatement,K.ForInStatement].includes(n.kind) && target(n.initializer)) written=true;
-    if (n.kind===K.CallExpression && n.expression.kind===K.PropertyAccessExpression
-        && ['assign','defineProperty','defineProperties','set','deleteProperty'].includes(n.expression.name.text)
-        && ['Object','Reflect'].includes(n.expression.expression?.text) && target(n.arguments[0])) written=true;
+    if (n.kind===K.CallExpression) {
+      const access=member(n.expression);
+      if (mutator(n.expression) && target(n.arguments[0])) written=true;
+      if (access && mutator(access.receiver)) {
+        if (access.name==='call' && target(n.arguments[1])) written=true;
+        if (access.name==='apply' && target(n.arguments[1])) written=true;
+      }
+      if (access && ['push','pop','shift','unshift','splice','sort','reverse','copyWithin','fill','set','add','delete','clear'].includes(access.name)
+          && target(access.receiver)) written=true;
+    }
     n.forEachChild(visit);
   }
   visit(node);return written;
@@ -210,7 +291,8 @@ try {
       if (callName==='requestBounded' && args.length===3 && sameNames(['path','maxBytes']) && ['path','maxBytes'].every(parameter)) forwardingShape='bounded';
       if (callName==='routeFetch' && args.length===2 && args[0]?.kind===K.Identifier && parameter(args[0].text) && signalOptions(args[1])) forwardingShape='fetch-signal-options';
       if (callName==='send' && args.length===1 && (args[0]?.kind===K.Identifier && parameter(args[0].text) || signalOptions(args[0]))) forwardingShape='request-object';
-      if (callName==='send' && args.length===1 && conditionalSignalCopy(args[0]) && !hasRequestWrites(guard ?? contract ?? c)) forwardingShape='conditional-signal';
+      if (callName==='send' && args.length===1 && conditionalSignalCopy(args[0])
+          && !hasRequestWrites(guard ?? contract ?? c,[unchangedRequest(args[0].whenTrue) ? args[0].whenTrue.text : args[0].whenFalse.text])) forwardingShape='conditional-signal';
       if (callName==='farewell' && args.length===3 && sameNames(['path','method','body'])
           && ['path','method','body'].every(parameter) && !hasRequestWrites(guard ?? contract ?? c)) forwardingShape='farewell';
       if (callName==='request' && args.length===4 && args[0]?.kind===K.Identifier && args[0].text==='path' && parameter('path')
