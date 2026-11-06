@@ -2,6 +2,7 @@ package stateownership
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -296,6 +297,9 @@ func TestStateOwnershipOneStoreClaimAndRevokedLifetime(t *testing.T) {
 	if err := borrow.Close(); err != nil {
 		t.Fatal(err)
 	}
+	if !errors.Is(borrow.Lifetime().Err(), context.Canceled) || store.Lifetime().Err() != nil {
+		t.Fatal("borrow release did not isolate its lifetime")
+	}
 	if v, err := l.ClaimStore(); v != nil || !errors.Is(err, ErrBusy) {
 		t.Fatal("unrelated borrower released store claim", v, err)
 	}
@@ -309,14 +313,22 @@ func TestStateOwnershipOneStoreClaimAndRevokedLifetime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	sibling, err := l.Borrow()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := l.Close(); !errors.Is(err, ErrBusy) {
 		t.Fatal(err)
 	}
-	if store.Lifetime().Err() == nil {
-		t.Fatal("closing root did not revoke store lifetime")
+	if !errors.Is(store.Lifetime().Err(), context.Canceled) || !errors.Is(sibling.Lifetime().Err(), context.Canceled) {
+		t.Fatal("closing root did not revoke all borrowed lifetimes")
 	}
 	requireHeld(t, path)
 	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	requireHeld(t, path)
+	if err := sibling.Close(); err != nil {
 		t.Fatal(err)
 	}
 	nativeLock(t, path)

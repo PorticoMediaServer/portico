@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 var (
@@ -38,8 +39,8 @@ type lockState struct {
 	closeErr error
 	fault    error // permanent: restoring the pathname cannot restore authority
 	store    bool
-	lifetime context.Context
-	revoke   context.CancelFunc
+	lifetime *ownershipLifetime
+	holdings map[*holding]struct{}
 }
 
 // Lease retains the native lock through a physical owner. Copies share the
@@ -52,8 +53,43 @@ type holding struct {
 	state    *lockState
 	released bool // protected by state.mu
 	store    bool
-	lifetime context.Context
-	revoke   context.CancelFunc
+	lifetime *ownershipLifetime
+}
+
+// Ownership lifetimes have no deadline or values. Their only transition is
+// native-owner revocation, performed with state.mu held. Explicit channels
+// keep that transition a closed native operation rather than an opaque
+// execution callback; revocation does not debit any physical holding.
+type ownershipLifetime struct{ done chan struct{} }
+
+func newOwnershipLifetime() *ownershipLifetime {
+	return &ownershipLifetime{done: make(chan struct{})}
+}
+func (l *ownershipLifetime) Deadline() (time.Time, bool) { return time.Time{}, false }
+func (l *ownershipLifetime) Done() <-chan struct{}       { return l.done }
+func (l *ownershipLifetime) Value(any) any               { return nil }
+func (l *ownershipLifetime) Err() error {
+	select {
+	case <-l.done:
+		return context.Canceled
+	default:
+		return nil
+	}
+}
+func (l *ownershipLifetime) stop() {
+	select {
+	case <-l.done:
+	default:
+		close(l.done)
+	}
+}
+
+func (s *lockState) revokeLifetimes() {
+	s.lifetime.stop()
+	for h := range s.holdings {
+		h.lifetime.stop()
+	}
+	s.holdings = nil // no new borrow can pass a closing/faulted owner
 }
 
 // Acquire preserves the server's native lock and second-description probe.
@@ -105,7 +141,7 @@ func acquire(path string, locker fileLocker) (*Lock, error) {
 		return nil, errors.Join(err, closeErr, file.Close())
 	}
 	out := &Lock{state: &lockState{file: file, path: path}}
-	out.state.lifetime, out.state.revoke = context.WithCancel(context.Background())
+	out.state.lifetime = newOwnershipLifetime()
 	out.self = out
 	return out, nil
 }
@@ -143,14 +179,18 @@ func (l *Lock) borrow(store bool) (*Lease, error) {
 	if store {
 		s.store = true
 	}
-	lifetime, revoke := context.WithCancel(s.lifetime)
-	return &Lease{holding: &holding{state: s, store: store, lifetime: lifetime, revoke: revoke}}, nil
+	h := &holding{state: s, store: store, lifetime: newOwnershipLifetime()}
+	if s.holdings == nil {
+		s.holdings = make(map[*holding]struct{})
+	}
+	s.holdings[h] = struct{}{}
+	return &Lease{holding: h}, nil
 }
 
 // Lifetime is revoked on closing/released custody or a detected pathname fault;
 // revocation never releases the physical holding. Zero returns no lifetime.
 func (l *Lease) Lifetime() context.Context {
-	if l == nil || l.holding == nil {
+	if l == nil || l.holding == nil || l.holding.lifetime == nil {
 		return nil
 	}
 	return l.holding.lifetime
@@ -202,13 +242,13 @@ func (s *lockState) check() error {
 	held, err := s.file.Stat()
 	if err != nil {
 		s.fault = errors.Join(ErrChanged, err)
-		s.revoke()
+		s.revokeLifetimes()
 		return s.fault
 	}
 	current, err := os.Stat(s.path)
 	if err != nil || !os.SameFile(held, current) {
 		s.fault = errors.Join(ErrChanged, err)
-		s.revoke()
+		s.revokeLifetimes()
 		return s.fault
 	}
 	return nil
@@ -227,7 +267,7 @@ func (l *Lock) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.closing = true
-	s.revoke()
+	s.revokeLifetimes()
 	if s.borrowed != 0 {
 		return ErrBusy
 	}
@@ -251,7 +291,8 @@ func (l *Lease) Close() error {
 		return s.closeErr
 	}
 	h.released = true
-	h.revoke()
+	h.lifetime.stop()
+	delete(s.holdings, h)
 	if h.store {
 		s.store = false
 	}
