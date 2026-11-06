@@ -9,6 +9,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server/internal/hostlimits"
 )
 
 const (
@@ -68,6 +70,17 @@ type Authority struct{ ledger *ledger }
 // New returns separate admission and driver capabilities. No defaults imply a
 // qualified hardware envelope. In particular, zero capacity admits no resource.
 func New(c Config) (Governor, *Authority, error) {
+	var knownLimit int64
+	if c.Foreground != nil {
+		knownLimit = hostlimits.EffectiveMemoryBytes()
+	}
+	return newGovernor(c, knownLimit)
+}
+
+// Pure construction from an explicit source observation; production New owns
+// the hostlimits read. Tests can supply known/unknown limits without changing
+// process/cgroup/runtime settings or introducing a mutable global hook.
+func newGovernor(c Config, knownLimit int64) (Governor, *Authority, error) {
 	if c.Now == nil || c.MaxGrantsPerClass < 1 || c.MaxGrantsPerClass > 4096 {
 		return nil, nil, errors.New("invalid governor configuration")
 	}
@@ -80,7 +93,7 @@ func New(c Config) (Governor, *Authority, error) {
 			total[k] += n
 		}
 	}
-	foreground, err := configureForeground(c)
+	foreground, err := configureForeground(c, knownLimit)
 	if err != nil {
 		return nil, nil, err
 	}
