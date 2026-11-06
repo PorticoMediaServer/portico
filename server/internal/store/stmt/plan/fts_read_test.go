@@ -289,6 +289,8 @@ func TestFTSReadClosedDefinitionsAndSources(t *testing.T) {
 			d.SQL = "SELECT rowid FROM search_own_prefix WHERE search_own_prefix MATCH ? ORDER BY rowid DESC LIMIT ?"
 		}},
 		{"write_kind", func(d *stmt.Definition) { d.Kind = stmt.Write }},
+		{"mixed_insert", func(d *stmt.Definition) { d.Plan.NativeInsert = stmt.SearchFragmentPrefixV1 }},
+		{"mixed_retained", func(d *stmt.Definition) { d.Plan.NativeRetained = stmt.SearchOwnPrefixInsertV1 }},
 		{"nullable_limit", func(d *stmt.Definition) { d.Params = append([]stmt.Param{}, d.Params...); d.Params[1].Nullable = true }},
 		{"waiver", func(d *stmt.Definition) {
 			d.Plan.Waivers = []stmt.Waiver{{StatementID: d.ID, Stage: "eqp", Form: "SCAN", Match: "SCAN search_own_prefix", Reason: "not allowed"}}
