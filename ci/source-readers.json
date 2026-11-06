@@ -43,6 +43,13 @@
       "tests": ["TestPreparationSourcePin"]
     },
     {
+      "package": "server/internal/store/read",
+      "why": "Owner-reverse Capture fixtures and the logical-sibling oracle prepare and hash the search package's exact read-pairing vector",
+      "reads": ["server/internal/store/search/testdata/read-pairing.json"],
+      "files": ["server/internal/store/read/owner_reverse_test.go"],
+      "tests": ["TestOwnerLogicalSiblingReadOracle", "TestOwnerReverseKeysetTraversal", "TestOwnerReversePlans"]
+    },
+    {
       "package": "server/internal/store/internal/searchmanifest",
       "why": "Verifies the shared portable manifest protocol against the unchanged preparation wire vectors and restart traces",
       "reads": ["server/internal/store/search/testdata/manifest-v1.json"],
