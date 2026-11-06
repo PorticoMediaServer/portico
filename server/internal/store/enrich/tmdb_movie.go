@@ -72,11 +72,8 @@ func PrepareTMDBMovie(policy TMDBPolicy, observation TMDBMovieObservation, body 
 	if wire.id <= 0 || strconv.FormatInt(wire.id, 10) != observation.ProviderID || strings.TrimSpace(wire.title) == "" || (wire.runtime != nil && (*wire.runtime < 0 || *wire.runtime > math.MaxInt64/60000)) {
 		return TMDBMovieDocument{}, ErrTMDBMovie
 	}
-	rows := make([]ScreenCredit, count.cast+count.crew)
-	if _, actual, err := readTMDBMovie(frozen, rows, count); err != nil || actual != count {
-		return TMDBMovieDocument{}, ErrTMDBMovie
-	}
-	selected, err := PrepareScreenCredits(ProviderRef{"tmdb", Movie, observation.ProviderID}, rows)
+	candidates := tmdbCreditBuffer{rows: make([]ScreenCredit, count.cast+count.crew)}
+	selected, err := candidates.prepare(ProviderRef{"tmdb", Movie, observation.ProviderID}, frozen, count)
 	if err != nil {
 		return TMDBMovieDocument{}, errors.Join(ErrTMDBMovie, err)
 	}
