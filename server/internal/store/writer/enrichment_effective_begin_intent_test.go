@@ -70,7 +70,9 @@ func TestEffectiveBeginOperationSchemaCaptureCoverage(t *testing.T) {
 		if err := rows.Scan(&cid, &name, &typ, &notNull, &defaultValue, &pk, &hidden); err != nil {
 			t.Fatal(err)
 		}
-		if hidden != 0 {
+		//009 adds exactly this derived type witness. No blanket exemption for
+		// generated columns: each still needs an explicit contract below.
+		if (name == "source_evidence_kind" && hidden != 2) || (hidden != 0 && !(name == "source_evidence_kind" && hidden == 2)) {
 			t.Fatal("unclassified generated operation column", name)
 		}
 		columns = append(columns, name)
@@ -90,11 +92,38 @@ func TestEffectiveBeginOperationSchemaCaptureCoverage(t *testing.T) {
 	// image BEGIN does not change it. The complete physical snapshot also checks
 	// preservation of the other outputs/audit fields.
 	nonInputs := map[string]string{
-		"result_digest":     "prior provider result output",
-		"created_at":        "creation audit",
-		"finished_at":       "completion audit",
-		"reason":            "completion diagnostic",
-		"evidence_build_id": "evidence-header command custody, preserved through source-dependent result ACK; not image-BEGIN authority",
+		"result_digest":                 "prior provider result output",
+		"created_at":                    "creation audit",
+		"finished_at":                   "completion audit",
+		"reason":                        "completion diagnostic",
+		"evidence_build_id":             "evidence-header command custody, preserved through source-dependent result ACK; not image-BEGIN authority",
+		"source_content_revision":       "source stage/seal covering revision, preserved by legacy hidden-BEGINv1; not verified provenance",
+		"source_publication_id":         "actual source builder's exclusive publication pin, never allocated/adopted/detached by legacy BEGINv1",
+		"source_owner_generation":       "source builder's captured native generation, preserved without aliasing image input revisions",
+		"source_evidence_id":            "source builder's exact retained upstream body pin, not consumed as qualified proof by legacy BEGINv1",
+		"source_subject_id":             "source builder's upstream provider-subject identity, preserved with body/proof context",
+		"source_parser_version":         "source builder's upstream representation pin, preserved without inferring namespace authority",
+		"source_next_position":          "durable source-member NEXT cursor, independent from image/content ordinal; preserved",
+		"source_expected_members":       "source builder's declared complete member count, preserved without treating declaration as proof",
+		"source_expected_bytes":         "source builder's declared canonical byte intent, preserved without granting verified bytes",
+		"source_algorithm":              "source builder's exact declared normalized algorithm, not selected or rewritten by image BEGINv1",
+		"source_version":                "source builder's declared normalization version, preserved without version inference",
+		"source_expected_commitment":    "source builder's declared immutable manifest intent, not a verified source capability",
+		"proof_stage_slot":              "actual provider stage reservation, preserved; hidden BEGINv1 does not allocate or refund it",
+		"proof_current_slot":            "actual title/provider current reservation, preserved; no current-slot transfer in hidden BEGINv1",
+		"proof_pin_units":               "actual pinner-pays-full proof units, preserved without a pin/refund or authority claim",
+		"proof_reserved_bytes":          "retained full-closure byte reservation, preserved; no implicit free resource or grant",
+		"proof_retired_bytes":           "discoverable retained cleanup debt, preserved; no status/ACK refund",
+		"source_reclaim_after_position": "source driver's physical cleanup cursor, preserved without foreground drain",
+		"source_remaining_members":      "source driver's actual remaining cleanup rows, preserved without inferred prefix completion",
+		"source_remaining_bytes":        "source driver's actual remaining cleanup bytes, preserved without logical refund",
+		"proof_cleanup_phase":           "actual provider driver's typed cleanup phase, preserved rather than classed as audit",
+		"proof_cleanup_after_sequence":  "provider driver's bounded receipt cleanup cursor, preserved through unresolved history",
+		"proof_reclaim_due_ms":          "provider driver's discoverable cleanup due time, preserved; not expiry-based discharge",
+		"source_evidence_owner":         "exact original upstream E-proof owner pin, preserved; new production request/proof variant remains separate",
+		"source_evidence_incarnation":   "exact upstream E-proof owner lifetime, preserved without current-generation recapture",
+		"source_evidence_sequence":      "exact original upstream E receipt sequence, preserved through private pinned-proof lifetime",
+		"source_evidence_kind":          "generated evidence_seal discriminator from actual pin presence, preserved; not independently supplied authority",
 	}
 	for _, variant := range []string{"null_set", "distinct_set"} {
 		t.Run(variant, func(t *testing.T) {
