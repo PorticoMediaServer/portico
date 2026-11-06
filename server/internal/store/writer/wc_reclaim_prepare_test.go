@@ -11,9 +11,10 @@ func wcTestReclaimInput() wcReclaimInput {
 	return wcReclaimInput{
 		owner: wcReclaimOwner{playbackID: "playback-one", incarnation: inc,
 			lastSequence: 4, acknowledgedSequence: 4, rows: 1, variableBytes: 200, due: true, dueMS: 123},
-		command: CommandIdentity{Incarnation: inc, Sequence: 5, OperationID: [16]byte{2}},
-		child:   &wcReclaimChild{wcReclaimKey{"playback-one", inc, 3}, 200},
-		probe:   wcReclaimProbe{"playback-one", inc, 3, 4, 0},
+		command:    CommandIdentity{Incarnation: inc, Sequence: 5, OperationID: [16]byte{2}},
+		firstProbe: wcReclaimProbe{"playback-one", inc, 0, 4, 3},
+		child:      &wcReclaimChild{wcReclaimKey{"playback-one", inc, 3}, 200},
+		probe:      wcReclaimProbe{"playback-one", inc, 3, 4, 0},
 	}
 }
 
@@ -46,6 +47,7 @@ func TestWCReclaimOneSourceChildAndDetachedResult(t *testing.T) {
 func TestWCReclaimScheduledZeroRemovalAndRemainingDebt(t *testing.T) {
 	in := wcTestReclaimInput()
 	in.child, in.owner.rows, in.owner.variableBytes = nil, 0, 0
+	in.firstProbe.nextSequence = 0
 	in.probe.afterSequence = 0
 	out, err := prepareWCReclaim(in)
 	if err != nil || out.remove || out.key != (wcReclaimKey{}) || !out.noNext || out.afterSequence != 0 {
@@ -83,6 +85,16 @@ func TestWCReclaimRejectsWrongFullKeysFloorRangeAndDebt(t *testing.T) {
 		{"debt_underflow", func(in *wcReclaimInput) { in.child.variableBytes++ }},
 		{"zero_child_bytes", func(in *wcReclaimInput) { in.child.variableBytes = 0 }},
 		{"missing_child_debt", func(in *wcReclaimInput) { in.owner.rows = 0 }},
+		{"wrong_first_owner", func(in *wcReclaimInput) { in.firstProbe.playbackID = "other" }},
+		{"wrong_first_incarnation", func(in *wcReclaimInput) { in.firstProbe.incarnation[0]++ }},
+		{"wrong_first_cursor", func(in *wcReclaimInput) { in.firstProbe.afterSequence++ }},
+		{"wrong_first_floor", func(in *wcReclaimInput) { in.firstProbe.throughACK-- }},
+		{"negative_first", func(in *wcReclaimInput) { in.firstProbe.nextSequence = -1 }},
+		{"first_at_cursor", func(in *wcReclaimInput) { in.firstProbe.afterSequence = 1; in.firstProbe.nextSequence = 1 }},
+		{"first_above_floor", func(in *wcReclaimInput) { in.firstProbe.nextSequence = 5 }},
+		{"missing_first", func(in *wcReclaimInput) { in.firstProbe.nextSequence = 0 }},
+		{"earlier_first", func(in *wcReclaimInput) { in.firstProbe.nextSequence-- }},
+		{"later_first", func(in *wcReclaimInput) { in.firstProbe.nextSequence++ }},
 		{"wrong_probe_owner", func(in *wcReclaimInput) { in.probe.playbackID = "other" }},
 		{"wrong_probe_incarnation", func(in *wcReclaimInput) { in.probe.incarnation[0]++ }},
 		{"wrong_probe_cursor", func(in *wcReclaimInput) { in.probe.afterSequence-- }},
@@ -156,6 +168,7 @@ func TestWCReclaimInt64AndCommandSequenceGaps(t *testing.T) {
 	in.command.Sequence = math.MaxInt64
 	in.owner.variableBytes, in.child.variableBytes = math.MaxInt64, math.MaxInt64
 	in.child.key.sequence = math.MaxInt64 - 10 // intervening cleanup commands leave gaps
+	in.firstProbe.throughACK, in.firstProbe.nextSequence = in.owner.acknowledgedSequence, in.child.key.sequence
 	in.probe.afterSequence, in.probe.throughACK = in.child.key.sequence, in.owner.acknowledgedSequence
 	out, err := prepareWCReclaim(in)
 	if err != nil || out.afterSequence != math.MaxInt64-10 || out.remainingVariableBytes != 0 {
@@ -183,6 +196,8 @@ func TestWCReclaimLedgerAcrossSourceAndCleanupCommands(t *testing.T) {
 		in.command.Sequence = in.owner.lastSequence + 1
 		in.command.OperationID = [16]byte{byte(step + 10)}
 		in.child = &children[0]
+		in.firstProbe = wcReclaimProbe{in.owner.playbackID, in.owner.incarnation,
+			in.owner.afterSequence, in.owner.acknowledgedSequence, children[0].key.sequence}
 		in.probe = wcReclaimProbe{in.owner.playbackID, in.owner.incarnation,
 			in.child.key.sequence, in.owner.acknowledgedSequence, 0}
 		if len(children) > 1 {
@@ -217,6 +232,38 @@ func TestWCReclaimLedgerAcrossSourceAndCleanupCommands(t *testing.T) {
 	}
 	if removed != 2110 || len(seen) != 5 || in.owner.afterSequence == in.owner.acknowledgedSequence {
 		t.Fatalf("final cursor/debit used command floor: debit=%d cursor=%d ack=%d", removed, in.owner.afterSequence, in.owner.acknowledgedSequence)
+	}
+}
+
+func TestWCReclaimRejectSkippedAcknowledgedChildren(t *testing.T) {
+	// SOURCE 1..6; cleanup 7 removes 1; SOURCE 8; cleanup 9 removes 2;
+	// SOURCE 10; cleanup 11 removes 3; SOURCE 12. Selecting 8 must not
+	// strand acknowledged children 4, 5 and 6 behind the removal cursor.
+	in := wcTestReclaimInput()
+	in.owner.lastSequence, in.owner.acknowledgedSequence = 12, 12
+	in.owner.afterSequence, in.owner.rows, in.owner.variableBytes = 3, 6, 1200
+	in.command.Sequence = 13
+	in.oldSlot = wcTestReclaimSlot()
+	in.oldSlot.reference.Identity.Sequence = 11
+	in.oldSlot.floor, in.oldSlot.oldCursor = 10, 2
+	in.oldSlot.removedSequence, in.oldSlot.removedCount, in.oldSlot.removedBytes = 3, 1, 200
+	in.oldSlot.nextCursor, in.oldSlot.noNext = 3, false
+	in.expectedOldSlot = in.oldSlot
+	in.firstProbe.afterSequence, in.firstProbe.throughACK, in.firstProbe.nextSequence = 3, 12, 4
+	in.child.key.sequence = 8
+	in.probe.afterSequence, in.probe.throughACK, in.probe.nextSequence = 8, 12, 10
+	out, err := prepareWCReclaim(in)
+	if err == nil || out != (wcReclaimPrepared{}) {
+		t.Fatalf("accepted skipped ACKed children 4,5,6: %+v %v", out, err)
+	}
+	// The same native owner/slot/debt permits the actual first child. Sequence
+	// gaps remain valid; the cursor advances to the observed child, not ACK.
+	in.child.key.sequence = 4
+	in.probe.afterSequence, in.probe.nextSequence = 4, 5
+	out, err = prepareWCReclaim(in)
+	if err != nil || !out.remove || out.key.sequence != 4 || out.afterSequence != 4 ||
+		out.remainingRows != 5 || out.remainingVariableBytes != 1000 || out.noNext {
+		t.Fatalf("refused actual first ACKed child: %+v %v", out, err)
 	}
 }
 
