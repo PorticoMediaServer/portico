@@ -178,7 +178,7 @@ func TestNativeInventoryRejectsDuplicateAliasAndUnknownEnvelope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"duplicate_limit", "relative_alias", "operation_alias", "payload_alias", "unknown_envelope", "unknown_body", "native_then_legacy", "truncated_native"} {
+	for _, name := range []string{"duplicate_limit", "relative_alias", "operation_alias", "payload_alias", "unknown_envelope", "unknown_body", "native_then_legacy", "duplicate_operation", "duplicate_payload", "alias_null_payload", "native_operation_only", "native_null_payload", "truncated_native"} {
 		t.Run(name, func(t *testing.T) {
 			wire := bytes.Clone(good)
 			switch name {
@@ -196,6 +196,16 @@ func TestNativeInventoryRejectsDuplicateAliasAndUnknownEnvelope(t *testing.T) {
 				wire = bytes.Replace(wire, []byte(`"Limit":1`), []byte(`"Limit":1,"Unknown":true`), 1)
 			case "native_then_legacy":
 				wire = append(wire[:len(wire)-1], []byte(`,"operation":"inventory-page"}`)...)
+			case "duplicate_operation":
+				wire = append(wire[:len(wire)-1], []byte(`,"operation":"inventory-page-native-v1"}`)...)
+			case "duplicate_payload":
+				wire = append(wire[:len(wire)-1], []byte(`,"nativeInventory":null}`)...)
+			case "alias_null_payload":
+				wire = append(wire[:len(wire)-1], []byte(`,"NATIVEINVENTORY":null}`)...)
+			case "native_operation_only":
+				wire = []byte(`{"operation":"inventory-page-native-v1"}`)
+			case "native_null_payload":
+				wire = []byte(`{"operation":"inventory-page-native-v1","nativeInventory":null}`)
 			case "truncated_native":
 				wire = wire[:len(wire)-2]
 			}
@@ -208,6 +218,62 @@ func TestNativeInventoryRejectsDuplicateAliasAndUnknownEnvelope(t *testing.T) {
 			cmd.Stdin = bytes.NewReader(wire)
 			if out, err := cmd.Output(); err == nil || len(out) != 0 {
 				t.Fatal("real helper accepted native alternate frame", err, string(out))
+			}
+		})
+	}
+}
+
+func TestNativeInventoryNullPayloadKeepsLegacyPage(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "Film-\xff.mkv"), []byte("x"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(request{Operation: "inventory-page", Inventory: &InventoryRequest{Root: root, RelativePath: ".", Limit: 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	binary, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	realHelper := func(wire []byte) ([]byte, error) {
+		cmd := exec.CommandContext(t.Context(), binary, "--portico-storage-helper")
+		cmd.Stdin = bytes.NewReader(wire)
+		return cmd.Output()
+	}
+	want, err := realHelper(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var page InventoryPage
+	if err := json.Unmarshal(want, &page); err != nil || page.ErrorCode != "" || len(page.Entries) != 1 {
+		t.Fatal("baseline is not a normal legacy page", string(want), err)
+	}
+	for _, key := range []string{"nativeInventory", "NativeInventory", "NATIVEINVENTORY", "nAtIvEiNvEnToRy"} {
+		t.Run(key, func(t *testing.T) {
+			wire := append(bytes.Clone(raw[:len(raw)-1]), []byte(`,"`+key+`": null }`)...)
+			if nativeEnvelopeCandidate(wire) {
+				t.Fatal("null payload selected native decoding")
+			}
+			var out bytes.Buffer
+			if err := Helper(bytes.NewReader(wire), &out); err != nil || !bytes.Equal(out.Bytes(), want) {
+				t.Fatalf("null changed legacy page: %v, %q != %q", err, out.Bytes(), want)
+			}
+			if got, err := realHelper(wire); err != nil || !bytes.Equal(got, want) {
+				t.Fatalf("real helper null changed legacy page: %v, %q != %q", err, got, want)
+			}
+			for _, value := range []string{`{}`, `[]`, `false`, `0`, `""`} {
+				wire := append(bytes.Clone(raw[:len(raw)-1]), []byte(`,"`+key+`":`+value+`}`)...)
+				if !nativeEnvelopeCandidate(wire) {
+					t.Fatalf("non-null payload %s did not select strict native decoding", value)
+				}
+				out.Reset()
+				if err := Helper(bytes.NewReader(wire), &out); !errors.Is(err, ErrNativeInventory) || out.Len() != 0 {
+					t.Fatalf("non-null payload %s escaped native refusal: %v, %q", value, err, out.Bytes())
+				}
+				if got, err := realHelper(wire); err == nil || len(got) != 0 {
+					t.Fatalf("real helper admitted non-null payload %s: %v, %q", value, err, got)
+				}
 			}
 		})
 	}
