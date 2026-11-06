@@ -167,6 +167,11 @@ func applyWC008Capture(ctx context.Context, turn *commandTurn, q wc008CaptureRep
 	if q.completed && oldCompletion == 0 {
 		completeDelta = 1
 		snapshot.values[0], snapshot.values[1], snapshot.values[6] = p.appliedAt, "completed", p.proof.reportSequence
+		position := q.positionSeconds
+		if q.durationSeconds > 0 {
+			position = math.Min(position, q.durationSeconds)
+		}
+		snapshot.values[21], snapshot.values[24] = int64(math.Round(position*1000)), int64(math.Round(q.durationSeconds*1000))
 		snapshot.values[23], snapshot.values[25], snapshot.values[35] = int64(0), int64(1), nil
 		_, out.completionVariableBytes, err = appendWC008History(ctx, turn, snapshot)
 		if err != nil {
@@ -254,8 +259,9 @@ func wc008CapturePersonal(ctx context.Context, turn *commandTurn, q wc008Capture
 		return 0, 0, err
 	}
 	var revision, watched, starts, plays int64
-	var watchedAt, lastStarted, lastCompleted, lastPlayed sql.NullString
-	if err = row.Scan(&revision, &watched, &starts, &plays, &watchedAt, &lastStarted, &lastCompleted, &lastPlayed); err != nil {
+	var watchedAt, lastStarted, lastCompleted, lastPlayed, activityAt, activityState sql.NullString
+	var previousPosition int64
+	if err = row.Scan(&revision, &watched, &starts, &plays, &watchedAt, &lastStarted, &lastCompleted, &lastPlayed, &previousPosition, &activityAt, &activityState); err != nil {
 		return 0, 0, err
 	}
 	if revision <= 0 || starts < 0 || plays < 0 || starts > math.MaxInt64-start || plays > math.MaxInt64-complete {
@@ -298,6 +304,14 @@ func wc008CapturePersonal(ctx context.Context, turn *commandTurn, q wc008Capture
 	if kind == 7 {
 		position = 0
 	}
+	meaningful := start != 0 || complete != 0 || q.completed && (watched == 0 || kind == 9 && position != previousPosition) || !q.completed && qualified && (position != previousPosition || !lastPlayed.Valid || lastPlayed.String == "")
+	if meaningful {
+		state := q.state
+		if q.completed {
+			state = "ended"
+		}
+		activityAt, activityState = sql.NullString{String: p.appliedAt, Valid: true}, sql.NullString{String: state, Valid: true}
+	}
 	semantic := wc008Bool(start != 0 || complete != 0 || nextWatched != watched || !lastPlayed.Valid || lastPlayed.String == "")
 	// Routine resume checkpoints keep the existing semantic recently-played clock.
 	// A real occurrence/count/completion boundary can advance it, never backwards.
@@ -319,7 +333,7 @@ func wc008CapturePersonal(ctx context.Context, turn *commandTurn, q wc008Capture
 	if q.original.values[30] != nil {
 		sourceRevision = q.original.values[30]
 	}
-	_, err = wc008DraftInteger(ctx, turn, wc008CaptureLeafUpdate, nextR, nextWatched, wc008NullText(watchedAt), starts+start, plays+complete, wc008NullText(lastPlayed), wc008NullText(lastStarted), wc008NullText(lastCompleted), position, int64(0), wc008Bool(q.completed), p.proof.playbackID, sourceRevision, p.subjectPublicID[:], p.appliedAt, q.state, p.profileKey, p.subjectID, p.subjectPublicID[:], p.proof.activityGeneration, revision, starts, plays)
+	_, err = wc008DraftInteger(ctx, turn, wc008CaptureLeafUpdate, nextR, nextWatched, wc008NullText(watchedAt), starts+start, plays+complete, wc008NullText(lastPlayed), wc008NullText(lastStarted), wc008NullText(lastCompleted), position, int64(0), wc008Bool(q.completed), p.proof.playbackID, sourceRevision, p.subjectPublicID[:], wc008NullText(activityAt), wc008NullText(activityState), p.profileKey, p.subjectID, p.subjectPublicID[:], p.proof.activityGeneration, revision, starts, plays)
 	if err != nil {
 		return 0, 0, err
 	}

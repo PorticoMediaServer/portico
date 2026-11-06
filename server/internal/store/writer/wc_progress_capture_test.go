@@ -200,3 +200,25 @@ func TestWCProgressClosedGrammar(t *testing.T) {
 		})
 	}
 }
+
+func TestWCCaptureCompletionFirstHasEndedActivityAndNoTimeCredit(t *testing.T) {
+	w := wc008NativeExecutor(t)
+	q := wcCaptureFixture(t, w)
+	q.positionSeconds, q.completed = 0, true
+	turn := wc008NativeTurn(t, w, ProgressAccept, wcProgressDefinitions())
+	e, err := applyWC008Capture(t.Context(), turn, q)
+	if err != nil || !e.createdStart {
+		t.Fatal(e, err)
+	}
+	if _, err := storeWC008CaptureResult(t.Context(), turn, q, e, RequestDigest{10}, ResultDigest{11}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := turn.transaction.commit(); err != nil {
+		t.Fatal(err)
+	}
+	var state string
+	var watched, starts, plays, played, position, startRows, completeRows, timeRows int64
+	if err := w.db.QueryRowContext(t.Context(), `SELECT activity_state,watched,started_count,play_count,played_ms,resume_position,(SELECT count(*) FROM play_history WHERE event_kind='started'),(SELECT count(*) FROM play_history WHERE event_kind='completed' AND completed=1 AND position=0),(SELECT count(*) FROM play_history WHERE event_kind='time') FROM personal_items`).Scan(&state, &watched, &starts, &plays, &played, &position, &startRows, &completeRows, &timeRows); err != nil || state != "ended" || watched != 1 || starts != 1 || plays != 1 || played != 0 || position != 0 || startRows != 1 || completeRows != 1 || timeRows != 0 {
+		t.Fatal(state, watched, starts, plays, played, position, startRows, completeRows, timeRows, err)
+	}
+}
