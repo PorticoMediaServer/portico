@@ -1109,14 +1109,7 @@ func New(d Dependencies) http.Handler {
 		}
 		write(w, 200, systemAPI(info))
 	})
-	d.httpHandle(mux, "GET /v1/me", func(w http.ResponseWriter, r *http.Request) {
-		p, e := d.principal(r)
-		if e != nil {
-			failure(w, e)
-			return
-		}
-		write(w, 200, map[string]any{"viewer": p.Viewer})
-	})
+	d.httpHandle(mux, "GET /v1/me", d.currentViewer)
 	d.httpHandle(mux, "DELETE /v1/sessions/current", d.sessionFamilyLogout)
 	d.httpHandle(mux, "POST /v1/hosted/wake", func(w http.ResponseWriter, r *http.Request) {
 		var body hosted.Signed

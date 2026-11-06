@@ -1379,7 +1379,7 @@
       ]
     },
     "internal/access/invitations.go": {
-      "sha256": "d52afd7b3d2b6abfea9cbc97c8b040bb2f824e6a66d0fa5f383571d4a27c6947",
+      "sha256": "5d1bbec3b1fd3f4d617a583facd62618b0d0c98fe098456685c981538a065771",
       "effects": [
         {
           "table": "*",
@@ -1397,7 +1397,7 @@
       ]
     },
     "internal/access/members.go": {
-      "sha256": "8e164ca5229ae1a3ec58f3339d8b65438b6d275ca039fac5230800e29cabb29c",
+      "sha256": "d4438501c5171eea28622122b360a469d26e6d1200b6dd456d1b0c625ffd8ce4",
       "effects": [
         {
           "table": "*",
@@ -5501,7 +5501,7 @@
       ]
     },
     "internal/eventfeed/feed.go": {
-      "sha256": "407f377f5779f097e7b73c858477d71317e65be53d5dcefc5e76240db1b95d15",
+      "sha256": "9bb950bf28129473de53883e06eb8501dc907206e15f34430a0d55f3e0c44a08",
       "effects": [
         {
           "table": "*",
@@ -5555,7 +5555,7 @@
       ]
     },
     "internal/hosted/membership_push.go": {
-      "sha256": "dd5376f3c798c206fc18ca7c937214fd3ed96f8fc63cc708ecfe8038c6504bea",
+      "sha256": "53760be8796f3efaa376439364ba624803e79bf4f744ce3675dc90a2fe9c4085",
       "effects": [
         {
           "table": "*",
@@ -6059,7 +6059,7 @@
       ]
     },
     "internal/httpapi/events_routes.go": {
-      "sha256": "7efb2f7022af0b45180ea1140ba38960a052643cca09acd74f3d48250dafffae",
+      "sha256": "f94dcdf601edabfb37558ecfad337f97cf6d6388a9320df80f658e148450a601",
       "effects": [
         {
           "table": "*",
@@ -6995,7 +6995,7 @@
       ]
     },
     "internal/httpapi/router.go": {
-      "sha256": "3a44322caedd05c6083cd11da37358d73989eb62e42b79cb9006ae4a7b2b0bd9",
+      "sha256": "c150dcb4d7bf4dc2964b0550735f867c06d50430ba15be5b4bcac9bf925216d2",
       "effects": [
         {
           "table": "*",
@@ -7301,7 +7301,7 @@
       ]
     },
     "internal/identity/account_moves.go": {
-      "sha256": "50ea095fd2ab2db69a09a43fa3010874be33adf8d1e06830f2310fdcff03a783",
+      "sha256": "005455a8fd33fdaa4acf5db03c50af013da8e0bc2fc04a894745a3bd5422360d",
       "effects": [
         {
           "table": "*",
@@ -7346,7 +7346,7 @@
       ]
     },
     "internal/identity/direct_accounts.go": {
-      "sha256": "32f7ad38d84e23759711f123825dee4a763978df8289aaa42c433fad5da3d28b",
+      "sha256": "885dd4025bc1e42f37da046610abc22dc1b4d3db3f448e3982261cb7c89d9060",
       "effects": [
         {
           "table": "*",
@@ -7410,6 +7410,15 @@
     },
     "internal/identity/member_reset_request.go": {
       "sha256": "9615bc14b669a54bd4a9112cbbc0d0343d5bad75d866890e4553b2db1993ad47",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/identity/membership_change.go": {
+      "sha256": "939db8be9ccf9a13a86639e104b65d46801fe64914f0b11d15f7a25b2904bcca",
       "effects": [
         {
           "table": "*",
@@ -7490,7 +7499,7 @@
       ]
     },
     "internal/identity/portico_accounts.go": {
-      "sha256": "cd7eb90957a8c54aacfe4d3fcb4eb570f234dc6b6515ea4d0d41fd9cdaf5a770",
+      "sha256": "db64d64aaf3dea8d044489606a7fa16e280dcd22bc35dbc5148edef95efe2e43",
       "effects": [
         {
           "table": "*",
@@ -7562,7 +7571,7 @@
       ]
     },
     "internal/identity/self_registration.go": {
-      "sha256": "5f7357ef6ad39ae9725b0482ae0295c6c9620d80e73f43137f62622b2ab9b0eb",
+      "sha256": "73dffc3f8c30942590ed15dc66e321b9ecf5e686af80cd8ecd5b1e73418ff2a9",
       "effects": [
         {
           "table": "*",
