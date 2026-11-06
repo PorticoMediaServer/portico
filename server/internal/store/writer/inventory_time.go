@@ -34,8 +34,8 @@ func (t *commandTurn) inventoryTimeMS(ctx context.Context, leaseExpiresMS int64)
 	if ms < 0 || !time.UnixMilli(ms).Equal(now.Truncate(time.Millisecond)) {
 		return 0, ErrInvalid
 	}
-	if now.Before(tx.start) || now.Before(tx.quantum.last) {
-		return 0, ErrQuantum
+	if err := tx.observeTime(now); err != nil {
+		return 0, err
 	}
 	expires := time.UnixMilli(leaseExpiresMS)
 	if !now.Before(expires) || deadline.After(expires) {
