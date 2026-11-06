@@ -14,9 +14,17 @@ import (
 // SourceKey is a logical catalogue identity in the separately supplied library
 // namespace; it is never an inode, source ID, root hash or observation revision.
 type InventoryOrdinaryFilename struct {
-	SourceKey string
-	Year      int
-	Metadata  InventoryFilenameMetadata
+	SourceKey  string
+	Year, Part int
+	Metadata   InventoryFilenameMetadata
+}
+
+// InventoryOrdinaryFilenameInput contains actual retained/native values. The
+// identity root is the catalogue's retained locator root, which can differ from
+// the physical source root. The caller must not substitute one for the other.
+type InventoryOrdinaryFilenameInput struct {
+	IdentityRoot, AssetPath, RelativePath []byte
+	ExplicitSortTitle, MetadataLanguage   string
 }
 
 // ProjectOrdinaryFilename accepts the actual adapter's root-relative path bytes.
@@ -24,9 +32,10 @@ type InventoryOrdinaryFilename struct {
 // proves native containment, regular-file identity, source scope and provenance
 // of an explicit sort override (FIRST filename-only ingress supplies empty).
 // Producers pass this complete value unchanged into InventoryFilenameInput.
-func ProjectOrdinaryFilename(relativePath []byte, explicitSortTitle, metadataLanguage string) (InventoryOrdinaryFilename, error) {
+func ProjectOrdinaryFilename(input InventoryOrdinaryFilenameInput) (InventoryOrdinaryFilename, error) {
+	relativePath, explicitSortTitle, metadataLanguage := input.RelativePath, input.ExplicitSortTitle, input.MetadataLanguage
 	remaining := maxCanonicalRequestBytes
-	for _, n := range [...]int{len(relativePath), len(explicitSortTitle), len(metadataLanguage)} {
+	for _, n := range [...]int{len(input.IdentityRoot), len(input.AssetPath), len(relativePath), len(explicitSortTitle), len(metadataLanguage)} {
 		if n > remaining {
 			return InventoryOrdinaryFilename{}, inventoryRequestCapacity()
 		}
@@ -34,10 +43,15 @@ func ProjectOrdinaryFilename(relativePath []byte, explicitSortTitle, metadataLan
 	}
 	// Preserve the adopted CHANGE-003 distinction, including mixed bad input:
 	// NUL is invalid native input, never a filename_unrepresentable poison skip.
-	if bytes.IndexByte(relativePath, 0) >= 0 {
-		return InventoryOrdinaryFilename{}, invalid("inventory_native_path")
+	for _, raw := range [3][]byte{input.IdentityRoot, input.AssetPath, relativePath} {
+		if bytes.IndexByte(raw, 0) >= 0 {
+			return InventoryOrdinaryFilename{}, invalid("inventory_native_path")
+		}
 	}
-	if !utf8.Valid(relativePath) {
+	if input.IdentityRoot == nil || len(input.AssetPath) == 0 || !utf8.Valid(input.IdentityRoot) {
+		return InventoryOrdinaryFilename{}, invalid("inventory_identity_root")
+	}
+	if !utf8.Valid(relativePath) || !utf8.Valid(input.AssetPath) {
 		return InventoryOrdinaryFilename{}, &PolicyError{Field: "inventory_native_path", Cause: ErrFilenameUnrepresentable}
 	}
 	if len(relativePath) > naming.MaxPathBytes {
@@ -51,7 +65,18 @@ func ProjectOrdinaryFilename(relativePath []byte, explicitSortTitle, metadataLan
 	if !inventoryPath(relative, false) {
 		return InventoryOrdinaryFilename{}, invalid("inventory_native_path")
 	}
-	title, year := naming.Read(relative, "movie").PreferredTitle()
+	reading := naming.Read(relative, "movie")
+	title, year := reading.PreferredTitle()
+	part := 0
+	if len(reading.Parts) > 0 {
+		part = reading.Parts[0].Value
+	}
+	// Match AttachMovieTx BEFORE display fallback. An uninterpretable title's
+	// locator is the complete existing ItemKey call, including a split part.
+	key := identityvalue.MovieKey(title, year)
+	if identityvalue.IdentityText(title) == "" {
+		key = identityvalue.ItemKey(string(input.IdentityRoot), string(input.AssetPath), part)
+	}
 	if title == "" {
 		base := path.Base(relative)
 		title = strings.TrimSuffix(base, path.Ext(base))
@@ -66,11 +91,5 @@ func ProjectOrdinaryFilename(relativePath []byte, explicitSortTitle, metadataLan
 	if err != nil {
 		return InventoryOrdinaryFilename{}, err
 	}
-	key := identityvalue.MovieKey(title, year)
-	if identityvalue.IdentityText(title) == "" {
-		// The existing locator recipe takes an already root-relative path here.
-		// It has no physical-root component and is scoped by the caller's library.
-		key = identityvalue.ItemKey("", relative, 0)
-	}
-	return InventoryOrdinaryFilename{SourceKey: key, Year: year, Metadata: metadata}, nil
+	return InventoryOrdinaryFilename{SourceKey: key, Year: year, Part: part, Metadata: metadata}, nil
 }
