@@ -90,10 +90,17 @@ func inventoryFreshFixture(t *testing.T, decorate ...func(driver.Conn) driver.Co
 
 func inventoryFreshFixtureDefinitions(t *testing.T, definitions []stmt.Definition, decorate ...func(driver.Conn) driver.Conn) (*executor, string, *inventoryAcceptCommand, *stmt.Registry) {
 	t.Helper()
-	e, path, _ := testExecutor(t, decorate...)
-	c := seedInventoryFresh(t, e)
+	e, path, c := inventoryFreshSeedFixture(t, decorate...)
 	registry := nativeInventoryFixtureRegistry(t, e, definitions, "scan_fresh_test.go")
 	return e, path, c, registry
+}
+
+// The one existing seed owner, before registry capture; paired read setup may
+// attach to this same canonical database outside all command custody.
+func inventoryFreshSeedFixture(t *testing.T, decorate ...func(driver.Conn) driver.Conn) (*executor, string, *inventoryAcceptCommand) {
+	t.Helper()
+	e, path, _ := testExecutor(t, decorate...)
+	return e, path, seedInventoryFresh(t, e)
 }
 
 func TestInventoryFreshClosedRecipe(t *testing.T) {

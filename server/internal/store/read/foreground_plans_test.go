@@ -3,15 +3,14 @@ package read
 import (
 	"bytes"
 	"compress/gzip"
-	"crypto/sha256"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"io"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/schema"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
@@ -128,18 +127,7 @@ func TestForegroundPlans(t *testing.T) {
 	}
 }
 
-func foregroundFixtureHash(t *testing.T) string {
-	t.Helper()
-	data, err := os.ReadFile("foreground_test.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	start, end := bytes.Index(data, []byte("func newForegroundSource(")), bytes.Index(data, []byte("func newForegroundFixture("))
-	if start < 0 || end <= start {
-		t.Fatal("missing foreground seed journal")
-	}
-	return fmt.Sprintf("%x", sha256.Sum256(append([]byte(browsePlanFixtureHash(t)), data[start:end]...)))
-}
+func foregroundFixtureHash(t *testing.T) string { return readfixture.ForegroundHash(t) }
 
 func TestForegroundCaptureRejectsUnforcedSeek(t *testing.T) {
 	f := newForegroundSource(t)

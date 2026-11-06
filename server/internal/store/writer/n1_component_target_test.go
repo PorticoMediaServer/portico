@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -357,6 +358,7 @@ var n1Missing = map[string]string{
 }
 
 type n1Stream struct {
+	mu       sync.Mutex // serializes post-custody records from bounded paired streams
 	file     *os.File
 	origin   time.Time
 	base     map[string]any
@@ -365,6 +367,8 @@ type n1Stream struct {
 }
 
 func (s *n1Stream) append(kind string, fields map[string]any) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.err != nil {
 		return s.err
 	}

@@ -357,7 +357,7 @@ func runN1SteadyTurn(t *testing.T, ctx context.Context, stream *n1Stream, f *inv
 		if record.Clock.PhysicalReturnedNS != nil {
 			record.Phase = "physical_return"
 		}
-		record.Complete = record.Error == "" && record.Outcome == "committed" && record.Clock.HoldNS != nil && record.Clock.PhysicalReturnedNS != nil && record.Settings.Actual != nil && record.ConnectionReturned != nil && *record.ConnectionReturned && record.Retired != nil && *record.Retired && usage == ([4]governor.Amounts{}) && !fenced && !ambiguous && retained && !trace.overflow
+		record.Complete = record.Error == "" && record.Outcome == "committed" && record.Clock.HoldNS != nil && record.Clock.PhysicalReturnedNS != nil && record.Settings.Actual != nil && record.ConnectionReturned != nil && *record.ConnectionReturned && record.Retired != nil && *record.Retired && f.joinedUsage(usage) && !fenced && !ambiguous && retained && !trace.overflow
 		if control.fullPrefix && role == "ack" && record.Complete {
 			complete := f.ready && f.resolved != nil && f.acknowledged != nil && f.joined() == nil
 			record.FullPrefix = &complete
