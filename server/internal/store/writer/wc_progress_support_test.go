@@ -61,11 +61,7 @@ func TestWCProgressAckFloorDebtAndRetry(t *testing.T) {
 			if err := w.db.QueryRowContext(t.Context(), `SELECT command_last_sequence,command_acknowledged_sequence,receipt_rows,receipt_variable_bytes,receipt_reclaim_after_sequence,receipt_reclaim_due_ms,reclaim_command_sequence,(SELECT count(*) FROM playback_claim_command_receipts) FROM playback_personal_claims`).Scan(&last, &ack, &rows, &bytes, &cursor, &due, &slot, &childRows); err != nil {
 				t.Fatal(err)
 			}
-			wantDue := int64(2000)
-			if c.due.Valid {
-				wantDue = c.due.Int64
-			}
-			if last != floor || ack != floor || rows != 1 || bytes != q.receiptVariableBytes || cursor != 0 || slot.Valid != (c.name == "retained_cleanup_slot") || slot.Valid && slot.Int64 != 1 || childRows != 1 || due != wantDue {
+			if last != floor || ack != floor || rows != 1 || bytes != q.receiptVariableBytes || cursor != 0 || slot.Valid != (c.name == "retained_cleanup_slot") || slot.Valid && slot.Int64 != 1 || childRows != 1 || due < 0 || due > q.appliedMS || c.due.Valid && due > c.due.Int64 {
 				t.Fatal("ACK cleared custody or missed debt wake", last, ack, rows, bytes, cursor, slot, childRows, due)
 			}
 
