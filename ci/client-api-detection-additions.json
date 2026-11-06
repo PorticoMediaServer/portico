@@ -120,6 +120,11 @@
       "occurrences": 1,
       "reason": "F4: resolved existing HttpLocalApi method previously omitted by the callee filter.",
       "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646280885"
+    },
+    "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt#a4bb6822b8e348df": {
+      "occurrences": 1,
+      "reason": "Kotlin complete try/catch/finally model: one existing wireRequest DIRECT identity replaces #6a531b3128e3200c, count 1 to 1; no exception. Conditional on the independent model review of #1077 being CLEAN.",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6675377478"
     }
   }
 }
