@@ -83,19 +83,22 @@ type n1Unit struct {
 }
 
 type n1Trace struct {
-	origin      time.Time
-	instrument  bool
-	armed       bool
-	units       []n1Unit // fixed backing storage is allocated BEFORE measured custody
-	used        int
-	overflow    bool
-	ids         map[string]stmt.ID
-	uses        map[stmt.ID]int
-	connections uint64
-	closed      uint64
-	activeRows  int
-	conn        *n1MeasuredConn
-	failQuery   string // control-only injection; never a target/config input
+	origin        time.Time
+	instrument    bool
+	armed         bool
+	units         []n1Unit // fixed backing storage is allocated BEFORE measured custody
+	used          int
+	overflow      bool
+	ids           map[string]stmt.ID
+	uses          map[stmt.ID]int
+	connections   uint64
+	closed        uint64
+	activeRows    int
+	conn          *n1MeasuredConn
+	failQuery     string // control-only injection; never a target/config input
+	closes        [4]n1NativeClose
+	closeCount    int
+	closeOverflow bool
 }
 
 func newN1Trace(origin time.Time, instrument bool) *n1Trace {
@@ -113,6 +116,7 @@ func (t *n1Trace) decorate(conn driver.Conn) driver.Conn {
 	t.connections++
 	owned := conn.(*ownedPhysicalConn)
 	native, _ := owned.writerDriverConn.(n1Native)
+	owned.writerDriverConn = &n1NativeCloseConn{writerDriverConn: owned.writerDriverConn, trace: t, id: t.connections}
 	c := &n1MeasuredConn{writerDriverConn: owned, trace: t, native: native, id: t.connections}
 	t.conn = c
 	return c
@@ -225,7 +229,7 @@ func (c *n1MeasuredConn) QueryContext(ctx context.Context, query string, args []
 	if c.trace.overflow {
 		return nil, errN1LedgerFull
 	}
-	if c.trace.failQuery != "" && query == c.trace.failQuery {
+	if c.trace.armed && c.trace.failQuery != "" && query == c.trace.failQuery {
 		err := errors.New("injected N1 component native query failure")
 		c.finish(u, err)
 		return nil, err

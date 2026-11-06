@@ -1,6 +1,7 @@
 package writer
 
 import (
+	"database/sql/driver"
 	"os"
 	"testing"
 	"time"
@@ -13,8 +14,11 @@ func TestMain(m *testing.M) { os.Exit(schematest.Run(m)) }
 
 // Only ordinary canonical fixtures use copies. Production fresh startup and
 // its bootstrap refusal controls still call newEmptyExecutor directly.
-func testCanonicalExecutor(t *testing.T) (*executor, string) {
+func testCanonicalExecutor(t *testing.T, decorate ...func(driver.Conn) driver.Conn) (*executor, string) {
 	t.Helper()
+	if len(decorate) > 1 {
+		t.Fatal("multiple fixture decorators")
+	}
 	path := schematest.Clone(t)
 	cfg := sqliteconn.Config{Role: sqliteconn.Writer, Connections: 1, CacheKiB: 1024, Synchronous: sqliteconn.Full}
 	connector, err := sqliteconn.Connector(path, cfg)
@@ -22,7 +26,11 @@ func testCanonicalExecutor(t *testing.T) (*executor, string) {
 		t.Fatal(err)
 	}
 	w := &executor{config: cfg, now: time.Now}
-	w.openPool(connector, nil)
+	var observe func(driver.Conn) driver.Conn
+	if len(decorate) == 1 {
+		observe = decorate[0]
+	}
+	w.openPool(connector, observe)
 	t.Cleanup(func() {
 		if err := w.close(); err != nil {
 			t.Error(err)

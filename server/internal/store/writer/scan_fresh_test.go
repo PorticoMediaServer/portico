@@ -2,6 +2,7 @@ package writer
 
 import (
 	"context"
+	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"math"
@@ -77,9 +78,9 @@ VALUES(1,'raw-active',?,?,?,'active',1000)`, searchpolicy.RecipeV1, searchpolicy
 	return c
 }
 
-func inventoryFreshFixture(t *testing.T) (*executor, string, *inventoryAcceptCommand, *stmt.Registry) {
+func inventoryFreshFixture(t *testing.T, decorate ...func(driver.Conn) driver.Conn) (*executor, string, *inventoryAcceptCommand, *stmt.Registry) {
 	t.Helper()
-	e, path, _ := testExecutor(t)
+	e, path, _ := testExecutor(t, decorate...)
 	c := seedInventoryFresh(t, e)
 	registry := nativeInventoryFixtureRegistry(t, e, scanInventoryFreshDefinitions(), "scan_fresh_test.go")
 	return e, path, c, registry

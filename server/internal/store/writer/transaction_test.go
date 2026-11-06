@@ -43,9 +43,9 @@ func (c *testCustody) retired() error {
 }
 func (c *testCustody) fence() { c.fences++ }
 
-func testExecutor(t *testing.T) (*executor, string, *time.Time) {
+func testExecutor(t *testing.T, decorate ...func(driver.Conn) driver.Conn) (*executor, string, *time.Time) {
 	t.Helper()
-	w, path := testCanonicalExecutor(t)
+	w, path := testCanonicalExecutor(t, decorate...)
 	// Control protocol transitions with a virtual clock. This is not latency
 	// qualification on a shared CI VM; actual SQL/cancellation is tested below.
 	now := time.Now().Add(time.Hour)
