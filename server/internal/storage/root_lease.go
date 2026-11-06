@@ -5,9 +5,11 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+
+	"github.com/PorticoMediaServer/portico/server/internal/storage/sourceops"
 )
 
-var ErrRootLease = errors.New("source root registration lease required")
+var ErrRootLease = sourceops.ErrRootLease
 var ErrObservedSourceLost = errors.New("observed source acquisition continuity lost")
 var ErrObservedSourceUnsupported = errors.New("observed source platform unsupported")
 
