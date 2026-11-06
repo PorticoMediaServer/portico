@@ -147,3 +147,38 @@ execution and join completed, never that all requested recipe dimensions were
 measured. Producer sink/test/stop failure retains the prefix and stops new work.
 SQL, constructor and domain semantics are unchanged. QL consumes this new wire
 outside measured server memory; there is no shared reducer change.
+
+## Progressive fixture for later target integration
+
+`newInventoryProgressiveFixture(t, count, clock)` is a private `_test.go`
+component fixture, **NOT production issuer, permit, opening or profile proof**.
+It factors the existing `inventoryFreshFixture` native seed/Capture builder and
+the ONE `inventoryMemoryFixtureTurn` governor/grant/recipe builder. It retains
+the same executor, complete `inventoryCommandDefinitions()` captured registry,
+governor, authority, WAL gate and unchanged synthetic Work/4+4 MiB partition.
+It accepts 1–128 originals, allowing a future bounded warmup + measured cohort;
+this bound does not change command caps or the resource recipe.
+
+The sequential protocol is `NextOriginal` → `Begin` → existing
+`applyInventoryAccept` + physical commit → `Resolve` → `AckAndSnapshot`.
+Begin proves the original's history MISS and active native library on the same
+turn. Resolve uses W's actual historical decoder, and ACK uses its actual
+receipt lookup/CAS and physical commit, all under the retained governor. The
+next-original gate opens only after a successful joined current native snapshot.
+That single read observes run/lease/sequence/revision, source, directory cursor,
+pages and progress counters after ACK; expected counters are never written back.
+Each original declares a distinct synthetic filename, object, source key and
+operation identity with the next observed receipt sequence. It is not a replay,
+filesystem discovery claim or native source capability. All old receipt/result
+rows remain; ACKed references obey W's retired floor.
+
+Fence, unknown outcome, physical/ledger return gaps, refusal or snapshot errors
+stop progression. An unconsumed pre-BEGIN Busy grant returns via W's one-shot
+custody retirement; consumed/unknown native holdings stay with W's terminal
+path. No SQL reset, state repair, constructor/grant clone, callback issuer or
+production disclosure is introduced. Correctness controls freeze only their
+protocol clock; later measurements must pass the real owner clock.
+
+This fixture PR does not run or enable steady measurement. The existing target's
+positive-warmup/steady requests stay explicitly unavailable until reviewed,
+merged fixture integration and its source-bound raw output are available to QL.
