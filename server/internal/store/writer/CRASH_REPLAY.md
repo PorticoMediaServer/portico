@@ -1,9 +1,10 @@
 # Process crash and receipt recovery controls
 
-`TestCrashReplayGovernedPassive` adds **33** witnessed process-crash cells:
-an unpinned WAL, a real pinned read mark, and completion after that reader
-releases. Eleven boundaries per case cover native PASSIVE before/after,
-validation before pool return, actual pool return, grant retirement, post-return
+`TestCrashReplayGovernedPassive` adds **13** witnessed process-crash cells:
+eleven boundaries on an unpinned WAL, plus distinct complete-return progress
+with a real pinned read mark and after that reader releases. The boundaries
+cover native PASSIVE before/after, validation before pool return, actual pool
+return, grant retirement, post-return
 sampling before/after, complete Step return, native pool-close before/after,
 and joined Close return. Pool return and later native connection close are
 distinct observations; neither is relabelled as the other.
@@ -21,9 +22,11 @@ input, not a foreground service/read-admission/memory qualification.
 Original W EffectiveStage source/receipt/image journals and real ACK prepare
 the WAL. The independent model requires no SQL-data change, exact original
 frames/salt/allocation, and backfill/debt derived from the observed input prefix
-and pinned read mark. Native PRAGMA rows are recorded independently of the
-returned CheckpointResult. Complete result/settings/timestamps and all 30 source
-tables are checked; WAL files are observed after SIGKILL/Wait **before** any new
+and pinned read mark. Fixed native WAL/index/database-header bytes are read
+directly, independently of the production ReadWAL parser. Native PRAGMA rows
+are recorded independently of the returned CheckpointResult. Complete
+result/settings/timestamps and all 30 source tables are checked; WAL files are
+observed after SIGKILL/Wait **before** any new
 SQLite opener can recover/checkpoint them. Canonical reopen then checks schema,
 integrity/FKs and exact retained retired receipt/image data through history-only
 binding with no fresh source permission.

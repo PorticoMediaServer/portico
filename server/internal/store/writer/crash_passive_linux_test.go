@@ -1,11 +1,14 @@
 package writer
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"os"
 	"reflect"
 	"runtime"
 	"strings"
@@ -219,6 +222,67 @@ func passiveCrashBackfill(proof passiveCrashProof) uint32 {
 	return proof.Before.Frames
 }
 
+// Read only the nonempty, stable fixture format directly. Expected bytes must
+// not be supplied by the production ReadWAL parser used by Checkpointer.Step.
+// Empty/restarted/torn formats are outside these cells and fail explicitly.
+func readPassiveJournalWAL(path string) (governor.WALState, error) {
+	read := func(name string, count int) ([]byte, int64, error) {
+		file, err := os.Open(name)
+		if err != nil {
+			return nil, 0, err
+		}
+		defer file.Close()
+		info, err := file.Stat()
+		if err != nil {
+			return nil, 0, err
+		}
+		header := make([]byte, count)
+		_, err = file.ReadAt(header, 0)
+		return header, info.Size(), err
+	}
+	db, _, err := read(path, 100)
+	if err != nil {
+		return governor.WALState{}, err
+	}
+	wal, size, err := read(path+"-wal", 32)
+	if err != nil {
+		return governor.WALState{}, err
+	}
+	index, _, err := read(path+"-shm", 100)
+	if err != nil {
+		return governor.WALState{}, err
+	}
+	stable, _, err := read(path+"-shm", 100)
+	if err != nil {
+		return governor.WALState{}, err
+	}
+	page := uint32(binary.BigEndian.Uint16(db[16:18]))
+	if page == 1 {
+		page = 65536
+	}
+	indexPage := uint32(binary.NativeEndian.Uint16(index[14:16]))
+	if indexPage == 1 {
+		indexPage = 65536
+	}
+	magic := binary.BigEndian.Uint32(wal[:4])
+	if string(db[:16]) != "SQLite format 3\x00" || db[18] != 2 || db[19] != 2 ||
+		page < 512 || page > 65536 || page&(page-1) != 0 || indexPage != page ||
+		(magic != 0x377f0682 && magic != 0x377f0683) || binary.BigEndian.Uint32(wal[4:8]) != 3007000 ||
+		binary.BigEndian.Uint32(wal[8:12]) != page || binary.NativeEndian.Uint32(index[:4]) != 3007000 || index[12] != 1 ||
+		!bytes.Equal(index, stable) || !bytes.Equal(index[:48], index[48:96]) || !bytes.Equal(wal[16:24], index[32:40]) {
+		return governor.WALState{}, errors.New("unsupported original PASSIVE WAL/index format")
+	}
+	state := governor.WALState{PhysicalBytes: size, PageSize: page,
+		Frames: binary.NativeEndian.Uint32(index[16:20]), Backfill: binary.NativeEndian.Uint32(index[96:100])}
+	copy(state.Salt[:], wal[16:24])
+	state.ActiveBytes = 32 + int64(state.Frames)*(int64(page)+24)
+	state.UncheckpointedBytes = int64(state.Frames-state.Backfill) * (int64(page) + 24)
+	if state.Frames == 0 || state.Backfill > state.Frames || state.ActiveBytes > size {
+		return governor.WALState{}, errors.New("unsupported original PASSIVE WAL prefix")
+	}
+	return state, nil
+}
+
 func passiveExpectedWAL(before governor.WALState, backfill uint32) (governor.WALState, error) {
 	if before.Frames == 0 || before.Backfill > backfill || backfill > before.Frames {
 		return governor.WALState{}, errors.New("unsupported PASSIVE prefix")
@@ -257,6 +321,9 @@ func passiveCaseValid(c crashCase) bool {
 	if c.Domain != "passive_native" || c.CommitFault != "" || c.Operation != "free" && c.Operation != "pinned" && c.Operation != "resumed" {
 		return false
 	}
+	if c.Operation != "free" {
+		return c.Boundary == "checkpoint_return"
+	}
 	for _, phase := range passiveCrashPhases {
 		if c.Boundary == phase {
 			return true
@@ -280,7 +347,7 @@ func crashPassiveFixture(t *testing.T, witness *crashWitness) (*effectiveFirstLi
 	source := crashWitness{Case: crashCase{"effective_steps", "stage", "trace", ""}}
 	f, _ := crashEffectiveStepsFixture(t, &source)
 	witness.Path, witness.Reference, witness.Effective = f.path, source.Reference, source.Effective
-	mark, err := governor.ReadWAL(f.path)
+	mark, err := readPassiveJournalWAL(f.path)
 	if err != nil || mark.Frames == 0 || mark.Backfill != 0 {
 		t.Fatal("fixture lacks original dirty WAL", mark, err)
 	}
@@ -311,7 +378,7 @@ func crashPassiveFixture(t *testing.T, witness *crashWitness) (*effectiveFirstLi
 	f.executor.now = func() time.Time { trace.observeClock(); return time.Unix(0, clock.Load()).UTC() }
 	g, authority, wal := crashGovernor(t, f.executor, f.writer.effective.plan)
 	trace.authority = authority
-	state, err := governor.ReadWAL(f.path)
+	state, err := readPassiveJournalWAL(f.path)
 	if err != nil || state.Frames <= mark.Frames || state.Salt != mark.Salt {
 		t.Fatal("real ACK did not advance original WAL", state, mark, err)
 	}
@@ -358,7 +425,7 @@ func crashPassiveFixture(t *testing.T, witness *crashWitness) (*effectiveFirstLi
 		clock.Add(int64(1500 * time.Millisecond)) // declared cadence, no sleep or production policy change
 		sequence = 2
 	}
-	proof.Before, err = governor.ReadWAL(f.path)
+	proof.Before, err = readPassiveJournalWAL(f.path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -419,7 +486,7 @@ func verifyPassiveCrash(t *testing.T, command *effectiveStageBeginCommand, witne
 		t.Fatal(err)
 	}
 	// Observe BEFORE any new SQLite opener can recover/checkpoint the survivor.
-	gotWAL, err := governor.ReadWAL(witness.Path)
+	gotWAL, err := readPassiveJournalWAL(witness.Path)
 	if err != nil || gotWAL != wantWAL {
 		t.Fatal("native PASSIVE progress changed", gotWAL, wantWAL, err)
 	}
@@ -550,7 +617,13 @@ func TestCrashReplayGovernedPassive(t *testing.T) {
 			if joined, err := closeEffectiveFirstLightFixture(f); err != nil || !joined {
 				t.Fatal(joined, err)
 			}
-			for _, phase := range passiveCrashPhases {
+			phases := passiveCrashPhases
+			if operation != "free" {
+				// Pool/close mechanics are identical; exercise those once. Only
+				// the distinct pinned/resumed progress needs another crash.
+				phases = []string{"checkpoint_return"}
+			}
+			for _, phase := range phases {
 				t.Run(phase, func(t *testing.T) {
 					verifyPassiveCrash(t, command, runCrashChild(t, crashCase{"passive_native", operation, phase, ""}))
 				})
