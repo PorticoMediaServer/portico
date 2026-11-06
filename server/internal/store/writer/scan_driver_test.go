@@ -188,6 +188,9 @@ func TestScanDriverRetainsNativeBorrowUntilActualFrameReturn(t *testing.T) {
 	if work.physicallyReturned() {
 		t.Fatal("cancel counted as return")
 	}
+	if p.retired || d.work != work || d.preparation != p {
+		t.Fatal("live native work lost its preparation memory custody")
+	}
 	if _, err = turn.transaction.rollback(nil); err != nil {
 		t.Fatal(err)
 	}
@@ -387,5 +390,58 @@ func TestScanDriverCloseJoinsPreparationBeforeAnyCommand(t *testing.T) {
 	}
 	if !p.retired || !d.released || d.writer.effective.authority.Usage() != ([4]governor.Amounts{}) {
 		t.Fatal("pre-command grant or native borrow survived driver close")
+	}
+}
+
+// Independent review reproduction: follow the permanent opening root rather
+// than a local pointer or GC timing. The tombstone must not retain refunded data.
+func TestIndependentTombstoneRefundsRetainedMemory(t *testing.T) {
+	f := newScanDriverFixture(t)
+	p := f.preparation(t, InventoryAccept, "lifecycle-run")
+	if _, err := p.ObserveInventory(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.driver.Close(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	tombstone := f.driver.opening.driver
+	if tombstone.preparation != nil && tombstone.preparation.observed != nil &&
+		len(tombstone.preparation.observed.Entries) > 0 &&
+		f.driver.writer.effective.authority.Usage() == ([4]governor.Amounts{}) {
+		t.Fatal("permanent opening tombstone retains observed preparation payload after its memory grant was refunded")
+	}
+}
+
+func TestScanDriverTombstoneDropsEveryPreparationRoot(t *testing.T) {
+	f := newScanDriverFixture(t)
+	d := f.driver
+	p := f.preparation(t, InventoryAccept, "lifecycle-run")
+	if _, err := p.ObserveInventory(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	q := ScanReceiptRequest{RunID: "lifecycle-run", LibraryID: 7, LibraryKey: "lifecycle-library", Receipt: ReceiptReference{Identity: CommandIdentity{Sequence: 1}}}
+	if _, err := d.prepareWork(t.Context(), InventoryAccept, q, 0, p); err != nil {
+		t.Fatal(err)
+	}
+	// Deliberate alias-retention control only; this does not mint birth proof.
+	d.birth = &scanBirth{driver: d, preparation: p}
+	if err := d.Close(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if d.opening.driver != d || d.preparation != nil || d.work != nil || d.birth != nil || d.retention != nil {
+		t.Fatal("closed tombstone retained preparation/birth/work roots")
+	}
+	if !p.retired || p.observed != nil || !reflect.DeepEqual(p.request, nativeinventory.Request{}) ||
+		p.key != "" || !reflect.DeepEqual(p.expected, governor.Request{}) || !reflect.DeepEqual(p.observer, nativeinventory.Observer{}) {
+		t.Fatal("closed preparation retained refunded payload buffers")
+	}
+	if d.writer.effective.authority.Usage() != ([4]governor.Amounts{}) {
+		t.Fatal("joined preparation reservation was not retired")
+	}
+	if err := d.Close(t.Context()); err != nil {
+		t.Fatal("minimal tombstone close is not idempotent", err)
+	}
+	if other, err := newScanDriver(t.Context(), d.opening, d.owner, d.writer, d.observer); other != nil || !errors.Is(err, ErrBusy) {
+		t.Fatal("minimal tombstone allowed a replacement issuer", other, err)
 	}
 }
