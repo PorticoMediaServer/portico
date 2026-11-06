@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/mediasource"
-	"github.com/PorticoMediaServer/portico/server/internal/storage"
+	"github.com/PorticoMediaServer/portico/server/internal/storage/objectidentity"
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/searchpolicy"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
@@ -123,7 +123,7 @@ func TestInventoryFreshObservationExactParity(t *testing.T) {
 			r := base.request
 			r.files = append([]inventoryFile(nil), r.files...)
 			r.files[0].objectIdentity = rawIdentity
-			stable := storage.StableObjectIdentity(rawIdentity, r.source.rootIdentity)
+			stable := objectidentity.StableObjectIdentity(rawIdentity, r.source.rootIdentity)
 			object := stable
 			if object == "" {
 				object = "path:" + r.files[0].assetPath

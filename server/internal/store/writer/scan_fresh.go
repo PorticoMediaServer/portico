@@ -50,7 +50,13 @@ func applyInventoryAccept(ctx context.Context, turn *commandTurn, command *inven
 	if err != nil {
 		return value, err
 	}
-	addedAt := time.UnixMilli(appliedMS).UTC().Format(time.RFC3339Nano)
+	// Catalogue TEXT uses the adopted fixed nine-fraction UTC shape; RFC3339Nano
+	// would drop trailing zeros and violate that native contract. Same W time,
+	// no second clock or independently chosen timestamp.
+	addedAt := time.UnixMilli(appliedMS).UTC().Format("2006-01-02T15:04:05.000000000Z")
+	if len(addedAt) != 30 {
+		return value, ErrInvalid
+	}
 	allocated, err := insertInventoryFreshCatalogue(ctx, turn, command, addedAt)
 	if err != nil {
 		return value, err
