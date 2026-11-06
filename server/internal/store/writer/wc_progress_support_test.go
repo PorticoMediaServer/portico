@@ -261,3 +261,33 @@ func TestWCAPIEventDeleteFailureRollsBackParent(t *testing.T) {
 		t.Fatal("failed delete left new hint or lost victim", count, minID, maxID, err)
 	}
 }
+
+func TestWCProgressCaptureAckDoesNotDrainPending(t *testing.T) {
+	w := wc008NativeExecutor(t)
+	capture := wcCaptureFixture(t, w)
+	turn := wc008NativeTurn(t, w, ProgressAccept, wcProgressDefinitions())
+	e, err := applyWC008Capture(t.Context(), turn, capture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, err := storeWC008CaptureResult(t.Context(), turn, capture, e, RequestDigest{31}, ResultDigest{32})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := turn.transaction.commit(); err != nil {
+		t.Fatal(err)
+	}
+	p := capture.source
+	ack := wcProgressAck{playbackID: p.proof.playbackID, reference: ReceiptReference{Identity: p.identity, RequestDigest: RequestDigest{31}}, owner: receiptOwnerFacts{exists: true, incarnation: p.identity.Incarnation, lastSequence: 1}, decision: receiptReplay, sourceKind: "capture_report", receiptRows: 1, receiptVariableBytes: n, appliedMS: 2000}
+	turn = wc008NativeTurn(t, w, ProgressAccept, wcProgressAckDefinitions())
+	if floor, err := acknowledgeWCProgress(t.Context(), turn, ack); err != nil || floor != 1 {
+		t.Fatal(floor, err)
+	}
+	if _, err := turn.transaction.commit(); err != nil {
+		t.Fatal(err)
+	}
+	var floor, report, cursor, until, rows, bytes, spanRows, played int64
+	if err := w.db.QueryRowContext(t.Context(), `SELECT command_acknowledged_sequence,pending_time_sequence,pending_time_cursor_ms,pending_time_until_ms,receipt_rows,receipt_variable_bytes,(SELECT count(*) FROM listening_time_spans),(SELECT played_ms FROM personal_items) FROM playback_personal_claims`).Scan(&floor, &report, &cursor, &until, &rows, &bytes, &spanRows, &played); err != nil || floor != 1 || report != 13 || cursor != 0 || until != 1000 || rows != 1 || bytes != n || spanRows != 0 || played != 0 {
+		t.Fatal("capture ACK consumed pending proof or refunded result custody", floor, report, cursor, until, rows, bytes, spanRows, played, err)
+	}
+}
