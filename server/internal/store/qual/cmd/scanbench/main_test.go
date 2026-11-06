@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/PorticoMediaServer/portico/server/internal/storage"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -73,4 +74,14 @@ func TestScanbenchInvalidArgumentsNeverCreateFixture(t *testing.T) {
 			t.Fatal("invalid run created fixture", err)
 		}
 	}
+}
+
+func TestMain(m *testing.M) {
+	if len(os.Args) == 2 && os.Args[1] == "--portico-storage-helper" {
+		if storage.Helper(os.Stdin, os.Stdout) != nil {
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+	os.Exit(m.Run())
 }

@@ -34,13 +34,21 @@ traversal validation, not full path/content reconciliation. Real file Basic must
 validate bounded identity/media/local facts in the SC-owned driver.
 
 The production scanner is untouched. The harness uses storage.Client under its
-supervisor/containment and exact operation scope; it joins physical work even
-on cancellation. Linux `InventoryPage(Stream=false, Limit=1)` is the native
-getdents64 candidate: original decimal d_off is preserved, never recomputed from
+supervisor/containment and the explicit real retirement owner passed to every
+NativeInventoryPage call; it joins physical work even
+on cancellation. Linux `NativeInventoryPage` with raw Limit=1 is the separate
+base64 byte-carrier operation over the existing helper spawn: original decimal d_off is preserved, never recomputed from
 file offsets or from slices of larger pages. No caller-selected cursor-kind is
 minted here. Retained `Stream=true` and non-Linux `stream1:` session cursors need a
 separate typed/versioned accepting/restart-custody contract; do not strip or
-relabel them. The CLI refuses non-Linux FIRST runs.
+relabel them. The CLI refuses non-Linux FIRST runs. Legacy InventoryPage JSON string fields
+can replace invalid UTF8 with U+FFFD and remain unchanged; the producer never
+uses that transport. Native request root/relative and response path/name/issue
+bytes stay []byte through the helper, DFS and consumer turn. NUL cannot exist
+in an OS filename: injected NUL-bearing paths refuse without consumption.
+Invalid UTF8 bytes are preserved for SC policy refusal, never silently replaced
+or treated as poison/progress authority. The actual SC constructor still waits
+its reviewed merged DTO and trusted W ingress.
 
 DFS retains a cursor per ancestor and at most one observed name per turn.
 Callback failure/refusal stops further reads. It supplies original request/page
