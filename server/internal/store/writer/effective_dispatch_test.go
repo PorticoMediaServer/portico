@@ -26,6 +26,12 @@ func effectiveFacadeFixture(t *testing.T) (*Writer, *EnrichmentDisclosure, *effe
 	if err != nil {
 		t.Fatal(err)
 	}
+	return bindEffectiveFixtureRuntime(t, executor, command)
+}
+
+func bindEffectiveFixtureRuntime(t *testing.T, executor *executor, command *effectiveStageBeginCommand) (*Writer, *EnrichmentDisclosure, *effectiveStageBeginCommand, *executor, *governor.Authority) {
+	t.Helper()
+	input := command.request
 	var sequence int64
 	var name, path string
 	if err := executor.db.QueryRowContext(t.Context(), "PRAGMA database_list").Scan(&sequence, &name, &path); err != nil {
@@ -35,17 +41,7 @@ func effectiveFacadeFixture(t *testing.T) (*Writer, *EnrichmentDisclosure, *effe
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan := effectivePlan{recipe: turnRecipe{limit: Work{4096, 1000000, 4096, 32 << 20, 25 * time.Millisecond}, setup: Work{16, 500, 16, 65536, time.Millisecond}, terminal: Work{16, 500, 16, 65536, 8 * time.Millisecond}}, headerSync: Work{WALBytes: 32, Hold: 5 * time.Millisecond}}
-	defs := append(enrichmentEffectiveBeginDefinitions(), enrichmentEffectiveProducerDefinitions()...)
-	defs = append(defs, effectiveDispatchDefinitions()...)
-	for _, def := range defs {
-		plan.steps = append(plan.steps, statementStep{def.ID, Work{16, 2000, 16, 65536, 100 * time.Microsecond}})
-	}
-	plan.need[governor.MemoryBytes] = 128 << 20
-	plan.need[governor.CPUMilli] = 100
-	plan.need[governor.WALBytes] = int64(plan.recipe.limit.WALBytes)
-	plan.need[governor.IOBytes] = 64 << 20
-	plan.io = []governor.DeviceIO{{DeviceID: "protocol-fixture", Class: governor.Seeking, Outstanding: 1, Bytes: 64 << 20}}
+	plan := effectiveFixturePlan()
 	var partitions [4]governor.Amounts
 	for i := range partitions {
 		partitions[i] = plan.need
@@ -61,6 +57,21 @@ func effectiveFacadeFixture(t *testing.T) (*Writer, *EnrichmentDisclosure, *effe
 	w := &Writer{effective: runtime}
 	cap := &EnrichmentDisclosure{issuer: w, scope: &enrichmentScope{ownerID: input.ownerID, libraryKey: "library-native", libraryID: input.entity.libraryID, entityID: input.entity.id, lifetime: t.Context()}}
 	return w, cap, command, executor, authority
+}
+
+func effectiveFixturePlan() effectivePlan {
+	plan := effectivePlan{recipe: turnRecipe{limit: Work{4096, 1000000, 4096, 32 << 20, 25 * time.Millisecond}, setup: Work{16, 500, 16, 65536, time.Millisecond}, terminal: Work{16, 500, 16, 65536, 8 * time.Millisecond}}, headerSync: Work{WALBytes: 32, Hold: 5 * time.Millisecond}}
+	defs := append(enrichmentEffectiveBeginDefinitions(), enrichmentEffectiveProducerDefinitions()...)
+	defs = append(defs, effectiveDispatchDefinitions()...)
+	for _, def := range defs {
+		plan.steps = append(plan.steps, statementStep{def.ID, Work{16, 2000, 16, 65536, 100 * time.Microsecond}})
+	}
+	plan.need[governor.MemoryBytes] = 128 << 20
+	plan.need[governor.CPUMilli] = 100
+	plan.need[governor.WALBytes] = int64(plan.recipe.limit.WALBytes)
+	plan.need[governor.IOBytes] = 64 << 20
+	plan.io = []governor.DeviceIO{{DeviceID: "protocol-fixture", Class: governor.Seeking, Outstanding: 1, Bytes: 64 << 20}}
+	return plan
 }
 
 func effectiveReference(input *effectiveStageBeginCommand) EnrichmentReceiptRequest {
