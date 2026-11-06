@@ -15,7 +15,7 @@ import (
 func (d Dependencies) retiringAuthorityPage(r *http.Request, original identity.Principal, after string) (eventfeed.Page, bool) {
 	var page eventfeed.Page
 	ctx := dbwork.WithClass(r.Context(), dbwork.ClassSecurityFence)
-	err := dbwork.WithReadSnapshot(ctx, d.DB, func(ctx context.Context) error {
+	err := dbwork.WithReadSnapshotOnce(ctx, d.DB, func(ctx context.Context) error {
 		fresh, err := d.strictPrincipalFor(r.WithContext(ctx))
 		if err != nil {
 			return err

@@ -301,3 +301,31 @@ func TestRoleChangeAnswersParkedPollWithOnlyItsAuthorityHint(t *testing.T) {
 		t.Fatal("parked role change did not retire")
 	}
 }
+
+func TestRetiringAuthorityPageClosesRequestSnapshotBeforeResponse(t *testing.T) {
+	d, _, _, member := notificationFixture(t)
+	authorityTestRole(t, d, "admin")
+	original, err := d.Identity.Authenticate(member.AccessToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Events = eventfeed.New(d.DB)
+	start, err := d.Events.Read(context.Background(), original, true, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	authorityTestRole(t, d, "member")
+	ctx, end := dbwork.WithRequestSnapshot(context.Background())
+	defer end()
+	r := httptest.NewRequest("GET", "/v1/events", nil).WithContext(ctx)
+	r.Header.Set("Authorization", "Bearer "+member.AccessToken)
+	page, ok := d.retiringAuthorityPage(r, original, start.NextAfter)
+	if !ok || len(page.Events) != 1 || page.Events[0].Type != "authority.changed" || page.Events[0].Revision != "3" {
+		t.Fatalf("retirement hint: ok=%v page=%+v", ok, page)
+	}
+	// Like the admin-events ownership control, check before response I/O and
+	// before ending the request: the reusable view must already be closed.
+	if held := d.DB.Stats().InUse; held != 0 {
+		t.Fatalf("retirement hint retained %d connections before response I/O", held)
+	}
+}
