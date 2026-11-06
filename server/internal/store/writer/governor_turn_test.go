@@ -196,3 +196,25 @@ func TestGovernedTurnWALReadFailureInvalidatesOldSample(t *testing.T) {
 		t.Fatal("failed read left old WAL headroom usable", d)
 	}
 }
+
+func TestGovernedTurnWALClockPanicInvalidatesOldSample(t *testing.T) {
+	_, path, clock := testExecutor(t)
+	now := func() time.Time { return *clock }
+	g, _, wal, request := governedFixture(t, now)
+	if err := refreshWriterWAL(path, wal, now); err != nil {
+		t.Fatal(err)
+	}
+	primary := errors.New("WAL observation clock panic")
+	func() {
+		defer func() {
+			if got := recover(); got != primary {
+				t.Fatal("primary replaced", got)
+			}
+		}()
+		_, _ = observeWriterWAL(path, wal, func() time.Time { panic(primary) })
+		t.Fatal("clock panic swallowed")
+	}()
+	if d := g.Try(request); d.Grant != nil || d.Refusal == nil || d.Refusal.Code != governor.FailSafe {
+		t.Fatal("observer panic left old headroom reusable", d)
+	}
+}
