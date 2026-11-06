@@ -98,6 +98,29 @@ type capturedSource struct {
 func capturedSources(ctx context.Context, conn *sql.Conn, entries []stmt.Entry) ([]capturedSource, error) {
 	result := []capturedSource{}
 	for _, entry := range entries {
+		if entry.Plan.NativeRetained != "" {
+			audit, err := inspectFTSRetained(ctx, conn, entry.Definition)
+			if err != nil {
+				return nil, err
+			}
+			spec, _ := entry.Plan.NativeRetained.Specification()
+			view := "search_fragment_content"
+			if spec.Table == "search_own_prefix" {
+				view = "search_own_content"
+			}
+			result = append(result,
+				capturedSource{Statement: entry.ID, Name: spec.Table, Schema: "main", Kind: "virtual", SQL: audit.Declaration},
+				capturedSource{Statement: entry.ID, Name: view, Schema: "main", Kind: "view", SQL: audit.ContentView})
+			for _, row := range audit.ContentTables.Values {
+				name := row[0].(string) // inspected exact native format above
+				s := capturedSource{Statement: entry.ID, Name: name, Schema: "main"}
+				if err := conn.QueryRowContext(ctx, `SELECT type,sql,rootpage FROM main.sqlite_schema WHERE name=?`, name).Scan(&s.Kind, &s.SQL, &s.RootPage); err != nil {
+					return nil, err
+				}
+				result = append(result, s)
+			}
+			continue
+		}
 		if entry.Plan.NativeInsert != "" {
 			audit, err := inspectFTSInsert(ctx, conn, entry.Definition)
 			if err != nil {
