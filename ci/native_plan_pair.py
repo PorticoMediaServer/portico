@@ -146,6 +146,10 @@ def collect(source, output, sha):
                                  for p in sorted((output / "actual").rglob("*.json.gz"))]
         report.write_text(json.dumps(manifest, indent=2) + "\n")
         shutil.rmtree(scratch)
+        # Derived compilation copies are reproducible from the two commit
+        # pins and recorded hashes; retain native evidence, not source copies.
+        shutil.rmtree(output / "overlay", ignore_errors=True)
+        overlay_path.unlink(missing_ok=True)
     # Preserve normal failure status; macOS fingerprint failures are expected.
     return int(any(run["exitCode"] != 0 for run in manifest["runs"]))
 
