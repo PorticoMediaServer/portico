@@ -1,6 +1,6 @@
 //go:build windows
 
-package main
+package stateownership
 
 import (
 	"errors"
@@ -19,10 +19,10 @@ func lockInstanceFile(file *os.File) error {
 	case err == nil:
 		return nil
 	case errors.Is(err, windows.ERROR_LOCK_VIOLATION), errors.Is(err, windows.ERROR_SHARING_VIOLATION), errors.Is(err, windows.ERROR_IO_PENDING):
-		return errInstanceLockHeld
+		return ErrHeld
 	case errors.Is(err, windows.ERROR_INVALID_FUNCTION), errors.Is(err, windows.ERROR_NOT_SUPPORTED):
 		// A network redirector that does not implement byte-range locks.
-		return errInstanceLockUnsupported
+		return ErrUnsupported
 	default:
 		return err
 	}
