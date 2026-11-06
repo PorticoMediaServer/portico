@@ -47,7 +47,7 @@ func TestScanObjectStatementPlans(t *testing.T) {
 			t.Fatalf("scan %s must be hot with no waivers", d.ID)
 		}
 	}
-	if definitions[0].Kind != stmt.Write || len(definitions[0].Params) != 17 || len(definitions[0].Cohorts) != 1 {
+	if definitions[0].Kind != stmt.Write || len(definitions[0].Params) != 16 || len(definitions[0].Cohorts) != 1 {
 		t.Fatal("inventory object compiled shape changed")
 	}
 	_, returned, ok := strings.Cut(definitions[0].SQL, "\nRETURNING ")
@@ -174,5 +174,5 @@ func TestScanObjectStatementPlans(t *testing.T) {
 	if err := plan.CompareExactJSON(expectedFK, fkJSON); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("1compiled definition/1cohort/1destination audit/17bindings+RETURNING fields/652FKs/1956probes; fixture journal%s; no accepting SQL executed", fixtureSHA)
+	t.Logf("1compiled definition/1cohort/1destination audit/16bindings+17RETURNING fields/652FKs/1956probes; fixture journal%s; no accepting SQL executed", fixtureSHA)
 }
