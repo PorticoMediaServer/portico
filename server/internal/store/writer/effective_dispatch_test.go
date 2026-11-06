@@ -243,6 +243,116 @@ func TestEffectivePlanOwnsFiniteRecipe(t *testing.T) {
 	}
 }
 
+func seedEffectiveReceipt(t *testing.T, executor *executor, command *effectiveStageBeginCommand) EffectiveStageBeginResult {
+	t.Helper()
+	turn, _ := effectiveBeginWholeTurn(t, executor)
+	saved, err := applyEffectiveStageBegin(t.Context(), turn, command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := turn.closeRows(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := turn.transaction.commit(); err != nil {
+		t.Fatal(err)
+	}
+	return saved
+}
+
+func primeEffectiveFixturePool(t *testing.T, executor *executor) {
+	t.Helper()
+	// Startup custody establishes zero-frame WAL/index via read-only schema
+	// access. Missing sidecars must remain a serving admission failure.
+	conn, err := executor.db.Conn(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	if _, err := sqliteconn.Assert(t.Context(), conn, executor.config); err != nil {
+		t.Fatal(err)
+	}
+	var tables int64
+	if err := conn.QueryRowContext(t.Context(), "SELECT count(*) FROM sqlite_schema").Scan(&tables); err != nil || tables == 0 {
+		t.Fatal("fixture startup read failed", tables, err)
+	}
+}
+
+func TestEffectiveFacadeMissingUnackedProofFailsClosed(t *testing.T) {
+	w, cap, command, executor, _ := effectiveFacadeFixture(t)
+	seedEffectiveReceipt(t, executor, command)
+	if _, err := executor.db.ExecContext(t.Context(), "DELETE FROM enrichment_command_receipts WHERE provider_operation_id=? AND command_sequence=?", command.request.ownerID, command.identity.Sequence); err != nil {
+		t.Fatal(err)
+	}
+	request := effectiveReference(command)
+	for _, invoke := range []func() (EffectiveStageResult, error){
+		func() (EffectiveStageResult, error) { return w.ResolveEffective(t.Context(), cap, request) },
+		func() (EffectiveStageResult, error) { return w.StageEffective(t.Context(), cap, command) },
+	} {
+		result, err := invoke()
+		if !errors.Is(err, ErrResolveRequired) || result.Outcome.State != ResolveRequired || result.Value != (EffectiveStageBeginResult{}) {
+			t.Fatal("missing historical result became fresh/Applied", result, err)
+		}
+	}
+	if _, err := w.AckEffective(t.Context(), cap, request); !errors.Is(err, ErrResolveRequired) {
+		t.Fatal("missing proof ACKed", err)
+	}
+}
+
+func TestEffectiveFacadeCommittedAckOverrunKeepsFloor(t *testing.T) {
+	w, cap, command, executor, authority := effectiveFacadeFixture(t)
+	seedEffectiveReceipt(t, executor, command)
+	path := w.effective.path
+	if err := executor.db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	connector, err := sqliteconn.Connector(path, executor.config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	baseNow := executor.now()
+	clock := baseNow
+	executor.now = func() time.Time { return clock }
+	fault := &faultConnector{Connector: connector, afterNativeCommit: func() { clock = baseNow.Add(30 * time.Millisecond) }}
+	installFaultPool(executor, fault)
+	primeEffectiveFixturePool(t, executor)
+	ack, err := w.AckEffective(t.Context(), cap, effectiveReference(command))
+	if !errors.Is(err, ErrOverrun) || ack.AcknowledgedThrough != command.identity.Sequence || ack.Evidence == nil || ack.Evidence.Commit != CommitSucceeded {
+		t.Fatal("committed ACK became retryable failure", ack, err)
+	}
+	if !executor.fenced || !w.effective.fenced || authority.Usage()[governor.Background] != (governor.Amounts{}) {
+		t.Fatal("overrun lost fence/physical return")
+	}
+	if _, err := w.ResolveEffective(t.Context(), cap, effectiveReference(command)); !errors.Is(err, ErrClosed) {
+		t.Fatal("fenced facade admitted next call", err)
+	}
+}
+
+func TestEffectiveFacadeAmbiguousAckFencesAfterPhysicalReturn(t *testing.T) {
+	w, cap, command, executor, authority := effectiveFacadeFixture(t)
+	seedEffectiveReceipt(t, executor, command)
+	path := w.effective.path
+	if err := executor.db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	connector, err := sqliteconn.Connector(path, executor.config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fault := &faultConnector{Connector: connector, replyError: true, afterCommit: true}
+	installFaultPool(executor, fault)
+	primeEffectiveFixturePool(t, executor)
+	ack, err := w.AckEffective(t.Context(), cap, effectiveReference(command))
+	if !errors.Is(err, ErrResolveRequired) || ack.AcknowledgedThrough != 0 || ack.Evidence == nil || ack.Evidence.Commit != CommitUnknown || ack.Evidence.PhysicalReturnedAt == nil {
+		t.Fatal("ambiguous ACK invented acknowledgement", ack, err)
+	}
+	if !executor.ambiguous || !w.effective.fenced || authority.Usage()[governor.Background] != (governor.Amounts{}) || !fault.nativeClosed.Load() {
+		t.Fatal("ambiguity escaped quarantine/physical return")
+	}
+	if _, err := w.StageEffective(t.Context(), cap, command); !errors.Is(err, ErrResolveRequired) {
+		t.Fatal("ambiguous facade admitted a new turn", err)
+	}
+}
+
 func TestEffectiveDispatchNativeCohortsAndPlans(t *testing.T) {
 	w, _, command, executor, _ := effectiveFacadeFixture(t)
 	turn, _ := effectiveBeginWholeTurn(t, executor)

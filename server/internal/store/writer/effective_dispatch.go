@@ -204,6 +204,13 @@ func (r *effectiveRuntime) run(ctx context.Context, w *Writer, cap *EnrichmentDi
 		}
 	}()
 	if r.fenced {
+		if r.executor.ambiguous {
+			if !ack {
+				out.Outcome.State = ResolveRequired
+				out.Outcome.Reference = request.Receipt
+			}
+			return out, acknowledged, ErrResolveRequired
+		}
 		return out, acknowledged, ErrClosed
 	}
 	before, err := observeWriterWAL(r.path, r.wal, r.executor.now)
@@ -219,8 +226,12 @@ func (r *effectiveRuntime) run(ctx context.Context, w *Writer, cap *EnrichmentDi
 	if callerDeadline, ok := ctx.Deadline(); ok && callerDeadline.Before(deadline) {
 		deadline = callerDeadline
 	}
+	class, err := commandClass(EffectiveStage)
+	if err != nil {
+		return out, acknowledged, err
+	}
 	expected := governor.Request{RestartRisk: risk, Key: governor.JobKey{Domain: uint16(EffectiveStage), ID: request.ProviderOperationID}, Owner: r.owner,
-		Class: governor.Background, Writer: true, Need: r.plan.need, IO: r.plan.io, MaxHold: r.plan.recipe.limit.Hold, Deadline: deadline,
+		Class: class, Writer: true, Need: r.plan.need, IO: r.plan.io, MaxHold: r.plan.recipe.limit.Hold, Deadline: deadline,
 		Budget:    governor.UnitBudget{RawRows: uint32(r.plan.recipe.limit.Rows), VMOps: r.plan.recipe.limit.VMOps, Pages: uint32(r.plan.recipe.limit.Pages)},
 		Footprint: []governor.Scope{{Library: request.LibraryID, Domain: uint16(EffectiveStage)}}}
 	decision := r.governor.Try(expected)
@@ -250,6 +261,13 @@ func (r *effectiveRuntime) run(ctx context.Context, w *Writer, cap *EnrichmentDi
 		transferred = true
 	}
 	if err != nil {
+		if r.executor.fenced || r.executor.ambiguous {
+			r.fenced = true
+		}
+		if !ack && errors.Is(err, ErrResolveRequired) {
+			out.Outcome.State = ResolveRequired
+			out.Outcome.Reference = request.Receipt
+		}
 		return out, acknowledged, err
 	}
 	defer tx.rollback(nil) // preserves the PRIMARY panic through frame cleanup
@@ -303,6 +321,15 @@ func (r *effectiveRuntime) run(ctx context.Context, w *Writer, cap *EnrichmentDi
 	if turn != nil {
 		err = errors.Join(err, turn.closeRows())
 	}
+	// A lifetime revoked while reading cannot disclose the saved result or ACK
+	// its floor. Caller cancellation alone does not erase already proven history.
+	permissionErr := r.checkDisclosure(ctx, w, cap, request)
+	if errors.Is(permissionErr, ErrDisclosureDenied) {
+		out = EffectiveStageResult{}
+		acknowledged = AckResult{}
+		historical = false
+	}
+	err = errors.Join(err, permissionErr)
 	var physical turnResult
 	if err == nil {
 		physical, err = tx.commit()
@@ -321,7 +348,7 @@ func (r *effectiveRuntime) run(ctx context.Context, w *Writer, cap *EnrichmentDi
 			out.Value = EffectiveStageBeginResult{}
 		}
 	}
-	if !ack && !historical && (physical.state == commitUnknown || errors.Is(err, ErrResolveRequired)) {
+	if !ack && !historical && !errors.Is(err, ErrDisclosureDenied) && (physical.state == commitUnknown || errors.Is(err, ErrResolveRequired)) {
 		out.Outcome.State = ResolveRequired
 		out.Outcome.Reference = request.Receipt
 	}
