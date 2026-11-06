@@ -30,7 +30,7 @@ func TestInventoryDisclosurePlanGoldens(t *testing.T) {
 	}
 	journal = journal[start:end]
 	digest := sha256.Sum256(journal)
-	if hex.EncodeToString(digest[:]) != "912942c1e1ced4cd5b40c9e40d96deff829dfb70d0ed00b1beaa1573b3bdaab9" {
+	if hex.EncodeToString(digest[:]) != "498990719bdefd61b423a99961f74de664c09ff4f7f040af946b79dec53b6723" {
 		t.Fatal("SC fixture journal changed; review populations before recording")
 	}
 	fixture, err := os.ReadFile("inventory_disclosure_test.go")

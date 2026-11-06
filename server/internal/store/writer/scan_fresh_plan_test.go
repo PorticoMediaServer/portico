@@ -29,7 +29,7 @@ func TestScanFreshStatementPlans(t *testing.T) {
 	// These SQL-fact populations are not a valid command manifest/FS authority.
 	parts := []struct{ file, start, end, sha string }{
 		{"scan_types_test.go", "func inventoryRequestFixture(", "func inventoryTestClone(", "79ed441e7172714ff02ca6a9fdbd025a367d1a84ad7241a0b08f9a0ac45e3404"},
-		{"scan_fresh_test.go", "func inventoryFreshRequest(", "func inventoryFreshFixture(", "0c2a00d8504c17e81e9f7a6918b87503bd2289520bc89ac0237ed3fe7bedf38d"},
+		{"scan_fresh_test.go", "func inventoryFreshRequest(", "func inventoryFreshFixture(", "43fc548c10f6b063f9cd9a82c38a66c30b623bff60da1817c7c2a5c941dccbc3"},
 		{"scan_fresh_plan_facts_test.go", "func seedInventoryFreshPlanFacts(", "func TestInventoryFreshNativeCompiledCohortPopulations(", "95d1b95d4e527ced085861bd66d89cf851779170bc911f892b134586ae975f9c"},
 	}
 	hash := sha256.New()
@@ -54,7 +54,7 @@ func TestScanFreshStatementPlans(t *testing.T) {
 		hash.Write(data)
 	}
 	fixtureSHA := hex.EncodeToString(hash.Sum(nil))
-	if fixtureSHA != "17b762bb4bc59e99e2cb1268f8b60bef2de6cd817b08f5ccc32f9e9a5ce94f52" || schema.SHA256 != "09726d2b04a4bbb8862545f70596ed4166f8fb77c13dafd6491b84363b6a085b" {
+	if fixtureSHA != "02e1bf0e5807af7bca78769a2a9007aad312d18215a46d35b67130ca16477886" || schema.SHA256 != "14acdcd726a51ac6b8988401a08c0a89c092413a0c963a7e2f887d7b7e7f829c" {
 		t.Fatal("frozen fixture/schema changed; review before recording")
 	}
 	definitions := scanFreshDefinitions()
@@ -136,7 +136,7 @@ func TestScanFreshStatementPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(golden.Plans) != 44 || golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 655 {
+	if len(golden.Plans) != 44 || golden.ForeignKeys == nil || len(golden.ForeignKeys.Plans) != 656 {
 		t.Fatalf("incomplete scan evidence: cohorts=%d FK=%v", len(golden.Plans), golden.ForeignKeys != nil)
 	}
 	if len(golden.Manifest) != 24 {
@@ -185,11 +185,11 @@ func TestScanFreshStatementPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// No schema change is authorized: the complete global FK image must be
-	// exactly the existing reviewed007 image before any new artifact is written.
+	// The complete global FK image must match the same adopted010a schema
+	// captured by the receipt harness before any new artifact is written.
 	baselineFK := readScanFreshFK(t, filepath.Join("testdata", "scan-inventory-accept-fk.json.gz"))
 	if err := plan.CompareExactJSON(baselineFK, fkJSON); err != nil {
-		t.Fatal("STOP: new fixture changed existing655-FK/1965-probe image", err)
+		t.Fatal("STOP: new fixture changed existing656-FK/1968-probe image", err)
 	}
 	golden.ForeignKeys = nil
 	actual, err := golden.JSON()
@@ -226,7 +226,7 @@ func TestScanFreshStatementPlans(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Logf("24new compiled definitions/44cohorts/3destination audits/%dVM opcodes/%dSEARCH rows/655FKs/1965probes; fixture journal%s; no accepting SQL executed or full43-ID command qualified", opcodes, searches, fixtureSHA)
+	t.Logf("24new compiled definitions/44cohorts/3destination audits/%dVM opcodes/%dSEARCH rows/656FKs/1968probes; fixture journal%s; no accepting SQL executed or full43-ID command qualified", opcodes, searches, fixtureSHA)
 }
 
 func readScanFreshFK(t *testing.T, path string) []byte {
