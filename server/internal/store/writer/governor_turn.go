@@ -41,6 +41,7 @@ type governedTurn struct {
 	expected        governor.Request
 	purpose         CommandID
 	limit           Work
+	clockHighWater  *time.Time            // same W composition mark under its existing mutex
 	inventoryMemory inventoryMemoryBudget // installed once by closed W composition before BEGIN
 	state           atomic.Uint32         // 0 active, 1 retirement attempted, 2 retired, 3 failed
 	fenced          atomic.Bool
@@ -121,6 +122,12 @@ func refreshWriterWAL(path string, wal *governor.WALGate, now func() time.Time) 
 }
 
 func observeWriterWAL(path string, wal *governor.WALGate, now func() time.Time) (observation *WALObservation, err error) {
+	// Standalone startup/component observation has no preceding writer turn.
+	var highWater time.Time
+	return observeWriterWALAt(path, wal, now, &highWater)
+}
+
+func observeWriterWALAt(path string, wal *governor.WALGate, now func() time.Time, highWater *time.Time, floors ...time.Time) (observation *WALObservation, err error) {
 	if wal == nil {
 		return nil, invalid("writer_wal_observer")
 	}
@@ -137,7 +144,7 @@ func observeWriterWAL(path string, wal *governor.WALGate, now func() time.Time) 
 			panic(primary)
 		}
 	}()
-	if now == nil {
+	if now == nil || highWater == nil {
 		return nil, invalid("writer_wal_observer")
 	}
 	state, err := governor.ReadWAL(path)
@@ -145,6 +152,9 @@ func observeWriterWAL(path string, wal *governor.WALGate, now func() time.Time) 
 		return nil, err
 	}
 	at := now()
+	if err := observeTime(highWater, at, floors...); err != nil {
+		return nil, err
+	}
 	if err := wal.Publish(token, state, at); err != nil {
 		return nil, err
 	}

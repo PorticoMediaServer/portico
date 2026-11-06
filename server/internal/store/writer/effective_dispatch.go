@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 	"unicode/utf8"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
@@ -59,6 +60,8 @@ type effectiveRuntime struct {
 	registry      *stmt.Registry
 	fenced        bool
 	cleanupPanics []terminalPanic
+
+	clockHighWater time.Time // composition custody under mu, then transferred into the frame
 }
 
 func newEffectiveRuntime(w *executor, path string, g governor.Governor, a *governor.Authority, wal *governor.WALGate, owner governor.OwnerID, plan effectivePlan, inventoryPlans ...effectivePlan) (*effectiveRuntime, error) {
@@ -223,6 +226,9 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	defer func() {
 		if primary := recover(); primary != nil {
 			r.fenced = true
+			// A panic can precede Try, while the before-WAL sample is valid.
+			// Invalidate without another fallible clock or changing the panic.
+			_ = r.wal.Publish(r.wal.Observation(), governor.WALState{}, time.Time{})
 			panic(primary)
 		}
 	}()
@@ -236,11 +242,14 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		}
 		return out, acknowledged, ErrClosed
 	}
-	before, err := observeWriterWAL(r.path, r.wal, r.executor.now)
+	before, err := observeWriterWALAt(r.path, r.wal, r.executor.now, &r.clockHighWater)
 	if err != nil {
 		return out, acknowledged, errors.Join(&Refusal{Code: RefusalWAL}, err)
 	}
 	now := r.executor.now()
+	if err := observeTime(&r.clockHighWater, now); err != nil {
+		return out, acknowledged, errors.Join(err, r.wal.Publish(r.wal.Observation(), governor.WALState{}, time.Time{}))
+	}
 	risk, err := r.wal.RestartRisk(now)
 	if err != nil {
 		return out, acknowledged, errors.Join(&Refusal{Code: RefusalWAL}, err)
@@ -285,6 +294,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 		return out, acknowledged, err
 	}
 	custody.inventoryMemory = plan.inventoryMemory // immutable W profile, never a worker override
+	custody.clockHighWater = &r.clockHighWater
 	tx, err = r.executor.begin(ctx, purpose, plan.recipe, custody)
 	if !errors.Is(err, ErrBusy) {
 		transferred = true
@@ -425,7 +435,7 @@ func (r *effectiveRuntime) runCommand(ctx context.Context, w *Writer, cap *Enric
 	if evidence != nil {
 		evidence.WALBefore = before
 		if tx.connectionReturned && tx.retirementComplete {
-			evidence.WALAfter, err = observeAfterReturn(r, err)
+			evidence.WALAfter, err = observeAfterReturn(r, tx, err)
 		}
 		evidence.ReturnedAt = r.executor.now()
 	}
@@ -506,7 +516,7 @@ func effectiveAdmissionRefusal(refusal *governor.Refusal) error {
 	return out
 }
 
-func observeAfterReturn(r *effectiveRuntime, prior error) (*WALObservation, error) {
-	observation, err := observeWriterWAL(r.path, r.wal, r.executor.now)
+func observeAfterReturn(r *effectiveRuntime, tx *transaction, prior error) (*WALObservation, error) {
+	observation, err := observeWriterWALAt(r.path, r.wal, r.executor.now, &r.clockHighWater, tx.clockHighWater, tx.commitReturnedAt, tx.physicalReturnedAt)
 	return observation, errors.Join(prior, err)
 }
