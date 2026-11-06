@@ -163,6 +163,12 @@ type lintParser struct {
 	at, depth  int
 	dml        *dmlShape
 	columnRole string
+	sources    []selectSource
+}
+
+type selectSource struct {
+	name     string
+	hasAlias bool
 }
 
 func (p *lintParser) peek(text string) bool {
@@ -446,6 +452,21 @@ func (p *lintParser) selectStatement() error {
 				return err
 			}
 		}
+		if len(p.sources) > 1 {
+			for _, source := range p.sources {
+				if !source.hasAlias {
+					return p.fail("joined tables require explicit AS aliases")
+				}
+			}
+			for at, token := range p.tokens {
+				if token.kind == 'q' {
+					return p.fail("quoted identifiers are outside the joined grammar")
+				}
+				if token.text == "." && at+2 < len(p.tokens) && p.tokens[at+2].text == "." {
+					return p.fail("schema-qualified columns are outside the joined grammar")
+				}
+			}
+		}
 	}
 	if p.take("WHERE") {
 		if err := p.boolean(); err != nil {
@@ -481,24 +502,38 @@ func (p *lintParser) selectStatement() error {
 // understood. Parenthesized joins, table functions and implicit aliases remain
 // outside the grammar. NOT INDEXED does not grant an EQP scan exception.
 func (p *lintParser) selectTable() error {
-	if err := p.qualifiedName(); err != nil {
+	start := p.at
+	if err := p.unquotedName(); err != nil {
 		return err
 	}
+	if p.peek(".") {
+		return p.fail("schema-qualified sources are outside the grammar")
+	}
+	source := selectSource{name: p.tokens[start].text}
 	if p.take("AS") {
-		if err := p.name(); err != nil {
+		if err := p.unquotedName(); err != nil {
 			return err
 		}
+		source.hasAlias = true
 	}
+	p.sources = append(p.sources, source)
 	if p.take("INDEXED") {
 		if err := p.need("BY"); err != nil {
 			return err
 		}
-		return p.name()
+		return p.unquotedName()
 	}
 	if p.take("NOT") {
 		return p.need("INDEXED")
 	}
 	return nil
+}
+
+func (p *lintParser) unquotedName() error {
+	if p.at >= len(p.tokens) || p.tokens[p.at].kind != 'w' {
+		return p.fail("expected an unquoted identifier")
+	}
+	return p.name()
 }
 
 // JOIN ON has a narrower grammar than WHERE: ANDed column=column/parameter/
