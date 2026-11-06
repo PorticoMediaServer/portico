@@ -2,7 +2,7 @@
 // Unlike G's route-evidence scanner, literals, DTO types, imports and validators do not count.
 import {createHash} from 'node:crypto';
 import {API} from 'typescript/unstable/sync';
-import {SyntaxKind as K} from 'typescript/unstable/ast';
+import {SyntaxKind as K, NodeFlags} from 'typescript/unstable/ast';
 import {readFileSync, writeFileSync, mkdtempSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
@@ -269,6 +269,32 @@ try {
       }
       if (contract?.body) tupleBindings(contract.body);
       const parameter = name => parameters.has(name);
+      const rest=contract?.parameters?.find(p=>p.dotDotDotToken && p.name?.kind===K.Identifier);
+      const restName=rest?.name.text;
+      let restWritten=false;
+      function restWrites(n) {
+        const target=n.kind===K.BinaryExpression ? n.left : undefined;
+        if (target && /^(?:=|\+=|\?\?=|\|\|=|&&=)$/.test(text(n.operatorToken))
+            && (target.kind===K.Identifier && target.text===restName
+              || target.kind===K.ElementAccessExpression && target.expression?.text===restName)) restWritten=true;
+        if (n.kind===K.CallExpression && n.expression.kind===K.PropertyAccessExpression
+            && n.expression.expression?.text===restName
+            && ['push','pop','shift','unshift','splice','sort','reverse','copyWithin','fill'].includes(n.expression.name.text)) restWritten=true;
+        n.forEachChild(restWrites);
+      }
+      if (rest && contract.body) restWrites(contract.body);
+      // The tuple may only be declared and spread directly into this dispatch.
+      // Any other reference is an alias, escape, read-modify-write or remapping;
+      // conservatively keep it DIRECT rather than attempting alias analysis.
+      let restEscaped=false;
+      function restReferences(n) {
+        if (n.kind===K.Identifier && n.text===restName && n!==rest.name && n!==args[0]?.expression) restEscaped=true;
+        n.forEachChild(restReferences);
+      }
+      if (rest && contract.body) restReferences(contract.body);
+      if (callName==='request' && args.length===1 && args[0].kind===K.SpreadElement
+          && args[0].expression.kind===K.Identifier && args[0].expression.text===restName
+          && !restWritten && !restEscaped && !hasRequestWrites(guard ?? contract ?? c,[restName])) forwardingShape='request-rest';
       // Upload/bounded guards bind their captured API selection in the enclosing
       // policy by default. A separately ruled complete callback span is explicit
       // in both the pin and ledger, never an implicit narrowing of this hash.
@@ -298,6 +324,100 @@ try {
           && !hasRequestWrites(guard ?? contract ?? c,[unchangedRequest(args[0].whenTrue) ? args[0].whenTrue.text : args[0].whenFalse.text])) forwardingShape='conditional-signal';
       if (callName==='farewell' && args.length===3 && sameNames(['path','method','body'])
           && ['path','method','body'].every(parameter) && !hasRequestWrites(guard ?? contract ?? c)) forwardingShape='farewell';
+      // The bounded Vega executor consumes a core-built Pending request. Bind
+      // the full start function, including bounds and credential policy, while
+      // checking the complete URL/method/body/header sequence structurally.
+      if (callName==='open' && guard?.parameters?.some(p=>p.name?.text==='pending')) {
+        const member=(n,field) => n?.kind===K.PropertyAccessExpression
+          && n.expression?.kind===K.Identifier && n.expression.text==='pending' && n.name.text===field;
+        const receiver=c.expression.kind===K.PropertyAccessExpression ? c.expression.expression : undefined;
+        const ownCalls=calls.filter(n=>ancestors.get(n)?.includes(guard));
+        const xhrCalls=ownCalls.filter(n=>n.expression.kind===K.PropertyAccessExpression
+          && n.expression.expression.kind===K.Identifier && n.expression.expression.text===receiver?.text);
+        const sends=xhrCalls.filter(n=>nameOf(n.expression)==='send');
+        const headers=xhrCalls.filter(n=>nameOf(n.expression)==='setRequestHeader');
+        const body=sends[0]?.arguments?.[0];
+        const originalBody=member(body,'body') || body?.kind===K.BinaryExpression && text(body.operatorToken)==='??'
+          && member(body.left,'body') && body.right?.kind===K.Identifier && body.right.text==='undefined';
+        const loop=headers.length===1 && ancestors.get(headers[0]).find(n=>n.kind===K.ForOfStatement);
+        const headerSource=loop?.expression;
+        const bindings=loop?.initializer?.declarations?.[0]?.name;
+        let headerDeclaration='';
+        if (headerSource?.kind===K.CallExpression) {
+          try {headerDeclaration=checker.getResolvedSignature(headerSource)?.declaration?.path ?? '';} catch {}
+        }
+        const xhrName=receiver?.text;
+        const xhrMember=n=>n?.kind===K.PropertyAccessExpression && n.expression?.kind===K.Identifier && n.expression.text===xhrName;
+        const credentials=[];
+        let opaqueUse=false;
+        const methods=new Set(['open','send','setRequestHeader','getResponseHeader','getAllResponseHeaders']);
+        const xhrFields=new Set(['timeout','withCredentials','responseType','readyState','status','responseURL','responseText',
+          'onreadystatechange','onprogress','onerror','ontimeout','onabort','onload']);
+        function uses(n,parent) {
+          if (n.kind===K.BinaryExpression && n.operatorToken.kind===K.EqualsToken
+              && xhrMember(n.left) && n.left.name.text==='withCredentials' && n.right.kind===K.FalseKeyword) credentials.push(n);
+          const propertyName=parent?.kind===K.PropertyAccessExpression && parent.name===n;
+          if (n.kind===K.Identifier && n.text===xhrName && !propertyName) {
+            const declaration=parent?.kind===K.VariableDeclaration && parent.name===n && parent.initializer?.kind===K.NewExpression
+              && nameOf(parent.initializer.expression)==='XMLHttpRequest';
+            const access=parent?.kind===K.PropertyAccessExpression && parent.expression===n;
+            const attachment=parent?.kind===K.BinaryExpression && parent.operatorToken.kind===K.EqualsToken
+              && parent.right===n && member(parent.left,'xhr');
+            if (!declaration && !access && !attachment) opaqueUse=true;
+          }
+          if (n.kind===K.Identifier && n.text==='pending' && !propertyName) {
+            const declaration=parent?.kind===K.Parameter && parent.name===n;
+            const access=parent?.kind===K.PropertyAccessExpression && parent.expression===n;
+            const completion=parent?.kind===K.CallExpression && nameOf(parent.expression)==='finish' && parent.arguments[0]===n;
+            if (!declaration && !access && !completion) opaqueUse=true;
+          }
+          if (xhrMember(n)) {
+            if (methods.has(n.name.text)) {
+              if (parent?.kind!==K.CallExpression || parent.expression!==n) opaqueUse=true;
+            } else if (!xhrFields.has(n.name.text)) opaqueUse=true;
+          }
+          if (member(n,'xhr') && !(parent?.kind===K.BinaryExpression && parent.operatorToken.kind===K.EqualsToken
+              && parent.left===n && parent.right?.kind===K.Identifier && parent.right.text===xhrName)) opaqueUse=true;
+          if (member(n,'headers') && !(parent?.kind===K.CallExpression
+              && ['vegaControlHeaderEntries','requestCredentials','forgetSession'].includes(nameOf(parent.expression)))) opaqueUse=true;
+          // Computed access can conceal an extra header/credential call or an
+          // unknown pending-field write. Neither is part of the reviewed shape.
+          if (n.kind===K.ElementAccessExpression && (n.expression?.text===xhrName || n.expression?.text==='pending')) opaqueUse=true;
+          if (n.kind===K.VariableDeclaration && (n.initializer?.text==='pending' || member(n.initializer,'headers') || member(n.initializer,'xhr'))) opaqueUse=true;
+          n.forEachChild(child=>uses(child,n));
+        }
+        uses(guard.body ?? guard);
+        // Ignore exactly the single reviewed literal-false assignment; every
+        // other write to credentials (including indirect ones) is prohibited.
+        const headerNames=bindings?.elements?.map(e=>e.name?.text).filter(Boolean) ?? [];
+        const credentialWrite=credentials.length===1 ? credentials[0] : undefined;
+        let constructed=false;
+        function writes(n) {
+          if (n===credentialWrite) return;
+          if (hasRequestWrites(n,headerNames,['url','credentials','withCredentials'],['pending'])) constructed=true;
+        }
+        // Analyze each top-level child once, splitting around the one permitted
+        // credential assignment so its existence cannot mask another write.
+        function policyWrites(n) {
+          if (n===credentialWrite) return;
+          if (n.kind===K.ExpressionStatement && n.expression===credentialWrite) return;
+          if (credentialWrite && n.pos<=credentialWrite.pos && n.end>=credentialWrite.end) n.forEachChild(policyWrites);
+          else writes(n);
+        }
+        policyWrites(guard);
+        if (receiver?.kind===K.Identifier && xhrNames.has(receiver.text)
+            && args.length===2 && member(args[0],'method') && member(args[1],'url')
+            && sends.length===1 && sends[0].arguments.length===1 && originalBody
+            && xhrCalls.filter(n=>nameOf(n.expression)==='open').length===1 && !constructed && !opaqueUse && credentials.length===1
+            && headerSource?.arguments?.length===1 && member(headerSource.arguments[0],'headers')
+            && /\/packages\/client-core\/src\/vega-control-transport\.ts$/.test(headerDeclaration)
+            && loop?.initializer?.kind===K.VariableDeclarationList && loop.initializer.declarations.length===1
+            && (loop.initializer.flags & NodeFlags.Const)!==0
+            && bindings?.kind===K.ArrayBindingPattern && bindings.elements.length===2
+            && bindings.elements.every(n=>n.kind===K.BindingElement && !n.initializer && !n.dotDotDotToken && n.name.kind===K.Identifier)
+            && headers[0].arguments.length===2 && headers[0].arguments.every((n,i)=>n.kind===K.Identifier && n.text===bindings.elements[i].name.text))
+          forwardingShape='vega-pending';
+      }
       if (callName==='request' && args.length===4 && args[0]?.kind===K.Identifier && args[0].text==='path' && parameter('path')
           && literal(args[1])==='GET' && args[2]?.kind===K.Identifier && args[2].text==='undefined') forwardingShape='read-only';
       if (chapterGuard && callName==='request' && args.length===4 && args[0]?.kind===K.Identifier && args[0].text==='path' && literal(args[1])==='GET' && args[2]?.kind===K.Identifier && args[2].text==='undefined') forwardingShape='chapter-read';
