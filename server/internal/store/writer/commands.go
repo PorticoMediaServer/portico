@@ -25,6 +25,8 @@ const (
 	EffectiveStage
 	InventoryCreate
 	InventoryClaim
+	BasicStage
+	BasicSeal
 )
 
 type Durability uint8
@@ -86,6 +88,10 @@ func Describe(id CommandID) (Descriptor, error) {
 		name = "inventory_create"
 	case InventoryClaim:
 		name = "inventory_claim"
+	case BasicStage:
+		name = "basic_stage"
+	case BasicSeal:
+		name = "basic_seal"
 	default:
 		return Descriptor{}, invalid("command")
 	}
