@@ -12871,15 +12871,6 @@
         }
       ]
     },
-    "internal/storage/operation_scope.go": {
-      "sha256": "b184f288e4d82dff9de4b9e734b35de6cb807653ed103553b9ac38e78c291b0b",
-      "effects": [
-        {
-          "table": "*",
-          "verb": "*"
-        }
-      ]
-    },
     "internal/storage/playback_binding.go": {
       "sha256": "f8912df77cfc037df6dbaf7543d8271e851deebc0f398737ae33dc81e92d6874",
       "effects": [
@@ -12944,7 +12935,7 @@
       ]
     },
     "internal/storage/root_lease.go": {
-      "sha256": "f1b6da8bbac17792a0a19a4a8af6d6efc0307223be470d11e30a7dd6244cb864",
+      "sha256": "e41cde9a4059fb7494aafbbe84ea651c5150f73f978d03859f1785bded78469a",
       "effects": [
         {
           "table": "*",
@@ -12999,6 +12990,15 @@
     },
     "internal/storage/scan_read_guard.go": {
       "sha256": "9a7e44c801f265935ce7115f4d4e8691346c09cf30f4fad07997a4d4c141c71d",
+      "effects": [
+        {
+          "table": "*",
+          "verb": "*"
+        }
+      ]
+    },
+    "internal/storage/sourceops/scope.go": {
+      "sha256": "ad7f7b6ba4a2c6a0736066bac868775e485a0bf02bb0eedb6d198933d6712420",
       "effects": [
         {
           "table": "*",
