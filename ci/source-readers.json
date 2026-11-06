@@ -33,7 +33,7 @@
       "why": "Type-resolves store Go sources and tests and their imports to reject connection openings that bypass the shared physical connection policy",
       "reads": ["server/*.go", "server/go.mod", "server/go.sum", "go.work"],
       "files": ["server/internal/store/internal/sqliteconn/openings_inventory_test.go", "server/internal/store/internal/sqliteconn/openings_test.go"],
-      "tests": ["TestStoreOpeningsRejectTypedBypasses", "TestStoreOpeningsUseSharedPolicy"]
+      "tests": ["TestStoreOpeningsPlatformProfilesCoverFixtureBodies", "TestStoreOpeningsRejectTypedBypasses", "TestStoreOpeningsUseSharedPolicy"]
     },
     {
       "package": "server/internal/store/internal/searchpolicy",
