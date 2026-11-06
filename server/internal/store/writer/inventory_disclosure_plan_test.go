@@ -58,7 +58,7 @@ func TestInventoryDisclosurePlanGoldens(t *testing.T) {
 			t.Fatalf("%s must retain its closed hot read/two bindings/three cohorts/no-waiver contract", d.ID)
 		}
 	}
-	registry, err := stmt.New(definitions)
+	catalogue, err := stmt.Describe(definitions)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,12 +93,15 @@ func TestInventoryDisclosurePlanGoldens(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	golden, err := plan.Capture(tx.ctx, tx.conn, registry, plan.Fixture{
+	golden, err := plan.Capture(tx.ctx, tx.conn, catalogue, plan.Fixture{
 		ConnectionPolicy: policy, SHA256: fixtureSHA, Statistics: plan.Unanalyzed,
 		Implementations: "bundled SQLite3.53.4; builtin functions/collations; immutable SC seedScanReceiptCohorts plus W inventoryDisclosureFixture library8; native relationship facts only; compile only",
 	}, indexPolicy)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if _, err := stmt.New(definitions, golden.Receipt()); err != nil {
+		t.Fatal("complete native Capture did not qualify the exact set", err)
 	}
 	if len(golden.Plans) != 6 || golden.ForeignKeys != nil {
 		t.Fatalf("disclosure evidence cohorts=%d, unexpected INSERT FK audit=%v", len(golden.Plans), golden.ForeignKeys != nil)

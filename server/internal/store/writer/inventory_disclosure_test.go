@@ -12,6 +12,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
 type inventoryScopeCancelConn struct {
@@ -123,7 +124,8 @@ func inventoryDisclosureFixture(t *testing.T) *executor {
 
 func inventoryDisclosureTurn(t *testing.T, w *executor, definitions []stmt.Definition) (*commandTurn, *transaction) {
 	t.Helper()
-	r, err := stmt.New(definitions)
+	// Fault/cancel fixtures use the guarded test registry, never qualification.
+	r, err := stmttest.New(t, definitions)
 	if err != nil {
 		t.Fatal(err)
 	}
