@@ -4,6 +4,7 @@
 python3 ci/client_api_census.py [--update] [--base <review base>] [--report <json>]
 """
 import argparse
+from bisect import bisect_right
 from collections import Counter
 import hashlib
 import json
@@ -15,6 +16,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import unicodedata
 
 ROOT = Path(__file__).resolve().parent.parent
 SCANNER = ROOT / 'ci/client_api_sites.mjs'
@@ -81,8 +83,83 @@ def tokens(source, rust=False):
     return out
 
 
-def native_function_spans(ts, source, path):
-    """Complete enclosing native method bodies, including builder input bindings."""
+def kotlin_span_tokens(source):
+    """Kotlin tokens and actual NLs with literal/trivia boundaries kept separate.
+
+    Comments are hidden trivia, including their newlines. Literal payloads stay
+    opaque, but interpolation code is lexed to find the real closing delimiter.
+    Returned offsets still refer to the complete original source.
+    """
+    out, newlines, n = [], [], len(source)
+    def letter(char):return unicodedata.category(char) in {'Lu','Ll','Lt','Lm','Lo'}
+    def block_comment(i):
+        depth=1;i+=2
+        while i<n and depth:
+            if source.startswith('/*',i):depth+=1;i+=2
+            elif source.startswith('*/',i):depth-=1;i+=2
+            else:i+=1
+        return i,depth==0
+    def quoted(i):
+        quote=source[i];raw=source.startswith('"""',i);i+=3 if raw else 1
+        while i<n:
+            if raw and source.startswith('"""',i):
+                while i<n and source[i]=='"':i+=1
+                return i,True
+            if not raw and source[i]=='\\':i+=2;continue
+            if not raw and source[i]==quote:return i+1,True
+            if not raw and source[i] in '\r\n':return n,False
+            if quote=='"' and source.startswith('${',i):
+                i,closed=code(i+2,interpolation=True,emit=False)
+                if not closed:return n,False
+            else:i+=1
+        return n,False
+    def code(i, interpolation=False, emit=True):
+        depth=0
+        while i<n:
+            start=i;char=source[i]
+            if char.isspace():
+                if char=='\n' and emit:newlines.append(i)
+                i+=1;continue
+            if source.startswith('//',i):
+                end=source.find('\n',i+2);i=n if end<0 else end;continue
+            if source.startswith('/*',i):
+                i,closed=block_comment(i)
+                if not closed:
+                    if emit:out.append(('invalid',source[start:i],start))
+                    return n,False
+                continue
+            if char in {'"',"'"}:
+                i,closed=quoted(i)
+                if emit:out.append(('string' if closed else 'invalid',source[start:i],start))
+                if not closed:return n,False
+                continue
+            if char=='`':
+                i+=1
+                while i<n and source[i] not in '`\r\n':i+=1
+                closed=i<n and source[i]=='`' and i>start+1
+                if closed:i+=1
+                if emit:out.append(('quoted-id' if closed else 'invalid',source[start:i],start))
+                if not closed:return n,False
+                continue
+            if char=='_' or letter(char):
+                i+=1
+                while i<n and (source[i]=='_' or letter(source[i]) or unicodedata.category(source[i])=='Nd'):i+=1
+                if emit:out.append(('id',source[start:i],start))
+                continue
+            if char=='{' and interpolation:depth+=1
+            elif char=='}' and interpolation:
+                if not depth:return i+1,True
+                depth-=1
+            if emit:out.append(('punct',char,i))
+            i+=1
+        return n,not interpolation
+    code(0)
+    return out,newlines
+
+
+def native_function_spans(ts, source, path, line_breaks=None):
+    """Complete method source ranges [start,end), including builder inputs."""
+    if path.endswith('.kt') and line_breaks is None:ts,line_breaks=kotlin_span_tokens(source)
     closes, stack = {}, []
     for i, (kind, value, _) in enumerate(ts):
         if kind == 'string': continue
@@ -106,7 +183,10 @@ def native_function_spans(ts, source, path):
                 if not stack:return index+1
         return None
     def identifier_end(at):
-        if at<len(ts) and ts[at][0]=='id':return at+1
+        hard={'as','break','class','continue','do','else','false','for','fun','if','in','interface',
+              'is','null','object','package','return','super','this','throw','true','try','typealias','typeof','val','var','when','while'}
+        if at<len(ts) and ts[at][0]=='id' and ts[at][1] not in hard:return at+1
+        if at<len(ts) and ts[at][0]=='quoted-id':return at+1
         if at<len(ts) and ts[at][1]=='`':
             for end in range(at+1,len(ts)):
                 if '\n' in source[ts[at][2]:ts[end][2]]:return None
@@ -120,6 +200,34 @@ def native_function_spans(ts, source, path):
             if end is None:return None
         if end<len(ts) and ts[end][1]=='(':return balanced_prefix(end)
         return end
+    def named_function(at):
+        # A receiver is not the function name: the final simpleIdentifier must
+        # be followed by the parameter list. Never scan past an anonymous list.
+        if at<len(ts) and ts[at][1]=='<':
+            at=balanced_prefix(at)
+            if at is None:return False
+        if at<len(ts) and ts[at][1]=='interface':return identifier_end(at+1) is not None
+        while at<len(ts):
+            if ts[at][1]=='@':
+                at=annotation_name_end(at+1)
+                if at is None:return False
+                continue
+            if ts[at][1]=='(':
+                end=balanced_prefix(at)
+                if end is None:return False
+            else:
+                end=identifier_end(at)
+                if end is None:return False
+                if end<len(ts) and ts[end][1]=='(':
+                    close=balanced_prefix(end)
+                    return close is not None and (close==len(ts) or ts[close][1] not in {'.','?','-','<'})
+                if end<len(ts) and ts[end][1]=='<':
+                    end=balanced_prefix(end)
+                    if end is None:return False
+            while end<len(ts) and ts[end][1]=='?':end+=1
+            if end>=len(ts) or ts[end][1]!='.':return False
+            at=end+1
+        return False
     def kotlin_declaration_start(at):
         # Kotlin modifiers may interleave with complete annotations. Only their
         # prefix is skipped; it never becomes part of the preceding try span.
@@ -147,15 +255,8 @@ def native_function_spans(ts, source, path):
                 if at is None:return False
         if at>=len(ts):return False
         declaration=ts[at][1];following=at+1
-        if declaration=='fun' and following<len(ts) and ts[following][1]=='<':
-            following=balanced_prefix(following)
-            if following is None:return False
-        if declaration in {'fun','class','object','interface','typealias'}:
-            # An anonymous function can be an infix operand, not a following
-            # member declaration. Do not bind a prefix of that expression.
-            if declaration=='fun' and following<len(ts) and ts[following][1]=='(':
-                end=balanced_prefix(following)
-                return end is not None and end<len(ts) and ts[end][1]=='.' and identifier_end(end+1) is not None
+        if declaration=='fun':return named_function(following)
+        if declaration in {'class','object','interface','typealias'}:
             return identifier_end(following) is not None
         if declaration in {'val','var'}:return identifier_end(following) is not None or following<len(ts) and ts[following][1]=='('
         if declaration=='companion':return following<len(ts) and ts[following][1] in {'object','data'}
@@ -184,7 +285,8 @@ def native_function_spans(ts, source, path):
             # Support the complete standalone try expression, never a prefix of
             # a chained/Elvis/cast/infix expression. Unknown tails stay unbound.
             following=end+1
-            if '\n' not in source[ts[end][2]+1:ts[following][2]]:return None
+            newline=bisect_right(line_breaks,ts[end][2])
+            if newline==len(line_breaks) or line_breaks[newline]>=ts[following][2]:return None
             if not kotlin_declaration_start(following):return None
         return end
     spans = []
@@ -212,7 +314,7 @@ def native_function_spans(ts, source, path):
             elif depth == 0 and token == '{':
                 if j in closes: spans.append((i,closes[j]))
                 break
-    return spans
+    return [(ts[a][2],ts[b][2]+1) for a,b in spans]
 
 
 def native_chain(ts, start, end):
@@ -274,10 +376,12 @@ def native_sites(path, source):
             source = source[:start]+re.sub(r'[^\n]', ' ', source[start:end])+source[end:]
     if path.endswith(('.m','.mm')):
         source = re.sub(r'^#if DEBUG\b[\s\S]*?^#endif\b', lambda m: re.sub(r'[^\n]',' ',m[0]), source, flags=re.M)
-    ts = tokens(source,rust=path.endswith('.rs'))
+    line_breaks=None
+    if path.endswith('.kt'):ts,line_breaks=kotlin_span_tokens(source)
+    else:ts=tokens(source,rust=path.endswith('.rs'))
     # Transport evidence comes from native imports, declared types and constructor
     # bindings. A file's readText/readBytes/data/get methods alone prove no HTTP.
-    code = ' '.join(value if kind != 'string' else '""' for kind,value,_ in ts)
+    code = ' '.join(value if kind not in {'string','quoted-id','invalid'} else '""' for kind,value,_ in ts)
     java_url = bool(re.search(r'\b(?:import\s+java\s*\.\s*net\s*\.\s*URL|java\s*\.\s*net\s*\.\s*URL\b)', code))
     url_names = set()
     if java_url:
@@ -308,7 +412,7 @@ def native_sites(path, source):
     def session_receiver(i):
         return receiver_at(i) in session_names or ''.join(t[1] for t in ts[max(0,i-4):i])=='URLSession.shared.'
     found = []
-    function_spans = native_function_spans(ts, source, path)
+    function_spans = native_function_spans(ts, source, path,line_breaks)
     brackets, enclosing, opening_offsets = [], {}, {}
     for n, token in enumerate(ts):
         enclosing[n] = [kind for kind,_ in brackets]
@@ -368,12 +472,12 @@ def native_sites(path, source):
         if is_url and not any(t[0]=='string' and '/v1/' in t[1] for t in call): continue
         if value == 'Request' and is_builder: continue
         expression = ' '.join(t[1] for t in call)
-        spans = [(a,b) for a,b in function_spans if a<=i<=b]
+        spans = [(a,b) for a,b in function_spans if a<=offset<b]
         construction_hash = None
         policy = ''
         if spans:
             a,b = min(spans,key=lambda span:span[1]-span[0])
-            policy = source[ts[a][2]:ts[b][2]+1]
+            policy = source[a:b]
             construction_hash = hashlib.sha256(policy.encode()).hexdigest()
         shape = native_forwarding_shape(path,policy)
         found.append({'file':path,'line':source.count('\n',0,offset)+1,
