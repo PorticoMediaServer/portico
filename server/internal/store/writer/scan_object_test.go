@@ -87,8 +87,12 @@ func TestScanObjectClosedStatement(t *testing.T) {
 	if issues := plan.LintSQL(d.SQL); len(issues) != 0 {
 		t.Fatalf("closed DML grammar: %v", issues)
 	}
-	if len(d.Params) != 17 || len(d.Cohorts) != 1 {
+	if len(d.Params) != 16 || len(d.Cohorts) != 1 {
 		t.Fatal("incomplete object binding inventory")
+	}
+	insert, _, ok := strings.Cut(d.SQL, "RETURNING ")
+	if !ok || strings.Contains(insert, "retired") {
+		t.Fatal("object INSERT must keep unconditional retired DEFAULT 0")
 	}
 	r, err := stmt.New(definitions)
 	if err != nil {
@@ -126,6 +130,13 @@ FROM inventory_objects o JOIN catalog_assets a ON a.token=o.asset_id WHERE o.id=
 			}
 			if token != "scan-object-asset" || number != 41 || revision != in.revision || analysis != "pending" || binds != 0 || pendingRevision != 0 {
 				t.Fatal("numeric asset alias or fabricated Basic facts")
+			}
+			var indexedID string
+			if err := turn.transaction.conn.QueryRowContext(t.Context(), `SELECT id FROM inventory_objects
+INDEXED BY inventory_objects_separate_folder
+WHERE asset_id=? AND source_id=? AND root_incarnation=? AND directory_path=? AND retired=0
+ORDER BY id LIMIT 1`, in.assetToken, in.sourceID, in.incarnation, in.directoryPath).Scan(&indexedID); err != nil || indexedID != got.objectID {
+				t.Fatalf("default-unretired INSERT missing partial index entry: id=%q err=%v", indexedID, err)
 			}
 			if err := turn.closeRows(); err != nil {
 				t.Fatal(err)
@@ -225,10 +236,10 @@ func TestScanObjectReturningRequiresExactlyOneRow(t *testing.T) {
 				// a witness from input when RETURNING produces no row.
 				definition.SQL = strings.Replace(definition.SQL, "INSERT INTO", "INSERT OR IGNORE INTO", 1)
 			} else {
-				// Test-only two-row INSERT preserving the 17 native bindings.
+				// Test-only two-row INSERT preserving the 16 native bindings.
 				// This is a decoder fault control, NOT N2 admission support.
-				definition.SQL = strings.Replace(definition.SQL, "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-					`SELECT ?||suffix,?,?,?,?||suffix,?,?,?,?,?,?,?,?,?,?,?,?
+				definition.SQL = strings.Replace(definition.SQL, "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+					`SELECT ?||suffix,?,?,?,?||suffix,?,?,?,?,?,?,?,?,?,?,?
 FROM (SELECT '' AS suffix UNION ALL SELECT '-other')`, 1)
 			}
 			turn := scanObjectTestTurn(t, w, []stmt.Definition{definition})
