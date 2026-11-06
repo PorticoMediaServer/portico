@@ -13,7 +13,11 @@ import (
 // LintSQL alone is lexical: it has no database catalog and cannot certify a
 // source. Capture always uses this connection-aware lint before EXPLAIN.
 func LintSQLOn(ctx context.Context, conn *sql.Conn, text string) []LintIssue {
-	if issues := LintSQL(text); len(issues) != 0 {
+	return lintSQLOn(ctx, conn, text, false)
+}
+
+func lintSQLOn(ctx context.Context, conn *sql.Conn, text string, issuerOctets bool) []LintIssue {
+	if issues := lintSQL(text, issuerOctets); len(issues) != 0 {
 		return issues
 	}
 	if conn == nil {
@@ -23,7 +27,7 @@ func LintSQLOn(ctx context.Context, conn *sql.Conn, text string) []LintIssue {
 	if err != nil {
 		return []LintIssue{{"sql:source", err.Error()}}
 	}
-	p := lintParser{tokens: tokens}
+	p := lintParser{tokens: tokens, issuerOctets: issuerOctets}
 	if err := p.statement(); err != nil {
 		return []LintIssue{{"sql:source", err.Error()}}
 	}
@@ -116,7 +120,7 @@ func capturedSources(ctx context.Context, conn *sql.Conn, entries []stmt.Entry) 
 		if err != nil {
 			return nil, err
 		}
-		p := lintParser{tokens: tokens}
+		p := lintParser{tokens: tokens, issuerOctets: issuerOctetDefinition(entry.Definition)}
 		if err := p.statement(); err != nil {
 			return nil, err
 		}
