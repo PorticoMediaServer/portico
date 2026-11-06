@@ -137,7 +137,8 @@ func readEffectiveJournal(ctx context.Context, db effectiveJournalReader, tables
 
 // COMMIT is reached only after the command closes its rows. This independent
 // SQL observation uses the ORIGINAL owned native connection, never another pool
-// connection or a production classifier/result encoder. It adds no command SQL.
+// connection or a production classifier/result encoder. These test-oracle reads
+// add no writes; their cost is not recipe/resource or latency qualification.
 func readEffectiveNativeEffects(ctx context.Context, conn writerDriverConn) (effectiveRawJournal, error) {
 	journal := effectiveRawJournal{}
 	for _, name := range []string{"catalog_credit_images", "enrichment_command_receipts"} {
@@ -194,7 +195,18 @@ func compareEffectiveJournal(want, got effectiveRawJournal) error {
 	}
 	for name, table := range want {
 		if !reflect.DeepEqual(table, got[name]) {
-			return fmt.Errorf("effective raw %s changed: got %+v, want %+v", name, got[name], table)
+			actual := got[name]
+			if !reflect.DeepEqual(table.Columns, actual.Columns) || len(table.Rows) != len(actual.Rows) {
+				return fmt.Errorf("effective raw %s column/row inventory changed: got %d rows %v, want %d rows %v", name, len(actual.Rows), actual.Columns, len(table.Rows), table.Columns)
+			}
+			for i, row := range table.Rows {
+				for _, column := range table.Columns {
+					if !reflect.DeepEqual(row[column], actual.Rows[i][column]) {
+						return fmt.Errorf("effective raw %s[%d].%s changed: got %+v, want %+v", name, i, column, actual.Rows[i][column], row[column])
+					}
+				}
+			}
+			return fmt.Errorf("effective raw %s has unsupported columns", name)
 		}
 	}
 	return nil
@@ -205,8 +217,16 @@ func compareEffectiveJournal(want, got effectiveRawJournal) error {
 // No production decoder/codec/reducer chooses the expected state or payload.
 func effectiveStepExpectation(c *effectiveStageBeginCommand, original *effectiveCrashOriginal, applied, acknowledged bool) (effectiveRawJournal, EffectiveStageBeginResult, error) {
 	var zero EffectiveStageBeginResult
+	if c == nil || !c.valid || c.identity.Sequence != 1 || c.request.header.expectedCount != 0 || c.request.header.expectedBytes != 0 {
+		return nil, zero, errors.New("unsupported effective fixture/input shape")
+	}
 	if original == nil || len(original.Initial) != len(effectiveJournalTables) || original.Retirement == ([16]byte{}) {
 		return nil, zero, errors.New("missing original effective source checkpoint")
+	}
+	for _, name := range effectiveJournalTables {
+		if _, ok := original.Initial[name]; !ok {
+			return nil, zero, fmt.Errorf("missing source table %s", name)
+		}
 	}
 	encoded, err := json.Marshal(original.Initial)
 	if err != nil {
@@ -277,7 +297,6 @@ func effectiveStepExpectation(c *effectiveStageBeginCommand, original *effective
 type effectiveStepConn struct {
 	writerDriverConn
 	native   writerDriverConn
-	observe  func(string)
 	original *effectiveCrashOriginal
 }
 
@@ -290,46 +309,7 @@ func (c *effectiveStepConn) ExecContext(ctx context.Context, q string, args []dr
 		c.original.Effects = journal
 	}
 	result, err := c.writerDriverConn.ExecContext(ctx, q, args)
-	if err == nil {
-		c.observe(q)
-	}
 	return result, err
-}
-
-func (c *effectiveStepConn) QueryContext(ctx context.Context, q string, args []driver.NamedValue) (driver.Rows, error) {
-	rows, err := c.writerDriverConn.QueryContext(ctx, q, args)
-	if err != nil {
-		return nil, err
-	}
-	return &crashRows{Rows: rows, after: func() { c.observe(q) }}, nil
-}
-
-func (c *effectiveStepConn) PrepareContext(ctx context.Context, q string) (driver.Stmt, error) {
-	s, err := c.writerDriverConn.PrepareContext(ctx, q)
-	if err != nil {
-		return nil, err
-	}
-	return &effectiveStepStmt{Stmt: s, observe: func() { c.observe(q) }}, nil
-}
-
-type effectiveStepStmt struct {
-	driver.Stmt
-	observe func()
-}
-
-func (s *effectiveStepStmt) ExecContext(ctx context.Context, args []driver.NamedValue) (driver.Result, error) {
-	result, err := s.Stmt.(driver.StmtExecContext).ExecContext(ctx, args)
-	if err == nil {
-		s.observe()
-	}
-	return result, err
-}
-func (s *effectiveStepStmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driver.Rows, error) {
-	rows, err := s.Stmt.(driver.StmtQueryContext).QueryContext(ctx, args)
-	if err != nil {
-		return nil, err
-	}
-	return &crashRows{Rows: rows, after: s.observe}, nil
 }
 
 func effectiveStepIDs(operation string) []stmt.ID {
@@ -356,6 +336,24 @@ func effectiveStepPhases(operation string) []string {
 		phases = append(phases, fmt.Sprintf("native_%02d_%s", i, id))
 	}
 	return phases
+}
+
+func effectiveStepDecision(c crashCase) (applied, acknowledged bool, err error) {
+	valid := c.Domain == "effective_steps" && len(effectiveStepIDs(c.Operation)) != 0
+	if c.CommitFault != "" {
+		valid = valid && c.Boundary == "uncertain_return" && (c.CommitFault == "before" || c.CommitFault == "after")
+	} else {
+		boundaries := append([]string{"before_begin", "after_begin", "before_commit", "after_commit", "physical_return", "api_return"}, effectiveStepPhases(c.Operation)...)
+		found := false
+		for _, boundary := range boundaries {
+			found = found || boundary == c.Boundary
+		}
+		valid = valid && found
+	}
+	if !valid {
+		return false, false, fmt.Errorf("unsupported effective step journal: %+v", c)
+	}
+	return c.Operation != "stage" || crashCommitted(c), c.Operation == "ack" && crashCommitted(c), nil
 }
 
 func checkEffectiveStepReturn(t *testing.T, f *effectiveFirstLightFixture, original *effectiveCrashOriginal, operation string, result EffectiveStageResult, ack AckResult) {
@@ -440,8 +438,8 @@ func crashEffectiveStepsFixture(t *testing.T, witness *crashWitness) (*effective
 	var committed atomic.Bool
 	f.executor.openPool(connector, func(conn driver.Conn) driver.Conn {
 		native := conn.(writerDriverConn)
-		wrapped := &crashConn{writerDriverConn: native, t: t, witness: witness, commit: &committed}
-		return &effectiveStepConn{writerDriverConn: wrapped, native: native, observe: observe, original: witness.Effective}
+		wrapped := &crashConn{writerDriverConn: native, t: t, witness: witness, commit: &committed, afterSQL: observe}
+		return &effectiveStepConn{writerDriverConn: wrapped, native: native, original: witness.Effective}
 	})
 	f.executor.now = func() time.Time {
 		if committed.Load() && f.executor.db.Stats().InUse == 0 {
@@ -487,8 +485,10 @@ func verifyEffectiveStepsCrash(t *testing.T, command *effectiveStageBeginCommand
 	if witness.Reference != effectiveReference(command).Receipt || witness.Unknown != (witness.Case.CommitFault != "") {
 		t.Fatal("effective original identity changed", witness)
 	}
-	applied := witness.Case.Operation != "stage" || crashCommitted(witness.Case)
-	acknowledged := witness.Case.Operation == "ack" && crashCommitted(witness.Case)
+	applied, acknowledged, err := effectiveStepDecision(witness.Case)
+	if err != nil {
+		t.Fatal(err)
+	}
 	want, saved, err := effectiveStepExpectation(command, witness.Effective, applied, acknowledged)
 	if err != nil {
 		t.Fatal(err)
@@ -560,6 +560,115 @@ func verifyEffectiveStepsCrash(t *testing.T, command *effectiveStageBeginCommand
 	}
 	if authority.Usage() != ([4]governor.Amounts{}) || e.db.Stats().InUse != 0 {
 		t.Fatal("effective recovery stranded custody")
+	}
+}
+
+func TestCrashEffectiveStepsRejectRawCorruption(t *testing.T) {
+	witness := crashWitness{Case: crashCase{"effective_steps", "stage", "trace", ""}}
+	f, _ := crashEffectiveStepsFixture(t, &witness)
+	command := f.command
+	if joined, err := closeEffectiveFirstLightFixture(f); err != nil || !joined {
+		t.Fatal(joined, err)
+	}
+	e := reopenCrashExecutor(t, witness.Path)
+	w, cap, _, _, _ := bindEffectiveFixtureRuntime(t, e, command, e.config)
+	if cap.scope.fixture != nil {
+		t.Fatal("corruption control gained source permission")
+	}
+	_, saved, err := effectiveStepExpectation(command, witness.Effective, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := w.ResolveEffective(t.Context(), cap, effectiveReference(command))
+	if err != nil || resolved.Outcome.Evidence == nil {
+		t.Fatal(resolved, err)
+	}
+	resolved.Outcome.Evidence = nil
+	if resolved != (EffectiveStageResult{Outcome: ReceiptOutcome{State: Applied, Reference: witness.Reference, Replayed: true}, Value: saved}) {
+		t.Fatal("control reopen projection changed", resolved)
+	}
+	for _, retired := range []bool{false, true} {
+		if retired {
+			ack, err := w.AckEffective(t.Context(), cap, effectiveReference(command))
+			if err != nil || ack.AcknowledgedThrough != 1 {
+				t.Fatal(ack, err)
+			}
+		}
+		want, _, err := effectiveStepExpectation(command, witness.Effective, true, retired)
+		if err != nil {
+			t.Fatal(err)
+		}
+		conn, err := e.db.Conn(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		func() {
+			defer conn.Close()
+			policy := e.config
+			policy.Synchronous = sqliteconn.Normal
+			if _, err := sqliteconn.Assert(t.Context(), conn, policy); err != nil {
+				t.Fatal(err)
+			}
+			baseline, err := readEffectiveJournal(t.Context(), conn, effectiveJournalTables)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := compareEffectiveJournal(want, baseline); err != nil {
+				t.Fatal(err)
+			}
+			for _, mutation := range []struct{ name, sql string }{
+				{"receipt_identity", `UPDATE enrichment_command_receipts SET operation_id=zeroblob(16)`},
+				{"receipt_request", `UPDATE enrichment_command_receipts SET request_digest=zeroblob(32)`},
+				{"receipt_digest", `UPDATE enrichment_command_receipts SET result_digest=zeroblob(32)`},
+				{"receipt_cursor", `UPDATE enrichment_command_receipts SET after_item='WRONG-SAVED-CURSOR'`},
+				{"receipt_revision", `UPDATE enrichment_command_receipts SET accepted_revision=accepted_revision+1`},
+				{"receipt_variant", `UPDATE enrichment_command_receipts SET command_kind='credit_stage'`},
+				{"receipt_carrier", `UPDATE enrichment_command_receipts SET publication_id='WRONG-CARRIER'`},
+				{"receipt_count", `UPDATE enrichment_command_receipts SET result_count=1`},
+				{"image_nonce", `UPDATE catalog_credit_images SET command_incarnation=zeroblob(16)`},
+				{"image_revision", `UPDATE catalog_credit_images SET revision=revision+1`},
+				{"image_request", `UPDATE catalog_credit_images SET build_request_digest=zeroblob(32)`},
+				{"image_chain", `UPDATE catalog_credit_images SET build_chain=zeroblob(32)`},
+				{"image_cursor", `UPDATE catalog_credit_images SET build_after_ord=0`},
+				{"image_reclaim", `UPDATE catalog_credit_images SET reclaim_state='ready'`},
+				{"owner_unprojected", `UPDATE metadata_provider_operations SET query_title='WRONG-QUERY'`},
+				{"owner_result", `UPDATE metadata_provider_operations SET result_digest='WRONG-OWNER-RESULT'`},
+				{"serving_head", `UPDATE catalog_entities SET credit_image_id=1`},
+				{"source_revision", `UPDATE inventory_objects SET revision='WRONG-SOURCE-REVISION'`},
+			} {
+				t.Run(fmt.Sprintf("retired_%t/%s", retired, mutation.name), func(t *testing.T) {
+					if _, err := conn.ExecContext(t.Context(), "SAVEPOINT corrupt_effective"); err != nil {
+						t.Fatal(err)
+					}
+					defer func() {
+						if _, err := conn.ExecContext(t.Context(), "ROLLBACK TO corrupt_effective"); err != nil {
+							t.Error(err)
+						}
+						if _, err := conn.ExecContext(t.Context(), "RELEASE corrupt_effective"); err != nil {
+							t.Error(err)
+						}
+					}()
+					if _, err := conn.ExecContext(t.Context(), mutation.sql); err != nil {
+						t.Fatal("mutation failed before oracle", err)
+					}
+					got, err := readEffectiveJournal(t.Context(), conn, effectiveJournalTables)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if err := compareEffectiveJournal(want, got); err == nil {
+						t.Fatal("effective oracle accepted native corruption")
+					}
+				})
+			}
+		}()
+	}
+	for _, unsupported := range []crashCase{
+		{"effective_steps", "future_accept", "api_return", ""}, {"effective_steps", "stage", "inside_fsync", ""},
+		{"effective_steps", "stage", "after_commit", "before"}, {"effective_steps", "stage", "uncertain_return", "guess"},
+	} {
+		if _, _, err := effectiveStepDecision(unsupported); err == nil {
+			t.Fatal("unsupported journal became a passing expectation", unsupported)
+		}
 	}
 }
 
