@@ -189,7 +189,7 @@ func browsePlanFixture(cfg sqliteconn.Config, hash string, statistics plan.Stati
 
 // Mint a fresh receipt on the actual fixture's Reader before GV composition.
 // Stored JSON is only a comparison baseline, never registration authority.
-func captureBrowse(t *testing.T, f *browseFixture, definitions []stmt.Definition, statistics plan.Statistics) plan.Golden {
+func captureBrowse(t *testing.T, f *browseFixture, definitions []stmt.Definition, statistics plan.Statistics, fixtureHashes ...string) plan.Golden {
 	t.Helper()
 	cfg := browseReaderConfig()
 	db, _, err := sqliteconn.Open(t.Context(), f.path, cfg)
@@ -220,6 +220,12 @@ func captureBrowse(t *testing.T, f *browseFixture, definitions []stmt.Definition
 			hash = foregroundFixtureHash(t)
 			break
 		}
+	}
+	if len(fixtureHashes) > 1 {
+		t.Fatal("more than one fixture source hash")
+	}
+	if len(fixtureHashes) == 1 {
+		hash = fixtureHashes[0]
 	}
 	golden, err := plan.Capture(t.Context(), conn, catalogue, browsePlanFixture(cfg, hash, statistics), policy)
 	if err != nil {
