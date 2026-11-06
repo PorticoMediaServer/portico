@@ -1,0 +1,965 @@
+{
+  "format": "en009-independent-normalized-vectors-v1",
+  "approved_spec_sha256": "f39cdeae12596bfbd1e9d941968806d94ec0a6db67f68e561997b018443ce55e",
+  "adopted_sql_sha256": "f83d526e0552f053cbb4c11af33d389841fdda4a734e2b00cb54eee8666ac10c",
+  "reference_source_sha256": "cbd92242d57fa9ce5471cf972020ba4b208eda935d216febf25d8c99ce721bfd",
+  "scope": "DATA-ONLY synthetic native projections/byte/refusal oracles. Observation TEXT64 is inert fixture data, not attestation that HTTP bytes produced these tuples. No actual stage/seal provenance, writer/resource/replay execution or qualification; no W codec/code/output used.",
+  "positive": [
+    {
+      "name": "e_empty",
+      "kind": "evidence_seal",
+      "native_input": {
+        "header": {
+          "id": "evidence:101",
+          "subject_id": 151,
+          "parser_version": "tmdb.movie.header-selected-credits.v1",
+          "provider": "tmdb",
+          "subject_kind": "movie",
+          "provider_id": "42",
+          "language": "en-CA",
+          "region": "CA",
+          "request_shape": "tmdb.movie.detail+credits.header-selected-credits.v1",
+          "digest": "2df3a373feb6960b20f53ba541a43b2fcdba9c4e5c44a60d80e4763d0da8fd59",
+          "observed_at": "2026-11-06T10:23:19.000000137+00:00",
+          "source_url": "https://api.themoviedb.org/3/movie/42",
+          "etag": "",
+          "last_modified": "",
+          "title": "Title:157|a:b",
+          "original_title": "Original:163",
+          "overview": "Overview e\u0301:167",
+          "tagline": "Tagline:173",
+          "content_rating": "",
+          "studio": "",
+          "network": "",
+          "country": "",
+          "release_date": "2024-02-29",
+          "year": 2024,
+          "artist": "",
+          "length_millis": null,
+          "artist_type": null,
+          "begin_year": null,
+          "end_year": null,
+          "wikidata_id": "",
+          "biography": "",
+          "biography_source": "",
+          "biography_source_url": "",
+          "disambiguation": "",
+          "release_group_id": "",
+          "group_title": "",
+          "primary_type": "",
+          "barcode": ""
+        },
+        "credits": []
+      },
+      "expected": {
+        "version": 1,
+        "algorithm": "portico.normalized-evidence.sha256.v1",
+        "verified_rows": 1,
+        "canonical_bytes": 748,
+        "commitment_hex": "543e5ef7add9cc21aa2971e02d0c1816137f8ad9a09255bca9bfe8db53dbd990"
+      },
+      "canonical_hex": "0000000000000017706f727469636f2e6e6f726d616c697a65642d7365616c0000000000000001000000000000000d65766964656e63655f7365616c0000000000000025706f727469636f2e6e6f726d616c697a65642d65766964656e63652e7368613235362e76310000000000000001000000000000001265766964656e63652e6865616465722e763100000000000000260000000000000251000000000000000c65766964656e63653a31303100000000000000970000000000000025746d64622e6d6f7669652e6865616465722d73656c65637465642d637265646974732e76310000000000000004746d646200000000000000056d6f766965000000000000000234320000000000000005656e2d4341000000000000000243410000000000000034746d64622e6d6f7669652e64657461696c2b637265646974732e6865616465722d73656c65637465642d637265646974732e76310000000000000040326466336133373366656236393630623230663533626135343161343362326663646261396334653563343461363064383065343736336430646138666435390000000000000023323032362d31312d30365431303a32333a31392e3030303030303133372b30303a3030000000000000002568747470733a2f2f6170692e7468656d6f76696564622e6f72672f332f6d6f7669652f343200000000000000000000000000000000000000000000000d5469746c653a3135377c613a62000000000000000c4f726967696e616c3a31363300000000000000104f766572766965772065cc813a313637000000000000000b5461676c696e653a3137330000000000000000000000000000000000000000000000000000000000000000000000000000000a323032342d30322d323900000000000007e8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "records": [
+        {
+          "tag": "evidence.header.v1",
+          "fields": 38,
+          "payload_bytes": 593,
+          "frame_bytes": 635,
+          "offset": 113
+        }
+      ]
+    },
+    {
+      "name": "e_pair_runtime_null",
+      "kind": "evidence_seal",
+      "native_input": {
+        "header": {
+          "id": "evidence:101",
+          "subject_id": 151,
+          "parser_version": "tmdb.movie.header-selected-credits.v1",
+          "provider": "tmdb",
+          "subject_kind": "movie",
+          "provider_id": "42",
+          "language": "en-CA",
+          "region": "CA",
+          "request_shape": "tmdb.movie.detail+credits.header-selected-credits.v1",
+          "digest": "2df3a373feb6960b20f53ba541a43b2fcdba9c4e5c44a60d80e4763d0da8fd59",
+          "observed_at": "2026-11-06T10:23:19.000000137+00:00",
+          "source_url": "https://api.themoviedb.org/3/movie/42",
+          "etag": "",
+          "last_modified": "",
+          "title": "Title:157|a:b",
+          "original_title": "Original:163",
+          "overview": "Overview e\u0301:167",
+          "tagline": "Tagline:173",
+          "content_rating": "",
+          "studio": "",
+          "network": "",
+          "country": "",
+          "release_date": "2024-02-29",
+          "year": 2024,
+          "artist": "",
+          "length_millis": null,
+          "artist_type": null,
+          "begin_year": null,
+          "end_year": null,
+          "wikidata_id": "",
+          "biography": "",
+          "biography_source": "",
+          "biography_source_url": "",
+          "disambiguation": "",
+          "release_group_id": "",
+          "group_title": "",
+          "primary_type": "",
+          "barcode": ""
+        },
+        "credits": [
+          {
+            "provider": "tmdb",
+            "evidence_kind": "movie",
+            "credit_class": "cast",
+            "evidence_id": "evidence:101",
+            "scope": "",
+            "ordinal": 0,
+            "provider_person_id": "201",
+            "name": "Cast e\u0301:179",
+            "artist_name": "",
+            "sort_name": "",
+            "disambiguation": "",
+            "join_phrase": "",
+            "role": "Pilot:191",
+            "department": "Acting:193",
+            "credit_id": "credit:197",
+            "source_ordinal": 7,
+            "billing": 0
+          },
+          {
+            "provider": "tmdb",
+            "evidence_kind": "movie",
+            "credit_class": "crew",
+            "evidence_id": "evidence:101",
+            "scope": "",
+            "ordinal": 1,
+            "provider_person_id": "301",
+            "name": "Crew:181",
+            "artist_name": "",
+            "sort_name": "",
+            "disambiguation": "",
+            "join_phrase": "",
+            "role": "Director",
+            "department": "Directing",
+            "credit_id": "credit:199",
+            "source_ordinal": 13,
+            "billing": null
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "algorithm": "portico.normalized-evidence.sha256.v1",
+        "verified_rows": 3,
+        "canonical_bytes": 1232,
+        "commitment_hex": "b5d7a288d8664adcc1417ec9fc4bace4d0497e5294e7bf824e6aefd850cbeb68"
+      },
+      "canonical_hex": "0000000000000017706f727469636f2e6e6f726d616c697a65642d7365616c0000000000000001000000000000000d65766964656e63655f7365616c0000000000000025706f727469636f2e6e6f726d616c697a65642d65766964656e63652e7368613235362e76310000000000000003000000000000001265766964656e63652e6865616465722e763100000000000000260000000000000251000000000000000c65766964656e63653a31303100000000000000970000000000000025746d64622e6d6f7669652e6865616465722d73656c65637465642d637265646974732e76310000000000000004746d646200000000000000056d6f766965000000000000000234320000000000000005656e2d4341000000000000000243410000000000000034746d64622e6d6f7669652e64657461696c2b637265646974732e6865616465722d73656c65637465642d637265646974732e76310000000000000040326466336133373366656236393630623230663533626135343161343362326663646261396334653563343461363064383065343736336430646138666435390000000000000023323032362d31312d30365431303a32333a31392e3030303030303133372b30303a3030000000000000002568747470733a2f2f6170692e7468656d6f76696564622e6f72672f332f6d6f7669652f343200000000000000000000000000000000000000000000000d5469746c653a3135377c613a62000000000000000c4f726967696e616c3a31363300000000000000104f766572766965772065cc813a313637000000000000000b5461676c696e653a3137330000000000000000000000000000000000000000000000000000000000000000000000000000000a323032342d30322d323900000000000007e8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001265766964656e63652e6372656469742e7631000000000000001100000000000000cf0000000000000004746d646200000000000000056d6f766965000000000000000463617374000000000000000c65766964656e63653a313031000000000000000000000000000000000000000000000003323031000000000000000c436173742065cc813a3137390000000000000000000000000000000000000000000000000000000000000000000000000000000950696c6f743a313931000000000000000a416374696e673a313933000000000000000a6372656469743a313937010000000000000007010000000000000000000000000000001265766964656e63652e6372656469742e7631000000000000001100000000000000c10000000000000004746d646200000000000000056d6f766965000000000000000463726577000000000000000c65766964656e63653a3130310000000000000000000000000000000100000000000000033330310000000000000008437265773a313831000000000000000000000000000000000000000000000000000000000000000000000000000000084469726563746f720000000000000009446972656374696e67000000000000000a6372656469743a31393901000000000000000d00",
+      "records": [
+        {
+          "tag": "evidence.header.v1",
+          "fields": 38,
+          "payload_bytes": 593,
+          "frame_bytes": 635,
+          "offset": 113
+        },
+        {
+          "tag": "evidence.credit.v1",
+          "fields": 17,
+          "payload_bytes": 207,
+          "frame_bytes": 249,
+          "offset": 748
+        },
+        {
+          "tag": "evidence.credit.v1",
+          "fields": 17,
+          "payload_bytes": 193,
+          "frame_bytes": 235,
+          "offset": 997
+        }
+      ]
+    },
+    {
+      "name": "e_pair_runtime_zero",
+      "kind": "evidence_seal",
+      "native_input": {
+        "header": {
+          "id": "evidence:101",
+          "subject_id": 151,
+          "parser_version": "tmdb.movie.header-selected-credits.v1",
+          "provider": "tmdb",
+          "subject_kind": "movie",
+          "provider_id": "42",
+          "language": "en-CA",
+          "region": "CA",
+          "request_shape": "tmdb.movie.detail+credits.header-selected-credits.v1",
+          "digest": "2df3a373feb6960b20f53ba541a43b2fcdba9c4e5c44a60d80e4763d0da8fd59",
+          "observed_at": "2026-11-06T10:23:19.000000137+00:00",
+          "source_url": "https://api.themoviedb.org/3/movie/42",
+          "etag": "",
+          "last_modified": "",
+          "title": "Title:157|a:b",
+          "original_title": "Original:163",
+          "overview": "Overview e\u0301:167",
+          "tagline": "Tagline:173",
+          "content_rating": "",
+          "studio": "",
+          "network": "",
+          "country": "",
+          "release_date": "2024-02-29",
+          "year": 2024,
+          "artist": "",
+          "length_millis": 0,
+          "artist_type": null,
+          "begin_year": null,
+          "end_year": null,
+          "wikidata_id": "",
+          "biography": "",
+          "biography_source": "",
+          "biography_source_url": "",
+          "disambiguation": "",
+          "release_group_id": "",
+          "group_title": "",
+          "primary_type": "",
+          "barcode": ""
+        },
+        "credits": [
+          {
+            "provider": "tmdb",
+            "evidence_kind": "movie",
+            "credit_class": "cast",
+            "evidence_id": "evidence:101",
+            "scope": "",
+            "ordinal": 0,
+            "provider_person_id": "201",
+            "name": "Cast e\u0301:179",
+            "artist_name": "",
+            "sort_name": "",
+            "disambiguation": "",
+            "join_phrase": "",
+            "role": "Pilot:191",
+            "department": "Acting:193",
+            "credit_id": "credit:197",
+            "source_ordinal": 7,
+            "billing": 0
+          },
+          {
+            "provider": "tmdb",
+            "evidence_kind": "movie",
+            "credit_class": "crew",
+            "evidence_id": "evidence:101",
+            "scope": "",
+            "ordinal": 1,
+            "provider_person_id": "301",
+            "name": "Crew:181",
+            "artist_name": "",
+            "sort_name": "",
+            "disambiguation": "",
+            "join_phrase": "",
+            "role": "Director",
+            "department": "Directing",
+            "credit_id": "credit:199",
+            "source_ordinal": 13,
+            "billing": null
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "algorithm": "portico.normalized-evidence.sha256.v1",
+        "verified_rows": 3,
+        "canonical_bytes": 1240,
+        "commitment_hex": "af03f68262c316e40665bc6b5dfad67409ea6bd16f6565a960cda87f85ef8ddb"
+      },
+      "canonical_hex": "0000000000000017706f727469636f2e6e6f726d616c697a65642d7365616c0000000000000001000000000000000d65766964656e63655f7365616c0000000000000025706f727469636f2e6e6f726d616c697a65642d65766964656e63652e7368613235362e76310000000000000003000000000000001265766964656e63652e6865616465722e763100000000000000260000000000000259000000000000000c65766964656e63653a31303100000000000000970000000000000025746d64622e6d6f7669652e6865616465722d73656c65637465642d637265646974732e76310000000000000004746d646200000000000000056d6f766965000000000000000234320000000000000005656e2d4341000000000000000243410000000000000034746d64622e6d6f7669652e64657461696c2b637265646974732e6865616465722d73656c65637465642d637265646974732e76310000000000000040326466336133373366656236393630623230663533626135343161343362326663646261396334653563343461363064383065343736336430646138666435390000000000000023323032362d31312d30365431303a32333a31392e3030303030303133372b30303a3030000000000000002568747470733a2f2f6170692e7468656d6f76696564622e6f72672f332f6d6f7669652f343200000000000000000000000000000000000000000000000d5469746c653a3135377c613a62000000000000000c4f726967696e616c3a31363300000000000000104f766572766965772065cc813a313637000000000000000b5461676c696e653a3137330000000000000000000000000000000000000000000000000000000000000000000000000000000a323032342d30322d323900000000000007e80000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001265766964656e63652e6372656469742e7631000000000000001100000000000000cf0000000000000004746d646200000000000000056d6f766965000000000000000463617374000000000000000c65766964656e63653a313031000000000000000000000000000000000000000000000003323031000000000000000c436173742065cc813a3137390000000000000000000000000000000000000000000000000000000000000000000000000000000950696c6f743a313931000000000000000a416374696e673a313933000000000000000a6372656469743a313937010000000000000007010000000000000000000000000000001265766964656e63652e6372656469742e7631000000000000001100000000000000c10000000000000004746d646200000000000000056d6f766965000000000000000463726577000000000000000c65766964656e63653a3130310000000000000000000000000000000100000000000000033330310000000000000008437265773a313831000000000000000000000000000000000000000000000000000000000000000000000000000000084469726563746f720000000000000009446972656374696e67000000000000000a6372656469743a31393901000000000000000d00",
+      "records": [
+        {
+          "tag": "evidence.header.v1",
+          "fields": 38,
+          "payload_bytes": 601,
+          "frame_bytes": 643,
+          "offset": 113
+        },
+        {
+          "tag": "evidence.credit.v1",
+          "fields": 17,
+          "payload_bytes": 207,
+          "frame_bytes": 249,
+          "offset": 756
+        },
+        {
+          "tag": "evidence.credit.v1",
+          "fields": 17,
+          "payload_bytes": 193,
+          "frame_bytes": 235,
+          "offset": 1005
+        }
+      ]
+    },
+    {
+      "name": "e_pair_name_nfc",
+      "kind": "evidence_seal",
+      "native_input": {
+        "header": {
+          "id": "evidence:101",
+          "subject_id": 151,
+          "parser_version": "tmdb.movie.header-selected-credits.v1",
+          "provider": "tmdb",
+          "subject_kind": "movie",
+          "provider_id": "42",
+          "language": "en-CA",
+          "region": "CA",
+          "request_shape": "tmdb.movie.detail+credits.header-selected-credits.v1",
+          "digest": "2df3a373feb6960b20f53ba541a43b2fcdba9c4e5c44a60d80e4763d0da8fd59",
+          "observed_at": "2026-11-06T10:23:19.000000137+00:00",
+          "source_url": "https://api.themoviedb.org/3/movie/42",
+          "etag": "",
+          "last_modified": "",
+          "title": "Title:157|a:b",
+          "original_title": "Original:163",
+          "overview": "Overview e\u0301:167",
+          "tagline": "Tagline:173",
+          "content_rating": "",
+          "studio": "",
+          "network": "",
+          "country": "",
+          "release_date": "2024-02-29",
+          "year": 2024,
+          "artist": "",
+          "length_millis": null,
+          "artist_type": null,
+          "begin_year": null,
+          "end_year": null,
+          "wikidata_id": "",
+          "biography": "",
+          "biography_source": "",
+          "biography_source_url": "",
+          "disambiguation": "",
+          "release_group_id": "",
+          "group_title": "",
+          "primary_type": "",
+          "barcode": ""
+        },
+        "credits": [
+          {
+            "provider": "tmdb",
+            "evidence_kind": "movie",
+            "credit_class": "cast",
+            "evidence_id": "evidence:101",
+            "scope": "",
+            "ordinal": 0,
+            "provider_person_id": "201",
+            "name": "Cast \u00e9:179",
+            "artist_name": "",
+            "sort_name": "",
+            "disambiguation": "",
+            "join_phrase": "",
+            "role": "Pilot:191",
+            "department": "Acting:193",
+            "credit_id": "credit:197",
+            "source_ordinal": 7,
+            "billing": 0
+          },
+          {
+            "provider": "tmdb",
+            "evidence_kind": "movie",
+            "credit_class": "crew",
+            "evidence_id": "evidence:101",
+            "scope": "",
+            "ordinal": 1,
+            "provider_person_id": "301",
+            "name": "Crew:181",
+            "artist_name": "",
+            "sort_name": "",
+            "disambiguation": "",
+            "join_phrase": "",
+            "role": "Director",
+            "department": "Directing",
+            "credit_id": "credit:199",
+            "source_ordinal": 13,
+            "billing": null
+          }
+        ]
+      },
+      "expected": {
+        "version": 1,
+        "algorithm": "portico.normalized-evidence.sha256.v1",
+        "verified_rows": 3,
+        "canonical_bytes": 1231,
+        "commitment_hex": "264408767d3c71a3fa1c837af3584bcdee312f4d01873e2ed3a9b7973a881aa7"
+      },
+      "canonical_hex": "0000000000000017706f727469636f2e6e6f726d616c697a65642d7365616c0000000000000001000000000000000d65766964656e63655f7365616c0000000000000025706f727469636f2e6e6f726d616c697a65642d65766964656e63652e7368613235362e76310000000000000003000000000000001265766964656e63652e6865616465722e763100000000000000260000000000000251000000000000000c65766964656e63653a31303100000000000000970000000000000025746d64622e6d6f7669652e6865616465722d73656c65637465642d637265646974732e76310000000000000004746d646200000000000000056d6f766965000000000000000234320000000000000005656e2d4341000000000000000243410000000000000034746d64622e6d6f7669652e64657461696c2b637265646974732e6865616465722d73656c65637465642d637265646974732e76310000000000000040326466336133373366656236393630623230663533626135343161343362326663646261396334653563343461363064383065343736336430646138666435390000000000000023323032362d31312d30365431303a32333a31392e3030303030303133372b30303a3030000000000000002568747470733a2f2f6170692e7468656d6f76696564622e6f72672f332f6d6f7669652f343200000000000000000000000000000000000000000000000d5469746c653a3135377c613a62000000000000000c4f726967696e616c3a31363300000000000000104f766572766965772065cc813a313637000000000000000b5461676c696e653a3137330000000000000000000000000000000000000000000000000000000000000000000000000000000a323032342d30322d323900000000000007e8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001265766964656e63652e6372656469742e7631000000000000001100000000000000ce0000000000000004746d646200000000000000056d6f766965000000000000000463617374000000000000000c65766964656e63653a313031000000000000000000000000000000000000000000000003323031000000000000000b4361737420c3a93a3137390000000000000000000000000000000000000000000000000000000000000000000000000000000950696c6f743a313931000000000000000a416374696e673a313933000000000000000a6372656469743a313937010000000000000007010000000000000000000000000000001265766964656e63652e6372656469742e7631000000000000001100000000000000c10000000000000004746d646200000000000000056d6f766965000000000000000463726577000000000000000c65766964656e63653a3130310000000000000000000000000000000100000000000000033330310000000000000008437265773a313831000000000000000000000000000000000000000000000000000000000000000000000000000000084469726563746f720000000000000009446972656374696e67000000000000000a6372656469743a31393901000000000000000d00",
+      "records": [
+        {
+          "tag": "evidence.header.v1",
+          "fields": 38,
+          "payload_bytes": 593,
+          "frame_bytes": 635,
+          "offset": 113
+        },
+        {
+          "tag": "evidence.credit.v1",
+          "fields": 17,
+          "payload_bytes": 206,
+          "frame_bytes": 248,
+          "offset": 748
+        },
+        {
+          "tag": "evidence.credit.v1",
+          "fields": 17,
+          "payload_bytes": 193,
+          "frame_bytes": 235,
+          "offset": 996
+        }
+      ]
+    },
+    {
+      "name": "s_empty_foreign_origin",
+      "kind": "credit_source_seal",
+      "native_input": {
+        "upstream": {
+          "provider_operation_id": "operation:origin:211",
+          "command_incarnation": {
+            "blob_hex": "101112131415161718191a1b1c1d1e1f"
+          },
+          "command_sequence": 37,
+          "operation_id": {
+            "blob_hex": "202122232425262728292a2b2c2d2e2f"
+          },
+          "request_digest": {
+            "blob_hex": "303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f"
+          },
+          "command_kind": "evidence_seal",
+          "entity_id": 101,
+          "seal_version": 1,
+          "seal_owner_generation": 43,
+          "seal_build_id": "build:historical:223",
+          "seal_build_generation": 47,
+          "seal_content_revision": 53,
+          "seal_algorithm": "portico.normalized-evidence.sha256.v1",
+          "seal_commitment": {
+            "blob_hex": "543e5ef7add9cc21aa2971e02d0c1816137f8ad9a09255bca9bfe8db53dbd990"
+          },
+          "seal_verified_rows": 1,
+          "seal_canonical_bytes": 748,
+          "seal_evidence_id": "evidence:101",
+          "seal_subject_id": 151,
+          "seal_parser_version": "tmdb.movie.header-selected-credits.v1",
+          "seal_provider": "tmdb",
+          "seal_subject_kind": "movie",
+          "seal_provider_id": "42",
+          "seal_language": "en-CA",
+          "seal_region": "CA",
+          "seal_request_shape": "tmdb.movie.detail+credits.header-selected-credits.v1",
+          "seal_observation_digest": "2df3a373feb6960b20f53ba541a43b2fcdba9c4e5c44a60d80e4763d0da8fd59"
+        },
+        "header": {
+          "publication_id": "0123456789abcdef0123456789abcdef",
+          "entity_id": 227,
+          "provider": "tmdb",
+          "accepted_record_reference": "opaque-native:record|not-a-provider-parser",
+          "observed_at": "2026-11-06T09:17:19.000023+00:00",
+          "member_count": 0
+        },
+        "members": [],
+        "intent": {
+          "provider_operation_id": "operation:consumer:229",
+          "source_owner_generation": 61,
+          "source_content_revision": 71,
+          "source_evidence_owner": "operation:origin:211",
+          "source_evidence_incarnation": {
+            "blob_hex": "101112131415161718191a1b1c1d1e1f"
+          },
+          "source_evidence_sequence": 37,
+          "source_evidence_id": "evidence:101",
+          "source_subject_id": 151,
+          "source_parser_version": "tmdb.movie.header-selected-credits.v1",
+          "source_next_position": 0,
+          "source_expected_members": 0,
+          "source_publication_id": "0123456789abcdef0123456789abcdef",
+          "entity_id": 227,
+          "provider": "tmdb",
+          "source_algorithm": "portico.normalized-credit-source.sha256.v1",
+          "source_version": 1,
+          "source_expected_bytes": 917,
+          "source_expected_commitment": {
+            "blob_hex": "e494cd20e706e746542d53bf437ddb0b6e56be688d8a5c7dc155dd460ab1b358"
+          }
+        }
+      },
+      "expected": {
+        "version": 1,
+        "algorithm": "portico.normalized-credit-source.sha256.v1",
+        "verified_rows": 0,
+        "canonical_bytes": 917,
+        "commitment_hex": "e494cd20e706e746542d53bf437ddb0b6e56be688d8a5c7dc155dd460ab1b358"
+      },
+      "canonical_hex": "0000000000000017706f727469636f2e6e6f726d616c697a65642d7365616c000000000000000100000000000000126372656469745f736f757263655f7365616c000000000000002a706f727469636f2e6e6f726d616c697a65642d6372656469742d736f757263652e7368613235362e76310000000000000002000000000000001b736f757263652e757073747265616d2d65766964656e63652e7631000000000000001a000000000000022100000000000000146f7065726174696f6e3a6f726967696e3a323131101112131415161718191a1b1c1d1e1f0000000000000025202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f000000000000000d65766964656e63655f7365616c00000000000000650000000000000001000000000000000c65766964656e63653a31303100000000000000970000000000000025746d64622e6d6f7669652e6865616465722d73656c65637465642d637265646974732e76310000000000000004746d646200000000000000056d6f766965000000000000000234320000000000000005656e2d4341000000000000000243410000000000000034746d64622e6d6f7669652e64657461696c2b637265646974732e6865616465722d73656c65637465642d637265646974732e7631000000000000004032646633613337336665623639363062323066353362613534316134336232666364626139633465356334346136306438306534373633643064613866643539000000000000002b00000000000000146275696c643a686973746f726963616c3a323233000000000000002f00000000000000350000000000000025706f727469636f2e6e6f726d616c697a65642d65766964656e63652e7368613235362e7631543e5ef7add9cc21aa2971e02d0c1816137f8ad9a09255bca9bfe8db53dbd990000000000000000100000000000002ec0000000000000010736f757263652e6865616465722e76310000000000000006000000000000009e0000000000000020303132333435363738396162636465663031323334353637383961626364656600000000000000e30000000000000004746d6462000000000000002a6f70617175652d6e61746976653a7265636f72647c6e6f742d612d70726f76696465722d7061727365720000000000000020323032362d31312d30365430393a31373a31392e3030303032332b30303a30300000000000000000",
+      "records": [
+        {
+          "tag": "source.upstream-evidence.v1",
+          "fields": 26,
+          "payload_bytes": 545,
+          "frame_bytes": 596,
+          "offset": 123
+        },
+        {
+          "tag": "source.header.v1",
+          "fields": 6,
+          "payload_bytes": 158,
+          "frame_bytes": 198,
+          "offset": 719
+        }
+      ]
+    },
+    {
+      "name": "s_pair_foreign_origin",
+      "kind": "credit_source_seal",
+      "native_input": {
+        "upstream": {
+          "provider_operation_id": "operation:origin:211",
+          "command_incarnation": {
+            "blob_hex": "101112131415161718191a1b1c1d1e1f"
+          },
+          "command_sequence": 37,
+          "operation_id": {
+            "blob_hex": "202122232425262728292a2b2c2d2e2f"
+          },
+          "request_digest": {
+            "blob_hex": "303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f"
+          },
+          "command_kind": "evidence_seal",
+          "entity_id": 101,
+          "seal_version": 1,
+          "seal_owner_generation": 43,
+          "seal_build_id": "build:historical:223",
+          "seal_build_generation": 47,
+          "seal_content_revision": 53,
+          "seal_algorithm": "portico.normalized-evidence.sha256.v1",
+          "seal_commitment": {
+            "blob_hex": "b5d7a288d8664adcc1417ec9fc4bace4d0497e5294e7bf824e6aefd850cbeb68"
+          },
+          "seal_verified_rows": 3,
+          "seal_canonical_bytes": 1232,
+          "seal_evidence_id": "evidence:101",
+          "seal_subject_id": 151,
+          "seal_parser_version": "tmdb.movie.header-selected-credits.v1",
+          "seal_provider": "tmdb",
+          "seal_subject_kind": "movie",
+          "seal_provider_id": "42",
+          "seal_language": "en-CA",
+          "seal_region": "CA",
+          "seal_request_shape": "tmdb.movie.detail+credits.header-selected-credits.v1",
+          "seal_observation_digest": "2df3a373feb6960b20f53ba541a43b2fcdba9c4e5c44a60d80e4763d0da8fd59"
+        },
+        "header": {
+          "publication_id": "0123456789abcdef0123456789abcdef",
+          "entity_id": 227,
+          "provider": "tmdb",
+          "accepted_record_reference": "opaque-native:record|not-a-provider-parser",
+          "observed_at": "2026-11-06T09:17:19.000023+00:00",
+          "member_count": 2
+        },
+        "members": [
+          {
+            "member": {
+              "publication_id": "0123456789abcdef0123456789abcdef",
+              "entity_id": 227,
+              "provider": "tmdb",
+              "position": 0,
+              "source_row_id": "01010101010101010101010101010101",
+              "reference_status": "new"
+            },
+            "row": {
+              "source_row_id": "01010101010101010101010101010101",
+              "entity_id": 227,
+              "provider": "tmdb",
+              "tuple_digest": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+              "original_record_reference": "opaque-credit:239",
+              "original_credit_id": "credit:197",
+              "original_provider_person_id": "201",
+              "original_person_identity_key": "fixture-identity:251",
+              "original_person_token": "fixture-token:263",
+              "original_target_kind": "person",
+              "original_target_id": "fixture-token:263",
+              "original_credited_name": "Cast e\u0301:179",
+              "original_role": "Pilot:191",
+              "original_department": "Acting:193",
+              "original_credit_class": "cast",
+              "original_source_ordinal": 7,
+              "original_billing": 0
+            }
+          },
+          {
+            "member": {
+              "publication_id": "0123456789abcdef0123456789abcdef",
+              "entity_id": 227,
+              "provider": "tmdb",
+              "position": 1,
+              "source_row_id": "02020202020202020202020202020202",
+              "reference_status": "ambiguous"
+            },
+            "row": {
+              "source_row_id": "02020202020202020202020202020202",
+              "entity_id": 227,
+              "provider": "tmdb",
+              "tuple_digest": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+              "original_record_reference": "opaque-credit:241",
+              "original_credit_id": "credit:199",
+              "original_provider_person_id": "301",
+              "original_person_identity_key": "fixture-identity:257",
+              "original_person_token": "fixture-token:269",
+              "original_target_kind": "person",
+              "original_target_id": "fixture-token:269",
+              "original_credited_name": "Crew:181",
+              "original_role": "Director",
+              "original_department": "Directing",
+              "original_credit_class": "crew",
+              "original_source_ordinal": 13,
+              "original_billing": null
+            }
+          }
+        ],
+        "intent": {
+          "provider_operation_id": "operation:consumer:229",
+          "source_owner_generation": 61,
+          "source_content_revision": 71,
+          "source_evidence_owner": "operation:origin:211",
+          "source_evidence_incarnation": {
+            "blob_hex": "101112131415161718191a1b1c1d1e1f"
+          },
+          "source_evidence_sequence": 37,
+          "source_evidence_id": "evidence:101",
+          "source_subject_id": 151,
+          "source_parser_version": "tmdb.movie.header-selected-credits.v1",
+          "source_next_position": 2,
+          "source_expected_members": 2,
+          "source_publication_id": "0123456789abcdef0123456789abcdef",
+          "entity_id": 227,
+          "provider": "tmdb",
+          "source_algorithm": "portico.normalized-credit-source.sha256.v1",
+          "source_version": 1,
+          "source_expected_bytes": 1951,
+          "source_expected_commitment": {
+            "blob_hex": "534080c33e8db290287539678dd1c97d86b60bd905d8b5c338ed315e7089d3c9"
+          }
+        }
+      },
+      "expected": {
+        "version": 1,
+        "algorithm": "portico.normalized-credit-source.sha256.v1",
+        "verified_rows": 2,
+        "canonical_bytes": 1951,
+        "commitment_hex": "534080c33e8db290287539678dd1c97d86b60bd905d8b5c338ed315e7089d3c9"
+      },
+      "canonical_hex": "0000000000000017706f727469636f2e6e6f726d616c697a65642d7365616c000000000000000100000000000000126372656469745f736f757263655f7365616c000000000000002a706f727469636f2e6e6f726d616c697a65642d6372656469742d736f757263652e7368613235362e76310000000000000004000000000000001b736f757263652e757073747265616d2d65766964656e63652e7631000000000000001a000000000000022100000000000000146f7065726174696f6e3a6f726967696e3a323131101112131415161718191a1b1c1d1e1f0000000000000025202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f000000000000000d65766964656e63655f7365616c00000000000000650000000000000001000000000000000c65766964656e63653a31303100000000000000970000000000000025746d64622e6d6f7669652e6865616465722d73656c65637465642d637265646974732e76310000000000000004746d646200000000000000056d6f766965000000000000000234320000000000000005656e2d4341000000000000000243410000000000000034746d64622e6d6f7669652e64657461696c2b637265646974732e6865616465722d73656c65637465642d637265646974732e7631000000000000004032646633613337336665623639363062323066353362613534316134336232666364626139633465356334346136306438306534373633643064613866643539000000000000002b00000000000000146275696c643a686973746f726963616c3a323233000000000000002f00000000000000350000000000000025706f727469636f2e6e6f726d616c697a65642d65766964656e63652e7368613235362e7631b5d7a288d8664adcc1417ec9fc4bace4d0497e5294e7bf824e6aefd850cbeb68000000000000000300000000000004d00000000000000010736f757263652e6865616465722e76310000000000000006000000000000009e0000000000000020303132333435363738396162636465663031323334353637383961626364656600000000000000e30000000000000004746d6462000000000000002a6f70617175652d6e61746976653a7265636f72647c6e6f742d612d70726f76696465722d7061727365720000000000000020323032362d31312d30365430393a31373a31392e3030303032332b30303a303000000000000000020000000000000010736f757263652e6d656d6265722e7631000000000000001700000000000001e10000000000000020303132333435363738396162636465663031323334353637383961626364656600000000000000e30000000000000004746d646200000000000000000000000000000020303130313031303130313031303130313031303130313031303130313031303100000000000000036e65770000000000000020303130313031303130313031303130313031303130313031303130313031303100000000000000e30000000000000004746d646200000000000000406131613161316131613161316131613161316131613161316131613161316131613161316131613161316131613161316131613161316131613161316131613100000000000000116f70617175652d6372656469743a323339000000000000000a6372656469743a31393700000000000000033230310000000000000014666978747572652d6964656e746974793a3235310000000000000011666978747572652d746f6b656e3a3236330000000000000006706572736f6e0000000000000011666978747572652d746f6b656e3a323633000000000000000c436173742065cc813a313739000000000000000950696c6f743a313931000000000000000a416374696e673a31393300000000000000046361737400000000000000070100000000000000000000000000000010736f757263652e6d656d6265722e7631000000000000001700000000000001d90000000000000020303132333435363738396162636465663031323334353637383961626364656600000000000000e30000000000000004746d64620000000000000001000000000000002030323032303230323032303230323032303230323032303230323032303230320000000000000009616d626967756f75730000000000000020303230323032303230323032303230323032303230323032303230323032303200000000000000e30000000000000004746d646200000000000000406232623262326232623262326232623262326232623262326232623262326232623262326232623262326232623262326232623262326232623262326232623200000000000000116f70617175652d6372656469743a323431000000000000000a6372656469743a31393900000000000000033330310000000000000014666978747572652d6964656e746974793a3235370000000000000011666978747572652d746f6b656e3a3236390000000000000006706572736f6e0000000000000011666978747572652d746f6b656e3a3236390000000000000008437265773a31383100000000000000084469726563746f720000000000000009446972656374696e67000000000000000463726577000000000000000d00",
+      "records": [
+        {
+          "tag": "source.upstream-evidence.v1",
+          "fields": 26,
+          "payload_bytes": 545,
+          "frame_bytes": 596,
+          "offset": 123
+        },
+        {
+          "tag": "source.header.v1",
+          "fields": 6,
+          "payload_bytes": 158,
+          "frame_bytes": 198,
+          "offset": 719
+        },
+        {
+          "tag": "source.member.v1",
+          "fields": 23,
+          "payload_bytes": 481,
+          "frame_bytes": 521,
+          "offset": 917
+        },
+        {
+          "tag": "source.member.v1",
+          "fields": 23,
+          "payload_bytes": 473,
+          "frame_bytes": 513,
+          "offset": 1438
+        }
+      ]
+    }
+  ],
+  "refusals": [
+    {
+      "name": "unsupported_purpose",
+      "base": "e_pair_runtime_null",
+      "replace_path": "kind",
+      "replacement": "effective_seal",
+      "expected_refusal": "purpose"
+    },
+    {
+      "name": "kind_algorithm_alias",
+      "base": "e_pair_runtime_null",
+      "replace_path": "expected.algorithm",
+      "replacement": "portico.normalized-credit-source.sha256.v1",
+      "expected_refusal": "algorithm"
+    },
+    {
+      "name": "unsupported_version",
+      "base": "e_pair_runtime_null",
+      "replace_path": "expected.version",
+      "replacement": 2,
+      "expected_refusal": "algorithm"
+    },
+    {
+      "name": "integer_bool",
+      "base": "e_pair_runtime_null",
+      "replace_path": "native_input.header.year",
+      "replacement": true,
+      "expected_refusal": "native-type"
+    },
+    {
+      "name": "invalid_utf8",
+      "base": "e_pair_runtime_null",
+      "replace_path": "native_input.header.overview",
+      "replacement": {
+        "native_text_hex": "c328"
+      },
+      "expected_refusal": "text"
+    },
+    {
+      "name": "nul_text",
+      "base": "e_pair_runtime_null",
+      "replace_path": "native_input.header.title",
+      "replacement": "x\u0000y",
+      "expected_refusal": "text"
+    },
+    {
+      "name": "missing_cast_billing",
+      "base": "e_pair_runtime_null",
+      "replace_path": "native_input.credits.0.billing",
+      "replacement": null,
+      "expected_refusal": "billing-shape"
+    },
+    {
+      "name": "crew_present_zero",
+      "base": "e_pair_runtime_null",
+      "replace_path": "native_input.credits.1.billing",
+      "replacement": 0,
+      "expected_refusal": "billing-shape"
+    },
+    {
+      "name": "missing_raw_ordinal",
+      "base": "e_pair_runtime_null",
+      "replace_path": "native_input.credits.0.source_ordinal",
+      "replacement": null,
+      "expected_refusal": "raw-order"
+    },
+    {
+      "name": "duplicate_raw_ordinal",
+      "base": "e_pair_runtime_null",
+      "replace_path": "native_input.credits.1.source_ordinal",
+      "replacement": 7,
+      "expected_refusal": "raw-order"
+    },
+    {
+      "name": "retained_raw_alias",
+      "base": "e_pair_runtime_null",
+      "replace_path": "native_input.credits.0.ordinal",
+      "replacement": 7,
+      "expected_refusal": "retained-order"
+    },
+    {
+      "name": "excluded_scalar",
+      "base": "e_pair_runtime_null",
+      "replace_path": "native_input.header.studio",
+      "replacement": "not-this-descriptor",
+      "expected_refusal": "excluded-family"
+    },
+    {
+      "name": "extra_family",
+      "base": "e_pair_runtime_null",
+      "replace_path": "native_input.unexpected_children",
+      "replacement": [
+        "ratings"
+      ],
+      "expected_refusal": "excluded-family"
+    },
+    {
+      "name": "wrong_declared_count",
+      "base": "e_pair_runtime_null",
+      "replace_path": "expected.verified_rows",
+      "replacement": 2,
+      "expected_refusal": "declared-count"
+    },
+    {
+      "name": "wrong_declared_bytes",
+      "base": "e_pair_runtime_null",
+      "replace_path": "expected.canonical_bytes",
+      "replacement": 0,
+      "expected_refusal": "declared-bytes"
+    },
+    {
+      "name": "observation_as_manifest",
+      "base": "e_pair_runtime_null",
+      "replace_path": "expected.commitment_hex",
+      "replacement": "2df3a373feb6960b20f53ba541a43b2fcdba9c4e5c44a60d80e4763d0da8fd59",
+      "expected_refusal": "commitment"
+    },
+    {
+      "name": "wrong_upstream_kind",
+      "base": "s_pair_foreign_origin",
+      "replace_path": "native_input.upstream.command_kind",
+      "replacement": "credit_source_seal",
+      "expected_refusal": "upstream-purpose"
+    },
+    {
+      "name": "wrong_upstream_owner",
+      "base": "s_pair_foreign_origin",
+      "replace_path": "native_input.intent.source_evidence_owner",
+      "replacement": "operation:wrong",
+      "expected_refusal": "upstream-reference"
+    },
+    {
+      "name": "source_prefix_incomplete",
+      "base": "s_pair_foreign_origin",
+      "replace_path": "native_input.intent.source_next_position",
+      "replacement": 1,
+      "expected_refusal": "source-coverage"
+    },
+    {
+      "name": "source_member_scope",
+      "base": "s_pair_foreign_origin",
+      "replace_path": "native_input.members.0.member.entity_id",
+      "replacement": 101,
+      "expected_refusal": "source-scope"
+    },
+    {
+      "name": "source_role_budget",
+      "base": "s_pair_foreign_origin",
+      "replace_path": "native_input.members.0.row.original_role",
+      "replacement": "\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9",
+      "expected_refusal": "source-tuple-budget"
+    },
+    {
+      "name": "raw_blob_width",
+      "base": "s_pair_foreign_origin",
+      "replace_path": "native_input.upstream.request_digest",
+      "replacement": {
+        "blob_hex": "01010101010101010101010101010101010101010101010101010101010101"
+      },
+      "expected_refusal": "blob-width"
+    },
+    {
+      "name": "text_digest_as_blob",
+      "base": "s_pair_foreign_origin",
+      "replace_path": "native_input.upstream.seal_commitment",
+      "replacement": "0101010101010101010101010101010101010101010101010101010101010101",
+      "expected_refusal": "native-type"
+    }
+  ],
+  "primitive_known_answers": [
+    {
+      "type": "U64",
+      "value": 0,
+      "hex": "0000000000000000"
+    },
+    {
+      "type": "U64",
+      "value": 72623859790382856,
+      "hex": "0102030405060708"
+    },
+    {
+      "type": "I64",
+      "value": -1,
+      "hex": "ffffffffffffffff"
+    },
+    {
+      "type": "I64",
+      "value": -9223372036854775808,
+      "hex": "8000000000000000"
+    },
+    {
+      "type": "NI",
+      "value": null,
+      "hex": "00"
+    },
+    {
+      "type": "NI",
+      "value": 0,
+      "hex": "010000000000000000"
+    },
+    {
+      "type": "NT",
+      "value": null,
+      "hex": "00"
+    },
+    {
+      "type": "NT",
+      "value": "",
+      "hex": "010000000000000000"
+    },
+    {
+      "type": "T",
+      "value": "",
+      "hex": "0000000000000000"
+    },
+    {
+      "type": "T",
+      "value": "\u00e9",
+      "hex": "0000000000000002c3a9"
+    },
+    {
+      "type": "T",
+      "value": "e\u0301",
+      "hex": "000000000000000365cc81"
+    },
+    {
+      "type": "B16",
+      "value": {
+        "blob_hex": "000102030405060708090a0b0c0d0e0f"
+      },
+      "hex": "000102030405060708090a0b0c0d0e0f"
+    },
+    {
+      "type": "B32",
+      "value": {
+        "blob_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+      },
+      "hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+    }
+  ],
+  "writer_admission_cases": [
+    {
+      "name": "control_exact_repeated_occurrences",
+      "repeated_ascii_lengths": [
+        32768,
+        32768
+      ],
+      "aggregate": 65536,
+      "admitted": true
+    },
+    {
+      "name": "control_plus_one_repeated_occurrences",
+      "repeated_ascii_lengths": [
+        32768,
+        32769
+      ],
+      "aggregate": 65537,
+      "admitted": false
+    }
+  ],
+  "distinct_framing_pair": [
+    [
+      "ab",
+      "c"
+    ],
+    [
+      "a",
+      "bc"
+    ]
+  ]
+}
