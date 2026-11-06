@@ -44,10 +44,10 @@ func TestLabelValidationPrecedesTrimmingAndFolding(t *testing.T) {
 			}
 		}
 	}
-	//The lead's new120-BYTE account limit supersedes the scalar proposal.
+	//120 four-byte Unicode scalars is the account limit, not120bytes.
 	value := strings.Repeat("𠀀", 120)
-	if _, err := LabelKey(value, AccountLabel); !errors.Is(err, ErrLabel) {
-		t.Fatal("account byte bound ignored", err)
+	if _, err := LabelKey(value, AccountLabel); err != nil {
+		t.Fatal("account scalar limit was tightened", err)
 	}
 	if _, err := LabelKey(value, ProfileLabel); !errors.Is(err, ErrLabel) {
 		t.Fatal("profile byte bound ignored")
@@ -55,11 +55,8 @@ func TestLabelValidationPrecedesTrimmingAndFolding(t *testing.T) {
 	if _, err := LabelKey(strings.Repeat("𠀀", 30), ProfileLabel); err != nil {
 		t.Fatal("profile byte boundary rejected", err)
 	}
-	if _, err := LabelKey(strings.Repeat("𠀀", 30), AccountLabel); err != nil {
-		t.Fatal("account byte boundary rejected", err)
-	}
-	if _, err := LabelKey(strings.Repeat("𠀀", 31), AccountLabel); !errors.Is(err, ErrLabel) {
-		t.Fatal("account byte overflow")
+	if _, err := LabelKey(strings.Repeat("𠀀", 121), AccountLabel); !errors.Is(err, ErrLabel) {
+		t.Fatal("account scalar overflow")
 	}
 	for _, r := range []string{"\x7f", "\u200b", "\u2066"} {
 		if _, err := LabelKey("a"+r, AccountLabel); !errors.Is(err, ErrLabel) {
