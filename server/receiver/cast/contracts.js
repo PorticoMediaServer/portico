@@ -22514,6 +22514,16 @@ var PorticoCastContracts = (function(exports) {
 							"minimum": -9007199254740991,
 							"type": "integer"
 						},
+						"nativeRetirementOverGrace": {
+							"maximum": 9007199254740991,
+							"minimum": -9007199254740991,
+							"type": "integer"
+						},
+						"nativeRetiring": {
+							"maximum": 9007199254740991,
+							"minimum": -9007199254740991,
+							"type": "integer"
+						},
 						"playbackActive": {
 							"maximum": 9007199254740991,
 							"minimum": -9007199254740991,
@@ -22563,7 +22573,9 @@ var PorticoCastContracts = (function(exports) {
 						"inProcess",
 						"queued",
 						"refused",
-						"queueWaitMillis"
+						"queueWaitMillis",
+						"nativeRetiring",
+						"nativeRetirementOverGrace"
 					],
 					"type": "object"
 				},
