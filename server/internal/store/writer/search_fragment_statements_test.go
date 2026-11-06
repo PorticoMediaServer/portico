@@ -42,7 +42,7 @@ func TestSearchFragmentStatementsCaptureAndBindClosedEffects(t *testing.T) {
 	if err := conn.QueryRowContext(t.Context(), "SELECT total_changes()").Scan(&after); err != nil || before != after {
 		t.Fatal("Capture executed staged effects", before, after, err)
 	}
-	if len(defs) != 11 || len(g.Plans) != 14 || g.ForeignKeys == nil {
+	if len(defs) != 14 || len(g.Plans) != 17 || g.ForeignKeys == nil {
 		t.Fatal("wrong closed component inventory", len(defs), len(g.Plans))
 	}
 	ordinary, native := 0, 0
