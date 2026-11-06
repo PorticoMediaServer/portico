@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -19,6 +20,9 @@ import (
 // These are the ONLY reviewed constrained store sources. All bodies must be
 // type-resolved: host, opposite Linux/non-Linux, and GV's tagged binding audit.
 var openingConstraints = map[string]string{
+	"qual/scanbench/fixture_dir_unix.go":         "//go:build linux || darwin",
+	"qual/scanbench/fixture_dir_other.go":        "//go:build !linux && !darwin",
+	"qual/scanbench/fixture_dir_test.go":         "//go:build linux || darwin",
 	"qual/namespace_linux.go":                    "", // implicit _linux filename constraint
 	"qual/namespace_other.go":                    "//go:build !linux",
 	"governor/snapshot_binding_audit_test.go":    "//go:build libc.memgrind",
@@ -72,6 +76,22 @@ func openingPhysicalSources(root string) (map[string]bool, error) {
 		}
 		if reviewed && strings.Join(constraints, "\n") != expected {
 			return fmt.Errorf("changed reviewed store build constraint: %s", rel)
+		}
+		// The three explicitly reviewed fixture bodies are filesystem-only. An
+		// alias/blank/dot import cannot hide SQL or a wrapper behind their tags.
+		switch rel {
+		case "qual/scanbench/fixture_dir_unix.go", "qual/scanbench/fixture_dir_other.go", "qual/scanbench/fixture_dir_test.go":
+			for _, imp := range f.Imports {
+				name, err := strconv.Unquote(imp.Path.Value)
+				if err != nil {
+					return err
+				}
+				switch name {
+				case "errors", "os", "path/filepath", "time", "testing", "golang.org/x/sys/unix":
+				default:
+					return fmt.Errorf("store fixture imports unreviewed dependency: %s: %s", rel, name)
+				}
+			}
 		}
 		sources[filepath.Clean(path)] = true
 		return nil
@@ -269,5 +289,31 @@ func TestStoreOpeningsTransitiveTypeErrorFailsClosed(t *testing.T) {
 	}
 	if err := validateOpeningLoads(pkgs); err == nil || !strings.Contains(err.Error(), "bad") {
 		t.Fatal("transitive ill-typed graph accepted", err)
+	}
+}
+
+func TestStoreOpeningsFixtureImportsFailClosed(t *testing.T) {
+	for _, rel := range []string{"qual/scanbench/fixture_dir_unix.go", "qual/scanbench/fixture_dir_other.go", "qual/scanbench/fixture_dir_test.go"} {
+		for _, imp := range []string{`_ "os"`, `db "database/sql"`, `_ "database/sql/driver"`, `. "modernc.org/sqlite"`, `_ "github.com/PorticoMediaServer/portico/server/internal/store/writer"`} {
+			t.Run(rel+imp, func(t *testing.T) {
+				root := t.TempDir()
+				target := filepath.Join(root, rel)
+				if err := os.MkdirAll(filepath.Dir(target), 0700); err != nil {
+					t.Fatal(err)
+				}
+				source := openingConstraints[rel] + "\n\npackage scanbench\nimport " + imp + "\n"
+				if err := os.WriteFile(target, []byte(source), 0600); err != nil {
+					t.Fatal(err)
+				}
+				_, err := openingPhysicalSources(root)
+				if imp == `_ "os"` {
+					if err != nil {
+						t.Fatal(err)
+					}
+				} else if err == nil || !strings.Contains(err.Error(), "unreviewed dependency") {
+					t.Fatal("fixture DB/wrapper import accepted", err)
+				}
+			})
+		}
 	}
 }
